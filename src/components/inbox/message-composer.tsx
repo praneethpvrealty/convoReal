@@ -9,7 +9,9 @@ import {
   Loader2,
   MessageCircle,
   ArrowRightCircle,
+  UserX,
 } from "lucide-react";
+import { DEAD_CONTACT_NOTICE } from "@/lib/contacts/lifecycle";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { GatedButton } from "@/components/ui/gated-button";
@@ -46,6 +48,10 @@ interface MessageComposerProps {
   onOpenTemplates: () => void;
   replyTo?: ReplyDraft | null;
   onClearReply?: () => void;
+  /** The lead closed their enquiry, or the contact is archived. Sending
+   *  is still allowed here — this is the one channel a dead contact can
+   *  be reached on — but the agent should know before they type. */
+  contactDead?: boolean;
 }
 
 export function MessageComposer({
@@ -57,6 +63,7 @@ export function MessageComposer({
   onOpenTemplates,
   replyTo,
   onClearReply,
+  contactDead = false,
 }: MessageComposerProps) {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -214,6 +221,13 @@ export function MessageComposer({
           />
         </div>
       )}
+      {contactDead && (
+        <div className="mb-2 flex items-start gap-2 rounded-lg bg-slate-500/10 px-3 py-2">
+          <UserX className="mt-0.5 size-3.5 shrink-0 text-slate-400" />
+          <p className="text-xs text-slate-400">{DEAD_CONTACT_NOTICE}</p>
+        </div>
+      )}
+
       {sessionExpired && (
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-amber-500/10 px-3 py-2">
           <p className="text-xs text-amber-400">

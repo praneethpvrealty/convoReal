@@ -33,6 +33,8 @@ function makeDb(
     /** Marks the contact as a re-share chain intermediary (migration
      *  215) rather than a lead of this account. */
     chainOnly?: boolean;
+    isDead?: boolean;
+    isArchived?: boolean;
   } = {},
 ) {
   const inserts: Record<string, Row[]> = { conversations: [], messages: [] };
@@ -82,6 +84,8 @@ function makeDb(
             data: {
               phone: "+919876543210",
               chain_only: overrides.chainOnly ?? false,
+              is_dead: overrides.isDead ?? false,
+              is_archived: overrides.isArchived ?? false,
             },
             error: null,
           });
@@ -425,6 +429,104 @@ describe("sendWhatsAppMessageAndPersist", () => {
       // Sandbox credentials aren't configured in this harness, so the
       // send fails — but on the sandbox config, not the window.
       expect(isReengagementError(result.error)).toBe(false);
+    });
+  });
+
+  describe("dead and archived contacts", () => {
+    // Migration 228. Closing an enquiry used to write nothing but an
+    // alerts opt-out, which only broadcast audiences honoured — every
+    // other automated sender kept messaging the lead. The refusal lives
+    // here because this is the one function all of them funnel through.
+    it("refuses an automated send to a lead who closed their enquiry", async () => {
+      const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
+      const db = makeDb({ isDead: true });
+
+      const result = await sendWhatsAppMessageAndPersist({
+        accountId: ACCOUNT_ID,
+        contactId: CONTACT_ID,
+        kind: "template",
+        senderType: "agent",
+        templateName: "new_property_alert",
+        text: "rendered body",
+        customDbClient: db,
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain("closed their enquiry");
+      expect(fetch).not.toHaveBeenCalled();
+    });
+
+    it("refuses an automated send to an archived contact", async () => {
+      const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
+      const db = makeDb({ isArchived: true });
+
+      const result = await sendWhatsAppMessageAndPersist({
+        accountId: ACCOUNT_ID,
+        contactId: CONTACT_ID,
+        kind: "text",
+        senderType: "bot",
+        text: "a new listing you might like",
+        customDbClient: db,
+      });
+
+      expect(result.success).toBe(false);
+      expect(fetch).not.toHaveBeenCalled();
+    });
+
+    it("refuses before opening a conversation, so no empty thread is left behind", async () => {
+      const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
+      const db = makeDb({ isDead: true });
+
+      await sendWhatsAppMessageAndPersist({
+        accountId: ACCOUNT_ID,
+        contactId: CONTACT_ID,
+        kind: "text",
+        senderType: "bot",
+        text: "hello",
+        customDbClient: db,
+      });
+
+      expect(db._inserts.conversations).toHaveLength(0);
+      expect(db._inserts.messages).toHaveLength(0);
+    });
+
+    it("lets an agent's inbox reply through with allowDeadContact", async () => {
+      const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
+      const db = makeDb({
+        isDead: true,
+        existingConversation: { id: "conv-existing" },
+      });
+
+      const result = await sendWhatsAppMessageAndPersist({
+        accountId: ACCOUNT_ID,
+        contactId: CONTACT_ID,
+        kind: "text",
+        senderType: "agent",
+        text: "you called about the HSR plot — still interested?",
+        allowDeadContact: true,
+        customDbClient: db,
+      });
+
+      expect(result.success).toBe(true);
+      expect(fetch).toHaveBeenCalled();
+    });
+
+    it("still refuses a dead contact when only the chain-only gate was waived", async () => {
+      const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
+      const db = makeDb({ isDead: true });
+
+      const result = await sendWhatsAppMessageAndPersist({
+        accountId: ACCOUNT_ID,
+        contactId: CONTACT_ID,
+        kind: "text",
+        senderType: "bot",
+        text: "a co-broker wants the location",
+        allowChainOnly: true,
+        customDbClient: db,
+      });
+
+      expect(result.success).toBe(false);
+      expect(fetch).not.toHaveBeenCalled();
     });
   });
 

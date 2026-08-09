@@ -50,6 +50,7 @@ import {
 import { buildInquiryDraft } from '@/lib/approve-contact';
 import {
   attachmentFilename,
+  attachmentKind,
   attachmentMimeType,
   formatDuration,
 } from '@/lib/attachments';
@@ -87,6 +88,7 @@ import {
   type MessageReaction,
 } from '@/lib/types';
 import { dayLabel } from '@/lib/format';
+import { settlePending } from '@/lib/pending-messages';
 import { queryClient } from '@/lib/query';
 import { useCallLog } from '@/lib/use-call-log';
 import { supabase, uniqueChannel } from '@/lib/supabase';
@@ -168,6 +170,12 @@ export default function ConversationScreen() {
   // eye has had time to find it.
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [scrolledUp, setScrolledUp] = useState(false);
+  // Messages handed to the API but not yet echoed back by the DB. They
+  // render immediately with an hourglass so a send never looks like it
+  // was swallowed while WhatsApp is being called (a ~1s round trip on a
+  // good connection, longer on mobile data). Cleared as soon as the
+  // real row arrives over realtime — see `outgoingSignature`.
+  const [pending, setPending] = useState<Message[]>([]);
   const listRef = useRef<FlatList<ThreadItem>>(null);
   const { show, dialogProps } = useAppDialog();
   const { startCall, callLogProps } = useCallLog();
@@ -241,9 +249,19 @@ export default function ConversationScreen() {
       .then(() => queryClient.invalidateQueries({ queryKey: ['conversations'] }));
   }, [id, messages?.length]);
 
+  // A pending bubble is dropped the moment the thread contains the real
+  // message it stands for. Matching on the text rather than an id is
+  // deliberate: the row is written server-side by the dispatcher, so the
+  // client never learns its id, and two different sends of the same text
+  // seconds apart would both be settled by then anyway.
+  const settledPending = useMemo(
+    () => settlePending(pending, messages ?? []),
+    [pending, messages]
+  );
+
   // Interleave day separators (list is inverted: newest first).
   const items = useMemo<ThreadItem[]>(() => {
-    const list = visibleMessages(messages ?? []);
+    const list = visibleMessages([...settledPending, ...(messages ?? [])]);
     const out: ThreadItem[] = [];
     for (let i = 0; i < list.length; i++) {
       out.push({ kind: 'message', message: list[i] });
@@ -254,7 +272,7 @@ export default function ConversationScreen() {
       }
     }
     return out;
-  }, [messages]);
+  }, [messages, settledPending]);
 
   // Quoted parents are resolved from the page already on screen; a reply
   // to something older than the window renders as a plain message rather
@@ -559,6 +577,18 @@ export default function ConversationScreen() {
         onClearReply={() => setReplyTo(null)}
         resend={resend}
         onResendHandled={() => setResend(null)}
+        onPending={(m) =>
+          // Also drops anything the thread has caught up with since the
+          // last send, so the list cannot grow for the life of the screen.
+          setPending((prev) => [m, ...settlePending(prev, messages ?? [])])
+        }
+        onPendingSettled={(pendingId, patch) =>
+          setPending((prev) =>
+            patch === null
+              ? prev.filter((m) => m.id !== pendingId)
+              : prev.map((m) => (m.id === pendingId ? { ...m, ...patch } : m))
+          )
+        }
       />
 
       <ContextMenu
@@ -749,6 +779,8 @@ function Composer({
   onClearReply,
   resend,
   onResendHandled,
+  onPending,
+  onPendingSettled,
 }: {
   conversationId: string;
   /** Set when this thread is a group. Group sends take a different
@@ -767,6 +799,13 @@ function Composer({
    *  gets the composer's spinner and its 24-hour-window error bar. */
   resend: Message | null;
   onResendHandled: () => void;
+  /** Show this message in the thread straight away, before the API has
+   *  answered. The thread owns the list, so the composer hands the
+   *  bubble up rather than rendering it itself. */
+  onPending: (message: Message) => void;
+  /** Merge into a pending bubble — its ticks, or the upload path once
+   *  the file is up — or drop it entirely with null. */
+  onPendingSettled: (pendingId: string, patch: Partial<Message> | null) => void;
 }) {
   const { colors, dark } = useTheme();
   const [draft, setDraft] = useState('');
@@ -835,6 +874,22 @@ function Composer({
     setSending(true);
     setError(null);
     setBlockedText(null);
+    // Post the bubble before the network call, carrying the hourglass
+    // StatusTicks renders for 'sending'. It becomes a single tick when
+    // WhatsApp accepts it, and realtime brings the double tick and the
+    // blue read tick as Meta's status webhooks land.
+    const pendingId = `pending-${Date.now()}`;
+    const optimistic: Message = {
+      id: pendingId,
+      conversation_id: conversationId,
+      sender_type: 'agent',
+      content_type: 'text',
+      content_text: trimmed,
+      status: 'sending',
+      created_at: new Date().toISOString(),
+      reply_to_message_id: replyToMessageId,
+    };
+    onPending(optimistic);
     try {
       if (groupId) {
         await sendGroupMessage({
@@ -845,9 +900,16 @@ function Composer({
       } else {
         await sendTextMessage(conversationId, trimmed, replyToMessageId);
       }
+      // WhatsApp has it. Hold the bubble at one tick rather than
+      // dropping it — the real row lands a beat later over realtime and
+      // retires it, and removing it here would blink the message out.
+      onPendingSettled(pendingId, { status: 'sent' });
       queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
       return true;
     } catch (err) {
+      // The draft is kept and the banner below says what went wrong, so
+      // a failed bubble here would just say it twice.
+      onPendingSettled(pendingId, null);
       haptic.warn();
       // Outside WhatsApp's 24h service window the API rejects free-form
       // text — surface its message rather than silently retrying.
@@ -900,6 +962,23 @@ function Composer({
     setAttaching('Uploading…');
     setError(null);
     setBlockedText(null);
+    // The bubble goes up before the upload starts — that is the slowest
+    // part of an attachment send, and it is exactly when an agent needs
+    // to see something happened. It carries no media_url yet, so it
+    // draws as a file row under the hourglass and no real row can be
+    // mistaken for it.
+    const pendingId = `pending-${Date.now()}`;
+    const caption = draft.trim();
+    onPending({
+      id: pendingId,
+      conversation_id: conversationId,
+      sender_type: 'agent',
+      content_type: attachmentKind(file.mimeType),
+      content_text: caption || undefined,
+      status: 'sending',
+      created_at: new Date().toISOString(),
+      reply_to_message_id: replyTo?.id,
+    });
     try {
       const media = await uploadChatMedia(file);
       setAttaching('Sending…');
@@ -918,11 +997,18 @@ function Composer({
           replyToMessageId: replyTo?.id,
         });
       }
+      // Now the bubble can name the file it stands for, which is what
+      // retires it when the real row lands.
+      onPendingSettled(pendingId, {
+        status: 'sent',
+        media_url: media.media_url,
+      });
       setDraft('');
       onClearReply();
       haptic.success();
       queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
     } catch (err) {
+      onPendingSettled(pendingId, null);
       haptic.warn();
       const closed = isReengagementError(err instanceof ApiError ? err.message : err);
       setError(
@@ -1063,6 +1149,19 @@ function Composer({
     setSending(true);
     setError(null);
     haptic.send();
+    // A template send is the one an agent is least sure landed: it is
+    // reached through a picker that closes on send, so without a bubble
+    // the thread looks unchanged.
+    const pendingId = `pending-${Date.now()}`;
+    onPending({
+      id: pendingId,
+      conversation_id: conversationId,
+      sender_type: 'agent',
+      content_type: 'template',
+      content_text: renderedText,
+      status: 'sending',
+      created_at: new Date().toISOString(),
+    });
     try {
       await sendTemplateMessage({
         conversationId,
@@ -1071,9 +1170,11 @@ function Composer({
         bodyParams,
         renderedText,
       });
+      onPendingSettled(pendingId, { status: 'sent' });
       setTemplatesOpen(false);
       queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
     } catch (err) {
+      onPendingSettled(pendingId, null);
       setError(err instanceof ApiError ? err.message : 'Failed to send template.');
       setTemplatesOpen(false);
     } finally {

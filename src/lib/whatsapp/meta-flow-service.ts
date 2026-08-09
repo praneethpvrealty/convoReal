@@ -500,6 +500,10 @@ export async function sendPreferenceFlowToContact(args: {
   accountId: string
   contactId: string
   senderType?: 'user' | 'bot' | 'agent'
+  /** Overrides the message body — used when a listings reply already
+   *  carried the pitch and the form should read as an optional
+   *  shortcut, not the whole turn. */
+  bodyText?: string
   db?: SupabaseClient
 }): Promise<{ success: boolean; error?: string }> {
   const db = args.db || supabaseAdmin()
@@ -559,6 +563,7 @@ export async function sendPreferenceFlowToContact(args: {
     senderType: args.senderType || 'bot',
     interactiveType: 'flow',
     interactiveBody:
+      args.bodyText ||
       'Tap below to review and update your property preferences — budget, localities, property types and expected ROI.',
     footerText: 'Takes under a minute',
     flowId: flow.meta_flow_id,

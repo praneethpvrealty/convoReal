@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo, createElement, useRef } from
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { resolveConversation } from '@/lib/conversations/resolve';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
 import type { Contact, Tag, ContactNote, Deal, Property, CallLog, CallDirection, CallOutcome, ShowcaseSettings, AreaOfInterestGeo } from '@/types';
@@ -862,39 +863,20 @@ export function ContactDetailView({
       window.removeEventListener('blur', handleBlur);
       if (!appOpened) {
         try {
-          const { data: existing, error } = await supabase
-            .from('conversations')
-            .select('id')
-            .eq('account_id', accountId)
-            .eq('contact_id', contact.id)
-            .maybeSingle();
+          const { conversation, error } = await resolveConversation<{ id: string }>(supabase, {
+            accountId,
+            contactId: contact.id,
+            userId: user?.id ?? null,
+            columns: 'id',
+          });
 
-          if (error && error.code !== 'PGRST116') {
-            console.error('Error finding conversation:', error);
-          }
-
-          if (existing) {
-            router.push(`/inbox?c=${existing.id}`);
-            return;
-          }
-
-          const { data: newConv, error: createError } = await supabase
-            .from('conversations')
-            .insert({
-              account_id: accountId,
-              user_id: user?.id,
-              contact_id: contact.id,
-            })
-            .select('id')
-            .single();
-
-          if (createError) {
+          if (!conversation) {
             toast.error('Failed to start chat thread');
-            console.error('Create conversation error:', createError);
+            console.error('Create conversation error:', error);
             return;
           }
 
-          router.push(`/inbox?c=${newConv.id}`);
+          router.push(`/inbox?c=${conversation.id}`);
         } catch (err) {
           console.error('WhatsApp redirect error:', err);
           toast.error('Something went wrong');

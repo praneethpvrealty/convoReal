@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/automations/admin-client';
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
+import { resolveConversation } from '@/lib/conversations/resolve';
 import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
 import {
   hasReshareLink,
@@ -230,28 +231,19 @@ export async function POST(
 
       if (contactId) {
         try {
-          const { data: existingConv } = await admin
-            .from('conversations')
-            .select('id, unread_count')
-            .eq('account_id', account_id)
-            .eq('contact_id', contactId)
-            .maybeSingle();
+          const { conversation } = await resolveConversation<{
+            id: string;
+            unread_count: number | null;
+          }>(admin, {
+            accountId: account_id,
+            contactId,
+            userId: targetAgentUserId,
+            onCreate: { unread_count: 0 },
+            columns: 'id, unread_count',
+          });
 
-          let conversationId: string | undefined = existingConv?.id;
-          const currentUnread = existingConv?.unread_count || 0;
-          if (!conversationId) {
-            const { data: newConv } = await admin
-              .from('conversations')
-              .insert({
-                account_id,
-                user_id: targetAgentUserId,
-                contact_id: contactId,
-                unread_count: 0,
-              })
-              .select('id')
-              .single();
-            conversationId = newConv?.id;
-          }
+          const conversationId: string | undefined = conversation?.id;
+          const currentUnread = conversation?.unread_count || 0;
 
           if (conversationId) {
             const inboxText =

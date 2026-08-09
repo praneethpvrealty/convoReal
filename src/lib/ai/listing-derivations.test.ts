@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   applyListingDerivations,
+  detectJointDevelopment,
   extractDimensionsFromText,
   extractRateQuote,
   parseDimensionsToSqft,
@@ -189,5 +190,106 @@ describe('applyListingDerivations', () => {
       'Rate is 85 per sqft'
     );
     expect(derived.price).toBeNull();
+  });
+});
+
+describe('detectJointDevelopment', () => {
+  it('reads the abbreviations and the spelled-out phrases', () => {
+    expect(detectJointDevelopment('12 acres available for an apartment JD behind Brigade')).toBe(true);
+    expect(detectJointDevelopment('Open for JV on revenue share basis')).toBe(true);
+    expect(detectJointDevelopment('Land offered for joint development')).toBe(true);
+    expect(detectJointDevelopment('Joint Venture with a reputed builder')).toBe(true);
+  });
+
+  it('ignores a name that merely starts with the same letters', () => {
+    expect(detectJointDevelopment('3 BHK in JD Tower, Whitefield')).toBe(false);
+    expect(detectJointDevelopment('Contact Mr Jd for details')).toBe(false);
+    expect(detectJointDevelopment(null)).toBe(false);
+  });
+});
+
+describe('applyListingDerivations — joint development', () => {
+  it('reads a JD offer the model filed as a sale', () => {
+    const derived = applyListingDerivations(
+      makeDraft({ type: 'Residential Land/ Plot', listing_type: 'Sale' }),
+      '12 acres residential converted land available for an apartment JD, Hoskote Road'
+    );
+    expect(derived.listing_type).toBe('JV/JD');
+  });
+
+  it('completes the share split from whichever side was quoted', () => {
+    const derived = applyListingDerivations(
+      makeDraft({ listing_type: 'JV/JD', owner_share_percent: 40 })
+    );
+    expect(derived.owner_share_percent).toBe(40);
+    expect(derived.builder_share_percent).toBe(60);
+  });
+
+  it('normalizes the structure the model reported', () => {
+    const derived = applyListingDerivations(
+      makeDraft({ listing_type: 'JV/JD', jv_structure: 'area sharing' as never })
+    );
+    expect(derived.jv_structure).toBe('Area Share');
+  });
+
+  it('never turns a per-acre deal rate into a project value', () => {
+    const previous = makeDraft({
+      listing_type: 'JV/JD',
+      type: 'Residential Land/ Plot',
+      land_area: 12,
+      land_area_unit: 'Acre',
+    });
+    const derived = applyListingDerivations(
+      { ...previous, goodwill_amount: 300000000 },
+      "it's a JD, area share 60:40, Good will and Advance 2.5 cr per acre.",
+      previous
+    );
+    expect(derived.price).toBeNull();
+    expect(derived.price_per_sqft).toBeNull();
+    expect(derived.goodwill_amount).toBe(300000000);
+  });
+
+  it('withdraws a project value it derived on an earlier pass', () => {
+    const derived = applyListingDerivations(
+      makeDraft({
+        listing_type: 'JV/JD',
+        land_area: 12,
+        land_area_unit: 'Acre',
+        price: 300000000,
+        price_from_rate: true,
+        price_per_sqft: 5739.6,
+      })
+    );
+    expect(derived.price).toBeNull();
+    expect(derived.price_from_rate).toBe(false);
+  });
+
+  it('keeps a project value the lister stated outright', () => {
+    const derived = applyListingDerivations(
+      makeDraft({ listing_type: 'JV/JD', price: 5000000000, price_from_rate: false }),
+      'Expected project value is 500 Cr'
+    );
+    expect(derived.price).toBe(5000000000);
+  });
+
+  it('still prices a plain land sale off its per-acre rate', () => {
+    const derived = applyListingDerivations(
+      makeDraft({ type: 'Agricultural Land', land_area: 2, land_area_unit: 'Acre' }),
+      'Selling at 1.2 Cr per acre'
+    );
+    expect(derived.price).toBe(24000000);
+  });
+
+  it('lets a correction move the listing back to a sale', () => {
+    const previous = makeDraft({
+      title: '12 acres available for an apartment JD',
+      listing_type: 'JV/JD',
+    });
+    const derived = applyListingDerivations(
+      { ...previous, listing_type: 'Sale', price: 120000000 },
+      'Actually it is an outright sale at 12 Cr',
+      previous
+    );
+    expect(derived.listing_type).toBe('Sale');
   });
 });

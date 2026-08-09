@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { pushUrl, replaceUrl } from '@/lib/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { resolveConversation } from '@/lib/conversations/resolve';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -45,6 +46,7 @@ import {
   Search,
   Plus,
   Upload,
+  Archive,
   MoreHorizontal,
   Pencil,
   Trash2,
@@ -67,6 +69,7 @@ import {
   Eye,
 } from 'lucide-react';
 import { ContactForm } from '@/components/contacts/contact-form';
+import { ContactCleanupDialog } from '@/components/contacts/cleanup-dialog';
 import { ContactDetailView } from '@/components/contacts/contact-detail-view';
 import { ReengageWizard } from '@/components/contacts/reengage-wizard';
 import { useCan } from '@/hooks/use-can';
@@ -309,39 +312,20 @@ export default function ContactsPage() {
       window.removeEventListener('blur', handleBlur);
       if (!appOpened) {
         try {
-          const { data: existing, error } = await supabase
-            .from('conversations')
-            .select('id')
-            .eq('account_id', accountId)
-            .eq('contact_id', contact.id)
-            .maybeSingle();
+          const { conversation, error } = await resolveConversation<{ id: string }>(supabase, {
+            accountId,
+            contactId: contact.id,
+            userId: user?.id ?? null,
+            columns: 'id',
+          });
 
-          if (error && error.code !== 'PGRST116') {
-            console.error('Error finding conversation:', error);
-          }
-
-          if (existing) {
-            router.push(`/inbox?c=${existing.id}`);
-            return;
-          }
-
-          const { data: newConv, error: createError } = await supabase
-            .from('conversations')
-            .insert({
-              account_id: accountId,
-              user_id: user?.id,
-              contact_id: contact.id,
-            })
-            .select('id')
-            .single();
-
-          if (createError) {
+          if (!conversation) {
             toast.error('Failed to start chat thread');
-            console.error('Create conversation error:', createError);
+            console.error('Create conversation error:', error);
             return;
           }
 
-          router.push(`/inbox?c=${newConv.id}`);
+          router.push(`/inbox?c=${conversation.id}`);
         } catch (err) {
           console.error('WhatsApp redirect error:', err);
           toast.error('Something went wrong');
@@ -545,7 +529,8 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     | 'pending_review'
     | 'favorites'
     | 'transacted'
-    | 'market_active';
+    | 'market_active'
+    | 'archived';
   const [activeTab, setActiveTab] = useState<QuickFilterTab>('active');
 
   /** Keeps the quick-filter tab (All/Needs Review/Favourites/Transacted/Active Buyers)
@@ -571,6 +556,8 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
   const [reviewCount, setReviewCount] = useState<number | null>(null);
   const [favoritesCount, setFavoritesCount] = useState<number | null>(null);
   const [transactedCount, setTransactedCount] = useState<number | null>(null);
+  const [archivedCount, setArchivedCount] = useState<number | null>(null);
+  const [cleanupOpen, setCleanupOpen] = useState(false);
   const [marketActiveCount, setMarketActiveCount] = useState<number | null>(
     null
   );
@@ -770,7 +757,8 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
       filterParam === 'pending_review' ||
       filterParam === 'favorites' ||
       filterParam === 'transacted' ||
-      filterParam === 'market_active'
+      filterParam === 'market_active' ||
+      filterParam === 'archived'
     ) {
       setActiveTab(filterParam);
     }
@@ -907,6 +895,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
       favoritesCount: number;
       transactedCount: number;
       marketActiveCount: number;
+      archivedCount: number;
     }>(cacheKey);
 
     if (cached) {
@@ -917,6 +906,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
       setFavoritesCount(cached.favoritesCount || 0);
       setTransactedCount(cached.transactedCount || 0);
       setMarketActiveCount(cached.marketActiveCount || 0);
+      setArchivedCount(cached.archivedCount || 0);
       setLoading(false);
     } else {
       setLoading(true);
@@ -964,7 +954,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
           let query = supabaseClient
             .from('contacts')
             .select(
-              'id, user_id, name, name_tag, phone, email, company, classification, lead_temp, last_contacted_at, last_inquired_property_id, referrer, referrer_contact_id, min_budget, max_budget, no_budget, areas_of_interest, property_interests, is_favorite, min_roi, source, status, created_at, updated_at, pref_budget_max, pref_areas, pref_property_categories, pref_property_types',
+              'id, user_id, name, name_tag, phone, email, company, classification, lead_temp, last_contacted_at, last_inquired_property_id, referrer, referrer_contact_id, min_budget, max_budget, no_budget, areas_of_interest, property_interests, is_favorite, min_roi, source, status, is_dead, dead_reason, is_archived, created_at, updated_at, pref_budget_max, pref_areas, pref_property_categories, pref_property_types',
               { count: 'exact' }
             )
             .eq('account_id', accountId)
@@ -983,7 +973,18 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
             query = query.not('id', 'in', `(${internalContactIds.join(',')})`);
           }
 
-          if (activeTab === 'active' || activeTab === 'pending_review') {
+          // Archived contacts are filed away on purpose: they leave every
+          // other view rather than being sprinkled through it, which is
+          // the point of archiving a list you can no longer read.
+          query =
+            activeTab === 'archived'
+              ? query.eq('is_archived', true)
+              : query.eq('is_archived', false);
+
+          if (activeTab === 'archived') {
+            // Deliberately unscoped by status — an archived contact is
+            // filed regardless of where it sat before.
+          } else if (activeTab === 'active' || activeTab === 'pending_review') {
             query = query.eq('status', activeTab);
           } else if (activeTab === 'favorites') {
             // Intentionally unscoped by status — a contact parked in
@@ -1406,6 +1407,22 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
             .eq('status', 'active')
             .or('lead_temp.eq.HOT,last_inquired_property_id.not.is.null');
 
+          // The archived tab is the only one that counts filed contacts;
+          // every other tab counts what is still on the working list.
+          let archivedQuery = supabaseClient
+            .from('contacts')
+            .select('id', { count: 'exact', head: true })
+            .eq('account_id', accountId)
+            .eq('is_merged', false)
+            .eq('chain_only', false)
+            .eq('is_archived', true);
+
+          actQuery = actQuery.eq('is_archived', false);
+          revQuery = revQuery.eq('is_archived', false);
+          favoritesQuery = favoritesQuery.eq('is_archived', false);
+          transactedQuery = transactedQuery.eq('is_archived', false);
+          marketActiveQuery = marketActiveQuery.eq('is_archived', false);
+
           if (internalContactIds.length > 0) {
             const notInString = `(${internalContactIds.join(',')})`;
             actQuery = actQuery.not('id', 'in', notInString);
@@ -1413,6 +1430,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
             favoritesQuery = favoritesQuery.not('id', 'in', notInString);
             transactedQuery = transactedQuery.not('id', 'in', notInString);
             marketActiveQuery = marketActiveQuery.not('id', 'in', notInString);
+            archivedQuery = archivedQuery.not('id', 'in', notInString);
           }
 
           const [
@@ -1421,12 +1439,14 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
             favoritesCountRes,
             transactedCountRes,
             marketActiveCountRes,
+            archivedCountRes,
           ] = await Promise.all([
             actQuery,
             revQuery,
             favoritesQuery,
             transactedQuery,
             marketActiveQuery,
+            archivedQuery,
           ]);
 
           setActiveCount(actCountRes.count ?? 0);
@@ -1434,6 +1454,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
           setFavoritesCount(favoritesCountRes.count ?? 0);
           setTransactedCount(transactedCountRes.count ?? 0);
           setMarketActiveCount(marketActiveCountRes.count ?? 0);
+          setArchivedCount(archivedCountRes.count ?? 0);
 
           if (!data || data.length === 0) {
             setContacts([]);
@@ -1470,6 +1491,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
             favoritesCount: favoritesCountRes.count ?? 0,
             transactedCount: transactedCountRes.count ?? 0,
             marketActiveCount: marketActiveCountRes.count ?? 0,
+            archivedCount: archivedCountRes.count ?? 0,
           });
 
           setContacts(enriched);
@@ -1783,6 +1805,16 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
           >
             <Upload className="size-4" />
             Import
+          </GatedButton>
+          <GatedButton
+            variant="outline"
+            canAct={canEdit}
+            gateReason="archive or delete contacts"
+            onClick={() => setCleanupOpen(true)}
+            className="border-slate-700 text-slate-300 hover:bg-slate-800"
+          >
+            <Archive className="size-4" />
+            Clean up
           </GatedButton>
           <GatedButton
             canAct={canEdit}
@@ -2271,6 +2303,17 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
             }`}
           >
             Active Buyers{countSuffix(marketActiveCount)}
+          </button>
+          <button
+            onClick={() => setActiveTabAndSync('archived')}
+            className={`flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-all ${
+              activeTab === 'archived'
+                ? 'bg-slate-800 text-slate-200 shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Archive className="size-3" />
+            Archived{countSuffix(archivedCount)}
           </button>
         </div>
       </div>
@@ -2779,6 +2822,12 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
       />
 
       {/* Bulk Import Modal */}
+      <ContactCleanupDialog
+        open={cleanupOpen}
+        onOpenChange={setCleanupOpen}
+        onDone={fetchContactsWithInvalidate}
+      />
+
       <BulkImportModal
         open={bulkImportOpen}
         onOpenChange={setBulkImportOpen}

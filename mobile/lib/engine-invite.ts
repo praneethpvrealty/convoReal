@@ -21,12 +21,17 @@ export function buildEngineInviteLink(engine: EngineNumber): string {
   return `https://wa.me/${digits}?text=${text}`;
 }
 
-export function buildEngineInvite(engine: EngineNumber, contactName: string): string {
+export function buildEngineInvite(
+  engine: EngineNumber,
+  contactName: string
+): string {
   const firstName = contactName?.trim().split(/\s+/)[0] || 'there';
   return (
     `Hi ${firstName} 👋\n\n` +
-    `I've saved what you're looking for. You'll hear from me the moment something matching comes up — ` +
-    `those updates come from our listings number so nothing gets lost.\n\n` +
-    `Tap here once to switch them on:\n${buildEngineInviteLink(engine)}`
+    `I've saved what you're looking for. From here, our listings engine watches the market for you:\n\n` +
+    `⚡ You hear the *moment* a matching property comes in\n` +
+    `💎 First look at steal deals — sellers needing a quick exit, priced under market\n` +
+    `🎯 Only what fits your requirement — no spam, reply STOP ALERTS anytime\n\n` +
+    `Tap once to switch it on:\n${buildEngineInviteLink(engine)}`
   );
 }

@@ -2,6 +2,7 @@ import { supabaseAdmin } from '@/lib/automations/admin-client';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { truncateParametersToBudget } from '@/lib/whatsapp/template-send-builder';
 import { greetingName } from '@/lib/contacts/lead-placeholder';
+import { isContactReachable } from '@/lib/contacts/lifecycle';
 import { ENQUIRY_NOTICE_TEMPLATE_NAMES } from '@/lib/whatsapp/enquiry-notice-template';
 import {
   loadEnquiryNoticeContext,
@@ -239,8 +240,14 @@ export async function resolveAudienceOnServer(
   // carried so the consent walk can reach them and for nothing else.
   // The dispatcher would refuse them anyway; filtering here keeps them
   // out of the recipient rows and the reach count too.
+  // Dead and archived contacts drop out on the same principle
+  // (migration 229): the dispatcher refuses them anyway, and filtering
+  // here keeps them out of the recipient rows and the reach count too.
   return contacts.filter(
-    (c) => c.buyer_alerts_consent !== 'declined' && !c.chain_only
+    (c) =>
+      c.buyer_alerts_consent !== 'declined' &&
+      !c.chain_only &&
+      isContactReachable(c)
   );
 }
 
@@ -326,34 +333,61 @@ async function dispatchClaimedRecipients(
 ) {
   const supabase = supabaseAdmin();
 
-  // Find recipients with status 'pending' or 'rate_limited' (and retry_after <= now)
-  const nowStr = new Date().toISOString();
-  const { data: recipients, error: rFetchErr } = await supabase
-    .from('broadcast_recipients')
-    .select('*, contact:contacts(*)')
-    .eq('broadcast_id', broadcastId)
-    .in('status', ['pending', 'rate_limited'])
-    .or(`retry_after.is.null,retry_after.lte.${nowStr}`)
-    .order('created_at', { ascending: true })
-    .limit(limit);
+  // Claiming IS the permission to send. Reading rows that are merely
+  // 'pending' and sending to them lets any second sender — whatever it
+  // is, wherever it starts — send the same message again; a real batch
+  // produced two sends 2ms apart that way. This UPDATE returns only the
+  // rows this caller moved out of 'pending', so a racing sender gets an
+  // empty list instead of a duplicate.
+  const { data: claimedRows, error: rFetchErr } = await supabase.rpc(
+    'claim_broadcast_recipients',
+    { p_broadcast_id: broadcastId, p_limit: limit }
+  );
 
   if (rFetchErr) {
     console.error(
-      `[Broadcast Sender] Error fetching recipients for ${broadcastId}:`,
+      `[Broadcast Sender] Error claiming recipients for ${broadcastId}:`,
       rFetchErr.message
     );
     return;
   }
 
-  if (!recipients || recipients.length === 0) {
-    // Check if there are any remaining non-terminal recipients left for this broadcast
-    const { count, error: countErr } = await supabase
-      .from('broadcast_recipients')
-      .select('id', { count: 'exact', head: true })
-      .eq('broadcast_id', broadcastId)
-      .in('status', ['pending', 'rate_limited']);
+  // The claim returns the row only; contacts are loaded separately
+  // because an UPDATE ... RETURNING cannot embed a related table.
+  type ClaimedRecipient = Record<string, unknown> & {
+    id: string;
+    contact_id: string;
+    retry_count?: number | null;
+    contact?: Contact;
+  };
+  const claimed = (claimedRows ?? []) as ClaimedRecipient[];
+  let recipients: ClaimedRecipient[] = [];
+  if (claimed.length > 0) {
+    const { data: contactRows } = await supabase
+      .from('contacts')
+      .select('*')
+      .eq('account_id', accountId)
+      .in('id', [...new Set(claimed.map((r) => r.contact_id))]);
+    const contactById = new Map(
+      ((contactRows ?? []) as Contact[]).map((c) => [c.id, c])
+    );
+    recipients = claimed.map((r) => ({
+      ...r,
+      contact: contactById.get(r.contact_id),
+    }));
+  }
 
-    if (!countErr && (count ?? 0) === 0) {
+  if (recipients.length === 0) {
+    // Nothing claimable. Either another sender holds every remaining
+    // row, or the broadcast is genuinely finished — only the latter
+    // may close it out.
+    const { data: outstanding, error: countErr } = await supabase.rpc(
+      'broadcast_outstanding_count',
+      { p_broadcast_id: broadcastId }
+    );
+    const count = typeof outstanding === 'number' ? outstanding : null;
+
+    if (!countErr && count === 0) {
       const { data: summary } = await supabase
         .from('broadcast_recipients')
         .select('status')

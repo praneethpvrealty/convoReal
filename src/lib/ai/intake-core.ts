@@ -72,6 +72,19 @@ export async function backfillLocationFromMapLink(draft: ParsedPropertyDraft): P
   };
 }
 
+/** A joint development is never quoted in rupees: the landowner trades
+ *  the land for a share of what gets built. So the deal terms — the
+ *  share split, the basis it is shared on, or the goodwill paid for it —
+ *  stand in for the price a JD listing will never have. */
+function hasJointDevelopmentTerms(draft: ParsedPropertyDraft): boolean {
+  return Boolean(
+    draft.jv_structure ||
+    (draft.owner_share_percent && draft.owner_share_percent > 0) ||
+    (draft.builder_share_percent && draft.builder_share_percent > 0) ||
+    (draft.goodwill_amount && draft.goodwill_amount > 0)
+  );
+}
+
 /**
  * Validates the parsed draft to check for missing mandatory details.
  */
@@ -87,6 +100,10 @@ export function validateDraft(draft: ParsedPropertyDraft): {
   if (draft.listing_type === 'Rent') {
     if (!draft.rent_per_month || draft.rent_per_month <= 0) {
       missingFields.push('Rent');
+    }
+  } else if (draft.listing_type === 'JV/JD') {
+    if (!hasJointDevelopmentTerms(draft)) {
+      missingFields.push('JD terms (e.g. area share 60:40)');
     }
   } else {
     if (!draft.price || draft.price <= 0) {
@@ -162,11 +179,21 @@ export function formatDraftPreviewMessage(
   ) : false;
 
   const isRent = draft.listing_type === 'Rent';
+  const isJointDevelopment = draft.listing_type === 'JV/JD';
 
   let reply = `${header}\n\n` +
     `*Title:* ${draft.title || '❓ _Missing_'}\n`;
 
-  if (isRent) {
+  if (isJointDevelopment) {
+    const owner = draft.owner_share_percent;
+    const builder = draft.builder_share_percent;
+    reply += `*Deal:* JV / Joint Development\n` +
+      `*Structure:* ${draft.jv_structure || '_Not specified_'}\n` +
+      `*Owner : Builder Share:* ${owner || builder ? `${owner ?? '?'} : ${builder ?? '?'}` : '_Not specified_'}\n` +
+      `*Goodwill:* ${draft.goodwill_amount ? '₹' + draft.goodwill_amount.toLocaleString('en-IN') : '_Not specified_'}\n` +
+      (draft.advance ? `*Refundable Advance:* ₹${draft.advance.toLocaleString('en-IN')}\n` : '') +
+      (draft.price ? `*Expected Project Value:* ₹${draft.price.toLocaleString('en-IN')}\n` : '');
+  } else if (isRent) {
     reply += `*Rent:* ${draft.rent_per_month ? '₹' + draft.rent_per_month.toLocaleString('en-IN') + '/month' : '❓ _Missing_'}\n` +
              `*Maintenance:* ${draft.maintenance ? '₹' + draft.maintenance.toLocaleString('en-IN') + '/month' : '_Not specified_'}\n` +
              `*Advance:* ${draft.advance ? '₹' + draft.advance.toLocaleString('en-IN') : '_Not specified_'}\n` +

@@ -1,4 +1,6 @@
 import { decrypt } from '@/lib/whatsapp/encryption'
+import { resolveConversation, type ConversationRow } from '@/lib/conversations/resolve'
+import { markContactDead } from '@/lib/contacts/lifecycle'
 import { DELIVERY_FAILURE_MARKER } from '@/lib/whatsapp/delivery-failure'
 import { sendTextMessage } from '@/lib/whatsapp/meta-api'
 import { normalizePhone, phonesMatch, normalizePhoneWithCountryCode, sanitizePhoneForMeta, isValidE164 } from '@/lib/whatsapp/phone-utils'
@@ -27,6 +29,20 @@ import {
   getPublishedPreferenceFlow,
 } from '@/lib/whatsapp/meta-flow-service'
 import { sendPreferenceMatchFollowUp } from '@/lib/whatsapp/preference-match-followup'
+import { sendPreferenceTapReply } from '@/lib/whatsapp/preference-tap-reply'
+import {
+  handleListingFeedbackReply,
+  LISTING_FEEDBACK_ID_PREFIX,
+} from '@/lib/whatsapp/listing-feedback'
+import {
+  handleBudgetBandReply,
+  BUDGET_BAND_ID_PREFIX,
+} from '@/lib/whatsapp/budget-band'
+import {
+  handlePropertyTypeReply,
+  PROPERTY_TYPE_ID_PREFIX,
+} from '@/lib/whatsapp/property-type-prompt'
+import { sendAlertsOnboarding } from '@/lib/whatsapp/alerts-onboarding'
 import {
   isPreferenceFlowRequestText,
   parsePreferenceFormValues,
@@ -35,6 +51,7 @@ import {
   PREFERENCE_FLOW_BUTTON_ID,
 } from '@/lib/whatsapp/preference-flow'
 import { ENQUIRY_FOLLOWUP_CLOSE_BUTTON } from '@/lib/whatsapp/enquiry-followup-template'
+import { ENQUIRY_NOTICE_CLOSE_BUTTON } from '@/lib/whatsapp/enquiry-notice-template'
 import { accountPropertyShowcaseUrl } from '@/lib/showcase/account-showcase-url'
 import type { Contact } from '@/types'
 import {
@@ -1273,13 +1290,22 @@ async function processMessage(
     }
   }
 
+  // "Close my enquiry" on the enquiry-status / enquiry-followup
   // Buyer alert subscription control — "STOP ALERTS" / "START ALERTS"
-  // free text, or the enquiry-status template's "Close my enquiry"
-  // quick reply (which arrives as message.button.text). Same
+  // free text, or either enquiry template's "Close my enquiry" quick
+  // reply (which arrives as message.button.text). Same
   // chat-as-control-panel pattern as the owner digest commands above,
   // editing contacts.buyer_alerts_consent.
+  //
+  // Both enquiry templates carry their own copy of the label. They read
+  // identically today, so matching only one worked by luck; matching
+  // both means rewording either cannot silently stop closing enquiries.
+  const closeButtons = [
+    ENQUIRY_FOLLOWUP_CLOSE_BUTTON,
+    ENQUIRY_NOTICE_CLOSE_BUTTON,
+  ]
   const alertsCommand =
-    message.button?.text === ENQUIRY_FOLLOWUP_CLOSE_BUTTON
+    message.button?.text && closeButtons.includes(message.button.text)
       ? 'close'
       : parseBuyerAlertsCommand(message.button?.text ?? contentText)
   if (alertsCommand) {
@@ -1288,6 +1314,20 @@ async function processMessage(
       accountId,
       contactId: contactRecord.id,
     })
+    // 'close' is the lead saying the enquiry is over, not a preference
+    // about alerts: it also marks the contact dead (migration 230),
+    // which parks the requirement, stops every automated send and drops
+    // them out of matching. The goodbye above still goes out — it is
+    // the acknowledgement they asked for, and its one pitch to stay.
+    if (alertsCommand === 'close') {
+      await markContactDead({
+        db: supabaseAdmin(),
+        accountId,
+        contactId: contactRecord.id,
+        reason: 'closed_enquiry',
+        note: 'Lead closed their enquiry from WhatsApp ("Close my enquiry")',
+      })
+    }
     if (confirmation) {
       await sendWhatsAppMessageAndPersist({
         accountId,
@@ -1297,7 +1337,24 @@ async function processMessage(
         kind: 'text',
         senderType: 'bot',
         text: confirmation,
+        // The contact was marked dead a line ago, which the dispatcher
+        // refuses sends to. This one is the goodbye they asked for
+        // rather than outreach, so it is the exception.
+        allowDeadContact: alertsCommand === 'close',
       })
+      // START ALERTS opened a free-form window at the lead's moment of
+      // highest intent. Consent alone would waste it: run the first
+      // missing rung of the tap ladder, or prove the saved profile
+      // with matches when it is already complete.
+      if (alertsCommand === 'start') {
+        await sendAlertsOnboarding({
+          db: supabaseAdmin(),
+          accountId,
+          userId: configOwnerUserId,
+          contactId: contactRecord.id,
+          conversationId: conversation.id,
+        })
+      }
       return
     }
   }
@@ -1750,6 +1807,55 @@ async function processMessage(
     if (handled) return
   }
 
+  // A tap on the listing-feedback list. Handled before the preference
+  // trigger below: the list's "Update preferences" row title would
+  // otherwise match the free-text preference regex and re-run the
+  // listings reply instead of sending the form the row promises.
+  if (interactiveReplyId?.startsWith(LISTING_FEEDBACK_ID_PREFIX)) {
+    const handledFeedback = await handleListingFeedbackReply({
+      db: supabaseAdmin(),
+      accountId,
+      configOwnerUserId,
+      contact: contactRecord,
+      conversationId: conversation.id,
+      replyId: interactiveReplyId,
+    })
+    if (handledFeedback) return
+  }
+
+  // A tapped property type or budget band. The tap saves the answer;
+  // the onboarding ladder then sends whichever rung is still missing,
+  // or the re-ranked shortlist when the profile is complete — the
+  // answer that makes tapping worth it.
+  if (
+    interactiveReplyId?.startsWith(PROPERTY_TYPE_ID_PREFIX) ||
+    interactiveReplyId?.startsWith(BUDGET_BAND_ID_PREFIX)
+  ) {
+    const handledRung = interactiveReplyId.startsWith(PROPERTY_TYPE_ID_PREFIX)
+      ? await handlePropertyTypeReply({
+          db: supabaseAdmin(),
+          accountId,
+          contactId: contactRecord.id,
+          replyId: interactiveReplyId,
+        })
+      : await handleBudgetBandReply({
+          db: supabaseAdmin(),
+          accountId,
+          contactId: contactRecord.id,
+          replyId: interactiveReplyId,
+        })
+    if (handledRung) {
+      await sendAlertsOnboarding({
+        db: supabaseAdmin(),
+        accountId,
+        userId: configOwnerUserId,
+        contactId: contactRecord.id,
+        conversationId: conversation.id,
+      })
+      return
+    }
+  }
+
   // Buyer asked to update their preferences (free text like "update my
   // preferences", the update_preferences button, or the enquiry-followup
   // template's "Update my preferences" quick reply, which arrives as
@@ -1763,7 +1869,9 @@ async function processMessage(
   ) {
     const handledPreferenceFlow = await handlePreferenceFlowTrigger(
       accountId,
-      contactRecord.id
+      contactRecord.id,
+      configOwnerUserId,
+      conversation.id
     )
     if (handledPreferenceFlow) return
   }
@@ -2369,33 +2477,18 @@ async function findOrCreateConversation(
   configOwnerUserId: string,
   contactId: string,
 ) {
-  const { data: existing, error: findError } = await supabaseAdmin()
-    .from('conversations')
-    .select('*')
-    .eq('account_id', accountId)
-    .eq('contact_id', contactId)
-    .single()
+  const { conversation, error } = await resolveConversation<ConversationRow>(supabaseAdmin(), {
+    accountId,
+    contactId,
+    userId: configOwnerUserId,
+  })
 
-  if (!findError && existing) {
-    return existing
-  }
-
-  const { data: newConv, error: createError } = await supabaseAdmin()
-    .from('conversations')
-    .insert({
-      account_id: accountId,
-      user_id: configOwnerUserId,
-      contact_id: contactId,
-    })
-    .select()
-    .single()
-
-  if (createError) {
-    console.error('Error creating conversation:', createError)
+  if (error) {
+    console.error('Error creating conversation:', error)
     return null
   }
 
-  return newConv
+  return conversation
 }
 
 export async function handlePropertyShareYesReply(
@@ -2692,29 +2785,57 @@ const CONTACT_UPDATABLE_FIELDS: UpdateField[] = [
 
 // Parse update intent from message text
 /**
- * Send the Buyer Preference Intake flow when a buyer asks for it.
- * Returns true when the flow message was sent (message consumed);
- * false when the account has no published flow or the send failed,
- * letting the message fall through to normal handling.
+ * Answer a buyer's preference-update request: the listings-first tap
+ * reply, then the Buyer Preference Intake flow as an optional shortcut.
+ * Returns true when either message was sent (message consumed); false
+ * when the account has no published flow or both sends failed, letting
+ * the message fall through to normal handling.
  */
 async function handlePreferenceFlowTrigger(
   accountId: string,
-  contactId: string
+  contactId: string,
+  configOwnerUserId: string,
+  conversationId: string
 ): Promise<boolean> {
   try {
     const flow = await getPublishedPreferenceFlow(accountId)
     if (!flow) return false
 
+    const tap = await sendPreferenceTapReply({
+      db: supabaseAdmin(),
+      accountId,
+      userId: configOwnerUserId,
+      contactId,
+      conversationId,
+    })
+
+    // When a follow-on list (feedback or budget bands) already carries
+    // an "Update preferences" row, a third bubble repeating the form
+    // would bury it. Otherwise the form is the main action.
+    if (tap.replySent && tap.formOffered) {
+      console.log(
+        `[webhook] Sent preference tap reply (${tap.matchCount} matches) + tap list to contact ${contactId}`
+      )
+      return true
+    }
+
     const result = await sendPreferenceFlowToContact({
       accountId,
       contactId,
       senderType: 'bot',
+      // The listings reply already made the ask; the form must not
+      // repeat it as homework.
+      bodyText: tap.replySent
+        ? 'Prefer to update everything at once instead? The full form takes under a minute.'
+        : undefined,
     })
     if (!result.success) {
       console.error(`[webhook] Preference flow send failed: ${result.error}`)
-      return false
+      return tap.replySent
     }
-    console.log(`[webhook] Sent preference flow to contact ${contactId}`)
+    console.log(
+      `[webhook] Sent preference tap reply (${tap.matchCount} matches) + flow to contact ${contactId}`
+    )
     return true
   } catch (err) {
     console.error('[webhook] Preference flow trigger error:', err)

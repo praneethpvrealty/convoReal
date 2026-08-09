@@ -217,6 +217,27 @@ export async function saveBotMessage(
   }
 }
 
+/** The headline a saved listing is confirmed back with. A joint
+ *  development saves with a price of 0 — quoting that back reads as a
+ *  free property, so its terms take the line instead. */
+function dealHeadline(prop: {
+  listing_type?: string | null;
+  price: number;
+  jv_structure?: string | null;
+  owner_share_percent?: number | null;
+  builder_share_percent?: number | null;
+}): string {
+  if (prop.listing_type !== 'JV/JD') {
+    return `*Price:* ₹${prop.price.toLocaleString('en-IN')}\n`;
+  }
+  const structure = prop.jv_structure ? ` — ${prop.jv_structure}` : '';
+  const share =
+    prop.owner_share_percent || prop.builder_share_percent
+      ? ` (Owner ${prop.owner_share_percent ?? '?'} : ${prop.builder_share_percent ?? '?'} Builder)`
+      : '';
+  return `*Deal:* JV / Joint Development${structure}${share}\n`;
+}
+
 async function sendPropertyDraftPreview(
   phoneNumberId: string,
   accessToken: string,
@@ -486,7 +507,7 @@ export async function processOwnerChatbotMessage(
   },
   contentText: string | null,
   contactRecord: { id: string; phone: string; name?: string },
-  conversation: { id: string; unread_count: number },
+  conversation: { id: string },
   accountId: string,
   userId: string,
   accessToken: string,
@@ -1075,6 +1096,10 @@ export async function processOwnerChatbotMessage(
           maintenance: parseNumeric(draft.maintenance),
           advance: parseNumeric(draft.advance),
           gst: parseNumeric(draft.gst),
+          jv_structure: draft.jv_structure || null,
+          owner_share_percent: parseNumeric(draft.owner_share_percent),
+          builder_share_percent: parseNumeric(draft.builder_share_percent),
+          goodwill_amount: parseNumeric(draft.goodwill_amount),
           notes: [
             `Ingested automatically via WhatsApp chatbot.`,
             extraNotesFromOwner
@@ -1120,7 +1145,7 @@ export async function processOwnerChatbotMessage(
       let reply = `✅ *Property listing created successfully!*\n\n` +
         `*Code:* ${prop.property_code}\n` +
         `*Title:* ${prop.title}\n` +
-        `*Price:* ₹${prop.price.toLocaleString('en-IN')}\n` +
+        dealHeadline(prop) +
         `*Location:* ${prop.location}\n` +
         `*Type:* ${prop.type}\n` +
         (prop.land_area ? `*Land Area:* ${prop.land_area} ${prop.land_area_unit || 'Sq.Ft.'}\n` : '') +
@@ -2214,6 +2239,10 @@ export async function processOwnerChatbotMessage(
                     maintenance: latestDraft.maintenance || parsedDraft.maintenance,
                     advance: latestDraft.advance || parsedDraft.advance,
                     gst: latestDraft.gst || parsedDraft.gst,
+                    jv_structure: latestDraft.jv_structure || parsedDraft.jv_structure,
+                    owner_share_percent: latestDraft.owner_share_percent || parsedDraft.owner_share_percent,
+                    builder_share_percent: latestDraft.builder_share_percent || parsedDraft.builder_share_percent,
+                    goodwill_amount: latestDraft.goodwill_amount || parsedDraft.goodwill_amount,
                     features: Array.from(new Set([...(latestDraft.features || []), ...(parsedDraft.features || [])])),
                     nearby_highlights: Array.from(new Set([...(latestDraft.nearby_highlights || []), ...(parsedDraft.nearby_highlights || [])])),
                     images: Array.from(new Set([...(latestDraft.images || []), ...(parsedDraft.images || [])])),
@@ -2447,7 +2476,7 @@ export async function processExternalListingMessage(
   },
   contentText: string | null,
   contactRecord: { id: string; phone: string; name?: string },
-  conversation: { id: string; unread_count: number },
+  conversation: { id: string },
   accountId: string,
   accessToken: string,
   phoneNumberId: string
@@ -2584,6 +2613,10 @@ export async function processExternalListingMessage(
         maintenance: draft.maintenance,
         advance: draft.advance,
         gst: draft.gst,
+        jv_structure: draft.jv_structure || null,
+        owner_share_percent: draft.owner_share_percent ?? null,
+        builder_share_percent: draft.builder_share_percent ?? null,
+        goodwill_amount: draft.goodwill_amount ?? null,
       })
       .select()
       .single();
@@ -2616,7 +2649,7 @@ export async function processExternalListingMessage(
     let reply = `✅ *Thanks! Your property listing has been submitted.*\n\n` +
       `*Code:* ${prop.property_code}\n` +
       `*Title:* ${prop.title}\n` +
-      `*Price:* ₹${prop.price.toLocaleString('en-IN')}\n` +
+      dealHeadline(prop) +
       `*Location:* ${prop.location}\n` +
       `*Type:* ${prop.type}\n`;
 
