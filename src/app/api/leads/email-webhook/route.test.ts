@@ -116,6 +116,7 @@ import {
   extractLeadPhone,
   checkLocationMatch,
   matchableSqft,
+  interestFromTypeText,
   POST
 } from './route';
 
@@ -778,6 +779,38 @@ Content-Transfer-Encoding: quoted-printable
     });
   });
 
+  describe('interestFromTypeText', () => {
+    it('does not read a BHK count on a villa or house as a flat inquiry', () => {
+      expect(interestFromTypeText('4 BHK Villa in HSR')).toBe('Villa');
+      expect(interestFromTypeText('3 BHK Independent House in Koramangala')).toBe('Residential House');
+    });
+
+    it('maps villas and houses to their own interests, not Vacant building', () => {
+      expect(interestFromTypeText('Villa')).toBe('Villa');
+      expect(interestFromTypeText('Residential House')).toBe('Residential House');
+      expect(interestFromTypeText('Farm House')).toBe('Farm House');
+      expect(interestFromTypeText('Rental building with some ROI')).toBe('Vacant building');
+    });
+
+    it('keeps the generic catch-all for plain flat inquiries', () => {
+      expect(interestFromTypeText('2 BHK flat')).toBe('Flat/ Apartment');
+      expect(interestFromTypeText('Builder Floor Apartment')).toBe('Flat/ Apartment');
+      expect(interestFromTypeText('Penthouse')).toBe('Penthouse');
+    });
+
+    it('recognises plots without tripping on site visits, websites or landmarks', () => {
+      expect(interestFromTypeText('30x40 site in Sarjapur')).toBe('Vacant plot');
+      expect(interestFromTypeText('Residential Land/ Plot')).toBe('Vacant plot');
+      expect(interestFromTypeText('Please arrange a site visit')).toBeNull();
+      expect(interestFromTypeText('saw it on your website near the landmark')).toBeNull();
+    });
+
+    it('keeps commercial and industrial precedence', () => {
+      expect(interestFromTypeText('Warehouse/ Godown')).toBe('Industrial');
+      expect(interestFromTypeText('Commercial Office Space')).toBe('Commercial');
+    });
+  });
+
   describe('POST Webhook Endpoint', () => {
     beforeEach(() => {
       process.env.LEADS_WEBHOOK_TOKEN = 'test-token';
@@ -896,7 +929,10 @@ Content-Transfer-Encoding: quoted-printable
       expect(contact.phone).toBe('+916381139611');
       expect(contact.max_budget).toBe(45000000); // 4.5 Cr from property
       expect(contact.areas_of_interest).toContain('HSR');
-      expect(contact.property_interests).toContain('Vacant building'); // mapped from Villa
+      expect(contact.property_interests).toContain('Villa');
+      // "4 BHK Villa" is not a flat inquiry, and a villa is not a vacant building
+      expect(contact.property_interests).not.toContain('Flat/ Apartment');
+      expect(contact.property_interests).not.toContain('Vacant building');
 
       // Verify contact was associated with the property
       expect(mockDb.contact_property_inquiries.length).toBe(1);
