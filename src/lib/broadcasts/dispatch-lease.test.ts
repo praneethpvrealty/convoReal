@@ -106,3 +106,60 @@ describe('broadcast dispatch lease', () => {
     expect(tables).not.toContain('broadcast_recipients');
   });
 });
+
+/**
+ * The lease alone was not enough. It provably serialises callers of
+ * claim_broadcast_dispatch — verified against the real database — yet a
+ * live batch still sent 46 of 50 leads twice, one pair 2ms apart. Two
+ * sends 2ms apart cannot come from one sequential loop, so a second
+ * sender exists that never passes through the lease.
+ *
+ * These pin the property that does not depend on identifying it:
+ * sending is gated on winning an atomic claim of the recipient row, so
+ * a sender that did not win the row has nothing to send.
+ */
+describe('broadcast recipient claim', () => {
+  it('sends only to rows the claim actually returned', async () => {
+    // Not "reads pending rows and sends" — the claim IS the permission.
+    rpc.mockImplementation((fn: string) => {
+      if (fn === 'claim_broadcast_dispatch')
+        return Promise.resolve({ data: true, error: null });
+      if (fn === 'claim_broadcast_recipients')
+        return Promise.resolve({ data: [], error: null });
+      if (fn === 'broadcast_outstanding_count')
+        return Promise.resolve({ data: 5, error: null });
+      return Promise.resolve({ data: null, error: null });
+    });
+
+    await sendBroadcastRecipients('b1', 'a1', 'u1');
+
+    const claims = rpc.mock.calls.map((c) => c[0]);
+    expect(claims).toContain('claim_broadcast_recipients');
+    // Claimed nothing, so nothing may be sent — and with work still
+    // outstanding the broadcast must not be closed out either.
+    const tables = from.mock.calls.map((c) => c[0]);
+    expect(tables).not.toContain('messages');
+  });
+
+  it('never reads pending recipients directly, which is what let a second sender in', async () => {
+    // Work still outstanding, so the close-out path stays out of the way
+    // and this asserts only where recipients come from.
+    rpc.mockImplementation((fn: string) =>
+      Promise.resolve({
+        data:
+          fn === 'claim_broadcast_dispatch'
+            ? true
+            : fn === 'claim_broadcast_recipients'
+              ? []
+              : 7,
+        error: null,
+      })
+    );
+
+    await sendBroadcastRecipients('b1', 'a1', 'u1');
+
+    // A plain select on broadcast_recipients would reintroduce the bug.
+    const tables = from.mock.calls.map((c) => c[0]);
+    expect(tables).not.toContain('broadcast_recipients');
+  });
+});

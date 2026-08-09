@@ -33,7 +33,7 @@ function isRateLimitError(msg: string): boolean {
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const ctx = await requireRole('agent');
@@ -42,27 +42,40 @@ export async function POST(
     // Verify the broadcast belongs to this account
     const { data: broadcast, error: bErr } = await ctx.supabase
       .from('broadcasts')
-      .select('id, template_name, template_language, template_variables, account_id')
+      .select(
+        'id, template_name, template_language, template_variables, account_id'
+      )
       .eq('id', broadcastId)
       .eq('account_id', ctx.accountId)
       .single();
 
     if (bErr || !broadcast) {
-      return NextResponse.json({ error: 'Broadcast not found' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Broadcast not found' },
+        { status: 404 }
+      );
     }
 
     interface RetryableRecipient {
       id: string;
       contact_id: string | null;
       retry_count: number | null;
-      contact: { id: string; phone: string; name: string | null; email: string | null; company: string | null } | null;
+      contact: {
+        id: string;
+        phone: string;
+        name: string | null;
+        email: string | null;
+        company: string | null;
+      } | null;
     }
 
     // Find retryable recipients: failed or rate_limited, retry_after in the past
     const now = new Date().toISOString();
     const { data: retryableRaw, error: fetchErr } = await ctx.supabase
       .from('broadcast_recipients')
-      .select('id, contact_id, retry_count, contact:contacts(id, phone, name, email, company)')
+      .select(
+        'id, contact_id, retry_count, contact:contacts(id, phone, name, email, company)'
+      )
       .eq('broadcast_id', broadcastId)
       .in('status', ['failed', 'rate_limited'])
       .or(`retry_after.is.null,retry_after.lte.${now}`)
@@ -72,7 +85,10 @@ export async function POST(
 
     if (fetchErr) throw fetchErr;
     if (retryable.length === 0) {
-      return NextResponse.json({ retried: 0, message: 'No retryable recipients found' });
+      return NextResponse.json({
+        retried: 0,
+        message: 'No retryable recipients found',
+      });
     }
 
     /* eslint-disable convoreal/supabase-write-guard --
@@ -129,7 +145,7 @@ export async function POST(
               template_name: broadcast.template_name,
               template_language: broadcast.template_language ?? 'en_US',
             }),
-          },
+          }
         );
 
         if (res.ok) {
@@ -161,7 +177,8 @@ export async function POST(
               status: 'failed',
               retry_count: newCount,
               retry_after: null,
-              error_message: err instanceof Error ? err.message : 'Network error',
+              error_message:
+                err instanceof Error ? err.message : 'Network error',
             })
             .eq('id', r.id);
           failed++;
@@ -185,11 +202,13 @@ export async function POST(
           await ctx.supabase
             .from('broadcast_recipients')
             .update({
-              status: isRL && newCount < MAX_RETRIES ? 'rate_limited' : 'failed',
+              status:
+                isRL && newCount < MAX_RETRIES ? 'rate_limited' : 'failed',
               retry_count: newCount,
-              retry_after: isRL && newCount < MAX_RETRIES
-                ? new Date(Date.now() + backoffMs).toISOString()
-                : null,
+              retry_after:
+                isRL && newCount < MAX_RETRIES
+                  ? new Date(Date.now() + backoffMs).toISOString()
+                  : null,
               error_message: errMsg,
             })
             .eq('id', recipient.id);
@@ -228,7 +247,12 @@ export async function POST(
       .eq('broadcast_id', broadcastId);
 
     const allFailed = summary?.every((r) => r.status === 'failed');
-    const anyPending = summary?.some((r) => ['pending', 'rate_limited'].includes(r.status));
+    // 'sending' counts as outstanding: a row claimed by a dispatcher is
+    // still in flight, and calling the broadcast finished would take it
+    // out of the sweep's sight and strand it unsent.
+    const anyPending = summary?.some((r) =>
+      ['pending', 'rate_limited', 'sending'].includes(r.status)
+    );
 
     // This one the campaign screen reads, so a status that never landed
     // would leave a finished send showing as still sending.
@@ -243,7 +267,7 @@ export async function POST(
     if (!statusSaved?.length) {
       console.warn(
         '[POST /api/broadcasts/[id]/retry-failed] Broadcast status not saved:',
-        broadcastId,
+        broadcastId
       );
     }
 
