@@ -46,6 +46,7 @@ import {
   answerLeadQuestion,
   looksLikeQuestion,
   questionSubjectProperty,
+  requestsHumanContact,
   subjectPortalListings,
 } from '@/lib/ai/lead-question'
 import {
@@ -1619,7 +1620,14 @@ async function processMessage(
   // "Can we see inside when we visit tomorrow" parsed as a schedule and
   // re-acknowledged a visit already in the diary; it is a question about
   // access, and it belongs on the answer ladder below.
-  if (!ownerCheck.isOwner && !looksLikeQuestion(contentText)) {
+  // "Call me tomorrow at 5" carries a date and a time but asks for a
+  // phone call, not a site visit — it belongs to the handover branch
+  // below, the same way a question does.
+  if (
+    !ownerCheck.isOwner &&
+    !looksLikeQuestion(contentText) &&
+    !requestsHumanContact(contentText)
+  ) {
     const booked = await tryHandleInboundScheduling({
       message,
       contentText,
@@ -1936,7 +1944,7 @@ async function processMessage(
     !ownerCheck.isOwner &&
     !isPropertyOwnerSender &&
     message.type === 'text' &&
-    looksLikeQuestion(inboundText)
+    (looksLikeQuestion(inboundText) || requestsHumanContact(inboundText))
   ) {
     const admin = supabaseAdmin()
     const subject = await questionSubjectProperty(

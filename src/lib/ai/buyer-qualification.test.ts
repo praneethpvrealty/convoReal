@@ -1,6 +1,19 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi, beforeEach } from 'vitest';
+
+// The callback guard must stand down before the first query. A mock
+// that throws proves it: reaching the database at all fails the test,
+// and the module's own catch cannot hide it because the assertion is on
+// the call, not on the return value.
+vi.mock('@/lib/supabase/admin', () => ({
+  supabaseAdmin: vi.fn(() => {
+    throw new Error('database reached');
+  }),
+}));
+
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import {
   appendRequirement,
+  processBuyerQualificationMessage,
   buildQualificationReply,
   tallyAreaSuggestions,
   buildMatchesReply,
@@ -51,6 +64,47 @@ function match(overrides: Partial<Property>): RankedPropertyMatch {
     },
   };
 }
+
+describe('processBuyerQualificationMessage — a lead asking for a person', () => {
+  const contact = { id: 'c1', phone: '919000000000', name: 'Kumar' };
+  const conversation = { id: 'conv-1' };
+  const run = (text: string) =>
+    processBuyerQualificationMessage(
+      text,
+      contact,
+      conversation,
+      'acc-1',
+      'token',
+      'phone-id'
+    );
+
+  beforeEach(() => {
+    vi.mocked(supabaseAdmin).mockClear();
+  });
+
+  it('stands down on "Call me" without filing it or paying to read it', async () => {
+    // The bug: this reached the ladder, which filed "Call me" as the
+    // contact's requirement, paid Gemini to extract preferences from
+    // it, and replied "Noted — residential plot. What budget range are
+    // you working with?" to someone who had asked to be phoned.
+    await expect(run('Call me')).resolves.toBe(false);
+    expect(supabaseAdmin).not.toHaveBeenCalled();
+  });
+
+  it('stands down however the lead phrases it', async () => {
+    for (const text of ['please call me', 'ring me tomorrow', 'connect me to an agent']) {
+      await expect(run(text), text).resolves.toBe(false);
+    }
+    expect(supabaseAdmin).not.toHaveBeenCalled();
+  });
+
+  it('still takes a real requirement to the ladder', async () => {
+    // The other direction: a guard that swallowed ordinary answers
+    // would silently switch qualification off for everyone.
+    await run('3 BHK in Whitefield, budget 2cr');
+    expect(supabaseAdmin).toHaveBeenCalled();
+  });
+});
 
 describe('carriesRequirementSignal', () => {
   it('reads the real MagicBricks lead reply', () => {

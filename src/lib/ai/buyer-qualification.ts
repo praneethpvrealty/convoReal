@@ -31,6 +31,7 @@ import {
   type RankedPropertyMatch,
 } from '@/lib/radar/engine';
 import { buildPropertyAlertParams } from '@/lib/whatsapp/property-alert-template';
+import { requestsHumanContact } from '@/lib/ai/lead-question';
 import { burnCredits } from '@/lib/credits/burn';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 import { recordLearnedFacts } from '@/lib/learning/record';
@@ -483,6 +484,13 @@ export async function processBuyerQualificationMessage(
 ): Promise<boolean> {
   const text = contentText?.trim();
   if (!text) return false;
+
+  // A lead asking to be called is not answering the ladder. Standing
+  // down here rather than at the chatter guard below matters three
+  // times over: "Call me" is not filed as their requirement, no
+  // extraction is paid for, and the message falls through to the
+  // handover branch that actually summons an agent.
+  if (requestsHumanContact(text)) return false;
 
   try {
     const db = supabaseAdmin();
