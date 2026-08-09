@@ -771,6 +771,7 @@ export async function parseListingFromImageOrText(
     "10. For Listing/Owner Contact details: If the message/image details have any contact person or sender's name (e.g., 'Regards, Ramesh (Agent)' or 'Contact Suresh on 9876543210'), extract their name, phone (if present), and role ('Agent' or 'Owner'). If not mentioned, set to null.\n" +
     "11. For whole commercial buildings / mixed-use developments (multiple floors with different uses like hypermarket + hotel + gym): set 'type' to 'Commercial Building', capture each floor/unit in 'floor_tenancies', and set 'rental_income' to the TOTAL monthly rent when stated.\n" +
     "11b. A JD/JV offer is priced in shares, not rupees. When land is offered for joint development, set 'listing_type' to 'JV/JD' and leave 'price' null unless a total project value is explicitly stated — a JD listing without a price is complete, not incomplete. Capture the split in 'owner_share_percent'/'builder_share_percent' (a ratio like '60:40' is owner:builder unless the input names the other order) and the basis in 'jv_structure'.\n" +
+    "11c. A JD/JV goodwill or advance quoted per unit of land ('goodwill and advance 2.5 Cr per acre' on a 12-acre site) is a rate on the deal: multiply it by the land area and write the total into EVERY field the phrase names — that example sets 'goodwill_amount' AND 'advance' alike. Such a rate is never 'price' or 'price_per_sqft': those describe land being sold, which a JD is not.\n" +
     "12. Output MUST be valid JSON.";
 
   const parts: GeminiPart[] = [];
@@ -880,6 +881,7 @@ export async function updateListingDraft(
     "A price quoted per unit area ('10500 per sqft', '1.2 Cr per acre') is a RATE, not the total: set 'price_per_sqft' to the rate in rupees per Sq.Ft. and leave 'price' unchanged unless the user states a separate total amount. Never put a per-unit rate in 'price'.\n" +
     "Include fields for rental vertical updates: listing_type ('Sale' or 'Rent'), rent_per_month, maintenance, advance, and gst.\n" +
     "Handle joint development updates intelligently: 'it's a JD', 'offered for joint venture', 'area share 60:40' or 'goodwill 20 lakhs' all mean listing_type 'JV/JD' — set jv_structure ('Revenue Share', 'Area Share' or 'Hybrid'), owner_share_percent, builder_share_percent (a ratio is owner:builder unless stated otherwise) and goodwill_amount. A JV/JD deal has no asking price: never invent one, and if the user later gives a plain sale price, switch listing_type back to 'Sale'.\n" +
+    "A JV/JD goodwill or advance quoted per unit of land ('goodwill and advance 2.5 Cr per acre' against a 12-acre site) is a rate on the deal: multiply it by the draft's land area and write the total into EVERY field the phrase names — that example sets both goodwill_amount and advance. Never put such a rate in price or price_per_sqft; a JD's land is not being sold.\n" +
     "Output MUST be valid JSON.";
 
   const prompt = `Current Draft:\n${JSON.stringify(currentDraft, null, 2)}\n\nUser Update Request:\n"${updateRequest}"\n\nApply these updates and return the updated JSON.`;
