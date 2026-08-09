@@ -15,7 +15,9 @@ import {
   answerFromSellerFinalPrice,
   answerFromPortalListing,
   looksLikeQuestion,
+  requestsHumanContact,
   HANDOVER_TEXT,
+  CALLBACK_HANDOVER_TEXT,
 } from './lead-question';
 
 const property = {
@@ -57,6 +59,50 @@ describe('looksLikeQuestion', () => {
   });
 });
 
+describe('requestsHumanContact', () => {
+  it('recognises the ask that was answered with a budget question', () => {
+    // The reported bug: "Call me" reached the qualification ladder and
+    // came back "Noted — residential plot. What budget range are you
+    // working with?".
+    expect(requestsHumanContact('Call me')).toBe(true);
+  });
+
+  it('recognises the ways a lead asks for a person', () => {
+    for (const text of [
+      'call me',
+      'Please call',
+      'pls call me tomorrow',
+      'give me a call',
+      'ring me in the evening',
+      'can you call back',
+      'I want to talk to someone',
+      'let me speak with an agent',
+      'connect me to your team',
+    ]) {
+      expect(requestsHumanContact(text), text).toBe(true);
+    }
+  });
+
+  it('does not fire when the lead says THEY will call', () => {
+    // "I'll call you" is the lead taking the action. Treating it as a
+    // request would summon an agent and promise a call nobody owes.
+    expect(requestsHumanContact("I'll call you tomorrow")).toBe(false);
+    expect(requestsHumanContact('I will call you back later')).toBe(false);
+  });
+
+  it('leaves ordinary requirement talk to the ladder', () => {
+    for (const text of [
+      '3 BHK in Whitefield',
+      'budget is 2cr',
+      'send me photos',
+      '',
+      null,
+    ]) {
+      expect(requestsHumanContact(text), String(text)).toBe(false);
+    }
+  });
+});
+
 describe('answerLeadQuestion', () => {
   beforeEach(() => {
     vi.mocked(burnCredits).mockResolvedValue({ deficit: 0 } as never);
@@ -64,6 +110,23 @@ describe('answerLeadQuestion', () => {
   });
   afterEach(() => {
     vi.clearAllMocks();
+  });
+
+  it('hands a callback request to a person, listing or no listing', async () => {
+    // source 'handover' is what the webhook keys the notification, the
+    // reply bridge and the pending status off. Answering "call me" as
+    // anything else promises a call nobody is told to make.
+    for (const subject of [property, null]) {
+      const res = await answerLeadQuestion({
+        accountId: 'a1',
+        question: 'Call me',
+        property: subject,
+      });
+      expect(res.source).toBe('handover');
+      expect(res.text).toBe(CALLBACK_HANDOVER_TEXT);
+    }
+    expect(generateText).not.toHaveBeenCalled();
+    expect(burnCredits).not.toHaveBeenCalled();
   });
 
   it('answers from the listing fields without spending a credit', async () => {

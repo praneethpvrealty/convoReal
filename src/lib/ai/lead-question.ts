@@ -177,6 +177,36 @@ export function looksLikeQuestion(text: string | null | undefined): boolean {
   );
 }
 
+/** What a lead hears when they ask for a person. Same promise as
+ *  HANDOVER_TEXT and the same obligation: only the handover branch may
+ *  send it, because that is what tells an agent to make the call. */
+export const CALLBACK_HANDOVER_TEXT =
+  "Of course — I'll have someone from the team call you shortly.";
+
+/**
+ * "Call me" — a lead asking for a person rather than answering us.
+ *
+ * It is not a question, so looksLikeQuestion misses it, and it carries
+ * no property type or budget, so the qualification ladder should never
+ * have claimed it either. Left unrouted it was answered with the next
+ * rung of the ladder: a buyer who asked to be phoned got "what budget
+ * range are you working with?".
+ *
+ * Deterministic, and matched on the lead's own words rather than an
+ * intent call — this decides whether a human is summoned, which is too
+ * important to make a paid call for and too cheap to need one.
+ *
+ * "I'll call you" is not a match and must not become one: the lead
+ * saying they will ring is not a request for us to.
+ */
+export function requestsHumanContact(text?: string | null): boolean {
+  const t = (text || '').trim().toLowerCase();
+  if (!t) return false;
+  return /\b(call me|call back|call-back|callback|give me a (call|ring)|ring me|phone me|(please|pls|plz) call|(talk|speak) (to|with) (a |an )?(human|person|someone|somebody|agent|executive|team)|connect me)\b/.test(
+    t,
+  );
+}
+
 /**
  * The listing a question is about, as the shared subject resolver sees
  * it — the share ledger reconciled against what the agent has since
@@ -264,6 +294,12 @@ export async function answerLeadQuestion(args: {
   portalListings?: PortalListingFigures[];
 }): Promise<LeadAnswer> {
   const { accountId, question, property } = args;
+  // Before the listing check: a lead asking to be called is asking for
+  // a person, not for a fact about a listing, so this must answer even
+  // when no listing can be pinned to the thread.
+  if (requestsHumanContact(question)) {
+    return { text: CALLBACK_HANDOVER_TEXT, source: 'handover' };
+  }
   if (!property) return { text: HANDOVER_TEXT, source: 'handover' };
 
   const guarded = isLocationGuarded(property);
