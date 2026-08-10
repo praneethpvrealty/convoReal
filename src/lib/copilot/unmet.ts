@@ -1,4 +1,5 @@
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import type { Audience } from './chunks';
 
 /**
  * Unmet-demand log for the copilot.
@@ -13,6 +14,10 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
  * phrase is validated hard before it is stored: anything long,
  * sentence-shaped, or carrying PII is dropped rather than logged
  * under a key nothing else will ever match.
+ *
+ * Demand is recorded per audience as well as per account: an owner
+ * asking for something is a different product signal from an agent
+ * asking for it, and merging the two would misread the roadmap.
  *
  * Everything here is best-effort. A missing service key or an
  * unmigrated table must never break the chat reply the user is
@@ -73,6 +78,7 @@ export function logUnmetRequest(input: {
   capability: Capability;
   question: string;
   pathname: string;
+  audience?: Audience;
 }): void {
   try {
     void supabaseAdmin()
@@ -82,6 +88,7 @@ export function logUnmetRequest(input: {
         p_capability_key: input.capability.key,
         p_question: input.question.slice(0, MAX_QUESTION_CHARS),
         p_pathname: input.pathname,
+        p_audience: input.audience ?? 'agent',
       })
       .then(({ error }) => {
         if (error) console.warn('[Copilot unmet] log failed:', error.message);

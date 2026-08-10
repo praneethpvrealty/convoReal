@@ -1,7 +1,14 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { CHUNKS, chunkVersion, getChunk, isCurrentChunk } from './chunks';
+import {
+  CHUNKS,
+  audienceOf,
+  chunkVersion,
+  getChunk,
+  isCurrentChunk,
+  type Audience,
+} from './chunks';
 import { KNOWLEDGE_INDEX } from './knowledge-index.gen';
 import { anchorChunkFor } from './retrieval';
 
@@ -14,6 +21,38 @@ const KINDS = ['page', 'concept', 'howto', 'limit'] as const;
  */
 const UNCOVERED_ROUTES = ['/admin', '/checkout-demo', '/dev'];
 
+/**
+ * Every surface the helper is mounted on, and where its routable
+ * pages live on disk. A new page directory under any of these fails
+ * coverage until someone writes it a chunk — which is the whole
+ * mechanism for keeping the corpus honest as the product grows.
+ */
+const SURFACES: {
+  audience: Audience;
+  dir: string;
+  prefix: string;
+  minAreas: number;
+}[] = [
+  {
+    audience: 'agent',
+    dir: 'src/app/(dashboard)',
+    prefix: '',
+    minAreas: 15,
+  },
+  {
+    audience: 'owner',
+    dir: 'src/app/(den)/den/(portal)',
+    prefix: '/den',
+    minAreas: 3,
+  },
+  {
+    audience: 'buyer',
+    dir: 'src/app/(buyer)/buyer/(portal)',
+    prefix: '/buyer',
+    minAreas: 3,
+  },
+];
+
 function containsPage(dir: string): boolean {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     if (entry.isFile() && entry.name === 'page.tsx') return true;
@@ -23,15 +62,18 @@ function containsPage(dir: string): boolean {
   return false;
 }
 
-/** Top-level dashboard areas with at least one routable page,
+/** Top-level areas of a surface with at least one routable page,
  *  discovered from the filesystem — a new page directory fails
- *  coverage without anyone remembering to update a list. */
-function discoverDashboardAreas(): string[] {
-  const base = path.join(process.cwd(), 'src/app/(dashboard)');
-  return fs
+ *  coverage without anyone remembering to update a list. The
+ *  surface's own index page (a bare page.tsx) counts as its root. */
+function discoverAreas(dir: string, prefix: string): string[] {
+  const base = path.join(process.cwd(), dir);
+  const areas = fs
     .readdirSync(base, { withFileTypes: true })
     .filter((e) => e.isDirectory() && containsPage(path.join(base, e.name)))
-    .map((e) => `/${e.name}`);
+    .map((e) => `${prefix}/${e.name}`);
+  if (prefix && fs.existsSync(path.join(base, 'page.tsx'))) areas.push(prefix);
+  return areas;
 }
 
 describe('knowledge chunk registry', () => {
@@ -66,18 +108,32 @@ describe('knowledge chunk registry', () => {
     }
   });
 
-  it('covers every dashboard area on disk (the future-proofing gate)', () => {
-    const areas = discoverDashboardAreas().filter(
-      (r) => !UNCOVERED_ROUTES.includes(r)
-    );
-    // Floor guards the directory scan itself — if it ever returns a
-    // handful of routes, the scan broke, not the corpus.
-    expect(areas.length).toBeGreaterThanOrEqual(15);
-    for (const area of areas) {
+  it.each(SURFACES)(
+    'covers every $audience area on disk (the future-proofing gate)',
+    ({ audience, dir, prefix, minAreas }) => {
+      const areas = discoverAreas(dir, prefix).filter(
+        (r) => !UNCOVERED_ROUTES.includes(r)
+      );
+      // Floor guards the directory scan itself — if it ever returns a
+      // handful of routes, the scan broke, not the corpus.
+      expect(areas.length).toBeGreaterThanOrEqual(minAreas);
+      for (const area of areas) {
+        expect(
+          anchorChunkFor(area, audience),
+          `${area} has no ${audience} page chunk — add one to chunks.ts (or list the route in UNCOVERED_ROUTES if the helper should stay silent about it)`
+        ).toBeTruthy();
+      }
+    }
+  );
+
+  it('gives every audience its own knowledge, including refusals', () => {
+    for (const audience of ['agent', 'owner', 'buyer'] as const) {
+      const mine = CHUNKS.filter((c) => audienceOf(c) === audience);
+      expect(mine.length, audience).toBeGreaterThanOrEqual(4);
       expect(
-        anchorChunkFor(area),
-        `${area} has no page chunk — add one to chunks.ts (or list the route in UNCOVERED_ROUTES if the helper should stay silent about it)`
-      ).toBeTruthy();
+        mine.some((c) => c.kind === 'limit'),
+        `${audience} has no limit chunks — it cannot refuse anything honestly`
+      ).toBe(true);
     }
   });
 

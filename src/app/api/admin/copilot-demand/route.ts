@@ -40,7 +40,10 @@ async function requireSuperAdmin(supabase: SupabaseClient) {
   return { ok: true as const };
 }
 
+type DemandAudience = 'agent' | 'owner' | 'buyer';
+
 interface DemandRow {
+  audience: DemandAudience | null;
   capability: string;
   capability_key: string;
   sample_question: string;
@@ -62,6 +65,7 @@ export interface DemandAccount {
 
 export interface DemandCapability {
   key: string;
+  audience: DemandAudience;
   capability: string;
   accounts: number;
   asks: number;
@@ -82,7 +86,7 @@ export async function GET() {
   const { data, error } = await supabaseAdmin()
     .from('copilot_unmet_requests')
     .select(
-      'capability, capability_key, sample_question, pathname, request_count, last_requested_at, account_id, accounts(name)'
+      'audience, capability, capability_key, sample_question, pathname, request_count, last_requested_at, account_id, accounts(name)'
     )
     .order('last_requested_at', { ascending: false })
     .limit(MAX_ROWS);
@@ -95,19 +99,25 @@ export async function GET() {
     );
   }
 
+  // Grouped by (audience, capability): an owner asking for something
+  // is a different product signal from an agent asking for the same
+  // words, so the two must never merge into one backlog row.
   const groups = new Map<string, DemandCapability>();
   for (const row of (data ?? []) as DemandRow[]) {
-    let group = groups.get(row.capability_key);
+    const audience = row.audience ?? 'agent';
+    const key = `${audience}:${row.capability_key}`;
+    let group = groups.get(key);
     if (!group) {
       group = {
-        key: row.capability_key,
+        key,
+        audience,
         capability: row.capability,
         accounts: 0,
         asks: 0,
         lastAskedAt: row.last_requested_at,
         requesters: [],
       };
-      groups.set(row.capability_key, group);
+      groups.set(key, group);
     }
     group.accounts += 1;
     group.asks += row.request_count;

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { CHUNKS, chunkVersion } from './chunks';
+import { CHUNKS, audienceOf, chunkVersion } from './chunks';
 import {
   TOP_K,
   anchorChunkFor,
@@ -188,6 +188,60 @@ describe('selectChunks (semantic path — stubbed index)', () => {
     expect(picked.map((c) => c.id)).toContain('howto.topup-credits');
     vi.doUnmock('./knowledge-index.gen');
     vi.resetModules();
+  });
+});
+
+describe('audience isolation', () => {
+  it("never returns another audience's chunks", () => {
+    const cases = [
+      {
+        audience: 'owner' as const,
+        pathname: '/den',
+        message: 'how do offers work?',
+      },
+      {
+        audience: 'buyer' as const,
+        pathname: '/buyer',
+        message: 'how are matches chosen?',
+      },
+      {
+        audience: 'agent' as const,
+        pathname: '/inbox',
+        message: 'how do I send a broadcast?',
+      },
+    ];
+    for (const { audience, pathname, message } of cases) {
+      const picked = selectChunks({
+        pathname,
+        message,
+        embedding: null,
+        audience,
+      });
+      expect(picked.length, audience).toBeGreaterThan(0);
+      for (const chunk of picked) {
+        expect(audienceOf(chunk), `${audience} got ${chunk.id}`).toBe(audience);
+      }
+    }
+  });
+
+  it('anchors on the portal route only for that portal', () => {
+    expect(anchorChunkFor('/den/bids', 'owner')?.id).toBe('owner.bids');
+    expect(anchorChunkFor('/buyer/matches', 'buyer')?.id).toBe('buyer.matches');
+    // Same path, wrong audience — no anchor rather than a wrong one.
+    expect(anchorChunkFor('/den/bids', 'agent')).toBeNull();
+    expect(anchorChunkFor('/inbox', 'owner')).toBeNull();
+  });
+
+  it('answers an owner about Deal Mode without reaching agent knowledge', () => {
+    const picked = selectChunks({
+      pathname: '/den',
+      message: 'what is deal mode and who sees my details?',
+      embedding: null,
+      audience: 'owner',
+    });
+    const ids = picked.map((c) => c.id);
+    expect(ids).toContain('owner.deal-mode');
+    expect(ids.every((id) => id.startsWith('owner.'))).toBe(true);
   });
 });
 
