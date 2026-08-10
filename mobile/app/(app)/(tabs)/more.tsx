@@ -14,10 +14,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
+import { DeleteAccountRow } from '@/components/delete-account-row';
 import { ProfileEditSheet } from '@/components/profile-edit-sheet';
 import { SubscriptionCard } from '@/components/subscription-card';
 import { UpdateStatus } from '@/components/update-status';
 import { Avatar, SectionLabel } from '@/components/ui';
+import { deleteAccount } from '@/lib/api';
 import { authenticate, biometricsAvailable, useAppLock } from '@/lib/app-lock';
 import { signOut, useAuthStore } from '@/lib/auth-store';
 import { useFavorites } from '@/lib/favorites-store';
@@ -217,6 +219,15 @@ export default function MoreScreen() {
           Sign out
         </Text>
       </Pressable>
+
+      <DeleteAccountRow
+        consequence={
+          profile?.account_role === 'owner'
+            ? 'Your workspace is deleted with you — every contact, property, conversation and deal, permanently. Teammates keep their logins and start again in their own empty workspace.'
+            : 'Your login is deleted permanently. The workspace and its data stay with your organisation.'
+        }
+        onDelete={deleteAccount}
+      />
 
       <SectionLabel text="App version" style={{ marginTop: spacing.sm }} />
       <UpdateStatus />

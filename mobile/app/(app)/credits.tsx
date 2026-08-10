@@ -26,6 +26,7 @@ import { apiFetch } from '@/lib/api';
 import { ENV } from '@/lib/env';
 import { chatListTime } from '@/lib/format';
 import { queryClient } from '@/lib/query';
+import { SHOW_PURCHASE_LINKS } from '@/lib/store-policy';
 import { supabase } from '@/lib/supabase';
 import { onGradient, radius, spacing, useTheme, fonts } from '@/lib/theme';
 import { usePullRefresh } from '@/lib/use-pull-refresh';
@@ -227,23 +228,27 @@ export default function CreditsScreen() {
         ) : null}
       </View>
 
-      <PrimaryButton
-        label="Top up on the web"
-        icon="flash"
-        // In-app browser keeps the session warm and returns cleanly,
-        // instead of dumping the user in the system browser.
-        onPress={openCheckout}
-      />
-      <Text
-        style={{
-          fontSize: 11.5,
-          color: colors.textFaint,
-          textAlign: 'center',
-          marginTop: -4,
-        }}
-      >
-        Checkout opens in your browser — purchases land here instantly.
-      </Text>
+      {SHOW_PURCHASE_LINKS ? (
+        <>
+          <PrimaryButton
+            label="Top up on the web"
+            icon="flash"
+            // In-app browser keeps the session warm and returns cleanly,
+            // instead of dumping the user in the system browser.
+            onPress={openCheckout}
+          />
+          <Text
+            style={{
+              fontSize: 11.5,
+              color: colors.textFaint,
+              textAlign: 'center',
+              marginTop: -4,
+            }}
+          >
+            Checkout opens in your browser — purchases land here instantly.
+          </Text>
+        </>
+      ) : null}
 
       <SectionLabel text="History" style={{ marginTop: spacing.sm }} />
       <View style={{ flexDirection: 'row', gap: spacing.sm }}>
