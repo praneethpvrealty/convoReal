@@ -218,6 +218,39 @@ describe('showcaseOriginForHost', () => {
   });
 });
 
+describe('link order — WhatsApp previews the FIRST url', () => {
+  it('puts the showcase link above the map link on a complete share', () => {
+    // baseProperty is a plot, so the location guard suppresses its map —
+    // override it off, the way the existing map tests do.
+    const unguarded = { ...baseProperty, location_privacy: 'exact' } as unknown as Property;
+    const msg = buildPropertyShareMessage({
+      property: unguarded,
+      url: URL,
+      audience: 'client',
+      detail: 'complete',
+      tone: 'professional',
+    });
+    expect(msg).toContain('🗺 Map: https://maps.app.goo.gl/xyz');
+    expect(msg.indexOf(URL)).toBeLessThan(msg.indexOf('maps.app.goo.gl'));
+  });
+
+  it('puts the showcase link above the map link on the details reveal', () => {
+    const msg = buildInquiryDetailsMessage({ property: baseProperty, url: URL });
+    expect(msg.indexOf(URL)).toBeLessThan(msg.indexOf('maps.app.goo.gl'));
+  });
+
+  it('keeps the map off a location-guarded share entirely', () => {
+    const msg = buildPropertyShareMessage({
+      property: baseProperty,
+      url: URL,
+      audience: 'client',
+      detail: 'complete',
+      tone: 'professional',
+    });
+    expect(msg).not.toContain('maps.app.goo.gl');
+  });
+});
+
 describe('buildInquiryDetailsMessage', () => {
   it('carries the complete details plus the showcase link', () => {
     const msg = buildInquiryDetailsMessage({ property: baseProperty, url: URL });
