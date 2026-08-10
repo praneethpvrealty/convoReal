@@ -1,61 +1,62 @@
 import { describe, expect, it } from 'vitest';
+import { CHUNKS } from './chunks';
 import {
-  PAGE_KNOWLEDGE,
+  buildCopilotScaffold,
   buildCopilotSystemPrompt,
   isAllowedRoute,
-  knowledgeForPath,
 } from './knowledge';
+import { TOP_K, selectChunks } from './retrieval';
 import { TOURS } from './tours';
 
-describe('copilot knowledge base', () => {
-  it('covers every sidebar destination', () => {
-    for (const route of [
-      '/dashboard',
-      '/contacts',
-      '/inventory',
-      '/calendar',
-      '/inbox',
-      '/automations',
-      '/broadcasts',
-      '/settings',
-    ]) {
-      expect(PAGE_KNOWLEDGE[route], route).toBeTruthy();
+describe('copilot prompt scaffold', () => {
+  it('lists every page chunk in the directory and allowlist', () => {
+    const scaffold = buildCopilotScaffold('/contacts');
+    for (const chunk of CHUNKS.filter((c) => c.kind === 'page')) {
+      expect(scaffold).toContain(`${chunk.route} — ${chunk.title}`);
+      expect(isAllowedRoute(chunk.route!)).toBe(true);
     }
   });
 
-  it('resolves nested paths to their parent knowledge', () => {
-    expect(knowledgeForPath('/broadcasts/new')).toBe(
-      PAGE_KNOWLEDGE['/broadcasts'],
-    );
-    expect(knowledgeForPath('/nowhere')).toBeNull();
-  });
-
-  it('allowlists only known routes', () => {
+  it('allowlists only page-chunk routes', () => {
     expect(isAllowedRoute('/contacts')).toBe(true);
     expect(isAllowedRoute('https://evil.example')).toBe(false);
     expect(isAllowedRoute('/admin')).toBe(false);
   });
 
-  it('system prompt includes current page, tours, and output contract', () => {
-    const prompt = buildCopilotSystemPrompt('/contacts');
-    expect(prompt).toContain('The user is on /contacts');
-    expect(prompt).toContain(PAGE_KNOWLEDGE['/contacts']);
+  it('carries the rules, tours, current page, and output contract', () => {
+    const scaffold = buildCopilotScaffold('/contacts');
+    expect(scaffold).toContain('The user is on /contacts');
     for (const tour of TOURS) {
-      expect(prompt).toContain(tour.id);
+      expect(scaffold).toContain(tour.id);
     }
-    expect(prompt).toContain('"reply"');
+    expect(scaffold).toContain('"reply"');
+    expect(scaffold).toContain('"unsupported"');
+    expect(scaffold).toContain('Never say a feature is coming');
+  });
+});
+
+describe('assembled system prompt', () => {
+  it('contains exactly the selected chunks as knowledge', () => {
+    const picked = selectChunks({
+      pathname: '/inventory',
+      message: 'how do I make a listing video?',
+      embedding: null,
+    });
+    const prompt = buildCopilotSystemPrompt('/inventory', picked);
+    for (const chunk of picked) {
+      expect(prompt).toContain(chunk.body);
+    }
+    const omitted = CHUNKS.find((c) => !picked.includes(c))!;
+    expect(prompt).not.toContain(omitted.body);
   });
 
-  it('instructs the model to name unsupported capabilities', () => {
-    const prompt = buildCopilotSystemPrompt('/contacts');
-    expect(prompt).toContain('"unsupported"');
-    expect(prompt).toContain('Never say a feature is coming');
-  });
-
-  it('stays within the token budget', () => {
-    // The operator pays for every free-form question — the whole
-    // system prompt must stay ≈3K tokens (~12K chars).
-    const prompt = buildCopilotSystemPrompt('/dashboard');
+  it('stays within the token budget at worst-case retrieval', () => {
+    // The operator pays for every free-form question. Budget-test the
+    // theoretical worst assembly: anchor + the TOP_K longest chunks.
+    const longest = [...CHUNKS]
+      .sort((a, b) => b.body.length - a.body.length)
+      .slice(0, TOP_K + 1);
+    const prompt = buildCopilotSystemPrompt('/dashboard', longest);
     expect(prompt.length).toBeLessThan(12_000);
   });
 });

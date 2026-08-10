@@ -1,66 +1,44 @@
+import { CHUNKS, type KnowledgeChunk } from './chunks';
 import { TOURS } from './tours';
 
 /**
- * Compact, hand-written knowledge base injected into the copilot
- * system prompt. Keep entries to 2–4 plain sentences: the whole
- * prompt must stay small (budget-tested in knowledge.test.ts)
- * because the operator pays per token for every free-form question.
+ * Copilot system-prompt assembly.
+ *
+ * The prompt has two parts with different lifecycles:
+ *  - the SCAFFOLD — rules, page directory, tour catalog and the JSON
+ *    contract. Hashing it gives KB_VERSION (qa-cache.ts): a scaffold
+ *    change retires every cached answer at once.
+ *  - the KNOWLEDGE section — the chunks retrieval.ts picked for this
+ *    question. Cached answers record which chunk versions they used,
+ *    so a chunk edit retires only the answers built on it.
+ *
+ * Keep the scaffold small: the operator pays per token for every
+ * free-form question, and knowledge.test.ts budget-tests the whole
+ * assembled prompt.
  */
-export const PAGE_KNOWLEDGE: Record<string, string> = {
-  '/dashboard':
-    'Home screen with four tabs. Overview: key numbers (contacts, properties, deals, messages). Today: daily action list — WhatsApp chats about to close, hot leads going quiet, appointments and to-dos. Match Radar: automatic buyer-to-property matches. Pulse: who viewed your property links, how many times, and for how long.',
-  '/contacts':
-    'All your leads and customers. Add contacts manually, import them, or let the WhatsApp bot capture them automatically. Each contact stores phone, budget, preferred locations, property type, and a lead temperature (HOT/WARM/COLD). Forwarding a customer’s message card to your own WhatsApp bot also saves them.',
-  '/inventory':
-    'Your property listings with price, location, photos and documents. Properties here power buyer matching (Match Radar), your public Showcase portal link, and AI-generated descriptions. Use Share Showcase Portal to send buyers a link to browse your listings.',
-  '/calendar':
-    'Appointments and to-dos. Site visits, follow-up reminders and tasks appear here and in the Today tab. You can link an appointment to a contact and a property.',
-  '/inbox':
-    'All WhatsApp conversations with your customers in one place. Reply within WhatsApp’s 24-hour window; after it closes you must use an approved template. Unread chats show a dot in the menu.',
-  '/automations':
-    'Set-and-forget rules, like auto-replies and follow-up sequences that trigger on events (new lead, keyword, time delay).',
-  '/broadcasts':
-    'Send one approved WhatsApp template message to many contacts at once — pick a template, choose the audience (all or by tag), personalise, and send. Delivery and read counts are tracked per broadcast.',
-  '/pipelines':
-    'Deal board. Drag deals between stages (new, negotiating, closed) to track every potential sale from first chat to closing.',
-  '/flows':
-    'Visual chatbot flow builder — design question-and-answer paths the WhatsApp bot follows with customers.',
-  '/requirements':
-    'Buyer requirements collected from customers (budget, location, property type). These drive Match Radar suggestions. You can share a requirement with other brokers — masked by default, so they see the brief under a code like REQ-A3F2 but never the client’s name. The share carries a link (or a code they can WhatsApp you) that lets them send back a matching property, which lands in Inventory under Review.',
-  '/agents':
-    'Other agents you collaborate with, for sharing inventory and requirements. Listings they send you — from a shared requirement, your listing link, or WhatsApp — arrive in Inventory under Review to approve or reject.',
-  '/ads':
-    'Create and track Meta (Facebook/Instagram) ads for your properties, with AI-written ad copy.',
-  '/settings':
-    'Profile, WhatsApp connection (Meta Business credentials), message templates, tags, Showcase branding, AI credits and billing. WhatsApp must be connected before Inbox and Broadcasts work.',
-};
+
+const PAGE_CHUNKS = CHUNKS.filter(
+  (c): c is KnowledgeChunk & { route: string } => c.kind === 'page' && !!c.route
+);
+
+const ROUTE_ALLOWLIST = PAGE_CHUNKS.map((c) => c.route);
+
+export function isAllowedRoute(path: string): boolean {
+  return ROUTE_ALLOWLIST.includes(path);
+}
 
 /** Compact tour catalog for the system prompt. */
 export function buildTourCatalog(): string {
   return TOURS.map((t) => `- ${t.id}: ${t.description}`).join('\n');
 }
 
-const ROUTE_ALLOWLIST = Object.keys(PAGE_KNOWLEDGE);
-
-export function isAllowedRoute(path: string): boolean {
-  return ROUTE_ALLOWLIST.includes(path);
+/** One line per page so the model keeps a map of the whole app even
+ *  though only a few chunks travel with each question. */
+function buildPageDirectory(): string {
+  return PAGE_CHUNKS.map((c) => `${c.route} — ${c.title}`).join('\n');
 }
 
-/** Longest-prefix knowledge lookup, so '/broadcasts/new' → '/broadcasts'. */
-export function knowledgeForPath(pathname: string): string | null {
-  if (PAGE_KNOWLEDGE[pathname]) return PAGE_KNOWLEDGE[pathname];
-  const hit = ROUTE_ALLOWLIST.filter((r) => pathname.startsWith(r)).sort(
-    (a, b) => b.length - a.length,
-  )[0];
-  return hit ? PAGE_KNOWLEDGE[hit] : null;
-}
-
-export function buildCopilotSystemPrompt(pathname: string): string {
-  const pages = Object.entries(PAGE_KNOWLEDGE)
-    .map(([route, desc]) => `${route}: ${desc}`)
-    .join('\n');
-  const current = knowledgeForPath(pathname);
-
+export function buildCopilotScaffold(pathname: string): string {
   return [
     'You are the friendly in-app helper for ConvoReal, a WhatsApp sales platform for Indian real-estate agents. Many users are not tech-savvy — explain simply, no jargon.',
     'Rules:',
@@ -70,16 +48,29 @@ export function buildCopilotSystemPrompt(pathname: string): string {
     '- If ConvoReal cannot do what the user wants, say so plainly in one sentence, then point them at the closest thing it CAN do. Never say a feature is coming, planned, or being built.',
     '',
     'APP PAGES:',
-    pages,
+    buildPageDirectory(),
     '',
     'GUIDED TOURS — if the user asks HOW to do one of these, set tourId to start an on-screen walkthrough instead of explaining in words:',
     buildTourCatalog(),
     '',
-    `CURRENT PAGE: The user is on ${pathname}.${current ? ` About this page: ${current}` : ''}`,
+    `CURRENT PAGE: The user is on ${pathname}.`,
     '',
     'Respond ONLY with JSON in exactly this shape:',
     '{"reply": string, "tourId": string or null, "navigateTo": string or null, "unsupported": string or null}',
     `navigateTo, when set, must be one of: ${ROUTE_ALLOWLIST.join(', ')}. Set it only when the user asks to go somewhere and no tour fits.`,
     'unsupported names the capability ConvoReal lacks, whenever the user asked for one. Use a short generic phrase of at most 8 lowercase words, no names, numbers or personal details — e.g. "export contacts to excel", "bulk edit property prices". Use the same wording every time for the same capability. Set it to null when the answer describes something ConvoReal already does.',
+  ].join('\n');
+}
+
+export function buildCopilotSystemPrompt(
+  pathname: string,
+  chunks: KnowledgeChunk[]
+): string {
+  const knowledge = chunks.map((c) => `[${c.title}] ${c.body}`).join('\n');
+  return [
+    buildCopilotScaffold(pathname),
+    '',
+    'KNOWLEDGE (selected for this question — everything you may state as fact):',
+    knowledge,
   ].join('\n');
 }

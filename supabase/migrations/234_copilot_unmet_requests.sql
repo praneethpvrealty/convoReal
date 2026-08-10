@@ -94,17 +94,25 @@ $$;
 GRANT EXECUTE ON FUNCTION log_copilot_unmet_request(UUID, TEXT, TEXT, TEXT, TEXT) TO service_role;
 
 -- ============================================================
--- copilot_qa_cache: carry the unmet capability on cached answers.
+-- copilot_qa_cache: two new columns on cached answers.
 --
--- Unsupported answers are still cached (a repeat "can it do X?" costs
--- nothing), but a cache hit must keep counting demand — otherwise only
--- the FIRST person to ask for a feature is ever visible. Storing the
--- capability on the cache row lets the route log the request on the
--- cached path too.
+-- unsupported_capability — unsupported answers are still cached (a
+-- repeat "can it do X?" costs nothing), but a cache hit must keep
+-- counting demand: otherwise only the FIRST person to ask for a
+-- feature is ever visible. Storing the capability on the cache row
+-- lets the route log the request on the cached path too.
+--
+-- source_chunks — the knowledge chunks the answer was built from, as
+-- [{"id": "...", "v": "..."}]. The app validates them against the
+-- live corpus on every hit, so editing one chunk retires exactly the
+-- answers that used it. kb_version keeps its role for scaffold
+-- changes (rules/tours/contract), which still retire everything.
 -- ============================================================
 
 ALTER TABLE copilot_qa_cache
   ADD COLUMN IF NOT EXISTS unsupported_capability TEXT;
+ALTER TABLE copilot_qa_cache
+  ADD COLUMN IF NOT EXISTS source_chunks JSONB;
 
 -- RETURNS TABLE shape changes, so CREATE OR REPLACE cannot be used.
 DROP FUNCTION IF EXISTS match_copilot_qa(vector(768), TEXT, FLOAT, INT);
@@ -121,6 +129,7 @@ CREATE FUNCTION match_copilot_qa(
   tour_id TEXT,
   navigate_to TEXT,
   unsupported_capability TEXT,
+  source_chunks JSONB,
   similarity FLOAT
 )
 LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
@@ -131,6 +140,7 @@ LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
     c.tour_id,
     c.navigate_to,
     c.unsupported_capability,
+    c.source_chunks,
     1 - (c.embedding <=> p_embedding) AS similarity
   FROM copilot_qa_cache c
   WHERE c.kb_version = p_kb_version
