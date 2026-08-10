@@ -120,3 +120,50 @@ export function pickPropertyShareTemplate<T extends ApprovedTemplateCandidate>(
   const isUtility = (t: ApprovedTemplateCandidate) => t.category === 'Utility';
   return !isUtility(preferred) && isUtility(other) ? other : preferred;
 }
+
+/** Utility first within an already-narrowed set, order otherwise
+ *  preserved. Category is the one property that decides whether a send
+ *  arrives at all for a recipient at their marketing cap. */
+function preferUtility<T extends ApprovedTemplateCandidate>(rows: T[]): T | null {
+  return rows.find((t) => t.category === 'Utility') ?? rows[0] ?? null;
+}
+
+/**
+ * What the manual share dialog should land on.
+ *
+ * The engine's own templates first (pickPropertyShareTemplate, which
+ * already weighs photo-vs-category), then progressively looser name
+ * matches for accounts that wrote their own, and finally anything
+ * approved rather than nothing.
+ *
+ * Every tier below the first used to take the first NAME match and the
+ * last resort was rows[0] — alphabetical order, in practice a Marketing
+ * template. That is the send that comes back 131049 and never reaches a
+ * capped recipient, so each tier now prefers Utility within whatever it
+ * matched. The agent can still override in the dropdown; this only
+ * decides what is pre-selected.
+ */
+export function pickShareDialogTemplate<T extends ApprovedTemplateCandidate & { name: string }>(
+  rows: T[],
+  opts: { hasImage: boolean },
+): T | null {
+  const engine = pickPropertyShareTemplate(rows, opts);
+  if (engine) return engine;
+
+  const named = rows.filter((t) =>
+    /share_property|property_detail|property_share/i.test(t.name),
+  );
+  if (named.length > 0) return preferUtility(named);
+
+  const looseKeywords = rows.filter((t) => {
+    const name = t.name.toLowerCase();
+    return (
+      /property|share|detail|send/i.test(name) &&
+      !/reminder|visit|appointment|schedule|nudge|followup/i.test(name) &&
+      !/digest|consent|owner_/i.test(name)
+    );
+  });
+  if (looseKeywords.length > 0) return preferUtility(looseKeywords);
+
+  return preferUtility(rows);
+}
