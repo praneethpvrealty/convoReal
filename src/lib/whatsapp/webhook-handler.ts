@@ -119,6 +119,11 @@ import { googleMapsUrlForCoordinates } from '@/lib/maps/resolve-location'
 import { getSandboxSystemConfig } from '@/lib/system-settings'
 import type { SandboxSenderMapping } from '@/types'
 import { supabaseAdmin } from '@/lib/supabase/admin'
+import {
+  buildSoldPriceReply,
+  SOLD_PRICE_BUTTON_PREFIX,
+  SOLD_SIMILAR_BUTTON_PREFIX,
+} from '@/lib/whatsapp/sold-notification'
 
 export interface WhatsAppMessage {
   id: string
@@ -1982,6 +1987,28 @@ async function processMessage(
         senderPhone
       )
       return
+    } else if (interactiveReplyId.startsWith(SOLD_PRICE_BUTTON_PREFIX)) {
+      const propertyId = interactiveReplyId.slice(SOLD_PRICE_BUTTON_PREFIX.length)
+      await handleSoldPriceReply(
+        propertyId,
+        accountId,
+        configOwnerUserId,
+        contactRecord.id,
+        conversation.id,
+        senderPhone
+      )
+      return
+    } else if (interactiveReplyId.startsWith(SOLD_SIMILAR_BUTTON_PREFIX)) {
+      const propertyId = interactiveReplyId.slice(SOLD_SIMILAR_BUTTON_PREFIX.length)
+      await handleShowMoreProperties(
+        propertyId,
+        accountId,
+        configOwnerUserId,
+        contactRecord.id,
+        conversation.id,
+        senderPhone
+      )
+      return
     }
   }
 
@@ -2313,6 +2340,12 @@ async function parseMessageContent(
         return {
           ...empty,
           contentText: `🔘 Button: "${message.button.text}"`,
+          // Template quick replies deliver their send-time payload here —
+          // surfacing it as interactiveReplyId routes taps through the
+          // same handlers as free-form interactive buttons. Payloads
+          // without a registered prefix (Meta defaults them to the button
+          // text) simply fall through unchanged.
+          interactiveReplyId: message.button.payload || null,
         }
       }
       return { ...empty, contentText: '[Button message]' }
@@ -3402,6 +3435,60 @@ export async function handleUpdateSessionInput(
     senderType: 'bot',
   })
   return true
+}
+
+// ============================================================
+// Sold Price Reveal Handler
+// ============================================================
+
+export async function handleSoldPriceReply(
+  propertyId: string,
+  accountId: string,
+  configOwnerUserId: string,
+  contactId: string,
+  conversationId: string,
+  toPhone: string
+) {
+  try {
+    const { data: property } = await supabaseAdmin()
+      .from('properties')
+      .select('title, sold_price')
+      .eq('id', propertyId)
+      .eq('account_id', accountId)
+      .maybeSingle()
+
+    if (!property) {
+      console.error('[webhook] Property not found for sold price reply:', propertyId)
+      return
+    }
+
+    let currency = 'INR'
+    const { data: settings } = await supabaseAdmin()
+      .from('showcase_settings')
+      .select('currency')
+      .eq('account_id', accountId)
+      .maybeSingle()
+    if (settings?.currency) {
+      currency = settings.currency
+    }
+
+    await sendWhatsAppMessageAndPersist({
+      accountId,
+      userId: configOwnerUserId,
+      contactId,
+      conversationId,
+      toPhone,
+      kind: 'text',
+      text: buildSoldPriceReply(
+        (property.title as string) || 'This property',
+        property.sold_price as number | null,
+        currency
+      ),
+      senderType: 'bot',
+    })
+  } catch (err) {
+    console.error('[webhook] Failed in handleSoldPriceReply:', err)
+  }
 }
 
 // ============================================================
