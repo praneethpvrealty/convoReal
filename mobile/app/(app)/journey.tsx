@@ -18,6 +18,7 @@ import { useAuthStore } from '@/lib/auth-store';
 import { buildCheckInMessage } from '@/lib/checkin-message';
 import { haptic } from '@/lib/haptics';
 import { openContactChat } from '@/lib/open-chat';
+import { contactPropertyShareUrl } from '@/lib/showcase-share';
 import { supabase } from '@/lib/supabase';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import type { JourneyItem, JourneyStage } from '@/lib/types';
@@ -102,16 +103,22 @@ export default function JourneyScreen() {
    * inbox thread (business number, logged) or the agent's own
    * WhatsApp. Web parity: the journey item sheet's Contact block.
    */
-  function askCheckIn(item: JourneyItem, stageLabel: string | undefined) {
+  async function askCheckIn(item: JourneyItem, stageLabel: string | undefined) {
     const contact = item.contact;
     if (!contact) return;
     haptic.tap();
     const name = contact.name || contact.phone || 'this contact';
+    // Best-effort: a link that won't resolve is dropped rather than
+    // holding up the nudge.
+    const propertyUrl = item.property
+      ? await contactPropertyShareUrl(contact, item.property).catch(() => null)
+      : null;
     const message = buildCheckInMessage({
       contactName: contact.name,
       propertyTitle: item.property?.title,
       propertyCode: item.property?.property_code,
       stageName: stageLabel,
+      propertyUrl,
     });
     show({
       title: `Check in with ${name}`,
@@ -224,7 +231,7 @@ export default function JourneyScreen() {
                 return (
                   <Pressable
                     key={item.id}
-                    onPress={() => askCheckIn(item, stageLabel)}
+                    onPress={() => void askCheckIn(item, stageLabel)}
                     disabled={!item.contact}
                     accessibilityRole="button"
                     accessibilityLabel={`Check in about ${item.property?.title ?? 'this property'}`}

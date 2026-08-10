@@ -55,6 +55,7 @@ import {
   PREFERENCE_FLOW_BUTTON_ID,
 } from '@/lib/whatsapp/preference-flow'
 import { ENQUIRY_FOLLOWUP_CLOSE_BUTTON } from '@/lib/whatsapp/enquiry-followup-template'
+import { JOURNEY_CHECKIN_CLOSE_BUTTON } from '@/lib/whatsapp/journey-checkin-template'
 import { ENQUIRY_NOTICE_CLOSE_BUTTON } from '@/lib/whatsapp/enquiry-notice-template'
 import { accountPropertyShowcaseUrl } from '@/lib/showcase/account-showcase-url'
 import type { Contact } from '@/types'
@@ -1307,6 +1308,7 @@ async function processMessage(
   const closeButtons = [
     ENQUIRY_FOLLOWUP_CLOSE_BUTTON,
     ENQUIRY_NOTICE_CLOSE_BUTTON,
+    JOURNEY_CHECKIN_CLOSE_BUTTON,
   ]
   const alertsCommand =
     message.button?.text && closeButtons.includes(message.button.text)

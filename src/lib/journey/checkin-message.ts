@@ -14,6 +14,9 @@ export interface CheckInMessageInput {
   propertyCode?: string | null;
   /** Current stage, so the nudge reads as a follow-up, not a cold ping. */
   stageName?: string | null;
+  /** Showcase link for the listing. Omitted when it can't be resolved —
+   *  the question still stands without it. */
+  propertyUrl?: string | null;
 }
 
 const clean = (value?: string | null) => value?.trim() || "";
@@ -23,6 +26,7 @@ export function buildCheckInMessage({
   propertyTitle,
   propertyCode,
   stageName,
+  propertyUrl,
 }: CheckInMessageInput): string {
   const name = clean(contactName).split(/\s+/)[0] ?? "";
   const greeting = name ? `Hi ${name},` : "Hi,";
@@ -40,8 +44,10 @@ export function buildCheckInMessage({
     ? ` We had it at ${stage}.`
     : "";
 
-  return (
+  const question =
     `${greeting} just checking in on ${subject}.${context}` +
-    ` Are you still considering this one, or should I park it and focus on other options?`
-  );
+    ` Are you still considering this one, or should I park it and focus on other options?`;
+
+  const link = clean(propertyUrl);
+  return link ? `${question}\n\n📸 Photos & full details:\n${link}` : question;
 }
