@@ -13,6 +13,31 @@ and polish.
 
 ### Added
 
+- **Mobile: the same Filters chip on the Properties tab.** The listing
+  pills (All / Sale / Rent / JV-JD), Near me and "Include unavailable"
+  were the whole filter surface; everything else `GET /api/properties`
+  understands was unreachable from a phone. A **Filters** chip now opens
+  a sheet with category and property type, status, price from/up to,
+  listed by (owner or agent), showcase state, and sort — badged with how
+  many are on, applying live, with the footer counting the listings left.
+  The Properties list and the map screen share one filter state, so both
+  keep showing the same set. Sort is suppressed under a location filter
+  and says so, because the route's tiered near-search orders by distance
+  and ignores it. No new API surface — every option is a param the route
+  already accepted.
+
+### Fixed
+
+- **"Residential" searches missed plots and land listed after the type
+  split.** `Residential Plot` and `Residential Land` replaced the single
+  `Residential Land/ Plot` option, but the category map behind natural-
+  language search and the type filter was never updated — so a plot
+  saved after the split fell out of every "residential" query, on web and
+  in the new mobile category filter alike. The map now covers the whole
+  authoring vocabulary of each group (PG listings were missing too), with
+  the legacy value kept alongside its replacements, and a test that fails
+  if the two ever drift again.
+
 - **Mobile: filter contacts by the property or project they enquired
   for.** The Contacts tab had one axis of filtering — the five segment
   pills (All, Needs Review, Favourites, Transacted, Active Buyers) —

@@ -1,14 +1,14 @@
 import { useQuery } from '@tanstack/react-query';
-import {
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 
+import {
+  FilterGroup,
+  FilterPill,
+  PillScroller,
+  PillWrap,
+} from '@/components/filter-sheet-parts';
 import { BottomSheet, sheetScrollArea } from '@/components/sheet';
-import { PrimaryButton, SectionLabel } from '@/components/ui';
+import { PrimaryButton } from '@/components/ui';
 import {
   activeFilterCount,
   budgetStepLabel,
@@ -20,7 +20,7 @@ import {
 } from '@/lib/contact-filters';
 import { haptic } from '@/lib/haptics';
 import { supabase } from '@/lib/supabase';
-import { classificationColors, radius, spacing, useTheme } from '@/lib/theme';
+import { classificationColors, spacing, useTheme } from '@/lib/theme';
 import { CLASSIFICATIONS } from '@/lib/types';
 
 /** Bound on the contacts scanned for distinct areas of interest. Web
@@ -125,10 +125,10 @@ export function ContactFiltersSheet({
           gap: spacing.lg,
         }}
       >
-        <Group label="Classification">
-          <View style={styles.wrap}>
+        <FilterGroup label="Classification">
+          <PillWrap>
             {CLASSIFICATIONS.map((c) => (
-              <Chip
+              <FilterPill
                 key={c}
                 label={c}
                 tint={classificationColors[c]?.[dark ? 'dark' : 'light']}
@@ -136,70 +136,70 @@ export function ContactFiltersSheet({
                 onPress={() => toggle('classification', c)}
               />
             ))}
-          </View>
-        </Group>
+          </PillWrap>
+        </FilterGroup>
 
         {tags.data && tags.data.length > 0 ? (
-          <Group label="Tag">
-            <View style={styles.wrap}>
+          <FilterGroup label="Tag">
+            <PillWrap>
               {tags.data.map((t) => (
-                <Chip
+                <FilterPill
                   key={t.id}
                   label={t.name}
                   active={filters.tagId === t.id}
                   onPress={() => toggle('tagId', t.id)}
                 />
               ))}
-            </View>
-          </Group>
+            </PillWrap>
+          </FilterGroup>
         ) : null}
 
         {/* A ladder, not a set — so it scrolls in order instead of
             wrapping into a block that has to be read to be scanned. */}
-        <Group label="Budget from">
+        <FilterGroup
+          label="Budget from"
+          hint="Includes contacts marked as having no budget constraint."
+        >
           <BudgetRow
             selected={filters.minBudget}
             onPick={(v) => toggle('minBudget', v)}
           />
-          <Text style={{ fontSize: 11, color: colors.textFaint }}>
-            Includes contacts marked as having no budget constraint.
-          </Text>
-        </Group>
+        </FilterGroup>
 
-        <Group label="Budget up to">
+        <FilterGroup label="Budget up to">
           <BudgetRow
             selected={filters.maxBudget}
             onPick={(v) => toggle('maxBudget', v)}
           />
-        </Group>
+        </FilterGroup>
 
         {areas.data && areas.data.length > 0 ? (
-          <Group label="Area of interest">
-            <View style={styles.wrap}>
+          <FilterGroup label="Area of interest">
+            <PillWrap>
               {areas.data.map((a) => (
-                <Chip
+                <FilterPill
                   key={a}
                   label={a}
                   active={filters.area === a}
                   onPress={() => toggle('area', a)}
                 />
               ))}
-            </View>
-          </Group>
+            </PillWrap>
+          </FilterGroup>
         ) : null}
 
-        <Group label="Sort by">
-          <View style={styles.wrap}>
+        <FilterGroup label="Sort by">
+          <PillWrap>
             {SORT_OPTIONS.map((s) => (
-              <Chip
+              <FilterPill
                 key={s.key}
                 label={s.label}
                 active={filters.sort === s.key}
                 onPress={() => set({ sort: s.key })}
               />
             ))}
-          </View>
-        </Group>
+          </PillWrap>
+        </FilterGroup>
       </ScrollView>
 
       <View
@@ -245,22 +245,6 @@ export function ContactFiltersSheet({
   );
 }
 
-function Group({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  const { colors } = useTheme();
-  return (
-    <View style={{ gap: spacing.sm }}>
-      <SectionLabel text={label} style={{ color: colors.textMuted }} />
-      {children}
-    </View>
-  );
-}
-
 function BudgetRow({
   selected,
   onPick,
@@ -268,71 +252,17 @@ function BudgetRow({
   selected: number | null;
   onPick: (value: number) => void;
 }) {
-  const { dark } = useTheme();
   return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator
-      indicatorStyle={dark ? 'white' : 'black'}
-      style={{ flexGrow: 0 }}
-      contentContainerStyle={{ gap: spacing.sm, paddingBottom: spacing.xs }}
-    >
+    <PillScroller>
       {BUDGET_STEPS.map((step) => (
-        <Chip
+        <FilterPill
           key={step}
           label={budgetStepLabel(step)}
           active={selected === step}
           onPress={() => onPick(step)}
         />
       ))}
-    </ScrollView>
+    </PillScroller>
   );
 }
 
-/** Same metrics as the classification pills on the new-contact sheet,
- *  so the two chip grids in the app read as one control. */
-function Chip({
-  label,
-  tint,
-  active,
-  onPress,
-}: {
-  label: string;
-  tint?: string;
-  active: boolean;
-  onPress: () => void;
-}) {
-  const { colors, fonts: f } = useTheme();
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      accessibilityState={{ selected: active }}
-      style={{
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-        borderRadius: radius.full,
-        backgroundColor: active ? colors.primarySoft : colors.surface,
-        borderWidth: active ? 1.5 : StyleSheet.hairlineWidth,
-        borderColor: active ? colors.primary : colors.border,
-        maxWidth: 220,
-      }}
-    >
-      <Text
-        style={{
-          fontSize: 13,
-          fontFamily: f.semibold,
-          color: active ? colors.primary : (tint ?? colors.textMuted),
-        }}
-        numberOfLines={1}
-      >
-        {label}
-      </Text>
-    </Pressable>
-  );
-}
-
-const styles = StyleSheet.create({
-  wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-});

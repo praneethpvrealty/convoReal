@@ -370,11 +370,11 @@ describe("mobile/lib/format.ts mirrors priceInWords", () => {
   });
 });
 
-describe("mobile/lib/contact-filters.ts mirrors the Contacts budget ladder", () => {
-  // Both platforms filter Contacts by the same Min/Max budget bounds. A
-  // drift means the same saved lead falls inside the band on one device
-  // and outside it on the other.
-  const source = mobileSource("lib/contact-filters.ts");
+describe("mobile/lib/money-ladder.ts mirrors the Contacts budget ladder", () => {
+  // Both platforms filter by the same money bounds — contact budgets on
+  // Contacts, asking price on Properties. A drift means the same row
+  // falls inside the band on one device and outside it on the other.
+  const source = mobileSource("lib/money-ladder.ts");
 
   it("offers exactly the web ladder's steps, in the same order", () => {
     const steps = constBody(source, "BUDGET_STEPS")
