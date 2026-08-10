@@ -629,6 +629,9 @@ Meta Cloud API
 - **Go tests**: `cd go-ingress && go test`.
 - **Husky pre-commit**: runs `eslint` and `vitest related` over staged `src/**` TypeScript only (see `.husky/pre-commit`). The full suite is CI's job.
 - **CI**: `.github/workflows/ci.yml` runs on every PR, on `merge_group`, and on push to `main`; older runs for the same PR branch are cancelled, merge-queue and main runs are not.
+- **`main` is gated by the "main protection" ruleset**: a pull request is required (0 approvals), `CI` must pass, force pushes and deletions are blocked. `CI` is the gate job, not a real check — require it and never the individual jobs, which skip legitimately.
+- **The `merge_group` trigger never fires today.** GitHub's merge queue needs an organization-owned repository and this one is user-owned, so the trigger is inert until that changes. `push: main` is therefore load-bearing, not redundant: do not remove it.
+- **A push to `main` is not a per-commit guarantee.** Main runs share one concurrency group and GitHub keeps at most one pending run in it, so a rapid second merge cancels the first commit's queued run before any job starts. The PR-level `CI` gate is what actually covers every change.
 - Tests are co-located with source files.
 
 ---
