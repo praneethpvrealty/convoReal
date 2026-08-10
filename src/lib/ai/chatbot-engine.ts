@@ -55,7 +55,6 @@ import {
   formatDraftPreviewMessage,
   formatContactDraftsPreview,
   backfillLocationFromMapLink,
-  mergeContactDraftsContainer,
 } from '@/lib/ai/intake-core';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { recordRequirementResponse } from '@/lib/requirements/respond';
@@ -1984,22 +1983,33 @@ export async function processOwnerChatbotMessage(
     }
 
 
-    // Handle an ADDITIONAL screenshot/document sent during an active
-    // contact draft — parse it and MERGE into the current draft (backfill
-    // missing fields, concatenate notes/requirements) instead of dropping
-    // it or spawning a fresh draft with a blank name/phone.
+    // A new screenshot/card during an active contact draft REPLACES it.
+    //
+    // It used to merge, and merging is positional: incoming contact #1
+    // backfilled draft contact #1. Forwarding a different person's card
+    // therefore grafted their phone and email onto whoever was already
+    // in the draft, and left a stale unconfirmable contact sitting
+    // above them in the same card. A draft that cannot be confirmed
+    // never clears itself either — every later forward arrived as an
+    // edit to it and pushed its expiry out another hour, so the only
+    // way out was Cancel.
+    //
+    // Starting fresh is what an agent means by sending a new card. The
+    // cost is that two screenshots of the SAME person no longer
+    // combine; that was the reason merging existed, and it is the
+    // rarer of the two by a wide margin.
     if (isMediaMsg) {
       if (!(await gatedBurn(accountId, 'contact_parse'))) {
         return await sendCreditsLockedReply(phoneNumberId, accessToken, contactRecord.phone, conversation.id);
       }
-      const analyzingMsg = "⏳ _Analyzing extra details... Please wait._";
+      const analyzingMsg = "⏳ _New card — starting a fresh draft. Please wait._";
       const analyzingRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: analyzingMsg });
       await saveBotMessage(conversation.id, analyzingMsg, analyzingRes.messageId);
 
       try {
         const { buffer, mimeType } = await loadInboundMedia();
         const parsedIncoming = await parseContactFromImageOrText(contentText || '', buffer, mimeType);
-        const mergedContainer = mergeContactDraftsContainer(container, parsedIncoming);
+        const mergedContainer = parsedIncoming;
         const { isValid, missingFields } = validateContactDraftsContainer(mergedContainer);
         const nextStatus = isValid ? 'awaiting_confirmation' : 'collecting';
 
@@ -2016,7 +2026,7 @@ export async function processOwnerChatbotMessage(
           phoneNumberId,
           accessToken,
           contactRecord.phone,
-          `📝 *Contact Drafts Updated:*`,
+          `📝 *New Contact Draft — previous one discarded:*`,
           mergedContainer,
           nextStatus,
           missingFields,
