@@ -1,25 +1,24 @@
-import { NextResponse } from 'next/server'
-import { requireRole, toErrorResponse } from '@/lib/auth/account'
-import { decrypt, encrypt, isLegacyFormat } from '@/lib/whatsapp/encryption'
-import {
-  sanitizePhoneForMeta,
-  isValidE164,
-} from '@/lib/whatsapp/phone-utils'
+import { NextResponse } from 'next/server';
+import { requireRole, toErrorResponse } from '@/lib/auth/account';
+import { decrypt, encrypt, isLegacyFormat } from '@/lib/whatsapp/encryption';
+import { sanitizePhoneForMeta, isValidE164 } from '@/lib/whatsapp/phone-utils';
 
 import {
   checkRateLimit,
   rateLimitResponse,
   RATE_LIMITS,
-} from '@/lib/rate-limit'
-import type { MessageTemplate } from '@/types'
-import { isMessageTemplate } from '@/lib/whatsapp/template-row-guard'
-import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher'
-import { parseMetaErrorInfo, type MediaKind } from '@/lib/whatsapp/meta-api'
-import { isMediaKind, normalizeCaption } from '@/lib/whatsapp/media-kinds'
+} from '@/lib/rate-limit';
+import type { MessageTemplate } from '@/types';
+import { isMessageTemplate } from '@/lib/whatsapp/template-row-guard';
+import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
+import { parseMetaErrorInfo, type MediaKind } from '@/lib/whatsapp/meta-api';
+import { isMediaKind, normalizeCaption } from '@/lib/whatsapp/media-kinds';
 import {
   CUSTOMER_WINDOW_EXPIRED_MESSAGE,
   isWithinCustomerWindow,
-} from '@/lib/whatsapp/customer-window'
+} from '@/lib/whatsapp/customer-window';
+import { parseAgentCommand } from '@/lib/whatsapp/agent-commands';
+import { applyAgentCommand } from '@/lib/whatsapp/agent-command-apply';
 
 export async function POST(request: Request) {
   // Resolved outside the main try: that catch maps failures onto Meta
@@ -27,24 +26,24 @@ export async function POST(request: Request) {
   // Sending is 'agent' work — the composer already hides itself from
   // viewers via useCan("send-messages"); this enforces the same rule
   // server-side, and blocks archived accounts from burning credits.
-  let supabase: Awaited<ReturnType<typeof requireRole>>['supabase']
-  let accountId: string
-  let userId: string
+  let supabase: Awaited<ReturnType<typeof requireRole>>['supabase'];
+  let accountId: string;
+  let userId: string;
   try {
-    ;({ supabase, accountId, userId } = await requireRole('agent'))
+    ({ supabase, accountId, userId } = await requireRole('agent'));
   } catch (error) {
-    return toErrorResponse(error)
+    return toErrorResponse(error);
   }
 
   try {
     // Per-user rate limit. Bucket key is scoped to this route so
     // `/broadcast` has an independent budget.
-    const limit = checkRateLimit(`send:${userId}`, RATE_LIMITS.send)
+    const limit = checkRateLimit(`send:${userId}`, RATE_LIMITS.send);
     if (!limit.success) {
-      return rateLimitResponse(limit)
+      return rateLimitResponse(limit);
     }
 
-    const body = await request.json()
+    const body = await request.json();
     const {
       conversation_id,
       message_type,
@@ -59,34 +58,34 @@ export async function POST(request: Request) {
       media_url,
       media_kind,
       media_filename,
-    } = body
+    } = body;
 
     if (!conversation_id || !message_type) {
       return NextResponse.json(
         { error: 'conversation_id and message_type are required' },
         { status: 400 }
-      )
+      );
     }
 
     if (message_type === 'text' && !content_text) {
       return NextResponse.json(
         { error: 'content_text is required for text messages' },
         { status: 400 }
-      )
+      );
     }
 
     if (message_type === 'template' && !template_name) {
       return NextResponse.json(
         { error: 'template_name is required for template messages' },
         { status: 400 }
-      )
+      );
     }
 
     if (message_type === 'product' && !product_retailer_id) {
       return NextResponse.json(
         { error: 'product_retailer_id is required for product messages' },
         { status: 400 }
-      )
+      );
     }
 
     // Media arrives already staged by /api/whatsapp/media/upload, so
@@ -99,19 +98,19 @@ export async function POST(request: Request) {
         return NextResponse.json(
           { error: 'media_url is required for media messages' },
           { status: 400 }
-        )
+        );
       }
       if (!media_url.startsWith(`chat-media/${accountId}/`)) {
         return NextResponse.json(
           { error: 'media_url must be an attachment staged by this account' },
           { status: 400 }
-        )
+        );
       }
       if (!isMediaKind(media_kind)) {
         return NextResponse.json(
           { error: 'media_kind must be one of image, video, audio, document' },
           { status: 400 }
-        )
+        );
       }
     }
 
@@ -121,30 +120,52 @@ export async function POST(request: Request) {
       .select('*, contact:contacts(*)')
       .eq('id', conversation_id)
       .eq('account_id', accountId)
-      .single()
+      .single();
 
     if (convError || !conversation) {
       return NextResponse.json(
         { error: 'Conversation not found' },
         { status: 404 }
-      )
+      );
     }
 
-    const contact = conversation.contact
+    const contact = conversation.contact;
     if (!contact?.phone) {
       return NextResponse.json(
         { error: 'Contact phone number not found' },
         { status: 400 }
-      )
+      );
+    }
+
+    // A staff command, not a message: `SET BUDGET 2CR` writes the
+    // contact's budget and stops here, so the lead never sees it. The
+    // qualification listener deliberately ignores agent prose (a
+    // negotiation counter-offer must not rewrite a buyer's brief);
+    // this is the explicit way to file a number heard on a call
+    // without leaving the inbox.
+    if (message_type === 'text') {
+      const command = parseAgentCommand(content_text);
+      if (command) {
+        const handled = await applyAgentCommand({
+          db: supabase,
+          accountId,
+          userId,
+          contactId: contact.id,
+          contactName: contact.name ?? null,
+          conversationId: conversation.id,
+          command,
+        });
+        return NextResponse.json({ success: true, command: handled });
+      }
     }
 
     // Sanitize and validate phone
-    const sanitizedPhone = sanitizePhoneForMeta(contact.phone)
+    const sanitizedPhone = sanitizePhoneForMeta(contact.phone);
     if (!isValidE164(sanitizedPhone)) {
       return NextResponse.json(
         { error: 'Invalid phone number format' },
         { status: 400 }
-      )
+      );
     }
 
     // Fetch and decrypt WhatsApp config
@@ -152,16 +173,19 @@ export async function POST(request: Request) {
       .from('whatsapp_config')
       .select('*')
       .eq('account_id', accountId)
-      .single()
+      .single();
 
     if (configError || !config) {
       return NextResponse.json(
-        { error: 'WhatsApp not configured. Please set up your WhatsApp integration first.' },
+        {
+          error:
+            'WhatsApp not configured. Please set up your WhatsApp integration first.',
+        },
         { status: 400 }
-      )
+      );
     }
 
-    const accessToken = decrypt(config.access_token)
+    const accessToken = decrypt(config.access_token);
 
     // Self-heal legacy CBC-encrypted tokens. Fire-and-forget: we
     // return from the send without waiting, so a failed upgrade just
@@ -180,44 +204,44 @@ export async function POST(request: Request) {
           if (error) {
             console.warn(
               '[whatsapp/send] access_token GCM upgrade failed:',
-              error.message,
-            )
+              error.message
+            );
           }
-        })
+        });
     }
 
     // Resolve the reply target (if any) to its Meta message_id, which is
     // what `context.message_id` on the outgoing Meta payload needs. The
     // parent must belong to this same conversation — otherwise a caller
     // could quote messages they can't see by guessing UUIDs.
-    let contextMessageId: string | undefined
-    let replyToMessageId: string | undefined
+    let contextMessageId: string | undefined;
+    let replyToMessageId: string | undefined;
     if (reply_to_message_id) {
       const { data: parent, error: parentError } = await supabase
         .from('messages')
         .select('message_id, conversation_id')
         .eq('id', reply_to_message_id)
         .eq('conversation_id', conversation_id)
-        .maybeSingle()
+        .maybeSingle();
 
       if (parentError || !parent) {
         return NextResponse.json(
           { error: 'reply_to_message_id not found in this conversation' },
           { status: 400 }
-        )
+        );
       }
       // The local link is kept either way, so the thread still renders
       // the quote even when WhatsApp itself cannot.
-      replyToMessageId = reply_to_message_id
+      replyToMessageId = reply_to_message_id;
       if (!parent.message_id) {
         // Parent never reached Meta (still in 'sending' or 'failed') — we
         // can't quote it on WhatsApp. Send without context rather than
         // dropping the message entirely.
         console.warn(
           '[whatsapp/send] reply target has no Meta message_id; sending without context'
-        )
+        );
       } else {
-        contextMessageId = parent.message_id
+        contextMessageId = parent.message_id;
       }
     }
 
@@ -237,7 +261,7 @@ export async function POST(request: Request) {
     // + button components from the definition. isMessageTemplate
     // guards against a malformed row (e.g. from a partial sync)
     // crashing the send-builder later in the stack.
-    let templateRow: MessageTemplate | null = null
+    let templateRow: MessageTemplate | null = null;
     if (message_type === 'template' && template_name) {
       const { data } = await supabase
         .from('message_templates')
@@ -245,18 +269,18 @@ export async function POST(request: Request) {
         .eq('account_id', accountId)
         .eq('name', template_name)
         .eq('language', template_language || 'en_US')
-        .maybeSingle()
+        .maybeSingle();
 
-      let templateData = data
+      let templateData = data;
       if (!templateData) {
         const { data: fallbackTemplates } = await supabase
           .from('message_templates')
           .select('*')
           .eq('account_id', accountId)
           .eq('name', template_name)
-          .limit(1)
+          .limit(1);
         if (fallbackTemplates && fallbackTemplates.length > 0) {
-          templateData = fallbackTemplates[0]
+          templateData = fallbackTemplates[0];
         }
       }
 
@@ -266,10 +290,10 @@ export async function POST(request: Request) {
             error:
               'Template row is malformed locally — run "Sync from Meta" in Settings to repair it.',
           },
-          { status: 500 },
-        )
+          { status: 500 }
+        );
       }
-      templateRow = (templateData as MessageTemplate) ?? null
+      templateRow = (templateData as MessageTemplate) ?? null;
     }
 
     // ── 24-hour customer service window ─────────────────────────
@@ -281,10 +305,10 @@ export async function POST(request: Request) {
     // that; the caller's isReengagementError() branch matches this
     // message and offers a template instead. Sandbox has no real window
     // and swaps in its own system template rather than refusing.
-    let finalMessageType = message_type
-    let finalTemplateName = template_name
-    let finalTemplateRow = templateRow
-    let finalText = content_text
+    let finalMessageType = message_type;
+    let finalTemplateName = template_name;
+    let finalTemplateRow = templateRow;
+    let finalText = content_text;
 
     // Media is free-form too: outside the 24-hour window Meta accepts it,
     // returns a wamid, then fails it asynchronously — the same trap the
@@ -299,16 +323,19 @@ export async function POST(request: Request) {
         .eq('sender_type', 'customer')
         .order('created_at', { ascending: false })
         .limit(1)
-        .maybeSingle()
+        .maybeSingle();
 
       if (
         !isWithinCustomerWindow(lastCustomerMsg?.created_at ?? null) &&
         config.integration_type !== 'sandbox'
       ) {
         return NextResponse.json(
-          { error: CUSTOMER_WINDOW_EXPIRED_MESSAGE, code: 'CUSTOMER_WINDOW_EXPIRED' },
+          {
+            error: CUSTOMER_WINDOW_EXPIRED_MESSAGE,
+            code: 'CUSTOMER_WINDOW_EXPIRED',
+          },
           { status: 409 }
-        )
+        );
       }
     }
 
@@ -320,7 +347,7 @@ export async function POST(request: Request) {
         .eq('sender_type', 'customer')
         .order('created_at', { ascending: false })
         .limit(1)
-        .maybeSingle()
+        .maybeSingle();
 
       if (!isWithinCustomerWindow(lastCustomerMsg?.created_at ?? null)) {
         if (config.integration_type !== 'sandbox') {
@@ -330,7 +357,7 @@ export async function POST(request: Request) {
               code: 'CUSTOMER_WINDOW_EXPIRED',
             },
             { status: 409 }
-          )
+          );
         }
 
         // Outside 24h window — must use template
@@ -338,11 +365,11 @@ export async function POST(request: Request) {
           .from('sandbox_system_templates')
           .select('*')
           .eq('name', 'sandbox_general_reply')
-          .maybeSingle()
+          .maybeSingle();
 
         if (systemTemplate) {
-          finalMessageType = 'template'
-          finalTemplateName = systemTemplate.name
+          finalMessageType = 'template';
+          finalTemplateName = systemTemplate.name;
           finalTemplateRow = {
             ...systemTemplate,
             account_id: accountId,
@@ -365,18 +392,24 @@ export async function POST(request: Request) {
               },
               {
                 type: 'BUTTONS',
-                buttons: (systemTemplate.buttons as Array<{ type: string; text: string }>)?.map((b) => ({
-                  type: b.type,
-                  text: b.text,
-                })) || [],
+                buttons:
+                  (
+                    systemTemplate.buttons as Array<{
+                      type: string;
+                      text: string;
+                    }>
+                  )?.map((b) => ({
+                    type: b.type,
+                    text: b.text,
+                  })) || [],
               },
             ],
             language: systemTemplate.language,
             name: systemTemplate.name,
-          }
-          finalTemplateRow = finalTemplateRow as unknown as MessageTemplate
+          };
+          finalTemplateRow = finalTemplateRow as unknown as MessageTemplate;
           // Pass the text as template param {{1}}
-          finalText = content_text || ''
+          finalText = content_text || '';
         }
       }
     }
@@ -390,13 +423,14 @@ export async function POST(request: Request) {
         finalMessageType === 'template'
           ? 'template'
           : finalMessageType === 'product'
-          ? 'product'
-          : finalMessageType === 'media'
-          ? 'media'
-          : 'text',
+            ? 'product'
+            : finalMessageType === 'media'
+              ? 'media'
+              : 'text',
       senderType: 'agent',
       text: finalText,
-      mediaKind: finalMessageType === 'media' ? (media_kind as MediaKind) : undefined,
+      mediaKind:
+        finalMessageType === 'media' ? (media_kind as MediaKind) : undefined,
       mediaLink: finalMessageType === 'media' ? media_url : undefined,
       mediaCaption:
         finalMessageType === 'media'
@@ -408,7 +442,10 @@ export async function POST(request: Request) {
           : undefined,
       templateName: finalTemplateName,
       templateLanguage: template_language,
-      templateParams: finalMessageType === 'template' ? [finalText || 'there'] : template_params,
+      templateParams:
+        finalMessageType === 'template'
+          ? [finalText || 'there']
+          : template_params,
       messageParams: template_message_params ?? undefined,
       templateRow: finalTemplateRow ?? undefined,
       productCatalogId: product_catalog_id || config.catalog_id,
@@ -420,45 +457,46 @@ export async function POST(request: Request) {
       // the notice first. Every automated sender leaves this unset.
       allowDeadContact: true,
       customDbClient: supabase,
-    })
+    });
 
     if (!result.success) {
       const errorInfo = parseMetaErrorInfo(result.error);
       return NextResponse.json(
-        { 
-          error: result.error || 'Failed to send message via WhatsApp dispatcher',
+        {
+          error:
+            result.error || 'Failed to send message via WhatsApp dispatcher',
           errorInfo: {
             code: errorInfo.code,
             title: errorInfo.title,
             userMessage: errorInfo.userMessage,
             suggestedActions: errorInfo.suggestedActions,
-            isRetryable: errorInfo.isRetryable
-          }
+            isRetryable: errorInfo.isRetryable,
+          },
         },
         { status: 500 }
-      )
+      );
     }
 
     return NextResponse.json({
       success: true,
       message_id: result.messageId,
       whatsapp_message_id: result.whatsappMessageId,
-    })
+    });
   } catch (error) {
-    console.error('Error in WhatsApp send POST:', error)
+    console.error('Error in WhatsApp send POST:', error);
     const errorInfo = parseMetaErrorInfo(error);
     return NextResponse.json(
-      { 
+      {
         error: 'Failed to send message',
         errorInfo: {
           code: errorInfo.code,
           title: errorInfo.title,
           userMessage: errorInfo.userMessage,
           suggestedActions: errorInfo.suggestedActions,
-          isRetryable: errorInfo.isRetryable
-        }
+          isRetryable: errorInfo.isRetryable,
+        },
       },
       { status: 500 }
-    )
+    );
   }
 }
