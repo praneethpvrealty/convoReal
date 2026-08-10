@@ -116,8 +116,9 @@ export function AgentTaskDigestCard() {
         </div>
         <CardDescription className="text-slate-400">
           Your overdue tasks, today&apos;s tasks and today&apos;s calendar, sent to you at
-          the times you choose. Times are IST. This schedule is yours alone — it does not
-          change anyone else&apos;s.
+          the times you choose. On by default at 7am, 1pm and 9pm IST — change the times
+          here, or switch it off. This schedule is yours alone; it does not change anyone
+          else&apos;s.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

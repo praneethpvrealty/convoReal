@@ -5,6 +5,7 @@ import {
   formatTaskDigest,
   istNow,
   normalizeSendTimes,
+  resolveSchedule,
   supersededSlots,
 } from './task-digest';
 
@@ -33,6 +34,40 @@ describe('normalizeSendTimes', () => {
 
   it('accepts a schedule an agent trimmed to one', () => {
     expect(normalizeSendTimes(['08:30'])).toEqual(['08:30']);
+  });
+});
+
+describe('resolveSchedule', () => {
+  it('is on with the defaults for an agent who has never opened settings', () => {
+    // A settings row exists only once someone CHANGES something. If its
+    // absence meant off, the digest would reach only people who had
+    // gone looking for it, and every new joiner would start silent.
+    expect(resolveSchedule(undefined)).toEqual({
+      enabled: true,
+      times: DEFAULT_SEND_TIMES,
+    });
+    expect(resolveSchedule(null)).toEqual({ enabled: true, times: DEFAULT_SEND_TIMES });
+  });
+
+  it('honours an explicit opt-out', () => {
+    // The only state that reads as off.
+    expect(resolveSchedule({ enabled: false, send_times: ['09:00'] })).toEqual({
+      enabled: false,
+      times: ['09:00'],
+    });
+  });
+
+  it('honours a saved schedule', () => {
+    expect(resolveSchedule({ enabled: true, send_times: ['08:30', '18:00'] })).toEqual({
+      enabled: true,
+      times: ['08:30', '18:00'],
+    });
+  });
+
+  it('falls back to the defaults when a saved row has no usable times', () => {
+    expect(resolveSchedule({ enabled: true, send_times: [] }).times).toEqual(
+      DEFAULT_SEND_TIMES
+    );
   });
 });
 
