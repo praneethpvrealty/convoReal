@@ -40,8 +40,16 @@ const EVENT_TYPE_EMOJI: Record<string, string> = {
 const SCHEDULING_VERB =
   /\b(remind me|reminder|schedule|re-?schedule|book|fix (a |the )?(meeting|visit|call|appointment)|set up (a )?(meeting|visit|call)|follow ?up (with|on)|site visit)\b/i;
 
-/** An explicit to-do prefix. */
-const TASK_PREFIX = /\b(task|todo|to-do)\s*:/i;
+/**
+ * An explicit to-do declaration.
+ *
+ * The colon form is the obvious one ("task: call the lawyer"), but a
+ * dictated list does not use it — "Add for today's task 1) …" states
+ * the intent just as plainly and used to miss, which cost it the
+ * stated-outright pass and left it to be vetoed by the portal back-off
+ * below. So a list marker after the noun counts too.
+ */
+const TASK_PREFIX = /\b(task|todo|to-do)s?\b\s*(:|-|\d)/i;
 
 /** Something that happens at a time, which needs a WHEN to be a request. */
 const EVENT_VERB = /\b(call|meet|meeting|visit|appointment)\b/i;
@@ -106,6 +114,52 @@ export function looksLikeSchedulingText(text: string): boolean {
 
 export function isAgendaCommand(text: string): boolean {
   return /^(today|agenda|my day|schedule\??|today'?s schedule)$/i.test(text.trim());
+}
+
+/**
+ * A dictated to-do list, split into its items.
+ *
+ * "Add for today's task 1) … 2) … 3) …" is one message carrying three
+ * separate jobs, and everything downstream resolves exactly one draft —
+ * so without this the second and third items are swallowed into the
+ * first one's title.
+ *
+ * Deterministic and free. The numbering is the author's own structure;
+ * paying for an AI call to rediscover it would be paying to be told
+ * what the text already says.
+ *
+ * Only a run that actually counts 1, 2, 3 splits. That is what keeps
+ * "12 acres" and a lone "2)" out of it, and it is why the marker has to
+ * be followed by a separator and a space — a bare number is a quantity
+ * far more often than it is a heading.
+ *
+ * Lettered markers are left alone: "3) Followup with X regarding
+ * a) … b) …" is one job with two things to raise, not three jobs.
+ *
+ * Returns [] when there is no list, which leaves the single-draft path
+ * exactly as it was.
+ */
+export function splitTaskList(text: string): string[] {
+  const t = (text || '').trim();
+  if (!t) return [];
+
+  const marker = /(?:^|[\s.,;])(\d{1,2})\s*[).:]\s+/g;
+  const hits: { at: number; from: number }[] = [];
+  let expected = 1;
+  let m: RegExpExecArray | null;
+  while ((m = marker.exec(t)) !== null) {
+    if (Number(m[1]) !== expected) continue;
+    hits.push({ at: m.index, from: m.index + m[0].length });
+    expected += 1;
+  }
+  if (hits.length < 2) return [];
+
+  return hits
+    .map((h, i) =>
+      t.slice(h.from, i + 1 < hits.length ? hits[i + 1].at : undefined)
+    )
+    .map((s) => s.trim().replace(/[.,;\s]+$/, '').trim())
+    .filter(Boolean);
 }
 
 interface AgendaEvent {
@@ -586,6 +640,67 @@ export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): P
       (todos || []) as AgendaTodo[]
     );
     await replyAndLog({ phoneNumberId, accessToken, toPhone: contactRecord.phone, conversationId: conversation.id, text: reply });
+    return true;
+  }
+
+  // A dictated to-do list, filed item by item. Free and deterministic,
+  // like the agenda command above: the author numbered the jobs, so the
+  // only question left is when they are due.
+  //
+  // Gated on the text SAYING it is a task list, not merely on carrying
+  // numbers — a forwarded listing with numbered floors is not an agenda.
+  const listItems =
+    !isAudio && !isImage && text && TASK_PREFIX.test(text)
+      ? splitTaskList(text)
+      : [];
+  if (listItems.length >= 2) {
+    // "today" is the only due date a list like this states, and it is
+    // stated in the preamble rather than per item. Anything else is
+    // left undated, which the agenda reply already surfaces.
+    const dueIso = /\btoday\b/i.test(text) ? istDayWindow().endIso : null;
+    const { data: createdTodos, error } = await admin
+      .from('todos')
+      .insert(
+        listItems.map((title) => ({
+          account_id: accountId,
+          user_id: userId,
+          assigned_to: userId,
+          title: title.slice(0, 300),
+          due_date: dueIso,
+          priority: 'medium',
+          completed: false,
+          source: 'whatsapp',
+        }))
+      )
+      .select('id');
+    if (error) {
+      console.error('[wa-scheduler] task list insert failed:', error);
+      await replyAndLog({
+        phoneNumberId,
+        accessToken,
+        toPhone: contactRecord.phone,
+        conversationId: conversation.id,
+        text: '⚠️ Something went wrong saving those tasks. Please try again or add them from the Calendar page.',
+      });
+      return true;
+    }
+    const reply = [
+      `✅ *${createdTodos?.length ?? listItems.length} tasks added to your list*`,
+      dueIso ? '🕐 Due today' : null,
+      '',
+      ...listItems.map((title, i) => `${i + 1}. ${title}`),
+      '',
+      '_Reply *today* anytime to see your day\'s schedule._',
+    ]
+      .filter((l): l is string => l !== null)
+      .join('\n');
+    await replyAndLog({
+      phoneNumberId,
+      accessToken,
+      toPhone: contactRecord.phone,
+      conversationId: conversation.id,
+      text: reply,
+    });
     return true;
   }
 
