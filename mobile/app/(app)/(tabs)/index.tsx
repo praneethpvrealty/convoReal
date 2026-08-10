@@ -49,7 +49,7 @@ import {
   lastMsgStatusKey,
   outgoingTickStatus,
 } from '@/lib/inbox-ticks';
-import { needsReply, needsReplyLabel } from '@/lib/reply-state';
+import { needsReply, needsReplyLabel, unanswered } from '@/lib/reply-state';
 import { queryClient } from '@/lib/query';
 import { supabase, uniqueChannel } from '@/lib/supabase';
 import {
@@ -65,6 +65,7 @@ import { usePullRefresh } from '@/lib/use-pull-refresh';
 const FILTERS = [
   'All',
   'Needs reply',
+  'Unanswered',
   'Unread',
   'Active',
   'Closed',
@@ -173,6 +174,16 @@ export default function InboxScreen() {
           (a, b) =>
             new Date(a.last_customer_message_at ?? a.last_message_at ?? 0).getTime() -
             new Date(b.last_customer_message_at ?? b.last_message_at ?? 0).getTime()
+        );
+    else if (filter === 'Unanswered')
+      // Longest silence first: the lead who has ignored us for a week
+      // is the one worth another approach.
+      list = list
+        .filter((c) => unanswered(c) !== null)
+        .sort(
+          (a, b) =>
+            new Date(a.last_message_at ?? 0).getTime() -
+            new Date(b.last_message_at ?? 0).getTime()
         );
     else if (filter === 'Active')
       list = list
