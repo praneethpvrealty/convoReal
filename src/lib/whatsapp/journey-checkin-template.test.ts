@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   buildJourneyCheckinTemplatePayload,
   buildJourneyCheckinParams,
+  journeyCheckinUrlSuffix,
   JOURNEY_CHECKIN_TEMPLATE_NAME,
   JOURNEY_CHECKIN_KEEP_BUTTON,
   JOURNEY_CHECKIN_CLOSE_BUTTON,
@@ -61,6 +62,26 @@ describe('buildJourneyCheckinTemplatePayload', () => {
     expect(
       missingEngineTemplates([JOURNEY_CHECKIN_TEMPLATE_NAME]).map((t) => t.name),
     ).not.toContain(JOURNEY_CHECKIN_TEMPLATE_NAME);
+  });
+});
+
+describe('journeyCheckinUrlSuffix', () => {
+  it('matches the shape the URL button was reviewed with', () => {
+    const example = (buildJourneyCheckinTemplatePayload(ORIGIN).buttons ?? []).find(
+      (b) => b.type === 'URL',
+    )?.example;
+    const suffix = journeyCheckinUrlSuffix({ id: 'uuid-1', property_code: 'PROP-7' }, 'c1');
+    expect(suffix).toBe('?property_id=PROP-7&v=c1');
+    // Same parameter names and order as the reviewed sample.
+    expect([...new URLSearchParams(suffix).keys()]).toEqual([
+      ...new URLSearchParams(example ?? '').keys(),
+    ]);
+  });
+
+  it('falls back to the id when the listing has no code, and escapes both', () => {
+    expect(journeyCheckinUrlSuffix({ id: 'uu id', property_code: null }, 'c/1')).toBe(
+      '?property_id=uu%20id&v=c%2F1',
+    );
   });
 });
 
