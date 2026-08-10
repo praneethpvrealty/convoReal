@@ -7,6 +7,7 @@ import {
   PROPERTY_SHARE_TEMPLATE_NAMES,
   firstPropertyImage,
   pickPropertyShareTemplate,
+  pickShareDialogTemplate,
   propertyShareParams,
   shareHeaderImage,
 } from './property-share-template';
@@ -98,6 +99,52 @@ describe('pickPropertyShareTemplate', () => {
         { hasImage: true },
       ),
     ).toBeNull();
+  });
+});
+
+describe('pickShareDialogTemplate', () => {
+  const opts = { hasImage: false };
+
+  it('still lands on the engine template when the account has one', () => {
+    const rows = [row('share_property_details', 'Marketing'), row(TEXT)];
+    expect(pickShareDialogTemplate(rows, opts)?.name).toBe(TEXT);
+  });
+
+  it('prefers Utility among the account\'s own share templates', () => {
+    const rows = [
+      row('share_property_details', 'Marketing'),
+      row('share_property_details_with_image', 'Marketing'),
+      row('property_detail_notice', 'Utility'),
+    ];
+    expect(pickShareDialogTemplate(rows, opts)?.name).toBe('property_detail_notice');
+  });
+
+  it('prefers Utility in the loose keyword tier too', () => {
+    const rows = [row('send_the_listing', 'Marketing'), row('property_note', 'Utility')];
+    expect(pickShareDialogTemplate(rows, opts)?.name).toBe('property_note');
+  });
+
+  it('never falls back to whatever sorts first when a Utility row exists', () => {
+    // The old last resort was rows[0] — alphabetically first, in
+    // practice a Marketing template that 131049 drops.
+    const rows = [row('aaa_promo', 'Marketing'), row('zzz_notice', 'Utility')];
+    expect(pickShareDialogTemplate(rows, opts)?.name).toBe('zzz_notice');
+  });
+
+  it('still returns something when every approved template is Marketing', () => {
+    const rows = [row('aaa_promo', 'Marketing')];
+    expect(pickShareDialogTemplate(rows, opts)?.name).toBe('aaa_promo');
+  });
+
+  it('returns null when the account has no approved templates', () => {
+    expect(pickShareDialogTemplate([], opts)).toBeNull();
+  });
+
+  it('skips reminders, visits and owner digests', () => {
+    const rows = [row('appointment_reminder'), row('owner_property_digest')];
+    // Neither is a share template, so it falls through to the
+    // last resort rather than pre-selecting a reminder by name.
+    expect(pickShareDialogTemplate(rows, opts)?.name).toBe('appointment_reminder');
   });
 });
 
