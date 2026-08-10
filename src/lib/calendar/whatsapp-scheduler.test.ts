@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   looksLikeSchedulingText,
   isAgendaCommand,
+  splitTaskList,
   formatAgendaMessage,
   formatInboundConfirmation,
   istDayWindow,
@@ -90,6 +91,73 @@ describe('looksLikeSchedulingText', () => {
     expect(
       looksLikeSchedulingText('Remind me tomorrow to update the 3BHK 1850 sqft listing price to 1.3 crore')
     ).toBe(true);
+  });
+});
+
+const DICTATED_LIST =
+  "Add for today's task 1) Send Hoskote Road 12 acres land to all developers via email too. " +
+  '2) List SLV JP Nagar property onto Housing and magicbricks ' +
+  '3) Followup with Ashwath Reddy regarding a) Whitefield MNG Business centre proposal status ' +
+  "b) Koramangala NW corner Varun's property";
+
+describe('looksLikeSchedulingText — a dictated task list', () => {
+  it('accepts the list that was filed as a property draft', () => {
+    // The reported bug. "followup with" made it a scheduling request,
+    // but "task 1)" missed TASK_PREFIX so it never earned the
+    // stated-outright pass — and then "magicbricks" tripped the
+    // forwarded-lead back-off, so an agenda became a listing intake.
+    expect(looksLikeSchedulingText(DICTATED_LIST)).toBe(true);
+  });
+
+  it('survives a portal name the owner is telling us to post TO', () => {
+    expect(
+      looksLikeSchedulingText('Task 1) list the JP Nagar flat on magicbricks 2) call Ravi')
+    ).toBe(true);
+  });
+
+  it('still turns away a forwarded portal lead', () => {
+    // The back-off has to keep working: a lead with a phone number and
+    // a "call him" belongs to contact ingestion, not the calendar.
+    expect(
+      looksLikeSchedulingText(
+        'New lead from magicbricks, Rakesh 9845012345, is interested in the Hoodi plot, call him Monday'
+      )
+    ).toBe(false);
+  });
+});
+
+describe('splitTaskList', () => {
+  it('splits the dictated list into its three jobs', () => {
+    expect(splitTaskList(DICTATED_LIST)).toEqual([
+      'Send Hoskote Road 12 acres land to all developers via email too',
+      'List SLV JP Nagar property onto Housing and magicbricks',
+      "Followup with Ashwath Reddy regarding a) Whitefield MNG Business centre proposal status b) Koramangala NW corner Varun's property",
+    ]);
+  });
+
+  it('keeps lettered sub-items inside the job that introduced them', () => {
+    // Item 3 raises two things with one person. Three jobs, not four.
+    expect(splitTaskList(DICTATED_LIST)).toHaveLength(3);
+  });
+
+  it('is empty for a single request, leaving the AI path alone', () => {
+    expect(splitTaskList('remind me to call Ravi tomorrow at 5')).toEqual([]);
+    expect(splitTaskList('task: send the brochure')).toEqual([]);
+    expect(splitTaskList('')).toEqual([]);
+  });
+
+  it('does not read a quantity as a heading', () => {
+    // "12 acres" and "2 km" are numbers in a sentence. A marker needs
+    // its separator and its place in the run.
+    expect(splitTaskList('Plot of 12 acres, 2 km from ORR')).toEqual([]);
+    expect(splitTaskList('3) only item, numbered from three')).toEqual([]);
+  });
+
+  it('handles newline-separated lists and a trailing full stop', () => {
+    expect(splitTaskList('Tasks\n1. Call Ravi.\n2. Send the EC.')).toEqual([
+      'Call Ravi',
+      'Send the EC',
+    ]);
   });
 });
 
