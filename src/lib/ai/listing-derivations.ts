@@ -125,6 +125,42 @@ export function extractRateQuote(text: string | null | undefined): RateQuote | n
   return { perSqft, amount };
 }
 
+const YOUTUBE_URL_RE =
+  /https?:\/\/(?:www\.|m\.)?(?:youtube\.com|youtu\.be|youtube-nocookie\.com)\/\S+/i;
+const YOUTUBE_ID_RE = /^[A-Za-z0-9_-]{6,20}$/;
+
+/** A listing video often arrives as a YouTube link pasted into the
+ *  message rather than a forwarded MP4. The model has no field for it,
+ *  so the ID is lifted deterministically here. Trailing punctuation is
+ *  stripped — "…youtu.be/abc123XYZ_-." ends a sentence, not an ID. */
+export function extractYouTubeVideoId(text: string | null | undefined): string | null {
+  if (!text) return null;
+  const match = text.match(YOUTUBE_URL_RE);
+  if (!match) return null;
+
+  let parsed: URL;
+  try {
+    parsed = new URL(match[0].replace(/[.,!?)\]}>]+$/, ''));
+  } catch {
+    return null;
+  }
+
+  const host = parsed.hostname.replace(/^(?:www|m)\./, '');
+  if (host === 'youtu.be') {
+    const id = parsed.pathname.slice(1).split('/')[0];
+    return YOUTUBE_ID_RE.test(id) ? id : null;
+  }
+  const parts = parsed.pathname.split('/').filter(Boolean);
+  if (parts[0] === 'watch') {
+    const id = parsed.searchParams.get('v') || '';
+    return YOUTUBE_ID_RE.test(id) ? id : null;
+  }
+  if ((parts[0] === 'embed' || parts[0] === 'shorts' || parts[0] === 'live') && parts[1]) {
+    return YOUTUBE_ID_RE.test(parts[1]) ? parts[1] : null;
+  }
+  return null;
+}
+
 /** Abbreviations, upper-case only so an ordinary word never trips them.
  *  The negative lookahead keeps a name out of it — "JD Tower" is a
  *  building, "apartment JD" and "JD basis" are deals. */
@@ -184,6 +220,14 @@ export function applyListingDerivations(
   if (!next.dimensions) {
     next.dimensions = extractDimensionsFromText(rawText);
   }
+
+  // A fresh link replaces the previous one — a listing carries ONE
+  // video, same as properties.video_url.
+  next.youtube_video_id =
+    extractYouTubeVideoId(rawText) ??
+    next.youtube_video_id ??
+    previousDraft?.youtube_video_id ??
+    null;
 
   const dimensionSqft = parseDimensionsToSqft(next.dimensions);
   if (dimensionSqft && !next.land_area) {

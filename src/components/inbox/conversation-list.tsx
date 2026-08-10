@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { storagePublicUrl } from "@/lib/storage/url";
 import { useAuth } from "@/hooks/use-auth";
-import { needsReply, needsReplyLabel } from "@/lib/whatsapp/reply-state";
+import { needsReply, needsReplyLabel, unanswered } from "@/lib/whatsapp/reply-state";
 import type { OrgRole } from "@/lib/auth/roles";
 import type { Conversation, ConversationStatus, Team } from "@/types";
 import { Search, ChevronDown, MoreVertical, Archive, ArchiveRestore, Users } from "lucide-react";
@@ -52,11 +52,18 @@ const STATUS_COLORS: Record<ConversationStatus, string> = {
   closed: "bg-slate-500",
 };
 
-type FilterValue = ConversationStatus | "all" | "needs_reply" | "active" | "archived";
+type FilterValue =
+  | ConversationStatus
+  | "all"
+  | "needs_reply"
+  | "unanswered"
+  | "active"
+  | "archived";
 
 const FILTER_OPTIONS: { label: string; value: FilterValue }[] = [
   { label: "All", value: "all" },
   { label: "Needs reply", value: "needs_reply" },
+  { label: "Unanswered", value: "unanswered" },
   { label: "Active", value: "active" },
   { label: "Open", value: "open" },
   { label: "Pending", value: "pending" },
@@ -315,6 +322,16 @@ export function ConversationList({
             (a, b) =>
               new Date(a.last_customer_message_at ?? a.last_message_at ?? 0).getTime() -
               new Date(b.last_customer_message_at ?? b.last_message_at ?? 0).getTime()
+          );
+      } else if (filter === "unanswered") {
+        // Longest silence first: the lead who has ignored us for a week
+        // is the one worth another approach.
+        result = result
+          .filter((c) => unanswered(c) !== null)
+          .sort(
+            (a, b) =>
+              new Date(a.last_message_at ?? 0).getTime() -
+              new Date(b.last_message_at ?? 0).getTime()
           );
       } else if (filter === "active") {
         result = result

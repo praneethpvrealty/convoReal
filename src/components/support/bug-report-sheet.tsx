@@ -1,8 +1,11 @@
 'use client';
 
 // ============================================================
-// "Report a bug" — floating pill on every dashboard route, plus
-// Ctrl/Cmd+Shift+B.
+// "Help & feedback" — floating pill on every dashboard route, plus
+// Ctrl/Cmd+Shift+B. Named for help, not just defects: it is the only
+// always-visible support channel, and copy elsewhere points users at
+// it for questions ("this isn't enabled for my account") as much as
+// for breakage. The severity list has always carried "Idea / request".
 //
 // Two fields: what happened, and how bad. page_url, build_id and
 // user_agent ride along silently. That's deliberate — four fields
@@ -14,7 +17,7 @@
 // ============================================================
 
 import { useCallback, useEffect, useState } from 'react';
-import { Bug, Check, Loader2, X } from 'lucide-react';
+import { LifeBuoy, Check, Loader2, X } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -89,11 +92,11 @@ export function BugReportSheet() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        title="Report a bug (Ctrl+Shift+B)"
+        title="Help & feedback (Ctrl+Shift+B)"
         className="fixed bottom-4 right-4 z-40 flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900/90 px-3.5 py-2 text-xs font-medium text-slate-300 shadow-lg backdrop-blur transition-colors hover:border-slate-600 hover:text-white"
       >
-        <Bug className="size-3.5" />
-        Report a bug
+        <LifeBuoy className="size-3.5" />
+        Help &amp; feedback
       </button>
     );
   }
@@ -102,8 +105,8 @@ export function BugReportSheet() {
     <div className="fixed bottom-4 right-4 z-40 w-[min(24rem,calc(100vw-2rem))] rounded-xl border border-slate-700 bg-slate-900 shadow-2xl">
       <div className="flex items-center justify-between border-b border-slate-800 px-4 py-3">
         <h2 className="flex items-center gap-2 text-sm font-semibold text-white">
-          <Bug className="size-4 text-primary" />
-          {reference ? 'Thanks — logged' : 'Report a bug'}
+          <LifeBuoy className="size-4 text-primary" />
+          {reference ? 'Thanks — logged' : 'Help & feedback'}
         </h2>
         <button
           type="button"
@@ -137,7 +140,7 @@ export function BugReportSheet() {
         <form onSubmit={submit} className="flex flex-col gap-3.5 p-4">
           <div className="flex flex-col gap-1.5">
             <label htmlFor="bug-body" className="text-xs font-medium text-slate-400">
-              What happened?
+              What do you need help with?
             </label>
             <textarea
               id="bug-body"
@@ -145,13 +148,15 @@ export function BugReportSheet() {
               rows={4}
               value={body}
               onChange={(e) => setBody(e.target.value)}
-              placeholder="What you were doing, and what went wrong."
+              placeholder="Ask a question, or tell us what went wrong."
               className="w-full resize-none rounded-lg border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-white placeholder:text-slate-600 focus-visible:border-primary focus-visible:outline-none"
             />
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium text-slate-400">How bad?</span>
+            <span className="text-xs font-medium text-slate-400">
+              How urgent is it?
+            </span>
             <div className="grid grid-cols-2 gap-1.5">
               {BUG_SEVERITIES.map((s) => (
                 <button
@@ -173,7 +178,7 @@ export function BugReportSheet() {
           </div>
 
           <Button type="submit" disabled={saving || !body.trim()}>
-            {saving ? <Loader2 className="size-4 animate-spin" /> : 'Send report'}
+            {saving ? <Loader2 className="size-4 animate-spin" /> : 'Send'}
           </Button>
         </form>
       )}

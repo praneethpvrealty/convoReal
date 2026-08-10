@@ -219,6 +219,18 @@ export async function authHeaders(): Promise<Record<string, string>> {
   return session ? { Authorization: `Bearer ${session.access_token}` } : {};
 }
 
+/**
+ * Permanently delete the caller's login. An owner also takes the
+ * workspace and all of its data; teammates are moved to their own
+ * fresh workspaces first. Irreversible — always confirm before calling.
+ */
+export function deleteAccount() {
+  return apiFetch<{ ok: boolean; workspaceDeleted: boolean }>('/api/account/delete', {
+    method: 'DELETE',
+    body: JSON.stringify({ confirm: 'DELETE' }),
+  });
+}
+
 /** Register this device's Expo push token so the backend can push to it. */
 export function registerDevice(token: string, platform: string) {
   return apiFetch<{ data?: { ok: boolean }; error?: string }>(

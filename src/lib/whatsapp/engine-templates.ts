@@ -17,6 +17,7 @@ import { buildLocationRevealTemplatePayload, LOCATION_REVEAL_TEMPLATE_NAME } fro
 import { buildInventoryUpdateTemplatePayload, INVENTORY_UPDATE_TEMPLATE_NAME } from './inventory-update-template';
 import { buildEnquiryFollowupTemplatePayload, ENQUIRY_FOLLOWUP_TEMPLATE_NAME } from './enquiry-followup-template';
 import { buildEnquiryNoticeTemplatePayload, ENQUIRY_NOTICE_TEMPLATE_NAME } from './enquiry-notice-template';
+import { buildJourneyCheckinTemplatePayload, JOURNEY_CHECKIN_TEMPLATE_NAME } from './journey-checkin-template';
 
 export interface EngineTemplateDef {
   name: string;
@@ -67,6 +68,13 @@ export const ENGINE_TEMPLATES: EngineTemplateDef[] = [
     whyItMatters:
       'The property-anchored version of the enquiry status notice — names the listing the lead enquired about, so the message is specific rather than a form letter. Used for leads whose enquired property is known.',
     build: buildEnquiryNoticeTemplatePayload,
+  },
+  {
+    name: JOURNEY_CHECKIN_TEMPLATE_NAME,
+    label: 'Enquiry check-in',
+    whyItMatters:
+      'Asks a buyer whether a journey listing is still under consideration when their 24-hour window has closed — the template form of the check-in the Journey sheet drafts.',
+    build: buildJourneyCheckinTemplatePayload,
   },
 ];
 

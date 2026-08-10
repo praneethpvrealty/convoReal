@@ -9,7 +9,15 @@
 
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Compass, Send, Sparkles, ThumbsDown, ThumbsUp, X } from "lucide-react";
+import {
+  Compass,
+  Lightbulb,
+  Send,
+  Sparkles,
+  ThumbsDown,
+  ThumbsUp,
+  X,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TOURS } from "@/lib/copilot/tours";
 import { useCopilot } from "./copilot-context";
@@ -22,6 +30,9 @@ interface ChatTurn {
   cacheId?: string;
   /** Local one-vote-per-bubble state. */
   voted?: "up" | "down";
+  /** The ask was for something ConvoReal can't do — the server logged
+   *  it as a feature request, so tell the user it landed somewhere. */
+  unsupported?: boolean;
 }
 
 const SUGGESTIONS = [
@@ -97,10 +108,16 @@ export function CopilotPanel() {
         tourId?: string;
         navigateTo?: string;
         cacheId?: string;
+        unsupported?: boolean;
       } = await res.json();
       setTurns((t) => [
         ...t,
-        { role: "assistant", text: data.reply, cacheId: data.cacheId },
+        {
+          role: "assistant",
+          text: data.reply,
+          cacheId: data.cacheId,
+          unsupported: data.unsupported,
+        },
       ]);
       if (data.tourId) {
         startTour(data.tourId); // closes the panel via startTour
@@ -194,6 +211,14 @@ export function CopilotPanel() {
               >
                 {t.text}
               </div>
+              {/* Closes the loop on a "we can't do that" answer: the
+                  request was logged for the product team. */}
+              {t.role === "assistant" && t.unsupported && (
+                <p className="mt-1 flex items-center gap-1 pl-1 text-[10px] text-slate-500">
+                  <Lightbulb className="h-3 w-3 shrink-0" />
+                  Noted as a feature request for the ConvoReal team.
+                </p>
+              )}
               {/* Feedback row — the community signal that teaches the
                   helper which learned answers to keep serving. */}
               {t.role === "assistant" && t.cacheId && (

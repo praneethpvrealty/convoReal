@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { needsReply, needsReplyLabel, waitingShort } from './reply-state';
+import {
+  needsReply,
+  needsReplyLabel,
+  unanswered,
+  unansweredLabel,
+  waitingShort,
+} from './reply-state';
 
 const NOW = Date.parse('2026-08-08T12:00:00Z');
 const HOUR = 60 * 60 * 1000;
@@ -25,9 +31,11 @@ describe('needsReply', () => {
   });
 
   it('treats a chatbot hand-off (status pending) as needing a reply even after a bot answered', () => {
-    expect(
-      needsReply(conv({ awaiting_reply: false, status: 'pending' }), NOW)
-    ).not.toBeNull();
+    const state = needsReply(
+      conv({ awaiting_reply: false, status: 'pending' }),
+      NOW
+    );
+    expect(state).not.toBeNull();
   });
 
   it('is null once the thread was answered', () => {
@@ -51,7 +59,8 @@ describe('needsReply', () => {
   });
 
   it('treats a lead with no customer timestamp as outside the window', () => {
-    expect(needsReply(conv({ last_customer_message_at: null }), NOW)).toEqual({
+    const state = needsReply(conv({ last_customer_message_at: null }), NOW);
+    expect(state).toEqual({
       waitingMs: 0,
       windowRemainingMs: 0,
       windowExpired: true,
@@ -81,5 +90,73 @@ describe('needsReplyLabel', () => {
         )!
       )
     ).toBe('Needs reply · template only');
+  });
+});
+
+/** A portal lead the bot answered: we spoke, they never did. */
+function silent(overrides: Partial<Parameters<typeof unanswered>[0]> = {}) {
+  return conv({
+    awaiting_reply: false,
+    last_customer_message_at: null,
+    last_message_at: new Date(NOW - 6 * HOUR).toISOString(),
+    ...overrides,
+  });
+}
+
+describe('unanswered', () => {
+  it('flags a lead the bot answered and who never wrote back', () => {
+    expect(unanswered(silent(), NOW)).toEqual({ silentMs: 6 * HOUR });
+  });
+
+  it('never overlaps needsReply — the two states are exclusive', () => {
+    const waiting = conv();
+    expect(needsReply(waiting, NOW)).not.toBeNull();
+    expect(unanswered(waiting, NOW)).toBeNull();
+
+    const ignored = silent();
+    expect(needsReply(ignored, NOW)).toBeNull();
+    expect(unanswered(ignored, NOW)).not.toBeNull();
+  });
+
+  it('is null once the contact has written even once', () => {
+    expect(
+      unanswered(
+        silent({
+          last_customer_message_at: new Date(NOW - 40 * HOUR).toISOString(),
+        }),
+        NOW
+      )
+    ).toBeNull();
+  });
+
+  it('holds off during the grace period so a fresh send is not called ignored', () => {
+    expect(
+      unanswered(
+        silent({
+          last_message_at: new Date(NOW - 5 * 60 * 1000).toISOString(),
+        }),
+        NOW
+      )
+    ).toBeNull();
+  });
+
+  it('is null for closed, archived, and never-messaged threads', () => {
+    expect(unanswered(silent({ status: 'closed' }), NOW)).toBeNull();
+    expect(unanswered(silent({ is_archived: true }), NOW)).toBeNull();
+    expect(unanswered(silent({ last_message_at: null }), NOW)).toBeNull();
+  });
+});
+
+describe('unansweredLabel', () => {
+  it('reads as silence on their side, not a task on ours', () => {
+    expect(unansweredLabel(unanswered(silent(), NOW)!)).toBe('Unanswered · 6h');
+    expect(
+      unansweredLabel(
+        unanswered(
+          silent({ last_message_at: new Date(NOW - 50 * HOUR).toISOString() }),
+          NOW
+        )!
+      )
+    ).toBe('Unanswered · 2d');
   });
 });

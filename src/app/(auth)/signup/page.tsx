@@ -1,9 +1,10 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { recordSignupAttempt, signupGate } from "@/lib/auth/signup-attempt";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -64,6 +65,15 @@ function SignupPageInner() {
   const [bypassGate, setBypassGate] = useState(false);
   const supabase = createClient();
 
+  const gate = signupGate({ betaToken, inviteToken, bypassGate });
+
+  // Records the visit itself, which auth.users cannot: most arrivals
+  // during the invite-only launch see the waitlist card and leave
+  // without ever submitting anything. Re-runs when the gate changes so
+  // tapping the escape hatch reads as reaching the form.
+  useEffect(() => {
+    recordSignupAttempt({ stage: "landed", gate });
+  }, [gate]);
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,15 +81,28 @@ function SignupPageInner() {
 
     if (password !== confirmPassword) {
       setError("Passwords do not match");
+      recordSignupAttempt({
+        stage: "failed",
+        gate,
+        email,
+        errorMessage: "Passwords do not match",
+      });
       return;
     }
 
     if (password.length < 6) {
       setError("Password must be at least 6 characters");
+      recordSignupAttempt({
+        stage: "failed",
+        gate,
+        email,
+        errorMessage: "Password must be at least 6 characters",
+      });
       return;
     }
 
     setLoading(true);
+    recordSignupAttempt({ stage: "submitted", gate, email });
 
     // If we have an invite token, point Supabase's verification
     // email back at the join page so the user can accept after
@@ -107,10 +130,17 @@ function SignupPageInner() {
 
     if (error) {
       setError(error.message);
+      recordSignupAttempt({
+        stage: "failed",
+        gate,
+        email,
+        errorMessage: error.message,
+      });
       setLoading(false);
       return;
     }
 
+    recordSignupAttempt({ stage: "succeeded", gate, email });
     setSuccess(true);
     setLoading(false);
   };

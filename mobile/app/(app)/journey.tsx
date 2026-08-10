@@ -1,7 +1,9 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { Link, Stack, useLocalSearchParams } from 'expo-router';
 import { useMemo } from 'react';
 import {
+  Linking,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -10,8 +12,13 @@ import {
   View,
 } from 'react-native';
 
+import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { Avatar, EmptyState } from '@/components/ui';
 import { useAuthStore } from '@/lib/auth-store';
+import { buildCheckInMessage } from '@/lib/checkin-message';
+import { haptic } from '@/lib/haptics';
+import { openContactChat } from '@/lib/open-chat';
+import { contactPropertyShareUrl } from '@/lib/showcase-share';
 import { supabase } from '@/lib/supabase';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import type { JourneyItem, JourneyStage } from '@/lib/types';
@@ -27,6 +34,7 @@ import { usePullRefresh } from '@/lib/use-pull-refresh';
 export default function JourneyScreen() {
   const { colors, fonts: f } = useTheme();
   const accountId = useAuthStore((s) => s.profile?.account_id);
+  const { show, close, dialogProps } = useAppDialog();
   // Optional deep-link filter — e.g. the agent switcher on the contact
   // screen opens this list scoped to one contact.
   const { contactId } = useLocalSearchParams<{ contactId?: string }>();
@@ -56,7 +64,7 @@ export default function JourneyScreen() {
         .from('journey_items')
         .select(
           'id, contact_id, property_id, stage_id, status, drop_reason, hidden, updated_at, ' +
-            'contact:contacts(id, name, phone), property:properties(id, title)'
+            'contact:contacts(id, name, phone), property:properties(id, title, property_code)'
         )
         .eq('account_id', accountId!)
         .eq('hidden', false)
@@ -89,6 +97,62 @@ export default function JourneyScreen() {
     return Array.from(byContact.values());
   }, [items, contactId]);
 
+  /**
+   * The one question a stalled branch is asking — still in play, or
+   * park it? Both channels open with it already typed: the Engine
+   * inbox thread (business number, logged) or the agent's own
+   * WhatsApp. Web parity: the journey item sheet's Contact block.
+   */
+  async function askCheckIn(item: JourneyItem, stageLabel: string | undefined) {
+    const contact = item.contact;
+    if (!contact) return;
+    haptic.tap();
+    const name = contact.name || contact.phone || 'this contact';
+    // Best-effort: a link that won't resolve is dropped rather than
+    // holding up the nudge.
+    const propertyUrl = item.property
+      ? await contactPropertyShareUrl(contact, item.property).catch(() => null)
+      : null;
+    const message = buildCheckInMessage({
+      contactName: contact.name,
+      propertyTitle: item.property?.title,
+      propertyCode: item.property?.property_code,
+      stageName: stageLabel,
+      propertyUrl,
+    });
+    show({
+      title: `Check in with ${name}`,
+      message,
+      actions: [
+        { label: 'Cancel', variant: 'muted', onPress: close },
+        {
+          label: 'ConvoReal',
+          onPress: async () => {
+            close();
+            const outcome = await openContactChat(contact, { draftText: message });
+            if (!outcome.ok && outcome.error) {
+              show({ title: 'Could not open thread', message: outcome.error });
+            }
+          },
+        },
+        ...(contact.phone
+          ? [
+              {
+                label: 'WhatsApp',
+                variant: 'primary' as const,
+                onPress: () => {
+                  close();
+                  Linking.openURL(
+                    `https://wa.me/${contact.phone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`
+                  );
+                },
+              },
+            ]
+          : []),
+      ],
+    });
+  }
+
   return (
     <ScrollView
       style={{ flex: 1 }}
@@ -109,8 +173,9 @@ export default function JourneyScreen() {
       />
 
       <Text style={{ fontSize: 12.5, color: colors.textFaint }}>
-        Where every buyer stands, per property. Advancing, dropping and the full
-        mind-map canvas live on the web's Journey page.
+        Where every buyer stands, per property. Tap a property to ask whether
+        it's still in play. Advancing, dropping and the full mind-map canvas
+        live on the web's Journey page.
       </Text>
 
       {!isLoading && groups.length === 0 ? (
@@ -162,9 +227,14 @@ export default function JourneyScreen() {
               {group.items.map((item) => {
                 const stage = stageById.get(item.stage_id);
                 const dropped = item.status === 'dropped';
+                const stageLabel = dropped ? undefined : stage?.name;
                 return (
-                  <View
+                  <Pressable
                     key={item.id}
+                    onPress={() => void askCheckIn(item, stageLabel)}
+                    disabled={!item.contact}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Check in about ${item.property?.title ?? 'this property'}`}
                     style={[styles.itemRow, { borderTopColor: colors.border }]}
                   >
                     <View
@@ -201,13 +271,21 @@ export default function JourneyScreen() {
                         ? item.drop_reason || 'Dropped'
                         : (stage?.name ?? '—')}
                     </Text>
-                  </View>
+                    {item.contact ? (
+                      <Ionicons
+                        name="chatbubble-ellipses-outline"
+                        size={15}
+                        color={colors.textFaint}
+                      />
+                    ) : null}
+                  </Pressable>
                 );
               })}
             </View>
           );
         })
       )}
+      <AppDialog {...dialogProps} />
     </ScrollView>
   );
 }

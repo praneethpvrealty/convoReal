@@ -21,7 +21,9 @@ import {
 import { buildMatchesReply } from '@/lib/ai/buyer-qualification';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { sendListingFeedbackPrompt } from '@/lib/whatsapp/listing-feedback';
+import { sendRequirementReview } from '@/lib/whatsapp/requirement-review';
 import { isPlaceholderLeadName } from '@/lib/contacts/lead-placeholder';
+import type { Contact } from '@/types';
 
 export interface PreferenceMatchFollowUpResult {
   matchCount: number;
@@ -65,7 +67,7 @@ export async function sendPreferenceMatchFollowUp(args: {
   try {
     const { data: contact } = await db
       .from('contacts')
-      .select('name')
+      .select('*')
       .eq('id', contactId)
       .eq('account_id', accountId)
       .maybeSingle();
@@ -80,6 +82,22 @@ export async function sendPreferenceMatchFollowUp(args: {
 
     const contactName = (contact?.name as string | null) ?? null;
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+
+    if (matches.length === 0 && contact) {
+      // "Nothing fits that yet" is a dead end when the lead cannot see
+      // what *that* is. Play the saved brief back with one-tap
+      // corrections; the plain text below stays as the fallback for a
+      // contact with nothing on file to review.
+      const reviewed = await sendRequirementReview({
+        db,
+        accountId,
+        userId,
+        contactId,
+        conversationId,
+        contact: contact as Contact,
+      });
+      if (reviewed) return { matchCount: 0, replySent: true };
+    }
 
     const text =
       matches.length > 0

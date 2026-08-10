@@ -537,6 +537,10 @@ export interface ParsedPropertyDraft {
   /** Walkthrough video forwarded during WhatsApp intake — uploaded to
    *  the property-videos bucket, becomes properties.video_url. */
   video_url?: string | null;
+  /** YouTube link shared during intake — extracted deterministically
+   *  from the message text (never by the model), becomes
+   *  properties.youtube_video_id. */
+  youtube_video_id?: string | null;
   owner_contact_name: string | null;
   owner_contact_phone: string | null;
   owner_contact_role: string | null;

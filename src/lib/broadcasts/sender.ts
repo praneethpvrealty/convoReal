@@ -484,6 +484,21 @@ async function dispatchClaimedRecipients(
         console.error('[Broadcast Sender] lease renewal failed:', err);
       });
 
+    // The row claims need the same heartbeat, and only had the
+    // broadcast lease renewed. On batch 5 a dispatcher held 50 rows,
+    // was still working 17 minutes later, and the sweep reclaimed the
+    // 16 it had not reached because their claims had gone stale —
+    // 8 leads were messaged twice. Renew the rows still outstanding,
+    // bounded by the slice this dispatcher actually claimed.
+    const outstanding = recipients.slice(i).map((r) => r.id);
+    if (outstanding.length > 0) {
+      await supabase
+        .rpc('renew_broadcast_recipient_claims', { p_ids: outstanding })
+        .then(undefined, (err: unknown) => {
+          console.error('[Broadcast Sender] claim renewal failed:', err);
+        });
+    }
+
     const batch = recipients.slice(i, i + BATCH_SIZE);
 
     for (const recipient of batch) {

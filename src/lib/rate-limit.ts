@@ -149,6 +149,12 @@ export const RATE_LIMITS = {
    *  single tenant's worst-case Gemini spend. Fixed window resets on
    *  deploy — fine for a cost cap, not a billing meter. */
   copilotChatDaily: { limit: 150, windowMs: 86_400_000 },
+  /** Portfolio helper chat, per portal user per day. Owners and
+   *  buyers have no account to bound, so the daily backstop is
+   *  per-person and tighter than a whole agency's: a portal user with
+   *  four screens has far less to ask about than an agent running a
+   *  brokerage. Burst reuses copilotChat. */
+  copilotPortalDaily: { limit: 40, windowMs: 86_400_000 },
   /** Copilot nudge evaluation — cheap RLS-scoped reads, but bounded
    *  anyway since one call fans out to several queries. */
   copilotNudges: { limit: 6, windowMs: 60_000 },
