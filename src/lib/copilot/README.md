@@ -80,7 +80,10 @@ every hit, otherwise only the first user to ask would ever be counted.
 
 Grouping relies on the model reusing its own phrasing, so `sanitizeCapability()`
 drops anything long, sentence-shaped, or carrying PII rather than storing a key
-nothing will match. Ranked backlog:
+nothing will match.
+
+The ranked backlog is rendered at **Admin → Demand** (super-admin only,
+`/api/admin/copilot-demand`), or straight from Studio:
 
 ```sql
 SELECT capability_key,
