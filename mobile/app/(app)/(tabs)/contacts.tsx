@@ -23,6 +23,7 @@ import {
 } from '@/components/approve-celebration';
 import { EnterRow, PressScale, PulseRing } from '@/components/motion';
 import { ContextMenu } from '@/components/context-menu';
+import { ContactFiltersSheet } from '@/components/contact-filters-sheet';
 import { InterestFilterSheet } from '@/components/interest-filter-sheet';
 import { BottomSheet, sheetScrollArea } from '@/components/sheet';
 import {
@@ -42,6 +43,13 @@ import {
 } from '@/components/ui';
 import { apiFetch, ApiError, isCancelled, isTimeout } from '@/lib/api';
 import { approveAndSendDetails } from '@/lib/approve-contact';
+import {
+  activeFilterCount,
+  EMPTY_FILTERS,
+  filtersKey,
+  sortColumn,
+  type ContactFilters,
+} from '@/lib/contact-filters';
 import {
   interestChipLabel,
   type InterestFilter,
@@ -244,26 +252,42 @@ async function staffPhoneFilter(): Promise<string | null> {
 async function fetchContacts(
   search: string,
   segment: SegmentKey,
-  interest: InterestFilter | null
+  interest: InterestFilter | null,
+  filters: ContactFilters
 ): Promise<ContactsPage> {
   const q = search.trim();
   const staffFilter = await staffPhoneFilter();
+  const order = sortColumn(filters.sort);
   let query = supabase
     .from('contacts')
     .select(
       'id, phone, name, name_tag, email, company, classification, avatar_url, lead_temp, ' +
         'status, last_contacted_at, last_inquired_property_id, property_interests, ' +
-        'areas_of_interest, min_budget, max_budget, no_budget, is_favorite'
+        'areas_of_interest, min_budget, max_budget, no_budget, is_favorite' +
+        // An inner join rather than a fetch-then-`.in()`: a popular tag
+        // holds more contacts than an id list can travel in a URL.
+        (filters.tagId ? ', contact_tags!inner(tag_id)' : '')
     )
     // Web parity: a chain-only contact is a re-share intermediary's
     // attribution, not a lead of this account.
     .eq('chain_only', false)
-    .order('created_at', { ascending: false })
+    .order(order.column, { ascending: order.ascending, nullsFirst: false })
     .limit(150);
 
   if (staffFilter) {
     query = query.not('phone', 'in', staffFilter);
   }
+
+  if (filters.tagId) query = query.eq('contact_tags.tag_id', filters.tagId);
+  if (filters.classification)
+    query = query.eq('classification', filters.classification);
+  // A min budget admits the no-budget-set contacts; a max budget cannot,
+  // since there is no ceiling to compare. Web does the same.
+  if (filters.minBudget !== null)
+    query = query.or(`max_budget.gte.${filters.minBudget},no_budget.eq.true`);
+  if (filters.maxBudget !== null)
+    query = query.lte('max_budget', filters.maxBudget);
+  if (filters.area) query = query.contains('areas_of_interest', [filters.area]);
 
   if (segment === 'active' || segment === 'pending_review') {
     query = query.eq('status', segment);
@@ -464,6 +488,8 @@ export default function ContactsScreen() {
   const [segment, setSegment] = useState<SegmentKey>('active');
   const [interest, setInterest] = useState<InterestFilter | null>(null);
   const [interestOpen, setInterestOpen] = useState(false);
+  const [filters, setFilters] = useState<ContactFilters>(EMPTY_FILTERS);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [adding, setAdding] = useState(false);
   const [favoritingIds, setFavoritingIds] = useState<Set<string>>(new Set());
   const [importing, setImporting] = useState(false);
@@ -492,9 +518,16 @@ export default function ContactsScreen() {
   // Debounce so multi-step tag/note lookups don't fire per keystroke.
   const debounced = useDebounced(search);
 
-  const { data, isLoading, refetch } = useQuery({
-    queryKey: ['contacts', debounced, segment, interest?.kind, interest?.value],
-    queryFn: () => fetchContacts(debounced, segment, interest),
+  const { data, isLoading, isFetching, refetch } = useQuery({
+    queryKey: [
+      'contacts',
+      debounced,
+      segment,
+      interest?.kind,
+      interest?.value,
+      filtersKey(filters),
+    ],
+    queryFn: () => fetchContacts(debounced, segment, interest, filters),
     // Don't wipe the list to skeletons on every keystroke.
     placeholderData: keepPreviousData,
   });
@@ -642,9 +675,10 @@ export default function ContactsScreen() {
             alignItems: 'center',
           }}
         >
-          {/* A different axis from the segment pills beside it — which
-              stage a contact is at, versus what they enquired about — so
-              it leads the row and is ruled off from them. */}
+          {/* A different axis from the segment pills beside them —
+              which stage a contact is at, versus what they want — so
+              the two narrowing chips lead the row, ruled off from the
+              segments. */}
           <InterestChip
             filter={interest}
             onPress={() => {
@@ -656,13 +690,23 @@ export default function ContactsScreen() {
               setInterest(null);
             }}
           />
+          <AttributeChip
+            count={activeFilterCount(filters)}
+            onPress={() => {
+              haptic.tap();
+              setFiltersOpen(true);
+            }}
+          />
           <View
             style={[styles.chipRule, { backgroundColor: colors.glassBorder }]}
           />
           {SEGMENTS.map((seg) => {
-            // Counts are account-wide. Under an interest filter they
+            // Counts are account-wide. Under any narrowing filter they
             // would contradict the list right below them, so they go.
-            const n = interest ? undefined : counts.data?.[seg.key];
+            const n =
+              interest || activeFilterCount(filters) > 0
+                ? undefined
+                : counts.data?.[seg.key];
             return (
               <FilterChip
                 key={seg.key}
@@ -704,11 +748,13 @@ export default function ContactsScreen() {
               subtitle={
                 interest
                   ? `Nobody has enquired about ${interest.label} yet — link interested contacts from the listing, or clear the filter.`
-                  : debounced
-                    ? 'Searched names, phones, tags, notes, company and requirements.'
-                    : segment === 'active'
-                      ? 'Contacts arrive automatically from WhatsApp conversations and portal leads — or add one with the + button.'
-                      : 'No contacts in this segment yet.'
+                  : activeFilterCount(filters) > 0
+                    ? 'No contact matches every filter. Loosen one from the Filters chip.'
+                    : debounced
+                      ? 'Searched names, phones, tags, notes, company and requirements.'
+                      : segment === 'active'
+                        ? 'Contacts arrive automatically from WhatsApp conversations and portal leads — or add one with the + button.'
+                        : 'No contacts in this segment yet.'
               }
             />
           }
@@ -761,6 +807,14 @@ export default function ContactsScreen() {
         onClose={() => setInterestOpen(false)}
         active={interest}
         onApply={setInterest}
+      />
+      <ContactFiltersSheet
+        visible={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
+        filters={filters}
+        onChange={setFilters}
+        resultCount={data?.contacts.length ?? 0}
+        loading={isFetching}
       />
       <QuickAddContact visible={adding} onClose={() => setAdding(false)} />
       <DeviceImportSheet
@@ -887,6 +941,54 @@ function InterestChip({
         </Pressable>
       ) : null}
     </View>
+  );
+}
+
+/** The rest of the web Filters dialog — classification, tag, budget,
+ *  area, sort — behind one chip that carries how many are on. */
+function AttributeChip({
+  count,
+  onPress,
+}: {
+  count: number;
+  onPress: () => void;
+}) {
+  const { colors, fonts: f } = useTheme();
+  const active = count > 0;
+  return (
+    <Pressable
+      onPress={onPress}
+      hitSlop={6}
+      accessibilityRole="button"
+      accessibilityLabel={
+        active
+          ? `Filters, ${count} on. Classification, tag, budget, area and sort.`
+          : 'Filters — classification, tag, budget, area and sort'
+      }
+      accessibilityState={{ selected: active }}
+      style={[
+        styles.attributeChip,
+        {
+          backgroundColor: active ? colors.primary : colors.glass,
+          borderColor: active ? colors.primary : colors.glassBorder,
+        },
+      ]}
+    >
+      <Ionicons
+        name="options-outline"
+        size={14}
+        color={active ? colors.onPrimary : colors.textMuted}
+      />
+      <Text
+        style={{
+          fontSize: 13,
+          fontFamily: f.bold,
+          color: active ? colors.onPrimary : colors.text,
+        }}
+      >
+        {active ? `Filters · ${count}` : 'Filters'}
+      </Text>
+    </Pressable>
   );
 }
 
@@ -1694,6 +1796,15 @@ const styles = StyleSheet.create({
     paddingLeft: 13,
     paddingRight: 1,
     paddingVertical: 9,
+  },
+  attributeChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 13,
+    paddingVertical: 9,
+    borderRadius: radius.full,
+    borderWidth: 1,
   },
   chipRule: { width: StyleSheet.hairlineWidth, alignSelf: 'stretch' },
   inlineCall: {

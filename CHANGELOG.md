@@ -27,8 +27,20 @@ and polish.
   who enquired about any unit in the project with everyone whose
   preferences name it, and each row says which unit it matched. The
   active chip carries the code or project name and its own clear
-  button. Segment counts hide while a filter is on rather than
-  contradicting the list below them.
+  button.
+
+- **Mobile: the rest of the web Contacts filters.** A **Filters** chip
+  beside it opens the web Filters dialog's remaining controls —
+  classification, tag, budget from/up to, area of interest and sort —
+  as a sheet of chips rather than dropdowns, carrying a badge of how
+  many are on. Selections apply as they are made and the footer button
+  counts what is left ("Show 12 contacts"), so a chip's effect is
+  visible without dismissing the sheet. Semantics match web exactly: a
+  *budget from* bound admits contacts marked as having no budget
+  constraint, a *budget up to* bound does not, and the budget ladder
+  itself is now a shared constant that a drift test holds the two
+  platforms to. Segment counts hide while any narrowing filter is on
+  rather than contradicting the list below them.
 
 - **Shared requirements can now be answered, not just read.** Passing a
   client brief to another brokerage used to be copy-pasted text: the
