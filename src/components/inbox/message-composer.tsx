@@ -1,6 +1,13 @@
-"use client";
+'use client';
 
-import { useState, useRef, useCallback, useEffect, KeyboardEvent } from "react";
+import {
+  useState,
+  useRef,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  KeyboardEvent,
+} from 'react';
 import {
   Send,
   LayoutTemplate,
@@ -10,18 +17,19 @@ import {
   MessageCircle,
   ArrowRightCircle,
   UserX,
-} from "lucide-react";
-import { DEAD_CONTACT_NOTICE } from "@/lib/contacts/lifecycle";
-import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import { GatedButton } from "@/components/ui/gated-button";
-import { useCan } from "@/hooks/use-can";
-import { cn } from "@/lib/utils";
+} from 'lucide-react';
+import { DEAD_CONTACT_NOTICE } from '@/lib/contacts/lifecycle';
+import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
+import { GatedButton } from '@/components/ui/gated-button';
+import { useCan } from '@/hooks/use-can';
+import { cn } from '@/lib/utils';
 import {
   pickVoiceNoteMime,
   voiceNoteFilename,
-} from "@/lib/whatsapp/voice-note-format";
-import { ReplyQuote } from "./reply-quote";
+} from '@/lib/whatsapp/voice-note-format';
+import { clearDraft, readDraft, writeDraft } from '@/lib/inbox/composer-drafts';
+import { ReplyQuote } from './reply-quote';
 
 interface ReplyDraft {
   /** Internal UUID of the message being replied to — sent back through onSend. */
@@ -43,7 +51,7 @@ interface MessageComposerProps {
   onSendAttachment: (
     file: File,
     caption: string | undefined,
-    replyToId?: string,
+    replyToId?: string
   ) => Promise<void>;
   onOpenTemplates: () => void;
   replyTo?: ReplyDraft | null;
@@ -59,6 +67,7 @@ interface MessageComposerProps {
 }
 
 export function MessageComposer({
+  conversationId,
   sessionExpired,
   contactPhone,
   onInviteToEngine,
@@ -70,7 +79,7 @@ export function MessageComposer({
   contactDead = false,
   initialText,
 }: MessageComposerProps) {
-  const [text, setText] = useState("");
+  const [text, setText] = useState(() => readDraft(conversationId));
   const [sending, setSending] = useState(false);
   const [attaching, setAttaching] = useState(false);
   const [recording, setRecording] = useState(false);
@@ -86,16 +95,33 @@ export function MessageComposer({
   // Viewers (read-only role) can browse the inbox but never send.
   // For solo users this is always true — single-owner accounts pass
   // every capability — so the disabled branch is a no-op there.
-  const canSend = useCan("send-messages");
+  const canSend = useCan('send-messages');
   const readOnly = !canSend;
 
-  const adjustHeight = useCallback(() => {
+  // Height follows the rendered value, not the value that was in the box
+  // when the keystroke fired — measuring in the change handler is one
+  // character behind and clips the line that just wrapped.
+  useLayoutEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
-    el.style.height = "auto";
+    el.style.height = 'auto';
     // Max 4 lines (~96px)
     el.style.height = `${Math.min(el.scrollHeight, 96)}px`;
-  }, []);
+  }, [text, recording]);
+
+  // Each conversation keeps its own draft, as WhatsApp does: switching
+  // threads parks what is typed and restores whatever that thread had.
+  const activeConversationRef = useRef(conversationId);
+  useEffect(() => {
+    if (activeConversationRef.current === conversationId) return;
+    activeConversationRef.current = conversationId;
+    setText(readDraft(conversationId));
+  }, [conversationId]);
+
+  useEffect(() => {
+    if (activeConversationRef.current !== conversationId) return;
+    writeDraft(conversationId, text);
+  }, [conversationId, text]);
 
   // Seed the box from a handed-in draft. Deferred setter (repo-wide
   // pattern) and keyed on the value, so a re-render can't retype a
@@ -107,9 +133,8 @@ export function MessageComposer({
     Promise.resolve().then(() => {
       setText((prev) => (prev ? prev : initialText));
       textareaRef.current?.focus();
-      adjustHeight();
     });
-  }, [initialText, adjustHeight]);
+  }, [initialText]);
 
   const handleSend = useCallback(async () => {
     const trimmed = text.trim();
@@ -117,28 +142,28 @@ export function MessageComposer({
 
     setSending(true);
     try {
+      // Cleared before the send resolves: the message is already on the
+      // thread optimistically, so leaving it in the box would show it twice.
+      setText('');
+      clearDraft(conversationId);
       onSend(trimmed, replyTo?.id);
-      setText("");
-      if (textareaRef.current) {
-        textareaRef.current.style.height = "auto";
-      }
     } finally {
       setSending(false);
     }
-  }, [text, sending, sessionExpired, onSend, replyTo?.id]);
+  }, [text, sending, sessionExpired, onSend, replyTo?.id, conversationId]);
 
   const sendFile = useCallback(
     async (file: File) => {
       setAttaching(true);
       try {
         await onSendAttachment(file, text.trim() || undefined, replyTo?.id);
-        setText("");
-        if (textareaRef.current) textareaRef.current.style.height = "auto";
+        setText('');
+        clearDraft(conversationId);
       } finally {
         setAttaching(false);
       }
     },
-    [onSendAttachment, text, replyTo?.id],
+    [onSendAttachment, text, replyTo?.id, conversationId]
   );
 
   const handleFilePicked = useCallback(
@@ -146,10 +171,10 @@ export function MessageComposer({
       const file = e.target.files?.[0];
       // Reset first: picking the same file twice in a row fires no
       // change event otherwise, so a failed send could not be retried.
-      e.target.value = "";
+      e.target.value = '';
       if (file) await sendFile(file);
     },
-    [sendFile],
+    [sendFile]
   );
 
   const stopRecording = useCallback((keep: boolean) => {
@@ -163,13 +188,15 @@ export function MessageComposer({
       // Firefox records ogg/opus and Safari mp4, but Chrome and Edge
       // default to webm — which WhatsApp refuses. The type is pinned to
       // one Meta accepts rather than transcoded in the page.
-      const mimeType = pickVoiceNoteMime((type) =>
-        typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(type),
+      const mimeType = pickVoiceNoteMime(
+        (type) =>
+          typeof MediaRecorder !== 'undefined' &&
+          MediaRecorder.isTypeSupported(type)
       );
       if (!mimeType) {
         stream.getTracks().forEach((track) => track.stop());
         toast.error(
-          "This browser can't record a voice note WhatsApp accepts — attach an audio file instead.",
+          "This browser can't record a voice note WhatsApp accepts — attach an audio file instead."
         );
         return;
       }
@@ -191,7 +218,7 @@ export function MessageComposer({
         // Under a second is a mis-click, not a message.
         if (blob.size < 1200) return;
         void sendFile(
-          new File([blob], voiceNoteFilename(type, Date.now()), { type }),
+          new File([blob], voiceNoteFilename(type, Date.now()), { type })
         );
       };
 
@@ -201,7 +228,7 @@ export function MessageComposer({
       setRecordSeconds(0);
       tickRef.current = setInterval(() => setRecordSeconds((s) => s + 1), 1000);
     } catch {
-      toast.error("Microphone access is needed to record a voice note.");
+      toast.error('Microphone access is needed to record a voice note.');
     }
   }, [sendFile]);
 
@@ -213,7 +240,7 @@ export function MessageComposer({
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
-      if (e.key === "Enter" && !e.shiftKey) {
+      if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         handleSend();
       }
@@ -224,13 +251,12 @@ export function MessageComposer({
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
       setText(e.target.value);
-      adjustHeight();
     },
-    [adjustHeight]
+    []
   );
 
   return (
-    <div className="border-t border-slate-900/60 bg-slate-950/70 backdrop-blur-md p-4 relative z-10">
+    <div className="relative z-10 border-t border-slate-900/60 bg-slate-950/70 p-4 backdrop-blur-md">
       {replyTo && (
         <div className="mb-2">
           <ReplyQuote
@@ -282,7 +308,11 @@ export function MessageComposer({
                   const query = text.trim()
                     ? `?text=${encodeURIComponent(text.trim())}`
                     : '';
-                  window.open(`https://wa.me/${digits}${query}`, '_blank', 'noopener');
+                  window.open(
+                    `https://wa.me/${digits}${query}`,
+                    '_blank',
+                    'noopener'
+                  );
                 }}
               >
                 <MessageCircle className="mr-1 h-3 w-3" />
@@ -311,7 +341,7 @@ export function MessageComposer({
           <span className="h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-rose-400" />
           <span className="flex-1 text-sm text-slate-200">
             Recording {Math.floor(recordSeconds / 60)}:
-            {String(recordSeconds % 60).padStart(2, "0")}
+            {String(recordSeconds % 60).padStart(2, '0')}
           </span>
           <Button
             variant="ghost"
@@ -327,79 +357,85 @@ export function MessageComposer({
           </Button>
         </div>
       ) : (
-      <div className="flex items-end gap-2">
-        <input
-          ref={fileRef}
-          type="file"
-          className="hidden"
-          accept="image/jpeg,image/png,image/webp,video/mp4,video/3gpp,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"
-          onChange={handleFilePicked}
-        />
-        <GatedButton
-          variant="ghost"
-          size="sm"
-          canAct={!readOnly}
-          gateReason="send messages"
-          disabled={sessionExpired || attaching}
-          title={readOnly ? undefined : "Attach a photo, video or document"}
-          className="h-9 w-9 shrink-0 p-0 text-slate-400 hover:text-white rounded-xl bg-slate-950/40 border border-slate-900 hover:bg-slate-900/50 hover:scale-105 transition-all cursor-pointer flex items-center justify-center"
-          onClick={() => fileRef.current?.click()}
-        >
-          {attaching ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Paperclip className="h-4 w-4" />
-          )}
-        </GatedButton>
-        <GatedButton
-          variant="ghost"
-          size="sm"
-          canAct={!readOnly}
-          gateReason="send messages"
-          title={readOnly ? undefined : "Send Message"}
-          className="h-9 w-9 shrink-0 p-0 text-slate-400 hover:text-white rounded-xl bg-slate-950/40 border border-slate-900 hover:bg-slate-900/50 hover:scale-105 transition-all cursor-pointer flex items-center justify-center"
-          onClick={onOpenTemplates}
-        >
-          <LayoutTemplate className="h-4 w-4" />
-        </GatedButton>
+        <div className="flex items-end gap-2">
+          <input
+            ref={fileRef}
+            type="file"
+            className="hidden"
+            accept="image/jpeg,image/png,image/webp,video/mp4,video/3gpp,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"
+            onChange={handleFilePicked}
+          />
+          <GatedButton
+            variant="ghost"
+            size="sm"
+            canAct={!readOnly}
+            gateReason="send messages"
+            disabled={sessionExpired || attaching}
+            title={readOnly ? undefined : 'Attach a photo, video or document'}
+            className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-slate-900 bg-slate-950/40 p-0 text-slate-400 transition-all hover:scale-105 hover:bg-slate-900/50 hover:text-white"
+            onClick={() => fileRef.current?.click()}
+          >
+            {attaching ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Paperclip className="h-4 w-4" />
+            )}
+          </GatedButton>
+          <GatedButton
+            variant="ghost"
+            size="sm"
+            canAct={!readOnly}
+            gateReason="send messages"
+            title={readOnly ? undefined : 'Send Message'}
+            className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-slate-900 bg-slate-950/40 p-0 text-slate-400 transition-all hover:scale-105 hover:bg-slate-900/50 hover:text-white"
+            onClick={onOpenTemplates}
+          >
+            <LayoutTemplate className="h-4 w-4" />
+          </GatedButton>
 
-        <textarea
-          ref={textareaRef}
-          value={text}
-          onChange={handleChange}
-          onKeyDown={handleKeyDown}
-          placeholder={
-            readOnly
-              ? "Read-only — viewers can browse but not reply"
-              : sessionExpired
-                ? "Session expired - use a template"
-                : "Type a message... (Shift+Enter for new line)"
-          }
-          disabled={sessionExpired || readOnly}
-          rows={1}
-          // Textarea keeps its own inline title — the GatedButton
-          // wrapping pattern doesn't apply to non-button inputs.
-          // The placeholder text also surfaces the read-only state.
-          title={readOnly ? "Read-only — your role can't send messages" : undefined}
-          className={cn(
-            "flex-1 resize-none rounded-xl border border-slate-850 bg-slate-950/45 px-4 py-2.5 text-sm text-white placeholder-slate-550 outline-none transition-colors focus:border-primary/50 focus:bg-slate-950/80 focus:ring-1 focus:ring-primary/20",
-            (sessionExpired || readOnly) && "cursor-not-allowed opacity-50"
-          )}
-        />
+          <textarea
+            ref={textareaRef}
+            value={text}
+            onChange={handleChange}
+            onKeyDown={handleKeyDown}
+            placeholder={
+              readOnly
+                ? 'Read-only — viewers can browse but not reply'
+                : sessionExpired
+                  ? 'Session expired - use a template'
+                  : 'Type a message... (Shift+Enter for new line)'
+            }
+            disabled={sessionExpired || readOnly}
+            rows={1}
+            // Textarea keeps its own inline title — the GatedButton
+            // wrapping pattern doesn't apply to non-button inputs.
+            // The placeholder text also surfaces the read-only state.
+            title={
+              readOnly ? "Read-only — your role can't send messages" : undefined
+            }
+            className={cn(
+              'border-slate-850 placeholder-slate-550 focus:border-primary/50 focus:ring-primary/20 max-h-24 flex-1 resize-none overflow-y-auto rounded-xl border bg-slate-950/45 px-4 py-2.5 text-sm leading-5 text-white transition-colors outline-none focus:bg-slate-950/80 focus:ring-1',
+              (sessionExpired || readOnly) && 'cursor-not-allowed opacity-50'
+            )}
+          />
 
-        {/* Mic until there is something to send, as WhatsApp does. */}
-        <GatedButton
-          size="sm"
-          canAct={!readOnly}
-          gateReason="send messages"
-          disabled={sessionExpired || sending || attaching}
-          onClick={text.trim() ? handleSend : startRecording}
-          title={text.trim() ? "Send" : "Record a voice note"}
-          className="h-9 w-9 shrink-0 bg-primary p-0 hover:bg-primary-hover disabled:opacity-40 rounded-xl transition-all cursor-pointer hover:scale-105 active:scale-95 shadow-md shadow-primary/20 flex items-center justify-center text-white"
-        >
-          {text.trim() ? <Send className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-        </GatedButton>
-      </div>
+          {/* Mic until there is something to send, as WhatsApp does. */}
+          <GatedButton
+            size="sm"
+            canAct={!readOnly}
+            gateReason="send messages"
+            disabled={sessionExpired || sending || attaching}
+            onClick={text.trim() ? handleSend : startRecording}
+            title={text.trim() ? 'Send' : 'Record a voice note'}
+            className="bg-primary hover:bg-primary-hover shadow-primary/20 flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-xl p-0 text-white shadow-md transition-all hover:scale-105 active:scale-95 disabled:opacity-40"
+          >
+            {text.trim() ? (
+              <Send className="h-4 w-4" />
+            ) : (
+              <Mic className="h-4 w-4" />
+            )}
+          </GatedButton>
+        </div>
       )}
 
       {/* Hint sits outside the flex row so its height doesn't push
