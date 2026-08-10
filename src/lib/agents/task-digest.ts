@@ -179,17 +179,50 @@ export function formatTaskDigest(input: {
   };
 }
 
+/** Roles the digest is for. A viewer has no assigned work to report. */
+export const DIGEST_ROLES = ['owner', 'admin', 'agent'];
+
+export interface DigestSchedule {
+  enabled: boolean;
+  times: string[];
+}
+
+/**
+ * An agent's schedule, given whatever settings row they have — or none.
+ *
+ * On by default. A row is what an agent creates by CHANGING something,
+ * so treating its absence as "off" would have meant the digest reached
+ * only people who had already gone looking for it, and every new
+ * joiner would have started silent. Opting out is a saved row with
+ * enabled false, which is the only state this reads as off.
+ */
+export function resolveSchedule(row?: {
+  enabled?: boolean | null;
+  send_times?: unknown;
+} | null): DigestSchedule {
+  return {
+    enabled: row?.enabled !== false,
+    times: normalizeSendTimes(row?.send_times),
+  };
+}
+
 export interface TaskDigestRunResult {
   agentsConsidered: number;
   sent: number;
+  skippedOff: number;
   skippedEmpty: number;
   skippedNotDue: number;
 }
 
 /**
- * One pass over every agent whose digest is on. Safe to call as often
- * as the platform likes — the ledger insert is the claim, so a second
- * run in the same slot sends nothing.
+ * One pass over every agent. Safe to call as often as the platform
+ * likes — the ledger insert is the claim, so a second run in the same
+ * slot sends nothing.
+ *
+ * Driven from the staff list rather than from the settings table,
+ * because the digest is on by default: a settings row exists only once
+ * someone has changed something, and reading the table alone would
+ * have delivered to nobody until they did.
  */
 export async function sendAgentTaskDigests(
   now: Date = new Date()
@@ -198,24 +231,45 @@ export async function sendAgentTaskDigests(
   const result: TaskDigestRunResult = {
     agentsConsidered: 0,
     sent: 0,
+    skippedOff: 0,
     skippedEmpty: 0,
     skippedNotDue: 0,
   };
 
-  const { data: settings, error } = await db
-    .from('agent_task_digest_settings')
-    .select('account_id, user_id, send_times')
-    .eq('enabled', true);
+  const [{ data: staff, error }, { data: settingsRows }] = await Promise.all([
+    db
+      .from('profiles')
+      .select('user_id, account_id, full_name')
+      .in('account_role', DIGEST_ROLES),
+    db
+      .from('agent_task_digest_settings')
+      .select('account_id, user_id, enabled, send_times'),
+  ]);
   if (error) throw error;
+
+  const scheduleOf = new Map(
+    (settingsRows || []).map((r) => [`${r.account_id}:${r.user_id}`, r])
+  );
+  const settings = (staff || []).map((s) => ({
+    account_id: s.account_id,
+    user_id: s.user_id,
+    full_name: s.full_name,
+    schedule: resolveSchedule(scheduleOf.get(`${s.account_id}:${s.user_id}`)),
+  }));
 
   const { date: istDate, hhmm } = istNow(now);
   const dayStart = new Date(`${istDate}T00:00:00+05:30`);
   const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
 
-  for (const row of settings || []) {
+  for (const row of settings) {
     result.agentsConsidered += 1;
     const accountId = row.account_id as string;
     const userId = row.user_id as string;
+
+    if (!row.schedule.enabled) {
+      result.skippedOff += 1;
+      continue;
+    }
 
     const { data: logRows } = await db
       .from('agent_task_digest_log')
@@ -225,7 +279,7 @@ export async function sendAgentTaskDigests(
       .eq('digest_date', istDate);
     const alreadySent = (logRows || []).map((r) => r.slot as string);
 
-    const times = normalizeSendTimes(row.send_times);
+    const times = row.schedule.times;
     const slot = dueSlot(times, hhmm, alreadySent);
     if (!slot) {
       result.skippedNotDue += 1;
@@ -247,7 +301,7 @@ export async function sendAgentTaskDigests(
       continue;
     }
 
-    const [{ data: todos }, { data: appts }, { data: profile }] = await Promise.all([
+    const [{ data: todos }, { data: appts }] = await Promise.all([
       db
         .from('todos')
         .select('title, due_date, priority')
@@ -265,7 +319,6 @@ export async function sendAgentTaskDigests(
         .gte('start_time', dayStart.toISOString())
         .lt('start_time', dayEnd.toISOString())
         .order('start_time', { ascending: true }),
-      db.from('profiles').select('full_name').eq('user_id', userId).maybeSingle(),
     ]);
 
     const open = (todos || []) as DigestTask[];
@@ -277,7 +330,7 @@ export async function sendAgentTaskDigests(
     );
 
     const message = formatTaskDigest({
-      name: (profile?.full_name as string | null) ?? null,
+      name: (row.full_name as string | null) ?? null,
       slot,
       overdue,
       dueToday,
