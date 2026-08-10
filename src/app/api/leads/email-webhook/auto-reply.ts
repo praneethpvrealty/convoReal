@@ -285,6 +285,7 @@ export async function sendAutoReply({
     // ── Persist sent message to DB ──
     if (conversationId && replyText && messageId) {
       console.log(`${logPrefix} Persisting message to DB. conversationId=${conversationId}, type=${usedTemplateName ? 'template' : 'text'}`);
+      const sentAt = new Date().toISOString();
       await supabase.from('messages').insert({
         conversation_id: conversationId,
         sender_type: 'bot',
@@ -293,8 +294,29 @@ export async function sendAutoReply({
         template_name: usedTemplateName,
         message_id: messageId,
         status: 'sent',
-        created_at: new Date().toISOString(),
+        created_at: sentAt,
       });
+      // Same conversation bookkeeping `sendWhatsAppMessageAndPersist`
+      // does. This send bypasses the dispatcher, so without it the row
+      // kept the ingest preview and stayed flagged `awaiting_reply` —
+      // the inbox showed "Needs reply · 6h" on a lead the bot had
+      // already answered, counting up from an email that was never a
+      // WhatsApp message.
+      const { data: touched, error: convErr } = await supabase
+        .from('conversations')
+        .update({
+          last_message_text: replyText,
+          last_message_at: sentAt,
+          updated_at: sentAt,
+          awaiting_reply: false,
+        })
+        .eq('id', conversationId)
+        .select('id');
+      if (convErr || !touched?.length) {
+        console.error(
+          `${logPrefix} Conversation ${conversationId} not updated — it will stay in the reply queue: ${convErr?.message || 'no rows matched'}`
+        );
+      }
       console.log(`${logPrefix} Message persisted successfully`);
     } else {
       console.warn(`${logPrefix} Cannot persist: missing conversationId=${conversationId}, replyText=${!!replyText}, messageId=${!!messageId}`);

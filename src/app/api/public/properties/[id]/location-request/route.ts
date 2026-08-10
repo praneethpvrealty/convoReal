@@ -273,7 +273,8 @@ export async function POST(
                 last_message_at: new Date().toISOString(),
                 unread_count: currentUnread + 1,
                 awaiting_reply: true,
-                last_customer_message_at: new Date().toISOString(),
+                // See /api/public/inquiry: a web form does not open
+                // Meta's free-form window, so it must not stamp the anchor.
                 updated_at: new Date().toISOString(),
               })
               .eq('id', conversationId);
