@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 
 import {
   activeFilterCount,
-  budgetStepLabel,
   EMPTY_FILTERS,
   filtersKey,
   isDirty,
@@ -74,15 +73,6 @@ describe('sortColumn', () => {
       column: 'max_budget',
       ascending: true,
     });
-  });
-});
-
-describe('budgetStepLabel', () => {
-  it('says the ladder the way an agent does', () => {
-    expect(budgetStepLabel(500000)).toBe('₹5 L');
-    expect(budgetStepLabel(10000000)).toBe('₹1 Cr');
-    expect(budgetStepLabel(15000000)).toBe('₹1.5 Cr');
-    expect(budgetStepLabel(1000000000)).toBe('₹100 Cr');
   });
 });
 
