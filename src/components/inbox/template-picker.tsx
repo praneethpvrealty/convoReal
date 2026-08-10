@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { MessageTemplate } from "@/types";
 import { Button } from "@/components/ui/button";
@@ -29,10 +29,23 @@ export interface TemplateSendValues {
   buttonParams?: Record<number, string>;
 }
 
+/** A template the opening screen already knows how to fill — the
+ *  journey check-in, today. Everything is pre-entered; the agent reads
+ *  the rendered preview and sends, or edits first. */
+export interface TemplateIntent {
+  name: string;
+  body: string[];
+  /** Applied to every URL button that takes a suffix. Matching by slot
+   *  rather than by index means a template whose buttons were reordered
+   *  still fills, instead of silently leaving the send unconfirmable. */
+  urlSuffix?: string;
+}
+
 interface TemplatePickerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSelect: (template: MessageTemplate, values: TemplateSendValues) => void;
+  intent?: TemplateIntent | null;
 }
 
 function renderBodyPreview(body: string, params: string[]): string {
@@ -77,6 +90,7 @@ export function TemplatePicker({
   open,
   onOpenChange,
   onSelect,
+  intent,
 }: TemplatePickerProps) {
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
   const [loading, setLoading] = useState(true);
@@ -142,7 +156,31 @@ export function TemplatePicker({
     };
   }, [open]);
 
+  // Land straight on the intended template with its values filled.
+  // Nothing is sent here — the agent still reviews the rendered
+  // preview and presses send, the same as picking it by hand. Applied
+  // once per intent so re-opening after an edit does not overwrite it.
+  const intentAppliedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!open || !intent || loading) return;
+    if (intentAppliedRef.current === intent.name) return;
+    const match = templates.find((t) => t.name === intent.name);
+    if (!match) return;
+    intentAppliedRef.current = intent.name;
+    const urlSlots = collectVariableSlots(match).urlButtonSlots;
+    Promise.resolve().then(() => {
+      setSelected(match);
+      setParams(intent.body);
+      setButtonParams(
+        intent.urlSuffix
+          ? Object.fromEntries(urlSlots.map((s) => [s.index, intent.urlSuffix!]))
+          : {},
+      );
+    });
+  }, [open, intent, loading, templates]);
+
   function resetSelection() {
+    intentAppliedRef.current = null;
     setSelected(null);
     setParams([]);
     setHeaderText("");

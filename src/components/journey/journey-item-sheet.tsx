@@ -41,7 +41,16 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { resolveConversation } from "@/lib/conversations/resolve";
 import { buildCheckInMessage } from "@/lib/journey/checkin-message";
-import { accountShowcaseBase } from "@/lib/showcase/account-showcase-url";
+import {
+  accountBrandName,
+  accountShowcaseBase,
+} from "@/lib/showcase/account-showcase-url";
+import {
+  buildJourneyCheckinParams,
+  journeyCheckinUrlSuffix,
+  JOURNEY_CHECKIN_TEMPLATE_NAME,
+} from "@/lib/whatsapp/journey-checkin-template";
+import { describeEnquiredProperty } from "@/lib/whatsapp/enquiry-notice-template";
 import { propertyShowcaseUrl } from "@/lib/share-message-builder";
 import { formatCurrencyShort } from "@/lib/currency-utils";
 import { Button } from "@/components/ui/button";
@@ -146,6 +155,7 @@ export function JourneyItemSheet({
   const [planDate, setPlanDate] = useState("");
   const [openingInbox, setOpeningInbox] = useState(false);
   const [showcaseBase, setShowcaseBase] = useState<string | null>(null);
+  const [brandName, setBrandName] = useState<string | null>(null);
 
   // Reset transient state whenever a different item opens. Deferred
   // setter (matches the repo-wide pattern) so the reset doesn't
@@ -193,8 +203,13 @@ export function JourneyItemSheet({
     if (!accountId) return;
     let cancelled = false;
     (async () => {
-      const base = await accountShowcaseBase(supabase, accountId);
-      if (!cancelled) setShowcaseBase(base);
+      const [base, brand] = await Promise.all([
+        accountShowcaseBase(supabase, accountId),
+        accountBrandName(supabase, accountId),
+      ]);
+      if (cancelled) return;
+      setShowcaseBase(base);
+      setBrandName(brand);
     })();
     return () => {
       cancelled = true;
@@ -223,6 +238,35 @@ export function JourneyItemSheet({
     propertyUrl,
   });
 
+  /** Whether the contact has written inside the last 24 hours — the
+   *  free-form window. Closed means a typed message can only fail with
+   *  131049, so the nudge has to go as the approved template instead. */
+  const sessionOpen = async (conversationId: string): Promise<boolean> => {
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { count } = await supabase
+      .from("messages")
+      .select("id", { count: "exact", head: true })
+      .eq("conversation_id", conversationId)
+      .eq("sender_type", "customer")
+      .gte("created_at", since);
+    return (count ?? 0) > 0;
+  };
+
+  /** The approved check-in template, filled. The picker opens on it so
+   *  the agent reads the rendered message and sends — nothing goes out
+   *  from here. */
+  const templateIntent = () => ({
+    name: JOURNEY_CHECKIN_TEMPLATE_NAME,
+    body: buildJourneyCheckinParams(
+      contact?.name,
+      brandName,
+      property ? describeEnquiredProperty(property) : "",
+    ),
+    ...(property && contact
+      ? { urlSuffix: journeyCheckinUrlSuffix(property, contact.id) }
+      : {}),
+  });
+
   const openInInbox = async () => {
     if (!item || !contact || openingInbox) return;
     setOpeningInbox(true);
@@ -240,8 +284,13 @@ export function JourneyItemSheet({
       toast.error(error?.message ?? "Could not open the chat thread");
       return;
     }
+    const open24h = await sessionOpen(conversation.id);
     router.push(
-      `/inbox?c=${conversation.id}&draft=${encodeURIComponent(checkInMessage)}`,
+      open24h
+        ? `/inbox?c=${conversation.id}&draft=${encodeURIComponent(checkInMessage)}`
+        : `/inbox?c=${conversation.id}&tpl=${encodeURIComponent(
+            JSON.stringify(templateIntent()),
+          )}`,
     );
   };
 

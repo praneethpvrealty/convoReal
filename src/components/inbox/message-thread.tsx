@@ -51,7 +51,7 @@ import {
 } from '@/lib/whatsapp/message-state';
 import { ForwardMessageDialog } from './forward-message-dialog';
 import { MessageComposer } from './message-composer';
-import { TemplatePicker } from './template-picker';
+import { TemplatePicker, type TemplateIntent } from './template-picker';
 import { buildReplyPreview } from './reply-quote';
 import { MessageBubbleLoader } from '@/components/ui/message-bubble-loader';
 import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
@@ -99,6 +99,13 @@ interface MessageThreadProps {
    * The composer only applies it to an empty box.
    */
   initialDraft?: string;
+  /**
+   * The same nudge for a contact whose 24-hour window has closed:
+   * free-form cannot go out, so the opener hands over a pre-filled
+   * template instead. Opens the picker on it, already populated —
+   * the agent still reviews and sends.
+   */
+  initialTemplate?: TemplateIntent | null;
   /**
    * Increment to force the messages + reactions fetch effects to refire.
    * Parent bumps this on realtime reconnect / tab visibility → visible
@@ -181,6 +188,7 @@ export function MessageThread({
   onAssignChange,
   onBack,
   initialDraft,
+  initialTemplate,
   resyncToken = 0,
   onRefresh,
   onArchive,
@@ -189,6 +197,12 @@ export function MessageThread({
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
+  // A handed-over template opens the picker on arrival — the closed
+  // window is exactly when the agent would otherwise hit a dead end.
+  useEffect(() => {
+    if (!initialTemplate) return;
+    Promise.resolve().then(() => setTemplateModalOpen(true));
+  }, [initialTemplate]);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [reactions, setReactions] = useState<MessageReaction[]>([]);
@@ -1393,6 +1407,7 @@ export function MessageThread({
       />
 
       <TemplatePicker
+        intent={initialTemplate}
         open={templateModalOpen}
         onOpenChange={setTemplateModalOpen}
         onSelect={handleSendTemplate}

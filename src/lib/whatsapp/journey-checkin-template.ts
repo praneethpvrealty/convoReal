@@ -90,6 +90,20 @@ export function buildJourneyCheckinTemplatePayload(
 }
 
 /**
+ * The URL button's suffix: everything after the account's showcase
+ * origin. Must match the shape the template was reviewed with
+ * (`?property_id=abc&v=contact-id`), and `v=` attributes the visit to
+ * this contact in Pulse rather than gating anything.
+ */
+export function journeyCheckinUrlSuffix(
+  property: { id: string; property_code?: string | null },
+  contactId: string,
+): string {
+  const id = property.property_code || property.id;
+  return `?property_id=${encodeURIComponent(id)}&v=${encodeURIComponent(contactId)}`;
+}
+
+/**
  * Body params {{1}}..{{3}}: first name, the brokerage sending it, and
  * the listing being checked on. All three are guaranteed non-empty —
  * Meta rejects empty values, a lead filed under "Housing Lead" is
