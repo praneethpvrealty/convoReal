@@ -148,7 +148,7 @@ Two canonical rules the subsections below do not otherwise restate:
 | Maps | Google Places | `src/lib/maps/google-places.ts` |
 | Cron | Vercel Cron | `vercel.json` |
 | Analytics | Vercel Analytics | `@vercel/analytics` |
-| CI | GitHub Actions | `.github/workflows/ci.yml` — web (lint/typecheck/test/build) + mobile jobs |
+| CI | GitHub Actions | `.github/workflows/ci.yml` — path-filtered, tiered; see §12 |
 | Mobile | Expo ~57 / React Native 0.86 / React 19.2.7 | `mobile/` directory, separate package.json and lockfile |
 | Browser extension | Chrome portal autofill | `extension/portal-autofill/` |
 
@@ -168,7 +168,7 @@ convoReal/
 ├── components.json               # shadcn/ui configuration
 ├── vercel.json                   # Build ignore rules + cron schedules
 ├── Dockerfile.worker             # Docker image for the queue worker
-├── .github/workflows/ci.yml      # Lint, typecheck, test, build (web + mobile)
+├── .github/workflows/ci.yml      # Path-filtered lint/typecheck/test; build at merge time
 ├── src/
 │   ├── app/                      # Next.js App Router pages + API routes
 │   │   ├── (auth)/               # Login, signup, forgot-password, reset-password
@@ -314,7 +314,7 @@ All commands run from the project root unless noted.
 | `npm run check-db` | Run `src/scripts/check-documents-column.ts`. |
 | `npm run reconcile-pins` | Reconcile property map pins with derived coordinates. |
 
-CI (`.github/workflows/ci.yml`) runs `lint`, `typecheck`, `test`, and `build` for the web app and `lint`, `typecheck`, `test` for `mobile/`, both on Node 20. Run the same commands locally before pushing.
+CI (`.github/workflows/ci.yml`) is tiered. A `changes` job classifies the diff, then `lint`, `typecheck` and `test` run in parallel whenever web paths changed, and the `mobile` job runs only when `mobile/**` changed. `build` is deliberately **not** run on pull requests — Vercel already builds every push and `typecheck` covers the same type errors — so it runs on `merge_group` and `push: main` only, with `.next/cache` restored between runs. `ci` is an `if: always()` gate job and is the single status check to mark required; do not require the individual jobs, since a skipped job never reports. Run the same commands locally before pushing.
 
 ### Mobile app
 
@@ -627,8 +627,8 @@ Meta Cloud API
 - **Integration tests**: `src/**/*.integration.test.ts`. Run with `npm run test:integration`. They hit the live Supabase project using `SUPABASE_SERVICE_ROLE_KEY` and skip if credentials are absent.
 - **Mobile tests**: `mobile/lib/**/*.test.ts`. Run with `cd mobile && npm test` (separate Vitest config and dependency tree). Pure logic only — modules that import Supabase, Expo or React Native have no runtime under a plain Node runner.
 - **Go tests**: `cd go-ingress && go test`.
-- **Husky pre-commit**: runs `npm test` (see `.husky/pre-commit`).
-- **CI**: `.github/workflows/ci.yml` runs on every PR and push to `main`; older runs for the same branch are cancelled.
+- **Husky pre-commit**: runs `eslint` and `vitest related` over staged `src/**` TypeScript only (see `.husky/pre-commit`). The full suite is CI's job.
+- **CI**: `.github/workflows/ci.yml` runs on every PR, on `merge_group`, and on push to `main`; older runs for the same PR branch are cancelled, merge-queue and main runs are not.
 - Tests are co-located with source files.
 
 ---
