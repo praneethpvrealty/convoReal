@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentAccount, toErrorResponse } from '@/lib/auth/account';
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit';
-import { generateJson } from '@/lib/ai/gemini';
+import { embedText, generateJson } from '@/lib/ai/gemini';
 import { buildCopilotSystemPrompt, isAllowedRoute } from '@/lib/copilot/knowledge';
+import { chunkRefs, selectChunks } from '@/lib/copilot/retrieval';
 import { matchTourIntent, cannedTourReply } from '@/lib/copilot/intent';
 import { getTour } from '@/lib/copilot/tours';
 import {
@@ -11,6 +12,7 @@ import {
   lookupCachedAnswer,
   storeAnswer,
 } from '@/lib/copilot/qa-cache';
+import { logUnmetRequest, sanitizeCapability } from '@/lib/copilot/unmet';
 
 /**
  * POST /api/copilot — in-app helper chat.
@@ -56,6 +58,7 @@ function parseModelJson(raw: string): {
   reply?: unknown;
   tourId?: unknown;
   navigateTo?: unknown;
+  unsupported?: unknown;
 } | null {
   const cleaned = raw.replace(/```(?:json)?/gi, '').trim();
   try {
@@ -112,21 +115,44 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // One embed per request, reused three ways: cache lookup, chunk
+    // retrieval, and (on a miss) storeAnswer. Best-effort — without
+    // it the cache is skipped and retrieval scores lexically.
+    let embedding: number[] | null = null;
+    try {
+      embedding = await embedText(message);
+    } catch (err) {
+      console.warn(
+        '[Copilot] embed failed:',
+        err instanceof Error ? err.message : err,
+      );
+    }
+
     // Self-learning cache: a similar generic question answered before
     // (for ANY user) is served from the learned store — deterministic
     // validation only, no Gemini call. Best-effort: every cache
     // failure falls through to the normal path below.
     const cacheable = isCacheableQuestion(message, history.length);
-    let lookupEmbedding: number[] | null = null;
-    if (cacheable) {
-      const { entry, embedding } = await lookupCachedAnswer(message);
-      lookupEmbedding = embedding;
+    if (cacheable && embedding) {
+      const entry = await lookupCachedAnswer(embedding);
       if (entry) {
         bumpHit(entry.id);
+        // A cached "we don't do that" still counts as demand —
+        // otherwise only the first user to ask is ever visible.
+        const cachedCapability = sanitizeCapability(entry.unsupportedCapability);
+        if (cachedCapability) {
+          logUnmetRequest({
+            accountId: ctx.accountId,
+            capability: cachedCapability,
+            question: message,
+            pathname,
+          });
+        }
         return NextResponse.json({
           reply: entry.reply,
           ...(entry.tourId ? { tourId: entry.tourId } : {}),
           ...(entry.navigateTo ? { navigateTo: entry.navigateTo } : {}),
+          ...(cachedCapability ? { unsupported: true } : {}),
           cached: true,
           cacheId: entry.id,
         });
@@ -140,7 +166,12 @@ export async function POST(req: NextRequest) {
       ? `${transcript}\nUser: ${message}`
       : `User: ${message}`;
 
-    const raw = await generateJson(prompt, buildCopilotSystemPrompt(pathname), { feature: 'copilot' });
+    // Retrieval: current page's chunk + top-K for the question, the
+    // only knowledge the model gets. Recorded on the cache row so a
+    // chunk edit retires exactly the answers built on it.
+    const chunks = selectChunks({ pathname, message, embedding });
+
+    const raw = await generateJson(prompt, buildCopilotSystemPrompt(pathname, chunks), { feature: 'copilot' });
     const parsed = parseModelJson(raw);
 
     const reply =
@@ -161,23 +192,38 @@ export async function POST(req: NextRequest) {
         ? parsed.navigateTo
         : undefined;
 
+    // Unmet demand: the user asked for something the app can't do.
+    // Recorded per account so the operator can rank real feature
+    // requests by how many teams asked (migration 236).
+    const capability = parsed ? sanitizeCapability(parsed.unsupported) : null;
+    if (capability) {
+      logUnmetRequest({
+        accountId: ctx.accountId,
+        capability,
+        question: message,
+        pathname,
+      });
+    }
+
     // Learn this answer: only clean, parseable replies to cacheable
     // questions enter the shared store (reuses the lookup embedding —
     // no second embed call).
     let cacheId: string | null = null;
     if (
       cacheable &&
-      lookupEmbedding &&
+      embedding &&
       parsed &&
       typeof parsed.reply === 'string' &&
       parsed.reply.trim()
     ) {
       cacheId = await storeAnswer({
         question: message,
-        embedding: lookupEmbedding,
+        embedding,
         reply,
         tourId: safeTourId,
         navigateTo: safeNavigate,
+        unsupportedCapability: capability?.capability,
+        sourceChunks: chunkRefs(chunks),
       });
     }
 
@@ -185,6 +231,7 @@ export async function POST(req: NextRequest) {
       reply,
       ...(safeTourId ? { tourId: safeTourId } : {}),
       ...(safeNavigate ? { navigateTo: safeNavigate } : {}),
+      ...(capability ? { unsupported: true } : {}),
       ...(cacheId ? { cacheId } : {}),
     });
   } catch (err) {

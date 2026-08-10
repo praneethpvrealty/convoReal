@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { embedText } from '@/lib/ai/gemini';
-import { buildCopilotSystemPrompt, isAllowedRoute } from './knowledge';
+import { isCurrentChunk } from './chunks';
+import { buildCopilotScaffold, isAllowedRoute } from './knowledge';
 import { getTour } from './tours';
 
 /**
@@ -12,6 +12,13 @@ import { getTour } from './tours';
  * migration 109). Similar questions from ANY user are then served
  * from the cache after deterministic validation — no second Gemini
  * call, ever, for the same question.
+ *
+ * Staleness is two-tier. KB_VERSION hashes the prompt scaffold
+ * (rules, page directory, tours, contract): a scaffold change retires
+ * everything, in SQL. Each row additionally records the knowledge
+ * chunks its answer was built from as {id, v} pairs, validated here
+ * against the live corpus — editing one chunk retires only the
+ * answers that used it.
  *
  * Everything here is best-effort: any failure (table not migrated
  * yet, missing service key, embed error, network) resolves to null
@@ -28,22 +35,32 @@ const SIMILARITY_THRESHOLD = 0.9;
 const MATCH_COUNT = 3;
 
 /**
- * Version stamp of the app knowledge the answers were generated
- * from. Any change to PAGE_KNOWLEDGE, the tour registry, or the
- * prompt rules rotates this hash, and match_copilot_qa stops
+ * Version stamp of the prompt scaffold the answers were generated
+ * under. Any change to the rules, page directory, tour registry, or
+ * output contract rotates this hash, and match_copilot_qa stops
  * returning rows written under the old version — stale answers
- * retire themselves with zero cleanup code.
+ * retire themselves with zero cleanup code. Knowledge-chunk edits
+ * intentionally do NOT rotate it; those are handled per-row via
+ * source_chunks validation below.
  */
 export const KB_VERSION = createHash('sha256')
-  .update(buildCopilotSystemPrompt('/'))
+  .update(buildCopilotScaffold('/'))
   .digest('hex')
   .slice(0, 12);
+
+export interface ChunkRef {
+  id: string;
+  v: string;
+}
 
 export interface CachedAnswer {
   id: string;
   reply: string;
   tourId?: string;
   navigateTo?: string;
+  /** Set when the cached answer was a "we don't do that" — the route
+   *  re-logs the demand so cache hits keep counting (see unmet.ts). */
+  unsupportedCapability?: string;
 }
 
 let _adminClient: SupabaseClient | null = null;
@@ -87,28 +104,34 @@ interface MatchRow {
   reply: string;
   tour_id: string | null;
   navigate_to: string | null;
+  unsupported_capability: string | null;
+  source_chunks: ChunkRef[] | null;
   similarity: number;
 }
 
-/**
- * Embeds the question and searches for a validated cached answer.
- * Returns the embedding too so a subsequent storeAnswer() doesn't
- * pay for a second embed call.
- */
-export async function lookupCachedAnswer(message: string): Promise<{
-  entry: CachedAnswer | null;
-  embedding: number[] | null;
-}> {
-  const db = cacheAdmin();
-  if (!db) return { entry: null, embedding: null };
+/** Every chunk the answer was built from must still exist at the
+ *  same version — one edited chunk retires the answer. */
+function sourceChunksCurrent(refs: ChunkRef[] | null): boolean {
+  if (!Array.isArray(refs)) return false;
+  return refs.every(
+    (r) =>
+      !!r &&
+      typeof r.id === 'string' &&
+      typeof r.v === 'string' &&
+      isCurrentChunk(r.id, r.v),
+  );
+}
 
-  let embedding: number[];
-  try {
-    embedding = await embedText(message);
-  } catch (err) {
-    console.warn('[Copilot cache] embed failed:', err instanceof Error ? err.message : err);
-    return { entry: null, embedding: null };
-  }
+/**
+ * Searches for a validated cached answer by question embedding. The
+ * caller embeds the question once and reuses the vector for chunk
+ * retrieval and storeAnswer().
+ */
+export async function lookupCachedAnswer(
+  embedding: number[],
+): Promise<CachedAnswer | null> {
+  const db = cacheAdmin();
+  if (!db) return null;
 
   try {
     const { data, error } = await db.rpc('match_copilot_qa', {
@@ -120,27 +143,28 @@ export async function lookupCachedAnswer(message: string): Promise<{
     if (error) throw new Error(error.message);
 
     // SQL already filtered version/age/votes/similarity; re-validate
-    // the actions against the live registries (a tour or route can
-    // disappear between deploys without a KB text change).
+    // the actions and source chunks against the live registries (a
+    // tour, route, or chunk can change between deploys).
     for (const row of (data ?? []) as MatchRow[]) {
       const tourOk = !row.tour_id || !!getTour(row.tour_id);
       const routeOk = !row.navigate_to || isAllowedRoute(row.navigate_to);
-      if (!tourOk || !routeOk) continue;
+      if (!tourOk || !routeOk || !sourceChunksCurrent(row.source_chunks))
+        continue;
       return {
-        entry: {
-          id: row.id,
-          reply: row.reply,
-          ...(row.tour_id ? { tourId: row.tour_id } : {}),
-          ...(row.navigate_to ? { navigateTo: row.navigate_to } : {}),
-        },
-        embedding,
+        id: row.id,
+        reply: row.reply,
+        ...(row.tour_id ? { tourId: row.tour_id } : {}),
+        ...(row.navigate_to ? { navigateTo: row.navigate_to } : {}),
+        ...(row.unsupported_capability
+          ? { unsupportedCapability: row.unsupported_capability }
+          : {}),
       };
     }
-    return { entry: null, embedding };
+    return null;
   } catch (err) {
     // Expected pre-migration (table/RPC missing) — fall through.
     console.warn('[Copilot cache] lookup failed:', err instanceof Error ? err.message : err);
-    return { entry: null, embedding };
+    return null;
   }
 }
 
@@ -163,6 +187,8 @@ export async function storeAnswer(input: {
   reply: string;
   tourId?: string;
   navigateTo?: string;
+  unsupportedCapability?: string;
+  sourceChunks: ChunkRef[];
 }): Promise<string | null> {
   const db = cacheAdmin();
   if (!db) return null;
@@ -175,6 +201,8 @@ export async function storeAnswer(input: {
         reply: input.reply,
         tour_id: input.tourId ?? null,
         navigate_to: input.navigateTo ?? null,
+        unsupported_capability: input.unsupportedCapability ?? null,
+        source_chunks: input.sourceChunks,
         kb_version: KB_VERSION,
       })
       .select('id')
