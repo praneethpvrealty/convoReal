@@ -2,12 +2,55 @@
 
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Loader2, Save, Cpu, Key, CheckCircle } from 'lucide-react';
+import { Loader2, Save, Cpu, Key, CheckCircle, Lock, AlertTriangle } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import type { ImageProviderId, ImageProvidersStatus } from '@/lib/ai/provider-status';
+import { BRANDING } from '@/config/branding';
+
+const PROVIDER_CARDS: {
+  id: ImageProviderId;
+  brand: string;
+  brandClass: string;
+  badge: string;
+  badgeClass: string;
+  title: string;
+  description: string;
+}[] = [
+  {
+    id: 'huggingface',
+    brand: '🤗 Hugging Face',
+    brandClass: 'text-indigo-400',
+    badge: 'Free Endpoint',
+    badgeClass: 'bg-green-500/10 text-green-400 border-green-500/20',
+    title: 'Stable Diffusion XL',
+    description:
+      'Generates backgrounds for free using open-source models. Also supports Image-to-Image editing to modify and enhance existing property uploads.',
+  },
+  {
+    id: 'google',
+    brand: '⚡ Google Cloud',
+    brandClass: 'text-sky-400',
+    badge: 'Paid API',
+    badgeClass: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+    title: 'Google Gemini Image',
+    description:
+      'Generates ultra-high-quality property visuals using Google AI Studio. Faster processing with consistent performance (no queue wait times).',
+  },
+  {
+    id: 'stability',
+    brand: '🎨 Stability AI',
+    brandClass: 'text-fuchsia-400',
+    badge: 'Paid API',
+    badgeClass: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+    title: 'Stable Diffusion 3.5 / Ultra',
+    description:
+      'Photoreal property renders with strong prompt adherence. Choose an SD 3.5 variant or Ultra below.',
+  },
+];
 
 export function AiSettingsPanel() {
   const supabase = createClient();
@@ -20,12 +63,19 @@ export function AiSettingsPanel() {
   );
   const [stabilityModel, setStabilityModel] = useState('sd3.5-large');
   const [hasSettingsRecord, setHasSettingsRecord] = useState(false);
+  const [status, setStatus] = useState<ImageProvidersStatus | null>(null);
 
   useEffect(() => {
     if (authLoading || !accountId) return;
 
     async function fetchSettings() {
       try {
+        const res = await fetch('/api/ai/image-providers');
+        if (res.ok) {
+          const json = (await res.json()) as { data: ImageProvidersStatus };
+          setStatus(json.data);
+        }
+
         const { data, error } = await supabase
           .from('showcase_settings')
           .select('flyer_ai_provider, flyer_stability_model')
@@ -103,6 +153,11 @@ export function AiSettingsPanel() {
     );
   }
 
+  const selfHosted = status?.selfHosted ?? false;
+  const providerStatus = (id: ImageProviderId) => status?.providers.find((p) => p.id === id);
+  const isAvailable = (id: ImageProviderId) => providerStatus(id)?.available ?? true;
+  const selectedUnavailable = !isAvailable(flyerAiProvider);
+
   return (
     <Card className="border-slate-800 bg-slate-900/50 backdrop-blur-sm">
       <CardHeader>
@@ -111,7 +166,7 @@ export function AiSettingsPanel() {
           AI & Flyer Configuration
         </CardTitle>
         <CardDescription className="text-slate-400">
-          Configure AI text-to-image preferences and provider credentials for listing flyers.
+          Choose which AI image generator is used for listing flyers.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -123,92 +178,76 @@ export function AiSettingsPanel() {
             
             {/* Visual selector cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              
-              {/* Option Hugging Face */}
-              <div
-                onClick={() => setFlyerAiProvider('huggingface')}
-                className={`p-5 rounded-xl border transition-all duration-300 cursor-pointer flex flex-col justify-between relative overflow-hidden select-none ${
-                  flyerAiProvider === 'huggingface'
-                    ? 'border-primary bg-primary/5 text-white shadow-[0_0_15px_rgba(99,102,241,0.08)]'
-                    : 'border-slate-800 bg-slate-950/20 text-slate-400 hover:border-slate-700 hover:bg-slate-950/40'
-                }`}
-              >
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-extrabold uppercase text-xs tracking-wider flex items-center gap-1.5 text-indigo-400">
-                      🤗 Hugging Face
-                    </span>
-                    <span className="text-[10px] bg-green-500/10 text-green-400 font-bold px-2 py-0.5 rounded-full border border-green-500/20">
-                      Free Endpoint
-                    </span>
-                  </div>
-                  <h4 className="text-base font-bold text-slate-100">Stable Diffusion XL</h4>
-                  <p className="text-[11px] text-slate-400 leading-normal">
-                    Generates backgrounds for free using open-source models. Also supports Image-to-Image editing to modify and enhance existing property uploads.
-                  </p>
-                </div>
-                <div className="mt-4 pt-3 border-t border-slate-800/60 flex items-center gap-1.5 text-[10px] text-slate-500">
-                  <Key className="size-3.5" /> Required: HF_ACCESS_TOKEN
-                </div>
-              </div>
+              {PROVIDER_CARDS.map((card) => {
+                const available = isAvailable(card.id);
+                const selected = flyerAiProvider === card.id;
+                const envVar = providerStatus(card.id)?.envVar;
 
-              {/* Option Google Paid */}
-              <div
-                onClick={() => setFlyerAiProvider('google')}
-                className={`p-5 rounded-xl border transition-all duration-300 cursor-pointer flex flex-col justify-between relative overflow-hidden select-none ${
-                  flyerAiProvider === 'google'
-                    ? 'border-primary bg-primary/5 text-white shadow-[0_0_15px_rgba(99,102,241,0.08)]'
-                    : 'border-slate-800 bg-slate-950/20 text-slate-400 hover:border-slate-700 hover:bg-slate-950/40'
-                }`}
-              >
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-extrabold uppercase text-xs tracking-wider flex items-center gap-1.5 text-sky-400">
-                      ⚡ Google Cloud
-                    </span>
-                    <span className="text-[10px] bg-amber-500/10 text-amber-400 font-bold px-2 py-0.5 rounded-full border border-amber-500/20">
-                      Paid API
-                    </span>
+                return (
+                  <div
+                    key={card.id}
+                    role="radio"
+                    aria-checked={selected}
+                    aria-disabled={!available}
+                    onClick={() => available && setFlyerAiProvider(card.id)}
+                    className={`p-5 rounded-xl border transition-all duration-300 flex flex-col justify-between relative overflow-hidden select-none ${
+                      !available
+                        ? 'border-slate-850 bg-slate-950/40 text-slate-500 opacity-60 cursor-not-allowed'
+                        : selected
+                          ? 'border-primary bg-primary/5 text-white shadow-[0_0_15px_rgba(99,102,241,0.08)] cursor-pointer'
+                          : 'border-slate-800 bg-slate-950/20 text-slate-400 hover:border-slate-700 hover:bg-slate-950/40 cursor-pointer'
+                    }`}
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span
+                          className={`font-extrabold uppercase text-xs tracking-wider flex items-center gap-1.5 ${card.brandClass}`}
+                        >
+                          {card.brand}
+                        </span>
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${card.badgeClass}`}
+                        >
+                          {card.badge}
+                        </span>
+                      </div>
+                      <h4 className="text-base font-bold text-slate-100">{card.title}</h4>
+                      <p className="text-[11px] text-slate-400 leading-normal">{card.description}</p>
+                    </div>
+                    <div className="mt-4 pt-3 border-t border-slate-800/60 flex items-start gap-1.5 text-[10px] text-slate-500">
+                      {available ? (
+                        <>
+                          <CheckCircle className="size-3.5 shrink-0 text-green-500/70" />
+                          <span>
+                            Available
+                            {selfHosted && envVar ? ` — ${envVar} is set` : ''}
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <Lock className="size-3.5 shrink-0" />
+                          <span>
+                            {selfHosted && envVar
+                              ? `Unavailable — set ${envVar} to enable`
+                              : `Unavailable on your account — email ${BRANDING.supportEmail} to switch it on`}
+                          </span>
+                        </>
+                      )}
+                    </div>
                   </div>
-                  <h4 className="text-base font-bold text-slate-100">Google Gemini Image</h4>
-                  <p className="text-[11px] text-slate-400 leading-normal">
-                    Generates ultra-high-quality property visuals using Google AI Studio. Faster processing with consistent performance (no queue wait times).
-                  </p>
-                </div>
-                <div className="mt-4 pt-3 border-t border-slate-800/60 flex items-center gap-1.5 text-[10px] text-slate-500">
-                  <Key className="size-3.5" /> Required: GEMINI_API_KEY (Paid Tier)
-                </div>
-              </div>
-
-              {/* Option Stability AI */}
-              <div
-                onClick={() => setFlyerAiProvider('stability')}
-                className={`p-5 rounded-xl border transition-all duration-300 cursor-pointer flex flex-col justify-between relative overflow-hidden select-none ${
-                  flyerAiProvider === 'stability'
-                    ? 'border-primary bg-primary/5 text-white shadow-[0_0_15px_rgba(99,102,241,0.08)]'
-                    : 'border-slate-800 bg-slate-950/20 text-slate-400 hover:border-slate-700 hover:bg-slate-950/40'
-                }`}
-              >
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-extrabold uppercase text-xs tracking-wider flex items-center gap-1.5 text-fuchsia-400">
-                      🎨 Stability AI
-                    </span>
-                    <span className="text-[10px] bg-amber-500/10 text-amber-400 font-bold px-2 py-0.5 rounded-full border border-amber-500/20">
-                      Paid API
-                    </span>
-                  </div>
-                  <h4 className="text-base font-bold text-slate-100">Stable Diffusion 3.5 / Ultra</h4>
-                  <p className="text-[11px] text-slate-400 leading-normal">
-                    Photoreal property renders with strong prompt adherence. Choose an SD 3.5 variant or Ultra below.
-                  </p>
-                </div>
-                <div className="mt-4 pt-3 border-t border-slate-800/60 flex items-center gap-1.5 text-[10px] text-slate-500">
-                  <Key className="size-3.5" /> Required: STABILITY_API_KEY
-                </div>
-              </div>
-
+                );
+              })}
             </div>
+
+            {selectedUnavailable && (
+              <div className="p-3 rounded-xl bg-amber-500/5 border border-amber-500/20 flex items-start gap-2.5 text-xs text-amber-300/90 leading-relaxed">
+                <AlertTriangle className="size-4 shrink-0 mt-0.5" />
+                <span>
+                  Your saved generator is not available right now, so flyer generation will fail.
+                  Pick one of the available generators above.
+                </span>
+              </div>
+            )}
 
             {/* Stability model picker — only when Stability is selected */}
             {flyerAiProvider === 'stability' && (
@@ -241,14 +280,18 @@ export function AiSettingsPanel() {
               </div>
             )}
 
-            {/* Note alert context */}
-            <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-850 flex items-start gap-3 mt-4 text-xs text-slate-450 leading-relaxed">
-              <CheckCircle className="size-4.5 text-primary shrink-0 mt-0.5" />
-              <div>
-                <span className="font-bold text-slate-300 block mb-0.5">Configuration Instructions</span>
-                To enable Hugging Face generation, please add your free Hugging Face API key as <code className="bg-slate-900 px-1 py-0.5 rounded text-primary text-[10px] font-mono">HF_ACCESS_TOKEN</code> inside your <code className="bg-slate-900 px-1 py-0.5 rounded text-slate-300 text-[10px] font-mono">.env.local</code>. For Google Cloud, verify that <code className="bg-slate-900 px-1 py-0.5 rounded text-primary text-[10px] font-mono">GEMINI_API_KEY</code> has billing enabled. For Stability AI, add <code className="bg-slate-900 px-1 py-0.5 rounded text-primary text-[10px] font-mono">STABILITY_API_KEY</code>.
+            {selfHosted && (
+              <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-850 flex items-start gap-3 mt-4 text-xs text-slate-450 leading-relaxed">
+                <Key className="size-4.5 text-primary shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold text-slate-300 block mb-0.5">Self-hosted setup</span>
+                  Set the provider keys in your server environment (<code className="bg-slate-900 px-1 py-0.5 rounded text-slate-300 text-[10px] font-mono">.env.local</code> in development):{' '}
+                  <code className="bg-slate-900 px-1 py-0.5 rounded text-primary text-[10px] font-mono">HF_ACCESS_TOKEN</code> for Hugging Face,{' '}
+                  <code className="bg-slate-900 px-1 py-0.5 rounded text-primary text-[10px] font-mono">GEMINI_API_KEY</code> (billing enabled) for Google Cloud, and{' '}
+                  <code className="bg-slate-900 px-1 py-0.5 rounded text-primary text-[10px] font-mono">STABILITY_API_KEY</code> for Stability AI. Restart the server after changing them.
+                </div>
               </div>
-            </div>
+            )}
 
           </div>
 

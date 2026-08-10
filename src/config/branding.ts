@@ -3,4 +3,5 @@ export const BRANDING = {
   websiteUrl: process.env.NEXT_PUBLIC_DEFAULT_WEBSITE_URL || 'https://www.convoreal.com',
   baseDomain: process.env.NEXT_PUBLIC_BASE_DOMAIN || 'convoreal.com',
   defaultCountryCode: process.env.NEXT_PUBLIC_DEFAULT_COUNTRY_CODE || '91',
+  supportEmail: process.env.NEXT_PUBLIC_SUPPORT_EMAIL || 'support@convoreal.com',
 };

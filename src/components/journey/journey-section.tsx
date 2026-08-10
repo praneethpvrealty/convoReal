@@ -661,6 +661,8 @@ export function JourneySection({
         stages={stages}
         currency={currency}
         canEdit={canEdit}
+        contact={mode === "buyer" ? subjectContact : selectedItem?.contact ?? null}
+        property={mode === "buyer" ? selectedItem?.property ?? null : subjectProperty}
         onClose={() => setSelectedItem(null)}
         onAdvance={handleAdvance}
         onMoveTo={handleMoveTo}

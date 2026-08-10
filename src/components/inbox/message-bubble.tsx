@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useState, useEffect, useCallback } from "react";
-import { cn } from "@/lib/utils";
-import type { Message, MessageReaction } from "@/types";
+import { useState, useEffect, useCallback } from 'react';
+import { cn } from '@/lib/utils';
+import type { Message, MessageReaction } from '@/types';
 import {
   Clock,
   Check,
@@ -13,16 +13,16 @@ import {
   LayoutTemplate,
   ImageOff,
   CornerDownLeft,
-} from "lucide-react";
-import { format } from "date-fns";
-import { ReplyQuote } from "./reply-quote";
-import { MessageReactions } from "./message-reactions";
+} from 'lucide-react';
+import { format } from 'date-fns';
+import { ReplyQuote } from './reply-quote';
+import { MessageReactions } from './message-reactions';
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@/components/ui/tooltip";
+} from '@/components/ui/tooltip';
 
 interface MessageBubbleProps {
   message: Message;
@@ -33,17 +33,23 @@ interface MessageBubbleProps {
   onToggleReaction?: (emoji: string) => void;
 }
 
-function StatusIcon({ status, errorInfo }: { status: Message["status"]; errorInfo?: string }) {
+function StatusIcon({
+  status,
+  errorInfo,
+}: {
+  status: Message['status'];
+  errorInfo?: string;
+}) {
   switch (status) {
-    case "sending":
+    case 'sending':
       return <Clock className="h-3 w-3 text-slate-400" />;
-    case "sent":
+    case 'sent':
       return <Check className="h-3 w-3 text-slate-400" />;
-    case "delivered":
+    case 'delivered':
       return <CheckCheck className="h-3 w-3 text-slate-400" />;
-    case "read":
+    case 'read':
       return <CheckCheck className="h-3 w-3 text-blue-400" />;
-    case "failed":
+    case 'failed':
       if (errorInfo) {
         return (
           <TooltipProvider>
@@ -52,8 +58,10 @@ function StatusIcon({ status, errorInfo }: { status: Message["status"]; errorInf
                 <XCircle className="h-3 w-3 text-red-400" />
               </TooltipTrigger>
               <TooltipContent side="top" className="max-w-80">
-                <p className="text-sm font-medium text-red-400">Delivery Failed</p>
-                <p className="text-xs text-slate-300 mt-1">{errorInfo}</p>
+                <p className="text-sm font-medium text-red-400">
+                  Delivery Failed
+                </p>
+                <p className="mt-1 text-xs text-slate-300">{errorInfo}</p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
@@ -65,13 +73,21 @@ function StatusIcon({ status, errorInfo }: { status: Message["status"]; errorInf
   }
 }
 
-function MediaUnavailable({ label, reason }: { label: string; reason?: string }) {
+function MediaUnavailable({
+  label,
+  reason,
+}: {
+  label: string;
+  reason?: string;
+}) {
   return (
     <div className="flex items-center gap-2 rounded-lg bg-slate-700/40 px-3 py-2 text-xs text-slate-300">
       <ImageOff className="h-4 w-4 shrink-0 text-slate-500" />
       <div>
         <span>{label} unavailable</span>
-        {reason && <span className="block text-[10px] text-slate-500">{reason}</span>}
+        {reason && (
+          <span className="block text-[10px] text-slate-500">{reason}</span>
+        )}
       </div>
     </div>
   );
@@ -86,10 +102,10 @@ function MediaImage({ url, alt }: { url: string; alt: string }) {
     if (!url) return;
 
     // Proxy URLs need auth fetch to create blob URL
-    if (url.startsWith("/api/whatsapp/media/")) {
+    if (url.startsWith('/api/whatsapp/media/')) {
       try {
         const res = await fetch(url);
-        if (!res.ok) throw new Error("Failed to load media");
+        if (!res.ok) throw new Error('Failed to load media');
         const blob = await res.blob();
         const blobUrl = URL.createObjectURL(blob);
         setSrc(blobUrl);
@@ -107,7 +123,7 @@ function MediaImage({ url, alt }: { url: string; alt: string }) {
   useEffect(() => {
     loadImage();
     return () => {
-      if (src?.startsWith("blob:")) {
+      if (src?.startsWith('blob:')) {
         URL.revokeObjectURL(src);
       }
     };
@@ -116,9 +132,11 @@ function MediaImage({ url, alt }: { url: string; alt: string }) {
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center gap-1 h-40 w-60 rounded-lg bg-slate-700">
+      <div className="flex h-40 w-60 flex-col items-center justify-center gap-1 rounded-lg bg-slate-700">
         <ImageOff className="h-8 w-8 text-slate-500" />
-        <span className="text-[10px] text-slate-500 text-center px-2">Media unavailable - may have been deleted</span>
+        <span className="px-2 text-center text-[10px] text-slate-500">
+          Media unavailable - may have been deleted
+        </span>
       </div>
     );
   }
@@ -126,7 +144,7 @@ function MediaImage({ url, alt }: { url: string; alt: string }) {
   if (loading) {
     return (
       <div className="flex h-40 w-60 items-center justify-center rounded-lg bg-slate-700">
-        <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+        <div className="border-primary h-5 w-5 animate-spin rounded-full border-2 border-t-transparent" />
       </div>
     );
   }
@@ -134,7 +152,7 @@ function MediaImage({ url, alt }: { url: string; alt: string }) {
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={src ?? ""}
+      src={src ?? ''}
       alt={alt}
       className="max-h-64 max-w-60 rounded-lg object-cover"
       onError={() => setError(true)}
@@ -144,14 +162,14 @@ function MediaImage({ url, alt }: { url: string; alt: string }) {
 
 function MessageContent({ message }: { message: Message }) {
   switch (message.content_type) {
-    case "text":
+    case 'text':
       return (
-        <p className="whitespace-pre-wrap break-words text-sm">
+        <p className="text-sm break-words whitespace-pre-wrap">
           {message.content_text}
         </p>
       );
 
-    case "image":
+    case 'image':
       return (
         <div>
           {message.media_url ? (
@@ -160,14 +178,14 @@ function MessageContent({ message }: { message: Message }) {
             <MediaUnavailable label="Image" />
           )}
           {message.content_text && (
-            <p className="mt-1 whitespace-pre-wrap break-words text-sm">
+            <p className="mt-1 text-sm break-words whitespace-pre-wrap">
               {message.content_text}
             </p>
           )}
         </div>
       );
 
-    case "video":
+    case 'video':
       return (
         <div>
           {message.media_url ? (
@@ -180,14 +198,14 @@ function MessageContent({ message }: { message: Message }) {
             <MediaUnavailable label="Video" />
           )}
           {message.content_text && (
-            <p className="mt-1 whitespace-pre-wrap break-words text-sm">
+            <p className="mt-1 text-sm break-words whitespace-pre-wrap">
               {message.content_text}
             </p>
           )}
         </div>
       );
 
-    case "audio":
+    case 'audio':
       return (
         <div>
           {message.media_url ? (
@@ -198,9 +216,9 @@ function MessageContent({ message }: { message: Message }) {
         </div>
       );
 
-    case "document":
+    case 'document':
       if (!message.media_url) {
-        return <MediaUnavailable label={message.content_text || "Document"} />;
+        return <MediaUnavailable label={message.content_text || 'Document'} />;
       }
       return (
         <a
@@ -210,36 +228,34 @@ function MessageContent({ message }: { message: Message }) {
           className="flex items-center gap-2 rounded-lg bg-slate-700/50 px-3 py-2 text-sm hover:bg-slate-700"
         >
           <FileText className="h-5 w-5 shrink-0 text-slate-400" />
-          <span className="truncate">
-            {message.content_text || "Document"}
-          </span>
+          <span className="truncate">{message.content_text || 'Document'}</span>
         </a>
       );
 
-    case "template":
+    case 'template':
       return (
         <div>
-          <span className="mb-1 inline-flex items-center gap-1 rounded bg-primary/20 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+          <span className="bg-primary/20 text-primary mb-1 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium">
             <LayoutTemplate className="h-3 w-3" />
             Template
           </span>
           {message.content_text && (
-            <p className="mt-1 whitespace-pre-wrap break-words text-sm">
+            <p className="mt-1 text-sm break-words whitespace-pre-wrap">
               {message.content_text}
             </p>
           )}
         </div>
       );
 
-    case "location":
+    case 'location':
       return (
         <div className="flex items-center gap-2 text-sm">
           <MapPin className="h-4 w-4 shrink-0 text-slate-400" />
-          <span>{message.content_text || "Location shared"}</span>
+          <span>{message.content_text || 'Location shared'}</span>
         </div>
       );
 
-    case "interactive": {
+    case 'interactive': {
       // Customer tapped a reply button or list row on a message the bot
       // sent. We show the tapped option's title (already in content_text,
       // set by parseMessageContent in the webhook) with a small affordance
@@ -247,12 +263,12 @@ function MessageContent({ message }: { message: Message }) {
       // tap rather than the customer typing the same words.
       return (
         <div className="flex flex-col gap-0.5">
-          <span className="inline-flex items-center gap-1 text-[10px] font-medium uppercase tracking-wide text-slate-400">
+          <span className="inline-flex items-center gap-1 text-[10px] font-medium tracking-wide text-slate-400 uppercase">
             <CornerDownLeft className="h-3 w-3" />
             Button reply
           </span>
-          <p className="whitespace-pre-wrap break-words text-sm">
-            {message.content_text || "[Interactive reply]"}
+          <p className="text-sm break-words whitespace-pre-wrap">
+            {message.content_text || '[Interactive reply]'}
           </p>
         </div>
       );
@@ -260,8 +276,8 @@ function MessageContent({ message }: { message: Message }) {
 
     default:
       return (
-        <p className="whitespace-pre-wrap break-words text-sm">
-          {message.content_text || "[Unsupported message type]"}
+        <p className="text-sm break-words whitespace-pre-wrap">
+          {message.content_text || '[Unsupported message type]'}
         </p>
       );
   }
@@ -274,24 +290,33 @@ export function MessageBubble({
   currentUserId,
   onToggleReaction,
 }: MessageBubbleProps) {
-  const isAgent = message.sender_type === "agent" || message.sender_type === "bot";
-  const time = format(new Date(message.created_at), "HH:mm");
+  const isAgent =
+    message.sender_type === 'agent' || message.sender_type === 'bot';
+  const time = format(new Date(message.created_at), 'HH:mm');
+
+  // An internal note never reached WhatsApp. Rendering it as an
+  // outgoing bubble would read as something the contact received.
+  if (message.private) {
+    return (
+      <div className="flex justify-center">
+        <div className="max-w-[85%] rounded-lg border border-dashed border-slate-700 bg-slate-900/60 px-3 py-1.5 text-center text-[11px] text-slate-400">
+          {message.content_text}
+          <span className="ml-1.5 text-[10px] text-slate-500">{time}</span>
+        </div>
+      </div>
+    );
+  }
 
   // Row alignment + width cap are owned by <MessageActions> so its hover
   // group matches the bubble's content area, not the full row.
   return (
-    <div
-      className={cn(
-        "flex flex-col",
-        isAgent ? "items-end" : "items-start",
-      )}
-    >
+    <div className={cn('flex flex-col', isAgent ? 'items-end' : 'items-start')}>
       <div
         className={cn(
-          "relative rounded-2xl px-3 py-2",
+          'relative rounded-2xl px-3 py-2',
           isAgent
-            ? "rounded-br-md bg-primary text-primary-foreground"
-            : "rounded-bl-md bg-slate-800 text-slate-100",
+            ? 'bg-primary text-primary-foreground rounded-br-md'
+            : 'rounded-bl-md bg-slate-800 text-slate-100'
         )}
       >
         {reply && (
@@ -300,12 +325,17 @@ export function MessageBubble({
         <MessageContent message={message} />
         <div
           className={cn(
-            "mt-1 flex items-center gap-1",
-            isAgent ? "justify-end" : "justify-start",
+            'mt-1 flex items-center gap-1',
+            isAgent ? 'justify-end' : 'justify-start'
           )}
         >
           <span className="text-[10px] text-white/60">{time}</span>
-          {isAgent && <StatusIcon status={message.status} errorInfo={message.error_info} />}
+          {isAgent && (
+            <StatusIcon
+              status={message.status}
+              errorInfo={message.error_info}
+            />
+          )}
         </div>
       </div>
       {reactions && reactions.length > 0 && onToggleReaction && (

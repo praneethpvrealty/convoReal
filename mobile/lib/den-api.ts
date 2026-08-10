@@ -93,7 +93,18 @@ export function updateDenSettings(update: {
   digest_frequency?: 'off' | 'daily' | 'weekly';
 }) {
   return apiFetch<DenMe>('/api/den/settings', {
-    method: 'PATCH',
+    method: 'PUT',
     body: JSON.stringify(update),
+  });
+}
+
+/**
+ * Permanently delete this Owners Den login and unlink it from every
+ * agency. Irreversible — always confirm before calling.
+ */
+export function deleteDenAccount() {
+  return apiFetch<{ ok: boolean }>('/api/den/account', {
+    method: 'DELETE',
+    body: JSON.stringify({ confirm: 'DELETE' }),
   });
 }

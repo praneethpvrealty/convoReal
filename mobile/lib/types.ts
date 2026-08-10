@@ -298,7 +298,7 @@ export interface JourneyItem {
   hidden: boolean;
   updated_at?: string;
   contact?: Contact | null;
-  property?: { id: string; title: string } | null;
+  property?: { id: string; title: string; property_code?: string | null } | null;
 }
 
 // ------------------------------------------------------------------

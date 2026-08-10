@@ -470,6 +470,13 @@ export interface Message {
    * Contains user-friendly error details from Meta API.
    */
   error_info?: string;
+  /**
+   * An internal note that never reached WhatsApp — written by staff
+   * commands (`SET BUDGET 2CR`). Rendered as a centred note rather
+   * than an outgoing bubble, so it can't be mistaken for something
+   * the contact received.
+   */
+  private?: boolean;
 }
 
 export type ReactionActor = 'customer' | 'agent';

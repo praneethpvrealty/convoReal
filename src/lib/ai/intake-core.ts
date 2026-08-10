@@ -240,7 +240,8 @@ export function formatDraftPreviewMessage(
     reply += `*Listing Owner/Agent:* ${draft.owner_contact_name}${phonePart}${rolePart}\n`;
   }
 
-  reply += `*Images:* ${draft.images.length} attached\n` +
+  reply += (draft.video_url || draft.youtube_video_id ? `*Video:* Attached 🎬\n` : '') +
+    `*Images:* ${draft.images.length} attached\n` +
     `*Documents:* ${(draft.documents || []).length} attached\n\n` +
     (nextStatus === 'awaiting_confirmation'
       ? "✅ All mandatory fields populated!\n• Use the buttons below to Confirm or Cancel.\n• Send more updates to correct details."

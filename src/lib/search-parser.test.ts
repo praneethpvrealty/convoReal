@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { parsePropertyQuery } from './search-parser';
+
+import {
+  LEGACY_RESIDENTIAL_LAND_PLOT,
+  PROPERTY_TYPE_GROUPS,
+} from './inventory/property-options';
+import { CATEGORY_SUBTYPES, parsePropertyQuery } from './search-parser';
 
 describe('parsePropertyQuery', () => {
   it('should parse range query with double units', () => {
@@ -175,5 +180,29 @@ describe('parsePropertyQuery', () => {
     expect(farmland.types).toEqual(['Agricultural Land', 'Farm House']);
     expect(farmland.minArea).toBe(5 * 43560);
     expect(farmland.remainingSearch).toBe('');
+  });
+});
+
+describe('CATEGORY_SUBTYPES', () => {
+  // A category is only useful if it covers every type an agent can
+  // actually save. Residential land was split into "Residential Plot"
+  // and "Residential Land" without the category map following, so a plot
+  // listed after the split fell out of every "residential" search.
+  it('covers the whole authoring vocabulary of each group', () => {
+    for (const group of PROPERTY_TYPE_GROUPS) {
+      const covered = CATEGORY_SUBTYPES[group.group];
+      expect(covered, `no category entry for ${group.group}`).toBeDefined();
+      for (const option of group.options) {
+        expect(covered, `${group.group} misses ${option.value}`).toContain(
+          option.value
+        );
+      }
+    }
+  });
+
+  it('keeps the legacy pre-split value alongside its replacements', () => {
+    expect(CATEGORY_SUBTYPES.Residential).toContain(
+      LEGACY_RESIDENTIAL_LAND_PLOT
+    );
   });
 });

@@ -57,13 +57,36 @@ const rules: Rule[] = [
       cta: { label: 'See leads', href: '/dashboard?tab=today' },
     };
   },
-  // 3. Fresh buyer↔property matches.
+  // 3. Journey branches that have not moved in a week. Head-count
+  //    only — RLS scopes the rows and none cross the wire.
+  async (db, accountId) => {
+    const since = new Date(Date.now() - WEEK_MS).toISOString();
+    const { count, error } = await db
+      .from('journey_items')
+      .select('*', { count: 'exact', head: true })
+      .eq('account_id', accountId)
+      .eq('status', 'active')
+      .eq('hidden', false)
+      .lt('updated_at', since);
+    if (error) throw error;
+    if ((count ?? 0) === 0) return null;
+    return {
+      id: 'journeys-stalled',
+      priority: 3,
+      message:
+        count === 1
+          ? '1 property has sat at the same journey stage for over a week. Ask the buyer if it is still in play.'
+          : `${count} properties have sat at the same journey stage for over a week. Ask the buyers if they are still in play.`,
+      cta: { label: 'Open Journey', href: '/journey' },
+    };
+  },
+  // 4. Fresh buyer↔property matches.
   async (db) => {
     const matches = await loadMatchEvents(db);
     if (matches.length === 0) return null;
     return {
       id: 'radar-matches',
-      priority: 3,
+      priority: 4,
       message:
         matches.length === 1
           ? 'Found 1 new buyer–property match for you. Take a look!'
@@ -71,7 +94,7 @@ const rules: Rule[] = [
       cta: { label: 'Open Match Radar', href: '/dashboard?tab=radar' },
     };
   },
-  // 4. Property views this week (RLS scopes showcase_events; a
+  // 5. Property views this week (RLS scopes showcase_events; a
   //    head-count keeps it cheap — no rows cross the wire).
   async (db) => {
     const since = new Date(Date.now() - WEEK_MS).toISOString();
@@ -83,12 +106,12 @@ const rules: Rule[] = [
     if ((count ?? 0) < 3) return null;
     return {
       id: 'pulse-weekly-views',
-      priority: 4,
+      priority: 5,
       message: `Did you know? Your properties got ${count} views this week \u{1F440}`,
       cta: { label: 'Show me', tourId: 'check-property-views' },
     };
   },
-  // 5–7. Setup gaps (same head-counts as /api/onboarding/status).
+  // 6–8. Setup gaps (same head-counts as /api/onboarding/status).
   async (db, accountId) => {
     const { count, error } = await db
       .from('whatsapp_config')
@@ -98,7 +121,7 @@ const rules: Rule[] = [
     if ((count ?? 0) > 0) return null;
     return {
       id: 'setup-whatsapp',
-      priority: 5,
+      priority: 6,
       message: 'Connect WhatsApp to unlock customer chats and broadcasts.',
       cta: { label: 'Set it up', tourId: 'connect-whatsapp' },
     };
@@ -112,7 +135,7 @@ const rules: Rule[] = [
     if ((count ?? 0) > 0) return null;
     return {
       id: 'setup-property',
-      priority: 6,
+      priority: 7,
       message: 'Add your first property — it takes about a minute.',
       cta: { label: 'Show me how', tourId: 'add-property' },
     };
@@ -126,12 +149,12 @@ const rules: Rule[] = [
     if ((count ?? 0) > 0) return null;
     return {
       id: 'setup-contact',
-      priority: 7,
+      priority: 8,
       message: 'Add your first contact — it takes about a minute.',
       cta: { label: 'Show me how', tourId: 'add-contact' },
     };
   },
-  // 8. Portal email leads not wired up. Only fires once WhatsApp is
+  // 9. Portal email leads not wired up. Only fires once WhatsApp is
   //    connected — before that, the setup-whatsapp nudge is the ask.
   async (db, accountId) => {
     const { count: waCount, error: waError } = await db
@@ -149,13 +172,13 @@ const rules: Rule[] = [
     if ((count ?? 0) > 0) return null;
     return {
       id: 'setup-email-leads',
-      priority: 8,
+      priority: 9,
       message:
         'Getting leads on 99acres, MagicBricks or Housing? Forward them in and they become WhatsApp contacts automatically.',
       cta: { label: 'Show me how', tourId: 'email-lead-sync' },
     };
   },
-  // 9. Showcase still on default branding. Only fires once there are
+  // 10. Showcase still on default branding. Only fires once there are
   //    properties — branding matters when links are being shared.
   async (db, accountId) => {
     const { count: propCount, error: propError } = await db
@@ -172,7 +195,7 @@ const rules: Rule[] = [
     if ((count ?? 0) > 0) return null;
     return {
       id: 'setup-showcase-brand',
-      priority: 9,
+      priority: 10,
       message:
         'Your property links still show default branding. Put your own name on every page you share — takes two minutes.',
       cta: { label: 'Brand my pages', href: '/settings?tab=showcase' },

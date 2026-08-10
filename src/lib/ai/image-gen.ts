@@ -21,6 +21,15 @@
 // still generates instead of hard-failing.
 // ============================================================
 
+import { BRANDING } from '@/config/branding';
+
+// Shown to users when no image provider can serve the request. The
+// provider/env-var detail goes to the server log instead: the people
+// using this are agents on the managed deployment, who cannot act on a
+// missing key and should be pointed at support rather than at config.
+export const IMAGE_PROVIDER_UNAVAILABLE =
+  `AI image generation is not available on your account right now. Use "Help & feedback" at the bottom of the screen, or email ${BRANDING.supportEmail}.`;
+
 export interface StatusError extends Error {
   status?: number;
 }
@@ -235,12 +244,18 @@ export async function generateAiImage(opts: GenerateAiImageOptions): Promise<str
   const stabilityKey = process.env.STABILITY_API_KEY;
 
   if (provider === 'google') {
-    if (!geminiKey) throw statusError('GEMINI_API_KEY is not configured on the server.', 500);
+    if (!geminiKey) {
+      console.error('[image-gen] GEMINI_API_KEY is not configured on the server.');
+      throw statusError(IMAGE_PROVIDER_UNAVAILABLE, 500);
+    }
     return generateWithImagen(prompt, aspectRatio, geminiKey);
   }
 
   if (provider === 'stability') {
-    if (!stabilityKey) throw statusError('STABILITY_API_KEY is not configured on the server.', 500);
+    if (!stabilityKey) {
+      console.error('[image-gen] STABILITY_API_KEY is not configured on the server.');
+      throw statusError(IMAGE_PROVIDER_UNAVAILABLE, 500);
+    }
     try {
       return await generateWithStability(prompt, aspectRatio, stabilityKey, stabilityModel);
     } catch (stErr) {
@@ -259,7 +274,10 @@ export async function generateAiImage(opts: GenerateAiImageOptions): Promise<str
   // for either is configured, so the flyer still gets an image.
   const hfToken = process.env.HF_ACCESS_TOKEN;
   try {
-    if (!hfToken) throw statusError('HF_ACCESS_TOKEN is not configured on the server.', 400);
+    if (!hfToken) {
+      console.error('[image-gen] HF_ACCESS_TOKEN is not configured on the server.');
+      throw statusError(IMAGE_PROVIDER_UNAVAILABLE, 400);
+    }
     return await generateWithHuggingFace(prompt, hfToken);
   } catch (hfErr) {
     if (geminiKey) {

@@ -35,6 +35,7 @@ import { requestsHumanContact } from '@/lib/ai/lead-question';
 import { burnCredits } from '@/lib/credits/burn';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 import { recordLearnedFacts } from '@/lib/learning/record';
+import { sendRequirementReview } from '@/lib/whatsapp/requirement-review';
 import { visibleTagSuggestions } from '@/lib/contact-preferences';
 import type { Contact } from '@/types';
 
@@ -44,16 +45,17 @@ export type QualifierField = 'type' | 'budget' | 'location';
  *  Owner answering this number is not stating a buying requirement. */
 const QUALIFIABLE_CLASSIFICATIONS = ['Buyer', 'Agent', 'Owner & Buyer'];
 
-/** Bot REPLIES allowed per conversation before it belongs to a human.
- *  Three covers the full ladder; anything past it is a conversation the
- *  ladder isn't solving.
+/** Messages scanned for a human agent's presence. A staff reply among
+ *  the last few messages means a person owns this thread, and the bot
+ *  must not talk over them — it listens (extraction still runs) but
+ *  leaves the answering to the human.
  *
- *  It caps talking, not listening. A lead who states their budget on
- *  the fourth turn has still stated their budget, and the cap used to
- *  sit ahead of the extraction — so everything said after an agent took
- *  the thread over was thrown away, and the contact's preferences froze
- *  at whatever the bot had managed to ask for. */
-const MAX_BOT_TURNS = 3;
+ *  This replaced a count of bot messages: in a tap-driven thread
+ *  (re-engagement templates, feedback lists, band lists) the bot has
+ *  sent dozens of messages by design, and counting them silenced the
+ *  reply exactly where a free-text requirement update deserved a
+ *  re-ranked answer. */
+const HUMAN_ACTIVITY_WINDOW = 6;
 
 /** Listings per reply. Three is a shortlist; more reads as a dump. */
 const MAX_MATCHES_SENT = 3;
@@ -541,7 +543,10 @@ export async function processBuyerQualificationMessage(
   conversation: { id: string },
   accountId: string,
   accessToken: string,
-  phoneNumberId: string
+  phoneNumberId: string,
+  /** Enables the requirement playback card on a fully-qualified
+   *  no-match; without it the plain-text fallback goes out. */
+  configOwnerUserId?: string
 ): Promise<boolean> {
   const text = contentText?.trim();
   if (!text) return false;
@@ -578,27 +583,22 @@ export async function processBuyerQualificationMessage(
     )
       return false;
 
-    // Read here, acted on after the extraction below. Past the cap the
-    // conversation belongs to a human and the bot must not talk over
-    // them — but it can still listen, and what a lead volunteers to an
-    // agent is exactly the requirement detail the ladder was fishing
-    // for.
-    const { count: botTurns } = await db
-      .from('messages')
-      .select('id', { count: 'exact', head: true })
-      .eq('conversation_id', conversation.id)
-      .eq('sender_type', 'bot');
-    const atReplyCap = (botTurns ?? 0) >= MAX_BOT_TURNS;
-
-    // A bare answer ("Devanahalli") carries no signal of its own — it
-    // only means something because we asked the question directly
-    // before it. Anything else needs to look like a requirement.
+    // One read serves two gates. A staff reply among the last few
+    // messages means a person owns this thread; the bot still listens
+    // — what a lead volunteers to an agent is exactly the requirement
+    // detail the ladder was fishing for — but leaves the answering to
+    // the human.
     const { data: recent } = await db
       .from('messages')
       .select('sender_type')
       .eq('conversation_id', conversation.id)
       .order('created_at', { ascending: false })
-      .limit(2);
+      .limit(HUMAN_ACTIVITY_WINDOW);
+    const humanActive = (recent || []).some((m) => m.sender_type === 'agent');
+
+    // A bare answer ("Devanahalli") carries no signal of its own — it
+    // only means something because we asked the question directly
+    // before it. Anything else needs to look like a requirement.
     const awaitingAnswer = (recent || [])[1]?.sender_type === 'bot';
     if (!awaitingAnswer && !carriesRequirementSignal(text)) return false;
 
@@ -671,11 +671,11 @@ export async function processBuyerQualificationMessage(
       if (updateErr) throw updateErr;
     }
 
-    // Learned and filed. The cap bites here, on the reply: the thread
-    // is a human's, so we stand down rather than answer — but Radar
-    // fires, so the agent picks it up already seeing what the lead's
-    // updated brief now matches.
-    if (atReplyCap) {
+    // Learned and filed. The guard bites here, on the reply: the
+    // thread is a human's, so we stand down rather than answer — but
+    // Radar fires, so the agent picks it up already seeing what the
+    // lead's updated brief now matches.
+    if (humanActive) {
       void generateMatchEventForContact(db, accountId, contact.id).catch(
         (err) => {
           console.error('[buyer-qualification] radar event failed:', err);
@@ -698,6 +698,33 @@ export async function processBuyerQualificationMessage(
     const missing = shouldSendMatchesNow(prefs, matches.length)
       ? null
       : laddered;
+
+    // Fully qualified, nothing fits: play the updated brief back with
+    // one-tap corrections instead of "our team will call you". The
+    // free text just changed the requirement — showing what it now
+    // says is both the acknowledgement and the next capture step.
+    if (!missing && matches.length === 0 && configOwnerUserId) {
+      const reviewed = await sendRequirementReview({
+        db,
+        accountId,
+        userId: configOwnerUserId,
+        contactId: contact.id,
+        conversationId: conversation.id,
+        contact: {
+          ...contact,
+          pref_property_types: prefs.property_types,
+          pref_property_categories: prefs.property_categories,
+          pref_bhk_min: prefs.bhk_min,
+          pref_bhk_max: prefs.bhk_max,
+          pref_budget_min: prefs.budget_min,
+          pref_budget_max: prefs.budget_max,
+          pref_areas: prefs.areas,
+          pref_listing_types: prefs.listing_types,
+        } as Contact,
+      });
+      if (reviewed) return true;
+    }
+
     const areas = missing === 'location' ? await suggestAreas(accountId) : [];
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
     const outcome = buildQualificationReply(
