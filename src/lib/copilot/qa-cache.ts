@@ -44,6 +44,9 @@ export interface CachedAnswer {
   reply: string;
   tourId?: string;
   navigateTo?: string;
+  /** Set when the cached answer was a "we don't do that" — the route
+   *  re-logs the demand so cache hits keep counting (see unmet.ts). */
+  unsupportedCapability?: string;
 }
 
 let _adminClient: SupabaseClient | null = null;
@@ -87,6 +90,7 @@ interface MatchRow {
   reply: string;
   tour_id: string | null;
   navigate_to: string | null;
+  unsupported_capability: string | null;
   similarity: number;
 }
 
@@ -132,6 +136,9 @@ export async function lookupCachedAnswer(message: string): Promise<{
           reply: row.reply,
           ...(row.tour_id ? { tourId: row.tour_id } : {}),
           ...(row.navigate_to ? { navigateTo: row.navigate_to } : {}),
+          ...(row.unsupported_capability
+            ? { unsupportedCapability: row.unsupported_capability }
+            : {}),
         },
         embedding,
       };
@@ -163,6 +170,7 @@ export async function storeAnswer(input: {
   reply: string;
   tourId?: string;
   navigateTo?: string;
+  unsupportedCapability?: string;
 }): Promise<string | null> {
   const db = cacheAdmin();
   if (!db) return null;
@@ -175,6 +183,7 @@ export async function storeAnswer(input: {
         reply: input.reply,
         tour_id: input.tourId ?? null,
         navigate_to: input.navigateTo ?? null,
+        unsupported_capability: input.unsupportedCapability ?? null,
         kb_version: KB_VERSION,
       })
       .select('id')

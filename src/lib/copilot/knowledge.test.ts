@@ -46,6 +46,12 @@ describe('copilot knowledge base', () => {
     expect(prompt).toContain('"reply"');
   });
 
+  it('instructs the model to name unsupported capabilities', () => {
+    const prompt = buildCopilotSystemPrompt('/contacts');
+    expect(prompt).toContain('"unsupported"');
+    expect(prompt).toContain('Never say a feature is coming');
+  });
+
   it('stays within the token budget', () => {
     // The operator pays for every free-form question — the whole
     // system prompt must stay ≈3K tokens (~12K chars).

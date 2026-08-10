@@ -45,6 +45,31 @@ against an existing query loader (`src/lib/today|radar|pulse/queries.ts`) or a
 cheap head-count, and template copy with a CTA (`href` or `tourId`). Rules run
 under `Promise.allSettled`, so one failing rule never blanks the others.
 
+## Unmet requests (demand signal)
+
+When a user asks for something ConvoReal cannot do, the model names the missing
+capability in a short canonical phrase (`unsupported` in the JSON contract) and
+`unmet.ts` records it in `copilot_unmet_requests` (migration `234`, **applied
+manually in the Supabase SQL Editor**). One row per (account, capability):
+repeat asks bump `request_count`, so the table grows with distinct capabilities
+rather than with traffic. Cached "we don't do that" answers are re-logged on
+every hit, otherwise only the first user to ask would ever be counted.
+
+Grouping relies on the model reusing its own phrasing, so `sanitizeCapability()`
+drops anything long, sentence-shaped, or carrying PII rather than storing a key
+nothing will match. Ranked backlog:
+
+```sql
+SELECT capability_key,
+       min(capability)            AS capability,
+       count(DISTINCT account_id) AS accounts,
+       sum(request_count)         AS asks,
+       max(last_requested_at)     AS last_asked
+FROM copilot_unmet_requests
+GROUP BY capability_key
+ORDER BY accounts DESC, asks DESC;
+```
+
 ## Self-learning cache
 
 `copilot_qa_cache` (migration `109_copilot_qa_cache.sql`, **applied manually in the

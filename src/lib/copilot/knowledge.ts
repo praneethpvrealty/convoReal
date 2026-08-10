@@ -67,6 +67,7 @@ export function buildCopilotSystemPrompt(pathname: string): string {
     '- Reply in the SAME language the user wrote in (English, Hindi, or Hinglish).',
     '- Keep replies under 3 short sentences.',
     '- Never invent features. Only discuss ConvoReal using the knowledge below. If asked anything unrelated, politely steer back to ConvoReal.',
+    '- If ConvoReal cannot do what the user wants, say so plainly in one sentence, then point them at the closest thing it CAN do. Never say a feature is coming, planned, or being built.',
     '',
     'APP PAGES:',
     pages,
@@ -77,7 +78,8 @@ export function buildCopilotSystemPrompt(pathname: string): string {
     `CURRENT PAGE: The user is on ${pathname}.${current ? ` About this page: ${current}` : ''}`,
     '',
     'Respond ONLY with JSON in exactly this shape:',
-    '{"reply": string, "tourId": string or null, "navigateTo": string or null}',
+    '{"reply": string, "tourId": string or null, "navigateTo": string or null, "unsupported": string or null}',
     `navigateTo, when set, must be one of: ${ROUTE_ALLOWLIST.join(', ')}. Set it only when the user asks to go somewhere and no tour fits.`,
+    'unsupported names the capability ConvoReal lacks, whenever the user asked for one. Use a short generic phrase of at most 8 lowercase words, no names, numbers or personal details — e.g. "export contacts to excel", "bulk edit property prices". Use the same wording every time for the same capability. Set it to null when the answer describes something ConvoReal already does.',
   ].join('\n');
 }

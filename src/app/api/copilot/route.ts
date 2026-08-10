@@ -11,6 +11,7 @@ import {
   lookupCachedAnswer,
   storeAnswer,
 } from '@/lib/copilot/qa-cache';
+import { logUnmetRequest, sanitizeCapability } from '@/lib/copilot/unmet';
 
 /**
  * POST /api/copilot — in-app helper chat.
@@ -56,6 +57,7 @@ function parseModelJson(raw: string): {
   reply?: unknown;
   tourId?: unknown;
   navigateTo?: unknown;
+  unsupported?: unknown;
 } | null {
   const cleaned = raw.replace(/```(?:json)?/gi, '').trim();
   try {
@@ -123,10 +125,22 @@ export async function POST(req: NextRequest) {
       lookupEmbedding = embedding;
       if (entry) {
         bumpHit(entry.id);
+        // A cached "we don't do that" still counts as demand —
+        // otherwise only the first user to ask is ever visible.
+        const cachedCapability = sanitizeCapability(entry.unsupportedCapability);
+        if (cachedCapability) {
+          logUnmetRequest({
+            accountId: ctx.accountId,
+            capability: cachedCapability,
+            question: message,
+            pathname,
+          });
+        }
         return NextResponse.json({
           reply: entry.reply,
           ...(entry.tourId ? { tourId: entry.tourId } : {}),
           ...(entry.navigateTo ? { navigateTo: entry.navigateTo } : {}),
+          ...(cachedCapability ? { unsupported: true } : {}),
           cached: true,
           cacheId: entry.id,
         });
@@ -161,6 +175,19 @@ export async function POST(req: NextRequest) {
         ? parsed.navigateTo
         : undefined;
 
+    // Unmet demand: the user asked for something the app can't do.
+    // Recorded per account so the operator can rank real feature
+    // requests by how many teams asked (migration 234).
+    const capability = parsed ? sanitizeCapability(parsed.unsupported) : null;
+    if (capability) {
+      logUnmetRequest({
+        accountId: ctx.accountId,
+        capability,
+        question: message,
+        pathname,
+      });
+    }
+
     // Learn this answer: only clean, parseable replies to cacheable
     // questions enter the shared store (reuses the lookup embedding —
     // no second embed call).
@@ -178,6 +205,7 @@ export async function POST(req: NextRequest) {
         reply,
         tourId: safeTourId,
         navigateTo: safeNavigate,
+        unsupportedCapability: capability?.capability,
       });
     }
 
@@ -185,6 +213,7 @@ export async function POST(req: NextRequest) {
       reply,
       ...(safeTourId ? { tourId: safeTourId } : {}),
       ...(safeNavigate ? { navigateTo: safeNavigate } : {}),
+      ...(capability ? { unsupported: true } : {}),
       ...(cacheId ? { cacheId } : {}),
     });
   } catch (err) {
