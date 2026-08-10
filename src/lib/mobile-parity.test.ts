@@ -35,6 +35,7 @@ import {
   isRawLandType,
 } from "@/lib/inventory/property-options";
 import { PROPERTY_TYPE_VALUES } from "@/lib/property-types";
+import { BUDGET_OPTIONS } from "@/lib/contacts/budget-options";
 import { priceInWords } from "@/lib/currency-utils";
 import {
   FLOW_CHECKBOX_MAX_ITEMS,
@@ -366,6 +367,22 @@ describe("mobile/lib/format.ts mirrors priceInWords", () => {
     expect(priceInWords(8500000)).toBe("₹85 Lakhs");
     expect(priceInWords(45000)).toBe("₹45,000");
     expect(priceInWords("")).toBe("");
+  });
+});
+
+describe("mobile/lib/contact-filters.ts mirrors the Contacts budget ladder", () => {
+  // Both platforms filter Contacts by the same Min/Max budget bounds. A
+  // drift means the same saved lead falls inside the band on one device
+  // and outside it on the other.
+  const source = mobileSource("lib/contact-filters.ts");
+
+  it("offers exactly the web ladder's steps, in the same order", () => {
+    const steps = constBody(source, "BUDGET_STEPS")
+      .replace(/[[\]\s]/g, "")
+      .split(",")
+      .filter(Boolean)
+      .map(Number);
+    expect(steps).toEqual(BUDGET_OPTIONS.map((o) => Number(o.value)));
   });
 });
 
