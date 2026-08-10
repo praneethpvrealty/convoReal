@@ -38,6 +38,7 @@ jobs:
     outputs:
       web: ${{ steps.filter.outputs.web != 'false' }}
       mobile: ${{ steps.filter.outputs.mobile != 'false' }}
+      newRoutes: ${{ steps.filter.outputs.newRoutes != 'false' }}
     steps:
       - uses: actions/checkout@v6
 
@@ -60,6 +61,26 @@ jobs:
               - '.github/workflows/ci.yml'
             mobile:
               - 'mobile/**'
+              - '.github/workflows/ci.yml'
+            # Adding or moving a file here changes the route SURFACE, which
+            # is the one class of breakage typecheck cannot see: a route only
+            # exists once `next build` generates the manifest, so a colliding
+            # path, a bad segment export or a route that fails to compile
+            # shows up at build time and nowhere earlier. Editing an existing
+            # route is not enough — that code is already type-checked and has
+            # already built at least once. Deleting one can't introduce a
+            # broken route, so it isn't listed.
+            newRoutes:
+              - added|renamed: 'src/app/**/route.ts'
+              - added|renamed: 'src/app/**/page.tsx'
+              - added|renamed: 'src/app/**/layout.tsx'
+              - added|renamed: 'src/app/**/default.tsx'
+              - added|renamed: 'src/app/**/{loading,error,not-found}.tsx'
+              # Build configuration decides how every route is emitted.
+              - 'next.config.ts'
+              # A change to this file can change the build job itself. Run it,
+              # or a broken gate is only discovered once it has stopped
+              # guarding main.
               - '.github/workflows/ci.yml'
 
   lint:
@@ -105,12 +126,21 @@ jobs:
       - run: npm test
 
   # The production build is the slowest step and Vercel already builds every
-  # push, so it runs at merge time rather than on every commit in a PR.
-  # Typecheck covers the type errors a build would surface.
+  # push, so it normally runs at merge time rather than on every commit in a
+  # PR — typecheck covers the type errors a build would surface.
+  #
+  # The exception is a PR that adds a route. Those get built here too, because
+  # the first real build of a new route would otherwise be the production
+  # deploy: PR #427 added two API routes, CI skipped the build, and the only
+  # thing standing between a broken route manifest and production was a local
+  # `npm run build` someone remembered to run.
   build:
     name: Build
     needs: changes
-    if: needs.changes.outputs.web == 'true' && github.event_name != 'pull_request'
+    if: >-
+      needs.changes.outputs.web == 'true' &&
+      (github.event_name != 'pull_request' ||
+      needs.changes.outputs.newRoutes == 'true')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
