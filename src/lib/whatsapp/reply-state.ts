@@ -20,6 +20,7 @@ export interface ReplyQueueFields {
   status: string;
   awaiting_reply?: boolean | null;
   last_customer_message_at?: string | null;
+  last_message_at?: string | null;
   is_archived?: boolean;
 }
 
@@ -74,4 +75,48 @@ export function waitingShort(ms: number): string {
 export function needsReplyLabel(state: ReplyState): string {
   if (state.windowExpired) return 'Needs reply · template only';
   return `Needs reply · ${waitingShort(state.waitingMs)}`;
+}
+
+/**
+ * How long a thread stays merely "sent" before it reads as unanswered.
+ * Without it every thread an agent just messaged would immediately
+ * claim the contact ignored them, which after a broadcast is most of
+ * the inbox.
+ */
+export const UNANSWERED_GRACE_MS = 60 * 60 * 1000;
+
+export interface UnansweredState {
+  /** How long our side has been talking to itself. */
+  silentMs: number;
+}
+
+/**
+ * Non-null when we have written and the contact never has — the lead
+ * that went nowhere, as opposed to `needsReply`'s thread that owes
+ * somebody an answer. The two are mutually exclusive by construction.
+ *
+ * A null `last_customer_message_at` is exactly this population: the
+ * column is only ever stamped by an inbound WhatsApp message, so a
+ * portal lead the bot auto-replied to and outreach that landed on
+ * silence both qualify, and one message back clears it for good.
+ */
+export function unanswered(
+  conversation: ReplyQueueFields,
+  now: number = Date.now()
+): UnansweredState | null {
+  if (needsReply(conversation, now)) return null;
+  if (conversation.is_archived || conversation.status === 'closed') return null;
+  if (conversation.last_customer_message_at) return null;
+  const at = conversation.last_message_at
+    ? new Date(conversation.last_message_at).getTime()
+    : NaN;
+  if (Number.isNaN(at)) return null;
+  const silentMs = Math.max(0, now - at);
+  if (silentMs < UNANSWERED_GRACE_MS) return null;
+  return { silentMs };
+}
+
+/** Pill copy for a thread the contact has never answered. */
+export function unansweredLabel(state: UnansweredState): string {
+  return `Unanswered · ${waitingShort(state.silentMs)}`;
 }

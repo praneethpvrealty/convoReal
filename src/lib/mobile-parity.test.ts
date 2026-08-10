@@ -238,7 +238,13 @@ describe("mobile/lib/reply-state.ts mirrors reply-state", () => {
     "utf8"
   );
 
-  it.each(["needsReply", "waitingShort", "needsReplyLabel"])(
+  it.each([
+    "needsReply",
+    "waitingShort",
+    "needsReplyLabel",
+    "unanswered",
+    "unansweredLabel",
+  ])(
     "keeps the %s body identical to the web source",
     (name) => {
       const body = (s: string) => {
