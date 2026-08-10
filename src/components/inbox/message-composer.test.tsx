@@ -12,7 +12,13 @@
 // ============================================================
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, cleanup, screen, fireEvent, waitFor } from '@testing-library/react';
+import {
+  render,
+  cleanup,
+  screen,
+  fireEvent,
+  waitFor,
+} from '@testing-library/react';
 
 vi.mock('@/hooks/use-can', () => ({ useCan: () => true }));
 
@@ -59,12 +65,14 @@ const MediaRecorderStub = Object.assign(
     recorder = new FakeRecorder(options);
     return recorder;
   },
-  { isTypeSupported: (type: string) => supportedTypes.includes(type) },
+  { isTypeSupported: (type: string) => supportedTypes.includes(type) }
 );
 
 const trackStop = vi.fn();
 
-function renderComposer(onSendAttachment = vi.fn().mockResolvedValue(undefined)) {
+function renderComposer(
+  onSendAttachment = vi.fn().mockResolvedValue(undefined)
+) {
   render(
     <MessageComposer
       conversationId="conv-1"
@@ -72,12 +80,17 @@ function renderComposer(onSendAttachment = vi.fn().mockResolvedValue(undefined))
       onSend={vi.fn()}
       onSendAttachment={onSendAttachment}
       onOpenTemplates={vi.fn()}
-    />,
+    />
   );
   return onSendAttachment;
 }
 
+const box = () =>
+  screen.getByPlaceholderText(/Type a message/) as HTMLTextAreaElement;
+
 beforeEach(() => {
+  // Drafts outlive an unmount by design, so each test starts clean.
+  window.localStorage.clear();
   supportedTypes = ['audio/ogg;codecs=opus', 'audio/webm'];
   toastError.mockClear();
   trackStop.mockClear();
@@ -101,8 +114,12 @@ describe('attachments', () => {
     fireEvent.change(screen.getByPlaceholderText(/Type a message/), {
       target: { value: 'Front elevation' },
     });
-    const file = new File([new Uint8Array(16)], 'layout.jpg', { type: 'image/jpeg' });
-    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const file = new File([new Uint8Array(16)], 'layout.jpg', {
+      type: 'image/jpeg',
+    });
+    const input = document.querySelector(
+      'input[type="file"]'
+    ) as HTMLInputElement;
     fireEvent.change(input, { target: { files: [file] } });
 
     await waitFor(() => expect(onSendAttachment).toHaveBeenCalled());
@@ -112,9 +129,13 @@ describe('attachments', () => {
 
   it('clears the picker so the same file can be retried', async () => {
     const onSendAttachment = renderComposer();
-    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const input = document.querySelector(
+      'input[type="file"]'
+    ) as HTMLInputElement;
     fireEvent.change(input, {
-      target: { files: [new File(['x'], 'layout.jpg', { type: 'image/jpeg' })] },
+      target: {
+        files: [new File(['x'], 'layout.jpg', { type: 'image/jpeg' })],
+      },
     });
 
     await waitFor(() => expect(onSendAttachment).toHaveBeenCalled());
@@ -123,10 +144,86 @@ describe('attachments', () => {
 
   it('offers only types WhatsApp accepts in the picker', () => {
     renderComposer();
-    const accept = (document.querySelector('input[type="file"]') as HTMLInputElement).accept;
+    const accept = (
+      document.querySelector('input[type="file"]') as HTMLInputElement
+    ).accept;
     expect(accept).toContain('image/jpeg');
     expect(accept).toContain('application/pdf');
     expect(accept).not.toContain('image/gif');
+  });
+});
+
+describe('drafts', () => {
+  function renderFor(conversationId: string, onSend = vi.fn()) {
+    const view = render(
+      <MessageComposer
+        conversationId={conversationId}
+        sessionExpired={false}
+        onSend={onSend}
+        onSendAttachment={vi.fn().mockResolvedValue(undefined)}
+        onOpenTemplates={vi.fn()}
+      />
+    );
+    return { view, onSend };
+  }
+
+  it('keeps a separate draft per conversation', async () => {
+    const { view } = renderFor('conv-a');
+    fireEvent.change(box(), { target: { value: 'For A' } });
+
+    view.rerender(
+      <MessageComposer
+        conversationId="conv-b"
+        sessionExpired={false}
+        onSend={vi.fn()}
+        onSendAttachment={vi.fn().mockResolvedValue(undefined)}
+        onOpenTemplates={vi.fn()}
+      />
+    );
+    await waitFor(() => expect(box().value).toBe(''));
+
+    fireEvent.change(box(), { target: { value: 'For B' } });
+    view.rerender(
+      <MessageComposer
+        conversationId="conv-a"
+        sessionExpired={false}
+        onSend={vi.fn()}
+        onSendAttachment={vi.fn().mockResolvedValue(undefined)}
+        onOpenTemplates={vi.fn()}
+      />
+    );
+    await waitFor(() => expect(box().value).toBe('For A'));
+  });
+
+  it('empties the box on send and does not restore it on return', async () => {
+    const { view, onSend } = renderFor('conv-sent');
+    fireEvent.change(box(), { target: { value: 'Sending this' } });
+    fireEvent.keyDown(box(), { key: 'Enter' });
+
+    await waitFor(() =>
+      expect(onSend).toHaveBeenCalledWith('Sending this', undefined)
+    );
+    expect(box().value).toBe('');
+
+    view.rerender(
+      <MessageComposer
+        conversationId="conv-other"
+        sessionExpired={false}
+        onSend={vi.fn()}
+        onSendAttachment={vi.fn().mockResolvedValue(undefined)}
+        onOpenTemplates={vi.fn()}
+      />
+    );
+    view.rerender(
+      <MessageComposer
+        conversationId="conv-sent"
+        sessionExpired={false}
+        onSend={vi.fn()}
+        onSendAttachment={vi.fn().mockResolvedValue(undefined)}
+        onOpenTemplates={vi.fn()}
+      />
+    );
+    await waitFor(() => expect(box().value).toBe(''));
   });
 });
 
