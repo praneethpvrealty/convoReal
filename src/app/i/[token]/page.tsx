@@ -233,7 +233,7 @@ function SeatPass({ peek, token }: { peek: PeekOk; token: string }) {
             </Bullet>
             <Bullet warm>
               <b className="text-white">Tell us what breaks.</b> There&apos;s
-              a Report a bug button on every screen.
+              a Help &amp; feedback button on every screen.
             </Bullet>
             <Bullet warm>
               <b className="text-white">Stay a month.</b> Long enough for the

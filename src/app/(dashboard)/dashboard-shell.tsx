@@ -15,6 +15,7 @@ import { CopilotProvider } from "@/components/copilot/copilot-context";
 import { CopilotWidget } from "@/components/copilot/copilot-widget";
 import { TourOverlay } from "@/components/copilot/tour-overlay";
 import { ConvoRealLoader } from "@/components/ui/convoreal-loader";
+import { BRANDING } from "@/config/branding";
 
 // Auth-gated dashboard shell. Extracted from the layout so the layout
 // itself can stay a server component and export metadata (noindex) —
@@ -169,7 +170,7 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
               <p className="text-xs font-semibold text-slate-300">To reactivate your workspace:</p>
               <ul className="text-xs text-slate-400 space-y-1 list-none">
                 <li>• Renew or upgrade your subscription plan</li>
-                <li>• Contact support at <span className="text-primary font-medium">support@convoreal.com</span></li>
+                <li>• Contact support at <span className="text-primary font-medium">{BRANDING.supportEmail}</span></li>
                 <li>• Reference your account email to speed up resolution</li>
               </ul>
             </div>
