@@ -28,7 +28,7 @@ import { BRANDING } from '@/config/branding';
 // using this are agents on the managed deployment, who cannot act on a
 // missing key and should be pointed at support rather than at config.
 export const IMAGE_PROVIDER_UNAVAILABLE =
-  `AI image generation is not available on your account right now. Use "Report a bug" at the bottom of the screen, or email ${BRANDING.supportEmail}.`;
+  `AI image generation is not available on your account right now. Use "Help & feedback" at the bottom of the screen, or email ${BRANDING.supportEmail}.`;
 
 export interface StatusError extends Error {
   status?: number;
