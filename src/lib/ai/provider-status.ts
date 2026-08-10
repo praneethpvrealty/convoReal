@@ -29,10 +29,19 @@ export function isSelfHosted(): boolean {
 export function getImageProvidersStatus(): ImageProvidersStatus {
   const selfHosted = isSelfHosted();
 
-  const keys: Record<ImageProviderId, { envVar: string; value: string | undefined }> = {
-    huggingface: { envVar: 'HF_ACCESS_TOKEN', value: process.env.HF_ACCESS_TOKEN },
+  const keys: Record<
+    ImageProviderId,
+    { envVar: string; value: string | undefined }
+  > = {
+    huggingface: {
+      envVar: 'HF_ACCESS_TOKEN',
+      value: process.env.HF_ACCESS_TOKEN,
+    },
     google: { envVar: 'GEMINI_API_KEY', value: process.env.GEMINI_API_KEY },
-    stability: { envVar: 'STABILITY_API_KEY', value: process.env.STABILITY_API_KEY },
+    stability: {
+      envVar: 'STABILITY_API_KEY',
+      value: process.env.STABILITY_API_KEY,
+    },
   };
 
   const providers = (Object.keys(keys) as ImageProviderId[]).map((id) => ({

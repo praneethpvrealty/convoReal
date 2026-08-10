@@ -1,7 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { getImageProvidersStatus } from './provider-status';
 
-const KEYS = ['HF_ACCESS_TOKEN', 'GEMINI_API_KEY', 'STABILITY_API_KEY', 'NEXT_PUBLIC_SELF_HOSTED'];
+const KEYS = [
+  'HF_ACCESS_TOKEN',
+  'GEMINI_API_KEY',
+  'STABILITY_API_KEY',
+  'NEXT_PUBLIC_SELF_HOSTED',
+];
 
 describe('getImageProvidersStatus', () => {
   const original: Record<string, string | undefined> = {};
@@ -27,7 +32,9 @@ describe('getImageProvidersStatus', () => {
 
     expect(providers.find((p) => p.id === 'stability')?.available).toBe(true);
     expect(providers.find((p) => p.id === 'google')?.available).toBe(false);
-    expect(providers.find((p) => p.id === 'huggingface')?.available).toBe(false);
+    expect(providers.find((p) => p.id === 'huggingface')?.available).toBe(
+      false
+    );
   });
 
   it('withholds env var names on the managed deployment', () => {
@@ -45,6 +52,8 @@ describe('getImageProvidersStatus', () => {
     const { selfHosted, providers } = getImageProvidersStatus();
 
     expect(selfHosted).toBe(true);
-    expect(providers.find((p) => p.id === 'huggingface')?.envVar).toBe('HF_ACCESS_TOKEN');
+    expect(providers.find((p) => p.id === 'huggingface')?.envVar).toBe(
+      'HF_ACCESS_TOKEN'
+    );
   });
 });
