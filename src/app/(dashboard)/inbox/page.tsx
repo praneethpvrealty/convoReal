@@ -22,6 +22,13 @@ export default function InboxPage() {
    * automatically instead of showing the empty center panel.
    */
   const deepLinkConvId = searchParams.get("c");
+  /**
+   * `?draft=<text>` — a message the linking screen already composed
+   * (the journey sheet's "still considering this?" check-in). Applied
+   * to the composer only for the deep-linked thread, and only while
+   * the box is empty.
+   */
+  const [deepLinkDraft] = useState(() => searchParams.get("draft"));
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversation, setActiveConversation] =
@@ -137,6 +144,17 @@ export default function InboxPage() {
       hydratingConvIdsRef.current.delete(convId);
     }
   }, [profile?.phone]);
+
+  // The draft is captured into state above, so the URL no longer needs
+  // to carry it — strip it so a refresh lands on a clean composer.
+  useEffect(() => {
+    if (!deepLinkDraft) return;
+    window.history.replaceState(
+      null,
+      '',
+      deepLinkConvId ? `/inbox?c=${deepLinkConvId}` : '/inbox',
+    );
+  }, [deepLinkDraft, deepLinkConvId]);
 
   // Check WhatsApp connection status on mount
   useEffect(() => {
@@ -697,6 +715,11 @@ export default function InboxPage() {
             onAssignChange={handleAssignChange}
             onArchive={handleArchiveChange}
             onBack={handleCloseConversation}
+            initialDraft={
+              activeConversation?.id === deepLinkConvId
+                ? deepLinkDraft ?? undefined
+                : undefined
+            }
             resyncToken={resyncToken}
             onRefresh={handleManualRefresh}
           />

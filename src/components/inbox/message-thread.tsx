@@ -94,6 +94,12 @@ interface MessageThreadProps {
    */
   onBack?: () => void;
   /**
+   * Draft to seed the composer with, carried in by whoever opened the
+   * thread (the journey sheet's check-in nudge deep-links with it).
+   * The composer only applies it to an empty box.
+   */
+  initialDraft?: string;
+  /**
    * Increment to force the messages + reactions fetch effects to refire.
    * Parent bumps this on realtime reconnect / tab visibility → visible
    * so the open thread catches up on any events sent while the WS was
@@ -174,6 +180,7 @@ export function MessageThread({
   onStatusChange,
   onAssignChange,
   onBack,
+  initialDraft,
   resyncToken = 0,
   onRefresh,
   onArchive,
@@ -1375,6 +1382,7 @@ export function MessageThread({
         replyTo={replyTo}
         onClearReply={() => setReplyTo(null)}
         contactDead={Boolean(contact?.is_dead || contact?.is_archived)}
+        initialText={initialDraft}
       />
 
       <MoveToEngineDialog

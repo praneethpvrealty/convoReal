@@ -40,6 +40,7 @@ import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { resolveConversation } from "@/lib/conversations/resolve";
+import { buildCheckInMessage } from "@/lib/journey/checkin-message";
 import { formatCurrencyShort } from "@/lib/currency-utils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -62,6 +63,7 @@ import type {
   JourneyEvent,
   JourneyItem,
   JourneyStage,
+  Property,
 } from "@/types";
 import {
   planEtaLabel,
@@ -92,6 +94,10 @@ export interface JourneyItemSheetProps {
   /** The item's contact — hydrated on the item in seller mode, the
    *  section's subject in buyer mode. Drives the message actions. */
   contact: Contact | null;
+  /** The item's property — the mirror of `contact`: hydrated on the
+   *  item in buyer mode, the section's subject in seller mode. Names
+   *  the listing in the prefilled check-in message. */
+  property: Property | null;
   onClose: () => void;
   onAdvance: (item: JourneyItem) => void;
   onMoveTo: (item: JourneyItem, stageId: string) => void;
@@ -112,6 +118,7 @@ export function JourneyItemSheet({
   currency,
   canEdit,
   contact,
+  property,
   onClose,
   onAdvance,
   onMoveTo,
@@ -180,6 +187,15 @@ export function JourneyItemSheet({
     return (id?: string | null) => (id ? map.get(id) ?? "?" : "?");
   }, [stages]);
 
+  // The one question a stalled branch is asking: still in play, or
+  // park it? Both channels open with it already typed out.
+  const checkInMessage = buildCheckInMessage({
+    contactName: contact?.name,
+    propertyTitle: property?.title,
+    propertyCode: property?.property_code,
+    stageName: item ? stages[stageIndexOf(item, stages)]?.name : null,
+  });
+
   const openInInbox = async () => {
     if (!item || !contact || openingInbox) return;
     setOpeningInbox(true);
@@ -197,7 +213,9 @@ export function JourneyItemSheet({
       toast.error(error?.message ?? "Could not open the chat thread");
       return;
     }
-    router.push(`/inbox?c=${conversation.id}`);
+    router.push(
+      `/inbox?c=${conversation.id}&draft=${encodeURIComponent(checkInMessage)}`,
+    );
   };
 
   if (!item) {
@@ -311,7 +329,7 @@ export function JourneyItemSheet({
                     className="flex-1"
                     onClick={() =>
                       window.open(
-                        `https://wa.me/${contact.phone.replace(/\D/g, "")}`,
+                        `https://wa.me/${contact.phone.replace(/\D/g, "")}?text=${encodeURIComponent(checkInMessage)}`,
                         "_blank",
                         "noopener,noreferrer",
                       )

@@ -52,6 +52,10 @@ interface MessageComposerProps {
    *  is still allowed here — this is the one channel a dead contact can
    *  be reached on — but the agent should know before they type. */
   contactDead?: boolean;
+  /** Draft handed in by whoever opened the thread (the journey sheet's
+   *  check-in nudge, today). Seeds the box once per distinct value and
+   *  never overwrites something the agent has already typed. */
+  initialText?: string;
 }
 
 export function MessageComposer({
@@ -64,6 +68,7 @@ export function MessageComposer({
   replyTo,
   onClearReply,
   contactDead = false,
+  initialText,
 }: MessageComposerProps) {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -91,6 +96,20 @@ export function MessageComposer({
     // Max 4 lines (~96px)
     el.style.height = `${Math.min(el.scrollHeight, 96)}px`;
   }, []);
+
+  // Seed the box from a handed-in draft. Deferred setter (repo-wide
+  // pattern) and keyed on the value, so a re-render can't retype a
+  // draft the agent has since cleared or edited.
+  const seededDraftRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!initialText || seededDraftRef.current === initialText) return;
+    seededDraftRef.current = initialText;
+    Promise.resolve().then(() => {
+      setText((prev) => (prev ? prev : initialText));
+      textareaRef.current?.focus();
+      adjustHeight();
+    });
+  }, [initialText, adjustHeight]);
 
   const handleSend = useCallback(async () => {
     const trimmed = text.trim();
