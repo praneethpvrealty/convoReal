@@ -31,6 +31,8 @@ import { burnCredits } from '@/lib/credits/burn';
 import { AI_FEATURE_COSTS, type AiFeatureKey } from '@/lib/credits/types';
 import { notifyManagerLowBalance } from '@/lib/credits/notify';
 import { tryHandleOwnerScheduling, applySchedulingEdit, isDictatedTaskList } from '@/lib/calendar/whatsapp-scheduler';
+import { enrichmentFor } from '@/lib/contacts/draft-match';
+import { syncContactPreferences } from '@/lib/contacts/preference-sync';
 import { parseEventOutcome } from '@/lib/calendar/event-outcome';
 import {
   openOverdueEvents,
@@ -1635,6 +1637,7 @@ export async function processOwnerChatbotMessage(
       // Check duplicates and save new contacts in bulk
       const toInsert = [];
       const duplicates = [];
+      const enriched: { id: string; name: string; changed: string[] }[] = [];
 
       for (const draft of container.contacts) {
         const normalized = normalizePhoneWithCountryCode(draft.phone || '');
@@ -1647,7 +1650,41 @@ export async function processOwnerChatbotMessage(
           .maybeSingle();
 
         if (existingContact) {
-          duplicates.push(`${existingContact.name} (${normalized || draft.phone})`);
+          // Enrich rather than skip. A forwarded chat about someone we
+          // already know is the normal case, not a mistake — and this
+          // answered it with "skipped duplicate", throwing away every
+          // requirement and budget the conversation carried. Additive
+          // only: an agent's own edits outrank an extraction.
+          const { data: held } = await supabaseAdmin()
+            .from('contacts')
+            .select('email, company, name_tag, requirements')
+            .eq('id', existingContact.id)
+            .maybeSingle();
+          const enrichment = enrichmentFor(draft, held || {});
+          if (enrichment.changed.length === 0) {
+            duplicates.push(`${existingContact.name} (${normalized || draft.phone})`);
+          } else {
+            const patch: Record<string, string> = { ...enrichment.updates };
+            if (enrichment.requirements) patch.requirements = enrichment.requirements;
+            const { error: enrichErr } = await supabaseAdmin()
+              .from('contacts')
+              .update(patch)
+              .eq('id', existingContact.id)
+              .eq('account_id', accountId);
+            if (enrichErr) {
+              console.error('[chatbot-engine] contact enrichment failed:', enrichErr);
+              duplicates.push(`${existingContact.name} (${normalized || draft.phone})`);
+            } else {
+              // Budget, areas and BHK live in pref_*, which the matcher
+              // reads; the requirements free text is invisible to it.
+              await syncContactPreferences(supabaseAdmin(), accountId, existingContact.id);
+              enriched.push({
+                id: existingContact.id,
+                name: String(existingContact.name),
+                changed: enrichment.changed,
+              });
+            }
+          }
         } else {
           // Resolve referrer if present
           let referrerContactId = null;
@@ -1765,9 +1802,21 @@ export async function processOwnerChatbotMessage(
       }
 
       if (toInsert.length === 0) {
-        const reply = `⚠️ *All contacts already exist in ${BRANDING.name}:* \n` +
-          duplicates.map(d => `• ${d}`).join('\n') + 
-          `\n\nContact draft session discarded.`;
+        // An enriched contact is the SUCCESS case of a forwarded chat
+        // about someone we already know, so it must not be reported
+        // under a warning about duplicates.
+        const reply = enriched.length > 0
+          ? `✅ *Updated ${enriched.length} existing contact(s) in ${BRANDING.name}!*\n\n` +
+            enriched.map(e => `• *${e.name}* — ${e.changed.join(', ')} updated`).join('\n') +
+            (duplicates.length > 0
+              ? `\n\n⚠️ *Nothing new for:* \n` + duplicates.map(d => `• ${d}`).join('\n')
+              : '') +
+            (enriched.length === 1
+              ? `\n\nView in dashboard: ${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/contacts?contactId=${enriched[0].id}`
+              : '')
+          : `⚠️ *All contacts already exist in ${BRANDING.name}:* \n` +
+            duplicates.map(d => `• ${d}`).join('\n') +
+            `\n\nContact draft session discarded.`;
         await supabaseAdmin()
           .from('contact_draft_sessions')
           .delete()
@@ -1906,8 +1955,12 @@ export async function processOwnerChatbotMessage(
         const tagNote = c.name_tag ? ` — 🏷️ ${c.name_tag}` : '';
         reply += `• *Name:* ${c.name}${tagNote} (${c.phone}) [${c.classification}]\n`;
       });
+      if (enriched.length > 0) {
+        reply += `\n♻️ *Updated existing:* \n` +
+          enriched.map(e => `• ${e.name} — ${e.changed.join(', ')}`).join('\n') + `\n`;
+      }
       if (duplicates.length > 0) {
-        reply += `\n⚠️ *Skipped duplicates:* \n` + duplicates.map(d => `• ${d}`).join('\n') + `\n`;
+        reply += `\n⚠️ *Nothing new for:* \n` + duplicates.map(d => `• ${d}`).join('\n') + `\n`;
       }
       if (inserted.length === 1) {
         reply += `\nView in dashboard: ${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/contacts?contactId=${inserted[0].id}`;
