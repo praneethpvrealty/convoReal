@@ -28,7 +28,10 @@ vi.mock('@/lib/whatsapp/meta-api-dispatcher', () => ({
 const { sendBroadcastRecipients } = await import('./sender');
 
 /** The broadcast row lookup that runs before the claim. */
-function broadcastRow(status = 'sending') {
+function broadcastRow(
+  status = 'sending',
+  templateName = 'listing_status_notice'
+) {
   return {
     select: () => ({
       eq: () => ({
@@ -36,7 +39,7 @@ function broadcastRow(status = 'sending') {
           data: {
             id: 'b1',
             status,
-            template_name: 'listing_status_notice',
+            template_name: templateName,
             account_id: 'a1',
             user_id: 'u1',
           },
@@ -139,6 +142,54 @@ describe('broadcast recipient claim', () => {
     // outstanding the broadcast must not be closed out either.
     const tables = from.mock.calls.map((c) => c[0]);
     expect(tables).not.toContain('messages');
+  });
+
+  it('renews the row claims, not just the broadcast lease', async () => {
+    // Batch 5: one dispatcher held 50 rows and was still sending 17
+    // minutes later. The broadcast lease was renewed per batch; the row
+    // claims were not, so they went stale, the sweep reclaimed the 16
+    // still outstanding, and 8 leads were messaged twice.
+    const claimed = [
+      { id: 'r1', contact_id: 'c1', retry_count: 0 },
+      { id: 'r2', contact_id: 'c2', retry_count: 0 },
+    ];
+    rpc.mockImplementation((fn: string) => {
+      if (fn === 'claim_broadcast_dispatch')
+        return Promise.resolve({ data: true, error: null });
+      if (fn === 'claim_broadcast_recipients')
+        return Promise.resolve({ data: claimed, error: null });
+      if (fn === 'broadcast_outstanding_count')
+        return Promise.resolve({ data: 0, error: null });
+      return Promise.resolve({ data: null, error: null });
+    });
+    // Past the claim the sender loads contacts and writes per-row
+    // status; neither is what this asserts, so both just resolve empty.
+    from.mockImplementation((table: string) => {
+      // A plain template: the property-anchored ones load their own
+      // enquiry context, which is irrelevant to claim renewal.
+      if (table === 'broadcasts')
+        return broadcastRow('sending', 'plain_notice');
+      // Past the claim the sender loads contacts and the template row,
+      // then writes per-row status. None of that is what this asserts,
+      // so every chain resolves empty.
+      const chain: Record<string, unknown> = {};
+      for (const m of ['select', 'eq', 'in', 'limit', 'update', 'order']) {
+        chain[m] = () => chain;
+      }
+      (chain as { then?: unknown }).then = (r: (v: unknown) => unknown) =>
+        Promise.resolve(r({ data: [], error: null }));
+      return chain;
+    });
+
+    await sendBroadcastRecipients('b1', 'a1', 'u1');
+
+    const renewals = rpc.mock.calls.filter(
+      (c) => c[0] === 'renew_broadcast_recipient_claims'
+    );
+    expect(renewals.length).toBeGreaterThan(0);
+    // Scoped to the rows this dispatcher claimed — renewing by
+    // broadcast would extend another dispatcher's rows too.
+    expect(renewals[0][1]).toEqual({ p_ids: ['r1', 'r2'] });
   });
 
   it('never reads pending recipients directly, which is what let a second sender in', async () => {
