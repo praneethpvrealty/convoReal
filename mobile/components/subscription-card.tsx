@@ -5,13 +5,16 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { haptic } from '@/lib/haptics';
 import { PLAN_CTA, PLAN_META } from '@/lib/plan-meta';
+import { SHOW_PURCHASE_LINKS } from '@/lib/store-policy';
 import { fonts, radius, spacing } from '@/lib/theme';
 import { useSubscription } from '@/lib/use-subscription';
 
 /**
  * The account's subscription level, shown as a premium gradient badge on
  * the More screen. Owner-only (RLS), so it quietly hides for other roles.
- * Tapping opens Billing to manage or upgrade.
+ * Tapping opens Billing to manage or upgrade — on iOS the upgrade call to
+ * action is dropped and the card becomes a plain status badge
+ * (SHOW_PURCHASE_LINKS).
  */
 export function SubscriptionCard() {
   const { plan, status, isLoading, canView } = useSubscription();
@@ -20,6 +23,53 @@ export function SubscriptionCard() {
   const meta = PLAN_META[plan];
   const trialing = status === 'trialing';
   const attention = status === 'past_due' || status === 'grace_period';
+
+  const card = (
+    <LinearGradient
+      colors={meta.gradient}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.card}
+    >
+      <View style={styles.topRow}>
+        <View style={styles.iconWrap}>
+          <Ionicons name={meta.icon} size={22} color="#fff" />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.eyebrow}>YOUR PLAN</Text>
+          <Text style={styles.plan}>{meta.label}</Text>
+        </View>
+        {trialing ? (
+          <View style={styles.pill}>
+            <Text style={styles.pillText}>Trial</Text>
+          </View>
+        ) : null}
+        {attention ? (
+          <View style={[styles.pill, { backgroundColor: 'rgba(239,68,68,0.92)' }]}>
+            <Text style={styles.pillText}>Action needed</Text>
+          </View>
+        ) : null}
+      </View>
+
+      <Text style={styles.tagline}>{meta.tagline}</Text>
+      <Text style={styles.perks}>{meta.perks}</Text>
+
+      {SHOW_PURCHASE_LINKS ? (
+        <View style={styles.cta}>
+          <Text style={styles.ctaText}>{PLAN_CTA[plan]}</Text>
+          <Ionicons name="arrow-forward" size={15} color="#fff" />
+        </View>
+      ) : null}
+    </LinearGradient>
+  );
+
+  if (!SHOW_PURCHASE_LINKS) {
+    return (
+      <View style={styles.wrap} accessibilityLabel={`${meta.label} plan`}>
+        {card}
+      </View>
+    );
+  }
 
   return (
     <Pressable
@@ -31,44 +81,10 @@ export function SubscriptionCard() {
       accessibilityLabel={`${meta.label} plan — manage or upgrade`}
       style={({ pressed }) => [styles.wrap, { opacity: pressed ? 0.92 : 1 }]}
     >
-      <LinearGradient
-        colors={meta.gradient}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.card}
-      >
-        <View style={styles.topRow}>
-          <View style={styles.iconWrap}>
-            <Ionicons name={meta.icon} size={22} color="#fff" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.eyebrow}>YOUR PLAN</Text>
-            <Text style={styles.plan}>{meta.label}</Text>
-          </View>
-          {trialing ? (
-            <View style={styles.pill}>
-              <Text style={styles.pillText}>Trial</Text>
-            </View>
-          ) : null}
-          {attention ? (
-            <View style={[styles.pill, { backgroundColor: 'rgba(239,68,68,0.92)' }]}>
-              <Text style={styles.pillText}>Action needed</Text>
-            </View>
-          ) : null}
-        </View>
-
-        <Text style={styles.tagline}>{meta.tagline}</Text>
-        <Text style={styles.perks}>{meta.perks}</Text>
-
-        <View style={styles.cta}>
-          <Text style={styles.ctaText}>{PLAN_CTA[plan]}</Text>
-          <Ionicons name="arrow-forward" size={15} color="#fff" />
-        </View>
-      </LinearGradient>
+      {card}
     </Pressable>
   );
 }
-
 const styles = StyleSheet.create({
   wrap: { borderRadius: radius.lg, overflow: 'hidden' },
   card: { padding: spacing.lg, gap: 6 },
