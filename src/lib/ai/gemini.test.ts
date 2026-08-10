@@ -25,6 +25,7 @@ if (!process.env.GEMINI_API_KEY) {
   process.env.GEMINI_API_KEY = 'mock-gemini-api-key-for-testing';
 }
 
+import { generateJson, generateText } from './gemini';
 import { parseListingFromImageOrText, updateListingDraft, parseContactFromImageOrText, updateContactDraft, looksLikePropertyListing, looksLikeBuyerRequirement, inferBuyerFromRequirements, normalizeClassification, promoteClassificationFromNameTag, classifyImageOrText, normalizeListingFeatures } from './gemini';
 
 describe('Gemini AI WhatsApp Parsers', { timeout: 30000 }, () => {
@@ -527,5 +528,46 @@ describe('classifyImageOrText schedule class', () => {
       'image/jpeg'
     );
     expect(result).toBe('property');
+  });
+});
+
+describe('generationConfig — temperature', () => {
+  let sent: Record<string, unknown>[] = [];
+
+  beforeEach(() => {
+    sent = [];
+    vi.stubGlobal('fetch', async (_url: string, init?: RequestInit) => {
+      sent.push(init?.body ? JSON.parse(init.body as string) : {});
+      return {
+        ok: true,
+        json: async () => ({
+          candidates: [{ content: { parts: [{ text: '{}' }] } }],
+        }),
+      } as unknown as Response;
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('pins structured extraction to zero', async () => {
+    // A JSON call has one right answer, so sampling variety is noise —
+    // the same brief re-extracted returned a locality as one
+    // comma-joined string where the stored value was two, and the buyer
+    // ladder read that as new information.
+    await generateJson('extract this', 'you are a parser');
+    expect(sent[0].generationConfig).toEqual({
+      responseMimeType: 'application/json',
+      temperature: 0,
+    });
+  });
+
+  it('leaves free-text generation on the model default', async () => {
+    // Descriptions and ad copy are published. At zero, two similar
+    // listings write themselves the same page — which is duplicate
+    // content on the public listing pages, not a tidier one.
+    await generateText('write a description', 'you are a copywriter');
+    expect(sent[0].generationConfig).toBeUndefined();
   });
 });
