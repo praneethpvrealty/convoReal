@@ -162,6 +162,27 @@ export function splitTaskList(text: string): string[] {
     .filter(Boolean);
 }
 
+/**
+ * Text that is unmistakably a dictated to-do list: it says so, and it
+ * carries a numbered run to prove it.
+ *
+ * Strong enough to interrupt an intake draft. The ordinary scheduling
+ * pre-filter is not — "site visit" inside a correction to a listing is
+ * describing the listing — which is why the intercept normally stands
+ * down while a draft is mid-flight. A message that declares itself a
+ * task list and then numbers the tasks is not a correction to anything.
+ *
+ * Without this the first misroute was self-perpetuating: a listing
+ * draft opened by a task list swallowed the next task list as an edit,
+ * refreshing its own timeout each time, so it never expired and the
+ * calendar never saw another one.
+ */
+export function isDictatedTaskList(text?: string | null): boolean {
+  const t = (text || '').trim();
+  if (!t) return false;
+  return TASK_PREFIX.test(t) && splitTaskList(t).length >= 2;
+}
+
 interface AgendaEvent {
   title: string;
   event_type: string | null;
