@@ -5,7 +5,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
  *
  * When the helper is asked for something ConvoReal cannot do, the
  * model names the missing capability in a short canonical phrase and
- * it lands in copilot_unmet_requests (migration 234). Aggregated
+ * it lands in copilot_unmet_requests (migration 236). Aggregated
  * across tenants that is a ranked feature-request backlog collected
  * from the questions users were already asking.
  *

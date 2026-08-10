@@ -72,7 +72,7 @@ under `Promise.allSettled`, so one failing rule never blanks the others.
 
 When a user asks for something ConvoReal cannot do, the model names the missing
 capability in a short canonical phrase (`unsupported` in the JSON contract) and
-`unmet.ts` records it in `copilot_unmet_requests` (migration `234`, **applied
+`unmet.ts` records it in `copilot_unmet_requests` (migration `236`, **applied
 manually in the Supabase SQL Editor**). One row per (account, capability):
 repeat asks bump `request_count`, so the table grows with distinct capabilities
 rather than with traffic. Cached "we don't do that" answers are re-logged on
@@ -95,7 +95,7 @@ ORDER BY accounts DESC, asks DESC;
 
 ## Self-learning cache
 
-`copilot_qa_cache` (migrations `109` and `234`, **applied manually in the
+`copilot_qa_cache` (migrations `109` and `236`, **applied manually in the
 Supabase SQL Editor**) stores validated answers keyed by a 768-dim question
 embedding. Similar questions from any user are served after deterministic
 validation (similarity ≥ 0.90, matching `KB_VERSION`, live tour/route, current

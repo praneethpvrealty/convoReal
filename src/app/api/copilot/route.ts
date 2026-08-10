@@ -194,7 +194,7 @@ export async function POST(req: NextRequest) {
 
     // Unmet demand: the user asked for something the app can't do.
     // Recorded per account so the operator can rank real feature
-    // requests by how many teams asked (migration 234).
+    // requests by how many teams asked (migration 236).
     const capability = parsed ? sanitizeCapability(parsed.unsupported) : null;
     if (capability) {
       logUnmetRequest({
