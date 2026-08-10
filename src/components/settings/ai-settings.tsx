@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import type { ImageProviderId, ImageProvidersStatus } from '@/lib/ai/provider-status';
+import { BRANDING } from '@/config/branding';
 
 const PROVIDER_CARDS: {
   id: ImageProviderId;
@@ -228,7 +229,7 @@ export function AiSettingsPanel() {
                           <span>
                             {selfHosted && envVar
                               ? `Unavailable — set ${envVar} to enable`
-                              : 'Unavailable on this workspace — contact support to enable it'}
+                              : `Unavailable on your account — email ${BRANDING.supportEmail} to switch it on`}
                           </span>
                         </>
                       )}

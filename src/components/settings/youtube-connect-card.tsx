@@ -14,6 +14,7 @@ import {
   CardDescription,
 } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { BRANDING } from '@/config/branding';
 import { Switch } from '@/components/ui/switch';
 import {
   Dialog,
@@ -191,9 +192,15 @@ export function YouTubeConnectCard() {
               ) : (
                 <>
                   YouTube uploads aren&apos;t switched on for your account yet.
-                  Message our support team and we&apos;ll turn it on for you —
-                  your listing videos keep working in the meantime, they just
-                  won&apos;t go to YouTube.
+                  Email{' '}
+                  <a
+                    href={`mailto:${BRANDING.supportEmail}?subject=Enable YouTube uploads`}
+                    className="text-primary underline underline-offset-2"
+                  >
+                    {BRANDING.supportEmail}
+                  </a>{' '}
+                  and we&apos;ll turn it on for you. Your listing videos keep
+                  working in the meantime — they just won&apos;t go to YouTube.
                 </>
               )}
             </AlertDescription>

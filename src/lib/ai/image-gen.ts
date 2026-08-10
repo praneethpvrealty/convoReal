@@ -21,12 +21,14 @@
 // still generates instead of hard-failing.
 // ============================================================
 
+import { BRANDING } from '@/config/branding';
+
 // Shown to users when no image provider can serve the request. The
 // provider/env-var detail goes to the server log instead: the people
 // using this are agents on the managed deployment, who cannot act on a
 // missing key and should be pointed at support rather than at config.
 export const IMAGE_PROVIDER_UNAVAILABLE =
-  'AI image generation is not available on your account right now. Please contact support.';
+  `AI image generation is not available on your account right now. Use "Report a bug" at the bottom of the screen, or email ${BRANDING.supportEmail}.`;
 
 export interface StatusError extends Error {
   status?: number;

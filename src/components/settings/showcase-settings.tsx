@@ -472,9 +472,8 @@ export function ShowcaseSettingsPanel() {
           <p className="text-[11px] text-slate-400">
             This is your own web address for your listings:{' '}
             <code className="text-primary">{`https://${form.subdomain || 'your-name'}.${BRANDING.baseDomain}`}</code>
-            . Save it now to reserve the name — we set the address live for you,
-            which can take a little while. Keep sharing the links above in the
-            meantime; they always work.
+            . It goes live as soon as you save, and you can share it anywhere —
+            WhatsApp, your visiting card, or a portal listing.
           </p>
 
           {businessUrl && (
