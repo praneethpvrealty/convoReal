@@ -30,7 +30,7 @@ import { checkAccountPropertyLimit } from '@/lib/billing/gates';
 import { burnCredits } from '@/lib/credits/burn';
 import { AI_FEATURE_COSTS, type AiFeatureKey } from '@/lib/credits/types';
 import { notifyManagerLowBalance } from '@/lib/credits/notify';
-import { tryHandleOwnerScheduling, applySchedulingEdit } from '@/lib/calendar/whatsapp-scheduler';
+import { tryHandleOwnerScheduling, applySchedulingEdit, isDictatedTaskList } from '@/lib/calendar/whatsapp-scheduler';
 import { parseEventOutcome } from '@/lib/calendar/event-outcome';
 import {
   openOverdueEvents,
@@ -825,7 +825,16 @@ export async function processOwnerChatbotMessage(
   // intake corrections aren't hijacked. tryHandleOwnerScheduling has
   // its own strict pre-filter and returns false for anything that
   // should continue into the intake flows below.
-  if (!propSession && !contactSession) {
+  //
+  // The exception is a message that declares itself a task list and
+  // then numbers the tasks. That is not a correction to a listing, and
+  // treating it as one is how the first misroute became permanent: the
+  // draft it wrongly opened swallowed the next task list as an edit and
+  // refreshed its own timeout doing so, so it never expired and no
+  // later list ever reached the calendar. The draft itself is left
+  // alone — a half-built listing is still wanted, it just isn't what
+  // this message is about.
+  if ((!propSession && !contactSession) || isDictatedTaskList(cleanedText)) {
     try {
       const scheduled = await tryHandleOwnerScheduling({
         message,
