@@ -26,6 +26,7 @@ import {
 
 interface ConfigResponse {
   configured: boolean;
+  selfHosted?: boolean;
   connected: boolean;
   status?: 'connected' | 'token_expired' | 'disconnected';
   channelId?: string | null;
@@ -173,14 +174,28 @@ export function YouTubeConnectCard() {
           <Alert>
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription className="text-sm">
-              YouTube uploads are not configured on this server. Set{' '}
-              <code className="text-primary">GOOGLE_OAUTH_CLIENT_ID</code> and{' '}
-              <code className="text-primary">GOOGLE_OAUTH_CLIENT_SECRET</code> —
-              see{' '}
-              <code className="text-primary">
-                docs/youtube-integration-setup.md
-              </code>
-              .
+              {config?.selfHosted ? (
+                <>
+                  YouTube uploads are not set up on this server. Add{' '}
+                  <code className="text-primary">GOOGLE_OAUTH_CLIENT_ID</code>{' '}
+                  and{' '}
+                  <code className="text-primary">
+                    GOOGLE_OAUTH_CLIENT_SECRET
+                  </code>{' '}
+                  to your server environment — see{' '}
+                  <code className="text-primary">
+                    docs/youtube-integration-setup.md
+                  </code>
+                  .
+                </>
+              ) : (
+                <>
+                  YouTube uploads aren&apos;t switched on for your account yet.
+                  Message our support team and we&apos;ll turn it on for you —
+                  your listing videos keep working in the meantime, they just
+                  won&apos;t go to YouTube.
+                </>
+              )}
             </AlertDescription>
           </Alert>
         ) : (
