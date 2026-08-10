@@ -131,7 +131,16 @@ function outro(input: ShareMessageInput): string {
   }
 }
 
-function completeBody(property: Property, currency: string): string {
+/** `withMap: false` holds the map link back so the caller can place it
+ *  AFTER the showcase link. WhatsApp previews the FIRST url in a
+ *  message, so a map line above the listing link meant the share
+ *  arrived carrying a Google Maps card instead of the property. */
+function completeBody(
+  property: Property,
+  currency: string,
+  opts: { withMap?: boolean } = {}
+): string {
+  const { withMap = true } = opts;
   const lines: string[] = [];
   lines.push(`🏡 *${property.title}*`);
   if (property.project) lines.push(`🏢 ${property.project}`);
@@ -187,7 +196,7 @@ function completeBody(property: Property, currency: string): string {
     );
   }
 
-  if (property.google_map_link)
+  if (withMap && property.google_map_link)
     lines.push(`🗺 Map: ${property.google_map_link}`);
 
   return lines.join('\n');
@@ -211,8 +220,9 @@ export function buildPropertyShareMessage(input: ShareMessageInput): string {
   if (detail === 'complete') {
     return [
       intro(input),
-      completeBody(property, currency),
+      completeBody(property, currency, { withMap: false }),
       `📸 Photos & full details:\n${url}`,
+      property.google_map_link ? `🗺 Map: ${property.google_map_link}` : '',
       [outro(input), signOff(input)].filter(Boolean).join('\n\n'),
     ]
       .filter(Boolean)
@@ -298,15 +308,20 @@ export function buildInquiryDetailsMessage(input: {
 }): string {
   const { property, url } = input;
   const currency = input.currency || 'INR';
-  const body = [completeBody(property, currency)];
+  const body = [completeBody(property, currency, { withMap: false })];
   if (property.location && locationLine(property) !== property.location) {
     body.push(`📍 *Exact Address:* ${property.location}`);
   }
+  // Same rule as the share message: the map link goes below the
+  // showcase link, never above it.
   return [
     `Here are the complete details for the property "${property.title}" you inquired about:`,
     body.join('\n'),
     `📸 Photos & full details:\n${url}`,
-  ].join('\n\n');
+    property.google_map_link ? `🗺 Map: ${property.google_map_link}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n\n');
 }
 
 /**

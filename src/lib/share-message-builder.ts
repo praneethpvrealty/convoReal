@@ -138,7 +138,16 @@ function outro(input: ShareMessageInput): string {
 
 /** The "everything in one message" body — every filled field, capped
  *  lists, WhatsApp * formatting. */
-function completeBody(property: Property, currency: string): string {
+/** `withMap: false` holds the map link back so the caller can place it
+ *  AFTER the showcase link. WhatsApp previews the FIRST url in a
+ *  message, so a map line above the listing link meant the share
+ *  arrived carrying a Google Maps card instead of the property. */
+function completeBody(
+  property: Property,
+  currency: string,
+  opts: { withMap?: boolean } = {},
+): string {
+  const { withMap = true } = opts;
   const lines: string[] = [];
   lines.push(`🏡 *${property.title}*`);
   if (property.project) lines.push(`🏢 ${property.project}`);
@@ -179,7 +188,7 @@ function completeBody(property: Property, currency: string): string {
     lines.push(`📈 Rental income: ${formatShareAmount(property.rental_income, currency)}/mo${property.roi ? ` (~${property.roi}% ROI)` : ''}`);
   }
 
-  if (property.google_map_link && !isLocationGuarded(property)) {
+  if (withMap && property.google_map_link && !isLocationGuarded(property)) {
     lines.push(`🗺 Map: ${property.google_map_link}`);
   }
 
@@ -202,10 +211,15 @@ export function buildPropertyShareMessage(input: ShareMessageInput): string {
   }
 
   if (detail === 'complete') {
+    const mapLine =
+      property.google_map_link && !isLocationGuarded(property)
+        ? `🗺 Map: ${property.google_map_link}`
+        : '';
     return [
       intro(input),
-      completeBody(property, currency),
+      completeBody(property, currency, { withMap: false }),
       `📸 Photos & full details:\n${url}`,
+      mapLine,
       [outro(input), signOff(input)].filter(Boolean).join('\n\n'),
     ]
       .filter(Boolean)
@@ -293,18 +307,23 @@ export function buildInquiryDetailsMessage(input: {
 }): string {
   const { property, url } = input;
   const currency = input.currency || 'INR';
-  const body = [completeBody(property, currency)];
+  const body = [completeBody(property, currency, { withMap: false })];
   if (property.location && locationLine(property) !== property.location) {
     body.push(`📍 *Exact Address:* ${property.location}`);
   }
-  if (property.google_map_link && isLocationGuarded(property)) {
-    body.push(`🗺 Map: ${property.google_map_link}`);
-  }
+  // Same rule as the share message: the map link goes below the
+  // showcase link, never above it.
+  const mapLine = property.google_map_link
+    ? `🗺 Map: ${property.google_map_link}`
+    : '';
   return [
     `Here are the complete details for the property "${property.title}" you inquired about:`,
     body.join('\n'),
     `📸 Photos & full details:\n${url}`,
-  ].join('\n\n');
+    mapLine,
+  ]
+    .filter(Boolean)
+    .join('\n\n');
 }
 
 // ── External share targets ──────────────────────────────────────

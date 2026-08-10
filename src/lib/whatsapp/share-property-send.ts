@@ -130,8 +130,41 @@ export async function sendPropertyToContact(opts: {
     return conversationId;
   };
 
+  // One lookup, whichever branch ends up sending: the open-window path
+  // puts it inline, the template path puts it in the header, and a
+  // free-form attempt that hits a closed window falls through to the
+  // second having already resolved it.
+  const brandImageOnce = accountBrandImage(db, accountId);
+
   let freeformError: string | undefined;
   if (open) {
+    // Lead with the photo here too. The template path below has always
+    // put the listing's image in its header; the open-window path sent
+    // the same listing as a wall of text, so which channel carried a
+    // share decided whether the buyer saw the property. Same choice as
+    // the Radar alert: image first, then the composed message.
+    //
+    // Best-effort — a photo that will not send must never cost the
+    // share. The text goes out either way.
+    const inlineImage = shareHeaderImage({
+      images: property.images,
+      brandImage: await brandImageOnce,
+    });
+    if (inlineImage) {
+      const img = await sendWhatsAppMessageAndPersist({
+        accountId,
+        userId,
+        contactId,
+        kind: 'media',
+        mediaKind: 'image',
+        mediaLink: inlineImage,
+        mediaCaption: property.title,
+        senderType: 'agent',
+      });
+      if (!img.success) {
+        console.error('[share-property-send] photo send failed:', img.error);
+      }
+    }
     const res = await sendWhatsAppMessageAndPersist({
       accountId,
       userId,
@@ -176,7 +209,7 @@ export async function sendPropertyToContact(opts: {
   // different message from one that does not, and the header is a
   // send-time parameter so it costs nothing at the category level.
   const [brandImage, brandName] = await Promise.all([
-    accountBrandImage(db, accountId),
+    brandImageOnce,
     accountBrandName(db, accountId),
   ]);
   const headerImage = shareHeaderImage({ images: property.images, brandImage });
