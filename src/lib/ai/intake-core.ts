@@ -10,6 +10,7 @@
 // ============================================================
 
 import type { ParsedPropertyDraft, ParsedContactDraft, ParsedContactDraftsContainer } from '@/lib/ai/gemini';
+import { sameDraftSubject } from '@/lib/contacts/draft-match';
 import {
   googleMapsUrlForCoordinates,
   parseCoordinatePair,
@@ -335,11 +336,13 @@ export function mergeContactDraft(base: ParsedContactDraft, add: ParsedContactDr
 }
 
 /**
- * Merges a freshly-parsed container INTO an active draft so forwarding an
- * additional screenshot/text enriches the current contact instead of
- * spawning a new draft that drops the name/phone captured earlier.
- * Contacts merge by position; any incoming contacts beyond the existing
- * count are appended as genuinely new drafts.
+ * Merges a freshly-parsed container INTO an active draft BY POSITION.
+ *
+ * Positional pairing is only safe once something else has established
+ * that the two containers describe the same people —
+ * reconcileContactDrafts is that something. Calling this directly on an
+ * arbitrary incoming container is what grafted one person's phone onto
+ * another person's draft.
  */
 export function mergeContactDraftsContainer(
   existing: ParsedContactDraftsContainer,
@@ -356,4 +359,54 @@ export function mergeContactDraftsContainer(
     merged.push(...incomingContacts.slice(existingContacts.length));
   }
   return { contacts: merged };
+}
+
+export interface ContactDraftReconciliation {
+  container: ParsedContactDraftsContainer;
+  /** True when the incoming card was about someone else and the draft
+   *  in flight was dropped rather than merged into. */
+  replaced: boolean;
+}
+
+/**
+ * What a second screenshot should do to the draft already in flight.
+ *
+ * Two failure modes, opposite directions, both silent:
+ *
+ * - merging strangers writes one person's phone and email onto
+ *   another's record, and an agent confirms it without ever seeing the
+ *   swap. Positional merging did this for any second card.
+ * - replacing the same person throws away whatever the first card
+ *   contributed, which is why replacing everything unconditionally was
+ *   only ever half an answer.
+ *
+ * So the incoming container decides for itself. Every incoming contact
+ * must line up with someone already in the draft; if even one is a
+ * stranger, the card is about new business and the old draft goes.
+ * Merging then happens against the MATCHED contact rather than the one
+ * that happens to share an index.
+ */
+export function reconcileContactDrafts(
+  existing: ParsedContactDraftsContainer,
+  incoming: ParsedContactDraftsContainer
+): ContactDraftReconciliation {
+  const existingContacts = existing.contacts || [];
+  const incomingContacts = incoming.contacts || [];
+  if (existingContacts.length === 0 || incomingContacts.length === 0) {
+    return { container: { contacts: incomingContacts }, replaced: true };
+  }
+
+  const pairs = incomingContacts.map((inc) => ({
+    inc,
+    at: existingContacts.findIndex((base) => sameDraftSubject(base, inc)),
+  }));
+  if (pairs.some((p) => p.at === -1)) {
+    return { container: { contacts: incomingContacts }, replaced: true };
+  }
+
+  const merged = [...existingContacts];
+  for (const { inc, at } of pairs) {
+    merged[at] = mergeContactDraft(merged[at], inc);
+  }
+  return { container: { contacts: merged }, replaced: false };
 }

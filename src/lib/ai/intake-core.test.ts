@@ -9,6 +9,7 @@ import {
   mergeFreeText,
   mergeContactDraft,
   mergeContactDraftsContainer,
+  reconcileContactDrafts,
 } from '@/lib/ai/intake-core';
 import {
   resolveLocationFromCoordinates,
@@ -540,5 +541,61 @@ describe('mergeContactDraftsContainer', () => {
     const merged = mergeContactDraftsContainer(makeContainer([]), makeContainer([makeContact({ name: 'A', phone: '1' })]));
     expect(merged.contacts).toHaveLength(1);
     expect(merged.contacts[0].name).toBe('A');
+  });
+});
+
+describe('reconcileContactDrafts', () => {
+  const draft = (name: string, phone: string | null = null, extra = {}) =>
+    makeContact({ name, phone, ...extra });
+
+  it('merges a second screenshot of the same person', () => {
+    // The case unconditional replacement lost: a card, then a shot of
+    // that person's requirements.
+    const out = reconcileContactDrafts(
+      makeContainer([draft('Vasundhara', null)]),
+      makeContainer([draft('Vasundhara Purva Atmosphere', '9972225992', { requirements: 'Around 4cr' })])
+    );
+    expect(out.replaced).toBe(false);
+    expect(out.container.contacts).toHaveLength(1);
+    expect(out.container.contacts[0].phone).toBe('9972225992');
+    expect(out.container.contacts[0].requirements).toContain('4cr');
+  });
+
+  it('replaces the draft when the card is about someone else', () => {
+    // The reported bug: a stale Vasundhara left sitting above a freshly
+    // parsed Shiv, in one card, with Shiv's number liable to be grafted
+    // onto her by position.
+    const out = reconcileContactDrafts(
+      makeContainer([draft('Vasundhara', null)]),
+      makeContainer([draft('Shiv Jayanagar Re Consultant', '9880011223')])
+    );
+    expect(out.replaced).toBe(true);
+    expect(out.container.contacts).toHaveLength(1);
+    expect(out.container.contacts[0].name).toBe('Shiv Jayanagar Re Consultant');
+  });
+
+  it('merges against the matched contact, not the shared index', () => {
+    const out = reconcileContactDrafts(
+      makeContainer([draft('Anita', '9000000001'), draft('Bhaskar', '9000000002')]),
+      makeContainer([draft('Bhaskar', '9000000002', { email: 'b@x.com' })])
+    );
+    expect(out.replaced).toBe(false);
+    expect(out.container.contacts[0].email).toBeFalsy();
+    expect(out.container.contacts[1].email).toBe('b@x.com');
+  });
+
+  it('replaces when even one incoming contact is a stranger', () => {
+    const out = reconcileContactDrafts(
+      makeContainer([draft('Anita', '9000000001')]),
+      makeContainer([draft('Anita', '9000000001'), draft('Chetan', '9000000009')])
+    );
+    expect(out.replaced).toBe(true);
+    expect(out.container.contacts).toHaveLength(2);
+  });
+
+  it('takes the incoming card when there is no draft to reconcile with', () => {
+    const out = reconcileContactDrafts(makeContainer([]), makeContainer([draft('Anita')]));
+    expect(out.replaced).toBe(true);
+    expect(out.container.contacts[0].name).toBe('Anita');
   });
 });

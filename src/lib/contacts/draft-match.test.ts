@@ -3,6 +3,7 @@ import {
   enrichmentFor,
   matchContactByName,
   matchContactByPhone,
+  sameDraftSubject,
   type BookContact,
 } from './draft-match';
 
@@ -125,5 +126,35 @@ describe('enrichmentFor', () => {
       requirements: null,
       changed: [],
     });
+  });
+});
+
+describe('sameDraftSubject', () => {
+  it('is true for a second screenshot of the same person', () => {
+    expect(
+      sameDraftSubject({ name: 'Vasundhara', phone: null }, { name: 'Vasundhara Purva Atmosphere', phone: null })
+    ).toBe(true);
+  });
+
+  it('lets two phone numbers settle it, whatever the names say', () => {
+    // The failure positional merging could not see: same name, two
+    // different people. A number on both sides is decisive.
+    expect(
+      sameDraftSubject({ name: 'Ravi Kumar', phone: '9845012345' }, { name: 'Ravi Kumar', phone: '9880011223' })
+    ).toBe(false);
+    expect(
+      sameDraftSubject({ name: 'Ravi', phone: '+919845012345' }, { name: 'Someone Else', phone: '9845012345' })
+    ).toBe(true);
+  });
+
+  it('falls back to the name only when a side has no number', () => {
+    expect(
+      sameDraftSubject({ name: 'Shiv Jayanagar', phone: null }, { name: 'Vasundhara', phone: '9845012345' })
+    ).toBe(false);
+  });
+
+  it('is false when neither side carries anything to match on', () => {
+    expect(sameDraftSubject({}, {})).toBe(false);
+    expect(sameDraftSubject({ name: 'A' }, { name: 'A B' })).toBe(false);
   });
 });

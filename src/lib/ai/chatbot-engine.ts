@@ -52,6 +52,7 @@ import {
 import {
   validateDraft,
   validateContactDraftsContainer,
+  reconcileContactDrafts,
   formatDraftPreviewMessage,
   formatContactDraftsPreview,
   backfillLocationFromMapLink,
@@ -1983,33 +1984,34 @@ export async function processOwnerChatbotMessage(
     }
 
 
-    // A new screenshot/card during an active contact draft REPLACES it.
+    // A new screenshot/card during an active contact draft either
+    // enriches it or replaces it, and the card itself decides which.
     //
-    // It used to merge, and merging is positional: incoming contact #1
-    // backfilled draft contact #1. Forwarding a different person's card
-    // therefore grafted their phone and email onto whoever was already
-    // in the draft, and left a stale unconfirmable contact sitting
-    // above them in the same card. A draft that cannot be confirmed
-    // never clears itself either — every later forward arrived as an
-    // edit to it and pushed its expiry out another hour, so the only
-    // way out was Cancel.
+    // Merging used to be positional: incoming contact #1 backfilled
+    // draft contact #1, so a different person's card grafted their
+    // phone and email onto whoever was already in the draft. Replacing
+    // unconditionally fixed that and broke the other half — two
+    // screenshots of the same person stopped combining.
     //
-    // Starting fresh is what an agent means by sending a new card. The
-    // cost is that two screenshots of the SAME person no longer
-    // combine; that was the reason merging existed, and it is the
-    // rarer of the two by a wide margin.
+    // reconcileContactDrafts asks whether every incoming contact is
+    // someone already in the draft. All of them, and it merges against
+    // the MATCHED contact rather than a shared index; one stranger and
+    // the card is new business, so the old draft goes.
     if (isMediaMsg) {
       if (!(await gatedBurn(accountId, 'contact_parse'))) {
         return await sendCreditsLockedReply(phoneNumberId, accessToken, contactRecord.phone, conversation.id);
       }
-      const analyzingMsg = "⏳ _New card — starting a fresh draft. Please wait._";
+      const analyzingMsg = "⏳ _Analyzing the card... Please wait._";
       const analyzingRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: analyzingMsg });
       await saveBotMessage(conversation.id, analyzingMsg, analyzingRes.messageId);
 
       try {
         const { buffer, mimeType } = await loadInboundMedia();
         const parsedIncoming = await parseContactFromImageOrText(contentText || '', buffer, mimeType);
-        const mergedContainer = parsedIncoming;
+        const { container: mergedContainer, replaced } = reconcileContactDrafts(
+          container,
+          parsedIncoming
+        );
         const { isValid, missingFields } = validateContactDraftsContainer(mergedContainer);
         const nextStatus = isValid ? 'awaiting_confirmation' : 'collecting';
 
@@ -2026,7 +2028,9 @@ export async function processOwnerChatbotMessage(
           phoneNumberId,
           accessToken,
           contactRecord.phone,
-          `📝 *New Contact Draft — previous one discarded:*`,
+          replaced
+            ? `📝 *New Contact Draft — previous one discarded:*`
+            : `📝 *Contact Drafts Updated:*`,
           mergedContainer,
           nextStatus,
           missingFields,

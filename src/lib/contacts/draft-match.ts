@@ -41,6 +41,15 @@ function tokens(name: string | null | undefined): string[] {
     .filter(Boolean);
 }
 
+function prefixMatch(a: string | null | undefined, b: string | null | undefined): boolean {
+  const ta = tokens(a);
+  const tb = tokens(b);
+  if (!ta.length || !tb.length) return false;
+  const [shorter, longer] = ta.length <= tb.length ? [ta, tb] : [tb, ta];
+  if (shorter.length === 1 && shorter[0].length < 3) return false;
+  return shorter.every((t, i) => t === longer[i]);
+}
+
 /**
  * The one contact this draft is plainly about, or null.
  *
@@ -64,19 +73,34 @@ export function matchContactByName(
   draftName: string | null | undefined,
   book: BookContact[]
 ): BookContact | null {
-  const draft = tokens(draftName);
-  if (!draft.length) return null;
-
-  const hits = book.filter((c) => {
-    const other = tokens(c.name);
-    if (!other.length) return false;
-    const [shorter, longer] = other.length <= draft.length ? [other, draft] : [draft, other];
-    // A single initial is not a name, and matches far too much.
-    if (shorter.length === 1 && shorter[0].length < 3) return false;
-    return shorter.every((t, i) => t === longer[i]);
-  });
-
+  if (!tokens(draftName).length) return null;
+  const hits = book.filter((c) => prefixMatch(draftName, c.name));
   return hits.length === 1 ? hits[0] : null;
+}
+
+/**
+ * Are two parsed drafts about the same person?
+ *
+ * Used to decide whether a second screenshot ENRICHES the draft in
+ * flight or replaces it. Both answers are destructive in one direction:
+ * merging strangers grafts one person's phone onto another's record,
+ * and replacing the same person loses whatever the first card
+ * contributed.
+ *
+ * A phone on both sides settles it outright, in either direction — two
+ * different numbers are two different people no matter how alike the
+ * names read, which positional merging had no way to notice. Only when
+ * a side has no number does the name decide, on the same prefix rule
+ * the book matcher uses.
+ */
+export function sameDraftSubject(
+  a: { name?: string | null; phone?: string | null },
+  b: { name?: string | null; phone?: string | null }
+): boolean {
+  const pa = normalisePhone(String(a.phone || ''));
+  const pb = normalisePhone(String(b.phone || ''));
+  if (pa.length >= 7 && pb.length >= 7) return pa.slice(-10) === pb.slice(-10);
+  return prefixMatch(a.name, b.name);
 }
 
 /** The book row this draft's phone already points at, if any. */
