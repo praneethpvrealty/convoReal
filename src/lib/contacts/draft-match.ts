@@ -178,3 +178,48 @@ export function enrichmentFor(
     changed,
   };
 }
+
+export interface PhoneLinkSuggestion {
+  /** Which draft contact the suggestion is for. */
+  index: number;
+  contact: BookContact;
+}
+
+/**
+ * "This looks like Vasundhara — use her number?"
+ *
+ * A forwarded chat header carries a name and no number, and phone is
+ * required to confirm a draft, so a chat about someone already in the
+ * book dead-ends. This finds the one contact the draft is plainly
+ * about so the card can OFFER their number.
+ *
+ * Offer, not apply. matchContactByName already refuses anything
+ * ambiguous, but "refuses anything ambiguous" is not the same as
+ * "right" — and the cost of being wrong is a conversation filed
+ * against a stranger, which nobody catches by reading the contact
+ * afterwards. The agent taps.
+ *
+ * One suggestion at a time: the first draft contact that lacks a
+ * number. Two buttons offering two different people on one card is a
+ * misfire waiting to happen.
+ */
+export function suggestPhoneLink(
+  drafts: { name?: string | null; phone?: string | null }[],
+  book: BookContact[]
+): PhoneLinkSuggestion | null {
+  for (let index = 0; index < drafts.length; index++) {
+    if (normalisePhone(String(drafts[index].phone || '')).length >= 7) continue;
+    const contact = matchContactByName(drafts[index].name, book);
+    // A book row with no number of its own suggests nothing useful.
+    if (contact && normalisePhone(String(contact.phone || '')).length >= 7) {
+      return { index, contact };
+    }
+  }
+  return null;
+}
+
+/** WhatsApp reply-button titles are capped at 20 characters. */
+export function phoneLinkButtonTitle(name: string | null): string {
+  const first = (name || '').trim().split(/\s+/)[0] || 'them';
+  return `Use ${first}'s number`.slice(0, 20);
+}

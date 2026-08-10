@@ -31,7 +31,13 @@ import { burnCredits } from '@/lib/credits/burn';
 import { AI_FEATURE_COSTS, type AiFeatureKey } from '@/lib/credits/types';
 import { notifyManagerLowBalance } from '@/lib/credits/notify';
 import { tryHandleOwnerScheduling, applySchedulingEdit, isDictatedTaskList } from '@/lib/calendar/whatsapp-scheduler';
-import { enrichmentFor } from '@/lib/contacts/draft-match';
+import {
+  enrichmentFor,
+  phoneLinkButtonTitle,
+  suggestPhoneLink,
+  type BookContact,
+  type PhoneLinkSuggestion,
+} from '@/lib/contacts/draft-match';
 import { syncContactPreferences } from '@/lib/contacts/preference-sync';
 import { parseEventOutcome } from '@/lib/calendar/event-outcome';
 import {
@@ -453,6 +459,31 @@ async function formatContactDraftsContainerPreview(
   return formatContactDraftsPreview(header, container, nextStatus, missingFields, duplicateWarnings);
 }
 
+/**
+ * The book row a phoneless draft contact looks like, if exactly one
+ * does. Never throws: a lookup failure must leave the card renderable,
+ * because losing the whole preview over a missing suggestion is a
+ * worse trade than showing it without one.
+ */
+async function suggestContactLink(
+  container: ParsedContactDraftsContainer,
+  accountId: string
+): Promise<PhoneLinkSuggestion | null> {
+  try {
+    const drafts = container.contacts || [];
+    if (!drafts.some((c) => !(c.phone || '').trim())) return null;
+    const { data } = await supabaseAdmin()
+      .from('contacts')
+      .select('id, name, phone')
+      .eq('account_id', accountId)
+      .eq('is_merged', false);
+    return suggestPhoneLink(drafts, (data || []) as BookContact[]);
+  } catch (err) {
+    console.error('[chatbot-engine] contact link suggestion failed:', err);
+    return null;
+  }
+}
+
 async function sendContactDraftPreview(
   phoneNumberId: string,
   accessToken: string,
@@ -464,8 +495,8 @@ async function sendContactDraftPreview(
   conversationId: string,
   accountId: string
 ): Promise<void> {
-  const reply = await formatContactDraftsContainerPreview(header, container, nextStatus, missingFields, accountId);
-  
+  let reply = await formatContactDraftsContainerPreview(header, container, nextStatus, missingFields, accountId);
+
   const buttons = nextStatus === 'awaiting_confirmation'
     ? [
         { id: 'confirm_contact', title: 'Confirm' },
@@ -475,12 +506,29 @@ async function sendContactDraftPreview(
         { id: 'cancel_contact', title: 'Cancel' }
       ];
 
+  // A forwarded chat header gives a name and no number, and phone is
+  // required to confirm — so a chat about someone already in the book
+  // dead-ends on "Phone: ❓ Missing". Offer their number rather than
+  // filling it in: the match is deterministic and refuses anything
+  // ambiguous, but a wrong one files the conversation against a
+  // stranger, and nobody catches that by reading the contact later.
+  const suggestion = await suggestContactLink(container, accountId);
+  if (suggestion) {
+    reply +=
+      `\n\n💡 *${suggestion.contact.name}* (${suggestion.contact.phone}) is already ` +
+      `in your contacts and looks like the same person. Tap below to use their number.`;
+    buttons.unshift({
+      id: `link_contact:${suggestion.contact.id}`,
+      title: phoneLinkButtonTitle(suggestion.contact.name),
+    });
+  }
+
   const sendRes = await sendInteractiveButtons({
     phoneNumberId,
     accessToken,
     to,
     bodyText: reply,
-    buttons
+    buttons: buttons.slice(0, 3)
   });
 
   await saveBotMessage(conversationId, reply, sendRes.messageId);
@@ -1610,6 +1658,60 @@ export async function processOwnerChatbotMessage(
       const reply = "❌ *Contact drafts discarded.* Send another contact text details or screenshot to start a new contact draft.";
       const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
       await saveBotMessage(conversation.id, reply, sendRes.messageId);
+      return true;
+    }
+
+    // Accepting the suggested contact: take their number onto the draft.
+    //
+    // The id carries the contact, so the tap means "this person" rather
+    // than "whatever the matcher recomputes now" — the book can change
+    // between the card being sent and the button being pressed, and an
+    // agent who read a name should get the person they read.
+    if (buttonId?.startsWith('link_contact:')) {
+      const linkedId = buttonId.slice('link_contact:'.length);
+      const { data: linked } = await supabaseAdmin()
+        .from('contacts')
+        .select('id, name, phone')
+        .eq('id', linkedId)
+        .eq('account_id', accountId)
+        .maybeSingle();
+
+      if (!linked?.phone) {
+        const reply = "⚠️ *That contact is no longer available.* Reply with the phone number instead.";
+        const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+        await saveBotMessage(conversation.id, reply, sendRes.messageId);
+        return true;
+      }
+
+      const target = (container.contacts || []).findIndex((c) => !(c.phone || '').trim());
+      const linkedContainer: ParsedContactDraftsContainer = {
+        contacts: (container.contacts || []).map((c, i) =>
+          i === target ? { ...c, phone: linked.phone as string } : c
+        ),
+      };
+      const { isValid, missingFields } = validateContactDraftsContainer(linkedContainer);
+      const nextStatus = isValid ? 'awaiting_confirmation' : 'collecting';
+
+      await supabaseAdmin()
+        .from('contact_draft_sessions')
+        .update({
+          draft_data: linkedContainer,
+          status: nextStatus,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', contactSession.id);
+
+      await sendContactDraftPreview(
+        phoneNumberId,
+        accessToken,
+        contactRecord.phone,
+        `🔗 *Linked to ${linked.name} — confirm to update them:*`,
+        linkedContainer,
+        nextStatus,
+        missingFields,
+        conversation.id,
+        accountId
+      );
       return true;
     }
 

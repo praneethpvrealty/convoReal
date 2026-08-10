@@ -4,6 +4,8 @@ import {
   matchContactByName,
   matchContactByPhone,
   sameDraftSubject,
+  suggestPhoneLink,
+  phoneLinkButtonTitle,
   type BookContact,
 } from './draft-match';
 
@@ -156,5 +158,60 @@ describe('sameDraftSubject', () => {
   it('is false when neither side carries anything to match on', () => {
     expect(sameDraftSubject({}, {})).toBe(false);
     expect(sameDraftSubject({ name: 'A' }, { name: 'A B' })).toBe(false);
+  });
+});
+
+describe('suggestPhoneLink', () => {
+  const book = [
+    c('vas', 'Vasundhara', '+919972225992'),
+    c('durga', 'Durga Prasad (Debi Prasad) Purva Atmosphere Seller', '+918422948781'),
+  ];
+
+  it('offers the contact a phoneless forwarded chat is about', () => {
+    // The reported dead end: name from the chat header, no number, so
+    // the draft could never be confirmed.
+    const out = suggestPhoneLink([{ name: 'Vasundhara Purva Atmosphere', phone: null }], book);
+    expect(out?.contact.id).toBe('vas');
+    expect(out?.index).toBe(0);
+  });
+
+  it('says nothing when the draft already has a number', () => {
+    expect(
+      suggestPhoneLink([{ name: 'Vasundhara Purva Atmosphere', phone: '9972225992' }], book)
+    ).toBeNull();
+  });
+
+  it('says nothing when the match is ambiguous', () => {
+    const ravis = [c('a', 'Ravi Kumar', '9000000001'), c('b', 'Ravi Shankar', '9000000002')];
+    expect(suggestPhoneLink([{ name: 'Ravi', phone: null }], ravis)).toBeNull();
+  });
+
+  it('skips a book row that has no number to lend', () => {
+    expect(suggestPhoneLink([{ name: 'Gopi', phone: null }], [c('g', 'Gopi', null)])).toBeNull();
+  });
+
+  it('points at the first phoneless contact, not the first contact', () => {
+    const out = suggestPhoneLink(
+      [{ name: 'Someone', phone: '9000000009' }, { name: 'Vasundhara', phone: null }],
+      book
+    );
+    expect(out?.index).toBe(1);
+    expect(out?.contact.id).toBe('vas');
+  });
+
+  it('offers nothing for an unknown name', () => {
+    expect(suggestPhoneLink([{ name: 'Shiv Jayanagar', phone: null }], book)).toBeNull();
+  });
+});
+
+describe('phoneLinkButtonTitle', () => {
+  it('fits WhatsApp\'s 20-character button limit', () => {
+    for (const name of ['Vasundhara', 'Durga Prasad (Debi Prasad) Purva Atmosphere Seller', null]) {
+      expect(phoneLinkButtonTitle(name).length, String(name)).toBeLessThanOrEqual(20);
+    }
+  });
+
+  it('uses the first name so the button reads as a person', () => {
+    expect(phoneLinkButtonTitle('Vasundhara Purva Atmosphere')).toContain('Vasundhara');
   });
 });
