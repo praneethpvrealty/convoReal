@@ -21,6 +21,12 @@ export interface AgentCommandResult {
   applied: boolean;
   matchCount: number;
   ack: string;
+  /** False when the in-thread note could not be written. The command
+   *  itself may still have applied, so the caller must surface the ack
+   *  some other way rather than leaving the agent with nothing —
+   *  shipping this without the `private` column (migration 237) made
+   *  a working command look like a message sent to the contact. */
+  noteSaved: boolean;
 }
 
 export async function applyAgentCommand(args: {
@@ -86,5 +92,11 @@ export async function applyAgentCommand(args: {
     console.error('[agent-command] note insert failed:', error.message);
   }
 
-  return { kind: command.kind, applied, matchCount, ack };
+  return {
+    kind: command.kind,
+    applied,
+    matchCount,
+    ack,
+    noteSaved: !error,
+  };
 }

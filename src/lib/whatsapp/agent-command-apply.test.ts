@@ -16,7 +16,10 @@ const { applyAgentCommand } = await import('./agent-command-apply');
  * the acknowledgement never leaves the Engine.
  */
 
-function stubDb(updateReturns: unknown[] = [{ id: 'c1' }]) {
+function stubDb(
+  updateReturns: unknown[] = [{ id: 'c1' }],
+  insertError: { message: string } | null = null
+) {
   const calls: { table: string; method: string; args: unknown[] }[] = [];
   const db = {
     from: (table: string) => {
@@ -28,7 +31,7 @@ function stubDb(updateReturns: unknown[] = [{ id: 'c1' }]) {
       };
       chain.insert = (row: unknown) => {
         calls.push({ table, method: 'insert', args: [row] });
-        return Promise.resolve({ error: null });
+        return Promise.resolve({ error: insertError });
       };
       chain.select = () => {
         calls.push({ table, method: 'select', args: [] });
@@ -142,6 +145,36 @@ describe('applyAgentCommand', () => {
     expect(result.applied).toBe(false);
     expect(result.ack).toContain('Could not update');
     expect(rankPropertiesForContact).not.toHaveBeenCalled();
+  });
+
+  it('reports a note that did not save, so the ack is never lost silently', async () => {
+    // Shipped once without the `private` column (migration 237): the
+    // insert failed, the error was swallowed, and the agent's command
+    // sat in the thread looking like a message the contact received.
+    // The caller needs to know so it can surface the ack itself.
+    const { db } = stubDb([{ id: 'c1' }], { message: 'column does not exist' });
+
+    const result = await applyAgentCommand({
+      ...base,
+      db,
+      command: { kind: 'budget', min: null, max: 20_000_000, none: false },
+    });
+
+    expect(result.applied).toBe(true);
+    expect(result.noteSaved).toBe(false);
+    expect(result.ack).toContain('₹2 Cr');
+  });
+
+  it('reports a saved note on the happy path', async () => {
+    const { db } = stubDb();
+
+    const result = await applyAgentCommand({
+      ...base,
+      db,
+      command: { kind: 'budget', min: null, max: 20_000_000, none: false },
+    });
+
+    expect(result.noteSaved).toBe(true);
   });
 
   it('still acknowledges when ranking fails — the budget did save', async () => {
