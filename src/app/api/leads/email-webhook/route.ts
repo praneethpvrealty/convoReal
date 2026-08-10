@@ -912,11 +912,14 @@ export async function POST(request: Request) {
         .maybeSingle();
 
       const leadPreview = `📥 New Lead from ${parsed.source}: ${parsed.requirementText || 'No comments'}`;
+      // No `last_customer_message_at`: that column anchors Meta's
+      // 24-hour free-form window, and a lead forwarded by a portal over
+      // email has not written to us on WhatsApp. Stamping it here told
+      // the inbox a window was open that Meta would refuse to honour.
       const leadState = {
         last_message_text: leadPreview,
         last_message_at: new Date().toISOString(),
         awaiting_reply: true,
-        last_customer_message_at: new Date().toISOString(),
       };
 
       if (profile) {
@@ -1089,7 +1092,6 @@ export async function POST(request: Request) {
         last_message_text: `📥 New Lead from ${parsed.source}: ${parsed.requirementText || 'No comments'}`,
         last_message_at: new Date().toISOString(),
         awaiting_reply: true,
-        last_customer_message_at: new Date().toISOString(),
       },
       columns: 'id',
     });
