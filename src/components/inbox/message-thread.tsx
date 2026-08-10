@@ -31,6 +31,7 @@ import {
   Waypoints,
   Phone,
   Pin,
+  UserRound,
 } from 'lucide-react';
 import { format, isToday, isYesterday, differenceInHours } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
@@ -1107,9 +1108,13 @@ export function MessageThread({
           </div>
           <div className="min-w-0">
             <div className="flex min-w-0 items-center gap-1.5">
-              <h2 className="truncate text-sm font-semibold text-white">
-                {displayName}
-              </h2>
+              <Link
+                href={`/contacts?contactId=${contact.id}`}
+                title="Open contact"
+                className="hover:text-primary min-w-0 truncate text-sm font-semibold text-white transition-colors"
+              >
+                <h2 className="truncate">{displayName}</h2>
+              </Link>
               {contact.name && <NameTagBadge tag={contact.name_tag} />}
               {contact.phone && (
                 <a
@@ -1147,6 +1152,18 @@ export function MessageThread({
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Contact record — the sidebar carries it on desktop, but
+              below lg the thread is the whole screen and there is no
+              other way through to it. */}
+          <Link
+            href={`/contacts?contactId=${contact.id}`}
+            aria-label="Open contact"
+            title="Open contact"
+            className="hover:text-primary inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-800"
+          >
+            <UserRound className="h-3.5 w-3.5" />
+          </Link>
+
           {/* Journey mind map — this contact's property funnel. */}
           <Link
             href={`/journey?contact=${contact.id}`}
