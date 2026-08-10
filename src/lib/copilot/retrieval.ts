@@ -1,4 +1,10 @@
-import { CHUNKS, chunkVersion, type KnowledgeChunk } from './chunks';
+import {
+  CHUNKS,
+  audienceOf,
+  chunkVersion,
+  type Audience,
+  type KnowledgeChunk,
+} from './chunks';
 import { KNOWLEDGE_INDEX } from './knowledge-index.gen';
 
 /**
@@ -15,6 +21,10 @@ import { KNOWLEDGE_INDEX } from './knowledge-index.gen';
  * instead: weighted token overlap against title, keywords and body.
  * Retrieval therefore degrades, never breaks, when the index lags the
  * corpus.
+ *
+ * Everything is scoped to one audience first: staff, owners and
+ * buyers share the corpus but never each other's chunks, so an owner
+ * cannot be answered out of the agent knowledge base.
  */
 
 export const TOP_K = 6;
@@ -117,10 +127,14 @@ function semanticScore(
 }
 
 /** Longest-route-prefix page chunk for the pathname, if any. */
-export function anchorChunkFor(pathname: string): KnowledgeChunk | null {
+export function anchorChunkFor(
+  pathname: string,
+  audience: Audience = 'agent'
+): KnowledgeChunk | null {
   let best: KnowledgeChunk | null = null;
   for (const chunk of CHUNKS) {
     if (chunk.kind !== 'page' || !chunk.route) continue;
+    if (audienceOf(chunk) !== audience) continue;
     if (pathname !== chunk.route && !pathname.startsWith(chunk.route + '/'))
       continue;
     if (!best || chunk.route.length > best.route!.length) best = chunk;
@@ -131,6 +145,8 @@ export function anchorChunkFor(pathname: string): KnowledgeChunk | null {
 export interface RetrievalInput {
   pathname: string;
   message: string;
+  /** Whose corpus to search. Defaults to the staff Engine. */
+  audience?: Audience;
   /** Question embedding when one was computed; null falls back to
    *  lexical scoring for every chunk. */
   embedding: number[] | null;
@@ -142,11 +158,13 @@ export interface RetrievalInput {
  * what lets retrieval.test.ts pin expected results.
  */
 export function selectChunks(input: RetrievalInput): KnowledgeChunk[] {
-  const anchor = anchorChunkFor(input.pathname);
+  const audience = input.audience ?? 'agent';
+  const anchor = anchorChunkFor(input.pathname, audience);
   const scored: { chunk: KnowledgeChunk; score: number }[] = [];
 
   for (const chunk of CHUNKS) {
     if (chunk === anchor) continue;
+    if (audienceOf(chunk) !== audience) continue;
     const semantic = input.embedding
       ? semanticScore(input.embedding, chunk)
       : null;

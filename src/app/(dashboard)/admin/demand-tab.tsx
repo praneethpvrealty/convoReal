@@ -10,6 +10,10 @@
 // row to see who asked, from which page, and a sample question, then
 // carry the winners into the roadmap and write `limit` chunks for
 // the rest (src/lib/copilot/chunks.ts).
+//
+// Rows are per (audience, capability): agency staff, Portfolio owners
+// and Portfolio buyers are three products, and the same phrase from
+// each means three different things.
 // ============================================================
 
 import { useEffect, useMemo, useState } from 'react';
@@ -29,14 +33,29 @@ interface DemandAccount {
   lastAskedAt: string;
 }
 
+type DemandAudience = 'agent' | 'owner' | 'buyer';
+
 interface DemandCapability {
   key: string;
+  audience: DemandAudience;
   capability: string;
   accounts: number;
   asks: number;
   lastAskedAt: string;
   requesters: DemandAccount[];
 }
+
+const AUDIENCE_LABEL: Record<DemandAudience, string> = {
+  agent: 'Agency',
+  owner: 'Owner',
+  buyer: 'Buyer',
+};
+
+const AUDIENCE_STYLE: Record<DemandAudience, string> = {
+  agent: 'border-slate-600/40 bg-slate-700/40 text-slate-300',
+  owner: 'border-amber-500/30 bg-amber-500/15 text-amber-400',
+  buyer: 'border-emerald-500/30 bg-emerald-500/15 text-emerald-400',
+};
 
 export default function DemandTab() {
   const [capabilities, setCapabilities] = useState<DemandCapability[]>([]);
@@ -118,6 +137,14 @@ export default function DemandTab() {
                 >
                   <span className="w-6 shrink-0 font-mono text-xs text-slate-600">
                     #{rank + 1}
+                  </span>
+                  <span
+                    className={cn(
+                      'shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold tracking-wide uppercase',
+                      AUDIENCE_STYLE[c.audience]
+                    )}
+                  >
+                    {AUDIENCE_LABEL[c.audience]}
                   </span>
                   <span className="flex-1 truncate text-sm font-semibold text-white">
                     {c.capability}

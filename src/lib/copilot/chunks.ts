@@ -27,6 +27,17 @@
 
 export type ChunkKind = 'page' | 'concept' | 'howto' | 'limit';
 
+/**
+ * Who a chunk is written for. Three products share this corpus and
+ * almost nothing crosses between them: an agent runs a brokerage, an
+ * owner watches their own listings, a buyer browses matches. A chunk
+ * belongs to exactly one audience — say a shared idea twice, in each
+ * audience's own words, rather than writing one paragraph that hedges
+ * for all three. Retrieval never crosses the boundary, so an owner
+ * can't be told about Broadcasts.
+ */
+export type Audience = 'agent' | 'owner' | 'buyer';
+
 export interface KnowledgeChunk {
   /** Stable id, `area.topic` — cache rows and the index key on it. */
   id: string;
@@ -39,6 +50,12 @@ export interface KnowledgeChunk {
    *  in the title or body. Lowercase. */
   keywords?: string[];
   kind: ChunkKind;
+  /** Defaults to 'agent' — the staff Engine is the original corpus. */
+  audience?: Audience;
+}
+
+export function audienceOf(chunk: KnowledgeChunk): Audience {
+  return chunk.audience ?? 'agent';
 }
 
 export const CHUNKS: KnowledgeChunk[] = [
@@ -514,6 +531,178 @@ export const CHUNKS: KnowledgeChunk[] = [
       'import chats',
       'sync old messages',
     ],
+  },
+
+  // ---- Portfolio: owners ---------------------------------------
+  {
+    id: 'owner.overview',
+    route: '/den',
+    title: 'Your Portfolio',
+    kind: 'page',
+    audience: 'owner',
+    body: 'Your home screen as a property owner. It shows activity on the properties you own — views, enquiries, shortlists and site visits over the last 7 or 30 days — with a card per property. Your agent manages the listings; this is your window into how they are doing.',
+    keywords: ['home', 'dashboard', 'activity', 'my portfolio'],
+  },
+  {
+    id: 'owner.properties',
+    route: '/den/properties',
+    title: 'My Properties',
+    kind: 'page',
+    audience: 'owner',
+    body: 'Every property linked to you, with its own view, enquiry and shortlist counts. Open one to see its full activity and whether Deal Mode is on. Properties appear here when the agency handling them links your phone number to the listing.',
+    keywords: ['my listings', 'flats', 'plots', 'property list'],
+  },
+  {
+    id: 'owner.bids',
+    route: '/den/bids',
+    title: 'Offers',
+    kind: 'page',
+    audience: 'owner',
+    body: 'Offers buyers have made on your Deal Mode properties. Bidders stay anonymous until you accept — you see the amount and terms, not who they are. Accepting reveals their contact details to you and yours to them, with a WhatsApp shortcut to carry on the conversation.',
+    keywords: ['bids', 'offers', 'price offer', 'negotiate'],
+  },
+  {
+    id: 'owner.settings',
+    route: '/den/settings',
+    title: 'Portfolio settings',
+    kind: 'page',
+    audience: 'owner',
+    body: 'Your name, your verified WhatsApp number, and what you want to hear about — new match alerts, new offers, and how often you get an activity digest (off, daily or weekly). Turning a notification off never hides anything inside the portal.',
+    keywords: ['notifications', 'digest', 'alerts', 'profile'],
+  },
+  {
+    id: 'owner.deal-mode',
+    title: 'Deal Mode',
+    kind: 'concept',
+    audience: 'owner',
+    body: 'Deal Mode puts a property in front of buyers and agents outside your own agency. They see only the locality, a price band and basic details — never your name, the address or the photos — and pay to unlock the rest. Your agent turns Deal Mode on for a property; you see the offers it brings in under Offers.',
+    keywords: ['open market', 'wider reach', 'anonymous listing'],
+  },
+  {
+    id: 'owner.deal-rooms',
+    title: 'Deal rooms and token payments',
+    kind: 'concept',
+    audience: 'owner',
+    body: 'Accepting an offer opens a private deal room with that buyer for the paperwork stage. A token amount can be recorded there and is only released when both sides confirm the agreement to sell is signed; either side can cancel before that. Every step is logged so there is no dispute about what was agreed.',
+    keywords: ['token', 'escrow', 'advance', 'agreement to sell'],
+  },
+  {
+    id: 'owner.who-sees-what',
+    title: 'Who can see your details',
+    kind: 'concept',
+    audience: 'owner',
+    body: 'Only the agency you work with sees your name and number. Buyers browsing a Deal Mode property see a masked version — locality and price band — and your identity is revealed only after you accept their offer. You see the same activity numbers your agent does for your own properties, and nothing about anyone else’s.',
+    keywords: ['privacy', 'anonymous', 'my details', 'contact hidden'],
+  },
+  {
+    id: 'owner.adding-property',
+    title: 'Adding a property',
+    kind: 'howto',
+    audience: 'owner',
+    body: 'You can submit a property from the portal and it goes to your agency for review before it appears anywhere public. They fill in the details buyers expect, add photos and publish it. Anything you submit stays linked to you, so its activity shows up in your Portfolio.',
+    keywords: ['new property', 'add listing', 'submit property'],
+  },
+  {
+    id: 'owner.limit-edit',
+    title: 'Your agent edits the listing',
+    kind: 'limit',
+    audience: 'owner',
+    body: 'You cannot change a listing’s price, description or photos from the Portfolio — the agency that markets it owns those details, so that what buyers see stays accurate. Ask your agent and they can update it in minutes; the change shows here straight away.',
+    keywords: ['change price', 'edit listing', 'update photos'],
+  },
+  {
+    id: 'owner.limit-buyer-contact',
+    title: 'Buyer identities before you accept',
+    kind: 'limit',
+    audience: 'owner',
+    body: 'The Portfolio cannot show you who made an offer before you accept it — anonymity is what makes bidders comfortable making one. You always see the amount and the terms first, and accepting reveals both sides at once.',
+    keywords: ['who is the buyer', 'bidder name', 'unmask'],
+  },
+  {
+    id: 'owner.limit-other-listings',
+    title: 'Only your own properties',
+    kind: 'limit',
+    audience: 'owner',
+    body: 'The Portfolio shows the properties linked to you and nothing else — it is not a place to browse the market or see other owners’ listings. Ask your agent for the agency’s public listing link if you want to look around.',
+    keywords: ['browse listings', 'other properties', 'search market'],
+  },
+
+  // ---- Portfolio: buyers ---------------------------------------
+  {
+    id: 'buyer.overview',
+    route: '/buyer',
+    title: 'Your shortlist',
+    kind: 'page',
+    audience: 'buyer',
+    body: 'Your home screen as a buyer: the properties you have saved. Anything you told an agent you liked, or tapped interested on, is already here. Open a property for the full details and to message the agent handling it.',
+    keywords: ['saved', 'favourites', 'my list', 'home'],
+  },
+  {
+    id: 'buyer.matches',
+    route: '/buyer/matches',
+    title: 'Matches',
+    kind: 'page',
+    audience: 'buyer',
+    body: 'Properties matched to what you are looking for. Listings from agencies you already deal with show full details; wider-market ones show locality and a price band until the owner’s side reveals more. Save anything you like to your shortlist.',
+    keywords: ['suggestions', 'recommended', 'new properties'],
+  },
+  {
+    id: 'buyer.preferences',
+    route: '/buyer/preferences',
+    title: 'Preferences',
+    kind: 'page',
+    audience: 'buyer',
+    body: 'Your brief: budget, the localities you want, property type and size. Matches are built from this, so keeping it current is the fastest way to get better suggestions. Your agent sees the same brief and can act on it.',
+    keywords: ['budget', 'locality', 'requirement', 'what i want'],
+  },
+  {
+    id: 'buyer.settings',
+    route: '/buyer/settings',
+    title: 'Buyer settings',
+    kind: 'page',
+    audience: 'buyer',
+    body: 'Your name, your verified WhatsApp number, and whether you want alerts when new properties match your brief. Turning alerts off stops the WhatsApp messages; your matches still update inside the portal.',
+    keywords: ['notifications', 'alerts', 'profile', 'stop messages'],
+  },
+  {
+    id: 'buyer.how-matching-works',
+    title: 'How matches are chosen',
+    kind: 'concept',
+    audience: 'buyer',
+    body: 'Your preferences are scored against properties the agencies you deal with have listed, plus wider-market listings opened up by their owners. Marking something not interested — and saying why, like budget or location — stops similar properties coming back, so the feed sharpens as you use it.',
+    keywords: ['why this property', 'algorithm', 'not interested'],
+  },
+  {
+    id: 'buyer.privacy',
+    title: 'What agents can see',
+    kind: 'concept',
+    audience: 'buyer',
+    body: 'The agencies you have contacted see your brief, your shortlist and your enquiries, because they are the ones finding you properties. On wider-market listings you stay anonymous to the owner until an offer is accepted. Other buyers never see anything about you.',
+    keywords: ['privacy', 'my data', 'who sees', 'anonymous'],
+  },
+  {
+    id: 'buyer.limit-book-visit',
+    title: 'Arranging a site visit',
+    kind: 'limit',
+    audience: 'buyer',
+    body: 'The portal cannot book a site visit by itself — the agent handling the property confirms the slot. Message them from the property and they will schedule it, and you will get a WhatsApp reminder before the visit.',
+    keywords: ['site visit', 'book viewing', 'appointment'],
+  },
+  {
+    id: 'buyer.limit-owner-contact',
+    title: 'Contacting the owner directly',
+    kind: 'limit',
+    audience: 'buyer',
+    body: 'You cannot get the owner’s number from the portal; enquiries go through the agent handling the property. On wider-market listings the owner is revealed only when an offer is accepted. Your agent can answer most questions faster anyway.',
+    keywords: ['owner number', 'direct contact', 'skip agent'],
+  },
+  {
+    id: 'buyer.limit-price-negotiate',
+    title: 'Negotiating in the portal',
+    kind: 'limit',
+    audience: 'buyer',
+    body: 'There is no haggling screen here — price conversations happen with the agent, on WhatsApp. Tell them your number and they will carry it to the owner and come back to you.',
+    keywords: ['bargain', 'lower price', 'make an offer', 'discount'],
   },
 ];
 

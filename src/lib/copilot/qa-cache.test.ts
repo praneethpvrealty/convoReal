@@ -242,8 +242,36 @@ describe('storeAnswer / recordFeedback', () => {
   });
 });
 
-describe('KB_VERSION', () => {
+describe('KB version', () => {
   it('is a stable 12-char hash of the scaffold', () => {
     expect(qaCache.KB_VERSION).toMatch(/^[0-9a-f]{12}$/);
+    expect(qaCache.kbVersionFor('agent')).toBe(qaCache.KB_VERSION);
+  });
+
+  it('differs per audience — this is what partitions the shared cache', () => {
+    const versions = (['agent', 'owner', 'buyer'] as const).map((a) =>
+      qaCache.kbVersionFor(a)
+    );
+    expect(new Set(versions).size).toBe(3);
+  });
+
+  it("queries and stores under the calling audience's version", async () => {
+    h.state.rpcResponse = { data: [], error: null };
+    await qaCache.lookupCachedAnswer(EMBEDDING, 'owner');
+    expect(
+      h.state.rpcCalls.find((c) => c.fn === 'match_copilot_qa')?.args
+        .p_kb_version
+    ).toBe(qaCache.kbVersionFor('owner'));
+
+    await qaCache.storeAnswer({
+      question: 'what is deal mode?',
+      embedding: EMBEDDING,
+      reply: 'Deal Mode opens a property to outside buyers.',
+      sourceChunks: LIVE_CHUNKS,
+      audience: 'owner',
+    });
+    expect(h.state.insertRows[0]).toMatchObject({
+      kb_version: qaCache.kbVersionFor('owner'),
+    });
   });
 });
