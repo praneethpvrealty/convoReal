@@ -1,4 +1,11 @@
 #!/usr/bin/env sh
 . "$(dirname -- "$0")/_/husky.sh"
 
-npm test
+staged=$(git diff --cached --name-only --diff-filter=ACMR -- 'src/*.ts' 'src/*.tsx')
+
+if [ -z "$staged" ]; then
+  exit 0
+fi
+
+echo "$staged" | xargs npx eslint --max-warnings 0 || exit 1
+echo "$staged" | xargs npx vitest related --run --passWithNoTests || exit 1
