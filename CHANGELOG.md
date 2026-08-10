@@ -13,6 +13,23 @@ and polish.
 
 ### Added
 
+- **Mobile: filter contacts by the property or project they enquired
+  for.** The Contacts tab had one axis of filtering — the five segment
+  pills (All, Needs Review, Favourites, Transacted, Active Buyers) —
+  and no way to ask the question an agent standing in a tower actually
+  asks: who wanted this. A new **Enquired for** chip leads the filter
+  row and opens a picker. It opens on the listings starred in
+  Inventory, so the six quick filters the web Contacts page shows as
+  chips are one tap away here too, and search reaches any other listing
+  by code, title or project. Picking a **project** rather than a single
+  unit is the mobile addition: a tower's buyers are spread across its
+  units and across stated preferences, so that filter unions everyone
+  who enquired about any unit in the project with everyone whose
+  preferences name it, and each row says which unit it matched. The
+  active chip carries the code or project name and its own clear
+  button. Segment counts hide while a filter is on rather than
+  contradicting the list below them.
+
 - **Shared requirements can now be answered, not just read.** Passing a
   client brief to another brokerage used to be copy-pasted text: the
   broker read it on their personal WhatsApp and, if they had something

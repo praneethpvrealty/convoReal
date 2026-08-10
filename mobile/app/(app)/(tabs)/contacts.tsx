@@ -23,6 +23,7 @@ import {
 } from '@/components/approve-celebration';
 import { EnterRow, PressScale, PulseRing } from '@/components/motion';
 import { ContextMenu } from '@/components/context-menu';
+import { InterestFilterSheet } from '@/components/interest-filter-sheet';
 import { BottomSheet, sheetScrollArea } from '@/components/sheet';
 import {
   Avatar,
@@ -41,6 +42,10 @@ import {
 } from '@/components/ui';
 import { apiFetch, ApiError, isCancelled, isTimeout } from '@/lib/api';
 import { approveAndSendDetails } from '@/lib/approve-contact';
+import {
+  interestChipLabel,
+  type InterestFilter,
+} from '@/lib/contact-interest';
 import { friendlyError } from '@/lib/errors';
 import { chatListTime, cleanPhoneInput, formatBudgetRange } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
@@ -82,6 +87,118 @@ export interface ContactsPage {
   propertyCodes: Record<string, string>;
   /** property_id → title, for the "Contacted about" line on review rows. */
   propertyTitles: Record<string, string>;
+  /** contact_id → the property_id that satisfied the "Enquired for"
+   *  filter. Only interesting under a project filter, where each row
+   *  matched a different unit of the tower. */
+  interestMatches: Record<string, string>;
+}
+
+const EMPTY_PAGE: ContactsPage = {
+  contacts: [],
+  tags: {},
+  propertyCodes: {},
+  propertyTitles: {},
+  interestMatches: {},
+};
+
+/** Ceiling on the contact ids an interest filter feeds into `.in()` —
+ *  the same bound the tag/note search above uses, and the same order as
+ *  the list's own limit, so the filter never builds an unbounded URL. */
+const INTEREST_CONTACT_CAP = 150;
+/** Units of one project scanned for enquiries. Comfortably past any
+ *  real tower; a bound, not a product decision. */
+const PROJECT_UNIT_CAP = 200;
+
+/** Contacts who named this project in their stated preferences — the
+ *  agent-entered list and the AI-extracted one. A tower's buyers mostly
+ *  live here rather than on a per-unit enquiry, which is what makes the
+ *  project axis worth having. */
+async function statedProjectContactIds(project: string): Promise<string[]> {
+  const [entered, extracted] = await Promise.all([
+    supabase
+      .from('contacts')
+      .select('id')
+      .contains('projects_of_interest', [project])
+      .limit(INTEREST_CONTACT_CAP),
+    supabase
+      .from('contacts')
+      .select('id')
+      .contains('pref_projects', [project])
+      .limit(INTEREST_CONTACT_CAP),
+  ]);
+  return [...(entered.data ?? []), ...(extracted.data ?? [])].map(
+    (r: { id: string }) => r.id
+  );
+}
+
+/**
+ * Resolve the "Enquired for" chip to the contacts it admits.
+ *
+ * First-choice interest only, matching the web chip: the contact's
+ * primary inquiry (`last_inquired_property_id`, set by the property
+ * form's interested-contacts link and by the portal-email webhook's
+ * top-scored match) or a Manual junction row. Non-Manual junction rows
+ * stay out — the webhook historically logged every fuzzy match, so a
+ * type-only near-miss would drag unrelated contacts in.
+ */
+async function resolveInterest(interest: InterestFilter): Promise<{
+  contactIds: string[];
+  matches: Record<string, string>;
+}> {
+  let propertyIds: string[] = [interest.value];
+  if (interest.kind === 'project') {
+    // properties.project is the authoritative name even for units that
+    // were never linked to a project row (migration 227), so the string
+    // is what sees the whole tower.
+    const { data } = await supabase
+      .from('properties')
+      .select('id')
+      .eq('project', interest.value)
+      .limit(PROJECT_UNIT_CAP);
+    propertyIds = (data ?? []).map((p: { id: string }) => p.id);
+  }
+
+  const noRows = Promise.resolve({ data: [] as never[] });
+  const [inquiryRes, lastRes, stated] = await Promise.all([
+    propertyIds.length
+      ? supabase
+          .from('contact_property_inquiries')
+          .select('contact_id, property_id')
+          .in('property_id', propertyIds)
+          .eq('inquiry_source', 'Manual')
+          .limit(INTEREST_CONTACT_CAP)
+      : noRows,
+    propertyIds.length
+      ? supabase
+          .from('contacts')
+          .select('id, last_inquired_property_id')
+          .in('last_inquired_property_id', propertyIds)
+          .limit(INTEREST_CONTACT_CAP)
+      : noRows,
+    interest.kind === 'project'
+      ? statedProjectContactIds(interest.value)
+      : Promise.resolve([] as string[]),
+  ]);
+
+  const matches: Record<string, string> = {};
+  const ids = new Set<string>();
+  for (const row of (inquiryRes.data ?? []) as {
+    contact_id: string;
+    property_id: string;
+  }[]) {
+    ids.add(row.contact_id);
+    matches[row.contact_id] ??= row.property_id;
+  }
+  for (const row of (lastRes.data ?? []) as {
+    id: string;
+    last_inquired_property_id: string;
+  }[]) {
+    ids.add(row.id);
+    matches[row.id] ??= row.last_inquired_property_id;
+  }
+  for (const id of stated) ids.add(id);
+
+  return { contactIds: Array.from(ids).slice(0, INTEREST_CONTACT_CAP), matches };
 }
 
 /**
@@ -126,7 +243,8 @@ async function staffPhoneFilter(): Promise<string | null> {
 
 async function fetchContacts(
   search: string,
-  segment: SegmentKey
+  segment: SegmentKey,
+  interest: InterestFilter | null
 ): Promise<ContactsPage> {
   const q = search.trim();
   const staffFilter = await staffPhoneFilter();
@@ -163,19 +281,21 @@ async function fetchContacts(
       const ids = Array.from(
         new Set((wonDeals ?? []).map((d) => d.contact_id).filter(Boolean))
       );
-      if (ids.length === 0)
-        return {
-          contacts: [],
-          tags: {},
-          propertyCodes: {},
-          propertyTitles: {},
-        };
+      if (ids.length === 0) return EMPTY_PAGE;
       query = query.in('id', ids);
     } else if (segment === 'market_active') {
       query = query.or(
         'lead_temp.eq.HOT,last_inquired_property_id.not.is.null'
       );
     }
+  }
+
+  let interestMatches: Record<string, string> = {};
+  if (interest) {
+    const scope = await resolveInterest(interest);
+    if (scope.contactIds.length === 0) return EMPTY_PAGE;
+    interestMatches = scope.matches;
+    query = query.in('id', scope.contactIds);
   }
 
   if (q) {
@@ -238,7 +358,7 @@ async function fetchContacts(
   const interestIds = Array.from(
     new Set(
       contacts
-        .map((c) => c.last_inquired_property_id)
+        .flatMap((c) => [c.last_inquired_property_id, interestMatches[c.id]])
         .filter((v): v is string => Boolean(v))
     )
   ).slice(0, 100);
@@ -282,7 +402,7 @@ async function fetchContacts(
     if (row.title) propertyTitles[row.id] = row.title;
   }
 
-  return { contacts, tags, propertyCodes, propertyTitles };
+  return { contacts, tags, propertyCodes, propertyTitles, interestMatches };
 }
 
 /** Segment counts, same head-count technique as the web tabs. */
@@ -342,6 +462,8 @@ export default function ContactsScreen() {
   const insets = useSafeAreaInsets();
   const [search, setSearch] = useState('');
   const [segment, setSegment] = useState<SegmentKey>('active');
+  const [interest, setInterest] = useState<InterestFilter | null>(null);
+  const [interestOpen, setInterestOpen] = useState(false);
   const [adding, setAdding] = useState(false);
   const [favoritingIds, setFavoritingIds] = useState<Set<string>>(new Set());
   const [importing, setImporting] = useState(false);
@@ -371,8 +493,8 @@ export default function ContactsScreen() {
   const debounced = useDebounced(search);
 
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ['contacts', debounced, segment],
-    queryFn: () => fetchContacts(debounced, segment),
+    queryKey: ['contacts', debounced, segment, interest?.kind, interest?.value],
+    queryFn: () => fetchContacts(debounced, segment, interest),
     // Don't wipe the list to skeletons on every keystroke.
     placeholderData: keepPreviousData,
   });
@@ -514,10 +636,33 @@ export default function ContactsScreen() {
           showsHorizontalScrollIndicator
           indicatorStyle={dark ? 'white' : 'black'}
           style={{ flexGrow: 0 }}
-          contentContainerStyle={{ gap: spacing.sm, paddingBottom: spacing.xs }}
+          contentContainerStyle={{
+            gap: spacing.sm,
+            paddingBottom: spacing.xs,
+            alignItems: 'center',
+          }}
         >
+          {/* A different axis from the segment pills beside it — which
+              stage a contact is at, versus what they enquired about — so
+              it leads the row and is ruled off from them. */}
+          <InterestChip
+            filter={interest}
+            onPress={() => {
+              haptic.tap();
+              setInterestOpen(true);
+            }}
+            onClear={() => {
+              haptic.tap();
+              setInterest(null);
+            }}
+          />
+          <View
+            style={[styles.chipRule, { backgroundColor: colors.glassBorder }]}
+          />
           {SEGMENTS.map((seg) => {
-            const n = counts.data?.[seg.key];
+            // Counts are account-wide. Under an interest filter they
+            // would contradict the list right below them, so they go.
+            const n = interest ? undefined : counts.data?.[seg.key];
             return (
               <FilterChip
                 key={seg.key}
@@ -557,11 +702,13 @@ export default function ContactsScreen() {
               icon="people-outline"
               title={debounced ? 'No matches' : 'Nothing here yet'}
               subtitle={
-                debounced
-                  ? 'Searched names, phones, tags, notes, company and requirements.'
-                  : segment === 'active'
-                    ? 'Contacts arrive automatically from WhatsApp conversations and portal leads — or add one with the + button.'
-                    : 'No contacts in this segment yet.'
+                interest
+                  ? `Nobody has enquired about ${interest.label} yet — link interested contacts from the listing, or clear the filter.`
+                  : debounced
+                    ? 'Searched names, phones, tags, notes, company and requirements.'
+                    : segment === 'active'
+                      ? 'Contacts arrive automatically from WhatsApp conversations and portal leads — or add one with the + button.'
+                      : 'No contacts in this segment yet.'
               }
             />
           }
@@ -574,6 +721,15 @@ export default function ContactsScreen() {
                   item.status === 'pending_review' &&
                   item.last_inquired_property_id
                     ? data?.propertyTitles?.[item.last_inquired_property_id]
+                    : undefined
+                }
+                // Under a project filter every row matched a different
+                // unit, so the row says which one. Under a property
+                // filter they all matched the same one and the chip
+                // above already says so.
+                enquiredProperty={
+                  interest?.kind === 'project'
+                    ? matchedPropertyLabel(data, item.id)
                     : undefined
                 }
                 tags={data?.tags[item.id] ?? []}
@@ -600,6 +756,12 @@ export default function ContactsScreen() {
         />
       )}
 
+      <InterestFilterSheet
+        visible={interestOpen}
+        onClose={() => setInterestOpen(false)}
+        active={interest}
+        onApply={setInterest}
+      />
       <QuickAddContact visible={adding} onClose={() => setAdding(false)} />
       <DeviceImportSheet
         visible={importing}
@@ -642,6 +804,88 @@ export default function ContactsScreen() {
       />
       <AppDialog {...dialogProps} />
       <AppDialog {...callLogProps} />
+    </View>
+  );
+}
+
+/** The unit a row matched under a project filter, by code if it has one. */
+function matchedPropertyLabel(
+  page: ContactsPage | undefined,
+  contactId: string
+): string | undefined {
+  const propertyId = page?.interestMatches[contactId];
+  if (!propertyId) return undefined;
+  return page?.propertyCodes[propertyId] ?? page?.propertyTitles[propertyId];
+}
+
+/**
+ * The "Enquired for" pill. Dormant it is an invitation with a caret;
+ * active it carries the property code or project name and its own
+ * clear button, so the filter can be dropped without reopening the
+ * sheet to find it.
+ */
+function InterestChip({
+  filter,
+  onPress,
+  onClear,
+}: {
+  filter: InterestFilter | null;
+  onPress: () => void;
+  onClear: () => void;
+}) {
+  const { colors, fonts: f } = useTheme();
+  const active = Boolean(filter);
+  return (
+    <View
+      style={[
+        styles.interestChip,
+        {
+          backgroundColor: active ? colors.primary : colors.glass,
+          borderColor: active ? colors.primary : colors.glassBorder,
+        },
+      ]}
+    >
+      <Pressable
+        onPress={onPress}
+        hitSlop={6}
+        accessibilityRole="button"
+        accessibilityLabel={
+          filter
+            ? `Enquired for ${filter.label}. Change the filter.`
+            : 'Filter by the property or project a contact enquired for'
+        }
+        accessibilityState={{ selected: active }}
+        style={styles.interestChipBody}
+      >
+        <Ionicons
+          name={filter?.kind === 'project' ? 'business' : 'home'}
+          size={13}
+          color={active ? colors.onPrimary : colors.textMuted}
+        />
+        <Text
+          style={{
+            fontSize: 13,
+            fontFamily: f.bold,
+            color: active ? colors.onPrimary : colors.text,
+          }}
+          numberOfLines={1}
+        >
+          {filter ? interestChipLabel(filter) : 'Enquired for'}
+        </Text>
+        {active ? null : (
+          <Ionicons name="chevron-down" size={13} color={colors.textMuted} />
+        )}
+      </Pressable>
+      {active ? (
+        <Pressable
+          onPress={onClear}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel="Clear the enquired-for filter"
+        >
+          <Ionicons name="close-circle" size={16} color={colors.onPrimary} />
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -795,6 +1039,7 @@ function ContactRow({
   dark,
   tags,
   contactedProperty,
+  enquiredProperty,
   onApprove,
   approving,
   onToggleFavorite,
@@ -808,6 +1053,7 @@ function ContactRow({
   dark: boolean;
   tags: string[];
   contactedProperty?: string;
+  enquiredProperty?: string;
   onApprove: () => void;
   approving?: boolean;
   onToggleFavorite: () => void;
@@ -903,6 +1149,16 @@ function ContactRow({
               numberOfLines={1}
             >
               Contacted about {contactedProperty}
+            </Text>
+          </View>
+        ) : enquiredProperty ? (
+          <View style={styles.contactedRow}>
+            <Ionicons name="home" size={11} color={colors.primary} />
+            <Text
+              style={{ flex: 1, fontSize: 11.5, color: colors.textMuted }}
+              numberOfLines={1}
+            >
+              Enquired about {enquiredProperty}
             </Text>
           </View>
         ) : null}
@@ -1421,6 +1677,25 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   contactedRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  interestChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingRight: 12,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    maxWidth: 220,
+  },
+  interestChipBody: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexShrink: 1,
+    paddingLeft: 13,
+    paddingRight: 1,
+    paddingVertical: 9,
+  },
+  chipRule: { width: StyleSheet.hairlineWidth, alignSelf: 'stretch' },
   inlineCall: {
     width: 26,
     height: 26,
