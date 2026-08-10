@@ -41,6 +41,8 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { resolveConversation } from "@/lib/conversations/resolve";
 import { buildCheckInMessage } from "@/lib/journey/checkin-message";
+import { accountShowcaseBase } from "@/lib/showcase/account-showcase-url";
+import { propertyShowcaseUrl } from "@/lib/share-message-builder";
 import { formatCurrencyShort } from "@/lib/currency-utils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -143,6 +145,7 @@ export function JourneyItemSheet({
   const [planStageId, setPlanStageId] = useState("");
   const [planDate, setPlanDate] = useState("");
   const [openingInbox, setOpeningInbox] = useState(false);
+  const [showcaseBase, setShowcaseBase] = useState<string | null>(null);
 
   // Reset transient state whenever a different item opens. Deferred
   // setter (matches the repo-wide pattern) so the reset doesn't
@@ -182,6 +185,22 @@ export function JourneyItemSheet({
     };
   }, [item, supabase]);
 
+  // The account's showcase base, resolved once per account — the
+  // WhatsApp hand-off opens a window synchronously, so the link has to
+  // be in hand before the agent taps, not fetched on the click.
+  const accountId = item?.account_id;
+  useEffect(() => {
+    if (!accountId) return;
+    let cancelled = false;
+    (async () => {
+      const base = await accountShowcaseBase(supabase, accountId);
+      if (!cancelled) setShowcaseBase(base);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [accountId, supabase]);
+
   const stageName = useMemo(() => {
     const map = new Map(stages.map((s) => [s.id, s.name]));
     return (id?: string | null) => (id ? map.get(id) ?? "?" : "?");
@@ -189,11 +208,19 @@ export function JourneyItemSheet({
 
   // The one question a stalled branch is asking: still in play, or
   // park it? Both channels open with it already typed out.
+  // `v=` attributes the recipient's showcase visit to them in Pulse
+  // (it tags the view, it never gates access).
+  const propertyUrl =
+    showcaseBase && property && contact
+      ? `${propertyShowcaseUrl(showcaseBase, property)}&v=${encodeURIComponent(contact.id)}`
+      : null;
+
   const checkInMessage = buildCheckInMessage({
     contactName: contact?.name,
     propertyTitle: property?.title,
     propertyCode: property?.property_code,
     stageName: item ? stages[stageIndexOf(item, stages)]?.name : null,
+    propertyUrl,
   });
 
   const openInInbox = async () => {

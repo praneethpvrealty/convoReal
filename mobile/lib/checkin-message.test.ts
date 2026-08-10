@@ -24,6 +24,22 @@ describe('buildCheckInMessage', () => {
     );
   });
 
+  it('appends the showcase link when one is available', () => {
+    expect(
+      buildCheckInMessage({
+        contactName: 'Asha',
+        propertyTitle: 'Sunrise Villa',
+        propertyUrl: 'https://acme.convoreal.com/?property_id=PROP-7&v=c1',
+      })
+    ).toContain('\n\n📸 Photos & full details:\nhttps://acme.convoreal.com/?property_id=PROP-7&v=c1');
+  });
+
+  it('ends on the question when there is no link', () => {
+    expect(
+      buildCheckInMessage({ contactName: 'Asha', propertyTitle: 'Sunrise Villa' })
+    ).toMatch(/other options\?$/);
+  });
+
   it('falls back to the code, then to a generic subject', () => {
     expect(buildCheckInMessage({ contactName: 'Asha', propertyCode: 'PROP-7' })).toContain(
       'checking in on PROP-7.'
