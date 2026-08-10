@@ -30,7 +30,7 @@ import { checkAccountPropertyLimit } from '@/lib/billing/gates';
 import { burnCredits } from '@/lib/credits/burn';
 import { AI_FEATURE_COSTS, type AiFeatureKey } from '@/lib/credits/types';
 import { notifyManagerLowBalance } from '@/lib/credits/notify';
-import { tryHandleOwnerScheduling, applySchedulingEdit } from '@/lib/calendar/whatsapp-scheduler';
+import { tryHandleOwnerScheduling, applySchedulingEdit, isDictatedTaskList } from '@/lib/calendar/whatsapp-scheduler';
 import { parseEventOutcome } from '@/lib/calendar/event-outcome';
 import {
   openOverdueEvents,
@@ -825,7 +825,16 @@ export async function processOwnerChatbotMessage(
   // intake corrections aren't hijacked. tryHandleOwnerScheduling has
   // its own strict pre-filter and returns false for anything that
   // should continue into the intake flows below.
-  if (!propSession && !contactSession) {
+  //
+  // The exception is a message that declares itself a task list and
+  // then numbers the tasks. That is not a correction to a listing, and
+  // treating it as one is how the first misroute became permanent: the
+  // draft it wrongly opened swallowed the next task list as an edit and
+  // refreshed its own timeout doing so, so it never expired and no
+  // later list ever reached the calendar. The draft itself is left
+  // alone — a half-built listing is still wanted, it just isn't what
+  // this message is about.
+  if ((!propSession && !contactSession) || isDictatedTaskList(cleanedText)) {
     try {
       const scheduled = await tryHandleOwnerScheduling({
         message,
@@ -1046,6 +1055,8 @@ export async function processOwnerChatbotMessage(
           documents: draft.documents || [],
           video_url: draft.video_url || null,
           video_status: draft.video_url ? 'ready' : null,
+          youtube_video_id: draft.youtube_video_id || null,
+          youtube_status: draft.youtube_video_id ? 'ready' : null,
           rental_income: parseNumeric(draft.rental_income),
           roi: parseNumeric(draft.roi),
           floor_tenancies: sanitizeFloorTenancies(draft.floor_tenancies),
@@ -1127,8 +1138,11 @@ export async function processOwnerChatbotMessage(
           console.error('[chatbot-engine] Auto-sync background error:', err);
         });
         // Forwarded walkthrough video → unlisted YouTube copy, when a
-        // channel is connected (never throws; fire-and-forget).
-        if (draft.video_url) {
+        // channel is connected (never throws; fire-and-forget). A
+        // YouTube link shared during intake is already published —
+        // re-uploading the MP4 would overwrite that ID with an
+        // unlisted duplicate.
+        if (draft.video_url && !draft.youtube_video_id) {
           void queueYouTubeUploadIfConnected(prop.id, accountId);
         }
         // Match Radar: surface matching buyers for the just-ingested
@@ -1149,7 +1163,7 @@ export async function processOwnerChatbotMessage(
         `*Location:* ${prop.location}\n` +
         `*Type:* ${prop.type}\n` +
         (prop.land_area ? `*Land Area:* ${prop.land_area} ${prop.land_area_unit || 'Sq.Ft.'}\n` : '') +
-        (prop.video_url ? `*Video:* Attached 🎬\n` : '');
+        (prop.video_url || prop.youtube_video_id ? `*Video:* Attached 🎬\n` : '');
 
       if (prop.rental_income) {
         reply += `*Rent:* ₹${prop.rental_income.toLocaleString('en-IN')}/month\n`;
@@ -2243,6 +2257,8 @@ export async function processOwnerChatbotMessage(
                     owner_share_percent: latestDraft.owner_share_percent || parsedDraft.owner_share_percent,
                     builder_share_percent: latestDraft.builder_share_percent || parsedDraft.builder_share_percent,
                     goodwill_amount: latestDraft.goodwill_amount || parsedDraft.goodwill_amount,
+                    video_url: latestDraft.video_url || parsedDraft.video_url,
+                    youtube_video_id: latestDraft.youtube_video_id || parsedDraft.youtube_video_id,
                     features: Array.from(new Set([...(latestDraft.features || []), ...(parsedDraft.features || [])])),
                     nearby_highlights: Array.from(new Set([...(latestDraft.nearby_highlights || []), ...(parsedDraft.nearby_highlights || [])])),
                     images: Array.from(new Set([...(latestDraft.images || []), ...(parsedDraft.images || [])])),
@@ -2598,6 +2614,8 @@ export async function processExternalListingMessage(
         nearby_highlights: draft.nearby_highlights || [],
         images: draft.images || [],
         documents: draft.documents || [],
+        youtube_video_id: draft.youtube_video_id || null,
+        youtube_status: draft.youtube_video_id ? 'ready' : null,
         rental_income: draft.rental_income,
         roi: draft.roi,
         floor_tenancies: sanitizeFloorTenancies(draft.floor_tenancies),

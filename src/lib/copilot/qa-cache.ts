@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { embedText } from '@/lib/ai/gemini';
-import { buildCopilotSystemPrompt, isAllowedRoute } from './knowledge';
+import { isCurrentChunk, type Audience } from './chunks';
+import { buildCopilotScaffold, isAllowedRoute } from './knowledge';
 import { getTour } from './tours';
 
 /**
@@ -12,6 +12,19 @@ import { getTour } from './tours';
  * migration 109). Similar questions from ANY user are then served
  * from the cache after deterministic validation — no second Gemini
  * call, ever, for the same question.
+ *
+ * Staleness is two-tier. The KB version hashes the prompt scaffold
+ * (rules, page directory, tours, contract): a scaffold change retires
+ * everything, in SQL. Each row additionally records the knowledge
+ * chunks its answer was built from as {id, v} pairs, validated here
+ * against the live corpus — editing one chunk retires only the
+ * answers that used it.
+ *
+ * The table is shared by all three audiences, and the KB version is
+ * what keeps them apart: staff, owners and buyers have different
+ * scaffolds, so their hashes differ and match_copilot_qa can never
+ * hand an owner an answer written for an agent. That partitioning is
+ * a property of the data, not of a filter someone has to remember.
  *
  * Everything here is best-effort: any failure (table not migrated
  * yet, missing service key, embed error, network) resolves to null
@@ -28,33 +41,51 @@ const SIMILARITY_THRESHOLD = 0.9;
 const MATCH_COUNT = 3;
 
 /**
- * Version stamp of the app knowledge the answers were generated
- * from. Any change to PAGE_KNOWLEDGE, the tour registry, or the
- * prompt rules rotates this hash, and match_copilot_qa stops
- * returning rows written under the old version — stale answers
- * retire themselves with zero cleanup code.
+ * Version stamp of the prompt scaffold an audience's answers were
+ * generated under. Any change to that audience's rules, page
+ * directory, tour registry, or output contract rotates its hash, and
+ * match_copilot_qa stops returning rows written under the old
+ * version — stale answers retire themselves with zero cleanup code.
+ * Knowledge-chunk edits intentionally do NOT rotate it; those are
+ * handled per-row via source_chunks validation below.
  */
-export const KB_VERSION = createHash('sha256')
-  .update(buildCopilotSystemPrompt('/'))
-  .digest('hex')
-  .slice(0, 12);
+export function kbVersionFor(audience: Audience): string {
+  return createHash('sha256')
+    .update(buildCopilotScaffold('/', audience))
+    .digest('hex')
+    .slice(0, 12);
+}
+
+/** Staff KB version — the original constant, unchanged. */
+export const KB_VERSION = kbVersionFor('agent');
+
+export interface ChunkRef {
+  id: string;
+  v: string;
+}
 
 export interface CachedAnswer {
   id: string;
   reply: string;
   tourId?: string;
   navigateTo?: string;
+  /** Set when the cached answer was a "we don't do that" — the route
+   *  re-logs the demand so cache hits keep counting (see unmet.ts). */
+  unsupportedCapability?: string;
 }
 
 let _adminClient: SupabaseClient | null = null;
 function cacheAdmin(): SupabaseClient | null {
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  if (
+    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    !process.env.SUPABASE_SERVICE_ROLE_KEY
+  ) {
     return null;
   }
   if (!_adminClient) {
     _adminClient = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
     );
   }
   return _adminClient;
@@ -72,7 +103,7 @@ const LONG_DIGITS_RE = /\d{6,}/;
  */
 export function isCacheableQuestion(
   message: string,
-  historyLength: number,
+  historyLength: number
 ): boolean {
   if (historyLength > 0) return false;
   const text = message.trim();
@@ -87,60 +118,72 @@ interface MatchRow {
   reply: string;
   tour_id: string | null;
   navigate_to: string | null;
+  unsupported_capability: string | null;
+  source_chunks: ChunkRef[] | null;
   similarity: number;
 }
 
-/**
- * Embeds the question and searches for a validated cached answer.
- * Returns the embedding too so a subsequent storeAnswer() doesn't
- * pay for a second embed call.
- */
-export async function lookupCachedAnswer(message: string): Promise<{
-  entry: CachedAnswer | null;
-  embedding: number[] | null;
-}> {
-  const db = cacheAdmin();
-  if (!db) return { entry: null, embedding: null };
+/** Every chunk the answer was built from must still exist at the
+ *  same version — one edited chunk retires the answer. */
+function sourceChunksCurrent(refs: ChunkRef[] | null): boolean {
+  if (!Array.isArray(refs)) return false;
+  return refs.every(
+    (r) =>
+      !!r &&
+      typeof r.id === 'string' &&
+      typeof r.v === 'string' &&
+      isCurrentChunk(r.id, r.v)
+  );
+}
 
-  let embedding: number[];
-  try {
-    embedding = await embedText(message);
-  } catch (err) {
-    console.warn('[Copilot cache] embed failed:', err instanceof Error ? err.message : err);
-    return { entry: null, embedding: null };
-  }
+/**
+ * Searches for a validated cached answer by question embedding. The
+ * caller embeds the question once and reuses the vector for chunk
+ * retrieval and storeAnswer().
+ */
+export async function lookupCachedAnswer(
+  embedding: number[],
+  audience: Audience = 'agent'
+): Promise<CachedAnswer | null> {
+  const db = cacheAdmin();
+  if (!db) return null;
 
   try {
     const { data, error } = await db.rpc('match_copilot_qa', {
       p_embedding: embedding,
-      p_kb_version: KB_VERSION,
+      p_kb_version: kbVersionFor(audience),
       p_threshold: SIMILARITY_THRESHOLD,
       p_count: MATCH_COUNT,
     });
     if (error) throw new Error(error.message);
 
     // SQL already filtered version/age/votes/similarity; re-validate
-    // the actions against the live registries (a tour or route can
-    // disappear between deploys without a KB text change).
+    // the actions and source chunks against the live registries (a
+    // tour, route, or chunk can change between deploys).
     for (const row of (data ?? []) as MatchRow[]) {
       const tourOk = !row.tour_id || !!getTour(row.tour_id);
-      const routeOk = !row.navigate_to || isAllowedRoute(row.navigate_to);
-      if (!tourOk || !routeOk) continue;
+      const routeOk =
+        !row.navigate_to || isAllowedRoute(row.navigate_to, audience);
+      if (!tourOk || !routeOk || !sourceChunksCurrent(row.source_chunks))
+        continue;
       return {
-        entry: {
-          id: row.id,
-          reply: row.reply,
-          ...(row.tour_id ? { tourId: row.tour_id } : {}),
-          ...(row.navigate_to ? { navigateTo: row.navigate_to } : {}),
-        },
-        embedding,
+        id: row.id,
+        reply: row.reply,
+        ...(row.tour_id ? { tourId: row.tour_id } : {}),
+        ...(row.navigate_to ? { navigateTo: row.navigate_to } : {}),
+        ...(row.unsupported_capability
+          ? { unsupportedCapability: row.unsupported_capability }
+          : {}),
       };
     }
-    return { entry: null, embedding };
+    return null;
   } catch (err) {
     // Expected pre-migration (table/RPC missing) — fall through.
-    console.warn('[Copilot cache] lookup failed:', err instanceof Error ? err.message : err);
-    return { entry: null, embedding };
+    console.warn(
+      '[Copilot cache] lookup failed:',
+      err instanceof Error ? err.message : err
+    );
+    return null;
   }
 }
 
@@ -148,11 +191,9 @@ export async function lookupCachedAnswer(message: string): Promise<{
 export function bumpHit(id: string): void {
   const db = cacheAdmin();
   if (!db) return;
-  void db
-    .rpc('bump_copilot_qa_hit', { p_id: id })
-    .then(({ error }) => {
-      if (error) console.warn('[Copilot cache] bump failed:', error.message);
-    });
+  void db.rpc('bump_copilot_qa_hit', { p_id: id }).then(({ error }) => {
+    if (error) console.warn('[Copilot cache] bump failed:', error.message);
+  });
 }
 
 /** Writes a clean Gemini answer back to the cache. Returns the new
@@ -163,6 +204,9 @@ export async function storeAnswer(input: {
   reply: string;
   tourId?: string;
   navigateTo?: string;
+  unsupportedCapability?: string;
+  sourceChunks: ChunkRef[];
+  audience?: Audience;
 }): Promise<string | null> {
   const db = cacheAdmin();
   if (!db) return null;
@@ -175,14 +219,19 @@ export async function storeAnswer(input: {
         reply: input.reply,
         tour_id: input.tourId ?? null,
         navigate_to: input.navigateTo ?? null,
-        kb_version: KB_VERSION,
+        unsupported_capability: input.unsupportedCapability ?? null,
+        source_chunks: input.sourceChunks,
+        kb_version: kbVersionFor(input.audience ?? 'agent'),
       })
       .select('id')
       .single();
     if (error) throw new Error(error.message);
     return (data as { id: string }).id;
   } catch (err) {
-    console.warn('[Copilot cache] store failed:', err instanceof Error ? err.message : err);
+    console.warn(
+      '[Copilot cache] store failed:',
+      err instanceof Error ? err.message : err
+    );
     return null;
   }
 }
@@ -190,7 +239,7 @@ export async function storeAnswer(input: {
 /** Atomic 👍/👎. Enough 👎 retires the entry (match_copilot_qa filter). */
 export async function recordFeedback(
   id: string,
-  vote: 'up' | 'down',
+  vote: 'up' | 'down'
 ): Promise<boolean> {
   const db = cacheAdmin();
   if (!db) return false;
@@ -202,7 +251,10 @@ export async function recordFeedback(
     if (error) throw new Error(error.message);
     return true;
   } catch (err) {
-    console.warn('[Copilot cache] feedback failed:', err instanceof Error ? err.message : err);
+    console.warn(
+      '[Copilot cache] feedback failed:',
+      err instanceof Error ? err.message : err
+    );
     return false;
   }
 }

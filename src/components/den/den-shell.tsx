@@ -11,6 +11,7 @@ import { Home, Building2, HandCoins, Settings, LogOut, KeyRound } from "lucide-r
 
 import { useDen } from "./den-provider";
 import { DenWelcome } from "./den-welcome";
+import { PortalHelper } from "@/components/copilot/portal-helper";
 import { Button } from "@/components/ui/button";
 
 const NAV = [
@@ -82,6 +83,8 @@ export function DenShell({ children }: { children: React.ReactNode }) {
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6 pb-24 md:pb-8">{children}</main>
 
       <DenWelcome />
+
+      <PortalHelper audience="owner" />
 
       {/* Mobile bottom tabs */}
       <nav className="fixed inset-x-0 bottom-0 z-20 border-t bg-background/95 backdrop-blur md:hidden">

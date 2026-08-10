@@ -12,6 +12,7 @@ import { nativeMapsAvailable } from '@/lib/maps-support';
 import { openInMaps } from '@/lib/open-maps';
 import { formatInr } from '@/lib/format';
 import { buildPropertyParams } from '@/app/(app)/(tabs)/properties';
+import { propertyFiltersKey } from '@/lib/property-filters';
 import { usePropertySearch } from '@/lib/property-search-store';
 import { mapPin, radius, spacing, useTheme , fonts } from '@/lib/theme';
 import type { PropertiesResponse, Property } from '@/lib/types';
@@ -32,14 +33,29 @@ const BENGALURU = {
 export default function PropertiesMapScreen() {
   const { colors, dark, fonts: f } = useTheme();
   const insets = useSafeAreaInsets();
-  const { search, listing, near, includeUnavailable } = usePropertySearch();
+  const { search, listing, near, includeUnavailable, filters } =
+    usePropertySearch();
   const mapRef = useRef<MapView>(null);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['properties-map', search.trim(), listing, near, includeUnavailable],
+    queryKey: [
+      'properties-map',
+      search.trim(),
+      listing,
+      near,
+      includeUnavailable,
+      propertyFiltersKey(filters),
+    ],
     queryFn: async () => {
       // Page 0 — the properties API is 0-indexed.
-      const params = buildPropertyParams(0, search.trim(), listing, near, includeUnavailable);
+      const params = buildPropertyParams(
+        0,
+        search.trim(),
+        listing,
+        near,
+        includeUnavailable,
+        filters
+      );
       params.set('limit', '100');
       return apiFetch<PropertiesResponse>(`/api/properties?${params.toString()}`);
     },

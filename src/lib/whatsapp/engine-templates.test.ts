@@ -13,6 +13,7 @@ describe('missingEngineTemplates', () => {
       'listing_details_notice',
       'listing_photos_notice',
       'listing_status_notice',
+      'enquiry_checkin_notice',
     ]);
   });
 

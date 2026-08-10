@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { generateWithStability, generateAiImage } from './image-gen';
+import { generateWithStability, generateAiImage, IMAGE_PROVIDER_UNAVAILABLE } from './image-gen';
 
 function imageResponse() {
   return {
@@ -95,6 +95,9 @@ describe('generateAiImage — stability provider', () => {
     vi.stubEnv('STABILITY_API_KEY', '');
     vi.stubEnv('GEMINI_API_KEY', '');
     await expect(generateAiImage({ prompt: 'x', provider: 'stability' })).rejects.toThrow(
+      IMAGE_PROVIDER_UNAVAILABLE
+    );
+    await expect(generateAiImage({ prompt: 'x', provider: 'stability' })).rejects.not.toThrow(
       /STABILITY_API_KEY/
     );
   });

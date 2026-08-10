@@ -51,6 +51,7 @@ interface GeneratePayload {
   };
   generationConfig?: {
     responseMimeType?: string;
+    temperature?: number;
   };
 }
 
@@ -97,9 +98,23 @@ async function generateContentRaw(
         };
       }
 
+      // Structured extraction only. A JSON call has one right answer,
+      // so sampling variety is noise: the same brief re-extracted came
+      // back with a locality spelled as one comma-joined string where
+      // the stored value was two, and the buyer ladder read that as new
+      // information. Free-text generation keeps the model default —
+      // property descriptions and ad copy are published, and at zero
+      // two similar listings write themselves the same page.
+      //
+      // Narrows the drift; does not remove it. The failover chain can
+      // answer on a different model entirely, and identical inputs are
+      // not bit-identical across batches even at zero — so readers of
+      // this output still have to tolerate variation rather than assume
+      // it away.
       if (jsonMode) {
         payload.generationConfig = {
-          responseMimeType: "application/json"
+          responseMimeType: "application/json",
+          temperature: 0
         };
       }
 
@@ -537,6 +552,10 @@ export interface ParsedPropertyDraft {
   /** Walkthrough video forwarded during WhatsApp intake — uploaded to
    *  the property-videos bucket, becomes properties.video_url. */
   video_url?: string | null;
+  /** YouTube link shared during intake — extracted deterministically
+   *  from the message text (never by the model), becomes
+   *  properties.youtube_video_id. */
+  youtube_video_id?: string | null;
   owner_contact_name: string | null;
   owner_contact_phone: string | null;
   owner_contact_role: string | null;

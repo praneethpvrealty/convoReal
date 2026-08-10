@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import { supabaseAdmin } from '@/lib/automations/admin-client';
+import { isSelfHosted } from '@/lib/ai/provider-status';
 
 // GET /api/youtube/config
 // Connection status for the caller's account. Never returns the
@@ -16,6 +17,7 @@ export async function GET() {
       process.env.GOOGLE_OAUTH_CLIENT_ID &&
       process.env.GOOGLE_OAUTH_CLIENT_SECRET
     );
+    const selfHosted = isSelfHosted();
 
     const { data: config, error } = await supabaseAdmin()
       .from('youtube_config')
@@ -26,20 +28,21 @@ export async function GET() {
     if (error) {
       console.error('[GET /api/youtube/config] fetch error:', error);
       return NextResponse.json(
-        { configured, connected: false, reason: 'db_error' },
+        { configured, selfHosted, connected: false, reason: 'db_error' },
         { status: 200 }
       );
     }
 
     if (!config) {
       return NextResponse.json(
-        { configured, connected: false, reason: 'not_connected' },
+        { configured, selfHosted, connected: false, reason: 'not_connected' },
         { status: 200 }
       );
     }
 
     return NextResponse.json({
       configured,
+      selfHosted,
       connected: config.status === 'connected',
       status: config.status,
       channelId: config.channel_id,

@@ -149,6 +149,37 @@ describe('share-property — channel selection', () => {
     expect(dispatcherCalls[0]).toMatchObject({ kind: 'text', text: 'Hi! Check this out.' });
   });
 
+  it('leads the free-form share with the listing photo, then the message', async () => {
+    primeLookups({ windowOpen: true });
+    ctxQueues.properties = [
+      { data: { ...PROPERTY, images: ['', ' ', 'property-images/acc-1/front.jpg'] }, error: null },
+    ];
+    const res = await POST(request(shareBody()));
+
+    expect(res.status).toBe(200);
+    expect(dispatcherCalls).toHaveLength(2);
+    expect(dispatcherCalls[0]).toMatchObject({
+      kind: 'media',
+      mediaKind: 'image',
+      mediaCaption: PROPERTY.title,
+    });
+    expect(String(dispatcherCalls[0].mediaLink)).toContain('front.jpg');
+    expect(dispatcherCalls[1]).toMatchObject({ kind: 'text', text: 'Hi! Check this out.' });
+  });
+
+  it('still sends the message when the photo will not go', async () => {
+    primeLookups({ windowOpen: true });
+    ctxQueues.properties = [
+      { data: { ...PROPERTY, images: ['property-images/acc-1/front.jpg'] }, error: null },
+    ];
+    dispatcherResults = [{ success: false, error: 'media download failed' }];
+    const res = await POST(request(shareBody()));
+    const json = await res.json();
+
+    expect(json.data).toMatchObject({ sent: true, channel: 'freeform' });
+    expect(dispatcherCalls[1]).toMatchObject({ kind: 'text' });
+  });
+
   it('sends the approved template outside the window, with the tracking URL button param', async () => {
     primeLookups({ windowOpen: false });
     adminQueues.message_templates = [{ data: [APPROVED_TEMPLATE], error: null }];

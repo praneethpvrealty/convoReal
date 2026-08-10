@@ -53,7 +53,7 @@ import {
 } from '@/lib/inventory/share-grants';
 import { MatchDetailChips } from '@/components/inventory/match-detail-chips';
 import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
-import { pickPropertyShareTemplate } from '@/lib/whatsapp/property-share-template';
+import { pickShareDialogTemplate } from '@/lib/whatsapp/property-share-template';
 import {
   buildPropertyShareMessage,
   buildShareTargets,
@@ -740,41 +740,15 @@ export function PropertyShareDialog({
       const tData = data || [];
       setTemplates(tData);
 
-      // Intelligent auto-selection
+      // Auto-selection: the engine's own templates, then looser name
+      // matches, Utility preferred at every tier — a Marketing template
+      // is silently dropped for a recipient at their per-user cap
+      // (error 131049). Photo-first when the listing has one.
       if (tData.length > 0) {
-        // 1. The engine's own enquiry templates, by exact name. Both
-        //    are Utility, so they are exempt from the per-user
-        //    marketing cap that silently drops Marketing sends
-        //    (error 131049). Photo-first when the listing has one.
         const hasPhoto = Boolean(
           property?.images?.some((img) => img && img.trim().length > 0)
         );
-        // Both templates have been renamed for each category fix, so
-        // walk both chains — an account can still be on an older
-        // approved name while the current one is under review.
-        let matching = pickPropertyShareTemplate(tData, { hasImage: hasPhoto });
-
-        // 2. Any other template named for sharing property details.
-        if (!matching) {
-          matching = tData.find((t) =>
-            /share_property|property_detail|property_share/i.test(t.name)
-          );
-        }
-
-        // 3. Fall back to templates containing property/share/detail,
-        //    excluding reminders, appointment visits, and the digests
-        //    addressed to owners rather than to a buyer.
-        if (!matching) {
-          matching = tData.find((t) => {
-            const name = t.name.toLowerCase();
-            const hasKeywords = /property|share|detail|send/i.test(name);
-            const isReminderOrAppointment = /reminder|visit|appointment|schedule|nudge|followup/i.test(name);
-            const isDigestOrConsent = /digest|consent|owner_/i.test(name);
-            return hasKeywords && !isReminderOrAppointment && !isDigestOrConsent;
-          });
-        }
-
-        setSelectedTemplate(matching || tData[0]);
+        setSelectedTemplate(pickShareDialogTemplate(tData, { hasImage: hasPhoto }));
       }
     } catch (err) {
       console.error('Failed to load templates for share:', err);
@@ -2617,10 +2591,20 @@ export function PropertyShareDialog({
                   {templates.map((t) => (
                     <option key={t.id} value={t.id}>
                       {t.name} ({t.language || 'en_US'})
+                      {t.category && t.category !== 'Utility' ? ` — ${t.category}` : ''}
                     </option>
                   ))}
                 </select>
               )}
+              {selectedTemplate &&
+                selectedTemplate.category &&
+                selectedTemplate.category !== 'Utility' && (
+                  <p className="text-[11px] text-amber-400">
+                    {selectedTemplate.category} templates are capped per
+                    recipient — WhatsApp drops the send with error 131049 for
+                    anyone at their limit. A Utility template reaches everyone.
+                  </p>
+                )}
             </div>
 
             {/* Header image selector */}

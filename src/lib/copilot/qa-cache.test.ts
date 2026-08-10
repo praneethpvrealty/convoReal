@@ -1,19 +1,25 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { CHUNKS, chunkVersion } from './chunks';
 
 /**
  * qa-cache tests. The Supabase admin client is stubbed at the
- * @supabase/supabase-js boundary (qa-cache creates its own client),
- * and the Gemini embed call is stubbed via global fetch — the same
- * two seams the module actually crosses.
+ * @supabase/supabase-js boundary (qa-cache creates its own client) —
+ * the one seam the module actually crosses. Question embedding lives
+ * with the caller now, so the tests hand vectors in directly.
  */
 
 const h = vi.hoisted(() => ({
   state: {
     rpcCalls: [] as { fn: string; args: Record<string, unknown> }[],
-    rpcResponse: { data: [] as unknown[], error: null as { message: string } | null },
+    rpcResponse: {
+      data: [] as unknown[],
+      error: null as { message: string } | null,
+    },
     insertRows: [] as Record<string, unknown>[],
     insertResponse: {
-      data: { id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc' } as { id: string } | null,
+      data: { id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc' } as {
+        id: string;
+      } | null,
       error: null as { message: string } | null,
     },
   },
@@ -43,21 +49,10 @@ vi.mock('@supabase/supabase-js', () => ({
 
 const EMBEDDING = Array.from({ length: 768 }, (_, i) => i / 768);
 
-function stubEmbedFetch(ok = true) {
-  vi.stubGlobal(
-    'fetch',
-    vi.fn(async () =>
-      ok
-        ? new Response(JSON.stringify({ embedding: { values: EMBEDDING } }), {
-            status: 200,
-          })
-        : new Response(JSON.stringify({ error: { message: 'quota' } }), {
-            status: 429,
-            statusText: 'Too Many Requests',
-          }),
-    ),
-  );
-}
+const LIVE_CHUNKS = [
+  { id: CHUNKS[0].id, v: chunkVersion(CHUNKS[0]) },
+  { id: CHUNKS[1].id, v: chunkVersion(CHUNKS[1]) },
+];
 
 const VALID_ROW = {
   id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
@@ -65,6 +60,8 @@ const VALID_ROW = {
   reply: 'Pulse shows who viewed your property links.',
   tour_id: null,
   navigate_to: null,
+  unsupported_capability: null,
+  source_chunks: LIVE_CHUNKS,
   similarity: 0.95,
 };
 
@@ -73,7 +70,6 @@ let qaCache: typeof import('./qa-cache');
 beforeEach(async () => {
   process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://test.supabase.co';
   process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-key';
-  process.env.GEMINI_API_KEY = 'gemini-key';
   h.state.rpcCalls = [];
   h.state.rpcResponse = { data: [], error: null };
   h.state.insertRows = [];
@@ -81,7 +77,6 @@ beforeEach(async () => {
     data: { id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc' },
     error: null,
   };
-  stubEmbedFetch();
   vi.resetModules();
   qaCache = await import('./qa-cache');
 });
@@ -100,7 +95,9 @@ describe('isCacheableQuestion', () => {
   });
 
   it('rejects PII-looking questions', () => {
-    expect(qaCache.isCacheableQuestion('call 9876543210 for me', 0)).toBe(false);
+    expect(qaCache.isCacheableQuestion('call 9876543210 for me', 0)).toBe(
+      false
+    );
     expect(qaCache.isCacheableQuestion('email me at a@b.com', 0)).toBe(false);
   });
 
@@ -111,25 +108,55 @@ describe('isCacheableQuestion', () => {
 });
 
 describe('lookupCachedAnswer', () => {
-  it('serves a validated hit and reuses the embedding', async () => {
+  it('serves a hit whose source chunks are all current', async () => {
     h.state.rpcResponse = { data: [VALID_ROW], error: null };
-    const { entry, embedding } = await qaCache.lookupCachedAnswer('pulse kya hai?');
+    const entry = await qaCache.lookupCachedAnswer(EMBEDDING);
     expect(entry).toEqual({ id: VALID_ROW.id, reply: VALID_ROW.reply });
-    expect(embedding).toEqual(EMBEDDING);
     const call = h.state.rpcCalls.find((c) => c.fn === 'match_copilot_qa');
     expect(call?.args.p_kb_version).toBe(qaCache.KB_VERSION);
     expect(call?.args.p_embedding).toEqual(EMBEDDING);
   });
 
-  it('skips candidates whose tour no longer exists, falls to the next', async () => {
+  it('skips rows built on an edited chunk, falls to the next', async () => {
     h.state.rpcResponse = {
       data: [
-        { ...VALID_ROW, id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', tour_id: 'deleted-tour' },
+        {
+          ...VALID_ROW,
+          id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+          source_chunks: [{ id: CHUNKS[0].id, v: 'stale000' }],
+        },
         VALID_ROW,
       ],
       error: null,
     };
-    const { entry } = await qaCache.lookupCachedAnswer('pulse?');
+    const entry = await qaCache.lookupCachedAnswer(EMBEDDING);
+    expect(entry?.id).toBe(VALID_ROW.id);
+  });
+
+  it('skips rows referencing a deleted chunk or missing the column', async () => {
+    h.state.rpcResponse = {
+      data: [
+        { ...VALID_ROW, source_chunks: [{ id: 'no.such-chunk', v: 'x' }] },
+        { ...VALID_ROW, source_chunks: null },
+      ],
+      error: null,
+    };
+    expect(await qaCache.lookupCachedAnswer(EMBEDDING)).toBeNull();
+  });
+
+  it('skips candidates whose tour no longer exists, falls to the next', async () => {
+    h.state.rpcResponse = {
+      data: [
+        {
+          ...VALID_ROW,
+          id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+          tour_id: 'deleted-tour',
+        },
+        VALID_ROW,
+      ],
+      error: null,
+    };
+    const entry = await qaCache.lookupCachedAnswer(EMBEDDING);
     expect(entry?.id).toBe(VALID_ROW.id);
   });
 
@@ -138,9 +165,16 @@ describe('lookupCachedAnswer', () => {
       data: [{ ...VALID_ROW, navigate_to: 'https://evil.example' }],
       error: null,
     };
-    const { entry, embedding } = await qaCache.lookupCachedAnswer('pulse?');
-    expect(entry).toBeNull();
-    expect(embedding).toEqual(EMBEDDING); // still reusable for store
+    expect(await qaCache.lookupCachedAnswer(EMBEDDING)).toBeNull();
+  });
+
+  it('surfaces the stored unsupported capability on a hit', async () => {
+    h.state.rpcResponse = {
+      data: [{ ...VALID_ROW, unsupported_capability: 'send sms campaigns' }],
+      error: null,
+    };
+    const entry = await qaCache.lookupCachedAnswer(EMBEDDING);
+    expect(entry?.unsupportedCapability).toBe('send sms campaigns');
   });
 
   it('returns null silently when the RPC fails (pre-migration)', async () => {
@@ -149,19 +183,7 @@ describe('lookupCachedAnswer', () => {
       error: { message: 'function match_copilot_qa does not exist' },
     };
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const { entry, embedding } = await qaCache.lookupCachedAnswer('pulse?');
-    expect(entry).toBeNull();
-    expect(embedding).toEqual(EMBEDDING);
-    warn.mockRestore();
-  });
-
-  it('returns null silently when embedding fails', async () => {
-    stubEmbedFetch(false);
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const { entry, embedding } = await qaCache.lookupCachedAnswer('pulse?');
-    expect(entry).toBeNull();
-    expect(embedding).toBeNull();
-    expect(h.state.rpcCalls).toHaveLength(0);
+    expect(await qaCache.lookupCachedAnswer(EMBEDDING)).toBeNull();
     warn.mockRestore();
   });
 
@@ -169,25 +191,27 @@ describe('lookupCachedAnswer', () => {
     delete process.env.SUPABASE_SERVICE_ROLE_KEY;
     vi.resetModules();
     const mod = await import('./qa-cache');
-    const { entry, embedding } = await mod.lookupCachedAnswer('pulse?');
-    expect(entry).toBeNull();
-    expect(embedding).toBeNull();
+    expect(await mod.lookupCachedAnswer(EMBEDDING)).toBeNull();
+    expect(h.state.rpcCalls).toHaveLength(0);
   });
 });
 
 describe('storeAnswer / recordFeedback', () => {
-  it('stores a clean answer stamped with the current KB version', async () => {
+  it('stores a clean answer stamped with KB version and source chunks', async () => {
     const id = await qaCache.storeAnswer({
       question: 'what is pulse?',
       embedding: EMBEDDING,
       reply: 'Pulse shows visitor activity.',
       tourId: 'check-property-views',
+      sourceChunks: LIVE_CHUNKS,
     });
     expect(id).toBe('cccccccc-cccc-4ccc-8ccc-cccccccccccc');
     expect(h.state.insertRows[0]).toMatchObject({
       question: 'what is pulse?',
       tour_id: 'check-property-views',
       navigate_to: null,
+      unsupported_capability: null,
+      source_chunks: LIVE_CHUNKS,
       kb_version: qaCache.KB_VERSION,
     });
   });
@@ -202,6 +226,7 @@ describe('storeAnswer / recordFeedback', () => {
       question: 'q',
       embedding: EMBEDDING,
       reply: 'r',
+      sourceChunks: [],
     });
     expect(id).toBeNull();
     warn.mockRestore();
@@ -217,8 +242,36 @@ describe('storeAnswer / recordFeedback', () => {
   });
 });
 
-describe('KB_VERSION', () => {
-  it('is a stable 12-char hash', () => {
+describe('KB version', () => {
+  it('is a stable 12-char hash of the scaffold', () => {
     expect(qaCache.KB_VERSION).toMatch(/^[0-9a-f]{12}$/);
+    expect(qaCache.kbVersionFor('agent')).toBe(qaCache.KB_VERSION);
+  });
+
+  it('differs per audience — this is what partitions the shared cache', () => {
+    const versions = (['agent', 'owner', 'buyer'] as const).map((a) =>
+      qaCache.kbVersionFor(a)
+    );
+    expect(new Set(versions).size).toBe(3);
+  });
+
+  it("queries and stores under the calling audience's version", async () => {
+    h.state.rpcResponse = { data: [], error: null };
+    await qaCache.lookupCachedAnswer(EMBEDDING, 'owner');
+    expect(
+      h.state.rpcCalls.find((c) => c.fn === 'match_copilot_qa')?.args
+        .p_kb_version
+    ).toBe(qaCache.kbVersionFor('owner'));
+
+    await qaCache.storeAnswer({
+      question: 'what is deal mode?',
+      embedding: EMBEDDING,
+      reply: 'Deal Mode opens a property to outside buyers.',
+      sourceChunks: LIVE_CHUNKS,
+      audience: 'owner',
+    });
+    expect(h.state.insertRows[0]).toMatchObject({
+      kb_version: qaCache.kbVersionFor('owner'),
+    });
   });
 });

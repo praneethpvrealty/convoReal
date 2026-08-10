@@ -21,6 +21,20 @@ export async function contactShowcaseShareUrl(contact: Contact): Promise<string>
   return withParam(await getShowcaseUrl(), 'v', contact.id);
 }
 
+/** One listing's showcase link, personalized to a contact — the
+ *  property-scoped cousin of contactShowcaseShareUrl. */
+export async function contactPropertyShareUrl(
+  contact: Pick<Contact, 'id'>,
+  property: { id: string; property_code?: string | null }
+): Promise<string> {
+  const withProperty = withParam(
+    await getShowcaseUrl(),
+    'property_id',
+    property.property_code || property.id
+  );
+  return withParam(withProperty, 'v', contact.id);
+}
+
 /** Generic showcase link carrying a fresh share-instance token
  *  (migration 173). Minting is best-effort: offline or failed, the
  *  plain link still works — that one share is just untracked. */

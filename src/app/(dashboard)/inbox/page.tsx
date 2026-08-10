@@ -7,6 +7,7 @@ import type { Conversation, Message, Contact, ConversationStatus } from "@/types
 import { useRealtime } from "@/hooks/use-realtime";
 import { ConversationList } from "@/components/inbox/conversation-list";
 import { MessageThread } from "@/components/inbox/message-thread";
+import type { TemplateIntent } from "@/components/inbox/template-picker";
 import { ContactSidebar } from "@/components/inbox/contact-sidebar";
 import { WifiOff } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -22,6 +23,27 @@ export default function InboxPage() {
    * automatically instead of showing the empty center panel.
    */
   const deepLinkConvId = searchParams.get("c");
+  /**
+   * `?draft=<text>` — a message the linking screen already composed
+   * (the journey sheet's "still considering this?" check-in). Applied
+   * to the composer only for the deep-linked thread, and only while
+   * the box is empty.
+   */
+  const [deepLinkDraft] = useState(() => searchParams.get("draft"));
+  /**
+   * `?tpl=<json>` — the same nudge for a closed 24-hour window, where a
+   * free-form draft could only fail. Carries the template name and its
+   * filled parameters; the picker opens on it, the agent still sends.
+   */
+  const [deepLinkTemplate] = useState<TemplateIntent | null>(() => {
+    const raw = searchParams.get("tpl");
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw) as TemplateIntent;
+    } catch {
+      return null;
+    }
+  });
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversation, setActiveConversation] =
@@ -137,6 +159,17 @@ export default function InboxPage() {
       hydratingConvIdsRef.current.delete(convId);
     }
   }, [profile?.phone]);
+
+  // The draft is captured into state above, so the URL no longer needs
+  // to carry it — strip it so a refresh lands on a clean composer.
+  useEffect(() => {
+    if (!deepLinkDraft && !deepLinkTemplate) return;
+    window.history.replaceState(
+      null,
+      '',
+      deepLinkConvId ? `/inbox?c=${deepLinkConvId}` : '/inbox',
+    );
+  }, [deepLinkDraft, deepLinkTemplate, deepLinkConvId]);
 
   // Check WhatsApp connection status on mount
   useEffect(() => {
@@ -697,6 +730,16 @@ export default function InboxPage() {
             onAssignChange={handleAssignChange}
             onArchive={handleArchiveChange}
             onBack={handleCloseConversation}
+            initialDraft={
+              activeConversation?.id === deepLinkConvId
+                ? deepLinkDraft ?? undefined
+                : undefined
+            }
+            initialTemplate={
+              activeConversation?.id === deepLinkConvId
+                ? deepLinkTemplate
+                : null
+            }
             resyncToken={resyncToken}
             onRefresh={handleManualRefresh}
           />

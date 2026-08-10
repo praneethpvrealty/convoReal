@@ -35,6 +35,10 @@
       "schedule": "30 5 * * *"
     },
     {
+      "path": "/api/cron/agent-task-digest",
+      "schedule": "*/30 * * * *"
+    },
+    {
       "path": "/api/cron/lead-sync-reconcile",
       "schedule": "10 * * * *"
     },

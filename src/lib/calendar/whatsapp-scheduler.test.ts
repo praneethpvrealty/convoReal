@@ -3,6 +3,7 @@ import {
   looksLikeSchedulingText,
   isAgendaCommand,
   splitTaskList,
+  isDictatedTaskList,
   formatAgendaMessage,
   formatInboundConfirmation,
   istDayWindow,
@@ -158,6 +159,40 @@ describe('splitTaskList', () => {
       'Call Ravi',
       'Send the EC',
     ]);
+  });
+});
+
+
+describe('isDictatedTaskList', () => {
+  it('is true for a list that says it is one and numbers it', () => {
+    expect(isDictatedTaskList(DICTATED_LIST)).toBe(true);
+  });
+
+  it('survives an item that mentions the word task again', () => {
+    // The retest: "...via email too, inform Chamraju after this task
+    // 2) List SLV..." The second marker is preceded by that word, and
+    // the run still counts 1, 2, 3.
+    const v2 =
+      "Add for today's task 1) Send Hoskote Road land to all developers, inform Chamraju after this task " +
+      '2) List SLV JP Nagar property onto Housing and magicbricks ' +
+      '3) Followup with Ashwath Reddy';
+    expect(isDictatedTaskList(v2)).toBe(true);
+    expect(splitTaskList(v2)).toHaveLength(3);
+  });
+
+  it('is false for anything that could be an intake correction', () => {
+    // This predicate is allowed to interrupt a draft session, so it has
+    // to be certain. A listing correction must never match.
+    for (const text of [
+      'price is 2.5 cr',
+      'task: send the brochure',
+      '3 BHK 1450 sqft, 2 covered parkings',
+      'site visit tomorrow 4pm',
+      '',
+      null,
+    ]) {
+      expect(isDictatedTaskList(text), String(text)).toBe(false);
+    }
   });
 });
 

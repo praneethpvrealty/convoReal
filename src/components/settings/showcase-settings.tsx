@@ -283,7 +283,7 @@ export function ShowcaseSettingsPanel() {
 
     const subdomain = form.subdomain.trim().toLowerCase();
     if (subdomain && RESERVED_SUBDOMAINS.includes(subdomain)) {
-      toast.error(`"${subdomain}" is reserved — pick another subdomain.`);
+      toast.error(`"${subdomain}" is reserved — please pick another name.`);
       return;
     }
 
@@ -452,7 +452,7 @@ export function ShowcaseSettingsPanel() {
 
         <div className="space-y-2">
           <Label htmlFor="subdomain" className="text-slate-350 font-medium">
-            Showcase Subdomain (e.g. agency1)
+            Your Web Address Name (e.g. agency1)
           </Label>
           <div className="relative">
             <Globe className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-500" />
@@ -470,13 +470,10 @@ export function ShowcaseSettingsPanel() {
             />
           </div>
           <p className="text-[11px] text-slate-400">
-            Serves your showcase at{' '}
-            <code className="text-primary">{`https://${form.subdomain || 'your-subdomain'}.${BRANDING.baseDomain}`}</code>
-            . This only resolves once the wildcard{' '}
-            <code className="text-primary">{`*.${BRANDING.baseDomain}`}</code>{' '}
-            DNS record and its Worker are set up — see the wildcard section of
-            docs/domain-rehosting-guide.md. Until then, keep using the share
-            links above.
+            This is your own web address for your listings:{' '}
+            <code className="text-primary">{`https://${form.subdomain || 'your-name'}.${BRANDING.baseDomain}`}</code>
+            . It goes live as soon as you save, and you can share it anywhere —
+            WhatsApp, your visiting card, or a portal listing.
           </p>
 
           {businessUrl && (

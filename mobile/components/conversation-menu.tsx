@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import type { ComponentProps } from 'react';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text } from 'react-native';
@@ -19,18 +20,22 @@ const STATUS_OPTIONS: { value: ConversationStatus; label: string; icon: IconName
   { value: 'closed', label: 'Closed', icon: 'checkmark-done-outline' },
 ];
 
-/** Thread header ⋮ menu: change the conversation's queue status or
- *  archive it. Mirrors the web inbox's per-conversation controls. */
+/** Thread header ⋮ menu: open the records behind the chat, change the
+ *  conversation's queue status, or archive it. Mirrors the web inbox's
+ *  per-conversation controls. */
 export function ConversationMenu({
   visible,
   onClose,
   conversationId,
+  contactId,
   status,
   isArchived,
 }: {
   visible: boolean;
   onClose: () => void;
   conversationId: string;
+  /** Absent on group threads, which have no single contact behind them. */
+  contactId?: string;
   status?: ConversationStatus;
   isArchived?: boolean;
 }) {
@@ -59,6 +64,45 @@ export function ConversationMenu({
         style={sheetScrollArea}
         contentContainerStyle={{ paddingHorizontal: spacing.lg, gap: spacing.sm, paddingBottom: spacing.sm }}
       >
+        {contactId ? (
+          <>
+            <SectionLabel text="Open" />
+            {(
+              [
+                {
+                  key: 'contact',
+                  label: 'Contact profile',
+                  icon: 'person-outline',
+                  href: `/(app)/contact/${contactId}`,
+                },
+                {
+                  key: 'journey',
+                  label: 'Journey',
+                  icon: 'git-network-outline',
+                  href: `/(app)/journey?contactId=${contactId}`,
+                },
+              ] as { key: string; label: string; icon: IconName; href: string }[]
+            ).map((link) => (
+              <Pressable
+                key={link.key}
+                onPress={() => {
+                  onClose();
+                  router.push(link.href);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={link.label}
+                style={[styles.row, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
+              >
+                <Ionicons name={link.icon} size={18} color={colors.text} />
+                <Text style={{ flex: 1, fontSize: 14.5, fontFamily: f.medium, color: colors.text }}>
+                  {link.label}
+                </Text>
+                <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+              </Pressable>
+            ))}
+          </>
+        ) : null}
+
         <SectionLabel text="Status" />
         {STATUS_OPTIONS.map((opt) => {
           const active = status === opt.value;

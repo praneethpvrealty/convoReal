@@ -18,8 +18,8 @@ const mockMatches = vi.mocked(radarQueries.loadMatchEvents);
 
 /** Chainable, thenable stub covering the head-count query shapes
  *  nudges.ts uses: from().select(head).gte() and from().select(head)
- *  .eq()[.eq()...] — eq returns the chain so filters stack, and the
- *  chain itself awaits to the count result. */
+ *  .eq()[.eq()...][.lt()] — eq and lt return the chain so filters
+ *  stack, and the chain itself awaits to the count result. */
 function makeDb(counts: {
   showcase_events?: number;
   whatsapp_config?: number;
@@ -27,6 +27,7 @@ function makeDb(counts: {
   contacts?: number;
   email_sync_configs?: number;
   showcase_settings?: number;
+  journey_items?: number;
 }): SupabaseClient {
   return {
     from(table: string) {
@@ -38,6 +39,7 @@ function makeDb(counts: {
         select: () => chain,
         gte: () => Promise.resolve(result),
         eq: () => chain,
+        lt: () => chain,
         then: (resolve: (value: typeof result) => unknown) =>
           Promise.resolve(result).then(resolve),
       };
@@ -93,6 +95,29 @@ describe('evaluateNudges', () => {
       'hot-leads-quiet',
       'radar-matches',
     ]);
+  });
+
+  it('stalled-journey nudge fires only when a branch has gone a week', async () => {
+    const quiet = await evaluateNudges(makeDb(populated), 'acc-1');
+    expect(quiet.find((n) => n.id === 'journeys-stalled')).toBeUndefined();
+
+    const nudges = await evaluateNudges(
+      makeDb({ ...populated, journey_items: 4 }),
+      'acc-1',
+    );
+    const nudge = nudges.find((n) => n.id === 'journeys-stalled');
+    expect(nudge?.message).toContain('4 properties');
+    expect(nudge?.cta?.href).toBe('/journey');
+  });
+
+  it('stalled-journey nudge outranks radar matches', async () => {
+    mockMatches.mockResolvedValue([{ id: 'm1' } as never]);
+    const nudges = await evaluateNudges(
+      makeDb({ ...populated, journey_items: 1 }),
+      'acc-1',
+    );
+    expect(nudges.map((n) => n.id)).toEqual(['journeys-stalled', 'radar-matches']);
+    expect(nudges[0].message).toContain('1 property has sat');
   });
 
   it('only counts sessions expiring within 6 hours', async () => {

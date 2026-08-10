@@ -7,9 +7,16 @@ export const CATEGORY_SUBTYPES: Record<string, string[]> = {
     "Residential House",
     "Villa",
     "Builder Floor Apartment",
+    // Both halves of the post-split vocabulary plus the legacy value it
+    // replaced, or a plot listed after the split falls out of every
+    // "residential" search and category filter.
+    "Residential Plot",
+    "Residential Land",
     "Residential Land/ Plot",
     "Penthouse",
     "Studio Apartment",
+    "Residential PG building",
+    "PG/ Hostel",
     "Farm House",
   ],
   Commercial: [

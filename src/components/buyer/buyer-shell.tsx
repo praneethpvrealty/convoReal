@@ -18,6 +18,7 @@ import {
 
 import { useBuyer } from './buyer-provider';
 import { BuyerWelcome } from './buyer-welcome';
+import { PortalHelper } from '@/components/copilot/portal-helper';
 import { Button } from '@/components/ui/button';
 
 const NAV = [
@@ -105,6 +106,8 @@ export function BuyerShell({ children }: { children: React.ReactNode }) {
       </main>
 
       <BuyerWelcome />
+
+      <PortalHelper audience="buyer" />
 
       <nav className="bg-background/95 fixed inset-x-0 bottom-0 z-20 border-t backdrop-blur md:hidden">
         <div className="mx-auto flex max-w-5xl items-stretch justify-around">

@@ -29,6 +29,7 @@ import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { ContactPickerSheet } from '@/components/contact-picker-sheet';
 import { EnterRow, PressScale } from '@/components/motion';
 import { PropertyApprovals } from '@/components/property-approvals';
+import { PropertyFiltersSheet } from '@/components/property-filters-sheet';
 import { EmptyState, FilterChip, PropertyCardSkeleton, SearchBar } from '@/components/ui';
 import {
   apiFetch,
@@ -47,6 +48,14 @@ import {
 import { openContactChat } from '@/lib/open-chat';
 import { useDebounced } from '@/lib/use-debounced';
 import { haptic } from '@/lib/haptics';
+import {
+  activePropertyFilterCount,
+  applyPropertyFilterParams,
+  EMPTY_PROPERTY_FILTERS,
+  propertyFiltersKey,
+  statusParam,
+  type PropertyFilters,
+} from '@/lib/property-filters';
 import { isStructuredQuery } from '@/lib/search-intent';
 import {
   nearFromLocality,
@@ -87,16 +96,17 @@ export function buildPropertyParams(
   search: string,
   listing: ListingFilter,
   near: NearAnchor | null,
-  includeUnavailable: boolean
+  includeUnavailable: boolean,
+  filters: PropertyFilters = EMPTY_PROPERTY_FILTERS
 ): URLSearchParams {
   const params = new URLSearchParams({
     page: String(page),
     limit: String(PAGE_SIZE),
   });
-  // The route rejects status + exclude_archived together, so widening
-  // means dropping the status filter — Archived stays out either way.
-  if (includeUnavailable) params.set('exclude_archived', 'true');
-  else params.set('status', 'Available');
+  // The route rejects status + exclude_archived together, so exactly one
+  // of them is sent — Archived stays out either way.
+  const [statusName, statusValue] = statusParam(filters, includeUnavailable);
+  params.set(statusName, statusValue);
   if (search) params.set('search', search);
   if (listing !== 'All') params.set('listing_type', listing);
   if (near) {
@@ -108,7 +118,7 @@ export function buildPropertyParams(
       params.set('near_label', near.label);
     }
   }
-  return params;
+  return applyPropertyFilterParams(params, filters, Boolean(near));
 }
 
 export async function fetchPropertyPage(
@@ -116,10 +126,11 @@ export async function fetchPropertyPage(
   search: string,
   listing: ListingFilter,
   near: NearAnchor | null,
-  includeUnavailable: boolean
+  includeUnavailable: boolean,
+  filters: PropertyFilters = EMPTY_PROPERTY_FILTERS
 ): Promise<PropertiesResponse> {
   return apiFetch<PropertiesResponse>(
-    `/api/properties?${buildPropertyParams(page, search, listing, near, includeUnavailable).toString()}`
+    `/api/properties?${buildPropertyParams(page, search, listing, near, includeUnavailable, filters).toString()}`
   );
 }
 
@@ -131,13 +142,16 @@ export default function PropertiesScreen() {
     listing,
     near,
     includeUnavailable,
+    filters,
     setSearch,
     setListing,
     setNear,
     setRadius,
     setIncludeUnavailable,
+    setFilters,
   } = usePropertySearch();
   const [locating, setLocating] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [sharePicker, setSharePicker] = useState(false);
   const { show, close, dialogProps } = useAppDialog();
   const [geoError, setGeoError] = useState<string | null>(null);
@@ -152,14 +166,22 @@ export default function PropertiesScreen() {
     fetchNextPage,
     hasNextPage,
   } = useInfiniteQuery({
-    queryKey: ['properties', debounced, listing, near, includeUnavailable],
+    queryKey: [
+      'properties',
+      debounced,
+      listing,
+      near,
+      includeUnavailable,
+      propertyFiltersKey(filters),
+    ],
     queryFn: ({ pageParam }) =>
       fetchPropertyPage(
         pageParam,
         debounced,
         listing,
         near,
-        includeUnavailable
+        includeUnavailable,
+        filters
       ),
     // The properties API is 0-INDEXED (`from = page * limit` in
     // route.ts) — page 1 means "skip the first 20 rows".
@@ -357,6 +379,15 @@ export default function PropertiesScreen() {
             locating={locating}
             onPress={nearMe}
           />
+          {/* Everything the listing-type pills beside it don't cover —
+              type, status, price, source, showcase, sort. */}
+          <AttributeChip
+            count={activePropertyFilterCount(filters)}
+            onPress={() => {
+              haptic.tap();
+              setFiltersOpen(true);
+            }}
+          />
           {LISTING_FILTERS.map((f) => (
             <FilterChip
               key={f}
@@ -487,16 +518,21 @@ export default function PropertiesScreen() {
             <EmptyState
               icon="home-outline"
               title={
-                debounced || listing !== 'All' || near
+                debounced ||
+                listing !== 'All' ||
+                near ||
+                activePropertyFilterCount(filters) > 0
                   ? 'No matches'
                   : 'No properties yet'
               }
               subtitle={
                 near
                   ? `None of your listings are within ${near.radiusKm} km of ${near.label}.`
-                  : debounced || listing !== 'All'
-                    ? 'No listings match this search and filter. Same engine as the web inventory — areas, budgets and BHK counts only match what you actually have.'
-                    : 'Add properties from the web app or by messaging your WhatsApp lister.'
+                  : activePropertyFilterCount(filters) > 0
+                    ? 'No listing matches every filter. Loosen one from the Filters chip.'
+                    : debounced || listing !== 'All'
+                      ? 'No listings match this search and filter. Same engine as the web inventory — areas, budgets and BHK counts only match what you actually have.'
+                      : 'Add properties from the web app or by messaging your WhatsApp lister.'
               }
               action={
                 near && near.radiusKm < 25 ? (
@@ -556,6 +592,15 @@ export default function PropertiesScreen() {
         />
       )}
       <AppDialog {...dialogProps} />
+      <PropertyFiltersSheet
+        visible={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
+        filters={filters}
+        onChange={setFilters}
+        resultCount={total}
+        loading={isPlaceholderData}
+        hasNear={Boolean(near)}
+      />
       <ContactPickerSheet
         visible={sharePicker}
         onClose={() => setSharePicker(false)}
@@ -566,6 +611,58 @@ export default function PropertiesScreen() {
         onSkip={shareAnonymous}
       />
     </View>
+  );
+}
+
+/** Type, status, price, source, showcase and sort behind one chip that
+ *  carries how many are on. Twin of the Contacts tab's. */
+function AttributeChip({
+  count,
+  onPress,
+}: {
+  count: number;
+  onPress: () => void;
+}) {
+  const { colors, fonts: f } = useTheme();
+  const active = count > 0;
+  return (
+    <Pressable
+      onPress={onPress}
+      hitSlop={6}
+      accessibilityRole="button"
+      accessibilityLabel={
+        active
+          ? `Filters, ${count} on. Type, status, price, source, showcase and sort.`
+          : 'Filters — type, status, price, source, showcase and sort'
+      }
+      accessibilityState={{ selected: active }}
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 5,
+        paddingHorizontal: 14,
+        paddingVertical: 9,
+        borderRadius: radius.full,
+        backgroundColor: active ? colors.primary : colors.surfaceRaised,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: active ? colors.primary : colors.border,
+      }}
+    >
+      <Ionicons
+        name="options-outline"
+        size={13}
+        color={active ? colors.onPrimary : colors.primary}
+      />
+      <Text
+        style={{
+          fontSize: 13,
+          fontFamily: f.semibold,
+          color: active ? colors.onPrimary : colors.textMuted,
+        }}
+      >
+        {active ? `Filters · ${count}` : 'Filters'}
+      </Text>
+    </Pressable>
   );
 }
 

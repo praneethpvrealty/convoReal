@@ -10,7 +10,7 @@ import { BlurView } from 'expo-blur';
 import * as Clipboard from 'expo-clipboard';
 import * as Linking from 'expo-linking';
 import { useQuery } from '@tanstack/react-query';
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -56,7 +56,7 @@ import {
 } from '@/lib/attachments';
 import { useAuthStore } from '@/lib/auth-store';
 import { isReengagementError } from '@/lib/customer-window';
-import { needsReply } from '@/lib/reply-state';
+import { needsReply, unanswered, unansweredLabel } from '@/lib/reply-state';
 import { haptic } from '@/lib/haptics';
 import {
   canForward,
@@ -434,6 +434,12 @@ export default function ConversationScreen() {
               title={title}
               status={conversation?.status}
               awaiting={Boolean(conversation && needsReply(conversation))}
+              silence={conversation ? unanswered(conversation) : null}
+              onOpenContact={
+                conversation?.contact?.id
+                  ? () => router.push(`/(app)/contact/${conversation.contact!.id}`)
+                  : undefined
+              }
               onCall={
                 conversation?.contact?.phone
                   ? () =>
@@ -675,6 +681,7 @@ export default function ConversationScreen() {
         visible={menuOpen}
         onClose={() => setMenuOpen(false)}
         conversationId={id}
+        contactId={conversation?.contact?.id}
         status={conversation?.status}
         isArchived={conversation?.is_archived}
       />
@@ -697,16 +704,28 @@ function ThreadHeader({
   title,
   status,
   awaiting,
+  silence,
   onCall,
+  onOpenContact,
 }: {
   title: string;
   status?: string;
   awaiting?: boolean;
+  silence?: ReturnType<typeof unanswered>;
   onCall?: () => void;
+  /** Tapping the name opens the contact record, as WhatsApp does.
+   *  Absent on group threads, where there is no single contact. */
+  onOpenContact?: () => void;
 }) {
   const { colors, fonts: f } = useTheme();
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+    <Pressable
+      onPress={onOpenContact}
+      disabled={!onOpenContact}
+      accessibilityRole={onOpenContact ? 'button' : undefined}
+      accessibilityLabel={onOpenContact ? `Open ${title}` : undefined}
+      style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}
+    >
       <Avatar name={title} size={34} />
       <View style={{ flexShrink: 1 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -738,11 +757,15 @@ function ThreadHeader({
                   : colors.textMuted,
             }}
           >
-            {awaiting ? 'Needs your reply' : (STATUS_LABELS[status] ?? status)}
+            {awaiting
+              ? 'Needs your reply'
+              : silence
+                ? unansweredLabel(silence)
+                : (STATUS_LABELS[status] ?? status)}
           </Text>
         ) : null}
       </View>
-    </View>
+    </Pressable>
   );
 }
 

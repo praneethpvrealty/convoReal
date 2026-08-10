@@ -266,7 +266,11 @@ export async function POST(request: Request) {
               last_message_at: new Date().toISOString(),
               unread_count: currentUnreadCount + 1,
               awaiting_reply: true,
-              last_customer_message_at: new Date().toISOString(),
+              // Not `last_customer_message_at`: filling in a web form
+              // does not open Meta's 24-hour free-form window, and
+              // stamping it here both invented a window for a lead who
+              // has never messaged and extended it past the truth for
+              // one who had. The thread still needs a reply either way.
               updated_at: new Date().toISOString(),
             })
             .eq("id", conversationId);

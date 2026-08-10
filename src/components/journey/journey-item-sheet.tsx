@@ -13,7 +13,9 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
+import { toast } from "sonner";
 import {
   ArrowRight,
   Ban,
@@ -22,9 +24,11 @@ import {
   Check,
   ChevronDown,
   Clock,
+  ExternalLink,
   EyeOff,
   Home,
   MapPin,
+  MessageSquare,
   Phone,
   RotateCcw,
   Trash2,
@@ -34,6 +38,20 @@ import {
 
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
+import { resolveConversation } from "@/lib/conversations/resolve";
+import { buildCheckInMessage } from "@/lib/journey/checkin-message";
+import {
+  accountBrandName,
+  accountShowcaseBase,
+} from "@/lib/showcase/account-showcase-url";
+import {
+  buildJourneyCheckinParams,
+  journeyCheckinUrlSuffix,
+  JOURNEY_CHECKIN_TEMPLATE_NAME,
+} from "@/lib/whatsapp/journey-checkin-template";
+import { describeEnquiredProperty } from "@/lib/whatsapp/enquiry-notice-template";
+import { propertyShowcaseUrl } from "@/lib/share-message-builder";
 import { formatCurrencyShort } from "@/lib/currency-utils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -52,9 +70,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type {
+  Contact,
   JourneyEvent,
   JourneyItem,
   JourneyStage,
+  Property,
 } from "@/types";
 import {
   planEtaLabel,
@@ -82,6 +102,13 @@ export interface JourneyItemSheetProps {
   stages: JourneyStage[];
   currency: string;
   canEdit: boolean;
+  /** The item's contact — hydrated on the item in seller mode, the
+   *  section's subject in buyer mode. Drives the message actions. */
+  contact: Contact | null;
+  /** The item's property — the mirror of `contact`: hydrated on the
+   *  item in buyer mode, the section's subject in seller mode. Names
+   *  the listing in the prefilled check-in message. */
+  property: Property | null;
   onClose: () => void;
   onAdvance: (item: JourneyItem) => void;
   onMoveTo: (item: JourneyItem, stageId: string) => void;
@@ -101,6 +128,8 @@ export function JourneyItemSheet({
   stages,
   currency,
   canEdit,
+  contact,
+  property,
   onClose,
   onAdvance,
   onMoveTo,
@@ -112,6 +141,8 @@ export function JourneyItemSheet({
   onClearPlan,
 }: JourneyItemSheetProps) {
   const supabase = createClient();
+  const router = useRouter();
+  const { user } = useAuth();
   const open = item !== null;
 
   const [events, setEvents] = useState<JourneyEvent[]>([]);
@@ -122,6 +153,9 @@ export function JourneyItemSheet({
   const [planFormOpen, setPlanFormOpen] = useState(false);
   const [planStageId, setPlanStageId] = useState("");
   const [planDate, setPlanDate] = useState("");
+  const [openingInbox, setOpeningInbox] = useState(false);
+  const [showcaseBase, setShowcaseBase] = useState<string | null>(null);
+  const [brandName, setBrandName] = useState<string | null>(null);
 
   // Reset transient state whenever a different item opens. Deferred
   // setter (matches the repo-wide pattern) so the reset doesn't
@@ -134,6 +168,7 @@ export function JourneyItemSheet({
       setPlanFormOpen(false);
       setPlanStageId("");
       setPlanDate("");
+      setOpeningInbox(false);
     });
   }, [item?.id]);
 
@@ -160,10 +195,104 @@ export function JourneyItemSheet({
     };
   }, [item, supabase]);
 
+  // The account's showcase base, resolved once per account — the
+  // WhatsApp hand-off opens a window synchronously, so the link has to
+  // be in hand before the agent taps, not fetched on the click.
+  const accountId = item?.account_id;
+  useEffect(() => {
+    if (!accountId) return;
+    let cancelled = false;
+    (async () => {
+      const [base, brand] = await Promise.all([
+        accountShowcaseBase(supabase, accountId),
+        accountBrandName(supabase, accountId),
+      ]);
+      if (cancelled) return;
+      setShowcaseBase(base);
+      setBrandName(brand);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [accountId, supabase]);
+
   const stageName = useMemo(() => {
     const map = new Map(stages.map((s) => [s.id, s.name]));
     return (id?: string | null) => (id ? map.get(id) ?? "?" : "?");
   }, [stages]);
+
+  // The one question a stalled branch is asking: still in play, or
+  // park it? Both channels open with it already typed out.
+  // `v=` attributes the recipient's showcase visit to them in Pulse
+  // (it tags the view, it never gates access).
+  const propertyUrl =
+    showcaseBase && property && contact
+      ? `${propertyShowcaseUrl(showcaseBase, property)}&v=${encodeURIComponent(contact.id)}`
+      : null;
+
+  const checkInMessage = buildCheckInMessage({
+    contactName: contact?.name,
+    propertyTitle: property?.title,
+    propertyCode: property?.property_code,
+    stageName: item ? stages[stageIndexOf(item, stages)]?.name : null,
+    propertyUrl,
+  });
+
+  /** Whether the contact has written inside the last 24 hours — the
+   *  free-form window. Closed means a typed message can only fail with
+   *  131049, so the nudge has to go as the approved template instead. */
+  const sessionOpen = async (conversationId: string): Promise<boolean> => {
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { count } = await supabase
+      .from("messages")
+      .select("id", { count: "exact", head: true })
+      .eq("conversation_id", conversationId)
+      .eq("sender_type", "customer")
+      .gte("created_at", since);
+    return (count ?? 0) > 0;
+  };
+
+  /** The approved check-in template, filled. The picker opens on it so
+   *  the agent reads the rendered message and sends — nothing goes out
+   *  from here. */
+  const templateIntent = () => ({
+    name: JOURNEY_CHECKIN_TEMPLATE_NAME,
+    body: buildJourneyCheckinParams(
+      contact?.name,
+      brandName,
+      property ? describeEnquiredProperty(property) : "",
+    ),
+    ...(property && contact
+      ? { urlSuffix: journeyCheckinUrlSuffix(property, contact.id) }
+      : {}),
+  });
+
+  const openInInbox = async () => {
+    if (!item || !contact || openingInbox) return;
+    setOpeningInbox(true);
+    const { conversation, error } = await resolveConversation<{ id: string }>(
+      supabase,
+      {
+        accountId: item.account_id,
+        contactId: contact.id,
+        userId: user?.id ?? null,
+        columns: "id",
+      },
+    );
+    if (!conversation) {
+      setOpeningInbox(false);
+      toast.error(error?.message ?? "Could not open the chat thread");
+      return;
+    }
+    const open24h = await sessionOpen(conversation.id);
+    router.push(
+      open24h
+        ? `/inbox?c=${conversation.id}&draft=${encodeURIComponent(checkInMessage)}`
+        : `/inbox?c=${conversation.id}&tpl=${encodeURIComponent(
+            JSON.stringify(templateIntent()),
+          )}`,
+    );
+  };
 
   if (!item) {
     return (
@@ -239,6 +368,57 @@ export function JourneyItemSheet({
         </SheetHeader>
 
         <div className="flex flex-1 flex-col gap-5 overflow-y-auto px-5 py-4">
+          {/* Talk to the contact — Engine inbox or their own WhatsApp */}
+          {contact && (
+            <div className="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2.5">
+              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                Contact
+              </p>
+              <div className="flex items-center gap-2">
+                <UserRound className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-xs font-semibold text-slate-200">
+                    {contact.name || contact.phone}
+                  </p>
+                  {contact.name && contact.phone && (
+                    <p className="truncate text-[11px] text-slate-500">
+                      {contact.phone}
+                    </p>
+                  )}
+                </div>
+              </div>
+              <div className="mt-2 flex gap-2">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="flex-1"
+                  disabled={openingInbox}
+                  onClick={openInInbox}
+                >
+                  <MessageSquare className="h-3.5 w-3.5" />
+                  {openingInbox ? "Opening…" : "Engine inbox"}
+                </Button>
+                {contact.phone && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="flex-1"
+                    onClick={() =>
+                      window.open(
+                        `https://wa.me/${contact.phone.replace(/\D/g, "")}?text=${encodeURIComponent(checkInMessage)}`,
+                        "_blank",
+                        "noopener,noreferrer",
+                      )
+                    }
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    WhatsApp
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Stage progress rail */}
           <div>
             <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
