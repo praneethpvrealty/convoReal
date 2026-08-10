@@ -101,6 +101,17 @@ const MEDIA_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
  *  they are rather than showing an empty bubble. */
 const UNRENDERED_TYPES = ['location', 'template', 'interactive'];
 
+/** True while an outgoing attachment is still being uploaded: the
+ *  bubble is on screen (so the send is visibly happening) but there is
+ *  no stored path to render from yet. */
+function isUploading(message: Message): boolean {
+  return (
+    message.status === 'sending' &&
+    !message.media_url &&
+    ['image', 'video', 'audio', 'document'].includes(message.content_type)
+  );
+}
+
 /**
  * A video or document: an openable row rather than an inline player.
  * A video decoded in every bubble would cost a scrolling thread far
@@ -366,11 +377,12 @@ export function MessageBubble({
                 <AudioBubble mediaUrl={message.media_url} outgoing={outgoing} />
               ) : null}
 
-              {message.content_type === 'video' || message.content_type === 'document' ? (
+              {(message.content_type === 'video' || message.content_type === 'document') &&
+              !isUploading(message) ? (
                 <MediaAttachment message={message} outgoing={outgoing} />
               ) : null}
 
-              {UNRENDERED_TYPES.includes(message.content_type) ? (
+              {UNRENDERED_TYPES.includes(message.content_type) || isUploading(message) ? (
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <Ionicons
                     name={MEDIA_ICONS[message.content_type] ?? 'attach-outline'}

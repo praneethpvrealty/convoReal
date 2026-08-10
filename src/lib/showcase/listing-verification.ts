@@ -195,6 +195,10 @@ export async function processListingVerification(args: ProcessArgs): Promise<boo
         maintenance: draft.maintenance,
         advance: draft.advance,
         gst: draft.gst,
+        jv_structure: draft.jv_structure || null,
+        owner_share_percent: draft.owner_share_percent ?? null,
+        builder_share_percent: draft.builder_share_percent ?? null,
+        goodwill_amount: draft.goodwill_amount ?? null,
       })
       .select('id, property_code, title, price, location, type')
       .single();

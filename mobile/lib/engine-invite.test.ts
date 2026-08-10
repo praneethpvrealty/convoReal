@@ -26,7 +26,19 @@ describe('buildEngineInvite', () => {
     expect(message.endsWith(buildEngineInviteLink(official))).toBe(true);
   });
 
+  it('sells the move on buyer value, not channel logistics', () => {
+    // The invite goes out from the agent's personal number; the reasons
+    // to tap are what the engine does for the buyer — speed, steal
+    // deals, no spam — with STOP ALERTS as the risk reversal.
+    const message = buildEngineInvite(official, 'Ganesh Kumar');
+    expect(message).toContain('moment');
+    expect(message).toContain('steal deals');
+    expect(message).toContain('STOP ALERTS');
+  });
+
   it('falls back to a neutral greeting for an unnamed contact', () => {
-    expect(buildEngineInvite(official, '   ').startsWith('Hi there 👋')).toBe(true);
+    expect(buildEngineInvite(official, '   ').startsWith('Hi there 👋')).toBe(
+      true
+    );
   });
 });

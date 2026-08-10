@@ -415,6 +415,10 @@ export async function POST(request: Request) {
       productRetailerId: product_retailer_id,
       contextMessageId,
       replyToMessageId,
+      // An agent typing in the inbox is the one send a dead or archived
+      // contact is still allowed to receive — the composer shows them
+      // the notice first. Every automated sender leaves this unset.
+      allowDeadContact: true,
       customDbClient: supabase,
     })
 

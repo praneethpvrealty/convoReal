@@ -20,6 +20,7 @@ import {
 } from '@/lib/radar/engine';
 import { buildMatchesReply } from '@/lib/ai/buyer-qualification';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
+import { sendListingFeedbackPrompt } from '@/lib/whatsapp/listing-feedback';
 import { isPlaceholderLeadName } from '@/lib/contacts/lead-placeholder';
 
 export interface PreferenceMatchFollowUpResult {
@@ -96,7 +97,18 @@ export async function sendPreferenceMatchFollowUp(args: {
       customDbClient: db,
     });
 
-    if (matches.length > 0) {
+    if (matches.length > 0 && result.success) {
+      // One tap per listing beats "reply with the number". No form row:
+      // this lead just completed the form.
+      await sendListingFeedbackPrompt({
+        db,
+        accountId,
+        userId,
+        contactId,
+        conversationId,
+        matches,
+      });
+
       // Surface the same listings on Match Radar so the agent picks the
       // thread up already knowing what the lead was shown.
       void generateMatchEventForContact(db, accountId, contactId).catch(
