@@ -26,6 +26,9 @@ ALTER TABLE message_templates
 CREATE OR REPLACE FUNCTION public.reset_translation_review()
 RETURNS TRIGGER
 LANGUAGE plpgsql
+-- See the note on enforce_active_ui_language in 247: same reason,
+-- same lint (0011_function_search_path_mutable).
+SET search_path = public
 AS $$
 BEGIN
   IF NEW.body_text IS DISTINCT FROM OLD.body_text

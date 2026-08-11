@@ -55,6 +55,11 @@ END $$;
 CREATE OR REPLACE FUNCTION public.enforce_active_ui_language()
 RETURNS TRIGGER
 LANGUAGE plpgsql
+-- Pinned: an unqualified reference in a trigger body resolves through
+-- the caller's search_path, so anyone able to create an object in a
+-- schema earlier in that path could shadow what this function means to
+-- call. Supabase's linter flags the omission (lint 0011).
+SET search_path = public
 AS $$
 BEGIN
   IF NOT (NEW.active_ui_language = ANY (NEW.ui_languages)) THEN
