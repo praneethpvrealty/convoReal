@@ -4,6 +4,8 @@ import { truncateParametersToBudget } from '@/lib/whatsapp/template-send-builder
 import { greetingName } from '@/lib/contacts/lead-placeholder';
 import { isContactReachable } from '@/lib/contacts/lifecycle';
 import { ENQUIRY_NOTICE_TEMPLATE_NAMES } from '@/lib/whatsapp/enquiry-notice-template';
+import { resolveLanguage } from '@/lib/whatsapp/template-language';
+import { metaLanguageCode } from '@/lib/languages';
 import {
   loadEnquiryNoticeContext,
   resolveEnquiryNoticeParams,
@@ -433,6 +435,33 @@ async function dispatchClaimedRecipients(
     }
   }
 
+  // Every approved language variant of the same template name, so one
+  // broadcast can reach a Tamil contact in Tamil and a Hindi one in
+  // Hindi. The row the agent chose in the wizard stays the baseline:
+  // a recipient with no language of their own, or one whose language
+  // has no approved variant, gets exactly that row and nothing about
+  // this broadcast changes.
+  const variantByLanguage = new Map<string, Record<string, unknown>>();
+  const { data: variantRows } = await supabase
+    .from('message_templates')
+    .select('*')
+    .eq('account_id', accountId)
+    .eq('name', broadcast.template_name);
+  for (const row of (variantRows ?? []) as Record<string, unknown>[]) {
+    const lang = typeof row.language === 'string' ? row.language : '';
+    if (!lang) continue;
+    if (String(row.status ?? '').toUpperCase() !== 'APPROVED') continue;
+    if (!variantByLanguage.has(lang)) variantByLanguage.set(lang, row);
+  }
+
+  const { data: accountRow } = await supabase
+    .from('accounts')
+    .select('default_language')
+    .eq('id', accountId)
+    .maybeSingle();
+  const accountLanguage = (accountRow as { default_language?: string | null } | null)
+    ?.default_language;
+
   // Pre-load custom contact values for the batch
   const contactIds = recipients
     .map((r) => r.contact_id)
@@ -555,16 +584,28 @@ async function dispatchClaimedRecipients(
         );
       }
 
+      // Same template name, this recipient's language where we hold an
+      // approved variant for it. Falls back to the agent's chosen row.
+      const recipientTemplate =
+        (variantByLanguage.get(
+          metaLanguageCode(
+            resolveLanguage(
+              recipient.contact.preferred_language,
+              accountLanguage
+            )
+          )
+        ) as typeof templateRow) ?? templateRow;
+
       let truncatedParams = bodyParams;
-      if (templateRow?.body_text) {
+      if (recipientTemplate?.body_text) {
         truncatedParams = truncateParametersToBudget(
-          templateRow.body_text,
+          recipientTemplate.body_text,
           bodyParams
         );
       }
 
-      const resolvedText = templateRow?.body_text
-        ? resolveTemplateBodyText(templateRow.body_text, truncatedParams)
+      const resolvedText = recipientTemplate?.body_text
+        ? resolveTemplateBodyText(recipientTemplate.body_text, truncatedParams)
         : `[Template: ${broadcast.template_name}]`;
 
       const newCount = (recipient.retry_count ?? 0) + 1;
@@ -578,9 +619,9 @@ async function dispatchClaimedRecipients(
           senderType: 'agent',
           templateName: broadcast.template_name,
           templateLanguage:
-            templateRow?.language || broadcast.template_language || 'en_US',
+            recipientTemplate?.language || broadcast.template_language || 'en_US',
           templateParams: truncatedParams,
-          templateRow: templateRow ?? undefined,
+          templateRow: recipientTemplate ?? undefined,
           text: resolvedText,
           customDbClient: supabase,
         });

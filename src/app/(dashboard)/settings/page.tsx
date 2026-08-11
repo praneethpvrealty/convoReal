@@ -43,6 +43,7 @@ import { TemplateManager } from '@/components/settings/template-manager';
 import { TagManager } from '@/components/settings/tag-manager';
 import { ProfileForm } from '@/components/settings/profile-form';
 import { BusinessNameCard } from '@/components/settings/business-name-card';
+import { DefaultLanguageCard } from '@/components/settings/default-language-card';
 import { PasswordForm } from '@/components/settings/password-form';
 import { SessionsCard } from '@/components/settings/sessions-card';
 import { AppearancePanel } from '@/components/settings/appearance-panel';
@@ -434,6 +435,7 @@ export default function SettingsPage() {
           <TabsContent value="profile" className="space-y-6 mt-0">
             <ProfileForm />
             <BusinessNameCard />
+            <DefaultLanguageCard />
             <PasswordForm />
             <SessionsCard />
           </TabsContent>

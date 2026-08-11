@@ -49,6 +49,7 @@ import {
   extractVariableIndices,
   TEMPLATE_LIMITS,
 } from '@/lib/whatsapp/template-validators';
+import { LANGUAGE_CODES, languageDisplay, metaLanguageCode } from '@/lib/languages';
 
 const CATEGORIES = ['Marketing', 'Utility', 'Authentication'] as const;
 type HeaderFormat = 'none' | 'text' | 'image' | 'video' | 'document';
@@ -94,24 +95,35 @@ const emptyForm: TemplateFormData = {
   buttons: [],
 };
 
-const COMMON_LANGUAGE_CODES = [
-  'en_US',
-  'en_GB',
-  'en',
-  'es',
-  'es_ES',
-  'es_MX',
-  'fr',
-  'fr_FR',
-  'de',
-  'it',
-  'pt_BR',
-  'pt_PT',
-  'nl',
-  'pl',
-  'ru',
-  'tr',
-  'lt',
+// Suggestions for the language box. The languages ConvoReal speaks lead
+// the list — an Indian brokerage reaching for Kannada should not have to
+// know Meta spells it `kn` — followed by the European codes an account
+// may already hold templates in. Still a free-text input: Meta supports
+// far more than this, and the field must never block an unlisted one.
+const SUGGESTED_LANGUAGE_CODES: { code: string; label: string }[] = [
+  ...LANGUAGE_CODES.map((code) => ({
+    code: metaLanguageCode(code),
+    label: languageDisplay(code),
+  })),
+  { code: 'en_GB', label: 'English (UK)' },
+  { code: 'en', label: 'English (generic)' },
+  { code: 'bn', label: 'বাংলা (Bengali)' },
+  { code: 'gu', label: 'ગુજરાતી (Gujarati)' },
+  { code: 'pa', label: 'ਪੰਜਾਬੀ (Punjabi)' },
+  { code: 'es', label: 'Spanish' },
+  { code: 'es_ES', label: 'Spanish (Spain)' },
+  { code: 'es_MX', label: 'Spanish (Mexico)' },
+  { code: 'fr', label: 'French' },
+  { code: 'fr_FR', label: 'French (France)' },
+  { code: 'de', label: 'German' },
+  { code: 'it', label: 'Italian' },
+  { code: 'pt_BR', label: 'Portuguese (Brazil)' },
+  { code: 'pt_PT', label: 'Portuguese (Portugal)' },
+  { code: 'nl', label: 'Dutch' },
+  { code: 'pl', label: 'Polish' },
+  { code: 'ru', label: 'Russian' },
+  { code: 'tr', label: 'Turkish' },
+  { code: 'lt', label: 'Lithuanian' },
 ];
 
 function emptyButton(type: TemplateButton['type']): TemplateButton {
@@ -907,8 +919,8 @@ export function TemplateManager() {
                   className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
                 />
                 <datalist id="template-language-codes">
-                  {COMMON_LANGUAGE_CODES.map((code) => (
-                    <option key={code} value={code} />
+                  {SUGGESTED_LANGUAGE_CODES.map(({ code, label }) => (
+                    <option key={code} value={code} label={label} />
                   ))}
                 </datalist>
                 <p className="text-[11px] text-slate-500">
@@ -919,7 +931,8 @@ export function TemplateManager() {
                   ) : (
                     <>
                       Must match the exact code on Meta — <code>en_US</code> and{' '}
-                      <code>en</code> are distinct.
+                      <code>en</code> are distinct. Submit the same template name
+                      once per language to reach contacts in theirs.
                     </>
                   )}
                 </p>

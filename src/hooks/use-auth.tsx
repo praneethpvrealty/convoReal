@@ -49,6 +49,9 @@ interface AccountSummary {
   id: string;
   name: string;
   status: string;
+  /** Outbound language default (migration 242). Absent on rows read
+   *  before the column existed — callers narrow with toLanguageCode(). */
+  default_language?: string;
 }
 
 interface AuthContextValue {
@@ -196,7 +199,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // missing account collapses to null rather than a half-
           // populated row (shouldn't happen post-017 NOT NULL, but
           // belt-and-braces against forks running older schemas).
-          "id, full_name, email, phone, avatar_url, role, beta_features, account_id, account_role, org_role, team_id, is_read_only, account:accounts!inner(id, name, status)",
+          "id, full_name, email, phone, avatar_url, role, beta_features, account_id, account_role, org_role, team_id, is_read_only, account:accounts!inner(id, name, status, default_language)",
         )
         .eq("user_id", userId)
         .maybeSingle();
@@ -260,7 +263,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // form before reading.
         const accountRow = Array.isArray(data.account)
           ? data.account[0] ?? null
-          : (data.account as { id: string; name: string; status: string } | null);
+          : (data.account as AccountSummary | null);
 
         // Narrow the DB enum into our AccountRole union. The DB
         // constraint should make this unconditional, but a future

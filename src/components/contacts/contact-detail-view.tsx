@@ -15,6 +15,7 @@ import { ProjectsOfInterestInput } from '@/components/contacts/projects-of-inter
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import { LogCallPrompt, type PendingDial } from '@/components/contacts/log-call-prompt';
 import { contactFullName } from '@/lib/contacts/full-name';
+import { LANGUAGE_CODES, languageDisplay, type LanguageCode } from '@/lib/languages';
 import { pruneAreasGeo } from '@/lib/contacts/area-geo';
 import {
   Sheet,
@@ -176,6 +177,7 @@ export function ContactDetailView({
     }
   }, [activeTab, editClassification]);
   const [editLeadTemp, setEditLeadTemp] = useState<'HOT' | 'COLD' | 'Not Responding' | 'Dead' | ''>('');
+  const [editPreferredLanguage, setEditPreferredLanguage] = useState<LanguageCode | ''>('');
   const [editLastInquiredPropertyId, setEditLastInquiredPropertyId] = useState<string | null>(null);
   const [allProperties, setAllProperties] = useState<Property[]>([]);
   const [editReferrer, setEditReferrer] = useState('');
@@ -292,6 +294,7 @@ export function ContactDetailView({
         setEditName(data.name ?? '');
         setEditSecondName(data.second_name ?? '');
         setEditNameTag(data.name_tag ?? '');
+        setEditPreferredLanguage(data.preferred_language ?? '');
         setEditPhone(data.phone);
         setEditSecondaryPhones(data.secondary_phones ?? []);
         setEditEmail(data.email ?? '');
@@ -1022,6 +1025,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
         name: editName.trim() || null,
         second_name: editSecondName.trim() || null,
         name_tag: editNameTag.trim() || null,
+        preferred_language: editPreferredLanguage || null,
         phone: normalizedPrimary,
         secondary_phones: normalizedSecondary,
         email: editEmail.trim() || null,
@@ -1836,6 +1840,22 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                       <option value="COLD">❄️ COLD</option>
                       <option value="Not Responding">⏳ Not Responding</option>
                       <option value="Dead">💀 Dead</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-slate-400 text-xs">Preferred Language</Label>
+                    <select
+                      value={editPreferredLanguage}
+                      onChange={(e) => setEditPreferredLanguage(e.target.value as LanguageCode | '')}
+                      className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm text-white focus:border-primary focus:outline-none"
+                    >
+                      <option value="">Use account default</option>
+                      {LANGUAGE_CODES.map((code) => (
+                        <option key={code} value={code}>
+                          {languageDisplay(code)}
+                        </option>
+                      ))}
                     </select>
                   </div>
 

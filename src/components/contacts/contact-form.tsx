@@ -11,6 +11,7 @@ import { ProjectsOfInterestInput } from '@/components/contacts/projects-of-inter
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import { contactFullName } from '@/lib/contacts/full-name';
 import { pruneAreasGeo } from '@/lib/contacts/area-geo';
+import { LANGUAGE_CODES, languageDisplay, type LanguageCode } from '@/lib/languages';
 import {
   Dialog,
   DialogContent,
@@ -63,6 +64,7 @@ export function ContactForm({
   const [company, setCompany] = useState('');
   const [classification, setClassification] = useState<'Owner' | 'Seller' | 'Buyer' | 'Agent' | 'Developer' | 'Owner & Buyer' | 'Others'>('Others');
   const [leadTemp, setLeadTemp] = useState<'HOT' | 'COLD' | 'Not Responding' | 'Dead' | ''>('');
+  const [preferredLanguage, setPreferredLanguage] = useState<LanguageCode | ''>('');
   const [lastInquiredPropertyId, setLastInquiredPropertyId] = useState<string | null>(null);
   const [referrer, setReferrer] = useState('');
   const [referrerContactId, setReferrerContactId] = useState<string | null>(null);
@@ -165,6 +167,7 @@ export function ContactForm({
       setName(contact?.name ?? '');
       setSecondName(contact?.second_name ?? '');
       setNameTag(contact?.name_tag ?? '');
+      setPreferredLanguage(contact?.preferred_language ?? '');
       setPhone(contact?.phone ?? '');
       setSecondaryPhones(contact?.secondary_phones ?? []);
       setEmail(contact?.email ?? '');
@@ -297,6 +300,7 @@ export function ContactForm({
         name: name.trim() || null,
         second_name: secondName.trim() || null,
         name_tag: nameTag.trim() || null,
+        preferred_language: preferredLanguage || null,
         phone: normalizedPrimary,
         secondary_phones: normalizedSecondary,
         email: email.trim() || null,
@@ -661,6 +665,29 @@ export function ContactForm({
               <option value="Not Responding">⏳ Not Responding</option>
               <option value="Dead">💀 Dead</option>
             </select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="cf-preferred-language" className="text-slate-300">
+              Preferred Language
+            </Label>
+            <select
+              id="cf-preferred-language"
+              value={preferredLanguage}
+              onChange={(e) => setPreferredLanguage(e.target.value as LanguageCode | '')}
+              className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
+            >
+              <option value="">Use account default</option>
+              {LANGUAGE_CODES.map((code) => (
+                <option key={code} value={code}>
+                  {languageDisplay(code)}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-slate-500">
+              Picks the language variant of a WhatsApp template when one exists.
+              Sends fall back to English if it doesn&apos;t.
+            </p>
           </div>
 
           <div className="space-y-2">

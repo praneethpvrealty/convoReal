@@ -3,6 +3,7 @@ import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatche
 import { findConversation, resolveConversationId } from '@/lib/conversations/resolve';
 import { truncateParametersToBudget } from '@/lib/whatsapp/template-send-builder';
 import { isReengagementError } from '@/lib/whatsapp/customer-window';
+import { resolveSendLanguage, isLanguageFallback } from '@/lib/whatsapp/template-language';
 import {
   PROPERTY_SHARE_TEMPLATE_NAMES,
   pickPropertyShareTemplate,
@@ -208,14 +209,24 @@ export async function sendPropertyToContact(opts: {
   // it has none — a property message that leads with the property is a
   // different message from one that does not, and the header is a
   // send-time parameter so it costs nothing at the category level.
-  const [brandImage, brandName] = await Promise.all([
+  const [brandImage, brandName, language] = await Promise.all([
     brandImageOnce,
     accountBrandName(db, accountId),
+    resolveSendLanguage(db, accountId, contactId),
   ]);
   const headerImage = shareHeaderImage({ images: property.images, brandImage });
   const alertTemplate = pickPropertyShareTemplate(candidates, {
     hasImage: Boolean(headerImage),
+    language,
   });
+  if (isLanguageFallback(alertTemplate, language)) {
+    // Not an error — the send still goes out. But an account that set a
+    // language and never approved a variant for it has a gap only this
+    // line will ever show them.
+    console.warn(
+      `[share-property-send] no approved ${language} variant for account ${accountId}; sent ${alertTemplate?.language ?? 'none'}`,
+    );
+  }
 
   if (!alertTemplate) {
     // Ensure a conversation exists so the client's "Open chat" fallback

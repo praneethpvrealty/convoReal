@@ -1,4 +1,5 @@
 import type { AccountRole, OrgRole } from '@/lib/auth/roles';
+import type { LanguageCode } from '@/lib/languages';
 
 export interface Profile {
   id: string;
@@ -65,6 +66,9 @@ export interface Account {
   name: string;
   /** auth.users.id of the immutable owner. */
   owner_user_id: string;
+  /** Outbound language used when the recipient's own is unknown
+   *  (migration 242). Defaults to English. */
+  default_language?: LanguageCode;
   created_at: string;
   updated_at: string;
 }
@@ -129,6 +133,10 @@ export interface Contact {
    *  (e.g. "Bank DSA"). Never included in outbound messages, which use
    *  `name` only (migration 122). */
   name_tag?: string | null;
+  /** Language this contact reads (migration 242). Null means unknown —
+   *  the send path falls back to the account default, so null and 'en'
+   *  are deliberately different: 'en' is a choice an agent made. */
+  preferred_language?: LanguageCode | null;
   email?: string;
   company?: string;
   classification?:
