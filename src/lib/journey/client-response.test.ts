@@ -21,9 +21,11 @@ import {
   buildClientFollowupButtons,
   buildUnmatchedReply,
   followupDueDate,
+  isJourneyCheckinText,
   parseClientFollowupReplyId,
   propertyLabel,
 } from './client-response';
+import { buildCheckInMessage } from './checkin-message';
 
 describe('client follow-up buttons', () => {
   it('builds the three timeline choices against the journey item', () => {
@@ -158,6 +160,26 @@ describe('buildAgentReply', () => {
     const reply = buildAgentReply({ ...base, askOutcome: 'window_closed' });
     expect(reply).toContain('24-hour window is closed');
     expect(reply).not.toContain('Asked Surya when to expect');
+  });
+});
+
+describe('isJourneyCheckinText', () => {
+  it('recognizes the actual check-in builder output', () => {
+    const msg = buildCheckInMessage({
+      contactName: 'Surya Bajaj',
+      propertyTitle: 'About 3 acres for an outright sale in Sarjapur',
+      propertyCode: 'PROP-1138',
+      stageName: 'Shared',
+    });
+    expect(isJourneyCheckinText(msg)).toBe(true);
+  });
+
+  it('ignores ordinary outbound messages', () => {
+    expect(isJourneyCheckinText('Lawyer - Jayant pattanshet')).toBe(false);
+    expect(isJourneyCheckinText('When should we check back with you?')).toBe(
+      false
+    );
+    expect(isJourneyCheckinText(null)).toBe(false);
   });
 });
 

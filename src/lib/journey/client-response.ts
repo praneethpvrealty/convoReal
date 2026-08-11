@@ -29,6 +29,8 @@ import {
   matchContactByName,
   type BookContact,
 } from '@/lib/contacts/draft-match';
+import { looksLikeQuestion } from '@/lib/ai/lead-question';
+import { scanMessagesForProperties } from '@/lib/journey/chat-scan';
 import { createNotification } from '@/lib/notifications/create';
 import { isWithinCustomerWindow } from '@/lib/whatsapp/customer-window';
 import { sendInteractiveButtons } from '@/lib/whatsapp/meta-api';
@@ -276,7 +278,8 @@ async function ensureJourneyItem(
   userId: string,
   contactId: string,
   propertyId: string,
-  stages: StageRow[]
+  stages: StageRow[],
+  captureReason: string
 ): Promise<ItemRow | null> {
   const read = async () => {
     const { data } = await db
@@ -326,7 +329,7 @@ async function ensureJourneyItem(
     item_id: created.id,
     event_type: 'added',
     to_stage_id: firstStage.id,
-    reason: 'Captured from forwarded chat screenshot',
+    reason: captureReason,
     created_by: userId,
   });
   if (evError)
@@ -507,7 +510,8 @@ export async function processClientReplyScreenshot(
     userId,
     contact.id,
     property.id,
-    stages
+    stages,
+    'Captured from forwarded chat screenshot'
   );
   let stageName: string | null = null;
   let askOutcome: ClientAskOutcome = 'failed';
@@ -684,4 +688,171 @@ export async function handleClientFollowupReply(
   });
 
   return true;
+}
+
+/** The fixed opening phrase of every journey check-in (locked by
+ *  checkin-message.test.ts) — how an inbound reply is recognized as
+ *  answering one, since check-ins are typed from the inbox composer
+ *  and leave no send record of their own. */
+export const JOURNEY_CHECKIN_PHRASE = 'just checking in on';
+
+export function isJourneyCheckinText(text?: string | null): boolean {
+  return (text || '').toLowerCase().includes(JOURNEY_CHECKIN_PHRASE);
+}
+
+const CHECKIN_REPLY_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+const RESPONSE_REASON_LIMIT = 280;
+
+export type InboxCheckinOutcome = 'not_checkin' | 'logged' | 'logged_and_asked';
+
+export interface InboxCheckinReplyArgs {
+  db: SupabaseClient;
+  accountId: string;
+  ownerUserId: string;
+  contact: { id: string; name?: string | null; phone: string };
+  conversationId: string;
+  responseText: string;
+  accessToken: string;
+  phoneNumberId: string;
+  /** true for the check-in template's "Still considering it" tap — the
+   *  tap itself is the answer, so the phrase gate is skipped and the
+   *  property is scanned from recent outbound messages. */
+  fromButton?: boolean;
+}
+
+/**
+ * A client answering a check-in directly in the Engine inbox: the same
+ * capture as the screenshot path, minus the AI — the contact and
+ * conversation are already known, the property is scanned out of the
+ * check-in message itself, and the client's own words become the
+ * journey event. Returns 'not_checkin' when the thread's last outbound
+ * wasn't a check-in (callers fall through to normal handling), 'logged'
+ * when the reply was recorded but reads as a question the bot should
+ * still answer, and 'logged_and_asked' when the timeline buttons went
+ * out and the message is fully handled.
+ */
+export async function handleInboxCheckinReply(
+  args: InboxCheckinReplyArgs
+): Promise<InboxCheckinOutcome> {
+  const {
+    db,
+    accountId,
+    ownerUserId,
+    contact,
+    conversationId,
+    responseText,
+    accessToken,
+    phoneNumberId,
+    fromButton,
+  } = args;
+
+  const { data: outboundData } = await db
+    .from('messages')
+    .select('content_text, created_at')
+    .eq('conversation_id', conversationId)
+    .in('sender_type', ['agent', 'bot'])
+    .order('created_at', { ascending: false })
+    .limit(fromButton ? 10 : 1);
+  const cutoff = Date.now() - CHECKIN_REPLY_WINDOW_MS;
+  const checkins = (
+    (outboundData ?? []) as Array<{
+      content_text: string | null;
+      created_at: string;
+    }>
+  ).filter(
+    (m) =>
+      new Date(m.created_at).getTime() > cutoff &&
+      (fromButton || isJourneyCheckinText(m.content_text))
+  );
+  if (checkins.length === 0) return 'not_checkin';
+
+  const { data: propData } = await db
+    .from('properties')
+    .select('id, title, property_code')
+    .eq('account_id', accountId);
+  const properties = ((propData ?? []) as PropertyRow[]).filter(
+    (p): p is PropertyRow & { title: string } => Boolean(p.title)
+  );
+  const found = scanMessagesForProperties(checkins, properties);
+  const propertyId = found.keys().next().value as string | undefined;
+  const property = properties.find((p) => p.id === propertyId);
+  if (!property) return 'not_checkin';
+  const label = propertyLabel(property);
+
+  const stages = await loadStages(db, accountId);
+  const item = await ensureJourneyItem(
+    db,
+    accountId,
+    ownerUserId,
+    contact.id,
+    property.id,
+    stages,
+    'Captured from check-in reply'
+  );
+  if (!item) return 'not_checkin';
+
+  const contactName = contact.name || 'Client';
+  const response = responseText.trim().slice(0, RESPONSE_REASON_LIMIT);
+
+  const { error: evError } = await db.from('journey_events').insert({
+    account_id: accountId,
+    item_id: item.id,
+    event_type: 'client_response',
+    reason: response,
+  });
+  if (evError)
+    console.error('[client-response] inbox event failed:', evError.message);
+  await db
+    .from('journey_items')
+    .update({ updated_at: new Date().toISOString() })
+    .eq('id', item.id);
+
+  const { error: noteError } = await db.from('contact_notes').insert({
+    contact_id: contact.id,
+    user_id: ownerUserId,
+    note_text: `💬 ${contactName} on ${label}: "${response}" (check-in reply)`,
+  });
+  if (noteError)
+    console.error('[client-response] inbox note failed:', noteError.message);
+
+  await appendDealNotes(
+    db,
+    contact.id,
+    property.id,
+    `[${format(new Date(), 'd MMM yyyy')}] Client response: ${response}`
+  );
+
+  await createNotification({
+    accountId,
+    userId: ownerUserId,
+    type: 'new_message',
+    title: `💬 ${contactName} responded on ${label}`,
+    body: response,
+    entityType: 'contact',
+    entityId: contact.id,
+    link: `/journey?contact=${contact.id}`,
+    channels: { inApp: true, push: true, whatsapp: false },
+  });
+
+  if (!fromButton && looksLikeQuestion(response)) return 'logged';
+
+  const askOutcome = await askClientForTimeline({
+    db,
+    accountId,
+    userId: ownerUserId,
+    contact: {
+      id: contact.id,
+      name: contact.name ?? null,
+      phone: contact.phone,
+    },
+    itemId: item.id,
+    bodyText: buildClientAskBody({
+      contactName,
+      propertyLabel: label,
+      responseSummary: fromButton ? null : response,
+    }),
+    accessToken,
+    phoneNumberId,
+  });
+  return askOutcome === 'sent' ? 'logged_and_asked' : 'logged';
 }
