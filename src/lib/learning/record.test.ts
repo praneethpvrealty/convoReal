@@ -137,3 +137,60 @@ describe('prepareFacts — non-column applies', () => {
     expect(prepared).toEqual([]);
   });
 });
+
+describe('prepareFacts — unsupported list removals', () => {
+  it('keeps an area the message never mentioned', () => {
+    // Production: pref_areas lost "Bangalore" on the message "only
+    // commercial plots and building", which says nothing about
+    // location. The areas simply stopped matching and nobody saw it.
+    const out = prepareFacts(
+      'contact',
+      { pref_areas: ['Hrbr Layout', 'Kalyan Nagar', 'Outer Ring Road', 'Bangalore'] },
+      [{ field: 'pref_areas', value: ['Hrbr Layout', 'Kalyan Nagar', 'Outer Ring Road'] }],
+      'only commercial plots and building'
+    );
+    // Nothing survives: with Bangalore restored the list is unchanged,
+    // so there is no write and no audit row either.
+    expect(out).toEqual([]);
+  });
+
+  it('allows a removal the buyer actually named', () => {
+    const out = prepareFacts(
+      'contact',
+      { pref_areas: ['Hebbal', 'Bangalore'] },
+      [{ field: 'pref_areas', value: ['Hebbal'] }],
+      'not looking in Bangalore any more'
+    );
+    expect(out).toHaveLength(1);
+    expect(out[0].value).toEqual(['Hebbal']);
+  });
+
+  it('never blocks an addition', () => {
+    const out = prepareFacts(
+      'contact',
+      { pref_areas: ['Hebbal'] },
+      [{ field: 'pref_areas', value: ['Hebbal', 'Whitefield'] }],
+      'also looking at Whitefield'
+    );
+    expect(out[0].value).toEqual(['Hebbal', 'Whitefield']);
+  });
+
+  it('keeps the addition and restores the drop when a message does both', () => {
+    const out = prepareFacts(
+      'contact',
+      { pref_areas: ['Hebbal', 'Bangalore'] },
+      [{ field: 'pref_areas', value: ['Hebbal', 'Whitefield'] }],
+      'also looking at Whitefield'
+    );
+    expect(out[0].value).toEqual(['Hebbal', 'Whitefield', 'Bangalore']);
+  });
+
+  it('allows no removal at all when there is no evidence to judge by', () => {
+    const out = prepareFacts(
+      'contact',
+      { pref_areas: ['Hebbal', 'Bangalore'] },
+      [{ field: 'pref_areas', value: ['Hebbal'] }]
+    );
+    expect(out).toEqual([]);
+  });
+});

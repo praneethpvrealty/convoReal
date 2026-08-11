@@ -273,6 +273,48 @@ export function normalizeValue(
 }
 
 /**
+ * A list value with unsupported REMOVALS put back.
+ *
+ * Extraction runs over the contact's whole brief, not just the newest
+ * message, so every re-extraction restates the entire list — and
+ * anything the model happens to omit reads as a deliberate deletion.
+ * One buyer lost "Bangalore" from their areas on the message "only
+ * commercial plots and building", which says nothing about location at
+ * all. Nobody sees that happen: the areas simply stop matching, and
+ * the contact looks like it was always that way.
+ *
+ * So a member the extraction dropped is kept unless the evidence
+ * MENTIONS it. A buyer who says "not Bangalore any more" names the
+ * thing they are dropping; a message about property types does not.
+ *
+ * The cost is a stale entry when someone narrows without naming what
+ * they are giving up ("only Hebbal now" leaves Bangalore behind). That
+ * is the right way round: a stale area over-matches and an agent sees
+ * the listing, where a dropped area under-matches and nobody sees
+ * anything.
+ *
+ * Additions are untouched — only removals need evidence.
+ */
+export function guardedListValue(
+  previous: unknown,
+  next: string[],
+  evidence: string
+): string[] {
+  if (!Array.isArray(previous)) return next;
+  const kept = new Set(next.map((v) => v.toLowerCase()));
+  const said = (evidence || '').toLowerCase();
+
+  const restored = previous.filter(
+    (p): p is string =>
+      typeof p === 'string' &&
+      p.trim().length > 0 &&
+      !kept.has(p.toLowerCase()) &&
+      !said.includes(p.toLowerCase())
+  );
+  return restored.length ? [...next, ...restored] : next;
+}
+
+/**
  * Has this actually changed? Order-insensitive for lists, so a
  * re-extraction that reshuffled the same three areas is not a change
  * worth an audit row — or, on a proposed field, a review card.
