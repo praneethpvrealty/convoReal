@@ -13,6 +13,18 @@ and polish.
 
 ### Added
 
+- **Web Contacts: filter "Enquired for" by project.** The starred-property
+  chips gain the mobile app's project axis — a **Project** picker beside
+  the chips (fed from `properties.project`, so units never linked to a
+  project row still count) narrows the list to everyone interested in
+  ANY unit of a tower: first-choice inquiries across all its units plus
+  contacts who named the project in their stated or AI-extracted
+  preferences. A per-unit chip only ever found a fraction of a tower's
+  buyers. The active filter mirrors to `?interest_project=` and survives
+  refresh, mutually exclusive with the property chips. Interest-filter
+  id lists are now bounded (150 contacts / 200 units), matching the
+  mobile port.
+
 - **Web Inventory: map view and "Near me".** The mobile app's two
   location features arrive on desktop. A List/Map toggle beside the
   listing tabs draws the current search as the app's violet price pins

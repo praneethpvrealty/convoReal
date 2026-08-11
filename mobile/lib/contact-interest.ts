@@ -3,11 +3,12 @@
  * people who showed interest in one property, or in anything inside one
  * project.
  *
- * Web (contacts-content.tsx) does the property half of this with up to
- * six chips fed from Inventory stars. Mobile keeps those as quick picks
- * but lets any listing be chosen by search, and adds the project axis:
- * a tower's buyers are spread across its units, so a per-unit chip finds
- * a fraction of them.
+ * Web (contacts-content.tsx) has the same two axes: starred-property
+ * chips plus a project picker (projectOptions is ported from
+ * src/lib/contacts/contact-interest.ts, kept in step by the web repo's
+ * mobile-parity test). Mobile additionally lets any listing be chosen
+ * by search: a tower's buyers are spread across its units, so a
+ * per-unit chip finds a fraction of them.
  *
  * `value` is a property id for `property` and a project NAME for
  * `project` — properties.project (TEXT) stays authoritative for units

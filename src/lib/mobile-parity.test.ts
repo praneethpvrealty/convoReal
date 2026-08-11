@@ -496,3 +496,24 @@ describe("mobile/lib/copilot-tours.ts mirrors the tour registry's mobileSteps", 
     }
   );
 });
+
+describe('mobile/lib/contact-interest.ts mirrors the web project axis', () => {
+  // Both surfaces derive the project picker from the same function; a
+  // divergence would make the two lists disagree on dedupe or order.
+  function projectOptionsBody(source: string): string {
+    const start = source.indexOf('export function projectOptions');
+    expect(start).toBeGreaterThan(-1);
+    const end = source.indexOf('\n}', start);
+    return source.slice(start, end).replace(/\s+/g, ' ');
+  }
+
+  it('keeps projectOptions byte-equivalent to the web implementation', () => {
+    const web = readFileSync(
+      join(process.cwd(), 'src/lib/contacts/contact-interest.ts'),
+      'utf8'
+    );
+    expect(projectOptionsBody(mobileSource('lib/contact-interest.ts'))).toBe(
+      projectOptionsBody(web)
+    );
+  });
+});

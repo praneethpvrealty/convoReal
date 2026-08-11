@@ -52,6 +52,7 @@ import {
   Trash2,
   Loader2,
   Users,
+  Building2,
   Star,
   StarOff,
   ChevronLeft,
@@ -104,12 +105,21 @@ import {
   effectiveMaxBudget,
 } from '@/lib/contact-preferences';
 import { STARRED_PROPERTY_CAP } from '@/lib/starred-properties';
+import { projectOptions } from '@/lib/contacts/contact-interest';
 import { localCache } from '@/lib/cache-store';
 
 const PAGE_SIZE = 25;
 
 const INTEREST_UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Bounds shared with the mobile port (mobile/app/(app)/(tabs)/contacts.tsx):
+// the contact ids an interest filter feeds into `.in()` stay capped so the
+// filter never builds an unbounded URL, and one project's units are scanned
+// to a ceiling comfortably past any real tower.
+const INTEREST_CONTACT_CAP = 150;
+const PROJECT_UNIT_CAP = 200;
+const PROJECT_SCAN_LIMIT = 400;
 
 interface ContactWithTags extends Contact {
   tags?: Tag[];
@@ -287,7 +297,9 @@ export default function ContactsPage() {
       window.removeEventListener('blur', handleBlur);
       if (!appOpened) {
         try {
-          const { conversation, error } = await resolveConversation<{ id: string }>(supabase, {
+          const { conversation, error } = await resolveConversation<{
+            id: string;
+          }>(supabase, {
             accountId,
             contactId: contact.id,
             userId: user?.id ?? null,
@@ -566,17 +578,50 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
       return seed && INTEREST_UUID_RE.test(seed) ? seed : 'All';
     }
   );
+  // Project axis of the interest filter — a project NAME, matching
+  // properties.project (TEXT), which stays authoritative even for units
+  // never linked to a project row (migration 227). Only ever used as a
+  // bound query parameter, so any string is safe to carry.
+  const [filterInterestProject, setFilterInterestProject] = useState<string>(
+    () => searchParams?.get('interest_project')?.trim().slice(0, 120) || 'All'
+  );
+  const [projectChoices, setProjectChoices] = useState<
+    { name: string; count: number }[]
+  >([]);
 
   // Single entry point for changing the interest chip: updates state and
   // mirrors it into the ?interest= URL param (history.replaceState, like
   // the inbox, to avoid a router round-trip on every chip tap).
   const applyInterestFilter = useCallback((id: string) => {
     setFilterInterestProperty(id);
+    if (id !== 'All') setFilterInterestProject('All');
     setPage(0);
     if (typeof window === 'undefined') return;
     const params = new URLSearchParams(window.location.search);
     if (id === 'All') params.delete('interest');
-    else params.set('interest', id);
+    else {
+      params.set('interest', id);
+      params.delete('interest_project');
+    }
+    const qs = params.toString();
+    window.history.replaceState(null, '', `/contacts${qs ? `?${qs}` : ''}`);
+  }, []);
+
+  // The project axis of the same filter: a tower's buyers are spread
+  // across its units, so a per-unit chip finds a fraction of them.
+  // Mutually exclusive with the property chip; mirrored to
+  // ?interest_project= the same way.
+  const applyProjectFilter = useCallback((name: string) => {
+    setFilterInterestProject(name);
+    if (name !== 'All') setFilterInterestProperty('All');
+    setPage(0);
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    if (name === 'All') params.delete('interest_project');
+    else {
+      params.set('interest_project', name);
+      params.delete('interest');
+    }
     const qs = params.toString();
     window.history.replaceState(null, '', `/contacts${qs ? `?${qs}` : ''}`);
   }, []);
@@ -835,6 +880,20 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     fetchStarredProps();
   }, [fetchStarredProps]);
 
+  // Distinct project names for the project filter — read off inventory
+  // rows, not the projects table, so unlinked units still count.
+  useEffect(() => {
+    if (!accountId) return;
+    const supabaseClient = createClient();
+    supabaseClient
+      .from('properties')
+      .select('project')
+      .eq('account_id', accountId)
+      .not('project', 'is', null)
+      .limit(PROJECT_SCAN_LIMIT)
+      .then(({ data }) => setProjectChoices(projectOptions(data ?? [])));
+  }, [accountId]);
+
   // If the active chip's property was unstarred elsewhere, drop the filter.
   // Waits for the first starred-props fetch so a URL-restored filter isn't
   // cleared against the initial empty array.
@@ -1046,7 +1105,10 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
             }
           }
 
-          if (filterInterestProperty !== 'All') {
+          if (
+            filterInterestProperty !== 'All' ||
+            filterInterestProject !== 'All'
+          ) {
             // First-choice interest only: the contact's primary inquiry
             // (last_inquired_property_id — set by the property form's
             // interested-contacts link and by the portal-email webhook's
@@ -1054,26 +1116,68 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
             // Non-Manual junction rows are excluded — the webhook historically
             // recorded every fuzzy match (score >= 2), so a type-only near-miss
             // could drag unrelated contacts into the chip.
-            const [inquiryRes, lastInquiredRes] = await Promise.all([
-              supabaseClient
-                .from('contact_property_inquiries')
-                .select('contact_id')
-                .eq('property_id', filterInterestProperty)
-                .eq('inquiry_source', 'Manual'),
-              supabaseClient
-                .from('contacts')
+            //
+            // Under a project filter the same sources run across every unit
+            // of the tower, plus contacts who NAMED the project in their
+            // stated preferences — the agent-entered list and the
+            // AI-extracted one — which is where most of a tower's buyers
+            // actually live.
+            let interestPropertyIds: string[] = [filterInterestProperty];
+            if (filterInterestProject !== 'All') {
+              const { data: unitRows } = await supabaseClient
+                .from('properties')
                 .select('id')
                 .eq('account_id', accountId)
-                .eq('last_inquired_property_id', filterInterestProperty),
-            ]);
+                .eq('project', filterInterestProject)
+                .limit(PROJECT_UNIT_CAP);
+              interestPropertyIds = (unitRows || []).map((r) => r.id);
+            }
+            const noRows = Promise.resolve({ data: [] as { id: string }[] });
+            const [inquiryRes, lastInquiredRes, enteredRes, extractedRes] =
+              await Promise.all([
+                interestPropertyIds.length
+                  ? supabaseClient
+                      .from('contact_property_inquiries')
+                      .select('contact_id')
+                      .in('property_id', interestPropertyIds)
+                      .eq('inquiry_source', 'Manual')
+                      .limit(INTEREST_CONTACT_CAP)
+                  : Promise.resolve({ data: [] as { contact_id: string }[] }),
+                interestPropertyIds.length
+                  ? supabaseClient
+                      .from('contacts')
+                      .select('id')
+                      .eq('account_id', accountId)
+                      .in('last_inquired_property_id', interestPropertyIds)
+                      .limit(INTEREST_CONTACT_CAP)
+                  : noRows,
+                filterInterestProject !== 'All'
+                  ? supabaseClient
+                      .from('contacts')
+                      .select('id')
+                      .eq('account_id', accountId)
+                      .contains('projects_of_interest', [filterInterestProject])
+                      .limit(INTEREST_CONTACT_CAP)
+                  : noRows,
+                filterInterestProject !== 'All'
+                  ? supabaseClient
+                      .from('contacts')
+                      .select('id')
+                      .eq('account_id', accountId)
+                      .contains('pref_projects', [filterInterestProject])
+                      .limit(INTEREST_CONTACT_CAP)
+                  : noRows,
+              ]);
             const interestedIds = Array.from(
               new Set(
                 [
                   ...(inquiryRes.data?.map((r) => r.contact_id) || []),
                   ...(lastInquiredRes.data?.map((r) => r.id) || []),
+                  ...(enteredRes.data?.map((r) => r.id) || []),
+                  ...(extractedRes.data?.map((r) => r.id) || []),
                 ].filter(Boolean)
               )
-            );
+            ).slice(0, INTEREST_CONTACT_CAP);
             if (interestedIds.length > 0) {
               query = query.in('id', interestedIds);
             } else {
@@ -1497,6 +1601,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     filterMaxBudget,
     filterArea,
     filterInterestProperty,
+    filterInterestProject,
     sortBy,
   ]);
 
@@ -1904,12 +2009,12 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
             chip filters to contacts who showed interest in that listing.
             The label is the property code; hovering (or long-pressing on
             touch devices) expands the full title. */}
-        {starredProps.length > 0 && (
+        {(starredProps.length > 0 || projectChoices.length > 0) && (
           <div className="-mt-1 flex flex-wrap items-center gap-1.5">
             <span className="flex shrink-0 items-center text-[10px] font-bold tracking-wider text-slate-500 uppercase">
               <Star className="mr-1 size-3 fill-amber-400 text-amber-400" />
               Interested in:
-              <InfoHint text="These quick filters are the properties you starred on the Inventory page (star icon on a listing's photo, up to 6). Tap a chip to see contacts whose first-choice interest is that property — linked as interested on the property form, top match of a portal/email inquiry, or manually logged on the contact. The active chip survives a page refresh. Hover a chip (or long-press on touch) and tap the star-off icon to remove it from here — that unstars the property in Inventory too." />
+              <InfoHint text="Quick filters by first-choice interest — linked as interested on the property form, top match of a portal/email inquiry, or manually logged on the contact. The chips are the properties you starred on the Inventory page (star icon on a listing's photo, up to 6); hover a chip (or long-press on touch) and tap the star-off icon to unstar it. The Project picker filters across EVERY unit of a project, plus contacts who named the project in their preferences — a tower's buyers are spread across its units, so a single listing's chip only finds a fraction of them. The active filter survives a page refresh." />
             </span>
             {starredProps.map((p) => {
               const active = filterInterestProperty === p.id;
@@ -1987,6 +2092,34 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                 </button>
               );
             })}
+            {projectChoices.length > 0 && (
+              <Select
+                value={filterInterestProject}
+                onValueChange={(value) => applyProjectFilter(value ?? 'All')}
+              >
+                <SelectTrigger
+                  aria-label="Filter by project"
+                  className={cn(
+                    'h-7 w-auto gap-1 rounded-full border px-2.5 text-[10px] font-bold',
+                    filterInterestProject !== 'All'
+                      ? 'border-amber-500/60 bg-amber-500/15 text-amber-300 shadow-[0_0_8px_rgba(245,158,11,0.25)]'
+                      : 'border-slate-700 bg-slate-900 text-slate-300 hover:border-amber-500/40 hover:text-amber-300'
+                  )}
+                >
+                  <Building2 className="size-3 shrink-0" />
+                  <SelectValue placeholder="Project" />
+                </SelectTrigger>
+                <SelectContent className="border-slate-700 bg-slate-900 text-slate-200">
+                  <SelectItem value="All">All projects</SelectItem>
+                  {projectChoices.map((project) => (
+                    <SelectItem key={project.name} value={project.name}>
+                      {project.name} ({project.count}{' '}
+                      {project.count === 1 ? 'unit' : 'units'})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
         )}
 
