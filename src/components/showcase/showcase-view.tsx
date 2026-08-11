@@ -94,6 +94,14 @@ interface ShowcaseViewProps {
   shareGrantToken?: string;
   /** Destination landing pages override the hero copy. */
   hero?: { title: string; highlight: string; subtitle: string; badges?: string[] };
+  /** Project facts (builder, amenities, gallery) — set only on
+   *  /projects/[slug] pages, where every listing shares one building. */
+  projectInfo?: {
+    builder?: string | null;
+    description?: string | null;
+    amenities?: string[];
+    images?: string[];
+  } | null;
   /** Accent theme applied when the URL has no ?theme= override. */
   initialTheme?: string;
   /** Destination pages pre-filter the catalog server-side — filters saved
@@ -128,6 +136,7 @@ export function ShowcaseView({
   shareId,
   shareGrantToken,
   hero,
+  projectInfo,
   initialTheme,
   disableSavedState = false
 }: ShowcaseViewProps) {
@@ -1328,6 +1337,61 @@ export function ShowcaseView({
             </div>
           )}
         </div>
+
+        {/* Project facts — builder, gallery, amenities. Only set on
+            /projects/[slug] pages, where every listing below shares one
+            building and this is the one place to say so. */}
+        {projectInfo &&
+          (projectInfo.builder ||
+            projectInfo.description ||
+            projectInfo.images?.length ||
+            projectInfo.amenities?.length) && (
+            <div className="mb-8 rounded-2xl border border-slate-800 bg-slate-900/50 p-6 animate-fade-in">
+              {(projectInfo.builder || projectInfo.description) && (
+                <div className="mb-5">
+                  {projectInfo.builder && (
+                    <p className="text-xs font-bold uppercase tracking-wider text-primary">
+                      By {projectInfo.builder}
+                    </p>
+                  )}
+                  {projectInfo.description && (
+                    <p className="mt-2 text-sm text-slate-400 leading-relaxed">
+                      {projectInfo.description}
+                    </p>
+                  )}
+                </div>
+              )}
+              {projectInfo.images && projectInfo.images.length > 0 && (
+                <div className="mb-5 flex gap-3 overflow-x-auto pb-1">
+                  {projectInfo.images.map((img, idx) => (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img
+                      key={img}
+                      src={showcaseImageUrl(storagePublicUrl(img), SHOWCASE_IMAGE_WIDTHS.card)}
+                      alt={`${hero?.highlight || 'Project'} photo ${idx + 1}`}
+                      loading="lazy"
+                      className="h-32 w-48 shrink-0 rounded-xl border border-slate-800 object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLElement).style.display = 'none';
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
+              {projectInfo.amenities && projectInfo.amenities.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {projectInfo.amenities.map((amenity) => (
+                    <span
+                      key={amenity}
+                      className="text-xs px-3 py-1.5 rounded-full border border-slate-750 bg-slate-800/60 text-slate-300 font-medium"
+                    >
+                      {amenity}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
         {/* Next-step CTAs — get alerted on hot deals, or list your own property */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8 animate-fade-in">
