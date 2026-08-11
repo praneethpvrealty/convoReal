@@ -21,13 +21,30 @@ describe('parseContactsCsv', () => {
     });
   });
 
-  it('requires a phone header and skips rows without a phone', () => {
-    expect(parseContactsCsv('name,email\nJohn,john@example.com')).toEqual([]);
+  it('needs a phone or an email column, and skips rows carrying neither', () => {
+    expect(parseContactsCsv('name,company\nJohn,Acme')).toEqual([]);
     const rows = parseContactsCsv(
       'phone,name\n,No Phone\n+911234567890,Has Phone'
     );
     expect(rows).toHaveLength(1);
     expect(rows[0].name).toBe('Has Phone');
+  });
+
+  it('imports an email-only file — a builder list with no numbers', () => {
+    const rows = parseContactsCsv(
+      'name,email,company\nBrigade Lands,sales@brigade.com,Brigade Group'
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].phone).toBeUndefined();
+    expect(rows[0].email).toBe('sales@brigade.com');
+    expect(rows[0].company).toBe('Brigade Group');
+  });
+
+  it('keeps the numbered rows of a mixed file and the mailbox-only ones', () => {
+    const rows = parseContactsCsv(
+      'phone,name,email\n+911234567890,Has Phone,a@b.com\n,Mailbox Only,desk@builder.com\n,Nothing,'
+    );
+    expect(rows.map((r) => r.name)).toEqual(['Has Phone', 'Mailbox Only']);
   });
 
   it('splits a trailing qualifier off the name when no name_tag column exists', () => {

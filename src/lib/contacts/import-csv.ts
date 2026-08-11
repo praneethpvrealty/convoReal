@@ -3,11 +3,14 @@
 // extraction runner drives /api/contacts/extract-preferences from the
 // browser because that endpoint caps contactIds at 25 per request.
 
+import { importRowKey } from '@/lib/contacts/import-batch';
 import { suggestNameTagSplit } from '@/lib/contacts/name-tag-split';
 import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
 
 export interface ParsedContactRow {
-  phone: string;
+  /** Absent for an email-only row — a builder or channel-partner desk
+   *  that publishes a mailbox and no number. */
+  phone?: string;
   name?: string;
   name_tag?: string;
   email?: string;
@@ -167,12 +170,15 @@ export function parseContactsCsv(text: string): ParsedContactRow[] {
     .map(splitCsvLine);
 
   const phoneIdx = pick(headers, 'phone', valueRows);
-  if (phoneIdx === -1) return [];
+  const emailIdx = pick(headers, 'email', valueRows);
+  // A file needs one column that can identify a person. Usually that is
+  // the number; a builder or channel-partner list often carries only
+  // mailboxes, which is a contact the Engine can now hold.
+  if (phoneIdx === -1 && emailIdx === -1) return [];
 
   const countryCodeIdx = pick(headers, 'countryCode', valueRows);
   const nameIdx = pick(headers, 'name', valueRows);
   const nameTagIdx = pick(headers, 'nameTag', valueRows);
-  const emailIdx = pick(headers, 'email', valueRows);
   const companyIdx = pick(headers, 'company', valueRows);
   const tagsIdx = pick(headers, 'tags', valueRows);
   const areasIdx = pick(headers, 'areas', valueRows);
@@ -184,8 +190,15 @@ export function parseContactsCsv(text: string): ParsedContactRow[] {
 
   const rows: ParsedContactRow[] = [];
   for (const values of valueRows) {
-    const rawPhone = values[phoneIdx]?.replace(/["']/g, '').trim();
-    if (!rawPhone) continue;
+    const rawPhone =
+      phoneIdx >= 0 ? values[phoneIdx]?.replace(/["']/g, '').trim() : '';
+    const email =
+      emailIdx >= 0
+        ? values[emailIdx]?.replace(/["']/g, '').trim() || undefined
+        : undefined;
+    // A row that names neither is not a contact — the DB would refuse it
+    // (`contacts_phone_or_email`) and there would be nothing to message.
+    if (!rawPhone && !email) continue;
 
     // A portal export splits the number across two columns. Join them
     // unless the number already carries its own international prefix,
@@ -196,11 +209,14 @@ export function parseContactsCsv(text: string): ParsedContactRow[] {
         : '';
     const joined =
       countryCode &&
+      rawPhone &&
       !rawPhone.startsWith('+') &&
       !rawPhone.startsWith(countryCode)
         ? `+${countryCode}${rawPhone.replace(/\D/g, '')}`
         : rawPhone;
-    const phone = normalizePhoneWithCountryCode(joined) || joined;
+    const phone = joined
+      ? normalizePhoneWithCountryCode(joined) || joined
+      : undefined;
 
     const minBudgetRaw =
       minBudgetIdx >= 0
@@ -227,10 +243,7 @@ export function parseContactsCsv(text: string): ParsedContactRow[] {
       phone,
       name: split ? split.name : rawName,
       name_tag: explicitTag ?? split?.nameTag ?? undefined,
-      email:
-        emailIdx >= 0
-          ? values[emailIdx]?.replace(/["']/g, '').trim() || undefined
-          : undefined,
+      email,
       company:
         companyIdx >= 0
           ? values[companyIdx]?.replace(/["']/g, '').trim() || undefined
@@ -262,26 +275,30 @@ export function parseContactsCsv(text: string): ParsedContactRow[] {
     });
   }
 
-  return dedupeByPhone(rows);
+  return dedupeByIdentity(rows);
 }
 
 /**
- * One row per number. A portal export repeats a lead once per enquiry —
- * 703 rows for 506 people in a real MagicBricks file — and importing
- * those verbatim would create a contact each time and message the same
- * person repeatedly.
+ * One row per identity — the number where there is one, the email
+ * otherwise. A portal export repeats a lead once per enquiry — 703 rows
+ * for 506 people in a real MagicBricks file — and importing those
+ * verbatim would create a contact each time and message the same person
+ * repeatedly.
  *
  * The first occurrence wins and later ones only fill blanks it left, so
  * nothing a duplicate uniquely carried is thrown away.
  */
-function dedupeByPhone(rows: readonly ParsedContactRow[]): ParsedContactRow[] {
-  const byPhone = new Map<string, ParsedContactRow>();
+function dedupeByIdentity(
+  rows: readonly ParsedContactRow[]
+): ParsedContactRow[] {
+  const byKey = new Map<string, ParsedContactRow>();
 
   for (const row of rows) {
-    const key = row.phone.replace(/\D/g, '');
-    const seen = byPhone.get(key);
+    const key = importRowKey(row);
+    if (!key) continue;
+    const seen = byKey.get(key);
     if (!seen) {
-      byPhone.set(key, { ...row });
+      byKey.set(key, { ...row });
       continue;
     }
     for (const field of [
@@ -304,7 +321,7 @@ function dedupeByPhone(rows: readonly ParsedContactRow[]): ParsedContactRow[] {
     }
   }
 
-  return [...byPhone.values()];
+  return [...byKey.values()];
 }
 
 // extract-preferences processes at most 25 contacts per request, so a
@@ -346,8 +363,8 @@ export async function extractPreferencesInBatches(
  * gives the user progress instead of a spinner that eventually fails.
  *
  * Chunking is safe against duplicates because the route resolves
- * existing contacts by phone per request, so a number inserted by one
- * chunk is found and updated by the next rather than inserted twice.
+ * existing contacts per request, so a contact inserted by one chunk is
+ * found and updated by the next rather than inserted twice.
  */
 export const IMPORT_CHUNK_SIZE = 50;
 
