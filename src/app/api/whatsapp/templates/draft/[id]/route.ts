@@ -154,6 +154,11 @@ export async function PATCH(
     // trigger from migration 248 clears it whenever the body changes,
     // which is the behaviour we want: corrected wording has not been
     // signed off yet, even by the person who just corrected it.
+    //
+    // copy_revision is not touched either, and that is the point of it:
+    // it records where the row STARTED, so leaving it is what makes
+    // this edit legible later as the account's own wording rather than
+    // as copy that has fallen behind ours.
     const { data, error } = await supabase
       .from('message_templates')
       .update({ body_text: nextBody, footer_text: nextFooter })

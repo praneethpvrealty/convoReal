@@ -20,6 +20,7 @@ import {
   normalizeCategory,
   normalizeStatus,
 } from '@/lib/whatsapp/template-status-normalize'
+import { stampFor } from '@/lib/whatsapp/copy-revision-stamp'
 import {
   requiresTranslationReview,
   isTranslationReviewed,
@@ -85,23 +86,39 @@ async function upsertTemplateRow(
   // unique constraints/indexes, which can occur if there is duplicate legacy data.
   const { data: existing } = await supabase
     .from('message_templates')
-    .select('id')
+    .select('id, copy_revision')
     .eq('user_id', row.user_id)
     .eq('name', row.name)
     .eq('language', row.language)
     .maybeSingle()
 
+  // Stamped here rather than in buildUpsertRow because the stamp needs
+  // the origin already on the row, and this is where that is in hand.
+  // Getting it wrong in the update direction is the costly one: a row
+  // the account never touched, re-submitted after we improved the copy,
+  // must keep pointing at the revision it was built from or it stops
+  // reading as untouched. See stampFor and migration 252.
+  const stamped = {
+    ...row,
+    copy_revision: stampFor(
+      row.name,
+      row.language,
+      row,
+      existing?.copy_revision as string | null | undefined,
+    ),
+  }
+
   if (existing?.id) {
     return supabase
       .from('message_templates')
-      .update(row)
+      .update(stamped)
       .eq('id', existing.id)
       .select()
       .single()
   } else {
     return supabase
       .from('message_templates')
-      .insert(row)
+      .insert(stamped)
       .select()
       .single()
   }

@@ -1020,6 +1020,61 @@ export function hasTranslation(
   return language === 'en' || TEMPLATE_COPY[key][language] !== undefined;
 }
 
+/**
+ * A short, stable fingerprint of the copy we ship for one
+ * (template, language) pair.
+ *
+ * Stored on a row when it is created, so later we can tell two things
+ * apart that otherwise look identical — a body that differs from the
+ * shipped wording because the ACCOUNT edited it, and one that differs
+ * because the SHIPPED wording moved on. Without it both read as
+ * "different" and the only safe response is to do nothing, which
+ * means a copy improvement never reaches anyone.
+ *
+ * FNV-1a, not a cryptographic digest: this detects change, it does
+ * not defend against anyone. It has to be synchronous (crypto.subtle
+ * is async and this is called during render) and identical in Node
+ * and the browser, which rules out the platform hashes.
+ */
+function fnv1a(input: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < input.length; i++) {
+    h ^= input.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0).toString(16).padStart(8, '0');
+}
+
+/**
+ * Fingerprint of one body+footer pair.
+ *
+ * Body and footer are hashed separately and concatenated rather than
+ * joined by a delimiter: any delimiter is either ambiguous (a body
+ * ending in it collides with a footer starting with it) or a control
+ * character, and a literal NUL in a source file makes grep treat the
+ * whole module as binary. Two fixed-width halves have neither problem.
+ *
+ * Exported so template-drift.ts fingerprints a stored row through the
+ * exact same function. It briefly did not — it kept its own copy of
+ * the loop — and the two silently disagreed, which is the whole class
+ * of bug this module is meant to detect rather than cause.
+ */
+export function revisionOf(
+  bodyText: string,
+  footerText: string | null | undefined,
+): string {
+  return fnv1a(bodyText) + fnv1a(footerText ?? '');
+}
+
+export function copyRevision(
+  key: EngineTemplateKey,
+  language: LanguageCode,
+): string {
+  // Footer included: it is copy a client reads, so a footer-only
+  // change is still a change worth offering.
+  return revisionOf(templateBody(key, language), templateFooter(key, language));
+}
+
 /** Exported for the constraint tests and the review UI. */
 export const TEMPLATE_COPY_TABLE = TEMPLATE_COPY;
 export const TEMPLATE_BUTTON_LABELS = BUTTON_LABELS;
