@@ -91,6 +91,18 @@ export async function askCopilot(args: {
   });
 }
 
+/** Adoption beacon — tours run entirely on-device, so without this a
+ *  tour start would be invisible to the usage rollup. */
+export function trackCopilotTour(
+  event: 'tour_start' | 'tour_complete',
+  tourId: string
+): void {
+  void apiFetch('/api/copilot/track', {
+    method: 'POST',
+    body: JSON.stringify({ event, tourId, platform: 'mobile' }),
+  }).catch(() => {});
+}
+
 /** Fire-and-forget 👍/👎 — feedback must never interrupt the chat. */
 export function sendCopilotFeedback(cacheId: string, vote: 'up' | 'down'): void {
   void apiFetch('/api/copilot/feedback', {

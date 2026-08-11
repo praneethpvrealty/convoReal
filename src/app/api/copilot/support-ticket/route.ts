@@ -14,6 +14,7 @@
 import { NextResponse } from 'next/server';
 
 import { getCurrentAccount, toErrorResponse } from '@/lib/auth/account';
+import { logCopilotEvent } from '@/lib/copilot/events';
 import { parseCoverage, parsePlatform } from '@/lib/copilot/platform';
 import {
   checkRateLimit,
@@ -150,6 +151,14 @@ export async function POST(request: Request) {
         { status: 500 }
       );
     }
+
+    logCopilotEvent({
+      accountId: ctx.accountId,
+      userId: ctx.userId,
+      platform: parsePlatform(payload.platform),
+      event: 'support_ticket',
+      coverage: parseCoverage(payload.coverage),
+    });
 
     return NextResponse.json({ id: data.id, reference: data.reference });
   } catch (err) {

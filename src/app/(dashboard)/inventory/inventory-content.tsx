@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { pushUrl, replaceUrl } from "@/lib/navigation";
+import { pushUrl, replaceUrl } from '@/lib/navigation';
 import { useCan } from '@/hooks/use-can';
 import { useAuth } from '@/hooks/use-auth';
 import { createClient } from '@/lib/supabase/client';
@@ -36,10 +36,17 @@ import {
   RefreshCw,
   FolderInput,
   X,
+  Map as MapIcon,
+  LayoutGrid,
+  LocateFixed,
 } from 'lucide-react';
 import { PropertyForm } from '@/components/inventory/property-form';
+import { PropertyMapView } from '@/components/inventory/property-map-view';
 import { PropertyList } from '@/components/inventory/property-list';
-import { LocalityAutocomplete, type PickedLocality } from '@/components/ui/locality-autocomplete';
+import {
+  LocalityAutocomplete,
+  type PickedLocality,
+} from '@/components/ui/locality-autocomplete';
 import { FlyerCreatorDialog } from '@/components/inventory/flyer-creator-dialog';
 import { PromotePropertyDialog } from '@/components/inventory/promote-property-dialog';
 
@@ -90,6 +97,12 @@ export default function InventoryPage() {
   const [locationText, setLocationText] = useState('');
   const [pickedPlace, setPickedPlace] = useState<PickedLocality | null>(null);
   const [radiusKm, setRadiusKm] = useState(5);
+  const [nearMe, setNearMe] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
+  const [locating, setLocating] = useState(false);
+  const [view, setView] = useState<'grid' | 'map'>('grid');
   // Mobile-only: search + locality live behind a floating lens button
   // (the two bars ate half the viewport and were unreachable once
   // scrolled into the list). Desktop keeps the inline bars.
@@ -108,20 +121,32 @@ export default function InventoryPage() {
     setPage(0);
   }, [debouncedSearch, pickedPlace, radiusKm]);
 
-
   // Filters
   const [typeFilter] = useState('All');
-  const [reviewTab, setReviewTab] = useState<'all' | 'review' | 'archived'>('all');
-  const statusFilter = reviewTab === 'review' ? 'Pending Review' : reviewTab === 'archived' ? 'Archived' : 'All';
+  const [reviewTab, setReviewTab] = useState<'all' | 'review' | 'archived'>(
+    'all'
+  );
+  const statusFilter =
+    reviewTab === 'review'
+      ? 'Pending Review'
+      : reviewTab === 'archived'
+        ? 'Archived'
+        : 'All';
   const [showcaseFilter] = useState('All');
-  const [sourceFilter, setSourceFilter] = useState<'All' | 'Owner' | 'Agent'>('All');
+  const [sourceFilter, setSourceFilter] = useState<'All' | 'Owner' | 'Agent'>(
+    'All'
+  );
 
   // Modals state
   const [formOpen, setFormOpen] = useState(false);
   const [importSharedOpen, setImportSharedOpen] = useState(false);
-  const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
+  const [selectedProperty, setSelectedProperty] = useState<Property | null>(
+    null
+  );
   const [formViewOnly, setFormViewOnly] = useState(false);
-  const [formInitialTab, setFormInitialTab] = useState<'details' | 'matches'>('details');
+  const [formInitialTab, setFormInitialTab] = useState<'details' | 'matches'>(
+    'details'
+  );
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Property | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -132,7 +157,9 @@ export default function InventoryPage() {
   const [shareOpen, setShareOpen] = useState(false);
   const [shareProperty, setShareProperty] = useState<Property | null>(null);
   const [emailShareOpen, setEmailShareOpen] = useState(false);
-  const [emailShareProperty, setEmailShareProperty] = useState<Property | null>(null);
+  const [emailShareProperty, setEmailShareProperty] = useState<Property | null>(
+    null
+  );
   const [showcaseShareOpen, setShowcaseShareOpen] = useState(false);
   const [portalOpen, setPortalOpen] = useState(false);
   const [portalSyncOpen, setPortalSyncOpen] = useState(false);
@@ -215,14 +242,39 @@ export default function InventoryPage() {
       params.set('near_place_id', pickedPlace.place_id);
       params.set('near_label', pickedPlace.name);
       params.set('radius_km', String(radiusKm));
+    } else if (nearMe) {
+      // Pure radius search around the browser's GPS fix — no place id
+      // or label, so the API skips the locality tier entirely.
+      params.set('near_lat', String(nearMe.latitude));
+      params.set('near_lng', String(nearMe.longitude));
+      params.set('radius_km', String(radiusKm));
     }
     if (typeFilter !== 'All') params.set('type', typeFilter);
     if (statusFilter !== 'All') params.set('status', statusFilter);
     if (reviewTab === 'all') params.set('exclude_archived', 'true');
-    if (showcaseFilter !== 'All') params.set('is_published', showcaseFilter === 'Showcased' ? 'true' : 'false');
-    if (sourceFilter !== 'All') params.set('listing_source', sourceFilter === 'Owner' ? 'owner' : 'agent');
+    if (showcaseFilter !== 'All')
+      params.set(
+        'is_published',
+        showcaseFilter === 'Showcased' ? 'true' : 'false'
+      );
+    if (sourceFilter !== 'All')
+      params.set(
+        'listing_source',
+        sourceFilter === 'Owner' ? 'owner' : 'agent'
+      );
     return params.toString();
-  }, [page, debouncedSearch, pickedPlace, radiusKm, typeFilter, statusFilter, showcaseFilter, sourceFilter, reviewTab]);
+  }, [
+    page,
+    debouncedSearch,
+    pickedPlace,
+    nearMe,
+    radiusKm,
+    typeFilter,
+    statusFilter,
+    showcaseFilter,
+    sourceFilter,
+    reviewTab,
+  ]);
 
   // The querystring is the cache key, so paging back to a page already
   // seen reads the cache. The previous request appended `&_t=` with
@@ -251,7 +303,30 @@ export default function InventoryPage() {
     }
   }, [propertiesQuery.error]);
 
-  const properties = useMemo(() => propertiesQuery.data?.data ?? [], [propertiesQuery.data]);
+  const properties = useMemo(
+    () => propertiesQuery.data?.data ?? [],
+    [propertiesQuery.data]
+  );
+
+  // Map view fetches its own wider page — 100 pins beats 25 — and only
+  // while the map is showing. Same filters, so the two stay in step.
+  const mapParams = useMemo(() => {
+    const params = new URLSearchParams(listParams);
+    params.set('page', '0');
+    params.set('limit', '100');
+    return params.toString();
+  }, [listParams]);
+  const mapQuery = useQuery({
+    queryKey: ['inventory', 'map', mapParams],
+    enabled: view === 'map',
+    queryFn: async () => {
+      const response = await fetch(`/api/properties?${mapParams}`);
+      if (!response.ok) throw new Error('Failed to fetch properties');
+      return (await response.json()) as { data: Property[] };
+    },
+    placeholderData: (prev) => prev,
+  });
+
   const totalCount = propertiesQuery.data?.pagination?.total ?? 0;
   const totalPages = propertiesQuery.data?.pagination?.totalPages ?? 0;
   const loading = propertiesQuery.isPending;
@@ -284,10 +359,14 @@ export default function InventoryPage() {
     setHasAutoOpened(true);
 
     const loadAndOpen = async () => {
-      let prop = properties.find((p) => p.id === pid || p.property_code === pid);
+      let prop = properties.find(
+        (p) => p.id === pid || p.property_code === pid
+      );
       if (!prop) {
         try {
-          const response = await fetch(`/api/properties/${pid}`, { cache: 'no-store' });
+          const response = await fetch(`/api/properties/${pid}`, {
+            cache: 'no-store',
+          });
           if (response.ok) {
             prop = await response.json();
           }
@@ -339,7 +418,41 @@ export default function InventoryPage() {
   }, [properties, selectedProperty, flyerProperty, shareProperty]);
 
   // Handle edit click - fetch full property with interested_contacts
-  async function handleViewClick(property: Property, tab: 'details' | 'matches' = 'details') {
+  function handleNearMe() {
+    if (nearMe) {
+      setNearMe(null);
+      return;
+    }
+    if (!navigator.geolocation) {
+      toast.error('Location is not available in this browser.');
+      return;
+    }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLocating(false);
+        setPickedPlace(null);
+        setLocationText('');
+        setNearMe({
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+        });
+        setPage(0);
+      },
+      () => {
+        setLocating(false);
+        toast.error(
+          'Could not get your location — allow location access and try again.'
+        );
+      },
+      { enableHighAccuracy: true, timeout: 10_000, maximumAge: 60_000 }
+    );
+  }
+
+  async function handleViewClick(
+    property: Property,
+    tab: 'details' | 'matches' = 'details'
+  ) {
     setFormInitialTab(tab);
     try {
       const response = await fetch(`/api/properties/${property.id}`, {
@@ -450,7 +563,8 @@ export default function InventoryPage() {
       setDeleteTarget(null);
       refreshInventory();
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Error deleting property';
+      const message =
+        err instanceof Error ? err.message : 'Error deleting property';
       toast.error(message);
     } finally {
       setDeleting(false);
@@ -482,7 +596,8 @@ export default function InventoryPage() {
       );
       refreshInventory();
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to update status';
+      const message =
+        err instanceof Error ? err.message : 'Failed to update status';
       toast.error(message);
     }
   }
@@ -493,7 +608,10 @@ export default function InventoryPage() {
   // Keyed by the ids actually on screen, so paging back to a page whose
   // badges are already cached costs nothing. The id list is bounded by
   // the page size (25), so it is safe in an `.in()` filter.
-  const visiblePropertyIds = useMemo(() => properties.map((p) => p.id), [properties]);
+  const visiblePropertyIds = useMemo(
+    () => properties.map((p) => p.id),
+    [properties]
+  );
 
   const portalBadgesQuery = useQuery({
     queryKey: ['inventory', 'portal-badges', accountId, visiblePropertyIds],
@@ -540,7 +658,8 @@ export default function InventoryPage() {
 
   const matchCounts = useMemo(() => {
     const buyers = matchContactsQuery.data;
-    if (!buyers || buyers.length === 0 || properties.length === 0) return EMPTY_COUNTS;
+    if (!buyers || buyers.length === 0 || properties.length === 0)
+      return EMPTY_COUNTS;
     const counts: Record<string, number> = {};
     for (const property of properties) {
       counts[property.id] = getMatchingContacts(property, buyers).length;
@@ -560,7 +679,9 @@ export default function InventoryPage() {
           .eq('account_id', accountId)
           .eq('is_starred', true);
         if ((count ?? 0) >= STARRED_PROPERTY_CAP) {
-          toast.error(`You can star up to ${STARRED_PROPERTY_CAP} properties. Unstar one from Inventory first.`);
+          toast.error(
+            `You can star up to ${STARRED_PROPERTY_CAP} properties. Unstar one from Inventory first.`
+          );
           return;
         }
       }
@@ -587,7 +708,8 @@ export default function InventoryPage() {
       );
       refreshInventory();
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to update star';
+      const message =
+        err instanceof Error ? err.message : 'Failed to update star';
       toast.error(message);
     }
   }
@@ -604,18 +726,21 @@ export default function InventoryPage() {
         const errData = await response.json();
         throw new Error(errData.error || 'Failed to approve listing');
       }
-      const { notificationSent, ownerName } = await response.json() as {
+      const { notificationSent, ownerName } = (await response.json()) as {
         notificationSent: boolean;
         ownerName: string | null;
       };
       if (notificationSent && ownerName) {
-        toast.success(`Listing approved — ${ownerName} has been notified via WhatsApp 📲`);
+        toast.success(
+          `Listing approved — ${ownerName} has been notified via WhatsApp 📲`
+        );
       } else {
         toast.success('Listing approved and published');
       }
       refreshInventory();
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to approve listing';
+      const message =
+        err instanceof Error ? err.message : 'Failed to approve listing';
       toast.error(message);
     }
   }
@@ -635,7 +760,8 @@ export default function InventoryPage() {
       toast.success('Listing rejected');
       refreshInventory();
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to reject listing';
+      const message =
+        err instanceof Error ? err.message : 'Failed to reject listing';
       toast.error(message);
     }
   }
@@ -653,7 +779,10 @@ export default function InventoryPage() {
       toast.success(`Property ${label}`);
       refreshInventory();
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : `Failed to ${label === 'archived' ? 'archive' : 'unarchive'} property`;
+      const message =
+        err instanceof Error
+          ? err.message
+          : `Failed to ${label === 'archived' ? 'archive' : 'unarchive'} property`;
       toast.error(message);
     }
   }
@@ -674,50 +803,51 @@ export default function InventoryPage() {
   ] as const;
 
   return (
-    <div className="flex flex-col flex-1 p-6 space-y-6">
+    <div className="flex flex-1 flex-col space-y-6 p-6">
       {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-2xl font-black text-white tracking-tight flex items-center gap-2">
-            <Building className="size-6 text-primary" />
+          <h1 className="flex items-center gap-2 text-2xl font-black tracking-tight text-white">
+            <Building className="text-primary size-6" />
             Property Inventory
             <InfoHint text="Your central inventory of all properties, listings, and units available for sale or rent." />
           </h1>
-          <p className="text-slate-400 text-sm mt-0.5">
-            Manage your real estate listings and publish properties to showcase on the main portal.
+          <p className="mt-0.5 text-sm text-slate-400">
+            Manage your real estate listings and publish properties to showcase
+            on the main portal.
           </p>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex shrink-0 items-center gap-2">
           {canEdit && (
             <Button
               onClick={() => setPortalSyncOpen(true)}
               variant="outline"
-              className="border-slate-800 bg-slate-900 hover:bg-slate-800 text-slate-200 font-semibold text-sm flex items-center gap-2 shadow"
+              className="flex items-center gap-2 border-slate-800 bg-slate-900 text-sm font-semibold text-slate-200 shadow hover:bg-slate-800"
             >
-              <RefreshCw className="size-4 text-primary" /> Portal Sync
+              <RefreshCw className="text-primary size-4" /> Portal Sync
             </Button>
           )}
           <Button
             onClick={() => setShowcaseShareOpen(true)}
             variant="outline"
-            className="border-slate-800 bg-slate-900 hover:bg-slate-800 text-slate-200 font-semibold text-sm flex items-center gap-2 shadow"
+            className="flex items-center gap-2 border-slate-800 bg-slate-900 text-sm font-semibold text-slate-200 shadow hover:bg-slate-800"
           >
-            <Share2 className="size-4 text-primary" /> Share Showcase Portal
+            <Share2 className="text-primary size-4" /> Share Showcase Portal
           </Button>
           {canEdit && (
             <Button
               onClick={() => setImportSharedOpen(true)}
               variant="outline"
-              className="border-slate-800 bg-slate-900 hover:bg-slate-800 text-slate-200 font-semibold text-sm flex items-center gap-2 shadow"
+              className="flex items-center gap-2 border-slate-800 bg-slate-900 text-sm font-semibold text-slate-200 shadow hover:bg-slate-800"
             >
-              <FolderInput className="size-4 text-primary" /> Import Shared
+              <FolderInput className="text-primary size-4" /> Import Shared
             </Button>
           )}
           {canEdit && (
             <Button
               onClick={handleAddClick}
               data-tour="add-property"
-              className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-sm flex items-center gap-2 shadow"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground flex items-center gap-2 text-sm font-semibold shadow"
             >
               <Plus className="size-4" /> Add Property
             </Button>
@@ -726,61 +856,61 @@ export default function InventoryPage() {
       </div>
 
       {/* Stats Summary Panel */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center gap-4">
-          <div className="size-10 rounded-lg bg-slate-800 flex items-center justify-center text-slate-400 shrink-0">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <div className="flex items-center gap-4 rounded-xl border border-slate-800 bg-slate-900 p-4">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-slate-800 text-slate-400">
             <Building className="size-5" />
           </div>
           <div>
             <div className="text-2xl font-bold text-white">
               <AnimatedCounter value={stats.total} />
             </div>
-            <div className="text-xs text-slate-400 font-medium flex items-center">
+            <div className="flex items-center text-xs font-medium text-slate-400">
               Total Listings
               <InfoHint text="Total number of properties registered in your database." />
             </div>
           </div>
         </div>
 
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center gap-4">
-          <div className="size-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
+        <div className="flex items-center gap-4 rounded-xl border border-slate-800 bg-slate-900 p-4">
+          <div className="bg-primary/10 text-primary flex size-10 shrink-0 items-center justify-center rounded-lg">
             <Eye className="size-5" />
           </div>
           <div>
             <div className="text-2xl font-bold text-white">
               <AnimatedCounter value={stats.published} />
             </div>
-            <div className="text-xs text-slate-400 font-medium flex items-center">
+            <div className="flex items-center text-xs font-medium text-slate-400">
               Showcased Publicly
               <InfoHint text="Properties currently visible to clients on your public Showcase portal." />
             </div>
           </div>
         </div>
 
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center gap-4">
-          <div className="size-10 rounded-lg bg-green-500/10 flex items-center justify-center text-green-400 shrink-0">
+        <div className="flex items-center gap-4 rounded-xl border border-slate-800 bg-slate-900 p-4">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-green-500/10 text-green-400">
             <CheckCircle className="size-5" />
           </div>
           <div>
             <div className="text-2xl font-bold text-white">
               <AnimatedCounter value={stats.available} />
             </div>
-            <div className="text-xs text-slate-400 font-medium flex items-center">
+            <div className="flex items-center text-xs font-medium text-slate-400">
               Available Units
               <InfoHint text="Active property listings that are currently available for purchase or lease." />
             </div>
           </div>
         </div>
 
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center gap-4">
-          <div className="size-10 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-400 shrink-0">
+        <div className="flex items-center gap-4 rounded-xl border border-slate-800 bg-slate-900 p-4">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-amber-500/10 text-amber-400">
             <Tag className="size-5" />
           </div>
           <div>
             <div className="text-2xl font-bold text-white">
               <AnimatedCounter value={stats.soldOrContract} />
             </div>
-            <div className="text-xs text-slate-400 font-medium flex items-center">
+            <div className="flex items-center text-xs font-medium text-slate-400">
               Sold / Under Contract
               <InfoHint text="Properties that have been sold or are currently locked under a contract." />
             </div>
@@ -792,8 +922,11 @@ export default function InventoryPage() {
       <div className="flex items-center gap-1 border-b border-slate-800">
         <button
           type="button"
-          onClick={() => { setReviewTab('all'); setPage(0); }}
-          className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors ${
+          onClick={() => {
+            setReviewTab('all');
+            setPage(0);
+          }}
+          className={`border-b-2 px-4 py-2 text-sm font-semibold transition-colors ${
             reviewTab === 'all'
               ? 'border-primary text-white'
               : 'border-transparent text-slate-400 hover:text-slate-200'
@@ -803,8 +936,11 @@ export default function InventoryPage() {
         </button>
         <button
           type="button"
-          onClick={() => { setReviewTab('review'); setPage(0); }}
-          className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors flex items-center gap-1.5 ${
+          onClick={() => {
+            setReviewTab('review');
+            setPage(0);
+          }}
+          className={`flex items-center gap-1.5 border-b-2 px-4 py-2 text-sm font-semibold transition-colors ${
             reviewTab === 'review'
               ? 'border-primary text-white'
               : 'border-transparent text-slate-400 hover:text-slate-200'
@@ -812,15 +948,18 @@ export default function InventoryPage() {
         >
           Review
           {stats.pendingReview > 0 && (
-            <span className="bg-purple-500/20 text-purple-300 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+            <span className="rounded-full bg-purple-500/20 px-1.5 py-0.5 text-[10px] font-bold text-purple-300">
               {stats.pendingReview}
             </span>
           )}
         </button>
         <button
           type="button"
-          onClick={() => { setReviewTab('archived'); setPage(0); }}
-          className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors flex items-center gap-1.5 ${
+          onClick={() => {
+            setReviewTab('archived');
+            setPage(0);
+          }}
+          className={`flex items-center gap-1.5 border-b-2 px-4 py-2 text-sm font-semibold transition-colors ${
             reviewTab === 'archived'
               ? 'border-primary text-white'
               : 'border-transparent text-slate-400 hover:text-slate-200'
@@ -840,7 +979,10 @@ export default function InventoryPage() {
             <button
               key={value}
               type="button"
-              onClick={() => { setSourceFilter(value); setPage(0); }}
+              onClick={() => {
+                setSourceFilter(value);
+                setPage(0);
+              }}
               className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
                 sourceFilter === value
                   ? 'border-primary bg-primary/10 text-primary'
@@ -852,19 +994,43 @@ export default function InventoryPage() {
             </button>
           ))}
         </div>
+
+        <div className="ml-auto flex items-center gap-1 pb-1.5">
+          {[
+            { value: 'grid' as const, icon: LayoutGrid, label: 'List view' },
+            { value: 'map' as const, icon: MapIcon, label: 'Map view' },
+          ].map(({ value, icon: Icon, label }) => (
+            <button
+              key={value}
+              type="button"
+              aria-label={label}
+              title={label}
+              onClick={() => setView(value)}
+              className={`flex h-8 w-8 items-center justify-center rounded-lg border transition-colors ${
+                view === value
+                  ? 'border-primary bg-primary/10 text-primary'
+                  : 'border-slate-700 text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Icon className="size-4" />
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Search Bar — inline on md+; on mobile it lives behind the
           floating lens button below so it costs no vertical space. */}
-      <div className="hidden md:block bg-slate-900/60 border border-slate-800/80 rounded-xl p-4 space-y-3">
-        <div className="flex flex-col md:flex-row gap-3">
+      <div className="hidden space-y-3 rounded-xl border border-slate-800/80 bg-slate-900/60 p-4 md:block">
+        <div className="flex flex-col gap-3 md:flex-row">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-slate-500" />
+            <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-500" />
             <Input
               value={search}
-              onChange={(e) => { setSearch(e.target.value); }}
-              placeholder='e.g. residential properties > 10 Cr, 3 BHK villa'
-              className="pl-9 bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-9"
+              onChange={(e) => {
+                setSearch(e.target.value);
+              }}
+              placeholder="e.g. residential properties > 10 Cr, 3 BHK villa"
+              className="h-9 border-slate-700 bg-slate-800 pl-9 text-white placeholder:text-slate-500"
             />
           </div>
           <div className="w-full md:w-80">
@@ -873,31 +1039,60 @@ export default function InventoryPage() {
               onChange={(text) => {
                 setLocationText(text);
                 // Clearing/retyping the text drops the active place filter
-                if (pickedPlace && text !== pickedPlace.name) setPickedPlace(null);
+                if (pickedPlace && text !== pickedPlace.name)
+                  setPickedPlace(null);
               }}
               onPick={(place) => {
+                setNearMe(null);
                 setPickedPlace(place);
                 setLocationText(place.name);
               }}
               placeholder="Filter by locality (Google Maps)"
             />
           </div>
+          <button
+            type="button"
+            onClick={handleNearMe}
+            disabled={locating}
+            className={`flex h-9 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold transition-colors ${
+              nearMe
+                ? 'border-primary/50 bg-primary/15 text-primary'
+                : 'border-slate-700 bg-slate-800 text-slate-300 hover:text-white'
+            }`}
+          >
+            {locating ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <LocateFixed className="size-3.5" />
+            )}
+            Near me
+          </button>
         </div>
 
-        {pickedPlace && (
+        {(pickedPlace || nearMe) && (
           <div className="flex flex-wrap items-center gap-2 text-xs">
             <span className="text-slate-400">
-              Showing matches in <span className="text-white font-semibold">{pickedPlace.name}</span> first, then within
+              {pickedPlace ? (
+                <>
+                  Showing matches in{' '}
+                  <span className="font-semibold text-white">
+                    {pickedPlace.name}
+                  </span>{' '}
+                  first, then within
+                </>
+              ) : (
+                <>Showing matches near your location, within</>
+              )}
             </span>
             {[2, 5, 10, 25].map((r) => (
               <button
                 key={r}
                 type="button"
                 onClick={() => setRadiusKm(r)}
-                className={`px-2 py-0.5 rounded-full border font-semibold transition-colors ${
+                className={`rounded-full border px-2 py-0.5 font-semibold transition-colors ${
                   radiusKm === r
                     ? 'bg-primary/15 border-primary/50 text-primary'
-                    : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-slate-200'
+                    : 'border-slate-700 bg-slate-800 text-slate-400 hover:text-slate-200'
                 }`}
               >
                 {r} km
@@ -905,8 +1100,12 @@ export default function InventoryPage() {
             ))}
             <button
               type="button"
-              onClick={() => { setPickedPlace(null); setLocationText(''); }}
-              className="ml-1 px-2 py-0.5 rounded-full border border-slate-700 bg-slate-800 text-slate-400 hover:text-white font-semibold"
+              onClick={() => {
+                setPickedPlace(null);
+                setNearMe(null);
+                setLocationText('');
+              }}
+              className="ml-1 rounded-full border border-slate-700 bg-slate-800 px-2 py-0.5 font-semibold text-slate-400 hover:text-white"
             >
               Clear ✕
             </button>
@@ -921,7 +1120,10 @@ export default function InventoryPage() {
           <button
             key={value}
             type="button"
-            onClick={() => { setSourceFilter(value); setPage(0); }}
+            onClick={() => {
+              setSourceFilter(value);
+              setPage(0);
+            }}
             className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
               sourceFilter === value
                 ? 'border-primary bg-primary/10 text-primary'
@@ -936,39 +1138,46 @@ export default function InventoryPage() {
 
       {/* Mobile: active-filter summary chip row (visible while the
           overlay is closed, so an applied filter is never invisible). */}
-      {(debouncedSearch.trim() || pickedPlace) && !mobileSearchOpen && (
-        <div className="md:hidden flex flex-wrap items-center gap-2 text-xs">
-          {debouncedSearch.trim() && (
+      {(debouncedSearch.trim() || pickedPlace || nearMe) &&
+        !mobileSearchOpen && (
+          <div className="flex flex-wrap items-center gap-2 text-xs md:hidden">
+            {debouncedSearch.trim() && (
+              <button
+                type="button"
+                onClick={() => setMobileSearchOpen(true)}
+                className="border-primary/40 bg-primary/10 max-w-[60vw] cursor-pointer truncate rounded-full border px-2.5 py-1 font-semibold text-white"
+              >
+                &ldquo;{debouncedSearch.trim()}&rdquo;
+              </button>
+            )}
+            {pickedPlace && (
+              <button
+                type="button"
+                onClick={() => setMobileSearchOpen(true)}
+                className="border-primary/40 bg-primary/10 max-w-[40vw] cursor-pointer truncate rounded-full border px-2.5 py-1 font-semibold text-white"
+              >
+                📍 {pickedPlace.name} · {radiusKm} km
+              </button>
+            )}
+            {nearMe && (
+              <span className="border-primary/40 bg-primary/10 rounded-full border px-2.5 py-1 font-semibold text-white">
+                📍 Near me · {radiusKm} km
+              </span>
+            )}
             <button
               type="button"
-              onClick={() => setMobileSearchOpen(true)}
-              className="px-2.5 py-1 rounded-full border border-primary/40 bg-primary/10 text-white font-semibold truncate max-w-[60vw] cursor-pointer"
+              onClick={() => {
+                setSearch('');
+                setPickedPlace(null);
+                setNearMe(null);
+                setLocationText('');
+              }}
+              className="cursor-pointer rounded-full border border-slate-700 bg-slate-800 px-2.5 py-1 font-semibold text-slate-400"
             >
-              &ldquo;{debouncedSearch.trim()}&rdquo;
+              Clear ✕
             </button>
-          )}
-          {pickedPlace && (
-            <button
-              type="button"
-              onClick={() => setMobileSearchOpen(true)}
-              className="px-2.5 py-1 rounded-full border border-primary/40 bg-primary/10 text-white font-semibold truncate max-w-[40vw] cursor-pointer"
-            >
-              📍 {pickedPlace.name} · {radiusKm} km
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={() => {
-              setSearch('');
-              setPickedPlace(null);
-              setLocationText('');
-            }}
-            className="px-2.5 py-1 rounded-full border border-slate-700 bg-slate-800 text-slate-400 font-semibold cursor-pointer"
-          >
-            Clear ✕
-          </button>
-        </div>
-      )}
+          </div>
+        )}
 
       {/* Mobile: floating lens — fixed, so it's reachable at any scroll
           depth. Sits above the global AI FAB in the corner. */}
@@ -976,57 +1185,82 @@ export default function InventoryPage() {
         type="button"
         aria-label="Search inventory"
         onClick={() => setMobileSearchOpen(true)}
-        className={`md:hidden fixed bottom-24 right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full border border-slate-700 bg-slate-900/95 text-slate-200 shadow-lg shadow-slate-950/50 backdrop-blur transition-transform active:scale-95 ${
+        className={`fixed right-4 bottom-24 z-40 flex h-12 w-12 items-center justify-center rounded-full border border-slate-700 bg-slate-900/95 text-slate-200 shadow-lg shadow-slate-950/50 backdrop-blur transition-transform active:scale-95 md:hidden ${
           mobileSearchOpen ? 'hidden' : ''
         }`}
       >
         <Search className="size-5" />
         {(debouncedSearch.trim() || pickedPlace) && (
-          <span className="absolute top-1 right-1 h-2.5 w-2.5 rounded-full bg-primary border border-slate-900" />
+          <span className="bg-primary absolute top-1 right-1 h-2.5 w-2.5 rounded-full border border-slate-900" />
         )}
       </button>
 
       {/* Mobile: search panel — in-flow and sticky, NOT an overlay, so
           the result list stays visible and live-updates while typing. */}
       {mobileSearchOpen && (
-        <div className="md:hidden sticky top-2 z-40">
-          <div className="rounded-xl border border-slate-700 bg-slate-900/95 backdrop-blur p-4 space-y-3 shadow-xl shadow-slate-950/60">
+        <div className="sticky top-2 z-40 md:hidden">
+          <div className="space-y-3 rounded-xl border border-slate-700 bg-slate-900/95 p-4 shadow-xl shadow-slate-950/60 backdrop-blur">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
+              <span className="text-xs font-bold tracking-wider text-slate-400 uppercase">
                 Search inventory
               </span>
               <button
                 type="button"
                 aria-label="Close search"
                 onClick={() => setMobileSearchOpen(false)}
-                className="flex h-8 w-8 items-center justify-center rounded-md text-slate-400 hover:text-white hover:bg-slate-800"
+                className="flex h-8 w-8 items-center justify-center rounded-md text-slate-400 hover:bg-slate-800 hover:text-white"
               >
                 <X className="size-4" />
               </button>
             </div>
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-slate-500" />
+              <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-500" />
               <Input
                 autoFocus
                 value={search}
-                onChange={(e) => { setSearch(e.target.value); }}
-                placeholder='e.g. residential properties > 10 Cr'
-                className="pl-9 bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-10"
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                }}
+                placeholder="e.g. residential properties > 10 Cr"
+                className="h-10 border-slate-700 bg-slate-800 pl-9 text-white placeholder:text-slate-500"
               />
             </div>
-            <LocalityAutocomplete
-              value={locationText}
-              onChange={(text) => {
-                setLocationText(text);
-                if (pickedPlace && text !== pickedPlace.name) setPickedPlace(null);
-              }}
-              onPick={(place) => {
-                setPickedPlace(place);
-                setLocationText(place.name);
-              }}
-              placeholder="Filter by locality (Google Maps)"
-            />
-            {pickedPlace && (
+            <div className="flex items-center gap-2">
+              <div className="flex-1">
+                <LocalityAutocomplete
+                  value={locationText}
+                  onChange={(text) => {
+                    setLocationText(text);
+                    if (pickedPlace && text !== pickedPlace.name)
+                      setPickedPlace(null);
+                  }}
+                  onPick={(place) => {
+                    setNearMe(null);
+                    setPickedPlace(place);
+                    setLocationText(place.name);
+                  }}
+                  placeholder="Filter by locality (Google Maps)"
+                />
+              </div>
+              <button
+                type="button"
+                aria-label="Near me"
+                onClick={handleNearMe}
+                disabled={locating}
+                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border transition-colors ${
+                  nearMe
+                    ? 'border-primary/50 bg-primary/15 text-primary'
+                    : 'border-slate-700 bg-slate-800 text-slate-300'
+                }`}
+              >
+                {locating ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <LocateFixed className="size-4" />
+                )}
+              </button>
+            </div>
+            {(pickedPlace || nearMe) && (
               <div className="flex flex-wrap items-center gap-2 text-xs">
                 <span className="text-slate-400">Within</span>
                 {[2, 5, 10, 25].map((r) => (
@@ -1034,10 +1268,10 @@ export default function InventoryPage() {
                     key={r}
                     type="button"
                     onClick={() => setRadiusKm(r)}
-                    className={`px-2 py-0.5 rounded-full border font-semibold transition-colors ${
+                    className={`rounded-full border px-2 py-0.5 font-semibold transition-colors ${
                       radiusKm === r
                         ? 'bg-primary/15 border-primary/50 text-primary'
-                        : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-slate-200'
+                        : 'border-slate-700 bg-slate-800 text-slate-400 hover:text-slate-200'
                     }`}
                   >
                     {r} km
@@ -1051,16 +1285,17 @@ export default function InventoryPage() {
                 onClick={() => {
                   setSearch('');
                   setPickedPlace(null);
+                  setNearMe(null);
                   setLocationText('');
                 }}
-                className="text-xs font-semibold text-slate-400 hover:text-white px-2 py-1.5 cursor-pointer"
+                className="cursor-pointer px-2 py-1.5 text-xs font-semibold text-slate-400 hover:text-white"
               >
                 Clear all
               </button>
               <Button
                 size="sm"
                 onClick={() => setMobileSearchOpen(false)}
-                className="bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold h-8 px-4 cursor-pointer"
+                className="bg-primary hover:bg-primary/90 text-primary-foreground h-8 cursor-pointer px-4 text-xs font-bold"
               >
                 Done
               </Button>
@@ -1069,32 +1304,50 @@ export default function InventoryPage() {
         </div>
       )}
 
-      {/* Main Grid View */}
-      <PropertyList
-        properties={properties}
-        loading={loading}
-        onView={handleViewClick}
-        onEdit={handleEditClick}
-        onDelete={handleDeleteClick}
-        onTogglePublish={handleTogglePublish}
-        onToggleStar={handleToggleStar}
-        onPortals={(property) => {
-          setPortalProperty(property);
-          setPortalOpen(true);
-        }}
-        portalBadges={portalBadges}
-        canEdit={canEdit}
-        onFlyer={handleFlyerClick}
-        onPromote={META_ADS_ENABLED ? handlePromoteClick : undefined}
-        onShare={handleShareClick}
-        onMatches={(property) => handleViewClick(property, 'matches')}
-        matchCounts={matchContactsQuery.data ? matchCounts : undefined}
-        onEmailShare={handleEmailShareClick}
-        onApprove={handleApprove}
-        onReject={handleReject}
-        onArchive={handleArchive}
-        currency={currency}
-      />
+      {/* Main Grid / Map View */}
+      {view === 'map' ? (
+        <PropertyMapView
+          properties={mapQuery.data?.data ?? []}
+          loading={mapQuery.isPending}
+          center={
+            nearMe ??
+            (pickedPlace
+              ? {
+                  latitude: pickedPlace.latitude,
+                  longitude: pickedPlace.longitude,
+                }
+              : null)
+          }
+          onOpen={handleViewClick}
+          currency={currency}
+        />
+      ) : (
+        <PropertyList
+          properties={properties}
+          loading={loading}
+          onView={handleViewClick}
+          onEdit={handleEditClick}
+          onDelete={handleDeleteClick}
+          onTogglePublish={handleTogglePublish}
+          onToggleStar={handleToggleStar}
+          onPortals={(property) => {
+            setPortalProperty(property);
+            setPortalOpen(true);
+          }}
+          portalBadges={portalBadges}
+          canEdit={canEdit}
+          onFlyer={handleFlyerClick}
+          onPromote={META_ADS_ENABLED ? handlePromoteClick : undefined}
+          onShare={handleShareClick}
+          onMatches={(property) => handleViewClick(property, 'matches')}
+          matchCounts={matchContactsQuery.data ? matchCounts : undefined}
+          onEmailShare={handleEmailShareClick}
+          onApprove={handleApprove}
+          onReject={handleReject}
+          onArchive={handleArchive}
+          currency={currency}
+        />
+      )}
 
       {/* Add / Edit Form Modal */}
       <PropertyForm
@@ -1175,17 +1428,21 @@ export default function InventoryPage() {
 
       {/* Delete Confirmation Modal */}
       <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
-        <DialogContent className="bg-slate-900 border-slate-700 text-slate-200 sm:max-w-md">
+        <DialogContent className="border-slate-700 bg-slate-900 text-slate-200 sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-white flex items-center gap-2">
+            <DialogTitle className="flex items-center gap-2 text-white">
               <Trash2 className="size-5 text-red-500" />
               Delete Property Listing
             </DialogTitle>
             <DialogDescription className="text-slate-400">
-              Are you sure you want to delete <span className="text-white font-semibold">&quot;{deleteTarget?.title}&quot;</span>? This action is permanent and cannot be undone.
+              Are you sure you want to delete{' '}
+              <span className="font-semibold text-white">
+                &quot;{deleteTarget?.title}&quot;
+              </span>
+              ? This action is permanent and cannot be undone.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="bg-slate-900 border-slate-700 pt-2 border-t">
+          <DialogFooter className="border-t border-slate-700 bg-slate-900 pt-2">
             <Button
               type="button"
               variant="outline"
@@ -1198,9 +1455,9 @@ export default function InventoryPage() {
               type="button"
               disabled={deleting}
               onClick={handleDeleteConfirm}
-              className="bg-red-600 hover:bg-red-700 text-white font-medium"
+              className="bg-red-600 font-medium text-white hover:bg-red-700"
             >
-              {deleting && <Loader2 className="size-4 animate-spin mr-2" />}
+              {deleting && <Loader2 className="mr-2 size-4 animate-spin" />}
               Delete
             </Button>
           </DialogFooter>
@@ -1208,10 +1465,11 @@ export default function InventoryPage() {
       </Dialog>
 
       {/* Pagination */}
-      {totalPages > 1 && (
+      {view === 'grid' && totalPages > 1 && (
         <div className="flex items-center justify-between border-t border-slate-800 pt-4">
           <p className="text-xs text-slate-500">
-            Showing {page * 25 + 1}-{Math.min((page + 1) * 25, totalCount)} of {totalCount}
+            Showing {page * 25 + 1}-{Math.min((page + 1) * 25, totalCount)} of{' '}
+            {totalCount}
           </p>
           <div className="flex items-center gap-1">
             <Button
@@ -1223,7 +1481,7 @@ export default function InventoryPage() {
             >
               <ChevronLeft className="size-4" />
             </Button>
-            <span className="text-xs text-slate-400 px-2">
+            <span className="px-2 text-xs text-slate-400">
               Page {page + 1} of {totalPages}
             </span>
             <Button

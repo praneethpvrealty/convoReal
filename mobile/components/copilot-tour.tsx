@@ -19,6 +19,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 
+import { trackCopilotTour } from '@/lib/copilot';
 import {
   getMobileTour,
   screenPathname,
@@ -73,6 +74,7 @@ export function CopilotTourProvider({ children }: { children: ReactNode }) {
 
   const targets = useRef(new Map<string, Set<RefObject<View | null>>>());
   const navigatedFor = useRef<string | null>(null);
+  const activeTourIdRef = useRef<string | null>(null);
 
   const registerTarget = useCallback(
     (id: string, ref: RefObject<View | null>) => {
@@ -90,6 +92,10 @@ export function CopilotTourProvider({ children }: { children: ReactNode }) {
   );
 
   const endTour = useCallback((reason: EndReason) => {
+    if (reason === 'completed' && activeTourIdRef.current) {
+      trackCopilotTour('tour_complete', activeTourIdRef.current);
+    }
+    activeTourIdRef.current = null;
     setActiveTour(null);
     setStepIndex(0);
     setRect(null);
@@ -115,6 +121,8 @@ export function CopilotTourProvider({ children }: { children: ReactNode }) {
   const startTour = useCallback((tourId: string) => {
     const tour = getMobileTour(tourId);
     if (!tour) return;
+    trackCopilotTour('tour_start', tourId);
+    activeTourIdRef.current = tourId;
     navigatedFor.current = null;
     setActiveTour(tour);
     setStepIndex(0);

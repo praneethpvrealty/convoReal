@@ -362,14 +362,14 @@ export const CHUNKS: KnowledgeChunk[] = [
     id: 'mobile.app',
     title: 'Mobile app',
     kind: 'concept',
-    body: 'ConvoReal has a companion mobile app with inventory, contacts, inbox, deals, calendar and property sharing, signed in with a WhatsApp OTP. Some things are app-only: the property map with its GPS "Near me" filter, importing contacts from the phone book, home-screen widgets, and a fingerprint app lock. Web property links open directly in the app when installed.',
+    body: 'ConvoReal has a companion mobile app with inventory, contacts, inbox, deals, calendar and property sharing, signed in with a WhatsApp OTP. Some things are app-only: importing contacts from the phone book, home-screen widgets, and a fingerprint app lock. Web property links open directly in the app when installed.',
     keywords: ['android', 'ios', 'phone app', 'download app'],
   },
   {
     id: 'mobile.map-near-me',
     title: 'Property map and Near me',
     kind: 'concept',
-    body: 'Seeing listings as pins on a map, and the GPS "Near me" filter, live in the mobile app: open Properties there and tap the map icon or Near me. The web dashboard filters by locality name instead — there is no map view on desktop.',
+    body: 'Listings show as price pins on a map on both surfaces: on web Inventory use the map toggle beside the listing tabs, in the mobile app tap the map icon on Properties. "Near me" filters by GPS distance on both — the web asks the browser for your location. Only listings with a saved location appear as pins.',
     keywords: [
       'map',
       'near me',

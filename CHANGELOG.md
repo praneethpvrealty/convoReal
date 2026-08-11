@@ -13,6 +13,25 @@ and polish.
 
 ### Added
 
+- **Web Inventory: map view and "Near me".** The mobile app's two
+  location features arrive on desktop. A List/Map toggle beside the
+  listing tabs draws the current search as the app's violet price pins
+  (click one to open the listing) on a dark-styled Google map, and a
+  **Near me** button beside the locality filter runs the same radius
+  search from the browser's location — no new API surface, the
+  properties route already accepted the coordinates. The map needs a
+  referrer-restricted `NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY`; without it
+  the view explains itself instead of breaking. Rows without saved
+  coordinates don't appear as pins (the geocode backfill self-heals).
+- **Copilot usage metering.** Every helper interaction — chat answers
+  (with platform and coverage), guided-tour starts and completions on
+  web and mobile, support tickets — now lands in `copilot_events`, and
+  **Admin → Demand** opens with a 30-day adoption rollup: chats split
+  web vs mobile, tours started/completed, tickets filed. Aggregation
+  runs in SQL (`copilot_usage_summary`); tenants' admins can read their
+  own team's rows. **Migration required:**
+  `supabase/migrations/243_copilot_events.sql` (SQL Editor, like 242).
+
 - **Copilot on mobile: chat, guided tours and a spotlight overlay.** The
   helper is no longer web-only. A floating button on the app's main
   screens opens the same chat brain (`/api/copilot`), and tours that can

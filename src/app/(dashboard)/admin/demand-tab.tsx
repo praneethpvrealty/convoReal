@@ -24,6 +24,15 @@ import { ChevronDown, Lightbulb } from 'lucide-react';
 import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
 import { cn } from '@/lib/utils';
 
+interface UsageRow {
+  event: string;
+  platform: string;
+  audience: string;
+  events: number;
+  users: number;
+  accounts: number;
+}
+
 interface DemandAccount {
   accountId: string;
   accountName: string;
@@ -59,28 +68,49 @@ const AUDIENCE_STYLE: Record<DemandAudience, string> = {
 
 export default function DemandTab() {
   const [capabilities, setCapabilities] = useState<DemandCapability[]>([]);
+  const [usage, setUsage] = useState<UsageRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
 
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await fetch('/api/admin/copilot-demand');
-        if (!res.ok) {
-          const data = (await res.json()) as { error?: string };
+        const [demandRes, usageRes] = await Promise.all([
+          fetch('/api/admin/copilot-demand'),
+          fetch('/api/admin/copilot-usage'),
+        ]);
+        if (!demandRes.ok) {
+          const data = (await demandRes.json()) as { error?: string };
           toast.error(data.error || 'Could not load the demand log');
           return;
         }
-        const data = (await res.json()) as {
+        const data = (await demandRes.json()) as {
           capabilities: DemandCapability[];
         };
         setCapabilities(data.capabilities);
+        if (usageRes.ok) {
+          const usageData = (await usageRes.json()) as { usage: UsageRow[] };
+          setUsage(usageData.usage);
+        }
       } finally {
         setLoading(false);
       }
     };
     void load();
   }, []);
+
+  // Adoption rollup (copilot_events, last 30 days) split by platform.
+  const adoption = useMemo(() => {
+    const sum = (pred: (r: UsageRow) => boolean) =>
+      usage.filter(pred).reduce((n, r) => n + r.events, 0);
+    return {
+      chatsWeb: sum((r) => r.event === 'chat' && r.platform === 'web'),
+      chatsMobile: sum((r) => r.event === 'chat' && r.platform === 'mobile'),
+      toursStarted: sum((r) => r.event === 'tour_start'),
+      toursCompleted: sum((r) => r.event === 'tour_complete'),
+      tickets: sum((r) => r.event === 'support_ticket'),
+    };
+  }, [usage]);
 
   const totals = useMemo(
     () => ({
@@ -103,6 +133,28 @@ export default function DemandTab() {
 
   return (
     <div className="flex flex-col gap-5">
+      <div>
+        <p className="mb-2 text-[10px] font-black tracking-widest text-slate-500 uppercase">
+          Copilot usage · last 30 days
+        </p>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+          <Stat label="Chats · web" value={adoption.chatsWeb} />
+          <Stat label="Chats · mobile" value={adoption.chatsMobile} />
+          <Stat label="Tours started" value={adoption.toursStarted} />
+          <Stat label="Tours completed" value={adoption.toursCompleted} />
+          <Stat label="Support tickets" value={adoption.tickets} />
+        </div>
+        {usage.length === 0 && (
+          <p className="mt-2 text-xs text-slate-600">
+            No usage recorded yet — numbers appear once migration 243 is applied
+            and users open the helper.
+          </p>
+        )}
+      </div>
+
+      <p className="mt-1 -mb-2 text-[10px] font-black tracking-widest text-slate-500 uppercase">
+        Unmet demand
+      </p>
       <div className="grid grid-cols-3 gap-3">
         <Stat label="Capabilities asked for" value={totals.capabilities} />
         <Stat label="Total asks" value={totals.asks} />

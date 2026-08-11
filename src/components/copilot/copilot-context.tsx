@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 // ============================================================
 // Copilot shared state: the floating panel's open/close state and
@@ -20,15 +20,20 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
-} from "react";
-import { usePathname, useSearchParams } from "next/navigation";
-import { toast } from "sonner";
-import { getTour, type Tour, type TourStep } from "@/lib/copilot/tours";
+} from 'react';
+import { usePathname, useSearchParams } from 'next/navigation';
+import { toast } from 'sonner';
+import { getTour, type Tour, type TourStep } from '@/lib/copilot/tours';
 
-type TourStatus = "idle" | "waiting-for-route" | "waiting-for-target" | "showing";
-type EndReason = "completed" | "aborted" | "lost" | "timeout";
+type TourStatus =
+  | 'idle'
+  | 'waiting-for-route'
+  | 'waiting-for-target'
+  | 'showing';
+type EndReason = 'completed' | 'aborted' | 'lost' | 'timeout';
 
 interface CopilotContextValue {
   panelOpen: boolean;
@@ -46,6 +51,16 @@ interface CopilotContextValue {
 
 const CopilotContext = createContext<CopilotContextValue | null>(null);
 
+/** Adoption beacon — tours run entirely client-side, so without this
+ *  a Guides-list start would be invisible to the usage rollup. */
+function trackTour(event: 'tour_start' | 'tour_complete', tourId: string) {
+  void fetch('/api/copilot/track', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ event, tourId, platform: 'web' }),
+  }).catch(() => {});
+}
+
 /** How long a step may wait for its route before the tour is "lost". */
 const ROUTE_TIMEOUT_MS = 10_000;
 /** How long a step may wait for its target element to render. */
@@ -55,10 +70,10 @@ const TARGET_POLL_MS = 150;
 function routeMatches(
   step: TourStep,
   pathname: string,
-  search: URLSearchParams,
+  search: URLSearchParams
 ): boolean {
   const pathOk =
-    step.routeMatch === "prefix"
+    step.routeMatch === 'prefix'
       ? pathname.startsWith(step.route)
       : pathname === step.route;
   if (!pathOk) return false;
@@ -75,7 +90,7 @@ function routeMatches(
  *  state) and hidden ones have a zero-size rect. */
 function findTarget(target: string): HTMLElement | null {
   const nodes = document.querySelectorAll<HTMLElement>(
-    `[data-tour="${target}"]`,
+    `[data-tour="${target}"]`
   );
   for (const el of nodes) {
     const rect = el.getBoundingClientRect();
@@ -99,18 +114,25 @@ export function CopilotProvider({
   const [panelOpen, setPanelOpen] = useState(false);
   const [activeTour, setActiveTour] = useState<Tour | null>(null);
   const [stepIndex, setStepIndex] = useState(0);
-  const [tourStatus, setTourStatus] = useState<TourStatus>("idle");
+  const [tourStatus, setTourStatus] = useState<TourStatus>('idle');
   const [targetEl, setTargetEl] = useState<HTMLElement | null>(null);
+  const activeTourIdRef = useRef<string | null>(null);
 
   const endTour = useCallback((reason: EndReason) => {
+    if (reason === 'completed' && activeTourIdRef.current) {
+      trackTour('tour_complete', activeTourIdRef.current);
+    }
+    activeTourIdRef.current = null;
     setActiveTour(null);
     setStepIndex(0);
-    setTourStatus("idle");
+    setTourStatus('idle');
     setTargetEl(null);
-    if (reason === "completed") {
-      toast.success("You did it! Tap the helper anytime for more guides. \u{1F389}");
-    } else if (reason === "lost" || reason === "timeout") {
-      toast("Tour ended — tap the helper button to restart it anytime.");
+    if (reason === 'completed') {
+      toast.success(
+        'You did it! Tap the helper anytime for more guides. \u{1F389}'
+      );
+    } else if (reason === 'lost' || reason === 'timeout') {
+      toast('Tour ended — tap the helper button to restart it anytime.');
     }
   }, []);
 
@@ -120,7 +142,7 @@ export function CopilotProvider({
       setStepIndex((i) => {
         if (i + 1 >= tour.steps.length) {
           // Defer endTour — we're inside two updaters here.
-          queueMicrotask(() => endTour("completed"));
+          queueMicrotask(() => endTour('completed'));
           return i;
         }
         return i + 1;
@@ -129,18 +151,17 @@ export function CopilotProvider({
     });
   }, [endTour]);
 
-  const startTour = useCallback(
-    (tourId: string) => {
-      const tour = getTour(tourId);
-      if (!tour) return;
-      setPanelOpen(false);
-      setActiveTour(tour);
-      setStepIndex(0);
-      setTourStatus("waiting-for-route");
-      setTargetEl(null);
-    },
-    [],
-  );
+  const startTour = useCallback((tourId: string) => {
+    const tour = getTour(tourId);
+    if (!tour) return;
+    trackTour('tour_start', tourId);
+    activeTourIdRef.current = tourId;
+    setPanelOpen(false);
+    setActiveTour(tour);
+    setStepIndex(0);
+    setTourStatus('waiting-for-route');
+    setTargetEl(null);
+  }, []);
 
   // --- Per-step lifecycle -------------------------------------------
   // Re-runs whenever the step or the route changes. Owns the route
@@ -164,13 +185,13 @@ export function CopilotProvider({
     if (!routeMatches(step, pathname, search)) {
       // A 'route-change' step advances when its route stops matching
       // (used as a fallback for in-page tab clicks).
-      if (step.advanceOn === "route-change" && tourStatus === "showing") {
+      if (step.advanceOn === 'route-change' && tourStatus === 'showing') {
         advance();
         return;
       }
-      setTourStatus("waiting-for-route");
+      setTourStatus('waiting-for-route');
       setTargetEl(null);
-      const lostTimer = setTimeout(() => endTour("lost"), ROUTE_TIMEOUT_MS);
+      const lostTimer = setTimeout(() => endTour('lost'), ROUTE_TIMEOUT_MS);
       return () => clearTimeout(lostTimer);
     }
 
@@ -181,7 +202,7 @@ export function CopilotProvider({
 
     // Poll for the target (150ms) + MutationObserver for instant
     // resolution when async page content lands.
-    setTourStatus("waiting-for-target");
+    setTourStatus('waiting-for-target');
     setTargetEl(null);
     let done = false;
     const tryFind = () => {
@@ -191,14 +212,14 @@ export function CopilotProvider({
         done = true;
         cleanup();
         el.scrollIntoView({
-          block: "center",
-          behavior: window.matchMedia("(prefers-reduced-motion: reduce)")
+          block: 'center',
+          behavior: window.matchMedia('(prefers-reduced-motion: reduce)')
             .matches
-            ? "auto"
-            : "smooth",
+            ? 'auto'
+            : 'smooth',
         });
         setTargetEl(el);
-        setTourStatus("showing");
+        setTourStatus('showing');
       }
     };
     const interval = setInterval(tryFind, TARGET_POLL_MS);
@@ -207,7 +228,7 @@ export function CopilotProvider({
     const timeout = setTimeout(() => {
       if (!done) {
         cleanup();
-        endTour("timeout");
+        endTour('timeout');
       }
     }, TARGET_TIMEOUT_MS);
     const cleanup = () => {
@@ -221,31 +242,39 @@ export function CopilotProvider({
     // not an input — including it would re-run the poll on every
     // transition it causes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTour, stepIndex, pathname, searchParams, advance, endTour, openSidebar]);
+  }, [
+    activeTour,
+    stepIndex,
+    pathname,
+    searchParams,
+    advance,
+    endTour,
+    openSidebar,
+  ]);
 
   // --- click-target advancing ---------------------------------------
   // Capture-phase listener on document: survives React re-renders
   // replacing the node and fires before Link navigation starts.
   useEffect(() => {
-    if (!activeTour || tourStatus !== "showing") return;
+    if (!activeTour || tourStatus !== 'showing') return;
     const step = activeTour.steps[stepIndex];
-    if (!step || step.advanceOn !== "click-target") return;
+    if (!step || step.advanceOn !== 'click-target') return;
     const onClick = (e: MouseEvent) => {
       const el = e.target as HTMLElement | null;
       if (el?.closest(`[data-tour="${step.target}"]`)) advance();
     };
-    document.addEventListener("click", onClick, true);
-    return () => document.removeEventListener("click", onClick, true);
+    document.addEventListener('click', onClick, true);
+    return () => document.removeEventListener('click', onClick, true);
   }, [activeTour, stepIndex, tourStatus, advance]);
 
   // --- Escape aborts the tour ----------------------------------------
   useEffect(() => {
     if (!activeTour) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") endTour("aborted");
+      if (e.key === 'Escape') endTour('aborted');
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   }, [activeTour, endTour]);
 
   const value = useMemo(
@@ -261,7 +290,16 @@ export function CopilotProvider({
       advance,
       endTour,
     }),
-    [panelOpen, activeTour, stepIndex, tourStatus, targetEl, startTour, advance, endTour],
+    [
+      panelOpen,
+      activeTour,
+      stepIndex,
+      tourStatus,
+      targetEl,
+      startTour,
+      advance,
+      endTour,
+    ]
   );
 
   return (
@@ -272,7 +310,7 @@ export function CopilotProvider({
 export function useCopilot(): CopilotContextValue {
   const ctx = useContext(CopilotContext);
   if (!ctx) {
-    throw new Error("useCopilot must be used within a CopilotProvider");
+    throw new Error('useCopilot must be used within a CopilotProvider');
   }
   return ctx;
 }

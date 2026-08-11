@@ -6,6 +6,7 @@ import {
   RATE_LIMITS,
 } from '@/lib/rate-limit';
 import { answerQuestion } from '@/lib/copilot/engine';
+import { logCopilotEvent } from '@/lib/copilot/events';
 import { readChatRequest } from '@/lib/copilot/request';
 
 /**
@@ -39,13 +40,20 @@ export const POST = withDenAuth(async (ctx, req) => {
     return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
 
+  const accountId = ctx.links[0]?.accountId ?? null;
   const result = await answerQuestion({
     audience: 'owner',
     // Demand is filed against the agency that manages this owner. A
     // brand-new owner with no links yet has nobody to attribute to,
     // so their request is skipped rather than guessed at.
-    accountId: ctx.links[0]?.accountId ?? null,
+    accountId,
     ...parsed,
+  });
+  logCopilotEvent({
+    accountId,
+    audience: 'owner',
+    event: 'chat',
+    cached: result.cached,
   });
   return NextResponse.json(result);
 });
