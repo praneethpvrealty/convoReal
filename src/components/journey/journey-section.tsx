@@ -22,6 +22,7 @@ import {
   Import,
   Inbox,
   MessagesSquare,
+  NotebookPen,
   Plus,
   UserRound,
 } from "lucide-react";
@@ -47,6 +48,7 @@ import { JourneyCanvas } from "./journey-canvas";
 import { JourneyItemSheet } from "./journey-item-sheet";
 import { AddItemsDialog } from "./add-items-dialog";
 import { CapturedTrayDialog } from "./captured-tray-dialog";
+import { ContactNotesDialog } from "./contact-notes-dialog";
 import type { JourneyMode } from "./shared";
 
 export interface JourneySectionProps {
@@ -95,6 +97,8 @@ export function JourneySection({
   const [trayOpen, setTrayOpen] = useState(false);
   const [importableCount, setImportableCount] = useState(0);
   const [scanningChat, setScanningChat] = useState(false);
+  const [notesOpen, setNotesOpen] = useState(false);
+  const [notesCount, setNotesCount] = useState(0);
 
   // ── Load subject + items ─────────────────────────────────────
   const loadJourney = useCallback(async () => {
@@ -166,6 +170,25 @@ export function JourneySection({
       cancelled = true;
     };
   }, [mode, subjectId, items, supabase]);
+
+  // ── Contact note count (buyer mode) ──────────────────────────
+  useEffect(() => {
+    if (mode !== "buyer") {
+      Promise.resolve().then(() => setNotesCount(0));
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { count } = await supabase
+        .from("contact_notes")
+        .select("id", { count: "exact", head: true })
+        .eq("contact_id", subjectId);
+      if (!cancelled) setNotesCount(count ?? 0);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [mode, subjectId, supabase]);
 
   // ── Event log helper ─────────────────────────────────────────
   const logEvent = useCallback(
@@ -509,7 +532,7 @@ export function JourneySection({
   const visibleItems = useMemo(() => items.filter((i) => !i.hidden), [items]);
   const capturedItems = useMemo(() => items.filter((i) => i.hidden), [items]);
 
-  const hasToolbar = capturedItems.length > 0 || canEdit;
+  const hasToolbar = capturedItems.length > 0 || canEdit || mode === "buyer";
 
   const subjectTitle =
     mode === "buyer"
@@ -539,6 +562,17 @@ export function JourneySection({
         >
           <Inbox className="h-3.5 w-3.5" />
           Captured ({capturedItems.length})
+        </Button>
+      )}
+      {mode === "buyer" && (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setNotesOpen(true)}
+          className="h-7 px-2.5 text-xs"
+        >
+          <NotebookPen className="h-3.5 w-3.5" />
+          Notes{notesCount > 0 ? ` (${notesCount})` : ""}
         </Button>
       )}
       {mode === "buyer" && canEdit && (
@@ -683,6 +717,17 @@ export function JourneySection({
         currency={currency}
         onAdd={(ids) => handleAddItems(ids)}
       />
+
+      {mode === "buyer" && (
+        <ContactNotesDialog
+          open={notesOpen}
+          onOpenChange={setNotesOpen}
+          contactId={subjectId}
+          contactName={subjectTitle}
+          canEdit={canEdit}
+          onCountChange={setNotesCount}
+        />
+      )}
 
       <CapturedTrayDialog
         open={trayOpen}
