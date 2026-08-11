@@ -34,7 +34,7 @@ The tappable options underneath a message.
 
 ---
 
-## Messages (8)
+## Messages (9)
 
 ### 1. Property details — sent when a buyer asks about a listing
 
@@ -273,6 +273,34 @@ The tappable options underneath a message.
 > ഈ ലിസ്റ്റിംഗിനെക്കുറിച്ചുള്ള നിങ്ങളുടെ തീരുമാനം അറിയിക്കാമെന്ന് നിങ്ങൾ പറഞ്ഞിരുന്നു.
 >
 > ഞങ്ങൾ എപ്പോൾ വീണ്ടും ബന്ധപ്പെടണം എന്ന് തിരഞ്ഞെടുക്കുക.
+
+**Your correction** *(leave blank if the above is fine)*
+
+>
+
+---
+
+### 9. Enquiry follow-up reminder — confirm or move the scheduled follow-up date
+
+*Placeholders:* `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = listing title · `{{4}}` = scheduled follow-up date
+
+**English**
+
+> Hi {{1}}, this is a reminder from {{2}} that your property enquiry is open and awaiting your decision.
+>
+> Property: {{3}}
+> Follow-up currently scheduled for: {{4}}
+>
+> Please tap a button below to confirm this date or move it. If you choose "Can't say yet", the follow-up is removed and your enquiry stays open until you contact us.
+
+**മലയാളം — current**
+
+> നമസ്കാരം {{1}}, ഇത് {{2}} നൽകുന്ന ഓർമ്മപ്പെടുത്തൽ — നിങ്ങളുടെ വസ്തു അന്വേഷണം തുറന്നിരിക്കുന്നു, നിങ്ങളുടെ തീരുമാനത്തിനായി കാത്തിരിക്കുന്നു.
+>
+> വസ്തു: {{3}}
+> അടുത്ത ബന്ധപ്പെടൽ നിശ്ചയിച്ചിരിക്കുന്നത്: {{4}}
+>
+> ഈ തീയതി സ്ഥിരീകരിക്കാനോ മാറ്റാനോ താഴെയുള്ള ബട്ടൺ അമർത്തുക. "ഇപ്പോൾ പറയാനാകില്ല" തിരഞ്ഞെടുത്താൽ നിശ്ചയിച്ച ബന്ധപ്പെടൽ നീക്കം ചെയ്യും, അന്വേഷണം തുറന്നിരിക്കും.
 
 **Your correction** *(leave blank if the above is fine)*
 

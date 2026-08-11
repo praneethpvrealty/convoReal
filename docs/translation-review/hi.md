@@ -34,7 +34,7 @@ The tappable options underneath a message.
 
 ---
 
-## Messages (8)
+## Messages (9)
 
 ### 1. Property details — sent when a buyer asks about a listing
 
@@ -273,6 +273,34 @@ The tappable options underneath a message.
 > आपने बताया था कि आप इस लिस्टिंग पर अपना निर्णय बताएंगे।
 >
 > कृपया चुनें कि हम कब दोबारा संपर्क करें, ताकि आपकी ज़रूरत से पहले संपर्क न करें।
+
+**Your correction** *(leave blank if the above is fine)*
+
+>
+
+---
+
+### 9. Enquiry follow-up reminder — confirm or move the scheduled follow-up date
+
+*Placeholders:* `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = listing title · `{{4}}` = scheduled follow-up date
+
+**English**
+
+> Hi {{1}}, this is a reminder from {{2}} that your property enquiry is open and awaiting your decision.
+>
+> Property: {{3}}
+> Follow-up currently scheduled for: {{4}}
+>
+> Please tap a button below to confirm this date or move it. If you choose "Can't say yet", the follow-up is removed and your enquiry stays open until you contact us.
+
+**हिन्दी — current**
+
+> नमस्ते {{1}}, यह {{2}} की ओर से याद दिलाना है कि आपकी प्रॉपर्टी पूछताछ खुली है और आपके निर्णय की प्रतीक्षा में है।
+>
+> प्रॉपर्टी: {{3}}
+> अगला संपर्क निर्धारित है: {{4}}
+>
+> इस तारीख की पुष्टि करने या बदलने के लिए नीचे बटन दबाएं। "अभी कह नहीं सकते" चुनने पर निर्धारित संपर्क हटा दिया जाएगा और आपकी पूछताछ खुली रहेगी।
 
 **Your correction** *(leave blank if the above is fine)*
 
