@@ -520,11 +520,33 @@ describe('mobile/lib/contact-interest.ts mirrors the web project axis', () => {
 });
 
 describe("mobile/lib/i18n.ts mirrors the web catalogue's copilot slice", () => {
-  // The mobile module is pure (no Expo/RN imports), so unlike the other
-  // mirrors it can be imported directly and compared value-for-value.
-  it('keeps every ported key byte-equal in every language', async () => {
-    const { UI_MESSAGES } = await import('../../mobile/lib/i18n');
-    for (const [lang, catalogue] of Object.entries(UI_MESSAGES)) {
+  // Importing the module would make vitest transform a file governed by
+  // mobile/tsconfig.json, which extends expo/tsconfig.base — absent
+  // unless mobile deps are installed (the web CI job does not). The
+  // catalogue is emitted with JSON.stringify, so its entry lines parse
+  // back losslessly as JSON instead.
+  const source = mobileSource('lib/i18n.ts');
+
+  function parsedCatalogue(lang: string): Record<string, string> {
+    const decl = `\n  ${lang}: {\n`;
+    const start = source.indexOf(decl);
+    expect(start, `no ${lang} catalogue in mobile i18n`).toBeGreaterThan(-1);
+    const end = source.indexOf('\n  },', start);
+    const body = source
+      .slice(start + decl.length, end)
+      .trim()
+      .replace(/,$/, '');
+    return JSON.parse(`{${body}}`) as Record<string, string>;
+  }
+
+  it('keeps every ported key byte-equal in every language', () => {
+    const en = parsedCatalogue('en');
+    expect(Object.keys(en).length).toBeGreaterThanOrEqual(20);
+    for (const lang of Object.keys(MESSAGES)) {
+      const catalogue = parsedCatalogue(lang);
+      expect(Object.keys(catalogue).sort(), lang).toEqual(
+        Object.keys(en).sort()
+      );
       const web = MESSAGES[lang as keyof typeof MESSAGES] as Record<
         string,
         string
