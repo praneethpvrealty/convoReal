@@ -1709,7 +1709,9 @@ export function ShowcaseView({
                               ? 'Rent'
                               : property.listing_type === 'JV/JD'
                                 ? 'JV / JD'
-                                : 'Price'}
+                                : property.teaser_gated
+                                  ? 'Guide Price'
+                                  : 'Price'}
                           </span>
                           <span className="text-lg font-black text-white leading-tight">
                             {property.listing_type === 'Rent' || property.listing_type === 'Built to Suit' ? (
@@ -1720,6 +1722,8 @@ export function ShowcaseView({
                                   ? `${property.owner_share_percent}:${property.builder_share_percent} share`
                                   : 'Enquire'}
                               </span>
+                            ) : property.teaser_gated ? (
+                              <span>{property.price_band || 'On request'}</span>
                             ) : (
                               formatPrice(property.price)
                             )}

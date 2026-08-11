@@ -29,7 +29,7 @@ export default async function RevealPage({ params }: PageProps) {
   const { data: locRequest, error } = await admin
     .from('property_location_requests')
     .select(
-      '*, property:properties(id, title, property_code, location, sublocality, city, state, google_map_link, latitude, longitude, images, private_images), grant:property_share_grants!granted_share_id(token, expires_at, revoked_at)'
+      '*, property:properties(id, title, property_code, type, bedrooms, showcase_visibility, location, sublocality, city, state, google_map_link, latitude, longitude, images, private_images), grant:property_share_grants!granted_share_id(token, expires_at, revoked_at)'
     )
     .eq('share_token', token)
     .maybeSingle();

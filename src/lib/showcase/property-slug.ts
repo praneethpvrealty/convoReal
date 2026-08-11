@@ -1,12 +1,27 @@
 import type { Property } from '@/types';
+import {
+  isTeaserGated,
+  teaserTitle,
+} from '@/lib/inventory/showcase-visibility';
 
 const TRAILING_UUID_RE =
   /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function propertySlug(
-  property: Pick<Property, 'id' | 'title' | 'sublocality' | 'city'>
+  property: Pick<Property, 'id' | 'title'> &
+    Partial<
+      Pick<Property, 'sublocality' | 'city' | 'state' | 'type' | 'bedrooms'>
+    > & { showcase_visibility?: string | null }
 ): string {
-  const words = [property.title, property.sublocality || property.city]
+  // The slug is the one part of a gated listing that travels in the
+  // clear — it is the canonical URL, the og:url, and the text of the
+  // link itself. Building it from the stored title spelled the street
+  // out ("...-koramangala-5th-block-...") while the page above it was
+  // busy withholding exactly that.
+  const headline = isTeaserGated(property)
+    ? teaserTitle(property)
+    : property.title;
+  const words = [headline, property.sublocality || property.city]
     .filter(Boolean)
     .join(' ')
     .toLowerCase()

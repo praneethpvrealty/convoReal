@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { storagePublicUrl } from '@/lib/storage/url';
 import type { Property } from '@/types';
 
 interface TeaserGateProps {
@@ -52,7 +53,11 @@ export function TeaserGate({
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
-  const coverImage = property.images?.[0] || null;
+  // Images travel as bucket-relative paths, not URLs — resolved at the
+  // read boundary here, the same as every other showcase surface.
+  const coverImage = property.images?.[0]
+    ? storagePublicUrl(property.images[0])
+    : null;
   const hiddenPhotos = Math.max(
     (property.image_count ?? 0) - (coverImage ? 1 : 0),
     0
