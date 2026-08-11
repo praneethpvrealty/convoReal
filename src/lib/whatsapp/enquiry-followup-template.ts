@@ -8,6 +8,8 @@
 // unit-testable.
 
 import type { TemplatePayload } from '@/lib/whatsapp/template-validators';
+import { DEFAULT_LANGUAGE, metaLanguageCode, type LanguageCode } from '@/lib/languages';
+import { templateBody, templateButtonLabel } from '@/lib/whatsapp/template-copy';
 import { sanitizeTemplateParam } from '@/lib/whatsapp/inventory-update-template';
 import { isPlaceholderLeadName } from '@/lib/contacts/lead-placeholder';
 import { BRANDING } from '@/config/branding';
@@ -80,7 +82,9 @@ export function pickEnquiryFollowupTemplate<T extends ApprovedTemplateCandidate>
 export const ENQUIRY_FOLLOWUP_UPDATE_BUTTON = 'Update my preferences';
 export const ENQUIRY_FOLLOWUP_CLOSE_BUTTON = 'Close my enquiry';
 
-export function buildEnquiryFollowupTemplatePayload(): TemplatePayload {
+export function buildEnquiryFollowupTemplatePayload(
+  language: LanguageCode = DEFAULT_LANGUAGE,
+): TemplatePayload {
   return {
     name: ENQUIRY_FOLLOWUP_TEMPLATE_NAME,
     // Utility under Meta's two-part test: non-promotional AND specific
@@ -90,19 +94,13 @@ export function buildEnquiryFollowupTemplatePayload(): TemplatePayload {
     // (that alone reads as marketing), no emoji ad-card, no persuasive
     // CTA. Same reasoning as property_enquiry_response.
     category: 'Utility',
-    language: 'en_US',
+    language: metaLanguageCode(language),
     // Single variable so a send can never fail on a missing per-contact
     // value — the greeting name always resolves (placeholder-safe).
-    body_text: [
-      'Hi {{1}}, this is a status update on your property enquiry with {{2}}:',
-      '',
-      'The listing you enquired about is no longer available, so your enquiry cannot be fulfilled as filed.',
-      '',
-      'To keep your enquiry open, update your requirement below or reply with what you are looking for now. To end it, choose "Close my enquiry" and no further updates will be sent.',
-    ].join('\n'),
+    body_text: templateBody('enquiry_followup', language),
     buttons: [
-      { type: 'QUICK_REPLY', text: ENQUIRY_FOLLOWUP_UPDATE_BUTTON },
-      { type: 'QUICK_REPLY', text: ENQUIRY_FOLLOWUP_CLOSE_BUTTON },
+      { type: 'QUICK_REPLY', text: templateButtonLabel('update_preferences', language) },
+      { type: 'QUICK_REPLY', text: templateButtonLabel('close_enquiry', language) },
     ],
     sample_values: {
       body: ['Praneeth', 'Aryavarta Ventures'],

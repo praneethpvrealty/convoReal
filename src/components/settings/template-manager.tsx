@@ -13,9 +13,19 @@ import {
   RotateCcw,
   Send,
   Upload,
+  CheckCircle2,
+  Clock,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-import { missingEngineTemplates } from '@/lib/whatsapp/engine-templates';
+import {
+  missingEngineTemplates,
+  ENGINE_TEMPLATES,
+  ENGINE_TEMPLATE_NAMES,
+} from '@/lib/whatsapp/engine-templates';
+import {
+  TemplateLanguageTabs,
+  templateMatchesLanguage,
+} from '@/components/settings/template-language-tabs';
 import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -49,7 +59,13 @@ import {
   extractVariableIndices,
   TEMPLATE_LIMITS,
 } from '@/lib/whatsapp/template-validators';
-import { LANGUAGE_CODES, languageDisplay, metaLanguageCode } from '@/lib/languages';
+import {
+  LANGUAGE_CODES,
+  SUPPORTED_LANGUAGES,
+  languageDisplay,
+  metaLanguageCode,
+  type LanguageCode,
+} from '@/lib/languages';
 
 const CATEGORIES = ['Marketing', 'Utility', 'Authentication'] as const;
 type HeaderFormat = 'none' | 'text' | 'image' | 'video' | 'document';
@@ -162,6 +178,11 @@ export function TemplateManager() {
   const [loading, setLoading] = useState(true);
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
   const [submittingEngineTemplate, setSubmittingEngineTemplate] = useState<string | null>(null);
+  // Which language tab is open. Meta keys a template on (name,
+  // language), so this is not a filter over one list — it is which of
+  // seven independent registrations you are looking at.
+  const [activeLanguage, setActiveLanguage] = useState<LanguageCode>('en');
+  const [reviewing, setReviewing] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -552,26 +573,103 @@ export function TemplateManager() {
   const headerNeedsMedia =
     form.header_format !== 'none' && form.header_format !== 'text';
 
-  // Engine templates with no row at all. These are sent by the product
-  // itself, so a missing one fails a send rather than a person noticing.
-  const missingEngine = missingEngineTemplates(templates.map((t) => t.name));
+  // Rows belonging to the open language tab.
+  const visibleTemplates = templates.filter((t) =>
+    templateMatchesLanguage(t, activeLanguage),
+  );
+
+  // Engine templates with no row IN THIS LANGUAGE. These are sent by
+  // the product itself, so a missing one fails a send rather than a
+  // person noticing — and a missing Kannada variant fails it just as
+  // hard for a Kannada-speaking buyer as a missing English one does
+  // for everyone.
+  const missingEngine = missingEngineTemplates(
+    visibleTemplates.map((t) => t.name),
+  );
+
+  // English is source copy and submits in one tap, as it always has.
+  // Everything else is machine-written and goes draft → review →
+  // submit; see src/lib/whatsapp/translation-review.ts.
+  const needsReviewFlow = activeLanguage !== 'en';
 
   const handleCreateEngineTemplate = async (name: string) => {
     const def = missingEngine.find((t) => t.name === name);
     if (!def || submittingEngineTemplate) return;
     setSubmittingEngineTemplate(name);
     try {
-      const res = await fetch('/api/whatsapp/templates/submit', {
+      const payload = def.build(window.location.origin, activeLanguage);
+      // A translation lands as a local draft for review; English still
+      // goes straight to Meta.
+      const endpoint = needsReviewFlow
+        ? '/api/whatsapp/templates/draft'
+        : '/api/whatsapp/templates/submit';
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(def.build(window.location.origin)),
+        body: JSON.stringify(payload),
       });
       const data = await res.json().catch(() => null);
       if (!res.ok)
         throw new Error(
           data?.error || `Template submission failed (HTTP ${res.status})`
         );
-      toast.success(`${def.label} submitted to Meta — approval usually takes minutes to a few hours.`);
+      toast.success(
+        needsReviewFlow
+          ? `${def.label} drafted in ${languageDisplay(activeLanguage)} — read the wording, then mark it reviewed to submit.`
+          : `${def.label} submitted to Meta — approval usually takes minutes to a few hours.`
+      );
+      if (accountId) await fetchTemplates(accountId);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Template submission failed');
+    } finally {
+      setSubmittingEngineTemplate(null);
+    }
+  };
+
+  const handleToggleReview = async (template: MessageTemplate) => {
+    if (reviewing) return;
+    setReviewing(template.id);
+    const approving = !template.translation_reviewed_at;
+    try {
+      const res = await fetch(`/api/whatsapp/templates/${template.id}/review`, {
+        method: approving ? 'POST' : 'DELETE',
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || `Request failed (HTTP ${res.status})`);
+      toast.success(
+        approving
+          ? 'Marked reviewed — this translation can now be submitted to Meta.'
+          : 'Review withdrawn. This translation can no longer be submitted.'
+      );
+      if (accountId) await fetchTemplates(accountId);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update review');
+    } finally {
+      setReviewing(null);
+    }
+  };
+
+  const handleSubmitReviewed = async (template: MessageTemplate) => {
+    const def = ENGINE_TEMPLATES.find((t) => t.name === template.name);
+    if (!def || submittingEngineTemplate) return;
+    setSubmittingEngineTemplate(template.name);
+    try {
+      const res = await fetch('/api/whatsapp/templates/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        // The reviewed BODY is the row's, not the builder's — a
+        // reviewer may well have fixed the wording, and sending the
+        // builder's copy would quietly discard their edit.
+        body: JSON.stringify({
+          ...def.build(window.location.origin, activeLanguage),
+          body_text: template.body_text,
+          footer_text: template.footer_text,
+          buttons: template.buttons,
+        }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || `Submission failed (HTTP ${res.status})`);
+      toast.success(`${def.label} submitted to Meta.`);
       if (accountId) await fetchTemplates(accountId);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Template submission failed');
@@ -621,14 +719,32 @@ export function TemplateManager() {
         )}
       </div>
 
+      <TemplateLanguageTabs
+        templates={templates}
+        engineTemplateCount={ENGINE_TEMPLATES.length}
+        engineTemplateNames={ENGINE_TEMPLATE_NAMES}
+        active={activeLanguage}
+        onChange={setActiveLanguage}
+      />
+
+      {needsReviewFlow && (
+        <p className="rounded-lg border border-amber-900/50 bg-amber-950/20 px-3 py-2 text-xs leading-relaxed text-amber-300/90">
+          The {languageDisplay(activeLanguage)} wording ConvoReal ships was
+          machine-written and has not been checked by a native speaker. Drafts
+          here are held locally until someone who reads{' '}
+          {SUPPORTED_LANGUAGES[activeLanguage].label} marks them reviewed —
+          Meta never sees an unreviewed translation.
+        </p>
+      )}
+
       {isOrgManager && missingEngine.length > 0 && (
         <Card className="border-amber-900/50 bg-amber-950/20 ring-0 ring-transparent">
           <CardContent className="space-y-3 py-4">
             <p className="flex items-center gap-1.5 text-xs font-bold text-amber-400">
               <AlertCircle className="size-4 shrink-0" />
               {missingEngine.length === 1
-                ? 'One template the Engine sends is missing'
-                : `${missingEngine.length} templates the Engine sends are missing`}
+                ? `One template the Engine sends is missing in ${languageDisplay(activeLanguage)}`
+                : `${missingEngine.length} templates the Engine sends are missing in ${languageDisplay(activeLanguage)}`}
             </p>
             {missingEngine.map((t) => (
               <div
@@ -654,7 +770,7 @@ export function TemplateManager() {
                   ) : (
                     <Send className="size-4" />
                   )}
-                  Create &amp; submit
+                  {needsReviewFlow ? 'Create draft' : 'Create & submit'}
                 </Button>
               </div>
             ))}
@@ -662,18 +778,22 @@ export function TemplateManager() {
         </Card>
       )}
 
-      {templates.length === 0 ? (
+      {visibleTemplates.length === 0 ? (
         <Card className="border-slate-700 bg-slate-900 ring-0 ring-transparent">
           <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-            <p className="text-sm text-slate-400">No templates yet.</p>
+            <p className="text-sm text-slate-400">
+              No templates in {languageDisplay(activeLanguage)} yet.
+            </p>
             <p className="mt-1 text-xs text-slate-500">
-              Create your first message template to get started.
+              Each language is its own registration with Meta — create the ones
+              above to reach contacts who read{' '}
+              {SUPPORTED_LANGUAGES[activeLanguage].label}.
             </p>
           </CardContent>
         </Card>
       ) : (
         <div className="grid gap-3">
-          {templates.map((template) => {
+          {visibleTemplates.map((template) => {
             const statusKey = template.status || 'DRAFT';
             const status = templateStatusConfig[statusKey];
             return (
@@ -723,6 +843,64 @@ export function TemplateManager() {
                         {template.footer_text}
                       </p>
                     )}
+                    {/* Translation review. Only for a non-English
+                        Engine template that has not reached Meta yet —
+                        once APPROVED the copy is Meta's record and the
+                        gate has done its job. */}
+                    {isOrgManager &&
+                      needsReviewFlow &&
+                      ENGINE_TEMPLATE_NAMES.has(template.name) &&
+                      statusKey !== 'APPROVED' && (
+                        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-800 bg-slate-950/40 px-2.5 py-2">
+                          {template.translation_reviewed_at ? (
+                            <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-400">
+                              <CheckCircle2 className="size-3.5" />
+                              Reviewed
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1.5 text-xs font-semibold text-amber-400">
+                              <Clock className="size-3.5" />
+                              Awaiting review
+                            </span>
+                          )}
+                          <span className="flex-1 text-[11px] leading-normal text-slate-500">
+                            {template.translation_reviewed_at
+                              ? 'Editing the wording clears this automatically.'
+                              : `Read the wording above as a ${SUPPORTED_LANGUAGES[activeLanguage].label} speaker would. Edit it if it reads wrong, then mark it reviewed.`}
+                          </span>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleToggleReview(template)}
+                            disabled={reviewing !== null}
+                            className="border-slate-700 bg-transparent text-slate-300 hover:bg-slate-800"
+                          >
+                            {reviewing === template.id ? (
+                              <Loader2 className="size-3.5 animate-spin" />
+                            ) : template.translation_reviewed_at ? (
+                              'Withdraw'
+                            ) : (
+                              'Mark reviewed'
+                            )}
+                          </Button>
+                          {template.translation_reviewed_at && (
+                            <Button
+                              size="sm"
+                              onClick={() => handleSubmitReviewed(template)}
+                              disabled={submittingEngineTemplate !== null}
+                              className="bg-primary hover:bg-primary/90 text-primary-foreground"
+                            >
+                              {submittingEngineTemplate === template.name ? (
+                                <Loader2 className="size-3.5 animate-spin" />
+                              ) : (
+                                <Send className="size-3.5" />
+                              )}
+                              Submit to Meta
+                            </Button>
+                          )}
+                        </div>
+                      )}
+
                     {/* A submission_error on an APPROVED row is the
                         record of a refused EDIT, not a problem with the
                         template Meta is serving — and the edit was

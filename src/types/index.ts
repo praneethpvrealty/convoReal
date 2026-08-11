@@ -602,6 +602,11 @@ export interface MessageTemplate {
   quality_score?: 'GREEN' | 'YELLOW' | 'RED';
   submission_error?: string;
   last_submitted_at?: string;
+  /** When a reader of this language signed the copy off (migration
+   *  244). Null blocks submission of a non-English Engine template,
+   *  and is cleared automatically whenever the body changes. */
+  translation_reviewed_at?: string | null;
+  translation_reviewed_by?: string | null;
   created_at: string;
 }
 

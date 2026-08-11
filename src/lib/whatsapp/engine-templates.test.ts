@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ENGINE_TEMPLATES, missingEngineTemplates } from './engine-templates';
 import { validateTemplatePayload } from './template-validators';
+import { LANGUAGE_CODES, metaLanguageCode } from '@/lib/languages';
 
 describe('missingEngineTemplates', () => {
   it('reports a template the account has no row for', () => {
@@ -50,9 +51,56 @@ describe('missingEngineTemplates', () => {
     expect(missingEngineTemplates([])).toHaveLength(ENGINE_TEMPLATES.length);
   });
 
-  it('every builder produces a payload the submit API accepts', () => {
+  // Every (template, language) pair is its own Meta registration, so
+  // every pair has to survive validation — a translation that busts a
+  // length cap or drops a placeholder is only discoverable here or in
+  // a rejection from Meta that reserves the name for four weeks.
+  it('every builder produces a payload the submit API accepts, in every language', () => {
     for (const t of ENGINE_TEMPLATES) {
-      expect(() => validateTemplatePayload(t.build('https://www.convoreal.com'))).not.toThrow();
+      for (const language of LANGUAGE_CODES) {
+        expect(
+          () =>
+            validateTemplatePayload(
+              t.build('https://www.convoreal.com', language),
+            ),
+          `${t.name} / ${language}`,
+        ).not.toThrow();
+      }
+    }
+  });
+
+  it('registers each language under the Meta code for it', () => {
+    for (const t of ENGINE_TEMPLATES) {
+      for (const language of LANGUAGE_CODES) {
+        expect(t.build('https://www.convoreal.com', language).language).toBe(
+          metaLanguageCode(language),
+        );
+      }
+    }
+  });
+
+  // The name is the identity Meta keys on alongside the language;
+  // varying it per language would create seven unrelated templates
+  // instead of seven variants of one, and the send-time resolver
+  // would never find them.
+  it('keeps one name across every language', () => {
+    for (const t of ENGINE_TEMPLATES) {
+      for (const language of LANGUAGE_CODES) {
+        expect(t.build('https://www.convoreal.com', language).name).toBe(t.name);
+      }
+    }
+  });
+
+  it('translates the body away from English for every non-English variant', () => {
+    for (const t of ENGINE_TEMPLATES) {
+      const english = t.build('https://www.convoreal.com', 'en').body_text;
+      for (const language of LANGUAGE_CODES) {
+        if (language === 'en') continue;
+        expect(
+          t.build('https://www.convoreal.com', language).body_text,
+          `${t.name} / ${language}`,
+        ).not.toBe(english);
+      }
     }
   });
 });
