@@ -41,6 +41,13 @@ export interface RecordPropertySharesInput {
     contactId: string;
     classification?: Contact['classification'] | null;
   }>;
+  /** Put the journey item straight on the map instead of the Captured
+   *  tray. True for a share sent to ONE named contact: choosing a
+   *  person and sending them a listing is the decision the tray exists
+   *  to ask for. A broadcast is not — twenty recipients would bury
+   *  twenty journeys — so it stays hidden and the agent places what
+   *  matters. */
+  journeyVisible?: boolean;
 }
 
 export async function recordPropertyShares({
@@ -48,6 +55,7 @@ export async function recordPropertyShares({
   propertyId,
   userId,
   recipients,
+  journeyVisible = false,
 }: RecordPropertySharesInput): Promise<{ created: number; error: string | null }> {
   if (recipients.length === 0) return { created: 0, error: null };
   const supabase = createClient();
@@ -81,16 +89,14 @@ export async function recordPropertyShares({
     return { created: 0, error: error.message };
   }
 
-  // Hidden: a share is evidence the agent showed the listing, not yet a
-  // decision that it belongs on the map. It lands in the journey's
-  // Captured tray for them to place. Failure here must not fail the
-  // ledger — the send already happened either way.
+  // Failure here must not fail the ledger — the send already happened
+  // either way.
   const capture = await captureJourneyItems({
     accountId,
     userId,
     pairs: [...seen].map((contactId) => ({ contactId, propertyId })),
     source: 'whatsapp_share',
-    hidden: true,
+    hidden: !journeyVisible,
   });
   if (capture.error) {
     console.error('Journey share capture failed:', capture.error);
