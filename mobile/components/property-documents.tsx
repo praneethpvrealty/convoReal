@@ -13,7 +13,10 @@ import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { SectionLabel } from '@/components/ui';
 import { apiFetch } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
-import { documentLabel, DOCUMENT_SIZE_LIMIT } from '@/lib/property-documents';
+import {
+  parsePropertyDocuments,
+  DOCUMENT_SIZE_LIMIT,
+} from '@/lib/property-documents';
 import { friendlyError } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
 import { storagePublicUrl } from '@/lib/storage-url';
@@ -215,21 +218,23 @@ export function PropertyDocuments({
     });
   }
 
+  const attached = parsePropertyDocuments(documents);
+
   return (
     <View style={{ gap: spacing.sm }}>
       <SectionLabel text="Documents" />
 
-      {documents.length === 0 ? (
+      {attached.length === 0 ? (
         <Text style={{ fontSize: 12.5, color: colors.textFaint }}>
           No documents attached yet.
         </Text>
       ) : (
-        documents.map((path) => (
+        attached.map((doc) => (
           <Pressable
-            key={path}
-            onPress={() => void Linking.openURL(storagePublicUrl(path))}
+            key={doc.raw}
+            onPress={() => void Linking.openURL(storagePublicUrl(doc.url))}
             accessibilityRole="button"
-            accessibilityLabel={`Open ${documentLabel(path)}`}
+            accessibilityLabel={`Open ${doc.label}`}
             style={[
               styles.row,
               {
@@ -240,7 +245,7 @@ export function PropertyDocuments({
           >
             <Ionicons
               name={
-                /\.(jpg|jpeg|png|webp)$/i.test(path)
+                /\.(jpg|jpeg|png|webp)$/i.test(doc.url)
                   ? 'image-outline'
                   : 'document-text-outline'
               }
@@ -256,17 +261,17 @@ export function PropertyDocuments({
                 color: colors.text,
               }}
             >
-              {documentLabel(path)}
+              {doc.label}
             </Text>
             {canEdit ? (
-              removing === path ? (
+              removing === doc.raw ? (
                 <ActivityIndicator size="small" color={colors.textFaint} />
               ) : (
                 <Pressable
-                  onPress={() => confirmRemove(path)}
+                  onPress={() => confirmRemove(doc.raw)}
                   hitSlop={8}
                   accessibilityRole="button"
-                  accessibilityLabel={`Remove ${documentLabel(path)}`}
+                  accessibilityLabel={`Remove ${doc.label}`}
                 >
                   <Ionicons name="close" size={17} color={colors.textFaint} />
                 </Pressable>
