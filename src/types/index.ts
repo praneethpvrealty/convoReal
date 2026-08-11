@@ -704,7 +704,8 @@ export type JourneyEventType =
   | 'hidden'
   | 'unhidden'
   | 'planned'
-  | 'plan_cleared';
+  | 'plan_cleared'
+  | 'client_response';
 
 export interface JourneyEvent {
   id: string;
