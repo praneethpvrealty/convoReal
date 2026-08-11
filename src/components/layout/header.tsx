@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/use-auth";
 import { useT } from "@/hooks/use-locale";
+import { LanguageToggle } from "@/components/layout/language-toggle";
 import { useTheme } from "@/hooks/use-theme";
 import { LogOut, Menu, Moon, Settings as SettingsIcon, Sun, User, Search, Loader2 } from "lucide-react";
 import {
@@ -178,6 +179,8 @@ export function Header({ onOpenSidebar }: HeaderProps) {
           {title}
         </h1>
       </div>
+
+      <LanguageToggle />
 
       {/* Global Search Bar input trigger */}
       <div 

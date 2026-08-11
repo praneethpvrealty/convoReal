@@ -41,6 +41,16 @@ export type LanguageCode = keyof typeof SUPPORTED_LANGUAGES;
 
 export const DEFAULT_LANGUAGE: LanguageCode = 'en';
 
+/**
+ * How many languages one agent may keep switchable in the app.
+ *
+ * A packaging number, not a technical one — the catalogue, the toggle
+ * and the profile column all handle any count. Raise it here (or read
+ * it off the plan) when a subscription tier should unlock more; the
+ * DB constraint in migration 243 deliberately does not encode it.
+ */
+export const MAX_UI_LANGUAGES = 2;
+
 export const LANGUAGE_CODES = Object.keys(SUPPORTED_LANGUAGES) as LanguageCode[];
 
 export function isLanguageCode(v: unknown): v is LanguageCode {

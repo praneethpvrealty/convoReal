@@ -4,7 +4,6 @@ import Script from "next/script";
 import { Analytics } from "@vercel/analytics/react";
 import "./globals.css";
 import { ThemeProvider } from "@/hooks/use-theme";
-import { LocaleProvider } from "@/hooks/use-locale";
 import { QueryProvider } from "@/components/layout/query-provider";
 import {
   DEFAULT_MODE,
@@ -97,14 +96,12 @@ export default function RootLayout({
       </head>
       <body className="min-h-full bg-background text-foreground font-sans">
         <ThemeProvider>
-          <LocaleProvider>
-            <QueryProvider>
-              <DeploymentCheck />
-              {children}
-              <Analytics />
-              <ThemedToaster />
-            </QueryProvider>
-          </LocaleProvider>
+          <QueryProvider>
+            <DeploymentCheck />
+            {children}
+            <Analytics />
+            <ThemedToaster />
+          </QueryProvider>
         </ThemeProvider>
       </body>
     </html>

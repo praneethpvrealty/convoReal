@@ -10,8 +10,11 @@ import {
   type ReactNode,
 } from 'react';
 
+import { createClient } from '@/lib/supabase/client';
+import { useAuth } from '@/hooks/use-auth';
 import {
   DEFAULT_LANGUAGE,
+  MAX_UI_LANGUAGES,
   isLanguageCode,
   type LanguageCode,
 } from '@/lib/languages';
@@ -27,24 +30,40 @@ import { translate, type MessageKey } from '@/lib/i18n/messages';
  * messaging a Hindi-speaking buyer in Hindi, and conflating the two
  * would make one of those impossible.
  *
- * Device-scoped via localStorage, same reasoning as use-theme: it is
- * a per-device preference and needs no round trip to render.
+ * An agent declares the languages they read (`languages`, capped at
+ * MAX_UI_LANGUAGES) and one of them is active. Two stores, on purpose:
  *
- * localStorage is read through useSyncExternalStore rather than an
- * effect. The server has no localStorage, so the value has to differ
- * between the server render and the client's first paint —
- * useSyncExternalStore is the API built for exactly that split
- * (getServerSnapshot vs getSnapshot) and hands us cross-tab sync in
- * the same subscription. Adopting the stored value from a mount
- * effect instead would set state during render-commit, which React
- * flags, and would also flash English for a frame.
+ *   profiles.ui_languages / .active_ui_language — the truth. On the
+ *     profile rather than the account because it is personal, and
+ *     because the mobile app already reads profiles through the same
+ *     RLS, so the phone picks the choice up with no new API.
+ *
+ *   localStorage — a first-paint cache. The profile arrives one round
+ *     trip after mount; without the cache every load would render
+ *     English and then repaint, which on a slow connection is the
+ *     whole sidebar visibly changing language.
+ *
+ * Reads go through useSyncExternalStore rather than an effect: the
+ * server has no localStorage, so the value must differ between the
+ * server render and the client's first paint, which is exactly the
+ * split getServerSnapshot/getSnapshot exists for. It also hands us
+ * cross-tab sync in the same subscription.
  */
 
 export const LOCALE_STORAGE_KEY = 'convoreal.locale';
+export const LOCALE_SET_STORAGE_KEY = 'convoreal.locale.set';
 
 interface LocaleContextValue {
+  /** The language the app is rendering in. */
   language: LanguageCode;
+  /** Every language this agent declared they read. Always includes
+   *  `language`, always at least one entry. */
+  languages: LanguageCode[];
+  /** Switch the active language. Must be one of `languages`. */
   setLanguage: (next: LanguageCode) => void;
+  /** Replace the declared set. Trimmed to MAX_UI_LANGUAGES; the active
+   *  language follows if it is no longer in the set. */
+  setLanguages: (next: LanguageCode[]) => void;
   /** Translate a key, falling back to English when untranslated. */
   t: (key: MessageKey) => string;
 }
@@ -53,13 +72,25 @@ const LocaleContext = createContext<LocaleContextValue | null>(null);
 
 const listeners = new Set<() => void>();
 
+/** Narrow, de-duplicate and cap an untrusted list of codes. */
+export function sanitizeLanguageSet(input: unknown): LanguageCode[] {
+  const list = Array.isArray(input) ? input : [];
+  const seen: LanguageCode[] = [];
+  for (const item of list) {
+    if (isLanguageCode(item) && !seen.includes(item)) seen.push(item);
+    if (seen.length === MAX_UI_LANGUAGES) break;
+  }
+  // Never empty: an agent with no language has no app.
+  return seen.length > 0 ? seen : [DEFAULT_LANGUAGE];
+}
+
 /**
- * Read every call rather than caching. The snapshot is a string, so
- * React's Object.is check is by value and an unchanged read cannot
- * loop — and there is no cache left to go stale behind a write from
- * another tab.
+ * Read every call rather than caching. Snapshots are compared with
+ * Object.is, so the active language (a string) is safe; the SET is
+ * returned as a joined string for the same reason — a fresh array
+ * every read would never compare equal and would loop forever.
  */
-function getSnapshot(): LanguageCode {
+function getActiveSnapshot(): LanguageCode {
   try {
     const stored = localStorage.getItem(LOCALE_STORAGE_KEY);
     if (isLanguageCode(stored)) return stored;
@@ -69,15 +100,30 @@ function getSnapshot(): LanguageCode {
   return DEFAULT_LANGUAGE;
 }
 
-/** No localStorage on the server — English, matching first paint. */
-function getServerSnapshot(): LanguageCode {
+function getSetSnapshot(): string {
+  try {
+    const stored = localStorage.getItem(LOCALE_SET_STORAGE_KEY);
+    if (stored) return sanitizeLanguageSet(stored.split(',')).join(',');
+  } catch {
+    // See above.
+  }
+  return DEFAULT_LANGUAGE;
+}
+
+function getServerActiveSnapshot(): LanguageCode {
+  return DEFAULT_LANGUAGE;
+}
+
+function getServerSetSnapshot(): string {
   return DEFAULT_LANGUAGE;
 }
 
 function subscribe(onChange: () => void): () => void {
   const onStorage = (e: StorageEvent) => {
     // Another tab changed the language; follow it without a refresh.
-    if (e.key === LOCALE_STORAGE_KEY) onChange();
+    if (e.key === LOCALE_STORAGE_KEY || e.key === LOCALE_SET_STORAGE_KEY) {
+      onChange();
+    }
   };
   listeners.add(onChange);
   window.addEventListener('storage', onStorage);
@@ -87,23 +133,50 @@ function subscribe(onChange: () => void): () => void {
   };
 }
 
-function writeLanguage(next: LanguageCode): void {
+function writeCache(active: LanguageCode, set: LanguageCode[]): void {
   try {
-    localStorage.setItem(LOCALE_STORAGE_KEY, next);
+    localStorage.setItem(LOCALE_STORAGE_KEY, active);
+    localStorage.setItem(LOCALE_SET_STORAGE_KEY, set.join(','));
   } catch {
-    // Nothing to persist to. Nothing else to do either: without a
-    // store to read back from, this tab cannot hold the choice.
+    // Nothing to cache to; the profile is still the truth and the
+    // in-memory notify below still repaints this tab.
   }
   // `storage` does not fire in the tab that wrote it, so notify here.
   listeners.forEach((l) => l());
 }
 
 export function LocaleProvider({ children }: { children: ReactNode }) {
+  const { profile, refreshProfile } = useAuth();
+
   const language = useSyncExternalStore(
     subscribe,
-    getSnapshot,
-    getServerSnapshot
+    getActiveSnapshot,
+    getServerActiveSnapshot,
   );
+  const languageSetKey = useSyncExternalStore(
+    subscribe,
+    getSetSnapshot,
+    getServerSetSnapshot,
+  );
+  const languages = useMemo(
+    () => sanitizeLanguageSet(languageSetKey.split(',')),
+    [languageSetKey],
+  );
+
+  // The profile is the truth; the cache is only ahead of it during the
+  // first paint of a cold load. Once the row lands, reconcile.
+  const profileLanguages = profile?.ui_languages;
+  const profileActive = profile?.active_ui_language;
+  useEffect(() => {
+    if (!profile) return;
+    const set = sanitizeLanguageSet(profileLanguages);
+    const active = isLanguageCode(profileActive) && set.includes(profileActive)
+      ? profileActive
+      : set[0];
+    if (active !== getActiveSnapshot() || set.join(',') !== getSetSnapshot()) {
+      writeCache(active, set);
+    }
+  }, [profile, profileLanguages, profileActive]);
 
   // Screen readers and the browser's own translation prompt both key
   // off this; leaving it at "en" while the page renders Tamil makes
@@ -112,32 +185,81 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
     document.documentElement.lang = language;
   }, [language]);
 
-  const setLanguage = useCallback((next: LanguageCode) => {
-    writeLanguage(next);
-  }, []);
+  const profileId = profile?.id;
+
+  // Cache first so the UI flips instantly, then persist. A failed write
+  // leaves the tab correct and the next load reverts — better than
+  // blocking the toggle on a round trip.
+  const persist = useCallback(
+    async (active: LanguageCode, set: LanguageCode[]) => {
+      writeCache(active, set);
+      if (!profileId) return;
+      const supabase = createClient();
+      // .select() is not decoration: an RLS refusal comes back as zero
+      // rows with no error, so without it a refused write would look
+      // like a save and the choice would silently revert on reload.
+      const { data, error } = await supabase
+        .from('profiles')
+        .update({ ui_languages: set, active_ui_language: active })
+        .eq('id', profileId)
+        .select('id');
+      if (error || !data || data.length === 0) {
+        console.error(
+          '[locale] failed to persist language choice:',
+          error ?? 'no rows updated (RLS?)',
+        );
+        return;
+      }
+      await refreshProfile();
+    },
+    [profileId, refreshProfile],
+  );
+
+  const setLanguage = useCallback(
+    (next: LanguageCode) => {
+      // Switching to a language the agent never declared would strand
+      // them in something they cannot read, so adopt it into the set.
+      const set = languages.includes(next)
+        ? languages
+        : sanitizeLanguageSet([next, ...languages]);
+      void persist(next, set);
+    },
+    [languages, persist],
+  );
+
+  const setLanguages = useCallback(
+    (next: LanguageCode[]) => {
+      const set = sanitizeLanguageSet(next);
+      const active = set.includes(language) ? language : set[0];
+      void persist(active, set);
+    },
+    [language, persist],
+  );
 
   const value = useMemo<LocaleContextValue>(
     () => ({
       language,
+      languages,
       setLanguage,
+      setLanguages,
       t: (key: MessageKey) => translate(language, key),
     }),
-    [language, setLanguage]
+    [language, languages, setLanguage, setLanguages],
   );
 
-  return (
-    <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>
-  );
+  return <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>;
 }
 
 export function useLocale(): LocaleContextValue {
   const ctx = useContext(LocaleContext);
   if (!ctx) {
-    // Rendered outside the provider — English, and a no-op setter, so
+    // Rendered outside the provider — English, and no-op setters, so
     // a stray component renders readable text instead of crashing.
     return {
       language: DEFAULT_LANGUAGE,
+      languages: [DEFAULT_LANGUAGE],
       setLanguage: () => {},
+      setLanguages: () => {},
       t: (key: MessageKey) => translate(DEFAULT_LANGUAGE, key),
     };
   }

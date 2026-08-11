@@ -61,6 +61,9 @@ export const EN = {
   'appearance.language': 'Display language',
   'appearance.languageHelp':
     'The language of this app for you. It does not change the language of messages sent to your clients — that is set per contact and per account.',
+  'appearance.languageActive': 'Showing',
+  'appearance.languageShowNow': 'Show the app in:',
+  'appearance.languageCap': 'You can keep two languages and switch between them from the header.',
   'appearance.languageIncomplete':
     'Translation is in progress: screens that are not translated yet stay in English.',
 } as const;
@@ -108,6 +111,9 @@ const HI: Catalogue = {
   'appearance.language': 'प्रदर्शन भाषा',
   'appearance.languageHelp':
     'आपके लिए इस ऐप की भाषा। इससे आपके ग्राहकों को भेजे जाने वाले संदेशों की भाषा नहीं बदलती — वह हर संपर्क और खाते के लिए अलग से तय होती है।',
+  'appearance.languageActive': 'दिख रहा है',
+  'appearance.languageShowNow': 'ऐप इस भाषा में दिखाएँ:',
+  'appearance.languageCap': 'आप दो भाषाएँ रख सकते हैं और हेडर से उनके बीच बदल सकते हैं।',
   'appearance.languageIncomplete':
     'अनुवाद जारी है: जो स्क्रीन अभी अनुवादित नहीं हैं वे अंग्रेज़ी में ही रहेंगी।',
 };
@@ -151,6 +157,9 @@ const KN: Catalogue = {
   'appearance.language': 'ಪ್ರದರ್ಶನ ಭಾಷೆ',
   'appearance.languageHelp':
     'ನಿಮಗಾಗಿ ಈ ಆ್ಯಪ್‌ನ ಭಾಷೆ. ಇದು ನಿಮ್ಮ ಗ್ರಾಹಕರಿಗೆ ಕಳುಹಿಸುವ ಸಂದೇಶಗಳ ಭಾಷೆಯನ್ನು ಬದಲಾಯಿಸುವುದಿಲ್ಲ — ಅದನ್ನು ಪ್ರತಿ ಸಂಪರ್ಕ ಮತ್ತು ಖಾತೆಗೆ ಪ್ರತ್ಯೇಕವಾಗಿ ಹೊಂದಿಸಲಾಗುತ್ತದೆ.',
+  'appearance.languageActive': 'ತೋರಿಸುತ್ತಿದೆ',
+  'appearance.languageShowNow': 'ಆ್ಯಪ್ ಅನ್ನು ಈ ಭಾಷೆಯಲ್ಲಿ ತೋರಿಸಿ:',
+  'appearance.languageCap': 'ನೀವು ಎರಡು ಭಾಷೆಗಳನ್ನು ಇಟ್ಟುಕೊಂಡು ಹೆಡರ್‌ನಿಂದ ಬದಲಾಯಿಸಬಹುದು.',
   'appearance.languageIncomplete':
     'ಅನುವಾದ ಪ್ರಗತಿಯಲ್ಲಿದೆ: ಇನ್ನೂ ಅನುವಾದಿಸದ ಪರದೆಗಳು ಇಂಗ್ಲಿಷ್‌ನಲ್ಲಿಯೇ ಇರುತ್ತವೆ.',
 };
@@ -195,6 +204,9 @@ const TA: Catalogue = {
   'appearance.language': 'காட்சி மொழி',
   'appearance.languageHelp':
     'உங்களுக்கான இந்த ஆப்பின் மொழி. இது உங்கள் வாடிக்கையாளர்களுக்கு அனுப்பப்படும் செய்திகளின் மொழியை மாற்றாது — அது ஒவ்வொரு தொடர்புக்கும் கணக்குக்கும் தனித்தனியாக அமைக்கப்படுகிறது.',
+  'appearance.languageActive': 'காட்டப்படுகிறது',
+  'appearance.languageShowNow': 'ஆப்பை இந்த மொழியில் காட்டு:',
+  'appearance.languageCap': 'நீங்கள் இரண்டு மொழிகளை வைத்துக்கொண்டு தலைப்புப் பகுதியில் இருந்து மாற்றலாம்.',
   'appearance.languageIncomplete':
     'மொழிபெயர்ப்பு நடைபெறுகிறது: இன்னும் மொழிபெயர்க்கப்படாத திரைகள் ஆங்கிலத்திலேயே இருக்கும்.',
 };
@@ -238,6 +250,9 @@ const TE: Catalogue = {
   'appearance.language': 'ప్రదర్శన భాష',
   'appearance.languageHelp':
     'మీ కోసం ఈ యాప్ భాష. ఇది మీ క్లయింట్లకు పంపే సందేశాల భాషను మార్చదు — అది ప్రతి పరిచయానికి, ఖాతాకు విడిగా సెట్ చేయబడుతుంది.',
+  'appearance.languageActive': 'చూపిస్తోంది',
+  'appearance.languageShowNow': 'యాప్‌ను ఈ భాషలో చూపించు:',
+  'appearance.languageCap': 'మీరు రెండు భాషలను ఉంచుకుని హెడర్ నుండి మార్చుకోవచ్చు.',
   'appearance.languageIncomplete':
     'అనువాదం జరుగుతోంది: ఇంకా అనువదించని స్క్రీన్‌లు ఆంగ్లంలోనే ఉంటాయి.',
 };
@@ -281,6 +296,9 @@ const ML: Catalogue = {
   'appearance.language': 'പ്രദർശന ഭാഷ',
   'appearance.languageHelp':
     'നിങ്ങൾക്കായി ഈ ആപ്പിന്റെ ഭാഷ. ഇത് നിങ്ങളുടെ ക്ലയന്റുകൾക്ക് അയക്കുന്ന സന്ദേശങ്ങളുടെ ഭാഷ മാറ്റില്ല — അത് ഓരോ ബന്ധത്തിനും അക്കൗണ്ടിനും വെവ്വേറെ ക്രമീകരിക്കുന്നു.',
+  'appearance.languageActive': 'കാണിക്കുന്നു',
+  'appearance.languageShowNow': 'ആപ്പ് ഈ ഭാഷയിൽ കാണിക്കുക:',
+  'appearance.languageCap': 'നിങ്ങൾക്ക് രണ്ട് ഭാഷകൾ സൂക്ഷിച്ച് ഹെഡറിൽ നിന്ന് മാറാം.',
   'appearance.languageIncomplete':
     'വിവർത്തനം പുരോഗമിക്കുന്നു: ഇതുവരെ വിവർത്തനം ചെയ്യാത്ത സ്ക്രീനുകൾ ഇംഗ്ലീഷിൽ തന്നെ തുടരും.',
 };
@@ -324,6 +342,9 @@ const MR: Catalogue = {
   'appearance.language': 'प्रदर्शन भाषा',
   'appearance.languageHelp':
     'तुमच्यासाठी या अ‍ॅपची भाषा. यामुळे तुमच्या ग्राहकांना पाठवल्या जाणाऱ्या संदेशांची भाषा बदलत नाही — ती प्रत्येक संपर्कासाठी आणि खात्यासाठी स्वतंत्रपणे ठरवली जाते.',
+  'appearance.languageActive': 'दाखवत आहे',
+  'appearance.languageShowNow': 'अ‍ॅप या भाषेत दाखवा:',
+  'appearance.languageCap': 'तुम्ही दोन भाषा ठेवू शकता आणि हेडरमधून त्यांमध्ये बदल करू शकता.',
   'appearance.languageIncomplete':
     'भाषांतर सुरू आहे: अद्याप भाषांतरित न झालेल्या स्क्रीन इंग्रजीतच राहतील.',
 };
