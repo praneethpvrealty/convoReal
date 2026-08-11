@@ -34,9 +34,17 @@ import { chatListTime, formatInr } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
 import { matchChips, scoreTone, type MatchChipTone } from '@/lib/match-chips';
 import { fetchPropertyMatches } from '@/lib/property-matches';
+import { PropertyDocuments } from '@/components/property-documents';
+import { useAuthStore } from '@/lib/auth-store';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
-import { radius, spacing, useTheme , fonts, type ThemeColors } from '@/lib/theme';
+import {
+  radius,
+  spacing,
+  useTheme,
+  fonts,
+  type ThemeColors,
+} from '@/lib/theme';
 import type { Contact, Property } from '@/lib/types';
 
 /** Scroll clearance so content ends above the sticky price bar. */
@@ -46,11 +54,17 @@ const BOTTOM_BAR_CLEARANCE = 110;
 function equivalentInr(n: number | null | undefined): string | null {
   if (!n || n <= 0) return null;
   if (n >= 10000000) {
-    const cr = (n / 10000000).toFixed(2).replace(/\.00$/, '').replace(/\.(\d)0$/, '.$1');
+    const cr = (n / 10000000)
+      .toFixed(2)
+      .replace(/\.00$/, '')
+      .replace(/\.(\d)0$/, '.$1');
     return `Equivalent to: ₹${cr} Crore`;
   }
   if (n >= 100000) {
-    const lakhs = (n / 100000).toFixed(2).replace(/\.00$/, '').replace(/\.(\d)0$/, '.$1');
+    const lakhs = (n / 100000)
+      .toFixed(2)
+      .replace(/\.00$/, '')
+      .replace(/\.(\d)0$/, '.$1');
     return `Equivalent to: ₹${lakhs} Lakhs`;
   }
   return `Equivalent to: ₹${n.toLocaleString('en-IN')}`;
@@ -73,6 +87,9 @@ async function fetchProperty(id: string): Promise<Property | null> {
 export default function PropertyDetailScreen() {
   const { colors, dark, fonts: f } = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
+  // Viewers read the dashboard and nothing else (AGENTS.md §8.2); the
+  // API enforces it too, this just keeps the buttons honest.
+  const canEdit = useAuthStore((s) => s.profile?.account_role) !== 'viewer';
   // Live window width (module-scope Dimensions is stale on foldables/
   // rotation and broke pager math on wide screens).
   const { width: winW } = useWindowDimensions();
@@ -107,7 +124,8 @@ export default function PropertyDetailScreen() {
     .filter(Boolean)
     .join(', ');
   const hasCoords =
-    typeof property.latitude === 'number' && typeof property.longitude === 'number';
+    typeof property.latitude === 'number' &&
+    typeof property.longitude === 'number';
   // Address-based search so a listing without coordinates still lands on
   // the right place (the title is a description and won't geocode).
   const mapQuery =
@@ -143,24 +161,52 @@ export default function PropertyDetailScreen() {
   // Web parity: specs without a value are hidden, not dashed out.
   const specs = [
     property.bedrooms
-      ? { icon: 'bed-outline' as const, label: 'Bedrooms', value: String(property.bedrooms) }
+      ? {
+          icon: 'bed-outline' as const,
+          label: 'Bedrooms',
+          value: String(property.bedrooms),
+        }
       : null,
     property.bathrooms
-      ? { icon: 'water-outline' as const, label: 'Bathrooms', value: String(property.bathrooms) }
+      ? {
+          icon: 'water-outline' as const,
+          label: 'Bathrooms',
+          value: String(property.bathrooms),
+        }
       : null,
     property.sublocality
-      ? { icon: 'location-outline' as const, label: 'Locality', value: property.sublocality }
+      ? {
+          icon: 'location-outline' as const,
+          label: 'Locality',
+          value: property.sublocality,
+        }
       : null,
-    area ? { icon: 'resize-outline' as const, label: 'Area', value: area } : null,
-    landArea ? { icon: 'map-outline' as const, label: 'Land Area', value: landArea } : null,
+    area
+      ? { icon: 'resize-outline' as const, label: 'Area', value: area }
+      : null,
+    landArea
+      ? { icon: 'map-outline' as const, label: 'Land Area', value: landArea }
+      : null,
     property.facing_direction
-      ? { icon: 'compass-outline' as const, label: 'Facing', value: property.facing_direction }
+      ? {
+          icon: 'compass-outline' as const,
+          label: 'Facing',
+          value: property.facing_direction,
+        }
       : null,
     frontage
-      ? { icon: 'swap-horizontal-outline' as const, label: 'Frontage', value: `${frontage} ft` }
+      ? {
+          icon: 'swap-horizontal-outline' as const,
+          label: 'Frontage',
+          value: `${frontage} ft`,
+        }
       : null,
     property.ownership_status
-      ? { icon: 'ribbon-outline' as const, label: 'Ownership', value: property.ownership_status }
+      ? {
+          icon: 'ribbon-outline' as const,
+          label: 'Ownership',
+          value: property.ownership_status,
+        }
       : null,
   ].filter((sp): sp is NonNullable<typeof sp> => sp !== null);
   const rentalIncome =
@@ -174,16 +220,28 @@ export default function PropertyDetailScreen() {
   // Web parity: "Listing Metadata" key/value rows, all conditional.
   const metadata = [
     property.super_built_area
-      ? { label: 'Super Built Area', value: `${property.super_built_area.toLocaleString('en-IN')} Sq.Ft.` }
+      ? {
+          label: 'Super Built Area',
+          value: `${property.super_built_area.toLocaleString('en-IN')} Sq.Ft.`,
+        }
       : null,
-    property.dimensions ? { label: 'Dimensions', value: property.dimensions } : null,
+    property.dimensions
+      ? { label: 'Dimensions', value: property.dimensions }
+      : null,
     frontage ? { label: 'Frontage', value: `${frontage} Feet` } : null,
     depth ? { label: 'Depth', value: `${depth} Feet` } : null,
     property.road_width
-      ? { label: 'Road Width', value: `${property.road_width} ${property.road_width_unit || 'Feet'}` }
+      ? {
+          label: 'Road Width',
+          value: `${property.road_width} ${property.road_width_unit || 'Feet'}`,
+        }
       : null,
-    property.land_zone ? { label: 'Land Zone', value: property.land_zone } : null,
-    property.ideal_for ? { label: 'Ideal For', value: property.ideal_for } : null,
+    property.land_zone
+      ? { label: 'Land Zone', value: property.land_zone }
+      : null,
+    property.ideal_for
+      ? { label: 'Ideal For', value: property.ideal_for }
+      : null,
     rentalIncome
       ? {
           label: 'Rental Income',
@@ -194,482 +252,701 @@ export default function PropertyDetailScreen() {
 
   return (
     <View style={{ flex: 1 }}>
-    <ScrollView
-      style={{ flex: 1 }}
-      contentContainerStyle={{ paddingBottom: BOTTOM_BAR_CLEARANCE + insets.bottom }}
-    >
-      <Stack.Screen
-        options={{
-          headerShown: true,
-          title: property.property_code || 'Property',
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{
+          paddingBottom: BOTTOM_BAR_CLEARANCE + insets.bottom,
         }}
-      />
+      >
+        <Stack.Screen
+          options={{
+            headerShown: true,
+            title: property.property_code || 'Property',
+          }}
+        />
 
-      {property.images?.length ? (
-        <View>
-          <ScrollView
-            ref={pagerRef}
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            onMomentumScrollEnd={(e) =>
-              setActiveImage(
-                Math.round(
-                  e.nativeEvent.contentOffset.x /
-                    Math.max(1, e.nativeEvent.layoutMeasurement.width)
-                )
-              )
-            }
-          >
-            {property.images.map((url, i) => (
-              <Pressable
-                key={url}
-                onPress={() => setViewerOpen(true)}
-                accessibilityRole="button"
-                accessibilityLabel={`View photo ${i + 1} full screen`}
-              >
-                <Image
-                  source={{ uri: storagePublicUrl(url) }}
-                  style={{ width: winW, height: 270 }}
-                  resizeMode="cover"
-                />
-              </Pressable>
-            ))}
-          </ScrollView>
-          {/* Photo counter + expand affordance. */}
-          <Pressable
-            onPress={() => setViewerOpen(true)}
-            accessibilityRole="button"
-            accessibilityLabel="Open photo gallery full screen"
-            style={styles.expandChip}
-          >
-            <Ionicons name="expand" size={13} color="#fff" />
-            <Text style={styles.expandChipText}>
-              {activeImage + 1}/{property.images.length}
-            </Text>
-          </Pressable>
-          {property.images.length > 1 ? (
+        {property.images?.length ? (
+          <View>
             <ScrollView
+              ref={pagerRef}
               horizontal
+              pagingEnabled
               showsHorizontalScrollIndicator={false}
-              style={styles.thumbStrip}
-              contentContainerStyle={{ gap: 8 }}
+              onMomentumScrollEnd={(e) =>
+                setActiveImage(
+                  Math.round(
+                    e.nativeEvent.contentOffset.x /
+                      Math.max(1, e.nativeEvent.layoutMeasurement.width)
+                  )
+                )
+              }
             >
-              {property.images.slice(0, 8).map((url, i) => (
+              {property.images.map((url, i) => (
                 <Pressable
                   key={url}
-                  onPress={() => {
-                    setActiveImage(i);
-                    pagerRef.current?.scrollTo({ x: i * winW, animated: true });
-                  }}
+                  onPress={() => setViewerOpen(true)}
                   accessibilityRole="button"
-                  accessibilityLabel={`Photo ${i + 1} of ${property.images!.length}`}
+                  accessibilityLabel={`View photo ${i + 1} full screen`}
                 >
                   <Image
                     source={{ uri: storagePublicUrl(url) }}
-                    style={[
-                      styles.thumb,
-                      i === activeImage && { borderColor: '#fff', borderWidth: 2 },
-                    ]}
+                    style={{ width: winW, height: 270 }}
+                    resizeMode="cover"
                   />
                 </Pressable>
               ))}
-              {property.images.length > 8 ? (
-                <Pressable
-                  onPress={() => setViewerOpen(true)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`View all ${property.images.length} photos`}
-                  style={[styles.thumb, styles.thumbMore]}
-                >
-                  <Text style={styles.thumbMoreText}>+{property.images.length - 8}</Text>
-                </Pressable>
-              ) : null}
             </ScrollView>
-          ) : null}
-          {viewerOpen ? (
-            <GalleryViewer
-              images={property.images.map(storagePublicUrl)}
-              initialIndex={activeImage}
-              onClose={() => setViewerOpen(false)}
-            />
-          ) : null}
-        </View>
-      ) : (
-        <View
-          style={{
-            height: 170,
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: colors.primarySoft,
-          }}
-        >
-          <Ionicons name="home-outline" size={40} color={colors.primary} />
-        </View>
-      )}
-
-      {/* Content sheet overlaps the hero photo (reference pattern). */}
-      <View style={[styles.body, { backgroundColor: colors.background }]}>
-        <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
-          {property.listing_type ? <Tag label={property.listing_type} /> : null}
-          {property.type ? <Tag label={property.type} /> : null}
-          {property.status ? <Tag label={property.status} /> : null}
-          {property.listing_source === 'agent' ? (
-            <Tag label="Agent Referred" color={colors.readTick} />
-          ) : null}
-          {property.listing_source === 'whatsapp_lister' ? (
-            <Tag label="Via WhatsApp" color={colors.success} />
-          ) : null}
-          {property.is_published ? (
-            <Tag label="Published" />
-          ) : (
-            <Tag label="Unpublished" />
-          )}
-        </View>
-
-        <Text style={[styles.title, { color: colors.text, fontFamily: f.extrabold }]}>{property.title}</Text>
-        {place ? (
-          <Text style={{ fontSize: 13.5, color: colors.textMuted }}>{place}</Text>
-        ) : null}
-        <Text style={{ fontSize: 24, fontFamily: f.extrabold, color: colors.primary }}>{price}</Text>
-        {priceWords ? (
-          <Text style={{ fontSize: 12.5, color: colors.success, marginTop: -6 }}>{priceWords}</Text>
-        ) : null}
-
-        <ActionRail property={property} />
-
-        {specs.length > 0 ? (
-          <View style={styles.specGrid}>
-            {specs.map((sp) => (
-              <Spec key={sp.label} icon={sp.icon} label={sp.label} value={sp.value} />
-            ))}
-          </View>
-        ) : null}
-
-        {property.description ? (
-          <Section title="Description">
-            <Text style={{ fontSize: 14, lineHeight: 21, color: colors.textMuted }}>
-              {property.description}
-            </Text>
-          </Section>
-        ) : null}
-
-        {property.features?.length ? (
-          <Section title="Features">
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-              {property.features.map((f) => (
-                <Tag key={f} label={f} />
-              ))}
-            </View>
-          </Section>
-        ) : null}
-
-        {metadata.length > 0 ? (
-          <Section title="Listing Metadata">
-            <View
-              style={[
-                styles.metaCard,
-                { backgroundColor: colors.glass, borderColor: colors.glassBorder },
-              ]}
+            {/* Photo counter + expand affordance. */}
+            <Pressable
+              onPress={() => setViewerOpen(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Open photo gallery full screen"
+              style={styles.expandChip}
             >
-              {metadata.map((row, i) => (
-                <View
-                  key={row.label}
-                  style={[
-                    styles.metaRow,
-                    i > 0 && { borderTopWidth: 1, borderTopColor: colors.glassBorder },
-                  ]}
-                >
-                  <Text style={{ fontSize: 13, color: colors.textMuted }}>{row.label}</Text>
-                  <Text
-                    style={{ fontSize: 13.5, fontFamily: f.bold, color: colors.text, flexShrink: 1 }}
-                    numberOfLines={2}
+              <Ionicons name="expand" size={13} color="#fff" />
+              <Text style={styles.expandChipText}>
+                {activeImage + 1}/{property.images.length}
+              </Text>
+            </Pressable>
+            {property.images.length > 1 ? (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.thumbStrip}
+                contentContainerStyle={{ gap: 8 }}
+              >
+                {property.images.slice(0, 8).map((url, i) => (
+                  <Pressable
+                    key={url}
+                    onPress={() => {
+                      setActiveImage(i);
+                      pagerRef.current?.scrollTo({
+                        x: i * winW,
+                        animated: true,
+                      });
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Photo ${i + 1} of ${property.images!.length}`}
                   >
-                    {row.value}
-                  </Text>
-                </View>
+                    <Image
+                      source={{ uri: storagePublicUrl(url) }}
+                      style={[
+                        styles.thumb,
+                        i === activeImage && {
+                          borderColor: '#fff',
+                          borderWidth: 2,
+                        },
+                      ]}
+                    />
+                  </Pressable>
+                ))}
+                {property.images.length > 8 ? (
+                  <Pressable
+                    onPress={() => setViewerOpen(true)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`View all ${property.images.length} photos`}
+                    style={[styles.thumb, styles.thumbMore]}
+                  >
+                    <Text style={styles.thumbMoreText}>
+                      +{property.images.length - 8}
+                    </Text>
+                  </Pressable>
+                ) : null}
+              </ScrollView>
+            ) : null}
+            {viewerOpen ? (
+              <GalleryViewer
+                images={property.images.map(storagePublicUrl)}
+                initialIndex={activeImage}
+                onClose={() => setViewerOpen(false)}
+              />
+            ) : null}
+          </View>
+        ) : (
+          <View
+            style={{
+              height: 170,
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: colors.primarySoft,
+            }}
+          >
+            <Ionicons name="home-outline" size={40} color={colors.primary} />
+          </View>
+        )}
+
+        {/* Content sheet overlaps the hero photo (reference pattern). */}
+        <View style={[styles.body, { backgroundColor: colors.background }]}>
+          <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
+            {property.listing_type ? (
+              <Tag label={property.listing_type} />
+            ) : null}
+            {property.type ? <Tag label={property.type} /> : null}
+            {property.status ? <Tag label={property.status} /> : null}
+            {property.listing_source === 'agent' ? (
+              <Tag label="Agent Referred" color={colors.readTick} />
+            ) : null}
+            {property.listing_source === 'whatsapp_lister' ? (
+              <Tag label="Via WhatsApp" color={colors.success} />
+            ) : null}
+            {property.is_published ? (
+              <Tag label="Published" />
+            ) : (
+              <Tag label="Unpublished" />
+            )}
+          </View>
+
+          <Text
+            style={[
+              styles.title,
+              { color: colors.text, fontFamily: f.extrabold },
+            ]}
+          >
+            {property.title}
+          </Text>
+          {place ? (
+            <Text style={{ fontSize: 13.5, color: colors.textMuted }}>
+              {place}
+            </Text>
+          ) : null}
+          <Text
+            style={{
+              fontSize: 24,
+              fontFamily: f.extrabold,
+              color: colors.primary,
+            }}
+          >
+            {price}
+          </Text>
+          {priceWords ? (
+            <Text
+              style={{ fontSize: 12.5, color: colors.success, marginTop: -6 }}
+            >
+              {priceWords}
+            </Text>
+          ) : null}
+
+          <ActionRail property={property} />
+
+          {specs.length > 0 ? (
+            <View style={styles.specGrid}>
+              {specs.map((sp) => (
+                <Spec
+                  key={sp.label}
+                  icon={sp.icon}
+                  label={sp.label}
+                  value={sp.value}
+                />
               ))}
             </View>
-          </Section>
-        ) : null}
+          ) : null}
 
-        {property.floor_tenancies?.length ? (
-          <Section title="Floor-wise Tenancy (Rent Roll)">
-            <View style={{ gap: spacing.sm }}>
-              {property.floor_tenancies.map((ft, i) => (
-                <View
-                  key={i}
-                  style={[
-                    styles.tenancyCard,
-                    { backgroundColor: colors.glass, borderColor: colors.glassBorder },
-                  ]}
-                >
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: spacing.sm }}>
-                    <Text style={{ fontSize: 14, fontFamily: f.bold, color: colors.text, flex: 1 }}>
-                      {ft.floor || `Unit ${i + 1}`}
-                      {ft.tenant_name ? ` · ${ft.tenant_name}` : ''}
+          {property.description ? (
+            <Section title="Description">
+              <Text
+                style={{
+                  fontSize: 14,
+                  lineHeight: 21,
+                  color: colors.textMuted,
+                }}
+              >
+                {property.description}
+              </Text>
+            </Section>
+          ) : null}
+
+          {property.features?.length ? (
+            <Section title="Features">
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                {property.features.map((f) => (
+                  <Tag key={f} label={f} />
+                ))}
+              </View>
+            </Section>
+          ) : null}
+
+          {metadata.length > 0 ? (
+            <Section title="Listing Metadata">
+              <View
+                style={[
+                  styles.metaCard,
+                  {
+                    backgroundColor: colors.glass,
+                    borderColor: colors.glassBorder,
+                  },
+                ]}
+              >
+                {metadata.map((row, i) => (
+                  <View
+                    key={row.label}
+                    style={[
+                      styles.metaRow,
+                      i > 0 && {
+                        borderTopWidth: 1,
+                        borderTopColor: colors.glassBorder,
+                      },
+                    ]}
+                  >
+                    <Text style={{ fontSize: 13, color: colors.textMuted }}>
+                      {row.label}
                     </Text>
-                    {ft.monthly_rent ? (
-                      <Text style={{ fontSize: 13.5, fontFamily: f.extrabold, color: colors.primary }}>
-                        {formatInr(Number(ft.monthly_rent))}/mo
+                    <Text
+                      style={{
+                        fontSize: 13.5,
+                        fontFamily: f.bold,
+                        color: colors.text,
+                        flexShrink: 1,
+                      }}
+                      numberOfLines={2}
+                    >
+                      {row.value}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </Section>
+          ) : null}
+
+          {property.floor_tenancies?.length ? (
+            <Section title="Floor-wise Tenancy (Rent Roll)">
+              <View style={{ gap: spacing.sm }}>
+                {property.floor_tenancies.map((ft, i) => (
+                  <View
+                    key={i}
+                    style={[
+                      styles.tenancyCard,
+                      {
+                        backgroundColor: colors.glass,
+                        borderColor: colors.glassBorder,
+                      },
+                    ]}
+                  >
+                    <View
+                      style={{
+                        flexDirection: 'row',
+                        justifyContent: 'space-between',
+                        gap: spacing.sm,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 14,
+                          fontFamily: f.bold,
+                          color: colors.text,
+                          flex: 1,
+                        }}
+                      >
+                        {ft.floor || `Unit ${i + 1}`}
+                        {ft.tenant_name ? ` · ${ft.tenant_name}` : ''}
+                      </Text>
+                      {ft.monthly_rent ? (
+                        <Text
+                          style={{
+                            fontSize: 13.5,
+                            fontFamily: f.extrabold,
+                            color: colors.primary,
+                          }}
+                        >
+                          {formatInr(Number(ft.monthly_rent))}/mo
+                        </Text>
+                      ) : null}
+                    </View>
+                    <Text style={{ fontSize: 12, color: colors.textMuted }}>
+                      {[
+                        ft.area_sqft ? `${ft.area_sqft} Sq.Ft.` : null,
+                        ft.advance
+                          ? `Advance ${formatInr(Number(ft.advance))}`
+                          : null,
+                        ft.lease_start || ft.lease_end
+                          ? `Lease ${ft.lease_start ?? '…'} → ${ft.lease_end ?? '…'}`
+                          : null,
+                        ft.lock_in_months
+                          ? `Lock-in ${ft.lock_in_months} mo`
+                          : null,
+                        ft.maintenance ? `Maint: ${ft.maintenance}` : null,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </Text>
+                    {ft.notes ? (
+                      <Text style={{ fontSize: 12, color: colors.textFaint }}>
+                        {ft.notes}
                       </Text>
                     ) : null}
                   </View>
-                  <Text style={{ fontSize: 12, color: colors.textMuted }}>
-                    {[
-                      ft.area_sqft ? `${ft.area_sqft} Sq.Ft.` : null,
-                      ft.advance ? `Advance ${formatInr(Number(ft.advance))}` : null,
-                      ft.lease_start || ft.lease_end
-                        ? `Lease ${ft.lease_start ?? '…'} → ${ft.lease_end ?? '…'}`
-                        : null,
-                      ft.lock_in_months ? `Lock-in ${ft.lock_in_months} mo` : null,
-                      ft.maintenance ? `Maint: ${ft.maintenance}` : null,
-                    ]
-                      .filter(Boolean)
-                      .join(' · ')}
-                  </Text>
-                  {ft.notes ? (
-                    <Text style={{ fontSize: 12, color: colors.textFaint }}>{ft.notes}</Text>
-                  ) : null}
-                </View>
-              ))}
+                ))}
 
-              {/* Consolidated across every tenancy — web parity. Shown
+                {/* Consolidated across every tenancy — web parity. Shown
                   only for the figures the rent roll actually records. */}
-              {(() => {
-                const rentTotal = property.floor_tenancies!.reduce(
-                  (sum, ft) => sum + (Number(ft.monthly_rent) || 0),
-                  0
-                );
-                const advTotal = property.floor_tenancies!.reduce(
-                  (sum, ft) => sum + (Number(ft.advance) || 0),
-                  0
-                );
-                if (rentTotal <= 0 && advTotal <= 0) return null;
-                return (
-                  <View
-                    style={[
-                      styles.tenancyCard,
-                      { backgroundColor: colors.primarySoft, borderColor: colors.primary },
-                    ]}
-                  >
-                    {rentTotal > 0 ? (
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                        <Text style={{ fontSize: 12.5, fontFamily: f.semibold, color: colors.text }}>
-                          Total monthly rent
-                        </Text>
-                        <Text style={{ fontSize: 13, fontFamily: f.extrabold, color: colors.primary }}>
-                          {formatInr(rentTotal)}
-                        </Text>
-                      </View>
-                    ) : null}
-                    {advTotal > 0 ? (
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                        <Text style={{ fontSize: 12.5, fontFamily: f.semibold, color: colors.text }}>
-                          Total advance
-                          {rentTotal > 0 ? ` (${(advTotal / rentTotal).toFixed(1)}× rent)` : ''}
-                        </Text>
-                        <Text style={{ fontSize: 13, fontFamily: f.extrabold, color: colors.primary }}>
-                          {formatInr(advTotal)}
-                        </Text>
-                      </View>
+                {(() => {
+                  const rentTotal = property.floor_tenancies!.reduce(
+                    (sum, ft) => sum + (Number(ft.monthly_rent) || 0),
+                    0
+                  );
+                  const advTotal = property.floor_tenancies!.reduce(
+                    (sum, ft) => sum + (Number(ft.advance) || 0),
+                    0
+                  );
+                  if (rentTotal <= 0 && advTotal <= 0) return null;
+                  return (
+                    <View
+                      style={[
+                        styles.tenancyCard,
+                        {
+                          backgroundColor: colors.primarySoft,
+                          borderColor: colors.primary,
+                        },
+                      ]}
+                    >
+                      {rentTotal > 0 ? (
+                        <View
+                          style={{
+                            flexDirection: 'row',
+                            justifyContent: 'space-between',
+                          }}
+                        >
+                          <Text
+                            style={{
+                              fontSize: 12.5,
+                              fontFamily: f.semibold,
+                              color: colors.text,
+                            }}
+                          >
+                            Total monthly rent
+                          </Text>
+                          <Text
+                            style={{
+                              fontSize: 13,
+                              fontFamily: f.extrabold,
+                              color: colors.primary,
+                            }}
+                          >
+                            {formatInr(rentTotal)}
+                          </Text>
+                        </View>
+                      ) : null}
+                      {advTotal > 0 ? (
+                        <View
+                          style={{
+                            flexDirection: 'row',
+                            justifyContent: 'space-between',
+                          }}
+                        >
+                          <Text
+                            style={{
+                              fontSize: 12.5,
+                              fontFamily: f.semibold,
+                              color: colors.text,
+                            }}
+                          >
+                            Total advance
+                            {rentTotal > 0
+                              ? ` (${(advTotal / rentTotal).toFixed(1)}× rent)`
+                              : ''}
+                          </Text>
+                          <Text
+                            style={{
+                              fontSize: 13,
+                              fontFamily: f.extrabold,
+                              color: colors.primary,
+                            }}
+                          >
+                            {formatInr(advTotal)}
+                          </Text>
+                        </View>
+                      ) : null}
+                    </View>
+                  );
+                })()}
+              </View>
+            </Section>
+          ) : null}
+
+          {property.nearby_highlights?.length ? (
+            <Section title="Nearby Landmarks">
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                {property.nearby_highlights.map((h) => (
+                  <Tag key={h} label={h} />
+                ))}
+              </View>
+            </Section>
+          ) : null}
+
+          {property.notes ? (
+            <Section title="Internal Notes · Engine only">
+              <View
+                style={[
+                  styles.notesCard,
+                  {
+                    backgroundColor: colors.warningSoft,
+                    borderColor: colors.warning,
+                  },
+                ]}
+              >
+                <Text
+                  style={{ fontSize: 13.5, lineHeight: 20, color: colors.text }}
+                >
+                  {property.notes}
+                </Text>
+              </View>
+            </Section>
+          ) : null}
+
+          {property.owner ? (
+            <Section title="Owner">
+              <Link
+                href={`/(app)/contact/${property.owner_contact_id}`}
+                asChild
+              >
+                {/* Slot child requires one flat style object (no arrays). */}
+                <Pressable
+                  style={StyleSheet.flatten([
+                    styles.ownerRow,
+                    {
+                      backgroundColor: colors.glass,
+                      borderColor: colors.glassBorder,
+                    },
+                  ])}
+                >
+                  <Ionicons
+                    name="person-circle-outline"
+                    size={22}
+                    color={colors.primary}
+                  />
+                  <View style={{ flex: 1 }}>
+                    <Text
+                      style={{
+                        fontSize: 14.5,
+                        fontFamily: f.bold,
+                        color: colors.text,
+                      }}
+                    >
+                      {property.owner.name || property.owner.phone}
+                    </Text>
+                    {property.owner.name ? (
+                      <Text style={{ fontSize: 12.5, color: colors.textMuted }}>
+                        {property.owner.phone}
+                      </Text>
                     ) : null}
                   </View>
-                );
-              })()}
-            </View>
-          </Section>
-        ) : null}
+                  <Ionicons
+                    name="chevron-forward"
+                    size={16}
+                    color={colors.textFaint}
+                  />
+                </Pressable>
+              </Link>
+            </Section>
+          ) : null}
 
-        {property.nearby_highlights?.length ? (
-          <Section title="Nearby Landmarks">
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-              {property.nearby_highlights.map((h) => (
-                <Tag key={h} label={h} />
-              ))}
-            </View>
-          </Section>
-        ) : null}
+          <MatchesSection property={property} />
 
-        {property.notes ? (
-          <Section title="Internal Notes · Engine only">
-            <View
-              style={[
-                styles.notesCard,
-                { backgroundColor: colors.warningSoft, borderColor: colors.warning },
-              ]}
-            >
-              <Text style={{ fontSize: 13.5, lineHeight: 20, color: colors.text }}>
-                {property.notes}
-              </Text>
-            </View>
-          </Section>
-        ) : null}
-
-        {property.owner ? (
-          <Section title="Owner">
-            <Link href={`/(app)/contact/${property.owner_contact_id}`} asChild>
-              {/* Slot child requires one flat style object (no arrays). */}
-              <Pressable
-                style={StyleSheet.flatten([
-                  styles.ownerRow,
-                  { backgroundColor: colors.glass, borderColor: colors.glassBorder },
-                ])}
-              >
-                <Ionicons name="person-circle-outline" size={22} color={colors.primary} />
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 14.5, fontFamily: f.bold, color: colors.text }}>
-                    {property.owner.name || property.owner.phone}
+          {typeof property.latitude === 'number' &&
+          typeof property.longitude === 'number' ? (
+            <Section title="Location">
+              {!nativeMapsAvailable ? (
+                <Pressable
+                  onPress={() =>
+                    openInMaps({
+                      latitude: property.latitude,
+                      longitude: property.longitude,
+                      label: mapQuery,
+                      fallbackUrl: property.google_map_link,
+                    })
+                  }
+                  accessibilityRole="button"
+                  accessibilityLabel="Open location in Google Maps"
+                  style={[
+                    styles.mapFallbackRow,
+                    {
+                      backgroundColor: colors.glass,
+                      borderColor: colors.glassBorder,
+                    },
+                  ]}
+                >
+                  <Ionicons name="location" size={18} color={colors.primary} />
+                  <Text
+                    style={{
+                      flex: 1,
+                      fontSize: 14,
+                      fontFamily: f.semibold,
+                      color: colors.text,
+                    }}
+                  >
+                    View location in Google Maps
                   </Text>
-                  {property.owner.name ? (
-                    <Text style={{ fontSize: 12.5, color: colors.textMuted }}>
-                      {property.owner.phone}
-                    </Text>
-                  ) : null}
+                  <Ionicons
+                    name="open-outline"
+                    size={16}
+                    color={colors.textFaint}
+                  />
+                </Pressable>
+              ) : (
+                <View style={styles.mapWrap}>
+                  <MapView
+                    style={StyleSheet.absoluteFill}
+                    initialRegion={{
+                      latitude: property.latitude,
+                      longitude: property.longitude,
+                      latitudeDelta: 0.02,
+                      longitudeDelta: 0.02,
+                    }}
+                    scrollEnabled={false}
+                    zoomEnabled={false}
+                    rotateEnabled={false}
+                    pitchEnabled={false}
+                    toolbarEnabled={false}
+                    onPress={() =>
+                      openInMaps({
+                        latitude: property.latitude,
+                        longitude: property.longitude,
+                        label: mapQuery,
+                        fallbackUrl: property.google_map_link,
+                      })
+                    }
+                  >
+                    <Marker
+                      coordinate={{
+                        latitude: property.latitude,
+                        longitude: property.longitude,
+                      }}
+                      pinColor={colors.primary}
+                    />
+                  </MapView>
                 </View>
-                <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
-              </Pressable>
-            </Link>
-          </Section>
-        ) : null}
+              )}
+            </Section>
+          ) : null}
 
-        <MatchesSection property={property} />
-
-        {typeof property.latitude === 'number' && typeof property.longitude === 'number' ? (
-          <Section title="Location">
-            {!nativeMapsAvailable ? (
-              <Pressable
-                onPress={() =>
-                  openInMaps({
-                    latitude: property.latitude,
-                    longitude: property.longitude,
-                    label: mapQuery,
-                    fallbackUrl: property.google_map_link,
-                  })
-                }
-                accessibilityRole="button"
-                accessibilityLabel="Open location in Google Maps"
-                style={[styles.mapFallbackRow, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
-              >
-                <Ionicons name="location" size={18} color={colors.primary} />
-                <Text style={{ flex: 1, fontSize: 14, fontFamily: f.semibold, color: colors.text }}>
-                  View location in Google Maps
-                </Text>
-                <Ionicons name="open-outline" size={16} color={colors.textFaint} />
-              </Pressable>
-            ) : (
-            <View style={styles.mapWrap}>
-              <MapView
-                style={StyleSheet.absoluteFill}
-                initialRegion={{
-                  latitude: property.latitude,
-                  longitude: property.longitude,
-                  latitudeDelta: 0.02,
-                  longitudeDelta: 0.02,
-                }}
-                scrollEnabled={false}
-                zoomEnabled={false}
-                rotateEnabled={false}
-                pitchEnabled={false}
-                toolbarEnabled={false}
-                onPress={() =>
-                  openInMaps({
-                    latitude: property.latitude,
-                    longitude: property.longitude,
-                    label: mapQuery,
-                    fallbackUrl: property.google_map_link,
-                  })
-                }
-              >
-                <Marker
-                  coordinate={{ latitude: property.latitude, longitude: property.longitude }}
-                  pinColor={colors.primary}
-                />
-              </MapView>
-            </View>
-            )}
-          </Section>
-        ) : null}
-
-        {/* Only when the owner CTA isn't already the maps button and there's
+          {/* Only when the owner CTA isn't already the maps button and there's
             no inline map above — keeps a single "open maps" entry point. */}
-        {ownerPhone && !hasCoords && property.google_map_link ? (
-          <Pressable
-            style={[styles.mapButton, { borderColor: colors.border, backgroundColor: colors.surface }]}
-            onPress={() =>
-              openInMaps({
-                latitude: property.latitude,
-                longitude: property.longitude,
-                label: mapQuery,
-                fallbackUrl: property.google_map_link,
-              })
-            }
-          >
-            <Ionicons name="map-outline" size={17} color={colors.primary} />
-            <Text style={{ fontSize: 14, fontFamily: f.semibold, color: colors.primary }}>
-              Open in Google Maps
-            </Text>
-          </Pressable>
-        ) : null}
-
-        <Text style={{ fontSize: 12, color: colors.textFaint, textAlign: 'center' }}>
-          Editing, AI descriptions, documents and sharing flows live on the web for now.
-        </Text>
-      </View>
-    </ScrollView>
-
-    {/* Sticky price + CTA bar (reference pattern). */}
-    <View
-      style={[
-        styles.bottomBar,
-        {
-          backgroundColor: colors.surfaceWell,
-          borderColor: colors.glassBorder,
-          paddingBottom: Math.max(insets.bottom, spacing.md) + spacing.sm,
-        },
-      ]}
-    >
-      <BlurView
-        intensity={16}
-        tint={dark ? 'dark' : 'light'}
-        blurMethod="none"
-        style={StyleSheet.absoluteFill}
-      />
-      <View style={{ flex: 1 }}>
-        <Text style={{ fontSize: 11, fontFamily: f.bold, color: colors.textFaint, letterSpacing: 0.5 }}>
-          {property.listing_type === 'Rent' ? 'RENT' : 'PRICE'}
-        </Text>
-        <Text style={{ fontSize: 21, fontFamily: f.extrabold, color: colors.text, letterSpacing: -0.5 }}>
-          {price}
-        </Text>
-      </View>
-      {ownerPhone || hasMapLocation ? (
-        <Pressable
-          style={({ pressed }) => [
-            styles.ctaButton,
-            { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 },
-          ]}
-          onPress={() =>
-            ownerPhone
-              ? Linking.openURL(`https://wa.me/${ownerPhone.replace(/\D/g, '')}`)
-              : openInMaps({
+          {ownerPhone && !hasCoords && property.google_map_link ? (
+            <Pressable
+              style={[
+                styles.mapButton,
+                { borderColor: colors.border, backgroundColor: colors.surface },
+              ]}
+              onPress={() =>
+                openInMaps({
                   latitude: property.latitude,
                   longitude: property.longitude,
                   label: mapQuery,
                   fallbackUrl: property.google_map_link,
                 })
-          }
-        >
-          <Ionicons
-            name={ownerPhone ? 'logo-whatsapp' : 'map-outline'}
-            size={17}
-            color={colors.onPrimary}
+              }
+            >
+              <Ionicons name="map-outline" size={17} color={colors.primary} />
+              <Text
+                style={{
+                  fontSize: 14,
+                  fontFamily: f.semibold,
+                  color: colors.primary,
+                }}
+              >
+                Open in Google Maps
+              </Text>
+            </Pressable>
+          ) : null}
+
+          <PropertyDocuments
+            propertyId={property.id}
+            documents={property.documents ?? []}
+            canEdit={canEdit}
+            onChanged={() => {
+              void queryClient.invalidateQueries({
+                queryKey: ['property', property.id],
+              });
+            }}
           />
-          <Text style={{ color: colors.onPrimary, fontSize: 15, fontFamily: f.bold }}>
-            {ownerPhone ? 'WhatsApp Owner' : 'Open Maps'}
+
+          <Text
+            style={{
+              fontSize: 12,
+              color: colors.textFaint,
+              textAlign: 'center',
+            }}
+          >
+            AI descriptions, buyer document requests and the full sharing flows
+            live on the web for now.
           </Text>
-        </Pressable>
-      ) : null}
-    </View>
+        </View>
+      </ScrollView>
+
+      {/* Sticky price + CTA bar (reference pattern). */}
+      <View
+        style={[
+          styles.bottomBar,
+          {
+            backgroundColor: colors.surfaceWell,
+            borderColor: colors.glassBorder,
+            paddingBottom: Math.max(insets.bottom, spacing.md) + spacing.sm,
+          },
+        ]}
+      >
+        <BlurView
+          intensity={16}
+          tint={dark ? 'dark' : 'light'}
+          blurMethod="none"
+          style={StyleSheet.absoluteFill}
+        />
+        <View style={{ flex: 1 }}>
+          <Text
+            style={{
+              fontSize: 11,
+              fontFamily: f.bold,
+              color: colors.textFaint,
+              letterSpacing: 0.5,
+            }}
+          >
+            {property.listing_type === 'Rent' ? 'RENT' : 'PRICE'}
+          </Text>
+          <Text
+            style={{
+              fontSize: 21,
+              fontFamily: f.extrabold,
+              color: colors.text,
+              letterSpacing: -0.5,
+            }}
+          >
+            {price}
+          </Text>
+        </View>
+        {ownerPhone || hasMapLocation ? (
+          <Pressable
+            style={({ pressed }) => [
+              styles.ctaButton,
+              { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 },
+            ]}
+            onPress={() =>
+              ownerPhone
+                ? Linking.openURL(
+                    `https://wa.me/${ownerPhone.replace(/\D/g, '')}`
+                  )
+                : openInMaps({
+                    latitude: property.latitude,
+                    longitude: property.longitude,
+                    label: mapQuery,
+                    fallbackUrl: property.google_map_link,
+                  })
+            }
+          >
+            <Ionicons
+              name={ownerPhone ? 'logo-whatsapp' : 'map-outline'}
+              size={17}
+              color={colors.onPrimary}
+            />
+            <Text
+              style={{
+                color: colors.onPrimary,
+                fontSize: 15,
+                fontFamily: f.bold,
+              }}
+            >
+              {ownerPhone ? 'WhatsApp Owner' : 'Open Maps'}
+            </Text>
+          </Pressable>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -722,7 +999,9 @@ function ActionRail({ property }: { property: Property }) {
       haptic.warn();
       show({
         title: 'Could not update',
-        message: friendlyError(e instanceof ApiError ? e.message : 'Try again.'),
+        message: friendlyError(
+          e instanceof ApiError ? e.message : 'Try again.'
+        ),
       });
     } finally {
       setBusy(null);
@@ -759,7 +1038,9 @@ function ActionRail({ property }: { property: Property }) {
       haptic.warn();
       show({
         title: 'Could not delete',
-        message: friendlyError(e instanceof ApiError ? e.message : 'Try again.'),
+        message: friendlyError(
+          e instanceof ApiError ? e.message : 'Try again.'
+        ),
       });
       setBusy(null);
     }
@@ -799,7 +1080,13 @@ function ActionRail({ property }: { property: Property }) {
       label: archived ? 'Unarchive' : 'Archive',
       onPress: confirmArchive,
     },
-    { key: 'delete', icon: 'trash-outline' as const, label: 'Delete', onPress: confirmDelete, danger: true },
+    {
+      key: 'delete',
+      icon: 'trash-outline' as const,
+      label: 'Delete',
+      onPress: confirmDelete,
+      danger: true,
+    },
   ];
 
   return (
@@ -839,7 +1126,9 @@ function ActionRail({ property }: { property: Property }) {
             ) : (
               <Ionicons name={a.icon} size={16} color={fg} />
             )}
-            <Text style={{ fontSize: 12.5, fontFamily: f.bold, color: fg }}>{a.label}</Text>
+            <Text style={{ fontSize: 12.5, fontFamily: f.bold, color: fg }}>
+              {a.label}
+            </Text>
           </Pressable>
         );
       })}
@@ -875,13 +1164,19 @@ function MatchesSection({ property }: { property: Property }) {
   });
 
   const all = matches.data ?? [];
-  const agentCount = all.filter((m) => m.contact.classification === 'Agent').length;
-  const rows = showAgents ? all : all.filter((m) => m.contact.classification !== 'Agent');
+  const agentCount = all.filter(
+    (m) => m.contact.classification === 'Agent'
+  ).length;
+  const rows = showAgents
+    ? all
+    : all.filter((m) => m.contact.classification !== 'Agent');
   const sharedCount = rows.filter((m) => m.sharedAt).length;
 
   return (
     <Section title="Matching Contacts">
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+      <View
+        style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}
+      >
         <Text style={{ flex: 1, fontSize: 12.5, color: colors.textMuted }}>
           {matches.isLoading
             ? 'Scoring your contacts…'
@@ -893,20 +1188,36 @@ function MatchesSection({ property }: { property: Property }) {
                   (sharedCount > 0 ? ` · ${sharedCount} already shared` : '')}
         </Text>
         {agentCount > 0 ? (
-          <Pressable onPress={() => setShowAgents((v) => !v)} hitSlop={8} accessibilityRole="button">
-            <Text style={{ fontSize: 12, fontFamily: f.bold, color: colors.primary }}>
+          <Pressable
+            onPress={() => setShowAgents((v) => !v)}
+            hitSlop={8}
+            accessibilityRole="button"
+          >
+            <Text
+              style={{
+                fontSize: 12,
+                fontFamily: f.bold,
+                color: colors.primary,
+              }}
+            >
               {showAgents ? 'Hide agents' : `Show agents (${agentCount})`}
             </Text>
           </Pressable>
         ) : null}
       </View>
 
-      {matches.isLoading ? <ActivityIndicator size="small" color={colors.primary} /> : null}
+      {matches.isLoading ? (
+        <ActivityIndicator size="small" color={colors.primary} />
+      ) : null}
 
       {rows.map((m) => {
         const tone = scoreTone(m.score);
         const scoreFg =
-          tone === 'strong' ? colors.success : tone === 'fair' ? colors.warning : colors.textFaint;
+          tone === 'strong'
+            ? colors.success
+            : tone === 'fair'
+              ? colors.warning
+              : colors.textFaint;
         const scoreBg =
           tone === 'strong'
             ? colors.successSoft
@@ -929,15 +1240,25 @@ function MatchesSection({ property }: { property: Property }) {
             }
             style={[
               styles.matchRow,
-              { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+              {
+                backgroundColor: colors.glass,
+                borderColor: colors.glassBorder,
+              },
               shared && { opacity: 0.6 },
             ]}
           >
             <View style={{ flex: 1, gap: 4 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <View
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+              >
                 <Text
                   numberOfLines={1}
-                  style={{ fontSize: 14.5, fontFamily: f.bold, color: colors.text, flexShrink: 1 }}
+                  style={{
+                    fontSize: 14.5,
+                    fontFamily: f.bold,
+                    color: colors.text,
+                    flexShrink: 1,
+                  }}
                 >
                   {m.contact.name || m.contact.phone}
                 </Text>
@@ -949,24 +1270,48 @@ function MatchesSection({ property }: { property: Property }) {
                 {m.contact.classification ? (
                   <Tag
                     label={m.contact.classification}
-                    color={m.contact.classification === 'Agent' ? colors.readTick : colors.success}
+                    color={
+                      m.contact.classification === 'Agent'
+                        ? colors.readTick
+                        : colors.success
+                    }
                   />
                 ) : null}
               </View>
-              <Text style={{ fontSize: 12.5, color: colors.textMuted }}>{m.contact.phone}</Text>
+              <Text style={{ fontSize: 12.5, color: colors.textMuted }}>
+                {m.contact.phone}
+              </Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5 }}>
                 {shared ? (
-                  <Tag label={`✓ Shared ${chatListTime(m.sharedAt!)}`} color={colors.success} />
+                  <Tag
+                    label={`✓ Shared ${chatListTime(m.sharedAt!)}`}
+                    color={colors.success}
+                  />
                 ) : null}
                 {matchChips(m.details).map((chip) => (
-                  <Tag key={chip.label} label={chip.label} color={chipColor(chip.tone, colors)} />
+                  <Tag
+                    key={chip.label}
+                    label={chip.label}
+                    color={chipColor(chip.tone, colors)}
+                  />
                 ))}
               </View>
             </View>
 
             <View style={{ alignItems: 'flex-end', gap: spacing.sm }}>
-              <View style={[styles.scoreBadge, { backgroundColor: scoreBg, borderColor: scoreFg }]}>
-                <Text style={{ fontSize: 11.5, fontFamily: f.extrabold, color: scoreFg }}>
+              <View
+                style={[
+                  styles.scoreBadge,
+                  { backgroundColor: scoreBg, borderColor: scoreFg },
+                ]}
+              >
+                <Text
+                  style={{
+                    fontSize: 11.5,
+                    fontFamily: f.extrabold,
+                    color: scoreFg,
+                  }}
+                >
                   {m.score}%
                 </Text>
               </View>
@@ -984,7 +1329,9 @@ function MatchesSection({ property }: { property: Property }) {
                 }
               >
                 <Ionicons
-                  name={shared ? 'checkmark-done-outline' : 'paper-plane-outline'}
+                  name={
+                    shared ? 'checkmark-done-outline' : 'paper-plane-outline'
+                  }
                   size={18}
                   color={shared ? colors.textFaint : colors.primary}
                 />
@@ -1000,7 +1347,9 @@ function MatchesSection({ property }: { property: Property }) {
         visible={shareTo !== null}
         onClose={() => setShareTo(null)}
         onShared={() => {
-          void queryClient.invalidateQueries({ queryKey: ['property-matches', property.id] });
+          void queryClient.invalidateQueries({
+            queryKey: ['property-matches', property.id],
+          });
         }}
       />
     </Section>
@@ -1026,7 +1375,12 @@ function GalleryViewer({
   const [index, setIndex] = useState(initialIndex);
 
   return (
-    <Modal visible animationType="fade" onRequestClose={onClose} statusBarTranslucent>
+    <Modal
+      visible
+      animationType="fade"
+      onRequestClose={onClose}
+      statusBarTranslucent
+    >
       <View style={{ flex: 1, backgroundColor: '#000' }}>
         <FlatList
           data={images}
@@ -1034,7 +1388,11 @@ function GalleryViewer({
           pagingEnabled
           showsHorizontalScrollIndicator={false}
           initialScrollIndex={initialIndex}
-          getItemLayout={(_, i) => ({ length: width, offset: width * i, index: i })}
+          getItemLayout={(_, i) => ({
+            length: width,
+            offset: width * i,
+            index: i,
+          })}
           keyExtractor={(u) => u}
           onMomentumScrollEnd={(e) =>
             setIndex(
@@ -1091,15 +1449,28 @@ function Spec({
 }) {
   const { colors, fonts: f } = useTheme();
   return (
-    <View style={[styles.spec, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
+    <View
+      style={[
+        styles.spec,
+        { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+      ]}
+    >
       <Ionicons name={icon} size={18} color={colors.primary} />
       <Text style={{ fontSize: 11, color: colors.textFaint }}>{label}</Text>
-      <Text style={{ fontSize: 13.5, fontFamily: f.bold, color: colors.text }}>{value}</Text>
+      <Text style={{ fontSize: 13.5, fontFamily: f.bold, color: colors.text }}>
+        {value}
+      </Text>
     </View>
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
     <View style={{ gap: spacing.sm }}>
       <SectionLabel text={title} />
