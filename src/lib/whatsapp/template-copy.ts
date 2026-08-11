@@ -54,6 +54,9 @@ export type TemplateButtonAction =
   | 'update_preferences'
   | 'close_enquiry'
   | 'still_considering'
+  | 'timeline_today'
+  | 'timeline_2_days'
+  | 'timeline_unsure'
   // URL buttons — display only.
   | 'view_full_details'
   | 'view_location'
@@ -115,6 +118,33 @@ const BUTTON_LABELS: Record<TemplateButtonAction, Localised> = {
     te: 'ఇంకా పరిశీలిస్తున్నా',
     ml: 'ഇപ്പോഴും പരിഗണനയിൽ',
     mr: 'अजून विचार करत आहे',
+  },
+  timeline_today: {
+    en: 'Today itself',
+    hi: 'आज ही',
+    kn: 'ಇಂದೇ',
+    ta: 'இன்றே',
+    te: 'ఈరోజే',
+    ml: 'ഇന്നുതന്നെ',
+    mr: 'आजच',
+  },
+  timeline_2_days: {
+    en: 'In 2 days',
+    hi: '2 दिन में',
+    kn: '2 ದಿನಗಳಲ್ಲಿ',
+    ta: '2 நாட்களில்',
+    te: '2 రోజుల్లో',
+    ml: '2 ദിവസത്തിനുള്ളിൽ',
+    mr: '2 दिवसांत',
+  },
+  timeline_unsure: {
+    en: "Can't say yet",
+    hi: 'अभी कह नहीं सकते',
+    kn: 'ಈಗ ಹೇಳಲಾಗದು',
+    ta: 'இப்போது சொல்ல முடியாது',
+    te: 'ఇప్పుడే చెప్పలేను',
+    ml: 'ഇപ്പോൾ പറയാനാകില്ല',
+    mr: 'आत्ता सांगू शकत नाही',
   },
   view_full_details: {
     en: 'View full details',
@@ -191,7 +221,8 @@ export type EngineTemplateKey =
   | 'inventory_update'
   | 'enquiry_followup'
   | 'enquiry_notice'
-  | 'journey_checkin';
+  | 'journey_checkin'
+  | 'journey_timeline';
 
 interface TemplateCopy {
   body: string;
@@ -778,6 +809,90 @@ const TEMPLATE_COPY: Record<
         'या मालमत्तेबाबत तुमच्याकडून कोणतीही माहिती आलेली नाही, त्यामुळे तुमची चौकशी अजूनही खुली आहे.',
         '',
         'हे अजूनही विचाराधीन असल्यास उत्तर देऊन खात्री करा. चौकशी संपवण्यासाठी "चौकशी बंद करा" निवडा, नंतर कोणतेही अपडेट पाठवले जाणार नाहीत.',
+      ),
+    },
+  },
+
+  // Asks the lead to schedule the next contact, after they have said
+  // they would come back with a decision. Utility for the same reason
+  // the check-in above is: it administers an enquiry the lead filed,
+  // states no offer, and its only ask is WHEN — never whether.
+  journey_timeline: {
+    en: {
+      body: lines(
+        'Hi {{1}}, an update on your property enquiry with {{2}}:',
+        '',
+        'Property: {{3}}',
+        '',
+        'You told us you would come back to us with your decision on this listing.',
+        '',
+        'Please choose when we should check back, so we do not follow up sooner than you need.',
+      ),
+    },
+    hi: {
+      body: lines(
+        'नमस्ते {{1}}, आपकी प्रॉपर्टी पूछताछ पर {{2}} की ओर से एक अपडेट:',
+        '',
+        'प्रॉपर्टी: {{3}}',
+        '',
+        'आपने बताया था कि आप इस लिस्टिंग पर अपना निर्णय बताएंगे।',
+        '',
+        'कृपया चुनें कि हम कब दोबारा संपर्क करें, ताकि आपकी ज़रूरत से पहले संपर्क न करें।',
+      ),
+    },
+    kn: {
+      body: lines(
+        'ನಮಸ್ಕಾರ {{1}}, ನಿಮ್ಮ ಆಸ್ತಿ ವಿಚಾರಣೆಯ ಕುರಿತು {{2}} ಕಡೆಯಿಂದ ಒಂದು ಅಪ್‌ಡೇಟ್:',
+        '',
+        'ಆಸ್ತಿ: {{3}}',
+        '',
+        'ಈ ಪಟ್ಟಿಯ ಬಗ್ಗೆ ನಿಮ್ಮ ನಿರ್ಧಾರವನ್ನು ತಿಳಿಸುವುದಾಗಿ ನೀವು ಹೇಳಿದ್ದಿರಿ.',
+        '',
+        'ನಾವು ಯಾವಾಗ ಮತ್ತೆ ಸಂಪರ್ಕಿಸಬೇಕು ಎಂಬುದನ್ನು ಆಯ್ಕೆಮಾಡಿ, ನಿಮಗೆ ಬೇಕಾದ ಸಮಯಕ್ಕಿಂತ ಮೊದಲು ಸಂಪರ್ಕಿಸದಿರಲು.',
+      ),
+    },
+    ta: {
+      body: lines(
+        'வணக்கம் {{1}}, உங்கள் சொத்து விசாரணை குறித்து {{2}} சார்பாக ஒரு புதுப்பிப்பு:',
+        '',
+        'சொத்து: {{3}}',
+        '',
+        'இந்தப் பட்டியல் குறித்த உங்கள் முடிவைத் தெரிவிப்பதாகக் கூறியிருந்தீர்கள்.',
+        '',
+        'நாங்கள் எப்போது மீண்டும் தொடர்பு கொள்ள வேண்டும் என்பதைத் தேர்ந்தெடுக்கவும்.',
+      ),
+    },
+    te: {
+      body: lines(
+        'నమస్కారం {{1}}, మీ ఆస్తి విచారణపై {{2}} తరఫున ఒక అప్‌డేట్:',
+        '',
+        'ఆస్తి: {{3}}',
+        '',
+        'ఈ లిస్టింగ్‌పై మీ నిర్ణయాన్ని తెలియజేస్తానని మీరు చెప్పారు.',
+        '',
+        'మేము ఎప్పుడు మళ్లీ సంప్రదించాలో ఎంచుకోండి, మీకు అవసరమైన సమయానికి ముందే సంప్రదించకుండా.',
+      ),
+    },
+    ml: {
+      body: lines(
+        'നമസ്കാരം {{1}}, നിങ്ങളുടെ വസ്തു അന്വേഷണം സംബന്ധിച്ച് {{2}} നൽകുന്ന ഒരു അപ്‌ഡേറ്റ്:',
+        '',
+        'വസ്തു: {{3}}',
+        '',
+        'ഈ ലിസ്റ്റിംഗിനെക്കുറിച്ചുള്ള നിങ്ങളുടെ തീരുമാനം അറിയിക്കാമെന്ന് നിങ്ങൾ പറഞ്ഞിരുന്നു.',
+        '',
+        'ഞങ്ങൾ എപ്പോൾ വീണ്ടും ബന്ധപ്പെടണം എന്ന് തിരഞ്ഞെടുക്കുക.',
+      ),
+    },
+    mr: {
+      body: lines(
+        'नमस्कार {{1}}, तुमच्या मालमत्ता चौकशीबाबत {{2}} कडून एक अपडेट:',
+        '',
+        'मालमत्ता: {{3}}',
+        '',
+        'या नोंदीबाबत तुमचा निर्णय कळवाल असे तुम्ही सांगितले होते.',
+        '',
+        'आम्ही केव्हा पुन्हा संपर्क साधावा ते निवडा, तुमच्या गरजेच्या आधी संपर्क करू नये म्हणून.',
       ),
     },
   },

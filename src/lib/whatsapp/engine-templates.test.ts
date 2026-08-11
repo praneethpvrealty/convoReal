@@ -15,6 +15,7 @@ describe('missingEngineTemplates', () => {
       'listing_photos_notice',
       'listing_status_notice',
       'enquiry_checkin_notice',
+      'enquiry_timeline_notice',
     ]);
   });
 

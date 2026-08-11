@@ -20,6 +20,7 @@ import { buildInventoryUpdateTemplatePayload, INVENTORY_UPDATE_TEMPLATE_NAME } f
 import { buildEnquiryFollowupTemplatePayload, ENQUIRY_FOLLOWUP_TEMPLATE_NAME } from './enquiry-followup-template';
 import { buildEnquiryNoticeTemplatePayload, ENQUIRY_NOTICE_TEMPLATE_NAME } from './enquiry-notice-template';
 import { buildJourneyCheckinTemplatePayload, JOURNEY_CHECKIN_TEMPLATE_NAME } from './journey-checkin-template';
+import { buildTimelineAskTemplatePayload, TIMELINE_ASK_TEMPLATE_NAME } from './timeline-ask-template';
 
 export interface EngineTemplateDef {
   name: string;
@@ -91,6 +92,14 @@ export const ENGINE_TEMPLATES: EngineTemplateDef[] = [
     whyItMatters:
       'Asks a buyer whether a journey listing is still under consideration when their 24-hour window has closed — the template form of the check-in the Journey sheet drafts.',
     build: buildJourneyCheckinTemplatePayload,
+  },
+  {
+    name: TIMELINE_ASK_TEMPLATE_NAME,
+    copyKey: 'journey_timeline',
+    label: 'Enquiry timeline',
+    whyItMatters:
+      'Asks a lead who said they would come back with a decision to pick when we should check back, when their 24-hour window has closed — the answer sets the journey plan and files the follow-up to-do automatically.',
+    build: buildTimelineAskTemplatePayload,
   },
 ];
 

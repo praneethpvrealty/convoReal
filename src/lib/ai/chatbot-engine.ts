@@ -14,7 +14,12 @@ import {
   type ParsedContactDraftsContainer,
   normalizeClassification
 } from '@/lib/ai/gemini';
-import { processClientReplyScreenshot } from '@/lib/journey/client-response';
+import {
+  processClientReplyScreenshot,
+  handleAgentFollowupReply,
+  AGENT_FOLLOWUP_PREFIX,
+  type ClientReplyOutcome,
+} from '@/lib/journey/client-response';
 import { applyListingDerivations } from '@/lib/ai/listing-derivations';
 import { uploadPropertyImage, uploadPropertyDocument, uploadPropertyVideo } from '@/lib/storage/upload';
 import { queueYouTubeUploadIfConnected } from '@/lib/youtube/upload';
@@ -718,11 +723,11 @@ export async function processOwnerChatbotMessage(
     const analyzingSendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: analyzingMsg });
     await saveBotMessage(conversation.id, analyzingMsg, analyzingSendRes.messageId);
 
-    let reply: string;
+    let outcome: ClientReplyOutcome;
     try {
       const media = isImageMsg ? await loadInboundMedia() : { buffer: undefined, mimeType: undefined };
       const parsed = await parseClientReplyFromImageOrText(cleanedText || undefined, media.buffer, media.mimeType);
-      reply = await processClientReplyScreenshot({
+      outcome = await processClientReplyScreenshot({
         db: supabaseAdmin(),
         accountId,
         userId,
@@ -732,10 +737,20 @@ export async function processOwnerChatbotMessage(
       });
     } catch (err) {
       console.error('[chatbot-engine] client reply capture failed:', err);
-      reply = "⚠️ I couldn't read that conversation. Try a clearer screenshot, or type the client's update (e.g. \"Surya will speak to the chairman on PROP-1138\").";
+      outcome = { text: "⚠️ I couldn't read that conversation. Try a clearer screenshot, or type the client's update (e.g. \"Surya will speak to the chairman on PROP-1138\")." };
     }
-    const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
-    await saveBotMessage(conversation.id, reply, sendRes.messageId);
+    // The three reminder buttons ride on the confirmation itself, so the
+    // agent can set a follow-up in the same tap-free turn.
+    const sendRes = outcome.buttons
+      ? await sendInteractiveButtons({
+          phoneNumberId,
+          accessToken,
+          to: contactRecord.phone,
+          bodyText: outcome.text,
+          buttons: outcome.buttons,
+        })
+      : await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: outcome.text });
+    await saveBotMessage(conversation.id, outcome.text, sendRes.messageId);
     return true;
   }
 
@@ -1022,6 +1037,22 @@ export async function processOwnerChatbotMessage(
   const buttonId = message.type === 'interactive'
     ? message.interactive?.button_reply?.id ?? message.interactive?.list_reply?.id
     : null;
+
+  // The agent setting their own follow-up date on a client's branch.
+  // Handled before every draft branch below: the tap carries the button
+  // title as its text, which would otherwise be classified as a fresh
+  // intake and answered with the help card.
+  if (buttonId?.startsWith(AGENT_FOLLOWUP_PREFIX)) {
+    const handledAgentFollowup = await handleAgentFollowupReply({
+      db: supabaseAdmin(),
+      accountId,
+      ownerUserId: userId,
+      contact: { id: contactRecord.id, name: contactRecord.name, phone: contactRecord.phone },
+      conversationId: conversation.id,
+      replyId: buttonId,
+    });
+    if (handledAgentFollowup) return true;
+  }
 
   // 2. Active Property Session Exists Flow
   if (propSession) {
