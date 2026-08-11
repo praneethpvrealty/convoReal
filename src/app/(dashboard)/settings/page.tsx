@@ -44,6 +44,7 @@ import { TagManager } from '@/components/settings/tag-manager';
 import { ProfileForm } from '@/components/settings/profile-form';
 import { BusinessNameCard } from '@/components/settings/business-name-card';
 import { DefaultLanguageCard } from '@/components/settings/default-language-card';
+import { LanguageUsageCard } from '@/components/settings/language-usage-card';
 import { PasswordForm } from '@/components/settings/password-form';
 import { SessionsCard } from '@/components/settings/sessions-card';
 import { AppearancePanel } from '@/components/settings/appearance-panel';
@@ -436,6 +437,7 @@ export default function SettingsPage() {
             <ProfileForm />
             <BusinessNameCard />
             <DefaultLanguageCard />
+            <LanguageUsageCard />
             <PasswordForm />
             <SessionsCard />
           </TabsContent>

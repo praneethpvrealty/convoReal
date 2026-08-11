@@ -1,6 +1,10 @@
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { sanitizePhoneForMeta, isValidE164 } from '@/lib/whatsapp/phone-utils'
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher'
+import {
+  loadTemplateForContact,
+  warnLanguageFallback,
+} from '@/lib/whatsapp/template-language'
 import { sendTemplateMessage } from '@/lib/whatsapp/meta-api'
 import { decrypt } from '@/lib/whatsapp/encryption'
 import { istDayWindow, istHourOf } from '@/lib/calendar/whatsapp-scheduler'
@@ -253,6 +257,19 @@ async function sendToAllRecipients(
       bodyText = `Hi ${clientName}, this is a friendly reminder from ${accountName} that you have a scheduled meeting: "${visitTitle}" on ${formattedTime}. Location: ${locationText}. Agenda for the meeting: ${agendaParam}. Please tap a button below to confirm or request a change.`
     }
 
+    // The reminder goes to THIS contact, so their language decides the
+    // variant. Resolved per recipient rather than per appointment: one
+    // site visit can have a Tamil buyer and an English co-broker on it.
+    const { template: langTemplate, language, fellBack } =
+      await loadTemplateForContact(admin, {
+        accountId: appt.account_id,
+        contactId: contact.id,
+        names: [templateName],
+      })
+    if (fellBack) {
+      warnLanguageFallback('Reminder Cron', appt.account_id, language, langTemplate)
+    }
+
     const result = await sendWhatsAppMessageAndPersist({
       accountId: appt.account_id,
       userId: appt.user_id || null,
@@ -260,7 +277,7 @@ async function sendToAllRecipients(
       kind: 'template',
       senderType: 'agent', // reminders logged as sent by agent
       templateName,
-      templateLanguage: 'en_US',
+      templateLanguage: langTemplate?.language || 'en_US',
       templateParams: agendaParam
         ? [clientName, visitTitle, formattedTime, locationText, agendaParam, accountName]
         : [clientName, visitTitle, formattedTime, locationText, accountName],

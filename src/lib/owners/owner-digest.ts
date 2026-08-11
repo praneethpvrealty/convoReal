@@ -1,5 +1,13 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher'
+import {
+  accountDefaultLanguage,
+  resolveLanguage,
+  pickTemplateForLanguage,
+  isLanguageFallback,
+  warnLanguageFallback,
+} from '@/lib/whatsapp/template-language'
+import type { LanguageCode } from '@/lib/languages'
 import { truncateParametersToBudget } from '@/lib/whatsapp/template-send-builder'
 import {
   OWNER_DIGEST_TEMPLATE_NAME,
@@ -533,30 +541,50 @@ export async function sendOwnerStatusDigests(options?: {
       const ownerIds = digests.map((d) => d.contactId)
       const { data: ownerRows } = await db
         .from('contacts')
-        .select('id, name, phone, owner_digest_consent, owner_digest_consent_requested_at')
+        .select('id, name, phone, preferred_language, owner_digest_consent, owner_digest_consent_requested_at')
         .eq('account_id', accountId)
         .in('id', ownerIds)
       const ownerById = new Map(
         (ownerRows || []).map((c) => [c.id as string, c as Record<string, unknown>])
       )
 
-      // Latest approved templates — looked up once per account.
-      const approvedTemplate = async (name: string): Promise<MessageTemplate | null> => {
-        const { data: row } = await db
+      // Every language variant, looked up once per account. The pick
+      // then happens per OWNER inside the loop: one account's owners do
+      // not share a language, and resolving the template once for the
+      // whole run would send every one of them whatever the first row
+      // happened to be.
+      const templateVariants = async (name: string): Promise<MessageTemplate[]> => {
+        const { data: rows } = await db
           .from('message_templates')
           .select('*')
           .eq('account_id', accountId)
           .eq('name', name)
           .order('last_submitted_at', { ascending: false })
-          .limit(1)
-          .maybeSingle()
-        const template = row as MessageTemplate | null
-        return template?.status === 'APPROVED' ? template : null
+        return (rows || []) as MessageTemplate[]
       }
-      const [digestTemplate, consentTemplate] = await Promise.all([
-        approvedTemplate(OWNER_DIGEST_TEMPLATE_NAME),
-        approvedTemplate(OWNER_DIGEST_CONSENT_TEMPLATE_NAME),
+      const [digestVariants, consentVariants] = await Promise.all([
+        templateVariants(OWNER_DIGEST_TEMPLATE_NAME),
+        templateVariants(OWNER_DIGEST_CONSENT_TEMPLATE_NAME),
       ])
+      const accountLanguage = await accountDefaultLanguage(db, accountId)
+      const forOwner = (
+        variants: MessageTemplate[],
+        owner: Record<string, unknown> | undefined,
+      ): { template: MessageTemplate | null; language: LanguageCode } => {
+        const language = resolveLanguage(
+          owner?.preferred_language as string | null | undefined,
+          accountLanguage,
+        )
+        const template = pickTemplateForLanguage(variants, language)
+        // Callers below expect null for anything not approved — the
+        // pre-language behaviour, kept so a pending row still reads as
+        // "no template" rather than being sent.
+        return {
+          template:
+            (template?.status ?? '').toUpperCase() === 'APPROVED' ? template : null,
+          language,
+        }
+      }
 
       let sentThisRun = 0
       for (const digest of digests) {
@@ -583,11 +611,15 @@ export async function sendOwnerStatusDigests(options?: {
             summary.skippedAwaitingConsent++
             continue
           }
+          const consentPick = forOwner(consentVariants, owner)
+          if (consentPick.template && isLanguageFallback(consentPick.template, consentPick.language)) {
+            warnLanguageFallback('Owner Digest', accountId, consentPick.language, consentPick.template)
+          }
           const outcome = await sendConsentRequest(db, {
             accountId,
             digest,
             period,
-            consentTemplate,
+            consentTemplate: consentPick.template,
           })
           if (outcome === 'sent') {
             summary.consentRequested++
@@ -651,10 +683,15 @@ export async function sendOwnerStatusDigests(options?: {
           continue
         }
 
+        const digestPick = forOwner(digestVariants, owner)
+        const digestTemplate = digestPick.template
         if (!digestTemplate) {
           summary.skippedNoTemplate++
           await recordChannel('skipped_no_template')
           continue
+        }
+        if (isLanguageFallback(digestTemplate, digestPick.language)) {
+          warnLanguageFallback('Owner Digest', accountId, digestPick.language, digestTemplate)
         }
 
         const params = buildOwnerDigestParams(

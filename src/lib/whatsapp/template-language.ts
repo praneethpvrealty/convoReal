@@ -24,6 +24,7 @@ import {
   DEFAULT_LANGUAGE,
   isLanguageCode,
   metaLanguageCode,
+  toLanguageCode,
   type LanguageCode,
 } from '@/lib/languages';
 
@@ -116,6 +117,32 @@ export function isLanguageFallback(
 }
 
 /**
+ * The account's fallback language, on its own.
+ *
+ * For a batch job that loops over many recipients: read this once,
+ * then combine with each contact's own preference via
+ * resolveLanguage() instead of one round trip per recipient.
+ */
+export async function accountDefaultLanguage(
+  db: SupabaseClient,
+  accountId: string,
+): Promise<LanguageCode> {
+  try {
+    const { data } = await db
+      .from('accounts')
+      .select('default_language')
+      .eq('id', accountId)
+      .maybeSingle();
+    return toLanguageCode(
+      (data as { default_language?: string | null } | null)?.default_language,
+    );
+  } catch (err) {
+    console.error('[template-language] account default lookup failed:', err);
+    return DEFAULT_LANGUAGE;
+  }
+}
+
+/**
  * The language for a send, read from the database.
  *
  * Best-effort by design: a failed lookup returns English rather than
@@ -142,6 +169,69 @@ export async function resolveSendLanguage(
     console.error('[template-language] preference lookup failed:', err);
     return DEFAULT_LANGUAGE;
   }
+}
+
+/**
+ * Load the right language variant of a template for one recipient.
+ *
+ * The shape every send path had already written by hand — query by
+ * name, take a row, send it — with the language step folded in. Eight
+ * call sites repeating the fetch-resolve-pick dance is eight chances
+ * to forget the pick, and forgetting is invisible: the send succeeds,
+ * in English.
+ *
+ * Returns the language that was WANTED alongside the row, so a caller
+ * can tell that it fell back and say so. Rows of every status are
+ * returned (see pickTemplateForLanguage) because callers distinguish
+ * "pending Meta approval" from "never created" themselves.
+ */
+export async function loadTemplateForContact<T extends TemplateRow>(
+  db: SupabaseClient,
+  opts: {
+    accountId: string;
+    /** Null for a recipient with no contact row — account default then. */
+    contactId?: string | null;
+    /** Pass when the language is already known, to skip a round trip. */
+    language?: LanguageCode;
+    /** Candidate names, newest-first preference preserved. */
+    names: readonly string[];
+  },
+): Promise<{ template: T | null; language: LanguageCode; fellBack: boolean }> {
+  const language =
+    opts.language ??
+    (await resolveSendLanguage(db, opts.accountId, opts.contactId ?? null));
+
+  const { data } = await db
+    .from('message_templates')
+    .select('*')
+    .eq('account_id', opts.accountId)
+    .in('name', opts.names as string[])
+    .order('last_submitted_at', { ascending: false });
+
+  const template = pickTemplateForLanguage((data ?? []) as T[], language);
+  return { template, language, fellBack: isLanguageFallback(template, language) };
+}
+
+/** Minimum a row needs for the language pick to work. */
+interface TemplateRow {
+  language?: string | null;
+  status?: string | null;
+}
+
+/**
+ * One line, one shape, so a brokerage that set a language and never
+ * approved a variant for it can find out from the logs instead of
+ * wondering why every message still arrives in English.
+ */
+export function warnLanguageFallback(
+  scope: string,
+  accountId: string,
+  language: LanguageCode,
+  chosen: { language?: string | null } | null,
+): void {
+  console.warn(
+    `[${scope}] no approved ${language} variant for account ${accountId}; sent ${chosen?.language ?? 'none'}`,
+  );
 }
 
 function isApproved(row: { status?: string | null }): boolean {

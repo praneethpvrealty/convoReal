@@ -13,6 +13,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { MessageTemplate } from "@/types";
 import { sendWhatsAppMessageAndPersist } from "@/lib/whatsapp/meta-api-dispatcher";
+import {
+  narrowToLanguage,
+  resolveSendLanguage,
+  isLanguageFallback,
+  warnLanguageFallback,
+} from "@/lib/whatsapp/template-language";
+import type { LanguageCode } from "@/lib/languages";
 
 const SESSION_WINDOW_MS = 24 * 60 * 60 * 1000;
 
@@ -52,6 +59,13 @@ export async function approvedTemplate(
   accountId: string,
   templateName: string | string[],
   pick?: (rows: MessageTemplate[]) => MessageTemplate | null,
+  /**
+   * The recipient's language. Narrows the candidates to their variant
+   * BEFORE `pick` runs, so a caller's own selection policy (photo vs
+   * text, Utility over Marketing) still applies — within their
+   * language. Omit and this behaves exactly as it always did.
+   */
+  language?: LanguageCode,
 ): Promise<MessageTemplate | null> {
   const names = Array.isArray(templateName) ? templateName : [templateName];
   const { data: rows } = await db
@@ -60,7 +74,8 @@ export async function approvedTemplate(
     .eq("account_id", accountId)
     .in("name", names)
     .order("last_submitted_at", { ascending: false });
-  const templates = (rows || []) as MessageTemplate[];
+  const all = (rows || []) as MessageTemplate[];
+  const templates = language ? narrowToLanguage(all, language) : all;
   if (pick) return pick(templates);
   const template = templates[0] ?? null;
   return template?.status === "APPROVED" ? template : null;
@@ -107,13 +122,24 @@ export async function sendDenNotification(
     if (!args.templateName || !(args.templateParams || args.buildParams)) {
       return false;
     }
+    // Den notifications go to a property OWNER, who is a contact like
+    // any other — their preferred_language decides the variant.
+    const language = await resolveSendLanguage(
+      db,
+      args.accountId,
+      args.contactId ?? null,
+    );
     const template = await approvedTemplate(
       db,
       args.accountId,
       args.templateName,
       args.pickTemplate,
+      language,
     );
     if (!template) return false;
+    if (isLanguageFallback(template, language)) {
+      warnLanguageFallback("den-notify", args.accountId, language, template);
+    }
     const params = args.buildParams
       ? args.buildParams(template)
       : args.templateParams!;
