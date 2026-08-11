@@ -47,9 +47,11 @@ const SCHEDULING_VERB =
  * dictated list does not use it — "Add for today's task 1) …" states
  * the intent just as plainly and used to miss, which cost it the
  * stated-outright pass and left it to be vetoed by the portal back-off
- * below. So a list marker after the noun counts too.
+ * below. So a list marker after the noun counts too — and so does
+ * the word "list", because "Add to the todo list - ..." puts a noun
+ * between the declaration and the jobs.
  */
-const TASK_PREFIX = /\b(task|todo|to-do)s?\b\s*(:|-|\d)/i;
+const TASK_PREFIX = /\b(task|todo|to-do)s?\b(\s*(:|-|\d)|\s+list\b)/i;
 
 /** Something that happens at a time, which needs a WHEN to be a request. */
 const EVENT_VERB = /\b(call|meet|meeting|visit|appointment)\b/i;
@@ -133,8 +135,16 @@ export function isAgendaCommand(text: string): boolean {
  * be followed by a separator and a space — a bare number is a quantity
  * far more often than it is a heading.
  *
- * Lettered markers are left alone: "3) Followup with X regarding
- * a) … b) …" is one job with two things to raise, not three jobs.
+ * Numbers win, and while a numbered run exists the lettered markers
+ * inside it are left alone: "3) Followup with X regarding a) … b) …"
+ * is one job with two things to raise, not three jobs.
+ *
+ * Letters only split when there is NO numbered run at all — "Add to
+ * the todo list - Work on Dinakar site a) Cleaning up the site b) E
+ * khata", which is two jobs and was reaching the classifier as
+ * "I couldn't tell what that was". The words before the first letter
+ * are carried onto each item, because "Cleaning up the site" on its
+ * own does not say which site.
  *
  * Returns [] when there is no list, which leaves the single-draft path
  * exactly as it was.
@@ -143,21 +153,49 @@ export function splitTaskList(text: string): string[] {
   const t = (text || '').trim();
   if (!t) return [];
 
-  const marker = /(?:^|[\s.,;])(\d{1,2})\s*[).:]\s+/g;
-  const hits: { at: number; from: number }[] = [];
-  let expected = 1;
-  let m: RegExpExecArray | null;
-  while ((m = marker.exec(t)) !== null) {
-    if (Number(m[1]) !== expected) continue;
-    hits.push({ at: m.index, from: m.index + m[0].length });
-    expected += 1;
-  }
-  if (hits.length < 2) return [];
+  const numbered = markerRun(t, /(?:^|[\s.,;])(\d{1,2})\s*[).:]\s+/g, (raw, i) =>
+    Number(raw) === i + 1
+  );
+  if (numbered.length >= 2) return sliceItems(t, numbered);
 
+  // A letter needs no space after its bracket ("b)E khata"), because
+  // unlike a digit it is never part of the value that follows.
+  const lettered = markerRun(t, /(?:^|[\s.,;(])([a-z])\s*[).:]\s*/gi, (raw, i) =>
+    raw.toLowerCase().charCodeAt(0) === 97 + i
+  );
+  if (lettered.length < 2) return [];
+
+  // "Add to the todo list - Work on Dinakar site" → "Work on Dinakar
+  // site". The declaration is scaffolding; what follows it is the
+  // subject the lettered parts belong to.
+  const lead = t
+    .slice(0, lettered[0].at)
+    .replace(/^.*?\b(task|todo|to-do)s?\b(\s+list\b)?\s*[-:–—]?\s*/i, '')
+    .trim()
+    .replace(/[-–—:,.\s]+$/, '')
+    .trim();
+
+  return sliceItems(t, lettered).map((item) => (lead ? `${lead} — ${item}` : item));
+}
+
+/** Positions of a marker sequence that actually counts from its start. */
+function markerRun(
+  t: string,
+  pattern: RegExp,
+  inSequence: (raw: string, index: number) => boolean
+): { at: number; from: number }[] {
+  const hits: { at: number; from: number }[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = pattern.exec(t)) !== null) {
+    if (!inSequence(m[1], hits.length)) continue;
+    hits.push({ at: m.index, from: m.index + m[0].length });
+  }
+  return hits;
+}
+
+function sliceItems(t: string, hits: { at: number; from: number }[]): string[] {
   return hits
-    .map((h, i) =>
-      t.slice(h.from, i + 1 < hits.length ? hits[i + 1].at : undefined)
-    )
+    .map((h, i) => t.slice(h.from, i + 1 < hits.length ? hits[i + 1].at : undefined))
     .map((s) => s.trim().replace(/[.,;\s]+$/, '').trim())
     .filter(Boolean);
 }
