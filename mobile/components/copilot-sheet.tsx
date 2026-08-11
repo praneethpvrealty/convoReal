@@ -14,6 +14,7 @@ import {
 import { BottomSheet, sheetScrollArea } from '@/components/sheet';
 import { TourBodyText } from '@/components/copilot-tour';
 import { useAuthStore } from '@/lib/auth-store';
+import { useT } from '@/lib/use-t';
 import {
   askCopilot,
   appHrefForWebRoute,
@@ -55,9 +56,6 @@ const SUGGESTIONS = [
   'Property views kaise dekhu?',
 ];
 
-const GREETING =
-  'Hi! I can show you around or answer questions about ConvoReal. \u{1F44B}';
-
 export function CopilotSheet({
   visible,
   onClose,
@@ -68,6 +66,7 @@ export function CopilotSheet({
   onStartTour: (tourId: string) => void;
 }) {
   const { colors, fonts: f, type } = useTheme();
+  const t = useT();
   const pathname = usePathname();
   const session = useAuthStore((s) => s.session);
 
@@ -190,7 +189,7 @@ export function CopilotSheet({
   );
 
   return (
-    <BottomSheet visible={visible} onClose={onClose} title="Helper">
+    <BottomSheet visible={visible} onClose={onClose} title={t('copilot.title')}>
       <ScrollView
         ref={scrollRef}
         style={sheetScrollArea}
@@ -198,7 +197,7 @@ export function CopilotSheet({
         keyboardShouldPersistTaps="handled"
       >
         <View style={[styles.bubble, styles.assistantBubble, { backgroundColor: colors.surfaceSunken }]}>
-          <Text style={[type.bodySmall, { color: colors.text }]}>{GREETING}</Text>
+          <Text style={[type.bodySmall, { color: colors.text }]}>{t('copilot.greeting')}</Text>
         </View>
 
         {turns.length === 0 ? (
@@ -218,49 +217,49 @@ export function CopilotSheet({
           </View>
         ) : null}
 
-        {turns.map((t, i) => {
-          const a = t.answer;
+        {turns.map((turn, i) => {
+          const a = turn.answer;
           const coverage: CopilotCoverage | undefined = a?.coverage;
           const appHref = a?.navigateTo ? appHrefForWebRoute(a.navigateTo) : null;
           const showSupport =
-            t.role === 'assistant' &&
-            !!t.question &&
-            !t.supportRef &&
+            turn.role === 'assistant' &&
+            !!turn.question &&
+            !turn.supportRef &&
             (coverage === 'none' || coverage === 'partial');
           return (
             <View
               key={i}
-              style={t.role === 'user' ? styles.userWrap : styles.assistantWrap}
+              style={turn.role === 'user' ? styles.userWrap : styles.assistantWrap}
             >
               <View
                 style={[
                   styles.bubble,
-                  t.role === 'user'
+                  turn.role === 'user'
                     ? [styles.userBubble, { backgroundColor: colors.primary }]
                     : [styles.assistantBubble, { backgroundColor: colors.surfaceSunken }],
                 ]}
               >
                 <TourBodyText
-                  text={t.text}
-                  color={t.role === 'user' ? colors.onPrimary : colors.text}
-                  boldColor={t.role === 'user' ? colors.onPrimary : colors.text}
+                  text={turn.text}
+                  color={turn.role === 'user' ? colors.onPrimary : colors.text}
+                  boldColor={turn.role === 'user' ? colors.onPrimary : colors.text}
                 />
               </View>
 
-              {t.role === 'assistant' && a ? (
+              {turn.role === 'assistant' && a ? (
                 <View style={styles.actions}>
                   {a.tourId
-                    ? actionChip('Show me — start the tour', 'navigate-outline', () => {
+                    ? actionChip(t('copilot.startTour'), 'navigate-outline', () => {
                         onStartTour(a.tourId!);
                       })
                     : null}
                   {coverage === 'web_only'
-                    ? actionChip('Open on desktop web', 'laptop-outline', () => {
+                    ? actionChip(t('copilot.openDesktop'), 'laptop-outline', () => {
                         void Linking.openURL(a.webUrl ?? 'https://www.convoreal.com');
                       })
                     : null}
                   {!a.tourId && coverage !== 'web_only' && appHref
-                    ? actionChip('Take me there', 'arrow-forward-outline', () => {
+                    ? actionChip(t('copilot.takeMeThere'), 'arrow-forward-outline', () => {
                         onClose();
                         router.push(appHref as Href);
                       })
@@ -268,21 +267,21 @@ export function CopilotSheet({
                 </View>
               ) : null}
 
-              {t.role === 'assistant' && coverage === 'web_only' ? (
+              {turn.role === 'assistant' && coverage === 'web_only' ? (
                 <Text style={[styles.hint, { fontFamily: f.medium, color: colors.textFaint }]}>
-                  This one lives on the desktop web dashboard.
+                  {t('copilot.webOnlyHint')}
                 </Text>
               ) : null}
 
-              {t.role === 'assistant' && a?.unsupported ? (
+              {turn.role === 'assistant' && a?.unsupported ? (
                 <Text style={[styles.hint, { fontFamily: f.medium, color: colors.textFaint }]}>
-                  {'\u{1F4A1} Noted as a feature request for the ConvoReal team.'}
+                  {`\u{1F4A1} ${t('copilot.featureNoted')}`}
                 </Text>
               ) : null}
 
-              {t.supportRef ? (
+              {turn.supportRef ? (
                 <Text style={[styles.hint, { fontFamily: f.semibold, color: colors.success }]}>
-                  {`✅ Sent to our support team — reference ${t.supportRef}. We'll get back to you on ${t.supportChannel === 'email' ? 'email' : 'WhatsApp'}.`}
+                  {`✅ ${t('copilot.supportSent')} ${turn.supportRef}. ${t('copilot.supportReply')} ${turn.supportChannel === 'email' ? 'email' : 'WhatsApp'}.`}
                 </Text>
               ) : null}
 
@@ -290,10 +289,10 @@ export function CopilotSheet({
                 <View style={styles.actions}>
                   {coverage === 'partial' ? (
                     <Text style={[styles.hint, { fontFamily: f.medium, color: colors.textFaint }]}>
-                      I could only partly help with this one.
+                      {t('copilot.partialHint')}
                     </Text>
                   ) : null}
-                  {actionChip('Ask the support team', 'help-buoy-outline', () => openSupport(i))}
+                  {actionChip(t('copilot.askSupport'), 'help-buoy-outline', () => openSupport(i))}
                 </View>
               ) : null}
 
@@ -305,7 +304,7 @@ export function CopilotSheet({
                   ]}
                 >
                   <Text style={[styles.supportTitle, { fontFamily: f.bold, color: colors.text }]}>
-                    Where should our team reply?
+                    {t('copilot.supportWhere')}
                   </Text>
                   <View style={styles.channelRow}>
                     {(['whatsapp', 'email'] as const).map((ch) => (
@@ -346,7 +345,9 @@ export function CopilotSheet({
                     value={supportDest}
                     onChangeText={setSupportDest}
                     placeholder={
-                      supportChannel === 'whatsapp' ? 'WhatsApp number' : 'Email address'
+                      supportChannel === 'whatsapp'
+                        ? t('copilot.supportPhone')
+                        : t('copilot.supportEmail')
                     }
                     placeholderTextColor={colors.textFaint}
                     keyboardType={
@@ -377,7 +378,7 @@ export function CopilotSheet({
                       ]}
                     >
                       <Text style={[styles.supportSendLabel, { fontFamily: f.bold, color: colors.onPrimary }]}>
-                        {supportBusy ? 'Sending…' : 'Send to support'}
+                        {supportBusy ? t('copilot.supportSending') : t('copilot.supportSend')}
                       </Text>
                     </Pressable>
                     <Pressable
@@ -386,23 +387,23 @@ export function CopilotSheet({
                       hitSlop={8}
                     >
                       <Text style={[styles.hint, { fontFamily: f.semibold, color: colors.textFaint }]}>
-                        Cancel
+                        {t('common.cancel')}
                       </Text>
                     </Pressable>
                   </View>
                 </View>
               ) : null}
 
-              {t.role === 'assistant' && a?.cacheId ? (
+              {turn.role === 'assistant' && a?.cacheId ? (
                 <View style={styles.feedbackRow}>
-                  {t.voted ? (
+                  {turn.voted ? (
                     <Text style={[styles.hint, { fontFamily: f.medium, color: colors.textFaint }]}>
-                      Thanks for the feedback!
+                      {t('copilot.thanks')}
                     </Text>
                   ) : (
                     <>
                       <Text style={[styles.hint, { fontFamily: f.medium, color: colors.textFaint }]}>
-                        Helpful?
+                        {t('copilot.helpful')}
                       </Text>
                       {(['up', 'down'] as const).map((vote) => (
                         <Pressable
@@ -435,14 +436,14 @@ export function CopilotSheet({
 
         {busy ? (
           <View style={[styles.bubble, styles.assistantBubble, { backgroundColor: colors.surfaceSunken }]}>
-            <Text style={[type.bodySmall, { color: colors.textFaint }]}>Typing…</Text>
+            <Text style={[type.bodySmall, { color: colors.textFaint }]}>{t('copilot.typing')}</Text>
           </View>
         ) : null}
 
         {showGuides ? (
           <View style={styles.guides}>
             <Text style={[styles.guidesLabel, { fontFamily: f.bold, color: colors.textFaint }]}>
-              STEP-BY-STEP GUIDES
+              {t('copilot.guides').toUpperCase()}
             </Text>
             {MOBILE_TOURS.map((tour) => (
               <Pressable
@@ -473,7 +474,7 @@ export function CopilotSheet({
         <TextInput
           value={input}
           onChangeText={setInput}
-          placeholder="Ask me anything…"
+          placeholder={t('copilot.placeholder')}
           placeholderTextColor={colors.textFaint}
           maxLength={500}
           accessibilityLabel="Ask the helper"

@@ -48,9 +48,6 @@ const SUGGESTIONS = [
   'Property views kaise dekhu?',
 ];
 
-const GREETING =
-  'Hi! I can show you around or answer questions about ConvoReal. \u{1F44B}';
-
 export function CopilotPanel() {
   const { panelOpen, closePanel, startTour } = useCopilot();
   const pathname = usePathname();
@@ -211,7 +208,7 @@ export function CopilotPanel() {
           <div className="from-primary to-indigo-650 flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br text-white">
             <Sparkles className="h-3.5 w-3.5" />
           </div>
-          <p className="text-sm font-bold text-white">Helper</p>
+          <p className="text-sm font-bold text-white">{t('copilot.title')}</p>
         </div>
         <button
           type="button"
@@ -226,7 +223,7 @@ export function CopilotPanel() {
       {/* Scrollable body */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3">
         <div className="rounded-xl rounded-tl-sm bg-slate-900 px-3 py-2 text-sm text-slate-200">
-          {GREETING}
+          {t('copilot.greeting')}
         </div>
 
         {/* Suggestion chips — these hit the deterministic intent
@@ -355,12 +352,12 @@ export function CopilotPanel() {
                 <div className="mt-1 flex items-center gap-1 pl-1">
                   {turn.voted ? (
                     <span className="text-[10px] text-slate-500">
-                      Thanks for the feedback!
+                      {t('copilot.thanks')}
                     </span>
                   ) : (
                     <>
                       <span className="text-[10px] text-slate-500">
-                        Helpful?
+                        {t('copilot.helpful')}
                       </span>
                       {(['up', 'down'] as const).map((vote) => (
                         <button
@@ -385,7 +382,9 @@ export function CopilotPanel() {
           ))}
           {busy && (
             <div className="self-start rounded-xl rounded-tl-sm bg-slate-900 px-3 py-2 text-sm text-slate-400">
-              <span className="motion-safe:animate-pulse">Typing…</span>
+              <span className="motion-safe:animate-pulse">
+                {t('copilot.typing')}
+              </span>
             </div>
           )}
         </div>
@@ -394,7 +393,7 @@ export function CopilotPanel() {
         {showGuides && (
           <div className="mt-4">
             <p className="mb-2 flex items-center gap-1.5 text-[10px] font-black tracking-widest text-slate-500 uppercase">
-              <Compass className="h-3 w-3" /> Step-by-step guides
+              <Compass className="h-3 w-3" /> {t('copilot.guides')}
             </p>
             <div className="flex flex-col gap-1.5">
               {TOURS.map((tour) => (
@@ -428,7 +427,7 @@ export function CopilotPanel() {
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Ask me anything…"
+          placeholder={t('copilot.placeholder')}
           maxLength={500}
           aria-label="Ask the helper"
           className="focus:border-primary/50 h-10 flex-1 rounded-xl border border-slate-800 bg-slate-900/60 px-3 text-sm text-white placeholder:text-slate-500 focus:outline-none"

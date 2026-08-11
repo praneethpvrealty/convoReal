@@ -20,6 +20,7 @@ import { describe, expect, it } from 'vitest';
 
 import { PLAN_CONFIG, PLAN_ORDER } from '@/lib/billing/plan-config';
 import { TOURS } from '@/lib/copilot/tours';
+import { MESSAGES } from '@/lib/i18n/messages';
 import {
   AMENITIES_BY_CATEGORY,
   AREA_UNITS,
@@ -515,5 +516,26 @@ describe('mobile/lib/contact-interest.ts mirrors the web project axis', () => {
     expect(projectOptionsBody(mobileSource('lib/contact-interest.ts'))).toBe(
       projectOptionsBody(web)
     );
+  });
+});
+
+describe("mobile/lib/i18n.ts mirrors the web catalogue's copilot slice", () => {
+  // The mobile module is pure (no Expo/RN imports), so unlike the other
+  // mirrors it can be imported directly and compared value-for-value.
+  it('keeps every ported key byte-equal in every language', async () => {
+    const { UI_MESSAGES } = await import('../../mobile/lib/i18n');
+    for (const [lang, catalogue] of Object.entries(UI_MESSAGES)) {
+      const web = MESSAGES[lang as keyof typeof MESSAGES] as Record<
+        string,
+        string
+      >;
+      for (const [key, value] of Object.entries(catalogue)) {
+        expect(
+          web[key],
+          `${lang}/${key} missing from web catalogue`
+        ).toBeDefined();
+        expect(value, `${lang}/${key}`).toBe(web[key]);
+      }
+    }
   });
 });

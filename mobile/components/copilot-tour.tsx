@@ -26,6 +26,7 @@ import {
   type MobileTour,
 } from '@/lib/copilot-tours';
 import { haptic } from '@/lib/haptics';
+import { useT } from '@/lib/use-t';
 import { radius, spacing, useTheme } from '@/lib/theme';
 
 // ------------------------------------------------------------------
@@ -327,6 +328,7 @@ function TourSpotlight({
   onSkip: () => void;
 }) {
   const { colors, fonts: f, shadows } = useTheme();
+  const t = useT();
   const { width: winW, height: winH } = useWindowDimensions();
 
   const hole = {
@@ -436,7 +438,7 @@ function TourSpotlight({
             accessibilityLabel="Skip tour"
           >
             <Text style={[styles.skip, { fontFamily: f.semibold, color: colors.textFaint }]}>
-              Skip
+              {t('tour.skip')}
             </Text>
           </Pressable>
           {showNext ? (
@@ -446,12 +448,12 @@ function TourSpotlight({
               style={[styles.nextBtn, { backgroundColor: colors.primary }]}
             >
               <Text style={[styles.nextLabel, { fontFamily: f.bold, color: colors.onPrimary }]}>
-                {isLast ? 'Done' : 'Next'}
+                {isLast ? t('tour.done') : t('tour.next')}
               </Text>
             </Pressable>
           ) : (
             <Text style={[styles.skip, { fontFamily: f.semibold, color: colors.textMuted }]}>
-              {'Tap the highlight \u{1F446}'}
+              {t('tour.tapHighlight')}
             </Text>
           )}
         </View>
