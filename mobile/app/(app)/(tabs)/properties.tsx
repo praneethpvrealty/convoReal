@@ -74,6 +74,7 @@ import {
 } from '@/lib/theme';
 import type { Contact, PropertiesResponse, Property } from '@/lib/types';
 import { usePullRefresh } from '@/lib/use-pull-refresh';
+import { contactHandle, hasPhone } from '@/lib/reachability';
 
 const LISTING_FILTERS: ListingFilter[] = [
   'All',
@@ -257,7 +258,7 @@ export default function PropertiesScreen() {
             const url = await contactShowcaseShareUrl(contact);
             logShowcaseShare(contact);
             Linking.openURL(
-              `https://wa.me/${contact.phone.replace(/\D/g, '')}?text=${encodeURIComponent(showcaseMessage(url))}`
+              `https://wa.me/${(contact.phone ?? '').replace(/\D/g, '')}?text=${encodeURIComponent(showcaseMessage(url))}`
             );
           },
         },

@@ -7,6 +7,7 @@ import { buildExistingContactPatch } from '@/lib/contacts/import-merge';
 import {
   prepareImportRows,
   distinctTagNames,
+  importRowKey,
   type ImportRow,
   type PreparedImportRow,
 } from '@/lib/contacts/import-batch';
@@ -25,18 +26,37 @@ interface ExistingContactRow {
   last_inquired_property_id: string | null;
 }
 
+const CONTACT_COLUMNS =
+  'id, phone, name, name_tag, email, company, min_budget, max_budget, areas_of_interest, last_inquired_property_id';
+
 /**
- * The account's existing contacts for the uploaded numbers, keyed on
- * digits so a stored "+919876543210" matches an uploaded "919876543210".
- * Every spelling is queried because rows created before E.164
- * normalisation are still out there.
+ * The account's existing contacts for the uploaded rows, keyed the way
+ * `importRowKey` keys the upload: on the number's digits, so a stored
+ * "+919876543210" matches an uploaded "919876543210", and on the
+ * address for a row that carries an email and no number.
+ *
+ * Every phone spelling is queried because rows created before E.164
+ * normalisation are still out there. A contact matched by number also
+ * registers under its email, so a file naming the same company once by
+ * number and once by mailbox lands on one record rather than two.
  */
-async function loadExistingByPhone(
+async function loadExisting(
   ctx: { supabase: SupabaseClient; accountId: string },
-  phones: readonly string[]
+  rows: readonly { phone?: string | null; email?: string | null }[]
 ): Promise<Map<string, { id: string; row: ExistingContactRow }>> {
-  const byPhone = new Map<string, { id: string; row: ExistingContactRow }>();
-  if (phones.length === 0) return byPhone;
+  const byKey = new Map<string, { id: string; row: ExistingContactRow }>();
+
+  const phones = rows
+    .map((r) => r.phone?.trim())
+    .filter((p): p is string => Boolean(p));
+  const emails = [
+    ...new Set(
+      rows
+        .map((r) => r.email?.trim().toLowerCase())
+        .filter((e): e is string => Boolean(e))
+    ),
+  ];
+  if (phones.length === 0 && emails.length === 0) return byKey;
 
   const variants = [
     ...new Set(
@@ -47,19 +67,36 @@ async function loadExistingByPhone(
     ),
   ];
 
-  const { data } = await ctx.supabase
-    .from('contacts')
-    .select(
-      'id, phone, name, name_tag, email, company, min_budget, max_budget, areas_of_interest, last_inquired_property_id'
-    )
-    .eq('account_id', ctx.accountId)
-    .in('phone', variants);
-
-  for (const c of (data ?? []) as ExistingContactRow[]) {
-    const key = (c.phone ?? '').replace(/\D/g, '');
-    if (key && !byPhone.has(key)) byPhone.set(key, { id: c.id, row: c });
+  const found: ExistingContactRow[] = [];
+  if (variants.length > 0) {
+    const { data } = await ctx.supabase
+      .from('contacts')
+      .select(CONTACT_COLUMNS)
+      .eq('account_id', ctx.accountId)
+      .in('phone', variants);
+    found.push(...((data ?? []) as ExistingContactRow[]));
   }
-  return byPhone;
+  if (emails.length > 0) {
+    const { data } = await ctx.supabase
+      .from('contacts')
+      .select(CONTACT_COLUMNS)
+      .eq('account_id', ctx.accountId)
+      .in('email', emails);
+    found.push(...((data ?? []) as ExistingContactRow[]));
+  }
+
+  for (const c of found) {
+    // Both spellings of the same record, so an upload keyed either way
+    // finds it. `importRowKey` prefers the phone, which is why the
+    // email alias is registered separately rather than instead.
+    for (const key of [
+      importRowKey({ phone: c.phone }),
+      c.email ? `email:${c.email.trim().toLowerCase()}` : null,
+    ]) {
+      if (key && !byKey.has(key)) byKey.set(key, { id: c.id, row: c });
+    }
+  }
+  return byKey;
 }
 
 // POST /api/contacts/import — bulk import contacts from a CSV payload.
@@ -106,24 +143,22 @@ export async function POST(request: Request) {
     const currentCount = currentCountRaw ?? 0;
     const slotsAvailable = Math.max(0, maxContacts - currentCount);
 
-    // Contacts this account already holds for the uploaded numbers. A
+    // Contacts this account already holds for the uploaded rows. A
     // re-engagement list overlaps the book it came from, and inserting
     // blindly would give one person two contact rows and two copies of
     // the same message. Bounded by the upload, and matched on every
     // stored spelling because older rows predate E.164 normalisation.
-    const existingByPhone = await loadExistingByPhone(
-      ctx,
-      rows
-        .map((r) => (typeof r.phone === 'string' ? r.phone.trim() : ''))
-        .filter(Boolean)
-    );
+    const existingByKey = await loadExisting(ctx, rows);
 
     // Only a genuinely new contact consumes a plan slot, so the limit is
     // applied to those alone — otherwise re-importing a list the account
     // already has would be refused for occupying seats it never takes.
-    const isNew = (r: ImportRow) =>
-      typeof r.phone === 'string' &&
-      !existingByPhone.has(r.phone.trim().replace(/\D/g, ''));
+    // A row with neither number nor email is not new; it is unwritable,
+    // and prepareImportRows counts it as invalid.
+    const isNew = (r: ImportRow) => {
+      const key = importRowKey(r);
+      return key !== null && !existingByKey.has(key);
+    };
     const newRowCount = rows.filter(isNew).length;
     const unlimited = maxContacts >= 999999;
     const maxNewImportable = unlimited
@@ -180,8 +215,8 @@ export async function POST(request: Request) {
       propertyRefs.filter((ref) => !resolvedProperties.has(ref.trim()))
     );
 
-    // One record per number, so a file naming someone twice writes one
-    // contact instead of an insert followed by an update.
+    // One record per identity, so a file naming someone twice writes
+    // one contact instead of an insert followed by an update.
     const { prepared, invalid, merged } = prepareImportRows(
       rowsToImport,
       (ref) => resolvedProperties.get(ref) ?? null
@@ -200,12 +235,12 @@ export async function POST(request: Request) {
     const toInsert: PreparedImportRow[] = [];
     const toUpdate: { prep: PreparedImportRow; id: string }[] = [];
     for (const prep of prepared) {
-      const existing = existingByPhone.get(prep.phoneKey);
+      const existing = existingByKey.get(prep.key);
       if (existing) toUpdate.push({ prep, id: existing.id });
       else toInsert.push(prep);
     }
 
-    const contactIdByPhone = new Map<string, string>();
+    const contactIdByKey = new Map<string, string>();
 
     const insertPayload = (prep: PreparedImportRow) => ({
       user_id: ctx.userId,
@@ -216,16 +251,21 @@ export async function POST(request: Request) {
     });
 
     if (toInsert.length > 0) {
-      // Phone strings are unique across prepared records, so the
-      // returned rows map back without relying on statement ordering.
+      // Keys are unique across prepared records, so the returned rows
+      // map back without relying on statement ordering.
       const { data: created, error: insertErr } = await ctx.supabase
         .from('contacts')
         .insert(toInsert.map(insertPayload))
-        .select('id, phone');
+        .select('id, phone, email');
 
       if (!insertErr && created) {
-        for (const c of created as { id: string; phone: string }[]) {
-          contactIdByPhone.set(c.phone, c.id);
+        for (const c of created as {
+          id: string;
+          phone: string | null;
+          email: string | null;
+        }[]) {
+          const key = importRowKey(c);
+          if (key) contactIdByKey.set(key, c.id);
         }
       } else {
         // One bad row rejects the whole statement, so fall back to
@@ -237,14 +277,14 @@ export async function POST(request: Request) {
           '[POST /api/contacts/import] Batched insert failed, retrying row by row:',
           insertErr
         );
-        const landed = await loadExistingByPhone(
+        const landed = await loadExisting(
           ctx,
-          toInsert.map((p) => p.phone)
+          toInsert.map((p) => ({ phone: p.phone, email: p.fields.email }))
         );
         for (const prep of toInsert) {
-          const already = landed.get(prep.phoneKey);
+          const already = landed.get(prep.key);
           if (already) {
-            contactIdByPhone.set(prep.phone, already.id);
+            contactIdByKey.set(prep.key, already.id);
             continue;
           }
 
@@ -256,17 +296,17 @@ export async function POST(request: Request) {
           if (oneErr || !one) {
             console.error(
               '[POST /api/contacts/import] Insert error for row:',
-              prep.phone,
+              prep.key,
               oneErr
             );
             continue;
           }
-          contactIdByPhone.set(prep.phone, one.id);
+          contactIdByKey.set(prep.key, one.id);
         }
       }
 
       for (const prep of toInsert) {
-        const id = contactIdByPhone.get(prep.phone);
+        const id = contactIdByKey.get(prep.key);
         if (!id) {
           failed++;
           continue;
@@ -279,7 +319,7 @@ export async function POST(request: Request) {
     // Each patch differs, so these stay one statement per contact —
     // rows that add nothing are skipped entirely.
     for (const { prep, id } of toUpdate) {
-      const existing = existingByPhone.get(prep.phoneKey)!;
+      const existing = existingByKey.get(prep.key)!;
       const patch = buildExistingContactPatch(existing.row, prep.fields);
 
       if (Object.keys(patch).length > 0) {
@@ -292,19 +332,19 @@ export async function POST(request: Request) {
         if (updateErr || !patched?.length) {
           console.error(
             '[POST /api/contacts/import] Update error for row:',
-            prep.phone,
+            prep.key,
             updateErr
           );
           failed++;
           continue;
         }
       }
-      contactIdByPhone.set(prep.phone, id);
+      contactIdByKey.set(prep.key, id);
       updatedIds.push(id);
       updated++;
     }
 
-    const written = prepared.filter((p) => contactIdByPhone.has(p.phone));
+    const written = prepared.filter((p) => contactIdByKey.has(p.key));
 
     // Same record the portal email webhook writes, so an imported lead
     // and an emailed one are indistinguishable downstream. One record
@@ -312,7 +352,7 @@ export async function POST(request: Request) {
     const inquiries = written
       .filter((p) => p.fields.last_inquired_property_id)
       .map((p) => ({
-        contact_id: contactIdByPhone.get(p.phone)!,
+        contact_id: contactIdByKey.get(p.key)!,
         property_id: p.fields.last_inquired_property_id!,
         inquiry_source: 'CSV Import',
       }));
@@ -363,7 +403,7 @@ export async function POST(request: Request) {
         .map((name) => tagIdByName.get(name.toLowerCase()))
         .filter((tagId): tagId is string => Boolean(tagId))
         .map((tagId) => ({
-          contact_id: contactIdByPhone.get(p.phone)!,
+          contact_id: contactIdByKey.get(p.key)!,
           tag_id: tagId,
         }))
     );
@@ -383,7 +423,7 @@ export async function POST(request: Request) {
 
     const noteRows = written.flatMap((p) =>
       p.notes.map((note) => ({
-        contact_id: contactIdByPhone.get(p.phone)!,
+        contact_id: contactIdByKey.get(p.key)!,
         user_id: ctx.userId,
         account_id: ctx.accountId,
         note_text: note,
@@ -407,8 +447,8 @@ export async function POST(request: Request) {
     // authenticate.
     return NextResponse.json({
       imported,
-      // Numbers this account already had: enriched in place rather than
-      // duplicated. They still get the row's tags and notes, so a
+      // Contacts this account already had: enriched in place rather
+      // than duplicated. They still get the row's tags and notes, so a
       // re-engagement batch still reaches them.
       updated,
       failed,

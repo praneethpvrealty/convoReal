@@ -37,10 +37,14 @@ export async function POST(request: Request) {
       property_ids,
     } = body;
 
-    // Validation
-    if (typeof phone !== 'string' || phone.trim().length === 0) {
+    // Validation — a contact needs one way to be reached, not
+    // specifically a number: company mailboxes arrive email-only
+    // (migration 253).
+    const phoneValue = typeof phone === 'string' ? phone.trim() || null : null;
+    const emailValue = typeof email === 'string' ? email.trim() || null : null;
+    if (!phoneValue && !emailValue) {
       return NextResponse.json(
-        { error: "'phone' is required" },
+        { error: "'phone' or 'email' is required" },
         { status: 400 },
       );
     }
@@ -54,11 +58,11 @@ export async function POST(request: Request) {
       // Null rather than 'en' when unset — the send path reads that as
       // "unknown" and falls back to the account default.
       preferred_language: isLanguageCode(preferred_language) ? preferred_language : null,
-      phone: phone.trim(),
+      phone: phoneValue,
       secondary_phones: Array.isArray(secondary_phones)
         ? secondary_phones.filter((p: unknown) => typeof p === 'string' && p.trim().length > 0).map((p: string) => p.trim())
         : [],
-      email: typeof email === 'string' ? email.trim() || null : null,
+      email: emailValue,
       company: typeof company === 'string' ? company.trim() || null : null,
       classification: typeof classification === 'string' ? classification : 'Buyer',
       lead_temp: typeof lead_temp === 'string' ? lead_temp || null : null,

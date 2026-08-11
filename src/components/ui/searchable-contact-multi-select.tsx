@@ -10,7 +10,7 @@ import { useAnchoredDropdown } from '@/hooks/use-anchored-dropdown';
 interface Contact {
   id: string;
   name: string;
-  phone: string;
+  phone: string | null;
   name_tag?: string | null;
 }
 
@@ -167,7 +167,7 @@ export function SearchableContactMultiSelect({
                     <NameTagBadge tag={contact.name_tag} />
                   </div>
                   <p className="text-[10px] text-slate-450 mt-0.5 truncate font-medium">
-                    📞 {contact.phone}
+                    📞 {contact.phone ?? '—'}
                   </p>
                 </div>
                 {isSelected && <Check className="size-3.5 text-primary shrink-0 mt-0.5" />}

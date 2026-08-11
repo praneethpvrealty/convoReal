@@ -33,6 +33,7 @@ import { supabase } from '@/lib/supabase';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import type { Contact, Deal, PipelineStage } from '@/lib/types';
 import { useDebounced } from '@/lib/use-debounced';
+import { contactHandle, hasPhone } from '@/lib/reachability';
 
 /**
  * Web parity: the deal form (deal-form.tsx). Creating posts to
@@ -333,7 +334,7 @@ function DealForm({
                   setContactSearch('');
                 }}
               >
-                <Avatar name={c.name || c.phone} size={30} />
+                <Avatar name={c.name || contactHandle(c)} size={30} />
                 <Text
                   style={{ flexShrink: 1, fontSize: 14.5, color: colors.text }}
                   numberOfLines={1}

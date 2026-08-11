@@ -10,6 +10,7 @@ import { PROPERTY_INTEREST_OPTIONS } from '@/lib/property-interests';
 import { ProjectsOfInterestInput } from '@/components/contacts/projects-of-interest-input';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import { contactFullName } from '@/lib/contacts/full-name';
+import { contactHandle } from '@/lib/contacts/reachability';
 import { pruneAreasGeo } from '@/lib/contacts/area-geo';
 import { LANGUAGE_CODES, languageDisplay, type LanguageCode } from '@/lib/languages';
 import {
@@ -271,8 +272,8 @@ export function ContactForm({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
-    if (!phone.trim()) {
-      toast.error('Phone number is required');
+    if (!phone.trim() && !email.trim()) {
+      toast.error('Add a phone number or an email');
       return;
     }
 
@@ -284,8 +285,12 @@ export function ContactForm({
       const isEdit = !!contact?.id;
       const contactId = contact?.id;
 
-      const normalizedPrimary = normalizePhoneWithCountryCode(phone.trim(), defaultCountryCode);
-      if (!normalizedPrimary) {
+      // Email-only contacts (company mailboxes) keep a null phone —
+      // a number, once given, still has to be a valid one.
+      const normalizedPrimary = phone.trim()
+        ? normalizePhoneWithCountryCode(phone.trim(), defaultCountryCode)
+        : null;
+      if (phone.trim() && !normalizedPrimary) {
         toast.error('Invalid primary phone number format');
         setSaving(false);
         return;
@@ -417,7 +422,12 @@ export function ContactForm({
 
           <div className="space-y-2">
             <Label htmlFor="cf-phone" className="text-slate-300">
-              Phone <span className="text-red-400">*</span>
+              Phone{' '}
+              {email.trim() ? (
+                <span className="text-slate-500">(optional)</span>
+              ) : (
+                <span className="text-red-400">*</span>
+              )}
             </Label>
             <Input
               id="cf-phone"
@@ -427,7 +437,9 @@ export function ContactForm({
               className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
             />
             <p className="text-xs text-slate-500">
-              Include country code, e.g. +91 for India
+              Include country code, e.g. +91 for India. Leave blank for a
+              contact you only have an email for — WhatsApp features stay
+              switched off for those.
             </p>
           </div>
 
@@ -512,7 +524,8 @@ export function ContactForm({
 
           <div className="space-y-2">
             <Label htmlFor="cf-email" className="text-slate-300">
-              Email
+              Email{' '}
+              {!phone.trim() && <span className="text-red-400">*</span>}
             </Label>
             <Input
               id="cf-email"
@@ -583,7 +596,7 @@ export function ContactForm({
                     <div className="flex items-center gap-1.5">
                       <span className="font-semibold">{contactFullName(c) || 'Unnamed'}</span>
                       <NameTagBadge tag={c.name_tag} />
-                      <span className="text-slate-400 ml-1.5 text-[10px]">({c.phone})</span>
+                      <span className="text-slate-400 ml-1.5 text-[10px]">({contactHandle(c)})</span>
                     </div>
                     <span className="text-[10px] bg-slate-800 px-1 py-0.5 rounded text-slate-400 font-bold">
                       {c.classification}

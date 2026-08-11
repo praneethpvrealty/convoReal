@@ -22,7 +22,7 @@ describe('prepareImportRows', () => {
       { phone: '+91 98765 43210', email: 'asha@example.com' },
     ]);
 
-    expect(prepared.map((p) => p.phoneKey)).toEqual([
+    expect(prepared.map((p) => p.key)).toEqual([
       '919876543210',
       '919000000001',
     ]);
@@ -35,10 +35,10 @@ describe('prepareImportRows', () => {
   it('stores the number as uploaded but matches on digits', () => {
     const { prepared } = run([{ phone: ' +91 98765-43210 ' }]);
     expect(prepared[0].phone).toBe('+91 98765-43210');
-    expect(prepared[0].phoneKey).toBe('919876543210');
+    expect(prepared[0].key).toBe('919876543210');
   });
 
-  it('counts rows with no phone as invalid instead of writing them', () => {
+  it('counts rows with neither phone nor email as invalid', () => {
     const { prepared, invalid } = run([
       { phone: '', name: 'Nobody' },
       { name: 'Also nobody' },
@@ -46,6 +46,25 @@ describe('prepareImportRows', () => {
     ]);
     expect(invalid).toBe(2);
     expect(prepared).toHaveLength(1);
+  });
+
+  it('keeps an email-only row, keyed on the address', () => {
+    const { prepared, invalid, merged } = run([
+      { email: 'Sales@Brigade.com', name: 'Brigade Lands' },
+      { email: 'sales@brigade.com', company: 'Brigade Group' },
+      { phone: '919876543210', email: 'sales@brigade.com' },
+    ]);
+
+    expect(invalid).toBe(0);
+    expect(merged).toBe(1);
+    // The mailbox row and the row carrying a number are different
+    // identities: the number is the one that can be messaged.
+    expect(prepared.map((p) => p.key)).toEqual([
+      'email:sales@brigade.com',
+      '919876543210',
+    ]);
+    expect(prepared[0].phone).toBeNull();
+    expect(prepared[0].fields.company).toBe('Brigade Group');
   });
 
   it('does not collapse unrelated junk numbers into one record', () => {
@@ -123,7 +142,7 @@ describe('prepareImportRows', () => {
       { phone: '91 98765 43210' },
       { phone: '919000000001' },
     ]);
-    expect(new Set(prepared.map((p) => p.phoneKey)).size).toBe(prepared.length);
+    expect(new Set(prepared.map((p) => p.key)).size).toBe(prepared.length);
     expect(prepared).toHaveLength(2);
   });
 });

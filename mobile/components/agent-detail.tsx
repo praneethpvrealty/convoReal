@@ -20,6 +20,7 @@ import { radius, spacing, useTheme } from '@/lib/theme';
 import { useCallLog } from '@/lib/use-call-log';
 import { openWelcomeWhatsApp } from '@/lib/welcome-message';
 import type { Appointment, Contact, ContactNote, Property, Tag as TagRow } from '@/lib/types';
+import { contactHandle, hasPhone } from '@/lib/reachability';
 
 export async function openConversation(contactId: string) {
   const { data } = await supabase
@@ -805,11 +806,11 @@ export function AgentSchedule({ contact }: { contact: Contact }) {
         <Pressable
           onPress={() =>
             router.push(
-              `/(app)/appointment-new?contactId=${contact.id}&contactName=${encodeURIComponent(contact.name ?? '')}&contactPhone=${encodeURIComponent(contact.phone)}`
+              `/(app)/appointment-new?contactId=${contact.id}&contactName=${encodeURIComponent(contact.name ?? '')}&contactPhone=${encodeURIComponent(contact.phone ?? '')}`
             )
           }
           accessibilityRole="button"
-          accessibilityLabel={`Schedule with ${contact.name || contact.phone}`}
+          accessibilityLabel={`Schedule with ${contact.name || contactHandle(contact)}`}
           style={[styles.scheduleButton, { backgroundColor: colors.primarySoft }]}
         >
           <Ionicons name="add" size={15} color={colors.primary} />
@@ -893,21 +894,25 @@ export function AgentDetail({ agent }: { agent: Contact }) {
   const name = agent.name || 'Unnamed Agent';
 
   const actions = [
-    {
-      icon: 'call' as const,
-      label: 'Call',
-      onPress: () => startCall(agent),
-    },
-    {
-      icon: 'logo-whatsapp' as const,
-      label: 'WhatsApp',
-      onPress: () => openWelcomeWhatsApp(agent),
-    },
-    {
-      icon: 'chatbubbles' as const,
-      label: 'Inbox',
-      onPress: () => openConversation(agent.id),
-    },
+    ...(hasPhone(agent)
+      ? [
+          {
+            icon: 'call' as const,
+            label: 'Call',
+            onPress: () => startCall(agent),
+          },
+          {
+            icon: 'logo-whatsapp' as const,
+            label: 'WhatsApp',
+            onPress: () => openWelcomeWhatsApp(agent),
+          },
+          {
+            icon: 'chatbubbles' as const,
+            label: 'Inbox',
+            onPress: () => openConversation(agent.id),
+          },
+        ]
+      : []),
     {
       icon: 'map-outline' as const,
       label: 'Journey',
@@ -918,7 +923,7 @@ export function AgentDetail({ agent }: { agent: Contact }) {
   return (
     <View style={{ gap: spacing.lg }}>
       <View style={styles.header}>
-        <Avatar name={agent.name || agent.phone} size={64} />
+        <Avatar name={agent.name || contactHandle(agent)} size={64} />
         <View style={{ flex: 1, gap: 4 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
             <Text style={{ fontSize: 20, fontFamily: f.extrabold, color: colors.text, letterSpacing: -0.3 }}>

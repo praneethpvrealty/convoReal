@@ -280,9 +280,9 @@ export default function ContactsPage() {
       return;
     }
 
-    const cleanPhone = contact.phone.replace(/\D/g, '');
+    const cleanPhone = contact.phone?.replace(/\D/g, '') ?? '';
     if (!cleanPhone) {
-      toast.error('Invalid phone number');
+      toast.error('This contact has no phone number');
       return;
     }
 
@@ -343,7 +343,7 @@ export default function ContactsPage() {
     contact: Contact,
     propDetails?: Property | null
   ) => {
-    const cleanPhone = contact.phone.replace(/\D/g, '');
+    const cleanPhone = contact.phone?.replace(/\D/g, '') ?? '';
     if (!cleanPhone) return '';
 
     const agentName = profile?.full_name || '';
@@ -2668,7 +2668,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                           setPendingDial({
                             contactId: contact.id,
                             name: contact.name,
-                            phone: contact.phone,
+                            phone: contact.phone ?? '',
                             dialedAt: new Date().toISOString(),
                           })
                         }

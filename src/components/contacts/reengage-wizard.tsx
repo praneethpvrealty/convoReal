@@ -267,7 +267,7 @@ export function ReengageWizard({
     const rows = parseContactsCsv(await selected.text());
     if (rows.length === 0) {
       toast.error(
-        'No valid rows found. Ensure CSV has a "phone" column header.'
+        'No valid rows found. Ensure the CSV has a "phone" or "email" column header.'
       );
       setParsedRows([]);
       return;
@@ -689,8 +689,8 @@ export function ReengageWizard({
                     Click to upload your leads CSV
                   </p>
                   <p className="text-xs text-slate-500">
-                    &quot;phone&quot; column required; name, tags, budget and
-                    notes are picked up too
+                    &quot;phone&quot; or &quot;email&quot; column required;
+                    name, tags, budget and notes are picked up too
                   </p>
                 </>
               )}
@@ -753,7 +753,7 @@ export function ReengageWizard({
                         return (
                           <tr key={i} className="border-t border-slate-700/50">
                             <td className="px-3 py-1.5 text-slate-300">
-                              {row.phone}
+                              {row.phone || row.email || '-'}
                             </td>
                             <td className="px-3 py-1.5 font-medium text-slate-300">
                               {row.name || '-'}

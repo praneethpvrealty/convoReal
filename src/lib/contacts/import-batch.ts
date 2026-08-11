@@ -29,10 +29,14 @@ export interface ImportRow {
 }
 
 export interface PreparedImportRow {
-  /** Digits of the uploaded number — how existing contacts are matched. */
-  phoneKey: string;
-  /** The number exactly as uploaded, which is what gets stored. */
-  phone: string;
+  /** What this row is matched on — the uploaded number's digits, or
+   *  `email:<lowercased>` for a row that carries an address and no
+   *  number. Unique across a prepared import, so the route can map
+   *  written contacts back to their row. */
+  key: string;
+  /** The number exactly as uploaded, which is what gets stored. Null
+   *  for an email-only row (a company mailbox). */
+  phone: string | null;
   fields: IncomingContactFields;
   tags: string[];
   notes: string[];
@@ -40,10 +44,28 @@ export interface PreparedImportRow {
 
 export interface PreparedImport {
   prepared: PreparedImportRow[];
-  /** Rows with no usable phone number. They can never be written. */
+  /** Rows carrying neither a phone number nor an email. They can never
+   *  be written — `contacts_phone_or_email` would refuse them. */
   invalid: number;
-  /** Rows folded into an earlier row for the same number. */
+  /** Rows folded into an earlier row for the same identity. */
   merged: number;
+}
+
+/**
+ * How a row — uploaded or already on file — is matched.
+ *
+ * Phone first, because it is the identity the whole Engine turns on and
+ * the only one a message can be sent to. An email-only row keys on its
+ * address instead, which is all a company mailbox has.
+ */
+export function importRowKey(row: {
+  phone?: string | null;
+  email?: string | null;
+}): string | null {
+  const phone = row.phone?.trim();
+  if (phone) return phone.replace(/\D/g, '') || phone;
+  const email = row.email?.trim().toLowerCase();
+  return email ? `email:${email}` : null;
 }
 
 function splitList(value: unknown): string[] {
@@ -59,7 +81,7 @@ function text(value: unknown): string | null {
 }
 
 /**
- * One record per phone number, in first-appearance order.
+ * One record per identity, in first-appearance order.
  *
  * A file that names the same person twice used to insert once and then
  * update, so the same fill-blanks rule is applied here instead — the
@@ -70,20 +92,18 @@ export function prepareImportRows(
   rows: readonly ImportRow[],
   resolvePropertyId: (ref: string) => string | null
 ): PreparedImport {
-  const byPhone = new Map<string, PreparedImportRow>();
+  const byKey = new Map<string, PreparedImportRow>();
   const order: string[] = [];
   let invalid = 0;
   let merged = 0;
 
   for (const row of rows) {
     const phone = typeof row.phone === 'string' ? row.phone.trim() : '';
-    if (!phone) {
+    const key = importRowKey({ phone, email: row.email });
+    if (!key) {
       invalid++;
       continue;
     }
-
-    const digits = phone.replace(/\D/g, '');
-    const phoneKey = digits || phone;
 
     const fields: IncomingContactFields = {
       name: text(row.name),
@@ -102,16 +122,16 @@ export function prepareImportRows(
     const tags = splitList(row.tags);
     const note = text(row.notes);
 
-    const existing = byPhone.get(phoneKey);
+    const existing = byKey.get(key);
     if (!existing) {
-      byPhone.set(phoneKey, {
-        phoneKey,
-        phone,
+      byKey.set(key, {
+        key,
+        phone: phone || null,
         fields,
         tags: dedupeTags(tags),
         notes: note ? [note] : [],
       });
-      order.push(phoneKey);
+      order.push(key);
       continue;
     }
 
@@ -129,7 +149,7 @@ export function prepareImportRows(
   }
 
   return {
-    prepared: order.map((key) => byPhone.get(key)!),
+    prepared: order.map((key) => byKey.get(key)!),
     invalid,
     merged,
   };

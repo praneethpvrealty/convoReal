@@ -10,6 +10,7 @@ import { supabase } from '@/lib/supabase';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import type { Contact } from '@/lib/types';
 import { useDebounced } from '@/lib/use-debounced';
+import { contactHandle, hasPhone } from '@/lib/reachability';
 
 /**
  * Pick Engine contacts by name or phone — the same debounced `contacts`
@@ -212,7 +213,7 @@ export function ContactPickerSheet({
                         }}
                         accessibilityRole={multiSelect ? 'checkbox' : 'button'}
                         accessibilityState={multiSelect ? { checked: isPicked } : undefined}
-                        accessibilityLabel={c.name || c.phone}
+                        accessibilityLabel={c.name || contactHandle(c)}
                         style={[
                           styles.row,
                           { backgroundColor: colors.glass, borderColor: colors.glassBorder },
@@ -226,7 +227,7 @@ export function ContactPickerSheet({
                             color={isPicked ? colors.primary : colors.textFaint}
                           />
                         ) : null}
-                        <Avatar name={c.name || c.phone} size={34} />
+                        <Avatar name={c.name || contactHandle(c)} size={34} />
                         <View style={{ flex: 1, gap: 2 }}>
                           <View style={styles.nameRow}>
                             <Text

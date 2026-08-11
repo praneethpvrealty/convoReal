@@ -43,6 +43,7 @@ import {
   nameTagCap,
 } from '@/components/ui';
 import { apiFetch, ApiError, isCancelled, isTimeout } from '@/lib/api';
+import { contactHandle, hasPhone } from '@/lib/reachability';
 import { approveAndSendDetails } from '@/lib/approve-contact';
 import {
   activeFilterCount,
@@ -791,7 +792,7 @@ export default function ContactsScreen() {
                   setPeekId((cur) => (cur === item.id ? null : cur))
                 }
                 onWhatsAppMenu={(at) => setWaMenu({ contact: item, ...at })}
-                onCall={() => startCall(item)}
+                onCall={() => hasPhone(item) && startCall(item)}
               />
               {peekId === item.id ? (
                 <ContactPeekCard
@@ -839,7 +840,7 @@ export default function ContactsScreen() {
                   label: 'Blank WhatsApp chat',
                   onPress: () =>
                     Linking.openURL(
-                      `https://wa.me/${waMenu.contact.phone.replace(/\D/g, '')}`
+                      `https://wa.me/${(waMenu.contact.phone ?? '').replace(/\D/g, '')}`
                     ),
                 },
                 {
@@ -1010,6 +1011,7 @@ function QuickAddContact({
   const { colors, dark, fonts: f } = useTheme();
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
   const [classification, setClassification] = useState<Classification>('Buyer');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -1017,14 +1019,27 @@ function QuickAddContact({
   function reset() {
     setName('');
     setPhone('');
+    setEmail('');
     setClassification('Buyer');
     setError(null);
   }
 
   async function save() {
-    const cleanPhone = cleanPhoneInput(phone);
-    if (!cleanPhone) {
+    // A builder or channel-partner desk often arrives as a mailbox with
+    // no number, so either field alone is enough — but a number that is
+    // typed still has to be a real one.
+    const cleanPhone = phone.trim() ? cleanPhoneInput(phone) : null;
+    const cleanEmail = email.trim().toLowerCase();
+    if (phone.trim() && !cleanPhone) {
       setError('Enter a valid phone number (e.g. 9900277111 or +919900277111)');
+      return;
+    }
+    if (!cleanPhone && !cleanEmail) {
+      setError('Add a phone number or an email');
+      return;
+    }
+    if (cleanEmail && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(cleanEmail)) {
+      setError('Enter a valid email address');
       return;
     }
     setSaving(true);
@@ -1034,6 +1049,7 @@ function QuickAddContact({
         method: 'POST',
         body: JSON.stringify({
           phone: cleanPhone,
+          email: cleanEmail || null,
           name: name.trim() || null,
           classification,
         }),
@@ -1083,6 +1099,14 @@ function QuickAddContact({
         value={phone}
         onChangeText={setPhone}
       />
+      <TextField
+        placeholder="Email · for a company with no number"
+        keyboardType="email-address"
+        autoCapitalize="none"
+        autoComplete="email"
+        value={email}
+        onChangeText={setEmail}
+      />
       <View style={{ gap: spacing.sm }}>
         <SectionLabel
           text="Classification"
@@ -1127,7 +1151,7 @@ function QuickAddContact({
       <PrimaryButton
         label="Add contact"
         busy={saving}
-        disabled={!phone.trim()}
+        disabled={!phone.trim() && !email.trim()}
         onPress={save}
       />
       <Text
@@ -1169,7 +1193,7 @@ function ContactRow({
   onCall: () => void;
 }) {
   const { colors, fonts: f } = useTheme();
-  const name = contact.name || contact.phone;
+  const name = contact.name || contactHandle(contact);
   const clsColor = contact.classification
     ? classificationColors[contact.classification]?.[dark ? 'dark' : 'light']
     : undefined;
@@ -1242,7 +1266,7 @@ function ContactRow({
               style={{ fontSize: 12.5, color: colors.textFaint, flexShrink: 1 }}
               numberOfLines={1}
             >
-              {contact.phone}
+              {contactHandle(contact)}
             </Text>
           ) : null}
         </View>

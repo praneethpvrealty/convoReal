@@ -42,6 +42,7 @@ import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
 import { classificationColors, radius, spacing, useTheme , fonts } from '@/lib/theme';
 import { openWelcomeWhatsApp } from '@/lib/welcome-message';
+import { contactHandle, hasPhone } from '@/lib/reachability';
 import {
   CLASSIFICATIONS,
   type AreaOfInterestGeo,
@@ -185,7 +186,7 @@ export default function ContactDetailScreen() {
                       },
                     ]}
                   >
-                    <Avatar name={a.name || a.phone} size={20} />
+                    <Avatar name={a.name || contactHandle(a)} size={20} />
                     <Text
                       style={{
                         fontSize: 12,
@@ -193,7 +194,7 @@ export default function ContactDetailScreen() {
                         color: active ? colors.primary : colors.textMuted,
                       }}
                     >
-                      {(a.name || a.phone).split(' ')[0]}
+                      {(a.name || contactHandle(a)).split(' ')[0]}
                     </Text>
                   </Pressable>
                 );
@@ -223,7 +224,7 @@ function ContactCard({ contact }: { contact: Contact }) {
     dialogProps: screenDialogProps,
   } = useAppDialog();
   const { startCall, callLogProps } = useCallLog();
-  const name = contact.name || contact.phone;
+  const name = contact.name || contactHandle(contact);
   // Mirrors the contacts_delete RLS policy (migration 205): a manager may
   // delete anything in the account, everyone else only what they saved.
   const isManager = useAuthStore((s) => s.profile?.org_role) === 'org_manager';
@@ -378,18 +379,22 @@ function ContactCard({ contact }: { contact: Contact }) {
       </View>
 
       <View style={styles.actions}>
-        <ActionButton icon="call" label="Call" onPress={() => startCall(contact)} />
-        <ActionButton
-          icon="logo-whatsapp"
-          label="WhatsApp"
-          onPress={() => openWelcomeWhatsApp(contact)}
-        />
-        <ActionButton icon="chatbubbles" label="Inbox" onPress={() => openConversation(contact.id)} />
-        <ActionButton
-          icon="swap-horizontal"
-          label="To Engine"
-          onPress={() => setMoveToEngineOpen(true)}
-        />
+        {hasPhone(contact) ? (
+          <>
+            <ActionButton icon="call" label="Call" onPress={() => startCall(contact)} />
+            <ActionButton
+              icon="logo-whatsapp"
+              label="WhatsApp"
+              onPress={() => openWelcomeWhatsApp(contact)}
+            />
+            <ActionButton icon="chatbubbles" label="Inbox" onPress={() => openConversation(contact.id)} />
+            <ActionButton
+              icon="swap-horizontal"
+              label="To Engine"
+              onPress={() => setMoveToEngineOpen(true)}
+            />
+          </>
+        ) : null}
         {contact.classification === 'Agent' ? (
           <ActionButton
             icon="map-outline"
@@ -400,7 +405,9 @@ function ContactCard({ contact }: { contact: Contact }) {
       </View>
 
       <View style={[styles.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
-        <InfoRow icon="call-outline" label="Phone" value={contact.phone} />
+        {contact.phone ? (
+          <InfoRow icon="call-outline" label="Phone" value={contact.phone} />
+        ) : null}
         {contact.secondary_phones?.length ? (
           <InfoRow
             icon="call-outline"

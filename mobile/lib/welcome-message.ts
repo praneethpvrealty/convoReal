@@ -35,7 +35,7 @@ export function buildWelcomeLink({
   accountId,
   subdomain,
 }: WelcomeLinkInput): string {
-  const cleanPhone = contact.phone.replace(/\D/g, '');
+  const cleanPhone = (contact.phone ?? '').replace(/\D/g, '');
   if (!cleanPhone) return '';
 
   const displayName = contact.name || 'there';

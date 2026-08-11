@@ -10,7 +10,7 @@ import { useAnchoredDropdown } from '@/hooks/use-anchored-dropdown';
 interface Contact {
   id: string;
   name: string;
-  phone: string;
+  phone: string | null;
   name_tag?: string | null;
 }
 
@@ -164,7 +164,7 @@ export function SearchableContactSelect({
                     <NameTagBadge tag={contact.name_tag} />
                   </div>
                   <p className="text-[10px] text-slate-450 mt-0.5 truncate font-medium">
-                    📞 {contact.phone}
+                    📞 {contact.phone ?? '—'}
                   </p>
                 </div>
                 {isSelected && <Check className="size-3.5 text-primary shrink-0 mt-0.5" />}
@@ -188,7 +188,7 @@ export function SearchableContactSelect({
         <span className="flex items-center gap-1.5 min-w-0 pr-4 select-none">
           {selectedContact ? (
             <>
-              <span className="truncate">{contactFullName(selectedContact)} ({selectedContact.phone})</span>
+              <span className="truncate">{contactFullName(selectedContact)} ({selectedContact.phone ?? 'no phone'})</span>
               <NameTagBadge tag={selectedContact.name_tag} />
             </>
           ) : (

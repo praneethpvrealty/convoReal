@@ -15,6 +15,7 @@ import { ProjectsOfInterestInput } from '@/components/contacts/projects-of-inter
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import { LogCallPrompt, type PendingDial } from '@/components/contacts/log-call-prompt';
 import { contactFullName } from '@/lib/contacts/full-name';
+import { hasPhone } from '@/lib/contacts/reachability';
 import { LANGUAGE_CODES, languageDisplay, type LanguageCode } from '@/lib/languages';
 import { pruneAreasGeo } from '@/lib/contacts/area-geo';
 import {
@@ -809,6 +810,7 @@ export function ContactDetailView({
 
   async function copyPhone() {
     if (!contact) return;
+    if (!hasPhone(contact)) return;
     await navigator.clipboard.writeText(contact.phone);
     setCopiedPhone(true);
     setTimeout(() => setCopiedPhone(false), 2000);
@@ -847,9 +849,9 @@ export function ContactDetailView({
       return;
     }
 
-    const cleanPhone = contact.phone.replace(/\D/g, '');
+    const cleanPhone = contact.phone?.replace(/\D/g, '') ?? '';
     if (!cleanPhone) {
-      toast.error('Invalid phone number');
+      toast.error('This contact has no phone number');
       return;
     }
 
@@ -911,7 +913,7 @@ export function ContactDetailView({
 
   const getPrefilledWhatsAppLink = () => {
     if (!contact) return '';
-    const cleanPhone = contact.phone.replace(/\D/g, '');
+    const cleanPhone = contact.phone?.replace(/\D/g, '') ?? '';
     if (!cleanPhone) return '';
 
     const agentName = profile?.full_name || '';
@@ -1358,7 +1360,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                         setPendingDial({
                           contactId: contact.id,
                           name: contact.name,
-                          phone: contact.phone,
+                          phone: contact.phone ?? '',
                           dialedAt: new Date().toISOString(),
                         })
                       }
@@ -2881,7 +2883,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
             )}
 
             {/* Log External Share Dialog */}
-            {contactId && contact && (
+            {contactId && contact && hasPhone(contact) && (
               <LogExternalShareDialog
                 open={logShareOpen}
                 onOpenChange={setLogShareOpen}
@@ -2909,7 +2911,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
               }}
             />
             {/* Move to Engine WhatsApp Dialog */}
-            {contact && (
+            {contact && hasPhone(contact) && (
               <MoveToEngineDialog
                 open={moveToEngineOpen}
                 onOpenChange={setMoveToEngineOpen}
@@ -2918,7 +2920,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
               />
             )}
             {/* Greetings Generator Dialog */}
-            {contactId && contact && (
+            {contactId && contact && hasPhone(contact) && (
               <GreetingsGeneratorDialog
                 open={greetingsOpen}
                 onOpenChange={setGreetingsOpen}

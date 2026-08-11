@@ -19,7 +19,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 export interface ContactInput {
   accountId: string;
   userId: string;           // agent/owner to own this contact
-  phone: string;            // raw phone from lead source
+  phone?: string | null;    // raw phone from lead source; null for an
+                            // email-only lead (a company mailbox)
   name?: string | null;
   email?: string | null;
   company?: string | null;
@@ -53,23 +54,30 @@ export async function findOrCreateContact(
   supabase: SupabaseClient,
   input: ContactInput,
 ): Promise<FindOrCreateResult> {
-  const normPhone = normalisePhone(input.phone);
+  const rawPhone = input.phone?.trim() || null;
+  const normPhone = rawPhone ? normalisePhone(rawPhone) : '';
   const normEmail = input.email ? normaliseEmail(input.email) : null;
+
+  if (!rawPhone && !normEmail) {
+    throw new Error('Contact creation failed: neither phone nor email given');
+  }
 
   // ── 1. Phone lookup ────────────────────────────────────────────────────────
   // Match raw phone OR digits-only phone (handles +91-9876543210 vs 9876543210).
-  const { data: byPhone } = await supabase
-    .from('contacts')
-    .select('id')
-    .eq('account_id', input.accountId)
-    .eq('is_merged', false)
-    .or(`phone.eq."${String(input.phone).replace(/[\\"]/g, '\\$&')}",phone.eq.${normPhone}`)
-    .limit(1)
-    .maybeSingle();
+  if (rawPhone) {
+    const { data: byPhone } = await supabase
+      .from('contacts')
+      .select('id')
+      .eq('account_id', input.accountId)
+      .eq('is_merged', false)
+      .or(`phone.eq."${rawPhone.replace(/[\\"]/g, '\\$&')}",phone.eq.${normPhone}`)
+      .limit(1)
+      .maybeSingle();
 
-  if (byPhone) {
-    await applyUpdates(supabase, byPhone.id, input);
-    return { contactId: byPhone.id, isNew: false, matchedOn: 'phone' };
+    if (byPhone) {
+      await applyUpdates(supabase, byPhone.id, input);
+      return { contactId: byPhone.id, isNew: false, matchedOn: 'phone' };
+    }
   }
 
   // ── 2. Email lookup ────────────────────────────────────────────────────────
@@ -95,7 +103,7 @@ export async function findOrCreateContact(
     .insert({
       account_id: input.accountId,
       user_id: input.userId,
-      phone: input.phone,
+      phone: rawPhone,
       name: (input.name || 'Unknown Lead').trim(),
       email: normEmail,
       company: input.company ?? null,

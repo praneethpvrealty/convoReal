@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { contactHandle } from '@/lib/contacts/reachability';
 import { useAuth } from '@/hooks/use-auth';
 import { cn } from '@/lib/utils';
 import type {
@@ -1068,7 +1069,7 @@ export function MessageThread({
     );
   }
 
-  const displayName = contact.name || contact.phone;
+  const displayName = contact.name || contactHandle(contact);
   const messageGroups = groupMessagesByDate(messages);
   const currentStatus = STATUS_OPTIONS.find(
     (s) => s.value === conversation.status
@@ -1125,7 +1126,7 @@ export function MessageThread({
                     setPendingDial({
                       contactId: contact.id,
                       name: contact.name,
-                      phone: contact.phone,
+                      phone: contact.phone ?? '',
                       dialedAt: new Date().toISOString(),
                     })
                   }
@@ -1419,8 +1420,8 @@ export function MessageThread({
       <MoveToEngineDialog
         open={inviteOpen}
         onOpenChange={setInviteOpen}
-        contactName={contact.name || contact.phone}
-        contactPhone={contact.phone}
+        contactName={contact.name || contactHandle(contact)}
+        contactPhone={contact.phone ?? ''}
       />
 
       <TemplatePicker

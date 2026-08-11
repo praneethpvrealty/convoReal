@@ -107,6 +107,7 @@ import {
   isApartmentType,
 } from '@/lib/inventory/property-options';
 import { isGuardedType, isLocationGuarded } from '@/lib/inventory/location-guard';
+import { contactHandle, hasPhone } from '@/lib/contacts/reachability';
 
 interface PropertyFormProps {
   open: boolean;
@@ -574,8 +575,8 @@ export function PropertyForm({
     let reqEmail = '';
 
     if (selectedShareContact) {
-      reqName = selectedShareContact.name || selectedShareContact.phone;
-      reqPhone = selectedShareContact.phone;
+      reqName = selectedShareContact.name || contactHandle(selectedShareContact);
+      reqPhone = selectedShareContact.phone ?? '';
       reqEmail = selectedShareContact.email || '';
     } else {
       reqName = customShareName.trim();
@@ -1012,7 +1013,7 @@ export function PropertyForm({
           if (mapping) {
             if (mapping.type === 'field') {
               if (mapping.value === 'name') val = contact.name || 'Customer';
-              else if (mapping.value === 'phone') val = contact.phone;
+              else if (mapping.value === 'phone') val = contact.phone ?? '';
               else if (mapping.value === 'email') val = contact.email || '';
               else if (mapping.value === 'company') val = contact.company || '';
             } else {
@@ -1106,15 +1107,16 @@ export function PropertyForm({
       const resultsMap = selectedContacts.map((c) => {
         const matchResult = resData.results?.find(
           (r: { phone: string; status?: 'sent' | 'failed' | null; error?: string | null }) =>
-            r.phone === c.phone ||
-            r.phone.includes(c.phone) ||
-            c.phone.includes(r.phone)
+            c.phone !== null &&
+            (r.phone === c.phone ||
+              r.phone.includes(c.phone) ||
+              c.phone.includes(r.phone))
         );
         const status = matchResult?.status || 'failed';
         if (status === 'sent') delivered.push(c);
         return {
           name: c.name || 'Unknown',
-          phone: c.phone,
+          phone: c.phone ?? '',
           status,
           error: matchResult?.error || (status === 'failed' ? 'Delivery failure' : undefined),
         };
@@ -1348,9 +1350,12 @@ export function PropertyForm({
     return contacts.filter((c) => {
       if (c.classification !== 'Buyer' && c.classification !== 'Agent') return false;
       if (interestedContactIds.includes(c.id)) return false;
+      // The share goes out over WhatsApp — an email-only contact has
+      // nowhere to receive it.
+      if (!hasPhone(c)) return false;
       return (
         (c.name || '').toLowerCase().includes(query) ||
-        c.phone.toLowerCase().includes(query) ||
+        (c.phone ?? '').toLowerCase().includes(query) ||
         (c.email || '').toLowerCase().includes(query)
       );
     });
@@ -3216,18 +3221,20 @@ export function PropertyForm({
                                   {owner.classification || 'Owner'}
                                 </Badge>
                               </div>
-                              <p className="text-xs font-mono text-slate-400 mt-0.5">{owner.phone}</p>
+                              <p className="text-xs font-mono text-slate-400 mt-0.5">{contactHandle(owner)}</p>
                             </div>
                           </div>
-                          <a
-                            href={`https://wa.me/${owner.phone.replace(/[^0-9]/g, '')}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-800 bg-slate-950 hover:bg-slate-900 text-slate-200 font-semibold px-3 py-1.5 text-xs transition-colors shrink-0"
-                          >
-                            <span>WhatsApp</span>
-                            <span className="text-emerald-400">●</span>
-                          </a>
+                          {hasPhone(owner) && (
+                            <a
+                              href={`https://wa.me/${owner.phone.replace(/[^0-9]/g, '')}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-800 bg-slate-950 hover:bg-slate-900 text-slate-200 font-semibold px-3 py-1.5 text-xs transition-colors shrink-0"
+                            >
+                              <span>WhatsApp</span>
+                              <span className="text-emerald-400">●</span>
+                            </a>
+                          )}
                         </div>
                       </div>
                     );

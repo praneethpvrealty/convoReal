@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { Contact, Property, MatchEventTarget } from '@/types';
 import { getMatchingContacts, type MatchDetails } from '@/lib/matching';
+import { contactHandle } from '@/lib/contacts/reachability';
 
 // Lazy service-role client for callers that only hold an RLS-scoped
 // client (match_events has no member INSERT policy — writes are
@@ -144,8 +145,8 @@ export async function generateMatchEventForProperty(
 
     const targets: MatchEventTarget[] = results.map((r) => ({
       id: r.contact.id,
-      name: r.contact.name || r.contact.phone,
-      detail: r.contact.phone,
+      name: r.contact.name || contactHandle(r.contact),
+      detail: contactHandle(r.contact) || null,
       score: r.score,
       chips: chipsFromDetails(r.details),
     }));

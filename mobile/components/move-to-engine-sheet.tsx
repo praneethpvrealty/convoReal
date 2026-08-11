@@ -69,7 +69,7 @@ export function MoveToEngineSheet({
   }
 
   function sendOnWhatsApp() {
-    const digits = contact.phone.replace(/\D/g, '');
+    const digits = (contact.phone ?? '').replace(/\D/g, '');
     if (!digits) return;
     haptic.send();
     void Linking.openURL(`https://wa.me/${digits}?text=${encodeURIComponent(message)}`);

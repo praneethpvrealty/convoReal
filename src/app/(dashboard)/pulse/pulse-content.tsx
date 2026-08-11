@@ -357,7 +357,7 @@ export default function PulsePage() {
                 <div className="relative border-l border-slate-800 ml-3 pl-5 space-y-5 py-2 max-h-[600px] overflow-y-auto pr-2">
                   {dedupedFeed.map((evt) => {
                     const avatarInit = evt.contact
-                      ? (evt.contact.name || evt.contact.phone).charAt(0).toUpperCase()
+                      ? (evt.contact.name || evt.contact.phone || '?').charAt(0).toUpperCase()
                       : "?";
 
                     return (

@@ -203,8 +203,12 @@ export async function sendWhatsAppMessageAndPersist(
           .eq('id', resolvedContactId)
           .eq('account_id', accountId)
           .maybeSingle()
-        if (contactErr || !contact?.phone) {
+        if (contactErr || !contact) {
           throw new Error('Contact not found for this account')
+        }
+        // Email-only contact (migration 253) — nothing to send to.
+        if (!contact.phone) {
+          throw new Error('This contact has no WhatsApp number')
         }
         targetPhone = contact.phone
       }
