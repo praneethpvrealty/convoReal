@@ -1073,8 +1073,14 @@ export interface Property {
   /** Teaser substitute for `price`, which is withheld — an exact figure
    *  plus a locality is near-unique in a thin market. */
   price_band?: string | null;
-  /** How many photos exist behind the gate, without their URLs. */
+  /** How many photos exist behind the gate, without their URLs. Counts
+   *  public and private together — after the confidential switch moves
+   *  them (migration 255) the public array is empty. */
   image_count?: number;
+  /** Photos moved to the private bucket BY the confidential switch
+   *  (migration 255), so un-gating restores exactly these and leaves
+   *  hand-locked ones private. */
+  gated_locked_images?: string[];
   /** Photos moved to the non-public bucket (migration 175) — served only
    *  through the authenticated proxy or an approved reveal token. */
   private_images?: string[];

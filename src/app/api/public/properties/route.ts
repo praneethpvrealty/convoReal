@@ -92,7 +92,11 @@ export async function GET(request: Request) {
       "land_area", "land_area_unit", "super_built_area", "project",
       "land_zone", "ideal_for", "dimensions", "road_width", "road_width_unit",
       "facing_direction", "nearby_highlights", "is_published", "features",
-      "images", "google_map_link", "property_code",
+      // private_images is fetched for its COUNT only — the teaser and
+      // the location guard both report how many photos exist without
+      // emitting a path. Neither serializer puts the array itself in
+      // the payload.
+      "images", "private_images", "google_map_link", "property_code",
       "rental_income", "roi", "listing_source", "rent_per_month",
       "maintenance", "advance", "gst", "jv_structure", "owner_share_percent",
       "builder_share_percent", "goodwill_amount", "bts_lease_years",

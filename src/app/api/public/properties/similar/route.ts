@@ -53,7 +53,8 @@ const CANDIDATE_COLUMNS = [
   "land_area", "land_area_unit", "super_built_area", "project",
   "land_zone", "ideal_for", "dimensions", "road_width", "road_width_unit",
   "facing_direction", "nearby_highlights", "is_published", "features",
-  "images", "property_code",
+  // Count only — never serialized out (see the public list route).
+  "images", "private_images", "property_code",
   "rental_income", "roi", "listing_source", "rent_per_month",
   "maintenance", "advance", "gst", "jv_structure", "owner_share_percent",
   "builder_share_percent", "goodwill_amount", "bts_lease_years",

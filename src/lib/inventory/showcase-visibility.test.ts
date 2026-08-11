@@ -125,7 +125,19 @@ describe('toTeaserPropertyView', () => {
 
   it('shows no photo at all for a location-guarded type', () => {
     expect(view.images).toEqual([]);
-    expect(view.image_count).toBe(2);
+    // 2 public + 1 private: the count is what exists, not what is public.
+    expect(view.image_count).toBe(3);
+  });
+
+  it('counts photos the confidential switch moved to the private bucket', () => {
+    const moved = toTeaserPropertyView({
+      ...gatedVilla,
+      type: 'Apartment',
+      images: [],
+      private_images: ['a.jpg', 'b.jpg', 'c.jpg'],
+    } as unknown as Property);
+    expect(moved.images).toEqual([]);
+    expect(moved.image_count).toBe(3);
   });
 
   it('keeps the cover photo when the type is not location-guarded', () => {
@@ -134,7 +146,7 @@ describe('toTeaserPropertyView', () => {
       type: 'Apartment',
     } as Property);
     expect(flat.images).toEqual(['property-images/a1/one.jpg']);
-    expect(flat.image_count).toBe(2);
+    expect(flat.image_count).toBe(3);
   });
 
   it('never carries a field outside the teaser whitelist', () => {
