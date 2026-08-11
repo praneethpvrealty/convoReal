@@ -2,7 +2,7 @@
   "name": "convoreal",
   "version": "0.2.2",
   "private": true,
-  "description": "WhatsApp deal engine for real estate — property inventory, lead management, sales pipeline, broadcasts, automations, and public showcase portal.",
+  "description": "WhatsApp deal engine for real estate \u2014 property inventory, lead management, sales pipeline, broadcasts, automations, and public showcase portal.",
   "license": "MIT",
   "author": "Praneeth Kumar S",
   "homepage": "https://convoreal.com",
@@ -47,7 +47,8 @@
     "copilot:index": "tsx src/scripts/build-copilot-index.ts",
     "ext:zip": "cd extension/portal-autofill && rm -f ../portal-autofill.zip && zip -qr ../portal-autofill.zip . -x '*.DS_Store' && echo 'extension/portal-autofill.zip'",
     "submit-location-template": "tsx src/scripts/submit-location-reveal-template.ts",
-    "e2e:share-grant": "tsx src/scripts/e2e-share-grant.ts"
+    "e2e:share-grant": "tsx src/scripts/e2e-share-grant.ts",
+    "test:e2e": "node --env-file=.env.local e2e/language-switcher.mjs && node --env-file=.env.local e2e/template-languages.mjs && node --env-file=.env.local e2e/translation-review-gate.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
