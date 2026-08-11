@@ -15,8 +15,11 @@ vi.mock('@/lib/notifications/create', () => ({
 }));
 
 import {
+  AGENT_FOLLOWUP_PREFIX,
   CLIENT_FOLLOWUP_PREFIX,
+  buildAgentFollowupButtons,
   buildAgentReply,
+  parseAgentFollowupReplyId,
   buildClientAskBody,
   buildClientFollowupButtons,
   buildUnmatchedReply,
@@ -61,6 +64,30 @@ describe('client follow-up buttons', () => {
     expect(
       parseClientFollowupReplyId(`${CLIENT_FOLLOWUP_PREFIX}:item-1`)
     ).toBeNull();
+  });
+});
+
+describe('agent follow-up buttons', () => {
+  it('offers the same three choices under their own prefix', () => {
+    expect(buildAgentFollowupButtons('item-1')).toEqual([
+      { id: 'jfa_today:item-1', title: 'Today itself' },
+      { id: 'jfa_2d:item-1', title: 'In 2 days' },
+      { id: 'jfa_unsure:item-1', title: "Can't say yet" },
+    ]);
+  });
+
+  // The two prefixes must not cross: an agent tap applies to someone
+  // else's branch and skips the ownership check a client tap requires.
+  it('never parses as a client tap, and vice versa', () => {
+    for (const b of buildAgentFollowupButtons('item-2')) {
+      expect(parseClientFollowupReplyId(b.id)).toBeNull();
+      expect(parseAgentFollowupReplyId(b.id)?.itemId).toBe('item-2');
+    }
+    for (const b of buildClientFollowupButtons('item-3')) {
+      expect(parseAgentFollowupReplyId(b.id)).toBeNull();
+      expect(parseClientFollowupReplyId(b.id)?.itemId).toBe('item-3');
+    }
+    expect(AGENT_FOLLOWUP_PREFIX).not.toBe(CLIENT_FOLLOWUP_PREFIX);
   });
 });
 
@@ -160,6 +187,28 @@ describe('buildAgentReply', () => {
     const reply = buildAgentReply({ ...base, askOutcome: 'window_closed' });
     expect(reply).toContain('24-hour window is closed');
     expect(reply).not.toContain('Asked Surya when to expect');
+  });
+
+  it('counts a template send as having asked them', () => {
+    expect(buildAgentReply({ ...base, askOutcome: 'sent_template' })).toContain(
+      'Asked Surya when to expect their update'
+    );
+  });
+
+  // The agent's own reminder buttons ride on every outcome, so a
+  // follow-up gets scheduled whether or not the client was reachable.
+  it('always ends by offering the agent their own reminder', () => {
+    for (const askOutcome of [
+      'sent',
+      'sent_template',
+      'window_closed',
+      'no_phone',
+      'failed',
+    ] as const) {
+      expect(buildAgentReply({ ...base, askOutcome })).toContain(
+        'When should I remind you to follow up?'
+      );
+    }
   });
 });
 

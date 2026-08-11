@@ -37,19 +37,32 @@ import { sendInteractiveButtons } from '@/lib/whatsapp/meta-api';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { phonesMatch } from '@/lib/whatsapp/phone-utils';
 import { resolveConversation } from '@/lib/conversations/resolve';
+import { DEFAULT_LANGUAGE, type LanguageCode } from '@/lib/languages';
+import {
+  resolveSendLanguage,
+  loadTemplateForContact,
+} from '@/lib/whatsapp/template-language';
+import {
+  matchTemplateButton,
+  templateButtonLabel,
+} from '@/lib/whatsapp/template-copy';
+import {
+  buildTimelineAskParams,
+  timelineButtonAction,
+  timelineChoiceForAction,
+  TIMELINE_ASK_TEMPLATE_NAMES,
+  TIMELINE_CHOICES,
+  type TimelineChoice,
+} from '@/lib/whatsapp/timeline-ask-template';
 
 export const CLIENT_FOLLOWUP_PREFIX = 'jfu_';
 
-export type ClientFollowupChoice = 'today' | '2d' | 'unsure';
+/** The agent-facing twin of CLIENT_FOLLOWUP_PREFIX. Same three choices,
+ *  same effect on the journey — but tapped by the staff member in their
+ *  own bot chat, for the case where the client cannot be reached. */
+export const AGENT_FOLLOWUP_PREFIX = 'jfa_';
 
-export const CLIENT_FOLLOWUP_CHOICE_LABELS: Record<
-  ClientFollowupChoice,
-  string
-> = {
-  today: 'Today itself',
-  '2d': 'In 2 days',
-  unsure: "Can't say yet",
-};
+export type ClientFollowupChoice = TimelineChoice;
 
 const CLIENT_FOLLOWUP_ACKS: Record<ClientFollowupChoice, string> = {
   today: "👍 Great — we'll check back with you later today.",
@@ -57,25 +70,52 @@ const CLIENT_FOLLOWUP_ACKS: Record<ClientFollowupChoice, string> = {
   unsure: "👍 No problem — take your time. We're here whenever you're ready.",
 };
 
+/** Free-form interactive buttons for the client, inside an open window.
+ *  Labels come from the same registry the template buttons use, so a
+ *  Kannada contact sees Kannada whichever path reaches them. */
 export function buildClientFollowupButtons(
+  itemId: string,
+  language: LanguageCode = DEFAULT_LANGUAGE
+): Array<{ id: string; title: string }> {
+  return TIMELINE_CHOICES.map((choice) => ({
+    id: `${CLIENT_FOLLOWUP_PREFIX}${choice}:${itemId}`,
+    title: templateButtonLabel(timelineButtonAction(choice), language),
+  }));
+}
+
+/** The agent's own copy of the same three buttons, for when the client
+ *  cannot be reached. Always English: the staff member is talking to
+ *  the Engine, not to their client. */
+export function buildAgentFollowupButtons(
   itemId: string
 ): Array<{ id: string; title: string }> {
-  return (['today', '2d', 'unsure'] as const).map((choice) => ({
-    id: `${CLIENT_FOLLOWUP_PREFIX}${choice}:${itemId}`,
-    title: CLIENT_FOLLOWUP_CHOICE_LABELS[choice],
+  return TIMELINE_CHOICES.map((choice) => ({
+    id: `${AGENT_FOLLOWUP_PREFIX}${choice}:${itemId}`,
+    title: templateButtonLabel(timelineButtonAction(choice), DEFAULT_LANGUAGE),
   }));
+}
+
+function parsePrefixedReplyId(
+  replyId: string,
+  prefix: string
+): { choice: ClientFollowupChoice; itemId: string } | null {
+  if (!replyId.startsWith(prefix)) return null;
+  const [choice, itemId] = replyId.slice(prefix.length).split(':');
+  if (!itemId) return null;
+  if (choice !== 'today' && choice !== '2d' && choice !== 'unsure') return null;
+  return { choice, itemId };
 }
 
 export function parseClientFollowupReplyId(
   replyId: string
 ): { choice: ClientFollowupChoice; itemId: string } | null {
-  if (!replyId.startsWith(CLIENT_FOLLOWUP_PREFIX)) return null;
-  const [choice, itemId] = replyId
-    .slice(CLIENT_FOLLOWUP_PREFIX.length)
-    .split(':');
-  if (!itemId) return null;
-  if (choice !== 'today' && choice !== '2d' && choice !== 'unsure') return null;
-  return { choice, itemId };
+  return parsePrefixedReplyId(replyId, CLIENT_FOLLOWUP_PREFIX);
+}
+
+export function parseAgentFollowupReplyId(
+  replyId: string
+): { choice: ClientFollowupChoice; itemId: string } | null {
+  return parsePrefixedReplyId(replyId, AGENT_FOLLOWUP_PREFIX);
 }
 
 /** When the agent should follow up for a given choice; null when the
@@ -117,7 +157,12 @@ export function buildClientAskBody(args: {
   return `${greeting}${noted}\n\nWhen should we check back with you?`;
 }
 
-export type ClientAskOutcome = 'sent' | 'window_closed' | 'no_phone' | 'failed';
+export type ClientAskOutcome =
+  | 'sent'
+  | 'sent_template'
+  | 'window_closed'
+  | 'no_phone'
+  | 'failed';
 
 export function buildAgentReply(args: {
   contactName: string;
@@ -139,15 +184,18 @@ export function buildAgentReply(args: {
     '\n\n📒 Saved to the journey timeline and contact notes' +
     (args.dealsUpdated > 0 ? ' and the pipeline deal' : '') +
     '.';
-  if (args.askOutcome === 'sent') {
+  if (args.askOutcome === 'sent' || args.askOutcome === 'sent_template') {
     reply += `\n✉️ Asked ${first} when to expect their update — Today itself / In 2 days / Can't say yet. I'll log their answer and set a follow-up for you.`;
   } else if (args.askOutcome === 'window_closed') {
-    reply += `\n⏳ Couldn't ask ${first} on WhatsApp — their 24-hour window is closed. Ask them from your chat and forward the reply.`;
+    reply += `\n⏳ Couldn't ask ${first} directly — their 24-hour window is closed and the *Enquiry timeline* template isn't approved on this account yet.`;
   } else if (args.askOutcome === 'no_phone') {
     reply += `\n⏳ Couldn't message ${first} — no phone number on their contact.`;
   } else {
     reply += `\n⚠️ Couldn't reach ${first} on WhatsApp just now.`;
   }
+  // Whoever answers first sets the date: the client's own tap when it
+  // arrives, this one when it does not.
+  reply += `\n\n📅 When should I remind you to follow up?`;
   return reply;
 }
 
@@ -337,6 +385,79 @@ async function ensureJourneyItem(
   return created;
 }
 
+/** Fills {{1}}-style placeholders so the inbox shows what was sent
+ *  rather than the raw template body. */
+function resolveTemplateBodyText(body: string, params: string[]): string {
+  return body.replace(/\{\{(\d+)\}\}/g, (match, n) => {
+    const idx = parseInt(n, 10) - 1;
+    return idx >= 0 && idx < params.length ? params[idx] : match;
+  });
+}
+
+/**
+ * The closed-window path: the same question as an approved Utility
+ * template. Returns 'window_closed' unchanged when the account holds no
+ * approved row yet — the template is submitted per-account and sits in
+ * Meta review, so this must degrade to what the agent saw before rather
+ * than fail the capture.
+ */
+async function askClientViaTemplate(args: {
+  db: SupabaseClient;
+  accountId: string;
+  userId: string;
+  contact: BookContact;
+  conversationId: string;
+  contactName: string | null;
+  propertyLabel: string;
+  language: LanguageCode;
+}): Promise<ClientAskOutcome> {
+  const { db, accountId, userId, contact, conversationId, language } = args;
+
+  const { template } = await loadTemplateForContact<{
+    name: string;
+    language?: string | null;
+    status?: string | null;
+    body_text: string;
+  }>(db, {
+    accountId,
+    contactId: contact.id,
+    language,
+    names: TIMELINE_ASK_TEMPLATE_NAMES,
+  });
+  if (!template || (template.status ?? '').toUpperCase() !== 'APPROVED') {
+    return 'window_closed';
+  }
+
+  const { data: account } = await db
+    .from('accounts')
+    .select('name')
+    .eq('id', accountId)
+    .maybeSingle();
+
+  const params = buildTimelineAskParams(
+    args.contactName,
+    (account as { name?: string | null } | null)?.name ?? null,
+    args.propertyLabel
+  );
+
+  const res = await sendWhatsAppMessageAndPersist({
+    accountId,
+    userId,
+    contactId: contact.id,
+    conversationId,
+    kind: 'template',
+    senderType: 'bot',
+    templateName: template.name,
+    templateLanguage: template.language || 'en_US',
+    templateParams: [...params],
+    messageParams: { body: [...params] },
+    templateRow: template,
+    text: resolveTemplateBodyText(template.body_text, [...params]),
+    customDbClient: db,
+  });
+  return res.success ? 'sent_template' : 'failed';
+}
+
 async function askClientForTimeline(args: {
   db: SupabaseClient;
   accountId: string;
@@ -344,6 +465,9 @@ async function askClientForTimeline(args: {
   contact: BookContact;
   itemId: string;
   bodyText: string;
+  /** Template params for the closed-window fallback. */
+  contactName: string | null;
+  propertyLabel: string;
   accessToken: string;
   phoneNumberId: string;
 }): Promise<ClientAskOutcome> {
@@ -375,8 +499,24 @@ async function askClientForTimeline(args: {
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (!isWithinCustomerWindow(lastCustomer?.created_at ?? null))
-    return 'window_closed';
+  const language = await resolveSendLanguage(db, accountId, contact.id);
+
+  // Outside the window free-form is refused by Meta, so the same
+  // question goes out as the approved Utility template instead. It
+  // carries the same three choices, and the tap comes back through
+  // matchTemplateButton rather than as a button id.
+  if (!isWithinCustomerWindow(lastCustomer?.created_at ?? null)) {
+    return await askClientViaTemplate({
+      db,
+      accountId,
+      userId,
+      contact,
+      conversationId: conversation.id,
+      contactName: args.contactName,
+      propertyLabel: args.propertyLabel,
+      language,
+    });
+  }
 
   try {
     const sent = await sendInteractiveButtons({
@@ -384,7 +524,7 @@ async function askClientForTimeline(args: {
       accessToken,
       to: contact.phone,
       bodyText,
-      buttons: buildClientFollowupButtons(itemId),
+      buttons: buildClientFollowupButtons(itemId, language),
     });
     const nowIso = new Date().toISOString();
     await db.from('messages').insert({
@@ -450,6 +590,14 @@ export interface ProcessClientReplyArgs {
   phoneNumberId: string;
 }
 
+/** What the forwarding agent gets back. `buttons` is present once the
+ *  response is pinned to a journey item, so the agent can set their own
+ *  reminder whether or not the client was reachable. */
+export interface ClientReplyOutcome {
+  text: string;
+  buttons?: Array<{ id: string; title: string }>;
+}
+
 /**
  * Matches a parsed screenshot to the Engine's records, logs the response
  * everywhere it should surface, and asks the client for a timeline.
@@ -458,11 +606,11 @@ export interface ProcessClientReplyArgs {
  */
 export async function processClientReplyScreenshot(
   args: ProcessClientReplyArgs
-): Promise<string> {
+): Promise<ClientReplyOutcome> {
   const { db, accountId, userId, parsed, accessToken, phoneNumberId } = args;
 
   const contact = await matchClientContact(db, accountId, parsed);
-  if (!contact) return buildUnmatchedReply(parsed);
+  if (!contact) return { text: buildUnmatchedReply(parsed) };
   const contactName = contact.name || parsed.client_name || 'Client';
 
   const property = await matchClientProperty(db, accountId, parsed);
@@ -496,11 +644,12 @@ export async function processClientReplyScreenshot(
   });
 
   if (!property) {
-    return (
-      `✅ *Logged ${contactName}'s response*` +
-      (summary ? `:\n_"${summary}"_` : '.') +
-      `\n\n📒 Saved to their contact notes — but I couldn't tell which property this is about, so the journey wasn't updated. Forward a screenshot showing the property name or code (e.g. PROP-1138).`
-    );
+    return {
+      text:
+        `✅ *Logged ${contactName}'s response*` +
+        (summary ? `:\n_"${summary}"_` : '.') +
+        `\n\n📒 Saved to their contact notes — but I couldn't tell which property this is about, so the journey wasn't updated. Forward a screenshot showing the property name or code (e.g. PROP-1138).`,
+    };
   }
 
   const stages = await loadStages(db, accountId);
@@ -542,6 +691,8 @@ export async function processClientReplyScreenshot(
         propertyLabel: label,
         responseSummary: summary,
       }),
+      contactName,
+      propertyLabel: label,
       accessToken,
       phoneNumberId,
     });
@@ -554,14 +705,17 @@ export async function processClientReplyScreenshot(
     `[${format(new Date(), 'd MMM yyyy')}] Client response: ${summary ?? 'responded (from forwarded chat)'}`
   );
 
-  return buildAgentReply({
-    contactName,
-    propertyLabel: label,
-    responseSummary: summary,
-    stageName,
-    dealsUpdated,
-    askOutcome,
-  });
+  return {
+    text: buildAgentReply({
+      contactName,
+      propertyLabel: label,
+      responseSummary: summary,
+      stageName,
+      dealsUpdated,
+      askOutcome,
+    }),
+    buttons: item ? buildAgentFollowupButtons(item.id) : undefined,
+  };
 }
 
 export interface HandleClientFollowupArgs {
@@ -582,9 +736,120 @@ export interface HandleClientFollowupArgs {
 export async function handleClientFollowupReply(
   args: HandleClientFollowupArgs
 ): Promise<boolean> {
-  const { db, accountId, ownerUserId, contact, conversationId, replyId } = args;
-  const parsedId = parseClientFollowupReplyId(replyId);
+  const parsedId = parseClientFollowupReplyId(args.replyId);
   if (!parsedId) return false;
+  return await applyTimelineChoice({
+    ...args,
+    choice: parsedId.choice,
+    itemId: parsedId.itemId,
+    byAgent: false,
+  });
+}
+
+/**
+ * The client's tap on the `enquiry_timeline_notice` template. Template
+ * quick replies arrive as button TEXT with no id, so the journey item
+ * cannot be encoded in the button — it is resolved from the contact's
+ * own most recent client_response event, which is what the ask always
+ * follows. Returns false when the tap was some other template's.
+ */
+export async function handleTimelineTemplateTap(
+  args: Omit<HandleClientFollowupArgs, 'replyId'> & { buttonText: string }
+): Promise<boolean> {
+  const choice = timelineChoiceForAction(matchTemplateButton(args.buttonText));
+  if (!choice) return false;
+
+  const itemId = await latestRespondedItemId(
+    args.db,
+    args.accountId,
+    args.contact.id
+  );
+  if (!itemId) {
+    await sendWhatsAppMessageAndPersist({
+      accountId: args.accountId,
+      userId: args.ownerUserId,
+      contactId: args.contact.id,
+      conversationId: args.conversationId,
+      kind: 'text',
+      senderType: 'bot',
+      text: CLIENT_FOLLOWUP_ACKS[choice],
+    });
+    return true;
+  }
+  return await applyTimelineChoice({ ...args, choice, itemId, byAgent: false });
+}
+
+/**
+ * The agent's tap on a `jfa_` button in their own bot chat — the
+ * fallback when the client could not be reached. Same effect on the
+ * journey; only the acknowledgement differs, because the person
+ * tapping is staff rather than the lead.
+ */
+export async function handleAgentFollowupReply(
+  args: HandleClientFollowupArgs & {
+    /** The lead the reminder is about — NOT the tapping agent. */
+    replyId: string;
+  }
+): Promise<boolean> {
+  const parsedId = parseAgentFollowupReplyId(args.replyId);
+  if (!parsedId) return false;
+  return await applyTimelineChoice({
+    ...args,
+    choice: parsedId.choice,
+    itemId: parsedId.itemId,
+    byAgent: true,
+  });
+}
+
+/** The journey item a bare timeline tap refers to: the one whose client
+ *  response was logged most recently for this contact. The ask is only
+ *  ever sent immediately after logging a response, so the newest such
+ *  event is the subject. */
+async function latestRespondedItemId(
+  db: SupabaseClient,
+  accountId: string,
+  contactId: string
+): Promise<string | null> {
+  const { data: items } = await db
+    .from('journey_items')
+    .select('id')
+    .eq('account_id', accountId)
+    .eq('contact_id', contactId)
+    .eq('status', 'active');
+  const ids = ((items ?? []) as Array<{ id: string }>).map((i) => i.id);
+  if (ids.length === 0) return null;
+  if (ids.length === 1) return ids[0];
+
+  const { data: events } = await db
+    .from('journey_events')
+    .select('item_id, created_at')
+    .eq('account_id', accountId)
+    .eq('event_type', 'client_response')
+    .in('item_id', ids)
+    .order('created_at', { ascending: false })
+    .limit(1);
+  return (
+    ((events ?? [])[0] as { item_id: string } | undefined)?.item_id ?? null
+  );
+}
+
+async function applyTimelineChoice(
+  args: Omit<HandleClientFollowupArgs, 'replyId'> & {
+    choice: ClientFollowupChoice;
+    itemId: string;
+    byAgent: boolean;
+  }
+): Promise<boolean> {
+  const {
+    db,
+    accountId,
+    ownerUserId,
+    contact,
+    conversationId,
+    choice,
+    itemId,
+    byAgent,
+  } = args;
 
   const ackClient = (text: string) =>
     sendWhatsAppMessageAndPersist({
@@ -600,7 +865,7 @@ export async function handleClientFollowupReply(
   const { data: itemData } = await db
     .from('journey_items')
     .select('id, contact_id, property_id, stage_id, status')
-    .eq('id', parsedId.itemId)
+    .eq('id', itemId)
     .eq('account_id', accountId)
     .maybeSingle();
   const item = itemData as {
@@ -610,7 +875,9 @@ export async function handleClientFollowupReply(
     stage_id: string;
     status: string;
   } | null;
-  if (!item || item.contact_id !== contact.id) {
+  // A client may only answer about their own branch; an agent is acting
+  // on someone else's by design, so the ownership check is theirs alone.
+  if (!item || (!byAgent && item.contact_id !== contact.id)) {
     await ackClient('👍 Noted, thank you!');
     return true;
   }
@@ -623,14 +890,19 @@ export async function handleClientFollowupReply(
   const label = property
     ? propertyLabel(property as PropertyRow)
     : 'the property';
-  const choiceLabel = CLIENT_FOLLOWUP_CHOICE_LABELS[parsedId.choice];
-  const due = followupDueDate(parsedId.choice);
+  const choiceLabel = templateButtonLabel(
+    timelineButtonAction(choice),
+    DEFAULT_LANGUAGE
+  );
+  const due = followupDueDate(choice);
 
   const { error: evError } = await db.from('journey_events').insert({
     account_id: accountId,
     item_id: item.id,
     event_type: 'client_response',
-    reason: `Client chose "${choiceLabel}" for their next update`,
+    reason: byAgent
+      ? `Agent set the next check-back to "${choiceLabel}"`
+      : `Client chose "${choiceLabel}" for their next update`,
   });
   if (evError)
     console.error('[client-response] choice event failed:', evError.message);
@@ -652,16 +924,28 @@ export async function handleClientFollowupReply(
   }
   await db.from('journey_items').update(itemUpdate).eq('id', item.id);
 
+  // The to-do belongs to the lead's branch, so it is filed against the
+  // journey item's contact rather than whoever tapped.
+  const { data: subject } = await db
+    .from('contacts')
+    .select('name')
+    .eq('id', item.contact_id)
+    .maybeSingle();
+  const subjectName =
+    (subject as { name?: string | null } | null)?.name ||
+    (byAgent ? 'the client' : contact.name) ||
+    'client';
+
   if (due) {
     const { error: todoError } = await db.from('todos').insert({
       account_id: accountId,
       user_id: ownerUserId,
       assigned_to: ownerUserId,
-      title: `Follow up with ${contact.name || 'client'} — ${label}`,
+      title: `Follow up with ${subjectName} — ${label}`,
       due_date: due.toISOString(),
       priority: 'medium',
       completed: false,
-      contact_id: contact.id,
+      contact_id: item.contact_id,
       property_id: item.property_id,
       source: 'system',
     });
@@ -672,19 +956,30 @@ export async function handleClientFollowupReply(
       );
   }
 
-  await ackClient(CLIENT_FOLLOWUP_ACKS[parsedId.choice]);
+  if (byAgent) {
+    // The agent is mid-conversation with the bot; the chatbot path
+    // persists its own reply, so only the confirmation goes back.
+    await ackClient(
+      due
+        ? `📅 Reminder set for *${format(due, 'd MMM')}* — follow up with ${subjectName} on ${label}.`
+        : `👍 No date set. ${subjectName}'s branch stays open on ${label}.`
+    );
+    return true;
+  }
+
+  await ackClient(CLIENT_FOLLOWUP_ACKS[choice]);
 
   await createNotification({
     accountId,
     userId: ownerUserId,
     type: 'new_message',
-    title: `📅 ${contact.name || 'Client'}: "${choiceLabel}" on ${label}`,
+    title: `📅 ${subjectName}: "${choiceLabel}" on ${label}`,
     body: due
       ? `Follow-up to-do added for ${format(due, 'd MMM')}.`
       : "They can't commit to a date yet.",
     entityType: 'contact',
-    entityId: contact.id,
-    link: `/journey?contact=${contact.id}`,
+    entityId: item.contact_id,
+    link: `/journey?contact=${item.contact_id}`,
   });
 
   return true;
@@ -851,8 +1146,12 @@ export async function handleInboxCheckinReply(
       propertyLabel: label,
       responseSummary: fromButton ? null : response,
     }),
+    contactName,
+    propertyLabel: label,
     accessToken,
     phoneNumberId,
   });
-  return askOutcome === 'sent' ? 'logged_and_asked' : 'logged';
+  return askOutcome === 'sent' || askOutcome === 'sent_template'
+    ? 'logged_and_asked'
+    : 'logged';
 }

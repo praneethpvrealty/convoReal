@@ -59,6 +59,7 @@ import {
   CLIENT_FOLLOWUP_PREFIX,
   handleClientFollowupReply,
   handleInboxCheckinReply,
+  handleTimelineTemplateTap,
 } from '@/lib/journey/client-response'
 // The per-template CLOSE_BUTTON constants are gone from here on
 // purpose: matchTemplateButton resolves a tap to its action in any
@@ -1322,6 +1323,26 @@ async function processMessage(
   // and taps "ಇನ್ನೂ ಪರಿಶೀಲಿಸುತ್ತಿದೆ" lands here too. What gets LOGGED is
   // still the English constant, so the journey reads one stable phrase
   // whatever language the client was messaged in.
+  // The lead picking when to be checked back on, from the enquiry
+  // timeline template. Matched on the action so any language lands
+  // here; the journey item comes from their own latest logged
+  // response, since a template quick reply carries no id to encode it.
+  if (message.button?.text) {
+    const handledTimeline = await handleTimelineTemplateTap({
+      db: supabaseAdmin(),
+      accountId,
+      ownerUserId: configOwnerUserId,
+      contact: {
+        id: contactRecord.id,
+        name: contactRecord.name,
+        phone: senderPhone,
+      },
+      conversationId: conversation.id,
+      buttonText: message.button.text,
+    })
+    if (handledTimeline) return
+  }
+
   if (matchTemplateButton(message.button?.text) === 'still_considering') {
     const keepOutcome = await handleInboxCheckinReply({
       db: supabaseAdmin(),
