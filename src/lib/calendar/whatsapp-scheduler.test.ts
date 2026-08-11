@@ -324,3 +324,52 @@ describe('istDayWindow', () => {
     expect(label).toContain('14');
   });
 });
+
+const LETTERED_LIST =
+  'Add to the todo list - Work on Dinakar site a) Cleaning up the site b)E khata';
+
+describe('splitTaskList — lettered lists', () => {
+  it('splits the list that reached the classifier as "I couldn\'t tell what that was"', () => {
+    expect(splitTaskList(LETTERED_LIST)).toEqual([
+      'Work on Dinakar site — Cleaning up the site',
+      'Work on Dinakar site — E khata',
+    ]);
+  });
+
+  it('carries the lead-in, because "Cleaning up the site" does not say which site', () => {
+    expect(splitTaskList(LETTERED_LIST)[0]).toContain('Dinakar');
+  });
+
+  it('needs no space after the bracket', () => {
+    // "b)E khata" — unlike a digit, a letter is never part of the value
+    // that follows it.
+    expect(splitTaskList('todo list: a)One b)Two')).toHaveLength(2);
+  });
+
+  it('leaves letters alone while a numbered run exists', () => {
+    // Item 3 of the earlier list raises two things with one person.
+    // Numbers win, and its a)/b) stay inside it.
+    expect(splitTaskList(DICTATED_LIST)).toHaveLength(3);
+  });
+
+  it('requires the letters to run from a', () => {
+    expect(splitTaskList('see clause b) and clause d) of the deed')).toEqual([]);
+  });
+
+  it('is empty without a second letter', () => {
+    expect(splitTaskList('todo list - a) just the one thing')).toEqual([]);
+  });
+});
+
+describe('looksLikeSchedulingText — "todo list"', () => {
+  it('accepts a declaration with a noun between it and the jobs', () => {
+    // "Add to the todo list - ..." missed TASK_PREFIX, which wanted the
+    // marker immediately after the noun.
+    expect(looksLikeSchedulingText(LETTERED_LIST)).toBe(true);
+    expect(isDictatedTaskList(LETTERED_LIST)).toBe(true);
+  });
+
+  it('does not fire on the word task in passing', () => {
+    expect(looksLikeSchedulingText('that was a task for the builder')).toBe(false);
+  });
+});
