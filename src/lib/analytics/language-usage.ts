@@ -12,7 +12,7 @@
 // message to them goes out in English because no Tamil template is
 // approved" is the actual state, and only the pair says so.
 //
-// Both aggregates run in SQL (migration 245) rather than pulling rows
+// Both aggregates run in SQL (migration 249) rather than pulling rows
 // into the browser — an account with 50k contacts must not download
 // them to learn that 400 read Tamil (AGENTS.md §2.6).
 // ============================================================

@@ -1,5 +1,5 @@
 -- ============================================================
--- 245_language_usage_stats.sql
+-- 249_language_usage_stats.sql
 -- How many people actually use each language — on the app, and in
 -- what we send them.
 --

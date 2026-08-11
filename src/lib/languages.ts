@@ -47,7 +47,7 @@ export const DEFAULT_LANGUAGE: LanguageCode = 'en';
  * A packaging number, not a technical one — the catalogue, the toggle
  * and the profile column all handle any count. Raise it here (or read
  * it off the plan) when a subscription tier should unlock more; the
- * DB constraint in migration 243 deliberately does not encode it.
+ * DB constraint in migration 247 deliberately does not encode it.
  */
 export const MAX_UI_LANGUAGES = 2;
 

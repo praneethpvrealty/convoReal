@@ -8,7 +8,7 @@
 //
 // Withdrawing exists because a reviewer can be wrong, or a second
 // reader can disagree, and the alternative — editing a character to
-// trip the reset trigger in migration 244 — is a worse way to say the
+// trip the reset trigger in migration 248 — is a worse way to say the
 // same thing.
 // ============================================================
 

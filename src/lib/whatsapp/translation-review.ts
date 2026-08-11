@@ -23,7 +23,7 @@
 //                  reviewer; asking them to approve their own
 //                  sentence is friction with no signal in it.
 //
-//   Edited copy  — handled in the database, not here: migration 244
+//   Edited copy  — handled in the database, not here: migration 248
 //                  clears the sign-off whenever the body changes, so
 //                  a reviewed template that is then reworded returns
 //                  to unreviewed automatically.

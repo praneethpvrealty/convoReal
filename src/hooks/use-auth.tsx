@@ -44,7 +44,7 @@ interface Profile {
   /** Former 'viewer' role folds into org_agent + this flag. */
   is_read_only: boolean;
   /** Languages this agent reads, and which one the app renders in
-   *  (migration 243). Shared with the mobile app, which reads the same
+   *  (migration 247). Shared with the mobile app, which reads the same
    *  profile row. Narrowed by the locale provider, never trusted raw. */
   ui_languages: string[];
   active_ui_language: string | null;
@@ -54,7 +54,7 @@ interface AccountSummary {
   id: string;
   name: string;
   status: string;
-  /** Outbound language default (migration 242). Absent on rows read
+  /** Outbound language default (migration 246). Absent on rows read
    *  before the column existed — callers narrow with toLanguageCode(). */
   default_language?: string;
 }
@@ -246,7 +246,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               org_role: null,
               team_id: null,
               is_read_only: false,
-              // Legacy path predates migration 243 and never selects
+              // Legacy path predates migration 247 and never selects
               // these; the locale provider narrows the defaults anyway.
               ui_languages: [],
               active_ui_language: null,
@@ -299,7 +299,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // (older deployments running 011 lazily) — `null` reads as no
           // opt-ins, which is the safe default for any future beta gate.
           beta_features: data.beta_features ?? [],
-          // Null on a fork that has not applied migration 243 —
+          // Null on a fork that has not applied migration 247 —
           // sanitizeLanguageSet() turns that into ['en'].
           ui_languages: data.ui_languages ?? [],
           active_ui_language: data.active_ui_language ?? null,

@@ -1,6 +1,6 @@
 -- The agent's own app language(s).
 --
--- Distinct from migration 242, which is about what a CLIENT reads in a
+-- Distinct from migration 246, which is about what a CLIENT reads in a
 -- WhatsApp message. This is what the person using ConvoReal reads on
 -- screen. A Bangalore agent runs the app in Kannada and still messages
 -- a Hindi-speaking buyer in Hindi.
