@@ -1,7 +1,7 @@
 /**
  * How a contact can be reached.
  *
- * `contacts.phone` is nullable from migration 252 on — a company
+ * `contacts.phone` is nullable from migration 253 on — a company
  * mailbox with no number is a legitimate contact — so anything that
  * dials, opens WhatsApp or shares has to ask rather than assume.
  *

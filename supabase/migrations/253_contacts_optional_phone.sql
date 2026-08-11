@@ -1,5 +1,5 @@
 -- ============================================================
--- 252_contacts_optional_phone.sql
+-- 253_contacts_optional_phone.sql
 -- A contact can be reachable by email alone.
 --
 -- Builders, channel partners and portal desks arrive as a company

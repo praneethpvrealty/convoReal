@@ -124,7 +124,7 @@ export interface Contact {
   user_id: string;
   /** Null for records that only ever had an email — company/developer
    *  contacts imported from a mailbox. Every WhatsApp path must skip
-   *  them rather than assume a number (migration 252). */
+   *  them rather than assume a number (migration 253). */
   phone: string | null;
   secondary_phones?: string[];
   name?: string;
@@ -611,7 +611,7 @@ export interface MessageTemplate {
   translation_reviewed_at?: string | null;
   translation_reviewed_by?: string | null;
   /** Which revision of ConvoReal's shipped copy this row was built
-   *  from (migration 252), so an account's own rewording stays
+   *  from (migration 253), so an account's own rewording stays
    *  distinguishable from copy that has simply fallen behind ours.
    *  Null on rows predating the column and on account-authored
    *  templates. See src/lib/whatsapp/template-drift.ts. */

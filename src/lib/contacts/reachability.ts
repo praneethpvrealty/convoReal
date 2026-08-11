@@ -1,4 +1,4 @@
-// How a contact can be reached. Phone is optional from migration 252
+// How a contact can be reached. Phone is optional from migration 253
 // on — a company mailbox with no number is a legitimate contact — so
 // anything that messages over WhatsApp has to ask rather than assume.
 

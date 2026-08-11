@@ -39,7 +39,7 @@ export async function PUT(
 
     // Validation — a contact needs one way to be reached, not
     // specifically a number: company mailboxes arrive email-only
-    // (migration 252).
+    // (migration 253).
     const phoneValue = typeof phone === 'string' ? phone.trim() || null : null;
     const emailValue = typeof email === 'string' ? email.trim() || null : null;
     if (!phoneValue && !emailValue) {

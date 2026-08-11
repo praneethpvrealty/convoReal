@@ -246,7 +246,7 @@ export async function resolveAudienceOnServer(
   // Dead and archived contacts drop out on the same principle
   // (migration 229): the dispatcher refuses them anyway, and filtering
   // here keeps them out of the recipient rows and the reach count too.
-  // Email-only contacts (migration 252) have no WhatsApp number at all,
+  // Email-only contacts (migration 253) have no WhatsApp number at all,
   // so they cannot be an audience for a WhatsApp broadcast.
   return contacts.filter(
     (c) =>
