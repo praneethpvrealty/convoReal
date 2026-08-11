@@ -28,3 +28,48 @@ export function documentLabel(path: string): string {
   const name = withoutStamp || last;
   return name.replace(/_/g, ' ');
 }
+
+export interface PropertyDocument {
+  /** The stored array entry, untouched — what a removal filters on. */
+  raw: string;
+  /** Storage path or absolute URL, ready for `storagePublicUrl()`. */
+  url: string;
+  /** The title typed on the form, falling back to the filename. */
+  label: string;
+}
+
+/**
+ * Read the `properties.documents` array.
+ *
+ * Entries are either a bare storage path or a JSON blob carrying a
+ * display title — the web form has written both shapes over time, and
+ * every surface has to cope with both (src/lib/inventory/documents.ts
+ * parses the same pair). Treating a blob as a path is what sent the
+ * whole JSON string into the storage URL and 404'd the bucket.
+ */
+export function parsePropertyDocuments(
+  documents: string[] | null | undefined
+): PropertyDocument[] {
+  if (!Array.isArray(documents)) return [];
+  return documents
+    .filter((doc) => doc?.trim())
+    .map((doc) => {
+      const entry = doc.trim();
+      if (entry.startsWith('{')) {
+        try {
+          const parsed = JSON.parse(entry) as {
+            url?: unknown;
+            title?: unknown;
+          };
+          const url = typeof parsed.url === 'string' ? parsed.url.trim() : '';
+          const title =
+            typeof parsed.title === 'string' ? parsed.title.trim() : '';
+          return { raw: doc, url, label: title || documentLabel(url) };
+        } catch {
+          // Not JSON after all — fall through to the plain path.
+        }
+      }
+      return { raw: doc, url: entry, label: documentLabel(entry) };
+    })
+    .filter((d) => d.url.length > 0);
+}

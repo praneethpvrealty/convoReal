@@ -32,6 +32,7 @@ import { apiFetch, ApiError } from '@/lib/api';
 import { friendlyError } from '@/lib/errors';
 import { chatListTime, formatInr } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
+import { listingPrice } from '@/lib/listing-price';
 import { matchChips, scoreTone, type MatchChipTone } from '@/lib/match-chips';
 import { fetchPropertyMatches } from '@/lib/property-matches';
 import { PropertyDocuments } from '@/components/property-documents';
@@ -49,26 +50,6 @@ import type { Contact, Property } from '@/lib/types';
 
 /** Scroll clearance so content ends above the sticky price bar. */
 const BOTTOM_BAR_CLEARANCE = 110;
-
-/** Web parity: "Equivalent to: ₹15 Crore" under the formatted price. */
-function equivalentInr(n: number | null | undefined): string | null {
-  if (!n || n <= 0) return null;
-  if (n >= 10000000) {
-    const cr = (n / 10000000)
-      .toFixed(2)
-      .replace(/\.00$/, '')
-      .replace(/\.(\d)0$/, '.$1');
-    return `Equivalent to: ₹${cr} Crore`;
-  }
-  if (n >= 100000) {
-    const lakhs = (n / 100000)
-      .toFixed(2)
-      .replace(/\.00$/, '')
-      .replace(/\.(\d)0$/, '.$1');
-    return `Equivalent to: ₹${lakhs} Lakhs`;
-  }
-  return `Equivalent to: ₹${n.toLocaleString('en-IN')}`;
-}
 
 async function fetchProperty(id: string): Promise<Property | null> {
   // Single-property reads pass RLS directly, same as the web's
@@ -114,12 +95,7 @@ export default function PropertyDetailScreen() {
     );
   }
 
-  const price =
-    property.listing_type === 'Rent'
-      ? property.rent_per_month
-        ? `${formatInr(property.rent_per_month)}/month`
-        : '—'
-      : formatInr(property.price);
+  const price = listingPrice(property);
   const place = [property.location, property.sublocality, property.city]
     .filter(Boolean)
     .join(', ');
@@ -149,9 +125,6 @@ export default function PropertyDetailScreen() {
     property.area_sqft && property.land_area
       ? `${property.land_area} ${property.land_area_unit || 'Sq.Ft.'}`
       : null;
-  const priceWords = equivalentInr(
-    property.listing_type === 'Rent' ? property.rent_per_month : property.price
-  );
   // Web parity (view mode): dimensions "F x D" splits into frontage/depth.
   const dimParts = (property.dimensions ?? '').includes('x')
     ? (property.dimensions ?? '').split('x').map((d) => d.trim())
@@ -206,6 +179,13 @@ export default function PropertyDetailScreen() {
           icon: 'ribbon-outline' as const,
           label: 'Ownership',
           value: property.ownership_status,
+        }
+      : null,
+    property.conversion_type
+      ? {
+          icon: 'checkmark-circle-outline' as const,
+          label: 'Conversion',
+          value: property.conversion_type,
         }
       : null,
   ].filter((sp): sp is NonNullable<typeof sp> => sp !== null);
@@ -416,13 +396,13 @@ export default function PropertyDetailScreen() {
               color: colors.primary,
             }}
           >
-            {price}
+            {price.value}
           </Text>
-          {priceWords ? (
+          {price.note ? (
             <Text
               style={{ fontSize: 12.5, color: colors.success, marginTop: -6 }}
             >
-              {priceWords}
+              {price.note}
             </Text>
           ) : null}
 
@@ -693,7 +673,9 @@ export default function PropertyDetailScreen() {
           ) : null}
 
           {property.owner ? (
-            <Section title="Owner">
+            <Section
+              title={property.listing_source === 'agent' ? 'Agent' : 'Owner'}
+            >
               <Link
                 href={`/(app)/contact/${property.owner_contact_id}`}
                 asChild
@@ -898,7 +880,7 @@ export default function PropertyDetailScreen() {
               letterSpacing: 0.5,
             }}
           >
-            {property.listing_type === 'Rent' ? 'RENT' : 'PRICE'}
+            {price.label}
           </Text>
           <Text
             style={{
@@ -908,7 +890,7 @@ export default function PropertyDetailScreen() {
               letterSpacing: -0.5,
             }}
           >
-            {price}
+            {price.value}
           </Text>
         </View>
         {ownerPhone || hasMapLocation ? (
@@ -942,7 +924,7 @@ export default function PropertyDetailScreen() {
                 fontFamily: f.bold,
               }}
             >
-              {ownerPhone ? 'WhatsApp Owner' : 'Open Maps'}
+              {ownerPhone ? 'WhatsApp' : 'Open Maps'}
             </Text>
           </Pressable>
         ) : null}
