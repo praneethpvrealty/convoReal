@@ -27,6 +27,7 @@ import {
   type TemplatePayload,
 } from '@/lib/whatsapp/template-validators'
 import { withAccountShowcaseButtons } from '@/lib/whatsapp/template-showcase-buttons'
+import { stampFor } from '@/lib/whatsapp/copy-revision-stamp'
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit'
 
 export async function POST(request: Request) {
@@ -109,6 +110,12 @@ export async function POST(request: Request) {
         status: 'DRAFT',
         // Explicitly unreviewed. The submit route reads this.
         translation_reviewed_at: null,
+        // Which shipped wording this started from (migration 252), so
+        // a later improvement to the copy can tell "they reworded it"
+        // from "ours moved on". Null for an account-authored template,
+        // which has no shipped copy to drift from. No prior origin to
+        // preserve — this route refuses to write over an existing row.
+        copy_revision: stampFor(payload.name, payload.language, payload, null),
       })
       .select('id')
       .single()

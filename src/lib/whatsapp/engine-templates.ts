@@ -116,6 +116,22 @@ export const ENGINE_TEMPLATES: EngineTemplateDef[] = [
   },
 ];
 
+/**
+ * The copy key behind a template NAME, or null when the name is not
+ * one of ours.
+ *
+ * A stored row knows its name and language but not which entry of
+ * TEMPLATE_COPY it came from, and every drift comparison needs that.
+ * Null for an account-authored template, which has no shipped copy to
+ * drift from.
+ */
+export function engineCopyKey(name: string): EngineTemplateKey | null {
+  const match = ENGINE_TEMPLATES.find(
+    (t) => t.name.toLowerCase() === name.trim().toLowerCase(),
+  );
+  return match?.copyKey ?? null;
+}
+
 /** Fast membership test for "is this one of ours?" — used by the
  *  translation-review gate, which must not require a review for a
  *  template the account wrote itself. */
