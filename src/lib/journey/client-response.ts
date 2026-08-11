@@ -38,22 +38,22 @@ import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatche
 import { phonesMatch } from '@/lib/whatsapp/phone-utils';
 import { resolveConversation } from '@/lib/conversations/resolve';
 import { DEFAULT_LANGUAGE, type LanguageCode } from '@/lib/languages';
-import {
-  resolveSendLanguage,
-  loadTemplateForContact,
-} from '@/lib/whatsapp/template-language';
+import { resolveSendLanguage } from '@/lib/whatsapp/template-language';
 import {
   matchTemplateButton,
   templateButtonLabel,
 } from '@/lib/whatsapp/template-copy';
 import {
-  buildTimelineAskParams,
   timelineButtonAction,
   timelineChoiceForAction,
+  timelineTemplateParams,
+  DEFAULT_FOLLOWUP_DAYS,
   TIMELINE_ASK_TEMPLATE_NAMES,
   TIMELINE_CHOICES,
   type TimelineChoice,
 } from '@/lib/whatsapp/timeline-ask-template';
+import { pickApprovedTemplate } from '@/lib/whatsapp/pick-approved-template';
+import { narrowToLanguage } from '@/lib/whatsapp/template-language';
 
 export const CLIENT_FOLLOWUP_PREFIX = 'jfu_';
 
@@ -395,11 +395,16 @@ function resolveTemplateBodyText(body: string, params: string[]): string {
 }
 
 /**
- * The closed-window path: the same question as an approved Utility
- * template. Returns 'window_closed' unchanged when the account holds no
- * approved row yet — the template is submitted per-account and sits in
- * Meta review, so this must degrade to what the agent saw before rather
- * than fail the capture.
+ * The closed-window path: the same question as an approved template.
+ *
+ * Two candidate names are in play (see timeline-ask-template.ts), so
+ * the row is chosen by CATEGORY first — an approved Utility reminder
+ * beats the approved Marketing row it replaces, and the upgrade
+ * happens the moment Meta approves it, with no code change.
+ *
+ * Returns 'window_closed' unchanged when neither is approved: both are
+ * submitted per-account and sit in Meta review, so this must degrade to
+ * what the agent saw before rather than fail the capture.
  */
 async function askClientViaTemplate(args: {
   db: SupabaseClient;
@@ -409,24 +414,28 @@ async function askClientViaTemplate(args: {
   conversationId: string;
   contactName: string | null;
   propertyLabel: string;
+  itemId: string;
   language: LanguageCode;
 }): Promise<ClientAskOutcome> {
   const { db, accountId, userId, contact, conversationId, language } = args;
 
-  const { template } = await loadTemplateForContact<{
+  type Row = {
     name: string;
     language?: string | null;
     status?: string | null;
+    category?: string | null;
     body_text: string;
-  }>(db, {
-    accountId,
-    contactId: contact.id,
-    language,
-    names: TIMELINE_ASK_TEMPLATE_NAMES,
-  });
-  if (!template || (template.status ?? '').toUpperCase() !== 'APPROVED') {
-    return 'window_closed';
-  }
+  };
+  const { data: rows } = await db
+    .from('message_templates')
+    .select('name, language, status, category, body_text')
+    .eq('account_id', accountId)
+    .in('name', TIMELINE_ASK_TEMPLATE_NAMES);
+  const template = pickApprovedTemplate(
+    narrowToLanguage((rows ?? []) as Row[], language),
+    TIMELINE_ASK_TEMPLATE_NAMES
+  );
+  if (!template) return 'window_closed';
 
   const { data: account } = await db
     .from('accounts')
@@ -434,11 +443,26 @@ async function askClientViaTemplate(args: {
     .eq('id', accountId)
     .maybeSingle();
 
-  const params = buildTimelineAskParams(
-    args.contactName,
-    (account as { name?: string | null } | null)?.name ?? null,
-    args.propertyLabel
-  );
+  // The reminder states a date, so the date has to be true before the
+  // message goes out — stamp it on the journey item first. The buttons
+  // then move an existing plan rather than creating one.
+  const followUp = addDays(new Date(), DEFAULT_FOLLOWUP_DAYS);
+  const followUpLabel = format(followUp, 'd MMM yyyy');
+  await db
+    .from('journey_items')
+    .update({
+      planned_at: format(followUp, 'yyyy-MM-dd'),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', args.itemId)
+    .eq('account_id', accountId);
+
+  const params = timelineTemplateParams(template.name, {
+    contactName: args.contactName,
+    brandName: (account as { name?: string | null } | null)?.name ?? null,
+    propertyDescription: args.propertyLabel,
+    followUpDate: followUpLabel,
+  });
 
   const res = await sendWhatsAppMessageAndPersist({
     accountId,
@@ -514,6 +538,7 @@ async function askClientForTimeline(args: {
       conversationId: conversation.id,
       contactName: args.contactName,
       propertyLabel: args.propertyLabel,
+      itemId,
       language,
     });
   }

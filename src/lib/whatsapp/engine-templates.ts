@@ -20,7 +20,12 @@ import { buildInventoryUpdateTemplatePayload, INVENTORY_UPDATE_TEMPLATE_NAME } f
 import { buildEnquiryFollowupTemplatePayload, ENQUIRY_FOLLOWUP_TEMPLATE_NAME } from './enquiry-followup-template';
 import { buildEnquiryNoticeTemplatePayload, ENQUIRY_NOTICE_TEMPLATE_NAME } from './enquiry-notice-template';
 import { buildJourneyCheckinTemplatePayload, JOURNEY_CHECKIN_TEMPLATE_NAME } from './journey-checkin-template';
-import { buildTimelineAskTemplatePayload, TIMELINE_ASK_TEMPLATE_NAME } from './timeline-ask-template';
+import {
+  buildTimelineAskTemplatePayload,
+  buildFollowupReminderTemplatePayload,
+  TIMELINE_ASK_TEMPLATE_NAME,
+  FOLLOWUP_REMINDER_TEMPLATE_NAME,
+} from './timeline-ask-template';
 
 export interface EngineTemplateDef {
   name: string;
@@ -98,8 +103,16 @@ export const ENGINE_TEMPLATES: EngineTemplateDef[] = [
     copyKey: 'journey_timeline',
     label: 'Enquiry timeline',
     whyItMatters:
-      'Asks a lead who said they would come back with a decision to pick when we should check back, when their 24-hour window has closed — the answer sets the journey plan and files the follow-up to-do automatically.',
+      'Asks a lead who said they would come back with a decision to pick when we should check back, when their 24-hour window has closed — the answer sets the journey plan and files the follow-up to-do automatically. Came back MARKETING; superseded by Enquiry follow-up reminder, which is preferred at send time once approved.',
     build: buildTimelineAskTemplatePayload,
+  },
+  {
+    name: FOLLOWUP_REMINDER_TEMPLATE_NAME,
+    copyKey: 'journey_followup_reminder',
+    label: 'Enquiry follow-up reminder',
+    whyItMatters:
+      'The Utility-shaped replacement for Enquiry timeline: states the follow-up date already set on the lead\'s open enquiry and lets them confirm or move it, the same shape the four approved reminder templates use. Preferred over the Marketing row as soon as Meta approves it.',
+    build: buildFollowupReminderTemplatePayload,
   },
 ];
 

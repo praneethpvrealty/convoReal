@@ -16,6 +16,7 @@ describe('missingEngineTemplates', () => {
       'listing_status_notice',
       'enquiry_checkin_notice',
       'enquiry_timeline_notice',
+      'property_enquiry_reminder',
     ]);
   });
 
