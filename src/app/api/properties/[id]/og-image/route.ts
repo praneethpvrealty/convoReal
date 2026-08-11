@@ -5,6 +5,7 @@ import { parseFlyerOptions } from "@/lib/inventory/flyer-options";
 import { storagePublicUrl } from "@/lib/storage/url";
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from "@/lib/rate-limit";
 import { isLocationGuarded, localityLabel } from "@/lib/inventory/location-guard";
+import { isTeaserGated } from "@/lib/inventory/showcase-visibility";
 import { BRANDING } from "@/config/branding";
 
 // GET /api/properties/[id]/og-image
@@ -35,11 +36,16 @@ export async function GET(
     let query = admin
       .from("properties")
       .select(
-        "id, title, property_code, type, price, location, location_privacy, sublocality, city, state, images, account_id"
+        "id, title, property_code, type, price, location, location_privacy, showcase_visibility, sublocality, city, state, images, account_id"
       );
     query = isUuid ? query.eq("id", id) : query.eq("property_code", id.toUpperCase());
     const { data: raw } = await query.maybeSingle();
     if (!raw) return new NextResponse("Not found", { status: 404 });
+
+    // A teaser-gated listing has no public preview at all: this PNG would
+    // burn its title, price and cover photo into an image that messenger
+    // crawlers fetch, cache and serve on every forward of the link.
+    if (isTeaserGated(raw)) return new NextResponse("Not found", { status: 404 });
 
     // The rendered PNG is fetched and cached by messenger crawlers, so a
     // guarded listing's street address must never be burned into it.

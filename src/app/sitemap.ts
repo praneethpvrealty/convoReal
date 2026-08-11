@@ -5,6 +5,7 @@ import {
   cachedFetchFallbackAccount,
   cachedFetchShowcaseData,
 } from '@/lib/showcase/public-data';
+import { isTeaserGated } from '@/lib/inventory/showcase-visibility';
 import { propertySlug } from '@/lib/showcase/property-slug';
 import { fallbackSiteUrl } from '@/lib/showcase/site-url';
 import type { Property } from '@/types';
@@ -51,15 +52,20 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }))
   );
 
+  // A gated listing is noindex and has no public detail to crawl —
+  // listing it here would advertise its existence and hand crawlers the
+  // one URL the gate exists to keep quiet.
   entries.push(
-    ...properties.map((property) => ({
-      url: `${siteUrl}/property/${propertySlug(property)}`,
-      lastModified: property.updated_at
-        ? new Date(property.updated_at)
-        : undefined,
-      changeFrequency: 'weekly' as const,
-      priority: 0.8,
-    }))
+    ...properties
+      .filter((property) => !isTeaserGated(property))
+      .map((property) => ({
+        url: `${siteUrl}/property/${propertySlug(property)}`,
+        lastModified: property.updated_at
+          ? new Date(property.updated_at)
+          : undefined,
+        changeFrequency: 'weekly' as const,
+        priority: 0.8,
+      }))
   );
 
   return entries;

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/automations/admin-client";
 import { storagePublicUrl } from "@/lib/storage/url";
-import { toPublicPropertyView } from "@/lib/inventory/location-guard";
+import { toPublicListingView } from "@/lib/inventory/showcase-visibility";
 import type { Property } from "@/types";
 
 /**
@@ -43,11 +43,12 @@ function haversineKm(
 }
 
 // Scoring needs location/coords/privacy fields server-side; the response
-// is reduced through toPublicPropertyView so none of them leave the box.
+// is reduced through toPublicListingView so none of them leave the box.
 const CANDIDATE_COLUMNS = [
   "id", "account_id", "user_id", "title", "description", "price",
   "location", "sublocality", "city", "state", "type", "status",
-  "listing_type", "location_privacy", "bedrooms", "bathrooms",
+  "listing_type", "location_privacy", "showcase_visibility",
+  "bedrooms", "bathrooms",
   "area_sqft", "area_unit",
   "land_area", "land_area_unit", "super_built_area", "project",
   "land_zone", "ideal_for", "dimensions", "road_width", "road_width_unit",
@@ -225,7 +226,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       data: relevant.map((s) => {
-        const view = toPublicPropertyView(s.property, { revealExact: false });
+        const view = toPublicListingView(s.property, { revealExact: false });
         return {
           ...view,
           images: Array.isArray(view.images)

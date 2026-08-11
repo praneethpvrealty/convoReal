@@ -22,6 +22,58 @@ export interface ShareMessageInput {
   currency?: string;
   agentName?: string;
   agentPhone?: string;
+  grantTtlLabel?: string;
+}
+
+// ── Showcase gating (migration 254) ─────────────────────────────
+// Ported from src/lib/inventory/showcase-visibility.ts rather than
+// imported: that module reaches into the location guard, which pulls in
+// the web's auth and property-options trees. These three are pure and
+// small, and the parity test in src/lib/mobile-parity.test.ts is what
+// keeps them honest.
+
+const LAKH = 100_000;
+const CRORE = 10_000_000;
+
+function isTeaserGated(p: { showcase_visibility?: string | null }): boolean {
+  return p.showcase_visibility === 'teaser';
+}
+
+function localityLabelFor(p: {
+  sublocality?: string | null;
+  city?: string | null;
+  state?: string | null;
+}): string {
+  const bits = [p.sublocality, p.city].filter(Boolean);
+  if (bits.length > 0) return bits.join(', ');
+  return p.state || 'Location available on request';
+}
+
+function formatBandEdge(value: number): string {
+  if (value >= CRORE) {
+    const cr = value / CRORE;
+    return `₹${Number.isInteger(cr) ? cr : cr.toFixed(2).replace(/0+$/, '').replace(/\.$/, '')} Cr`;
+  }
+  return `₹${Math.round(value / LAKH)} L`;
+}
+
+function priceBand(price?: number | null): string | null {
+  if (!price || price <= 0) return null;
+  const step =
+    price >= CRORE ? CRORE / 2 : price >= LAKH * 50 ? LAKH * 25 : LAKH * 10;
+  const lower = Math.floor(price / step) * step;
+  return `${formatBandEdge(lower)} – ${formatBandEdge(lower + step)}`;
+}
+
+function teaserTitle(p: {
+  type?: string | null;
+  bedrooms?: number | null;
+  sublocality?: string | null;
+  city?: string | null;
+  state?: string | null;
+}): string {
+  const bhk = p.bedrooms && p.bedrooms > 0 ? `${p.bedrooms} BHK ` : '';
+  return `${bhk}${p.type || 'Property'} in ${localityLabelFor(p)}`;
 }
 
 export function formatShareAmount(
@@ -202,9 +254,49 @@ function completeBody(
   return lines.join('\n');
 }
 
+/**
+ * Port of the web's confidentialityNote. Kept byte-identical: a buyer
+ * who gets the listing from the app and the follow-up from the desktop
+ * dashboard must not read two different accounts of why it is gated.
+ */
+export function confidentialityNote(
+  audience: ShareAudience,
+  ttlLabel?: string
+): string {
+  const validity = ttlLabel ? ` for ${ttlLabel}` : '';
+  if (audience === 'agent') {
+    return (
+      `🔒 *Sharing this off-market.* The owner's condition is that the address, ` +
+      `photographs and exact price stay out of circulation.\n` +
+      `Your link opens${validity} and is tagged to you. If your client needs the ` +
+      `full file, request it through the link and I'll approve it.`
+    );
+  }
+  return (
+    `🔒 The owner has asked us to keep this property confidential — it is not ` +
+    `listed publicly, so the address, photographs and exact price aren't on the page.\n` +
+    `Tap *Request full details* on the link and I'll open it for you straight away.`
+  );
+}
+
 export function buildPropertyShareMessage(input: ShareMessageInput): string {
   const { property, url, detail } = input;
   const currency = input.currency || 'INR';
+
+  // A gated listing is gated in the MESSAGE too — the message is the
+  // more forwardable of the two.
+  if (isTeaserGated(property)) {
+    const band = priceBand(property.price);
+    return [
+      intro(input),
+      `*${teaserTitle(property)}*${band ? `\n💰 Guide price *${band}*` : ''}`,
+      confidentialityNote(input.audience, input.grantTtlLabel),
+      `🔗 ${url}`,
+      [outro(input), signOff(input)].filter(Boolean).join('\n\n'),
+    ]
+      .filter(Boolean)
+      .join('\n\n');
+  }
 
   if (detail === 'quick') {
     return [

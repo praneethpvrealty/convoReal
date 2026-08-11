@@ -60,6 +60,7 @@ export interface ShareGrant {
   reveal_location: boolean;
   reveal_documents: boolean;
   reveal_private_images: boolean;
+  reveal_listing: boolean;
   expires_at: string;
   revoked_at: string | null;
   view_count: number;
@@ -73,6 +74,10 @@ export interface GrantedReveals {
   location: boolean;
   documents: boolean;
   privateImages: boolean;
+  /** Opens a teaser-gated page (migration 254). Independent of
+   *  `location`: unlocking the listing must not hand over an address
+   *  the location guard is still holding back. */
+  listing: boolean;
 }
 
 export function mintShareGrantToken(ttlMs: number = SHARE_GRANT_TTL_MS): {
@@ -101,12 +106,18 @@ export function grantedReveals(
   now: Date = new Date()
 ): GrantedReveals {
   if (!grant || !isGrantLive(grant, now)) {
-    return { location: false, documents: false, privateImages: false };
+    return {
+      location: false,
+      documents: false,
+      privateImages: false,
+      listing: false,
+    };
   }
   return {
     location: grant.reveal_location,
     documents: grant.reveal_documents,
     privateImages: grant.reveal_private_images,
+    listing: grant.reveal_listing,
   };
 }
 

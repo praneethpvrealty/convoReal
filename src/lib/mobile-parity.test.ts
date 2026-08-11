@@ -39,6 +39,7 @@ import {
 import { PROPERTY_TYPE_VALUES } from '@/lib/property-types';
 import { BUDGET_OPTIONS } from '@/lib/contacts/budget-options';
 import { priceInWords } from '@/lib/currency-utils';
+import { confidentialityNote } from '@/lib/share-message-builder';
 import {
   FLOW_CHECKBOX_MAX_ITEMS,
   PROPERTY_INTEREST_FLOW_IDS,
@@ -352,6 +353,43 @@ describe('mobile/lib/share-message.ts mirrors share-message-builder', () => {
     // Mobile may add surface-specific builders on top; it must never be
     // missing one the web share dialog relies on.
     expect(mobile).toEqual(expect.arrayContaining(web));
+  });
+
+  // The confidentiality note is the customer-facing explanation of why a
+  // listing is gated. Two surfaces telling a buyer two different stories
+  // about the owner's instruction is worse than either story alone, so
+  // this is pinned verbatim rather than merely "present".
+  it('carries the same confidentiality note, verbatim', () => {
+    // Both files build the note by concatenating literals across source
+    // lines, so neither the whole string nor a fragment spanning a `+`
+    // appears verbatim. Splicing the concatenation joints back out gives
+    // a source to match the web builder's own output against.
+    const source = mobileSource('lib/share-message.ts')
+      .replace(/['"`]\s*\+\s*['"`]/g, '')
+      // The TTL is interpolated on both sides; the note reads the same
+      // without it, and the empty-TTL case is what the web emits here.
+      .replace(/\$\{validity\}/g, '');
+    const fragments = [
+      ...confidentialityNote('client').split('\n'),
+      ...confidentialityNote('agent').split('\n'),
+    ]
+      .flatMap((line) => line.split(/(?<=[.,]) /))
+      .map((f) => f.trim())
+      .filter((f) => f.length > 24);
+
+    expect(fragments.length).toBeGreaterThan(4);
+    for (const fragment of fragments) {
+      expect(source, `mobile is missing: ${fragment}`).toContain(fragment);
+    }
+  });
+
+  it('reduces a gated listing to the same stub the web builder does', () => {
+    const source = mobileSource('lib/share-message.ts');
+    // Both must band the price and rebuild the title rather than pasting
+    // the stored one — a share message is more forwardable than the page.
+    expect(source).toContain("showcase_visibility === 'teaser'");
+    expect(source).toContain('Guide price *${band}*');
+    expect(source).toContain('teaserTitle(property)');
   });
 });
 

@@ -20,12 +20,23 @@ import {
   isLocationGuarded,
   localityLabel,
 } from '@/lib/inventory/location-guard';
+import {
+  isTeaserGated,
+  priceBand,
+  teaserTitle,
+} from '@/lib/inventory/showcase-visibility';
+import {
+  grantedReveals,
+  resolveShareGrant,
+  trackGrantView,
+} from '@/lib/inventory/share-grants';
+import { supabaseAdmin } from '@/lib/automations/admin-client';
 import { BRANDING } from '@/config/branding';
 import type { Property } from '@/types';
 
 interface PageProps {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ v?: string; mode?: string }>;
+  searchParams: Promise<{ v?: string; mode?: string; g?: string }>;
 }
 
 async function resolveProperty(
@@ -42,6 +53,29 @@ export async function generateMetadata({
 }: PageProps): Promise<Metadata> {
   const property = await resolveProperty(params);
   if (!property) return { title: `Properties | ${BRANDING.name}` };
+
+  // Metadata is gated without consulting ?g=: this is what a messaging
+  // app unfurls when the link is FORWARDED, and an unfurl carries no
+  // grant. A teaser listing therefore previews as its stub everywhere,
+  // and never appears in an index.
+  if (isTeaserGated(property)) {
+    const gatedOrigin = await resolveRequestOrigin();
+    const band = priceBand(property.price);
+    return {
+      title: teaserTitle(property),
+      description: `Confidential listing — details shared on request.${band ? ` Guide price ${band}.` : ''}`,
+      alternates: {
+        canonical: `${gatedOrigin}/property/${propertySlug(property)}`,
+      },
+      robots: { index: false, follow: false },
+      openGraph: {
+        title: teaserTitle(property),
+        description: 'Confidential listing — details shared on request.',
+        type: 'website',
+        url: `${gatedOrigin}/property/${propertySlug(property)}`,
+      },
+    };
+  }
 
   const description =
     (property.description || '').slice(0, 160) ||
@@ -92,9 +126,12 @@ export default async function PropertyPage({
   // form so crawlers converge on one URL per listing.
   const canonicalSlug = propertySlug(property);
   if (decodeURIComponent(slug) !== canonicalSlug) {
-    const suffix = resolvedParams.v
-      ? `?v=${encodeURIComponent(resolvedParams.v)}`
-      : '';
+    // The grant rides the redirect too — dropping ?g= here would send a
+    // recipient with a live key to the masked page instead.
+    const carried = new URLSearchParams();
+    if (resolvedParams.v) carried.set('v', resolvedParams.v);
+    if (resolvedParams.g) carried.set('g', resolvedParams.g);
+    const suffix = carried.size > 0 ? `?${carried}` : '';
     permanentRedirect(`/property/${canonicalSlug}${suffix}`);
   }
 
@@ -106,42 +143,71 @@ export default async function PropertyPage({
   const propertiesList = properties.some((p) => p.id === property.id)
     ? properties
     : [property, ...properties];
+  // Share grant (?g=), resolved against this listing so a token lifted
+  // from another share cannot widen it. Uncached: revocation has to bite
+  // on the next open.
+  const shareGrant = resolvedParams.g
+    ? await resolveShareGrant(
+        supabaseAdmin(),
+        resolvedParams.g,
+        property.id,
+        property.account_id
+      )
+    : null;
+  if (shareGrant) {
+    await trackGrantView(supabaseAdmin(), shareGrant);
+  }
+
   const publicProperties = toPublicProperties(
     propertiesList,
     agents,
     profiles,
-    isAgentMode
+    isAgentMode,
+    shareGrant
+      ? {
+          propertyId: shareGrant.property_id,
+          reveals: grantedReveals(shareGrant),
+        }
+      : null
   );
 
   const origin = await resolveRequestOrigin();
   const canonicalUrl = `${origin}/property/${canonicalSlug}`;
   const siteName = accountName || BRANDING.name;
 
+  // Structured data describes the listing to crawlers in the clear, so
+  // a teaser emits none of it — the page is noindex anyway.
+  const emitJsonLd = !isTeaserGated(property);
+
   return (
     <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: jsonLdScript(
-            propertyJsonLd(
-              property,
-              canonicalUrl,
-              `${origin}/api/properties/${property.id}/og-image`
-            )
-          ),
-        }}
-      />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: jsonLdScript(
-            breadcrumbJsonLd([
-              { name: siteName, url: origin },
-              { name: property.title, url: canonicalUrl },
-            ])
-          ),
-        }}
-      />
+      {emitJsonLd && (
+        <>
+          <script
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{
+              __html: jsonLdScript(
+                propertyJsonLd(
+                  property,
+                  canonicalUrl,
+                  `${origin}/api/properties/${property.id}/og-image`
+                )
+              ),
+            }}
+          />
+          <script
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{
+              __html: jsonLdScript(
+                breadcrumbJsonLd([
+                  { name: siteName, url: origin },
+                  { name: property.title, url: canonicalUrl },
+                ])
+              ),
+            }}
+          />
+        </>
+      )}
       <ShowcaseView
         properties={publicProperties}
         settings={settings}
@@ -150,6 +216,7 @@ export default async function PropertyPage({
         initialPropertyId={property.id}
         initialAgentMode={isAgentMode}
         visitorRef={resolvedParams.v}
+        shareGrantToken={shareGrant?.token}
       />
     </>
   );

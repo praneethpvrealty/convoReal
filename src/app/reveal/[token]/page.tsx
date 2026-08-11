@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { supabaseAdmin } from '@/lib/automations/admin-client';
+import { propertySlug } from '@/lib/showcase/property-slug';
 import { storagePublicUrl } from '@/lib/storage/url';
 import { googleMapsUrlForCoordinates } from '@/lib/maps/map-links';
 import { AlertTriangle, Clock, MapPin, ExternalLink } from 'lucide-react';
@@ -24,10 +26,46 @@ export default async function RevealPage({ params }: PageProps) {
 
   const admin = supabaseAdmin();
 
+  // A listing-scope approval sends the SHARE GRANT's token, not a
+  // reveal token (see approveRequestAndSendReveal). Resolve that first:
+  // it means the recipient was approved for the gated page, never for
+  // an address card, so the hop happens before any location lookup.
+  const { data: grantRow } = await admin
+    .from('property_share_grants')
+    .select(
+      'token, expires_at, revoked_at, reveal_listing, property:properties(id, title, type, bedrooms, showcase_visibility, sublocality, city, state)'
+    )
+    .eq('token', token)
+    .maybeSingle();
+
+  if (grantRow) {
+    const grant = grantRow as unknown as {
+      expires_at: string;
+      revoked_at: string | null;
+      reveal_listing: boolean;
+      property: unknown;
+    };
+    if (
+      !grant.reveal_listing ||
+      grant.revoked_at ||
+      new Date(grant.expires_at) <= new Date()
+    ) {
+      return <ErrorState reason="expired" />;
+    }
+    const target = (
+      Array.isArray(grant.property) ? grant.property[0] : grant.property
+    ) as // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    any;
+    if (!target) return <ErrorState reason="invalid" />;
+    redirect(
+      `/property/${propertySlug(target)}?g=${encodeURIComponent(token)}`
+    );
+  }
+
   const { data: locRequest, error } = await admin
     .from('property_location_requests')
     .select(
-      '*, property:properties(id, title, property_code, location, sublocality, city, state, google_map_link, latitude, longitude, images, private_images)'
+      '*, property:properties(id, title, property_code, type, bedrooms, showcase_visibility, location, sublocality, city, state, google_map_link, latitude, longitude, images, private_images)'
     )
     .eq('share_token', token)
     .maybeSingle();

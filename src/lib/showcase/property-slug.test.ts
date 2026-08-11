@@ -30,6 +30,36 @@ describe('propertySlug', () => {
   it('returns the bare id when no words survive slugification', () => {
     expect(propertySlug({ id: ID, title: '###' })).toBe(ID);
   });
+
+  // Caught end-to-end: the page withheld the address while the canonical
+  // URL and og:url it emitted spelled it out.
+  it('never puts a gated listing’s stored title in the URL', () => {
+    const slug = propertySlug({
+      id: ID,
+      title: 'Luxury Villa at 12 Kanakapura Main Road',
+      type: 'Villa',
+      bedrooms: 4,
+      sublocality: 'Kanakapura Road',
+      city: 'Bengaluru',
+      showcase_visibility: 'teaser',
+    });
+    expect(slug).not.toContain('main-road');
+    expect(slug).not.toContain('12');
+    expect(slug).toBe(
+      `4-bhk-villa-in-kanakapura-road-bengaluru-kanakapura-road-${ID}`
+    );
+  });
+
+  it('still resolves a gated slug back to the listing id', () => {
+    const slug = propertySlug({
+      id: ID,
+      title: 'Luxury Villa at 12 Kanakapura Main Road',
+      type: 'Villa',
+      sublocality: 'Kanakapura Road',
+      showcase_visibility: 'teaser',
+    });
+    expect(propertyLookupKeyFromSlug(slug)).toBe(ID);
+  });
 });
 
 describe('propertyLookupKeyFromSlug', () => {

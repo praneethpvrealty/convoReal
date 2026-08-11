@@ -7,7 +7,7 @@ import {
   RATE_LIMITS,
 } from "@/lib/rate-limit";
 import { storagePublicUrl } from "@/lib/storage/url";
-import { toPublicPropertyView } from "@/lib/inventory/location-guard";
+import { toPublicListingView } from "@/lib/inventory/showcase-visibility";
 import type { Property } from "@/types";
 
 const MAX_LIMIT = 50;
@@ -81,12 +81,13 @@ export async function GET(request: Request) {
     const client = supabaseAdmin();
     // NOTE: 'documents' is intentionally excluded — documents are private and
     // only accessible via approved share links (/docs/[token]). Rows are
-    // reduced through toPublicPropertyView, which withholds the exact
+    // reduced through toPublicListingView, which withholds the exact
     // address and map pin for location-guarded properties.
     const PUBLIC_PROPERTY_COLUMNS = [
       "id", "account_id", "title", "description", "price",
       "location", "sublocality", "city", "state", "type", "status",
-      "listing_type", "location_privacy", "bedrooms", "bathrooms",
+      "listing_type", "location_privacy", "showcase_visibility",
+      "bedrooms", "bathrooms",
       "area_sqft", "area_unit",
       "land_area", "land_area_unit", "super_built_area", "project",
       "land_zone", "ideal_for", "dimensions", "road_width", "road_width_unit",
@@ -150,7 +151,7 @@ export async function GET(request: Request) {
     }
 
     const resolved = ((data ?? []) as unknown as Property[]).map((row) => {
-      const view = toPublicPropertyView(row, { revealExact: true });
+      const view = toPublicListingView(row, { revealExact: true });
       return {
         ...view,
         images: Array.isArray(view.images)
