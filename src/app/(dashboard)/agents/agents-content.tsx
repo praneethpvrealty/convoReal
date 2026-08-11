@@ -277,7 +277,7 @@ export default function AgentsPage() {
       (a) =>
         (a.name && a.name.toLowerCase().includes(q)) ||
         (a.company && a.company.toLowerCase().includes(q)) ||
-        a.phone.includes(q)
+        (a.phone?.includes(q) ?? false)
     );
   }, [agents, searchQuery]);
 

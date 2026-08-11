@@ -41,6 +41,7 @@ import {
   type TodaysAgenda,
 } from '@/lib/today/queries'
 import { daysAgoStart, startOfLocalDay } from '@/lib/dashboard/date-utils'
+import { hasPhone } from '@/lib/contacts/reachability'
 import type { Contact } from '@/types'
 
 const HOUR_MS = 3_600_000
@@ -282,6 +283,10 @@ export default function TodayPage() {
   }
 
   const handleOpenChatForContact = async (contact: Contact) => {
+    if (!hasPhone(contact)) {
+      toast.error('This contact has no phone number')
+      return
+    }
     const db = createClient()
     const { data, error } = await db
       .from('conversations')
@@ -301,6 +306,10 @@ export default function TodayPage() {
 
   /** Open native WhatsApp, mark contacted, and log a note in one click. */
   const handleWhatsAppDirect = async (contact: Contact) => {
+    if (!hasPhone(contact)) {
+      toast.error('This contact has no phone number')
+      return
+    }
     // 1. Open WhatsApp immediately (must be synchronous for popup blocker)
     window.open(`https://wa.me/${contact.phone.replace(/\D/g, '')}`, '_blank')
 
@@ -616,7 +625,7 @@ export default function TodayPage() {
                   <div className="flex items-start gap-3 min-w-0">
                     <Avatar className="size-9 border border-slate-800 shrink-0">
                       <AvatarFallback className="bg-amber-500/10 text-xs font-black text-amber-400">
-                        {(contact.name || contact.phone).charAt(0).toUpperCase()}
+                        {(contact.name || contact.phone || '?').charAt(0).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                     <div className="min-w-0">

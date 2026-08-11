@@ -26,6 +26,7 @@ import { supabase } from '@/lib/supabase';
 import { fonts, spacing, useTheme } from '@/lib/theme';
 import type { Contact } from '@/lib/types';
 import { usePullRefresh } from '@/lib/use-pull-refresh';
+import { contactHandle, hasPhone } from '@/lib/reachability';
 
 /** Side-by-side panes need this much width; below it the directory
  *  behaves like every other phone list and pushes the contact screen. */
@@ -90,7 +91,7 @@ export default function AgentsScreen() {
       !q ||
       a.name?.toLowerCase().includes(q) ||
       a.company?.toLowerCase().includes(q) ||
-      a.phone.includes(q)
+      a.phone?.includes(q)
   );
 
   // Desktop parity: something is always selected once agents load.
@@ -223,7 +224,7 @@ function AgentRow({
         },
       ])}
     >
-      <Avatar name={agent.name || agent.phone} size={46} />
+      <Avatar name={agent.name || contactHandle(agent)} size={46} />
       <View style={{ flex: 1, gap: 3 }}>
         <View style={styles.nameRow}>
           <Text

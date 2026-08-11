@@ -2108,12 +2108,12 @@ export async function processOwnerChatbotMessage(
 
       // Save notes as contact_notes rows for contacts that have notes
       const noteRows = inserted
-        .filter((c: Contact) => notesMap[c.phone])
+        .filter((c: Contact) => c.phone && notesMap[c.phone])
         .map((c: Contact) => ({
           contact_id: c.id,
           user_id: userId,
           account_id: accountId,
-          note_text: notesMap[c.phone]!.trim(),
+          note_text: notesMap[c.phone!]!.trim(),
         }));
 
       if (noteRows.length > 0) {

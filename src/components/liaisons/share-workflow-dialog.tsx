@@ -18,6 +18,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { SearchableContactSelect } from '@/components/ui/searchable-contact-select';
 import { Copy, ExternalLink, Loader2, Send } from 'lucide-react';
+import { contactHandle } from '@/lib/contacts/reachability';
 
 interface ShareWorkflowDialogProps {
   open: boolean;
@@ -128,7 +129,7 @@ export function ShareWorkflowDialog({ open, onOpenChange, workflow }: ShareWorkf
             <SearchableContactSelect
               contacts={contacts.map((c) => ({
                 id: c.id,
-                name: c.name ?? c.phone,
+                name: c.name ?? contactHandle(c),
                 phone: c.phone,
                 name_tag: c.name_tag,
               }))}

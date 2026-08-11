@@ -67,7 +67,7 @@ export function ApproveCelebration({
                 label: 'Send on WhatsApp',
                 onPress: () => {
                   onClose();
-                  const phone = contact.phone.replace(/\D/g, '');
+                  const phone = (contact.phone ?? '').replace(/\D/g, '');
                   const text = encodeURIComponent(outcome.detailsMessage!);
                   Linking.openURL(`https://wa.me/${phone}?text=${text}`);
                 },

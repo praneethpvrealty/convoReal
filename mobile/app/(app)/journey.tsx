@@ -143,7 +143,7 @@ export default function JourneyScreen() {
                 onPress: () => {
                   close();
                   Linking.openURL(
-                    `https://wa.me/${contact.phone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`
+                    `https://wa.me/${(contact.phone ?? '').replace(/\D/g, '')}?text=${encodeURIComponent(message)}`
                   );
                 },
               },

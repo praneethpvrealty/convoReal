@@ -46,6 +46,7 @@ import type { Property } from '@/lib/types';
 // The row shape the server sanitizes into. Type-only, so nothing from
 // the web lib reaches the bundle.
 import type { FloorTenancy } from '@shared/lib/inventory/floor-tenancies';
+import { contactHandle, hasPhone } from '@/lib/reachability';
 
 const STATUSES = ['Available', 'Under Contract', 'Sold', 'Off Market', 'Archived'] as const;
 
@@ -736,7 +737,7 @@ function EditForm({ property }: { property: Property }) {
         hint="Search your contacts — the assigned person shows on the property and gets owner digests."
         onSelect={(contact) => {
           setOwnerContactId(contact.id);
-          setOwnerLabel(contact.name || contact.phone);
+          setOwnerLabel(contact.name || contactHandle(contact));
           setSheet(null);
         }}
         skipLabel={ownerContactId ? 'Clear assignment' : undefined}

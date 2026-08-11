@@ -406,7 +406,7 @@ export function JourneyItemSheet({
                     className="flex-1"
                     onClick={() =>
                       window.open(
-                        `https://wa.me/${contact.phone.replace(/\D/g, "")}?text=${encodeURIComponent(checkInMessage)}`,
+                        `https://wa.me/${(contact.phone ?? "").replace(/\D/g, "")}?text=${encodeURIComponent(checkInMessage)}`,
                         "_blank",
                         "noopener,noreferrer",
                       )

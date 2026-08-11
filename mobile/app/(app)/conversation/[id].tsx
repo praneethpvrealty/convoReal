@@ -446,7 +446,7 @@ export default function ConversationScreen() {
                       startCall({
                         id: conversation.contact!.id,
                         name: conversation.contact!.name,
-                        phone: conversation.contact!.phone,
+                        phone: conversation.contact!.phone ?? '',
                       })
                   : undefined
               }

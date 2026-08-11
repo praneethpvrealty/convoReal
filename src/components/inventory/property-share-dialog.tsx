@@ -62,6 +62,7 @@ import {
   type ShareTone,
 } from '@/lib/share-message-builder';
 import { MessageCircle, Mail, RotateCcw, User, Handshake, Megaphone, Image as ImageIcon } from 'lucide-react';
+import { hasPhone } from '@/lib/contacts/reachability';
 
 /** A live grant as the list endpoint returns it, with the recipient
  *  joined when the grant was minted for a named contact. */
@@ -569,8 +570,9 @@ export function PropertyShareDialog({
 
   const personalContacts = useMemo(() => {
     const q = personalSearch.toLowerCase().trim();
-    if (!q) return contacts;
-    return contacts.filter(
+    const reachable = contacts.filter(hasPhone);
+    if (!q) return reachable;
+    return reachable.filter(
       (c) => (c.name || '').toLowerCase().includes(q) || (c.phone || '').includes(q),
     );
   }, [contacts, personalSearch]);
@@ -620,7 +622,7 @@ export function PropertyShareDialog({
     void (async () => {
       const token = needsGrant ? await ensureContactGrant(contact.id) : null;
       const message = buildPersonalMessage(contact, token);
-      const phone = contact.phone.replace(/\D/g, '');
+      const phone = (contact.phone ?? '').replace(/\D/g, '');
       const href = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
       if (pending) pending.location.href = href;
       else window.open(href, '_blank', 'noopener');
@@ -820,7 +822,11 @@ export function PropertyShareDialog({
   const matchedContacts = useMemo(() => {
     if (!property || contacts.length === 0) return [];
     // Standard matched target pool
-    const targetContacts = contacts.filter((c) => c.classification === 'Buyer' || c.classification === 'Agent');
+    // Every route out of this dialog is a WhatsApp send, so an
+    // email-only contact cannot be a target.
+    const targetContacts = contacts.filter(
+      (c) => hasPhone(c) && (c.classification === 'Buyer' || c.classification === 'Agent'),
+    );
     return getMatchingContacts(property, targetContacts);
   }, [contacts, property]);
 
@@ -860,6 +866,7 @@ export function PropertyShareDialog({
     } else {
       const q = searchQuery.toLowerCase().trim();
       const filtered = contacts.filter((c) => {
+        if (!hasPhone(c)) return false;
         if (c.classification === 'Agent' && !showAgentsInMatches) return false;
         return (
           (c.name && c.name.toLowerCase().includes(q)) ||
@@ -1132,7 +1139,7 @@ export function PropertyShareDialog({
           if (mapping) {
             if (mapping.type === 'field') {
               if (mapping.value === 'name') val = contact.name || 'Customer';
-              else if (mapping.value === 'phone') val = contact.phone;
+              else if (mapping.value === 'phone') val = contact.phone ?? '';
               else if (mapping.value === 'email') val = contact.email || '';
               else if (mapping.value === 'company') val = contact.company || '';
             } else {
@@ -1246,13 +1253,14 @@ export function PropertyShareDialog({
       const resultsMap = selectedContacts.map((c) => {
         const matchResult = resData.results?.find(
           (r: { phone: string; status?: 'sent' | 'failed' | null; error?: string | null }) =>
-            r.phone === c.phone ||
-            r.phone.includes(c.phone) ||
-            c.phone.includes(r.phone)
+            c.phone !== null &&
+            (r.phone === c.phone ||
+              r.phone.includes(c.phone) ||
+              c.phone.includes(r.phone))
         );
         return {
           name: c.name || 'Unknown',
-          phone: c.phone,
+          phone: c.phone ?? '',
           status: (matchResult?.status || 'failed') as 'sent' | 'failed',
           error: matchResult?.error || (matchResult?.status === 'failed' ? 'Delivery failure' : undefined),
         };
@@ -1315,13 +1323,14 @@ export function PropertyShareDialog({
       const resultsMap = selectedContacts.map((c) => {
         const matchResult = resData.results?.find(
           (r: { phone: string; status?: 'sent' | 'failed' | null; error?: string | null }) =>
-            r.phone === c.phone ||
-            r.phone.includes(c.phone) ||
-            c.phone.includes(r.phone)
+            c.phone !== null &&
+            (r.phone === c.phone ||
+              r.phone.includes(c.phone) ||
+              c.phone.includes(r.phone))
         );
         return {
           name: c.name || 'Unknown',
-          phone: c.phone,
+          phone: c.phone ?? '',
           status: (matchResult?.status || 'failed') as 'sent' | 'failed',
           error: matchResult?.error || (matchResult?.status === 'failed' ? 'Delivery failure' : undefined),
         };
@@ -1380,13 +1389,14 @@ export function PropertyShareDialog({
       const resultsMap = selectedContacts.map((c) => {
         const matchResult = resData.results?.find(
           (r: { phone: string; status?: 'sent' | 'failed' | null; error?: string | null }) =>
-            r.phone === c.phone ||
-            r.phone.includes(c.phone) ||
-            c.phone.includes(r.phone)
+            c.phone !== null &&
+            (r.phone === c.phone ||
+              r.phone.includes(c.phone) ||
+              c.phone.includes(r.phone))
         );
         return {
           name: c.name || 'Unknown',
-          phone: c.phone,
+          phone: c.phone ?? '',
           status: (matchResult?.status || 'failed') as 'sent' | 'failed',
           error: matchResult?.error || (matchResult?.status === 'failed' ? 'Delivery failure' : undefined),
         };

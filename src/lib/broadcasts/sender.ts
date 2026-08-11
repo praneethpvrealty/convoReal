@@ -13,6 +13,7 @@ import {
 } from './enquiry-notice-params';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Contact } from '@/types';
+import { hasPhone } from '@/lib/contacts/reachability';
 
 export interface CustomFieldFilter {
   fieldId: string;
@@ -75,7 +76,7 @@ export function resolveVariables(
       // greetable fallback instead.
       const fieldMap: Record<string, string | undefined> = {
         name: greetingName(contact.name),
-        phone: contact.phone,
+        phone: contact.phone ?? undefined,
         email: contact.email,
         company: contact.company,
       };
@@ -245,8 +246,11 @@ export async function resolveAudienceOnServer(
   // Dead and archived contacts drop out on the same principle
   // (migration 229): the dispatcher refuses them anyway, and filtering
   // here keeps them out of the recipient rows and the reach count too.
+  // Email-only contacts (migration 252) have no WhatsApp number at all,
+  // so they cannot be an audience for a WhatsApp broadcast.
   return contacts.filter(
     (c) =>
+      hasPhone(c) &&
       c.buyer_alerts_consent !== 'declined' &&
       !c.chain_only &&
       isContactReachable(c)

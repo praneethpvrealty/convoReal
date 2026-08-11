@@ -22,6 +22,7 @@ import { SearchableContactSelect } from "@/components/ui/searchable-contact-sele
 import { SearchablePropertySelect } from "@/components/ui/searchable-property-select";
 import type { Contact, Property } from "@/types";
 import { navigateJourney } from "./shared";
+import { contactHandle } from '@/lib/contacts/reachability';
 
 export function NewJourneyDialog({
   open,
@@ -88,7 +89,7 @@ export function NewJourneyDialog({
             <SearchableContactSelect
               contacts={contacts.map((c) => ({
                 id: c.id,
-                name: c.name ?? c.phone,
+                name: c.name ?? contactHandle(c),
                 phone: c.phone,
                 name_tag: c.name_tag,
               }))}

@@ -25,6 +25,7 @@ import { supabase } from '@/lib/supabase';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import type { AppointmentType, Contact } from '@/lib/types';
 import { voiceHints, type VoicePrefill } from '@/lib/voice-event';
+import { contactHandle, hasPhone } from '@/lib/reachability';
 
 const TYPES: { value: AppointmentType; label: string; icon: string }[] = [
   { value: 'site_visit', label: 'Site visit', icon: 'location-outline' },
@@ -254,9 +255,9 @@ export default function NewAppointmentScreen() {
 
         {contact ? (
           <View style={[styles.contactRow, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Avatar name={contact.name || contact.phone} size={30} />
+            <Avatar name={contact.name || contactHandle(contact)} size={30} />
             <Text style={{ flex: 1, fontSize: 14.5, fontFamily: f.semibold, color: colors.text }}>
-              {contact.name || contact.phone}
+              {contact.name || contactHandle(contact)}
             </Text>
             <Pressable
               onPress={() => setContact(null)}
@@ -283,7 +284,7 @@ export default function NewAppointmentScreen() {
                   setContactSearch('');
                 }}
               >
-                <Avatar name={c.name || c.phone} size={30} />
+                <Avatar name={c.name || contactHandle(c)} size={30} />
                 <Text
                   style={{ flexShrink: 1, fontSize: 14.5, color: colors.text }}
                   numberOfLines={1}

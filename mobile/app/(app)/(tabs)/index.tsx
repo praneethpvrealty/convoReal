@@ -61,6 +61,7 @@ import {
 } from '@/lib/theme';
 import { useCredits } from '@/lib/use-credits';
 import { usePullRefresh } from '@/lib/use-pull-refresh';
+import { contactHandle, hasPhone } from '@/lib/reachability';
 
 const FILTERS = [
   'All',
@@ -309,7 +310,7 @@ function HotLeadsStrip() {
       contentContainerStyle={{ paddingHorizontal: spacing.lg, gap: spacing.md }}
     >
       {data.map((c) => {
-        const name = c.name || c.phone;
+        const name = c.name || contactHandle(c);
         return (
           <Link key={c.id} href={`/(app)/contact/${c.id}`} asChild>
             <Pressable style={{ alignItems: 'center', gap: 4, width: 62 }}>

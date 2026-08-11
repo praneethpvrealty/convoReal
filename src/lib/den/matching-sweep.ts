@@ -29,6 +29,7 @@ import type { Contact, MatchEventTarget, Property } from "@/types";
 import { getMatchingContacts, type MatchDetails } from "@/lib/matching";
 import { buildMaskedPropertySnapshot, type MaskedPropertySnapshot } from "./masking";
 import { sendDenNotification } from "./notify";
+import { contactHandle } from '@/lib/contacts/reachability';
 
 const MIN_SCORE = 60;
 const MAX_TARGETS = 12;
@@ -130,8 +131,8 @@ export async function runDealModeSweep(
 
       const targets: MatchEventTarget[] = results.map((r) => ({
         id: r.contact.id,
-        name: r.contact.name || r.contact.phone,
-        detail: r.contact.phone,
+        name: r.contact.name || contactHandle(r.contact),
+        detail: contactHandle(r.contact) || null,
         score: r.score,
         chips: chipsFromDetails(r.details),
       }));

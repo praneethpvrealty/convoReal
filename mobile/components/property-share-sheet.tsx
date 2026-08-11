@@ -42,6 +42,7 @@ import {
 import { fetchShowcaseSubdomain } from '@/lib/showcase-settings';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import type { Contact, Property } from '@/lib/types';
+import { contactHandle, hasPhone } from '@/lib/reachability';
 
 const TONES: { value: ShareTone; label: string }[] = [
   { value: 'professional', label: '💼 Professional' },
@@ -161,7 +162,7 @@ export function PropertyShareSheet({
     setPicker(null);
     haptic.send();
     void logExternalShare(contact, property);
-    const phone = contact.phone.replace(/\D/g, '');
+    const phone = (contact.phone ?? '').replace(/\D/g, '');
     // Tag the link with v=<contactId> so the recipient's opens, swipes and
     // dwell show by name in Showcase Pulse instead of as an Anonymous Guest
     // (v= only attributes events, never filters). `url` already carries
@@ -329,9 +330,9 @@ export function PropertyShareSheet({
       if (outcome.sent) {
         reached.push(c.id);
       } else if (outcome.templateStatus) {
-        blocked.push(c.name || c.phone);
+        blocked.push(c.name || contactHandle(c));
       } else {
-        failed.push(c.name || c.phone);
+        failed.push(c.name || contactHandle(c));
       }
     }
     const sent = reached.length;

@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/dialog";
 import type { Contact, Property } from "@/types";
 import type { JourneyMode } from "./shared";
+import { contactHandle } from "@/lib/contacts/reachability";
 
 export interface AddItemsDialogProps {
   open: boolean;
@@ -204,8 +205,8 @@ export function AddItemsDialog({
           setRows(
             ((data ?? []) as Contact[]).map((c) => ({
               id: c.id,
-              title: c.name || c.phone,
-              subtitle: [c.phone, c.classification, c.lead_temp]
+              title: c.name || contactHandle(c),
+              subtitle: [contactHandle(c), c.classification, c.lead_temp]
                 .filter(Boolean)
                 .join(" · "),
               badge: c.name_tag,

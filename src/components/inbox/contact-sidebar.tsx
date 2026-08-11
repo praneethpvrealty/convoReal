@@ -25,6 +25,7 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { storagePublicUrl } from "@/lib/storage/url";
+import { contactHandle } from "@/lib/contacts/reachability";
 
 interface ContactSidebarProps {
   contact: Contact | null;
@@ -262,7 +263,7 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
     );
   }
 
-  const displayName = contact.name || contact.phone;
+  const displayName = contact.name || contactHandle(contact);
   const initials = displayName.charAt(0).toUpperCase();
 
   return (

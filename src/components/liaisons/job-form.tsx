@@ -19,6 +19,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { SearchableContactSelect } from '@/components/ui/searchable-contact-select';
 import { SearchablePropertySelect } from '@/components/ui/searchable-property-select';
 import { Loader2 } from 'lucide-react';
+import { contactHandle } from '@/lib/contacts/reachability';
 
 function parseAmount(raw: string): number | null {
   const n = Number(raw);
@@ -240,7 +241,7 @@ export function JobForm({
               <SearchableContactSelect
                 contacts={contacts.map((c) => ({
                   id: c.id,
-                  name: c.name ?? c.phone,
+                  name: c.name ?? contactHandle(c),
                   phone: c.phone,
                   name_tag: c.name_tag,
                 }))}

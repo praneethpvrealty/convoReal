@@ -122,7 +122,10 @@ export interface AreaOfInterestGeo {
 export interface Contact {
   id: string;
   user_id: string;
-  phone: string;
+  /** Null for records that only ever had an email — company/developer
+   *  contacts imported from a mailbox. Every WhatsApp path must skip
+   *  them rather than assume a number (migration 252). */
+  phone: string | null;
   secondary_phones?: string[];
   name?: string;
   /** Second name (surname) — with `name` forms the per-account unique
