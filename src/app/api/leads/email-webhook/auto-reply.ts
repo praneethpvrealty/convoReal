@@ -2,6 +2,12 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { sendTextMessage, sendTemplateMessage } from '@/lib/whatsapp/meta-api';
 import { decrypt } from '@/lib/whatsapp/encryption';
 import { EmailSyncConfig, MessageTemplate } from '@/types';
+import {
+  accountDefaultLanguage,
+  pickTemplateForLanguage,
+  isLanguageFallback,
+  warnLanguageFallback,
+} from '@/lib/whatsapp/template-language';
 import { greetingName } from '@/lib/contacts/lead-placeholder';
 
 export interface SendAutoReplyResult {
@@ -86,14 +92,32 @@ export async function sendAutoReply({
     // ── Primary template (from syncConfig) ──
     let template: MessageTemplate | null = null;
     if (syncConfig?.auto_reply_template_name) {
-      const { data: foundTemplate } = await supabase
+      // Every approved variant, then the account's language.
+      //
+      // A brand-new portal lead has no contact row yet, so there is no
+      // per-person preference to read — the brokerage's default is the
+      // only signal, and it is the right one: a Chennai agency's first
+      // reply should be the Tamil one.
+      //
+      // The .maybeSingle() this replaces was also a latent break: it
+      // errors outright on more than one row, so the first account to
+      // approve a second language variant would have lost every
+      // auto-reply rather than sending the wrong language.
+      const { data: variants } = await supabase
         .from('message_templates')
         .select('*')
         .eq('account_id', accountId)
         .eq('name', syncConfig.auto_reply_template_name)
         .eq('status', 'APPROVED')
-        .maybeSingle();
-      template = foundTemplate as unknown as MessageTemplate;
+        .order('last_submitted_at', { ascending: false });
+      const language = await accountDefaultLanguage(supabase, accountId);
+      template = pickTemplateForLanguage(
+        (variants ?? []) as MessageTemplate[],
+        language,
+      );
+      if (template && isLanguageFallback(template, language)) {
+        warnLanguageFallback('lead-auto-reply', accountId, language, template);
+      }
       if (template) {
         console.log(`${logPrefix} Primary template resolved: ${template.name} (lang: ${template.language || 'en_US'})`);
       } else {

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getCurrentAccount, toErrorResponse } from '@/lib/auth/account'
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit'
 import { generateJson } from '@/lib/ai/gemini'
+import { REPLY_LANGUAGE_RULE } from '@/lib/languages'
 
 /**
  * POST /api/whatsapp/suggest-replies — AI draft replies for the inbox.
@@ -50,7 +51,7 @@ const SYSTEM_PROMPT = `You are a helpful assistant for a real-estate agent reply
 Given the recent conversation, write ${MAX_SUGGESTIONS} short reply options the agent could send next.
 
 Rules:
-- Reply in the SAME language and script the client is using (English, Hindi, Hinglish, etc.).
+- ${REPLY_LANGUAGE_RULE}
 - Keep each reply to one or two sentences — natural, warm, WhatsApp-style, no greetings block or signature.
 - Make the options meaningfully different from each other (e.g. answer a question, ask a clarifying question, propose a next step).
 - Never invent specific property details, prices, or addresses that are not in the conversation.

@@ -8,6 +8,7 @@
 // ============================================================
 
 import type { Property } from '@/types';
+import { REPLY_LANGUAGE_RULE } from '@/lib/languages';
 
 export type CatalogListing = Pick<
   Property,
@@ -228,4 +229,5 @@ export const CATALOG_QA_SYSTEM_PROMPT =
   `You are a helpful assistant on a real-estate agency's public property portal, answering a visitor's questions about the agency's CURRENT listings. ` +
   `Answer ONLY from the listing lines provided. Keep replies short (1-3 sentences), factual and friendly, and name specific listings when they fit. ` +
   `If nothing in the list matches what they asked for, say so plainly and offer to pass their requirement to the agent — do NOT invent listings, prices, areas or amenities. ` +
-  `Never promise a discount, confirm negotiability, quote loan/EMI figures, or give legal advice; for those, say the agent will help directly.`;
+  `Never promise a discount, confirm negotiability, quote loan/EMI figures, or give legal advice; for those, say the agent will help directly. ` +
+  REPLY_LANGUAGE_RULE;

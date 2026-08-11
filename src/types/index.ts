@@ -1,4 +1,5 @@
 import type { AccountRole, OrgRole } from '@/lib/auth/roles';
+import type { LanguageCode } from '@/lib/languages';
 
 export interface Profile {
   id: string;
@@ -65,6 +66,9 @@ export interface Account {
   name: string;
   /** auth.users.id of the immutable owner. */
   owner_user_id: string;
+  /** Outbound language used when the recipient's own is unknown
+   *  (migration 246). Defaults to English. */
+  default_language?: LanguageCode;
   created_at: string;
   updated_at: string;
 }
@@ -129,6 +133,10 @@ export interface Contact {
    *  (e.g. "Bank DSA"). Never included in outbound messages, which use
    *  `name` only (migration 122). */
   name_tag?: string | null;
+  /** Language this contact reads (migration 246). Null means unknown —
+   *  the send path falls back to the account default, so null and 'en'
+   *  are deliberately different: 'en' is a choice an agent made. */
+  preferred_language?: LanguageCode | null;
   email?: string;
   company?: string;
   classification?:
@@ -594,6 +602,11 @@ export interface MessageTemplate {
   quality_score?: 'GREEN' | 'YELLOW' | 'RED';
   submission_error?: string;
   last_submitted_at?: string;
+  /** When a reader of this language signed the copy off (migration
+   *  244). Null blocks submission of a non-English Engine template,
+   *  and is cleared automatically whenever the body changes. */
+  translation_reviewed_at?: string | null;
+  translation_reviewed_by?: string | null;
   created_at: string;
 }
 
@@ -704,7 +717,8 @@ export type JourneyEventType =
   | 'hidden'
   | 'unhidden'
   | 'planned'
-  | 'plan_cleared';
+  | 'plan_cleared'
+  | 'client_response';
 
 export interface JourneyEvent {
   id: string;

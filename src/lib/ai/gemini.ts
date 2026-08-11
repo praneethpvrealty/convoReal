@@ -379,16 +379,18 @@ export async function classifyImageOrText(
   text?: string,
   buffer?: Buffer,
   mimeType?: string
-): Promise<'property' | 'contact' | 'schedule' | 'none'> {
+): Promise<'property' | 'contact' | 'schedule' | 'client_reply' | 'none'> {
   const systemInstruction =
     "You are an expert real estate lead classifier. Your job is to classify if the incoming message (which can be text and/or an image) is:\n" +
     "1. 'property': A property listing to be added to inventory, layout plan, listing advertisement, or property details description.\n" +
     "2. 'contact': Contact details, vCard details, request to add/save a contact/lead, screenshot of contact/profile details, or lead forwarding/inquiry messages containing contact name/phone and their property interest (e.g. 'VaishaliGaur, 917737932199 is interested in SJR Blue Waters' or Magicbricks/99acres/Housing forwards).\n" +
     "3. 'schedule': A meeting, site visit, call or appointment being arranged or confirmed for a stated day/time — typically a screenshot of a chat thread where two people settle on when to meet (e.g. 'Monday 5 pm the meeting with the lawyer is confirmed right' / 'Yes, its confirmed'), or a calendar invite screenshot.\n" +
-    "4. 'none': None of the above.\n\n" +
+    "4. 'client_reply': A screenshot of a WhatsApp chat thread where an EXISTING client/lead is replying with a status update or decision about a property that was already shared or discussed with them — e.g. answering a follow-up/check-in like 'just checking in on <property>... are you still considering?' with 'I will speak to the chairman and let you know', 'still thinking about it', 'we liked it, will confirm next week'. The thread typically shows the agent's earlier property link/check-in and the other party's response bubble.\n" +
+    "5. 'none': None of the above.\n\n" +
     "Precedence: when BOTH property listing details (area/sq ft, dimensions like 50x75, facing, price in cr/lakh, plot/site number, BHK) AND a person's name/phone are present, classify as 'property' — the listing is the primary intent. Reserve 'contact' for messages whose main purpose is saving a person or forwarding a buyer's interest/requirement.\n" +
-    "'schedule' is the narrowest class and never wins over the other two: a listing or a lead forward that merely mentions a day ('call him on Monday', 'site visit possible this weekend') is still 'property' or 'contact'. Choose 'schedule' only when arranging or confirming the WHEN is the entire point of the message and a specific day or time is actually stated.\n" +
-    "Only respond with exactly 'property', 'contact', 'schedule', or 'none'. Absolutely no markdown, no punctuation, and no other text.";
+    "'client_reply' beats 'property' and 'contact' for a two-sided chat screenshot whose point is the OTHER party's answer about an already-shared listing: the property preview card or code (e.g. PROP-1138) inside such a thread is context, not a new listing, and the person replying is already known, not a new lead to save. Reserve 'contact' for forwards that INTRODUCE a person.\n" +
+    "'schedule' is the narrowest class and never wins over the other two: a listing or a lead forward that merely mentions a day ('call him on Monday', 'site visit possible this weekend') is still 'property' or 'contact'. Choose 'schedule' only when arranging or confirming the WHEN is the entire point of the message and a specific day or time is actually stated. A vague promise to get back ('will let you know', 'soon') is 'client_reply', not 'schedule'.\n" +
+    "Only respond with exactly 'property', 'contact', 'schedule', 'client_reply', or 'none'. Absolutely no markdown, no punctuation, and no other text.";
 
   const parts: GeminiPart[] = [];
   if (buffer && mimeType) {
@@ -406,6 +408,7 @@ export async function classifyImageOrText(
   try {
     const response = await generateContentRaw(contents, systemInstruction, false, { tier: 'lite', feature: 'chatbot_classify' });
     const classification = response.toLowerCase().trim();
+    if (classification.includes("client_reply") || classification.includes("client")) return "client_reply";
     if (classification.includes("property")) return "property";
     if (classification.includes("schedule")) {
       // A listing poster that also names a viewing day must not be
@@ -1141,6 +1144,70 @@ export async function parseContactFromImageOrText(
     console.error("[Gemini AI] Error parsing contact details:", err);
     throw err;
   }
+}
+
+/** A client's status reply about an already-shared property, read out of
+ *  a forwarded chat screenshot (or pasted text). All fields nullable —
+ *  matching against the Engine's contacts/properties happens downstream. */
+export interface ParsedClientReply {
+  client_name: string | null;
+  client_phone: string | null;
+  property_code: string | null;
+  property_title: string | null;
+  response_summary: string | null;
+  next_action: string | null;
+  timeline_hint: string | null;
+}
+
+/**
+ * Parses the client's response out of a forwarded conversation screenshot
+ * and/or text. The "client" is the OTHER party in the thread — not the
+ * agent who forwarded it.
+ */
+export async function parseClientReplyFromImageOrText(
+  text?: string,
+  buffer?: Buffer,
+  mimeType?: string
+): Promise<ParsedClientReply> {
+  const systemInstruction =
+    "You are reading a WhatsApp chat between a real-estate agent and their client about a property that was already shared. Extract what the CLIENT (the other party, not the agent) replied.\n" +
+    "Return a JSON object with this structure:\n" +
+    "{\n" +
+    "  \"client_name\": \"The client's name — from the chat header/contact name if visible, or as addressed in the messages (e.g. 'Hi Surya' -> 'Surya') — or null\",\n" +
+    "  \"client_phone\": \"The client's phone number if visible (numeric digits only) or null\",\n" +
+    "  \"property_code\": \"The property reference code if one appears, exactly as printed (e.g. 'PROP-1138') or null\",\n" +
+    "  \"property_title\": \"The property's title/description as it appears in the thread (e.g. 'About 3 acres for an outright sale in Sarjapur') or null\",\n" +
+    "  \"response_summary\": \"One short third-person sentence stating the client's latest response about the property (e.g. 'Will speak to the chairman in person and get back') or null\",\n" +
+    "  \"next_action\": \"What the client said they will do next, if anything (e.g. 'Speak to the chairman') or null\",\n" +
+    "  \"timeline_hint\": \"When the client said they will get back, if stated (e.g. 'tomorrow', 'next week') or null\"\n" +
+    "}\n\n" +
+    "Rules:\n" +
+    "1. In a WhatsApp screenshot the agent's own messages are right-aligned (green bubbles); the client's are left-aligned. The client is the left side.\n" +
+    "2. Summarize only the client's LATEST reply about the property — earlier small talk or unrelated messages do not belong in response_summary.\n" +
+    "3. Never invent a name, code, or timeline that is not visible. null is the correct answer for anything not present.\n" +
+    "4. Output MUST be valid JSON.";
+
+  const parts: GeminiPart[] = [];
+  if (buffer && mimeType) {
+    parts.push({ inlineData: { mimeType, data: buffer.toString("base64") } });
+  }
+  parts.push({
+    text: text
+      ? `Extract the client's response:\n\n"${text}"`
+      : "Extract the client's response from the provided chat screenshot.",
+  });
+
+  const rawResult = await generateContentRaw([{ parts }], systemInstruction, true, { feature: 'contact_parse' });
+  const parsed = parseGeminiResponse(rawResult) as unknown as Partial<ParsedClientReply>;
+  return {
+    client_name: parsed.client_name || null,
+    client_phone: parsed.client_phone ? (normalizePhoneWithCountryCode(parsed.client_phone) || null) : null,
+    property_code: parsed.property_code || null,
+    property_title: parsed.property_title || null,
+    response_summary: parsed.response_summary || null,
+    next_action: parsed.next_action || null,
+    timeline_hint: parsed.timeline_hint || null,
+  };
 }
 
 /**

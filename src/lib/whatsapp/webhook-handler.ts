@@ -54,9 +54,17 @@ import {
   summarizePreferenceUpdate,
   PREFERENCE_FLOW_BUTTON_ID,
 } from '@/lib/whatsapp/preference-flow'
-import { ENQUIRY_FOLLOWUP_CLOSE_BUTTON } from '@/lib/whatsapp/enquiry-followup-template'
-import { JOURNEY_CHECKIN_CLOSE_BUTTON } from '@/lib/whatsapp/journey-checkin-template'
-import { ENQUIRY_NOTICE_CLOSE_BUTTON } from '@/lib/whatsapp/enquiry-notice-template'
+import { JOURNEY_CHECKIN_KEEP_BUTTON } from '@/lib/whatsapp/journey-checkin-template'
+import {
+  CLIENT_FOLLOWUP_PREFIX,
+  handleClientFollowupReply,
+  handleInboxCheckinReply,
+} from '@/lib/journey/client-response'
+// The per-template CLOSE_BUTTON constants are gone from here on
+// purpose: matchTemplateButton resolves a tap to its action in any
+// language we send, and comparing against one English string again
+// would silently stop working for every translated template.
+import { matchTemplateButton } from '@/lib/whatsapp/template-copy'
 import { accountPropertyShowcaseUrl } from '@/lib/showcase/account-showcase-url'
 import type { Contact } from '@/types'
 import {
@@ -1307,16 +1315,51 @@ async function processMessage(
   // chat-as-control-panel pattern as the owner digest commands above,
   // editing contacts.buyer_alerts_consent.
   //
-  // Both enquiry templates carry their own copy of the label. They read
-  // identically today, so matching only one worked by luck; matching
-  // both means rewording either cannot silently stop closing enquiries.
-  const closeButtons = [
-    ENQUIRY_FOLLOWUP_CLOSE_BUTTON,
-    ENQUIRY_NOTICE_CLOSE_BUTTON,
-    JOURNEY_CHECKIN_CLOSE_BUTTON,
-  ]
+  // "Still considering it" on the journey check-in template: the tap is
+  // the client's answer — log it on the journey and ask for a timeline.
+  //
+  // Matched on the ACTION, so a lead who was sent the Kannada template
+  // and taps "ಇನ್ನೂ ಪರಿಶೀಲಿಸುತ್ತಿದೆ" lands here too. What gets LOGGED is
+  // still the English constant, so the journey reads one stable phrase
+  // whatever language the client was messaged in.
+  if (matchTemplateButton(message.button?.text) === 'still_considering') {
+    const keepOutcome = await handleInboxCheckinReply({
+      db: supabaseAdmin(),
+      accountId,
+      ownerUserId: configOwnerUserId,
+      contact: {
+        id: contactRecord.id,
+        name: contactRecord.name,
+        phone: senderPhone,
+      },
+      conversationId: conversation.id,
+      responseText: JOURNEY_CHECKIN_KEEP_BUTTON,
+      accessToken,
+      phoneNumberId,
+      fromButton: true,
+    })
+    if (keepOutcome !== 'logged_and_asked') {
+      await sendWhatsAppMessageAndPersist({
+        accountId,
+        userId: configOwnerUserId,
+        contactId: contactRecord.id,
+        conversationId: conversation.id,
+        kind: 'text',
+        senderType: 'bot',
+        text: "👍 Great — noted! We'll keep you posted.",
+      })
+    }
+    return
+  }
+
+  // All three enquiry templates share one close action, and each one
+  // ships in every language we send — so this matches on the ACTION,
+  // resolved from the label in whatever language the lead received.
+  // Comparing against the English constants (as this did) meant a
+  // Kannada lead tapping "ವಿಚಾರಣೆ ಮುಚ್ಚಿ" was not closing anything:
+  // their enquiry stayed open and the alerts kept coming.
   const alertsCommand =
-    message.button?.text && closeButtons.includes(message.button.text)
+    matchTemplateButton(message.button?.text) === 'close_enquiry'
       ? 'close'
       : parseBuyerAlertsCommand(message.button?.text ?? contentText)
   if (alertsCommand) {
@@ -1545,6 +1588,29 @@ async function processMessage(
       if (handled) {
         return
       }
+    }
+
+    // A text reply to a journey check-in the agent sent from the Engine
+    // inbox ("just checking in on <property>..."). Logged on the journey
+    // either way; the message is only consumed when the timeline ask
+    // went out — a reply that reads as a question still falls through
+    // so the bot answers it.
+    if (message.type === 'text' && contentText) {
+      const checkinOutcome = await handleInboxCheckinReply({
+        db: supabaseAdmin(),
+        accountId,
+        ownerUserId: configOwnerUserId,
+        contact: {
+          id: contactRecord.id,
+          name: contactRecord.name,
+          phone: senderPhone,
+        },
+        conversationId: conversation.id,
+        responseText: contentText,
+        accessToken,
+        phoneNumberId,
+      })
+      if (checkinOutcome === 'logged_and_asked') return
     }
 
     // A lead answering "what are your requirements and budget?" — the
@@ -1921,6 +1987,21 @@ async function processMessage(
   }
 
   if (interactiveReplyId) {
+    if (interactiveReplyId.startsWith(CLIENT_FOLLOWUP_PREFIX)) {
+      const handledFollowup = await handleClientFollowupReply({
+        db: supabaseAdmin(),
+        accountId,
+        ownerUserId: configOwnerUserId,
+        contact: {
+          id: contactRecord.id,
+          name: contactRecord.name,
+          phone: senderPhone,
+        },
+        conversationId: conversation.id,
+        replyId: interactiveReplyId,
+      })
+      if (handledFollowup) return
+    }
     if (
       interactiveReplyId.startsWith(CONSENT_APPROVE_PREFIX) ||
       interactiveReplyId.startsWith(CONSENT_DECLINE_PREFIX)

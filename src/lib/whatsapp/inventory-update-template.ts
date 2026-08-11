@@ -10,12 +10,10 @@
 
 import type { Property } from '@/types';
 import type { TemplatePayload } from '@/lib/whatsapp/template-validators';
+import { DEFAULT_LANGUAGE, metaLanguageCode, type LanguageCode } from '@/lib/languages';
+import { templateBody, templateFooter, templateButtonLabel } from '@/lib/whatsapp/template-copy';
 import { formatShareAmount } from '@/lib/share-message-builder';
 import { categoryForType } from '@/lib/inventory-summary-builder';
-import {
-  INVENTORY_FULL_LIST_BUTTON,
-  INVENTORY_SITE_VISIT_BUTTON,
-} from '@/lib/whatsapp/template-quick-replies';
 
 export const INVENTORY_UPDATE_TEMPLATE_NAME = 'inventory_update';
 
@@ -35,34 +33,25 @@ export function sanitizeTemplateParam(value: string): string {
  * suffix carries `?ref=<account>&v=<contact>` at send time so every
  * click is attributed by name in Showcase Pulse.
  */
-export function buildInventoryUpdateTemplatePayload(origin: string): TemplatePayload {
+export function buildInventoryUpdateTemplatePayload(
+  origin: string,
+  language: LanguageCode = DEFAULT_LANGUAGE,
+): TemplatePayload {
   return {
     name: INVENTORY_UPDATE_TEMPLATE_NAME,
     category: 'Marketing',
-    language: 'en_US',
-    body_text: [
-      '🏠 *New Inventory Update*',
-      '',
-      "Hi {{1}}! We've just refreshed our property catalog. Quick snapshot:",
-      '',
-      '🏡 Residential: {{2}}',
-      '',
-      '🏢 Commercial: {{3}}',
-      '',
-      '🌾 Farm & land: {{4}}',
-      '',
-      'Reply to this message for photos, exact locations, or to book a site visit — I answer personally on this number.',
-    ].join('\n'),
-    footer_text: 'Reply STOP to unsubscribe',
+    language: metaLanguageCode(language),
+    body_text: templateBody('inventory_update', language),
+    footer_text: templateFooter('inventory_update', language),
     buttons: [
       // Quick replies first (Meta: QR block cannot follow CTA buttons).
       // A tap opens the 24h service window → the full digest / copilot
       // conversation continues free-form inside ConvoReal.
-      { type: 'QUICK_REPLY', text: INVENTORY_FULL_LIST_BUTTON },
-      { type: 'QUICK_REPLY', text: INVENTORY_SITE_VISIT_BUTTON },
+      { type: 'QUICK_REPLY', text: templateButtonLabel('inventory_full_list', language) },
+      { type: 'QUICK_REPLY', text: templateButtonLabel('site_visit', language) },
       {
         type: 'URL',
-        text: 'Browse showcase',
+        text: templateButtonLabel('browse_showcase', language),
         url: `${origin.replace(/\/+$/, '')}/{{1}}`,
         example: '?ref=account-id&v=contact-id',
       },

@@ -9,12 +9,15 @@
 // unit-testable.
 
 import type { TemplatePayload } from '@/lib/whatsapp/template-validators';
+import { DEFAULT_LANGUAGE, metaLanguageCode, type LanguageCode } from '@/lib/languages';
+import { templateBody, templateButtonLabel } from '@/lib/whatsapp/template-copy';
 import { sanitizeTemplateParam } from '@/lib/whatsapp/inventory-update-template';
 
 export const LOCATION_REVEAL_TEMPLATE_NAME = 'location_reveal';
 
 export function buildLocationRevealTemplatePayload(
-  origin: string
+  origin: string,
+  language: LanguageCode = DEFAULT_LANGUAGE,
 ): TemplatePayload {
   return {
     name: LOCATION_REVEAL_TEMPLATE_NAME,
@@ -22,18 +25,12 @@ export function buildLocationRevealTemplatePayload(
     // not promotional content — also exempt from Meta's per-user
     // marketing frequency caps (error 131049).
     category: 'Utility',
-    language: 'en_US',
-    body_text: [
-      '📍 *Location Request Approved*',
-      '',
-      'Hi {{1}}, your request for the exact location of {{2}} has been approved by the listing team.',
-      '',
-      'Tap the button below to view the address, map pin and full photos. The link stays valid for 48 hours.',
-    ].join('\n'),
+    language: metaLanguageCode(language),
+    body_text: templateBody('location_reveal', language),
     buttons: [
       {
         type: 'URL',
-        text: 'View location',
+        text: templateButtonLabel('view_location', language),
         url: `${origin.replace(/\/+$/, '')}/reveal/{{1}}`,
         example: '9db392b91ba84d1ab88b77ca26c6f6bc9c166ff124b1471f',
       },

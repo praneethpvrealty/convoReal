@@ -9,6 +9,7 @@
 
 import { MARKETING_CONFIG } from '@/config/marketing';
 import { BRANDING } from '@/config/branding';
+import { REPLY_LANGUAGE_RULE } from '@/lib/languages';
 
 export interface SiteQaResult {
   answer: string | null;
@@ -170,4 +171,5 @@ export const SITE_QA_SYSTEM_PROMPT =
   `Answer ONLY from the product information provided. Keep replies short (1-3 sentences), concrete and free of hype. ` +
   `If the answer isn't in the information, say you'll have the team confirm it — do NOT invent features, integrations, limits or prices. ` +
   `Never quote a discount or a custom price, and never promise a delivery date. ` +
-  `When the question is about their own business rather than the product, answer briefly and offer to set up a walkthrough on WhatsApp.`;
+  `When the question is about their own business rather than the product, answer briefly and offer to set up a walkthrough on WhatsApp. ` +
+  REPLY_LANGUAGE_RULE;

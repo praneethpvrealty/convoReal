@@ -169,13 +169,18 @@ describe('broadcast recipient claim', () => {
       // enquiry context, which is irrelevant to claim renewal.
       if (table === 'broadcasts')
         return broadcastRow('sending', 'plain_notice');
-      // Past the claim the sender loads contacts and the template row,
-      // then writes per-row status. None of that is what this asserts,
-      // so every chain resolves empty.
+      // Past the claim the sender loads contacts, the template row and
+      // its language variants, and the account's default language, then
+      // writes per-row status. None of that is what this asserts, so
+      // every chain resolves empty.
       const chain: Record<string, unknown> = {};
       for (const m of ['select', 'eq', 'in', 'limit', 'update', 'order']) {
         chain[m] = () => chain;
       }
+      (chain as { maybeSingle?: unknown }).maybeSingle = async () => ({
+        data: null,
+        error: null,
+      });
       (chain as { then?: unknown }).then = (r: (v: unknown) => unknown) =>
         Promise.resolve(r({ data: [], error: null }));
       return chain;

@@ -4,6 +4,10 @@ import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { truncateParametersToBudget } from '@/lib/whatsapp/template-send-builder';
 import {
+  loadTemplateForContact,
+  warnLanguageFallback,
+} from '@/lib/whatsapp/template-language';
+import {
   CALL_UPDATE_TEMPLATE_NAME,
   buildCallUpdateParams,
 } from '@/lib/whatsapp/call-update-template';
@@ -74,7 +78,7 @@ export async function POST(
       return NextResponse.json({ error: 'Nothing to send — the update draft is empty.' }, { status: 400 });
     }
 
-    const [{ data: conversation }, { data: templateRow }] = await Promise.all([
+    const [{ data: conversation }, templateRow] = await Promise.all([
       ctx.supabase
         .from('conversations')
         .select('id')
@@ -83,16 +87,23 @@ export async function POST(
         .order('last_message_at', { ascending: false, nullsFirst: false })
         .limit(1)
         .maybeSingle(),
-      ctx.supabase
-        .from('message_templates')
-        .select('*')
-        .eq('account_id', ctx.accountId)
-        .eq('name', CALL_UPDATE_TEMPLATE_NAME)
-        .order('last_submitted_at', { ascending: false })
-        .limit(1)
-        .maybeSingle(),
+      // Every language variant, not just the newest row — the client
+      // this update is for may not read English.
+      loadTemplateForContact<MessageTemplate>(ctx.supabase, {
+        accountId: ctx.accountId,
+        contactId,
+        names: [CALL_UPDATE_TEMPLATE_NAME],
+      }),
     ]);
-    const template = templateRow as MessageTemplate | null;
+    const template = templateRow.template;
+    if (templateRow.fellBack) {
+      warnLanguageFallback(
+        'call-update',
+        ctx.accountId,
+        templateRow.language,
+        template,
+      );
+    }
 
     // 1. The default route: the approved template, in or out of the window.
     if (template?.status === 'APPROVED') {

@@ -7,9 +7,9 @@
 // listing, and putting it here would invite an agent to fill it in
 // once and have it be wrong for eleven of twelve flats.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Trash2, Upload, X } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
@@ -25,7 +25,41 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { availableProjectSlug } from '@/lib/inventory/projects';
+import { storagePublicUrl } from '@/lib/storage/url';
 import type { Project } from '@/types';
+
+/** Same client-side downscale property photos get, duplicated rather
+ *  than imported — property-form.tsx keeps its own private copy too,
+ *  there's no shared export to reuse. */
+function compressImageOnClient(file: File): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const maxW = 1200;
+      let w = img.width;
+      let h = img.height;
+
+      if (w > maxW) {
+        h = Math.round(h * (maxW / w));
+        w = maxW;
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) { reject(new Error('Canvas unavailable')); return; }
+      ctx.drawImage(img, 0, 0, w, h);
+      canvas.toBlob((b) => b ? resolve(b) : reject(new Error('Compression failed')), 'image/jpeg', 0.75);
+    };
+
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Image load failed')); };
+    img.src = url;
+  });
+}
 
 interface ProjectForm {
   name: string;
@@ -87,15 +121,102 @@ export function ProjectFormDialog({
   const supabase = createClient();
   const { accountId, user } = useAuth();
   const [form, setForm] = useState<ProjectForm>(BLANK);
+  const [amenities, setAmenities] = useState<string[]>([]);
+  const [amenityInput, setAmenityInput] = useState('');
+  const [images, setImages] = useState<string[]>([]);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [saving, setSaving] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Reseed on open so a create never inherits the last edit's values.
   useEffect(() => {
-    if (open) setForm(toForm(project));
+    if (open) {
+      setForm(toForm(project));
+      setAmenities(project?.amenities ?? []);
+      setImages(project?.images ?? []);
+      setAmenityInput('');
+    }
   }, [open, project]);
 
   const set = <K extends keyof ProjectForm>(key: K, value: ProjectForm[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
+
+  function addAmenity() {
+    const value = amenityInput.trim();
+    if (!value) return;
+    setAmenities((prev) => (prev.includes(value) ? prev : [...prev, value]));
+    setAmenityInput('');
+  }
+
+  function removeAmenity(value: string) {
+    setAmenities((prev) => prev.filter((a) => a !== value));
+  }
+
+  function removeImage(idx: number) {
+    setImages((prev) => prev.filter((_, i) => i !== idx));
+  }
+
+  async function onUploadImages(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    if (!accountId) {
+      toast.error('Account not loaded, please try again.');
+      return;
+    }
+
+    setUploadingImage(true);
+    const uploaded: string[] = [];
+
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+
+        if (file.size > 5 * 1024 * 1024) {
+          toast.error(`File "${file.name}" is too large. Max size is 5MB.`);
+          continue;
+        }
+
+        let uploadFile: File | Blob = file;
+        if (file.type.startsWith('image/') && file.type !== 'image/svg+xml' && file.type !== 'image/gif') {
+          try {
+            uploadFile = await compressImageOnClient(file);
+          } catch {
+            // Fallback to original if compression fails
+          }
+        }
+
+        const randomStr = Math.random().toString(36).substring(2, 7);
+        // Same bucket property photos live in — a project gallery is
+        // photos of the same building, not a separate media type.
+        const path = `${accountId}/img-${Date.now()}-${randomStr}.jpg`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('property-images')
+          .upload(path, uploadFile, {
+            cacheControl: '3600',
+            upsert: true,
+            contentType: 'image/jpeg',
+          });
+
+        if (uploadError) {
+          throw new Error(`Upload failed: ${uploadError.message}`);
+        }
+
+        uploaded.push(`property-images/${path}`);
+      }
+
+      if (uploaded.length > 0) {
+        setImages((prev) => [...prev, ...uploaded]);
+        toast.success(`Uploaded ${uploaded.length} image(s)`);
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Image upload failed';
+      toast.error(message);
+    } finally {
+      setUploadingImage(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -116,6 +237,8 @@ export function ProjectFormDialog({
         total_units: toNumberOrNull(form.total_units),
         total_floors: toNumberOrNull(form.total_floors),
         description: form.description.trim() || null,
+        amenities,
+        images,
       };
 
       if (project) {
@@ -282,9 +405,101 @@ export function ProjectFormDialog({
               value={form.description}
               onChange={(e) => set('description', e.target.value)}
               rows={3}
-              placeholder="Amenities, connectivity, approvals — anything true of every unit."
+              placeholder="Connectivity, approvals, anything true of every unit."
               className="border-slate-800 bg-slate-950 text-white"
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="project-amenities" className="text-slate-350 font-medium">
+              Amenities
+            </Label>
+            {amenities.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {amenities.map((amenity) => (
+                  <span
+                    key={amenity}
+                    className="flex items-center gap-1.5 text-xs px-3 py-1 rounded-full border border-slate-750 bg-slate-800/60 text-slate-300 font-medium"
+                  >
+                    {amenity}
+                    <button
+                      type="button"
+                      onClick={() => removeAmenity(amenity)}
+                      className="text-slate-500 hover:text-red-400 cursor-pointer"
+                    >
+                      <X className="size-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <Input
+              id="project-amenities"
+              value={amenityInput}
+              onChange={(e) => setAmenityInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ',') {
+                  e.preventDefault();
+                  addAmenity();
+                }
+              }}
+              onBlur={addAmenity}
+              placeholder="Type an amenity, press Enter — e.g. Swimming Pool"
+              className="border-slate-800 bg-slate-950 text-white"
+            />
+          </div>
+
+          <div className="space-y-3 rounded-lg border border-slate-800 bg-slate-950/20 p-4">
+            <div className="flex items-center justify-between">
+              <Label className="text-slate-350 font-medium">Photos</Label>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadingImage}
+                className="h-7 cursor-pointer gap-1 text-xs font-semibold text-primary hover:bg-primary/10"
+              >
+                {uploadingImage ? (
+                  <>
+                    <Loader2 className="size-3 animate-spin" /> Uploading...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="size-3" /> Upload
+                  </>
+                )}
+              </Button>
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={onUploadImages}
+                multiple
+                accept="image/*"
+                className="hidden"
+              />
+            </div>
+            {images.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {images.map((img, idx) => (
+                  <div key={img} className="relative">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={storagePublicUrl(img)}
+                      alt={`Project photo ${idx + 1}`}
+                      className="size-16 rounded border border-slate-700 object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeImage(idx)}
+                      className="absolute -right-1.5 -top-1.5 flex size-5 cursor-pointer items-center justify-center rounded-full border border-slate-700 bg-slate-900 text-red-400 hover:text-red-300"
+                    >
+                      <Trash2 className="size-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <DialogFooter>

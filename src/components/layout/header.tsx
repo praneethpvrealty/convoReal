@@ -4,6 +4,8 @@ import { useState, useEffect, type MouseEvent } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/use-auth";
+import { useT } from "@/hooks/use-locale";
+import { LanguageToggle } from "@/components/layout/language-toggle";
 import { useTheme } from "@/hooks/use-theme";
 import { LogOut, Menu, Moon, Settings as SettingsIcon, Sun, User, Search, Loader2 } from "lucide-react";
 import {
@@ -61,6 +63,7 @@ export function Header({ onOpenSidebar }: HeaderProps) {
   const pathname = usePathname();
   const { profile, signOut } = useAuth();
   const { mode, setMode } = useTheme();
+  const t = useT();
   const title = getPageTitle(pathname);
   const supabase = createClient();
 
@@ -177,6 +180,8 @@ export function Header({ onOpenSidebar }: HeaderProps) {
         </h1>
       </div>
 
+      <LanguageToggle />
+
       {/* Global Search Bar input trigger */}
       <div 
         onClick={() => setSearchOpen(true)}
@@ -184,7 +189,7 @@ export function Header({ onOpenSidebar }: HeaderProps) {
       >
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-slate-500 group-hover:text-slate-400 transition-colors" />
         <div className="w-full bg-slate-900/40 border border-slate-900 rounded-lg pl-9 pr-12 py-1.5 text-xs text-slate-400 transition-all select-none hover:bg-slate-950 hover:border-slate-800 flex items-center h-[28px]">
-          Search deals, contacts, or properties...
+          {t("search.placeholder")}
         </div>
         <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none inline-flex h-5 select-none items-center gap-0.5 rounded border border-slate-800 bg-slate-950 px-1.5 font-mono text-[9px] font-medium text-slate-500">
           <span className="text-[10px]">⌘</span>K
@@ -200,7 +205,7 @@ export function Header({ onOpenSidebar }: HeaderProps) {
               autoFocus
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search deals, contacts, or properties..."
+              placeholder={t("search.placeholder")}
               className="w-full bg-transparent border-0 outline-none placeholder:text-slate-500 text-sm py-1 font-medium"
             />
             {searching && (

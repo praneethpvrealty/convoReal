@@ -48,22 +48,33 @@ function makeBuilder(table: string) {
       filters.push({ op: 'in', col, val });
       return builder;
     },
+    // Chainable no-ops: the fixtures are tiny and unordered, so these
+    // only need to exist for the real client's call shape to work.
+    order: chain,
+    limit: chain,
+    maybeSingle: async () => {
+      if (mode === 'write') return { data: null, error: null };
+      return { data: matching()[0] ?? null, error: null };
+    },
     then: (resolve: (v: { data: Row[] | null; error: null }) => unknown) => {
       if (mode === 'write') return resolve({ data: null, error: null });
-      const rows = (tables[table] || []).filter((row) =>
-        filters.every(({ op, col, val }) => {
-          const v = row[col];
-          if (op === 'eq') return v === val;
-          if (op === 'neq') return v !== val;
-          if (op === 'gt') return String(v) > String(val);
-          if (op === 'lte') return String(v) <= String(val);
-          if (op === 'in') return (val as unknown[]).includes(v);
-          return true;
-        })
-      );
-      return resolve({ data: rows, error: null });
+      return resolve({ data: matching(), error: null });
     },
   });
+
+  function matching(): Row[] {
+    return (tables[table] || []).filter((row) =>
+      filters.every(({ op, col, val }) => {
+        const v = row[col];
+        if (op === 'eq') return v === val;
+        if (op === 'neq') return v !== val;
+        if (op === 'gt') return String(v) > String(val);
+        if (op === 'lte') return String(v) <= String(val);
+        if (op === 'in') return (val as unknown[]).includes(v);
+        return true;
+      })
+    );
+  }
   return builder;
 }
 

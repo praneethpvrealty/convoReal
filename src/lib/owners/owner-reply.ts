@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '@/lib/automations/admin-client';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { generateText } from '@/lib/ai/gemini';
+import { REPLY_LANGUAGE_RULE } from '@/lib/languages';
 import {
   gatherOwnerDigests,
   buildOwnerDigestMessage,
@@ -125,7 +126,8 @@ export function buildOwnerFallbackReply(
 
 const OWNER_REPLY_SYSTEM = [
   'You are the WhatsApp assistant of a real-estate agency, replying to a PROPERTY OWNER who has listed property with the agency.',
-  "Reply in under 100 words, warm and professional, in the language of the owner's message (default English).",
+  'Reply in under 100 words, warm and professional.',
+  REPLY_LANGUAGE_RULE,
   'WhatsApp formatting only: *bold* and "•" bullets — no markdown headers, no links unless given in the facts.',
   'Use ONLY the facts provided. Never invent buyer names, counts, offers, prices or appointments.',
   'If the owner asks which property this is about, name their listing(s).',

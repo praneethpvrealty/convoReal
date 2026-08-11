@@ -9,7 +9,8 @@
 // photo); the sample below is only for Meta's review.
 
 import type { TemplatePayload } from '@/lib/whatsapp/template-validators';
-import { SEND_MORE_DETAILS_BUTTON } from '@/lib/whatsapp/template-quick-replies';
+import { DEFAULT_LANGUAGE, metaLanguageCode, type LanguageCode } from '@/lib/languages';
+import { templateBody, templateButtonLabel } from '@/lib/whatsapp/template-copy';
 import {
   pickApprovedTemplate,
   type ApprovedTemplateCandidate,
@@ -53,6 +54,7 @@ export function pickPropertyPhotosTemplate<T extends ApprovedTemplateCandidate>(
 
 export function buildPropertyEnquiryPhotosTemplatePayload(
   origin: string,
+  language: LanguageCode = DEFAULT_LANGUAGE,
 ): TemplatePayload {
   const base = origin.replace(/\/+$/, '');
   return {
@@ -64,27 +66,19 @@ export function buildPropertyEnquiryPhotosTemplatePayload(
     // utility+marketing content classifies the whole template as
     // Marketing regardless of the submitted category.
     category: 'Utility',
-    language: 'en_US',
+    language: metaLanguageCode(language),
     header_type: 'image',
     // Review-time sample only — a stable PNG every deployment serves.
     // Real sends override it with the property photo (headerMediaUrl).
     header_media_url: `${base}/brand/app-icon-1024.png`,
-    body_text: [
-      'Hi {{1}}, sharing the photos you requested for your property enquiry with {{2}}:',
-      '',
-      'Property: {{3}}',
-      'Details: {{4}}',
-      'Location: {{5}}',
-      '',
-      'Reply to this message if you need any further information about this enquiry.',
-    ].join('\n'),
+    body_text: templateBody('property_enquiry_photos', language),
     buttons: [
       // Same button set as property_enquiry_response: the quick reply
       // opens the 24h window, the URL carries the requested listing.
-      { type: 'QUICK_REPLY', text: SEND_MORE_DETAILS_BUTTON },
+      { type: 'QUICK_REPLY', text: templateButtonLabel('send_more_details', language) },
       {
         type: 'URL',
-        text: 'View full details',
+        text: templateButtonLabel('view_full_details', language),
         url: `${base}/{{1}}`,
         example: '?property_id=abc&v=contact-id',
       },
