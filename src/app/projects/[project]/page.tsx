@@ -4,13 +4,18 @@ import { notFound } from 'next/navigation';
 import { ShowcaseView } from '@/components/showcase/showcase-view';
 import {
   cachedFetchFallbackAccount,
+  cachedFetchProjectBySlug,
   cachedFetchShowcaseData,
   cachedResolveAccountFromSubdomain,
   resolveSubdomainFromHost,
   toPublicProperties,
+  type PublicProjectInfo,
   type ShowcaseData,
 } from '@/lib/showcase/public-data';
-import { findProjectProperties } from '@/lib/inventory/project-slug';
+import {
+  findProjectProperties,
+  slugifyProject,
+} from '@/lib/inventory/project-slug';
 import {
   projectBhkRange,
   projectPriceHeadline,
@@ -36,6 +41,7 @@ interface ResolvedProject {
   data: ShowcaseData;
   projectName: string;
   projectProperties: Property[];
+  projectInfo: PublicProjectInfo | null;
 }
 
 async function resolveProject(
@@ -67,11 +73,17 @@ async function resolveProject(
   );
   if (projectProperties.length === 0) return null;
 
+  const projectInfo = await cachedFetchProjectBySlug(
+    accountId,
+    slugifyProject(decodeURIComponent(slug))
+  );
+
   return {
     accountId,
     data,
     projectName: projectProperties[0].project as string,
     projectProperties,
+    projectInfo,
   };
 }
 
@@ -148,7 +160,8 @@ export default async function ProjectPage({ params, searchParams }: PageProps) {
   const resolved = await resolveProject(params, searchParams);
   if (!resolved) notFound();
 
-  const { accountId, data, projectName, projectProperties } = resolved;
+  const { accountId, data, projectName, projectProperties, projectInfo } =
+    resolved;
   const city = projectProperties.find((p) => p.city)?.city;
   const types = Array.from(new Set(projectProperties.map((p) => p.type)));
 
@@ -182,6 +195,7 @@ export default async function ProjectPage({ params, searchParams }: PageProps) {
         settings={data.settings}
         accountId={accountId}
         siteName={data.accountName}
+        projectInfo={projectInfo}
         hero={{
           title: 'Properties in',
           highlight: projectName,

@@ -3,7 +3,7 @@ import { unstable_cache } from 'next/cache';
 import { supabaseAdmin } from '@/lib/automations/admin-client';
 import { toPublicPropertyView } from '@/lib/inventory/location-guard';
 import type { GrantedReveals } from '@/lib/inventory/share-grants';
-import type { Property, ShowcaseSettings } from '@/types';
+import type { Project, Property, ShowcaseSettings } from '@/types';
 
 export interface ShowcaseData {
   settings: ShowcaseSettings | null;
@@ -118,6 +118,30 @@ export const cachedFetchFallbackAccount = unstable_cache(
   },
   ['showcase-fallback-account'],
   { revalidate: 3600 }
+);
+
+export type PublicProjectInfo = Pick<
+  Project,
+  'builder' | 'description' | 'amenities' | 'images'
+>;
+
+// React `cache`, not `unstable_cache`: a builder edit or a freshly
+// uploaded photo must show up on the next request, the same reasoning
+// as cachedResolvePropertyById above.
+export const cachedFetchProjectBySlug = cache(
+  async (
+    accountId: string,
+    slug: string
+  ): Promise<PublicProjectInfo | null> => {
+    const admin = supabaseAdmin();
+    const { data } = await admin
+      .from('projects')
+      .select('builder, description, amenities, images')
+      .eq('account_id', accountId)
+      .eq('slug', slug)
+      .maybeSingle();
+    return (data as PublicProjectInfo) ?? null;
+  }
 );
 
 // Cache key ingredient for the showcase catalogue. Every write to a
