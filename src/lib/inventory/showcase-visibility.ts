@@ -132,6 +132,10 @@ export function toTeaserPropertyView(p: Property): Property {
     view[key] = p[key as keyof Property];
   }
   const guarded = isLocationGuarded(p);
+  // Turning the switch on moves the photos into the non-public bucket
+  // (migration 255), so a confidential listing usually has no public
+  // image left to offer. This still runs for the ones that do — a
+  // listing gated before that shipped, or one whose move was partial.
   const coverImage = guarded ? null : (p.images?.[0] ?? null);
 
   view.title = teaserTitle(p);
@@ -139,7 +143,10 @@ export function toTeaserPropertyView(p: Property): Property {
   view.images = coverImage ? [coverImage] : [];
   view.price = null;
   view.price_band = priceBand(p.price);
-  view.image_count = p.images?.length ?? 0;
+  // Counts both sides of the custody line: "8 more photos" is the
+  // honest number whether they are public-but-withheld or private, and
+  // after gating moves them the public array is empty.
+  view.image_count = (p.images?.length ?? 0) + (p.private_images?.length ?? 0);
   view.location_guarded = guarded;
   view.location_revealed = false;
   view.private_images_revealed = false;

@@ -14,6 +14,24 @@ export default function Error({
 }) {
   useEffect(() => {
     console.error('[error boundary]', error)
+    // Report it too: a crash that only happens on someone else's device
+    // is otherwise invisible — see /api/client-error.
+    try {
+      void fetch('/api/client-error', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: error?.message,
+          digest: error?.digest,
+          stack: error?.stack,
+          url: typeof window !== 'undefined' ? window.location.href : '',
+          buildId: process.env.NEXT_PUBLIC_BUILD_ID ?? '',
+        }),
+        keepalive: true,
+      }).catch(() => {})
+    } catch {
+      // reporting must never mask the original failure
+    }
   }, [error])
 
   return (

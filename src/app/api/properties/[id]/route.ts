@@ -12,6 +12,8 @@ import {
   canViewExactLocation,
   maskPropertyForViewer,
 } from "@/lib/inventory/location-guard";
+import { applyGatingCustody } from "@/lib/inventory/gated-photos";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import type { Property } from "@/types";
 
 // GET /api/properties/[id]
@@ -541,7 +543,7 @@ export async function PUT(
     // Verify it exists in this account before updating (defensive check)
     const { data: existing, error: findError } = await ctx.supabase
       .from("properties")
-      .select("id, type, user_id, location_privacy, status")
+      .select("id, type, user_id, location_privacy, status, showcase_visibility, images, private_images, gated_locked_images")
       .eq("id", id)
       .eq("account_id", ctx.accountId)
       .maybeSingle();
@@ -580,6 +582,49 @@ export async function PUT(
       // Same reasoning for the page gate: a viewer who cannot see this
       // listing's location must not be able to un-gate its public page.
       delete updateData.showcase_visibility;
+    }
+
+    // Flipping the confidential switch moves the photos, it does not
+    // merely hide them. A public-bucket photo resolves to a CDN URL that
+    // nothing of ours can watermark, expire or recall, so leaving them
+    // there would mean an approved viewer keeps working links forever —
+    // the opposite of what the switch promises. See
+    // src/lib/inventory/gated-photos.ts.
+    //
+    // Runs before the write so the arrays and the objects land in one
+    // update; a storage failure narrows the plan rather than failing the
+    // save, and re-saving retries the stragglers.
+    if (updateData.showcase_visibility !== undefined) {
+      const wasGated =
+        (existing as { showcase_visibility?: string | null })
+          .showcase_visibility === "teaser";
+      const willGate = updateData.showcase_visibility === "teaser";
+      if (wasGated !== willGate) {
+        try {
+          const custodyUpdate = await applyGatingCustody(
+            supabaseAdmin(),
+            existing as {
+              images?: string[] | null;
+              private_images?: string[] | null;
+              gated_locked_images?: string[] | null;
+            },
+            willGate ? "lock" : "unlock"
+          );
+          if (custodyUpdate) Object.assign(updateData, custodyUpdate);
+        } catch (custodyErr) {
+          console.error(
+            "[PUT /api/properties/[id]] Photo custody failed:",
+            custodyErr
+          );
+          return NextResponse.json(
+            {
+              error:
+                "Could not move this listing's photos. The confidentiality setting was not changed — please retry.",
+            },
+            { status: 500 }
+          );
+        }
+      }
     }
 
     // The pin wins over address-derived coordinates (see POST) whenever
