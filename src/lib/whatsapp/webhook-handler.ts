@@ -56,6 +56,10 @@ import {
 } from '@/lib/whatsapp/preference-flow'
 import { ENQUIRY_FOLLOWUP_CLOSE_BUTTON } from '@/lib/whatsapp/enquiry-followup-template'
 import { JOURNEY_CHECKIN_CLOSE_BUTTON } from '@/lib/whatsapp/journey-checkin-template'
+import {
+  CLIENT_FOLLOWUP_PREFIX,
+  handleClientFollowupReply,
+} from '@/lib/journey/client-response'
 import { ENQUIRY_NOTICE_CLOSE_BUTTON } from '@/lib/whatsapp/enquiry-notice-template'
 import { accountPropertyShowcaseUrl } from '@/lib/showcase/account-showcase-url'
 import type { Contact } from '@/types'
@@ -1921,6 +1925,21 @@ async function processMessage(
   }
 
   if (interactiveReplyId) {
+    if (interactiveReplyId.startsWith(CLIENT_FOLLOWUP_PREFIX)) {
+      const handledFollowup = await handleClientFollowupReply({
+        db: supabaseAdmin(),
+        accountId,
+        ownerUserId: configOwnerUserId,
+        contact: {
+          id: contactRecord.id,
+          name: contactRecord.name,
+          phone: senderPhone,
+        },
+        conversationId: conversation.id,
+        replyId: interactiveReplyId,
+      })
+      if (handledFollowup) return
+    }
     if (
       interactiveReplyId.startsWith(CONSENT_APPROVE_PREFIX) ||
       interactiveReplyId.startsWith(CONSENT_DECLINE_PREFIX)
