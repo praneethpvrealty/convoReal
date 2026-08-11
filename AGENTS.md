@@ -37,7 +37,7 @@ All tenant data lives in one Supabase PostgreSQL database and is isolated by `ac
 
 These rules are hard project conventions. Violating them will break the app or the security model.
 
-The canonical constitution lives in the [ConvoReal Engineering OS](https://github.com/praneethpvrealty/ConvoReal-Engineering-OS) at `03_ENGINEERING/30_AI_ENGINEERING_CONSTITUTION.md` — a cross-project knowledge repo covering product, business, architecture, engineering, AI and operations. It is restated here rather than only linked: this file is loaded into agent context automatically, a remote repo is not. §2.1–2.7 are the ConvoReal-specific expansion of it. If the two disagree, the Engineering OS wins on intent and this file wins on ConvoReal specifics — update both.
+The canonical constitution lives in the [ConvoReal Engineering OS](https://github.com/praneethpvrealty/ConvoReal-Engineering-OS) at `03_ENGINEERING/30_AI_ENGINEERING_CONSTITUTION.md` — a cross-project knowledge repo covering product, business, architecture, engineering, AI and operations. It is restated here rather than only linked: this file is loaded into agent context automatically, a remote repo is not. §2.1–2.8 are the ConvoReal-specific expansion of it. If the two disagree, the Engineering OS wins on intent and this file wins on ConvoReal specifics — update both.
 
 Two canonical rules the subsections below do not otherwise restate:
 
@@ -119,6 +119,17 @@ Two canonical rules the subsections below do not otherwise restate:
 - Webhook payloads must be verified by `verifySignature()` from `src/lib/whatsapp/webhook-signature.ts` before processing.
 - **A template's category is decided once and is unfixable.** Meta assigns it when the template first passes review, refuses to change it afterwards (`POST /<template_id>` with a new category returns "You cannot update an approved template category" and rejects the whole edit, content included), and reserves a deleted template's name for four weeks. Meta's public categorisation guide claims an approved category can be edited — the API disagrees; trust the API.
 - **Never resubmit under a new name to chase a UTILITY category.** Four attempts at an agent digest (`agent_inventory_digest`, `agent_listing_activity_update`, `agent_property_digest`) all came back MARKETING, the last one near word-for-word identical to `owner_property_digest`, which holds UTILITY from an earlier approval. Content parity does not reproduce a category, and every attempt burns a name permanently. When a template is miscategorised, the only real options are: reuse an existing approved template whose params match, appeal in WhatsApp Manager (Business Support, within 60 days), or accept MARKETING and gate sends on explicit opt-in. See the header of `src/lib/whatsapp/agent-inventory-digest-template.ts`.
+
+### 2.8 Web ↔ mobile feature parity
+
+Web (`src/`) and mobile (`mobile/`) are two surfaces of one product, not two products. **Every user-facing feature must exist on both.** A feature shipped to only one surface is unfinished work, not a finished feature — and the gap is a defect to be closed, not a decision to be deferred.
+
+- **Build both directions.** A new web feature must land on mobile; a new mobile feature must land on web. This applies to changes to existing features too — a field, filter, action, or state added on one surface is added on the other.
+- **Put the logic where both can reach it.** Business rules belong in an API route under `src/app/api/` or in pure TypeScript under `src/lib/`. Only rendering, navigation, and platform affordances are written twice. Never fork a rule so that web and mobile can disagree about it. See `docs/GUIDE_MOBILE_APPLICATION_PORTABILITY.md` for how this split was drawn for Copilot; it is the pattern for everything else.
+- **The mobile app is a client of the same API.** `src/lib/supabase/server.ts` already accepts mobile `Authorization: Bearer <jwt>` requests (§7.4). A route that only works with cookie sessions is a parity bug.
+- **Do the mobile side in the same change** unless the surfaces genuinely diverge in effort. If mobile has to follow later, say so explicitly in the summary and record the gap in `FEATURE_ROADMAP.md` — do not leave it silent.
+- **Ship both halves validated.** Root `npm run typecheck && npm run lint && npm test` covers web only; mobile has its own dependency tree and config. Run `cd mobile && npm run typecheck && npm run lint && npm test` whenever `mobile/**` changes, and read `mobile/AGENTS.md` first.
+- **Legitimate single-surface exceptions**, which do not need a counterpart: browser-bound public surfaces (SEO listing pages, showcase portal, `/den` and `/buyer` portals, document viewer, invitation acceptance), the Chrome extension, the Go ingress and queue worker, admin/dev tooling, and native-only affordances (push tokens, camera, biometrics, deep-link handlers). Anything in the authenticated dashboard is not an exception.
 
 ---
 
@@ -735,3 +746,5 @@ All cron routes require `AUTOMATION_CRON_SECRET` or `CRON_SECRET`.
 - [ ] I kept changes minimal and scoped to the requirement.
 - [ ] I did not expose secrets or service-role keys in client code.
 - [ ] New tables have `account_id`, RLS, triggers, and policies.
+- [ ] The feature exists on both web and mobile (§2.8), or the gap is stated in my summary and recorded in `FEATURE_ROADMAP.md`.
+- [ ] If I touched `mobile/**`, I ran `cd mobile && npm run typecheck && npm run lint && npm test`.
