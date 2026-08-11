@@ -436,9 +436,17 @@ async function computeContactDuplicateWarnings(
         }
 
         if (existingContact) {
+          // A phone match is no longer an obstacle: confirming enriches
+          // that contact instead of creating a second one, so telling
+          // the agent to "type a different number" would talk them out
+          // of exactly what they forwarded the chat to do.
+          //
+          // A NAME match with a different number is still worth a
+          // caution, because it genuinely does create a second row —
+          // namesakes are common and only the agent can tell them apart.
           return matchType === 'phone'
-            ? `\n⚠️ *The contact with phone number ${draft.phone} already exists as "${existingContact.name}". Please type different number and try again.*`
-            : `\n⚠️ *The contact with Name "${draft.name}" already exists. Please type different name and try again.*`;
+            ? `\n♻️ *Already in your contacts as "${existingContact.name}".* Confirming updates them with anything new above — it will not create a second contact.`
+            : `\n⚠️ *A different contact named "${draft.name}" already exists* on another number. Confirming creates a second one — cancel and edit the name if they are the same person.`;
         }
       } catch (err) {
         console.error('[chatbot-engine] Error checking duplicate contacts:', err);
