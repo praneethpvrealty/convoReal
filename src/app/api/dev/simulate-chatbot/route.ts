@@ -4,6 +4,7 @@ import {
   classifyImageOrText,
   parseListingFromImageOrText,
   parseContactFromImageOrText,
+  parseClientReplyFromImageOrText,
 } from '@/lib/ai/gemini';
 import {
   validateDraft,
@@ -128,6 +129,33 @@ export async function POST(request: Request) {
       const previewText = formatDraftPreviewMessage('📝 *Listing Draft (simulated)*', draft, status, missingFields);
 
       return NextResponse.json({ classification, draft, isValid, missingFields, status, previewText });
+    }
+
+    if (classification === 'client_reply') {
+      const draft = mediaBuffer && mimeType
+        ? await parseClientReplyFromImageOrText(text, mediaBuffer, mimeType)
+        : await parseClientReplyFromImageOrText(text);
+      const previewText = [
+        '💬 *Client Reply (simulated)*',
+        draft.client_name ? `Client: ${draft.client_name}` : null,
+        draft.property_code || draft.property_title
+          ? `Property: ${[draft.property_title, draft.property_code].filter(Boolean).join(' ')}`
+          : null,
+        draft.response_summary ? `Response: ${draft.response_summary}` : null,
+        draft.next_action ? `Next: ${draft.next_action}` : null,
+        draft.timeline_hint ? `When: ${draft.timeline_hint}` : null,
+      ]
+        .filter((l): l is string => l !== null)
+        .join('\n');
+
+      return NextResponse.json({
+        classification,
+        draft,
+        isValid: Boolean(draft.response_summary),
+        missingFields: draft.response_summary ? [] : ['response_summary'],
+        status: null,
+        previewText,
+      });
     }
 
     // Neither property nor contact — the real bot would not start a

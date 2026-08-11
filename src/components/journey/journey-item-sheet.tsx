@@ -94,6 +94,7 @@ const EVENT_LABELS: Record<JourneyEvent["event_type"], string> = {
   unhidden: "Shown on map",
   planned: "Next step planned",
   plan_cleared: "Plan cleared",
+  client_response: "Client responded",
 };
 
 export interface JourneyItemSheetProps {

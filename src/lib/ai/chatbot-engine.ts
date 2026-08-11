@@ -9,10 +9,12 @@ import {
   classifyImageOrText,
   looksLikeBuyerRequirement,
   parseContactFromImageOrText,
+  parseClientReplyFromImageOrText,
   updateContactDraft,
   type ParsedContactDraftsContainer,
   normalizeClassification
 } from '@/lib/ai/gemini';
+import { processClientReplyScreenshot } from '@/lib/journey/client-response';
 import { applyListingDerivations } from '@/lib/ai/listing-derivations';
 import { uploadPropertyImage, uploadPropertyDocument, uploadPropertyVideo } from '@/lib/storage/upload';
 import { queueYouTubeUploadIfConnected } from '@/lib/youtube/upload';
@@ -703,6 +705,40 @@ export async function processOwnerChatbotMessage(
     return { buffer: inboundMediaBuffer, mimeType: inboundMediaMime };
   }
 
+  // A forwarded chat where a client answers about an already-shared
+  // listing: parse the response, log it against the journey, and ask
+  // the client for a timeline. Shared by the fresh-intake fork and the
+  // contact-session task switch — the reply is context to record, never
+  // a draft to open.
+  async function runClientReplyCapture(): Promise<boolean> {
+    if (!(await gatedBurn(accountId, 'contact_parse'))) {
+      return await sendCreditsLockedReply(phoneNumberId, accessToken, contactRecord.phone, conversation.id);
+    }
+    const analyzingMsg = "⏳ _Reading the client's reply... Please wait._";
+    const analyzingSendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: analyzingMsg });
+    await saveBotMessage(conversation.id, analyzingMsg, analyzingSendRes.messageId);
+
+    let reply: string;
+    try {
+      const media = isImageMsg ? await loadInboundMedia() : { buffer: undefined, mimeType: undefined };
+      const parsed = await parseClientReplyFromImageOrText(cleanedText || undefined, media.buffer, media.mimeType);
+      reply = await processClientReplyScreenshot({
+        db: supabaseAdmin(),
+        accountId,
+        userId,
+        parsed,
+        accessToken,
+        phoneNumberId,
+      });
+    } catch (err) {
+      console.error('[chatbot-engine] client reply capture failed:', err);
+      reply = "⚠️ I couldn't read that conversation. Try a clearer screenshot, or type the client's update (e.g. \"Surya will speak to the chairman on PROP-1138\").";
+    }
+    const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+    await saveBotMessage(conversation.id, reply, sendRes.messageId);
+    return true;
+  }
+
   // 1.65. Quote-reply on a confirmation card = a correction to the row
   // that card announced (migration 185). Without this the correction
   // reads as a brand-new request and creates a duplicate. A target that
@@ -944,6 +980,10 @@ export async function processOwnerChatbotMessage(
         console.log(`[chatbot-engine] Discarding active contact session ${contactSession.id} to start property flow`);
         await supabaseAdmin().from('contact_draft_sessions').delete().eq('id', contactSession.id);
         contactSession = null;
+      } else if (imgClass === 'client_reply') {
+        // A client's status reply is context to log, not contact
+        // enrichment — handle it and leave the draft in flight.
+        return await runClientReplyCapture();
       }
     } catch (err) {
       // On a classify/download failure, keep the contact session so the
@@ -2206,7 +2246,7 @@ export async function processOwnerChatbotMessage(
     if (!(await gatedBurn(accountId, 'chatbot_classify'))) {
       return await sendCreditsLockedReply(phoneNumberId, accessToken, contactRecord.phone, conversation.id);
     }
-    let classification: 'property' | 'contact' | 'schedule' | 'none';
+    let classification: 'property' | 'contact' | 'schedule' | 'client_reply' | 'none';
     if (isDocMsg) {
       classification = 'property';
     } else if (isVideoMsg) {
@@ -2242,6 +2282,12 @@ export async function processOwnerChatbotMessage(
         }
       }
       classification = 'none';
+    }
+
+    // --- CLIENT REPLY FLOW (forwarded chat: a client responding on an
+    // already-shared listing — log it, don't draft from it) ---
+    if (classification === 'client_reply') {
+      return await runClientReplyCapture();
     }
 
     // --- PROPERTY INGESTION FLOW ---

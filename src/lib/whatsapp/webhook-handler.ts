@@ -55,7 +55,15 @@ import {
   PREFERENCE_FLOW_BUTTON_ID,
 } from '@/lib/whatsapp/preference-flow'
 import { ENQUIRY_FOLLOWUP_CLOSE_BUTTON } from '@/lib/whatsapp/enquiry-followup-template'
-import { JOURNEY_CHECKIN_CLOSE_BUTTON } from '@/lib/whatsapp/journey-checkin-template'
+import {
+  JOURNEY_CHECKIN_CLOSE_BUTTON,
+  JOURNEY_CHECKIN_KEEP_BUTTON,
+} from '@/lib/whatsapp/journey-checkin-template'
+import {
+  CLIENT_FOLLOWUP_PREFIX,
+  handleClientFollowupReply,
+  handleInboxCheckinReply,
+} from '@/lib/journey/client-response'
 import { ENQUIRY_NOTICE_CLOSE_BUTTON } from '@/lib/whatsapp/enquiry-notice-template'
 import { accountPropertyShowcaseUrl } from '@/lib/showcase/account-showcase-url'
 import type { Contact } from '@/types'
@@ -1310,6 +1318,38 @@ async function processMessage(
   // Both enquiry templates carry their own copy of the label. They read
   // identically today, so matching only one worked by luck; matching
   // both means rewording either cannot silently stop closing enquiries.
+  // "Still considering it" on the journey check-in template: the tap is
+  // the client's answer — log it on the journey and ask for a timeline.
+  if (message.button?.text === JOURNEY_CHECKIN_KEEP_BUTTON) {
+    const keepOutcome = await handleInboxCheckinReply({
+      db: supabaseAdmin(),
+      accountId,
+      ownerUserId: configOwnerUserId,
+      contact: {
+        id: contactRecord.id,
+        name: contactRecord.name,
+        phone: senderPhone,
+      },
+      conversationId: conversation.id,
+      responseText: JOURNEY_CHECKIN_KEEP_BUTTON,
+      accessToken,
+      phoneNumberId,
+      fromButton: true,
+    })
+    if (keepOutcome !== 'logged_and_asked') {
+      await sendWhatsAppMessageAndPersist({
+        accountId,
+        userId: configOwnerUserId,
+        contactId: contactRecord.id,
+        conversationId: conversation.id,
+        kind: 'text',
+        senderType: 'bot',
+        text: "👍 Great — noted! We'll keep you posted.",
+      })
+    }
+    return
+  }
+
   const closeButtons = [
     ENQUIRY_FOLLOWUP_CLOSE_BUTTON,
     ENQUIRY_NOTICE_CLOSE_BUTTON,
@@ -1545,6 +1585,29 @@ async function processMessage(
       if (handled) {
         return
       }
+    }
+
+    // A text reply to a journey check-in the agent sent from the Engine
+    // inbox ("just checking in on <property>..."). Logged on the journey
+    // either way; the message is only consumed when the timeline ask
+    // went out — a reply that reads as a question still falls through
+    // so the bot answers it.
+    if (message.type === 'text' && contentText) {
+      const checkinOutcome = await handleInboxCheckinReply({
+        db: supabaseAdmin(),
+        accountId,
+        ownerUserId: configOwnerUserId,
+        contact: {
+          id: contactRecord.id,
+          name: contactRecord.name,
+          phone: senderPhone,
+        },
+        conversationId: conversation.id,
+        responseText: contentText,
+        accessToken,
+        phoneNumberId,
+      })
+      if (checkinOutcome === 'logged_and_asked') return
     }
 
     // A lead answering "what are your requirements and budget?" — the
@@ -1921,6 +1984,21 @@ async function processMessage(
   }
 
   if (interactiveReplyId) {
+    if (interactiveReplyId.startsWith(CLIENT_FOLLOWUP_PREFIX)) {
+      const handledFollowup = await handleClientFollowupReply({
+        db: supabaseAdmin(),
+        accountId,
+        ownerUserId: configOwnerUserId,
+        contact: {
+          id: contactRecord.id,
+          name: contactRecord.name,
+          phone: senderPhone,
+        },
+        conversationId: conversation.id,
+        replyId: interactiveReplyId,
+      })
+      if (handledFollowup) return
+    }
     if (
       interactiveReplyId.startsWith(CONSENT_APPROVE_PREFIX) ||
       interactiveReplyId.startsWith(CONSENT_DECLINE_PREFIX)
