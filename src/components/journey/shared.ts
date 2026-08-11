@@ -27,6 +27,87 @@ export const DEFAULT_JOURNEY_STAGES = [
   { name: "Brokerage Paid", color: "#22c55e" }, // green
 ];
 
+export type JourneyPriority = "high" | "medium" | "low";
+
+/** Priority ladder for the overview — `rank` drives sorting (lower
+ *  first), unrated journeys fall to the bottom with rank 3. */
+export const JOURNEY_PRIORITY_META: Record<
+  JourneyPriority,
+  { label: string; rank: number; className: string; dot: string }
+> = {
+  high: {
+    label: "High",
+    rank: 0,
+    className: "border-red-500/40 bg-red-500/10 text-red-300",
+    dot: "bg-red-400",
+  },
+  medium: {
+    label: "Medium",
+    rank: 1,
+    className: "border-amber-500/40 bg-amber-500/10 text-amber-300",
+    dot: "bg-amber-400",
+  },
+  low: {
+    label: "Low",
+    rank: 2,
+    className: "border-slate-600 bg-slate-800/60 text-slate-300",
+    dot: "bg-slate-400",
+  },
+};
+
+export const JOURNEY_PRIORITY_ORDER: JourneyPriority[] = [
+  "high",
+  "medium",
+  "low",
+];
+
+export type JourneySort = "priority" | "recent" | "stage";
+
+export const JOURNEY_SORT_LABELS: Record<JourneySort, string> = {
+  priority: "Priority",
+  recent: "Recent activity",
+  stage: "Furthest stage",
+};
+
+export function priorityRank(priority: JourneyPriority | null): number {
+  return priority ? JOURNEY_PRIORITY_META[priority].rank : 3;
+}
+
+/** Rankable shape — the overview's group, narrowed to what ordering
+ *  actually reads. */
+export interface RankableJourney {
+  priority: JourneyPriority | null;
+  furthestStageIdx: number;
+  lastUpdated: string;
+}
+
+/**
+ * Order journeys for the overview list. Every mode breaks ties the
+ * same way (priority → furthest stage → most recently touched) so the
+ * numbered rank stays stable when only the leading key changes.
+ */
+export function sortJourneys<T extends RankableJourney>(
+  journeys: T[],
+  sort: JourneySort,
+): T[] {
+  const byPriority = (a: T, b: T) =>
+    priorityRank(a.priority) - priorityRank(b.priority);
+  const byStage = (a: T, b: T) => b.furthestStageIdx - a.furthestStageIdx;
+  const byRecent = (a: T, b: T) => b.lastUpdated.localeCompare(a.lastUpdated);
+  const chain: Record<JourneySort, ((a: T, b: T) => number)[]> = {
+    priority: [byPriority, byStage, byRecent],
+    stage: [byStage, byPriority, byRecent],
+    recent: [byRecent, byPriority, byStage],
+  };
+  return [...journeys].sort((a, b) => {
+    for (const compare of chain[sort]) {
+      const result = compare(a, b);
+      if (result !== 0) return result;
+    }
+    return 0;
+  });
+}
+
 /** One-tap drop reasons — the free-text field stays available for
  *  anything not covered. */
 export const QUICK_DROP_REASONS = [

@@ -5,7 +5,9 @@ import {
   planEtaLabel,
   plannedIndexOf,
   sortItemsForRows,
+  sortJourneys,
   stageIndexOf,
+  type JourneyPriority,
 } from "./shared";
 
 function stage(id: string, position: number): JourneyStage {
@@ -115,6 +117,51 @@ describe("sortItemsForRows", () => {
     ];
     const copy = [...input];
     sortItemsForRows(input, STAGES);
+    expect(input).toEqual(copy);
+  });
+});
+
+describe("sortJourneys", () => {
+  const j = (
+    id: string,
+    priority: JourneyPriority | null,
+    furthestStageIdx: number,
+    lastUpdated: string,
+  ) => ({ id, priority, furthestStageIdx, lastUpdated });
+
+  const input = [
+    j("unrated-far", null, 5, "2026-01-05"),
+    j("low", "low", 1, "2026-01-04"),
+    j("high-old", "high", 0, "2026-01-01"),
+    j("high-new", "high", 3, "2026-01-02"),
+    j("medium", "medium", 2, "2026-01-03"),
+  ];
+
+  it("puts high priority first and unrated last", () => {
+    expect(sortJourneys(input, "priority").map((x) => x.id)).toEqual([
+      "high-new",
+      "high-old",
+      "medium",
+      "low",
+      "unrated-far",
+    ]);
+  });
+
+  it("leads on the chosen key and still breaks ties by priority", () => {
+    expect(sortJourneys(input, "stage")[0].id).toBe("unrated-far");
+    expect(sortJourneys(input, "recent")[0].id).toBe("unrated-far");
+    expect(sortJourneys(input, "recent").map((x) => x.id)).toEqual([
+      "unrated-far",
+      "low",
+      "medium",
+      "high-new",
+      "high-old",
+    ]);
+  });
+
+  it("does not mutate the input array", () => {
+    const copy = [...input];
+    sortJourneys(input, "priority");
     expect(input).toEqual(copy);
   });
 });

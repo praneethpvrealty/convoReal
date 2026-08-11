@@ -52,6 +52,8 @@ const TEMPLATE_LABELS: Record<EngineTemplateKey, string> = {
   enquiry_notice: 'Enquiry notice — the same, naming the listing',
   journey_checkin: 'Enquiry check-in — is this still under consideration?',
   journey_timeline: 'Enquiry timeline — when should we check back with you?',
+  journey_followup_reminder:
+    'Enquiry follow-up reminder — confirm or move the scheduled follow-up date',
 };
 
 /** What each numbered placeholder gets filled with at send time. */
@@ -64,6 +66,12 @@ const PLACEHOLDER_MEANINGS: Record<EngineTemplateKey, string[]> = {
   enquiry_notice: ['lead first name', 'brokerage name', 'listing title'],
   journey_checkin: ['lead first name', 'brokerage name', 'listing title'],
   journey_timeline: ['lead first name', 'brokerage name', 'listing title'],
+  journey_followup_reminder: [
+    'lead first name',
+    'brokerage name',
+    'listing title',
+    'scheduled follow-up date',
+  ],
 };
 
 /** The buttons each template actually carries, so a bubble shows the
@@ -77,6 +85,11 @@ const REPLY_BUTTONS: Record<EngineTemplateKey, TemplateButtonAction[]> = {
   enquiry_notice: ['update_preferences', 'close_enquiry'],
   journey_checkin: ['still_considering', 'close_enquiry', 'view_full_details'],
   journey_timeline: ['timeline_today', 'timeline_2_days', 'timeline_unsure'],
+  journey_followup_reminder: [
+    'timeline_today',
+    'timeline_2_days',
+    'timeline_unsure',
+  ],
 };
 
 const BUTTON_ORDER = Object.keys(TEMPLATE_BUTTON_LABELS) as TemplateButtonAction[];

@@ -19,11 +19,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  ArrowDownWideNarrow,
   Building2,
   ChevronDown,
   Eye,
   EyeOff,
   Expand,
+  Flag,
   Plus,
   UserRound,
   X,
@@ -36,10 +38,26 @@ import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { ConvoRealLoader } from "@/components/ui/convoreal-loader";
 import { NameTagBadge } from "@/components/contacts/name-tag-badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import type { Contact, JourneyItem, JourneyStage, Property } from "@/types";
 import { JourneySection } from "./journey-section";
 import { NewJourneyDialog } from "./new-journey-dialog";
-import { navigateJourney, stageIndexOf, type JourneyMode } from "./shared";
+import {
+  JOURNEY_PRIORITY_META,
+  JOURNEY_PRIORITY_ORDER,
+  JOURNEY_SORT_LABELS,
+  navigateJourney,
+  sortJourneys,
+  stageIndexOf,
+  type JourneyMode,
+  type JourneyPriority,
+  type JourneySort,
+} from "./shared";
 
 interface JourneyGroup {
   subjectId: string;
@@ -50,6 +68,7 @@ interface JourneyGroup {
   captured: number;
   furthestStageIdx: number;
   lastUpdated: string;
+  priority: JourneyPriority | null;
 }
 
 // localStorage helpers — view preferences only, never data.
@@ -69,6 +88,12 @@ function writeIdSet(key: string, ids: Set<string>) {
   }
 }
 
+function readSort(key: string): JourneySort {
+  if (typeof window === "undefined") return "priority";
+  const stored = localStorage.getItem(key);
+  return stored === "recent" || stored === "stage" ? stored : "priority";
+}
+
 export function JourneyOverview({
   mode,
   stages,
@@ -81,10 +106,11 @@ export function JourneyOverview({
   canEdit: boolean;
 }) {
   const supabase = createClient();
-  const { accountId } = useAuth();
+  const { user, accountId } = useAuth();
 
   const hiddenKey = `journey_overview_hidden_${mode}`;
   const openKey = `journey_overview_open_${mode}`;
+  const sortKey = `journey_overview_sort_${mode}`;
 
   const [groups, setGroups] = useState<JourneyGroup[]>([]);
   const [loading, setLoading] = useState(true);
@@ -96,15 +122,26 @@ export function JourneyOverview({
     return stored.size > 0 ? stored : null; // null = "no preference yet"
   });
   const [newJourneyOpen, setNewJourneyOpen] = useState(false);
+  const [sort, setSort] = useState<JourneySort>(() => readSort(sortKey));
 
-  // Mode switch swaps the storage keys — reload both prefs.
+  // Mode switch swaps the storage keys — reload the prefs.
   useEffect(() => {
     Promise.resolve().then(() => {
       setHiddenIds(readIdSet(hiddenKey));
       const stored = readIdSet(openKey);
       setOpenIds(stored.size > 0 ? stored : null);
+      setSort(readSort(sortKey));
     });
-  }, [hiddenKey, openKey]);
+  }, [hiddenKey, openKey, sortKey]);
+
+  const changeSort = (next: JourneySort) => {
+    setSort(next);
+    try {
+      localStorage.setItem(sortKey, next);
+    } catch {
+      // storage full / private mode — preference just won't persist
+    }
+  };
 
   const loadGroups = useCallback(async () => {
     if (!accountId) return;
@@ -112,12 +149,24 @@ export function JourneyOverview({
       mode === "buyer"
         ? "id, contact_id, property_id, stage_id, status, hidden, updated_at, contact:contacts(*)"
         : "id, contact_id, property_id, stage_id, status, hidden, updated_at, property:properties(*)";
-    const { data, error } = await supabase
-      .from("journey_items")
-      .select(select)
-      .eq("account_id", accountId)
-      .order("updated_at", { ascending: false })
-      .limit(2000);
+    const [{ data, error }, { data: priorityRows }] = await Promise.all([
+      supabase
+        .from("journey_items")
+        .select(select)
+        .eq("account_id", accountId)
+        .order("updated_at", { ascending: false })
+        .limit(2000),
+      supabase
+        .from("journey_priorities")
+        .select("subject_id, priority")
+        .eq("account_id", accountId)
+        .eq("mode", mode),
+    ]);
+    const priorities = new Map<string, JourneyPriority>(
+      ((priorityRows ?? []) as { subject_id: string; priority: JourneyPriority }[]).map(
+        (r) => [r.subject_id, r.priority],
+      ),
+    );
     if (error) {
       console.error("Failed to load journeys:", error.message);
       setLoading(false);
@@ -137,6 +186,7 @@ export function JourneyOverview({
           captured: 0,
           furthestStageIdx: -1,
           lastUpdated: row.updated_at,
+          priority: priorities.get(key) ?? null,
         };
         byId.set(key, g);
       }
@@ -157,8 +207,8 @@ export function JourneyOverview({
   }, [loadGroups]);
 
   const visibleGroups = useMemo(
-    () => groups.filter((g) => !hiddenIds.has(g.subjectId)),
-    [groups, hiddenIds],
+    () => sortJourneys(groups.filter((g) => !hiddenIds.has(g.subjectId)), sort),
+    [groups, hiddenIds, sort],
   );
   const hiddenGroups = useMemo(
     () => groups.filter((g) => hiddenIds.has(g.subjectId)),
@@ -185,6 +235,50 @@ export function JourneyOverview({
     else next.delete(id);
     setHiddenIds(next);
     writeIdSet(hiddenKey, next);
+  };
+
+  // Priority is a per-journey row keyed by (account, mode, subject);
+  // clearing it deletes the row rather than storing a fourth level.
+  const setPriority = async (
+    g: JourneyGroup,
+    priority: JourneyPriority | null,
+  ) => {
+    if (!accountId) return;
+    const previous = g.priority;
+    setGroups((prev) =>
+      prev.map((x) => (x.subjectId === g.subjectId ? { ...x, priority } : x)),
+    );
+    const { data, error } = priority
+      ? await supabase
+          .from("journey_priorities")
+          .upsert(
+            {
+              account_id: accountId,
+              mode,
+              subject_id: g.subjectId,
+              priority,
+              created_by: user?.id ?? null,
+            },
+            { onConflict: "account_id,mode,subject_id" },
+          )
+          .select("id")
+      : await supabase
+          .from("journey_priorities")
+          .delete()
+          .eq("account_id", accountId)
+          .eq("mode", mode)
+          .eq("subject_id", g.subjectId)
+          .select("id");
+    // A refused write returns zero rows and no error; a clear that
+    // matched nothing was already unrated, so only guard the upsert.
+    if (error || (priority && !data?.length)) {
+      setGroups((prev) =>
+        prev.map((x) =>
+          x.subjectId === g.subjectId ? { ...x, priority: previous } : x,
+        ),
+      );
+      toast.error(`Failed to set priority${error ? `: ${error.message}` : ""}`);
+    }
   };
 
   // ✕ on a hidden chip — delete the journey outright, no confirm:
@@ -239,10 +333,28 @@ export function JourneyOverview({
           {visibleGroups.length} journey{visibleGroups.length === 1 ? "" : "s"}
           {hiddenGroups.length > 0 && ` · ${hiddenGroups.length} hidden`}
         </p>
-        <Button size="sm" onClick={() => setNewJourneyOpen(true)}>
-          <Plus className="h-3.5 w-3.5" />
-          New journey
-        </Button>
+        <div className="flex items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger className="inline-flex items-center gap-1.5 rounded-md border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-slate-200 transition-colors hover:bg-slate-800">
+              <ArrowDownWideNarrow className="h-3.5 w-3.5" />
+              {JOURNEY_SORT_LABELS[sort]}
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              className="border-slate-700 bg-slate-900"
+            >
+              {(Object.keys(JOURNEY_SORT_LABELS) as JourneySort[]).map((s) => (
+                <DropdownMenuItem key={s} onClick={() => changeSort(s)}>
+                  {JOURNEY_SORT_LABELS[s]}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button size="sm" onClick={() => setNewJourneyOpen(true)}>
+            <Plus className="h-3.5 w-3.5" />
+            New journey
+          </Button>
+        </div>
       </div>
 
       {visibleGroups.length === 0 ? (
@@ -258,8 +370,11 @@ export function JourneyOverview({
           </Button>
         </div>
       ) : (
-        visibleGroups.map((g) => {
+        visibleGroups.map((g, rank) => {
           const open = effectiveOpen.has(g.subjectId);
+          const priorityMeta = g.priority
+            ? JOURNEY_PRIORITY_META[g.priority]
+            : null;
           const furthest =
             g.furthestStageIdx >= 0 ? stages[g.furthestStageIdx] : null;
           return (
@@ -285,6 +400,12 @@ export function JourneyOverview({
                     !open && "-rotate-90",
                   )}
                 />
+                <span
+                  title={`Rank ${rank + 1} of ${visibleGroups.length}`}
+                  className="w-6 shrink-0 text-right text-[11px] font-semibold tabular-nums text-slate-500"
+                >
+                  #{rank + 1}
+                </span>
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10">
                   {mode === "buyer" ? (
                     <UserRound className="h-3.5 w-3.5 text-primary" />
@@ -306,7 +427,62 @@ export function JourneyOverview({
                   </span>
                 </span>
 
-                <span className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+                <span
+                  className="flex shrink-0 flex-wrap items-center justify-end gap-1.5"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {canEdit ? (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger
+                        title="Set priority"
+                        className={cn(
+                          "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors",
+                          priorityMeta
+                            ? priorityMeta.className
+                            : "border-slate-700 text-slate-500 hover:text-slate-300",
+                        )}
+                      >
+                        <Flag className="h-3 w-3" />
+                        {priorityMeta?.label ?? "Set priority"}
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent
+                        align="end"
+                        className="border-slate-700 bg-slate-900"
+                      >
+                        {JOURNEY_PRIORITY_ORDER.map((p) => (
+                          <DropdownMenuItem
+                            key={p}
+                            onClick={() => setPriority(g, p)}
+                          >
+                            <span
+                              className={cn(
+                                "mr-2 h-2 w-2 rounded-full",
+                                JOURNEY_PRIORITY_META[p].dot,
+                              )}
+                            />
+                            {JOURNEY_PRIORITY_META[p].label}
+                          </DropdownMenuItem>
+                        ))}
+                        {g.priority && (
+                          <DropdownMenuItem onClick={() => setPriority(g, null)}>
+                            Clear priority
+                          </DropdownMenuItem>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  ) : (
+                    priorityMeta && (
+                      <span
+                        className={cn(
+                          "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold",
+                          priorityMeta.className,
+                        )}
+                      >
+                        <Flag className="h-3 w-3" />
+                        {priorityMeta.label}
+                      </span>
+                    )
+                  )}
                   {furthest && (
                     <span
                       className="hidden items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold sm:inline-flex"

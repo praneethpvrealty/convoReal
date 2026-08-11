@@ -34,7 +34,7 @@ The tappable options underneath a message.
 
 ---
 
-## Messages (8)
+## Messages (9)
 
 ### 1. Property details — sent when a buyer asks about a listing
 
@@ -273,6 +273,34 @@ The tappable options underneath a message.
 > இந்தப் பட்டியல் குறித்த உங்கள் முடிவைத் தெரிவிப்பதாகக் கூறியிருந்தீர்கள்.
 >
 > நாங்கள் எப்போது மீண்டும் தொடர்பு கொள்ள வேண்டும் என்பதைத் தேர்ந்தெடுக்கவும்.
+
+**Your correction** *(leave blank if the above is fine)*
+
+>
+
+---
+
+### 9. Enquiry follow-up reminder — confirm or move the scheduled follow-up date
+
+*Placeholders:* `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = listing title · `{{4}}` = scheduled follow-up date
+
+**English**
+
+> Hi {{1}}, this is a reminder from {{2}} that your property enquiry is open and awaiting your decision.
+>
+> Property: {{3}}
+> Follow-up currently scheduled for: {{4}}
+>
+> Please tap a button below to confirm this date or move it. If you choose "Can't say yet", the follow-up is removed and your enquiry stays open until you contact us.
+
+**தமிழ் — current**
+
+> வணக்கம் {{1}}, இது {{2}} சார்பாக ஒரு நினைவூட்டல் — உங்கள் சொத்து விசாரணை திறந்திருக்கிறது, உங்கள் முடிவுக்காக காத்திருக்கிறது.
+>
+> சொத்து: {{3}}
+> அடுத்த தொடர்பு திட்டமிடப்பட்டுள்ளது: {{4}}
+>
+> இந்த தேதியை உறுதிப்படுத்த அல்லது மாற்ற கீழே உள்ள பொத்தானை அழுத்தவும். "இப்போது சொல்ல முடியாது" எனத் தேர்ந்தெடுத்தால், திட்டமிட்ட தொடர்பு நீக்கப்பட்டு விசாரணை திறந்தே இருக்கும்.
 
 **Your correction** *(leave blank if the above is fine)*
 
