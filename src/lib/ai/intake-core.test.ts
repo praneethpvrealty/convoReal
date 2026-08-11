@@ -448,9 +448,9 @@ describe('formatContactDraftsPreview', () => {
       makeContact({ name: 'Ravi', phone: '9876543210' }),
       makeContact({ name: 'Priya', phone: '9000000000' }),
     ]);
-    const warnings = [null, '\n⚠️ *The contact with phone number 9000000000 already exists as "Priya S". Please type different number and try again.*'];
+    const warnings = [null, '\n♻️ *Already in your contacts as "Priya S".* Confirming updates them.'];
     const msg = formatContactDraftsPreview('h', container, 'awaiting_confirmation', [], warnings);
-    expect(msg).toContain('already exists as "Priya S"');
+    expect(msg).toContain('Already in your contacts as "Priya S"');
     // The first contact has no warning line
     const firstBlock = msg.split('*Contact #2:*')[0];
     expect(firstBlock).not.toContain('already exists');
