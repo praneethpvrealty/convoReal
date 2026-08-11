@@ -673,7 +673,9 @@ export default function PropertyDetailScreen() {
           ) : null}
 
           {property.owner ? (
-            <Section title="Owner">
+            <Section
+              title={property.listing_source === 'agent' ? 'Agent' : 'Owner'}
+            >
               <Link
                 href={`/(app)/contact/${property.owner_contact_id}`}
                 asChild
