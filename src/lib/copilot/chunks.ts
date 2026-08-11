@@ -362,7 +362,7 @@ export const CHUNKS: KnowledgeChunk[] = [
     id: 'mobile.app',
     title: 'Mobile app',
     kind: 'concept',
-    body: 'ConvoReal has a companion mobile app with inventory, contacts, inbox, deals, calendar and property sharing, signed in with a WhatsApp OTP. Some things are app-only: importing contacts from the phone book, home-screen widgets, and a fingerprint app lock. Web property links open directly in the app when installed.',
+    body: 'ConvoReal has a companion mobile app with inventory, contacts, inbox, deals, calendar and property sharing, signed in with a WhatsApp OTP. Documents can be attached there too, including a photo of a paper one. App-only: phone-book contact import, home-screen widgets and a fingerprint lock. Web property links open in the app when installed.',
     keywords: ['android', 'ios', 'phone app', 'download app'],
   },
   {
@@ -391,8 +391,16 @@ export const CHUNKS: KnowledgeChunk[] = [
     id: 'documents.gated',
     title: 'Gated documents',
     kind: 'concept',
-    body: 'Property documents can be shared through secure links instead of files: the buyer requests access, you approve, and the link works for 48 hours. You always see who requested and viewed what.',
-    keywords: ['document sharing', 'secure link', 'approval'],
+    body: 'Property documents can be shared through secure links instead of files: the buyer requests access, you approve, and the link works for 48 hours. You always see who requested and viewed what. Attach documents from either surface — open the property and use the Documents section — but approving a buyer\u2019s request is done on the web dashboard.',
+    keywords: [
+      'document sharing',
+      'secure link',
+      'approval',
+      'upload document',
+      'attach pdf',
+      'khata',
+      'sale deed',
+    ],
   },
 
   // ---- howtos (tasks without a guided tour) -------------------
