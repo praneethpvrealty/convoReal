@@ -183,6 +183,11 @@ export function TemplateManager() {
   // seven independent registrations you are looking at.
   const [activeLanguage, setActiveLanguage] = useState<LanguageCode>('en');
   const [reviewing, setReviewing] = useState<string | null>(null);
+  // Inline wording editor on the review card. Keyed by template id so
+  // only the one being corrected turns into a textarea.
+  const [editingCopyId, setEditingCopyId] = useState<string | null>(null);
+  const [copyDraft, setCopyDraft] = useState('');
+  const [savingCopy, setSavingCopy] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -626,6 +631,35 @@ export function TemplateManager() {
     }
   };
 
+  const handleSaveCopy = async (template: MessageTemplate) => {
+    if (savingCopy) return;
+    const next = copyDraft.trim();
+    if (!next || next === template.body_text) {
+      setEditingCopyId(null);
+      return;
+    }
+    setSavingCopy(true);
+    try {
+      const res = await fetch(`/api/whatsapp/templates/draft/${template.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ body_text: next, footer_text: template.footer_text }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || `Save failed (HTTP ${res.status})`);
+      toast.success('Wording saved — mark it reviewed when it reads right.');
+      setEditingCopyId(null);
+      if (accountId) await fetchTemplates(accountId);
+    } catch (err) {
+      // Validation messages from the route name the exact problem
+      // (placeholder moved, two adjacent, body too long), so surface
+      // them rather than a generic failure.
+      toast.error(err instanceof Error ? err.message : 'Failed to save wording');
+    } finally {
+      setSavingCopy(false);
+    }
+  };
+
   const handleToggleReview = async (template: MessageTemplate) => {
     if (reviewing) return;
     setReviewing(template.id);
@@ -835,9 +869,49 @@ export function TemplateManager() {
                         </span>
                       )}
                     </div>
-                    <p className="line-clamp-2 text-sm text-slate-400">
-                      {template.body_text}
-                    </p>
+                    {editingCopyId === template.id ? (
+                      <div className="space-y-2">
+                        <Textarea
+                          value={copyDraft}
+                          onChange={(e) => setCopyDraft(e.target.value)}
+                          rows={8}
+                          autoFocus
+                          className="border-slate-700 bg-slate-950 font-normal text-white"
+                        />
+                        <p className="text-[11px] leading-relaxed text-slate-500">
+                          Keep every {'{{1}}'}, {'{{2}}'} … exactly as it is — you
+                          can move one within the sentence, but not add, remove or
+                          renumber them. Saving clears the review so the corrected
+                          wording gets read once more.
+                        </p>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            onClick={() => handleSaveCopy(template)}
+                            disabled={savingCopy}
+                            className="bg-primary hover:bg-primary/90 text-primary-foreground"
+                          >
+                            {savingCopy ? (
+                              <Loader2 className="size-3.5 animate-spin" />
+                            ) : null}
+                            Save wording
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setEditingCopyId(null)}
+                            disabled={savingCopy}
+                            className="border-slate-700 bg-transparent text-slate-300 hover:bg-slate-800"
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-sm whitespace-pre-wrap text-slate-400">
+                        {template.body_text}
+                      </p>
+                    )}
                     {template.footer_text && (
                       <p className="text-xs text-slate-500 italic">
                         {template.footer_text}
@@ -866,13 +940,28 @@ export function TemplateManager() {
                           <span className="flex-1 text-[11px] leading-normal text-slate-500">
                             {template.translation_reviewed_at
                               ? 'Editing the wording clears this automatically.'
-                              : `Read the wording above as a ${SUPPORTED_LANGUAGES[activeLanguage].label} speaker would. Edit it if it reads wrong, then mark it reviewed.`}
+                              : `Read the wording above as a ${SUPPORTED_LANGUAGES[activeLanguage].label} speaker would. Fix it with Edit wording if it reads wrong, then mark it reviewed.`}
                           </span>
+                          {!template.translation_reviewed_at &&
+                            editingCopyId !== template.id && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setCopyDraft(template.body_text);
+                                  setEditingCopyId(template.id);
+                                }}
+                                className="border-slate-700 bg-transparent text-slate-300 hover:bg-slate-800"
+                              >
+                                <Pencil className="size-3.5" />
+                                Edit wording
+                              </Button>
+                            )}
                           <Button
                             size="sm"
                             variant="outline"
                             onClick={() => handleToggleReview(template)}
-                            disabled={reviewing !== null}
+                            disabled={reviewing !== null || editingCopyId === template.id}
                             className="border-slate-700 bg-transparent text-slate-300 hover:bg-slate-800"
                           >
                             {reviewing === template.id ? (
