@@ -15,6 +15,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   fieldPolicy,
+  guardedListValue,
   normalizeValue,
   valuesDiffer,
   type LearnedEntity,
@@ -76,7 +77,10 @@ interface PreparedFact {
 export function prepareFacts(
   entity: LearnedEntity,
   current: Record<string, unknown>,
-  facts: FactCandidate[]
+  facts: FactCandidate[],
+  /** The sentence these were read out of. Removals from an
+   *  auto-applied list need it; without one, none are allowed. */
+  evidence = ''
 ): PreparedFact[] {
   const seen = new Set<string>();
   const out: PreparedFact[] = [];
@@ -92,13 +96,24 @@ export function prepareFacts(
     const applyAs = policy.applyAs ?? 'column';
     if (applyAs !== 'column' && policy.disposition === 'auto') continue;
 
-    const value = normalizeValue(policy, fact.value);
-    if (value === null) continue;
+    const normalized = normalizeValue(policy, fact.value);
+    if (normalized === null) continue;
 
     // Keyed by column for a column write, by field otherwise — `tags`
     // has no column, and its "current" is the attached tag names.
     const currentKey = applyAs === 'column' ? policy.column : policy.field;
     const previous = current[currentKey] ?? null;
+
+    // A removal from a list nobody reviews needs the evidence to name
+    // what is being removed. Proposed fields are exempt: a person sees
+    // those before they land, so a wrong deletion is caught.
+    const value =
+      policy.kind === 'list' &&
+      policy.disposition === 'auto' &&
+      Array.isArray(normalized)
+        ? guardedListValue(previous, normalized as string[], evidence)
+        : normalized;
+
     if (!valuesDiffer(previous, value)) continue;
 
     seen.add(fact.field);
@@ -125,7 +140,7 @@ export async function recordLearnedFacts(
   const empty: RecordFactsResult = { applied: [], proposed: [] };
 
   try {
-    const prepared = prepareFacts(args.entity, args.current, args.facts);
+    const prepared = prepareFacts(args.entity, args.current, args.facts, args.evidence);
     if (!prepared.length) return empty;
 
     const auto = prepared.filter((f) => f.disposition === 'auto');
