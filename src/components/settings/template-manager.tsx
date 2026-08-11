@@ -15,13 +15,20 @@ import {
   Upload,
   CheckCircle2,
   Clock,
+  Sparkles,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import {
   missingEngineTemplates,
   ENGINE_TEMPLATES,
   ENGINE_TEMPLATE_NAMES,
+  engineCopyKey,
 } from '@/lib/whatsapp/engine-templates';
+import {
+  hasCopyUpdate,
+  resolveCopyDrift,
+  shippedCopy,
+} from '@/lib/whatsapp/template-drift';
 import {
   TemplateLanguageTabs,
   templateMatchesLanguage,
@@ -188,6 +195,8 @@ export function TemplateManager() {
   const [editingCopyId, setEditingCopyId] = useState<string | null>(null);
   const [copyDraft, setCopyDraft] = useState('');
   const [savingCopy, setSavingCopy] = useState(false);
+  // Which row is taking ConvoReal's newer wording (migration 252).
+  const [adoptingId, setAdoptingId] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -660,6 +669,47 @@ export function TemplateManager() {
     }
   };
 
+  // Take ConvoReal's newer wording for a local draft. Meta-backed rows
+  // are refused by the route and never offered this here — see
+  // openEditWithShippedCopy, which walks them through the Meta edit
+  // instead of pretending the change is free.
+  const handleAdoptCopy = async (template: MessageTemplate) => {
+    if (adoptingId) return;
+    setAdoptingId(template.id);
+    try {
+      const res = await fetch(
+        `/api/whatsapp/templates/draft/${template.id}/adopt`,
+        { method: 'POST' }
+      );
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || `Failed (HTTP ${res.status})`);
+      toast.success(
+        'Updated to the latest wording — read it once more, then mark it reviewed.'
+      );
+      if (accountId) await fetchTemplates(accountId);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update wording');
+    } finally {
+      setAdoptingId(null);
+    }
+  };
+
+  // For a template Meta already holds: open the normal edit dialog with
+  // our newer wording filled in. Deliberately not a one-click adopt —
+  // submitting it re-opens Meta review, and the dialog is where that is
+  // spelled out and where the reviewer can still change their mind.
+  function openEditWithShippedCopy(template: MessageTemplate) {
+    const key = engineCopyKey(template.name);
+    if (!key) return;
+    const copy = shippedCopy(key, activeLanguage);
+    openEdit(template);
+    setForm((prev) => ({
+      ...prev,
+      body_text: copy.body_text,
+      footer_text: copy.footer_text ?? '',
+    }));
+  }
+
   const handleToggleReview = async (template: MessageTemplate) => {
     if (reviewing) return;
     setReviewing(template.id);
@@ -830,6 +880,18 @@ export function TemplateManager() {
           {visibleTemplates.map((template) => {
             const statusKey = template.status || 'DRAFT';
             const status = templateStatusConfig[statusKey];
+            // Has our shipped wording moved on since this row was
+            // created? See template-drift.ts for why that is separable
+            // from "the account reworded it" at all — the two look
+            // identical from outside and want opposite treatment.
+            const copyKey = engineCopyKey(template.name);
+            const drift = copyKey
+              ? resolveCopyDrift(template, copyKey, activeLanguage)
+              : 'in_sync';
+            const copyUpdate = hasCopyUpdate(drift);
+            const theirWording = drift === 'customised_and_outdated';
+            const newerBody =
+              copyKey && copyUpdate ? shippedCopy(copyKey, activeLanguage).body_text : '';
             return (
               <Card
                 key={template.id}
@@ -916,6 +978,52 @@ export function TemplateManager() {
                       <p className="text-xs text-slate-500 italic">
                         {template.footer_text}
                       </p>
+                    )}
+                    {/* We ship better wording than this row holds.
+                        What that means depends on why they differ, and
+                        the offer differs with it: an untouched draft can
+                        take ours in one click, a row somebody reworded
+                        opens an editor with ours in it so their words
+                        are replaced by a decision rather than a tap, and
+                        a template Meta already holds goes through the
+                        edit dialog because submitting re-opens review. */}
+                    {isOrgManager && copyUpdate && editingCopyId !== template.id && (
+                      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-2.5 py-2">
+                        <span className="flex items-center gap-1.5 text-xs font-semibold text-primary">
+                          <Sparkles className="size-3.5" />
+                          Newer wording
+                        </span>
+                        <span className="flex-1 text-[11px] leading-normal text-slate-400">
+                          {theirWording
+                            ? 'ConvoReal has improved this copy, but the wording here is your own. Ours is offered for comparison — take it only if it reads better than what you wrote.'
+                            : template.meta_template_id
+                              ? 'ConvoReal has improved this copy since your template was created. Taking it re-opens Meta review, and this template keeps sending its current wording until that clears.'
+                              : 'ConvoReal has improved this copy since your draft was created. Nothing here has been edited, so the new wording is safe to take.'}
+                        </span>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            if (template.meta_template_id) {
+                              openEditWithShippedCopy(template);
+                            } else if (theirWording) {
+                              setCopyDraft(newerBody);
+                              setEditingCopyId(template.id);
+                            } else {
+                              handleAdoptCopy(template);
+                            }
+                          }}
+                          disabled={adoptingId !== null}
+                          className="border-primary/40 bg-transparent text-primary hover:bg-primary/10"
+                        >
+                          {adoptingId === template.id ? (
+                            <Loader2 className="size-3.5 animate-spin" />
+                          ) : null}
+                          {template.meta_template_id || theirWording
+                            ? 'Review the new wording'
+                            : 'Use the new wording'}
+                        </Button>
+                      </div>
                     )}
                     {/* Translation review. Only for a non-English
                         Engine template that has not reached Meta yet —

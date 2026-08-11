@@ -77,6 +77,26 @@ export function metaLanguageCode(code: LanguageCode): string {
   return SUPPORTED_LANGUAGES[code].meta;
 }
 
+/**
+ * Back the other way: a Meta code as stored on message_templates.language
+ * to our key, or null when it is a language the product does not speak.
+ *
+ * Null rather than a fallback to English on purpose — the callers are
+ * deciding whether a row corresponds to copy we ship, and answering
+ * "English" for a template registered in Gujarati would have them
+ * compare it against the wrong words.
+ *
+ * en_GB and bare en are accepted alongside en_US: Meta allows all
+ * three and an account that synced its templates in from WhatsApp
+ * Manager can be holding any of them.
+ */
+export function languageForMetaCode(meta: string): LanguageCode | null {
+  const wanted = meta.trim();
+  if (wanted === 'en_GB' || wanted === 'en') return 'en';
+  const found = LANGUAGE_CODES.find((c) => SUPPORTED_LANGUAGES[c].meta === wanted);
+  return found ?? null;
+}
+
 // ------------------------------------------------------------
 // Prompt fragments
 //
