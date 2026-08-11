@@ -43,7 +43,6 @@ import {
   Ban,
 } from 'lucide-react';
 import { getMatchingContacts, type MatchDetails } from '@/lib/matching';
-import { captureJourneyItems } from '@/lib/journey/capture';
 import { recordPropertyShares } from '@/lib/inventory/share-log';
 import { isLocationGuarded, localityLabel } from '@/lib/inventory/location-guard';
 import {
@@ -1088,20 +1087,8 @@ export function PropertyShareDialog({
   // canvas — and re-shares are no-ops (idempotent upsert).
   function captureSharesToJourney(sentContactIds: string[]) {
     if (!accountId || !property || sentContactIds.length === 0) return;
-    captureJourneyItems({
-      accountId,
-      userId: user?.id,
-      pairs: sentContactIds.map((contactId) => ({
-        contactId,
-        propertyId: property.id,
-      })),
-      source: 'whatsapp_share',
-      hidden: true,
-    })
-      .then((r) => {
-        if (r.error) console.error('Journey share capture failed:', r.error);
-      })
-      .catch((err) => console.error('Journey share capture failed:', err));
+    // recordPropertyShares captures the journey item too — see its
+    // header for why that is not left to each caller.
     recordPropertyShares({
       accountId,
       propertyId: property.id,
