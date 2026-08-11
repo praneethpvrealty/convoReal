@@ -1,6 +1,6 @@
 // ============================================================
 // Showcase visibility — page-level gating for a listing's public URL
-// (migration 252), sitting above the field-level location guard.
+// (migration 254), sitting above the field-level location guard.
 //
 // The location guard answers "may this viewer see the address?". This
 // answers the earlier question: "may this viewer see the listing at
@@ -17,7 +17,7 @@
 // layers over `toPublicPropertyView` rather than the reverse, so the
 // location guard stays free of any dependency on this module.
 //
-// A share grant carrying `reveal_listing` (migration 252) opens the
+// A share grant carrying `reveal_listing` (migration 254) opens the
 // page for the one link it was minted for — the same widen-only,
 // expiring, revocable key the share dialog already mints.
 // ============================================================

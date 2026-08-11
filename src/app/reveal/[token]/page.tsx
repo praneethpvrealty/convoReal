@@ -26,10 +26,46 @@ export default async function RevealPage({ params }: PageProps) {
 
   const admin = supabaseAdmin();
 
+  // A listing-scope approval sends the SHARE GRANT's token, not a
+  // reveal token (see approveRequestAndSendReveal). Resolve that first:
+  // it means the recipient was approved for the gated page, never for
+  // an address card, so the hop happens before any location lookup.
+  const { data: grantRow } = await admin
+    .from('property_share_grants')
+    .select(
+      'token, expires_at, revoked_at, reveal_listing, property:properties(id, title, type, bedrooms, showcase_visibility, sublocality, city, state)'
+    )
+    .eq('token', token)
+    .maybeSingle();
+
+  if (grantRow) {
+    const grant = grantRow as unknown as {
+      expires_at: string;
+      revoked_at: string | null;
+      reveal_listing: boolean;
+      property: unknown;
+    };
+    if (
+      !grant.reveal_listing ||
+      grant.revoked_at ||
+      new Date(grant.expires_at) <= new Date()
+    ) {
+      return <ErrorState reason="expired" />;
+    }
+    const target = (
+      Array.isArray(grant.property) ? grant.property[0] : grant.property
+    ) as // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    any;
+    if (!target) return <ErrorState reason="invalid" />;
+    redirect(
+      `/property/${propertySlug(target)}?g=${encodeURIComponent(token)}`
+    );
+  }
+
   const { data: locRequest, error } = await admin
     .from('property_location_requests')
     .select(
-      '*, property:properties(id, title, property_code, type, bedrooms, showcase_visibility, location, sublocality, city, state, google_map_link, latitude, longitude, images, private_images), grant:property_share_grants!granted_share_id(token, expires_at, revoked_at)'
+      '*, property:properties(id, title, property_code, type, bedrooms, showcase_visibility, location, sublocality, city, state, google_map_link, latitude, longitude, images, private_images)'
     )
     .eq('share_token', token)
     .maybeSingle();
@@ -46,35 +82,6 @@ export default async function RevealPage({ params }: PageProps) {
     : null;
   if (expiresAt && new Date() > expiresAt) {
     return <ErrorState reason="expired" />;
-  }
-
-  // A listing-scope approval (migration 252) unlocks the showcase page
-  // itself, not this address card. It still lands here because that is
-  // where the approved `location_reveal` template's URL button points —
-  // reusing it beats minting a second template for a second
-  // destination, given a template's category is unfixable once
-  // approved (AGENTS.md §2.7). Hop onward to the granted page.
-  if (locRequest.scope === 'listing') {
-    const grant = (
-      Array.isArray(locRequest.grant) ? locRequest.grant[0] : locRequest.grant
-    ) as {
-      token: string;
-      expires_at: string;
-      revoked_at: string | null;
-    } | null;
-    if (
-      !grant ||
-      grant.revoked_at ||
-      new Date(grant.expires_at) <= new Date()
-    ) {
-      return <ErrorState reason="expired" />;
-    }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const target = locRequest.property as any;
-    if (!target) return <ErrorState reason="invalid" />;
-    redirect(
-      `/property/${propertySlug(target)}?g=${encodeURIComponent(grant.token)}`
-    );
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

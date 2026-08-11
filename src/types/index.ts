@@ -1064,7 +1064,7 @@ export interface Property {
    *  villas, farm houses and land default to 'locality' (exact address,
    *  map pin and coordinates hidden), everything else to 'exact'. */
   location_privacy?: 'exact' | 'locality' | null;
-  /** Showcase gating (migration 252). NULL = derived ('open'). 'teaser'
+  /** Showcase gating (migration 254). NULL = derived ('open'). 'teaser'
    *  reduces the public page to a stub behind a request-access gate. */
   showcase_visibility?: 'open' | 'teaser' | null;
   /** Set by the showcase serializer, never stored: this row was reduced

@@ -77,7 +77,7 @@ export interface LocationRequestRow {
   consent_requested_at: string | null;
   share_token: string | null;
   contact_id?: string | null;
-  /** What was asked for (migration 252). 'location' is every request
+  /** What was asked for (migration 254). 'location' is every request
    *  minted before showcase gating existed. */
   scope?: 'location' | 'listing';
 }
@@ -139,7 +139,7 @@ export function buildRevealMessage(args: {
     return (
       `🔓 *Access Approved — ${args.propertyTitle}*\n\n` +
       `Hi ${args.requesterName}, the owner has approved your request to view this listing.\n\n` +
-      `🏡 Full details: ${args.revealLink}\n\n` +
+      `🏡 Full details, photos, address & map pin: ${args.revealLink}\n\n` +
       `🔒 The owner has asked that these details stay between us — please don't forward the link or the photos. ` +
       `Every photo carries your reference so we can honour that.\n\n` +
       `⏳ This link is valid for 7 days.`
@@ -427,26 +427,58 @@ export async function requestConsentFromContact(
 /** The Engine contact card mirroring the listing-side user's own
  *  WhatsApp (matched by profile email) — the channel owner pings and
  *  their button replies arrive on. */
+/**
+ * The WhatsApp number the listing side's Approve/Reject ping goes to.
+ *
+ * Matching the staff profile to a `contacts` row by email is the
+ * preferred path — it threads the ping into an existing chat. But it is
+ * a coincidence, not a guarantee: a brokerage has no reason to keep a
+ * contact card for its own owner, and when there is none this returned
+ * null and the ping was skipped ENTIRELY AND SILENTLY. The account
+ * holder then had no way to approve from WhatsApp at all, which is the
+ * whole point of the ping. Verified on a live account: the owner's
+ * profile carried a phone, no contact matched their email, and no ping
+ * was ever sent.
+ *
+ * So the profile's own phone is the fallback. `contactId` is null in
+ * that case and the dispatcher resolves (or creates) the contact from
+ * the number, exactly as it does for any other outbound send.
+ */
 async function resolveOwnerWhatsAppContact(
   admin: SupabaseClient,
   accountId: string,
   targetUserId: string
-): Promise<{ contactId: string; phone: string } | null> {
+): Promise<{ contactId: string | null; phone: string } | null> {
   const { data: agentProfile } = await admin
     .from('profiles')
-    .select('email')
+    .select('email, phone')
     .eq('user_id', targetUserId)
     .maybeSingle();
-  if (!agentProfile?.email) return null;
+  if (!agentProfile) return null;
 
-  const { data: agentContact } = await admin
+  if (agentProfile.email) {
+    const { data: agentContact } = await admin
+      .from('contacts')
+      .select('id, phone')
+      .eq('account_id', accountId)
+      .eq('email', agentProfile.email)
+      .maybeSingle();
+    if (agentContact?.phone) {
+      return { contactId: agentContact.id, phone: agentContact.phone };
+    }
+  }
+
+  const profilePhone = normalizePhoneWithCountryCode(agentProfile.phone || '');
+  if (!profilePhone) return null;
+
+  const { data: byPhone } = await admin
     .from('contacts')
-    .select('id, phone')
+    .select('id')
     .eq('account_id', accountId)
-    .eq('email', agentProfile.email)
+    .eq('phone', profilePhone)
     .maybeSingle();
-  if (!agentContact?.phone) return null;
-  return { contactId: agentContact.id, phone: agentContact.phone };
+
+  return { contactId: byPhone?.id ?? null, phone: profilePhone };
 }
 
 async function resolveOwnerUserId(
@@ -544,7 +576,9 @@ export async function notifyOwnerQueue(
     await sendWhatsAppMessageAndPersist({
       accountId: request.account_id,
       userId: targetUserId,
-      contactId: agent.contactId,
+      ...(agent.contactId
+        ? { contactId: agent.contactId }
+        : { toPhone: agent.phone }),
       kind: 'interactive',
       senderType: 'bot',
       interactiveType: 'buttons',
@@ -648,7 +682,9 @@ export async function handleOwnerLocationReply(args: {
     await sendWhatsAppMessageAndPersist({
       accountId: request.account_id,
       userId: targetUserId,
-      contactId: agent.contactId,
+      ...(agent.contactId
+        ? { contactId: agent.contactId }
+        : { toPhone: agent.phone }),
       kind: 'text',
       senderType: 'bot',
       text: ackText,
@@ -670,7 +706,7 @@ async function mintListingGrant(
   admin: SupabaseClient,
   request: LocationRequestRow,
   approvedByUserId: string | null
-): Promise<string | null> {
+): Promise<{ id: string; token: string } | null> {
   const { token, expiresAt } = mintShareGrantToken(SHARE_GRANT_TTL_MS);
   const { data, error } = await admin
     .from('property_share_grants')
@@ -681,6 +717,23 @@ async function mintListingGrant(
       created_by: approvedByUserId,
       token,
       reveal_listing: true,
+      // Approving a listing request grants the WHOLE file — page,
+      // address, map pin and the guarded photos.
+      //
+      // An earlier cut granted only the page and left the address
+      // behind its own separate request, on the reasoning that the two
+      // guards should compose. Delivery proved that wrong: outside the
+      // 24-hour window the reveal goes out on the approved
+      // `location_reveal` template, whose fixed copy promises "the
+      // address, map pin and full photos". A template's wording cannot
+      // be re-cut without a new name and a fresh category roll
+      // (AGENTS.md §2.7), so the choice was to make the promise true or
+      // to send one the recipient would find false. It is now true.
+      //
+      // This is also the plainer bargain: the owner approved this
+      // person, so this person sees the property.
+      reveal_location: true,
+      reveal_private_images: true,
       expires_at: expiresAt,
     })
     .select('id')
@@ -690,7 +743,7 @@ async function mintListingGrant(
     console.error('[location-requests] Listing grant mint failed:', error);
     return null;
   }
-  return data.id as string;
+  return { id: data.id as string, token };
 }
 
 /**
@@ -705,28 +758,39 @@ export async function approveRequestAndSendReveal(
   request: LocationRequestRow,
   approvedByUserId: string | null
 ): Promise<{ shareLink: string; revealDelivered: boolean }> {
-  const { token, expiresAt } = mintRevealToken();
-  const shareLink = `${revealBaseUrl()}/reveal/${token}`;
-
-  // A listing-scope approval opens the teaser-gated page, which is a
-  // share grant, not an address card. Deliberately NOT reveal_location:
-  // the two guards compose, so a gated listing that is also
-  // location-guarded opens its page while the address stays behind its
-  // own request. The seeker is still sent to /reveal/<token> — that page
-  // hops onward to the granted URL, which lets the approved
-  // `location_reveal` template carry both outcomes.
-  const grantId =
+  // A listing-scope approval opens the teaser-gated page, and the grant
+  // it mints carries the address and guarded photos with it — see
+  // mintListingGrant for why that is one decision and not two.
+  const grant =
     request.scope === 'listing'
       ? await mintListingGrant(admin, request, approvedByUserId)
       : null;
+
+  // The link the seeker receives always points at /reveal/<token>,
+  // because that is where the approved `location_reveal` template's URL
+  // button goes and a template's category is unfixable once approved
+  // (AGENTS.md §2.7). But WHICH token differs, and deliberately so.
+  //
+  // A listing approval sends the GRANT token and leaves share_token
+  // NULL. Older code — a not-yet-deployed instance, or a rollback —
+  // resolves /reveal/ by share_token alone and knows nothing of scope,
+  // so handed a reveal token it would serve its address card for a
+  // listing that was never approved for an address. Sending a token it
+  // cannot resolve makes that path fail closed: it renders "invalid"
+  // instead of disclosing a location. Verified against production
+  // during end-to-end testing, where the old page did exactly that.
+  const listingToken = grant?.token ?? null;
+  const { token: revealToken, expiresAt } = mintRevealToken();
+  const token = listingToken ?? revealToken;
+  const shareLink = `${revealBaseUrl()}/reveal/${token}`;
 
   await admin
     .from('property_location_requests')
     .update({
       status: 'approved',
-      share_token: token,
-      share_token_expires_at: expiresAt,
-      granted_share_id: grantId,
+      share_token: listingToken ? null : revealToken,
+      share_token_expires_at: listingToken ? null : expiresAt,
+      granted_share_id: grant?.id ?? null,
       approved_by: approvedByUserId,
       approved_at: new Date().toISOString(),
       pending_consent_contact_id: null,

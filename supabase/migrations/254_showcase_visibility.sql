@@ -1,5 +1,5 @@
 -- ============================================================
--- 252_showcase_visibility.sql
+-- 254_showcase_visibility.sql
 --
 -- Page-level gating for showcase URLs, above the field-level location
 -- guard (migration 175).

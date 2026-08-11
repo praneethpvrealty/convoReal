@@ -104,6 +104,7 @@ import {
   handleLocationConsentReply,
   handleOwnerLocationReply,
 } from '@/lib/inventory/location-requests'
+import { isEngineControlReplyId } from '@/lib/whatsapp/control-reply-ids'
 import { parseBuyerMatchesCommand } from '@/lib/buyer/digest'
 import { buildBuyerMatchReply } from '@/lib/buyer/match-reply'
 import {
@@ -1176,14 +1177,28 @@ async function processMessage(
   // the lead that ping was about — send it on and stop, so the text
   // never also lands in the owner chatbot or the digest commands.
   // No-op for every message that isn't a reply to a bridge message.
-  const bridged = await handleBridgedAgentReply({
-    message,
-    contentText,
-    accountId,
-    senderPhone,
-    agentContactId: contactRecord.id,
-    agentConversationId: conversation.id,
-  })
+  //
+  // EXCEPT a button we put there ourselves. Tapping Approve on an
+  // owner-queue ping arrives as a reply carrying that ping's
+  // context.id, so the bridge matched it and relayed "✅ Approve" to
+  // the lead-reply reader, which answered the owner with "couldn't
+  // match the client to a contact in your book" — and the approval
+  // never ran, because its handler sits further down this function.
+  // A control payload is an instruction to the Engine, not a reply to
+  // a lead, so the bridge has to stand down for it.
+  const isControlReply = Boolean(
+    interactiveReplyId && isEngineControlReplyId(interactiveReplyId)
+  )
+  const bridged = isControlReply
+    ? false
+    : await handleBridgedAgentReply({
+        message,
+        contentText,
+        accountId,
+        senderPhone,
+        agentContactId: contactRecord.id,
+        agentConversationId: conversation.id,
+      })
   if (bridged) return
 
   // The agent this lead is routed to (freshly resolved above, or a prior

@@ -74,7 +74,7 @@ export interface GrantedReveals {
   location: boolean;
   documents: boolean;
   privateImages: boolean;
-  /** Opens a teaser-gated page (migration 252). Independent of
+  /** Opens a teaser-gated page (migration 254). Independent of
    *  `location`: unlocking the listing must not hand over an address
    *  the location guard is still holding back. */
   listing: boolean;

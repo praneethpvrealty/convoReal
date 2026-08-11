@@ -280,7 +280,7 @@ export async function cachedFetchShowcaseData(
 // a share grant (?g=) reveals the address, pin and documents for the
 // single listing it was minted for, guarded or not — see
 // src/lib/inventory/location-guard.ts. A teaser-gated listing
-// (migration 252) is reduced to its stub here regardless of mode,
+// (migration 254) is reduced to its stub here regardless of mode,
 // unless that same grant carries reveal_listing — see
 // src/lib/inventory/showcase-visibility.ts.
 export function toPublicProperties(

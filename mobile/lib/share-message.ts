@@ -25,7 +25,7 @@ export interface ShareMessageInput {
   grantTtlLabel?: string;
 }
 
-// ── Showcase gating (migration 252) ─────────────────────────────
+// ── Showcase gating (migration 254) ─────────────────────────────
 // Ported from src/lib/inventory/showcase-visibility.ts rather than
 // imported: that module reaches into the location guard, which pulls in
 // the web's auth and property-options trees. These three are pure and
