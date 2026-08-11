@@ -369,7 +369,8 @@ Copy `.env.local.example` to `.env.local` and fill in the required values. The a
 | `REDIS_URL` | Redis connection string for webhook queueing and DLQ. Format: `redis://...` or `rediss://...` |
 | `WHATSAPP_VERIFY_TOKEN` | Static Meta webhook verification token (used by Go ingress; falls back to DB-backed verification) |
 | `GEMINI_API_KEY` | Google Gemini API key for AI features |
-| `GOOGLE_MAPS_API_KEY` | Google Places / Maps API key |
+| `GOOGLE_MAPS_API_KEY` | Google Places / Maps API key (server-side) |
+| `NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY` | Referrer-restricted Maps JavaScript API key for the Inventory map view; without it the map degrades to a hint panel |
 | `RESEND_API_KEY` | Resend API key for transactional emails |
 | `RESEND_FROM_EMAIL` | Sender email address (defaults to `noreply@convoreal.com`) |
 | `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` | Razorpay credentials |

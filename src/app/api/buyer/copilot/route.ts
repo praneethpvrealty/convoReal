@@ -6,6 +6,7 @@ import {
   RATE_LIMITS,
 } from '@/lib/rate-limit';
 import { answerQuestion } from '@/lib/copilot/engine';
+import { logCopilotEvent } from '@/lib/copilot/events';
 import { readChatRequest } from '@/lib/copilot/request';
 
 /**
@@ -38,10 +39,17 @@ export const POST = withBuyerAuth(async (ctx, req) => {
     return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
 
+  const accountId = ctx.links[0]?.accountId ?? null;
   const result = await answerQuestion({
     audience: 'buyer',
-    accountId: ctx.links[0]?.accountId ?? null,
+    accountId,
     ...parsed,
+  });
+  logCopilotEvent({
+    accountId,
+    audience: 'buyer',
+    event: 'chat',
+    cached: result.cached,
   });
   return NextResponse.json(result);
 });

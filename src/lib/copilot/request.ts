@@ -1,4 +1,5 @@
 import type { ChatTurn } from './engine';
+import { parsePlatform, type CopilotPlatform } from './platform';
 
 /**
  * Request parsing shared by the three helper chat routes. Every
@@ -15,6 +16,7 @@ export interface ParsedChatRequest {
   message: string;
   pathname: string;
   history: ChatTurn[];
+  platform: CopilotPlatform;
 }
 
 function sanitizeHistory(raw: unknown): ChatTurn[] {
@@ -38,6 +40,7 @@ export function readChatRequest(
     message?: unknown;
     pathname?: unknown;
     history?: unknown;
+    platform?: unknown;
   };
   const message = typeof b.message === 'string' ? b.message.trim() : '';
   if (!message || message.length > MAX_MESSAGE_CHARS) {
@@ -50,5 +53,6 @@ export function readChatRequest(
         ? b.pathname.slice(0, MAX_PATHNAME_CHARS)
         : '/',
     history: sanitizeHistory(b.history),
+    platform: parsePlatform(b.platform),
   };
 }

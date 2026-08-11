@@ -2,6 +2,11 @@ import { createHash } from 'node:crypto';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { isCurrentChunk, type Audience } from './chunks';
 import { buildCopilotScaffold, isAllowedRoute } from './knowledge';
+import {
+  parseCoverage,
+  type CopilotPlatform,
+  type MobileCoverage,
+} from './platform';
 import { getTour } from './tours';
 
 /**
@@ -49,9 +54,12 @@ const MATCH_COUNT = 3;
  * Knowledge-chunk edits intentionally do NOT rotate it; those are
  * handled per-row via source_chunks validation below.
  */
-export function kbVersionFor(audience: Audience): string {
+export function kbVersionFor(
+  audience: Audience,
+  platform: CopilotPlatform = 'web'
+): string {
   return createHash('sha256')
-    .update(buildCopilotScaffold('/', audience))
+    .update(buildCopilotScaffold('/', audience, platform))
     .digest('hex')
     .slice(0, 12);
 }
@@ -72,6 +80,9 @@ export interface CachedAnswer {
   /** Set when the cached answer was a "we don't do that" — the route
    *  re-logs the demand so cache hits keep counting (see unmet.ts). */
   unsupportedCapability?: string;
+  /** Mobile answers only — the coverage verdict travels with the
+   *  cached reply so a hit keeps its client affordance. */
+  coverage?: MobileCoverage;
 }
 
 let _adminClient: SupabaseClient | null = null;
@@ -120,6 +131,8 @@ interface MatchRow {
   navigate_to: string | null;
   unsupported_capability: string | null;
   source_chunks: ChunkRef[] | null;
+  /** Absent until migration 244 recreates match_copilot_qa. */
+  coverage?: string | null;
   similarity: number;
 }
 
@@ -143,7 +156,8 @@ function sourceChunksCurrent(refs: ChunkRef[] | null): boolean {
  */
 export async function lookupCachedAnswer(
   embedding: number[],
-  audience: Audience = 'agent'
+  audience: Audience = 'agent',
+  platform: CopilotPlatform = 'web'
 ): Promise<CachedAnswer | null> {
   const db = cacheAdmin();
   if (!db) return null;
@@ -151,7 +165,7 @@ export async function lookupCachedAnswer(
   try {
     const { data, error } = await db.rpc('match_copilot_qa', {
       p_embedding: embedding,
-      p_kb_version: kbVersionFor(audience),
+      p_kb_version: kbVersionFor(audience, platform),
       p_threshold: SIMILARITY_THRESHOLD,
       p_count: MATCH_COUNT,
     });
@@ -166,6 +180,7 @@ export async function lookupCachedAnswer(
         !row.navigate_to || isAllowedRoute(row.navigate_to, audience);
       if (!tourOk || !routeOk || !sourceChunksCurrent(row.source_chunks))
         continue;
+      const coverage = parseCoverage(row.coverage);
       return {
         id: row.id,
         reply: row.reply,
@@ -174,6 +189,7 @@ export async function lookupCachedAnswer(
         ...(row.unsupported_capability
           ? { unsupportedCapability: row.unsupported_capability }
           : {}),
+        ...(coverage ? { coverage } : {}),
       };
     }
     return null;
@@ -207,6 +223,8 @@ export async function storeAnswer(input: {
   unsupportedCapability?: string;
   sourceChunks: ChunkRef[];
   audience?: Audience;
+  platform?: CopilotPlatform;
+  coverage?: MobileCoverage;
 }): Promise<string | null> {
   const db = cacheAdmin();
   if (!db) return null;
@@ -221,7 +239,10 @@ export async function storeAnswer(input: {
         navigate_to: input.navigateTo ?? null,
         unsupported_capability: input.unsupportedCapability ?? null,
         source_chunks: input.sourceChunks,
-        kb_version: kbVersionFor(input.audience ?? 'agent'),
+        kb_version: kbVersionFor(input.audience ?? 'agent', input.platform),
+        // Only mobile answers carry the column, so web caching keeps
+        // working on databases that predate migration 244.
+        ...(input.coverage ? { coverage: input.coverage } : {}),
       })
       .select('id')
       .single();

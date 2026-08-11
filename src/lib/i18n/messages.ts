@@ -63,9 +63,36 @@ export const EN = {
     'The language of this app for you. It does not change the language of messages sent to your clients — that is set per contact and per account.',
   'appearance.languageActive': 'Showing',
   'appearance.languageShowNow': 'Show the app in:',
-  'appearance.languageCap': 'You can keep two languages and switch between them from the header.',
+  'appearance.languageCap':
+    'You can keep two languages and switch between them from the header.',
   'appearance.languageIncomplete':
     'Translation is in progress: screens that are not translated yet stay in English.',
+
+  'copilot.askSupport': 'Ask the support team',
+  'copilot.supportWhere': 'Where should our team reply?',
+  'copilot.supportPhone': 'WhatsApp number',
+  'copilot.supportEmail': 'Email address',
+  'copilot.supportSend': 'Send to support',
+  'copilot.supportSending': 'Sending…',
+  'copilot.supportSent': 'Sent to the support team — reference',
+  'copilot.supportReply': "We'll get back to you on",
+  'copilot.featureNoted': 'Noted as a feature request for the ConvoReal team.',
+
+  'inventory.nearMe': 'Near me',
+  'inventory.nearYou': 'Showing matches near your location, within',
+  'inventory.listView': 'List view',
+  'inventory.mapView': 'Map view',
+  'inventory.mapNotConfigured': 'Map view is not configured.',
+  'inventory.mapFailed':
+    'The map failed to load — check the browser key and try again.',
+  'inventory.mapNone': 'No mapped listings in this search',
+  'inventory.mapped': 'listings mapped',
+  'inventory.locationUnavailable': 'Location is not available in this browser.',
+  'inventory.locationDenied':
+    'Could not get your location — allow location access and try again.',
+
+  'contacts.allProjects': 'All projects',
+  'contacts.projectFilter': 'Filter by project',
 } as const;
 
 export type MessageKey = keyof typeof EN;
@@ -113,9 +140,34 @@ const HI: Catalogue = {
     'आपके लिए इस ऐप की भाषा। इससे आपके ग्राहकों को भेजे जाने वाले संदेशों की भाषा नहीं बदलती — वह हर संपर्क और खाते के लिए अलग से तय होती है।',
   'appearance.languageActive': 'दिख रहा है',
   'appearance.languageShowNow': 'ऐप इस भाषा में दिखाएँ:',
-  'appearance.languageCap': 'आप दो भाषाएँ रख सकते हैं और हेडर से उनके बीच बदल सकते हैं।',
+  'appearance.languageCap':
+    'आप दो भाषाएँ रख सकते हैं और हेडर से उनके बीच बदल सकते हैं।',
   'appearance.languageIncomplete':
     'अनुवाद जारी है: जो स्क्रीन अभी अनुवादित नहीं हैं वे अंग्रेज़ी में ही रहेंगी।',
+  'copilot.askSupport': 'सपोर्ट टीम से पूछें',
+  'copilot.supportWhere': 'हमारी टीम कहाँ जवाब दे?',
+  'copilot.supportPhone': 'WhatsApp नंबर',
+  'copilot.supportEmail': 'ईमेल पता',
+  'copilot.supportSend': 'सपोर्ट को भेजें',
+  'copilot.supportSending': 'भेजा जा रहा है…',
+  'copilot.supportSent': 'सपोर्ट टीम को भेज दिया — संदर्भ',
+  'copilot.supportReply': 'हम आपको जवाब देंगे —',
+  'copilot.featureNoted':
+    'ConvoReal टीम के लिए फ़ीचर अनुरोध के रूप में दर्ज किया गया।',
+  'inventory.nearMe': 'मेरे पास',
+  'inventory.nearYou': 'आपके स्थान के पास के मिलान, इस दायरे में',
+  'inventory.listView': 'सूची दृश्य',
+  'inventory.mapView': 'नक्शा दृश्य',
+  'inventory.mapNotConfigured': 'नक्शा दृश्य सेट नहीं है।',
+  'inventory.mapFailed':
+    'नक्शा लोड नहीं हुआ — ब्राउज़र key जाँचें और फिर कोशिश करें।',
+  'inventory.mapNone': 'इस खोज में नक्शे पर कोई लिस्टिंग नहीं',
+  'inventory.mapped': 'लिस्टिंग नक्शे पर',
+  'inventory.locationUnavailable': 'इस ब्राउज़र में लोकेशन उपलब्ध नहीं है।',
+  'inventory.locationDenied':
+    'आपकी लोकेशन नहीं मिली — लोकेशन की अनुमति देकर फिर कोशिश करें।',
+  'contacts.allProjects': 'सभी प्रोजेक्ट',
+  'contacts.projectFilter': 'प्रोजेक्ट से फ़िल्टर करें',
 };
 
 const KN: Catalogue = {
@@ -159,9 +211,33 @@ const KN: Catalogue = {
     'ನಿಮಗಾಗಿ ಈ ಆ್ಯಪ್‌ನ ಭಾಷೆ. ಇದು ನಿಮ್ಮ ಗ್ರಾಹಕರಿಗೆ ಕಳುಹಿಸುವ ಸಂದೇಶಗಳ ಭಾಷೆಯನ್ನು ಬದಲಾಯಿಸುವುದಿಲ್ಲ — ಅದನ್ನು ಪ್ರತಿ ಸಂಪರ್ಕ ಮತ್ತು ಖಾತೆಗೆ ಪ್ರತ್ಯೇಕವಾಗಿ ಹೊಂದಿಸಲಾಗುತ್ತದೆ.',
   'appearance.languageActive': 'ತೋರಿಸುತ್ತಿದೆ',
   'appearance.languageShowNow': 'ಆ್ಯಪ್ ಅನ್ನು ಈ ಭಾಷೆಯಲ್ಲಿ ತೋರಿಸಿ:',
-  'appearance.languageCap': 'ನೀವು ಎರಡು ಭಾಷೆಗಳನ್ನು ಇಟ್ಟುಕೊಂಡು ಹೆಡರ್‌ನಿಂದ ಬದಲಾಯಿಸಬಹುದು.',
+  'appearance.languageCap':
+    'ನೀವು ಎರಡು ಭಾಷೆಗಳನ್ನು ಇಟ್ಟುಕೊಂಡು ಹೆಡರ್‌ನಿಂದ ಬದಲಾಯಿಸಬಹುದು.',
   'appearance.languageIncomplete':
     'ಅನುವಾದ ಪ್ರಗತಿಯಲ್ಲಿದೆ: ಇನ್ನೂ ಅನುವಾದಿಸದ ಪರದೆಗಳು ಇಂಗ್ಲಿಷ್‌ನಲ್ಲಿಯೇ ಇರುತ್ತವೆ.',
+  'copilot.askSupport': 'ಸಪೋರ್ಟ್ ತಂಡವನ್ನು ಕೇಳಿ',
+  'copilot.supportWhere': 'ನಮ್ಮ ತಂಡ ಎಲ್ಲಿ ಉತ್ತರಿಸಬೇಕು?',
+  'copilot.supportPhone': 'WhatsApp ಸಂಖ್ಯೆ',
+  'copilot.supportEmail': 'ಇಮೇಲ್ ವಿಳಾಸ',
+  'copilot.supportSend': 'ಸಪೋರ್ಟ್\u200cಗೆ ಕಳುಹಿಸಿ',
+  'copilot.supportSending': 'ಕಳುಹಿಸಲಾಗುತ್ತಿದೆ…',
+  'copilot.supportSent': 'ಸಪೋರ್ಟ್ ತಂಡಕ್ಕೆ ಕಳುಹಿಸಲಾಗಿದೆ — ಉಲ್ಲೇಖ',
+  'copilot.supportReply': 'ನಾವು ನಿಮಗೆ ಉತ್ತರಿಸುತ್ತೇವೆ —',
+  'copilot.featureNoted': 'ConvoReal ತಂಡಕ್ಕೆ ಫೀಚರ್ ವಿನಂತಿಯಾಗಿ ದಾಖಲಿಸಲಾಗಿದೆ.',
+  'inventory.nearMe': 'ನನ್ನ ಹತ್ತಿರ',
+  'inventory.nearYou': 'ನಿಮ್ಮ ಸ್ಥಳದ ಹತ್ತಿರದ ಹೊಂದಾಣಿಕೆಗಳು, ಈ ವ್ಯಾಪ್ತಿಯಲ್ಲಿ',
+  'inventory.listView': 'ಪಟ್ಟಿ ನೋಟ',
+  'inventory.mapView': 'ನಕ್ಷೆ ನೋಟ',
+  'inventory.mapNotConfigured': 'ನಕ್ಷೆ ನೋಟ ಸಂರಚಿಸಿಲ್ಲ.',
+  'inventory.mapFailed':
+    'ನಕ್ಷೆ ಲೋಡ್ ಆಗಲಿಲ್ಲ — ಬ್ರೌಸರ್ key ಪರಿಶೀಲಿಸಿ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.',
+  'inventory.mapNone': 'ಈ ಹುಡುಕಾಟದಲ್ಲಿ ನಕ್ಷೆಯ ಲಿಸ್ಟಿಂಗ್ ಇಲ್ಲ',
+  'inventory.mapped': 'ಲಿಸ್ಟಿಂಗ್\u200cಗಳು ನಕ್ಷೆಯಲ್ಲಿ',
+  'inventory.locationUnavailable': 'ಈ ಬ್ರೌಸರ್\u200cನಲ್ಲಿ ಸ್ಥಳ ಲಭ್ಯವಿಲ್ಲ.',
+  'inventory.locationDenied':
+    'ನಿಮ್ಮ ಸ್ಥಳ ಸಿಗಲಿಲ್ಲ — ಸ್ಥಳದ ಅನುಮತಿ ನೀಡಿ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.',
+  'contacts.allProjects': 'ಎಲ್ಲ ಪ್ರಾಜೆಕ್ಟ್\u200cಗಳು',
+  'contacts.projectFilter': 'ಪ್ರಾಜೆಕ್ಟ್ ಮೂಲಕ ಫಿಲ್ಟರ್',
 };
 
 const TA: Catalogue = {
@@ -206,9 +282,35 @@ const TA: Catalogue = {
     'உங்களுக்கான இந்த ஆப்பின் மொழி. இது உங்கள் வாடிக்கையாளர்களுக்கு அனுப்பப்படும் செய்திகளின் மொழியை மாற்றாது — அது ஒவ்வொரு தொடர்புக்கும் கணக்குக்கும் தனித்தனியாக அமைக்கப்படுகிறது.',
   'appearance.languageActive': 'காட்டப்படுகிறது',
   'appearance.languageShowNow': 'ஆப்பை இந்த மொழியில் காட்டு:',
-  'appearance.languageCap': 'நீங்கள் இரண்டு மொழிகளை வைத்துக்கொண்டு தலைப்புப் பகுதியில் இருந்து மாற்றலாம்.',
+  'appearance.languageCap':
+    'நீங்கள் இரண்டு மொழிகளை வைத்துக்கொண்டு தலைப்புப் பகுதியில் இருந்து மாற்றலாம்.',
   'appearance.languageIncomplete':
     'மொழிபெயர்ப்பு நடைபெறுகிறது: இன்னும் மொழிபெயர்க்கப்படாத திரைகள் ஆங்கிலத்திலேயே இருக்கும்.',
+  'copilot.askSupport': 'சப்போர்ட் குழுவிடம் கேளுங்கள்',
+  'copilot.supportWhere': 'எங்கள் குழு எங்கு பதிலளிக்க வேண்டும்?',
+  'copilot.supportPhone': 'WhatsApp எண்',
+  'copilot.supportEmail': 'மின்னஞ்சல் முகவரி',
+  'copilot.supportSend': 'சப்போர்ட்டுக்கு அனுப்பு',
+  'copilot.supportSending': 'அனுப்பப்படுகிறது…',
+  'copilot.supportSent': 'சப்போர்ட் குழுவிற்கு அனுப்பப்பட்டது — குறிப்பு',
+  'copilot.supportReply': 'நாங்கள் உங்களுக்கு பதிலளிப்போம் —',
+  'copilot.featureNoted':
+    'ConvoReal குழுவிற்கான அம்ச கோரிக்கையாக பதிவு செய்யப்பட்டது.',
+  'inventory.nearMe': 'என் அருகில்',
+  'inventory.nearYou':
+    'உங்கள் இடத்திற்கு அருகிலுள்ள பொருத்தங்கள், இந்த எல்லைக்குள்',
+  'inventory.listView': 'பட்டியல் காட்சி',
+  'inventory.mapView': 'வரைபடக் காட்சி',
+  'inventory.mapNotConfigured': 'வரைபடக் காட்சி அமைக்கப்படவில்லை.',
+  'inventory.mapFailed':
+    'வரைபடம் ஏற்றப்படவில்லை — browser key சரிபார்த்து மீண்டும் முயற்சிக்கவும்.',
+  'inventory.mapNone': 'இந்தத் தேடலில் வரைபடத்தில் லிஸ்டிங் இல்லை',
+  'inventory.mapped': 'லிஸ்டிங்குகள் வரைபடத்தில்',
+  'inventory.locationUnavailable': 'இந்த browser-இல் இருப்பிடம் கிடைக்கவில்லை.',
+  'inventory.locationDenied':
+    'உங்கள் இருப்பிடம் கிடைக்கவில்லை — இருப்பிட அனுமதி வழங்கி மீண்டும் முயற்சிக்கவும்.',
+  'contacts.allProjects': 'எல்லா ப்ராஜெக்ட்களும்',
+  'contacts.projectFilter': 'ப்ராஜெக்ட் வாரியாக வடிகட்டு',
 };
 
 const TE: Catalogue = {
@@ -252,9 +354,33 @@ const TE: Catalogue = {
     'మీ కోసం ఈ యాప్ భాష. ఇది మీ క్లయింట్లకు పంపే సందేశాల భాషను మార్చదు — అది ప్రతి పరిచయానికి, ఖాతాకు విడిగా సెట్ చేయబడుతుంది.',
   'appearance.languageActive': 'చూపిస్తోంది',
   'appearance.languageShowNow': 'యాప్‌ను ఈ భాషలో చూపించు:',
-  'appearance.languageCap': 'మీరు రెండు భాషలను ఉంచుకుని హెడర్ నుండి మార్చుకోవచ్చు.',
+  'appearance.languageCap':
+    'మీరు రెండు భాషలను ఉంచుకుని హెడర్ నుండి మార్చుకోవచ్చు.',
   'appearance.languageIncomplete':
     'అనువాదం జరుగుతోంది: ఇంకా అనువదించని స్క్రీన్‌లు ఆంగ్లంలోనే ఉంటాయి.',
+  'copilot.askSupport': 'సపోర్ట్ టీమ్\u200cను అడగండి',
+  'copilot.supportWhere': 'మా టీమ్ ఎక్కడ సమాధానం ఇవ్వాలి?',
+  'copilot.supportPhone': 'WhatsApp నంబర్',
+  'copilot.supportEmail': 'ఇమెయిల్ చిరునామా',
+  'copilot.supportSend': 'సపోర్ట్\u200cకు పంపండి',
+  'copilot.supportSending': 'పంపుతున్నాం…',
+  'copilot.supportSent': 'సపోర్ట్ టీమ్\u200cకు పంపాం — సూచన',
+  'copilot.supportReply': 'మేము మీకు సమాధానం ఇస్తాం —',
+  'copilot.featureNoted': 'ConvoReal టీమ్ కోసం ఫీచర్ అభ్యర్థనగా నమోదైంది.',
+  'inventory.nearMe': 'నా దగ్గర',
+  'inventory.nearYou': 'మీ ప్రదేశానికి దగ్గరి సరిపోలికలు, ఈ పరిధిలో',
+  'inventory.listView': 'జాబితా వీక్షణ',
+  'inventory.mapView': 'మ్యాప్ వీక్షణ',
+  'inventory.mapNotConfigured': 'మ్యాప్ వీక్షణ సెటప్ కాలేదు.',
+  'inventory.mapFailed':
+    'మ్యాప్ లోడ్ కాలేదు — browser key చూసి మళ్లీ ప్రయత్నించండి.',
+  'inventory.mapNone': 'ఈ శోధనలో మ్యాప్\u200cలో లిస్టింగ్ లేదు',
+  'inventory.mapped': 'లిస్టింగ్\u200cలు మ్యాప్\u200cలో',
+  'inventory.locationUnavailable': 'ఈ browser-లో లొకేషన్ అందుబాటులో లేదు.',
+  'inventory.locationDenied':
+    'మీ లొకేషన్ దొరకలేదు — లొకేషన్ అనుమతి ఇచ్చి మళ్లీ ప్రయత్నించండి.',
+  'contacts.allProjects': 'అన్ని ప్రాజెక్టులు',
+  'contacts.projectFilter': 'ప్రాజెక్ట్ ద్వారా ఫిల్టర్',
 };
 
 const ML: Catalogue = {
@@ -298,9 +424,35 @@ const ML: Catalogue = {
     'നിങ്ങൾക്കായി ഈ ആപ്പിന്റെ ഭാഷ. ഇത് നിങ്ങളുടെ ക്ലയന്റുകൾക്ക് അയക്കുന്ന സന്ദേശങ്ങളുടെ ഭാഷ മാറ്റില്ല — അത് ഓരോ ബന്ധത്തിനും അക്കൗണ്ടിനും വെവ്വേറെ ക്രമീകരിക്കുന്നു.',
   'appearance.languageActive': 'കാണിക്കുന്നു',
   'appearance.languageShowNow': 'ആപ്പ് ഈ ഭാഷയിൽ കാണിക്കുക:',
-  'appearance.languageCap': 'നിങ്ങൾക്ക് രണ്ട് ഭാഷകൾ സൂക്ഷിച്ച് ഹെഡറിൽ നിന്ന് മാറാം.',
+  'appearance.languageCap':
+    'നിങ്ങൾക്ക് രണ്ട് ഭാഷകൾ സൂക്ഷിച്ച് ഹെഡറിൽ നിന്ന് മാറാം.',
   'appearance.languageIncomplete':
     'വിവർത്തനം പുരോഗമിക്കുന്നു: ഇതുവരെ വിവർത്തനം ചെയ്യാത്ത സ്ക്രീനുകൾ ഇംഗ്ലീഷിൽ തന്നെ തുടരും.',
+  'copilot.askSupport': 'സപ്പോർട്ട് ടീമിനോട് ചോദിക്കുക',
+  'copilot.supportWhere': 'ഞങ്ങളുടെ ടീം എവിടെ മറുപടി നൽകണം?',
+  'copilot.supportPhone': 'WhatsApp നമ്പർ',
+  'copilot.supportEmail': 'ഇമെയിൽ വിലാസം',
+  'copilot.supportSend': 'സപ്പോർട്ടിലേക്ക് അയയ്ക്കുക',
+  'copilot.supportSending': 'അയയ്ക്കുന്നു…',
+  'copilot.supportSent': 'സപ്പോർട്ട് ടീമിന് അയച്ചു — റഫറൻസ്',
+  'copilot.supportReply': 'ഞങ്ങൾ നിങ്ങൾക്ക് മറുപടി നൽകും —',
+  'copilot.featureNoted':
+    'ConvoReal ടീമിനുള്ള ഫീച്ചർ അഭ്യർത്ഥനയായി രേഖപ്പെടുത്തി.',
+  'inventory.nearMe': 'എന്റെ അടുത്ത്',
+  'inventory.nearYou':
+    'നിങ്ങളുടെ സ്ഥലത്തിന് അടുത്തുള്ള പൊരുത്തങ്ങൾ, ഈ പരിധിയിൽ',
+  'inventory.listView': 'ലിസ്റ്റ് കാഴ്ച',
+  'inventory.mapView': 'മാപ്പ് കാഴ്ച',
+  'inventory.mapNotConfigured': 'മാപ്പ് കാഴ്ച സജ്ജീകരിച്ചിട്ടില്ല.',
+  'inventory.mapFailed':
+    'മാപ്പ് ലോഡായില്ല — browser key പരിശോധിച്ച് വീണ്ടും ശ്രമിക്കുക.',
+  'inventory.mapNone': 'ഈ തിരയലിൽ മാപ്പിൽ ലിസ്റ്റിംഗ് ഇല്ല',
+  'inventory.mapped': 'ലിസ്റ്റിംഗുകൾ മാപ്പിൽ',
+  'inventory.locationUnavailable': 'ഈ browser-ൽ ലൊക്കേഷൻ ലഭ്യമല്ല.',
+  'inventory.locationDenied':
+    'നിങ്ങളുടെ ലൊക്കേഷൻ കിട്ടിയില്ല — ലൊക്കേഷൻ അനുമതി നൽകി വീണ്ടും ശ്രമിക്കുക.',
+  'contacts.allProjects': 'എല്ലാ പ്രോജക്ടുകളും',
+  'contacts.projectFilter': 'പ്രോജക്ട് പ്രകാരം ഫിൽട്ടർ',
 };
 
 const MR: Catalogue = {
@@ -344,9 +496,33 @@ const MR: Catalogue = {
     'तुमच्यासाठी या अ‍ॅपची भाषा. यामुळे तुमच्या ग्राहकांना पाठवल्या जाणाऱ्या संदेशांची भाषा बदलत नाही — ती प्रत्येक संपर्कासाठी आणि खात्यासाठी स्वतंत्रपणे ठरवली जाते.',
   'appearance.languageActive': 'दाखवत आहे',
   'appearance.languageShowNow': 'अ‍ॅप या भाषेत दाखवा:',
-  'appearance.languageCap': 'तुम्ही दोन भाषा ठेवू शकता आणि हेडरमधून त्यांमध्ये बदल करू शकता.',
+  'appearance.languageCap':
+    'तुम्ही दोन भाषा ठेवू शकता आणि हेडरमधून त्यांमध्ये बदल करू शकता.',
   'appearance.languageIncomplete':
     'भाषांतर सुरू आहे: अद्याप भाषांतरित न झालेल्या स्क्रीन इंग्रजीतच राहतील.',
+  'copilot.askSupport': 'सपोर्ट टीमला विचारा',
+  'copilot.supportWhere': 'आमच्या टीमने कुठे उत्तर द्यावे?',
+  'copilot.supportPhone': 'WhatsApp नंबर',
+  'copilot.supportEmail': 'ईमेल पत्ता',
+  'copilot.supportSend': 'सपोर्टला पाठवा',
+  'copilot.supportSending': 'पाठवत आहोत…',
+  'copilot.supportSent': 'सपोर्ट टीमला पाठवले — संदर्भ',
+  'copilot.supportReply': 'आम्ही तुम्हाला उत्तर देऊ —',
+  'copilot.featureNoted': 'ConvoReal टीमसाठी फीचर विनंती म्हणून नोंदवले.',
+  'inventory.nearMe': 'माझ्या जवळ',
+  'inventory.nearYou': 'तुमच्या ठिकाणाजवळचे जुळणारे, या परिघात',
+  'inventory.listView': 'यादी दृश्य',
+  'inventory.mapView': 'नकाशा दृश्य',
+  'inventory.mapNotConfigured': 'नकाशा दृश्य सेट केलेले नाही.',
+  'inventory.mapFailed':
+    'नकाशा लोड झाला नाही — browser key तपासून पुन्हा प्रयत्न करा.',
+  'inventory.mapNone': 'या शोधात नकाशावर लिस्टिंग नाही',
+  'inventory.mapped': 'लिस्टिंग नकाशावर',
+  'inventory.locationUnavailable': 'या browser-मध्ये लोकेशन उपलब्ध नाही.',
+  'inventory.locationDenied':
+    'तुमचे लोकेशन मिळाले नाही — लोकेशन परवानगी देऊन पुन्हा प्रयत्न करा.',
+  'contacts.allProjects': 'सर्व प्रोजेक्ट',
+  'contacts.projectFilter': 'प्रोजेक्टनुसार फिल्टर',
 };
 
 export const MESSAGES: Record<LanguageCode, Catalogue> = {

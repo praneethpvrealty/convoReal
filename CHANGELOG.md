@@ -13,6 +13,59 @@ and polish.
 
 ### Added
 
+- **Web Contacts: filter "Enquired for" by project.** The starred-property
+  chips gain the mobile app's project axis — a **Project** picker beside
+  the chips (fed from `properties.project`, so units never linked to a
+  project row still count) narrows the list to everyone interested in
+  ANY unit of a tower: first-choice inquiries across all its units plus
+  contacts who named the project in their stated or AI-extracted
+  preferences. A per-unit chip only ever found a fraction of a tower's
+  buyers. The active filter mirrors to `?interest_project=` and survives
+  refresh, mutually exclusive with the property chips. Interest-filter
+  id lists are now bounded (150 contacts / 200 units), matching the
+  mobile port.
+
+- **Web Inventory: map view and "Near me".** The mobile app's two
+  location features arrive on desktop. A List/Map toggle beside the
+  listing tabs draws the current search as the app's violet price pins
+  (click one to open the listing) on a dark-styled Google map, and a
+  **Near me** button beside the locality filter runs the same radius
+  search from the browser's location — no new API surface, the
+  properties route already accepted the coordinates. The map needs a
+  referrer-restricted `NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY`; without it
+  the view explains itself instead of breaking. Rows without saved
+  coordinates don't appear as pins (the geocode backfill self-heals).
+- **Copilot usage metering.** Every helper interaction — chat answers
+  (with platform and coverage), guided-tour starts and completions on
+  web and mobile, support tickets — now lands in `copilot_events`, and
+  **Admin → Demand** opens with a 30-day adoption rollup: chats split
+  web vs mobile, tours started/completed, tickets filed. Aggregation
+  runs in SQL (`copilot_usage_summary`); tenants' admins can read their
+  own team's rows. **Migration required:**
+  `supabase/migrations/245_copilot_events.sql` (SQL Editor, like 244).
+
+- **Copilot on mobile: chat, guided tours and a spotlight overlay.** The
+  helper is no longer web-only. A floating button on the app's main
+  screens opens the same chat brain (`/api/copilot`), and tours that can
+  run on a phone (add a contact, send a broadcast, check Pulse) spotlight
+  the real buttons with a native scrim + tooltip — the engine navigates
+  between screens itself. Answers are **platform-aware**: every mobile
+  reply carries a coverage verdict, so a doable task gets in-app steps
+  plus a "start the tour" offer, a desktop-only task (connect WhatsApp,
+  templates, email lead sync…) gets an "open on desktop web" link, and
+  anything the helper can't (fully) answer offers the support team.
+- **Help desk: "Ask the support team" from the helper chat.** On web and
+  mobile, an unanswered question files a `support_tickets` row (reference
+  `HELP-XXXX`) with the question, the helper's reply and the page it was
+  asked from. The user picks how the answer should come back — WhatsApp
+  or email. Platform staff triage from **Admin → Support**: assign,
+  write the answer, and Send delivers it over the chosen channel
+  (WhatsApp via the platform sender with free-form fallback, email via
+  Resend) and records what actually went out. **Migration required:**
+  `supabase/migrations/244_support_tickets.sql` (also adds the
+  `coverage` column + updated `match_copilot_qa` for the mobile answer
+  cache — apply in the Supabase SQL Editor like 109/236).
+
 - **Mobile: the same Filters chip on the Properties tab.** The listing
   pills (All / Sale / Rent / JV-JD), Near me and "Include unavailable"
   were the whole filter surface; everything else `GET /api/properties`

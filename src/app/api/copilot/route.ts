@@ -6,6 +6,7 @@ import {
   RATE_LIMITS,
 } from '@/lib/rate-limit';
 import { answerQuestion } from '@/lib/copilot/engine';
+import { logCopilotEvent } from '@/lib/copilot/events';
 import { readChatRequest } from '@/lib/copilot/request';
 
 /**
@@ -45,6 +46,15 @@ export async function POST(req: NextRequest) {
       audience: 'agent',
       accountId: ctx.accountId,
       ...parsed,
+    });
+    logCopilotEvent({
+      accountId: ctx.accountId,
+      userId: ctx.userId,
+      platform: parsed.platform,
+      event: 'chat',
+      tourId: result.tourId,
+      coverage: result.coverage,
+      cached: result.cached,
     });
     return NextResponse.json(result);
   } catch (err) {

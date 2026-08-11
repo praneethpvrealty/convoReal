@@ -6,6 +6,28 @@ subscribers — no credit burn. See
 [`docs/GUIDE_MOBILE_APPLICATION_PORTABILITY.md`](../../../docs/GUIDE_MOBILE_APPLICATION_PORTABILITY.md)
 for the web/native split.
 
+## Platform awareness (mobile)
+
+The Expo app calls the same `/api/copilot` route with `platform:
+'mobile'`. The scaffold then appends the app's page directory
+(`platform.ts`) and the contract adds a required `coverage` verdict:
+
+- `full` — doable in the app; if a tour has `mobileSteps` the app offers
+  to run it natively.
+- `web_only` — the answer names the desktop page and the app renders an
+  "open on desktop" link (`webUrl`).
+- `partial` / `none` — the app offers the help desk: a `support_tickets`
+  row (migration 244) filed via `/api/copilot/support-ticket`, triaged
+  at Admin → Support, answered back over WhatsApp (platform sender) or
+  email.
+
+The web scaffold is byte-identical to before, so the agent KB version —
+and every cached web answer — survives. Mobile answers hash to their own
+KB version and cache in their own partition, carrying `coverage` on the
+row. Tours declare mobile support via `mobileSteps` in `tours.ts`; the
+app's hand-ported copy (`mobile/lib/copilot-tours.ts`) is drift-guarded
+by `src/lib/mobile-parity.test.ts`.
+
 ## Cost model
 
 AI is used only for genuinely novel free-form questions. Tours, nudges, and

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { TOURS, getTour } from './tours';
+import { TOURS, getTour, tourSupportsMobile, tourWebEntryRoute } from './tours';
 
 describe('tour registry invariants', () => {
   it('has unique tour ids', () => {
@@ -24,7 +24,7 @@ describe('tour registry invariants', () => {
         expect(step.title, label).toBeTruthy();
         expect(step.body, label).toBeTruthy();
         expect(['click-target', 'next', 'route-change'], label).toContain(
-          step.advanceOn,
+          step.advanceOn
         );
         expect(step.route.startsWith('/'), label).toBe(true);
       }
@@ -45,7 +45,10 @@ describe('tour registry invariants', () => {
     for (const tour of TOURS) {
       for (const step of tour.steps) {
         if (step.advanceOn === 'next') {
-          expect(step.skipIfNextRouteActive, `${tour.id}/${step.target}`).toBeFalsy();
+          expect(
+            step.skipIfNextRouteActive,
+            `${tour.id}/${step.target}`
+          ).toBeFalsy();
         }
       }
     }
@@ -64,5 +67,34 @@ describe('tour registry invariants', () => {
   it('getTour resolves ids and rejects unknowns', () => {
     expect(getTour('add-contact')?.id).toBe('add-contact');
     expect(getTour('nope')).toBeUndefined();
+  });
+
+  it('mobile steps are complete wherever a tour declares them', () => {
+    const mobileCapable = TOURS.filter((t) => t.mobileSteps?.length);
+    expect(mobileCapable.length).toBeGreaterThan(0);
+    for (const tour of mobileCapable) {
+      for (const step of tour.mobileSteps!) {
+        const label = `${tour.id}/${step.target}`;
+        expect(step.screen.startsWith('/'), label).toBe(true);
+        expect(step.target, label).toBeTruthy();
+        expect(step.title, label).toBeTruthy();
+        expect(step.body, label).toBeTruthy();
+        expect(['press-target', 'next'], label).toContain(step.advanceOn);
+      }
+    }
+  });
+
+  it('tourSupportsMobile reflects mobileSteps', () => {
+    expect(tourSupportsMobile('add-contact')).toBe(true);
+    expect(tourSupportsMobile('connect-whatsapp')).toBe(false);
+    expect(tourSupportsMobile('nope')).toBe(false);
+  });
+
+  it('desktop-only tours resolve a real web entry route', () => {
+    for (const tour of TOURS) {
+      const route = tourWebEntryRoute(tour);
+      expect(route.startsWith('/'), tour.id).toBe(true);
+      expect(route, tour.id).not.toBe('/');
+    }
   });
 });

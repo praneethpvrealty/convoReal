@@ -32,6 +32,26 @@ export interface TourStep {
   requiresSidebar?: boolean;
 }
 
+export type MobileAdvanceOn = 'press-target' | 'next';
+
+/**
+ * A tour step for the Expo app. Unlike web steps the native engine
+ * navigates itself (router.push on `screen`), so there are no nav
+ * steps and no route matching modes — just spotlight and advance.
+ * The app keeps a hand-ported copy of these (mobile/lib/copilot-tours.ts,
+ * guarded by src/lib/mobile-parity.test.ts); the server reads them to
+ * know which tours may start on the app at all.
+ */
+export interface MobileTourStep {
+  /** Expo Router href the engine navigates to before spotlighting. */
+  screen: string;
+  /** Registered tour-target id on that screen. */
+  target: string;
+  title: string;
+  body: string;
+  advanceOn: MobileAdvanceOn;
+}
+
 export interface Tour {
   id: string;
   title: string;
@@ -41,6 +61,9 @@ export interface Tour {
    *  matcher checks before any AI call is made. */
   triggers: RegExp[];
   steps: TourStep[];
+  /** Present only when the whole task can be walked through in the
+   *  mobile app. A tour without them is desktop-web only there. */
+  mobileSteps?: MobileTourStep[];
 }
 
 /** Step reachable from any dashboard page. */
@@ -80,6 +103,15 @@ export const TOURS: Tour[] = [
         title: 'Almost done!',
         body: 'Fill in the name and WhatsApp number, then press Save. That’s it! \u{1F389}',
         advanceOn: 'next',
+      },
+    ],
+    mobileSteps: [
+      {
+        screen: '/(app)/(tabs)/contacts',
+        target: 'add-contact',
+        title: 'Add your contact',
+        body: 'This is the **Add contact** button — tap it to save a new lead.',
+        advanceOn: 'press-target',
       },
     ],
   },
@@ -191,6 +223,22 @@ export const TOURS: Tour[] = [
         target: 'broadcast-steps',
         title: 'Just follow the steps',
         body: 'Follow these 4 steps — pick a template, choose people, personalise, and send. WhatsApp only allows approved templates for broadcasts.',
+        advanceOn: 'next',
+      },
+    ],
+    mobileSteps: [
+      {
+        screen: '/(app)/broadcasts',
+        target: 'new-broadcast',
+        title: 'Start a new broadcast',
+        body: 'Tap **New broadcast** at the top.',
+        advanceOn: 'press-target',
+      },
+      {
+        screen: '/(app)/broadcast-new',
+        target: 'broadcast-compose',
+        title: 'Just follow the steps',
+        body: 'Pick a template, choose people, personalise, and send. WhatsApp only allows approved templates for broadcasts.',
         advanceOn: 'next',
       },
     ],
@@ -321,6 +369,15 @@ export const TOURS: Tour[] = [
         advanceOn: 'next',
       },
     ],
+    mobileSteps: [
+      {
+        screen: '/(app)/pulse',
+        target: 'pulse-feed',
+        title: 'Your visitor activity',
+        body: 'Every time someone opens your property links on WhatsApp, it shows here — total views, time spent, and your most popular properties. \u{1F440}',
+        advanceOn: 'next',
+      },
+    ],
   },
   {
     id: 'share-requirement',
@@ -381,4 +438,15 @@ export const TOURS: Tour[] = [
 
 export function getTour(id: string): Tour | undefined {
   return TOURS.find((t) => t.id === id);
+}
+
+export function tourSupportsMobile(id: string): boolean {
+  const tour = getTour(id);
+  return !!tour?.mobileSteps?.length;
+}
+
+/** First page a desktop-only tour lands on — the "open on desktop"
+ *  link the app hands out when a tour can't run natively. */
+export function tourWebEntryRoute(tour: Tour): string {
+  return tour.steps.find((s) => s.route !== '/')?.route ?? '/dashboard';
 }

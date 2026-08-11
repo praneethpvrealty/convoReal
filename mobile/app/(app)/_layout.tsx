@@ -3,6 +3,8 @@ import { useEffect } from 'react';
 import { View } from 'react-native';
 
 import { AppLockGate } from '@/components/app-lock-gate';
+import { CopilotTourProvider } from '@/components/copilot-tour';
+import { CopilotWidget } from '@/components/copilot-widget';
 import { isPhoneVerified, useAuthStore } from '@/lib/auth-store';
 import { updateAllOsWidgets } from '@/lib/os-widget-updates';
 import { useSurface } from '@/lib/surface';
@@ -37,6 +39,7 @@ export default function AppLayout() {
   }
 
   return (
+    <CopilotTourProvider>
     <View style={{ flex: 1 }}>
     <Stack
       screenOptions={{
@@ -59,7 +62,9 @@ export default function AppLayout() {
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="verify-phone" />
     </Stack>
+    <CopilotWidget />
     <AppLockGate />
     </View>
+    </CopilotTourProvider>
   );
 }

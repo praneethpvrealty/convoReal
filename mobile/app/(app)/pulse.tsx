@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 
+import { TourTarget } from '@/components/copilot-tour';
 import { EnterRow, PressScale } from '@/components/motion';
 import { PropertyViewersSheet } from '@/components/property-viewers-sheet';
 import {
@@ -127,23 +128,25 @@ export default function PulseScreen() {
               WhatsApp — opens, image swipes, map taps and dwell times.
             </Text>
 
-            <View style={styles.grid}>
-              <StatCard
-                icon="link-outline"
-                label="Link opens"
-                value={stats.data ? String(stats.data.totalViews) : '…'}
-              />
-              <StatCard
-                icon="phone-portrait-outline"
-                label="Unique sessions"
-                value={stats.data ? String(stats.data.uniqueSessions) : '…'}
-              />
-              <StatCard
-                icon="time-outline"
-                label="Avg dwell"
-                value={stats.data ? `${stats.data.avgDwellTimeSec}s` : '…'}
-              />
-            </View>
+            <TourTarget id="pulse-feed">
+              <View style={styles.grid}>
+                <StatCard
+                  icon="link-outline"
+                  label="Link opens"
+                  value={stats.data ? String(stats.data.totalViews) : '…'}
+                />
+                <StatCard
+                  icon="phone-portrait-outline"
+                  label="Unique sessions"
+                  value={stats.data ? String(stats.data.uniqueSessions) : '…'}
+                />
+                <StatCard
+                  icon="time-outline"
+                  label="Avg dwell"
+                  value={stats.data ? `${stats.data.avgDwellTimeSec}s` : '…'}
+                />
+              </View>
+            </TourTarget>
 
             <SectionLabel text="Top listings" />
             {top.isLoading ? null : !top.data || top.data.length === 0 ? (
