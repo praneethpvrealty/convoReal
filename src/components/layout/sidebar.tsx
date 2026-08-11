@@ -7,6 +7,8 @@ import { cn } from "@/lib/utils";
 import { storagePublicUrl } from "@/lib/storage/url";
 import { useAuth } from "@/hooks/use-auth";
 import { useTotalUnread } from "@/hooks/use-total-unread";
+import { useT } from "@/hooks/use-locale";
+import type { MessageKey } from "@/lib/i18n/messages";
 import { SidebarCreditWidget } from "@/components/layout/SidebarCreditWidget";
 import { FavoritesCard } from "@/components/layout/favorites-card";
 import { ConvoRealMark } from "@/components/brand/mark";
@@ -39,25 +41,25 @@ import type { AccountRole } from "@/lib/auth/roles";
 // wants to recolour "agent" rows, this is the one diff.
 const ROLE_CHIP: Record<
   AccountRole,
-  { icon: typeof Crown; label: string; className: string }
+  { icon: typeof Crown; labelKey: MessageKey; className: string }
 > = {
   owner: {
     icon: Crown,
-    label: "Owner",
+    labelKey: "role.owner",
     // Amber: scarce, immutable, "the boss" — gets visual emphasis.
     className:
       "border-amber-500/40 bg-amber-500/10 text-amber-300",
   },
   admin: {
     icon: Shield,
-    label: "Admin",
+    labelKey: "role.admin",
     // Primary-tinted: significant but not as scarce as owner.
     className:
       "border-primary/40 bg-primary/10 text-primary",
   },
   coordinator: {
     icon: Headset,
-    label: "Coordinator",
+    labelKey: "role.coordinator",
     // Cyan: a senior operator (above agent, below admin) — distinct
     // hue so it reads apart from both neighbours at a glance.
     className:
@@ -65,14 +67,14 @@ const ROLE_CHIP: Record<
   },
   agent: {
     icon: UserCog,
-    label: "Agent",
+    labelKey: "role.agent",
     // Neutral slate: the operational default.
     className:
       "border-slate-700 bg-slate-800 text-slate-300",
   },
   viewer: {
     icon: User,
-    label: "Viewer",
+    labelKey: "role.viewer",
     // Muted slate: read-only role; visually quieter than agent.
     className:
       "border-slate-800 bg-slate-900 text-slate-500",
@@ -93,7 +95,7 @@ import {
 
 interface NavItem {
   href: string;
-  label: string;
+  labelKey: MessageKey;
   icon: typeof LayoutDashboard;
   /**
    * When true, the nav row renders a small "Beta" chip after the label.
@@ -103,25 +105,25 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/inbox", label: "Inbox", icon: MessageSquare },
-  { href: "/groups", label: "Groups", icon: UsersRound, beta: true },
-  { href: "/contacts", label: "Contacts", icon: Users },
-  { href: "/inventory", label: "Inventory", icon: Home },
-  { href: "/liaisons", label: "Liaisons", icon: Landmark },
-  { href: "/calendar", label: "Calendar", icon: Calendar },
-  { href: "/journey", label: "Journey", icon: Waypoints, beta: true },
-  { href: "/automations", label: "Automations", icon: Workflow },
-  { href: "/broadcasts", label: "Broadcasts", icon: Radio },
+  { href: "/dashboard", labelKey: "nav.dashboard", icon: LayoutDashboard },
+  { href: "/inbox", labelKey: "nav.inbox", icon: MessageSquare },
+  { href: "/groups", labelKey: "nav.groups", icon: UsersRound, beta: true },
+  { href: "/contacts", labelKey: "nav.contacts", icon: Users },
+  { href: "/inventory", labelKey: "nav.inventory", icon: Home },
+  { href: "/liaisons", labelKey: "nav.liaisons", icon: Landmark },
+  { href: "/calendar", labelKey: "nav.calendar", icon: Calendar },
+  { href: "/journey", labelKey: "nav.journey", icon: Waypoints, beta: true },
+  { href: "/automations", labelKey: "nav.automations", icon: Workflow },
+  { href: "/broadcasts", labelKey: "nav.broadcasts", icon: Radio },
   // Meta Ads surfaces (incl. this nav item) only render when the feature is
   // enabled at build via NEXT_PUBLIC_META_ADS_APP_ID.
   ...(process.env.NEXT_PUBLIC_META_ADS_APP_ID
-    ? [{ href: "/ads", label: "Ads", icon: Megaphone }]
+    ? [{ href: "/ads", labelKey: "nav.ads" as const, icon: Megaphone }]
     : []),
 ];
 
 const bottomNavItems = [
-  { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/settings", labelKey: "nav.settings" as const, icon: Settings },
 ];
 
 interface SidebarProps {
@@ -136,6 +138,7 @@ const ACCOUNT_SHARING_FLAG = "account_sharing";
 
 export function Sidebar({ open = false, onClose }: SidebarProps) {
   const pathname = usePathname();
+  const t = useT();
   const { profile, profileLoading, account, accountRole, signOut } = useAuth();
   const totalUnread = useTotalUnread();
   // Match the settings page's check: only treat the flag as enabled
@@ -149,7 +152,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
     !!profile?.beta_features?.includes(ACCOUNT_SHARING_FLAG);
 
   const dynamicBottomItems = [
-    ...(profile?.role === 'super_admin' ? [{ href: "/admin", label: "Admin Panel", icon: Shield }] : []),
+    ...(profile?.role === 'super_admin' ? [{ href: "/admin", labelKey: "nav.adminPanel" as const, icon: Shield }] : []),
     ...bottomNavItems,
   ];
 
@@ -256,7 +259,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                     )}
                   >
                     <item.icon className="h-4 w-4 shrink-0" />
-                    <span className="flex-1 truncate">{item.label}</span>
+                    <span className="flex-1 truncate">{t(item.labelKey)}</span>
                     {item.beta && (
                       <span
                         aria-label="Beta feature"
@@ -299,7 +302,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                     )}
                   >
                     <item.icon className="h-4 w-4 shrink-0" />
-                    <span className="flex-1 truncate">{item.label}</span>
+                    <span className="flex-1 truncate">{t(item.labelKey)}</span>
                   </Link>
                 </li>
               );
@@ -309,22 +312,22 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           {/* Quick Access section */}
           <div className="my-6 border-t border-slate-900/60 pt-4 px-1">
             <h3 className="text-[10px] font-black text-slate-550 uppercase tracking-widest mb-3 px-3">
-              Quick Access
+              {t("nav.quickAccess")}
             </h3>
             <div className="flex flex-col gap-1.5">
               {[
-                { label: "New Deals", href: "/pipelines?new=true" },
-                { label: "Pending Quotes", href: "/inbox?filter=pending" },
-                { label: "Priority Tasks", href: "/calendar?filter=priority" },
-                { label: "Follow-ups", href: "/contacts?search=follow-up" },
+                { labelKey: "nav.newDeals" as const, href: "/pipelines?new=true" },
+                { labelKey: "nav.pendingQuotes" as const, href: "/inbox?filter=pending" },
+                { labelKey: "nav.priorityTasks" as const, href: "/calendar?filter=priority" },
+                { labelKey: "nav.followUps" as const, href: "/contacts?search=follow-up" },
               ].map((qa) => (
                 <Link
-                  key={qa.label}
+                  key={qa.labelKey}
                   href={qa.href}
                   prefetch={false}
                   className="w-full text-left text-xs font-bold text-slate-450 hover:text-white bg-slate-900/15 hover:bg-slate-900/45 border border-slate-900/60 hover:border-slate-800 px-4 py-2 rounded-xl transition-all duration-200 cursor-pointer"
                 >
-                  {qa.label}
+                  {t(qa.labelKey)}
                 </Link>
               ))}
             </div>
@@ -365,7 +368,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                       className={`ml-auto inline-flex shrink-0 items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider ${meta.className}`}
                     >
                       <Icon className="size-3" />
-                      {meta.label}
+                      {t(meta.labelKey)}
                     </span>
                   );
                 })()

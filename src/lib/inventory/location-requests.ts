@@ -27,6 +27,10 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
+import {
+  loadTemplateForContact,
+  warnLanguageFallback,
+} from '@/lib/whatsapp/template-language';
 import { isReengagementError } from '@/lib/whatsapp/customer-window';
 import { truncateParametersToBudget } from '@/lib/whatsapp/template-send-builder';
 import {
@@ -215,7 +219,7 @@ async function sendRevealToSeeker(
   admin: SupabaseClient,
   request: Pick<
     LocationRequestRow,
-    'account_id' | 'requester_name' | 'requester_phone'
+    'account_id' | 'requester_name' | 'requester_phone' | 'via_contact_id'
   >,
   propertyTitle: string,
   shareLink: string,
@@ -233,15 +237,28 @@ async function sendRevealToSeeker(
   if (freeform.success) return true;
   if (!isReengagementError(freeform.error)) return false;
 
-  const { data: templateRow } = await admin
-    .from('message_templates')
-    .select('*')
-    .eq('account_id', request.account_id)
-    .eq('name', LOCATION_REVEAL_TEMPLATE_NAME)
-    .order('last_submitted_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  const template = templateRow as MessageTemplate | null;
+  // The reveal goes to the SEEKER. They reached us from the public
+  // showcase and may have no contact row at all, in which case
+  // loadTemplateForContact falls through to the account default —
+  // which is the right answer for an unknown recipient of a
+  // brokerage that writes in Tamil.
+  const {
+    template,
+    language: revealLanguage,
+    fellBack,
+  } = await loadTemplateForContact<MessageTemplate>(admin, {
+    accountId: request.account_id,
+    contactId: request.via_contact_id,
+    names: [LOCATION_REVEAL_TEMPLATE_NAME],
+  });
+  if (fellBack) {
+    warnLanguageFallback(
+      'location-requests',
+      request.account_id,
+      revealLanguage,
+      template,
+    );
+  }
   if (template?.status !== 'APPROVED') {
     console.error(
       '[location-requests] Reveal undeliverable: window closed and no approved location_reveal template'

@@ -1,5 +1,19 @@
 import { supabaseAdmin } from '@/lib/automations/admin-client';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
+import {
+  accountDefaultLanguage,
+  resolveLanguage,
+  pickTemplateForLanguage,
+  isLanguageFallback,
+  warnLanguageFallback,
+} from '@/lib/whatsapp/template-language';
+
+/** The contact fields this module reads. */
+interface ContactLite {
+  id: string;
+  name: string | null;
+  preferred_language?: string | null;
+}
 import { formatShareAmount } from '@/lib/share-message-builder';
 import { decrypt } from '@/lib/whatsapp/encryption';
 import { submitMessageTemplate } from '@/lib/whatsapp/meta-api';
@@ -228,12 +242,29 @@ export async function notifyBuyersOfSoldProperty(
 
   const { data: contactRows } = await db
     .from('contacts')
-    .select('id, name')
+    .select('id, name, preferred_language')
     .eq('account_id', accountId)
     .in('id', audience);
-  const nameById = new Map(
-    ((contactRows ?? []) as { id: string; name: string | null }[]).map((c) => [c.id, c.name])
+  const contactById = new Map(
+    ((contactRows ?? []) as ContactLite[]).map((c) => [c.id, c])
   );
+  const nameById = new Map(
+    ((contactRows ?? []) as ContactLite[]).map((c) => [c.id, c.name])
+  );
+
+  // Every language variant of the sold template, plus the account
+  // fallback — read once, then picked per recipient below. The audience
+  // for one sale spans owner, enquirers and everyone the listing was
+  // shared with, who do not share a language.
+  const { data: soldVariants } = template
+    ? await db
+        .from('message_templates')
+        .select('*')
+        .eq('account_id', accountId)
+        .eq('name', template.name)
+        .order('last_submitted_at', { ascending: false })
+    : { data: null };
+  const accountLanguage = await accountDefaultLanguage(db, accountId);
 
   const title = (property.title as string) || 'Property';
   const body = buildSoldNotificationBody(title);
@@ -268,8 +299,21 @@ export async function notifyBuyersOfSoldProperty(
       continue;
     }
 
+    const language = resolveLanguage(
+      contactById.get(contactId)?.preferred_language,
+      accountLanguage
+    );
+    const localised =
+      pickTemplateForLanguage(
+        (soldVariants ?? []) as MessageTemplate[],
+        language
+      ) ?? template;
+    if (isLanguageFallback(localised, language)) {
+      warnLanguageFallback('sold-notification', accountId, language, localised);
+    }
+
     const bodyParams = truncateParametersToBudget(
-      template.body_text,
+      localised.body_text,
       buildSoldUpdateParams(nameById.get(contactId) ?? null, title)
     );
     const result = await sendWhatsAppMessageAndPersist({
@@ -277,8 +321,8 @@ export async function notifyBuyersOfSoldProperty(
       contactId,
       kind: 'template',
       senderType: 'bot',
-      templateName: template.name,
-      templateLanguage: template.language || 'en_US',
+      templateName: localised.name,
+      templateLanguage: localised.language || 'en_US',
       templateParams: bodyParams,
       messageParams: {
         body: bodyParams,
@@ -289,7 +333,7 @@ export async function notifyBuyersOfSoldProperty(
           1: `${SOLD_SIMILAR_BUTTON_PREFIX}${propertyId}`,
         },
       },
-      templateRow: template,
+      templateRow: localised,
       text: resolveTemplateBodyText(template.body_text, bodyParams),
     });
     if (result.success) {

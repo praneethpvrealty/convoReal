@@ -40,6 +40,11 @@ function mockSupabase(writes: Write[]) {
       order: () => builder,
       limit: () => builder,
       maybeSingle: async () => ({ data: rows[table] ?? null, error: null }),
+      // Awaiting the chain without maybeSingle() is a LIST query — the
+      // template lookup now reads every language variant rather than
+      // one row, so the fixture has to answer in that shape too.
+      then: (resolve: (v: { data: unknown[]; error: null }) => unknown) =>
+        resolve({ data: rows[table] ? [rows[table]] : [], error: null }),
       insert: async (payload: Record<string, unknown>) => {
         writes.push({ table, op: 'insert', payload });
         return { data: null, error: null };

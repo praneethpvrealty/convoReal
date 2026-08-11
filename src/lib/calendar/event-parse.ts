@@ -12,6 +12,7 @@
 // ============================================================
 
 import { generateJsonFromParts, type GeminiPart } from '@/lib/ai/gemini';
+import { INPUT_LANGUAGE_HINT } from '@/lib/languages';
 
 export type EventTypeKey = 'site_visit' | 'call' | 'follow_up' | 'document' | 'meeting' | 'other';
 
@@ -190,7 +191,7 @@ export function alignDraftToNamedWeekday(
 function buildSystemPrompt(now: Date, memberNames: string[]): string {
   return (
     'You are the scheduling assistant inside a sales platform used by Indian real-estate agents. ' +
-    'The user logs calendar events and tasks by typing or speaking (Hindi, Kannada, Telugu, Tamil, or English — often mixed). ' +
+    `The user logs calendar events and tasks by typing or speaking (${INPUT_LANGUAGE_HINT}). ` +
     `Current date/time in India (IST): ${nowInIst(now)}.\n\n` +
     'From the given text or audio, extract ONE scheduling request as JSON with exactly these keys:\n' +
     '{\n' +

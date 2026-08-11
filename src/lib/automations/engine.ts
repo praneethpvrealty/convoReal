@@ -17,6 +17,12 @@ import type {
 import { findConversation } from '@/lib/conversations/resolve'
 import { supabaseAdmin } from './admin-client'
 import { engineSendText, engineSendTemplate } from './meta-send'
+import {
+  loadTemplateForContact,
+  isLanguageFallback,
+  warnLanguageFallback,
+} from '@/lib/whatsapp/template-language'
+import type { MessageTemplate } from '@/types'
 
 // ------------------------------------------------------------
 // Public API
@@ -381,13 +387,33 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
             })
             .map((k) => String(cfg.variables![k]))
         : []
+      // The builder stores a language with the step (defaulting to
+      // en_US), but that is the language the AUTOMATION was written in,
+      // not the one this contact reads. Prefer their variant when the
+      // account holds an approved one; fall back to the configured
+      // language so an automation built before any of this keeps
+      // sending exactly what it always sent.
+      const { template: localised, language: wantedLanguage } =
+        await loadTemplateForContact<MessageTemplate>(supabaseAdmin(), {
+          accountId: args.automation.account_id,
+          contactId: args.contactId,
+          names: [cfg.template_name],
+        })
+      if (localised && isLanguageFallback(localised, wantedLanguage)) {
+        warnLanguageFallback(
+          'automation',
+          args.automation.account_id,
+          wantedLanguage,
+          localised,
+        )
+      }
       const { whatsapp_message_id } = await engineSendTemplate({
         accountId: args.automation.account_id,
         userId: args.automation.user_id,
         conversationId,
         contactId: args.contactId,
         templateName: cfg.template_name,
-        language: cfg.language,
+        language: localised?.language || cfg.language,
         params,
       })
       return `template sent via Meta (${whatsapp_message_id})`

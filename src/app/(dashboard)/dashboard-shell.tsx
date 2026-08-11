@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
+import { LocaleProvider } from "@/hooks/use-locale";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { useOnboarding } from "@/hooks/useOnboarding";
@@ -204,9 +205,18 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   return (
     <AuthProvider>
-      <TopupModalProvider>
-        <DashboardShellInner>{children}</DashboardShellInner>
-      </TopupModalProvider>
+      {/* Inside AuthProvider: the agent's language lives on their
+          profile row, so the locale provider needs the profile to
+          reconcile its first-paint cache against. Inside the dashboard
+          rather than the root layout for the same reason it is a
+          per-agent setting — public showcase pages are read by buyers
+          and must stay in the language the BUYER was sent, not
+          whichever one the agent happens to run their app in. */}
+      <LocaleProvider>
+        <TopupModalProvider>
+          <DashboardShellInner>{children}</DashboardShellInner>
+        </TopupModalProvider>
+      </LocaleProvider>
     </AuthProvider>
   );
 }

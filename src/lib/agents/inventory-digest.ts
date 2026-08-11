@@ -1,5 +1,13 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher'
+import {
+  accountDefaultLanguage,
+  resolveLanguage,
+  narrowToLanguage,
+  isLanguageFallback,
+  warnLanguageFallback,
+} from '@/lib/whatsapp/template-language'
+import type { LanguageCode } from '@/lib/languages'
 import { truncateParametersToBudget } from '@/lib/whatsapp/template-send-builder'
 import { normalizePhone } from '@/lib/whatsapp/phone-utils'
 import {
@@ -423,7 +431,7 @@ export async function sendAgentInventoryDigests(options?: {
       const agentIds = digests.map((d) => d.contactId)
       const { data: agentRows } = await db
         .from('contacts')
-        .select('id, name, phone, classification, owner_digest_consent')
+        .select('id, name, phone, classification, preferred_language, owner_digest_consent')
         .eq('account_id', accountId)
         .in('id', agentIds)
       const agentById = new Map(
@@ -438,10 +446,25 @@ export async function sendAgentInventoryDigests(options?: {
         .eq('status', 'APPROVED')
         .order('last_submitted_at', { ascending: false })
       const approved = (templateRows || []) as MessageTemplate[]
-      const digestTemplate =
-        approved.find((t) => t.name === AGENT_INVENTORY_DIGEST_TEMPLATE_NAME) ??
-        approved[0] ??
-        null
+      const accountLanguage = await accountDefaultLanguage(db, accountId)
+      // These "agents" are contact rows (co-brokers on this account), so
+      // their preferred_language is the same field every other recipient
+      // uses. Picked per agent, not once per run: one account's panel
+      // does not share a language.
+      const digestTemplateFor = (
+        agent: Record<string, unknown> | undefined,
+      ): { template: MessageTemplate | null; language: LanguageCode } => {
+        const language = resolveLanguage(
+          agent?.preferred_language as string | null | undefined,
+          accountLanguage,
+        )
+        const scoped = narrowToLanguage(approved, language)
+        const template =
+          scoped.find((t) => t.name === AGENT_INVENTORY_DIGEST_TEMPLATE_NAME) ??
+          scoped[0] ??
+          null
+        return { template, language }
+      }
 
       let sentThisRun = 0
       for (const digest of digests) {
@@ -518,10 +541,20 @@ export async function sendAgentInventoryDigests(options?: {
           continue
         }
 
+        const digestPick = digestTemplateFor(agent)
+        const digestTemplate = digestPick.template
         if (!digestTemplate) {
           summary.skippedNoTemplate++
           await recordChannel('skipped_no_template')
           continue
+        }
+        if (isLanguageFallback(digestTemplate, digestPick.language)) {
+          warnLanguageFallback(
+            'Agent Inventory Digest',
+            accountId,
+            digestPick.language,
+            digestTemplate,
+          )
         }
 
         const params: string[] = buildAgentInventoryDigestParams(

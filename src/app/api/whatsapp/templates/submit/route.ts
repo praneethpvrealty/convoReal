@@ -20,6 +20,12 @@ import {
   normalizeCategory,
   normalizeStatus,
 } from '@/lib/whatsapp/template-status-normalize'
+import {
+  requiresTranslationReview,
+  isTranslationReviewed,
+  TRANSLATION_REVIEW_REQUIRED_MESSAGE,
+  TRANSLATION_REVIEW_MISSING_DRAFT_MESSAGE,
+} from '@/lib/whatsapp/translation-review'
 
 /**
  * Shared upsert payload builder — both the Meta-failure path and the
@@ -164,6 +170,40 @@ export async function POST(request: Request) {
         { error: e instanceof Error ? e.message : 'Validation failed.' },
         { status: 400 },
       )
+    }
+
+    // The translation gate. Enforced here rather than only in the UI
+    // because this route is the single door to Meta — the template
+    // manager, the one-tap engine-template button and any script all
+    // come through it, and machine-written copy reaching a real buyer
+    // is exactly what the gate exists to stop.
+    if (requiresTranslationReview(payload.name, payload.language)) {
+      const { data: existing } = await supabase
+        .from('message_templates')
+        .select('translation_reviewed_at')
+        .eq('account_id', accountId)
+        .eq('name', payload.name)
+        .eq('language', payload.language)
+        .maybeSingle()
+
+      if (!existing) {
+        return NextResponse.json(
+          {
+            error: TRANSLATION_REVIEW_MISSING_DRAFT_MESSAGE,
+            code: 'TRANSLATION_DRAFT_REQUIRED',
+          },
+          { status: 409 },
+        )
+      }
+      if (!isTranslationReviewed(existing)) {
+        return NextResponse.json(
+          {
+            error: TRANSLATION_REVIEW_REQUIRED_MESSAGE,
+            code: 'TRANSLATION_REVIEW_REQUIRED',
+          },
+          { status: 409 },
+        )
+      }
     }
 
     const dryRun =

@@ -3,6 +3,7 @@ import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit';
 import { checkPlanLimit, gateResponse } from '@/lib/billing/gates';
 import { sanitizeAreasGeo } from '@/lib/contacts/area-geo';
+import { isLanguageCode } from '@/lib/languages';
 
 // POST /api/contacts — create a new contact with tags, notes, and property links
 // in a single server-side transaction (replaces the multi-step client writes in contact-form.tsx).
@@ -25,7 +26,7 @@ export async function POST(request: Request) {
     }
 
     const {
-      name, second_name, name_tag, phone, secondary_phones, email, company, classification, lead_temp,
+      name, second_name, name_tag, preferred_language, phone, secondary_phones, email, company, classification, lead_temp,
       last_inquired_property_id, referrer, referrer_contact_id,
       min_budget, max_budget, no_budget, areas_of_interest, areas_of_interest_geo,
       property_interests, min_roi, source, dob, feedback_status,
@@ -50,6 +51,9 @@ export async function POST(request: Request) {
       name: typeof name === 'string' ? name.trim() || null : null,
       second_name: typeof second_name === 'string' ? second_name.trim() || null : null,
       name_tag: typeof name_tag === 'string' ? name_tag.trim() || null : null,
+      // Null rather than 'en' when unset — the send path reads that as
+      // "unknown" and falls back to the account default.
+      preferred_language: isLanguageCode(preferred_language) ? preferred_language : null,
       phone: phone.trim(),
       secondary_phones: Array.isArray(secondary_phones)
         ? secondary_phones.filter((p: unknown) => typeof p === 'string' && p.trim().length > 0).map((p: string) => p.trim())

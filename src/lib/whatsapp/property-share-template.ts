@@ -28,6 +28,8 @@ import {
   pickPropertyPhotosTemplate,
 } from '@/lib/whatsapp/property-enquiry-photos-template';
 import type { ApprovedTemplateCandidate } from '@/lib/whatsapp/pick-approved-template';
+import { narrowToLanguage } from '@/lib/whatsapp/template-language';
+import type { LanguageCode } from '@/lib/languages';
 import { buildPropertyAlertParams } from '@/lib/whatsapp/property-alert-template';
 import type { Property } from '@/types';
 
@@ -107,10 +109,14 @@ export function shareHeaderImage(params: {
  */
 export function pickPropertyShareTemplate<T extends ApprovedTemplateCandidate>(
   rows: T[],
-  opts: { hasImage: boolean },
+  opts: { hasImage: boolean; language?: LanguageCode },
 ): T | null {
-  const photos = pickPropertyPhotosTemplate(rows);
-  const text = pickPropertyAlertTemplate(rows);
+  // Language narrows the field before the photo/category policy runs,
+  // so an account holding a Kannada variant sends it and one holding
+  // only English sees the exact same choice it always did.
+  const scoped = opts.language ? narrowToLanguage(rows, opts.language) : rows;
+  const photos = pickPropertyPhotosTemplate(scoped);
+  const text = pickPropertyAlertTemplate(scoped);
 
   const preferred = opts.hasImage ? photos : text;
   const other = opts.hasImage ? text : photos;

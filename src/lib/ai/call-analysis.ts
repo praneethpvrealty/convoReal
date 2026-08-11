@@ -11,6 +11,7 @@
 // ============================================================
 
 import { generateJsonFromParts, type GeminiPart } from '@/lib/ai/gemini';
+import { INPUT_LANGUAGE_HINT } from '@/lib/languages';
 
 export interface CallAnalysisResult {
   /** Verbatim English transcript when the input was audio; null for text input. */
@@ -47,7 +48,7 @@ function buildSystemPrompt(contactName: string | null, context: string | null): 
   return (
     'You are the assistant inside a sales platform used by Indian real-estate agents. ' +
     'The agent records or transcribes phone calls made on behalf of a client — often with a third party ' +
-    'such as a lawyer, surveyor, registrar, banker, or another agent (Hindi, Kannada, Telugu, Tamil, or English — often mixed). ' +
+    `such as a lawyer, surveyor, registrar, banker, or another agent (${INPUT_LANGUAGE_HINT}). ` +
     'Your job: analyze the call and draft a WhatsApp status update the agent can forward to their client after review.\n\n' +
     (contactName ? `The client to be updated is: ${contactName}.\n` : '') +
     (context ? `Context provided by the agent: ${context}\n` : '') +

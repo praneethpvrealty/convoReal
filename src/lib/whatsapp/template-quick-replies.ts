@@ -15,10 +15,19 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Property } from '@/types';
 import { buildInventorySummary } from '@/lib/inventory-summary-builder';
 import { accountShowcaseBase } from '@/lib/showcase/account-showcase-url';
+import { matchTemplateButton } from '@/lib/whatsapp/template-copy';
 
-/** Button text on property_enquiry_response and
- *  property_enquiry_photos. Both templates ask for the same thing, so
- *  one constant covers both. */
+/**
+ * The ENGLISH wording of these buttons. Kept for existing importers
+ * and for anything that needs to show the default label; the
+ * authoritative set — every language, plus the inbound matcher — is
+ * BUTTON_LABELS in template-copy.ts. Do not add a new comparison
+ * against these: it would only ever match English taps.
+ *
+ * Button text on property_enquiry_response and
+ * property_enquiry_photos. Both templates ask for the same thing, so
+ * one constant covers both.
+ */
 export const SEND_MORE_DETAILS_BUTTON = 'Send more details';
 /** inventory_update buttons. */
 export const INVENTORY_FULL_LIST_BUTTON = 'Send full list';
@@ -31,19 +40,32 @@ export type TemplateQuickReply =
 
 /**
  * Which of our template buttons this inbound message is, if any.
- * Matched case-insensitively on the trimmed text so a typed "send more
+ *
+ * Delegates to matchTemplateButton, which scans the label in EVERY
+ * language we send. This used to compare against the three English
+ * constants above, which was correct while every template was English
+ * and silently wrong the moment one was not: a lead who tapped the
+ * Kannada "ಹೆಚ್ಚಿನ ವಿವರ ಕಳುಹಿಸಿ" fell through to null and got the
+ * silence this module was written to eliminate.
+ *
+ * Still case- and whitespace-insensitive, so a typed "send more
  * details" reaches the same handler as the tap.
  */
 export function parseTemplateQuickReply(
   text: string | null | undefined,
 ): TemplateQuickReply | null {
-  if (!text) return null;
-  const cleaned = text.trim().toLowerCase();
-  if (cleaned.length > 40) return null;
-  if (cleaned === SEND_MORE_DETAILS_BUTTON.toLowerCase()) return 'property_details';
-  if (cleaned === INVENTORY_FULL_LIST_BUTTON.toLowerCase()) return 'inventory_full_list';
-  if (cleaned === INVENTORY_SITE_VISIT_BUTTON.toLowerCase()) return 'site_visit';
-  return null;
+  switch (matchTemplateButton(text)) {
+    case 'send_more_details':
+      return 'property_details';
+    case 'inventory_full_list':
+      return 'inventory_full_list';
+    case 'site_visit':
+      return 'site_visit';
+    default:
+      // The enquiry/journey buttons are real actions, but they route
+      // through the webhook's own handler rather than this one.
+      return null;
+  }
 }
 
 /**

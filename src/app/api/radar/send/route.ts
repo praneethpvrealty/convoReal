@@ -11,6 +11,11 @@ import {
   shareHeaderImage,
 } from '@/lib/whatsapp/property-share-template';
 import {
+  resolveSendLanguage,
+  isLanguageFallback,
+  warnLanguageFallback,
+} from '@/lib/whatsapp/template-language';
+import {
   accountBrandImage,
   accountBrandName,
 } from '@/lib/showcase/account-showcase-url';
@@ -212,10 +217,19 @@ export async function POST(request: NextRequest) {
       // photos sitting right there, because this path only ever asked
       // for the text template's names.
       const headerImage = shareHeaderImage({ images: property.images, brandImage });
+      const language = await resolveSendLanguage(
+        ctx.supabase,
+        ctx.accountId,
+        contactId,
+      );
       const alertTemplate = pickPropertyShareTemplate(candidates, {
         hasImage: Boolean(headerImage),
+        language,
       });
       if (!alertTemplate) return { status: 'templateMissing' };
+      if (isLanguageFallback(alertTemplate, language)) {
+        warnLanguageFallback('radar-send', ctx.accountId, language, alertTemplate);
+      }
 
       // Param count follows the template's name — the signed revisions
       // carry the brokerage as {{2}}, their predecessors do not.

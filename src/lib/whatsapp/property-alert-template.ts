@@ -8,10 +8,11 @@
 
 import type { Property } from '@/types';
 import type { TemplatePayload } from '@/lib/whatsapp/template-validators';
+import { DEFAULT_LANGUAGE, metaLanguageCode, type LanguageCode } from '@/lib/languages';
+import { templateBody, templateButtonLabel } from '@/lib/whatsapp/template-copy';
 import { formatShareAmount } from '@/lib/share-message-builder';
 import { sanitizeTemplateParam } from '@/lib/whatsapp/inventory-update-template';
 import { isPlaceholderLeadName } from '@/lib/contacts/lead-placeholder';
-import { SEND_MORE_DETAILS_BUTTON } from '@/lib/whatsapp/template-quick-replies';
 import { BRANDING } from '@/config/branding';
 import {
   pickApprovedTemplate,
@@ -73,7 +74,10 @@ export function pickPropertyAlertTemplate<T extends ApprovedTemplateCandidate>(
   return pickApprovedTemplate(rows, PROPERTY_ALERT_TEMPLATE_NAMES);
 }
 
-export function buildPropertyAlertTemplatePayload(origin: string): TemplatePayload {
+export function buildPropertyAlertTemplatePayload(
+  origin: string,
+  language: LanguageCode = DEFAULT_LANGUAGE,
+): TemplatePayload {
   return {
     name: PROPERTY_ALERT_TEMPLATE_NAME,
     // Utility under Meta's two-part test: non-promotional AND specific
@@ -81,29 +85,21 @@ export function buildPropertyAlertTemplatePayload(origin: string): TemplatePaylo
     // dropped with error 131049 for any recipient at their per-user
     // cap; Utility is exempt. Same reasoning as location_reveal.
     category: 'Utility',
-    language: 'en_US',
+    language: metaLanguageCode(language),
     // Worded as fulfilment of the recipient's enquiry: labelled fields
     // like a transaction notice, no emoji/bold ad-card, no persuasive
     // CTA ("book a site visit", "don't miss out"). Mixed
     // utility+marketing content classifies the whole template as
     // Marketing regardless of the submitted category.
-    body_text: [
-      'Hi {{1}}, here are the details for your property enquiry with {{2}}:',
-      '',
-      'Property: {{3}}',
-      'Details: {{4}}',
-      'Location: {{5}}',
-      '',
-      'Reply to this message if you need any further information about this enquiry.',
-    ].join('\n'),
+    body_text: templateBody('property_alert', language),
     buttons: [
       // Quick reply first (Meta rule). A tap opens the 24h window, so
       // the follow-up conversation continues free-form in the Engine
       // Inbox; the URL carries the requested listing details.
-      { type: 'QUICK_REPLY', text: SEND_MORE_DETAILS_BUTTON },
+      { type: 'QUICK_REPLY', text: templateButtonLabel('send_more_details', language) },
       {
         type: 'URL',
-        text: 'View full details',
+        text: templateButtonLabel('view_full_details', language),
         url: `${origin.replace(/\/+$/, '')}/{{1}}`,
         example: '?property_id=abc&v=contact-id',
       },

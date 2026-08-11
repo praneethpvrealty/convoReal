@@ -25,6 +25,8 @@
 // Pure functions so payload and params are unit-testable.
 
 import type { TemplatePayload } from '@/lib/whatsapp/template-validators';
+import { DEFAULT_LANGUAGE, metaLanguageCode, type LanguageCode } from '@/lib/languages';
+import { templateBody, templateButtonLabel } from '@/lib/whatsapp/template-copy';
 import { sanitizeTemplateParam } from '@/lib/whatsapp/inventory-update-template';
 import { isPlaceholderLeadName } from '@/lib/contacts/lead-placeholder';
 import { BRANDING } from '@/config/branding';
@@ -51,30 +53,23 @@ export const JOURNEY_CHECKIN_CLOSE_BUTTON = 'Close my enquiry';
 
 export function buildJourneyCheckinTemplatePayload(
   origin: string,
+  language: LanguageCode = DEFAULT_LANGUAGE,
 ): TemplatePayload {
   const base = origin.replace(/\/+$/, '');
   return {
     name: JOURNEY_CHECKIN_TEMPLATE_NAME,
     category: 'Utility',
-    language: 'en_US',
-    body_text: [
-      'Hi {{1}}, this is a check-in on your property enquiry with {{2}}:',
-      '',
-      'Property: {{3}}',
-      '',
-      'We have had no update from you on this listing, so your enquiry is still open against it.',
-      '',
-      'Reply to confirm it is still under consideration. To end the enquiry, choose "Close my enquiry" and no further updates will be sent.',
-    ].join('\n'),
+    language: metaLanguageCode(language),
+    body_text: templateBody('journey_checkin', language),
     buttons: [
       // The quick replies open the 24h window; the URL carries the
       // listing itself, the same suffix shape listing_details_notice
       // was approved with.
-      { type: 'QUICK_REPLY', text: JOURNEY_CHECKIN_KEEP_BUTTON },
-      { type: 'QUICK_REPLY', text: JOURNEY_CHECKIN_CLOSE_BUTTON },
+      { type: 'QUICK_REPLY', text: templateButtonLabel('still_considering', language) },
+      { type: 'QUICK_REPLY', text: templateButtonLabel('close_enquiry', language) },
       {
         type: 'URL',
-        text: 'View full details',
+        text: templateButtonLabel('view_full_details', language),
         url: `${base}/{{1}}`,
         example: '?property_id=abc&v=contact-id',
       },

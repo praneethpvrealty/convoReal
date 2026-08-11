@@ -9,6 +9,7 @@
 // ============================================================
 
 import type { Property } from '@/types';
+import { REPLY_LANGUAGE_RULE } from '@/lib/languages';
 
 /** Subset of Property the answerer reads. The public showcase payload
  *  is a superset of this, so callers can pass the full row. */
@@ -272,4 +273,5 @@ export const PROPERTY_QA_SYSTEM_PROMPT =
   `Always use the first person ("we", "I", "let me"). NEVER refer to "the agent" or "the team" in the third person and never tell the buyer to ask someone else — you ARE the person they are talking to. ` +
   `If the answer isn't in the details, say you'll confirm it and come back to them — do NOT guess. ` +
   `Never promise a discount, confirm negotiability, quote loan/EMI figures, or give legal advice; ` +
-  `for those, say you'll check and revert. Do not invent amenities, dimensions, or approvals that aren't listed.`;
+  `for those, say you'll check and revert. Do not invent amenities, dimensions, or approvals that aren't listed. ` +
+  REPLY_LANGUAGE_RULE;

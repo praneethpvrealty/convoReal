@@ -54,17 +54,17 @@ import {
   summarizePreferenceUpdate,
   PREFERENCE_FLOW_BUTTON_ID,
 } from '@/lib/whatsapp/preference-flow'
-import { ENQUIRY_FOLLOWUP_CLOSE_BUTTON } from '@/lib/whatsapp/enquiry-followup-template'
-import {
-  JOURNEY_CHECKIN_CLOSE_BUTTON,
-  JOURNEY_CHECKIN_KEEP_BUTTON,
-} from '@/lib/whatsapp/journey-checkin-template'
+import { JOURNEY_CHECKIN_KEEP_BUTTON } from '@/lib/whatsapp/journey-checkin-template'
 import {
   CLIENT_FOLLOWUP_PREFIX,
   handleClientFollowupReply,
   handleInboxCheckinReply,
 } from '@/lib/journey/client-response'
-import { ENQUIRY_NOTICE_CLOSE_BUTTON } from '@/lib/whatsapp/enquiry-notice-template'
+// The per-template CLOSE_BUTTON constants are gone from here on
+// purpose: matchTemplateButton resolves a tap to its action in any
+// language we send, and comparing against one English string again
+// would silently stop working for every translated template.
+import { matchTemplateButton } from '@/lib/whatsapp/template-copy'
 import { accountPropertyShowcaseUrl } from '@/lib/showcase/account-showcase-url'
 import type { Contact } from '@/types'
 import {
@@ -1315,12 +1315,14 @@ async function processMessage(
   // chat-as-control-panel pattern as the owner digest commands above,
   // editing contacts.buyer_alerts_consent.
   //
-  // Both enquiry templates carry their own copy of the label. They read
-  // identically today, so matching only one worked by luck; matching
-  // both means rewording either cannot silently stop closing enquiries.
   // "Still considering it" on the journey check-in template: the tap is
   // the client's answer — log it on the journey and ask for a timeline.
-  if (message.button?.text === JOURNEY_CHECKIN_KEEP_BUTTON) {
+  //
+  // Matched on the ACTION, so a lead who was sent the Kannada template
+  // and taps "ಇನ್ನೂ ಪರಿಶೀಲಿಸುತ್ತಿದೆ" lands here too. What gets LOGGED is
+  // still the English constant, so the journey reads one stable phrase
+  // whatever language the client was messaged in.
+  if (matchTemplateButton(message.button?.text) === 'still_considering') {
     const keepOutcome = await handleInboxCheckinReply({
       db: supabaseAdmin(),
       accountId,
@@ -1350,13 +1352,14 @@ async function processMessage(
     return
   }
 
-  const closeButtons = [
-    ENQUIRY_FOLLOWUP_CLOSE_BUTTON,
-    ENQUIRY_NOTICE_CLOSE_BUTTON,
-    JOURNEY_CHECKIN_CLOSE_BUTTON,
-  ]
+  // All three enquiry templates share one close action, and each one
+  // ships in every language we send — so this matches on the ACTION,
+  // resolved from the label in whatever language the lead received.
+  // Comparing against the English constants (as this did) meant a
+  // Kannada lead tapping "ವಿಚಾರಣೆ ಮುಚ್ಚಿ" was not closing anything:
+  // their enquiry stayed open and the alerts kept coming.
   const alertsCommand =
-    message.button?.text && closeButtons.includes(message.button.text)
+    matchTemplateButton(message.button?.text) === 'close_enquiry'
       ? 'close'
       : parseBuyerAlertsCommand(message.button?.text ?? contentText)
   if (alertsCommand) {

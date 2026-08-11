@@ -43,12 +43,20 @@ interface Profile {
   team_id: string | null;
   /** Former 'viewer' role folds into org_agent + this flag. */
   is_read_only: boolean;
+  /** Languages this agent reads, and which one the app renders in
+   *  (migration 247). Shared with the mobile app, which reads the same
+   *  profile row. Narrowed by the locale provider, never trusted raw. */
+  ui_languages: string[];
+  active_ui_language: string | null;
 }
 
 interface AccountSummary {
   id: string;
   name: string;
   status: string;
+  /** Outbound language default (migration 246). Absent on rows read
+   *  before the column existed — callers narrow with toLanguageCode(). */
+  default_language?: string;
 }
 
 interface AuthContextValue {
@@ -196,7 +204,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // missing account collapses to null rather than a half-
           // populated row (shouldn't happen post-017 NOT NULL, but
           // belt-and-braces against forks running older schemas).
-          "id, full_name, email, phone, avatar_url, role, beta_features, account_id, account_role, org_role, team_id, is_read_only, account:accounts!inner(id, name, status)",
+          "id, full_name, email, phone, avatar_url, role, beta_features, account_id, account_role, org_role, team_id, is_read_only, ui_languages, active_ui_language, account:accounts!inner(id, name, status, default_language)",
         )
         .eq("user_id", userId)
         .maybeSingle();
@@ -238,6 +246,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               org_role: null,
               team_id: null,
               is_read_only: false,
+              // Legacy path predates migration 247 and never selects
+              // these; the locale provider narrows the defaults anyway.
+              ui_languages: [],
+              active_ui_language: null,
             });
             setAccount(null);
           }
@@ -260,7 +272,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // form before reading.
         const accountRow = Array.isArray(data.account)
           ? data.account[0] ?? null
-          : (data.account as { id: string; name: string; status: string } | null);
+          : (data.account as AccountSummary | null);
 
         // Narrow the DB enum into our AccountRole union. The DB
         // constraint should make this unconditional, but a future
@@ -287,6 +299,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // (older deployments running 011 lazily) — `null` reads as no
           // opt-ins, which is the safe default for any future beta gate.
           beta_features: data.beta_features ?? [],
+          // Null on a fork that has not applied migration 247 —
+          // sanitizeLanguageSet() turns that into ['en'].
+          ui_languages: data.ui_languages ?? [],
+          active_ui_language: data.active_ui_language ?? null,
           account_id: data.account_id ?? null,
           account_role: accountRole,
           org_role: orgRole,

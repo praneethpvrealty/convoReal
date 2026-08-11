@@ -34,6 +34,8 @@
 // all.
 
 import type { TemplatePayload } from '@/lib/whatsapp/template-validators';
+import { DEFAULT_LANGUAGE, metaLanguageCode, type LanguageCode } from '@/lib/languages';
+import { templateBody, templateButtonLabel } from '@/lib/whatsapp/template-copy';
 import { sanitizeTemplateParam } from '@/lib/whatsapp/inventory-update-template';
 import { isPlaceholderLeadName } from '@/lib/contacts/lead-placeholder';
 import type { Property } from '@/types';
@@ -85,23 +87,17 @@ export function pickEnquiryNoticeTemplate<T extends ApprovedTemplateCandidate>(
 export const ENQUIRY_NOTICE_UPDATE_BUTTON = 'Update my preferences';
 export const ENQUIRY_NOTICE_CLOSE_BUTTON = 'Close my enquiry';
 
-export function buildEnquiryNoticeTemplatePayload(): TemplatePayload {
+export function buildEnquiryNoticeTemplatePayload(
+  language: LanguageCode = DEFAULT_LANGUAGE,
+): TemplatePayload {
   return {
     name: ENQUIRY_NOTICE_TEMPLATE_NAME,
     category: 'Utility',
-    language: 'en_US',
-    body_text: [
-      'Hi {{1}}, this is a status update on your property enquiry with {{2}}:',
-      '',
-      'Property: {{3}}',
-      '',
-      'The listing you enquired about is no longer available, so your enquiry cannot be fulfilled as filed.',
-      '',
-      'To keep your enquiry open, update your requirement below or reply with what you are looking for now. To end it, choose "Close my enquiry" and no further updates will be sent.',
-    ].join('\n'),
+    language: metaLanguageCode(language),
+    body_text: templateBody('enquiry_notice', language),
     buttons: [
-      { type: 'QUICK_REPLY', text: ENQUIRY_NOTICE_UPDATE_BUTTON },
-      { type: 'QUICK_REPLY', text: ENQUIRY_NOTICE_CLOSE_BUTTON },
+      { type: 'QUICK_REPLY', text: templateButtonLabel('update_preferences', language) },
+      { type: 'QUICK_REPLY', text: templateButtonLabel('close_enquiry', language) },
     ],
     sample_values: {
       body: [
