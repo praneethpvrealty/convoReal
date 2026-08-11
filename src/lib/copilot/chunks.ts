@@ -362,8 +362,23 @@ export const CHUNKS: KnowledgeChunk[] = [
     id: 'mobile.app',
     title: 'Mobile app',
     kind: 'concept',
-    body: 'ConvoReal has a companion mobile app with inventory, contacts, inbox, deals, calendar and property sharing, signed in with a WhatsApp OTP. Web links to properties open directly in the app when it’s installed.',
+    body: 'ConvoReal has a companion mobile app with inventory, contacts, inbox, deals, calendar and property sharing, signed in with a WhatsApp OTP. Some things are app-only: the property map with its GPS "Near me" filter, importing contacts from the phone book, home-screen widgets, and a fingerprint app lock. Web property links open directly in the app when installed.',
     keywords: ['android', 'ios', 'phone app', 'download app'],
+  },
+  {
+    id: 'mobile.map-near-me',
+    title: 'Property map and Near me',
+    kind: 'concept',
+    body: 'Seeing listings as pins on a map, and the GPS "Near me" filter, live in the mobile app: open Properties there and tap the map icon or Near me. The web dashboard filters by locality name instead — there is no map view on desktop.',
+    keywords: [
+      'map',
+      'near me',
+      'nearby',
+      'gps',
+      'pins',
+      'aas paas',
+      'location search',
+    ],
   },
   {
     id: 'inventory.projects',
@@ -394,7 +409,7 @@ export const CHUNKS: KnowledgeChunk[] = [
     route: '/contacts',
     title: 'Importing contacts',
     kind: 'howto',
-    body: 'Import a CSV at Contacts → Import — map your columns to fields, and duplicates are matched by phone. Contacts also arrive automatically from WhatsApp chats, portal lead emails and forwarded lead messages.',
+    body: 'Import a CSV at Contacts → Import — map your columns to fields, and duplicates are matched by phone. On the mobile app you can also import straight from your phone’s contact book. Contacts also arrive automatically from WhatsApp chats, portal lead emails and forwarded lead messages.',
     keywords: ['csv', 'bulk upload', 'excel import'],
   },
   {
