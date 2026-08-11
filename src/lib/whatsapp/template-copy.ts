@@ -222,7 +222,8 @@ export type EngineTemplateKey =
   | 'enquiry_followup'
   | 'enquiry_notice'
   | 'journey_checkin'
-  | 'journey_timeline';
+  | 'journey_timeline'
+  | 'journey_followup_reminder';
 
 interface TemplateCopy {
   body: string;
@@ -814,9 +815,14 @@ const TEMPLATE_COPY: Record<
   },
 
   // Asks the lead to schedule the next contact, after they have said
-  // they would come back with a decision. Utility for the same reason
-  // the check-in above is: it administers an enquiry the lead filed,
-  // states no offer, and its only ask is WHEN — never whether.
+  // they would come back with a decision.
+  //
+  // SUBMITTED AND CAME BACK MARKETING. Kept because the approved row
+  // still sends (pick-approved-template prefers the Utility row under
+  // journey_followup_reminder below and only falls back here), and
+  // because the wording is the record of what does NOT earn Utility:
+  // it describes outreach we intend to make rather than a dated item
+  // on the lead's own record. Do not reuse this shape.
   journey_timeline: {
     en: {
       body: lines(
@@ -893,6 +899,96 @@ const TEMPLATE_COPY: Record<
         'या नोंदीबाबत तुमचा निर्णय कळवाल असे तुम्ही सांगितले होते.',
         '',
         'आम्ही केव्हा पुन्हा संपर्क साधावा ते निवडा, तुमच्या गरजेच्या आधी संपर्क करू नये म्हणून.',
+      ),
+    },
+  },
+
+  // The second attempt at the same job, shaped like the four reminder
+  // templates this account holds UTILITY on (appointment_reminder,
+  // appointment_reminder_agenda, property_visit_reminder,
+  // property_visit_reminder_agenda) rather than like the enquiry
+  // family.
+  //
+  // What those four share, and what journey_timeline above lacked: a
+  // concrete dated item that already exists on the recipient's record,
+  // and buttons that confirm or move THAT item. "Please tap a button
+  // below to confirm or request a change" is the exact sentence Meta
+  // has approved as Utility here four times over. An open question
+  // about when we may contact them is outreach; moving a scheduled
+  // date on their own enquiry is administration of it.
+  //
+  // {{4}} is the date the follow-up is currently set for — stamped on
+  // the journey item before the send, so the message states a fact
+  // rather than proposing one.
+  journey_followup_reminder: {
+    en: {
+      body: lines(
+        'Hi {{1}}, this is a reminder from {{2}} that your property enquiry is open and awaiting your decision.',
+        '',
+        'Property: {{3}}',
+        'Follow-up currently scheduled for: {{4}}',
+        '',
+        'Please tap a button below to confirm this date or move it. If you choose "Can\'t say yet", the follow-up is removed and your enquiry stays open until you contact us.',
+      ),
+    },
+    hi: {
+      body: lines(
+        'नमस्ते {{1}}, यह {{2}} की ओर से याद दिलाना है कि आपकी प्रॉपर्टी पूछताछ खुली है और आपके निर्णय की प्रतीक्षा में है।',
+        '',
+        'प्रॉपर्टी: {{3}}',
+        'अगला संपर्क निर्धारित है: {{4}}',
+        '',
+        'इस तारीख की पुष्टि करने या बदलने के लिए नीचे बटन दबाएं। "अभी कह नहीं सकते" चुनने पर निर्धारित संपर्क हटा दिया जाएगा और आपकी पूछताछ खुली रहेगी।',
+      ),
+    },
+    kn: {
+      body: lines(
+        'ನಮಸ್ಕಾರ {{1}}, ಇದು {{2}} ಕಡೆಯಿಂದ ಜ್ಞಾಪನೆ — ನಿಮ್ಮ ಆಸ್ತಿ ವಿಚಾರಣೆ ತೆರೆದಿದೆ ಮತ್ತು ನಿಮ್ಮ ನಿರ್ಧಾರಕ್ಕಾಗಿ ಕಾಯುತ್ತಿದೆ.',
+        '',
+        'ಆಸ್ತಿ: {{3}}',
+        'ಮುಂದಿನ ಸಂಪರ್ಕ ನಿಗದಿ: {{4}}',
+        '',
+        'ಈ ದಿನಾಂಕವನ್ನು ದೃಢೀಕರಿಸಲು ಅಥವಾ ಬದಲಾಯಿಸಲು ಕೆಳಗಿನ ಬಟನ್ ಒತ್ತಿ. "ಈಗ ಹೇಳಲಾಗದು" ಆಯ್ಕೆ ಮಾಡಿದರೆ ನಿಗದಿತ ಸಂಪರ್ಕ ತೆಗೆದುಹಾಕಲಾಗುತ್ತದೆ ಮತ್ತು ವಿಚಾರಣೆ ತೆರೆದಿರುತ್ತದೆ.',
+      ),
+    },
+    ta: {
+      body: lines(
+        'வணக்கம் {{1}}, இது {{2}} சார்பாக ஒரு நினைவூட்டல் — உங்கள் சொத்து விசாரணை திறந்திருக்கிறது, உங்கள் முடிவுக்காக காத்திருக்கிறது.',
+        '',
+        'சொத்து: {{3}}',
+        'அடுத்த தொடர்பு திட்டமிடப்பட்டுள்ளது: {{4}}',
+        '',
+        'இந்த தேதியை உறுதிப்படுத்த அல்லது மாற்ற கீழே உள்ள பொத்தானை அழுத்தவும். "இப்போது சொல்ல முடியாது" எனத் தேர்ந்தெடுத்தால், திட்டமிட்ட தொடர்பு நீக்கப்பட்டு விசாரணை திறந்தே இருக்கும்.',
+      ),
+    },
+    te: {
+      body: lines(
+        'నమస్కారం {{1}}, ఇది {{2}} తరఫున ఒక రిమైండర్ — మీ ఆస్తి విచారణ తెరిచి ఉంది, మీ నిర్ణయం కోసం ఎదురుచూస్తోంది.',
+        '',
+        'ఆస్తి: {{3}}',
+        'తదుపరి సంప్రదింపు షెడ్యూల్: {{4}}',
+        '',
+        'ఈ తేదీని నిర్ధారించడానికి లేదా మార్చడానికి కింది బటన్ నొక్కండి. "ఇప్పుడే చెప్పలేను" ఎంచుకుంటే షెడ్యూల్ తీసివేయబడుతుంది, విచారణ తెరిచే ఉంటుంది.',
+      ),
+    },
+    ml: {
+      body: lines(
+        'നമസ്കാരം {{1}}, ഇത് {{2}} നൽകുന്ന ഓർമ്മപ്പെടുത്തൽ — നിങ്ങളുടെ വസ്തു അന്വേഷണം തുറന്നിരിക്കുന്നു, നിങ്ങളുടെ തീരുമാനത്തിനായി കാത്തിരിക്കുന്നു.',
+        '',
+        'വസ്തു: {{3}}',
+        'അടുത്ത ബന്ധപ്പെടൽ നിശ്ചയിച്ചിരിക്കുന്നത്: {{4}}',
+        '',
+        'ഈ തീയതി സ്ഥിരീകരിക്കാനോ മാറ്റാനോ താഴെയുള്ള ബട്ടൺ അമർത്തുക. "ഇപ്പോൾ പറയാനാകില്ല" തിരഞ്ഞെടുത്താൽ നിശ്ചയിച്ച ബന്ധപ്പെടൽ നീക്കം ചെയ്യും, അന്വേഷണം തുറന്നിരിക്കും.',
+      ),
+    },
+    mr: {
+      body: lines(
+        'नमस्कार {{1}}, ही {{2}} कडून आठवण — तुमची मालमत्ता चौकशी खुली आहे आणि तुमच्या निर्णयाची वाट पाहत आहे.',
+        '',
+        'मालमत्ता: {{3}}',
+        'पुढील संपर्क नियोजित: {{4}}',
+        '',
+        'ही तारीख निश्चित करण्यासाठी किंवा बदलण्यासाठी खालील बटण दाबा. "आत्ता सांगू शकत नाही" निवडल्यास नियोजित संपर्क काढून टाकला जाईल आणि चौकशी खुली राहील.',
       ),
     },
   },
