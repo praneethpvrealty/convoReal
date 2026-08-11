@@ -3,7 +3,9 @@
 import { Check } from "lucide-react";
 
 import { useTheme } from "@/hooks/use-theme";
+import { useLocale } from "@/hooks/use-locale";
 import { THEMES, type ThemeId } from "@/lib/themes";
+import { LANGUAGE_CODES, languageDisplay } from "@/lib/languages";
 import { cn } from "@/lib/utils";
 
 /**
@@ -20,6 +22,68 @@ import { cn } from "@/lib/utils";
  */
 export function AppearancePanel() {
   const { theme, setTheme } = useTheme();
+  return (
+    <div className="space-y-8">
+      <LanguageSection />
+      <ThemeSection theme={theme} setTheme={setTheme} />
+    </div>
+  );
+}
+
+/**
+ * UI language. Separate from the account's default message language
+ * on the Profile tab — this one changes what the agent reads, that
+ * one changes what their clients receive. The help text says so,
+ * because "language" appearing in two places is otherwise a trap.
+ */
+function LanguageSection() {
+  const { language, setLanguage, t } = useLocale();
+  return (
+    <section className="space-y-4">
+      <div>
+        <h2 className="text-lg font-semibold text-white">
+          {t("appearance.language")}
+        </h2>
+        <p className="mt-1 text-sm text-slate-400">
+          {t("appearance.languageHelp")}
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {LANGUAGE_CODES.map((code) => (
+          <button
+            key={code}
+            type="button"
+            onClick={() => setLanguage(code)}
+            className={cn(
+              "flex items-center justify-between rounded-xl border px-4 py-3 text-left transition-all cursor-pointer",
+              code === language
+                ? "border-primary/60 bg-primary/10"
+                : "border-slate-800 bg-slate-900/40 hover:border-slate-700",
+            )}
+          >
+            <span className="text-sm font-medium text-white">
+              {languageDisplay(code)}
+            </span>
+            {code === language && <Check className="size-4 text-primary" />}
+          </button>
+        ))}
+      </div>
+
+      <p className="text-xs text-slate-500">
+        {t("appearance.languageIncomplete")}
+      </p>
+    </section>
+  );
+}
+
+function ThemeSection({
+  theme,
+  setTheme,
+}: {
+  theme: ThemeId;
+  setTheme: (next: ThemeId) => void;
+}) {
   return (
     <section className="space-y-4">
       <div>
