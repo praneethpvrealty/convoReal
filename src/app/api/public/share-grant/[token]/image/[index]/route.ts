@@ -3,6 +3,8 @@ import { supabaseAdmin } from '@/lib/automations/admin-client';
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 import { storageObjectPath } from '@/lib/storage/url';
 import { isGrantLive, type ShareGrant } from '@/lib/inventory/share-grants';
+import { maskPhone } from '@/lib/inventory/location-guard';
+import { watermarkImage, watermarkLabel } from '@/lib/storage/watermark';
 
 const PRIVATE_BUCKET = 'property-images-private';
 const GRANT_IMAGE_LIMIT = { limit: 60, windowMs: 60_000 };
@@ -32,7 +34,7 @@ export async function GET(
     const admin = supabaseAdmin();
     const { data } = await admin
       .from('property_share_grants')
-      .select('*, property:properties(private_images)')
+      .select('*, property:properties(private_images), contact:contacts(phone)')
       .eq('token', token)
       .maybeSingle();
 
@@ -45,6 +47,7 @@ export async function GET(
         | { private_images?: string[] }
         | { private_images?: string[] }[]
         | null;
+      contact: { phone?: string } | { phone?: string }[] | null;
     };
 
     if (!grant.reveal_private_images) {
@@ -73,10 +76,23 @@ export async function GET(
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
-    return new Response(file.stream(), {
+    // Every guarded photo leaves here traceable to the key it was served
+    // under, and — for a per-recipient grant — to the recipient.
+    const contact = (
+      Array.isArray(grant.contact) ? grant.contact[0] : grant.contact
+    ) as { phone?: string } | null;
+    const { buffer, contentType } = await watermarkImage(
+      Buffer.from(await file.arrayBuffer()),
+      watermarkLabel({
+        viewerLabel: contact?.phone ? maskPhone(contact.phone) : null,
+        reference: token.slice(0, 8).toUpperCase(),
+      })
+    );
+
+    return new Response(new Uint8Array(buffer), {
       status: 200,
       headers: {
-        'Content-Type': file.type || 'image/jpeg',
+        'Content-Type': contentType,
         'Cache-Control': 'private, no-store',
       },
     });

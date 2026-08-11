@@ -18,6 +18,11 @@ import {
   resolveShareGrant,
   trackGrantView,
 } from '@/lib/inventory/share-grants';
+import {
+  isTeaserGated,
+  priceBand,
+  teaserTitle,
+} from '@/lib/inventory/showcase-visibility';
 import { propertySlug } from '@/lib/showcase/property-slug';
 import { resolveRequestOrigin } from '@/lib/showcase/site-url';
 import { jsonLdScript, propertyJsonLd } from '@/lib/seo/jsonld';
@@ -83,6 +88,26 @@ export async function generateMetadata({
   const accountId = process.env.NEXT_PUBLIC_DEFAULT_ACCOUNT_ID || null;
   const property = await cachedResolvePropertyById(propertyId, accountId);
   if (!property) return DEFAULT_METADATA;
+
+  // Gated without consulting ?g=: this is the unfurl a forwarded link
+  // produces, and an unfurl carries no grant.
+  if (isTeaserGated(property)) {
+    const origin = await resolveRequestOrigin();
+    const band = priceBand(property.price);
+    return {
+      title: teaserTitle(property),
+      description: `Confidential listing — details shared on request.${band ? ` Guide price ${band}.` : ''}`,
+      alternates: {
+        canonical: `${origin}/property/${propertySlug(property)}`,
+      },
+      openGraph: {
+        title: teaserTitle(property),
+        description: 'Confidential listing — details shared on request.',
+        type: 'website',
+      },
+      robots: { index: false, follow: false },
+    };
+  }
 
   const description =
     (property.description || '').slice(0, 160) ||
@@ -432,7 +457,7 @@ export default async function RootPage({ searchParams }: PageProps) {
   // Render
   return (
     <>
-      {targetProperty && (
+      {targetProperty && !isTeaserGated(targetProperty) && (
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{

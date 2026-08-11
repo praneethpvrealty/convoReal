@@ -259,6 +259,7 @@ export function PropertyForm({
   const [uploadingDocument, setUploadingDocument] = useState(false);
   const [googleMapLink, setGoogleMapLink] = useState('');
   const [locationPrivacy, setLocationPrivacy] = useState<'' | 'exact' | 'locality'>('');
+  const [showcaseVisibility, setShowcaseVisibility] = useState<'' | 'teaser'>('');
   const [notes, setNotes] = useState('');
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
@@ -1508,6 +1509,9 @@ export function PropertyForm({
             ? property.location_privacy
             : ''
         );
+        setShowcaseVisibility(
+          property.showcase_visibility === 'teaser' ? 'teaser' : ''
+        );
         setNotes(property.notes ?? '');
         setTags(property.tags || []);
         setTagInput('');
@@ -1617,6 +1621,7 @@ export function PropertyForm({
         setSearchQuery('');
         setGoogleMapLink('');
         setLocationPrivacy('');
+        setShowcaseVisibility('');
         setNotes('');
         setTags([]);
         setTagInput('');
@@ -2363,6 +2368,7 @@ export function PropertyForm({
         listing_source: listingSource,
         google_map_link: googleMapLink.trim() || null,
         location_privacy: locationPrivacy || null,
+        showcase_visibility: showcaseVisibility || null,
         rental_income: hasCommercialFields && rentalIncome.trim() !== '' ? Number(rentalIncome) : null,
         roi: hasCommercialFields && roiValue !== null ? roiValue : null,
         // Server-side sanitizeFloorTenancies() drops empty rows and
@@ -4312,6 +4318,26 @@ export function PropertyForm({
                             (guardedByType ? 'locality' : 'exact') === next ? '' : next
                           );
                         }}
+                      />
+                    </div>
+
+                    <div className="col-span-2 flex items-center justify-between rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-2.5">
+                      <div className="space-y-0.5">
+                        <Label htmlFor="prop-showcase-gate" className="text-slate-300 text-sm cursor-pointer">
+                          Confidential listing
+                        </Label>
+                        <p className="text-[10px] text-slate-500 leading-normal">
+                          Anyone opening the public link sees only the type, locality and a
+                          price band until you approve them. Link previews and search engines
+                          get nothing, and photos you release are watermarked to the viewer.
+                        </p>
+                      </div>
+                      <Switch
+                        id="prop-showcase-gate"
+                        checked={showcaseVisibility === 'teaser'}
+                        onCheckedChange={(checked) =>
+                          setShowcaseVisibility(checked ? 'teaser' : '')
+                        }
                       />
                     </div>
 

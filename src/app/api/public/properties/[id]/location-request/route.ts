@@ -8,6 +8,7 @@ import {
   notifyOwnerQueue,
   requestConsentFromContact,
 } from '@/lib/inventory/location-requests';
+import { isTeaserGated } from '@/lib/inventory/showcase-visibility';
 
 const LOCREQ_IP_LIMIT = { limit: 5, windowMs: 60_000 };
 const LOCREQ_ACCOUNT_LIMIT = { limit: 40, windowMs: 60_000 };
@@ -41,6 +42,7 @@ export async function POST(
       account_id,
       via_contact_id,
       via_share_id,
+      scope: requestedScope,
     } = body;
 
     if (!requester_name?.trim()) {
@@ -82,7 +84,9 @@ export async function POST(
 
     const { data: property, error: propErr } = await admin
       .from('properties')
-      .select('id, title, property_code, user_id, is_published')
+      .select(
+        'id, title, property_code, user_id, is_published, showcase_visibility'
+      )
       .eq('id', propertyId)
       .eq('account_id', account_id)
       .maybeSingle();
@@ -93,6 +97,14 @@ export async function POST(
         { status: 404 }
       );
     }
+
+    // 'listing' is only meaningful for a teaser-gated listing, and a
+    // caller must not be able to turn an ordinary location request into
+    // a page unlock by asserting a scope the property does not have.
+    const scope =
+      requestedScope === 'listing' && isTeaserGated(property)
+        ? 'listing'
+        : 'location';
 
     const { count: existingCount } = await admin
       .from('property_location_requests')
@@ -156,9 +168,10 @@ export async function POST(
         status: 'pending',
         via_contact_id: viaContactId,
         via_share_id: viaShareId,
+        scope,
       })
       .select(
-        'id, account_id, property_id, requester_name, requester_phone, via_contact_id'
+        'id, account_id, property_id, requester_name, requester_phone, via_contact_id, contact_id, scope'
       )
       .single();
 
@@ -247,7 +260,7 @@ export async function POST(
 
           if (conversationId) {
             const inboxText =
-              `📍 *Location Reveal Request*\n\n` +
+              `${scope === 'listing' ? '🔓 *Listing Access Request*' : '📍 *Location Reveal Request*'}\n\n` +
               `🏡 *Property*: ${property.title}${property.property_code ? ` (${property.property_code})` : ''}\n` +
               `👤 *Name*: ${requester_name.trim()}\n` +
               `📞 *Phone*: ${normalizedPhone}\n\n` +
@@ -287,7 +300,11 @@ export async function POST(
       await notifyOwnerQueue(admin, locRequest);
     }
 
-    return NextResponse.json({ success: true, requestId: locRequest.id });
+    return NextResponse.json({
+      success: true,
+      requestId: locRequest.id,
+      scope,
+    });
   } catch (err) {
     console.error('[POST location-request] Unexpected error:', err);
     return NextResponse.json(

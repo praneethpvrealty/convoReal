@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/automations/admin-client';
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 import { storageObjectPath } from '@/lib/storage/url';
+import { maskPhone } from '@/lib/inventory/location-guard';
+import { watermarkImage, watermarkLabel } from '@/lib/storage/watermark';
 
 const PRIVATE_BUCKET = 'property-images-private';
 const REVEAL_IMAGE_LIMIT = { limit: 60, windowMs: 60_000 };
@@ -31,7 +33,7 @@ export async function GET(
     const { data: locRequest } = await admin
       .from('property_location_requests')
       .select(
-        'id, status, share_token_expires_at, property:properties(private_images)'
+        'id, status, share_token_expires_at, requester_phone, property:properties(private_images)'
       )
       .eq('share_token', token)
       .maybeSingle();
@@ -67,10 +69,22 @@ export async function GET(
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
-    return new Response(file.stream(), {
+    // Traceable back to the approved request that opened it — the
+    // requester sees their own masked number on every photo.
+    const requesterPhone = (locRequest as { requester_phone?: string })
+      .requester_phone;
+    const { buffer, contentType } = await watermarkImage(
+      Buffer.from(await file.arrayBuffer()),
+      watermarkLabel({
+        viewerLabel: requesterPhone ? maskPhone(requesterPhone) : null,
+        reference: token.slice(0, 8).toUpperCase(),
+      })
+    );
+
+    return new Response(new Uint8Array(buffer), {
       status: 200,
       headers: {
-        'Content-Type': file.type || 'image/jpeg',
+        'Content-Type': contentType,
         'Cache-Control': 'private, no-store',
       },
     });

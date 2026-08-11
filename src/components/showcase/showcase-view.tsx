@@ -45,6 +45,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { AskPropertyChat } from '@/components/showcase/ask-property-chat';
 import { ShowcaseLeadBot } from '@/components/showcase/showcase-lead-bot';
 import { SimilarProperties } from '@/components/showcase/similar-properties';
+import { TeaserGate } from '@/components/showcase/teaser-gate';
 import {
   PropertyRatingBar,
   HIGH_INTEREST_RATING,
@@ -1823,7 +1824,23 @@ export function ShowcaseView({
              button is pinned to the overlay so it survives the scroll.
              Desktop (lg): side-by-side panes capped at 90dvh, details
              pane scrolls internally. */}
-      {selectedProperty && (
+      {/* A teaser-gated listing gets the gate INSTEAD of the detail
+          modal — the detail modal renders fields the server withheld,
+          so it has nothing to show and would only look broken. */}
+      {selectedProperty?.teaser_gated && (
+        <TeaserGate
+          property={selectedProperty}
+          accountId={accountId}
+          visitorName={visitorName}
+          visitorPhone={visitorPhone}
+          visitorRef={visitorRef}
+          shareId={shareId}
+          onSaveVisitorInfo={saveVisitorInfo}
+          onClose={closePropertyModal}
+        />
+      )}
+
+      {selectedProperty && !selectedProperty.teaser_gated && (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/80 backdrop-blur-md">
           <div className="sticky top-0 z-20 h-0 lg:hidden">
             <button

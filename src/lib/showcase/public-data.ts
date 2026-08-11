@@ -1,7 +1,7 @@
 import { cache } from 'react';
 import { unstable_cache } from 'next/cache';
 import { supabaseAdmin } from '@/lib/automations/admin-client';
-import { toPublicPropertyView } from '@/lib/inventory/location-guard';
+import { toPublicListingView } from '@/lib/inventory/showcase-visibility';
 import type { GrantedReveals } from '@/lib/inventory/share-grants';
 import type { Project, Property, ShowcaseSettings } from '@/types';
 
@@ -279,7 +279,10 @@ export async function cachedFetchShowcaseData(
 // reveals the map only for properties whose location is not guarded;
 // a share grant (?g=) reveals the address, pin and documents for the
 // single listing it was minted for, guarded or not — see
-// src/lib/inventory/location-guard.ts.
+// src/lib/inventory/location-guard.ts. A teaser-gated listing
+// (migration 252) is reduced to its stub here regardless of mode,
+// unless that same grant carries reveal_listing — see
+// src/lib/inventory/showcase-visibility.ts.
 export function toPublicProperties(
   properties: Property[],
   agents: ShowcaseData['agents'],
@@ -321,7 +324,7 @@ export function toPublicProperties(
     const granted =
       grant && grant.propertyId === prop.id ? grant.reveals : undefined;
     return {
-      ...toPublicPropertyView(prop, { revealExact: isAgentMode, granted }),
+      ...toPublicListingView(prop, { revealExact: isAgentMode, granted }),
       agent_details: agent || null,
     };
   });

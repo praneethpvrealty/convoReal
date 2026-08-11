@@ -13,6 +13,11 @@
 
 import type { Property } from '@/types';
 import { isLocationGuarded } from '@/lib/inventory/location-guard';
+import {
+  isTeaserGated,
+  priceBand,
+  teaserTitle,
+} from '@/lib/inventory/showcase-visibility';
 
 export type ShareAudience = 'client' | 'agent';
 export type ShareDetailLevel = 'quick' | 'standard' | 'complete';
@@ -27,6 +32,9 @@ export interface ShareMessageInput {
   currency?: string;
   agentName?: string;
   agentPhone?: string;
+  /** How long the share grant riding this link lives ("7 days"), quoted
+   *  back to a co-broker in the confidentiality note. */
+  grantTtlLabel?: string;
 }
 
 const GREETING_HONORIFICS = new Set([
@@ -195,9 +203,60 @@ function completeBody(
   return lines.join('\n');
 }
 
+/**
+ * The confidentiality note that replaces the body of a teaser-gated
+ * share. Two things make it work, and both are deliberate:
+ *
+ * 1. It names the OWNER as the source of the restriction. A buyer reads
+ *    an unexplained wall as the agent hiding something, and reads an
+ *    owner's confidentiality undertaking as professionalism. It is also
+ *    simply true — that is why the listing is gated.
+ * 2. Every restriction is paired with the one tap through it, so the
+ *    gate reads as a courtesy rather than an obstacle.
+ *
+ * The co-broker variant additionally says the link is attributed. That
+ * is the honest deterrent: they learn attribution exists BEFORE they
+ * forward it, which is the whole point of watermarking what it opens.
+ */
+export function confidentialityNote(
+  audience: ShareAudience,
+  ttlLabel?: string
+): string {
+  const validity = ttlLabel ? ` for ${ttlLabel}` : '';
+  if (audience === 'agent') {
+    return (
+      `🔒 *Sharing this off-market.* The owner's condition is that the address, ` +
+      `photographs and exact price stay out of circulation.\n` +
+      `Your link opens${validity} and is tagged to you. If your client needs the ` +
+      `full file, request it through the link and I'll approve it.`
+    );
+  }
+  return (
+    `🔒 The owner has asked us to keep this property confidential — it is not ` +
+    `listed publicly, so the address, photographs and exact price aren't on the page.\n` +
+    `Tap *Request full details* on the link and I'll open it for you straight away.`
+  );
+}
+
 export function buildPropertyShareMessage(input: ShareMessageInput): string {
   const { property, url, detail } = input;
   const currency = input.currency || 'INR';
+
+  // A gated listing is gated in the MESSAGE too. Pasting the specs into
+  // WhatsApp and then withholding them on the page protects nothing —
+  // the message is the more forwardable of the two.
+  if (isTeaserGated(property)) {
+    const band = priceBand(property.price);
+    return [
+      intro(input),
+      `*${teaserTitle(property)}*${band ? `\n💰 Guide price *${band}*` : ''}`,
+      confidentialityNote(input.audience, input.grantTtlLabel),
+      `🔗 ${url}`,
+      [outro(input), signOff(input)].filter(Boolean).join('\n\n'),
+    ]
+      .filter(Boolean)
+      .join('\n\n');
+  }
 
   if (detail === 'quick') {
     return [

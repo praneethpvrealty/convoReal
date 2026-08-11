@@ -1064,6 +1064,17 @@ export interface Property {
    *  villas, farm houses and land default to 'locality' (exact address,
    *  map pin and coordinates hidden), everything else to 'exact'. */
   location_privacy?: 'exact' | 'locality' | null;
+  /** Showcase gating (migration 252). NULL = derived ('open'). 'teaser'
+   *  reduces the public page to a stub behind a request-access gate. */
+  showcase_visibility?: 'open' | 'teaser' | null;
+  /** Set by the showcase serializer, never stored: this row was reduced
+   *  to its teaser for the current viewer. */
+  teaser_gated?: boolean;
+  /** Teaser substitute for `price`, which is withheld — an exact figure
+   *  plus a locality is near-unique in a thin market. */
+  price_band?: string | null;
+  /** How many photos exist behind the gate, without their URLs. */
+  image_count?: number;
   /** Photos moved to the non-public bucket (migration 175) — served only
    *  through the authenticated proxy or an approved reveal token. */
   private_images?: string[];

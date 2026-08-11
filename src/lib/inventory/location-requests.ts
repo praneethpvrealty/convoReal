@@ -42,6 +42,14 @@ import {
   phonesMatch,
 } from '@/lib/whatsapp/phone-utils';
 import { maskName, maskPhone } from '@/lib/inventory/location-guard';
+import {
+  mintShareGrantToken,
+  SHARE_GRANT_TTL_MS,
+} from '@/lib/inventory/share-grants';
+import {
+  isTeaserGated,
+  teaserTitle,
+} from '@/lib/inventory/showcase-visibility';
 import { createNotification } from '@/lib/notifications/create';
 import { resolveChannels } from '@/lib/notifications/preferences';
 import type { MessageTemplate } from '@/types';
@@ -68,6 +76,10 @@ export interface LocationRequestRow {
   pending_consent_contact_id: string | null;
   consent_requested_at: string | null;
   share_token: string | null;
+  contact_id?: string | null;
+  /** What was asked for (migration 252). 'location' is every request
+   *  minted before showcase gating existed. */
+  scope?: 'location' | 'listing';
 }
 
 export function mintRevealToken(): { token: string; expiresAt: string } {
@@ -121,7 +133,18 @@ export function buildRevealMessage(args: {
   requesterName: string;
   propertyTitle: string;
   revealLink: string;
+  scope?: 'location' | 'listing';
 }): string {
+  if (args.scope === 'listing') {
+    return (
+      `🔓 *Access Approved — ${args.propertyTitle}*\n\n` +
+      `Hi ${args.requesterName}, the owner has approved your request to view this listing.\n\n` +
+      `🏡 Full details: ${args.revealLink}\n\n` +
+      `🔒 The owner has asked that these details stay between us — please don't forward the link or the photos. ` +
+      `Every photo carries your reference so we can honour that.\n\n` +
+      `⏳ This link is valid for 7 days.`
+    );
+  }
   return (
     `📍 *Exact Location — ${args.propertyTitle}*\n\n` +
     `Hi ${args.requesterName}, your location request was approved.\n\n` +
@@ -157,6 +180,13 @@ export function parseConsentReply(
   return null;
 }
 
+/**
+ * The title to use when writing to a SEEKER or an intermediary. A stored
+ * title routinely carries the street or the project name, and every
+ * message built from this one — the consent ask, the rejection redirect,
+ * the reveal — reaches someone the listing side has not approved yet. A
+ * teaser-gated listing therefore names itself by its stub.
+ */
 async function propertyTitle(
   admin: SupabaseClient,
   accountId: string,
@@ -164,11 +194,26 @@ async function propertyTitle(
 ): Promise<string> {
   const { data } = await admin
     .from('properties')
-    .select('title')
+    .select(
+      'title, type, bedrooms, sublocality, city, state, showcase_visibility'
+    )
     .eq('id', propertyId)
     .eq('account_id', accountId)
     .maybeSingle();
-  return (data as { title?: string } | null)?.title || 'the property';
+  if (!data) return 'the property';
+  const row = data as { title?: string; showcase_visibility?: string | null };
+  if (isTeaserGated(row)) {
+    return teaserTitle(
+      data as {
+        type?: string | null;
+        bedrooms?: number | null;
+        sublocality?: string | null;
+        city?: string | null;
+        state?: string | null;
+      }
+    );
+  }
+  return row.title || 'the property';
 }
 
 async function sendToSeeker(
@@ -219,7 +264,11 @@ async function sendRevealToSeeker(
   admin: SupabaseClient,
   request: Pick<
     LocationRequestRow,
-    'account_id' | 'requester_name' | 'requester_phone' | 'via_contact_id'
+    | 'account_id'
+    | 'requester_name'
+    | 'requester_phone'
+    | 'via_contact_id'
+    | 'scope'
   >,
   propertyTitle: string,
   shareLink: string,
@@ -232,6 +281,7 @@ async function sendRevealToSeeker(
       requesterName: request.requester_name,
       propertyTitle,
       revealLink: shareLink,
+      scope: request.scope,
     })
   );
   if (freeform.success) return true;
@@ -434,6 +484,7 @@ export async function notifyOwnerQueue(
     | 'requester_name'
     | 'requester_phone'
     | 'via_contact_id'
+    | 'scope'
   >
 ): Promise<void> {
   const { data: property } = await admin
@@ -458,6 +509,10 @@ export async function notifyOwnerQueue(
     ? `From: ${maskName(request.requester_name)} · ${maskPhone(request.requester_phone)} (via a co-broker share — identity protected)`
     : `From: ${request.requester_name} · ${request.requester_phone}`;
   const propertyLine = `${property.title}${property.property_code ? ` (${property.property_code})` : ''}`;
+  const listingScope = request.scope === 'listing';
+  const headline = listingScope
+    ? '🔓 Listing access request'
+    : '📍 Location reveal request';
 
   const channels = await resolveChannels(
     request.account_id,
@@ -468,7 +523,7 @@ export async function notifyOwnerQueue(
     accountId: request.account_id,
     userId: targetUserId,
     type: 'location_request',
-    title: '📍 Location reveal request',
+    title: headline,
     body: `${propertyLine} — ${fromLine}`,
     entityType: 'property',
     entityId: property.id,
@@ -494,11 +549,14 @@ export async function notifyOwnerQueue(
       senderType: 'bot',
       interactiveType: 'buttons',
       interactiveBody:
-        `📍 *New Location Reveal Request*\n` +
+        `${listingScope ? '🔓 *New Listing Access Request*' : '📍 *New Location Reveal Request*'}\n` +
         `Property: ${propertyLine}\n` +
         `${fromLine}\n\n` +
-        `Approve to send the exact location to the requester via WhatsApp, ` +
-        `or reject to redirect them to the person who shared them the property. ` +
+        (listingScope
+          ? `Approve to open the full listing page for this requester on WhatsApp — their link expires in 7 days, ` +
+            `is revocable, and every photo they see is watermarked to them. Reject to redirect them `
+          : `Approve to send the exact location to the requester via WhatsApp, or reject to redirect them `) +
+        `to the person who shared them the property. ` +
         `Also available on your dashboard.`,
       interactiveButtons: [
         { id: `${OWNER_APPROVE_PREFIX}${request.id}`, title: '✅ Approve' },
@@ -602,6 +660,40 @@ export async function handleOwnerLocationReply(args: {
 }
 
 /**
+ * Mints the share grant that opens a teaser-gated page for an approved
+ * listing-scope request. Returns null when the grant could not be
+ * written — the caller still approves the request, and the reveal page
+ * reports the link as expired rather than showing a listing it has no
+ * key for.
+ */
+async function mintListingGrant(
+  admin: SupabaseClient,
+  request: LocationRequestRow,
+  approvedByUserId: string | null
+): Promise<string | null> {
+  const { token, expiresAt } = mintShareGrantToken(SHARE_GRANT_TTL_MS);
+  const { data, error } = await admin
+    .from('property_share_grants')
+    .insert({
+      account_id: request.account_id,
+      property_id: request.property_id,
+      contact_id: request.contact_id ?? null,
+      created_by: approvedByUserId,
+      token,
+      reveal_listing: true,
+      expires_at: expiresAt,
+    })
+    .select('id')
+    .single();
+
+  if (error || !data) {
+    console.error('[location-requests] Listing grant mint failed:', error);
+    return null;
+  }
+  return data.id as string;
+}
+
+/**
  * Mints the token, stamps the row approved, sends the reveal link to
  * the seeker and — for attributed requests — the private heads-up to
  * the intermediary. Used by both the owner PATCH route and (through
@@ -616,12 +708,25 @@ export async function approveRequestAndSendReveal(
   const { token, expiresAt } = mintRevealToken();
   const shareLink = `${revealBaseUrl()}/reveal/${token}`;
 
+  // A listing-scope approval opens the teaser-gated page, which is a
+  // share grant, not an address card. Deliberately NOT reveal_location:
+  // the two guards compose, so a gated listing that is also
+  // location-guarded opens its page while the address stays behind its
+  // own request. The seeker is still sent to /reveal/<token> — that page
+  // hops onward to the granted URL, which lets the approved
+  // `location_reveal` template carry both outcomes.
+  const grantId =
+    request.scope === 'listing'
+      ? await mintListingGrant(admin, request, approvedByUserId)
+      : null;
+
   await admin
     .from('property_location_requests')
     .update({
       status: 'approved',
       share_token: token,
       share_token_expires_at: expiresAt,
+      granted_share_id: grantId,
       approved_by: approvedByUserId,
       approved_at: new Date().toISOString(),
       pending_consent_contact_id: null,
