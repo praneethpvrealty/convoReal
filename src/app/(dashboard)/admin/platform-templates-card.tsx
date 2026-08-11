@@ -19,6 +19,10 @@ import {
   EXTENSION_APOLOGY_TEMPLATE_NAME,
   EXTENSION_GOODWILL_TEMPLATE_NAME,
 } from '@/lib/whatsapp/subscription-extension-template';
+import {
+  buildSupportTicketReplyTemplatePayload,
+  SUPPORT_TICKET_REPLY_TEMPLATE_NAME,
+} from '@/lib/whatsapp/support-ticket-reply-template';
 import type { TemplatePayload } from '@/lib/whatsapp/template-validators';
 
 interface Slot {
@@ -42,6 +46,13 @@ const SLOTS: Slot[] = [
     whyItMatters:
       'The same message without an apology, for credit granted as a gesture rather than an admission. Used for onboarding delays and support goodwill.',
     buildPayload: buildExtensionGoodwillTemplatePayload,
+  },
+  {
+    name: SUPPORT_TICKET_REPLY_TEMPLATE_NAME,
+    label: 'Support — ticket answer',
+    whyItMatters:
+      'Carries a help-desk answer to a requester who chose WhatsApp. Tickets are filed from the in-app helper, so the 24-hour window is almost never open — without this template the answer reaches nobody.',
+    buildPayload: buildSupportTicketReplyTemplatePayload,
   },
 ];
 

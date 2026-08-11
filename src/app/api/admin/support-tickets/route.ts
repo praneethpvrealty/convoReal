@@ -20,6 +20,10 @@ import {
   buildTicketReplyEmail,
   buildTicketReplyText,
 } from '@/lib/support/tickets';
+import {
+  buildSupportTicketReplyParams,
+  supportTicketReplyTemplate,
+} from '@/lib/whatsapp/support-ticket-reply-template';
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { sendPlatformTemplate } from '@/lib/whatsapp/platform-sender';
@@ -144,10 +148,12 @@ export async function PATCH(request: Request) {
     const sentVia: string[] = [];
 
     if (ticket.preferred_channel === 'whatsapp' && ticket.contact_phone) {
+      const template = supportTicketReplyTemplate();
       const result = await sendPlatformTemplate(admin, {
         toPhone: ticket.contact_phone,
-        templateName: 'support_ticket_reply',
-        params: [ticket.reference, answer],
+        templateName: template.name,
+        language: template.language,
+        params: buildSupportTicketReplyParams(ticket.reference, answer),
         fallbackText: buildTicketReplyText(ticket.reference, answer),
       });
       if (result.sent) sentVia.push('whatsapp');
