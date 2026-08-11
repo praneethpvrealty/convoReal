@@ -13,7 +13,7 @@ Write your correction in the last column / block. Leave it blank if the current 
 
 ---
 
-## Buttons (9)
+## Buttons (12)
 
 The tappable options underneath a message.
 
@@ -25,13 +25,16 @@ The tappable options underneath a message.
 | 4 | Update my preferences | पसंती अपडेट करा | 15/25 | |
 | 5 | Close my enquiry | चौकशी बंद करा | 13/25 | |
 | 6 | Still considering it | अजून विचार करत आहे | 18/25 | |
-| 7 | View full details | संपूर्ण तपशील पहा | 17/25 | |
-| 8 | View location | ठिकाण पहा | 9/25 | |
-| 9 | Browse showcase | कॅटलॉग पहा | 10/25 | |
+| 7 | Today itself | आजच | 3/25 | |
+| 8 | In 2 days | 2 दिवसांत | 9/25 | |
+| 9 | Can't say yet | आत्ता सांगू शकत नाही | 20/25 | |
+| 10 | View full details | संपूर्ण तपशील पहा | 17/25 | |
+| 11 | View location | ठिकाण पहा | 9/25 | |
+| 12 | Browse showcase | कॅटलॉग पहा | 10/25 | |
 
 ---
 
-## Messages (7)
+## Messages (8)
 
 ### 1. Property details — sent when a buyer asks about a listing
 
@@ -240,6 +243,36 @@ The tappable options underneath a message.
 > या मालमत्तेबाबत तुमच्याकडून कोणतीही माहिती आलेली नाही, त्यामुळे तुमची चौकशी अजूनही खुली आहे.
 >
 > हे अजूनही विचाराधीन असल्यास उत्तर देऊन खात्री करा. चौकशी संपवण्यासाठी "चौकशी बंद करा" निवडा, नंतर कोणतेही अपडेट पाठवले जाणार नाहीत.
+
+**Your correction** *(leave blank if the above is fine)*
+
+>
+
+---
+
+### 8. Enquiry timeline — when should we check back with you?
+
+*Placeholders:* `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = listing title
+
+**English**
+
+> Hi {{1}}, an update on your property enquiry with {{2}}:
+>
+> Property: {{3}}
+>
+> You told us you would come back to us with your decision on this listing.
+>
+> Please choose when we should check back, so we do not follow up sooner than you need.
+
+**मराठी — current**
+
+> नमस्कार {{1}}, तुमच्या मालमत्ता चौकशीबाबत {{2}} कडून एक अपडेट:
+>
+> मालमत्ता: {{3}}
+>
+> या नोंदीबाबत तुमचा निर्णय कळवाल असे तुम्ही सांगितले होते.
+>
+> आम्ही केव्हा पुन्हा संपर्क साधावा ते निवडा, तुमच्या गरजेच्या आधी संपर्क करू नये म्हणून.
 
 **Your correction** *(leave blank if the above is fine)*
 

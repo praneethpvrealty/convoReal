@@ -13,7 +13,7 @@ Write your correction in the last column / block. Leave it blank if the current 
 
 ---
 
-## Buttons (9)
+## Buttons (12)
 
 The tappable options underneath a message.
 
@@ -25,13 +25,16 @@ The tappable options underneath a message.
 | 4 | Update my preferences | விருப்பம் புதுப்பி | 18/25 | |
 | 5 | Close my enquiry | விசாரணையை மூடு | 14/25 | |
 | 6 | Still considering it | இன்னும் பரிசீலனை | 16/25 | |
-| 7 | View full details | முழு விவரம் காண்க | 17/25 | |
-| 8 | View location | இடத்தைக் காண்க | 14/25 | |
-| 9 | Browse showcase | பட்டியலைக் காண்க | 16/25 | |
+| 7 | Today itself | இன்றே | 5/25 | |
+| 8 | In 2 days | 2 நாட்களில் | 11/25 | |
+| 9 | Can't say yet | இப்போது சொல்ல முடியாது | 22/25 | |
+| 10 | View full details | முழு விவரம் காண்க | 17/25 | |
+| 11 | View location | இடத்தைக் காண்க | 14/25 | |
+| 12 | Browse showcase | பட்டியலைக் காண்க | 16/25 | |
 
 ---
 
-## Messages (7)
+## Messages (8)
 
 ### 1. Property details — sent when a buyer asks about a listing
 
@@ -240,6 +243,36 @@ The tappable options underneath a message.
 > இந்தச் சொத்து குறித்து உங்களிடமிருந்து எந்தத் தகவலும் வரவில்லை, எனவே உங்கள் விசாரணை இன்னும் திறந்தே உள்ளது.
 >
 > இது இன்னும் பரிசீலனையில் இருந்தால் பதிலளித்து உறுதிப்படுத்தவும். விசாரணையை முடிக்க "விசாரணையை மூடு" தேர்ந்தெடுக்கவும், பின் எந்த புதுப்பிப்பும் அனுப்பப்படாது.
+
+**Your correction** *(leave blank if the above is fine)*
+
+>
+
+---
+
+### 8. Enquiry timeline — when should we check back with you?
+
+*Placeholders:* `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = listing title
+
+**English**
+
+> Hi {{1}}, an update on your property enquiry with {{2}}:
+>
+> Property: {{3}}
+>
+> You told us you would come back to us with your decision on this listing.
+>
+> Please choose when we should check back, so we do not follow up sooner than you need.
+
+**தமிழ் — current**
+
+> வணக்கம் {{1}}, உங்கள் சொத்து விசாரணை குறித்து {{2}} சார்பாக ஒரு புதுப்பிப்பு:
+>
+> சொத்து: {{3}}
+>
+> இந்தப் பட்டியல் குறித்த உங்கள் முடிவைத் தெரிவிப்பதாகக் கூறியிருந்தீர்கள்.
+>
+> நாங்கள் எப்போது மீண்டும் தொடர்பு கொள்ள வேண்டும் என்பதைத் தேர்ந்தெடுக்கவும்.
 
 **Your correction** *(leave blank if the above is fine)*
 

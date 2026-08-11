@@ -13,7 +13,7 @@ Write your correction in the last column / block. Leave it blank if the current 
 
 ---
 
-## Buttons (9)
+## Buttons (12)
 
 The tappable options underneath a message.
 
@@ -25,13 +25,16 @@ The tappable options underneath a message.
 | 4 | Update my preferences | पसंद अपडेट करें | 15/25 | |
 | 5 | Close my enquiry | पूछताछ बंद करें | 15/25 | |
 | 6 | Still considering it | अभी विचार कर रहा हूँ | 20/25 | |
-| 7 | View full details | पूरा विवरण देखें | 16/25 | |
-| 8 | View location | स्थान देखें | 11/25 | |
-| 9 | Browse showcase | कैटलॉग देखें | 12/25 | |
+| 7 | Today itself | आज ही | 5/25 | |
+| 8 | In 2 days | 2 दिन में | 9/25 | |
+| 9 | Can't say yet | अभी कह नहीं सकते | 16/25 | |
+| 10 | View full details | पूरा विवरण देखें | 16/25 | |
+| 11 | View location | स्थान देखें | 11/25 | |
+| 12 | Browse showcase | कैटलॉग देखें | 12/25 | |
 
 ---
 
-## Messages (7)
+## Messages (8)
 
 ### 1. Property details — sent when a buyer asks about a listing
 
@@ -240,6 +243,36 @@ The tappable options underneath a message.
 > इस लिस्टिंग पर आपकी ओर से कोई अपडेट नहीं मिला, इसलिए आपकी पूछताछ अब भी खुली है।
 >
 > यदि यह अब भी विचाराधीन है तो उत्तर देकर पुष्टि करें। पूछताछ समाप्त करने के लिए "पूछताछ बंद करें" चुनें, फिर कोई अपडेट नहीं भेजा जाएगा।
+
+**Your correction** *(leave blank if the above is fine)*
+
+>
+
+---
+
+### 8. Enquiry timeline — when should we check back with you?
+
+*Placeholders:* `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = listing title
+
+**English**
+
+> Hi {{1}}, an update on your property enquiry with {{2}}:
+>
+> Property: {{3}}
+>
+> You told us you would come back to us with your decision on this listing.
+>
+> Please choose when we should check back, so we do not follow up sooner than you need.
+
+**हिन्दी — current**
+
+> नमस्ते {{1}}, आपकी प्रॉपर्टी पूछताछ पर {{2}} की ओर से एक अपडेट:
+>
+> प्रॉपर्टी: {{3}}
+>
+> आपने बताया था कि आप इस लिस्टिंग पर अपना निर्णय बताएंगे।
+>
+> कृपया चुनें कि हम कब दोबारा संपर्क करें, ताकि आपकी ज़रूरत से पहले संपर्क न करें।
 
 **Your correction** *(leave blank if the above is fine)*
 

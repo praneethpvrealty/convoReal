@@ -13,7 +13,7 @@ Write your correction in the last column / block. Leave it blank if the current 
 
 ---
 
-## Buttons (9)
+## Buttons (12)
 
 The tappable options underneath a message.
 
@@ -25,13 +25,16 @@ The tappable options underneath a message.
 | 4 | Update my preferences | മുൻഗണന പുതുക്കുക | 16/25 | |
 | 5 | Close my enquiry | അന്വേഷണം അവസാനിപ്പിക്കൂ | 23/25 | |
 | 6 | Still considering it | ഇപ്പോഴും പരിഗണനയിൽ | 18/25 | |
-| 7 | View full details | പൂർണ്ണ വിവരം കാണുക | 18/25 | |
-| 8 | View location | സ്ഥലം കാണുക | 11/25 | |
-| 9 | Browse showcase | കാറ്റലോഗ് കാണുക | 15/25 | |
+| 7 | Today itself | ഇന്നുതന്നെ | 10/25 | |
+| 8 | In 2 days | 2 ദിവസത്തിനുള്ളിൽ | 17/25 | |
+| 9 | Can't say yet | ഇപ്പോൾ പറയാനാകില്ല | 18/25 | |
+| 10 | View full details | പൂർണ്ണ വിവരം കാണുക | 18/25 | |
+| 11 | View location | സ്ഥലം കാണുക | 11/25 | |
+| 12 | Browse showcase | കാറ്റലോഗ് കാണുക | 15/25 | |
 
 ---
 
-## Messages (7)
+## Messages (8)
 
 ### 1. Property details — sent when a buyer asks about a listing
 
@@ -240,6 +243,36 @@ The tappable options underneath a message.
 > ഈ വസ്തുവിനെക്കുറിച്ച് നിങ്ങളിൽ നിന്ന് വിവരമൊന്നും ലഭിച്ചിട്ടില്ല, അതിനാൽ നിങ്ങളുടെ അന്വേഷണം ഇപ്പോഴും തുറന്നിരിക്കുന്നു.
 >
 > ഇത് ഇപ്പോഴും പരിഗണനയിലാണെങ്കിൽ മറുപടി നൽകി സ്ഥിരീകരിക്കുക. അന്വേഷണം അവസാനിപ്പിക്കാൻ "അന്വേഷണം അവസാനിപ്പിക്കൂ" തിരഞ്ഞെടുക്കുക, പിന്നെ അപ്‌ഡേറ്റുകൾ വരില്ല.
+
+**Your correction** *(leave blank if the above is fine)*
+
+>
+
+---
+
+### 8. Enquiry timeline — when should we check back with you?
+
+*Placeholders:* `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = listing title
+
+**English**
+
+> Hi {{1}}, an update on your property enquiry with {{2}}:
+>
+> Property: {{3}}
+>
+> You told us you would come back to us with your decision on this listing.
+>
+> Please choose when we should check back, so we do not follow up sooner than you need.
+
+**മലയാളം — current**
+
+> നമസ്കാരം {{1}}, നിങ്ങളുടെ വസ്തു അന്വേഷണം സംബന്ധിച്ച് {{2}} നൽകുന്ന ഒരു അപ്‌ഡേറ്റ്:
+>
+> വസ്തു: {{3}}
+>
+> ഈ ലിസ്റ്റിംഗിനെക്കുറിച്ചുള്ള നിങ്ങളുടെ തീരുമാനം അറിയിക്കാമെന്ന് നിങ്ങൾ പറഞ്ഞിരുന്നു.
+>
+> ഞങ്ങൾ എപ്പോൾ വീണ്ടും ബന്ധപ്പെടണം എന്ന് തിരഞ്ഞെടുക്കുക.
 
 **Your correction** *(leave blank if the above is fine)*
 

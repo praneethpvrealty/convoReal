@@ -13,7 +13,7 @@ Write your correction in the last column / block. Leave it blank if the current 
 
 ---
 
-## Buttons (9)
+## Buttons (12)
 
 The tappable options underneath a message.
 
@@ -25,13 +25,16 @@ The tappable options underneath a message.
 | 4 | Update my preferences | ప్రాధాన్యత మార్చు | 17/25 | |
 | 5 | Close my enquiry | విచారణ మూసివేయి | 15/25 | |
 | 6 | Still considering it | ఇంకా పరిశీలిస్తున్నా | 20/25 | |
-| 7 | View full details | పూర్తి వివరాలు చూడు | 19/25 | |
-| 8 | View location | స్థానం చూడండి | 13/25 | |
-| 9 | Browse showcase | కేటలాగ్ చూడండి | 14/25 | |
+| 7 | Today itself | ఈరోజే | 5/25 | |
+| 8 | In 2 days | 2 రోజుల్లో | 10/25 | |
+| 9 | Can't say yet | ఇప్పుడే చెప్పలేను | 17/25 | |
+| 10 | View full details | పూర్తి వివరాలు చూడు | 19/25 | |
+| 11 | View location | స్థానం చూడండి | 13/25 | |
+| 12 | Browse showcase | కేటలాగ్ చూడండి | 14/25 | |
 
 ---
 
-## Messages (7)
+## Messages (8)
 
 ### 1. Property details — sent when a buyer asks about a listing
 
@@ -240,6 +243,36 @@ The tappable options underneath a message.
 > ఈ ఆస్తి గురించి మీ నుండి ఎటువంటి సమాచారం రాలేదు, కాబట్టి మీ విచారణ ఇంకా తెరిచే ఉంది.
 >
 > ఇది ఇంకా పరిశీలనలో ఉంటే బదులిచ్చి నిర్ధారించండి. విచారణ ముగించడానికి "విచారణ మూసివేయి" ఎంచుకోండి, తర్వాత ఎటువంటి అప్‌డేట్ రాదు.
+
+**Your correction** *(leave blank if the above is fine)*
+
+>
+
+---
+
+### 8. Enquiry timeline — when should we check back with you?
+
+*Placeholders:* `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = listing title
+
+**English**
+
+> Hi {{1}}, an update on your property enquiry with {{2}}:
+>
+> Property: {{3}}
+>
+> You told us you would come back to us with your decision on this listing.
+>
+> Please choose when we should check back, so we do not follow up sooner than you need.
+
+**తెలుగు — current**
+
+> నమస్కారం {{1}}, మీ ఆస్తి విచారణపై {{2}} తరఫున ఒక అప్‌డేట్:
+>
+> ఆస్తి: {{3}}
+>
+> ఈ లిస్టింగ్‌పై మీ నిర్ణయాన్ని తెలియజేస్తానని మీరు చెప్పారు.
+>
+> మేము ఎప్పుడు మళ్లీ సంప్రదించాలో ఎంచుకోండి, మీకు అవసరమైన సమయానికి ముందే సంప్రదించకుండా.
 
 **Your correction** *(leave blank if the above is fine)*
 

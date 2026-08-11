@@ -13,7 +13,7 @@ Write your correction in the last column / block. Leave it blank if the current 
 
 ---
 
-## Buttons (9)
+## Buttons (12)
 
 The tappable options underneath a message.
 
@@ -25,13 +25,16 @@ The tappable options underneath a message.
 | 4 | Update my preferences | ಆದ್ಯತೆ ನವೀಕರಿಸಿ | 15/25 | |
 | 5 | Close my enquiry | ವಿಚಾರಣೆ ಮುಚ್ಚಿ | 14/25 | |
 | 6 | Still considering it | ಇನ್ನೂ ಪರಿಶೀಲಿಸುತ್ತಿದೆ | 21/25 | |
-| 7 | View full details | ಪೂರ್ಣ ವಿವರ ನೋಡಿ | 15/25 | |
-| 8 | View location | ಸ್ಥಳ ನೋಡಿ | 9/25 | |
-| 9 | Browse showcase | ಕ್ಯಾಟಲಾಗ್ ನೋಡಿ | 14/25 | |
+| 7 | Today itself | ಇಂದೇ | 4/25 | |
+| 8 | In 2 days | 2 ದಿನಗಳಲ್ಲಿ | 11/25 | |
+| 9 | Can't say yet | ಈಗ ಹೇಳಲಾಗದು | 11/25 | |
+| 10 | View full details | ಪೂರ್ಣ ವಿವರ ನೋಡಿ | 15/25 | |
+| 11 | View location | ಸ್ಥಳ ನೋಡಿ | 9/25 | |
+| 12 | Browse showcase | ಕ್ಯಾಟಲಾಗ್ ನೋಡಿ | 14/25 | |
 
 ---
 
-## Messages (7)
+## Messages (8)
 
 ### 1. Property details — sent when a buyer asks about a listing
 
@@ -240,6 +243,36 @@ The tappable options underneath a message.
 > ಈ ಆಸ್ತಿಯ ಬಗ್ಗೆ ನಿಮ್ಮಿಂದ ಯಾವುದೇ ಮಾಹಿತಿ ಬಂದಿಲ್ಲ, ಆದ್ದರಿಂದ ನಿಮ್ಮ ವಿಚಾರಣೆ ಇನ್ನೂ ತೆರೆದಿದೆ.
 >
 > ಇದು ಇನ್ನೂ ಪರಿಶೀಲನೆಯಲ್ಲಿದ್ದರೆ ಉತ್ತರಿಸಿ ದೃಢಪಡಿಸಿ. ವಿಚಾರಣೆ ಮುಗಿಸಲು "ವಿಚಾರಣೆ ಮುಚ್ಚಿ" ಆಯ್ಕೆಮಾಡಿ, ನಂತರ ಯಾವುದೇ ಅಪ್‌ಡೇಟ್ ಬರುವುದಿಲ್ಲ.
+
+**Your correction** *(leave blank if the above is fine)*
+
+>
+
+---
+
+### 8. Enquiry timeline — when should we check back with you?
+
+*Placeholders:* `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = listing title
+
+**English**
+
+> Hi {{1}}, an update on your property enquiry with {{2}}:
+>
+> Property: {{3}}
+>
+> You told us you would come back to us with your decision on this listing.
+>
+> Please choose when we should check back, so we do not follow up sooner than you need.
+
+**ಕನ್ನಡ — current**
+
+> ನಮಸ್ಕಾರ {{1}}, ನಿಮ್ಮ ಆಸ್ತಿ ವಿಚಾರಣೆಯ ಕುರಿತು {{2}} ಕಡೆಯಿಂದ ಒಂದು ಅಪ್‌ಡೇಟ್:
+>
+> ಆಸ್ತಿ: {{3}}
+>
+> ಈ ಪಟ್ಟಿಯ ಬಗ್ಗೆ ನಿಮ್ಮ ನಿರ್ಧಾರವನ್ನು ತಿಳಿಸುವುದಾಗಿ ನೀವು ಹೇಳಿದ್ದಿರಿ.
+>
+> ನಾವು ಯಾವಾಗ ಮತ್ತೆ ಸಂಪರ್ಕಿಸಬೇಕು ಎಂಬುದನ್ನು ಆಯ್ಕೆಮಾಡಿ, ನಿಮಗೆ ಬೇಕಾದ ಸಮಯಕ್ಕಿಂತ ಮೊದಲು ಸಂಪರ್ಕಿಸದಿರಲು.
 
 **Your correction** *(leave blank if the above is fine)*
 
