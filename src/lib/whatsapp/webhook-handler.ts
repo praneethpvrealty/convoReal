@@ -1189,6 +1189,47 @@ async function processMessage(
   const isControlReply = Boolean(
     interactiveReplyId && isEngineControlReplyId(interactiveReplyId)
   )
+
+  // Run the control payload HERE, before any natural-language path can
+  // claim it. Two of them sit between this point and the dispatch that
+  // used to run these: the reply bridge just below, and the owner
+  // chatbot further down. The owner chatbot is the one that fired, in
+  // production, twice — the ping goes to the account holder, so the tap
+  // comes FROM the owner, whose messages it intercepts by design. It
+  // read "✅ Approve" as a forwarded client conversation, answered
+  // "couldn't match the client to a contact in your book", and returned
+  // handled, while the approval sat 460 lines below, unreached.
+  //
+  // A button the Engine minted is unambiguous: it is an instruction,
+  // and no amount of intent parsing can improve on knowing that. So it
+  // is dispatched before anything gets a chance to interpret it.
+  if (isControlReply && interactiveReplyId) {
+    if (
+      interactiveReplyId.startsWith(CONSENT_APPROVE_PREFIX) ||
+      interactiveReplyId.startsWith(CONSENT_DECLINE_PREFIX)
+    ) {
+      const handled = await handleLocationConsentReply({
+        admin: supabaseAdmin(),
+        accountId,
+        replyId: interactiveReplyId,
+        senderPhone,
+      })
+      if (handled) return
+    }
+    if (
+      interactiveReplyId.startsWith(OWNER_APPROVE_PREFIX) ||
+      interactiveReplyId.startsWith(OWNER_REJECT_PREFIX)
+    ) {
+      const handled = await handleOwnerLocationReply({
+        admin: supabaseAdmin(),
+        accountId,
+        replyId: interactiveReplyId,
+        senderPhone,
+      })
+      if (handled) return
+    }
+  }
+
   const bridged = isControlReply
     ? false
     : await handleBridgedAgentReply({
@@ -2038,30 +2079,8 @@ async function processMessage(
       })
       if (handledFollowup) return
     }
-    if (
-      interactiveReplyId.startsWith(CONSENT_APPROVE_PREFIX) ||
-      interactiveReplyId.startsWith(CONSENT_DECLINE_PREFIX)
-    ) {
-      const handledConsent = await handleLocationConsentReply({
-        admin: supabaseAdmin(),
-        accountId,
-        replyId: interactiveReplyId,
-        senderPhone,
-      })
-      if (handledConsent) return
-    }
-    if (
-      interactiveReplyId.startsWith(OWNER_APPROVE_PREFIX) ||
-      interactiveReplyId.startsWith(OWNER_REJECT_PREFIX)
-    ) {
-      const handledOwner = await handleOwnerLocationReply({
-        admin: supabaseAdmin(),
-        accountId,
-        replyId: interactiveReplyId,
-        senderPhone,
-      })
-      if (handledOwner) return
-    }
+    // Consent and owner decisions are dispatched far earlier, before
+    // the reply bridge and the owner chatbot can interpret them.
     if (interactiveReplyId.startsWith('share_property_yes:')) {
       const propertyId = interactiveReplyId.split(':')[1]
       await handlePropertyShareYesReply(
