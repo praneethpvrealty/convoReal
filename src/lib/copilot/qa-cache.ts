@@ -131,7 +131,7 @@ interface MatchRow {
   navigate_to: string | null;
   unsupported_capability: string | null;
   source_chunks: ChunkRef[] | null;
-  /** Absent until migration 242 recreates match_copilot_qa. */
+  /** Absent until migration 244 recreates match_copilot_qa. */
   coverage?: string | null;
   similarity: number;
 }
@@ -241,7 +241,7 @@ export async function storeAnswer(input: {
         source_chunks: input.sourceChunks,
         kb_version: kbVersionFor(input.audience ?? 'agent', input.platform),
         // Only mobile answers carry the column, so web caching keeps
-        // working on databases that predate migration 242.
+        // working on databases that predate migration 244.
         ...(input.coverage ? { coverage: input.coverage } : {}),
       })
       .select('id')

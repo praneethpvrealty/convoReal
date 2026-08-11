@@ -19,6 +19,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, MapPinOff } from 'lucide-react';
 import { formatCurrencyShort } from '@/lib/currency-utils';
+import { useT } from '@/hooks/use-locale';
 import type { Property } from '@/types';
 
 const BROWSER_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY;
@@ -108,6 +109,7 @@ export function PropertyMapView({
   onOpen: (property: Property) => void;
   currency: string;
 }) {
+  const t = useT();
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
   const overlaysRef = useRef<any[]>([]);
@@ -242,7 +244,9 @@ export function PropertyMapView({
     return (
       <div className="flex h-[32rem] flex-col items-center justify-center gap-2 rounded-xl border border-slate-800 bg-slate-900/50 text-center">
         <MapPinOff className="size-6 text-slate-600" />
-        <p className="text-sm text-slate-400">Map view is not configured.</p>
+        <p className="text-sm text-slate-400">
+          {t('inventory.mapNotConfigured')}
+        </p>
         <p className="max-w-md text-xs text-slate-600">
           Set NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY to a referrer-restricted
           Google Maps JavaScript API key to enable it. The mobile app&apos;s map
@@ -263,16 +267,14 @@ export function PropertyMapView({
       {status === 'error' && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-slate-950/80 text-center">
           <MapPinOff className="size-6 text-slate-600" />
-          <p className="text-sm text-slate-400">
-            The map failed to load — check the browser key and try again.
-          </p>
+          <p className="text-sm text-slate-400">{t('inventory.mapFailed')}</p>
         </div>
       )}
       {status === 'ready' && !loading && (
         <div className="absolute bottom-3 left-3 rounded-full border border-slate-700 bg-slate-950/85 px-3 py-1.5 text-xs font-semibold text-slate-200 backdrop-blur">
           {pinned.length === 0
-            ? 'No mapped listings in this search'
-            : `${pinned.length} of ${properties.length} listings mapped`}
+            ? t('inventory.mapNone')
+            : `${pinned.length}/${properties.length} ${t('inventory.mapped')}`}
         </div>
       )}
     </div>

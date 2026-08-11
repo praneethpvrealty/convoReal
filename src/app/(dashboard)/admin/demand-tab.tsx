@@ -146,7 +146,7 @@ export default function DemandTab() {
         </div>
         {usage.length === 0 && (
           <p className="mt-2 text-xs text-slate-600">
-            No usage recorded yet — numbers appear once migration 243 is applied
+            No usage recorded yet — numbers appear once migration 245 is applied
             and users open the helper.
           </p>
         )}

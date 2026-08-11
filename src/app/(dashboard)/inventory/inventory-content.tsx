@@ -42,6 +42,7 @@ import {
 } from 'lucide-react';
 import { PropertyForm } from '@/components/inventory/property-form';
 import { PropertyMapView } from '@/components/inventory/property-map-view';
+import { useT } from '@/hooks/use-locale';
 import { PropertyList } from '@/components/inventory/property-list';
 import {
   LocalityAutocomplete,
@@ -82,6 +83,7 @@ const EMPTY_STATS = {
 };
 
 export default function InventoryPage() {
+  const t = useT();
   const canEdit = useCan('send-messages'); // Agent or higher can write
   const searchParams = useSearchParams();
   const initialSearch = searchParams?.get('search') || '';
@@ -424,7 +426,7 @@ export default function InventoryPage() {
       return;
     }
     if (!navigator.geolocation) {
-      toast.error('Location is not available in this browser.');
+      toast.error(t('inventory.locationUnavailable'));
       return;
     }
     setLocating(true);
@@ -997,8 +999,16 @@ export default function InventoryPage() {
 
         <div className="ml-auto flex items-center gap-1 pb-1.5">
           {[
-            { value: 'grid' as const, icon: LayoutGrid, label: 'List view' },
-            { value: 'map' as const, icon: MapIcon, label: 'Map view' },
+            {
+              value: 'grid' as const,
+              icon: LayoutGrid,
+              label: t('inventory.listView'),
+            },
+            {
+              value: 'map' as const,
+              icon: MapIcon,
+              label: t('inventory.mapView'),
+            },
           ].map(({ value, icon: Icon, label }) => (
             <button
               key={value}
@@ -1065,7 +1075,7 @@ export default function InventoryPage() {
             ) : (
               <LocateFixed className="size-3.5" />
             )}
-            Near me
+            {t('inventory.nearMe')}
           </button>
         </div>
 
@@ -1081,7 +1091,7 @@ export default function InventoryPage() {
                   first, then within
                 </>
               ) : (
-                <>Showing matches near your location, within</>
+                <>{t('inventory.nearYou')}</>
               )}
             </span>
             {[2, 5, 10, 25].map((r) => (
@@ -1161,7 +1171,7 @@ export default function InventoryPage() {
             )}
             {nearMe && (
               <span className="border-primary/40 bg-primary/10 rounded-full border px-2.5 py-1 font-semibold text-white">
-                📍 Near me · {radiusKm} km
+                📍 {t('inventory.nearMe')} · {radiusKm} km
               </span>
             )}
             <button

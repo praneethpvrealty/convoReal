@@ -17,7 +17,7 @@ The Expo app calls the same `/api/copilot` route with `platform:
 - `web_only` — the answer names the desktop page and the app renders an
   "open on desktop" link (`webUrl`).
 - `partial` / `none` — the app offers the help desk: a `support_tickets`
-  row (migration 242) filed via `/api/copilot/support-ticket`, triaged
+  row (migration 244) filed via `/api/copilot/support-ticket`, triaged
   at Admin → Support, answered back over WhatsApp (platform sender) or
   email.
 

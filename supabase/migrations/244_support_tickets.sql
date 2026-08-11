@@ -1,5 +1,5 @@
 -- ============================================================
--- 242_support_tickets.sql — helper chat escalation to the help desk.
+-- 244_support_tickets.sql — helper chat escalation to the help desk.
 --
 -- When the copilot cannot answer (or only partly can), the user files
 -- a ticket from the chat itself. The support team triages it from

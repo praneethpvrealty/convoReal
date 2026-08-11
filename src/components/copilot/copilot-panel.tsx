@@ -22,6 +22,7 @@ import {
 import { cn } from '@/lib/utils';
 import { TOURS } from '@/lib/copilot/tours';
 import { useCopilot } from './copilot-context';
+import { useT } from '@/hooks/use-locale';
 
 interface ChatTurn {
   role: 'user' | 'assistant';
@@ -54,6 +55,7 @@ export function CopilotPanel() {
   const { panelOpen, closePanel, startTour } = useCopilot();
   const pathname = usePathname();
   const router = useRouter();
+  const t = useT();
 
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   const [input, setInput] = useState('');
@@ -247,48 +249,48 @@ export function CopilotPanel() {
 
         {/* Chat turns */}
         <div className="mt-3 flex flex-col gap-2">
-          {turns.map((t, i) => (
+          {turns.map((turn, i) => (
             <div
               key={i}
               className={cn(
                 'max-w-[85%]',
-                t.role === 'user' ? 'self-end' : 'self-start'
+                turn.role === 'user' ? 'self-end' : 'self-start'
               )}
             >
               <div
                 className={cn(
                   'rounded-xl px-3 py-2 text-sm',
-                  t.role === 'user'
+                  turn.role === 'user'
                     ? 'bg-primary text-primary-foreground rounded-br-sm'
                     : 'rounded-tl-sm bg-slate-900 text-slate-200'
                 )}
               >
-                {t.text}
+                {turn.text}
               </div>
               {/* Closes the loop on a "we can't do that" answer: the
                   request was logged for the product team. */}
-              {t.role === 'assistant' && t.unsupported && (
+              {turn.role === 'assistant' && turn.unsupported && (
                 <p className="mt-1 flex items-center gap-1 pl-1 text-[10px] text-slate-500">
                   <Lightbulb className="h-3 w-3 shrink-0" />
-                  Noted as a feature request for the ConvoReal team.
+                  {t('copilot.featureNoted')}
                 </p>
               )}
               {/* Escalation to a human: an unanswered (or unsupported)
                   question can be handed to the help desk, answered
                   back on WhatsApp or email. */}
-              {t.role === 'assistant' &&
-                t.unsupported &&
-                t.question &&
-                (t.supportRef ? (
+              {turn.role === 'assistant' &&
+                turn.unsupported &&
+                turn.question &&
+                (turn.supportRef ? (
                   <p className="mt-1 flex items-center gap-1 pl-1 text-[10px] text-emerald-400">
                     <LifeBuoy className="h-3 w-3 shrink-0" />
-                    Sent to the support team — reference {t.supportRef}.
-                    We&apos;ll get back to you on {supportChannel}.
+                    {t('copilot.supportSent')} {turn.supportRef}.{' '}
+                    {t('copilot.supportReply')} {supportChannel}.
                   </p>
                 ) : supportFor === i ? (
                   <div className="mt-2 flex flex-col gap-2 rounded-xl border border-slate-800 bg-slate-900/60 p-3">
                     <p className="text-xs font-semibold text-white">
-                      Where should our team reply?
+                      {t('copilot.supportWhere')}
                     </p>
                     <div className="flex gap-1.5">
                       {(['whatsapp', 'email'] as const).map((ch) => (
@@ -312,8 +314,8 @@ export function CopilotPanel() {
                       onChange={(e) => setSupportDest(e.target.value)}
                       placeholder={
                         supportChannel === 'whatsapp'
-                          ? 'WhatsApp number'
-                          : 'Email address'
+                          ? t('copilot.supportPhone')
+                          : t('copilot.supportEmail')
                       }
                       className="focus:border-primary/50 h-8 rounded-lg border border-slate-800 bg-slate-950/60 px-2.5 text-xs text-white placeholder:text-slate-600 focus:outline-none"
                     />
@@ -324,14 +326,16 @@ export function CopilotPanel() {
                         onClick={() => void fileSupportTicket(i)}
                         className="bg-primary text-primary-foreground rounded-lg px-2.5 py-1.5 text-[11px] font-semibold disabled:opacity-40"
                       >
-                        {supportBusy ? 'Sending…' : 'Send to support'}
+                        {supportBusy
+                          ? t('copilot.supportSending')
+                          : t('copilot.supportSend')}
                       </button>
                       <button
                         type="button"
                         onClick={() => setSupportFor(null)}
                         className="rounded-lg border border-slate-700 px-2.5 py-1.5 text-[11px] text-slate-400"
                       >
-                        Cancel
+                        {t('common.cancel')}
                       </button>
                     </div>
                   </div>
@@ -342,14 +346,14 @@ export function CopilotPanel() {
                     className="text-primary mt-1 flex items-center gap-1 pl-1 text-[11px] font-medium hover:underline"
                   >
                     <LifeBuoy className="h-3 w-3 shrink-0" />
-                    Ask the support team
+                    {t('copilot.askSupport')}
                   </button>
                 ))}
               {/* Feedback row — the community signal that teaches the
                   helper which learned answers to keep serving. */}
-              {t.role === 'assistant' && t.cacheId && (
+              {turn.role === 'assistant' && turn.cacheId && (
                 <div className="mt-1 flex items-center gap-1 pl-1">
-                  {t.voted ? (
+                  {turn.voted ? (
                     <span className="text-[10px] text-slate-500">
                       Thanks for the feedback!
                     </span>

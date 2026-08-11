@@ -106,6 +106,7 @@ import {
 } from '@/lib/contact-preferences';
 import { STARRED_PROPERTY_CAP } from '@/lib/starred-properties';
 import { projectOptions } from '@/lib/contacts/contact-interest';
+import { useT } from '@/hooks/use-locale';
 import { localCache } from '@/lib/cache-store';
 
 const PAGE_SIZE = 25;
@@ -126,6 +127,7 @@ interface ContactWithTags extends Contact {
 }
 
 export default function ContactsPage() {
+  const t = useT();
   const supabase = createClient();
   const router = useRouter();
   const { user, profile, accountId, profileLoading, profileError } = useAuth();
@@ -2098,7 +2100,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                 onValueChange={(value) => applyProjectFilter(value ?? 'All')}
               >
                 <SelectTrigger
-                  aria-label="Filter by project"
+                  aria-label={t('contacts.projectFilter')}
                   className={cn(
                     'h-7 w-auto gap-1 rounded-full border px-2.5 text-[10px] font-bold',
                     filterInterestProject !== 'All'
@@ -2110,7 +2112,9 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                   <SelectValue placeholder="Project" />
                 </SelectTrigger>
                 <SelectContent className="border-slate-700 bg-slate-900 text-slate-200">
-                  <SelectItem value="All">All projects</SelectItem>
+                  <SelectItem value="All">
+                    {t('contacts.allProjects')}
+                  </SelectItem>
                   {projectChoices.map((project) => (
                     <SelectItem key={project.name} value={project.name}>
                       {project.name} ({project.count}{' '}

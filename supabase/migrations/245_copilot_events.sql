@@ -1,5 +1,5 @@
 -- ============================================================
--- 243_copilot_events.sql — copilot adoption metering.
+-- 245_copilot_events.sql — copilot adoption metering.
 --
 -- One append-only row per helper interaction: a chat answer (with
 -- its platform and coverage verdict), a guided tour starting or
@@ -15,7 +15,7 @@
 -- numbers come from copilot_usage_summary() through the super-admin
 -- route, same posture as bug reports and support tickets.
 --
--- Like 109/236/242, apply in the Supabase SQL Editor.
+-- Like 109/236/244, apply in the Supabase SQL Editor.
 -- Idempotent — safe to run multiple times.
 -- ============================================================
 

@@ -3,7 +3,7 @@ import type { Audience } from './chunks';
 import type { CopilotPlatform, MobileCoverage } from './platform';
 
 /**
- * Copilot adoption metering (copilot_events, migration 243).
+ * Copilot adoption metering (copilot_events, migration 245).
  *
  * One row per interaction — a chat answer, a tour starting or
  * completing, a support ticket — tagged with platform and audience,

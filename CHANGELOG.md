@@ -42,7 +42,7 @@ and polish.
   web vs mobile, tours started/completed, tickets filed. Aggregation
   runs in SQL (`copilot_usage_summary`); tenants' admins can read their
   own team's rows. **Migration required:**
-  `supabase/migrations/243_copilot_events.sql` (SQL Editor, like 242).
+  `supabase/migrations/245_copilot_events.sql` (SQL Editor, like 244).
 
 - **Copilot on mobile: chat, guided tours and a spotlight overlay.** The
   helper is no longer web-only. A floating button on the app's main
@@ -62,7 +62,7 @@ and polish.
   write the answer, and Send delivers it over the chosen channel
   (WhatsApp via the platform sender with free-form fallback, email via
   Resend) and records what actually went out. **Migration required:**
-  `supabase/migrations/242_support_tickets.sql` (also adds the
+  `supabase/migrations/244_support_tickets.sql` (also adds the
   `coverage` column + updated `match_copilot_qa` for the mobile answer
   cache — apply in the Supabase SQL Editor like 109/236).
 

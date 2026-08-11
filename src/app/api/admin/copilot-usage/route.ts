@@ -2,7 +2,7 @@
 // /api/admin/copilot-usage — platform-wide copilot adoption.
 //
 // GET: last-30-day rollup of copilot_events, aggregated in SQL by
-// copilot_usage_summary() (migration 243) so no raw event rows ever
+// copilot_usage_summary() (migration 245) so no raw event rows ever
 // travel. Super-admin only, service-role client — same posture as
 // /api/admin/copilot-demand.
 // ============================================================
