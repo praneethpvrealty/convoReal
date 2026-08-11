@@ -90,7 +90,7 @@ async function fetchProperty(id: string): Promise<Property | null> {
       'id, title, description, price, rent_per_month, maintenance, status, listing_type, sold_price, ' +
         'bedrooms, bathrooms, area_sqft, area_unit, is_published, type, images, ' +
         'location, sublocality, city, state, land_area, land_area_unit, super_built_area, ' +
-        'dimensions, facing_direction, google_map_link, features, nearby_highlights, ' +
+        'dimensions, facing_direction, google_map_link, showcase_visibility, features, nearby_highlights, ' +
         'floor_tenancies, owner_contact_id, owner:contacts!properties_owner_contact_id_fkey(id, name, phone)'
     )
     .eq('id', id)
@@ -164,6 +164,9 @@ function EditForm({ property }: { property: Property }) {
   const [city, setCity] = useState(property.city ?? '');
   const [stateVal, setStateVal] = useState(property.state ?? '');
   const [mapLink, setMapLink] = useState(property.google_map_link ?? '');
+  const [confidential, setConfidential] = useState(
+    property.showcase_visibility === 'teaser'
+  );
   const [features, setFeatures] = useState<string[]>(property.features ?? []);
   const [nearby, setNearby] = useState<string[]>(property.nearby_highlights ?? []);
   const [tenancies, setTenancies] = useState<TenancyDraft[]>(
@@ -248,6 +251,7 @@ function EditForm({ property }: { property: Property }) {
       city: city.trim() || null,
       state: stateVal.trim() || null,
       google_map_link: mapLink.trim() || null,
+      showcase_visibility: confidential ? 'teaser' : null,
       features,
       nearby_highlights: nearby,
       images,
@@ -680,6 +684,24 @@ function EditForm({ property }: { property: Property }) {
         ) : null}
 
         <TextField label="Description" value={description} onChangeText={setDescription} multiline />
+
+        <View style={styles.publishRow}>
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={{ fontSize: 15, fontFamily: f.bold, color: colors.text }}>
+              Confidential listing
+            </Text>
+            <Text style={{ fontSize: 12.5, color: colors.textMuted }}>
+              Anyone with the link sees only the type, locality and a price
+              band until you approve them on WhatsApp.
+            </Text>
+          </View>
+          <Switch
+            value={confidential}
+            onValueChange={setConfidential}
+            trackColor={{ true: colors.primary, false: colors.border }}
+            thumbColor="#fff"
+          />
+        </View>
 
         <View style={styles.publishRow}>
           <View style={{ flex: 1, gap: 2 }}>
