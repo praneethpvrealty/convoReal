@@ -129,10 +129,10 @@ native client unchanged — no copilot-specific auth work.
 ## Mobile port checklist
 
 - [x] Bearer-token auth on the three copilot API routes (shared workstream — shipped July 2026)
-- [ ] `useTourTargets()` registry + `registerTourTarget(id, ref)` on screens
-- [ ] Native tour engine: screen-match + target-measure + advance (port of `copilot-context.tsx`)
-- [ ] SVG spotlight + tooltip component (port of `tour-overlay.tsx`)
-- [ ] Floating button, chat panel, nudge bubble as native components calling the same APIs
-- [ ] Map each `tours.ts` step `route` → navigator screen; verify all 5 tours
-- [ ] 👍/👎 feedback wired to `/api/copilot/feedback`
-- [ ] Consume `tours.ts` / `knowledge.ts` from a shared location (no fork)
+- [x] Target registry: `<TourTarget id>` wrappers + `registerTarget(id, ref)` (`mobile/components/copilot-tour.tsx`)
+- [x] Native tour engine: self-navigating steps + `measureInWindow` polling + advance (August 2026)
+- [x] Spotlight + tooltip as a four-rect scrim (plain Views — no SVG dependency needed)
+- [x] Floating button + chat sheet as native components calling the same APIs (`copilot-widget.tsx`, `copilot-sheet.tsx`)
+- [x] Mobile-capable tours declared as `mobileSteps` on the web registry; the app runs its parity-tested copy (`mobile/lib/copilot-tours.ts`, guarded by `src/lib/mobile-parity.test.ts` — the runtime-import plan didn't survive contact with Metro's project root)
+- [x] 👍/👎 feedback wired to `/api/copilot/feedback`
+- [x] Platform-aware answers: the app sends `platform: 'mobile'` and every reply carries a `coverage` verdict — full (in-app steps + optional tour), web_only (desktop link), partial/none (help-desk escalation). See `src/lib/copilot/platform.ts` and the support-ticket flow (`/api/copilot/support-ticket`, Admin → Support).

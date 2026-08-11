@@ -17,6 +17,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
+import { TourTarget } from '@/components/copilot-tour';
 import { AnimatedCounter } from '@/components/motion';
 import { EmptyState } from '@/components/ui';
 import { chatListTime } from '@/lib/format';
@@ -73,14 +74,16 @@ export default function BroadcastsScreen() {
           headerShown: true,
           title: 'Broadcasts',
           headerRight: () => (
-            <Pressable
-              onPress={() => router.push('/(app)/broadcast-new')}
-              hitSlop={8}
-              accessibilityRole="button"
-              accessibilityLabel="New broadcast"
-            >
-              <Ionicons name="add-circle" size={26} color={colors.primary} />
-            </Pressable>
+            <TourTarget id="new-broadcast">
+              <Pressable
+                onPress={() => router.push('/(app)/broadcast-new')}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="New broadcast"
+              >
+                <Ionicons name="add-circle" size={26} color={colors.primary} />
+              </Pressable>
+            </TourTarget>
           ),
         }}
       />

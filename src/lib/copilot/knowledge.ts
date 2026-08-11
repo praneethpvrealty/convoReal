@@ -4,6 +4,11 @@ import {
   type Audience,
   type KnowledgeChunk,
 } from './chunks';
+import {
+  MOBILE_APP_SECTION,
+  MOBILE_COVERAGE_CONTRACT,
+  type CopilotPlatform,
+} from './platform';
 import { TOURS } from './tours';
 
 /**
@@ -45,9 +50,21 @@ export function isAllowedRoute(path: string, audience: Audience): boolean {
   return allowedRoutes(audience).includes(path);
 }
 
-/** Compact tour catalog for the system prompt. */
-export function buildTourCatalog(): string {
-  return TOURS.map((t) => `- ${t.id}: ${t.description}`).join('\n');
+/** Compact tour catalog for the system prompt. On mobile each tour is
+ *  flagged so the model never launches a desktop-only walkthrough
+ *  there — those become web_only answers instead. */
+export function buildTourCatalog(platform: CopilotPlatform = 'web'): string {
+  if (platform === 'web') {
+    return TOURS.map((t) => `- ${t.id}: ${t.description}`).join('\n');
+  }
+  return TOURS.map(
+    (t) =>
+      `- ${t.id}: ${t.description} ${
+        t.mobileSteps?.length
+          ? '(runs in the app)'
+          : '(desktop web only — never set this tourId; answer with coverage web_only instead)'
+      }`
+  ).join('\n');
 }
 
 /** One line per page so the model keeps a map of the whole product
@@ -76,12 +93,18 @@ const UNSUPPORTED_CONTRACT =
   'unsupported names the capability ConvoReal lacks, whenever the user asked for one. Always write it in ENGLISH regardless of the user\'s language: a short generic phrase of at most 8 lowercase words, no names, numbers or personal details — e.g. "export contacts to excel", "bulk edit property prices". Use the same wording every time for the same capability. Set it to null when the answer describes something ConvoReal already does.';
 
 /**
- * Staff scaffold. Kept byte-for-byte stable on purpose: its hash is
- * the agent KB version, so an incidental edit here throws away every
- * learned agent answer.
+ * Staff scaffold. The web variant is kept byte-for-byte stable on
+ * purpose: its hash is the agent KB version, so an incidental edit
+ * here throws away every learned agent answer. The mobile variant
+ * appends the app directory and the coverage contract — a different
+ * hash, so mobile answers cache in their own partition.
  */
-function buildAgentScaffold(pathname: string): string {
+function buildAgentScaffold(
+  pathname: string,
+  platform: CopilotPlatform
+): string {
   const routes = allowedRoutes('agent');
+  const mobile = platform === 'mobile';
   return [
     PERSONA.agent,
     'Rules:',
@@ -93,15 +116,19 @@ function buildAgentScaffold(pathname: string): string {
     'APP PAGES:',
     buildPageDirectory('agent'),
     '',
+    ...(mobile ? [MOBILE_APP_SECTION, ''] : []),
     'GUIDED TOURS — if the user asks HOW to do one of these, set tourId to start an on-screen walkthrough instead of explaining in words:',
-    buildTourCatalog(),
+    buildTourCatalog(platform),
     '',
     `CURRENT PAGE: The user is on ${pathname}.`,
     '',
     'Respond ONLY with JSON in exactly this shape:',
-    '{"reply": string, "tourId": string or null, "navigateTo": string or null, "unsupported": string or null}',
+    mobile
+      ? '{"reply": string, "tourId": string or null, "navigateTo": string or null, "unsupported": string or null, "coverage": string}'
+      : '{"reply": string, "tourId": string or null, "navigateTo": string or null, "unsupported": string or null}',
     `navigateTo, when set, must be one of: ${routes.join(', ')}. Set it only when the user asks to go somewhere and no tour fits.`,
     UNSUPPORTED_CONTRACT,
+    ...(mobile ? [MOBILE_COVERAGE_CONTRACT] : []),
   ].join('\n');
 }
 
@@ -135,21 +162,23 @@ function buildPortalScaffold(pathname: string, audience: Audience): string {
 
 export function buildCopilotScaffold(
   pathname: string,
-  audience: Audience = 'agent'
+  audience: Audience = 'agent',
+  platform: CopilotPlatform = 'web'
 ): string {
   return audience === 'agent'
-    ? buildAgentScaffold(pathname)
+    ? buildAgentScaffold(pathname, platform)
     : buildPortalScaffold(pathname, audience);
 }
 
 export function buildCopilotSystemPrompt(
   pathname: string,
   chunks: KnowledgeChunk[],
-  audience: Audience = 'agent'
+  audience: Audience = 'agent',
+  platform: CopilotPlatform = 'web'
 ): string {
   const knowledge = chunks.map((c) => `[${c.title}] ${c.body}`).join('\n');
   return [
-    buildCopilotScaffold(pathname, audience),
+    buildCopilotScaffold(pathname, audience, platform),
     '',
     'KNOWLEDGE (selected for this question — everything you may state as fact):',
     knowledge,

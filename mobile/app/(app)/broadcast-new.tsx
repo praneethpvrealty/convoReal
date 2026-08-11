@@ -21,6 +21,7 @@ import {
   SectionLabel,
   TextField,
 } from '@/components/ui';
+import { TourTarget } from '@/components/copilot-tour';
 import { apiFetch, ApiError } from '@/lib/api';
 import {
   buildAudience,
@@ -203,6 +204,7 @@ export default function NewBroadcastScreen() {
         >
           {error ? <Banner kind="error" text={error} /> : null}
 
+          <TourTarget id="broadcast-compose">
           <View style={{ gap: spacing.sm }}>
             <SectionLabel text="Template" style={{ color: colors.textMuted }} />
             {loadingTemplates ? (
@@ -252,6 +254,7 @@ export default function NewBroadcastScreen() {
               </View>
             )}
           </View>
+          </TourTarget>
 
           {template ? (
             <>

@@ -45,6 +45,15 @@ const BugsTab = dynamic(() => import('./bugs-tab'), {
   ),
 });
 
+const SupportTab = dynamic(() => import('./support-tab'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-96 items-center justify-center">
+      <ConvoRealLoader size={26} label="Loading Support" />
+    </div>
+  ),
+});
+
 const DemandTab = dynamic(() => import('./demand-tab'), {
   ssr: false,
   loading: () => (
@@ -97,7 +106,7 @@ interface Organization {
 
 export default function AdminDashboardPage() {
   const { user, profileLoading } = useAuth();
-  const [activeTab, setActiveTab] = useState<'overview' | 'settings' | 'sandbox' | 'analytics' | 'organizations' | 'marketplace' | 'billing' | 'extensions' | 'bugs' | 'demand'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'settings' | 'sandbox' | 'analytics' | 'organizations' | 'marketplace' | 'billing' | 'extensions' | 'bugs' | 'demand' | 'support'>('overview');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -653,6 +662,16 @@ export default function AdminDashboardPage() {
           }`}
         >
           Demand
+        </button>
+        <button
+          onClick={() => setActiveTab('support')}
+          className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-all ${
+            activeTab === 'support'
+              ? 'border-primary text-white bg-primary/5'
+              : 'border-transparent text-slate-400 hover:text-white'
+          }`}
+        >
+          Support
         </button>
       </div>
 
@@ -1510,6 +1529,8 @@ export default function AdminDashboardPage() {
       {activeTab === 'bugs' && <BugsTab />}
 
       {activeTab === 'demand' && <DemandTab />}
+
+      {activeTab === 'support' && <SupportTab />}
     </div>
   );
 }

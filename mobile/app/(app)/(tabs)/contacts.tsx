@@ -26,6 +26,7 @@ import { ContextMenu } from '@/components/context-menu';
 import { ContactFiltersSheet } from '@/components/contact-filters-sheet';
 import { InterestFilterSheet } from '@/components/interest-filter-sheet';
 import { BottomSheet, sheetScrollArea } from '@/components/sheet';
+import { TourTarget } from '@/components/copilot-tour';
 import {
   Avatar,
   Banner,
@@ -650,13 +651,15 @@ export default function ContactsScreen() {
               color={colors.primary}
               onPress={() => setImporting(true)}
             />
-            <IconButton
-              icon="person-add"
-              label="Add contact"
-              size={22}
-              color={colors.primary}
-              onPress={() => setAdding(true)}
-            />
+            <TourTarget id="add-contact">
+              <IconButton
+                icon="person-add"
+                label="Add contact"
+                size={22}
+                color={colors.primary}
+                onPress={() => setAdding(true)}
+              />
+            </TourTarget>
           </View>
         </View>
         <SearchBar

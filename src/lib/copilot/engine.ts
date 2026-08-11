@@ -3,13 +3,19 @@ import type { Audience } from './chunks';
 import { cannedTourReply, matchTourIntent } from './intent';
 import { buildCopilotSystemPrompt, isAllowedRoute } from './knowledge';
 import {
+  parseCoverage,
+  webUrlFor,
+  type CopilotPlatform,
+  type MobileCoverage,
+} from './platform';
+import {
   bumpHit,
   isCacheableQuestion,
   lookupCachedAnswer,
   storeAnswer,
 } from './qa-cache';
 import { chunkRefs, selectChunks } from './retrieval';
-import { getTour } from './tours';
+import { getTour, tourSupportsMobile, tourWebEntryRoute } from './tours';
 import { logUnmetRequest, sanitizeCapability } from './unmet';
 
 /**
@@ -46,6 +52,10 @@ export interface AnswerRequest {
    *  portal user with no agency link yet — demand is skipped, not
    *  guessed at. */
   accountId: string | null;
+  /** Which client is asking. Mobile answers carry a coverage verdict
+   *  so the app can offer a tour, a desktop link, or the support
+   *  team. Only meaningful for the agent audience. */
+  platform?: CopilotPlatform;
 }
 
 export interface AnswerResult {
@@ -55,6 +65,10 @@ export interface AnswerResult {
   unsupported?: true;
   cached?: true;
   cacheId?: string;
+  /** Mobile only — how much of the answer works where the user is. */
+  coverage?: MobileCoverage;
+  /** Desktop link for coverage 'web_only' answers. */
+  webUrl?: string;
 }
 
 const NO_AI_REPLY: Record<Audience, string> = {
@@ -72,6 +86,7 @@ function parseModelJson(raw: string): {
   tourId?: unknown;
   navigateTo?: unknown;
   unsupported?: unknown;
+  coverage?: unknown;
 } | null {
   const cleaned = raw.replace(/```(?:json)?/gi, '').trim();
   try {
@@ -86,6 +101,9 @@ export async function answerQuestion(
   req: AnswerRequest
 ): Promise<AnswerResult> {
   const { audience, message, pathname, history, accountId } = req;
+  const platform: CopilotPlatform =
+    audience === 'agent' ? (req.platform ?? 'web') : 'web';
+  const mobile = platform === 'mobile';
 
   const logUnmet = (capability: string | undefined | null) => {
     const clean = sanitizeCapability(capability);
@@ -102,10 +120,28 @@ export async function answerQuestion(
 
   // Deterministic short-circuit — zero Gemini calls for tour asks.
   // Staff only: a tour drives the dashboard UI, which portals lack.
+  // On mobile a matched tour either runs natively (the app offers to
+  // start it) or is a desktop-only task — answered as web_only with a
+  // link, still without a model call.
   if (audience === 'agent') {
     const tourId = matchTourIntent(message);
     if (tourId) {
-      return { reply: cannedTourReply(getTour(tourId)!.title), tourId };
+      const tour = getTour(tourId)!;
+      if (!mobile) {
+        return { reply: cannedTourReply(tour.title), tourId };
+      }
+      if (tourSupportsMobile(tourId)) {
+        return {
+          reply: cannedTourReply(tour.title),
+          tourId,
+          coverage: 'full',
+        };
+      }
+      return {
+        reply: `${tour.title} is done on the desktop web dashboard — open ConvoReal on your computer and I can walk you through it there.`,
+        coverage: 'web_only',
+        webUrl: webUrlFor(tourWebEntryRoute(tour)),
+      };
     }
   }
 
@@ -133,17 +169,24 @@ export async function answerQuestion(
   // cache failure falls through to the normal path below.
   const cacheable = isCacheableQuestion(message, history.length);
   if (cacheable && embedding) {
-    const entry = await lookupCachedAnswer(embedding, audience);
+    const entry = await lookupCachedAnswer(embedding, audience, platform);
     if (entry) {
       bumpHit(entry.id);
       // A cached "we don't do that" still counts as demand —
       // otherwise only the first user to ask is ever visible.
       const logged = logUnmet(entry.unsupportedCapability);
+      const coverage = mobile
+        ? (entry.coverage ?? (logged ? ('none' as const) : ('full' as const)))
+        : undefined;
       return {
         reply: entry.reply,
         ...(entry.tourId ? { tourId: entry.tourId } : {}),
         ...(entry.navigateTo ? { navigateTo: entry.navigateTo } : {}),
         ...(logged ? { unsupported: true as const } : {}),
+        ...(coverage ? { coverage } : {}),
+        ...(coverage === 'web_only'
+          ? { webUrl: webUrlFor(entry.navigateTo) }
+          : {}),
         cached: true as const,
         cacheId: entry.id,
       };
@@ -164,7 +207,7 @@ export async function answerQuestion(
 
   const raw = await generateJson(
     prompt,
-    buildCopilotSystemPrompt(pathname, chunks, audience),
+    buildCopilotSystemPrompt(pathname, chunks, audience, platform),
     { feature: 'copilot' }
   );
   const parsed = parseModelJson(raw);
@@ -175,12 +218,14 @@ export async function answerQuestion(
       : raw.slice(0, 1000);
 
   // Sanitize model-suggested actions against real registries — the
-  // client must never receive a tour id or route we don't own.
+  // client must never receive a tour id or route we don't own, and
+  // the app must never receive a tour it cannot run.
   const safeTourId =
     audience === 'agent' &&
     parsed &&
     typeof parsed.tourId === 'string' &&
-    getTour(parsed.tourId)
+    getTour(parsed.tourId) &&
+    (!mobile || tourSupportsMobile(parsed.tourId))
       ? parsed.tourId
       : undefined;
   const safeNavigate =
@@ -193,6 +238,13 @@ export async function answerQuestion(
   // Unmet demand: the user asked for something the product can't do.
   const capability = parsed ? sanitizeCapability(parsed.unsupported) : null;
   const logged = logUnmet(capability?.capability);
+
+  // Mobile coverage verdict. When the model forgot the field, derive
+  // a default: an unsupported ask is 'none' (the app offers the
+  // support team), anything else 'full'.
+  const coverage: MobileCoverage | undefined = mobile
+    ? (parseCoverage(parsed?.coverage) ?? (capability ? 'none' : 'full'))
+    : undefined;
 
   // Learn this answer: only clean, parseable replies to cacheable
   // questions enter the shared store (reuses the lookup embedding —
@@ -214,6 +266,8 @@ export async function answerQuestion(
       unsupportedCapability: capability?.capability,
       sourceChunks: chunkRefs(chunks),
       audience,
+      platform,
+      coverage,
     });
   }
 
@@ -222,6 +276,8 @@ export async function answerQuestion(
     ...(safeTourId ? { tourId: safeTourId } : {}),
     ...(safeNavigate ? { navigateTo: safeNavigate } : {}),
     ...(logged ? { unsupported: true as const } : {}),
+    ...(coverage ? { coverage } : {}),
+    ...(coverage === 'web_only' ? { webUrl: webUrlFor(safeNavigate) } : {}),
     ...(cacheId ? { cacheId } : {}),
   };
 }

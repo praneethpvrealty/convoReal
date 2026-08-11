@@ -13,6 +13,28 @@ and polish.
 
 ### Added
 
+- **Copilot on mobile: chat, guided tours and a spotlight overlay.** The
+  helper is no longer web-only. A floating button on the app's main
+  screens opens the same chat brain (`/api/copilot`), and tours that can
+  run on a phone (add a contact, send a broadcast, check Pulse) spotlight
+  the real buttons with a native scrim + tooltip — the engine navigates
+  between screens itself. Answers are **platform-aware**: every mobile
+  reply carries a coverage verdict, so a doable task gets in-app steps
+  plus a "start the tour" offer, a desktop-only task (connect WhatsApp,
+  templates, email lead sync…) gets an "open on desktop web" link, and
+  anything the helper can't (fully) answer offers the support team.
+- **Help desk: "Ask the support team" from the helper chat.** On web and
+  mobile, an unanswered question files a `support_tickets` row (reference
+  `HELP-XXXX`) with the question, the helper's reply and the page it was
+  asked from. The user picks how the answer should come back — WhatsApp
+  or email. Platform staff triage from **Admin → Support**: assign,
+  write the answer, and Send delivers it over the chosen channel
+  (WhatsApp via the platform sender with free-form fallback, email via
+  Resend) and records what actually went out. **Migration required:**
+  `supabase/migrations/242_support_tickets.sql` (also adds the
+  `coverage` column + updated `match_copilot_qa` for the mobile answer
+  cache — apply in the Supabase SQL Editor like 109/236).
+
 - **Mobile: the same Filters chip on the Properties tab.** The listing
   pills (All / Sale / Rent / JV-JD), Near me and "Include unavailable"
   were the whole filter surface; everything else `GET /api/properties`
