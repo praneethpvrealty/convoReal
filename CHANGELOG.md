@@ -13,6 +13,18 @@ and polish.
 
 ### Added
 
+- **Mobile: the helper speaks the agent's language.** The copilot chat,
+  guided-tour tooltips and floating button now render in the app
+  language the agent picked on the web (Hindi, Kannada, Tamil, Telugu,
+  Malayalam or Marathi) — read straight off
+  `profiles.active_ui_language`, exactly the handoff migration 247
+  planned for. The app carries a pure ported slice of the web catalogue
+  (`mobile/lib/i18n.ts`), held byte-equal per language by
+  `mobile-parity.test.ts`, so the two helpers can never drift apart. On
+  web, the helper's own chrome (title, greeting, guides list, tour
+  buttons, feedback row) joins the catalogue too. No migration — the
+  language columns shipped with the multi-language release.
+
 - **Web Contacts: filter "Enquired for" by project.** The starred-property
   chips gain the mobile app's project axis — a **Project** picker beside
   the chips (fed from `properties.project`, so units never linked to a

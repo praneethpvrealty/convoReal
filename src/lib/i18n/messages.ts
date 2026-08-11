@@ -93,6 +93,26 @@ export const EN = {
 
   'contacts.allProjects': 'All projects',
   'contacts.projectFilter': 'Filter by project',
+
+  'copilot.title': 'Helper',
+  'copilot.greeting':
+    'Hi! I can show you around or answer questions about ConvoReal. 👋',
+  'copilot.typing': 'Typing…',
+  'copilot.placeholder': 'Ask me anything…',
+  'copilot.guides': 'Step-by-step guides',
+  'copilot.startTour': 'Show me — start the tour',
+  'copilot.openDesktop': 'Open on desktop web',
+  'copilot.takeMeThere': 'Take me there',
+  'copilot.webOnlyHint': 'This one lives on the desktop web dashboard.',
+  'copilot.partialHint': 'I could only partly help with this one.',
+  'copilot.helpful': 'Helpful?',
+  'copilot.thanks': 'Thanks for the feedback!',
+  'copilot.open': 'Open the helper',
+
+  'tour.next': 'Next',
+  'tour.done': 'Done',
+  'tour.skip': 'Skip',
+  'tour.tapHighlight': 'Tap the highlight 👆',
 } as const;
 
 export type MessageKey = keyof typeof EN;
@@ -168,6 +188,24 @@ const HI: Catalogue = {
     'आपकी लोकेशन नहीं मिली — लोकेशन की अनुमति देकर फिर कोशिश करें।',
   'contacts.allProjects': 'सभी प्रोजेक्ट',
   'contacts.projectFilter': 'प्रोजेक्ट से फ़िल्टर करें',
+  'copilot.title': 'हेल्पर',
+  'copilot.greeting':
+    'नमस्ते! मैं आपको ऐप घुमा सकता हूँ या ConvoReal के बारे में सवालों के जवाब दे सकता हूँ। 👋',
+  'copilot.typing': 'लिख रहा है…',
+  'copilot.placeholder': 'कुछ भी पूछें…',
+  'copilot.guides': 'कदम-दर-कदम गाइड',
+  'copilot.startTour': 'मुझे दिखाओ — टूर शुरू करें',
+  'copilot.openDesktop': 'डेस्कटॉप वेब पर खोलें',
+  'copilot.takeMeThere': 'मुझे वहाँ ले चलो',
+  'copilot.webOnlyHint': 'यह डेस्कटॉप वेब डैशबोर्ड पर ही उपलब्ध है।',
+  'copilot.partialHint': 'इसमें मैं सिर्फ़ आंशिक मदद कर सका।',
+  'copilot.helpful': 'मददगार?',
+  'copilot.thanks': 'फ़ीडबैक के लिए धन्यवाद!',
+  'copilot.open': 'हेल्पर खोलें',
+  'tour.next': 'आगे',
+  'tour.done': 'हो गया',
+  'tour.skip': 'छोड़ें',
+  'tour.tapHighlight': 'हाइलाइट पर टैप करें 👆',
 };
 
 const KN: Catalogue = {
@@ -238,6 +276,25 @@ const KN: Catalogue = {
     'ನಿಮ್ಮ ಸ್ಥಳ ಸಿಗಲಿಲ್ಲ — ಸ್ಥಳದ ಅನುಮತಿ ನೀಡಿ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.',
   'contacts.allProjects': 'ಎಲ್ಲ ಪ್ರಾಜೆಕ್ಟ್\u200cಗಳು',
   'contacts.projectFilter': 'ಪ್ರಾಜೆಕ್ಟ್ ಮೂಲಕ ಫಿಲ್ಟರ್',
+  'copilot.title': 'ಹೆಲ್ಪರ್',
+  'copilot.greeting':
+    'ನಮಸ್ಕಾರ! ನಾನು ಆ್ಯಪ್ ತೋರಿಸಬಲ್ಲೆ ಅಥವಾ ConvoReal ಬಗ್ಗೆ ಪ್ರಶ್ನೆಗಳಿಗೆ ಉತ್ತರಿಸಬಲ್ಲೆ. 👋',
+  'copilot.typing': 'ಬರೆಯುತ್ತಿದೆ…',
+  'copilot.placeholder': 'ಏನಾದರೂ ಕೇಳಿ…',
+  'copilot.guides': 'ಹಂತ-ಹಂತದ ಗೈಡ್\u200cಗಳು',
+  'copilot.startTour': 'ನನಗೆ ತೋರಿಸಿ — ಟೂರ್ ಆರಂಭಿಸಿ',
+  'copilot.openDesktop': 'ಡೆಸ್ಕ್\u200cಟಾಪ್ ವೆಬ್\u200cನಲ್ಲಿ ತೆರೆಯಿರಿ',
+  'copilot.takeMeThere': 'ನನ್ನನ್ನು ಅಲ್ಲಿಗೆ ಕರೆದೊಯ್ಯಿರಿ',
+  'copilot.webOnlyHint':
+    'ಇದು ಡೆಸ್ಕ್\u200cಟಾಪ್ ವೆಬ್ ಡ್ಯಾಶ್\u200cಬೋರ್ಡ್\u200cನಲ್ಲಿ ಮಾತ್ರ ಇದೆ.',
+  'copilot.partialHint': 'ಇದರಲ್ಲಿ ನಾನು ಭಾಗಶಃ ಮಾತ್ರ ಸಹಾಯ ಮಾಡಬಲ್ಲೆ.',
+  'copilot.helpful': 'ಸಹಾಯಕವೇ?',
+  'copilot.thanks': 'ಪ್ರತಿಕ್ರಿಯೆಗೆ ಧನ್ಯವಾದಗಳು!',
+  'copilot.open': 'ಹೆಲ್ಪರ್ ತೆರೆಯಿರಿ',
+  'tour.next': 'ಮುಂದೆ',
+  'tour.done': 'ಮುಗಿಯಿತು',
+  'tour.skip': 'ಬಿಟ್ಟುಬಿಡಿ',
+  'tour.tapHighlight': 'ಹೈಲೈಟ್ ಟ್ಯಾಪ್ ಮಾಡಿ 👆',
 };
 
 const TA: Catalogue = {
@@ -311,6 +368,24 @@ const TA: Catalogue = {
     'உங்கள் இருப்பிடம் கிடைக்கவில்லை — இருப்பிட அனுமதி வழங்கி மீண்டும் முயற்சிக்கவும்.',
   'contacts.allProjects': 'எல்லா ப்ராஜெக்ட்களும்',
   'contacts.projectFilter': 'ப்ராஜெக்ட் வாரியாக வடிகட்டு',
+  'copilot.title': 'ஹெல்பர்',
+  'copilot.greeting':
+    'வணக்கம்! நான் ஆப்பை சுற்றிக் காட்டவோ, ConvoReal பற்றிய கேள்விகளுக்கு பதிலளிக்கவோ முடியும். 👋',
+  'copilot.typing': 'எழுதுகிறது…',
+  'copilot.placeholder': 'எதுவும் கேளுங்கள்…',
+  'copilot.guides': 'படிப்படியான வழிகாட்டிகள்',
+  'copilot.startTour': 'எனக்கு காட்டு — டூரை தொடங்கு',
+  'copilot.openDesktop': 'டெஸ்க்டாப் வெப்பில் திற',
+  'copilot.takeMeThere': 'என்னை அங்கே அழைத்துச் செல்',
+  'copilot.webOnlyHint': 'இது டெஸ்க்டாப் வெப் டாஷ்போர்டில் மட்டுமே உள்ளது.',
+  'copilot.partialHint': 'இதில் நான் பகுதியளவே உதவ முடிந்தது.',
+  'copilot.helpful': 'உதவியாக இருந்ததா?',
+  'copilot.thanks': 'கருத்துக்கு நன்றி!',
+  'copilot.open': 'ஹெல்பரை திற',
+  'tour.next': 'அடுத்து',
+  'tour.done': 'முடிந்தது',
+  'tour.skip': 'தவிர்',
+  'tour.tapHighlight': 'ஹைலைட்டை தட்டவும் 👆',
 };
 
 const TE: Catalogue = {
@@ -381,6 +456,25 @@ const TE: Catalogue = {
     'మీ లొకేషన్ దొరకలేదు — లొకేషన్ అనుమతి ఇచ్చి మళ్లీ ప్రయత్నించండి.',
   'contacts.allProjects': 'అన్ని ప్రాజెక్టులు',
   'contacts.projectFilter': 'ప్రాజెక్ట్ ద్వారా ఫిల్టర్',
+  'copilot.title': 'హెల్పర్',
+  'copilot.greeting':
+    'నమస్తే! నేను యాప్ చూపించగలను లేదా ConvoReal గురించి ప్రశ్నలకు సమాధానం ఇవ్వగలను. 👋',
+  'copilot.typing': 'టైప్ చేస్తోంది…',
+  'copilot.placeholder': 'ఏదైనా అడగండి…',
+  'copilot.guides': 'దశల వారీ గైడ్\u200cలు',
+  'copilot.startTour': 'నాకు చూపించు — టూర్ ప్రారంభించు',
+  'copilot.openDesktop': 'డెస్క్\u200cటాప్ వెబ్\u200cలో తెరవండి',
+  'copilot.takeMeThere': 'నన్ను అక్కడికి తీసుకెళ్లు',
+  'copilot.webOnlyHint':
+    'ఇది డెస్క్\u200cటాప్ వెబ్ డాష్\u200cబోర్డ్\u200cలో మాత్రమే ఉంది.',
+  'copilot.partialHint': 'ఇందులో నేను పాక్షికంగా మాత్రమే సహాయం చేయగలిగాను.',
+  'copilot.helpful': 'సహాయపడిందా?',
+  'copilot.thanks': 'ఫీడ్\u200cబ్యాక్\u200cకు ధన్యవాదాలు!',
+  'copilot.open': 'హెల్పర్ తెరవండి',
+  'tour.next': 'తర్వాత',
+  'tour.done': 'అయిపోయింది',
+  'tour.skip': 'దాటవేయి',
+  'tour.tapHighlight': 'హైలైట్\u200cను నొక్కండి 👆',
 };
 
 const ML: Catalogue = {
@@ -453,6 +547,24 @@ const ML: Catalogue = {
     'നിങ്ങളുടെ ലൊക്കേഷൻ കിട്ടിയില്ല — ലൊക്കേഷൻ അനുമതി നൽകി വീണ്ടും ശ്രമിക്കുക.',
   'contacts.allProjects': 'എല്ലാ പ്രോജക്ടുകളും',
   'contacts.projectFilter': 'പ്രോജക്ട് പ്രകാരം ഫിൽട്ടർ',
+  'copilot.title': 'ഹെൽപ്പർ',
+  'copilot.greeting':
+    'നമസ്കാരം! എനിക്ക് ആപ്പ് ചുറ്റിക്കാണിക്കാം, ConvoReal-നെക്കുറിച്ചുള്ള ചോദ്യങ്ങൾക്ക് ഉത്തരം നൽകാം. 👋',
+  'copilot.typing': 'ടൈപ്പ് ചെയ്യുന്നു…',
+  'copilot.placeholder': 'എന്തും ചോദിക്കൂ…',
+  'copilot.guides': 'ഘട്ടം ഘട്ടമായുള്ള ഗൈഡുകൾ',
+  'copilot.startTour': 'എനിക്ക് കാണിച്ചുതരൂ — ടൂർ തുടങ്ങൂ',
+  'copilot.openDesktop': 'ഡെസ്ക്ടോപ്പ് വെബിൽ തുറക്കുക',
+  'copilot.takeMeThere': 'എന്നെ അവിടേക്ക് കൊണ്ടുപോകൂ',
+  'copilot.webOnlyHint': 'ഇത് ഡെസ്ക്ടോപ്പ് വെബ് ഡാഷ്ബോർഡിൽ മാത്രമാണ്.',
+  'copilot.partialHint': 'ഇതിൽ എനിക്ക് ഭാഗികമായി മാത്രമേ സഹായിക്കാനായുള്ളൂ.',
+  'copilot.helpful': 'സഹായകമായോ?',
+  'copilot.thanks': 'ഫീഡ്ബാക്കിന് നന്ദി!',
+  'copilot.open': 'ഹെൽപ്പർ തുറക്കുക',
+  'tour.next': 'അടുത്തത്',
+  'tour.done': 'കഴിഞ്ഞു',
+  'tour.skip': 'ഒഴിവാക്കുക',
+  'tour.tapHighlight': 'ഹൈലൈറ്റിൽ ടാപ്പ് ചെയ്യുക 👆',
 };
 
 const MR: Catalogue = {
@@ -523,6 +635,24 @@ const MR: Catalogue = {
     'तुमचे लोकेशन मिळाले नाही — लोकेशन परवानगी देऊन पुन्हा प्रयत्न करा.',
   'contacts.allProjects': 'सर्व प्रोजेक्ट',
   'contacts.projectFilter': 'प्रोजेक्टनुसार फिल्टर',
+  'copilot.title': 'हेल्पर',
+  'copilot.greeting':
+    'नमस्कार! मी तुम्हाला अ\u200dॅप दाखवू शकतो किंवा ConvoReal बद्दलच्या प्रश्नांची उत्तरे देऊ शकतो. 👋',
+  'copilot.typing': 'टाइप करत आहे…',
+  'copilot.placeholder': 'काहीही विचारा…',
+  'copilot.guides': 'टप्प्याटप्प्याने मार्गदर्शक',
+  'copilot.startTour': 'मला दाखवा — टूर सुरू करा',
+  'copilot.openDesktop': 'डेस्कटॉप वेबवर उघडा',
+  'copilot.takeMeThere': 'मला तिथे घेऊन चला',
+  'copilot.webOnlyHint': 'हे फक्त डेस्कटॉप वेब डॅशबोर्डवर आहे.',
+  'copilot.partialHint': 'यात मी फक्त अंशतः मदत करू शकलो.',
+  'copilot.helpful': 'उपयुक्त?',
+  'copilot.thanks': 'फीडबॅकबद्दल धन्यवाद!',
+  'copilot.open': 'हेल्पर उघडा',
+  'tour.next': 'पुढे',
+  'tour.done': 'झाले',
+  'tour.skip': 'वगळा',
+  'tour.tapHighlight': 'हायलाइटवर टॅप करा 👆',
 };
 
 export const MESSAGES: Record<LanguageCode, Catalogue> = {

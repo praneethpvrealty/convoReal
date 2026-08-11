@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CopilotSheet } from '@/components/copilot-sheet';
 import { useCopilotTour } from '@/components/copilot-tour';
 import { haptic } from '@/lib/haptics';
+import { useT } from '@/lib/use-t';
 import { useTheme } from '@/lib/theme';
 
 // ------------------------------------------------------------------
@@ -35,6 +36,7 @@ const VISIBLE_PATHNAMES = new Set([
 
 export function CopilotWidget() {
   const { colors, shadows } = useTheme();
+  const t = useT();
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
   const { activeTour, startTour } = useCopilotTour();
@@ -58,7 +60,7 @@ export function CopilotWidget() {
             setOpen(true);
           }}
           accessibilityRole="button"
-          accessibilityLabel="Open the helper"
+          accessibilityLabel={t('copilot.open')}
           style={[
             styles.fab,
             shadows.card,

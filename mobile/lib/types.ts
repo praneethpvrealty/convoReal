@@ -139,6 +139,9 @@ export interface Profile {
    *  manager-only capabilities, e.g. hard-deleting a contact. */
   org_role?: string | null;
   full_name?: string | null;
+  /** App display language (migration 247) — set from the web header
+   *  toggle; the helper UI renders in it. */
+  active_ui_language?: string | null;
 }
 
 // ------------------------------------------------------------------

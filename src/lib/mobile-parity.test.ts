@@ -20,6 +20,7 @@ import { describe, expect, it } from 'vitest';
 
 import { PLAN_CONFIG, PLAN_ORDER } from '@/lib/billing/plan-config';
 import { TOURS } from '@/lib/copilot/tours';
+import { MESSAGES } from '@/lib/i18n/messages';
 import {
   AMENITIES_BY_CATEGORY,
   AREA_UNITS,
@@ -515,5 +516,48 @@ describe('mobile/lib/contact-interest.ts mirrors the web project axis', () => {
     expect(projectOptionsBody(mobileSource('lib/contact-interest.ts'))).toBe(
       projectOptionsBody(web)
     );
+  });
+});
+
+describe("mobile/lib/i18n.ts mirrors the web catalogue's copilot slice", () => {
+  // Importing the module would make vitest transform a file governed by
+  // mobile/tsconfig.json, which extends expo/tsconfig.base — absent
+  // unless mobile deps are installed (the web CI job does not). The
+  // catalogue is emitted with JSON.stringify, so its entry lines parse
+  // back losslessly as JSON instead.
+  const source = mobileSource('lib/i18n.ts');
+
+  function parsedCatalogue(lang: string): Record<string, string> {
+    const decl = `\n  ${lang}: {\n`;
+    const start = source.indexOf(decl);
+    expect(start, `no ${lang} catalogue in mobile i18n`).toBeGreaterThan(-1);
+    const end = source.indexOf('\n  },', start);
+    const body = source
+      .slice(start + decl.length, end)
+      .trim()
+      .replace(/,$/, '');
+    return JSON.parse(`{${body}}`) as Record<string, string>;
+  }
+
+  it('keeps every ported key byte-equal in every language', () => {
+    const en = parsedCatalogue('en');
+    expect(Object.keys(en).length).toBeGreaterThanOrEqual(20);
+    for (const lang of Object.keys(MESSAGES)) {
+      const catalogue = parsedCatalogue(lang);
+      expect(Object.keys(catalogue).sort(), lang).toEqual(
+        Object.keys(en).sort()
+      );
+      const web = MESSAGES[lang as keyof typeof MESSAGES] as Record<
+        string,
+        string
+      >;
+      for (const [key, value] of Object.entries(catalogue)) {
+        expect(
+          web[key],
+          `${lang}/${key} missing from web catalogue`
+        ).toBeDefined();
+        expect(value, `${lang}/${key}`).toBe(web[key]);
+      }
+    }
   });
 });
