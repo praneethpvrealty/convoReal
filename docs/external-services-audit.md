@@ -67,7 +67,7 @@ Derived per-account averages used for the projections in §5: **~25 MB storage**
 | :--- | :--- | :--- | :--- |
 | **Razorpay** | Marketplace + subscription checkout (India) | No subscription | ~2% + GST per domestic transaction. |
 | **Stripe** | Credit top-ups | No subscription | ~2.9% + 30¢ (international rate). |
-| **Resend** | Transactional email — support tickets, password resets, sandbox cron, billing extension notices, image-cleanup notices | **Free** | 3,000 emails/mo, **hard cap 100/day**, one domain. Pro is $20/mo for 50,000. |
+| **Resend** | Transactional email — support tickets, password resets, sandbox cron, billing extension notices, image-cleanup notices. Not auth OTP (that is WhatsApp — see §3) | **Free** | 3,000 emails/mo, **hard cap 100/day**, one domain. Pro is $20/mo for 50,000. Volume is admin/ops only, so this tier has long headroom. |
 | **IMAP lead sync** | `IMAP_HOST` / `IMAP_USER` / `IMAP_PASSWORD` | **Not wired.** `/api/leads/sync-emails` returns "IMAP sync is currently unconfigured"; no IMAP library in `package.json`. Superseded by the Cloudflare email worker. | — |
 
 ### 2.5 Dev, CI, mobile
@@ -85,15 +85,22 @@ Derived per-account averages used for the projections in §5: **~25 MB storage**
 
 ---
 
-## 3. Launch blocker: auth email does not reach customers
+## 3. Auth delivery is on WhatsApp, not email
 
-`src/app/(auth)/signup/page.tsx:117` calls `supabase.auth.signUp()` with `emailRedirectTo`, so every signup requires a confirmation email.
+Verified against `auth.users` on 2026-08-12. **Supabase's built-in email provider is not on any live auth path**, so its 2-per-hour project-wide cap and team-addresses-only restriction do not apply here.
 
-On Supabase's **default** email provider that mail is capped at **2 per hour project-wide**, and it **only delivers to addresses belonging to the project's team**. Real customers never receive it, so signup dead-ends silently.
+**Email signup is auto-confirmed.** `src/app/(auth)/signup/page.tsx:117` calls `supabase.auth.signUp()` with `emailRedirectTo`, but every self-serve email user in the database has `email_confirmed_at` set 0.07–0.3s after `created_at`. That is auto-confirm enabled in the project's Auth settings: no confirmation email is sent, and the `emailRedirectTo` argument is inert while that setting holds.
 
-**Fix (configuration, no cost):** point Supabase Auth at Resend's SMTP under *Authentication → Emails → SMTP Settings*. This raises the cap to 30/hour, further raisable on the dashboard's Rate Limits page, and restores auth template customisation. `RESEND_API_KEY` is already provisioned.
+**WhatsApp signup and login work.** `src/app/(auth)/login/page.tsx:169` calls `signInWithOtp({ phone })`; Supabase's SMS hook posts to `/api/auth/sms-hook`, which HMAC-verifies the payload (`SUPABASE_SMS_HOOK_SECRET`, Svix and `t=`/`v1=` header formats both handled) and delivers the code via `sendTextMessage` / `sendTemplateMessage` on the WhatsApp Cloud API. Confirmed in production data: the most recent user has no email address at all, phone only, `phone_confirmed_at` 8 seconds after `created_at`. The Den and Buyer portals use the same `signInWithOtp` path.
 
-The Den and Buyer portals are unaffected — `src/app/(den)/den/login/page.tsx` and `src/app/(buyer)/buyer/login/page.tsx` use `signInWithOtp` over WhatsApp via the SMS hook.
+**Password reset does not use Supabase's mailer either** — `/api/auth/reset-password/request` sends through Resend.
+
+Two consequences worth tracking:
+
+- **WhatsApp is on the authentication critical path.** If `whatsapp_config` breaks for the account issuing OTPs, users cannot log in. This is a higher-severity single point of failure than anything in the cost tables below.
+- **Every OTP is a billable authentication-category message** at India's ₹0.145 rate. This scales with login frequency, not account count — roughly ₹580/mo at 200 accounts averaging 20 logins each.
+
+**Conditional caveat:** if email confirmation is ever switched on, or magic-link email login is added, custom SMTP must be configured *first* (*Authentication → Emails → SMTP Settings*, pointed at the existing Resend account) — otherwise the default provider's 2/hour, team-addresses-only limits do become a hard blocker. It is not a blocker today.
 
 ---
 
@@ -101,8 +108,8 @@ The Den and Buyer portals are unaffected — `src/app/(den)/den/login/page.tsx` 
 
 | Action | Cost | Rationale |
 | :--- | :--- | :--- |
-| Wire Resend SMTP into Supabase Auth | $0 | §3. Signup does not work without it. |
 | Supabase Free → **Pro** | **$25/mo** | Backups + 7-day PITR, and removes the 500 MB / 1 GB / 5 GB ceilings and the idle-pause risk. Required the moment a paying customer's data lands. |
+| Confirm the OTP-sending WhatsApp number is healthy and monitored | $0 | §3. WhatsApp is the login path; if it breaks, nobody can sign in. |
 | Attach billing to the Gemini API key | ~$5/mo actual | 500 req/day free cap. Digest crons batch AI calls and fail **silently** when throttled. |
 | Verify Railway is on Hobby, not Free | ~$10–15/mo | The Free plan's $1/mo credit cannot keep `go-ingress` and `queue-worker` running 24/7. |
 | Upstash: enable pay-as-you-go, stay on the free tier | $0 until 500K commands | Prevents a hard stop at the free ceiling; $0.20/100K after. No fixed plan needed. |
