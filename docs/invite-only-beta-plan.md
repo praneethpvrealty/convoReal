@@ -307,6 +307,20 @@ Replying `BUG <text>` to the ConvoReal number lands a `bug_reports` row via the 
 
 ## 7. Rollout — 30 days
 
+### Infrastructure gate — clear this before the first invite is sent
+
+The seed wave is the first time real brokers put real data in. Everything below must be true *before* an invite goes out, not after the first one lands. Full reasoning, current tiers and the trigger thresholds live in [`docs/external-services-audit.md`](./external-services-audit.md) §4.
+
+| Gate | Why it blocks the invite |
+|---|---|
+| **Supabase on Pro, not Free** | Free has **no backups and no PITR**, plus a 500 MB DB / 1 GB storage / 5 GB egress ceiling and a 7-day idle pause. The moment a seed broker's inventory is in there, an un-backed-up database is the risk that ends the beta. $25/mo. |
+| **Billing attached to the Gemini API key** | The free tier caps at ~500 requests/day. It fails **silently** — digests and AI intake stop producing output rather than erroring, which during a beta reads as "the product doesn't work". |
+| **Railway on Hobby, and both containers confirmed up** | The Free plan's $1/mo credit will not keep `go-ingress` and `queue-worker` running. If the worker is down, WhatsApp webhooks queue and never drain. |
+| **The OTP-sending WhatsApp number verified healthy** | Login is `signInWithOtp` over WhatsApp (§4.6). If that number's `whatsapp_config` is broken, invited brokers cannot sign in at all — the invite lands and the door is locked. |
+| **Error monitoring wired** | There is none today. A beta whose whole purpose is bug discovery (§6) should not depend solely on brokers noticing and reporting. |
+
+Re-verify these live rather than trusting the figures in the audit doc — it records state as of a fixed date and plans drift. The gate that has actually bitten this project is the fourth one: WhatsApp sits on the authentication path, so it is both the invite channel (§5.1) and the login channel, and a single broken config takes out both at once.
+
 | Week | Engineering | Program |
 |---|---|---|
 | **0** (pre-launch) | Migration 188 (`beta_invites`, `accounts` columns, `beta_program`), gated `handle_new_user()`, seed route. Verify **all three signup paths** in §4.3 on a Supabase branch before touching prod. | Draft the 17-broker seed list. |

@@ -25,6 +25,7 @@ import {
   Newspaper,
   Bell,
   Ticket,
+  KeyRound,
 } from 'lucide-react';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import {
@@ -64,6 +65,7 @@ import { cn } from '@/lib/utils';
 import { InfoHint } from '@/components/ui/info-hint';
 import { FavoriteButton } from "@/components/layout/favorite-button";
 import { BetaInviteHub } from "@/components/settings/beta-invite-hub";
+import { ApiKeysTab } from "@/components/settings/api-keys-tab";
 
 const BASE_TAB_VALUES = [
   'profile',
@@ -80,7 +82,7 @@ const BASE_TAB_VALUES = [
   'billing',
   'credits',
 ] as const;
-const FLAGGED_TAB_VALUES = ['members', 'teams', 'routing', 'ads', 'invites'] as const;
+const FLAGGED_TAB_VALUES = ['members', 'teams', 'routing', 'ads', 'invites', 'api-keys'] as const;
 const TAB_VALUES = [...BASE_TAB_VALUES, ...FLAGGED_TAB_VALUES] as const;
 type TabValue = (typeof TAB_VALUES)[number];
 
@@ -189,7 +191,8 @@ export default function SettingsPage() {
       : (requestedTab === 'members' && !membersEnabled) ||
           (requestedTab === 'teams' && !teamsEnabled) ||
           (requestedTab === 'routing' && !routingEnabled) ||
-          (requestedTab === 'ads' && !metaAdsEnabled)
+          (requestedTab === 'ads' && !metaAdsEnabled) ||
+          (requestedTab === 'api-keys' && !membersEnabled)
         ? 'profile'
         : requestedTab;
 
@@ -279,6 +282,7 @@ export default function SettingsPage() {
         { value: 'invites' as TabValue, label: 'Invites', icon: Ticket },
         ...(teamsEnabled ? [{ value: 'teams' as TabValue, label: 'Teams', icon: Users }] : []),
         ...(routingEnabled ? [{ value: 'routing' as TabValue, label: 'Routing', icon: Route }] : []),
+        ...(membersEnabled ? [{ value: 'api-keys' as TabValue, label: 'API Keys', icon: KeyRound }] : []),
       ],
     },
   ];
@@ -557,6 +561,12 @@ export default function SettingsPage() {
           {routingEnabled && (
             <TabsContent value="routing" className="mt-0">
               <RoutingRulesTab />
+            </TabsContent>
+          )}
+
+          {membersEnabled && (
+            <TabsContent value="api-keys" className="mt-0">
+              <ApiKeysTab />
             </TabsContent>
           )}
         </div>

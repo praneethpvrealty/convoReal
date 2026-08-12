@@ -19,8 +19,10 @@ keys rather than grandfathering them.
 
 ### 1. Create an API key
 
-Admin or owner only, on an Agency-plan workspace. The key is shown **once** —
-copy it then. There is no Settings UI yet, so create it over HTTP:
+In ConvoReal, go to **Settings → API Keys** (admin or owner, Agency plan) and
+create one. The key is shown **once** — copy it then.
+
+`POST /api/account/api-keys` is the same thing over HTTP:
 
 ```json
 { "name": "Claude Desktop", "scopes": ["read"] }
