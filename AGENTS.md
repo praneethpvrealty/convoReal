@@ -738,6 +738,7 @@ All cron routes require `AUTOMATION_CRON_SECRET` or `CRON_SECRET`.
 | `src/lib/copilot/README.md` | Copilot module: tours, nudges, cost model |
 | `docs/production-deployment.md` | Step-by-step production deployment |
 | `docs/scaling-architecture.md` / `docs/scaling-costs.md` | Scaling roadmap and cost model |
+| `docs/external-services-audit.md` | Every third-party service, its tier, its limits, and the launch upgrade order |
 | `docs/ultimate-whatsapp-onboarding-guide.md` / `docs/meta-onboarding-guide.md` | WhatsApp/Meta onboarding |
 | `docs/meta-ads-integration-plan.md` | Meta Ads OAuth and campaign integration |
 | `docs/embedded-signup-plan.md` | Embedded Signup + Coexistence onboarding plan (one-click WABA, same-number app+API) |
