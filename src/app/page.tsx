@@ -471,6 +471,13 @@ export default async function RootPage({ searchParams }: PageProps) {
           }}
         />
       )}
+      {/* Addressed by the row's own id, not the ?property_id= the link
+          carried. Share links name a listing by its property code, and
+          the teaser reduction strips property_code — so a gated
+          listing's own link could not find it in the catalog it was
+          sent for, and the recipient landed on the grid with no way to
+          reach the gate. Translating here fixes the links already
+          sent. */}
       <ShowcaseView
         properties={propertiesWithAgent}
         settings={settings}
@@ -478,7 +485,7 @@ export default async function RootPage({ searchParams }: PageProps) {
         siteName={accountName}
         referrerContactId={filterContactId || undefined}
         referrerPhone={referrerPhone || undefined}
-        initialPropertyId={initialPropertyId}
+        initialPropertyId={targetProperty?.id ?? initialPropertyId}
         initialCategory={resolvedParams.category}
         initialAgentMode={isAgentMode}
         visitorRef={resolvedParams.v}
