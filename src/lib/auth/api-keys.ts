@@ -44,6 +44,7 @@ import {
   toErrorResponse,
 } from "@/lib/auth/account";
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from "@/lib/rate-limit";
+import { accountHasApiAccess } from "@/lib/billing/gates";
 
 /** Distinguishes a key from a Supabase JWT in the same header slot. */
 export const API_KEY_PREFIX = "cvr_sk_";
@@ -293,6 +294,21 @@ export function withApiKeyAuth(requiredScope: ApiKeyScope, handler: ApiKeyHandle
       if (!limit.success) return rateLimitResponse(limit);
 
       const ctx = await resolveApiKey(secret);
+
+      // Entitlement, checked per request rather than only at key
+      // creation: a plan can change after a key is issued, and a
+      // downgrade has to actually take the access away.
+      if (!(await accountHasApiAccess(ctx.db, ctx.accountId))) {
+        return NextResponse.json(
+          {
+            error:
+              "API access is included on the Agency plan. This workspace's current plan does not include it, so its API keys are inactive.",
+            code: "plan_upgrade_required",
+            upgradeRequired: "agency",
+          },
+          { status: 402 },
+        );
+      }
 
       if (!ctx.scopes.includes(requiredScope)) {
         return NextResponse.json(

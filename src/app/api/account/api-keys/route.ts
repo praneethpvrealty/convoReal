@@ -27,6 +27,7 @@ import {
   isApiKeyScope,
 } from "@/lib/auth/api-keys";
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from "@/lib/rate-limit";
+import { checkPlanLimit, gateResponse } from "@/lib/billing/gates";
 
 const MAX_NAME_LEN = 80;
 const MAX_LIVE_KEYS = 20;
@@ -65,6 +66,13 @@ export async function POST(request: Request) {
 
     const limit = checkRateLimit(`admin:apiKeyCreate:${ctx.userId}`, RATE_LIMITS.adminAction);
     if (!limit.success) return rateLimitResponse(limit);
+
+    // "API access & outbound webhooks" is an Agency-plan feature (see
+    // PLAN_CONFIG). Gating creation as well as use means an admin on a
+    // lower plan finds out here, rather than after wiring up a client
+    // that then 402s on every call.
+    const gate = await checkPlanLimit(ctx, "api_access");
+    if (!gate.allowed) return gateResponse(gate);
 
     const body = (await request.json().catch(() => null)) as {
       name?: unknown;

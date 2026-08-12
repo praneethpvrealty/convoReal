@@ -288,3 +288,38 @@ export function gateResponse(gate: GateResult): Response {
     { status: 402 },
   );
 }
+
+/**
+ * Whether an account's plan includes API access, read through a
+ * service-role client.
+ *
+ * `checkPlanLimit` needs an `AccountContext` — a signed-in staff user
+ * with an RLS-scoped client. The /api/v1 surface has neither: its
+ * caller is an API key, and its client is service-role. This is the
+ * same `account_plan_limits` view behind the same `has_api_access`
+ * column, reached the only way that path can reach it.
+ *
+ * Checked on every v1 request rather than only at key creation,
+ * because a plan can change after a key is issued. Gating creation
+ * alone would let an account subscribe for one month, mint a key, and
+ * keep API access forever.
+ *
+ * Fails CLOSED: an unreadable row denies access rather than granting
+ * it. A read failure here is a database problem, not an entitlement.
+ */
+export async function accountHasApiAccess(
+  db: SupabaseClient,
+  accountId: string,
+): Promise<boolean> {
+  const { data, error } = await db
+    .from('account_plan_limits')
+    .select('has_api_access')
+    .eq('account_id', accountId)
+    .maybeSingle();
+
+  if (error) {
+    console.error('[accountHasApiAccess] plan lookup error:', error);
+    return false;
+  }
+  return Boolean((data as { has_api_access?: boolean } | null)?.has_api_access);
+}
