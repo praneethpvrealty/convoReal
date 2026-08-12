@@ -70,6 +70,7 @@ export function buildOwnerHelpMessage(): string {
     '*🏠 Add a listing*',
     'Paste the details, or forward an ad screenshot or brochure PDF. I pull out price, area, locality, type and amenities, then show you a draft to confirm.',
     '_e.g. "3750 sqft commercial site, Koramangala 3rd Block, 24.37 Cr, 60 ft road"_',
+    'Sending the location pin first is fine — I hold it and attach it to the details that follow.',
     '',
     '*👤 Add a contact or lead*',
     'Paste their profile, forward a portal lead (MagicBricks / Housing / 99acres), or send a screenshot. What they are looking for is saved as their requirement.',

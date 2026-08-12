@@ -13,6 +13,21 @@ and polish.
 
 ### Added
 
+- **The map pin that arrives before its listing.** Forwarding a Google
+  Maps pin to the WhatsApp assistant on its own used to come back with
+  "I couldn't tell what that was", and the pin was gone — so the listing
+  details sent seconds later were saved with no coordinates, invisible
+  to radius matching and ad targeting, even though the lister had sent
+  the most precise thing they had. The pin is now acknowledged, named
+  where the geocoder can name it, and attached to the next listing draft
+  that sender opens: map link, coordinates, and whichever of
+  locality/city/state the listing itself didn't state. The listing's own
+  words always win — a pin only fills gaps, and a listing carrying its
+  own pin is left alone. Held for 15 minutes only: stamping a stale pin
+  onto an unrelated property puts it in the wrong place, which is worse
+  than leaving it unpinned. A pin sent *during* an open draft already
+  worked and is unchanged. **Migration required:** `261_pending_map_pins.sql`.
+
 - **The confidential-listing request drawer, on the phone.** Tapping the
   Confidential chip on a property card in the app now opens who asked for
   access, what came of each request, and who can open the listing right

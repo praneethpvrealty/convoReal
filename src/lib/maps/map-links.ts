@@ -97,6 +97,22 @@ export function extractCoordinatesFromMapUrl(url: string): Coordinates | null {
   return null;
 }
 
+const MAP_LINK_RE =
+  /https?:\/\/(?:maps\.app\.goo\.gl\/\S+|goo\.gl\/maps\/\S+|maps\.google\.[a-z.]{2,6}\/\S*|(?:[a-z0-9-]+\.)*google\.[a-z.]{2,6}\/maps\S*)/i;
+
+/**
+ * Pulls the shared map pin out of a WhatsApp message — the link in any
+ * of the forms Maps hands out, or a message that is nothing but a
+ * coordinate pair. Returns null when the text carries no pin at all.
+ */
+export function extractMapLinkFromText(text: string | null | undefined): string | null {
+  if (!text) return null;
+  const match = text.match(MAP_LINK_RE);
+  if (match) return match[0].replace(/[.,;:!?)\]]+$/, "");
+  const coords = parseCoordinatePair(text);
+  return coords ? googleMapsUrlForCoordinates(coords.latitude, coords.longitude) : null;
+}
+
 /** Reads the place name embedded in a canonical `/maps/place/<name>` URL. */
 export function extractPlaceNameFromMapUrl(url: string): string | null {
   const placeMatch = url.match(/\/maps\/place\/([^/@?]+)/);

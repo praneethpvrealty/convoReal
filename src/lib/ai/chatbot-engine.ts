@@ -70,6 +70,13 @@ import {
   formatContactDraftsPreview,
   backfillLocationFromMapLink,
 } from '@/lib/ai/intake-core';
+import { extractMapLinkFromText } from '@/lib/maps/map-links';
+import {
+  parkMapPin,
+  takePendingMapPin,
+  applyPinToDraft,
+  buildPinParkedMessage,
+} from '@/lib/maps/pending-pin';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { recordRequirementResponse } from '@/lib/requirements/respond';
 
@@ -2414,6 +2421,14 @@ export async function processOwnerChatbotMessage(
           parsedDraft.images = [];
         }
 
+        // A pin shared moments before this message was waiting for the
+        // listing it belongs to. Applied before the backfill so the
+        // geocoding runs once, on whichever link the draft ends up with.
+        const pendingPin = await takePendingMapPin(accountId, contactRecord.id);
+        if (pendingPin) {
+          parsedDraft = applyPinToDraft(parsedDraft, pendingPin);
+        }
+
         parsedDraft = await backfillLocationFromMapLink(parsedDraft);
 
         const { isValid } = validateDraft(parsedDraft);
@@ -2638,6 +2653,27 @@ export async function processOwnerChatbotMessage(
       } catch (err) {
         console.error('[chatbot-engine] Error initializing contact draft session:', err);
         const reply = "❌ *Failed to parse contact details.* Please copy paste details as text or send a clean contact screenshot.";
+        const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+        await saveBotMessage(conversation.id, reply, sendRes.messageId);
+        return true;
+      }
+    }
+
+    // --- MAP PIN AHEAD OF ITS LISTING ---
+    // A shared pin carries no listing and no person, so it lands here as
+    // 'none'. It is not noise: the details follow it seconds later, and
+    // answering "I couldn't tell what that was" threw away the most
+    // precise thing the lister had. Hold it for the next draft instead.
+    if (classification === 'none' && !isMediaMsg) {
+      const mapLink = extractMapLinkFromText(cleanedText);
+      if (mapLink) {
+        const pin = await parkMapPin({
+          accountId,
+          contactId: contactRecord.id,
+          conversationId: conversation.id,
+          mapLink,
+        });
+        const reply = buildPinParkedMessage(pin);
         const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
         await saveBotMessage(conversation.id, reply, sendRes.messageId);
         return true;
