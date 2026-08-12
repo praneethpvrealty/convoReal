@@ -137,6 +137,14 @@ and polish.
 
 ### Fixed
 
+- **A confidential listing's own share link could not open it.** Share
+  links name a listing by its property code, and the teaser reduction
+  strips `property_code` — so the catalog had nothing to match the code
+  against, the detail modal never opened, and the recipient of a link
+  sent for that listing landed on the general grid with no route to
+  "Request full details". The server now resolves the code to the row's
+  id before handing it to the catalog, which fixes links already sent.
+
 - **A visitor with site data blocked got the error page on every
   showcase link.** Chrome with cookies/site data blocked does not return
   null from `localStorage` — reading the property throws. The showcase
