@@ -13,6 +13,24 @@ and polish.
 
 ### Added
 
+- **Ask an owner for the property details, in one message.** A new Engine
+  template — not a Meta one — that asks a seller for everything a listing
+  needs and tells them, up front, what this number will send back:
+  enquiries, buyers shortlisted, site visits and offers. On web it is the
+  **Ask for Details** action on a contact; in the app it is **Ask
+  Details** on the contact screen. The checklist follows the property's
+  own type, so a plot owner is asked for the tippan, the conversion order
+  and the layout release and is never asked for a BHK configuration or a
+  building sanction. The agent can drop any section, edit the text, and
+  send it through the account's WhatsApp number while the 24-hour window
+  is open — outside it, the same message opens in their own WhatsApp
+  rather than dead-ending. The promise closes with STOP UPDATES /
+  START UPDATES, the words the owner-digest webhook already honours, so
+  the owner can switch the updates on or off by replying. Wording lives
+  in `src/lib/owners/details-request.ts` and sends through
+  `POST /api/owners/details-request`; the mobile copy is drift-guarded by
+  `src/lib/mobile-parity.test.ts`.
+
 - **The confidential-listing request drawer, on the phone.** Tapping the
   Confidential chip on a property card in the app now opens who asked for
   access, what came of each request, and who can open the listing right
