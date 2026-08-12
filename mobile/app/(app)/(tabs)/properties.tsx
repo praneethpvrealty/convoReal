@@ -31,6 +31,7 @@ import { EnterRow, PressScale } from '@/components/motion';
 import { PropertyApprovals } from '@/components/property-approvals';
 import { PropertyFiltersSheet } from '@/components/property-filters-sheet';
 import { EmptyState, FilterChip, PropertyCardSkeleton, SearchBar } from '@/components/ui';
+import { gateSummary, type GateStatsMap } from '@/lib/gate-stats';
 import {
   apiFetch,
   placeDetails,
@@ -137,6 +138,14 @@ export async function fetchPropertyPage(
 
 export default function PropertiesScreen() {
   const { colors, fonts: f } = useTheme();
+  // Confidential-gate rollup for the account: one call for the whole
+  // list, same endpoint the web inventory uses.
+  const { data: gateStats } = useQuery({
+    queryKey: ['properties', 'gate-stats'],
+    queryFn: () => apiFetch<{ data: GateStatsMap }>('/api/properties/gate-stats'),
+    select: (r) => r.data ?? {},
+    staleTime: 60_000,
+  });
   const insets = useSafeAreaInsets();
   const {
     search,
@@ -587,7 +596,7 @@ export default function PropertiesScreen() {
           }
           renderItem={({ item, index }) => (
             <EnterRow index={index}>
-              <PropertyCard property={item} />
+              <PropertyCard property={item} gateStats={gateStats} />
             </EnterRow>
           )}
         />
@@ -849,8 +858,16 @@ function LocalitySearchBox() {
  * mint status chip + star on the photo, title/price row, location,
  * then bordered spec pills (beds / area / type).
  */
-function PropertyCard({ property }: { property: Property }) {
+function PropertyCard({
+  property,
+  gateStats,
+}: {
+  property: Property;
+  gateStats?: GateStatsMap;
+}) {
   const { colors } = useTheme();
+  const gated = property.showcase_visibility === 'teaser';
+  const gateLine = gateSummary(gateStats?.[property.id]);
   const gradient = useBrandGradient();
   const cover = storagePublicUrl(property.images?.[0]);
   const price =
@@ -930,6 +947,33 @@ function PropertyCard({ property }: { property: Property }) {
           >
             {place}
           </Text>
+        ) : null}
+        {gated ? (
+          <View style={styles.gateRow}>
+            <View
+              style={[
+                styles.gateChip,
+                {
+                  backgroundColor: colors.primary + '1A',
+                  borderColor: colors.primary + '40',
+                },
+              ]}
+            >
+              <Ionicons
+                name="shield-checkmark-outline"
+                size={11}
+                color={colors.primary}
+              />
+              <Text style={[styles.gateChipText, { color: colors.primary }]}>
+                Confidential
+              </Text>
+            </View>
+            {gateLine ? (
+              <Text style={{ fontSize: 11, color: colors.textMuted }}>
+                {gateLine}
+              </Text>
+            ) : null}
+          </View>
         ) : null}
         <View style={styles.specRow}>
           {property.bedrooms ? (
@@ -1077,6 +1121,23 @@ const styles = StyleSheet.create({
     letterSpacing: -0.3,
   },
   specRow: { flexDirection: 'row', gap: 6, marginTop: 6, flexWrap: 'wrap' },
+  gateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 6,
+    flexWrap: 'wrap',
+  },
+  gateChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+  },
+  gateChipText: { fontSize: 10, fontWeight: '800' },
   specPill: {
     flexDirection: 'row',
     alignItems: 'center',
