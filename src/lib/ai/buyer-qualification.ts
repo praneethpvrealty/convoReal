@@ -32,6 +32,7 @@ import {
 } from '@/lib/radar/engine';
 import { buildPropertyAlertParams } from '@/lib/whatsapp/property-alert-template';
 import { requestsHumanContact } from '@/lib/ai/lead-question';
+import { parseOrdinalReferences } from '@/lib/ai/shortlist-reference';
 import { burnCredits } from '@/lib/credits/burn';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 import { recordLearnedFacts } from '@/lib/learning/record';
@@ -98,17 +99,61 @@ function hasLocation(prefs: ExtractedPreferences): boolean {
   return prefs.areas.length > 0 || hasProject(prefs);
 }
 
+const QUALIFIER_ORDER: QualifierField[] = ['type', 'budget', 'location'];
+
+function isAnswered(
+  field: QualifierField,
+  prefs: ExtractedPreferences
+): boolean {
+  if (field === 'type') return hasType(prefs);
+  if (field === 'budget') return hasBudget(prefs);
+  return hasLocation(prefs);
+}
+
 /**
  * The first rung of the ladder the contact has not answered, or null
  * when type, budget and location are all known.
+ *
+ * `asked` are the rungs this thread has already put to the lead. They
+ * are skipped rather than repeated: a lead who answers "which area are
+ * you looking at?" with "Anywhere. its fine, we buy and build" has
+ * answered it — the extraction just has no locality to file, because
+ * there isn't one. Asking again produced the same sentence word for
+ * word, and would have kept producing it forever. Skipping the rung
+ * moves the conversation to the next one, or to the listings, which is
+ * what a person would do with the same reply.
  */
 export function nextQualifier(
-  prefs: ExtractedPreferences
+  prefs: ExtractedPreferences,
+  asked: QualifierField[] = []
 ): QualifierField | null {
-  if (!hasType(prefs)) return 'type';
-  if (!hasBudget(prefs)) return 'budget';
-  if (!hasLocation(prefs)) return 'location';
+  for (const field of QUALIFIER_ORDER) {
+    if (asked.includes(field)) continue;
+    if (!isAnswered(field, prefs)) return field;
+  }
   return null;
+}
+
+/**
+ * The fragment of each rung's question that identifies it in a sent
+ * message, so the thread itself records what has been asked and no
+ * state has to be kept in step with it. Both phrasings of every rung —
+ * the full question and the shortlist postscript — carry their own
+ * fragment; a test asserts it, so the two cannot drift apart.
+ */
+const QUALIFIER_FINGERPRINTS: Record<QualifierField, RegExp> = {
+  type: /what kind of property are you looking for|land\/plot, apartment, villa/i,
+  budget: /what budget(?: range)? are you working with/i,
+  location: /which area (?:are you looking at|suits you best)/i,
+};
+
+/** Rungs already put to the lead, read back off the bot's own messages. */
+export function askedQualifiers(
+  botMessages: (string | null | undefined)[]
+): QualifierField[] {
+  return QUALIFIER_ORDER.filter((field) =>
+    botMessages.some((text) => QUALIFIER_FINGERPRINTS[field].test(text || ''))
+  );
 }
 
 /**
@@ -297,9 +342,11 @@ export function buildQualificationReply(
   matches: RankedPropertyMatch[],
   areaSuggestions: string[],
   baseUrl: string,
-  contactId: string
+  contactId: string,
+  /** Rungs this thread has already put to the lead — see nextQualifier. */
+  asked: QualifierField[] = []
 ): QualificationOutcome {
-  const laddered = nextQualifier(prefs);
+  const laddered = nextQualifier(prefs, asked);
   const shortCircuit = shouldSendMatchesNow(prefs, matches.length);
   const missing = shortCircuit ? null : laddered;
 
@@ -534,6 +581,46 @@ async function reply(
 }
 
 /**
+ * True when the lead has already sent something after the message we
+ * are processing.
+ *
+ * A lead thinking out loud sends a line at a time — "Land", then
+ * "Commercial or Semi commercial" three seconds later. Each arrives as
+ * its own webhook, so each was answered: the first with "Noted —
+ * residential land/plot" (a guess off one word, and the wrong one) and
+ * the second with "Noted — commercial land", both asking for the
+ * budget. The lead had to read two questions to find one.
+ *
+ * The later message is the one that gets the reply, because by then the
+ * brief holds both lines. The earlier one is still filed and still
+ * learned from — only the answering is skipped.
+ */
+async function supersededByLaterMessage(
+  db: ReturnType<typeof supabaseAdmin>,
+  conversationId: string,
+  metaMessageId: string | null | undefined
+): Promise<boolean> {
+  if (!metaMessageId) return false;
+
+  const { data: current } = await db
+    .from('messages')
+    .select('created_at')
+    .eq('conversation_id', conversationId)
+    .eq('message_id', metaMessageId)
+    .maybeSingle();
+  if (!current?.created_at) return false;
+
+  const { count } = await db
+    .from('messages')
+    .select('id', { count: 'exact', head: true })
+    .eq('conversation_id', conversationId)
+    .eq('sender_type', 'customer')
+    .gt('created_at', current.created_at as string);
+
+  return (count ?? 0) > 0;
+}
+
+/**
  * Handles an inbound lead message that states what they are looking
  * for. Returns true when the message was consumed and answered.
  */
@@ -546,7 +633,10 @@ export async function processBuyerQualificationMessage(
   phoneNumberId: string,
   /** Enables the requirement playback card on a fully-qualified
    *  no-match; without it the plain-text fallback goes out. */
-  configOwnerUserId?: string
+  configOwnerUserId?: string,
+  /** The inbound message's WhatsApp id, so a line the lead has already
+   *  followed up on is filed without being separately answered. */
+  metaMessageId?: string | null
 ): Promise<boolean> {
   const text = contentText?.trim();
   if (!text) return false;
@@ -557,6 +647,25 @@ export async function processBuyerQualificationMessage(
   // extraction is paid for, and the message falls through to the
   // handover branch that actually summons an agent.
   if (requestsHumanContact(text)) return false;
+
+  // Nor is a listing number. "Can you share location of Options 1 & 2?
+  // I will visit today." arrived straight after a shortlist, so the
+  // ladder claimed it as an answer and replied "what kind of property
+  // are you looking for?" — restarting the qualification of a lead who
+  // was already reading listings and offering to drive out to two of
+  // them the same day.
+  //
+  // Numbers rather than question shape, because a bare question is
+  // often best answered by the ladder: a new lead who asks "what do you
+  // have?" wants to be asked what they are after, not told a person
+  // will come back to them. Naming a number is unambiguous — nothing
+  // numbers a listing except the shortlist we sent.
+  if (
+    parseOrdinalReferences(text).length > 0 &&
+    !carriesRequirementSignal(text)
+  ) {
+    return false;
+  }
 
   try {
     const db = supabaseAdmin();
@@ -590,11 +699,19 @@ export async function processBuyerQualificationMessage(
     // the human.
     const { data: recent } = await db
       .from('messages')
-      .select('sender_type')
+      .select('sender_type, content_text')
       .eq('conversation_id', conversation.id)
       .order('created_at', { ascending: false })
       .limit(HUMAN_ACTIVITY_WINDOW);
     const humanActive = (recent || []).some((m) => m.sender_type === 'agent');
+
+    // The same window doubles as the record of what the ladder has
+    // already asked, so a rung is never put twice to the same lead.
+    const asked = askedQualifiers(
+      (recent || [])
+        .filter((m) => m.sender_type === 'bot')
+        .map((m) => m.content_text as string | null)
+    );
 
     // A bare answer ("Devanahalli") carries no signal of its own — it
     // only means something because we asked the question directly
@@ -684,11 +801,17 @@ export async function processBuyerQualificationMessage(
       return false;
     }
 
+    // Filed and learned from. The lead has since said more, so the
+    // answer belongs to that message and not to this one.
+    if (await supersededByLaterMessage(db, conversation.id, metaMessageId)) {
+      return true;
+    }
+
     // A named project earns a ranking run of its own, before any
     // question is asked — see shouldSendMatchesNow. Everything else
     // still waits for the ladder to finish, so an unqualified lead
     // never costs a scan of the account's inventory.
-    const laddered = nextQualifier(prefs);
+    const laddered = nextQualifier(prefs, asked);
     const matches =
       !laddered || hasProject(prefs)
         ? await rankPropertiesForContact(db, accountId, contact.id, {
@@ -733,7 +856,8 @@ export async function processBuyerQualificationMessage(
       matches,
       areas,
       baseUrl,
-      contact.id
+      contact.id,
+      asked
     );
 
     await reply(
