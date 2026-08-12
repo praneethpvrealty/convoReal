@@ -38,6 +38,14 @@ import {
 } from '@/lib/inventory/property-options';
 import { PROPERTY_TYPE_VALUES } from '@/lib/property-types';
 import { BUDGET_OPTIONS } from '@/lib/contacts/budget-options';
+import {
+  DIGEST_PAUSE_COMMAND,
+  DIGEST_RESUME_COMMAND,
+  OWNER_DETAILS_SECTIONS,
+  OWNER_DETAILS_SECTION_TITLES,
+  buildOwnerDetailsRequestMessage,
+  ownerDetailsSectionItems,
+} from '@/lib/owners/details-request';
 import { priceInWords } from '@/lib/currency-utils';
 import { confidentialityNote } from '@/lib/share-message-builder';
 import {
@@ -394,6 +402,79 @@ describe('mobile/lib/share-message.ts mirrors share-message-builder', () => {
     expect(source).toContain("showcase_visibility === 'teaser'");
     expect(source).toContain('Guide price *${band}*');
     expect(source).toContain('teaserTitle(property)');
+  });
+});
+
+describe('mobile/lib/owner-details-request.ts mirrors details-request', () => {
+  // The seller reads this once and answers it once. If the two surfaces
+  // ask for different papers, an owner messaged from the phone hands
+  // over a different file than one messaged from the desktop — and the
+  // agent has no way to tell which list they were given.
+  const source = mobileSource('lib/owner-details-request.ts');
+
+  it('asks for exactly the same items in every section, land or built', () => {
+    for (const type of ['Residential Plot', 'Flat/ Apartment']) {
+      for (const section of OWNER_DETAILS_SECTIONS) {
+        for (const item of ownerDetailsSectionItems(section, type)) {
+          expect(source, `mobile is missing: ${item}`).toContain(item);
+        }
+      }
+    }
+  });
+
+  it('titles the sections the same way', () => {
+    for (const section of OWNER_DETAILS_SECTIONS) {
+      expect(source).toContain(`'${OWNER_DETAILS_SECTION_TITLES[section]}'`);
+    }
+  });
+
+  // The promise and the opt-out are the same sentence. A mobile copy
+  // that advertises different words hands the owner a command the
+  // webhook will not honour.
+  it('quotes the same digest commands', () => {
+    expect(source).toContain(`'${DIGEST_PAUSE_COMMAND}'`);
+    expect(source).toContain(`'${DIGEST_RESUME_COMMAND}'`);
+  });
+
+  // Everything else in the message is prose held in string literals, so
+  // the copies are compared literal by literal rather than by sampling
+  // one rendered body. The import path is the one line allowed to
+  // differ — Metro cannot resolve the web alias.
+  it('carries every literal the web module does', () => {
+    // Comments are stripped first: the two headers deliberately differ,
+    // and an apostrophe in prose reads as a quote to the extractor.
+    const literals = (text: string) =>
+      new Set(
+        stringLiterals(text.replace(/^\s*(\/\/|\*|\/\*).*$/gm, '')).filter(
+          (s) => !s.startsWith('@/')
+        )
+      );
+    const web = literals(
+      readFileSync(
+        join(process.cwd(), 'src/lib/owners/details-request.ts'),
+        'utf8'
+      )
+    );
+    const mobile = literals(source);
+
+    expect(web.size).toBeGreaterThan(30);
+    for (const literal of web) {
+      expect(mobile.has(literal), `mobile is missing: ${literal}`).toBe(true);
+    }
+  });
+
+  it('renders a message the web builder would recognise', () => {
+    const web = buildOwnerDetailsRequestMessage({
+      ownerName: 'Mr Nadeem',
+      propertyLabel: 'a corner site',
+      propertyType: 'Residential Plot',
+      agentName: 'Praneeth',
+    });
+    expect(web).toContain('*1. The property itself*');
+    expect(web).not.toContain('What is built on it');
+    expect(source).toContain(
+      '*${i + 1}. ${OWNER_DETAILS_SECTION_TITLES[section]}*'
+    );
   });
 });
 

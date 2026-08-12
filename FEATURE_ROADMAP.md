@@ -66,3 +66,10 @@ To build the definitive, WhatsApp-first Engine for independent real estate agenc
 - [ ] **API Keys Settings UI (mobile)**: Not built — a §2.8 gap, stated rather than silent. The mobile app has no account-administration surface at all today (no Members, Teams, Billing or Routing), so API keys would be the first of its kind and needs a Settings shell to live in rather than a one-off screen. Deferred with the rest of that surface.
 - [ ] **Hosted Remote MCP**: OAuth 2.1 with dynamic client registration at `/api/mcp`, so a workspace can be connected without running a local process. Deliberately deferred until the stdio server shows real usage.
 - [ ] **Rate Limiting Across Instances**: `RATE_LIMITS.apiKeyV1` is enforced by the in-process limiter in `src/lib/rate-limit.ts`, which holds its Map in one Node process. Horizontal scale silently defeats it — swap for Redis before this surface is promoted beyond design partners.
+
+---
+
+### Deferred: account administration on mobile
+*§2.8 gaps, stated rather than silent. They share one root cause: the mobile app has no account-administration surface at all (no Members, Teams, Billing, Routing or Settings shell), so each of these would be the first of its kind rather than a screen added to an existing section.*
+- [ ] **Owner details request wording (mobile)**: The per-account editor for the seller intake message ships on web only (Settings → WhatsApp → Owners). The *message itself* is at full parity — the mobile sheet reads the same saved wording through `GET /api/owners/details-request/settings` and sends through the same route — so an account that customises it on web sees the change on the phone immediately. Only the editing UI is missing. (migration 262, `src/components/settings/owner-details-request-card.tsx`)
+- [ ] **API Keys Settings UI (mobile)**: See Milestone 6. Same root cause, same deferral.

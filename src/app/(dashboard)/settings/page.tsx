@@ -37,6 +37,7 @@ import {
 import { WhatsAppConfig } from '@/components/settings/whatsapp-config';
 import { WhatsAppFlowsCard } from '@/components/settings/whatsapp-flows-card';
 import { OwnerDigestCard } from '@/components/settings/owner-digest-card';
+import { OwnerDetailsRequestCard } from '@/components/settings/owner-details-request-card';
 import { AgentInventoryDigestCard } from '@/components/settings/agent-inventory-digest-card';
 import { AgentTaskDigestCard } from '@/components/settings/agent-task-digest-card';
 import { MetaAdsTab } from '@/components/settings/meta-ads-tab';
@@ -97,7 +98,7 @@ const WHATSAPP_SUBTABS = [
   { value: 'connection', label: 'Connection', icon: Plug },
   { value: 'templates', label: 'Templates', icon: MessageSquare },
   { value: 'flows', label: 'Flows', icon: Workflow },
-  { value: 'digest', label: 'Owner Digest', icon: Newspaper },
+  { value: 'digest', label: 'Owners', icon: Newspaper },
 ] as const;
 type WhatsAppSub = (typeof WHATSAPP_SUBTABS)[number]['value'];
 
@@ -494,6 +495,7 @@ export default function SettingsPage() {
             {whatsappSub === 'flows' && <WhatsAppFlowsCard />}
             {whatsappSub === 'digest' && (
               <div className="space-y-6">
+                <OwnerDetailsRequestCard />
                 <OwnerDigestCard />
                 <AgentInventoryDigestCard />
                 <AgentTaskDigestCard />
