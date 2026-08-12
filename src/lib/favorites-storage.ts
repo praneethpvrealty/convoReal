@@ -1,3 +1,4 @@
+import { readStored, removeStored, writeStored } from '@/lib/safe-storage';
 // ============================================================
 // Sidebar favourites — localStorage owner.
 //
@@ -12,8 +13,8 @@
 // app at least once after this ships.
 // ============================================================
 
-const KEY = "convoreal_favorites";
-const LEGACY_KEY = "crm_favorites";
+const KEY = 'convoreal_favorites';
+const LEGACY_KEY = 'crm_favorites';
 
 export interface FavoriteItem {
   label: string;
@@ -22,26 +23,26 @@ export interface FavoriteItem {
 }
 
 export function readFavorites(): FavoriteItem[] {
-  if (typeof window === "undefined") return [];
+  if (typeof window === 'undefined') return [];
 
-  let raw = localStorage.getItem(KEY);
+  let raw = readStored(KEY);
   if (raw === null) {
-    raw = localStorage.getItem(LEGACY_KEY);
+    raw = readStored(LEGACY_KEY);
     if (raw === null) return [];
-    localStorage.setItem(KEY, raw);
-    localStorage.removeItem(LEGACY_KEY);
+    writeStored(KEY, raw);
+    removeStored(LEGACY_KEY);
   }
 
   try {
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
   } catch (err) {
-    console.error("Failed to parse favorites", err);
+    console.error('Failed to parse favorites', err);
     return [];
   }
 }
 
 export function writeFavorites(favorites: FavoriteItem[]): void {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(KEY, JSON.stringify(favorites));
+  if (typeof window === 'undefined') return;
+  writeStored(KEY, JSON.stringify(favorites));
 }

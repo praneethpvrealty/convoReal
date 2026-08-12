@@ -22,7 +22,13 @@ import {
 import { useAuth } from '@/hooks/use-auth';
 import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { PLAN_ORDER, PLAN_CONFIG } from '@/lib/billing/plan-config';
 import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
@@ -81,6 +87,7 @@ const ExtensionsTab = dynamic(() => import('./extensions-tab'), {
   ),
 });
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { readStored, removeStored, writeStored } from '@/lib/safe-storage';
 
 interface WhatsappConfig {
   account_id: string;
@@ -106,13 +113,27 @@ interface Organization {
 
 export default function AdminDashboardPage() {
   const { user, profileLoading } = useAuth();
-  const [activeTab, setActiveTab] = useState<'overview' | 'settings' | 'sandbox' | 'analytics' | 'organizations' | 'marketplace' | 'billing' | 'extensions' | 'bugs' | 'demand' | 'support'>('overview');
+  const [activeTab, setActiveTab] = useState<
+    | 'overview'
+    | 'settings'
+    | 'sandbox'
+    | 'analytics'
+    | 'organizations'
+    | 'marketplace'
+    | 'billing'
+    | 'extensions'
+    | 'bugs'
+    | 'demand'
+    | 'support'
+  >('overview');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   // Organization action state
   const [orgActionId, setOrgActionId] = useState<string | null>(null);
-  const [confirmDeleteOrg, setConfirmDeleteOrg] = useState<Organization | null>(null);
+  const [confirmDeleteOrg, setConfirmDeleteOrg] = useState<Organization | null>(
+    null
+  );
 
   // Admin plan-override state (WhatsApp OTP step-up — see
   // src/app/api/admin/organizations/[id]/plan/{challenge,}/route.ts)
@@ -129,18 +150,23 @@ export default function AdminDashboardPage() {
   const [whatsappConfigs, setWhatsappConfigs] = useState<WhatsappConfig[]>([]);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [metrics, setMetrics] = useState({ usersCount: 0, orgsCount: 0 });
-  const [fallbackConfigAccountId, setFallbackConfigAccountId] = useState<string | null>(null);
-  const [featureToggles, setFeatureToggles] = useState<Record<string, boolean>>({
-    selfRegistrationEnabled: true,
-    sandboxTrialsEnabled: true,
-  });
+  const [fallbackConfigAccountId, setFallbackConfigAccountId] = useState<
+    string | null
+  >(null);
+  const [featureToggles, setFeatureToggles] = useState<Record<string, boolean>>(
+    {
+      selfRegistrationEnabled: true,
+      sandboxTrialsEnabled: true,
+    }
+  );
 
   // Sandbox Config State
   const [sandboxPhoneNumberId, setSandboxPhoneNumberId] = useState('');
   const [sandboxWabaId, setSandboxWabaId] = useState('');
   const [sandboxAccessToken, setSandboxAccessToken] = useState('');
   const [sandboxVerifyToken, setSandboxVerifyToken] = useState('');
-  const [sandboxDisplayName, setSandboxDisplayName] = useState('ConvoReal Sandbox');
+  const [sandboxDisplayName, setSandboxDisplayName] =
+    useState('ConvoReal Sandbox');
   const [sandboxEnabled, setSandboxEnabled] = useState(false);
   const [testingSandbox, setTestingSandbox] = useState(false);
   const [sandboxIsEditing, setSandboxIsEditing] = useState(false);
@@ -149,7 +175,9 @@ export default function AdminDashboardPage() {
   >('loading');
 
   // Sandbox Analytics State
-  const [sandboxTenants, setSandboxTenants] = useState<Array<Record<string, unknown>>>([]);
+  const [sandboxTenants, setSandboxTenants] = useState<
+    Array<Record<string, unknown>>
+  >([]);
   const [sandboxAnalyticsLoading, setSandboxAnalyticsLoading] = useState(false);
   const [sandboxStats, setSandboxStats] = useState({
     activeTrials: 0,
@@ -177,7 +205,9 @@ export default function AdminDashboardPage() {
         setWhatsappConfigs(data.whatsappConfigs || []);
         setOrganizations(data.organizations || []);
         setMetrics(data.metrics || { usersCount: 0, orgsCount: 0 });
-        setFallbackConfigAccountId(data.settings?.fallback_whatsapp_account_id || null);
+        setFallbackConfigAccountId(
+          data.settings?.fallback_whatsapp_account_id || null
+        );
         if (data.settings?.feature_toggles) {
           setFeatureToggles(data.settings.feature_toggles);
         }
@@ -197,7 +227,8 @@ export default function AdminDashboardPage() {
           // have to duplicate credentials. Use the first official_api config
           // that has a phone_number_id as the default sandbox number.
           const officialConfigs = (data.whatsappConfigs || []).filter(
-            (c: WhatsappConfig) => c.integration_type === 'official_api' && c.phone_number_id
+            (c: WhatsappConfig) =>
+              c.integration_type === 'official_api' && c.phone_number_id
           );
           if (officialConfigs.length > 0) {
             const cfg = officialConfigs[0];
@@ -205,9 +236,11 @@ export default function AdminDashboardPage() {
             setSandboxEnabled(true);
             setSandboxIsEditing(true);
             const seenKey = 'sandbox_autofill_seen';
-            if (typeof window !== 'undefined' && !localStorage.getItem(seenKey)) {
-              toast.info('Sandbox credentials auto-filled from your Official API config. Review and save.');
-              localStorage.setItem(seenKey, '1');
+            if (typeof window !== 'undefined' && !readStored(seenKey)) {
+              toast.info(
+                'Sandbox credentials auto-filled from your Official API config. Review and save.'
+              );
+              writeStored(seenKey, '1');
             }
           } else {
             setSandboxIsEditing(true);
@@ -215,7 +248,9 @@ export default function AdminDashboardPage() {
         }
         // Check sandbox connection status
         try {
-          const sbRes = await fetch('/api/admin/sandbox-config', { method: 'GET' });
+          const sbRes = await fetch('/api/admin/sandbox-config', {
+            method: 'GET',
+          });
           const sbData = await sbRes.json();
           if (sbData.connected) {
             setSandboxConnectionStatus('connected');
@@ -264,15 +299,22 @@ export default function AdminDashboardPage() {
     setOtpResendCountdown(0);
   }
 
-  async function handleIssueOtp(accountId: string, plan: string, isResend = false) {
+  async function handleIssueOtp(
+    accountId: string,
+    plan: string,
+    isResend = false
+  ) {
     setOtpSending(true);
     setOtpError(null);
     try {
-      const res = await fetch(`/api/admin/organizations/${accountId}/plan/challenge`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan }),
-      });
+      const res = await fetch(
+        `/api/admin/organizations/${accountId}/plan/challenge`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ plan }),
+        }
+      );
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(data.error || 'Failed to send verification code');
@@ -281,7 +323,9 @@ export default function AdminDashboardPage() {
       setOtpValues(Array(6).fill(''));
       setOtpResendCountdown(60);
       toast.success(
-        isResend ? 'New code sent to your WhatsApp' : 'Verification code sent to your WhatsApp'
+        isResend
+          ? 'New code sent to your WhatsApp'
+          : 'Verification code sent to your WhatsApp'
       );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to send code');
@@ -310,18 +354,27 @@ export default function AdminDashboardPage() {
     setOtpVerifying(true);
     setOtpError(null);
     try {
-      const res = await fetch(`/api/admin/organizations/${planChangeOrg.id}/plan`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ challengeId: otpChallengeId, code, plan: planChangeTarget }),
-      });
+      const res = await fetch(
+        `/api/admin/organizations/${planChangeOrg.id}/plan`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            challengeId: otpChallengeId,
+            code,
+            plan: planChangeTarget,
+          }),
+        }
+      );
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setOtpError(data.error || 'Verification failed');
         setOtpValues(Array(6).fill(''));
         return;
       }
-      toast.success(`"${planChangeOrg.name}" moved to the ${PLAN_CONFIG[planChangeTarget as keyof typeof PLAN_CONFIG]?.name ?? planChangeTarget} plan`);
+      toast.success(
+        `"${planChangeOrg.name}" moved to the ${PLAN_CONFIG[planChangeTarget as keyof typeof PLAN_CONFIG]?.name ?? planChangeTarget} plan`
+      );
       closeOtpModal();
       await refreshOrganizations();
     } catch (err) {
@@ -344,13 +397,18 @@ export default function AdminDashboardPage() {
     const finalOtp = nextOtp.join('');
     if (finalOtp.length === 6) {
       setTimeout(() => {
-        const form = document.getElementById('admin-otp-form') as HTMLFormElement | null;
+        const form = document.getElementById(
+          'admin-otp-form'
+        ) as HTMLFormElement | null;
         form?.requestSubmit();
       }, 50);
     }
   };
 
-  const handleOtpKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleOtpKeyDown = (
+    index: number,
+    e: React.KeyboardEvent<HTMLInputElement>
+  ) => {
     if (e.key === 'Backspace' && !otpValues[index] && index > 0) {
       const nextOtp = [...otpValues];
       nextOtp[index - 1] = '';
@@ -361,7 +419,10 @@ export default function AdminDashboardPage() {
 
   const handleOtpPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
     e.preventDefault();
-    const pasteData = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+    const pasteData = e.clipboardData
+      .getData('text')
+      .replace(/\D/g, '')
+      .slice(0, 6);
     if (pasteData.length > 0) {
       const newOtp = [...otpValues];
       pasteData.split('').forEach((digit, idx) => {
@@ -469,11 +530,13 @@ export default function AdminDashboardPage() {
 
       toast.success('Sandbox configuration saved successfully');
       if (typeof window !== 'undefined') {
-        localStorage.removeItem('sandbox_autofill_seen');
+        removeStored('sandbox_autofill_seen');
       }
     } catch (err) {
       console.error('Error saving sandbox config:', err);
-      toast.error(err instanceof Error ? err.message : 'Failed to save sandbox config');
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to save sandbox config'
+      );
     } finally {
       setSaving(false);
     }
@@ -486,7 +549,9 @@ export default function AdminDashboardPage() {
       const data = await res.json();
 
       if (data.connected) {
-        toast.success(`Sandbox connected: ${data.phone_info?.verified_name || 'API OK'}`);
+        toast.success(
+          `Sandbox connected: ${data.phone_info?.verified_name || 'API OK'}`
+        );
       } else {
         toast.error(data.message || 'Sandbox connection failed');
       }
@@ -501,7 +566,9 @@ export default function AdminDashboardPage() {
   async function fetchSandboxAnalytics() {
     try {
       setSandboxAnalyticsLoading(true);
-      const res = await fetch('/api/admin/sandbox-tenants?include_expired=true');
+      const res = await fetch(
+        '/api/admin/sandbox-tenants?include_expired=true'
+      );
       if (!res.ok) throw new Error('Failed to fetch sandbox tenants');
       const data = await res.json();
       const tenants = (data.tenants || []) as Array<Record<string, unknown>>;
@@ -510,23 +577,30 @@ export default function AdminDashboardPage() {
       // Calculate stats
       const now = new Date().getTime();
       const active = tenants.filter((t) => {
-        const endsAt = (t.trial_ends_at as string | null);
+        const endsAt = t.trial_ends_at as string | null;
         return endsAt ? new Date(endsAt).getTime() > now : true;
       });
       const expired = tenants.filter((t) => {
-        const endsAt = (t.trial_ends_at as string | null);
+        const endsAt = t.trial_ends_at as string | null;
         return endsAt ? new Date(endsAt).getTime() <= now : false;
       });
-      const totalMessages = tenants.reduce((sum, t) => sum + ((t.sandbox_message_count as number) || 0), 0);
-      const migratedCount = tenants.filter((t) => !!t.migrated_from_sandbox_at).length;
+      const totalMessages = tenants.reduce(
+        (sum, t) => sum + ((t.sandbox_message_count as number) || 0),
+        0
+      );
+      const migratedCount = tenants.filter(
+        (t) => !!t.migrated_from_sandbox_at
+      ).length;
       const totalCount = tenants.length;
 
       setSandboxStats({
         activeTrials: active.length,
         expiredTrials: expired.length,
         totalMessagesUsed: totalMessages,
-        avgMessagesPerTenant: totalCount > 0 ? Math.round(totalMessages / totalCount) : 0,
-        conversionRate: totalCount > 0 ? Math.round((migratedCount / totalCount) * 100) : 0,
+        avgMessagesPerTenant:
+          totalCount > 0 ? Math.round(totalMessages / totalCount) : 0,
+        conversionRate:
+          totalCount > 0 ? Math.round((migratedCount / totalCount) * 100) : 0,
       });
     } catch (err) {
       console.error('Error fetching sandbox analytics:', err);
@@ -544,30 +618,33 @@ export default function AdminDashboardPage() {
     );
   }
 
-  const selectedFallback = whatsappConfigs.find((c) => c.account_id === fallbackConfigAccountId);
+  const selectedFallback = whatsappConfigs.find(
+    (c) => c.account_id === fallbackConfigAccountId
+  );
 
   return (
     <div className="space-y-6">
       {/* Admin Title */}
       <div className="flex flex-col gap-1">
         <div className="flex items-center gap-2">
-          <Shield className="h-6 w-6 text-primary" />
+          <Shield className="text-primary h-6 w-6" />
           <h1 className="text-2xl font-black tracking-tight text-white uppercase">
             Global Admin Control Center
           </h1>
         </div>
         <p className="text-sm text-slate-400">
-          Manage system configurations, organizations, feature toggles, and dynamic fallbacks.
+          Manage system configurations, organizations, feature toggles, and
+          dynamic fallbacks.
         </p>
       </div>
 
       {/* Admin Navigation Tabs */}
-      <div className="flex border-b border-slate-800 gap-2">
+      <div className="flex gap-2 border-b border-slate-800">
         <button
           onClick={() => setActiveTab('overview')}
-          className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-all ${
+          className={`border-b-2 px-4 py-2.5 text-sm font-semibold transition-all ${
             activeTab === 'overview'
-              ? 'border-primary text-white bg-primary/5'
+              ? 'border-primary bg-primary/5 text-white'
               : 'border-transparent text-slate-400 hover:text-white'
           }`}
         >
@@ -575,9 +652,9 @@ export default function AdminDashboardPage() {
         </button>
         <button
           onClick={() => setActiveTab('settings')}
-          className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-all ${
+          className={`border-b-2 px-4 py-2.5 text-sm font-semibold transition-all ${
             activeTab === 'settings'
-              ? 'border-primary text-white bg-primary/5'
+              ? 'border-primary bg-primary/5 text-white'
               : 'border-transparent text-slate-400 hover:text-white'
           }`}
         >
@@ -585,19 +662,22 @@ export default function AdminDashboardPage() {
         </button>
         <button
           onClick={() => setActiveTab('sandbox')}
-          className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-all ${
+          className={`border-b-2 px-4 py-2.5 text-sm font-semibold transition-all ${
             activeTab === 'sandbox'
-              ? 'border-primary text-white bg-primary/5'
+              ? 'border-primary bg-primary/5 text-white'
               : 'border-transparent text-slate-400 hover:text-white'
           }`}
         >
           Sandbox Config
         </button>
         <button
-          onClick={() => { setActiveTab('analytics'); fetchSandboxAnalytics(); }}
-          className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-all ${
+          onClick={() => {
+            setActiveTab('analytics');
+            fetchSandboxAnalytics();
+          }}
+          className={`border-b-2 px-4 py-2.5 text-sm font-semibold transition-all ${
             activeTab === 'analytics'
-              ? 'border-primary text-white bg-primary/5'
+              ? 'border-primary bg-primary/5 text-white'
               : 'border-transparent text-slate-400 hover:text-white'
           }`}
         >
@@ -605,9 +685,9 @@ export default function AdminDashboardPage() {
         </button>
         <button
           onClick={() => setActiveTab('organizations')}
-          className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-all ${
+          className={`border-b-2 px-4 py-2.5 text-sm font-semibold transition-all ${
             activeTab === 'organizations'
-              ? 'border-primary text-white bg-primary/5'
+              ? 'border-primary bg-primary/5 text-white'
               : 'border-transparent text-slate-400 hover:text-white'
           }`}
         >
@@ -615,9 +695,9 @@ export default function AdminDashboardPage() {
         </button>
         <button
           onClick={() => setActiveTab('extensions')}
-          className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-all ${
+          className={`border-b-2 px-4 py-2.5 text-sm font-semibold transition-all ${
             activeTab === 'extensions'
-              ? 'border-primary text-white bg-primary/5'
+              ? 'border-primary bg-primary/5 text-white'
               : 'border-transparent text-slate-400 hover:text-white'
           }`}
         >
@@ -625,9 +705,9 @@ export default function AdminDashboardPage() {
         </button>
         <button
           onClick={() => setActiveTab('marketplace')}
-          className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-all ${
+          className={`border-b-2 px-4 py-2.5 text-sm font-semibold transition-all ${
             activeTab === 'marketplace'
-              ? 'border-primary text-white bg-primary/5'
+              ? 'border-primary bg-primary/5 text-white'
               : 'border-transparent text-slate-400 hover:text-white'
           }`}
         >
@@ -635,9 +715,9 @@ export default function AdminDashboardPage() {
         </button>
         <button
           onClick={() => setActiveTab('billing')}
-          className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-all ${
+          className={`border-b-2 px-4 py-2.5 text-sm font-semibold transition-all ${
             activeTab === 'billing'
-              ? 'border-primary text-white bg-primary/5'
+              ? 'border-primary bg-primary/5 text-white'
               : 'border-transparent text-slate-400 hover:text-white'
           }`}
         >
@@ -645,9 +725,9 @@ export default function AdminDashboardPage() {
         </button>
         <button
           onClick={() => setActiveTab('bugs')}
-          className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-all ${
+          className={`border-b-2 px-4 py-2.5 text-sm font-semibold transition-all ${
             activeTab === 'bugs'
-              ? 'border-primary text-white bg-primary/5'
+              ? 'border-primary bg-primary/5 text-white'
               : 'border-transparent text-slate-400 hover:text-white'
           }`}
         >
@@ -655,9 +735,9 @@ export default function AdminDashboardPage() {
         </button>
         <button
           onClick={() => setActiveTab('demand')}
-          className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-all ${
+          className={`border-b-2 px-4 py-2.5 text-sm font-semibold transition-all ${
             activeTab === 'demand'
-              ? 'border-primary text-white bg-primary/5'
+              ? 'border-primary bg-primary/5 text-white'
               : 'border-transparent text-slate-400 hover:text-white'
           }`}
         >
@@ -665,9 +745,9 @@ export default function AdminDashboardPage() {
         </button>
         <button
           onClick={() => setActiveTab('support')}
-          className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-all ${
+          className={`border-b-2 px-4 py-2.5 text-sm font-semibold transition-all ${
             activeTab === 'support'
-              ? 'border-primary text-white bg-primary/5'
+              ? 'border-primary bg-primary/5 text-white'
               : 'border-transparent text-slate-400 hover:text-white'
           }`}
         >
@@ -679,47 +759,67 @@ export default function AdminDashboardPage() {
       {activeTab === 'overview' && (
         <div className="space-y-6">
           {/* Metrics Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <Card className="bg-slate-900 border-slate-700 ring-0 ring-transparent">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
+            <Card className="border-slate-700 bg-slate-900 ring-0 ring-transparent">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-semibold text-slate-400">Total Users</CardTitle>
-                <Users className="h-4 w-4 text-primary" />
+                <CardTitle className="text-sm font-semibold text-slate-400">
+                  Total Users
+                </CardTitle>
+                <Users className="text-primary h-4 w-4" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-black text-white">{metrics.usersCount}</div>
-                <p className="text-xs text-slate-500 mt-1">Platform-wide registered profiles</p>
+                <div className="text-2xl font-black text-white">
+                  {metrics.usersCount}
+                </div>
+                <p className="mt-1 text-xs text-slate-500">
+                  Platform-wide registered profiles
+                </p>
               </CardContent>
             </Card>
 
-            <Card className="bg-slate-900 border-slate-700 ring-0 ring-transparent">
+            <Card className="border-slate-700 bg-slate-900 ring-0 ring-transparent">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-semibold text-slate-400">Organizations</CardTitle>
-                <Building className="h-4 w-4 text-primary" />
+                <CardTitle className="text-sm font-semibold text-slate-400">
+                  Organizations
+                </CardTitle>
+                <Building className="text-primary h-4 w-4" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-black text-white">{metrics.orgsCount}</div>
-                <p className="text-xs text-slate-500 mt-1">Active business tenants</p>
+                <div className="text-2xl font-black text-white">
+                  {metrics.orgsCount}
+                </div>
+                <p className="mt-1 text-xs text-slate-500">
+                  Active business tenants
+                </p>
               </CardContent>
             </Card>
 
-            <Card className="bg-slate-900 border-slate-700 ring-0 ring-transparent">
+            <Card className="border-slate-700 bg-slate-900 ring-0 ring-transparent">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-semibold text-slate-400">WhatsApp Senders</CardTitle>
-                <Activity className="h-4 w-4 text-primary" />
+                <CardTitle className="text-sm font-semibold text-slate-400">
+                  WhatsApp Senders
+                </CardTitle>
+                <Activity className="text-primary h-4 w-4" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-black text-white">{whatsappConfigs.length}</div>
-                <p className="text-xs text-slate-500 mt-1">Configured account credentials</p>
+                <div className="text-2xl font-black text-white">
+                  {whatsappConfigs.length}
+                </div>
+                <p className="mt-1 text-xs text-slate-500">
+                  Configured account credentials
+                </p>
               </CardContent>
             </Card>
 
-            <Card className="bg-slate-900 border-slate-700 ring-0 ring-transparent">
+            <Card className="border-slate-700 bg-slate-900 ring-0 ring-transparent">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-semibold text-slate-400">Sandbox Status</CardTitle>
+                <CardTitle className="text-sm font-semibold text-slate-400">
+                  Sandbox Status
+                </CardTitle>
                 {sandboxConnectionStatus === 'connected' ? (
                   <CheckCircle2 className="h-4 w-4 text-emerald-400" />
                 ) : sandboxConnectionStatus === 'loading' ? (
-                  <Loader2 className="h-4 w-4 text-slate-400 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
                 ) : (
                   <AlertTriangle className="h-4 w-4 text-amber-400" />
                 )}
@@ -739,7 +839,7 @@ export default function AdminDashboardPage() {
                     <span className="text-slate-400">Checking...</span>
                   )}
                 </div>
-                <p className="text-xs text-slate-500 mt-1">
+                <p className="mt-1 text-xs text-slate-500">
                   {sandboxConnectionStatus === 'connected'
                     ? 'Shared sandbox number is ready for trial users'
                     : sandboxConnectionStatus === 'disconnected'
@@ -754,27 +854,35 @@ export default function AdminDashboardPage() {
 
           {/* Current Fallback Status Alert */}
           {selectedFallback ? (
-            <Alert className="bg-emerald-950/30 border-emerald-600/30 text-slate-200">
+            <Alert className="border-emerald-600/30 bg-emerald-950/30 text-slate-200">
               <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-              <AlertTitle className="text-emerald-400 font-bold">Active Fallback OTP Sender Configured</AlertTitle>
-              <AlertDescription className="text-xs text-slate-400 mt-1">
+              <AlertTitle className="font-bold text-emerald-400">
+                Active Fallback OTP Sender Configured
+              </AlertTitle>
+              <AlertDescription className="mt-1 text-xs text-slate-400">
                 System OTP login codes will be sent from account:{' '}
                 <strong className="text-slate-200">
                   {selectedFallback.owner_name} ({selectedFallback.owner_email})
                 </strong>{' '}
-                using method <strong className="text-slate-200">{selectedFallback.integration_type}</strong> (Phone ID:{' '}
-                {selectedFallback.phone_number_id || 'N/A'}).
+                using method{' '}
+                <strong className="text-slate-200">
+                  {selectedFallback.integration_type}
+                </strong>{' '}
+                (Phone ID: {selectedFallback.phone_number_id || 'N/A'}).
               </AlertDescription>
             </Alert>
           ) : (
-            <Alert className="bg-amber-950/30 border-amber-600/30 text-slate-200">
+            <Alert className="border-amber-600/30 bg-amber-950/30 text-slate-200">
               <AlertTriangle className="h-4 w-4 text-amber-400" />
-              <AlertTitle className="text-amber-400 font-bold">No Explicit Fallback Sender Configured</AlertTitle>
-              <AlertDescription className="text-xs text-slate-400 mt-1">
-                The system is currently defaulting to the very first registered config row in the database. Go to the{' '}
+              <AlertTitle className="font-bold text-amber-400">
+                No Explicit Fallback Sender Configured
+              </AlertTitle>
+              <AlertDescription className="mt-1 text-xs text-slate-400">
+                The system is currently defaulting to the very first registered
+                config row in the database. Go to the{' '}
                 <button
                   onClick={() => setActiveTab('settings')}
-                  className="underline text-primary font-semibold cursor-pointer"
+                  className="text-primary cursor-pointer font-semibold underline"
                 >
                   Fallback & Settings
                 </button>{' '}
@@ -786,84 +894,118 @@ export default function AdminDashboardPage() {
       )}
 
       {activeTab === 'settings' && (
-        <div className="space-y-6 max-w-3xl">
-          <Card className="bg-slate-900 border-slate-700 ring-0 ring-transparent">
+        <div className="max-w-3xl space-y-6">
+          <Card className="border-slate-700 bg-slate-900 ring-0 ring-transparent">
             <CardHeader>
-              <CardTitle className="text-white text-base">OTP Fallback Routing Configuration</CardTitle>
+              <CardTitle className="text-base text-white">
+                OTP Fallback Routing Configuration
+              </CardTitle>
               <CardDescription className="text-slate-400">
-                Choose which account&apos;s Meta credentials will send the system-wide login OTP verification codes.
+                Choose which account&apos;s Meta credentials will send the
+                system-wide login OTP verification codes.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-300">Selected Sender Account</label>
+                <label className="text-sm font-semibold text-slate-300">
+                  Selected Sender Account
+                </label>
                 <select
                   value={fallbackConfigAccountId || ''}
-                  onChange={(e) => setFallbackConfigAccountId(e.target.value || null)}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+                  onChange={(e) =>
+                    setFallbackConfigAccountId(e.target.value || null)
+                  }
+                  className="focus:ring-primary w-full cursor-pointer rounded-xl border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:ring-1 focus:outline-none"
                 >
-                  <option value="">-- No Fallback Config Selected (Use database default) --</option>
+                  <option value="">
+                    -- No Fallback Config Selected (Use database default) --
+                  </option>
                   {whatsappConfigs.map((cfg) => (
                     <option key={cfg.account_id} value={cfg.account_id}>
-                      {cfg.owner_name} ({cfg.owner_email}) - {cfg.integration_type.toUpperCase()} [ID:{' '}
+                      {cfg.owner_name} ({cfg.owner_email}) -{' '}
+                      {cfg.integration_type.toUpperCase()} [ID:{' '}
                       {cfg.phone_number_id || 'N/A'}]
                     </option>
                   ))}
                 </select>
-                <p className="text-xs text-slate-500 leading-relaxed flex items-start gap-1.5 pt-1">
-                  <Info className="h-3.5 w-3.5 text-slate-400 shrink-0 mt-0.5" />
-                  Ensure the selected sender account has an approved Utility Template named{' '}
-                  <code className="text-slate-300">whatsapp_otp</code> to deliver OTP codes to Indian (+91) recipients
-                  without getting blocked by Meta.
+                <p className="flex items-start gap-1.5 pt-1 text-xs leading-relaxed text-slate-500">
+                  <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />
+                  Ensure the selected sender account has an approved Utility
+                  Template named{' '}
+                  <code className="text-slate-300">whatsapp_otp</code> to
+                  deliver OTP codes to Indian (+91) recipients without getting
+                  blocked by Meta.
                 </p>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="bg-slate-900 border-slate-700 ring-0 ring-transparent">
+          <Card className="border-slate-700 bg-slate-900 ring-0 ring-transparent">
             <CardHeader>
-              <CardTitle className="text-white text-base">Global Feature Toggles</CardTitle>
+              <CardTitle className="text-base text-white">
+                Global Feature Toggles
+              </CardTitle>
               <CardDescription className="text-slate-400">
-                Enable or disable specific modules and trials globally across the platform.
+                Enable or disable specific modules and trials globally across
+                the platform.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Toggle Self-registration */}
-              <div className="flex items-center justify-between p-3 rounded-xl border border-slate-800 bg-slate-950/40">
+              <div className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950/40 p-3">
                 <div className="space-y-0.5">
-                  <div className="text-sm font-semibold text-white">Self Sign-up Registration</div>
-                  <p className="text-xs text-slate-500">Allow new clients to create accounts on this Engine instance.</p>
+                  <div className="text-sm font-semibold text-white">
+                    Self Sign-up Registration
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    Allow new clients to create accounts on this Engine
+                    instance.
+                  </p>
                 </div>
                 <input
                   type="checkbox"
                   checked={featureToggles.selfRegistrationEnabled}
                   onChange={(e) =>
-                    setFeatureToggles((prev) => ({ ...prev, selfRegistrationEnabled: e.target.checked }))
+                    setFeatureToggles((prev) => ({
+                      ...prev,
+                      selfRegistrationEnabled: e.target.checked,
+                    }))
                   }
-                  className="rounded border-slate-700 bg-slate-800 text-primary focus:ring-0 focus:ring-offset-0 h-4 w-4 cursor-pointer"
+                  className="text-primary h-4 w-4 cursor-pointer rounded border-slate-700 bg-slate-800 focus:ring-0 focus:ring-offset-0"
                 />
               </div>
 
               {/* Toggle Sandbox mode */}
-              <div className="flex items-center justify-between p-3 rounded-xl border border-slate-800 bg-slate-950/40">
+              <div className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950/40 p-3">
                 <div className="space-y-0.5">
-                  <div className="text-sm font-semibold text-white">Sandbox Mode Trials</div>
-                  <p className="text-xs text-slate-500">Enable 7-day sandbox trials for new connections.</p>
+                  <div className="text-sm font-semibold text-white">
+                    Sandbox Mode Trials
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    Enable 7-day sandbox trials for new connections.
+                  </p>
                 </div>
                 <input
                   type="checkbox"
                   checked={featureToggles.sandboxTrialsEnabled}
                   onChange={(e) =>
-                    setFeatureToggles((prev) => ({ ...prev, sandboxTrialsEnabled: e.target.checked }))
+                    setFeatureToggles((prev) => ({
+                      ...prev,
+                      sandboxTrialsEnabled: e.target.checked,
+                    }))
                   }
-                  className="rounded border-slate-700 bg-slate-800 text-primary focus:ring-0 focus:ring-offset-0 h-4 w-4 cursor-pointer"
+                  className="text-primary h-4 w-4 cursor-pointer rounded border-slate-700 bg-slate-800 focus:ring-0 focus:ring-offset-0"
                 />
               </div>
             </CardContent>
           </Card>
 
           <div className="flex items-center gap-2">
-            <Button onClick={handleSaveSettings} disabled={saving} className="rounded-xl px-5">
+            <Button
+              onClick={handleSaveSettings}
+              disabled={saving}
+              className="rounded-xl px-5"
+            >
               {saving ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -881,18 +1023,22 @@ export default function AdminDashboardPage() {
       )}
 
       {activeTab === 'sandbox' && (
-        <div className="space-y-6 max-w-3xl">
-          <Card className="bg-slate-900 border-slate-700 ring-0 ring-transparent">
+        <div className="max-w-3xl space-y-6">
+          <Card className="border-slate-700 bg-slate-900 ring-0 ring-transparent">
             <CardHeader>
-              <CardTitle className="text-white text-base">Shared Sandbox WhatsApp Configuration</CardTitle>
+              <CardTitle className="text-base text-white">
+                Shared Sandbox WhatsApp Configuration
+              </CardTitle>
               <CardDescription className="text-slate-400">
-                Configure the system-wide WhatsApp Business number that all sandbox trial tenants will share. This requires a dedicated Meta Cloud API phone number.
+                Configure the system-wide WhatsApp Business number that all
+                sandbox trial tenants will share. This requires a dedicated Meta
+                Cloud API phone number.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Edit mode banner */}
               {!sandboxIsEditing && sandboxPhoneNumberId && (
-                <div className="flex items-center justify-between p-3 rounded-xl border border-amber-800/40 bg-amber-950/20">
+                <div className="flex items-center justify-between rounded-xl border border-amber-800/40 bg-amber-950/20 p-3">
                   <div className="flex items-center gap-2">
                     <CheckCircle2 className="h-4 w-4 text-amber-400" />
                     <span className="text-xs text-amber-300">
@@ -903,7 +1049,7 @@ export default function AdminDashboardPage() {
                     variant="outline"
                     size="sm"
                     onClick={() => setSandboxIsEditing(true)}
-                    className="rounded-lg border-amber-700/50 text-amber-300 hover:text-white hover:bg-amber-900/30 text-xs"
+                    className="rounded-lg border-amber-700/50 text-xs text-amber-300 hover:bg-amber-900/30 hover:text-white"
                   >
                     Edit
                   </Button>
@@ -911,94 +1057,122 @@ export default function AdminDashboardPage() {
               )}
 
               {/* Enable Toggle */}
-              <div className="flex items-center justify-between p-3 rounded-xl border border-slate-800 bg-slate-950/40">
+              <div className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950/40 p-3">
                 <div className="space-y-0.5">
-                  <div className="text-sm font-semibold text-white">Enable Sandbox Mode</div>
-                  <p className="text-xs text-slate-500">Allow users to start 7-day sandbox trials.</p>
+                  <div className="text-sm font-semibold text-white">
+                    Enable Sandbox Mode
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    Allow users to start 7-day sandbox trials.
+                  </p>
                 </div>
                 <input
                   type="checkbox"
                   checked={sandboxEnabled}
                   disabled={!sandboxIsEditing}
                   onChange={(e) => setSandboxEnabled(e.target.checked)}
-                  className="rounded border-slate-700 bg-slate-800 text-primary focus:ring-0 focus:ring-offset-0 h-4 w-4 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="text-primary h-4 w-4 cursor-pointer rounded border-slate-700 bg-slate-800 focus:ring-0 focus:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50"
                 />
               </div>
 
               {/* Auto-fill from Official API */}
-              {sandboxIsEditing && whatsappConfigs.filter((c) => c.integration_type === 'official_api' && c.phone_number_id).length > 0 && (
-                <div className="p-3 rounded-xl border border-blue-800/40 bg-blue-950/20">
-                  <p className="text-xs text-blue-300 mb-2">
-                    We detected your Official API credentials. You can auto-fill the sandbox config with the same number.
-                  </p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      const cfg = whatsappConfigs.find((c) => c.integration_type === 'official_api' && c.phone_number_id);
-                      if (cfg) {
-                        setSandboxPhoneNumberId(cfg.phone_number_id || '');
-                        setSandboxWabaId(cfg.waba_id || '');
-                        setSandboxVerifyToken(cfg.verify_token || '');
-                        setSandboxEnabled(true);
-                        toast.success('Auto-filled from your Official API config. Add token and save.');
-                      }
-                    }}
-                    className="rounded-lg border-blue-700/50 text-blue-300 hover:text-white hover:bg-blue-900/30 text-xs"
-                  >
-                    Use My Official API Credentials
-                  </Button>
-                </div>
-              )}
+              {sandboxIsEditing &&
+                whatsappConfigs.filter(
+                  (c) =>
+                    c.integration_type === 'official_api' && c.phone_number_id
+                ).length > 0 && (
+                  <div className="rounded-xl border border-blue-800/40 bg-blue-950/20 p-3">
+                    <p className="mb-2 text-xs text-blue-300">
+                      We detected your Official API credentials. You can
+                      auto-fill the sandbox config with the same number.
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const cfg = whatsappConfigs.find(
+                          (c) =>
+                            c.integration_type === 'official_api' &&
+                            c.phone_number_id
+                        );
+                        if (cfg) {
+                          setSandboxPhoneNumberId(cfg.phone_number_id || '');
+                          setSandboxWabaId(cfg.waba_id || '');
+                          setSandboxVerifyToken(cfg.verify_token || '');
+                          setSandboxEnabled(true);
+                          toast.success(
+                            'Auto-filled from your Official API config. Add token and save.'
+                          );
+                        }
+                      }}
+                      className="rounded-lg border-blue-700/50 text-xs text-blue-300 hover:bg-blue-900/30 hover:text-white"
+                    >
+                      Use My Official API Credentials
+                    </Button>
+                  </div>
+                )}
 
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-300">Display Name</label>
+                <label className="text-sm font-semibold text-slate-300">
+                  Display Name
+                </label>
                 <input
                   type="text"
                   value={sandboxDisplayName}
                   disabled={!sandboxIsEditing}
                   onChange={(e) => setSandboxDisplayName(e.target.value)}
                   placeholder="ConvoReal Sandbox"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 disabled:bg-slate-900 disabled:cursor-not-allowed"
+                  className="focus:ring-primary w-full rounded-xl border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:ring-1 focus:outline-none disabled:cursor-not-allowed disabled:bg-slate-900 disabled:opacity-50"
                 />
                 <p className="text-xs text-slate-500">
-                  This name appears to leads when they receive messages from the shared number.
+                  This name appears to leads when they receive messages from the
+                  shared number.
                 </p>
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-300">Phone Number ID</label>
+                <label className="text-sm font-semibold text-slate-300">
+                  Phone Number ID
+                </label>
                 <input
                   type="text"
                   value={sandboxPhoneNumberId}
                   disabled={!sandboxIsEditing}
                   onChange={(e) => setSandboxPhoneNumberId(e.target.value)}
                   placeholder="e.g. 100234567890123"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 disabled:bg-slate-900 disabled:cursor-not-allowed"
+                  className="focus:ring-primary w-full rounded-xl border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:ring-1 focus:outline-none disabled:cursor-not-allowed disabled:bg-slate-900 disabled:opacity-50"
                 />
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-300">WABA ID (Optional)</label>
+                <label className="text-sm font-semibold text-slate-300">
+                  WABA ID (Optional)
+                </label>
                 <input
                   type="text"
                   value={sandboxWabaId}
                   disabled={!sandboxIsEditing}
                   onChange={(e) => setSandboxWabaId(e.target.value)}
                   placeholder="e.g. 100234567890456"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 disabled:bg-slate-900 disabled:cursor-not-allowed"
+                  className="focus:ring-primary w-full rounded-xl border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:ring-1 focus:outline-none disabled:cursor-not-allowed disabled:bg-slate-900 disabled:opacity-50"
                 />
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-300">Permanent Access Token</label>
+                <label className="text-sm font-semibold text-slate-300">
+                  Permanent Access Token
+                </label>
                 <input
                   type="password"
                   value={sandboxAccessToken}
                   disabled={!sandboxIsEditing}
                   onChange={(e) => setSandboxAccessToken(e.target.value)}
-                  placeholder={sandboxIsEditing ? 'Enter Meta access token' : '••••••••••••••••'}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 disabled:bg-slate-900 disabled:cursor-not-allowed"
+                  placeholder={
+                    sandboxIsEditing
+                      ? 'Enter Meta access token'
+                      : '••••••••••••••••'
+                  }
+                  className="focus:ring-primary w-full rounded-xl border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:ring-1 focus:outline-none disabled:cursor-not-allowed disabled:bg-slate-900 disabled:opacity-50"
                 />
                 <p className="text-xs text-slate-500">
                   {sandboxIsEditing
@@ -1008,24 +1182,31 @@ export default function AdminDashboardPage() {
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-300">Webhook Verify Token</label>
+                <label className="text-sm font-semibold text-slate-300">
+                  Webhook Verify Token
+                </label>
                 <input
                   type="text"
                   value={sandboxVerifyToken}
                   disabled={!sandboxIsEditing}
                   onChange={(e) => setSandboxVerifyToken(e.target.value)}
                   placeholder="Create a custom verify token"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 disabled:bg-slate-900 disabled:cursor-not-allowed"
+                  className="focus:ring-primary w-full rounded-xl border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:ring-1 focus:outline-none disabled:cursor-not-allowed disabled:bg-slate-900 disabled:opacity-50"
                 />
                 <p className="text-xs text-slate-500">
-                  Must match the verify token configured in Meta webhook settings for this number.
+                  Must match the verify token configured in Meta webhook
+                  settings for this number.
                 </p>
               </div>
             </CardContent>
           </Card>
 
           <div className="flex items-center gap-3">
-            <Button onClick={handleSaveSandboxConfig} disabled={saving} className="rounded-xl px-5">
+            <Button
+              onClick={handleSaveSandboxConfig}
+              disabled={saving}
+              className="rounded-xl px-5"
+            >
               {saving ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -1042,7 +1223,7 @@ export default function AdminDashboardPage() {
               variant="outline"
               onClick={handleTestSandboxConnection}
               disabled={testingSandbox}
-              className="rounded-xl px-5 border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800"
+              className="rounded-xl border-slate-700 px-5 text-slate-300 hover:bg-slate-800 hover:text-white"
             >
               {testingSandbox ? (
                 <>
@@ -1058,14 +1239,31 @@ export default function AdminDashboardPage() {
             </Button>
           </div>
 
-          <Alert className="bg-blue-950/30 border-blue-600/30 text-slate-200">
+          <Alert className="border-blue-600/30 bg-blue-950/30 text-slate-200">
             <Info className="h-4 w-4 text-blue-400" />
-            <AlertTitle className="text-blue-400 font-bold">Important Configuration Notes</AlertTitle>
-            <AlertDescription className="text-xs text-slate-400 mt-1 space-y-1">
-              <p>1. This phone number must be dedicated to sandbox use and not used by any tenant directly.</p>
-              <p>2. Ensure Meta webhooks for this number point to: <code className="text-slate-300">{typeof window !== 'undefined' ? window.location.origin : ''}/api/whatsapp/webhook</code></p>
-              <p>3. All sandbox conversations are billed to this account. Monitor usage and costs carefully.</p>
-              <p>4. Maximum 5 unique recipient numbers can be added per Meta test number in sandbox mode.</p>
+            <AlertTitle className="font-bold text-blue-400">
+              Important Configuration Notes
+            </AlertTitle>
+            <AlertDescription className="mt-1 space-y-1 text-xs text-slate-400">
+              <p>
+                1. This phone number must be dedicated to sandbox use and not
+                used by any tenant directly.
+              </p>
+              <p>
+                2. Ensure Meta webhooks for this number point to:{' '}
+                <code className="text-slate-300">
+                  {typeof window !== 'undefined' ? window.location.origin : ''}
+                  /api/whatsapp/webhook
+                </code>
+              </p>
+              <p>
+                3. All sandbox conversations are billed to this account. Monitor
+                usage and costs carefully.
+              </p>
+              <p>
+                4. Maximum 5 unique recipient numbers can be added per Meta test
+                number in sandbox mode.
+              </p>
             </AlertDescription>
           </Alert>
         </div>
@@ -1074,57 +1272,83 @@ export default function AdminDashboardPage() {
       {activeTab === 'analytics' && (
         <div className="space-y-6">
           {/* Stats Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <Card className="bg-slate-900 border-slate-700 ring-0 ring-transparent">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-4">
+            <Card className="border-slate-700 bg-slate-900 ring-0 ring-transparent">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-semibold text-slate-400">Active Trials</CardTitle>
+                <CardTitle className="text-sm font-semibold text-slate-400">
+                  Active Trials
+                </CardTitle>
                 <Activity className="h-4 w-4 text-emerald-400" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-black text-white">{sandboxStats.activeTrials}</div>
-                <p className="text-xs text-slate-500 mt-1">Currently active sandbox tenants</p>
+                <div className="text-2xl font-black text-white">
+                  {sandboxStats.activeTrials}
+                </div>
+                <p className="mt-1 text-xs text-slate-500">
+                  Currently active sandbox tenants
+                </p>
               </CardContent>
             </Card>
 
-            <Card className="bg-slate-900 border-slate-700 ring-0 ring-transparent">
+            <Card className="border-slate-700 bg-slate-900 ring-0 ring-transparent">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-semibold text-slate-400">Expired Trials</CardTitle>
+                <CardTitle className="text-sm font-semibold text-slate-400">
+                  Expired Trials
+                </CardTitle>
                 <AlertTriangle className="h-4 w-4 text-amber-400" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-black text-white">{sandboxStats.expiredTrials}</div>
-                <p className="text-xs text-slate-500 mt-1">Trials that have ended</p>
+                <div className="text-2xl font-black text-white">
+                  {sandboxStats.expiredTrials}
+                </div>
+                <p className="mt-1 text-xs text-slate-500">
+                  Trials that have ended
+                </p>
               </CardContent>
             </Card>
 
-            <Card className="bg-slate-900 border-slate-700 ring-0 ring-transparent">
+            <Card className="border-slate-700 bg-slate-900 ring-0 ring-transparent">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-semibold text-slate-400">Messages Used</CardTitle>
+                <CardTitle className="text-sm font-semibold text-slate-400">
+                  Messages Used
+                </CardTitle>
                 <Users className="h-4 w-4 text-blue-400" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-black text-white">{sandboxStats.totalMessagesUsed}</div>
-                <p className="text-xs text-slate-500 mt-1">Avg {sandboxStats.avgMessagesPerTenant} per tenant</p>
+                <div className="text-2xl font-black text-white">
+                  {sandboxStats.totalMessagesUsed}
+                </div>
+                <p className="mt-1 text-xs text-slate-500">
+                  Avg {sandboxStats.avgMessagesPerTenant} per tenant
+                </p>
               </CardContent>
             </Card>
 
-            <Card className="bg-slate-900 border-slate-700 ring-0 ring-transparent">
+            <Card className="border-slate-700 bg-slate-900 ring-0 ring-transparent">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-semibold text-slate-400">Conversion Rate</CardTitle>
-                <CheckCircle2 className="h-4 w-4 text-primary" />
+                <CardTitle className="text-sm font-semibold text-slate-400">
+                  Conversion Rate
+                </CardTitle>
+                <CheckCircle2 className="text-primary h-4 w-4" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-black text-white">{sandboxStats.conversionRate}%</div>
-                <p className="text-xs text-slate-500 mt-1">Upgraded to Official API</p>
+                <div className="text-2xl font-black text-white">
+                  {sandboxStats.conversionRate}%
+                </div>
+                <p className="mt-1 text-xs text-slate-500">
+                  Upgraded to Official API
+                </p>
               </CardContent>
             </Card>
           </div>
 
           {/* Sandbox Tenants Table */}
-          <Card className="bg-slate-900 border-slate-700 ring-0 ring-transparent">
+          <Card className="border-slate-700 bg-slate-900 ring-0 ring-transparent">
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
-                <CardTitle className="text-white text-base">Sandbox Tenants</CardTitle>
+                <CardTitle className="text-base text-white">
+                  Sandbox Tenants
+                </CardTitle>
                 <CardDescription className="text-slate-400">
                   All sandbox accounts and their usage statistics.
                 </CardDescription>
@@ -1134,7 +1358,7 @@ export default function AdminDashboardPage() {
                 size="sm"
                 onClick={fetchSandboxAnalytics}
                 disabled={sandboxAnalyticsLoading}
-                className="border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800"
+                className="border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white"
               >
                 {sandboxAnalyticsLoading ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -1147,7 +1371,7 @@ export default function AdminDashboardPage() {
             <CardContent>
               <div className="overflow-x-auto rounded-xl border border-slate-800">
                 <table className="w-full border-collapse text-left text-sm text-slate-300">
-                  <thead className="bg-slate-950/50 text-xs font-bold uppercase tracking-wider text-slate-400 border-b border-slate-850">
+                  <thead className="border-slate-850 border-b bg-slate-950/50 text-xs font-bold tracking-wider text-slate-400 uppercase">
                     <tr>
                       <th className="px-4 py-3">Code</th>
                       <th className="px-4 py-3">Owner</th>
@@ -1158,49 +1382,64 @@ export default function AdminDashboardPage() {
                       <th className="px-4 py-3">Migrated</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-850">
+                  <tbody className="divide-slate-850 divide-y">
                     {sandboxTenants.map((tenant: Record<string, unknown>) => {
-                      const owner = tenant.owner as Record<string, unknown> | undefined;
-                      const stats = tenant.stats as Record<string, number> | undefined;
+                      const owner = tenant.owner as
+                        | Record<string, unknown>
+                        | undefined;
+                      const stats = tenant.stats as
+                        | Record<string, number>
+                        | undefined;
                       const isExpired = tenant.trial_ends_at
-                        ? new Date(tenant.trial_ends_at as string).getTime() <= Date.now()
+                        ? new Date(tenant.trial_ends_at as string).getTime() <=
+                          Date.now()
                         : false;
                       const isMigrated = !!tenant.migrated_from_sandbox_at;
 
                       return (
-                        <tr key={tenant.account_id as string} className="hover:bg-slate-950/20">
+                        <tr
+                          key={tenant.account_id as string}
+                          className="hover:bg-slate-950/20"
+                        >
                           <td className="px-4 py-3">
-                            <code className="text-primary font-mono text-xs bg-primary/10 px-2 py-1 rounded">
-                              #{tenant.sandbox_code as string || 'N/A'}
+                            <code className="text-primary bg-primary/10 rounded px-2 py-1 font-mono text-xs">
+                              #{(tenant.sandbox_code as string) || 'N/A'}
                             </code>
                           </td>
                           <td className="px-4 py-3">
-                            <div className="text-white font-medium">{owner?.full_name as string || 'Unknown'}</div>
-                            <div className="text-slate-500 text-xs">{owner?.email as string || ''}</div>
+                            <div className="font-medium text-white">
+                              {(owner?.full_name as string) || 'Unknown'}
+                            </div>
+                            <div className="text-xs text-slate-500">
+                              {(owner?.email as string) || ''}
+                            </div>
                           </td>
                           <td className="px-4 py-3">
                             {isMigrated ? (
-                              <span className="inline-flex items-center gap-1 text-xs font-medium text-blue-400 bg-blue-400/10 px-2 py-1 rounded">
+                              <span className="inline-flex items-center gap-1 rounded bg-blue-400/10 px-2 py-1 text-xs font-medium text-blue-400">
                                 <CheckCircle2 className="size-3" />
                                 Migrated
                               </span>
                             ) : isExpired ? (
-                              <span className="inline-flex items-center gap-1 text-xs font-medium text-red-400 bg-red-400/10 px-2 py-1 rounded">
+                              <span className="inline-flex items-center gap-1 rounded bg-red-400/10 px-2 py-1 text-xs font-medium text-red-400">
                                 <AlertTriangle className="size-3" />
                                 Expired
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-400 bg-emerald-400/10 px-2 py-1 rounded">
+                              <span className="inline-flex items-center gap-1 rounded bg-emerald-400/10 px-2 py-1 text-xs font-medium text-emerald-400">
                                 <Activity className="size-3" />
                                 Active
                               </span>
                             )}
                           </td>
                           <td className="px-4 py-3">
-                            <div className="text-white">{tenant.sandbox_message_count as number || 0} / {tenant.sandbox_message_limit as number || 50}</div>
-                            <div className="w-24 h-1.5 rounded-full bg-slate-800 mt-1 overflow-hidden">
+                            <div className="text-white">
+                              {(tenant.sandbox_message_count as number) || 0} /{' '}
+                              {(tenant.sandbox_message_limit as number) || 50}
+                            </div>
+                            <div className="mt-1 h-1.5 w-24 overflow-hidden rounded-full bg-slate-800">
                               <div
-                                className="h-full rounded-full bg-primary"
+                                className="bg-primary h-full rounded-full"
                                 style={{
                                   width: `${Math.min(100, (((tenant.sandbox_message_count as number) || 0) / ((tenant.sandbox_message_limit as number) || 50)) * 100)}%`,
                                 }}
@@ -1209,7 +1448,9 @@ export default function AdminDashboardPage() {
                           </td>
                           <td className="px-4 py-3 text-xs">
                             {tenant.trial_ends_at
-                              ? new Date(tenant.trial_ends_at as string).toLocaleDateString()
+                              ? new Date(
+                                  tenant.trial_ends_at as string
+                                ).toLocaleDateString()
                               : 'N/A'}
                           </td>
                           <td className="px-4 py-3 text-xs text-slate-400">
@@ -1218,7 +1459,9 @@ export default function AdminDashboardPage() {
                           <td className="px-4 py-3 text-xs">
                             {isMigrated ? (
                               <span className="text-blue-400">
-                                {new Date(tenant.migrated_from_sandbox_at as string).toLocaleDateString()}
+                                {new Date(
+                                  tenant.migrated_from_sandbox_at as string
+                                ).toLocaleDateString()}
                               </span>
                             ) : (
                               <span className="text-slate-500">—</span>
@@ -1235,7 +1478,9 @@ export default function AdminDashboardPage() {
                     table overflows horizontally on mobile. */}
                 {sandboxTenants.length === 0 && (
                   <div className="px-6 py-12 text-center text-slate-500">
-                    {sandboxAnalyticsLoading ? 'Loading...' : 'No sandbox tenants found.'}
+                    {sandboxAnalyticsLoading
+                      ? 'Loading...'
+                      : 'No sandbox tenants found.'}
                   </div>
                 )}
               </div>
@@ -1246,18 +1491,21 @@ export default function AdminDashboardPage() {
 
       {activeTab === 'organizations' && (
         <>
-          <Card className="bg-slate-900 border-slate-700 ring-0 ring-transparent">
+          <Card className="border-slate-700 bg-slate-900 ring-0 ring-transparent">
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="text-white text-base">Registered Engine Tenants</CardTitle>
+                  <CardTitle className="text-base text-white">
+                    Registered Engine Tenants
+                  </CardTitle>
                   <CardDescription className="text-slate-400">
-                    Manage all organizations on the platform. Archive inactive accounts or permanently delete after archiving.
+                    Manage all organizations on the platform. Archive inactive
+                    accounts or permanently delete after archiving.
                   </CardDescription>
                 </div>
                 <button
                   onClick={refreshOrganizations}
-                  className="flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 px-3 py-2 text-xs text-slate-300 hover:text-white transition-colors"
+                  className="flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-xs text-slate-300 transition-colors hover:bg-slate-700 hover:text-white"
                 >
                   <RefreshCw className="h-3.5 w-3.5" />
                   Refresh
@@ -1267,7 +1515,7 @@ export default function AdminDashboardPage() {
             <CardContent>
               <div className="overflow-x-auto rounded-xl border border-slate-800">
                 <table className="w-full border-collapse text-left text-sm text-slate-300">
-                  <thead className="bg-slate-950/50 text-xs font-bold uppercase tracking-wider text-slate-400 border-b border-slate-800">
+                  <thead className="border-b border-slate-800 bg-slate-950/50 text-xs font-bold tracking-wider text-slate-400 uppercase">
                     <tr>
                       <th className="px-6 py-4">Organization Name</th>
                       <th className="px-6 py-4">Owner</th>
@@ -1282,13 +1530,22 @@ export default function AdminDashboardPage() {
                       const isActioning = orgActionId === org.id;
                       const isArchived = org.status === 'archived';
                       return (
-                        <tr key={org.id} className={`hover:bg-slate-950/30 transition-colors ${isArchived ? 'opacity-70' : ''}`}>
+                        <tr
+                          key={org.id}
+                          className={`transition-colors hover:bg-slate-950/30 ${isArchived ? 'opacity-70' : ''}`}
+                        >
                           <td className="px-6 py-4">
-                            <div className="font-bold text-white">{org.name || 'Personal Account'}</div>
+                            <div className="font-bold text-white">
+                              {org.name || 'Personal Account'}
+                            </div>
                           </td>
                           <td className="px-6 py-4">
-                            <div className="text-sm text-slate-200">{org.owner_name}</div>
-                            <div className="text-xs text-slate-500">{org.owner_email}</div>
+                            <div className="text-sm text-slate-200">
+                              {org.owner_name}
+                            </div>
+                            <div className="text-xs text-slate-500">
+                              {org.owner_email}
+                            </div>
                           </td>
                           <td className="px-6 py-4">
                             {isArchived ? (
@@ -1311,8 +1568,14 @@ export default function AdminDashboardPage() {
                           <td className="px-6 py-4">
                             <select
                               value={org.plan}
-                              disabled={isActioning || otpSending || planChangeOrg?.id === org.id}
-                              onChange={(e) => handleRequestPlanChange(org, e.target.value)}
+                              disabled={
+                                isActioning ||
+                                otpSending ||
+                                planChangeOrg?.id === org.id
+                              }
+                              onChange={(e) =>
+                                handleRequestPlanChange(org, e.target.value)
+                              }
                               title="Change plan (requires WhatsApp OTP confirmation)"
                               className="rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1.5 text-xs font-medium text-slate-200 disabled:opacity-50"
                             >
@@ -1332,7 +1595,11 @@ export default function AdminDashboardPage() {
                               <button
                                 onClick={() => handleArchiveOrg(org)}
                                 disabled={isActioning}
-                                title={isArchived ? 'Reactivate workspace' : 'Archive workspace'}
+                                title={
+                                  isArchived
+                                    ? 'Reactivate workspace'
+                                    : 'Archive workspace'
+                                }
                                 className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 ${
                                   isArchived
                                     ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20'
@@ -1353,8 +1620,12 @@ export default function AdminDashboardPage() {
                               <button
                                 onClick={() => setConfirmDeleteOrg(org)}
                                 disabled={!isArchived || isActioning}
-                                title={isArchived ? 'Permanently delete workspace' : 'Archive before deleting'}
-                                className="flex items-center gap-1.5 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs font-medium text-red-400 hover:bg-red-500/20 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                                title={
+                                  isArchived
+                                    ? 'Permanently delete workspace'
+                                    : 'Archive before deleting'
+                                }
+                                className="flex items-center gap-1.5 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs font-medium text-red-400 transition-colors hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-30"
                               >
                                 <Trash2 className="h-3 w-3" />
                                 Delete
@@ -1380,36 +1651,47 @@ export default function AdminDashboardPage() {
           {/* Confirm Delete Modal */}
           {confirmDeleteOrg && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm">
-              <div className="mx-4 max-w-md w-full rounded-2xl border border-red-500/30 bg-slate-900/95 shadow-2xl p-6 flex flex-col gap-4">
+              <div className="mx-4 flex w-full max-w-md flex-col gap-4 rounded-2xl border border-red-500/30 bg-slate-900/95 p-6 shadow-2xl">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-500/15 border border-red-500/30 shrink-0">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-red-500/30 bg-red-500/15">
                     <Trash2 className="h-5 w-5 text-red-400" />
                   </div>
                   <div>
-                    <h3 className="text-base font-bold text-white">Permanently Delete Workspace</h3>
-                    <p className="text-xs text-slate-400">This action cannot be undone</p>
+                    <h3 className="text-base font-bold text-white">
+                      Permanently Delete Workspace
+                    </h3>
+                    <p className="text-xs text-slate-400">
+                      This action cannot be undone
+                    </p>
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-slate-700 bg-slate-800/60 p-4 space-y-2">
-                  <p className="text-sm text-slate-200 font-medium">{confirmDeleteOrg.name || 'Personal Account'}</p>
-                  <p className="text-xs text-slate-400">{confirmDeleteOrg.owner_email}</p>
+                <div className="space-y-2 rounded-xl border border-slate-700 bg-slate-800/60 p-4">
+                  <p className="text-sm font-medium text-slate-200">
+                    {confirmDeleteOrg.name || 'Personal Account'}
+                  </p>
+                  <p className="text-xs text-slate-400">
+                    {confirmDeleteOrg.owner_email}
+                  </p>
                 </div>
 
-                <p className="text-sm text-slate-400 leading-relaxed">
-                  All contacts, properties, messages, automations, and configurations belonging to this workspace will be <strong className="text-white">permanently deleted</strong> and cannot be recovered.
+                <p className="text-sm leading-relaxed text-slate-400">
+                  All contacts, properties, messages, automations, and
+                  configurations belonging to this workspace will be{' '}
+                  <strong className="text-white">permanently deleted</strong>{' '}
+                  and cannot be recovered.
                 </p>
 
                 <div className="flex gap-3 pt-1">
                   <button
                     onClick={() => setConfirmDeleteOrg(null)}
-                    className="flex-1 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 px-4 py-2.5 text-sm font-medium text-slate-300 hover:text-white transition-colors"
+                    className="flex-1 rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm font-medium text-slate-300 transition-colors hover:bg-slate-700 hover:text-white"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={() => handleDeleteOrg(confirmDeleteOrg)}
-                    className="flex-1 rounded-lg border border-red-500/40 bg-red-500/15 hover:bg-red-500/25 px-4 py-2.5 text-sm font-bold text-red-400 transition-colors"
+                    className="flex-1 rounded-lg border border-red-500/40 bg-red-500/15 px-4 py-2.5 text-sm font-bold text-red-400 transition-colors hover:bg-red-500/25"
                   >
                     Delete Permanently
                   </button>
@@ -1422,26 +1704,32 @@ export default function AdminDashboardPage() {
               plan override is applied. */}
           {planChangeOrg && planChangeTarget && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm">
-              <div className="mx-4 max-w-md w-full rounded-2xl border border-primary/30 bg-slate-900/95 shadow-2xl p-6 flex flex-col gap-4">
+              <div className="border-primary/30 mx-4 flex w-full max-w-md flex-col gap-4 rounded-2xl border bg-slate-900/95 p-6 shadow-2xl">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/15 border border-primary/30 shrink-0">
-                    <ShieldCheck className="h-5 w-5 text-primary" />
+                  <div className="bg-primary/15 border-primary/30 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border">
+                    <ShieldCheck className="text-primary h-5 w-5" />
                   </div>
                   <div>
-                    <h3 className="text-base font-bold text-white">Confirm Plan Change</h3>
-                    <p className="text-xs text-slate-400">Verify with the code sent to your WhatsApp</p>
+                    <h3 className="text-base font-bold text-white">
+                      Confirm Plan Change
+                    </h3>
+                    <p className="text-xs text-slate-400">
+                      Verify with the code sent to your WhatsApp
+                    </p>
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-slate-700 bg-slate-800/60 p-4 space-y-1">
-                  <p className="text-sm text-slate-200 font-medium">
+                <div className="space-y-1 rounded-xl border border-slate-700 bg-slate-800/60 p-4">
+                  <p className="text-sm font-medium text-slate-200">
                     {planChangeOrg.name || 'Personal Account'}
                   </p>
                   <p className="text-xs text-slate-400">
-                    {PLAN_CONFIG[planChangeOrg.plan as keyof typeof PLAN_CONFIG]?.name ?? planChangeOrg.plan}
+                    {PLAN_CONFIG[planChangeOrg.plan as keyof typeof PLAN_CONFIG]
+                      ?.name ?? planChangeOrg.plan}
                     {' → '}
                     <span className="text-primary font-semibold">
-                      {PLAN_CONFIG[planChangeTarget as keyof typeof PLAN_CONFIG]?.name ?? planChangeTarget}
+                      {PLAN_CONFIG[planChangeTarget as keyof typeof PLAN_CONFIG]
+                        ?.name ?? planChangeTarget}
                     </span>
                   </p>
                 </div>
@@ -1452,9 +1740,15 @@ export default function AdminDashboardPage() {
                     Sending code to your WhatsApp…
                   </div>
                 ) : (
-                  <form id="admin-otp-form" onSubmit={handleVerifyPlanOtp} className="flex flex-col gap-4">
+                  <form
+                    id="admin-otp-form"
+                    onSubmit={handleVerifyPlanOtp}
+                    className="flex flex-col gap-4"
+                  >
                     <div className="flex flex-col gap-2">
-                      <Label className="text-slate-300 font-bold text-xs">Verification Code</Label>
+                      <Label className="text-xs font-bold text-slate-300">
+                        Verification Code
+                      </Label>
                       <div className="flex justify-between gap-2">
                         {Array.from({ length: 6 }).map((_, idx) => (
                           <input
@@ -1465,29 +1759,43 @@ export default function AdminDashboardPage() {
                             inputMode="numeric"
                             maxLength={1}
                             value={otpValues[idx]}
-                            onChange={(e) => handleOtpChange(idx, e.target.value)}
+                            onChange={(e) =>
+                              handleOtpChange(idx, e.target.value)
+                            }
                             onKeyDown={(e) => handleOtpKeyDown(idx, e)}
                             onPaste={idx === 0 ? handleOtpPaste : undefined}
                             disabled={otpVerifying}
-                            className="w-11 h-11 text-center text-lg font-bold bg-slate-950 border border-slate-700 focus:border-primary focus:ring-1 focus:ring-primary/30 rounded-xl text-white outline-none transition-all disabled:opacity-50"
+                            className="focus:border-primary focus:ring-primary/30 h-11 w-11 rounded-xl border border-slate-700 bg-slate-950 text-center text-lg font-bold text-white transition-all outline-none focus:ring-1 disabled:opacity-50"
                           />
                         ))}
                       </div>
                       {otpError && (
-                        <p className="text-xs font-medium text-red-400">{otpError}</p>
+                        <p className="text-xs font-medium text-red-400">
+                          {otpError}
+                        </p>
                       )}
                     </div>
 
-                    <div className="flex items-center justify-between text-xs font-semibold px-1">
-                      <span className="text-slate-500">Didn&apos;t receive the code?</span>
+                    <div className="flex items-center justify-between px-1 text-xs font-semibold">
+                      <span className="text-slate-500">
+                        Didn&apos;t receive the code?
+                      </span>
                       {otpResendCountdown > 0 ? (
-                        <span className="text-slate-400 font-mono">Resend in {otpResendCountdown}s</span>
+                        <span className="font-mono text-slate-400">
+                          Resend in {otpResendCountdown}s
+                        </span>
                       ) : (
                         <button
                           type="button"
-                          onClick={() => handleIssueOtp(planChangeOrg.id, planChangeTarget, true)}
+                          onClick={() =>
+                            handleIssueOtp(
+                              planChangeOrg.id,
+                              planChangeTarget,
+                              true
+                            )
+                          }
                           disabled={otpSending}
-                          className="text-primary hover:underline font-bold cursor-pointer bg-transparent border-0 p-0 disabled:opacity-50"
+                          className="text-primary cursor-pointer border-0 bg-transparent p-0 font-bold hover:underline disabled:opacity-50"
                         >
                           Resend code
                         </button>
@@ -1498,17 +1806,21 @@ export default function AdminDashboardPage() {
                       <button
                         type="button"
                         onClick={closeOtpModal}
-                        className="flex-1 flex items-center justify-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 px-4 py-2.5 text-sm font-medium text-slate-300 hover:text-white transition-colors"
+                        className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm font-medium text-slate-300 transition-colors hover:bg-slate-700 hover:text-white"
                       >
                         <ArrowLeft className="h-3.5 w-3.5" />
                         Cancel
                       </button>
                       <button
                         type="submit"
-                        disabled={otpVerifying || otpValues.join('').length !== 6}
-                        className="flex-1 flex items-center justify-center gap-1.5 rounded-lg border border-primary/40 bg-primary/15 hover:bg-primary/25 px-4 py-2.5 text-sm font-bold text-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        disabled={
+                          otpVerifying || otpValues.join('').length !== 6
+                        }
+                        className="border-primary/40 bg-primary/15 hover:bg-primary/25 text-primary flex flex-1 items-center justify-center gap-1.5 rounded-lg border px-4 py-2.5 text-sm font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-40"
                       >
-                        {otpVerifying && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                        {otpVerifying && (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        )}
                         Verify & Apply
                       </button>
                     </div>
