@@ -152,16 +152,16 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
   const language = useSyncExternalStore(
     subscribe,
     getActiveSnapshot,
-    getServerActiveSnapshot
+    getServerActiveSnapshot,
   );
   const languageSetKey = useSyncExternalStore(
     subscribe,
     getSetSnapshot,
-    getServerSetSnapshot
+    getServerSetSnapshot,
   );
   const languages = useMemo(
     () => sanitizeLanguageSet(languageSetKey.split(',')),
-    [languageSetKey]
+    [languageSetKey],
   );
 
   // The profile is the truth; the cache is only ahead of it during the
@@ -171,10 +171,9 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!profile) return;
     const set = sanitizeLanguageSet(profileLanguages);
-    const active =
-      isLanguageCode(profileActive) && set.includes(profileActive)
-        ? profileActive
-        : set[0];
+    const active = isLanguageCode(profileActive) && set.includes(profileActive)
+      ? profileActive
+      : set[0];
     if (active !== getActiveSnapshot() || set.join(',') !== getSetSnapshot()) {
       writeCache(active, set);
     }
@@ -208,13 +207,13 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
       if (error || !data || data.length === 0) {
         console.error(
           '[locale] failed to persist language choice:',
-          error ?? 'no rows updated (RLS?)'
+          error ?? 'no rows updated (RLS?)',
         );
         return;
       }
       await refreshProfile();
     },
-    [profileId, refreshProfile]
+    [profileId, refreshProfile],
   );
 
   const setLanguage = useCallback(
@@ -226,7 +225,7 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
         : sanitizeLanguageSet([next, ...languages]);
       void persist(next, set);
     },
-    [languages, persist]
+    [languages, persist],
   );
 
   const setLanguages = useCallback(
@@ -235,7 +234,7 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
       const active = set.includes(language) ? language : set[0];
       void persist(active, set);
     },
-    [language, persist]
+    [language, persist],
   );
 
   const value = useMemo<LocaleContextValue>(
@@ -246,12 +245,10 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
       setLanguages,
       t: (key: MessageKey) => translate(language, key),
     }),
-    [language, languages, setLanguage, setLanguages]
+    [language, languages, setLanguage, setLanguages],
   );
 
-  return (
-    <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>
-  );
+  return <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>;
 }
 
 export function useLocale(): LocaleContextValue {

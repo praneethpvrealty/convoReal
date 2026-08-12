@@ -54,11 +54,7 @@ export default function AgentsPage() {
 
   const scrollToDetail = () => {
     if (typeof window !== 'undefined' && window.innerWidth >= 1024) return;
-    detailPaneRef.current?.scrollIntoView({
-      behavior: 'smooth',
-      inline: 'start',
-      block: 'nearest',
-    });
+    detailPaneRef.current?.scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' });
   };
   const scrollToList = () => {
     panesRef.current?.scrollTo({ left: 0, behavior: 'smooth' });
@@ -81,9 +77,7 @@ export default function AgentsPage() {
     const startX = e.clientX;
     const startWidth = listWidth;
     const onMove = (ev: PointerEvent) => {
-      setListWidth(
-        Math.min(560, Math.max(220, startWidth + ev.clientX - startX))
-      );
+      setListWidth(Math.min(560, Math.max(220, startWidth + ev.clientX - startX)));
     };
     const onUp = (ev: PointerEvent) => {
       window.removeEventListener('pointermove', onMove);
@@ -105,8 +99,7 @@ export default function AgentsPage() {
   const [properties, setProperties] = useState<Property[]>([]);
   const [loadingProperties, setLoadingProperties] = useState(false);
   const [propertyFormOpen, setPropertyFormOpen] = useState(false);
-  const [selectedPropertyForEdit, setSelectedPropertyForEdit] =
-    useState<Property | null>(null);
+  const [selectedPropertyForEdit, setSelectedPropertyForEdit] = useState<Property | null>(null);
 
   // Notes state
   const [notes, setNotes] = useState<ContactNote[]>([]);
@@ -223,9 +216,7 @@ export default function AgentsPage() {
       // Update local state copy
       setAgents((prev) =>
         prev.map((a) =>
-          a.id === selectedAgentId
-            ? { ...a, requirements: requirementsText.trim() || null }
-            : a
+          a.id === selectedAgentId ? { ...a, requirements: requirementsText.trim() || null } : a
         )
       );
     } catch (err) {
@@ -304,7 +295,7 @@ export default function AgentsPage() {
   return (
     <div
       ref={panesRef}
-      className="flex h-[calc(100vh-3.5rem)] snap-x snap-mandatory overflow-x-auto overflow-y-hidden bg-slate-950 text-slate-100 lg:snap-none lg:overflow-hidden"
+      className="flex h-[calc(100vh-3.5rem)] bg-slate-950 text-slate-100 overflow-x-auto overflow-y-hidden snap-x snap-mandatory lg:overflow-hidden lg:snap-none"
     >
       {/* LEFT PANE - Agent Directory. ~85vw on mobile so the detail
           pane peeks in from the right; desktop width is drag-resizable
@@ -313,33 +304,33 @@ export default function AgentsPage() {
         style={{ '--agents-list-w': `${listWidth}px` } as React.CSSProperties}
         className={`${
           listCollapsed ? 'lg:hidden' : ''
-        } flex h-full w-[85vw] shrink-0 snap-start flex-col border-r border-slate-800 bg-slate-900/60 sm:w-[60vw] md:w-[45vw] lg:w-[var(--agents-list-w)] lg:snap-align-none`}
+        } flex w-[85vw] sm:w-[60vw] md:w-[45vw] lg:w-[var(--agents-list-w)] border-r border-slate-800 bg-slate-900/60 flex-col h-full shrink-0 snap-start lg:snap-align-none`}
       >
-        <div className="shrink-0 space-y-3 border-b border-slate-800 p-4">
+        <div className="p-4 border-b border-slate-800 space-y-3 shrink-0">
           <div className="flex items-center justify-between">
-            <h1 className="flex items-center gap-2 text-base font-semibold text-white">
-              <Users className="text-primary size-4.5" />
+            <h1 className="text-base font-semibold text-white flex items-center gap-2">
+              <Users className="size-4.5 text-primary" />
               Agents Directory
             </h1>
           </div>
           <div className="relative">
-            <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-500" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-slate-500" />
             <Input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search agents by name, company..."
-              className="focus-visible:ring-primary h-8 border-slate-700 bg-slate-800 pl-9 text-xs text-white placeholder:text-slate-500 focus-visible:ring-1 focus-visible:ring-offset-0"
+              className="pl-9 bg-slate-800 border-slate-700 text-xs text-white placeholder:text-slate-500 h-8 focus-visible:ring-1 focus-visible:ring-primary focus-visible:ring-offset-0"
             />
           </div>
         </div>
 
-        <div className="flex-1 space-y-1 overflow-y-auto p-2">
+        <div className="flex-1 overflow-y-auto p-2 space-y-1">
           {loadingAgents ? (
             <div className="flex items-center justify-center py-10">
               <ConvoRealLoader size={20} label="Loading agents" />
             </div>
           ) : filteredAgents.length === 0 ? (
-            <div className="py-10 text-center text-xs text-slate-500">
+            <div className="text-center py-10 text-slate-500 text-xs">
               No Agent contacts found. Ensure you tag contacts as Agent.
             </div>
           ) : (
@@ -352,10 +343,10 @@ export default function AgentsPage() {
                     setSelectedAgentId(agent.id);
                     scrollToDetail();
                   }}
-                  className={`flex w-full items-center gap-3 rounded-lg border p-3 text-left transition-all duration-200 ${
+                  className={`w-full text-left flex items-center gap-3 p-3 rounded-lg border transition-all duration-200 ${
                     active
-                      ? 'bg-primary/10 border-primary/40 shadow-primary/5 text-white shadow-sm'
-                      : 'border-slate-800/60 bg-slate-900/40 text-slate-300 hover:border-slate-700/60 hover:bg-slate-800/40'
+                      ? 'bg-primary/10 border-primary/40 text-white shadow-sm shadow-primary/5'
+                      : 'bg-slate-900/40 border-slate-800/60 hover:bg-slate-800/40 hover:border-slate-700/60 text-slate-300'
                   }`}
                 >
                   <Avatar className="size-9 border border-slate-800">
@@ -364,18 +355,16 @@ export default function AgentsPage() {
                     </AvatarFallback>
                   </Avatar>
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5 truncate text-xs font-medium text-white">
-                      <span className="truncate">
-                        {agent.name || 'Unnamed Agent'}
-                      </span>
+                    <div className="font-medium text-xs truncate text-white flex items-center gap-1.5">
+                      <span className="truncate">{agent.name || 'Unnamed Agent'}</span>
                       <NameTagBadge tag={agent.name_tag} />
                     </div>
                     {agent.company && (
-                      <div className="mt-0.5 truncate text-[10px] text-slate-400">
+                      <div className="text-[10px] text-slate-400 truncate mt-0.5">
                         {agent.company}
                       </div>
                     )}
-                    <div className="mt-0.5 truncate text-[10px] text-slate-500">
+                    <div className="text-[10px] text-slate-500 truncate mt-0.5">
                       {agent.phone}
                     </div>
                   </div>
@@ -390,7 +379,7 @@ export default function AgentsPage() {
           collapse/expand it. Not part of the mobile snap track. */}
       <div
         onPointerDown={startResize}
-        className={`hidden w-2.5 shrink-0 flex-col items-center justify-center border-r border-slate-800 bg-slate-900/40 transition-colors hover:bg-slate-800/60 lg:flex ${
+        className={`hidden lg:flex flex-col items-center justify-center w-2.5 shrink-0 border-r border-slate-800 bg-slate-900/40 hover:bg-slate-800/60 transition-colors ${
           listCollapsed ? '' : 'cursor-col-resize'
         }`}
       >
@@ -398,16 +387,10 @@ export default function AgentsPage() {
           type="button"
           onPointerDown={(e) => e.stopPropagation()}
           onClick={() => setListCollapsed((c) => !c)}
-          title={
-            listCollapsed ? 'Show agents directory' : 'Hide agents directory'
-          }
-          className="flex h-12 w-full cursor-pointer items-center justify-center text-slate-500 hover:text-white"
+          title={listCollapsed ? 'Show agents directory' : 'Hide agents directory'}
+          className="flex items-center justify-center h-12 w-full text-slate-500 hover:text-white cursor-pointer"
         >
-          {listCollapsed ? (
-            <ChevronRight className="size-3.5" />
-          ) : (
-            <ChevronLeft className="size-3.5" />
-          )}
+          {listCollapsed ? <ChevronRight className="size-3.5" /> : <ChevronLeft className="size-3.5" />}
         </button>
       </div>
 
@@ -415,25 +398,25 @@ export default function AgentsPage() {
           to it leaves a sliver of the directory peeking on the left. */}
       <div
         ref={detailPaneRef}
-        className="flex h-full w-[92vw] shrink-0 snap-start flex-col overflow-hidden bg-slate-950/20 lg:w-auto lg:flex-1 lg:shrink lg:snap-align-none"
+        className="flex w-[92vw] lg:w-auto shrink-0 lg:shrink lg:flex-1 flex-col h-full bg-slate-950/20 overflow-hidden snap-start lg:snap-align-none"
       >
         {selectedAgent ? (
-          <div className="flex h-full min-h-0 flex-col">
+          <div className="flex flex-col h-full min-h-0">
             {/* Mobile only: back to the directory + a horizontal agent
                 switcher, so hopping between agents doesn't require
                 going back — the active tab (journey, notes, …) carries
                 over to the newly selected agent. Desktop always shows
                 both panes. */}
-            <div className="flex shrink-0 items-center border-b border-slate-800 bg-slate-900/40 lg:hidden">
+            <div className="lg:hidden flex items-center border-b border-slate-800 bg-slate-900/40 shrink-0">
               <button
                 type="button"
                 onClick={scrollToList}
                 title="All agents"
-                className="flex shrink-0 cursor-pointer items-center gap-1 py-2.5 pr-1.5 pl-3 text-xs font-semibold text-slate-400 hover:text-white"
+                className="flex items-center gap-1 pl-3 pr-1.5 py-2.5 text-xs font-semibold text-slate-400 hover:text-white shrink-0 cursor-pointer"
               >
                 <ChevronLeft className="size-4" />
               </button>
-              <div className="flex flex-1 items-center gap-1.5 overflow-x-auto overscroll-x-contain px-1.5 py-1.5">
+              <div className="flex-1 overflow-x-auto overscroll-x-contain flex items-center gap-1.5 px-1.5 py-1.5">
                 {filteredAgents.map((agent) => {
                   const active = agent.id === selectedAgentId;
                   return (
@@ -441,10 +424,10 @@ export default function AgentsPage() {
                       key={agent.id}
                       type="button"
                       onClick={() => setSelectedAgentId(agent.id)}
-                      className={`flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full border py-1 pr-2.5 pl-1 transition-all ${
+                      className={`flex items-center gap-1.5 rounded-full border pl-1 pr-2.5 py-1 shrink-0 transition-all cursor-pointer ${
                         active
                           ? 'bg-primary/15 border-primary/50 text-white'
-                          : 'border-slate-800 bg-slate-900/40 text-slate-400 hover:border-slate-700 hover:text-white'
+                          : 'bg-slate-900/40 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
                       }`}
                     >
                       <Avatar className="size-5 border border-slate-800">
@@ -462,7 +445,7 @@ export default function AgentsPage() {
             </div>
 
             {/* Profil Summary Header */}
-            <div className="flex shrink-0 items-center justify-between border-b border-slate-800 bg-slate-900/30 p-4 sm:p-6">
+            <div className="p-4 sm:p-6 border-b border-slate-800 bg-slate-900/30 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-4">
                 <Avatar className="size-16 border border-slate-800">
                   <AvatarFallback className="bg-primary/10 text-primary text-xl font-bold">
@@ -475,26 +458,26 @@ export default function AgentsPage() {
                       {selectedAgent.name || 'Unnamed Agent'}
                     </h2>
                     <NameTagBadge tag={selectedAgent.name_tag} />
-                    <span className="inline-flex items-center rounded-full border border-sky-500/20 bg-sky-500/10 px-2 py-0.5 text-[9px] font-semibold tracking-wider text-sky-400 uppercase">
+                    <span className="inline-flex items-center rounded-full border border-sky-500/20 bg-sky-500/10 px-2 py-0.5 text-[9px] uppercase tracking-wider font-semibold text-sky-400">
                       Agent
                     </span>
                   </div>
-                  <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-slate-400">
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mt-2 text-xs text-slate-400">
                     <a
                       href={`tel:${selectedAgent.phone}`}
-                      className="hover:text-primary flex items-center gap-1 text-slate-300 transition-colors"
+                      className="flex items-center gap-1 hover:text-primary transition-colors text-slate-300"
                     >
                       <Phone className="size-3.5" />
                       {selectedAgent.phone}
                     </a>
                     {selectedAgent.email && (
-                      <span className="text-slate-350 flex items-center gap-1">
+                      <span className="flex items-center gap-1 text-slate-350">
                         <Mail className="size-3.5" />
                         {selectedAgent.email}
                       </span>
                     )}
                     {selectedAgent.company && (
-                      <span className="text-slate-350 flex items-center gap-1">
+                      <span className="flex items-center gap-1 text-slate-350">
                         <Building2 className="size-3.5" />
                         {selectedAgent.company}
                       </span>
@@ -505,35 +488,32 @@ export default function AgentsPage() {
             </div>
 
             {/* Content Tabs */}
-            <Tabs
-              defaultValue="properties"
-              className="flex min-h-0 flex-1 flex-col"
-            >
+            <Tabs defaultValue="properties" className="flex-1 flex flex-col min-h-0">
               {/* Scrollable strip — three uppercase labels overflow
                   narrow panels; clipping ate "…& NOTES" before. */}
-              <div className="shrink-0 overflow-x-auto overscroll-x-contain border-b border-slate-800 bg-slate-900/10 px-6">
-                <TabsList className="h-12 w-max min-w-full space-x-6 border-b-0 bg-transparent p-0">
+              <div className="px-6 border-b border-slate-800 bg-slate-900/10 shrink-0 overflow-x-auto overscroll-x-contain">
+                <TabsList className="bg-transparent border-b-0 space-x-6 p-0 h-12 w-max min-w-full">
                   <TabsTrigger
                     value="properties"
-                    className="data-[state=active]:border-primary data-[state=active]:text-primary h-full shrink-0 rounded-none border-b-2 border-transparent bg-transparent px-0 text-xs font-medium tracking-wider whitespace-nowrap text-slate-400"
+                    className="h-full shrink-0 whitespace-nowrap rounded-none border-b-2 border-transparent data-[state=active]:border-primary bg-transparent text-slate-400 data-[state=active]:text-primary px-0 font-medium text-xs tracking-wider"
                   >
                     SHOWCASE PROPERTIES ({properties.length})
                   </TabsTrigger>
                   <TabsTrigger
                     value="requirements"
-                    className="data-[state=active]:border-primary data-[state=active]:text-primary h-full shrink-0 rounded-none border-b-2 border-transparent bg-transparent px-0 text-xs font-medium tracking-wider whitespace-nowrap text-slate-400"
+                    className="h-full shrink-0 whitespace-nowrap rounded-none border-b-2 border-transparent data-[state=active]:border-primary bg-transparent text-slate-400 data-[state=active]:text-primary px-0 font-medium text-xs tracking-wider"
                   >
                     REQUIREMENTS & NOTES
                   </TabsTrigger>
                   <TabsTrigger
                     value="journey"
-                    className="data-[state=active]:border-primary data-[state=active]:text-primary h-full shrink-0 rounded-none border-b-2 border-transparent bg-transparent px-0 text-xs font-medium tracking-wider whitespace-nowrap text-slate-400"
+                    className="h-full shrink-0 whitespace-nowrap rounded-none border-b-2 border-transparent data-[state=active]:border-primary bg-transparent text-slate-400 data-[state=active]:text-primary px-0 font-medium text-xs tracking-wider"
                   >
                     JOURNEY
                   </TabsTrigger>
                   <TabsTrigger
                     value="schedule"
-                    className="data-[state=active]:border-primary data-[state=active]:text-primary h-full shrink-0 rounded-none border-b-2 border-transparent bg-transparent px-0 text-xs font-medium tracking-wider whitespace-nowrap text-slate-400"
+                    className="h-full shrink-0 whitespace-nowrap rounded-none border-b-2 border-transparent data-[state=active]:border-primary bg-transparent text-slate-400 data-[state=active]:text-primary px-0 font-medium text-xs tracking-wider"
                   >
                     SCHEDULE
                   </TabsTrigger>
@@ -543,14 +523,12 @@ export default function AgentsPage() {
               {/* Showcase Properties Tab */}
               <TabsContent
                 value="properties"
-                className="flex min-h-0 flex-1 flex-col overflow-y-auto p-6 focus-visible:outline-none"
+                className="flex-1 overflow-y-auto p-6 focus-visible:outline-none flex flex-col min-h-0"
               >
-                <div className="mb-4 flex shrink-0 items-center justify-between">
+                <div className="flex items-center justify-between mb-4 shrink-0">
                   <div>
-                    <h3 className="text-sm font-semibold text-white">
-                      Showcase Properties
-                    </h3>
-                    <p className="text-slate-450 mt-0.5 text-xs">
+                    <h3 className="text-sm font-semibold text-white">Showcase Properties</h3>
+                    <p className="text-xs text-slate-450 mt-0.5">
                       Properties owned, represented, or listed by this agent.
                     </p>
                   </div>
@@ -559,76 +537,71 @@ export default function AgentsPage() {
                       setSelectedPropertyForEdit(null);
                       setPropertyFormOpen(true);
                     }}
-                    className="bg-primary hover:bg-primary/90 text-primary-foreground flex h-8 cursor-pointer items-center gap-1.5 rounded-md px-4 text-xs font-bold"
+                    className="bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold h-8 flex items-center gap-1.5 cursor-pointer px-4 rounded-md"
                   >
                     <Plus className="size-3.5" />
                     Add Property
                   </Button>
                 </div>
 
-                <div className="min-h-0 flex-1 overflow-y-auto">
+                <div className="flex-1 overflow-y-auto min-h-0">
                   {loadingProperties ? (
                     <div className="flex items-center justify-center py-20">
                       <ConvoRealLoader size={24} label="Loading properties" />
                     </div>
                   ) : properties.length === 0 ? (
-                    <div className="mx-auto mt-4 max-w-lg rounded-xl border border-dashed border-slate-800 bg-slate-900/20 py-16 text-center">
-                      <Building className="text-slate-750 mx-auto mb-4 size-12 opacity-45" />
-                      <h4 className="mb-1 text-sm font-semibold text-white">
-                        No Showcase Properties
-                      </h4>
-                      <p className="mx-auto max-w-xs text-xs text-slate-400">
-                        Link properties listed by this agent to showcase them on
-                        this portfolio page.
+                    <div className="text-center py-16 border border-dashed border-slate-800 rounded-xl bg-slate-900/20 max-w-lg mx-auto mt-4">
+                      <Building className="size-12 mx-auto text-slate-750 mb-4 opacity-45" />
+                      <h4 className="text-sm font-semibold text-white mb-1">No Showcase Properties</h4>
+                      <p className="text-xs text-slate-400 max-w-xs mx-auto">
+                        Link properties listed by this agent to showcase them on this portfolio page.
                       </p>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       {properties.map((prop) => (
                         <div
                           key={prop.id}
-                          className="group flex flex-col overflow-hidden rounded-xl border border-slate-800/80 bg-slate-900/40 transition-all duration-300 hover:border-slate-700/80"
+                          className="flex flex-col rounded-xl border border-slate-800/80 bg-slate-900/40 overflow-hidden hover:border-slate-700/80 transition-all duration-300 group"
                         >
-                          <div className="relative h-36 shrink-0 overflow-hidden bg-slate-950">
-                            {prop.images &&
-                            prop.images.length > 0 &&
-                            prop.images[0] ? (
+                          <div className="relative h-36 bg-slate-950 overflow-hidden shrink-0">
+                            {prop.images && prop.images.length > 0 && prop.images[0] ? (
                               // eslint-disable-next-line @next/next/no-img-element
                               <img
                                 src={storagePublicUrl(prop.images[0])}
                                 alt={prop.title}
-                                className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                               />
                             ) : (
-                              <div className="flex h-full w-full flex-col items-center justify-center gap-1.5 text-slate-600">
+                              <div className="w-full h-full flex flex-col items-center justify-center text-slate-600 gap-1.5">
                                 <Building className="size-8 opacity-30" />
                                 <span className="text-[10px]">No Photos</span>
                               </div>
                             )}
                             <div className="absolute top-2 left-2">
-                              <span className="py-0.2 rounded border border-slate-800 bg-slate-950/80 px-1.5 text-[8px] font-semibold tracking-wider text-slate-300 uppercase">
+                              <span className="text-[8px] tracking-wider font-semibold uppercase px-1.5 py-0.2 bg-slate-950/80 border border-slate-800 text-slate-300 rounded">
                                 {prop.status}
                               </span>
                             </div>
                           </div>
-                          <div className="flex flex-1 flex-col justify-between p-4">
+                          <div className="p-4 flex-1 flex flex-col justify-between">
                             <div>
-                              <h4 className="group-hover:text-primary truncate text-xs font-semibold text-white transition-colors">
+                              <h4 className="text-xs font-semibold text-white truncate group-hover:text-primary transition-colors">
                                 {prop.title}
                               </h4>
-                              <p className="mt-0.5 truncate text-[10px] text-slate-400">
+                              <p className="text-[10px] text-slate-400 truncate mt-0.5">
                                 {prop.location}
                               </p>
-                              <div className="text-primary mt-2 text-xs font-bold">
-                                {prop.price >= 10000000
-                                  ? `₹${(prop.price / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`
-                                  : prop.price >= 100000
-                                    ? `₹${(prop.price / 100000).toFixed(2).replace(/\.00$/, '')} Lakhs`
+                              <div className="text-xs font-bold text-primary mt-2">
+                                {prop.price >= 10000000 
+                                  ? `₹${(prop.price / 10000000).toFixed(2).replace(/\.00$/, '')} Cr` 
+                                  : prop.price >= 100000 
+                                    ? `₹${(prop.price / 100000).toFixed(2).replace(/\.00$/, '')} Lakhs` 
                                     : `₹${prop.price.toLocaleString('en-IN')}`}
                               </div>
                             </div>
 
-                            <div className="mt-3 flex shrink-0 justify-end gap-2 border-t border-slate-800/80 pt-3">
+                            <div className="flex justify-end gap-2 border-t border-slate-800/80 pt-3 mt-3 shrink-0">
                               <Button
                                 size="sm"
                                 variant="ghost"
@@ -636,7 +609,7 @@ export default function AgentsPage() {
                                   setSelectedPropertyForEdit(prop);
                                   setPropertyFormOpen(true);
                                 }}
-                                className="h-7 cursor-pointer gap-1 px-2 text-[10px] text-slate-400 hover:bg-slate-800 hover:text-white"
+                                className="h-7 px-2 text-[10px] text-slate-400 hover:text-white hover:bg-slate-800 gap-1 cursor-pointer"
                               >
                                 <Edit className="size-3" />
                                 Edit
@@ -645,7 +618,7 @@ export default function AgentsPage() {
                                 size="sm"
                                 variant="ghost"
                                 onClick={() => handleUnlinkProperty(prop.id)}
-                                className="text-slate-450 h-7 cursor-pointer gap-1 px-2 text-[10px] hover:bg-slate-800 hover:text-red-400"
+                                className="h-7 px-2 text-[10px] text-slate-450 hover:text-red-400 hover:bg-slate-800 gap-1 cursor-pointer"
                               >
                                 <Unlink className="size-3" />
                                 Unlink
@@ -664,20 +637,20 @@ export default function AgentsPage() {
                   into an unreadable sliver below ~lg widths. */}
               <TabsContent
                 value="requirements"
-                className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto p-6 focus-visible:outline-none lg:flex-row lg:overflow-hidden"
+                className="flex-1 overflow-y-auto p-6 focus-visible:outline-none flex flex-col gap-6 min-h-0 lg:flex-row lg:overflow-hidden"
               >
                 {/* Requirements Editor (Left half) */}
-                <div className="flex min-h-[280px] flex-1 flex-col rounded-xl border border-slate-800/80 bg-slate-900/30 p-5 lg:h-full lg:overflow-hidden">
-                  <div className="mb-3 flex shrink-0 items-center justify-between">
-                    <h3 className="flex items-center gap-1.5 text-sm font-semibold text-white">
-                      <FileText className="text-primary size-4" />
+                <div className="flex-1 flex flex-col bg-slate-900/30 border border-slate-800/80 rounded-xl p-5 min-h-[280px] lg:h-full lg:overflow-hidden">
+                  <div className="flex items-center justify-between mb-3 shrink-0">
+                    <h3 className="text-sm font-semibold text-white flex items-center gap-1.5">
+                      <FileText className="size-4 text-primary" />
                       Agent Requirements & Brief
                     </h3>
                     <Button
                       size="sm"
                       onClick={handleSaveRequirements}
                       disabled={savingRequirements}
-                      className="bg-primary hover:bg-primary/90 text-primary-foreground h-8 cursor-pointer gap-1 text-xs font-bold"
+                      className="bg-primary hover:bg-primary/90 text-primary-foreground h-8 text-xs font-bold gap-1 cursor-pointer"
                     >
                       {savingRequirements ? (
                         <Loader2 className="size-3.5 animate-spin" />
@@ -693,66 +666,57 @@ export default function AgentsPage() {
                       value={requirementsText}
                       onChange={(e) => setRequirementsText(e.target.value)}
                       placeholder="Specify agent focus, target sublocalities, client profile requirements, matching preferences..."
-                      className="focus-visible:ring-primary h-full w-full resize-none rounded-lg border-slate-800 bg-slate-950/40 p-4 text-xs text-slate-200 placeholder:text-slate-500 focus-visible:ring-1 focus-visible:ring-offset-0"
+                      className="w-full h-full bg-slate-950/40 border-slate-800 text-xs text-slate-200 placeholder:text-slate-500 resize-none focus-visible:ring-1 focus-visible:ring-primary focus-visible:ring-offset-0 p-4 rounded-lg"
                     />
                   </div>
                 </div>
 
                 {/* Notes Roster (Right half) */}
-                <div className="flex w-full shrink-0 flex-col rounded-xl border border-slate-800/80 bg-slate-900/30 p-5 lg:h-full lg:w-80 lg:overflow-hidden">
-                  <h3 className="mb-3 flex shrink-0 items-center gap-1.5 text-sm font-semibold text-white">
-                    <MessageSquare className="text-primary size-4" />
+                <div className="w-full lg:w-80 flex flex-col bg-slate-900/30 border border-slate-800/80 rounded-xl p-5 lg:h-full shrink-0 lg:overflow-hidden">
+                  <h3 className="text-sm font-semibold text-white mb-3 shrink-0 flex items-center gap-1.5">
+                    <MessageSquare className="size-4 text-primary" />
                     Agent Notes
                   </h3>
 
-                  <div className="mb-4 shrink-0 space-y-2">
+                  <div className="space-y-2 mb-4 shrink-0">
                     <Textarea
                       value={newNoteText}
                       onChange={(e) => setNewNoteText(e.target.value)}
                       placeholder="Add brief details, todo points, tasks..."
-                      className="border-slate-850 focus-visible:ring-primary h-16 resize-none bg-slate-950/40 text-xs text-white placeholder:text-slate-500 focus-visible:ring-1 focus-visible:ring-offset-0"
+                      className="bg-slate-950/40 border-slate-850 text-xs text-white placeholder:text-slate-500 h-16 resize-none focus-visible:ring-1 focus-visible:ring-primary focus-visible:ring-offset-0"
                     />
                     <Button
                       size="sm"
                       onClick={handleAddNote}
                       disabled={savingNote || !newNoteText.trim()}
-                      className="bg-primary hover:bg-primary/90 text-primary-foreground h-8 w-full cursor-pointer text-xs font-bold"
+                      className="bg-primary hover:bg-primary/90 text-primary-foreground w-full h-8 text-xs font-bold cursor-pointer"
                     >
-                      {savingNote && (
-                        <Loader2 className="mr-1 size-3 animate-spin" />
-                      )}
+                      {savingNote && <Loader2 className="size-3 animate-spin mr-1" />}
                       Add note
                     </Button>
                   </div>
 
-                  <div className="min-h-0 flex-1 space-y-2 overflow-y-auto">
+                  <div className="flex-1 overflow-y-auto space-y-2 min-h-0">
                     {loadingNotes ? (
                       <div className="flex items-center justify-center py-6">
                         <ConvoRealLoader size={16} label="Loading notes" />
                       </div>
                     ) : notes.length === 0 ? (
-                      <p className="py-6 text-center text-[11px] text-slate-500">
-                        No notes recorded yet
-                      </p>
+                      <p className="text-slate-500 text-[11px] text-center py-6">No notes recorded yet</p>
                     ) : (
                       notes.map((note) => (
                         <div
                           key={note.id}
-                          className="border-slate-850 text-slate-350 rounded-lg border bg-slate-950/30 p-3 text-[11px]"
+                          className="p-3 bg-slate-950/30 border border-slate-850 rounded-lg text-[11px] text-slate-350"
                         >
-                          <p className="leading-relaxed whitespace-pre-wrap">
-                            {note.note_text}
-                          </p>
-                          <span className="text-slate-550 mt-1.5 block text-[9px]">
-                            {new Date(note.created_at).toLocaleDateString(
-                              undefined,
-                              {
-                                month: 'short',
-                                day: 'numeric',
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              }
-                            )}
+                          <p className="whitespace-pre-wrap leading-relaxed">{note.note_text}</p>
+                          <span className="block text-[9px] text-slate-550 mt-1.5">
+                            {new Date(note.created_at).toLocaleDateString(undefined, {
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
                           </span>
                         </div>
                       ))
@@ -764,7 +728,7 @@ export default function AgentsPage() {
               {/* Journey Tab — this agent's buyer journey, embedded */}
               <TabsContent
                 value="journey"
-                className="min-h-0 flex-1 overflow-y-auto p-6 focus-visible:outline-none"
+                className="flex-1 overflow-y-auto p-6 focus-visible:outline-none min-h-0"
               >
                 <JourneyEmbed mode="buyer" subjectId={selectedAgent.id} />
               </TabsContent>
@@ -772,7 +736,7 @@ export default function AgentsPage() {
               {/* Schedule Tab — appointments involving this agent */}
               <TabsContent
                 value="schedule"
-                className="min-h-0 flex-1 overflow-y-auto p-6 focus-visible:outline-none"
+                className="flex-1 overflow-y-auto p-6 focus-visible:outline-none min-h-0"
               >
                 <ContactAppointments
                   key={selectedAgent.id}
@@ -782,14 +746,11 @@ export default function AgentsPage() {
             </Tabs>
           </div>
         ) : (
-          <div className="flex flex-1 flex-col items-center justify-center text-slate-400">
-            <Users className="mb-4 size-16 animate-pulse text-slate-700 opacity-40" />
-            <h3 className="mb-1 text-base font-semibold text-white">
-              Select an Agent
-            </h3>
+          <div className="flex-1 flex flex-col items-center justify-center text-slate-400">
+            <Users className="size-16 text-slate-700 mb-4 opacity-40 animate-pulse" />
+            <h3 className="text-base font-semibold text-white mb-1">Select an Agent</h3>
             <p className="text-xs text-slate-500">
-              Select an agent from the directory sidebar to view showcase
-              properties and notes.
+              Select an agent from the directory sidebar to view showcase properties and notes.
             </p>
           </div>
         )}

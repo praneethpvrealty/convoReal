@@ -4,12 +4,7 @@ import { useMemo, useState } from 'react';
 import { Loader2, MessageCircle, CheckCircle2 } from 'lucide-react';
 import { readStored, writeStored } from '@/lib/safe-storage';
 
-const ROLES = [
-  'Independent agent',
-  'Broker',
-  'Builder / Developer',
-  'Agency / Team',
-];
+const ROLES = ['Independent agent', 'Broker', 'Builder / Developer', 'Agency / Team'];
 const TEAM_SIZES = ['Just me', '2–5', '6–20', '20+'];
 
 function getSessionKey(): string {
@@ -24,8 +19,7 @@ function getSessionKey(): string {
   }
 }
 
-const FALLBACK_WHATSAPP =
-  process.env.NEXT_PUBLIC_CONVOREAL_SALES_WHATSAPP || '';
+const FALLBACK_WHATSAPP = process.env.NEXT_PUBLIC_CONVOREAL_SALES_WHATSAPP || '';
 
 export function EngineLeadForm() {
   const [name, setName] = useState('');
@@ -35,9 +29,7 @@ export function EngineLeadForm() {
   const [teamSize, setTeamSize] = useState(TEAM_SIZES[0]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState<{ whatsappLink: string | null } | null>(
-    null
-  );
+  const [done, setDone] = useState<{ whatsappLink: string | null } | null>(null);
   const sessionKey = useMemo(getSessionKey, []);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -58,10 +50,7 @@ export function EngineLeadForm() {
           session_key: sessionKey,
         }),
       });
-      const data = (await res.json().catch(() => ({}))) as {
-        whatsappLink?: string | null;
-        error?: string;
-      };
+      const data = (await res.json().catch(() => ({}))) as { whatsappLink?: string | null; error?: string };
       if (!res.ok) {
         setError(data.error || 'Something went wrong. Please try again.');
         return;
@@ -79,11 +68,9 @@ export function EngineLeadForm() {
 
   if (done) {
     return (
-      <div className="mx-auto max-w-lg space-y-4 rounded-2xl border border-slate-800 bg-slate-900/60 p-8 text-center">
-        <CheckCircle2 className="mx-auto size-12 text-emerald-500" />
-        <h3 className="text-xl font-bold text-white">
-          Thanks — we&apos;ll be in touch!
-        </h3>
+      <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-8 text-center space-y-4 max-w-lg mx-auto">
+        <CheckCircle2 className="size-12 text-emerald-500 mx-auto" />
+        <h3 className="text-xl font-bold text-white">Thanks — we&apos;ll be in touch!</h3>
         <p className="text-sm text-slate-300">
           {done.whatsappLink
             ? 'Want to skip the wait? Message us on WhatsApp and we&apos;ll get you set up.'
@@ -94,7 +81,7 @@ export function EngineLeadForm() {
             href={done.whatsappLink}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 font-bold text-white transition-colors hover:bg-emerald-500"
+            className="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-5 py-3 rounded-xl transition-colors"
           >
             <MessageCircle className="size-5 fill-white text-emerald-600" />
             Chat with us on WhatsApp
@@ -108,24 +95,14 @@ export function EngineLeadForm() {
     'w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-slate-600 focus:border-indigo-500 focus:outline-none';
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="mx-auto max-w-lg space-y-4 rounded-2xl border border-slate-800 bg-slate-900/60 p-6"
-    >
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+    <form onSubmit={handleSubmit} className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 space-y-4 max-w-lg mx-auto">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
-          <label className="mb-1.5 block text-xs font-semibold text-slate-300">
-            Name
-          </label>
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Your name"
-            className={inputCls}
-          />
+          <label className="block text-xs font-semibold text-slate-300 mb-1.5">Name</label>
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" className={inputCls} />
         </div>
         <div>
-          <label className="mb-1.5 block text-xs font-semibold text-slate-300">
+          <label className="block text-xs font-semibold text-slate-300 mb-1.5">
             WhatsApp number <span className="text-red-400">*</span>
           </label>
           <input
@@ -138,14 +115,8 @@ export function EngineLeadForm() {
           />
         </div>
         <div>
-          <label className="mb-1.5 block text-xs font-semibold text-slate-300">
-            I am a…
-          </label>
-          <select
-            value={role}
-            onChange={(e) => setRole(e.target.value)}
-            className={inputCls}
-          >
+          <label className="block text-xs font-semibold text-slate-300 mb-1.5">I am a…</label>
+          <select value={role} onChange={(e) => setRole(e.target.value)} className={inputCls}>
             {ROLES.map((r) => (
               <option key={r} value={r}>
                 {r}
@@ -154,25 +125,12 @@ export function EngineLeadForm() {
           </select>
         </div>
         <div>
-          <label className="mb-1.5 block text-xs font-semibold text-slate-300">
-            City
-          </label>
-          <input
-            value={city}
-            onChange={(e) => setCity(e.target.value)}
-            placeholder="e.g. Bangalore"
-            className={inputCls}
-          />
+          <label className="block text-xs font-semibold text-slate-300 mb-1.5">City</label>
+          <input value={city} onChange={(e) => setCity(e.target.value)} placeholder="e.g. Bangalore" className={inputCls} />
         </div>
         <div className="sm:col-span-2">
-          <label className="mb-1.5 block text-xs font-semibold text-slate-300">
-            Team size
-          </label>
-          <select
-            value={teamSize}
-            onChange={(e) => setTeamSize(e.target.value)}
-            className={inputCls}
-          >
+          <label className="block text-xs font-semibold text-slate-300 mb-1.5">Team size</label>
+          <select value={teamSize} onChange={(e) => setTeamSize(e.target.value)} className={inputCls}>
             {TEAM_SIZES.map((t) => (
               <option key={t} value={t}>
                 {t}
@@ -187,14 +145,12 @@ export function EngineLeadForm() {
       <button
         type="submit"
         disabled={submitting || !phone.trim()}
-        className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 py-3 font-bold text-white transition-colors hover:bg-indigo-500 disabled:opacity-60"
+        className="w-full inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white font-bold py-3 rounded-xl transition-colors"
       >
         {submitting && <Loader2 className="size-4 animate-spin" />}
         Talk to us
       </button>
-      <p className="text-center text-xs text-slate-500">
-        No spam. We&apos;ll reach out on WhatsApp.
-      </p>
+      <p className="text-xs text-slate-500 text-center">No spam. We&apos;ll reach out on WhatsApp.</p>
     </form>
   );
 }

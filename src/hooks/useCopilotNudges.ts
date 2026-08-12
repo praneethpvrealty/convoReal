@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 // ============================================================
 // Proactive-nudge picker. Fetches /api/copilot/nudges once per
@@ -12,15 +12,15 @@
 // profiles would fix it if it ever grates.
 // ============================================================
 
-import { useCallback, useEffect, useState } from 'react';
-import { useAuth } from '@/hooks/use-auth';
-import type { CopilotNudge } from '@/lib/copilot/nudges';
-import { readStored, readStoredJson, writeStored } from '@/lib/safe-storage';
+import { useCallback, useEffect, useState } from "react";
+import { useAuth } from "@/hooks/use-auth";
+import type { CopilotNudge } from "@/lib/copilot/nudges";
+import { readStored, readStoredJson, writeStored } from "@/lib/safe-storage";
 
 const FETCH_DELAY_MS = 8_000;
 const GLOBAL_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 const PER_NUDGE_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
-const SESSION_FETCH_KEY = 'copilot_nudges_fetched';
+const SESSION_FETCH_KEY = "copilot_nudges_fetched";
 
 function readSeen(key: string): Record<string, number> {
   return readStoredJson<Record<string, number>>(key, {});
@@ -44,17 +44,17 @@ export function useCopilotNudges(): {
 
     const lastShown = Number(readStored(lastShownKey) ?? 0);
     if (Date.now() - lastShown < GLOBAL_COOLDOWN_MS) return;
-    if (readStored(SESSION_FETCH_KEY, 'session')) return;
+    if (readStored(SESSION_FETCH_KEY, "session")) return;
 
     const timer = setTimeout(async () => {
-      writeStored(SESSION_FETCH_KEY, '1', 'session');
+      writeStored(SESSION_FETCH_KEY, "1", "session");
       try {
-        const res = await fetch('/api/copilot/nudges');
+        const res = await fetch("/api/copilot/nudges");
         if (!res.ok) return;
         const data: { nudges: CopilotNudge[] } = await res.json();
         const seen = readSeen(seenKey);
         const pick = data.nudges.find(
-          (n) => Date.now() - (seen[n.id] ?? 0) > PER_NUDGE_COOLDOWN_MS
+          (n) => Date.now() - (seen[n.id] ?? 0) > PER_NUDGE_COOLDOWN_MS,
         );
         if (pick) setNudge(pick);
       } catch {

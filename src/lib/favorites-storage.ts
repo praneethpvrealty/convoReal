@@ -13,8 +13,8 @@ import { readStored, removeStored, writeStored } from '@/lib/safe-storage';
 // app at least once after this ships.
 // ============================================================
 
-const KEY = 'convoreal_favorites';
-const LEGACY_KEY = 'crm_favorites';
+const KEY = "convoreal_favorites";
+const LEGACY_KEY = "crm_favorites";
 
 export interface FavoriteItem {
   label: string;
@@ -23,7 +23,7 @@ export interface FavoriteItem {
 }
 
 export function readFavorites(): FavoriteItem[] {
-  if (typeof window === 'undefined') return [];
+  if (typeof window === "undefined") return [];
 
   let raw = readStored(KEY);
   if (raw === null) {
@@ -37,12 +37,12 @@ export function readFavorites(): FavoriteItem[] {
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
   } catch (err) {
-    console.error('Failed to parse favorites', err);
+    console.error("Failed to parse favorites", err);
     return [];
   }
 }
 
 export function writeFavorites(favorites: FavoriteItem[]): void {
-  if (typeof window === 'undefined') return;
+  if (typeof window === "undefined") return;
   writeStored(KEY, JSON.stringify(favorites));
 }
