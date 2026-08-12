@@ -58,18 +58,16 @@ reaches a customer. See [Boundaries](#boundaries).
 
 ### 1. Create an API key
 
-Keys are per workspace, scoped, and revocable. Ask an admin, or create one
-yourself:
+Keys are per workspace, scoped, and revocable. Go to **Settings → API Keys**,
+click **New key**, name it after the tool that will use it, and copy the key
+when it appears.
 
-```bash
-curl -X POST https://www.convoreal.com/api/account/api-keys \
-  -H "Content-Type: application/json" \
-  -b "<your browser session cookies>" \
-  -d '{"name": "Claude Desktop", "scopes": ["read"]}'
-```
+That is the only time it is ever shown. ConvoReal stores only a hash of it, so
+it cannot be recovered later — if you lose it, revoke that key and create
+another.
 
-The response contains `secret` — the only time it is ever shown. Copy it now; it
-is stored only as a hash and cannot be recovered.
+Give each tool its own key. Shared keys cannot be revoked independently, and
+"last used" stops telling you anything useful.
 
 Start with `["read"]`. Add `"write"` only if you want the assistant creating
 contacts, notes and tasks.
