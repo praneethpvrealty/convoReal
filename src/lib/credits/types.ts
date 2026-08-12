@@ -110,6 +110,11 @@ export const AI_FEATURE_COSTS = {
   ad_copy: 10,
   share_email: 10,
   event_parse: 3,
+  /** Turning an owner's voice note into text, once, before it is routed
+   *  like any typed message. Paired with the parse it feeds — a spoken
+   *  event costs this plus `event_parse`, which is what
+   *  `voice_event_parse` charged when audio only ever meant scheduling. */
+  voice_transcribe: 2,
   voice_event_parse: 5,
   image_event_parse: 5,
   call_analysis: 5,
