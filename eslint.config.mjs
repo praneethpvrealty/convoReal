@@ -30,6 +30,9 @@ const eslintConfig = defineConfig([
     "scratch/**",
     // The Expo app has its own lint setup (`cd mobile && npm run lint`).
     "mobile/**",
+    // The MCP server is a standalone package with its own tsconfig and
+    // deps (`cd mcp && npm run typecheck && npm test`).
+    "mcp/**",
     // Standalone Remotion project for the marketing net video.
     "docs/marketing/net-video/**",
   ]),

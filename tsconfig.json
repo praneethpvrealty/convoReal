@@ -30,5 +30,5 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules", "mobile", "docs/marketing/net-video"]
+  "exclude": ["node_modules", "mobile", "mcp", "docs/marketing/net-video"]
 }

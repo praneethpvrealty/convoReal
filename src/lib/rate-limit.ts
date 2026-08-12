@@ -207,6 +207,14 @@ export const RATE_LIMITS = {
    *  single account, and setting it near the per-IP budget would let
    *  one abuser lock out that tenant's legitimate integrations. */
   publicCatalogAccount: { limit: 120, windowMs: 60_000 },
+  /** `/api/v1/*` read+write, per API key. The consumer is an agent or
+   *  an automation run, not a human clicking — a burst here is a tool
+   *  loop fanning out over an inventory, which is legitimate. 120/min
+   *  is roughly two calls a second sustained, comfortable for an MCP
+   *  session resolving a multi-step question while still bounding a
+   *  runaway loop. Applied before the key is looked up, so guessing is
+   *  bounded on the same budget. */
+  apiKeyV1: { limit: 120, windowMs: 60_000 },
 } as const;
 
 /** Test-only helper. Clears the in-memory state so unit tests don't
