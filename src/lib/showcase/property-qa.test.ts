@@ -74,6 +74,33 @@ describe('answerFromPropertyData — structured answers', () => {
     expect(r.answer).toBe("It's located in Bengaluru, HSR.");
   });
 
+  it('de-dupes the PARTS of a real location line, not just whole fields', () => {
+    // PROP-1056 as it is actually stored. `location` is the whole line
+    // and the three fields beside it are its own pieces, so a
+    // whole-string comparison found no repeat and a buyer asking
+    // "where is it?" was told the locality twice.
+    const r = answerFromPropertyData('can you share location?', makeProp({
+      location: 'Koramangala 5th block, Bangalore, Karnataka',
+      sublocality: 'Koramangala 5th block',
+      city: 'Bangalore',
+      state: 'Karnataka',
+    }));
+    expect(r.intent).toBe('location');
+    expect(r.answer).toBe("It's located in Koramangala 5th block, Bangalore, Karnataka.");
+  });
+
+  it('de-dupes the locality substituted in for a guarded listing', () => {
+    // answerLeadQuestion swaps `location` for localityLabel() before
+    // asking, so the guarded path fed in the same overlap.
+    const r = answerFromPropertyData('where is it?', makeProp({
+      location: 'JP Nagar 4th Phase, Bangalore',
+      sublocality: 'JP Nagar 4th Phase',
+      city: 'Bangalore',
+      state: 'Karnataka',
+    }));
+    expect(r.answer).toBe("It's located in JP Nagar 4th Phase, Bangalore, Karnataka.");
+  });
+
   it('answers amenities', () => {
     expect(answerFromPropertyData('what amenities does it have?', makeProp()).answer).toContain('Gym, Swimming Pool, Covered Parking');
   });

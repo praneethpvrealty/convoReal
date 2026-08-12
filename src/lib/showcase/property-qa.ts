@@ -90,16 +90,24 @@ function bathroomsAnswer(p: QaProperty): string | null {
 }
 
 function locationAnswer(p: QaProperty): string | null {
-  const bits = [p.location, p.sublocality, p.city, p.state].filter(Boolean);
-  if (!bits.length) return null;
-  // De-dupe while preserving order (location often already contains city).
+  // De-dupe the PARTS, not the fields. `location` is normally the whole
+  // line ("Koramangala 5th block, Bangalore, Karnataka") and the three
+  // fields beside it are the pieces of that same line, so comparing
+  // whole strings never found a repeat and the buyer was told the
+  // listing is "located in Koramangala 5th block, Bangalore, Karnataka,
+  // Koramangala 5th block, Bangalore, Karnataka". Same shape of bug as
+  // the /api/v1 location line in #484.
   const seen = new Set<string>();
-  const unique = bits.filter((b) => {
-    const k = (b as string).toLowerCase();
-    if (seen.has(k)) return false;
-    seen.add(k);
-    return true;
-  });
+  const unique: string[] = [];
+  for (const field of [p.location, p.sublocality, p.city, p.state]) {
+    for (const part of String(field ?? '').split(',')) {
+      const clean = part.trim();
+      if (!clean || seen.has(clean.toLowerCase())) continue;
+      seen.add(clean.toLowerCase());
+      unique.push(clean);
+    }
+  }
+  if (!unique.length) return null;
   return `It's located in ${unique.join(', ')}.`;
 }
 
