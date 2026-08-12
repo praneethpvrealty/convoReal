@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { GateStatsMap } from '@/lib/inventory/gate-stats';
+import { GateRequestsDrawer } from '@/components/inventory/gate-requests-drawer';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { pushUrl, replaceUrl } from '@/lib/navigation';
 import { useCan } from '@/hooks/use-can';
@@ -657,6 +658,8 @@ export default function InventoryPage() {
     staleTime: 60_000,
   });
   const gateStats = gateStatsQuery.data ?? EMPTY_GATE_STATS;
+  const [gateRequestsProperty, setGateRequestsProperty] =
+    useState<Property | null>(null);
 
   // Buyer contacts for the per-card match counts, fetched once per visit
   // with only the columns src/lib/matching.ts reads — far lighter than
@@ -1366,6 +1369,7 @@ export default function InventoryPage() {
           }}
           portalBadges={portalBadges}
           gateStats={gateStats}
+          onGateRequests={setGateRequestsProperty}
           canEdit={canEdit}
           onFlyer={handleFlyerClick}
           onPromote={META_ADS_ENABLED ? handlePromoteClick : undefined}
@@ -1429,6 +1433,20 @@ export default function InventoryPage() {
         onOpenChange={setEmailShareOpen}
         property={emailShareProperty}
       />
+
+      {/* Who asked for a confidential listing, and who can still open
+          it. Revoking here is the action the card's counts imply. */}
+      {gateRequestsProperty && (
+        <GateRequestsDrawer
+          property={gateRequestsProperty}
+          onClose={() => setGateRequestsProperty(null)}
+          onChanged={() =>
+            queryClient.invalidateQueries({
+              queryKey: ['inventory', 'gate-stats', accountId],
+            })
+          }
+        />
+      )}
 
       {/* Post to Portals Dialog */}
       <PortalPostDialog
