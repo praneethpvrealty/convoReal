@@ -40,7 +40,10 @@ import { PROPERTY_TYPE_VALUES } from '@/lib/property-types';
 import { BUDGET_OPTIONS } from '@/lib/contacts/budget-options';
 import { priceInWords } from '@/lib/currency-utils';
 import { confidentialityNote } from '@/lib/share-message-builder';
-import { gateSummary } from '@/lib/inventory/gate-stats';
+import {
+  gateRequestStatusLabel,
+  gateSummary,
+} from '@/lib/inventory/gate-stats';
 import {
   FLOW_CHECKBOX_MAX_ITEMS,
   PROPERTY_INTEREST_FLOW_IDS,
@@ -428,6 +431,17 @@ describe('mobile/lib/gate-stats.ts mirrors gate-stats', () => {
   it('joins the parts the same way', () => {
     expect(source).toContain("parts.join(' · ')");
   });
+
+  // Both request drawers label a request from this one function. A
+  // timed-out consent chain reading "Rejected" on one surface and "No
+  // answer" on the other would report two different things about the
+  // same row.
+  it.each(['pending', 'approved', 'rejected', 'expired', 'anything-else'])(
+    'labels %s the same way',
+    (status) => {
+      expect(source).toContain(`'${gateRequestStatusLabel(status)}'`);
+    }
+  );
 });
 
 describe('mobile/lib/format.ts mirrors priceInWords', () => {

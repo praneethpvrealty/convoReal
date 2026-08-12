@@ -66,6 +66,23 @@ export function hasGateActivity(s: GateStats | undefined): boolean {
   return s.requested > 0 || s.liveGrants > 0;
 }
 
+/** How a request's status reads to the agent. A consent chain that timed
+ *  out never reached a decision, so it says so rather than claiming the
+ *  listing side refused. Shared with mobile for the same reason the
+ *  summary is. */
+export function gateRequestStatusLabel(status: string): string {
+  switch (status) {
+    case 'pending':
+      return 'Waiting on you';
+    case 'approved':
+      return 'Approved';
+    case 'rejected':
+      return 'Rejected';
+    default:
+      return 'No answer';
+  }
+}
+
 /** The card's one-line summary. Kept here rather than in the component
  *  so web and mobile cannot word it differently. */
 export function gateSummary(s: GateStats | undefined): string | null {

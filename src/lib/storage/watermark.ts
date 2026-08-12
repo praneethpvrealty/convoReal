@@ -10,22 +10,17 @@
 // Applied at the read boundary — the two service-role proxies that
 // stream from the private bucket — never at upload. The stored original
 // stays clean, and the label follows whoever fetched it.
+//
+// The label is drawn from the bitmap font in ./watermark-font, not from
+// SVG text: the runtime has no fonts for sharp's SVG renderer, so every
+// <text> element it composited drew nothing while reporting success.
 // ============================================================
 
-import sharp from 'sharp';
+import sharp, { type OverlayOptions } from 'sharp';
+import { renderTextTile } from './watermark-font';
 
-/** Repeat spacing of the tile, in pixels of the resized output. */
+/** Repeat spacing of the tile, in pixels of the output. */
 const TILE = 420;
-const FONT_SIZE = 20;
-
-function escapeXml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
-}
 
 /**
  * The line burned into the image. Masked, not raw: the point is that
@@ -42,45 +37,10 @@ export function watermarkLabel(args: {
     : `Confidential · ${args.reference}`;
 }
 
-function overlaySvg(text: string, width: number, height: number): Buffer {
-  const safe = escapeXml(text);
-  // Explicit <text> elements rather than a <pattern> fill.
-  //
-  // The pattern version rendered locally and drew NOTHING in production:
-  // the composite completed, the JPEG re-encoded, and the served image
-  // came back pixel-identical to a plain re-encode. sharp's SVG renderer
-  // differs by build, and pattern-with-patternTransform is exactly the
-  // kind of construct that varies. A watermark that silently no-ops is
-  // worse than none, because the copy promises the recipient is
-  // traceable — so this uses only rotated text, which every renderer
-  // handles.
-  const rows: string[] = [];
-  // Spacing adapts to the image. A fixed 420px step put every baseline
-  // outside a small thumbnail, marking nothing — the same silent
-  // no-op this rewrite exists to prevent, just from geometry instead of
-  // the renderer. Halving guarantees at least two marks per axis.
-  const stepX = Math.max(140, Math.min(TILE, Math.round(width / 2)));
-  const stepY = Math.max(
-    90,
-    Math.min(Math.round(TILE * 0.62), Math.round(height / 2))
-  );
-  // Start half a step in so the first baseline sits inside the canvas,
-  // and overdraw the right/bottom edges so the rotation leaves no bare
-  // corner.
-  for (let y = Math.round(stepY / 2); y < height + stepY; y += stepY) {
-    for (let x = -stepX; x < width + stepX; x += stepX) {
-      rows.push(
-        `<text x="${x}" y="${y}" transform="rotate(-30 ${x} ${y})" ` +
-          `font-family="sans-serif" font-size="${FONT_SIZE}" ` +
-          `fill="#ffffff" fill-opacity="0.42" ` +
-          `stroke="#000000" stroke-opacity="0.22" stroke-width="0.6">${safe}</text>`
-      );
-    }
-  }
-  return Buffer.from(
-    `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">${rows.join('')}</svg>`,
-    'utf-8'
-  );
+/** Scale the glyphs to the photo so the mark is legible on a 4000px
+ *  original and still fits inside a 400px thumbnail. */
+function glyphScale(width: number): number {
+  return Math.max(2, Math.min(5, Math.round(width / 320)));
 }
 
 /**
@@ -105,8 +65,50 @@ export async function watermarkImage(
       return { buffer: input, contentType: 'image/jpeg' };
     }
 
+    const tile = renderTextTile(label, glyphScale(width));
+    let stamp = await sharp(tile.data, {
+      raw: { width: tile.width, height: tile.height, channels: 4 },
+    })
+      .rotate(-30, { background: { r: 0, g: 0, b: 0, alpha: 0 } })
+      .png()
+      .toBuffer();
+    let stampMeta = await sharp(stamp).metadata();
+    // A stamp wider than the photo composites nowhere, which is the
+    // silent no-op again. Shrink it to fit instead of skipping.
+    if ((stampMeta.width ?? 0) > width || (stampMeta.height ?? 0) > height) {
+      stamp = await sharp(stamp)
+        .resize({ width, height, fit: 'inside' })
+        .png()
+        .toBuffer();
+      stampMeta = await sharp(stamp).metadata();
+    }
+    const stampW = stampMeta.width ?? tile.width;
+    const stampH = stampMeta.height ?? tile.height;
+
+    // Spacing adapts to the photo. A fixed step put every stamp outside
+    // a small thumbnail, marking nothing — the same silent no-op this
+    // module exists to prevent, just from geometry. Halving guarantees
+    // at least two marks per axis.
+    const stepX = Math.max(stampW + 24, Math.min(TILE, Math.round(width / 2)));
+    const stepY = Math.max(
+      stampH + 24,
+      Math.min(Math.round(TILE * 0.62), Math.round(height / 2))
+    );
+
+    const layers: OverlayOptions[] = [];
+    let row = 0;
+    for (let top = 0; top + stampH <= height; top += stepY, row++) {
+      const offset = row % 2 === 0 ? 0 : Math.round(stepX / 2);
+      for (let left = offset; left + stampW <= width; left += stepX) {
+        layers.push({ input: stamp, top, left });
+      }
+    }
+    if (layers.length === 0) {
+      layers.push({ input: stamp, top: 0, left: 0 });
+    }
+
     const buffer = await image
-      .composite([{ input: overlaySvg(label, width, height), top: 0, left: 0 }])
+      .composite(layers)
       .jpeg({ quality: 82, mozjpeg: true })
       .toBuffer();
 

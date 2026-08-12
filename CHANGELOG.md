@@ -13,6 +13,15 @@ and polish.
 
 ### Added
 
+- **The confidential-listing request drawer, on the phone.** Tapping the
+  Confidential chip on a property card in the app now opens who asked for
+  access, what came of each request, and who can open the listing right
+  now — with Revoke. The counts shipped to mobile without the action
+  behind them, which left an agent away from a desk able to see that
+  someone could open a listing and unable to stop them. Status wording is
+  shared with the web drawer, so a timed-out request reads "No answer" on
+  both rather than "Rejected" on one.
+
 - **Focus — the screen to open the app on.** A consultant's day in three
   answers, on web (`/dashboard?tab=focus`, now the tab an unqualified
   `/dashboard` lands on) and in the app (More → Focus). **Tasks &
@@ -127,6 +136,16 @@ and polish.
   already accepted.
 
 ### Fixed
+
+- **The watermark on confidential photos never marked anything in
+  production.** Guarded photos are stamped with the recipient's masked
+  number so a forwarded screenshot is traceable, and the copy tells the
+  recipient so. The overlay was drawn as SVG text; the runtime has no
+  fonts for that renderer, so it composited cleanly and drew nothing —
+  a photo served live differed from the stored original only by
+  re-encoding. The label is now drawn from a bitmap font straight into
+  pixels, with no renderer involved, and the tests compare against a
+  plain re-encode so a silent no-op fails them.
 
 - **"Residential" searches missed plots and land listed after the type
   split.** `Residential Plot` and `Residential Land` replaced the single

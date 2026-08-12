@@ -101,7 +101,32 @@ describe('watermarkImage', () => {
     expect(changed).toBeGreaterThan(1000);
   });
 
-  it('does not break on label text that would corrupt the SVG overlay', async () => {
+  // The runtime has no fonts, so an unrenderable character must degrade
+  // to a visible glyph rather than to a blank stamp.
+  it('marks a small image and an unusual label', async () => {
+    for (const [w, h, label] of [
+      [200, 120, 'अ · ABC'],
+      [1600, 1000, '98•••••210 · A1B2C3D4'],
+    ] as const) {
+      const src = await solidJpeg(w, h);
+      const plain = await sharp(src)
+        .rotate()
+        .jpeg({ quality: 82, mozjpeg: true })
+        .toBuffer();
+      const { buffer } = await watermarkImage(src, label);
+      const [a, b] = await Promise.all([
+        sharp(plain).raw().toBuffer(),
+        sharp(buffer).raw().toBuffer(),
+      ]);
+      let changed = 0;
+      for (let i = 0; i < a.length; i++) {
+        if (Math.abs(a[i] - b[i]) > 12) changed++;
+      }
+      expect(changed, `${w}x${h} drew nothing`).toBeGreaterThan(1000);
+    }
+  });
+
+  it('does not break on label text that would corrupt a markup overlay', async () => {
     const { buffer } = await watermarkImage(
       await solidJpeg(),
       '<script>&"\'</script> · ABC'

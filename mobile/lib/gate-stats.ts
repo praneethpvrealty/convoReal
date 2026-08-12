@@ -24,6 +24,22 @@ export function hasGateActivity(s: GateStats | undefined): boolean {
   return s.requested > 0 || s.liveGrants > 0;
 }
 
+/** How a request's status reads to the agent. A consent chain that timed
+ *  out never reached a decision, so it says so rather than claiming the
+ *  listing side refused. */
+export function gateRequestStatusLabel(status: string): string {
+  switch (status) {
+    case 'pending':
+      return 'Waiting on you';
+    case 'approved':
+      return 'Approved';
+    case 'rejected':
+      return 'Rejected';
+    default:
+      return 'No answer';
+  }
+}
+
 /** The card's one-line summary. */
 export function gateSummary(s: GateStats | undefined): string | null {
   if (!hasGateActivity(s) || !s) return null;
