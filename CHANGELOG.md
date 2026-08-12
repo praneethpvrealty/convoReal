@@ -137,6 +137,15 @@ and polish.
 
 ### Fixed
 
+- **A listing's own photos disappeared from the app once it was made
+  confidential.** Gating moves the photos into the guarded bucket so a
+  forwarded public link cannot carry them — but every internal view read
+  the public `images` array alone, so the agent's own gallery and card
+  cover went blank. The photos were never lost; nothing was reading them.
+  Internal galleries now fall back to the authenticated proxy, which
+  re-checks the viewer on every request. Publishing paths — share links,
+  flyers, portal post kits — deliberately still see only public photos.
+
 - **The watermark on confidential photos never marked anything in
   production.** Guarded photos are stamped with the recipient's masked
   number so a forwarded screenshot is traceable, and the copy tells the

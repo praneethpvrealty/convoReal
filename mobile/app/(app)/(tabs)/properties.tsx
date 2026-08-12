@@ -38,6 +38,8 @@ import {
   SearchBar,
 } from '@/components/ui';
 import { gateSummary, type GateStatsMap } from '@/lib/gate-stats';
+import { internalPhotoSources } from '@/lib/photo-sources';
+import { usePhotoSources } from '@/lib/use-photo-source';
 import {
   apiFetch,
   placeDetails,
@@ -882,7 +884,15 @@ function PropertyCard({
   // a sheet is a Modal each.
   const [gateOpen, setGateOpen] = useState(false);
   const gradient = useBrandGradient();
-  const cover = storagePublicUrl(property.images?.[0]);
+  // Gating moves photos into the guarded bucket, so a confidential
+  // listing's cover is not in `images` at all.
+  const cover = usePhotoSources(
+    internalPhotoSources({
+      id: property.id,
+      images: property.images,
+      private_images: property.private_images,
+    }).slice(0, 1)
+  )?.[0];
   const price =
     property.listing_type === 'Rent'
       ? property.rent_per_month
@@ -908,7 +918,7 @@ function PropertyCard({
       <View style={styles.coverWrap}>
         {cover ? (
           <Image
-            source={{ uri: cover }}
+            source={cover}
             style={StyleSheet.absoluteFill}
             resizeMode="cover"
           />

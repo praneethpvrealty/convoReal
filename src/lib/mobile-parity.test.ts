@@ -397,6 +397,27 @@ describe('mobile/lib/share-message.ts mirrors share-message-builder', () => {
   });
 });
 
+describe('mobile/lib/photo-sources.ts mirrors photo-sources', () => {
+  // Both galleries have to find a gated listing's photos in the guarded
+  // bucket, in the same order, at the same proxy index — the index IS
+  // the identifier the route reads.
+  const source = mobileSource('lib/photo-sources.ts');
+
+  it('builds the same proxy path', () => {
+    expect(source).toContain(
+      '`/api/properties/${propertyId}/private-images/${index}`'
+    );
+  });
+
+  it('orders public photos before guarded ones', () => {
+    expect(source).toContain('[...pub, ...guarded]');
+  });
+
+  it('indexes guarded photos by their place in private_images', () => {
+    expect(source).toContain('guardedPhotoPath(p.id, i)');
+  });
+});
+
 describe('mobile/lib/gate-stats.ts mirrors gate-stats', () => {
   // The card summary is a number an agent acts on. "3 asked · 1 open"
   // on the phone and something else on the desktop would leave them not
