@@ -22,7 +22,10 @@ import {
   PROPERTY_QA_SYSTEM_PROMPT,
   type QaProperty,
 } from '@/lib/showcase/property-qa';
-import { isLocationGuarded, localityLabel } from '@/lib/inventory/location-guard';
+import {
+  isLocationGuarded,
+  localityLabel,
+} from '@/lib/inventory/location-guard';
 import { PORTALS } from '@/lib/portals/post-kit';
 import {
   findPortalDiscrepancies,
@@ -31,6 +34,7 @@ import {
   type ReconcilableProperty,
 } from '@/lib/portals/listing-reconcile';
 import { resolvePropertySubject } from '@/lib/learning/subject';
+import { resolveShortlistReference } from '@/lib/ai/shortlist-reference';
 import type { Property } from '@/types';
 import { generateText } from '@/lib/ai/gemini';
 import { burnCredits } from '@/lib/credits/burn';
@@ -42,7 +46,7 @@ const AI_FEATURE = 'chatbot_auto_reply' as const;
 /** What the lead hears when nobody but a human can answer. Deliberately
  *  promises a person, not a time — the agent decides that. */
 export const HANDOVER_TEXT =
-  "Good question — let me check that with the team and come right back to you.";
+  'Good question — let me check that with the team and come right back to you.';
 
 export type LeadAnswerSource = 'listing' | 'ai' | 'handover';
 
@@ -106,7 +110,7 @@ export function answerFromPortalListing(
     '',
     ...lines,
     '',
-    "Let me confirm which is correct and come straight back to you.",
+    'Let me confirm which is correct and come straight back to you.',
   ].join('\n');
 }
 
@@ -136,7 +140,7 @@ function inr(n: number): string {
  */
 export function answerFromSellerFinalPrice(
   question: string,
-  property: SellerPriceFields,
+  property: SellerPriceFields
 ): string | null {
   if (!FINAL_PRICE_QUESTION.test(question || '')) return null;
 
@@ -173,7 +177,7 @@ export function looksLikeQuestion(text: string | null | undefined): boolean {
   if (/\b(book|schedule|remind me|set up|arrange)\b/.test(t)) return false;
   if (t.includes('?')) return true;
   return /^(can|could|will|would|is|are|do|does|did|what|when|where|which|who|whom|why|how|any|shall|may)\b/.test(
-    t,
+    t
   );
 }
 
@@ -203,41 +207,128 @@ export function requestsHumanContact(text?: string | null): boolean {
   const t = (text || '').trim().toLowerCase();
   if (!t) return false;
   return /\b(call me|call back|call-back|callback|give me a (call|ring)|ring me|phone me|(please|pls|plz) call|(talk|speak) (to|with) (a |an )?(human|person|someone|somebody|agent|executive|team)|connect me)\b/.test(
-    t,
+    t
   );
 }
 
+export type SubjectProperty = QaProperty & SellerPriceFields & { id: string };
+
 /**
- * The listing a question is about, as the shared subject resolver sees
- * it — the share ledger reconciled against what the agent has since
- * said. Null means the thread cannot be pinned to one listing, which
- * the caller reads as a handover: a buyer told "let me check and come
- * back" loses nothing, where a buyer told the wrong listing's facts
- * cannot tell.
+ * One message out of one answer per listing the buyer numbered.
+ *
+ * Headed by the listing's title, because "Koramangala 5th block" and
+ * "JP Nagar 4th Phase" one after the other say nothing about which is
+ * option 1. Identical answers collapse to one — asking to be called
+ * about two listings is still one callback, and repeating the promise
+ * makes it sound automated, which is exactly what it must not sound
+ * like at the moment a person is being summoned.
  */
+export function mergeLeadAnswers(
+  answers: LeadAnswer[],
+  subjects: { title?: string | null }[]
+): LeadAnswer {
+  const first = answers[0] ?? {
+    text: HANDOVER_TEXT,
+    source: 'handover' as const,
+  };
+  if (answers.length < 2) return first;
+  if (new Set(answers.map((a) => a.text.trim())).size === 1) return first;
+
+  return {
+    text: answers
+      .map((answer, i) => {
+        const title = subjects[i]?.title?.trim();
+        return title ? `*${title}*\n${answer.text}` : answer.text;
+      })
+      .join('\n\n'),
+    // Any listing we could not answer for still owes the buyer a
+    // person, and the handover branch is what summons one.
+    source: answers.some((a) => a.source === 'handover')
+      ? 'handover'
+      : first.source,
+    intent: answers.every((a) => a.intent === first.intent)
+      ? first.intent
+      : null,
+  };
+}
+
+async function loadSubjects(
+  db: SupabaseClient,
+  accountId: string,
+  ids: string[]
+): Promise<SubjectProperty[]> {
+  if (ids.length === 0) return [];
+  const { data } = await db
+    .from('properties')
+    .select('*')
+    .eq('account_id', accountId)
+    .in('id', ids);
+
+  const rows = (data ?? []) as SubjectProperty[];
+  // Back in the order the buyer named them, so "1 and 2" is answered
+  // as 1 then 2.
+  return ids
+    .map((id) => rows.find((row) => row.id === id))
+    .filter((row): row is SubjectProperty => !!row);
+}
+
+/**
+ * The listings a question is about.
+ *
+ * Numbers the buyer used win, because they are the most explicit thing
+ * anyone in the thread has said about which listing is meant — the bot
+ * numbered the shortlist and invited exactly this. Failing that it is
+ * the shared subject resolver: the share ledger reconciled against what
+ * the agent has since said.
+ *
+ * Empty means the thread cannot be pinned to a listing, which the
+ * caller reads as a handover: a buyer told "let me check and come back"
+ * loses nothing, where a buyer told the wrong listing's facts cannot
+ * tell.
+ */
+export async function questionSubjectProperties(
+  db: SupabaseClient,
+  accountId: string,
+  contactId: string,
+  conversationId?: string | null,
+  /** The buyer's own words, read for "option 2" / "the first one". */
+  questionText?: string | null
+): Promise<SubjectProperty[]> {
+  if (conversationId && questionText) {
+    const numbered = await resolveShortlistReference(
+      db,
+      accountId,
+      conversationId,
+      questionText
+    );
+    if (numbered.length > 0) return loadSubjects(db, accountId, numbered);
+  }
+
+  const propertyId = await resolvePropertySubject(
+    db,
+    accountId,
+    contactId,
+    conversationId
+  );
+  return propertyId ? loadSubjects(db, accountId, [propertyId]) : [];
+}
+
+/** The single listing a question is about, for callers that answer one. */
 export async function questionSubjectProperty(
   db: SupabaseClient,
   accountId: string,
   contactId: string,
   conversationId?: string | null,
-): Promise<(QaProperty & SellerPriceFields & { id: string }) | null> {
-  const propertyId = await resolvePropertySubject(
+  questionText?: string | null
+): Promise<SubjectProperty | null> {
+  const subjects = await questionSubjectProperties(
     db,
     accountId,
     contactId,
     conversationId,
+    questionText
   );
-  if (!propertyId) return null;
-
-  const { data: property } = await db
-    .from('properties')
-    .select('*')
-    .eq('id', propertyId)
-    .eq('account_id', accountId)
-    .maybeSingle();
-  return (
-    (property as (QaProperty & SellerPriceFields & { id: string }) | null) ?? null
-  );
+  return subjects[0] ?? null;
 }
 
 /** Portal statuses that mean this row describes THIS property. A
@@ -253,7 +344,7 @@ const LINKED_PORTAL_STATUSES = ['linked', 'auto_matched', 'imported'];
 export async function subjectPortalListings(
   db: SupabaseClient,
   accountId: string,
-  propertyId: string,
+  propertyId: string
 ): Promise<PortalListingFigures[]> {
   const { data } = await db
     .from('portal_import_items')
@@ -319,7 +410,11 @@ export async function answerLeadQuestion(args: {
       args.portalListings
     );
     if (portalAnswer) {
-      return { text: portalAnswer, source: 'listing', intent: 'portal_compare' };
+      return {
+        text: portalAnswer,
+        source: 'listing',
+        intent: 'portal_compare',
+      };
     }
   }
 
@@ -329,7 +424,11 @@ export async function answerLeadQuestion(args: {
   if (args.shareSellerFinalPrice) {
     const finalPrice = answerFromSellerFinalPrice(question, property);
     if (finalPrice) {
-      return { text: finalPrice, source: 'listing', intent: 'seller_final_price' };
+      return {
+        text: finalPrice,
+        source: 'listing',
+        intent: 'seller_final_price',
+      };
     }
   }
 
@@ -345,9 +444,14 @@ export async function answerLeadQuestion(args: {
   // Soft burn before the call: an account out of credits hands over to
   // a human rather than failing, and never pays for a call we skip.
   try {
-    const burn = await burnCredits(accountId, AI_FEATURE, AI_FEATURE_COSTS[AI_FEATURE], {
-      hardBlock: false,
-    });
+    const burn = await burnCredits(
+      accountId,
+      AI_FEATURE,
+      AI_FEATURE_COSTS[AI_FEATURE],
+      {
+        hardBlock: false,
+      }
+    );
     if (burn.deficit !== 0) return { text: HANDOVER_TEXT, source: 'handover' };
   } catch (err) {
     console.error('[lead-question] credit burn failed:', err);
@@ -386,12 +490,12 @@ function isNonAnswer(answer: string): boolean {
   const text = answer.trim();
   if (
     /^(i (don'?t|do not) (know|have)|sorry[, ]|that information (is|isn'?t)|not (specified|available|mentioned)|no information)/i.test(
-      text,
+      text
     )
   ) {
     return true;
   }
   return /\b(let me (confirm|check|find out|verify)|i'?ll (confirm|check|find out|verify|get back)|come (right )?back to you|check (on )?(that|this) and revert|revert (on|to) you)\b/i.test(
-    text,
+    text
   );
 }

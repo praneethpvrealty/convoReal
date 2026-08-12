@@ -519,6 +519,17 @@ export function getMatchingContacts(
 
     const hasTypePrefs = wantedGroups.size > 0 || wantedCategories.size > 0;
 
+    // The sector the buyer named, if any — every category except
+    // 'plot', which cuts across all of them. Also read off a stated
+    // subtype, so "Commercial Land" narrows the plot rung below on its
+    // own, without the buyer having to say "commercial" twice.
+    const statedSectors = new Set<Category>(
+      [
+        ...wantedCategories,
+        ...[...wantedGroups].map((g) => GROUP_TO_CATEGORY[g]),
+      ].filter((c): c is Category => !!c && c !== 'plot')
+    );
+
     let typeVerdict: MatchVerdict = 'unknown';
     if (hasTypePrefs) {
       if (propertyGroup && wantedGroups.has(propertyGroup)) {
@@ -532,7 +543,20 @@ export function getMatchingContacts(
         ![...wantedGroups].some((g) => GROUP_TO_CATEGORY[g] === propertyCategory)
       ) {
         typeVerdict = 'partial';
-      } else if (propertyGroup && wantedCategories.has('plot') && PLOT_GROUPS.includes(propertyGroup)) {
+      } else if (
+        propertyGroup &&
+        wantedCategories.has('plot') &&
+        PLOT_GROUPS.includes(propertyGroup) &&
+        // 'plot' says land rather than a building. It says nothing
+        // about which sector, so it must not overrule one stated
+        // beside it: a lead who answered "Land", then "Commercial or
+        // Semi commercial", was shown two residential plots under a
+        // line that read "Perfect — commercial land, up to ₹8 Cr",
+        // because 'plot' alone had opened the gate to every plot in
+        // inventory — residential and agricultural included.
+        (statedSectors.size === 0 ||
+          (propertyCategory && statedSectors.has(propertyCategory)))
+      ) {
         typeVerdict = 'partial';
       } else {
         typeVerdict = 'mismatch';

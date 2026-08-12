@@ -137,6 +137,15 @@ and polish.
 
 ### Fixed
 
+- **A visitor with site data blocked got the error page on every
+  showcase link.** Chrome with cookies/site data blocked does not return
+  null from `localStorage` — reading the property throws. The showcase
+  read it unguarded while restoring saved filters, so the page fell to
+  the error boundary for that visitor while working for everyone else,
+  on a URL that served a correct 200. Every web-storage read and write
+  now goes through `src/lib/safe-storage.ts`, which degrades to "not
+  remembered" instead of throwing.
+
 - **A listing's own photos disappeared from the app once it was made
   confidential.** Gating moves the photos into the guarded bucket so a
   forwarded public link cannot carry them — but every internal view read

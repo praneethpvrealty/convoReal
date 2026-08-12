@@ -25,6 +25,7 @@ import {
   shouldSendMatchesNow,
   buildFollowUpQuestion,
   preferenceFacts,
+  askedQualifiers,
 } from './buyer-qualification';
 import {
   EMPTY_PREFERENCES,
@@ -92,7 +93,11 @@ describe('processBuyerQualificationMessage — a lead asking for a person', () =
   });
 
   it('stands down however the lead phrases it', async () => {
-    for (const text of ['please call me', 'ring me tomorrow', 'connect me to an agent']) {
+    for (const text of [
+      'please call me',
+      'ring me tomorrow',
+      'connect me to an agent',
+    ]) {
       await expect(run(text), text).resolves.toBe(false);
     }
     expect(supabaseAdmin).not.toHaveBeenCalled();
@@ -102,6 +107,31 @@ describe('processBuyerQualificationMessage — a lead asking for a person', () =
     // The other direction: a guard that swallowed ordinary answers
     // would silently switch qualification off for everyone.
     await run('3 BHK in Whitefield, budget 2cr');
+    expect(supabaseAdmin).toHaveBeenCalled();
+  });
+
+  it('stands down when the lead names a listing number', async () => {
+    // The bug this whole change is about. It arrived right after a
+    // shortlist, so `awaitingAnswer` was true and the ladder claimed
+    // it: a buyer offering to drive out to two listings the same day
+    // was asked "what kind of property are you looking for?".
+    await expect(
+      run('Can you share location of Options 1 & 2? I will visit today.')
+    ).resolves.toBe(false);
+    await expect(run('photos for no. 3 please')).resolves.toBe(false);
+    await expect(run('2')).resolves.toBe(false);
+    expect(supabaseAdmin).not.toHaveBeenCalled();
+  });
+
+  it('keeps a plain question, which the ladder answers better', async () => {
+    // A new lead asking "what do you have?" wants to be asked what
+    // they are after — not told that someone will come back to them.
+    await run('What do you have?');
+    expect(supabaseAdmin).toHaveBeenCalled();
+  });
+
+  it('keeps a numbered message that states the requirement', async () => {
+    await run('option 2 style, 3 BHK in Whitefield under 2cr');
     expect(supabaseAdmin).toHaveBeenCalled();
   });
 });
@@ -172,6 +202,63 @@ describe('nextQualifier', () => {
         })
       )
     ).toBeNull();
+  });
+
+  it('does not put a rung a second time', () => {
+    // The live loop: asked "which area are you looking at?", answered
+    // "Anywhere. its fine, We are Kyzion. We purchase plot, Build
+    // 1bhk/studio for Short term rentals" — which is an answer, and
+    // leaves areas empty because there is no area. The bot repeated
+    // itself word for word and would have kept repeating it.
+    const answered = prefs({
+      property_categories: ['commercial'],
+      budget_max: 80_000_000,
+    });
+    expect(nextQualifier(answered)).toBe('location');
+    expect(nextQualifier(answered, ['location'])).toBeNull();
+  });
+
+  it('moves to the next rung rather than skipping the ladder', () => {
+    expect(nextQualifier(prefs(), ['type'])).toBe('budget');
+    expect(nextQualifier(prefs(), ['type', 'budget'])).toBe('location');
+    expect(nextQualifier(prefs(), ['type', 'budget', 'location'])).toBeNull();
+  });
+});
+
+describe('askedQualifiers', () => {
+  it('reads each rung back off the message that asked it', () => {
+    for (const field of ['type', 'budget', 'location'] as const) {
+      // Both phrasings, so the fingerprints cannot drift away from the
+      // questions they identify.
+      expect(
+        askedQualifiers([
+          buildQualifierQuestion(field, prefs(), ['HSR Layout']),
+        ]),
+        field
+      ).toEqual([field]);
+      expect(askedQualifiers([buildFollowUpQuestion(field)]), field).toEqual([
+        field,
+      ]);
+    }
+  });
+
+  it('claims nothing from the bot messages that are not questions', () => {
+    expect(
+      askedQualifiers([
+        'Thanks Pavan — here are 3 that fit 👇',
+        null,
+        "Got it — I'll have someone from the team call you shortly.",
+      ])
+    ).toEqual([]);
+  });
+
+  it('reports the rungs in ladder order', () => {
+    expect(
+      askedQualifiers([
+        buildQualifierQuestion('location', prefs()),
+        buildQualifierQuestion('type', prefs()),
+      ])
+    ).toEqual(['type', 'location']);
   });
 });
 
@@ -255,6 +342,23 @@ describe('buildMatchesReply', () => {
       'https://convoreal.com/?property_id=prop-1&v=contact-9'
     );
     expect(reply).toContain('₹1.75 Cr');
+  });
+
+  it('links the brokerage domain and their own listing code', () => {
+    // The bot path used to build links straight from the site URL with
+    // a raw UUID, so a brokerage's own lead got an unbranded
+    // convoreal.com/?property_id=<uuid> — the one thing
+    // account-showcase-url.ts exists to prevent. accountShowcaseOrigin
+    // hands over a bare origin, hence the closed path here.
+    const reply = buildMatchesReply(
+      'Pavan',
+      [match({ property_code: 'PROP-1056' })],
+      'https://kyzion.convoreal.com',
+      'contact-9'
+    );
+    expect(reply).toContain(
+      'https://kyzion.convoreal.com/?property_id=PROP-1056&v=contact-9'
+    );
   });
 
   it('caps the shortlist at three so a reply never reads as a dump', () => {
@@ -429,14 +533,18 @@ describe('preferenceSignature', () => {
       )
     ).toBe(
       preferenceSignature(
-        prefs({ areas: ['Block 4th Sir M Vishweshwaraiah Layout', 'Bangalore'] })
+        prefs({
+          areas: ['Block 4th Sir M Vishweshwaraiah Layout', 'Bangalore'],
+        })
       )
     );
   });
 
   it('ignores whitespace and duplicate noise from a re-run', () => {
     expect(
-      preferenceSignature(prefs({ areas: ['  HSR  Layout ', 'hsr layout', ''] }))
+      preferenceSignature(
+        prefs({ areas: ['  HSR  Layout ', 'hsr layout', ''] })
+      )
     ).toBe(preferenceSignature(prefs({ areas: ['HSR Layout'] })));
   });
 
@@ -451,16 +559,18 @@ describe('preferenceSignature', () => {
       expect(
         preferenceSignature(prefs({ [field]: ['Alpha, Beta'] } as never)),
         field
-      ).toBe(preferenceSignature(prefs({ [field]: ['alpha', 'beta'] } as never)));
+      ).toBe(
+        preferenceSignature(prefs({ [field]: ['alpha', 'beta'] } as never))
+      );
     }
   });
 
   it('still hears a genuinely new locality', () => {
     // The guard must not go deaf: splitting for comparison cannot make
     // an added area look like the same set.
-    expect(
-      preferenceSignature(prefs({ areas: ['Whitefield'] }))
-    ).not.toBe(preferenceSignature(prefs({ areas: ['Whitefield', 'Hoodi'] })));
+    expect(preferenceSignature(prefs({ areas: ['Whitefield'] }))).not.toBe(
+      preferenceSignature(prefs({ areas: ['Whitefield', 'Hoodi'] }))
+    );
   });
 
   it('still hears a locality that was dropped', () => {
@@ -520,7 +630,9 @@ describe('buildQualificationReply — project-first matching', () => {
 
     expect(outcome.missing).toBeNull();
     expect(outcome.reply).toContain('Oval Reef');
-    expect(outcome.reply).not.toContain('What kind of property are you looking for');
+    expect(outcome.reply).not.toContain(
+      'What kind of property are you looking for'
+    );
   });
 
   it('still asks the open rung, as a postscript to the listings', () => {
@@ -533,7 +645,9 @@ describe('buildQualificationReply — project-first matching', () => {
       'c1'
     );
     // Anju stated no type, so that is what is still worth knowing.
-    expect(outcome.reply).toContain('land/plot, apartment, villa or commercial');
+    expect(outcome.reply).toContain(
+      'land/plot, apartment, villa or commercial'
+    );
     // The greeting-led version would read as though the bot forgot it
     // had just sent three listings.
     expect(outcome.reply).not.toContain('Got it 👍');
@@ -562,7 +676,9 @@ describe('buildQualificationReply — project-first matching', () => {
       'c1'
     );
     expect(outcome.missing).toBe('type');
-    expect(outcome.reply).toContain('What kind of property are you looking for');
+    expect(outcome.reply).toContain(
+      'What kind of property are you looking for'
+    );
   });
 
   it('adds no postscript when the ladder finished on its own', () => {
