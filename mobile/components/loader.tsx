@@ -1,7 +1,7 @@
 import MaskedView from '@react-native-masked-view/masked-view';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useState } from 'react';
-import { Text, View, type ViewStyle } from 'react-native';
+import { StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -33,12 +33,9 @@ export function ConvoRealLoader({
 }) {
   const { colors, fonts: f } = useTheme();
   const reduced = useReducedMotion();
-  const [measured, setMeasured] = useState<{ size: number; width: number } | null>(null);
+  const [box, setBox] = useState({ width: 0, height: 0 });
   const x = useSharedValue(0);
-  const h = Math.ceil(size * 1.25);
-  // A measurement taken at another font size is stale — fall back to 0
-  // so the measurer's next layout pass supplies the right one.
-  const w = measured?.size === size ? measured.width : 0;
+  const { width: w, height: h } = box;
 
   useEffect(() => {
     if (!w || reduced) return;
@@ -52,38 +49,9 @@ export function ConvoRealLoader({
     fontSize: size,
     fontFamily: f.extrabold,
     letterSpacing: -0.02 * size,
-    lineHeight: h,
+    lineHeight: Math.ceil(size * 1.25),
     color: colors.primary,
   } as const;
-
-  // Invisible copy that owns measurement for the whole lifetime — NOT
-  // just the first layout. The boot screen mounts this loader while the
-  // custom fonts are still loading, so the first layout measures the
-  // narrower system-fallback glyphs; freezing that width left the real
-  // ExtraBold render wrapping inside a too-small mask box, and the
-  // one-line-tall mask clipped it to "ConvoRe". Re-measuring on every
-  // layout change means the font swap simply resizes the mask.
-  // The wide zero-height frame matters: Yoga clamps an absolute child
-  // to its parent's width, and the parent is the mask-sized box — a
-  // clamped measurer would just echo the stale width back forever.
-  // (+2 slack: Android's reported width can land a hair under the real
-  // glyph advance.)
-  const measurer = (
-    <View pointerEvents="none" style={{ position: 'absolute', width: 9999, height: 0, opacity: 0 }}>
-      <Text
-        numberOfLines={1}
-        style={[textStyle, { alignSelf: 'flex-start' }]}
-        onLayout={(e) => {
-          const width = Math.ceil(e.nativeEvent.layout.width) + 2;
-          setMeasured((prev) =>
-            prev?.size === size && prev.width === width ? prev : { size, width },
-          );
-        }}
-      >
-        ConvoReal
-      </Text>
-    </View>
-  );
 
   const wordmark = (
     <Text numberOfLines={1} ellipsizeMode="clip" style={textStyle}>
@@ -91,31 +59,53 @@ export function ConvoRealLoader({
     </Text>
   );
 
-  // First render measures the wordmark; reduced motion keeps it static
-  // (the web's prefers-reduced-motion fallback is plain primary text).
-  if (reduced || !w) {
-    return (
-      <View accessibilityLabel={label} style={style}>
-        {measurer}
-        {wordmark}
-      </View>
-    );
-  }
+  // The wordmark itself owns the box, and the mask is laid over it —
+  // so the mask is always exactly as wide as the glyphs it hides,
+  // whatever font is resolved. Sizing the mask from an onLayout
+  // measurement instead left it a mask-width behind the real
+  // ExtraBold render (the boot screen mounts this while the custom
+  // fonts are still loading) and the wordmark read "ConvoRe".
+  // The measurement now only paces the shimmer: while it is stale the
+  // band drifts, it never clips a letter.
+  const masked = !reduced && w > 0;
 
   return (
     <View accessibilityLabel={label} style={style}>
-      {measurer}
-      <MaskedView style={{ width: w, height: h }} maskElement={wordmark}>
-        <View style={{ width: w, height: h, overflow: 'hidden' }}>
-          <AnimatedGradient
-            colors={[colors.primary, colors.shimmer, colors.primary]}
-            locations={[0.4, 0.5, 0.6]}
-            start={{ x: 0, y: 0.3 }}
-            end={{ x: 1, y: 0.7 }}
-            style={[{ position: 'absolute', top: 0, left: 0, width: w * 2, height: h }, anim]}
-          />
-        </View>
-      </MaskedView>
+      <View
+        style={{ alignSelf: 'flex-start' }}
+        onLayout={(e) => {
+          const { width, height } = e.nativeEvent.layout;
+          setBox((prev) =>
+            Math.abs(prev.width - width) < 1 && Math.abs(prev.height - height) < 1
+              ? prev
+              : { width, height }
+          );
+        }}
+      >
+        <Text
+          numberOfLines={1}
+          ellipsizeMode="clip"
+          style={[textStyle, masked && { opacity: 0 }]}
+        >
+          ConvoReal
+        </Text>
+        {masked ? (
+          <MaskedView style={StyleSheet.absoluteFill} maskElement={wordmark}>
+            <View style={{ flex: 1, overflow: 'hidden' }}>
+              <AnimatedGradient
+                colors={[colors.primary, colors.shimmer, colors.primary]}
+                locations={[0.4, 0.5, 0.6]}
+                start={{ x: 0, y: 0.3 }}
+                end={{ x: 1, y: 0.7 }}
+                style={[
+                  { position: 'absolute', top: 0, left: 0, width: w * 2, height: h },
+                  anim,
+                ]}
+              />
+            </View>
+          </MaskedView>
+        ) : null}
+      </View>
     </View>
   );
 }

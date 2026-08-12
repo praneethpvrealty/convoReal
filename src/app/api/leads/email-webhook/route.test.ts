@@ -1032,5 +1032,91 @@ Content-Transfer-Encoding: quoted-printable
       expect((contact.areas_of_interest as string[]) ?? []).not.toContain('Your property');
       expect((contact.pref_areas as string[]) ?? []).not.toContain('Your property');
     });
+
+    it('does not file a Koramangala enquiry against the only house in inventory', async () => {
+      mockDb.properties.push({
+        id: 'prop-hsr',
+        title: '4 BHK Independent Bungalow in HSR Layout',
+        type: 'Residential House',
+        location: 'HSR Layout, Bengaluru, Karnataka',
+        sublocality: 'HSR Layout',
+        bedrooms: 4,
+        area_sqft: null,
+        land_area: 4000,
+        land_area_unit: 'Sq.Ft.',
+        price: 165000000,
+        property_code: 'PROP-1194',
+      });
+
+      const payload = {
+        subject: 'Housing - Lead interested in your property',
+        from: '"Housing.com" <noreply@housing-mailer.com>',
+        text: [
+          'Ranjith would like to talk to you',
+          'Name: Ranjith',
+          'Contact: 9626806002',
+          '3 BHK Independent House in Koramangala',
+        ].join('\n'),
+      };
+
+      const req = new Request('http://localhost/api/leads/email-webhook?account_id=acc-789&token=test-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      expect((await POST(req)).status).toBe(200);
+
+      expect(mockDb.contacts.length).toBe(1);
+      // Same type, wrong locality — the listing must not be tagged, and
+      // its price must not become the buyer's inferred budget.
+      expect(mockDb.contact_property_inquiries.length).toBe(0);
+      expect(mockDb.contacts[0].last_inquired_property_id).toBeNull();
+      expect(mockDb.contacts[0].pref_budget_max).toBeNull();
+
+      const log = mockDb.email_sync_logs.at(-1) as Record<string, unknown>;
+      expect(log.matched_property_id).toBeNull();
+      expect(log.parsed_location).toBe('Koramangala');
+    });
+
+    it('does not file an enquiry that names no locality against a same-type listing', async () => {
+      mockDb.properties.push({
+        id: 'prop-hsr',
+        title: '4 BHK Independent Bungalow in HSR Layout',
+        type: 'Residential House',
+        location: 'HSR Layout, Bengaluru, Karnataka',
+        sublocality: 'HSR Layout',
+        bedrooms: 4,
+        area_sqft: null,
+        land_area: 4000,
+        land_area_unit: 'Sq.Ft.',
+        price: 165000000,
+        property_code: 'PROP-1194',
+      });
+
+      const payload = {
+        subject: 'Housing - Lead interested in your property',
+        from: '"Housing.com" <noreply@housing-mailer.com>',
+        text: [
+          'Ranjith would like to talk to you',
+          'Name: Ranjith',
+          'Contact: 9626806002',
+          'who would like to talk to you regarding your independent house:',
+          '4 BHK Independent House',
+        ].join('\n'),
+      };
+
+      const req = new Request('http://localhost/api/leads/email-webhook?account_id=acc-789&token=test-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      expect((await POST(req)).status).toBe(200);
+
+      expect(mockDb.contacts.length).toBe(1);
+      expect(mockDb.contact_property_inquiries.length).toBe(0);
+      expect(mockDb.contacts[0].last_inquired_property_id).toBeNull();
+    });
   });
 });
