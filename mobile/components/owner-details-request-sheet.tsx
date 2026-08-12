@@ -20,16 +20,28 @@ import { useAuthStore } from '@/lib/auth-store';
 import { friendlyError } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
 import {
-  OWNER_DETAILS_SECTIONS,
   OWNER_DETAILS_SECTION_TITLES,
+  availableOwnerDetailsSections,
   buildOwnerDetailsRequestMessage,
   defaultOwnerDetailsSections,
+  ownerHandoverLink,
   ownerPropertyLabel,
   type OwnerDetailsSection,
 } from '@/lib/owner-details-request';
 import { supabase } from '@/lib/supabase';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import type { Contact } from '@/lib/types';
+
+interface EngineNumber {
+  phone: string;
+  prefix: string;
+  sandbox: boolean;
+}
+
+interface DetailsRequestSettings {
+  sections: OwnerDetailsSection[];
+  body_template: string | null;
+}
 
 interface OwnedProperty {
   id: string;
@@ -42,12 +54,16 @@ interface OwnedProperty {
 /**
  * Mobile port of the web's Ask for property details dialog.
  *
- * The seller intake request: everything a listing needs, and the
- * promise of what this number sends back once it is live. It is an
- * Engine template rather than a Meta one, so it goes through the
- * business number while the contact's 24-hour window is open and falls
- * back to the agent's own WhatsApp when it is not — the same two routes
- * the web dialog offers, against the same API route.
+ * The first message an agent sends a seller. It goes from the agent's
+ * OWN WhatsApp — first contact with an owner happens on the phone they
+ * already answer, and there is no open 24-hour window on the business
+ * number until the owner writes to it. So the message carries a one-tap
+ * link that moves them there, and the primary action here opens the
+ * agent's own WhatsApp with it.
+ *
+ * Sending through the office number stays available for an owner
+ * already inside the window; outside it the route answers 409 and this
+ * falls back to the same hand-off rather than dead-ending.
  */
 export function OwnerDetailsRequestSheet({
   visible,
@@ -97,9 +113,36 @@ export function OwnerDetailsRequestSheet({
     },
   });
 
+  // The connected number, cached across contacts. A failure is not
+  // fatal: the message drops the hand-off link and asks the owner to
+  // reply where they are.
+  const engineQuery = useQuery({
+    queryKey: ['engine-number'],
+    enabled: visible,
+    retry: false,
+    staleTime: 10 * 60_000,
+    queryFn: () =>
+      apiFetch<{ data: EngineNumber }>('/api/whatsapp/engine-number').then(
+        (r) => r.data
+      ),
+  });
+
+  const settingsQuery = useQuery({
+    queryKey: ['owner-details-request-settings'],
+    enabled: visible,
+    retry: false,
+    staleTime: 5 * 60_000,
+    queryFn: () =>
+      apiFetch<{ data: DetailsRequestSettings }>(
+        '/api/owners/details-request/settings'
+      ).then((r) => r.data),
+  });
+
   const properties = propertiesQuery.data ?? [];
   const [chosenId, setChosenId] = useState<string | null | undefined>();
-  const [omitted, setOmitted] = useState<OwnerDetailsSection[]>([]);
+  const [selection, setSelection] = useState<OwnerDetailsSection[] | null>(
+    null
+  );
   const [draft, setDraft] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -109,11 +152,23 @@ export function OwnerDetailsRequestSheet({
     chosenId === undefined ? (properties[0]?.id ?? null) : chosenId;
   const property = properties.find((p) => p.id === propertyId) ?? null;
 
-  const available = useMemo(
-    () => defaultOwnerDetailsSections(property?.type),
+  const offered = useMemo(
+    () => availableOwnerDetailsSections(property?.type),
     [property?.type]
   );
-  const sections = available.filter((s) => !omitted.includes(s));
+  // The account's saved selection stands in for the built-in default;
+  // the agent's toggles override both, for this send only.
+  const sections = useMemo(() => {
+    const saved = settingsQuery.data?.sections ?? [];
+    const base =
+      selection ??
+      (saved.length > 0 ? saved : defaultOwnerDetailsSections(property?.type));
+    return offered.filter((s) => base.includes(s));
+  }, [selection, settingsQuery.data, property?.type, offered]);
+
+  const engineLink = engineQuery.data
+    ? ownerHandoverLink(engineQuery.data)
+    : null;
 
   const composed = useMemo(
     () =>
@@ -121,19 +176,29 @@ export function OwnerDetailsRequestSheet({
         ownerName: contact.name,
         propertyLabel: ownerPropertyLabel(property),
         propertyType: property?.type,
-        sections: available.filter((s) => !omitted.includes(s)),
+        sections,
         agentName: identityQuery.data?.full_name ?? profile?.full_name,
         agentPhone: identityQuery.data?.phone,
         brandName: identityQuery.data?.account?.name,
+        engineLink,
+        bodyTemplate: settingsQuery.data?.body_template,
         now: new Date(),
       }),
-    [contact.name, property, available, omitted, identityQuery.data, profile]
+    [
+      contact.name,
+      property,
+      sections,
+      identityQuery.data,
+      profile,
+      engineLink,
+      settingsQuery.data,
+    ]
   );
   const message = draft ?? composed;
 
   function close() {
     setDraft(null);
-    setOmitted([]);
+    setSelection(null);
     setChosenId(undefined);
     setCopied(false);
     setError(null);
@@ -144,17 +209,17 @@ export function OwnerDetailsRequestSheet({
   function pickProperty(id: string | null) {
     haptic.tap();
     setDraft(null);
-    setOmitted([]);
+    setSelection(null);
     setChosenId(id);
   }
 
   function toggleSection(section: OwnerDetailsSection) {
     haptic.tap();
     setDraft(null);
-    setOmitted((prev) =>
-      prev.includes(section)
-        ? prev.filter((s) => s !== section)
-        : [...prev, section]
+    setSelection(
+      sections.includes(section)
+        ? sections.filter((s) => s !== section)
+        : offered.filter((s) => sections.includes(s) || s === section)
     );
   }
 
@@ -220,9 +285,10 @@ export function OwnerDetailsRequestSheet({
         <Text
           style={{ fontSize: 12.5, color: colors.textMuted, lineHeight: 18 }}
         >
-          One message that asks {contact.name || 'the owner'} for everything a
-          listing needs, and tells them what this number will send back —
-          enquiries, shortlisted buyers, site visits and offers.
+          Send this from your own WhatsApp, where you already message{' '}
+          {contact.name || 'them'}. It asks for the basics — no documents — and
+          moves them onto the office number, which is what starts their updates
+          on buyers, visits and offers.
         </Text>
 
         {properties.length > 0 ? (
@@ -248,21 +314,18 @@ export function OwnerDetailsRequestSheet({
 
         <SectionLabel text="What to ask for" />
         <View style={styles.chips}>
-          {OWNER_DETAILS_SECTIONS.filter((s) => available.includes(s)).map(
-            (section) => (
-              <Chip
-                key={section}
-                label={OWNER_DETAILS_SECTION_TITLES[section]}
-                active={sections.includes(section)}
-                onPress={() => toggleSection(section)}
-              />
-            )
-          )}
+          {offered.map((section) => (
+            <Chip
+              key={section}
+              label={OWNER_DETAILS_SECTION_TITLES[section]}
+              active={sections.includes(section)}
+              onPress={() => toggleSection(section)}
+            />
+          ))}
         </View>
         <Text style={{ fontSize: 11, color: colors.textMuted }}>
-          {property?.type
-            ? `Tuned for a ${property.type.toLowerCase()} — tap to drop anything you already have.`
-            : 'Tap to drop anything you already have.'}
+          Papers and ownership are off for a first ask — turn them on once a
+          buyer is finalised and the token is paid.
         </Text>
 
         <SectionLabel text="Message — tap to edit" />
@@ -282,8 +345,9 @@ export function OwnerDetailsRequestSheet({
           ]}
         />
         <Text style={{ fontSize: 11, color: colors.textMuted }}>
-          Keep the STOP UPDATES line — it is how they turn the updates off
-          without calling you.
+          {engineLink
+            ? 'Keep the office WhatsApp link — their tap on it is what opens the thread and switches their updates on.'
+            : 'No number is connected yet, so the message asks them to reply where they are.'}
         </Text>
 
         {error ? (
@@ -311,11 +375,9 @@ export function OwnerDetailsRequestSheet({
         ) : null}
 
         <Pressable
-          onPress={sendFromEngine}
-          disabled={sending || !message.trim()}
+          onPress={openWhatsApp}
           accessibilityRole="button"
-          accessibilityLabel="Send the details request from the Engine number"
-          accessibilityState={{ disabled: sending, busy: sending }}
+          accessibilityLabel={`Send the request to ${contact.name || 'this contact'} from my own WhatsApp`}
           style={[
             styles.primary,
             {
@@ -324,11 +386,7 @@ export function OwnerDetailsRequestSheet({
             },
           ]}
         >
-          {sending ? (
-            <ActivityIndicator color={colors.primary} />
-          ) : (
-            <Ionicons name="send" size={18} color={colors.primary} />
-          )}
+          <Ionicons name="logo-whatsapp" size={20} color={colors.primary} />
           <View style={{ flex: 1 }}>
             <Text
               style={{
@@ -337,12 +395,13 @@ export function OwnerDetailsRequestSheet({
                 color: colors.primary,
               }}
             >
-              Send from the Engine number
+              Send from my WhatsApp
             </Text>
             <Text style={{ fontSize: 11.5, color: colors.textMuted }}>
-              Lands in the inbox thread, so their reply comes back to the team
+              Opens your own chat with them, message ready to send
             </Text>
           </View>
+          <Ionicons name="chevron-forward" size={16} color={colors.primary} />
         </Pressable>
 
         <View style={{ flexDirection: 'row', gap: spacing.sm }}>
@@ -374,9 +433,11 @@ export function OwnerDetailsRequestSheet({
             </Text>
           </Pressable>
           <Pressable
-            onPress={openWhatsApp}
+            onPress={sendFromEngine}
+            disabled={sending || !message.trim()}
             accessibilityRole="button"
-            accessibilityLabel="Send the request from my own WhatsApp"
+            accessibilityLabel="Send the request from the office number instead"
+            accessibilityState={{ disabled: sending, busy: sending }}
             style={[
               styles.secondary,
               {
@@ -385,7 +446,11 @@ export function OwnerDetailsRequestSheet({
               },
             ]}
           >
-            <Ionicons name="logo-whatsapp" size={16} color={colors.primary} />
+            {sending ? (
+              <ActivityIndicator color={colors.primary} />
+            ) : (
+              <Ionicons name="send" size={16} color={colors.primary} />
+            )}
             <Text
               style={{
                 fontSize: 12.5,
@@ -393,7 +458,7 @@ export function OwnerDetailsRequestSheet({
                 color: colors.text,
               }}
             >
-              My WhatsApp
+              From office
             </Text>
           </Pressable>
         </View>

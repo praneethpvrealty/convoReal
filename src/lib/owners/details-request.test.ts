@@ -6,11 +6,15 @@ import {
   DIGEST_RESUME_COMMAND,
   OWNER_DETAILS_SECTIONS,
   OWNER_DETAILS_SECTION_TITLES,
+  PAPERS_LATER_NOTE,
+  availableOwnerDetailsSections,
   buildOwnerDetailsRequestMessage,
   defaultOwnerDetailsSections,
   ownerDetailsSectionItems,
+  ownerHandoverLink,
   ownerPropertyLabel,
   ownerSalutation,
+  renderOwnerDetailsTemplate,
   respectfulName,
 } from '@/lib/owners/details-request';
 
@@ -76,25 +80,96 @@ describe('ownerPropertyLabel', () => {
   });
 });
 
-describe('defaultOwnerDetailsSections', () => {
-  it('never asks a plot owner what is built on it', () => {
+describe('availableOwnerDetailsSections', () => {
+  it('never offers a plot owner what is built on it', () => {
     for (const type of [
       'Residential Plot',
       'Residential Land',
       'Agricultural Land',
     ]) {
-      expect(defaultOwnerDetailsSections(type)).not.toContain('construction');
+      expect(availableOwnerDetailsSections(type)).not.toContain('construction');
     }
   });
 
-  it('asks a built property for its construction', () => {
+  it('offers a built property its construction', () => {
     for (const type of ['Flat/ Apartment', 'Villa', 'Commercial Shop']) {
-      expect(defaultOwnerDetailsSections(type)).toContain('construction');
+      expect(availableOwnerDetailsSections(type)).toContain('construction');
     }
   });
 
   it('assumes a built property when the type is unknown', () => {
-    expect(defaultOwnerDetailsSections(null)).toEqual(OWNER_DETAILS_SECTIONS);
+    expect(availableOwnerDetailsSections(null)).toEqual(OWNER_DETAILS_SECTIONS);
+  });
+});
+
+describe('defaultOwnerDetailsSections', () => {
+  // The whole point of the first ask: documents change hands after a
+  // buyer is finalised and the token is paid, never in the opening
+  // message.
+  it('never asks for papers or the ownership interrogation up front', () => {
+    for (const type of ['Residential Plot', 'Flat/ Apartment', null]) {
+      const sections = defaultOwnerDetailsSections(type);
+      expect(sections).not.toContain('papers');
+      expect(sections).not.toContain('possession');
+    }
+  });
+
+  it('asks what it is, what it costs and what it looks like', () => {
+    expect(defaultOwnerDetailsSections('Residential Plot')).toEqual([
+      'identity',
+      'price',
+      'media',
+    ]);
+    expect(defaultOwnerDetailsSections('Villa')).toEqual([
+      'identity',
+      'construction',
+      'price',
+      'media',
+    ]);
+  });
+
+  it('stays a subset of what the property can be asked', () => {
+    for (const type of ['Residential Plot', 'Villa', null]) {
+      const available = availableOwnerDetailsSections(type);
+      for (const section of defaultOwnerDetailsSections(type)) {
+        expect(available).toContain(section);
+      }
+    }
+  });
+});
+
+describe('ownerHandoverLink', () => {
+  // The link points at the BUSINESS number, not the owner's — it is
+  // what moves the conversation off the agent's personal phone, and the
+  // pre-filled command is what records digest consent on arrival.
+  it('points at the office number with START UPDATES pre-filled', () => {
+    expect(ownerHandoverLink({ phone: '+91 80 4567 8900' })).toBe(
+      'https://wa.me/918045678900?text=START%20UPDATES'
+    );
+  });
+
+  it('carries a sandbox tenant code ahead of the command', () => {
+    expect(
+      ownerHandoverLink({ phone: '+1 555 0100', prefix: '#AB12 ' })
+    ).toContain('%23AB12%20START%20UPDATES');
+  });
+});
+
+describe('renderOwnerDetailsTemplate', () => {
+  it('substitutes the placeholders it knows', () => {
+    expect(
+      renderOwnerDetailsTemplate('Hi {{owner_name}} — {{ brand_name }} here.', {
+        owner_name: 'Mr Nadeem',
+        brand_name: 'Aryavarta',
+      })
+    ).toBe('Hi Mr Nadeem — Aryavarta here.');
+  });
+
+  // A typo should be visible in the settings preview, not silently blank.
+  it('leaves an unknown placeholder alone', () => {
+    expect(
+      renderOwnerDetailsTemplate('{{owner_nmae}}', { owner_name: 'x' })
+    ).toBe('{{owner_nmae}}');
   });
 });
 
@@ -151,6 +226,7 @@ describe('buildOwnerDetailsRequestMessage', () => {
     agentName: 'Praneeth',
     agentPhone: '+91 90000 00000',
     brandName: 'Aryavarta Ventures',
+    engineLink: ownerHandoverLink({ phone: '+91 80 4567 8900' }),
     now: new Date('2026-08-12T15:00:00Z'),
   };
 
@@ -176,12 +252,49 @@ describe('buildOwnerDetailsRequestMessage', () => {
     );
   });
 
+  it('asks for no documents, and says so', () => {
+    const message = buildOwnerDetailsRequestMessage(nadeem);
+    expect(message).toContain(PAPERS_LATER_NOTE);
+    expect(message).not.toContain('Encumbrance certificate');
+    expect(message).not.toContain('Mother deed');
+  });
+
+  // Turning papers on is the token-payment stage, and the reassurance
+  // that no documents are needed would then be a lie.
+  it('drops the papers-later note once papers are being asked for', () => {
+    const message = buildOwnerDetailsRequestMessage({
+      ...nadeem,
+      sections: ['identity', 'papers'],
+    });
+    expect(message).toContain('*2. Papers*');
+    expect(message).not.toContain(PAPERS_LATER_NOTE);
+    expect(message).toContain('I need the file itself');
+  });
+
+  it('hands the owner over to the office number', () => {
+    const message = buildOwnerDetailsRequestMessage(nadeem);
+    expect(message).toContain('our office WhatsApp');
+    expect(message).toContain(
+      'https://wa.me/918045678900?text=START%20UPDATES'
+    );
+    expect(message).toContain('One tap opens the chat');
+  });
+
+  it('asks them to reply where they are when no number is connected', () => {
+    const message = buildOwnerDetailsRequestMessage({
+      ...nadeem,
+      engineLink: null,
+    });
+    expect(message).not.toContain('wa.me');
+    expect(message).toContain('right here');
+    expect(message).toContain('our business number keeps you posted');
+  });
+
   it('promises the updates the owner digest actually sends', () => {
     const message = buildOwnerDetailsRequestMessage(nadeem);
     expect(message).toContain('enquires');
     expect(message).toContain('shortlist');
     expect(message).toContain('Site visits');
-    expect(message).toContain('this same number keeps you posted');
   });
 
   // The message hands the owner two commands. The webhook is what has to
@@ -197,11 +310,27 @@ describe('buildOwnerDetailsRequestMessage', () => {
   it('honours an explicit section selection', () => {
     const message = buildOwnerDetailsRequestMessage({
       ...nadeem,
-      sections: ['price', 'papers'],
+      sections: ['price', 'media'],
     });
     expect(message).toContain('*1. Your price and terms*');
-    expect(message).toContain('*2. Papers*');
+    expect(message).toContain('*2. Photos and location*');
     expect(message).not.toContain('The property itself');
+  });
+
+  it("uses the account's own wording when it has one", () => {
+    const message = buildOwnerDetailsRequestMessage({
+      ...nadeem,
+      bodyTemplate:
+        '{{salutation}} {{owner_name}}, about {{property}}:\n\n{{checklist}}\n\nSend to {{engine_link}}\n— {{agent_name}}',
+    });
+    expect(message.startsWith('Good evening Mr Nadeem, about 2100 sqft')).toBe(
+      true
+    );
+    expect(message).toContain('*1. The property itself*');
+    expect(message).toContain('Send to https://wa.me/918045678900');
+    expect(message.endsWith('— Praneeth')).toBe(true);
+    // The built-in prose is fully replaced, not wrapped around.
+    expect(message).not.toContain(PAPERS_LATER_NOTE);
   });
 
   it('drops the brand, agent and property when the account has none', () => {

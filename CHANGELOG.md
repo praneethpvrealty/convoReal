@@ -13,6 +13,46 @@ and polish.
 
 ### Added
 
+- **Ask an owner for the property details, in one message** (**migration
+  required**: `261_owner_details_request_settings.sql`). The first message an
+  agent sends a seller, and the one that moves them onto the business number.
+  **Ask for Details** on a web contact, **Ask Details** on the mobile contact
+  screen.
+
+  It goes from the agent's **own** WhatsApp, because that is where first
+  contact with a seller happens — there is no open 24-hour window on the
+  business number until the owner writes to it, and there may never be one.
+  So the message carries a one-tap link to the office number with `START
+  UPDATES` pre-filled: the owner's tap opens the window, creates the thread
+  the whole team can see, and records digest consent at the same moment.
+  That is what makes the closing promise — every enquiry, every shortlisted
+  buyer, every site visit, every offer — something the Engine can actually
+  keep rather than a claim. Sending from the office number stays available
+  for an owner already inside the window; outside it the route answers 409
+  and both surfaces fall back to the same hand-off instead of dead-ending.
+
+  **The first ask is the minimum, and asks for no documents.** No title deed,
+  no khata, no encumbrance certificate: papers change hands after a buyer is
+  finalised and the token is paid, and the message says so in as many words.
+  The papers checklist still exists and is one tap away for the agent who has
+  reached that stage. The rest of the checklist follows the property's own
+  type, so a plot owner is never asked for a BHK configuration or a building
+  sanction.
+
+  A brokerage can make it theirs in **Settings → WhatsApp → Owners**: pick
+  what the first ask carries, or replace the prose entirely with
+  `{{placeholders}}`. Keeping `{{checklist}}` means even a fully rewritten
+  message still asks the right questions for the property in front of it, and
+  `{{engine_link}}` keeps the one-tap hand-off. Leave both empty and the
+  built-in message is what goes out, forever.
+
+  Wording lives in `src/lib/owners/details-request.ts`, sends through
+  `POST /api/owners/details-request`, and is stored per account in
+  `owner_details_request_settings`. The mobile copy of the builder is
+  drift-guarded literal by literal in `src/lib/mobile-parity.test.ts`. The
+  settings *editor* is web-only for now — the message itself is at full
+  parity, and the gap is recorded in `FEATURE_ROADMAP.md`.
+
 - **Ask an owner for the property details, in one message.** A new Engine
   template — not a Meta one — that asks a seller for everything a listing
   needs and tells them, up front, what this number will send back:
