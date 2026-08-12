@@ -32,6 +32,7 @@ import {
   Lock,
   Tag,
   Users,
+  ShieldCheck,
 } from 'lucide-react';
 import {
   Tooltip,
@@ -42,6 +43,10 @@ import {
 import { PropertyConstructionLoader } from '@/components/ui/property-construction-loader';
 import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
+import {
+  gateSummary,
+  type GateStatsMap,
+} from '@/lib/inventory/gate-stats';
 
 const highlightIcons: Record<string, string> = {
   'School': '🏫',
@@ -75,6 +80,12 @@ interface PropertyListProps {
   onPortals?: (property: Property) => void;
   /** propertyId → portal short codes ("99" | "MB" | "H") currently live. */
   portalBadges?: Record<string, string[]>;
+  /** propertyId → confidential-gate rollup. Absent for every listing
+   *  that is neither gated nor has request history. */
+  gateStats?: GateStatsMap;
+  /** Opens this listing's access requests. Without it the summary is
+   *  still shown, just not clickable. */
+  onGateRequests?: (property: Property) => void;
   onApprove?: (property: Property) => Promise<void>;
   onReject?: (property: Property) => Promise<void>;
   onArchive?: (property: Property) => Promise<void>;
@@ -98,6 +109,8 @@ export function PropertyList({
   onEmailShare,
   onPortals,
   portalBadges,
+  gateStats,
+  onGateRequests,
   onApprove,
   onReject,
   onArchive,
@@ -415,6 +428,14 @@ export function PropertyList({
                       <Lock className="size-2.5" /> Guarded
                     </span>
                   )}
+                  {property.showcase_visibility === 'teaser' && (
+                    <span
+                      className="shrink-0 inline-flex items-center gap-0.5 text-[9px] font-bold uppercase tracking-wide text-violet-300 bg-violet-500/10 border border-violet-500/25 px-1.5 py-0.5 rounded-full"
+                      title="Confidential — the public link shows only type, locality and a price band until you approve a viewer"
+                    >
+                      <ShieldCheck className="size-2.5" /> Confidential
+                    </span>
+                  )}
                   {property.location_tier === 'exact' && (
                     <span className="shrink-0 text-[9px] font-bold uppercase tracking-wide text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded-full">
                       In area
@@ -426,6 +447,25 @@ export function PropertyList({
                     </span>
                   )}
                 </div>
+
+                {/* Demand on a confidential listing. Rendered only once
+                    something has happened — a gated listing nobody has
+                    asked about says "Confidential" and nothing more,
+                    rather than a row of zeroes on every card. */}
+                {gateSummary(gateStats?.[property.id]) && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onGateRequests?.(property);
+                    }}
+                    className="mb-3 inline-flex items-center gap-1.5 rounded-lg border border-violet-500/25 bg-violet-500/10 px-2 py-1 text-[10px] font-bold text-violet-200 hover:border-violet-500/50 hover:bg-violet-500/15"
+                    title="Access requests for this confidential listing"
+                  >
+                    <Users className="size-3" />
+                    {gateSummary(gateStats?.[property.id])}
+                  </button>
+                )}
 
                 <div className="flex items-center justify-between mb-4">
                   <div className="text-lg font-black text-white">

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import type { GateStatsMap } from '@/lib/inventory/gate-stats';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { pushUrl, replaceUrl } from '@/lib/navigation';
 import { useCan } from '@/hooks/use-can';
@@ -68,6 +69,9 @@ import { InfoHint } from '@/components/ui/info-hint';
 // Counts across ALL properties, independent of the current page/filters
 // so the summary cards always show accurate totals.
 const EMPTY_BADGES: Record<string, string[]> = {};
+// Stable identity: a fresh {} each render would re-run the memo chain
+// that feeds PropertyList, same reason EMPTY_BADGES exists.
+const EMPTY_GATE_STATS: GateStatsMap = {};
 
 const EMPTY_COUNTS: Record<string, number> = {};
 
@@ -637,6 +641,22 @@ export default function InventoryPage() {
     enabled: Boolean(accountId) && visiblePropertyIds.length > 0,
   });
   const portalBadges = portalBadgesQuery.data ?? EMPTY_BADGES;
+
+  // Confidential-gate rollup. One RPC for the account rather than a
+  // count per card, and it returns only gated listings or ones with
+  // history, so this is cheap for an account that uses no gating at all.
+  const gateStatsQuery = useQuery({
+    queryKey: ['inventory', 'gate-stats', accountId],
+    queryFn: async (): Promise<GateStatsMap> => {
+      const res = await fetch('/api/properties/gate-stats');
+      if (!res.ok) return {};
+      const json = await res.json();
+      return (json?.data ?? {}) as GateStatsMap;
+    },
+    enabled: Boolean(accountId),
+    staleTime: 60_000,
+  });
+  const gateStats = gateStatsQuery.data ?? EMPTY_GATE_STATS;
 
   // Buyer contacts for the per-card match counts, fetched once per visit
   // with only the columns src/lib/matching.ts reads — far lighter than
@@ -1345,6 +1365,7 @@ export default function InventoryPage() {
             setPortalOpen(true);
           }}
           portalBadges={portalBadges}
+          gateStats={gateStats}
           canEdit={canEdit}
           onFlyer={handleFlyerClick}
           onPromote={META_ADS_ENABLED ? handlePromoteClick : undefined}
