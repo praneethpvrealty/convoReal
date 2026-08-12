@@ -372,6 +372,48 @@ async function transcribeImageText(buffer: Buffer, mimeType: string): Promise<st
 }
 
 /**
+ * Transcribes an owner's WhatsApp voice note into the text the rest of
+ * the assistant reads.
+ *
+ * Audio used to reach exactly one destination — the calendar parser —
+ * so a listing, a contact or a correction dictated instead of typed was
+ * either forced into an event or answered with nothing. Transcribing
+ * first makes a voice note the same message as a typed one, and every
+ * path downstream is already built for text.
+ *
+ * Translated to English like the calendar parser's own `transcript`
+ * field, so a note dictated in Hindi, Telugu or Kannada is classified
+ * and parsed by the same prompts as a typed one. Returns '' on failure
+ * so the caller can say it could not hear rather than act on a guess.
+ */
+export async function transcribeVoiceNote(buffer: Buffer, mimeType: string): Promise<string> {
+  const systemInstruction =
+    "You are a transcription engine for an Indian real-estate agent's voice notes. " +
+    "Transcribe what is said, verbatim, and translate it into English if it is spoken in another language. " +
+    "Reproduce names, phone numbers, prices, areas, dimensions and localities exactly as spoken. " +
+    "Return only the transcript — no commentary, no speaker labels, no quotation marks. " +
+    "If nothing intelligible is said, return an empty string.";
+  try {
+    const parts: GeminiPart[] = [
+      {
+        inlineData: {
+          mimeType: mimeType.split(";")[0].trim() || "audio/ogg",
+          data: buffer.toString("base64"),
+        },
+      },
+      { text: "Transcribe this voice note." },
+    ];
+    const response = await generateContentRaw([{ parts }], systemInstruction, false, {
+      feature: 'voice_transcribe',
+    });
+    return (response || "").trim();
+  } catch (err) {
+    console.error("[Gemini AI] Error transcribing voice note:", err);
+    return "";
+  }
+}
+
+/**
  * Classifies if a message (text or image) is a real estate listing, contact
  * details, a scheduling request, or none of those.
  */

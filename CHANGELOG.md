@@ -13,6 +13,24 @@ and polish.
 
 ### Added
 
+- **Voice notes, understood and acted on.** A voice note sent to the
+  WhatsApp assistant is now transcribed once and read as text by every
+  path that already existed — so speaking a listing files a listing,
+  speaking a contact files a contact, speaking *today* returns your
+  agenda, and speaking a correction edits the open draft. Before this,
+  audio reached exactly one destination, the calendar parser: anything
+  that wasn't an event came back "I couldn't find an event or task in
+  that", and a voice note that arrived while a listing draft was open
+  matched no branch at all and was answered with **nothing** — no reply,
+  nothing saved. Non-English notes are transcribed and translated, so a
+  listing dictated in Hindi, Telugu or Kannada goes through the same
+  prompts as a typed one. When the assistant still can't place what was
+  said, it now quotes the transcript back, so a misheard word is
+  distinguishable from a misunderstood request. Voice-created events
+  keep the transcript on the record. Spoken scheduling costs the same as
+  it did (`voice_transcribe` + `event_parse` = the old
+  `voice_event_parse`); everything else voice can now do is new.
+
 - **The map pin that arrives before its listing.** Forwarding a Google
   Maps pin to the WhatsApp assistant on its own used to come back with
   "I couldn't tell what that was", and the pin was gone — so the listing

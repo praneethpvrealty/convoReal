@@ -665,8 +665,14 @@ export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): P
   const isAudio = message.type === 'audio' && !!message.audio?.id;
   const isImage = !!image;
 
-  // Free deterministic agenda command — no AI, no credits.
-  if (!isAudio && text && isAgendaCommand(text)) {
+  // The chatbot engine transcribes an owner's voice note before routing
+  // it, so the words usually arrive here already. Only a caller that
+  // hands over raw audio still pays to transcribe it inside the parse.
+  const needsAudioParse = isAudio && !text;
+
+  // Free deterministic agenda command — no AI, no credits. Spoken
+  // counts: "today" said out loud is the same request as typed.
+  if (text && isAgendaCommand(text)) {
     const { startIso, endIso, label } = istDayWindow();
     const assignmentFilterId = String(userId).replace(/[\\"]/g, '\\$&');
     const [{ data: events }, { data: todos }] = await Promise.all([
@@ -709,7 +715,7 @@ export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): P
   // Gated on the text SAYING it is a task list, not merely on carrying
   // numbers — a forwarded listing with numbered floors is not an agenda.
   const listItems =
-    !isAudio && !isImage && text && TASK_PREFIX.test(text)
+    !isImage && text && TASK_PREFIX.test(text)
       ? splitTaskList(text)
       : [];
   if (listItems.length >= 2) {
@@ -775,7 +781,7 @@ export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): P
     return false;
   }
 
-  const feature: AiFeatureKey = isAudio
+  const feature: AiFeatureKey = needsAudioParse
     ? 'voice_event_parse'
     : isImage
       ? 'image_event_parse'
@@ -798,7 +804,7 @@ export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): P
 
   let draft: ParsedEventDraft;
   try {
-    if (isAudio) {
+    if (needsAudioParse) {
       const { url, mimeType } = await getMediaUrl({ mediaId: message.audio!.id, accessToken });
       const { buffer } = await downloadMedia({ downloadUrl: url, accessToken });
       draft = await parseEventFromInput({
@@ -819,7 +825,7 @@ export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): P
     }
   } catch (err) {
     console.error('[wa-scheduler] parse failed:', err);
-    if (isAudio) {
+    if (needsAudioParse) {
       await replyAndLog({
         phoneNumberId,
         accessToken,
@@ -832,8 +838,11 @@ export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): P
     return false;
   }
 
+  // Not an event. When the words are already in hand this falls through
+  // to listing and contact intake — a spoken listing is still a listing —
+  // and only a caller that gave us raw audio gets the dead end.
   if (draft.intent === 'none') {
-    if (isAudio) {
+    if (needsAudioParse) {
       await replyAndLog({
         phoneNumberId,
         accessToken,
@@ -903,7 +912,11 @@ export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): P
     endIso = new Date(new Date(startIso).getTime() + (draft.duration_minutes || 60) * 60 * 1000).toISOString();
   }
 
-  const transcript = draft.transcript || (isAudio ? null : text);
+  // `text` is the transcript when the words were spoken and the message
+  // itself when typed — either way it is what the event was read from,
+  // and dropping it left voice-created events with no record of what
+  // was actually said.
+  const transcript = draft.transcript || text || null;
   const assignedTo = assignee?.id || userId;
   const source = isAudio ? 'voice' : 'whatsapp';
 

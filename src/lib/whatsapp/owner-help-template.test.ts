@@ -78,4 +78,17 @@ describe('buildOwnerFallbackMessage', () => {
   it('uses WhatsApp bold, never Markdown double asterisks', () => {
     expect(msg).not.toContain('**');
   });
+
+  it('quotes the transcript when the message was spoken', () => {
+    const spoken = buildOwnerFallbackMessage('Send Sharan the update on the meeting');
+    expect(spoken).toContain('I heard:');
+    expect(spoken).toContain('Send Sharan the update on the meeting');
+    expect(spoken).toContain("couldn't tell what that was");
+  });
+
+  it('says nothing about hearing anything when the message was typed', () => {
+    expect(msg).not.toContain('I heard:');
+    expect(buildOwnerFallbackMessage(null)).not.toContain('I heard:');
+    expect(buildOwnerFallbackMessage('   ')).not.toContain('I heard:');
+  });
 });
