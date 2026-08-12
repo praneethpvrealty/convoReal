@@ -1,0 +1,110 @@
+DRAFT — NOT IN FORCE. This file is a proposal. The licence currently
+governing this software is in LICENSE (MIT). Nothing here takes effect
+until it replaces that file AND every copyright holder named below has
+agreed in writing. See docs/relicensing-plan.md.
+
+================================================================================
+
+ConvoReal — Proprietary Software Licence
+
+Copyright (c) 2026 Arnas Donauskas
+Copyright (c) 2026 Praneeth Kumar S
+
+All rights reserved.
+
+1. DEFINITIONS
+
+   "Software" means the ConvoReal source code, object code, database
+   schema, migrations, documentation and any other material in this
+   repository, together with any modification or derivative of it.
+
+   "Licensor" means the copyright holders named above, jointly.
+
+   "You" means the individual or legal entity accessing the Software.
+
+2. NO LICENCE GRANTED
+
+   No right, licence or permission of any kind is granted to You except
+   where the Licensor has given it to You in a separate written
+   agreement signed by the Licensor.
+
+   Without limiting that, You may NOT, in whole or in part:
+
+   (a) copy, reproduce or download the Software;
+   (b) fork, mirror, republish or redistribute the Software;
+   (c) modify the Software or create derivative works from it;
+   (d) host, deploy, run or operate the Software, whether for Your own
+       use, for a third party, or as a hosted or managed service;
+   (e) rebrand, white-label, relabel or otherwise present the Software
+       or any part of it as Your own;
+   (f) sell, licence, sublicense, rent, lease or otherwise transfer the
+       Software or any right in it;
+   (g) remove, obscure or alter any copyright, trademark or other
+       proprietary notice in the Software.
+
+3. ACCESS IS NOT PERMISSION
+
+   The Licensor may make the Software visible to particular people —
+   employees, contractors, auditors, prospective partners — in order
+   that they may read it. Being able to read the Software grants no
+   right to use it. Any such access is confidential and revocable at
+   the Licensor's discretion.
+
+4. NO TRADEMARK LICENCE
+
+   This licence grants no right to use the name "ConvoReal", any
+   Licensor trademark, logo, or trade dress.
+
+5. RESERVATION OF RIGHTS
+
+   All rights not expressly granted in a signed written agreement are
+   reserved by the Licensor.
+
+6. TERMINATION
+
+   Any right the Licensor has granted You terminates automatically and
+   immediately if You breach this licence. On termination You must stop
+   all use of the Software and destroy every copy in Your possession or
+   control.
+
+7. NO WARRANTY
+
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+   EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+   MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+   NONINFRINGEMENT.
+
+8. LIMITATION OF LIABILITY
+
+   IN NO EVENT SHALL THE LICENSOR BE LIABLE FOR ANY CLAIM, DAMAGES OR
+   OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+   OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+   OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+9. PRIOR RELEASES UNDER THE MIT LICENCE
+
+   Versions of the Software previously distributed under the MIT
+   licence remain under that licence. This licence governs only
+   versions distributed after it takes effect. It does not, and cannot,
+   withdraw rights already granted in respect of those earlier
+   versions.
+
+10. THIRD-PARTY AND UPSTREAM COMPONENTS
+
+   The Software incorporates third-party open-source components, each
+   governed by its own licence. Nothing in this licence alters those
+   terms, and nothing here purports to relicense them.
+
+   IMPORTANT — READ WITH docs/relicensing-plan.md §2.1. This codebase
+   is derived from an upstream MIT-licensed project. Unless a written
+   assignment or relicensing grant has been obtained from that
+   project's copyright holder, the clauses above can lawfully apply
+   only to contributions made by the licensor who is granting them, and
+   the upstream MIT copyright notice and permission notice MUST be
+   retained alongside this file. Publishing this licence without that
+   notice would breach the upstream licence rather than replace it.
+
+11. CONTACT
+
+   For licensing enquiries: <add a contact address before this file
+   takes effect>.

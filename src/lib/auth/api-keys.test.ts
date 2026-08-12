@@ -6,6 +6,14 @@ const update = vi.fn(() => ({
   eq: vi.fn().mockResolvedValue({ error: null }),
 }));
 
+// Default: entitled. The body doubles as an assertion on the call
+// shape — a caller that forgets the accountId gets `false`, not a
+// silent pass. Individual tests override with mockResolvedValue.
+const hasApiAccess = vi.fn(async (...args: unknown[]) => typeof args[1] === "string");
+vi.mock("@/lib/billing/gates", () => ({
+  accountHasApiAccess: (db: unknown, accountId: string) => hasApiAccess(db, accountId),
+}));
+
 vi.mock("@/lib/supabase/admin", () => ({
   supabaseAdmin: () => ({
     from: () => ({
@@ -52,6 +60,8 @@ const routeCtx = { params: Promise.resolve({}) };
 beforeEach(() => {
   maybeSingle.mockReset();
   update.mockClear();
+  hasApiAccess.mockReset();
+  hasApiAccess.mockResolvedValue(true);
   __resetRateLimitForTests();
 });
 
@@ -266,5 +276,57 @@ describe("withApiKeyAuth", () => {
       }
     }
     expect(limited).toBe(true);
+  });
+});
+
+describe("plan gating", () => {
+  it("402s a key whose workspace is not on a plan with API access", async () => {
+    const key = generateApiKey();
+    maybeSingle.mockResolvedValue({ data: liveKeyRow({ key_hash: key.hash }), error: null });
+    hasApiAccess.mockResolvedValue(false);
+
+    const handler = vi.fn();
+    const res = await withApiKeyAuth("read", handler)(
+      req({ authorization: `Bearer ${key.secret}` }),
+      routeCtx,
+    );
+
+    expect(res.status).toBe(402);
+    expect(await res.json()).toMatchObject({
+      code: "plan_upgrade_required",
+      upgradeRequired: "agency",
+    });
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("checks entitlement on every request, not just at key creation", async () => {
+    const key = generateApiKey();
+    maybeSingle.mockResolvedValue({ data: liveKeyRow({ key_hash: key.hash }), error: null });
+
+    const route = withApiKeyAuth("read", async () => new Response("ok") as never);
+    const headers = { authorization: `Bearer ${key.secret}` };
+
+    // Entitled today...
+    expect((await route(req(headers), routeCtx)).status).not.toBe(402);
+    // ...downgraded tomorrow, and the same key stops working.
+    hasApiAccess.mockResolvedValue(false);
+    expect((await route(req(headers), routeCtx)).status).toBe(402);
+
+    expect(hasApiAccess).toHaveBeenCalledTimes(2);
+  });
+
+  it("scopes the entitlement check to the key's own account", async () => {
+    const key = generateApiKey();
+    maybeSingle.mockResolvedValue({
+      data: liveKeyRow({ key_hash: key.hash, account_id: "acct-77" }),
+      error: null,
+    });
+
+    await withApiKeyAuth("read", async () => new Response("ok") as never)(
+      req({ authorization: `Bearer ${key.secret}` }),
+      routeCtx,
+    );
+
+    expect(hasApiAccess.mock.calls[0][1]).toBe("acct-77");
   });
 });

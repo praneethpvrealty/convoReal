@@ -4,15 +4,23 @@ Exposes one ConvoReal workspace — inventory, contacts, the matching engine, pi
 
 It is a **client of `/api/v1`** and nothing more: no database connection, no Supabase key, no business logic. Scoring, filtering and tenancy live in the Next.js app, so what this server reports and what the dashboard shows cannot drift apart.
 
+> **Using it, rather than working on it?** Read
+> [`docs/mcp-server-guide.md`](../docs/mcp-server-guide.md) instead — what to ask
+> it, worked examples, and troubleshooting. This file is the package reference.
+
+**Requires the Agency plan.** API access is an Agency-tier feature
+(`PLAN_CONFIG` in `src/lib/billing/plan-config.ts`). Key creation is gated, and
+entitlement is re-checked on every request, so a downgrade deactivates existing
+keys rather than grandfathering them.
+
 ---
 
 ## Setup
 
 ### 1. Create an API key
 
-In ConvoReal, go to **Settings → API keys** (admin or owner only) and create a key. It is shown **once** — copy it then.
-
-`POST /api/account/api-keys` is the same thing over HTTP:
+Admin or owner only, on an Agency-plan workspace. The key is shown **once** —
+copy it then. There is no Settings UI yet, so create it over HTTP:
 
 ```json
 { "name": "Claude Desktop", "scopes": ["read"] }
@@ -148,4 +156,5 @@ The package has its own dependency tree and is excluded from the root `tsconfig.
 - Keys carry `read` or `read` + `write`. Issue read-only unless a write tool is actually needed.
 - Only the SHA-256 hash of a key is stored server-side; a lost key is rotated, not recovered.
 - Records created through a key are attributed to the admin who issued it.
+- A `402 plan_upgrade_required` on every call means the workspace is not on the Agency plan; the key itself is fine.
 - The server writes logs to **stderr** only. stdout is the protocol channel — anything written there corrupts the session.

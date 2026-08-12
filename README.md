@@ -182,4 +182,4 @@ A standalone Go service that sits in front of the Node.js application:
 
 ## License
 
-[MIT](./LICENSE). Fork it, brand it, host it.
+See [LICENSE](./LICENSE).
