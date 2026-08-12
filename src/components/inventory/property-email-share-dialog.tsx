@@ -20,6 +20,7 @@ import { Badge } from '@/components/ui/badge';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import { Loader2, Mail, X, Copy, Check, ExternalLink, Paperclip, Search, ImageIcon, Sparkles } from 'lucide-react';
 import { buildPropertyShareEmailContent } from '@/lib/email/property-share-email';
+import { recordPropertyShares } from '@/lib/inventory/share-log';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 
 interface PropertyEmailShareDialogProps {
@@ -51,7 +52,7 @@ function hasDocumentUrl(raw: string): boolean {
 
 export function PropertyEmailShareDialog({ open, onOpenChange, property }: PropertyEmailShareDialogProps) {
   const supabase = createClient();
-  const { accountId, profile } = useAuth();
+  const { accountId, profile, user } = useAuth();
 
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loadingContacts, setLoadingContacts] = useState(false);
@@ -64,6 +65,11 @@ export function PropertyEmailShareDialog({ open, onOpenChange, property }: Prope
   const [bodyDirty, setBodyDirty] = useState(false);
   const [copied, setCopied] = useState(false);
   const [drafting, setDrafting] = useState(false);
+  /** Set once the draft has been handed to Gmail or the mail app. The
+   *  send happens in that client, so the agent is the only one who can
+   *  tell us it went out. */
+  const [handedOff, setHandedOff] = useState(false);
+  const [logging, setLogging] = useState(false);
 
   const documentCount = useMemo(
     () => (property?.documents || []).filter(hasDocumentUrl).length,
@@ -100,6 +106,8 @@ export function PropertyEmailShareDialog({ open, onOpenChange, property }: Prope
     setBodyDirty(false);
     setCopied(false);
     setDrafting(false);
+    setHandedOff(false);
+    setLogging(false);
     fetchContacts();
     const { subject: s, body: b } = buildPropertyShareEmailContent(property, {
       agentName: profile?.full_name || null,
@@ -169,6 +177,7 @@ export function PropertyEmailShareDialog({ open, onOpenChange, property }: Prope
     }
     const url = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(toList.join(','))}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     window.open(url, '_blank', 'noopener,noreferrer');
+    setHandedOff(true);
   }
 
   function openInMailApp() {
@@ -177,6 +186,50 @@ export function PropertyEmailShareDialog({ open, onOpenChange, property }: Prope
       return;
     }
     window.location.href = `mailto:${encodeURIComponent(toList.join(','))}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    setHandedOff(true);
+  }
+
+  /** Recipients picked from the contact book. A typed-in address has no
+   *  contact row to hang a share on, so it stays out of the ledger. */
+  const contactRecipients = useMemo(
+    () =>
+      recipients
+        .filter((r) => !r.id.startsWith('manual:'))
+        .map((r) => ({
+          contactId: r.id,
+          classification: contacts.find((c) => c.id === r.id)?.classification ?? null,
+        })),
+    [recipients, contacts]
+  );
+
+  async function confirmSent() {
+    if (!property || !accountId) return;
+    if (contactRecipients.length === 0) {
+      toast.success('Noted. Typed-in addresses aren’t contacts, so there’s nothing to log.');
+      onOpenChange(false);
+      return;
+    }
+    setLogging(true);
+    // recordPropertyShares captures the journey item too — see its
+    // header for why the two are one call.
+    const { created, error } = await recordPropertyShares({
+      accountId,
+      propertyId: property.id,
+      userId: user?.id,
+      recipients: contactRecipients,
+      channel: 'email',
+    });
+    setLogging(false);
+    if (error) {
+      toast.error('Could not log the share. The email still went out.');
+      return;
+    }
+    toast.success(
+      created > 0
+        ? `Logged as shared with ${created} contact${created === 1 ? '' : 's'}`
+        : 'Already logged as shared with these contacts'
+    );
+    onOpenChange(false);
   }
 
   async function draftWithAi() {
@@ -399,6 +452,43 @@ export function PropertyEmailShareDialog({ open, onOpenChange, property }: Prope
                 {copied ? 'Copied' : 'Copy Body'}
               </Button>
             </div>
+
+            {/* The mail leaves from the agent's own client, so the app
+                never sees the send. Ask rather than assume — a share
+                logged on the handoff alone would count drafts the agent
+                closed without sending. */}
+            {handedOff && (
+              <div className="flex flex-col gap-3 rounded-lg border border-primary/30 bg-primary/5 p-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-white">Did you send it?</p>
+                  <p className="mt-0.5 text-xs text-slate-400">
+                    {contactRecipients.length > 0
+                      ? `Confirming logs this listing as shared with ${contactRecipients.length} contact${contactRecipients.length === 1 ? '' : 's'} and adds it to their journey.`
+                      : 'These are typed-in addresses, not contacts, so there is nothing to log against them.'}
+                  </p>
+                </div>
+                <div className="flex shrink-0 gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setHandedOff(false)}
+                    disabled={logging}
+                    className="border-slate-700 hover:bg-slate-800"
+                  >
+                    Not yet
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={confirmSent}
+                    disabled={logging}
+                    className="gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90"
+                  >
+                    {logging ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
+                    Yes, sent
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </DialogContent>
