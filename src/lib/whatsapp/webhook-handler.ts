@@ -76,10 +76,12 @@ import { claimBuyerConsentAsk } from '@/lib/buyer/consent-ask'
 import {
   answerLeadQuestion,
   looksLikeQuestion,
-  questionSubjectProperty,
+  mergeLeadAnswers,
+  questionSubjectProperties,
   requestsHumanContact,
   subjectPortalListings,
 } from '@/lib/ai/lead-question'
+import { parseOrdinalReferences } from '@/lib/ai/shortlist-reference'
 import {
   parseTemplateQuickReply,
   lastSharedPropertyId,
@@ -1703,7 +1705,8 @@ async function processMessage(
         accountId,
         accessToken,
         phoneNumberId,
-        configOwnerUserId
+        configOwnerUserId,
+        message.id
       )
       if (qualified) return
     }
@@ -2236,30 +2239,43 @@ async function processMessage(
     !ownerCheck.isOwner &&
     !isPropertyOwnerSender &&
     message.type === 'text' &&
-    (looksLikeQuestion(inboundText) || requestsHumanContact(inboundText))
+    (looksLikeQuestion(inboundText) ||
+      requestsHumanContact(inboundText) ||
+      // "Option 2" is not question-shaped, but the shortlist that
+      // numbered it closed with "reply with the number", so it is an
+      // answer to us and it is about one listing.
+      parseOrdinalReferences(inboundText).length > 0)
   ) {
     const admin = supabaseAdmin()
-    const subject = await questionSubjectProperty(
+    // Plural: a buyer who asks about "options 1 & 2" asked two
+    // questions, and answering only the first leaves the second
+    // hanging on a listing they had already numbered for us.
+    const subjects = await questionSubjectProperties(
       admin,
       accountId,
       contactRecord.id,
       conversation.id,
+      inboundText,
     )
     const { data: qaConfig } = await admin
       .from('whatsapp_config')
       .select('share_seller_final_price')
       .eq('account_id', accountId)
       .maybeSingle()
-    const portalListings = subject
-      ? await subjectPortalListings(admin, accountId, subject.id)
-      : []
-    const answer = await answerLeadQuestion({
-      accountId,
-      question: inboundText,
-      property: subject,
-      shareSellerFinalPrice: qaConfig?.share_seller_final_price === true,
-      portalListings,
-    })
+    const answers = await Promise.all(
+      (subjects.length > 0 ? subjects : [null]).map(async (subject) =>
+        answerLeadQuestion({
+          accountId,
+          question: inboundText,
+          property: subject,
+          shareSellerFinalPrice: qaConfig?.share_seller_final_price === true,
+          portalListings: subject
+            ? await subjectPortalListings(admin, accountId, subject.id)
+            : [],
+        }),
+      ),
+    )
+    const answer = mergeLeadAnswers(answers, subjects)
 
     await sendWhatsAppMessageAndPersist({
       accountId,

@@ -24,6 +24,7 @@ import {
   nextQualifierForContact,
 } from '@/lib/ai/buyer-qualification';
 import { extractEnquiredPropertyFromNote } from '@/lib/contacts/enquiry-note';
+import { accountShowcaseOrigin } from '@/lib/showcase/account-showcase-url';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { sendListingFeedbackPrompt } from '@/lib/whatsapp/listing-feedback';
 import { sendBudgetBandPrompt } from '@/lib/whatsapp/budget-band';
@@ -124,7 +125,7 @@ export async function sendPreferenceTapReply(args: {
       .filter(Boolean) as string[];
 
     const missing = nextQualifierForContact(contact as Contact);
-    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+    const baseUrl = await accountShowcaseOrigin(db, accountId);
     const contactName = (contact as Contact).name ?? null;
 
     // With no matches and budget missing, the question becomes a tap:

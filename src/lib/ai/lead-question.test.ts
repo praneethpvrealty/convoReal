@@ -18,6 +18,7 @@ import {
   requestsHumanContact,
   HANDOVER_TEXT,
   CALLBACK_HANDOVER_TEXT,
+  mergeLeadAnswers,
 } from './lead-question';
 
 const property = {
@@ -37,18 +38,24 @@ const property = {
 
 describe('looksLikeQuestion', () => {
   it('recognises the question that was mistaken for a booking', () => {
-    expect(looksLikeQuestion('Can we see inside when we visit tomorrow')).toBe(true);
+    expect(looksLikeQuestion('Can we see inside when we visit tomorrow')).toBe(
+      true
+    );
   });
 
   it('recognises questions with and without a question mark', () => {
     expect(looksLikeQuestion('is it north facing?')).toBe(true);
     expect(looksLikeQuestion('what is the price')).toBe(true);
-    expect(looksLikeQuestion('Which one is the one we are talking here.')).toBe(true);
+    expect(looksLikeQuestion('Which one is the one we are talking here.')).toBe(
+      true
+    );
   });
 
   it('leaves outright instructions to the scheduler', () => {
     expect(looksLikeQuestion('book a site visit tomorrow at 10')).toBe(false);
-    expect(looksLikeQuestion('can you schedule a visit for Saturday')).toBe(false);
+    expect(looksLikeQuestion('can you schedule a visit for Saturday')).toBe(
+      false
+    );
     expect(looksLikeQuestion('remind me on Monday')).toBe(false);
   });
 
@@ -142,7 +149,9 @@ describe('answerLeadQuestion', () => {
   });
 
   it('falls to Gemini for an open-ended question, grounded in the listing', async () => {
-    vi.mocked(generateText).mockResolvedValue('The owner is open to discussing the price.');
+    vi.mocked(generateText).mockResolvedValue(
+      'The owner is open to discussing the price.'
+    );
     const res = await answerLeadQuestion({
       accountId: 'a1',
       question: 'is the price negotiable at all',
@@ -156,7 +165,7 @@ describe('answerLeadQuestion', () => {
 
   it('hands over when Gemini refuses rather than inventing', async () => {
     vi.mocked(generateText).mockResolvedValue(
-      "I don't have that information about this property.",
+      "I don't have that information about this property."
     );
     const res = await answerLeadQuestion({
       accountId: 'a1',
@@ -293,7 +302,11 @@ describe('answerLeadQuestion — seller final price rung', () => {
 });
 
 describe('answerFromPortalListing', () => {
-  const property = { price: 44_100_000, area_sqft: 4200, title: 'Oval Reef Plot' };
+  const property = {
+    price: 44_100_000,
+    area_sqft: 4200,
+    title: 'Oval Reef Plot',
+  };
 
   it('answers the MagicBricks question with both figures instead of denying knowledge', () => {
     const answer = answerFromPortalListing(
@@ -301,7 +314,7 @@ describe('answerFromPortalListing', () => {
       property,
       [{ portal: 'magicbricks', areaSqft: 4000 }]
     );
-    expect(answer).toContain("same property");
+    expect(answer).toContain('same property');
     expect(answer).toContain('MagicBricks shows 4,000 sq.ft.');
     expect(answer).toContain('our records show 4,200 sq.ft.');
     // The persona break that started this: never a third party.
@@ -362,7 +375,7 @@ describe('answerLeadQuestion — portal rung and persona', () => {
     // The prompt now asks for this shape instead of "I don't know";
     // scoring it as a real answer would skip the agent notification.
     vi.mocked(generateText).mockResolvedValue(
-      "Let me confirm that and come right back to you."
+      'Let me confirm that and come right back to you.'
     );
     const res = await answerLeadQuestion({
       accountId: 'a1',
@@ -370,5 +383,64 @@ describe('answerLeadQuestion — portal rung and persona', () => {
       property,
     });
     expect(res.source).toBe('handover');
+  });
+});
+
+describe('mergeLeadAnswers', () => {
+  const one = {
+    text: 'It is in Koramangala 5th block.',
+    source: 'listing' as const,
+    intent: 'location',
+  };
+  const two = {
+    text: 'It is in JP Nagar 4th Phase.',
+    source: 'listing' as const,
+    intent: 'location',
+  };
+
+  it('leaves a single answer exactly as it is', () => {
+    expect(mergeLeadAnswers([one], [{ title: 'Plot A' }])).toBe(one);
+  });
+
+  it('heads each answer with its listing, so two localities are tellable apart', () => {
+    const merged = mergeLeadAnswers(
+      [one, two],
+      [
+        { title: 'Residential Plot in Koramangala' },
+        { title: '2400 Sqft Commercial Plot' },
+      ]
+    );
+    expect(merged.text).toBe(
+      '*Residential Plot in Koramangala*\nIt is in Koramangala 5th block.\n\n' +
+        '*2400 Sqft Commercial Plot*\nIt is in JP Nagar 4th Phase.'
+    );
+    expect(merged.source).toBe('listing');
+    expect(merged.intent).toBe('location');
+  });
+
+  it('collapses the same answer rather than promising a callback twice', () => {
+    const callback = {
+      text: CALLBACK_HANDOVER_TEXT,
+      source: 'handover' as const,
+    };
+    expect(
+      mergeLeadAnswers(
+        [callback, { ...callback }],
+        [{ title: 'A' }, { title: 'B' }]
+      ).text
+    ).toBe(CALLBACK_HANDOVER_TEXT);
+  });
+
+  it('is a handover when any one listing needs a person', () => {
+    const merged = mergeLeadAnswers(
+      [one, { text: HANDOVER_TEXT, source: 'handover' as const }],
+      [{ title: 'A' }, { title: 'B' }]
+    );
+    expect(merged.source).toBe('handover');
+    expect(merged.intent).toBeNull();
+  });
+
+  it('hands over when nothing could be resolved at all', () => {
+    expect(mergeLeadAnswers([], []).source).toBe('handover');
   });
 });

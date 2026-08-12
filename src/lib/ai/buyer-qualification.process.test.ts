@@ -21,16 +21,25 @@ vi.mock('@/lib/supabase/admin', () => ({
   supabaseAdmin: () => ({
     from: (table: string) => {
       const chain: Record<string, unknown> = {};
-      for (const m of ['select', 'eq', 'order', 'limit', 'update']) {
+      for (const m of ['select', 'eq', 'gt', 'order', 'limit', 'update']) {
         chain[m] = () => chain;
       }
       chain.maybeSingle = async () => ({
         data: (queues[table] ?? []).shift() ?? null,
       });
-      (chain as { then?: unknown }).then = (r: (v: unknown) => unknown) =>
-        Promise.resolve(
-          r({ data: (queues[table] ?? []).shift() ?? null, error: null })
+      (chain as { then?: unknown }).then = (r: (v: unknown) => unknown) => {
+        const next = (queues[table] ?? []).shift() ?? null;
+        // A head:true count query answers with a count and no rows.
+        const isCount =
+          !!next && !Array.isArray(next) && 'count' in (next as object);
+        return Promise.resolve(
+          r(
+            isCount
+              ? { data: null, error: null, ...(next as object) }
+              : { data: next, error: null }
+          )
         );
+      };
       return chain;
     },
   }),
@@ -199,5 +208,51 @@ describe('processBuyerQualificationMessage — free-text requirement updates', (
     expect(handled).toBe(true);
     expect(sendRequirementReview).not.toHaveBeenCalled();
     expect(sendTextMessage).toHaveBeenCalled();
+  });
+});
+
+describe('processBuyerQualificationMessage — a lead still typing', () => {
+  // "Land", then "Commercial or Semi commercial" three seconds later.
+  // Two webhooks, two replies: "Noted — residential land/plot" (a guess
+  // off one word, and the wrong one) and "Noted — commercial land".
+  const runFirstOfTwo = () =>
+    processBuyerQualificationMessage(
+      'Land',
+      { id: 'c1', phone: '919000000000', name: 'Aryan' },
+      { id: 'conv-1' },
+      'acct-1',
+      'token',
+      'phone-id',
+      'owner-1',
+      'wamid.first'
+    );
+
+  it('files the line but leaves the answering to the later message', async () => {
+    queues.messages = [
+      [{ sender_type: 'bot' }],
+      { created_at: '2026-08-12T12:56:01.000Z' },
+      { count: 1 },
+    ];
+
+    const handled = await runFirstOfTwo();
+
+    expect(handled).toBe(true);
+    // Filed and learned from — the second message's brief holds both
+    // lines only because this one was still written down.
+    expect(recordLearnedFacts).toHaveBeenCalled();
+    expect(sendTextMessage).not.toHaveBeenCalled();
+    expect(sendRequirementReview).not.toHaveBeenCalled();
+  });
+
+  it("answers normally when it is the lead's last word", async () => {
+    queues.messages = [
+      [{ sender_type: 'bot' }],
+      { created_at: '2026-08-12T12:56:01.000Z' },
+      { count: 0 },
+    ];
+
+    await runFirstOfTwo();
+
+    expect(sendRequirementReview).toHaveBeenCalled();
   });
 });
