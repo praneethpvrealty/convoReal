@@ -13,8 +13,41 @@ and polish.
 
 ### Added
 
+- **Voice notes, understood and acted on.** A voice note sent to the
+  WhatsApp assistant is now transcribed once and read as text by every
+  path that already existed — so speaking a listing files a listing,
+  speaking a contact files a contact, speaking *today* returns your
+  agenda, and speaking a correction edits the open draft. Before this,
+  audio reached exactly one destination, the calendar parser: anything
+  that wasn't an event came back "I couldn't find an event or task in
+  that", and a voice note that arrived while a listing draft was open
+  matched no branch at all and was answered with **nothing** — no reply,
+  nothing saved. Non-English notes are transcribed and translated, so a
+  listing dictated in Hindi, Telugu or Kannada goes through the same
+  prompts as a typed one. When the assistant still can't place what was
+  said, it now quotes the transcript back, so a misheard word is
+  distinguishable from a misunderstood request. Voice-created events
+  keep the transcript on the record. Spoken scheduling costs the same as
+  it did (`voice_transcribe` + `event_parse` = the old
+  `voice_event_parse`); everything else voice can now do is new.
+
+- **The map pin that arrives before its listing.** Forwarding a Google
+  Maps pin to the WhatsApp assistant on its own used to come back with
+  "I couldn't tell what that was", and the pin was gone — so the listing
+  details sent seconds later were saved with no coordinates, invisible
+  to radius matching and ad targeting, even though the lister had sent
+  the most precise thing they had. The pin is now acknowledged, named
+  where the geocoder can name it, and attached to the next listing draft
+  that sender opens: map link, coordinates, and whichever of
+  locality/city/state the listing itself didn't state. The listing's own
+  words always win — a pin only fills gaps, and a listing carrying its
+  own pin is left alone. Held for 15 minutes only: stamping a stale pin
+  onto an unrelated property puts it in the wrong place, which is worse
+  than leaving it unpinned. A pin sent *during* an open draft already
+  worked and is unchanged. **Migration required:** `261_pending_map_pins.sql`.
+
 - **Ask an owner for the property details, in one message** (**migration
-  required**: `261_owner_details_request_settings.sql`). The first message an
+  required**: `262_owner_details_request_settings.sql`). The first message an
   agent sends a seller, and the one that moves them onto the business number.
   **Ask for Details** on a web contact, **Ask Details** on the mobile contact
   screen.
@@ -52,24 +85,6 @@ and polish.
   drift-guarded literal by literal in `src/lib/mobile-parity.test.ts`. The
   settings *editor* is web-only for now — the message itself is at full
   parity, and the gap is recorded in `FEATURE_ROADMAP.md`.
-
-- **Ask an owner for the property details, in one message.** A new Engine
-  template — not a Meta one — that asks a seller for everything a listing
-  needs and tells them, up front, what this number will send back:
-  enquiries, buyers shortlisted, site visits and offers. On web it is the
-  **Ask for Details** action on a contact; in the app it is **Ask
-  Details** on the contact screen. The checklist follows the property's
-  own type, so a plot owner is asked for the tippan, the conversion order
-  and the layout release and is never asked for a BHK configuration or a
-  building sanction. The agent can drop any section, edit the text, and
-  send it through the account's WhatsApp number while the 24-hour window
-  is open — outside it, the same message opens in their own WhatsApp
-  rather than dead-ending. The promise closes with STOP UPDATES /
-  START UPDATES, the words the owner-digest webhook already honours, so
-  the owner can switch the updates on or off by replying. Wording lives
-  in `src/lib/owners/details-request.ts` and sends through
-  `POST /api/owners/details-request`; the mobile copy is drift-guarded by
-  `src/lib/mobile-parity.test.ts`.
 
 - **The confidential-listing request drawer, on the phone.** Tapping the
   Confidential chip on a property card in the app now opens who asked for

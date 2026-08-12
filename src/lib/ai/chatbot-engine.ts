@@ -11,6 +11,7 @@ import {
   parseContactFromImageOrText,
   parseClientReplyFromImageOrText,
   updateContactDraft,
+  transcribeVoiceNote,
   type ParsedContactDraftsContainer,
   normalizeClassification
 } from '@/lib/ai/gemini';
@@ -70,6 +71,13 @@ import {
   formatContactDraftsPreview,
   backfillLocationFromMapLink,
 } from '@/lib/ai/intake-core';
+import { extractMapLinkFromText } from '@/lib/maps/map-links';
+import {
+  parkMapPin,
+  takePendingMapPin,
+  applyPinToDraft,
+  buildPinParkedMessage,
+} from '@/lib/maps/pending-pin';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { recordRequirementResponse } from '@/lib/requirements/respond';
 
@@ -601,7 +609,40 @@ export async function processOwnerChatbotMessage(
   let propSession = propSessionData;
   let contactSession = contactSessionData;
 
-  const cleanedText = contentText?.trim() || '';
+  const isAudioMsg = message.type === 'audio' && !!message.audio?.id;
+
+  // A voice note is the same request said out loud, so it is transcribed
+  // once here and read as text by every path below — draft corrections,
+  // the calendar, listing and contact intake alike.
+  //
+  // Audio used to reach exactly one destination: the calendar parser. A
+  // dictated listing was therefore forced into an event or answered with
+  // "I couldn't find an event in that" — and a voice note that arrived
+  // while a draft was open matched no branch at all and got silence, no
+  // reply and nothing saved.
+  let spokenText = '';
+  if (isAudioMsg) {
+    if (!(await gatedBurn(accountId, 'voice_transcribe'))) {
+      return await sendCreditsLockedReply(phoneNumberId, accessToken, contactRecord.phone, conversation.id);
+    }
+    try {
+      const { url, mimeType } = await getMediaUrl({ mediaId: message.audio!.id, accessToken });
+      const { buffer } = await downloadMedia({ downloadUrl: url, accessToken });
+      spokenText = await transcribeVoiceNote(buffer, mimeType || message.audio!.mime_type || 'audio/ogg');
+    } catch (err) {
+      console.error('[chatbot-engine] voice note transcription failed:', err);
+    }
+
+    if (!spokenText) {
+      const reply =
+        "🎙 *I couldn't make out that voice note.* Try again somewhere quieter, or type it out — I can take a listing, a contact, or something to schedule either way.";
+      const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+      await saveBotMessage(conversation.id, reply, sendRes.messageId);
+      return true;
+    }
+  }
+
+  const cleanedText = (spokenText || contentText || '').trim();
   const lowerText = cleanedText.toLowerCase();
 
   const isImageMsg = message.type === 'image' && message.image?.id;
@@ -943,7 +984,14 @@ export async function processOwnerChatbotMessage(
   // later list ever reached the calendar. The draft itself is left
   // alone — a half-built listing is still wanted, it just isn't what
   // this message is about.
-  if ((!propSession && !contactSession) || isDictatedTaskList(cleanedText)) {
+  //
+  // A voice note is the other exception, for the same reason and one
+  // more: nobody forwards a listing by speaking it into their own
+  // Engine number, so there is no correction to hijack — and a draft
+  // left open from an hour ago used to swallow the whole recording
+  // without a word back. The parser returns 'none' for a spoken
+  // correction, which falls through to the draft below untouched.
+  if ((!propSession && !contactSession) || isDictatedTaskList(cleanedText) || isAudioMsg) {
     try {
       const scheduled = await tryHandleOwnerScheduling({
         message,
@@ -2414,6 +2462,14 @@ export async function processOwnerChatbotMessage(
           parsedDraft.images = [];
         }
 
+        // A pin shared moments before this message was waiting for the
+        // listing it belongs to. Applied before the backfill so the
+        // geocoding runs once, on whichever link the draft ends up with.
+        const pendingPin = await takePendingMapPin(accountId, contactRecord.id);
+        if (pendingPin) {
+          parsedDraft = applyPinToDraft(parsedDraft, pendingPin);
+        }
+
         parsedDraft = await backfillLocationFromMapLink(parsedDraft);
 
         const { isValid } = validateDraft(parsedDraft);
@@ -2643,6 +2699,27 @@ export async function processOwnerChatbotMessage(
         return true;
       }
     }
+
+    // --- MAP PIN AHEAD OF ITS LISTING ---
+    // A shared pin carries no listing and no person, so it lands here as
+    // 'none'. It is not noise: the details follow it seconds later, and
+    // answering "I couldn't tell what that was" threw away the most
+    // precise thing the lister had. Hold it for the next draft instead.
+    if (classification === 'none' && !isMediaMsg) {
+      const mapLink = extractMapLinkFromText(cleanedText);
+      if (mapLink) {
+        const pin = await parkMapPin({
+          accountId,
+          contactId: contactRecord.id,
+          conversationId: conversation.id,
+          mapLink,
+        });
+        const reply = buildPinParkedMessage(pin);
+        const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+        await saveBotMessage(conversation.id, reply, sendRes.messageId);
+        return true;
+      }
+    }
   }
 
   // Handle help command or general welcome instructions.
@@ -2656,7 +2733,7 @@ export async function processOwnerChatbotMessage(
     // nor a contact, and is better served by a short nudge.
     const reply = isOwnerHelpCommand(lowerText)
       ? buildOwnerHelpMessage()
-      : buildOwnerFallbackMessage();
+      : buildOwnerFallbackMessage(spokenText || null);
 
     const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
     await saveBotMessage(conversation.id, reply, sendRes.messageId);

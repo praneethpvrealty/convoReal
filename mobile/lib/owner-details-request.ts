@@ -30,7 +30,7 @@
 //      is never asked for a BHK configuration.
 //
 // An account can replace the prose wholesale (owner_details_request_
-// settings.body_template, migration 261) while keeping the type-aware
+// settings.body_template, migration 262) while keeping the type-aware
 // checklist through the {{checklist}} placeholder.
 //
 // Hand-ported mirror of src/lib/owners/details-request.ts — Metro

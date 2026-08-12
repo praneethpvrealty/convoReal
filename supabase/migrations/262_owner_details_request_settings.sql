@@ -1,5 +1,5 @@
 -- ============================================================
--- 261_owner_details_request_settings.sql
+-- 262_owner_details_request_settings.sql
 -- Per-account wording for the owner property-details request — the
 -- first message an agent sends a seller (src/lib/owners/
 -- details-request.ts).

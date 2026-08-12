@@ -30,7 +30,7 @@
 //      is never asked for a BHK configuration.
 //
 // An account can replace the prose wholesale (owner_details_request_
-// settings.body_template, migration 261) while keeping the type-aware
+// settings.body_template, migration 262) while keeping the type-aware
 // checklist through the {{checklist}} placeholder.
 //
 // Pure module (no I/O) so the copy is unit tested and the mobile app
