@@ -27,10 +27,16 @@ import * as Linking from 'expo-linking';
 import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { ContactPickerSheet } from '@/components/contact-picker-sheet';
+import { GateRequestsSheet } from '@/components/gate-requests-sheet';
 import { EnterRow, PressScale } from '@/components/motion';
 import { PropertyApprovals } from '@/components/property-approvals';
 import { PropertyFiltersSheet } from '@/components/property-filters-sheet';
-import { EmptyState, FilterChip, PropertyCardSkeleton, SearchBar } from '@/components/ui';
+import {
+  EmptyState,
+  FilterChip,
+  PropertyCardSkeleton,
+  SearchBar,
+} from '@/components/ui';
 import { gateSummary, type GateStatsMap } from '@/lib/gate-stats';
 import {
   apiFetch,
@@ -142,7 +148,8 @@ export default function PropertiesScreen() {
   // list, same endpoint the web inventory uses.
   const { data: gateStats } = useQuery({
     queryKey: ['properties', 'gate-stats'],
-    queryFn: () => apiFetch<{ data: GateStatsMap }>('/api/properties/gate-stats'),
+    queryFn: () =>
+      apiFetch<{ data: GateStatsMap }>('/api/properties/gate-stats'),
     select: (r) => r.data ?? {},
     staleTime: 60_000,
   });
@@ -512,7 +519,10 @@ export default function PropertiesScreen() {
           // none to review.
           ListHeaderComponent={
             <PropertyApprovals
-              style={{ paddingHorizontal: spacing.lg, paddingBottom: spacing.sm }}
+              style={{
+                paddingHorizontal: spacing.lg,
+                paddingBottom: spacing.sm,
+              }}
             />
           }
           onEndReached={() => hasNextPage && fetchNextPage()}
@@ -868,6 +878,9 @@ function PropertyCard({
   const { colors } = useTheme();
   const gated = property.showcase_visibility === 'teaser';
   const gateLine = gateSummary(gateStats?.[property.id]);
+  // Mounted only while open: the inventory renders dozens of cards, and
+  // a sheet is a Modal each.
+  const [gateOpen, setGateOpen] = useState(false);
   const gradient = useBrandGradient();
   const cover = storagePublicUrl(property.images?.[0]);
   const price =
@@ -949,7 +962,20 @@ function PropertyCard({
           </Text>
         ) : null}
         {gated ? (
-          <View style={styles.gateRow}>
+          <Pressable
+            onPress={() => {
+              haptic.tap();
+              setGateOpen(true);
+            }}
+            accessibilityRole="button"
+            accessibilityLabel={`Access requests for ${property.title}${
+              gateLine ? `, ${gateLine}` : ''
+            }`}
+            style={({ pressed }) => [
+              styles.gateRow,
+              { opacity: pressed ? 0.6 : 1 },
+            ]}
+          >
             <View
               style={[
                 styles.gateChip,
@@ -973,7 +999,12 @@ function PropertyCard({
                 {gateLine}
               </Text>
             ) : null}
-          </View>
+            <Ionicons
+              name="chevron-forward"
+              size={13}
+              color={colors.textMuted}
+            />
+          </Pressable>
         ) : null}
         <View style={styles.specRow}>
           {property.bedrooms ? (
@@ -990,6 +1021,13 @@ function PropertyCard({
           ) : null}
         </View>
       </View>
+      {gateOpen ? (
+        <GateRequestsSheet
+          property={property}
+          visible
+          onClose={() => setGateOpen(false)}
+        />
+      ) : null}
     </PressScale>
   );
 }

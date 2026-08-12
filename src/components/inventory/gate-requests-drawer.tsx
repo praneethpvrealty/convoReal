@@ -14,6 +14,7 @@ import {
   Eye,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { gateRequestStatusLabel } from '@/lib/inventory/gate-stats';
 import type { Property } from '@/types';
 
 interface GateRequest {
@@ -54,33 +55,21 @@ const fmt = (iso: string | null | undefined): string =>
       })
     : '—';
 
+const STATUS_CLASS: Record<string, string> = {
+  pending: 'text-amber-400 bg-amber-500/10 border-amber-500/25',
+  approved: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/25',
+  rejected: 'text-rose-400 bg-rose-500/10 border-rose-500/25',
+};
+
 function StatusPill({ status }: { status: string }) {
-  const map: Record<string, { label: string; cls: string }> = {
-    pending: {
-      label: 'Waiting on you',
-      cls: 'text-amber-400 bg-amber-500/10 border-amber-500/25',
-    },
-    approved: {
-      label: 'Approved',
-      cls: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/25',
-    },
-    rejected: {
-      label: 'Rejected',
-      cls: 'text-rose-400 bg-rose-500/10 border-rose-500/25',
-    },
-    // A consent chain that timed out never reached a decision. Saying
-    // "Rejected" would misreport what the listing side actually did.
-    expired: {
-      label: 'No answer',
-      cls: 'text-slate-400 bg-slate-500/10 border-slate-500/25',
-    },
-  };
-  const s = map[status] ?? map.expired;
+  const cls =
+    STATUS_CLASS[status] ??
+    'text-slate-400 bg-slate-500/10 border-slate-500/25';
   return (
     <span
-      className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold tracking-wide uppercase ${s.cls}`}
+      className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold tracking-wide uppercase ${cls}`}
     >
-      {s.label}
+      {gateRequestStatusLabel(status)}
     </span>
   );
 }
