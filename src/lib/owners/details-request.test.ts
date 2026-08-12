@@ -307,6 +307,31 @@ describe('buildOwnerDetailsRequestMessage', () => {
     expect(parseOwnerDigestCommand(DIGEST_RESUME_COMMAND)).toBe('start');
   });
 
+  // Regression: the settings preview passed an account-level selection
+  // (which includes 'construction', since it is set once for every
+  // property type) together with a plot, and the builder only checked
+  // that each name was a real section — so the preview showed a plot
+  // owner being asked for bedrooms, balconies and a lift.
+  it('drops a section the property cannot be asked, even when told to', () => {
+    const message = buildOwnerDetailsRequestMessage({
+      ...nadeem,
+      propertyType: 'Residential Plot',
+      sections: ['identity', 'construction', 'price', 'media'],
+    });
+    expect(message).not.toContain('What is built on it');
+    expect(message).not.toContain('bedrooms, bathrooms, balconies');
+    expect(message).toContain('*2. Your price and terms*');
+  });
+
+  it('still asks a built property what is built on it', () => {
+    const message = buildOwnerDetailsRequestMessage({
+      ...nadeem,
+      propertyType: 'Villa',
+      sections: ['identity', 'construction', 'price', 'media'],
+    });
+    expect(message).toContain('*2. What is built on it*');
+  });
+
   it('honours an explicit section selection', () => {
     const message = buildOwnerDetailsRequestMessage({
       ...nadeem,
