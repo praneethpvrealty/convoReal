@@ -199,21 +199,59 @@ function list(v: unknown): string[] {
   return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
 }
 
-/** Full-fidelity row → the compact wire shape. Keeps `location` and
- *  `sublocality` collapsed into one human-readable line, which is how
- *  every consumer displays them anyway. */
+/**
+ * `sublocality` + `location` → one readable line.
+ *
+ * Both columns are free text an agent typed or a Places lookup filled
+ * in, and in real inventory they overlap almost always rather than
+ * almost never: `sublocality` is typically a component of `location`
+ * ("HSR Layout" inside "19th Main road, HSR Layout, Bengaluru,
+ * Karnataka"). Prepending it unconditionally therefore repeats it on
+ * most rows, not the rare one.
+ *
+ * The stored `location` is also frequently self-repeating, because the
+ * intake path has appended the locality more than once over time —
+ * "Agara, HSR Layout, Agara, HSR Layout, Bangalore, Karnataka", and one
+ * row with the same phrase three times. That is upstream data, not
+ * something this function can fix, but it should not be passed through
+ * to a reader either.
+ *
+ * So: dedupe repeated comma segments, then add `sublocality` only when
+ * the result genuinely does not already say it.
+ */
+function composeLocation(sublocality: string | null, location: string | null): string | null {
+  const cleaned = location ? dedupeSegments(location) : null;
+  if (!cleaned) return sublocality;
+  if (!sublocality) return cleaned;
+  return cleaned.toLowerCase().includes(sublocality.toLowerCase())
+    ? cleaned
+    : `${sublocality}, ${cleaned}`;
+}
+
+/** Drop comma-separated segments that have already appeared, keeping
+ *  the first occurrence and the original order. */
+function dedupeSegments(value: string): string | null {
+  const seen = new Set<string>();
+  const kept: string[] = [];
+  for (const raw of value.split(",")) {
+    const segment = raw.trim();
+    if (!segment) continue;
+    const key = segment.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    kept.push(segment);
+  }
+  return kept.length > 0 ? kept.join(", ") : null;
+}
+
+/** Full-fidelity row → the compact wire shape. */
 export function toV1Property(row: Row | Property): V1Property {
   const r = row as Row;
-  const sublocality = str(r.sublocality);
-  const location = str(r.location);
   return {
     id: String(r.id),
     title: str(r.title) ?? "(untitled)",
     price: num(r.price),
-    location:
-      sublocality && location && sublocality !== location
-        ? `${sublocality}, ${location}`
-        : (sublocality ?? location),
+    location: composeLocation(str(r.sublocality), str(r.location)),
     city: str(r.city),
     type: str(r.type),
     listing_type: str(r.listing_type),
