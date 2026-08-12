@@ -12,7 +12,7 @@
 import type { Ionicons } from '@expo/vector-icons';
 
 export const MENU_LINKS = {
-  today: { href: '/(app)/today', icon: 'sunny-outline', label: 'Today' },
+  focus: { href: '/(app)/focus', icon: 'sunny-outline', label: 'Focus' },
   deals: {
     href: '/(app)/deals',
     icon: 'trending-up-outline',
@@ -77,7 +77,7 @@ export const MENU_ROUTE_IDS = Object.keys(MENU_LINKS) as MenuRouteId[];
 export const MENU_SECTIONS: { title: string; ids: readonly MenuRouteId[] }[] = [
   {
     title: 'Daily work',
-    ids: ['today', 'deals', 'radar', 'journey', 'dashboard'],
+    ids: ['focus', 'deals', 'radar', 'journey', 'dashboard'],
   },
   { title: 'Marketing', ids: ['broadcasts', 'pulse', 'automations'] },
   {

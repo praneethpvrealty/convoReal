@@ -54,7 +54,7 @@ const rules: Rule[] = [
         leads.length === 1
           ? '1 hot lead hasn’t heard from you in 2+ days. A quick message keeps them warm!'
           : `${leads.length} hot leads haven’t heard from you in 2+ days. A quick message keeps them warm!`,
-      cta: { label: 'See leads', href: '/dashboard?tab=today' },
+      cta: { label: 'See leads', href: '/dashboard?tab=focus' },
     };
   },
   // 3. Journey branches that have not moved in a week. Head-count

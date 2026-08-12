@@ -538,6 +538,7 @@ export function ContactDetailView({
         await supabase
           .from('contact_property_inquiries')
           .upsert({
+            account_id: accountId,
             contact_id: contactId,
             property_id: propertyId,
             inquiry_source: 'Manual'
@@ -567,7 +568,7 @@ export function ContactDetailView({
       console.error('Failed to update interest property:', err);
       toast.error('Failed to update interest property');
     }
-  }, [supabase, contactId, onUpdated, inquiredProperties]);
+  }, [supabase, contactId, accountId, onUpdated, inquiredProperties]);
 
   const handleRemoveInquiredProperty = useCallback(async (propertyId: string) => {
     try {

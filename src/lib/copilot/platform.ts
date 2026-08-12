@@ -68,6 +68,9 @@ export const MOBILE_APP_ROUTES: readonly string[] = [
   '/calendar',
   '/pipelines',
   '/journey',
+  // Still /today, not /focus: the web route is a tab
+  // (/dashboard?tab=focus) and /today is the redirect that reaches it.
+  // The app maps this to its Focus screen.
   '/today',
   '/radar',
   '/pulse',
@@ -81,7 +84,7 @@ export const MOBILE_APP_ROUTES: readonly string[] = [
  * one.
  */
 export const MOBILE_APP_SECTION = [
-  'MOBILE APP: The user is in the ConvoReal mobile app, not the web dashboard. The app covers: Inbox chats, Contacts (add, edit, import from the phone book), Properties (view, edit, share, attach and open documents, map view with a GPS "Near me" filter — ADDING a property is desktop-web only), Broadcasts, Calendar, Deals, Journey, Today, Match Radar, Pulse, Team, Automations (view and pause only), Billing & AI credits, Notifications, home-screen widgets and app lock. Everything else — Settings (WhatsApp connection, templates, email lead sync, showcase), the Automations and Flows builders, Liaisons, Ads, Requirements sharing, and approving a buyer\u2019s document request — is desktop web only.',
+  'MOBILE APP: The user is in the ConvoReal mobile app, not the web dashboard. The app covers: Inbox chats, Contacts (add, edit, import from the phone book), Properties (view, edit, share, attach and open documents, map view with a GPS "Near me" filter — ADDING a property is desktop-web only), Broadcasts, Calendar, Deals, Journey, Focus (the day’s tasks and visits, top journeys and requests to act on), Match Radar, Pulse, Team, Automations (view and pause only), Billing & AI credits, Notifications, home-screen widgets and app lock. Everything else — Settings (WhatsApp connection, templates, email lead sync, showcase), the Automations and Flows builders, Liaisons, Ads, Requirements sharing, and approving a buyer\u2019s document request — is desktop web only.',
   'Classify every reply with coverage:',
   '- "full": the user can do the whole thing inside the mobile app. Give app steps.',
   '- "web_only": ConvoReal does it, but only on the desktop web dashboard. Say so, name the page, and set navigateTo to that web page.',

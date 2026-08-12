@@ -1,10 +1,15 @@
 import { supabase } from '@/lib/supabase';
-import type { Todo } from '@/lib/todos';
 
 /**
- * Web parity: the "Today" command-center tab (src/lib/today/queries.ts).
- * Same client-side aggregation over the RLS-scoped client — fine at the
- * current scale; move to an RPC if a tenant outgrows it.
+ * Web parity: the Today signals that render under Focus
+ * (src/lib/today/queries.ts) — reply windows, cooling leads, and the
+ * day's numbers. Same client-side aggregation over the RLS-scoped
+ * client; fine at the current scale, move to an RPC if a tenant
+ * outgrows it.
+ *
+ * The day's agenda is deliberately absent: Focus owns it, and both
+ * surfaces read it from GET /api/focus so the two can't disagree about
+ * what today holds.
  */
 
 const HOUR_MS = 3_600_000;
@@ -241,82 +246,5 @@ export async function fetchTodayInsights(): Promise<TodayInsights> {
     inboundConversations: inbound.size,
     respondedConversations: responded.size,
     showcaseOpens: showcaseRes.count ?? 0,
-  };
-}
-
-// --- Today's agenda ----------------------------------------------------
-
-export interface AgendaAppointment {
-  id: string;
-  title: string;
-  start_time: string;
-  location: string | null;
-  contact: { id: string; name: string | null; phone: string | null } | null;
-  property: { id: string; title: string } | null;
-}
-
-export interface TodaysAgenda {
-  appointments: AgendaAppointment[];
-  todos: Todo[];
-}
-
-/**
- * Everything scheduled for the local calendar day: appointments still
- * marked scheduled, plus incomplete todos due today — or earlier
- * (overdue items surface here rather than silently ageing out).
- */
-export async function fetchTodaysAgenda(): Promise<TodaysAgenda> {
-  const dayStart = startOfLocalDay().toISOString();
-  const dayEnd = endOfLocalDay().toISOString();
-
-  const [apptRes, todoRes] = await Promise.all([
-    supabase
-      .from('appointments')
-      .select(
-        'id, title, start_time, location, contact:contacts(id, name, phone), property:properties(id, title)'
-      )
-      .eq('status', 'scheduled')
-      .gte('start_time', dayStart)
-      .lte('start_time', dayEnd)
-      .order('start_time', { ascending: true }),
-    supabase
-      .from('todos')
-      .select(
-        '*, contact:contacts(id, name, phone), property:properties(id, title)'
-      )
-      .eq('completed', false)
-      .not('due_date', 'is', null)
-      .lte('due_date', dayEnd)
-      .order('due_date', { ascending: true }),
-  ]);
-  if (apptRes.error) throw apptRes.error;
-  if (todoRes.error) throw todoRes.error;
-
-  type ApptRow = Omit<AgendaAppointment, 'contact' | 'property'> & {
-    contact:
-      | AgendaAppointment['contact']
-      | AgendaAppointment['contact'][]
-      | null;
-    property:
-      | AgendaAppointment['property']
-      | AgendaAppointment['property'][]
-      | null;
-  };
-  type TodoRow = Omit<Todo, 'contact' | 'property'> & {
-    contact: Todo['contact'] | Todo['contact'][] | null;
-    property: Todo['property'] | Todo['property'][] | null;
-  };
-
-  return {
-    appointments: ((apptRes.data ?? []) as unknown as ApptRow[]).map((row) => ({
-      ...row,
-      contact: one(row.contact),
-      property: one(row.property),
-    })),
-    todos: ((todoRes.data ?? []) as unknown as TodoRow[]).map((row) => ({
-      ...row,
-      contact: one(row.contact),
-      property: one(row.property),
-    })),
   };
 }

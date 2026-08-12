@@ -14,6 +14,13 @@ import {
 
 import { ConvoRealLoader } from '@/components/loader';
 import { Avatar, SectionLabel, Tag, nameTagCap } from '@/components/ui';
+import {
+  fetchFocus,
+  type FocusJourney,
+  type FocusRequest,
+  type FocusRequestKind,
+  type FocusTask,
+} from '@/lib/focus';
 import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
 import { radius, spacing, useTheme } from '@/lib/theme';
@@ -21,24 +28,59 @@ import {
   fetchExpiringSessions,
   fetchHotGoingQuiet,
   fetchTodayInsights,
-  fetchTodaysAgenda,
 } from '@/lib/today';
-import { setTodoCompleted, type Todo } from '@/lib/todos';
+import { setTodoCompleted } from '@/lib/todos';
 import { usePullRefresh } from '@/lib/use-pull-refresh';
 
 /**
- * Web parity: the "Today" command-center tab. One screen for the day's
- * action list — WhatsApp windows about to close, hot leads going quiet,
- * today's appointments and due to-dos, and the day's numbers. The
- * web's streak flame and custom date ranges stay web-only.
+ * Web parity: the Focus tab (/dashboard?tab=focus). The day in three
+ * answers — tasks and visits, the journeys that need a nudge, the
+ * requests waiting on a reply — over the Today signals that have no
+ * card of their own: reply windows, cooling leads, and the numbers.
+ *
+ * The three Focus sections come ranked from GET /api/focus. Nothing
+ * here re-orders them. Tapping a row opens the full screen for it;
+ * the web expands in place instead, which is the one deliberate
+ * divergence — a React Flow canvas has no native counterpart.
  */
 
 const HOUR_MS = 3_600_000;
 
-export default function TodayScreen() {
+const REQUEST_ICON: Record<
+  FocusRequestKind,
+  React.ComponentProps<typeof Ionicons>['name']
+> = {
+  bid: 'cash-outline',
+  listing_submission: 'business-outline',
+  inquiry: 'chatbubble-ellipses-outline',
+  match: 'radio-outline',
+};
+
+const URGENCY_LABEL = {
+  now: 'Now',
+  soon: 'Soon',
+  later: 'When you can',
+} as const;
+
+function timeLabel(iso: string): string {
+  return new Date(iso).toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function waitedLabel(hours: number): string {
+  if (hours < 1) return 'just now';
+  if (hours < 24) return `waiting ${hours}h`;
+  const days = Math.floor(hours / 24);
+  return `waiting ${days} day${days === 1 ? '' : 's'}`;
+}
+
+export default function FocusScreen() {
   const { colors } = useTheme();
   const now = new Date();
 
+  const focus = useQuery({ queryKey: ['focus'], queryFn: fetchFocus });
   const insights = useQuery({
     queryKey: ['today-insights'],
     queryFn: fetchTodayInsights,
@@ -51,28 +93,54 @@ export default function TodayScreen() {
     queryKey: ['today-quiet-hot'],
     queryFn: fetchHotGoingQuiet,
   });
-  const agenda = useQuery({
-    queryKey: ['today-agenda'],
-    queryFn: fetchTodaysAgenda,
-  });
 
   const loading =
+    focus.isLoading ||
     insights.isLoading ||
     sessions.isLoading ||
-    quiet.isLoading ||
-    agenda.isLoading;
+    quiet.isLoading;
   const pull = usePullRefresh(() =>
     Promise.all([
+      focus.refetch(),
       insights.refetch(),
       sessions.refetch(),
       quiet.refetch(),
-      agenda.refetch(),
     ])
   );
 
+  const tasks = focus.data?.tasks;
+  const journeys = focus.data?.journeys.top ?? [];
+  const requests = focus.data?.requests.top ?? [];
+
+  function openJourney(journey: FocusJourney) {
+    if (journey.mode === 'buyer') {
+      router.push(`/(app)/journey?contactId=${journey.subjectId}`);
+    } else {
+      router.push(`/(app)/property/${journey.subjectId}`);
+    }
+  }
+
+  function openRequest(request: FocusRequest) {
+    if (request.kind === 'match') {
+      router.push('/(app)/radar');
+      return;
+    }
+    const contactId = request.href.split('contactId=')[1];
+    if (request.kind === 'inquiry' && contactId) {
+      router.push(`/(app)/contact/${contactId}`);
+      return;
+    }
+    const propertyId = request.href.split('propertyId=')[1];
+    if (propertyId) {
+      router.push(`/(app)/property/${propertyId}`);
+      return;
+    }
+    router.push('/(app)/(tabs)/properties');
+  }
+
   return (
     <View style={{ flex: 1 }}>
-      <Stack.Screen options={{ headerShown: true, title: 'Today' }} />
+      <Stack.Screen options={{ headerShown: true, title: 'Focus' }} />
 
       <ScrollView
         style={{ flex: 1 }}
@@ -99,33 +167,70 @@ export default function TodayScreen() {
           />
         ) : (
           <>
-            <View style={styles.grid}>
-              <StatCard
-                label="New inquiries"
-                value={insights.data?.newInquiries}
-              />
-              <StatCard
-                label="New contacts"
-                value={insights.data?.newContacts}
-              />
-              <StatCard
-                label="Showcase opens"
-                value={insights.data?.showcaseOpens}
-              />
-              <StatCard
-                label="Received"
-                value={insights.data?.messagesReceived}
-              />
-              <StatCard label="Sent" value={insights.data?.messagesSent} />
-              <StatCard
-                label="Replied"
-                value={
-                  insights.data
-                    ? `${insights.data.respondedConversations}/${insights.data.inboundConversations}`
-                    : undefined
-                }
-              />
-            </View>
+            <SectionLabel
+              text={
+                tasks
+                  ? `Tasks & visits · ${tasks.visits} visit${tasks.visits === 1 ? '' : 's'}${tasks.overdue > 0 ? ` · ${tasks.overdue} overdue` : ''}`
+                  : 'Tasks & visits'
+              }
+            />
+            {(tasks?.items ?? []).length === 0 ? (
+              <QuietLine text="Nothing scheduled — the day is yours." />
+            ) : (
+              (tasks?.items ?? []).map((task) => (
+                <TaskRow key={task.id} task={task} />
+              ))
+            )}
+
+            <SectionLabel
+              text="Top journeys"
+              style={{ marginTop: spacing.sm }}
+            />
+            {journeys.length === 0 ? (
+              <QuietLine text="No live journeys to rank yet." />
+            ) : (
+              journeys.map((journey) => (
+                <Row
+                  key={`${journey.mode}:${journey.subjectId}`}
+                  icon={
+                    journey.mode === 'buyer'
+                      ? 'person-outline'
+                      : 'home-outline'
+                  }
+                  title={journey.subject.name}
+                  subtitle={journey.reason}
+                  subtitleColor={
+                    journey.stalledDays >= 7 ? colors.warning : colors.textMuted
+                  }
+                  onPress={() => openJourney(journey)}
+                />
+              ))
+            )}
+
+            <SectionLabel
+              text="Requests to act on"
+              style={{ marginTop: spacing.sm }}
+            />
+            {requests.length === 0 ? (
+              <QuietLine text="Nobody is waiting on you." />
+            ) : (
+              requests.map((request) => (
+                <Row
+                  key={request.id}
+                  icon={REQUEST_ICON[request.kind]}
+                  title={request.title}
+                  subtitle={`${URGENCY_LABEL[request.urgency]} · ${waitedLabel(request.ageHours)}`}
+                  subtitleColor={
+                    request.urgency === 'now'
+                      ? colors.danger
+                      : request.urgency === 'soon'
+                        ? colors.warning
+                        : colors.textMuted
+                  }
+                  onPress={() => openRequest(request)}
+                />
+              ))
+            )}
 
             <SectionLabel
               text="Reply before the window closes"
@@ -189,39 +294,36 @@ export default function TodayScreen() {
             )}
 
             <SectionLabel
-              text="Today's agenda"
+              text="Your numbers today"
               style={{ marginTop: spacing.sm }}
             />
-            {(agenda.data?.appointments ?? []).length === 0 &&
-            (agenda.data?.todos ?? []).length === 0 ? (
-              <QuietLine text="Nothing scheduled for today." />
-            ) : (
-              <>
-                {(agenda.data?.appointments ?? []).map((appt) => (
-                  <Row
-                    key={appt.id}
-                    icon="calendar-outline"
-                    title={appt.title}
-                    subtitle={[
-                      new Date(appt.start_time).toLocaleTimeString([], {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      }),
-                      appt.contact
-                        ? appt.contact.name || appt.contact.phone
-                        : null,
-                      appt.location,
-                    ]
-                      .filter(Boolean)
-                      .join(' · ')}
-                    onPress={() => router.push('/(app)/(tabs)/calendar')}
-                  />
-                ))}
-                {(agenda.data?.todos ?? []).map((todo) => (
-                  <AgendaTodoRow key={todo.id} todo={todo} now={now} />
-                ))}
-              </>
-            )}
+            <View style={styles.grid}>
+              <StatCard
+                label="New inquiries"
+                value={insights.data?.newInquiries}
+              />
+              <StatCard
+                label="New contacts"
+                value={insights.data?.newContacts}
+              />
+              <StatCard
+                label="Showcase opens"
+                value={insights.data?.showcaseOpens}
+              />
+              <StatCard
+                label="Received"
+                value={insights.data?.messagesReceived}
+              />
+              <StatCard label="Sent" value={insights.data?.messagesSent} />
+              <StatCard
+                label="Replied"
+                value={
+                  insights.data
+                    ? `${insights.data.respondedConversations}/${insights.data.inboundConversations}`
+                    : undefined
+                }
+              />
+            </View>
           </>
         )}
       </ScrollView>
@@ -326,25 +428,45 @@ function Row({
   );
 }
 
-/** A due (or overdue) to-do with an inline complete toggle. */
-function AgendaTodoRow({ todo, now }: { todo: Todo; now: Date }) {
+/** An appointment reads as a row; a to-do carries an inline complete
+ *  toggle, the one action worth having without leaving Focus. */
+function TaskRow({ task }: { task: FocusTask }) {
   const { colors, fonts: f } = useTheme();
   const [busy, setBusy] = useState(false);
-  const due = todo.due_date ? new Date(todo.due_date) : null;
-  const overdue = due !== null && due.getTime() < now.getTime();
 
   async function complete() {
     haptic.tap();
     setBusy(true);
     try {
-      await setTodoCompleted(todo.id, true);
+      await setTodoCompleted(task.id, true);
       haptic.success();
-      queryClient.invalidateQueries({ queryKey: ['today-agenda'] });
+      queryClient.invalidateQueries({ queryKey: ['focus'] });
       queryClient.invalidateQueries({ queryKey: ['todos'] });
     } catch {
       haptic.warn();
       setBusy(false);
     }
+  }
+
+  const subtitle = [
+    task.overdue ? 'Overdue' : timeLabel(task.at),
+    task.location,
+    task.contact?.name,
+    task.property?.name,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
+  if (task.kind === 'appointment') {
+    return (
+      <Row
+        icon={task.location ? 'location-outline' : 'calendar-outline'}
+        title={task.title}
+        subtitle={subtitle}
+        subtitleColor={task.overdue ? colors.danger : colors.textMuted}
+        onPress={() => router.push('/(app)/(tabs)/calendar')}
+      />
+    );
   }
 
   return (
@@ -360,7 +482,7 @@ function AgendaTodoRow({ todo, now }: { todo: Todo; now: Date }) {
         hitSlop={8}
         accessibilityRole="checkbox"
         accessibilityState={{ checked: false }}
-        accessibilityLabel={`Complete ${todo.title}`}
+        accessibilityLabel={`Complete ${task.title}`}
       >
         {busy ? (
           <ActivityIndicator size="small" color={colors.primary} />
@@ -373,20 +495,16 @@ function AgendaTodoRow({ todo, now }: { todo: Todo; now: Date }) {
           style={{ fontSize: 14.5, fontFamily: f.semibold, color: colors.text }}
           numberOfLines={2}
         >
-          {todo.title}
+          {task.title}
         </Text>
         <Text
           style={{
             fontSize: 12.5,
-            color: overdue ? colors.danger : colors.textMuted,
+            color: task.overdue ? colors.danger : colors.textMuted,
           }}
           numberOfLines={1}
         >
-          {overdue ? 'Overdue · ' : 'Due '}
-          {due
-            ? `${due.toLocaleDateString([], { day: 'numeric', month: 'short' })} · ${due.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-            : ''}
-          {todo.contact ? ` · ${todo.contact.name || todo.contact.phone}` : ''}
+          {subtitle}
         </Text>
       </View>
     </View>
