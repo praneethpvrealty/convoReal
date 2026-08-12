@@ -67,7 +67,7 @@ Derived per-account averages used for the projections in §5: **~25 MB storage**
 | :--- | :--- | :--- | :--- |
 | **Razorpay** | Marketplace + subscription checkout (India) | No subscription | ~2% + GST per domestic transaction. |
 | **Stripe** | Credit top-ups | No subscription | ~2.9% + 30¢ (international rate). |
-| **Resend** | Transactional email — support tickets, password resets, sandbox cron, billing extension notices, image-cleanup notices. Not auth OTP (that is WhatsApp — see §3) | **Free** | 3,000 emails/mo, **hard cap 100/day**, one domain. Pro is $20/mo for 50,000. Volume is admin/ops only, so this tier has long headroom. |
+| **Resend** | Transactional email — support tickets, password resets, sandbox cron, billing extension notices, image-cleanup notices. Not auth OTP (that is WhatsApp — see §3) | **Free** | 3,000 emails/mo, **hard cap 100/day**, one domain. Pro is $20/mo for 50,000. Volume is admin/ops only, so this tier has long headroom. Repricing risk and exit cost in §7. |
 | **IMAP lead sync** | `IMAP_HOST` / `IMAP_USER` / `IMAP_PASSWORD` | **Not wired.** `/api/leads/sync-emails` returns "IMAP sync is currently unconfigured"; no IMAP library in `package.json`. Superseded by the Cloudflare email worker. | — |
 
 ### 2.5 Dev, CI, mobile
@@ -156,19 +156,53 @@ Chatbot replies dominate token spend. At $0.30/M input on 2.5 Flash this stays u
 
 ---
 
-## 7. Do not buy yet
+## 7. Vendor risk and exit cost
+
+Free tiers are a vendor's marketing budget, not a contract. The question that matters for each dependency is not "will this stay free" but "what does it cost us to leave".
+
+### Resend — small exposure, one-function exit
+
+Resend reprices without much warning: in 2026 the Scale tier was restructured with several published prices doubled (the 200,000/mo tier went $80 → $160), and data retention on all non-Enterprise plans was changed with no public announcement. Treat the 3,000/mo free tier as revocable.
+
+The exposure is nonetheless small, because `src/lib/email.ts` already isolates it. The entire Resend coupling is the `resend` import, the `getResend()` singleton, and the body of `sendTransactionalEmail()`. Every template builder in that file (`buildTrialExpiryEmail`, `buildSubscriptionExtensionEmail`, `buildImageCleanupWarningEmail`) is provider-agnostic HTML and text, and all five call sites only ever see the `{ success, messageId?, error? }` return shape.
+
+**Migrating providers is therefore a rewrite of one function body — roughly 30 lines — with no call site changes.** Do not add an `EmailProvider` interface or a provider-registry abstraction ahead of an actual migration; per §2.2 of `AGENTS.md` that is a speculative abstraction, and the existing wrapper already sits at the correct seam.
+
+The one thing that would widen the blast radius: wiring Supabase Auth SMTP to Resend (the conditional in §3). That places Resend in a dashboard setting outside this file, making a future migration two changes in two systems. Not a reason to avoid it — a reason to record it here.
+
+Replacement candidates, for an India-based entity billing in INR:
+
+| Option | Cost | Trade-off |
+| :--- | :--- | :--- |
+| **Amazon SES** (Mumbai `ap-south-1`) | ~$0.10 per 1,000 | Cheapest at any volume, same region as Supabase. Requires a production-access request to exit sandbox mode; heavier setup. |
+| **Zoho ZeptoMail** | ~$2.50 per 10,000 | India-based, INR billing, transactional-only. Simplest migration. |
+| **Brevo** | 300/day free (~9,000/mo) | A more generous free tier than Resend's, if the goal is to stay at zero cost. |
+
+At current volume — admin and ops mail only, with auth OTP on WhatsApp (§3) — SES would cost well under $1/month.
+
+### Concentration elsewhere
+
+Ranked by what an exit would actually cost, not by likelihood:
+
+- **Supabase** — highest. Postgres is portable, but RLS policies, `is_account_member()`, Auth, Storage and Realtime are not. Assume a migration is a project, not a task. This is the argument for paying for Pro rather than optimising the bill.
+- **Meta / WhatsApp Cloud API** — no alternative exists. It is the product. Manage this through pricing (§6), not through portability.
+- **Vercel** — moderate. A Next.js app moves to another host, but the 13 cron jobs in `vercel.json` and the build pipeline would need rebuilding elsewhere.
+- **Gemini, Stability, Hugging Face, Sarvam** — low. All are behind narrow call sites in `src/lib/ai/` and `src/lib/video/`, all interchangeable with competitors.
+- **Upstash, Railway, Cloudflare** — low. Standard Redis, a Dockerfile, and DNS plus a Worker. Each is replaceable in a day.
+
+## 8. Do not buy yet
 
 Supabase Team ($599/mo — SOC 2 and SSO are not needed), Expo Production ($199/mo), Vercel Enterprise, Upstash fixed plans, dedicated Redis (ElastiCache / Redis Cloud), and Datadog or BetterStack. Each is a Tier-3 line item in `docs/scaling-costs.md` and none of their triggers are close.
 
 ---
 
-## 8. Sources
+## 9. Sources
 
 Pricing and limits verified 2026-08-12:
 
 - [Supabase pricing](https://supabase.com/pricing) · [Supabase custom SMTP](https://supabase.com/docs/guides/auth/auth-smtp) · [Supabase production checklist](https://supabase.com/docs/guides/deployment/going-into-prod)
 - [Vercel Pro plan](https://vercel.com/docs/plans/pro-plan) · [Vercel limits](https://vercel.com/docs/limits) · [Vercel cron jobs](https://vercel.com/docs/cron-jobs)
 - [Upstash Redis pricing](https://upstash.com/pricing/redis) · [Railway pricing plans](https://docs.railway.com/pricing/plans)
-- [Resend pricing](https://resend.com/pricing) · [Expo/EAS tiers](https://agentdeals.dev/vendor/expo)
+- [Resend pricing](https://resend.com/pricing) · [Resend 2026 repricing and retention changes](https://coldletter.com/blog/resend-pricing/) · [Expo/EAS tiers](https://agentdeals.dev/vendor/expo)
 - [WhatsApp Business API pricing 2026](https://blueticks.co/blog/whatsapp-business-api-pricing-2026) · [India rate update](https://chati.ai/blog/whatsapp-business-api-pricing-update-for-2026)
 - [Gemini API free-tier limits](https://aipromptshub.co/blog/gemini-api-free-tier-rate-limits) · [Gemini pricing](https://findskill.ai/blog/gemini-api-pricing-guide/) · [Google Maps API pricing 2026](https://www.mapsi.dev/google-maps-api-pricing)
