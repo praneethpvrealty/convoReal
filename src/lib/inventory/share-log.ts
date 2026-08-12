@@ -1,10 +1,10 @@
 /**
  * Property share ledger — records who each property was confirmed
- * shared with on WhatsApp, alongside the journey auto-capture
- * (captureJourneyItems). The ledger is what the agent inventory
- * digest counts: recipient_kind distinguishes end buyers from partner
- * agents, snapshotted at share time so a later reclassification never
- * rewrites reach history.
+ * shared with, and over which channel, alongside the journey
+ * auto-capture (captureJourneyItems). The ledger is what the agent
+ * inventory digest counts: recipient_kind distinguishes end buyers
+ * from partner agents, snapshotted at share time so a later
+ * reclassification never rewrites reach history.
  *
  * Client-side helper (browser Supabase client, RLS-scoped) called from
  * every surface that confirms a send. Idempotent by construction: the
@@ -32,6 +32,8 @@ export function shareRecipientKind(
   return classification === 'Agent' ? 'agent' : 'buyer';
 }
 
+export type ShareChannel = 'whatsapp' | 'email';
+
 export interface RecordPropertySharesInput {
   accountId: string;
   propertyId: string;
@@ -41,6 +43,14 @@ export interface RecordPropertySharesInput {
     contactId: string;
     classification?: Contact['classification'] | null;
   }>;
+  /**
+   * How the listing went out. WhatsApp sends are confirmed by the API
+   * that performed them; an email send is confirmed by the agent,
+   * because the mail leaves from their own client and the app never
+   * sees it. Defaults to whatsapp — the channel every caller predating
+   * the email composer used.
+   */
+  channel?: ShareChannel;
 }
 
 export async function recordPropertyShares({
@@ -48,6 +58,7 @@ export async function recordPropertyShares({
   propertyId,
   userId,
   recipients,
+  channel = 'whatsapp',
 }: RecordPropertySharesInput): Promise<{ created: number; error: string | null }> {
   if (recipients.length === 0) return { created: 0, error: null };
   const supabase = createClient();
@@ -64,7 +75,7 @@ export async function recordPropertyShares({
       property_id: propertyId,
       contact_id: r.contactId,
       recipient_kind: shareRecipientKind(r.classification),
-      channel: 'whatsapp',
+      channel,
       created_by: userId ?? null,
     }));
 
