@@ -106,6 +106,8 @@ Two consequences worth tracking:
 
 ## 4. Tier 0 — do before launch
 
+This table is the infrastructure gate for the invite-only beta; [`docs/invite-only-beta-plan.md`](./invite-only-beta-plan.md) §7 restates it as a launch-day checklist with the beta-specific consequence of each item.
+
 | Action | Cost | Rationale |
 | :--- | :--- | :--- |
 | Supabase Free → **Pro** | **$25/mo** | Backups + 7-day PITR, and removes the 500 MB / 1 GB / 5 GB ceilings and the idle-pause risk. Required the moment a paying customer's data lands. |
