@@ -6,6 +6,7 @@ import { useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
+import { apiFetch, ApiError } from '@/lib/api';
 import { PropertyShareSheet } from '@/components/property-share-sheet';
 import { BottomSheet } from '@/components/sheet';
 import { Avatar, EmptyState, PrimaryButton, SearchBar, SectionLabel, Tag, TextField } from '@/components/ui';
@@ -156,6 +157,7 @@ export function AgentProperties({
  */
 export function InterestedProperties({ contact }: { contact: Contact }) {
   const { colors, fonts: f } = useTheme();
+  const accountId = useAuthStore((s) => s.profile?.account_id);
   const [picking, setPicking] = useState(false);
   const [sharing, setSharing] = useState<Property | null>(null);
   const { show, close, dialogProps } = useAppDialog();
@@ -201,7 +203,16 @@ export function InterestedProperties({ contact }: { contact: Contact }) {
     const { error: inqError } = await supabase
       .from('contact_property_inquiries')
       .upsert(
-        { contact_id: contact.id, property_id: propertyId, inquiry_source: 'Manual' },
+        {
+          // Migration 259 left this nullable so an un-updated writer
+          // could not break lead ingestion — but a NULL row falls out of
+          // the account's own RLS policy and out of every account-scoped
+          // read. The web writes it; this one was missing it.
+          account_id: accountId,
+          contact_id: contact.id,
+          property_id: propertyId,
+          inquiry_source: 'Manual',
+        },
         { onConflict: 'contact_id,property_id' }
       );
     if (updateError || inqError) {
@@ -227,30 +238,22 @@ export function InterestedProperties({ contact }: { contact: Contact }) {
           variant: 'destructive',
           onPress: async () => {
             close();
-            const { data: removed, error } = await supabase
-              .from('contact_property_inquiries')
-              .delete()
-              .eq('contact_id', contact.id)
-              .eq('property_id', p.id)
-              .select('contact_id');
-            if (error || !removed?.length) {
+            // Row and headline pointer come off together, server-side —
+            // web calls the same route, so neither surface owns a copy of
+            // the rule (root AGENTS.md §2.8).
+            try {
+              await apiFetch(`/api/contacts/${contact.id}/inquiries/${p.id}`, {
+                method: 'DELETE',
+              });
+            } catch (e) {
               haptic.warn();
               show({
                 title: 'Could not remove',
-                message: error
-                  ? friendlyError(error.message)
-                  : 'That interest is no longer there. Pull to refresh and try again.',
+                message: friendlyError(
+                  e instanceof ApiError ? e.message : 'Pull to refresh and try again.'
+                ),
               });
               return;
-            }
-            if (contact.last_inquired_property_id === p.id) {
-              await supabase
-                .from('contacts')
-                // Detaching the headline interest after its link was
-                // already removed above; that removal is what is reported.
-                // eslint-disable-next-line convoreal/supabase-write-guard
-                .update({ last_inquired_property_id: null })
-                .eq('id', contact.id);
             }
             haptic.success();
             queryClient.invalidateQueries({ queryKey: ['interested-properties', contact.id] });
@@ -354,7 +357,7 @@ export function InterestedProperties({ contact }: { contact: Contact }) {
 }
 
 /** Search-and-pick modal over inventory, used to assign interest properties. */
-function PropertyPicker({
+export function PropertyPicker({
   visible,
   excludeIds,
   onClose,

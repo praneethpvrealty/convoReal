@@ -839,6 +839,8 @@ export async function POST(request: Request) {
         company?: string;
         source?: string;
         last_inquired_property_id?: string | null;
+        lead_portal?: string;
+        lead_portal_listing_id?: string;
       } = {};
       if (maxBudget) updatePayload.max_budget = maxBudget;
       else if (inferredBudget) updatePayload.pref_budget_max = inferredBudget;
@@ -852,7 +854,13 @@ export async function POST(request: Request) {
       }
       if (propertyInterests.length > 0) updatePayload.property_interests = propertyInterests;
       if (matchedPropertyIds.length > 0) updatePayload.last_inquired_property_id = matchedPropertyIds[0];
-      
+      // The ad this enquiry names, kept whether or not it resolved: an
+      // unmapped id is exactly what the agent is asked to assert once.
+      if (leadPortal && parsed.portalListingId) {
+        updatePayload.lead_portal = leadPortal;
+        updatePayload.lead_portal_listing_id = parsed.portalListingId;
+      }
+
       // Tag source
       updatePayload.company = parsed.source;
       updatePayload.source = parsed.source;
@@ -1025,6 +1033,8 @@ export async function POST(request: Request) {
         pref_areas: inferredAreas.length > 0 ? inferredAreas : null,
         property_interests: propertyInterests.length > 0 ? propertyInterests : null,
         last_inquired_property_id: matchedPropertyIds.length > 0 ? matchedPropertyIds[0] : null,
+        lead_portal: leadPortal && parsed.portalListingId ? leadPortal : null,
+        lead_portal_listing_id: leadPortal && parsed.portalListingId ? parsed.portalListingId : null,
         status: 'pending_review',
       })
       .select('id, name')

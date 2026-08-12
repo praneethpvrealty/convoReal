@@ -228,6 +228,11 @@ export interface Contact {
   pref_extracted_at?: string | null;
   contact_notes?: { note_text: string }[] | null;
   last_inquired_property_id?: string | null;
+  /** The portal ad this lead enquired about (migration 260). Once an
+   *  agent maps the pair into property_portal_listings, every later lead
+   *  quoting the same id resolves exactly instead of being scored. */
+  lead_portal?: string | null;
+  lead_portal_listing_id?: string | null;
   source?: string | null;
   /** Buyer's WhatsApp property-alert consent (migration 160) — managed
    *  by STOP ALERTS/START ALERTS chat commands and the buyer portal.

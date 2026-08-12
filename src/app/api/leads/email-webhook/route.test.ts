@@ -1079,6 +1079,33 @@ Content-Transfer-Encoding: quoted-printable
       expect(log.parsed_location).toBe('Koramangala');
     });
 
+    it('keeps the portal ad id on the lead so the agent can map it once', async () => {
+      const payload = {
+        subject: 'Housing - Lead interested in your property',
+        from: '"Housing.com" <noreply@housing-mailer.com>',
+        text: [
+          'Ranjith would like to talk to you',
+          'Name: Ranjith',
+          'Contact: 9626806002',
+          'Property ID: 20327451',
+        ].join('\n'),
+      };
+
+      const req = new Request('http://localhost/api/leads/email-webhook?account_id=acc-789&token=test-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      expect((await POST(req)).status).toBe(200);
+
+      // Unresolved — no property_portal_listings row names this ad yet.
+      // The id is what the agent asserts against, so it is kept whether
+      // or not it resolved.
+      expect(mockDb.contacts[0].lead_portal).toBe('housing');
+      expect(mockDb.contacts[0].lead_portal_listing_id).toBe('20327451');
+    });
+
     it('does not file an enquiry that names no locality against a same-type listing', async () => {
       mockDb.properties.push({
         id: 'prop-hsr',
