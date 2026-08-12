@@ -122,6 +122,19 @@ describe('applySharedCardOwner', () => {
     expect(applySharedCardOwner(typed, '3 BHK in Whitefield, owner Ramesh 9000000001')).toBe(typed);
   });
 
+  it('re-asserts the same person when the card is forwarded into an open draft', () => {
+    // The update path re-runs the AI merge over the existing draft, so
+    // the card has to win a second time, not just on first sight.
+    const once = applySharedCardOwner(draft(), NADEEM_CARD);
+    const twice = applySharedCardOwner(
+      { ...once, owner_contact_name: 'Nassur', owner_contact_name_tag: null },
+      NADEEM_CARD
+    );
+    expect(twice.owner_contact_name).toBe('Nadeem Koramangala');
+    expect(twice.owner_contact_name_tag).toBe(once.owner_contact_name_tag);
+    expect(twice.owner_contact_phone).toBe(once.owner_contact_phone);
+  });
+
   it('defaults the role to Owner when the model named nobody', () => {
     const merged = applySharedCardOwner(
       draft({ owner_contact_name: null, owner_contact_phone: null, owner_contact_role: null }),

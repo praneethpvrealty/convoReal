@@ -1728,6 +1728,10 @@ export async function processOwnerChatbotMessage(
 
         const currentDraft = latestSession.draft_data as ParsedPropertyDraft;
         updatedDraft = await updateListingDraft(currentDraft, cleanedText);
+        // Same rule as fresh intake: a card re-forwarded into an open
+        // draft still states the person's name outright, and the model
+        // guesses at it just as readily on this path as on that one.
+        updatedDraft = applySharedCardOwner(updatedDraft, cleanedText);
         updatedDraft = await backfillLocationFromMapLink(updatedDraft);
 
         const validation = validateDraft(updatedDraft);
@@ -1762,13 +1766,32 @@ export async function processOwnerChatbotMessage(
 
       const actualSavedTime = finalUpdateData[0].updated_at;
 
+      // A card shared into an open draft is still a person shared. File
+      // them here too, or an agent who forwards the card a second time
+      // loses them the moment they tap Cancel.
+      const cardFiled =
+        parseSharedContactCards(cleanedText).length > 0 && updatedDraft.owner_contact_name
+          ? await fileSharedCardContact({
+              accountId,
+              userId,
+              owner: {
+                name: updatedDraft.owner_contact_name,
+                nameTag: updatedDraft.owner_contact_name_tag ?? null,
+                phone: updatedDraft.owner_contact_phone,
+              },
+              role: updatedDraft.owner_contact_role,
+            })
+          : null;
+
       sendPropertyDraftPreviewDebounced(
         propSession.id,
         actualSavedTime,
         phoneNumberId,
         accessToken,
         contactRecord.phone,
-        `📝 *Draft Listing Updated:*`,
+        cardFiled?.created
+          ? `📝 *Draft Listing Updated:*\n👤 _Saved ${cardFiled.name} to Contacts._`
+          : `📝 *Draft Listing Updated:*`,
         conversation.id
       );
       return true;
