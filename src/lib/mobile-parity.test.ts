@@ -40,6 +40,7 @@ import { PROPERTY_TYPE_VALUES } from '@/lib/property-types';
 import { BUDGET_OPTIONS } from '@/lib/contacts/budget-options';
 import { priceInWords } from '@/lib/currency-utils';
 import { confidentialityNote } from '@/lib/share-message-builder';
+import { gateSummary } from '@/lib/inventory/gate-stats';
 import {
   FLOW_CHECKBOX_MAX_ITEMS,
   PROPERTY_INTEREST_FLOW_IDS,
@@ -390,6 +391,42 @@ describe('mobile/lib/share-message.ts mirrors share-message-builder', () => {
     expect(source).toContain("showcase_visibility === 'teaser'");
     expect(source).toContain('Guide price *${band}*');
     expect(source).toContain('teaserTitle(property)');
+  });
+});
+
+describe('mobile/lib/gate-stats.ts mirrors gate-stats', () => {
+  // The card summary is a number an agent acts on. "3 asked · 1 open"
+  // on the phone and something else on the desktop would leave them not
+  // knowing which to trust, so the wording is pinned rather than the
+  // mere presence of a helper.
+  const source = mobileSource('lib/gate-stats.ts');
+
+  it('produces the same summary for the same counts', () => {
+    const cases = [
+      { requested: 3, pending: 1, approved: 2, rejected: 0, liveGrants: 2 },
+      { requested: 4, pending: 0, approved: 4, rejected: 0, liveGrants: 0 },
+      { requested: 0, pending: 0, approved: 0, rejected: 0, liveGrants: 2 },
+    ];
+    // The mobile port is text here; assert the literals it builds from
+    // match what the web builder emits for the same input.
+    for (const c of cases) {
+      const web = gateSummary({ ...c, lastRequestedAt: null });
+      if (!web) continue;
+      for (const part of web.split(' · ')) {
+        const unit = part.replace(/^\d+ /, '');
+        expect(source, `mobile is missing the "${unit}" wording`).toContain(
+          `${unit}\``
+        );
+      }
+    }
+  });
+
+  it('keeps the same activity threshold', () => {
+    expect(source).toContain('s.requested > 0 || s.liveGrants > 0');
+  });
+
+  it('joins the parts the same way', () => {
+    expect(source).toContain("parts.join(' · ')");
   });
 });
 
