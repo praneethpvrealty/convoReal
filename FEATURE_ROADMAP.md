@@ -53,3 +53,14 @@ To build the definitive, WhatsApp-first Engine for independent real estate agenc
 - [ ] **Brokerage & Commission Splits**: Track expected brokerage commissions, agent splits, and referrer payout splits. Partial: brokerage tracking (percent + amount) is built (migration 040), but agent-split/referrer-payout calculation is not.
 - [ ] **Analytics Dashboard**: Graph monthly closed deal values, conversion rates per agent, and top-yielding marketing templates. Partial: `pipeline-analytics.tsx` shows per-pipeline totals only, no per-agent conversion rates or template performance.
 - [ ] **Multi-Number Support**: Enable agencies to configure separate WhatsApp numbers for different agents, while maintaining tenant isolation. Blocked: `whatsapp_config` has a `UNIQUE(account_id)` constraint (migration 017); a `multi_number` billing-plan gate exists as a stub but nothing calls it yet.
+
+---
+
+### Milestone 6: Public API & MCP Access (Q3 2027)
+*Let a workspace be reached from outside the app — by an AI client, an automation platform, or a partner script.*
+- [x] **Per-Account API Keys**: Long-lived, revocable, scoped (`read` / `write`) credentials for non-browser clients. Only the SHA-256 hash is stored; the plaintext is shown once. (migration 256, `src/lib/auth/api-keys.ts`, `src/app/api/account/api-keys/`)
+- [x] **Versioned `/api/v1` Surface**: Twelve account-scoped endpoints over inventory, contacts, matching, Match Radar, deals, agenda, notes and to-dos. Service-role client under explicit `account_id` scoping, the same posture as the Den and buyer portals. (`src/app/api/v1/`, `src/lib/v1/`)
+- [x] **MCP Server**: Standalone stdio server exposing 13 tools to MCP clients such as Claude Desktop, including both directions of the matching engine. (`mcp/`)
+- [ ] **API Keys Settings UI**: Create, list and revoke keys from the app. **Not built on either surface** — keys are currently issued by calling `POST /api/account/api-keys` directly, which only an admin can do. Needs a Settings panel on web (`src/app/(dashboard)/settings/`) and its mobile counterpart (§2.8); the routes and RLS are already in place, so this is UI-only work.
+- [ ] **Hosted Remote MCP**: OAuth 2.1 with dynamic client registration at `/api/mcp`, so a workspace can be connected without running a local process. Deliberately deferred until the stdio server shows real usage.
+- [ ] **Rate Limiting Across Instances**: `RATE_LIMITS.apiKeyV1` is enforced by the in-process limiter in `src/lib/rate-limit.ts`, which holds its Map in one Node process. Horizontal scale silently defeats it — swap for Redis before this surface is promoted beyond design partners.

@@ -162,6 +162,7 @@ Web (`src/`) and mobile (`mobile/`) are two surfaces of one product, not two pro
 | CI | GitHub Actions | `.github/workflows/ci.yml` — path-filtered, tiered; see §12 |
 | Mobile | Expo ~57 / React Native 0.86 / React 19.2.7 | `mobile/` directory, separate package.json and lockfile |
 | Browser extension | Chrome portal autofill | `extension/portal-autofill/` |
+| MCP server | @modelcontextprotocol/sdk (stdio) | `mcp/` directory, own package.json and lockfile; a client of `/api/v1` |
 
 ---
 
@@ -288,6 +289,7 @@ convoReal/
 │   └── RUN_IN_SUPABASE_SQL_EDITOR.sql  # Consolidated schema seed
 ├── docs/                         # Deployment, scaling, integration and design guides
 ├── mobile/                       # Expo React Native app (own package.json + AGENTS.md)
+├── mcp/                          # MCP server (own package.json + README); a client of /api/v1
 └── extension/portal-autofill/    # Chrome extension
 ```
 
@@ -340,6 +342,20 @@ Run from `mobile/`:
 | `cd mobile && npm run lint` | Expo lint. |
 | `cd mobile && npm run typecheck` | TypeScript check for mobile. |
 | `cd mobile && npm test` | Vitest over the mobile app's pure logic (`mobile/lib/**/*.test.ts`). |
+
+### MCP server
+
+Run from `mcp/`:
+
+| Command | What it does |
+|---------|-------------|
+| `cd mcp && npm install` | Install MCP server dependencies. |
+| `cd mcp && npm run build` | Compile to `dist/`. Required before a client can launch it. |
+| `cd mcp && npm run typecheck` | TypeScript check for the MCP package. |
+| `cd mcp && npm test` | Vitest: a real MCP client over an in-memory transport against an HTTP stub of `/api/v1`. |
+| `cd mcp && npm run dev` | tsx watch. |
+
+Read `mcp/README.md` before touching `mcp/`. The package is excluded from the root `tsconfig.json`, ESLint config and Vercel build, so root validation does not cover it.
 
 ### Go ingress
 
@@ -605,6 +621,7 @@ Meta Cloud API
 - Auth-gated routes must call `supabase.auth.getUser()` at the top (via `createClient()` from `src/lib/supabase/server.ts`).
 - Public routes are under `/api/public/` (showcase catalog, inquiries, documents, requirements, likes/ratings, AI Q&A).
 - Den and buyer routes live under `/api/den/` and `/api/buyer/` and use `withDenAuth()` / `withBuyerAuth()` — see §8.3.
+- The `/api/v1/` surface is authenticated by a per-account API key, not a Supabase session. Routes wrap `withApiKeyAuth(scope, handler)` from `src/lib/auth/api-keys.ts` and query through `ctx.db`, a service-role client — so **every query must carry `.eq('account_id', ctx.accountId)` in code**. That explicit scoping is the security boundary, exactly as for Den and buyer routes (§8.3); RLS is not doing it. Shared paging, filter parsing and row projections live in `src/lib/v1/`. Never add a WhatsApp-sending, billing, credits or member-management route to this surface — `mcp/README.md` records why the boundary is drawn there.
 - Webhook routes are under `/api/whatsapp/webhook`, `/api/leads/email-webhook`, and `/api/webhooks/*` (Razorpay, Stripe, token-safe).
 - Cron routes are under `/api/cron/` and `/api/*/cron/`; they require `AUTOMATION_CRON_SECRET` or `CRON_SECRET`.
 - Rate-limit sensitive public endpoints using `src/lib/rate-limit.ts`.
@@ -638,6 +655,7 @@ Meta Cloud API
 - **Unit tests**: `src/**/*.test.ts` / `src/**/*.test.tsx`. Run with `npm test`. They use dummy secrets and do not touch the network.
 - **Integration tests**: `src/**/*.integration.test.ts`. Run with `npm run test:integration`. They hit the live Supabase project using `SUPABASE_SERVICE_ROLE_KEY` and skip if credentials are absent.
 - **Mobile tests**: `mobile/lib/**/*.test.ts`. Run with `cd mobile && npm test` (separate Vitest config and dependency tree). Pure logic only — modules that import Supabase, Expo or React Native have no runtime under a plain Node runner.
+- **MCP server tests**: `mcp/src/**/*.test.ts`. Run with `cd mcp && npm test` (separate Vitest config and dependency tree, like mobile). They stand up a real HTTP server as `/api/v1` and drive the real MCP server through a real client, so nothing but the app itself is mocked.
 - **Go tests**: `cd go-ingress && go test`.
 - **Husky pre-commit**: runs `eslint` and `vitest related` over staged `src/**` TypeScript only (see `.husky/pre-commit`). The full suite is CI's job.
 - **CI**: `.github/workflows/ci.yml` runs on every PR, on `merge_group`, and on push to `main`; older runs for the same PR branch are cancelled, merge-queue and main runs are not.
