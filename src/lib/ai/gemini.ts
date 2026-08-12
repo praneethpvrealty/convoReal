@@ -602,6 +602,11 @@ export interface ParsedPropertyDraft {
    *  properties.youtube_video_id. */
   youtube_video_id?: string | null;
   owner_contact_name: string | null;
+  /** The qualifier trailing a phonebook name ("8th Block 2100 Sqft
+   *  Corner Property Owner"), split off a forwarded contact card so the
+   *  saved contact greets a person rather than a label. Set only by
+   *  `applySharedCardOwner`, never by the model. */
+  owner_contact_name_tag?: string | null;
   owner_contact_phone: string | null;
   owner_contact_role: string | null;
   listing_type: "Sale" | "Rent" | "JV/JD" | null;
