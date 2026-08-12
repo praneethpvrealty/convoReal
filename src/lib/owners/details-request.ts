@@ -424,11 +424,17 @@ export function renderOwnerDetailsTemplate(
 export function buildOwnerDetailsRequestMessage(
   input: OwnerDetailsRequestInput
 ): string {
+  // Narrowed to what this property can actually be asked, not merely to
+  // what is a valid section name. A caller holding an account-level
+  // selection ("always ask what is built on it") would otherwise ask a
+  // plot owner for its bedrooms — which is exactly the promise this
+  // module makes and the settings preview was breaking.
+  const offered = availableOwnerDetailsSections(input.propertyType);
   const sections = (
     input.sections?.length
       ? input.sections
       : defaultOwnerDetailsSections(input.propertyType)
-  ).filter((s) => OWNER_DETAILS_SECTIONS.includes(s));
+  ).filter((s) => offered.includes(s));
 
   const checklist = ownerDetailsChecklist(sections, input.propertyType);
 
