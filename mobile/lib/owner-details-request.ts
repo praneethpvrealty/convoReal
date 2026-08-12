@@ -288,8 +288,19 @@ export function ownerSalutation(now?: Date): string {
   return 'Good evening';
 }
 
-/** What the owner calls their own property — a stored title is written
- *  for buyers, so the locality is appended when it is missing from it. */
+/**
+ * What the owner calls their own property — a stored title is written
+ * for buyers, so the locality is added when the title does not already
+ * carry it.
+ *
+ * The interesting case is a title that carries PART of the locality.
+ * "2100 Sq.Ft. Property in Koramangala" against sublocality
+ * "Koramangala 8th Block" used to append the whole thing and greet the
+ * owner about their "Property in Koramangala, Koramangala 8th Block".
+ * A title ending in the locality's opening words is completed rather
+ * than repeated, so it reads "Property in Koramangala 8th Block" — more
+ * precise than either the title or the suppression alone.
+ */
 export function ownerPropertyLabel(
   property?: {
     title?: string | null;
@@ -300,10 +311,22 @@ export function ownerPropertyLabel(
   const title = property?.title?.trim();
   const area = property?.sublocality?.trim() || property?.city?.trim();
   if (!title) return area ? `your property in ${area}` : '';
-  if (area && !title.toLowerCase().includes(area.toLowerCase())) {
-    return `${title}, ${area}`;
+  if (!area) return title;
+
+  const lower = title.toLowerCase();
+  // Named somewhere in the title already — nothing to add.
+  if (lower.includes(area.toLowerCase())) return title;
+
+  // Ends with the locality's opening words: append only what is left.
+  const words = area.split(/\s+/).filter(Boolean);
+  for (let n = words.length - 1; n > 0; n--) {
+    const head = words.slice(0, n).join(' ').toLowerCase();
+    if (lower.endsWith(head)) {
+      return `${title} ${words.slice(n).join(' ')}`;
+    }
   }
-  return title;
+
+  return `${title}, ${area}`;
 }
 
 export interface OwnerDetailsRequestInput {

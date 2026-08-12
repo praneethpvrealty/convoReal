@@ -72,6 +72,29 @@ describe('ownerPropertyLabel', () => {
     ).toBe('Corner site in Koramangala 8th Block');
   });
 
+  // Regression: a title carrying only the locality's opening word got
+  // the whole sublocality appended, greeting the owner about their
+  // "Property in Koramangala, Koramangala 8th block".
+  it('completes a locality the title only half-names', () => {
+    expect(
+      ownerPropertyLabel({
+        title: '2100 Sq.Ft. Property in Koramangala',
+        sublocality: 'Koramangala 8th block',
+      })
+    ).toBe('2100 Sq.Ft. Property in Koramangala 8th block');
+  });
+
+  it('does not complete a locality mentioned mid-title', () => {
+    // Nothing to append onto the end, so it stays as written rather
+    // than producing "...well located 8th Block".
+    expect(
+      ownerPropertyLabel({
+        title: 'Koramangala 8th Block plot, well located',
+        sublocality: 'Koramangala 8th Block',
+      })
+    ).toBe('Koramangala 8th Block plot, well located');
+  });
+
   it('describes an untitled property by its area', () => {
     expect(ownerPropertyLabel({ city: 'Bengaluru' })).toBe(
       'your property in Bengaluru'
