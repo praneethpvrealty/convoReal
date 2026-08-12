@@ -1545,22 +1545,37 @@ export function PropertyForm({
           setSearchQuery(property.sublocality ?? '');
         }
 
-        // Attempt to parse address from location
-        const locSegments = property.location.split(',').map(s => s.trim());
-        const matchedState = property.state ?? '';
-        const matchedCity = property.city ?? '';
-        const matchedSublocality = property.sublocality ?? '';
-        
-        const addrSegments: string[] = [];
-        locSegments.forEach(seg => {
-          if (
-            seg.toLowerCase() !== matchedState.toLowerCase() &&
-            seg.toLowerCase() !== matchedCity.toLowerCase() &&
-            seg.toLowerCase() !== matchedSublocality.toLowerCase()
-          ) {
-            addrSegments.push(seg);
-          }
-        });
+        // Recover `address` from the stored location by removing the
+        // parts that get re-appended on save (sublocality, city, state).
+        //
+        // Each of those is expanded into its OWN segments before the
+        // comparison. Comparing a whole location segment against the
+        // raw field breaks whenever `sublocality` spans more than one
+        // segment — "Agara, HSR Layout" never equals "Agara" or "HSR
+        // Layout", so nothing was stripped, and the save path then
+        // appended the sublocality a second time. Worse, it compounded:
+        // the next edit recovered the doubled text as `address` and
+        // appended again, which is how a row reached "JP Nagar, 5th
+        // phase" three times over.
+        const dropSegments = new Set(
+          [property.sublocality, property.city, property.state]
+            .filter((v): v is string => Boolean(v))
+            .flatMap(v => v.split(',').map(s => s.trim().toLowerCase()))
+            .filter(Boolean)
+        );
+
+        const seenSegments = new Set<string>();
+        const addrSegments = property.location
+          .split(',')
+          .map(s => s.trim())
+          .filter(seg => {
+            const key = seg.toLowerCase();
+            // Also drop repeats, so opening and saving a row that was
+            // already corrupted heals it instead of growing it again.
+            if (!key || dropSegments.has(key) || seenSegments.has(key)) return false;
+            seenSegments.add(key);
+            return true;
+          });
         setAddress(addrSegments.join(', ') || '');
       } else {
         setTitle('');
