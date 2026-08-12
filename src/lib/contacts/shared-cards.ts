@@ -17,7 +17,12 @@
  */
 
 import { suggestNameTagSplit } from '@/lib/contacts/name-tag-split';
-import { normalizeClassification, type ParsedPropertyDraft } from '@/lib/ai/gemini';
+import {
+  normalizeClassification,
+  type ParsedContactDraft,
+  type ParsedContactDraftsContainer,
+  type ParsedPropertyDraft,
+} from '@/lib/ai/gemini';
 import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 
@@ -53,6 +58,54 @@ export function parseSharedContactCards(
       return { name, phone: phone || null };
     })
     .filter((card) => card.name.length > 0);
+}
+
+/** Role words an agent puts in the phonebook name itself. Read off the
+ *  card rather than inferred, like everything else here — a card that
+ *  says "Owner" is not a guess, and without this every shared card
+ *  lands as the generic "Others". */
+const ROLE_HINTS: [RegExp, string][] = [
+  [/\bowner\b/i, 'Owner'],
+  [/\bseller\b/i, 'Seller'],
+  [/\bbuyer\b/i, 'Buyer'],
+  [/\b(agent|broker)\b/i, 'Agent'],
+  [/\b(builder|developer)\b/i, 'Developer'],
+];
+
+function roleFromCardName(name: string): ParsedContactDraft['classification'] {
+  const hit = ROLE_HINTS.find(([re]) => re.test(name));
+  return normalizeClassification(hit ? hit[1] : null);
+}
+
+/**
+ * Builds the contact draft a forwarded card describes, with no AI call
+ * at all: a vCard carries a name and a number and nothing else, both of
+ * them stated rather than inferred. Returns null for any message that
+ * is not a card, so the caller falls through to the usual parse.
+ */
+export function contactDraftsFromCards(
+  text: string | null | undefined
+): ParsedContactDraftsContainer | null {
+  const cards = parseSharedContactCards(text);
+  if (cards.length === 0) return null;
+
+  return {
+    contacts: cards.map((card) => {
+      const owner = ownerFromCard(card);
+      return {
+        name: owner.name,
+        name_tag: owner.nameTag,
+        phone: owner.phone,
+        email: null,
+        company: null,
+        classification: roleFromCardName(card.name),
+        notes: null,
+        requirements: null,
+        referrer_name: null,
+        referrer_phone: null,
+      };
+    }),
+  };
 }
 
 export interface OwnerFromCard {
