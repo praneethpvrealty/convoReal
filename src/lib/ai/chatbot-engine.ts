@@ -71,6 +71,11 @@ import {
   formatContactDraftsPreview,
   backfillLocationFromMapLink,
 } from '@/lib/ai/intake-core';
+import {
+  parseSharedContactCards,
+  applySharedCardOwner,
+  fileSharedCardContact,
+} from '@/lib/contacts/shared-cards';
 import { extractMapLinkFromText } from '@/lib/maps/map-links';
 import {
   parkMapPin,
@@ -1165,6 +1170,7 @@ export async function processOwnerChatbotMessage(
                 account_id: accountId,
                 user_id: userId,
                 name: ownerName,
+                name_tag: draft.owner_contact_name_tag?.trim() || null,
                 phone: normalizedPhone,
                 classification: newClassification,
                 status: 'pending_review',
@@ -2462,6 +2468,12 @@ export async function processOwnerChatbotMessage(
           parsedDraft.images = [];
         }
 
+        // A forwarded contact card states the person's name outright,
+        // so it wins over whichever word the model picked out of the
+        // phonebook label it was reading. No-op for every other message.
+        const fromSharedCard = parseSharedContactCards(cleanedText).length > 0;
+        parsedDraft = applySharedCardOwner(parsedDraft, cleanedText);
+
         // A pin shared moments before this message was waiting for the
         // listing it belongs to. Applied before the backfill so the
         // geocoding runs once, on whichever link the draft ends up with.
@@ -2620,6 +2632,22 @@ export async function processOwnerChatbotMessage(
         }
 
         if (!insertErr && insertedData && insertedData.length > 0) {
+          // Someone who shares a contact card has shared a person, and
+          // the listing draft they also described may never be
+          // confirmed. File them now rather than losing them with it.
+          const filedContact = fromSharedCard && parsedDraft.owner_contact_name
+            ? await fileSharedCardContact({
+                accountId,
+                userId,
+                owner: {
+                  name: parsedDraft.owner_contact_name,
+                  nameTag: parsedDraft.owner_contact_name_tag ?? null,
+                  phone: parsedDraft.owner_contact_phone,
+                },
+                role: parsedDraft.owner_contact_role,
+              })
+            : null;
+
           const savedTime = insertedData[0].updated_at;
           sendPropertyDraftPreviewDebounced(
             insertedData[0].id,
@@ -2627,7 +2655,9 @@ export async function processOwnerChatbotMessage(
             phoneNumberId,
             accessToken,
             contactRecord.phone,
-            `📝 *Draft Property Listing Created!*`,
+            filedContact?.created
+              ? `📝 *Draft Property Listing Created!*\n👤 _Saved ${filedContact.name} to Contacts._`
+              : `📝 *Draft Property Listing Created!*`,
             conversation.id
           );
         }

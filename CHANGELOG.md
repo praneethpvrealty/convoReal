@@ -13,6 +13,22 @@ and polish.
 
 ### Added
 
+- **A forwarded contact card keeps its own name, and its person.** An
+  agent's phonebook entry is rarely just a name — "Nadeem Koramangala
+  8th Block 2100 Sqft Corner Property Owner Nassur" is a person, a
+  property and a second name in one string. Forwarded as a card it
+  becomes a listing draft, correctly, but the owner on that draft used
+  to be whichever word the model picked out of the label: it chose
+  "Nassur" and dropped the name the card leads with. The card states the
+  name outright, so it is now read from the card rather than inferred,
+  and split into name and Name Tag by the same deterministic rule the
+  contact intake already uses — no AI call, and the listing fields are
+  left exactly as parsed. The person is also filed as a contact the
+  moment the card arrives, marked for review, instead of only when the
+  listing draft is confirmed: a draft can sit unconfirmed for an hour,
+  and cancelling it used to take the person with it. Somebody already on
+  file is never renamed by a phonebook label.
+
 - **Voice notes, understood and acted on.** A voice note sent to the
   WhatsApp assistant is now transcribed once and read as text by every
   path that already existed — so speaking a listing files a listing,

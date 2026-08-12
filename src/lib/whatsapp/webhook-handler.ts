@@ -126,6 +126,7 @@ import {
   relayLeadMessageToBridgedAgent,
   BRIDGE_REPLY_HINT,
 } from '@/lib/whatsapp/reply-bridge'
+import { SHARED_CARDS_HEADER } from '@/lib/contacts/shared-cards'
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher'
 import { googleMapsUrlForCoordinates } from '@/lib/maps/resolve-location'
 import { getSandboxSystemConfig } from '@/lib/system-settings'
@@ -2532,7 +2533,7 @@ async function parseMessageContent(
         });
         return {
           ...empty,
-          contentText: `📥 Shared Contact Cards:\n${summaries.join('\n')}`,
+          contentText: `${SHARED_CARDS_HEADER}\n${summaries.join('\n')}`,
         };
       }
       return { ...empty, contentText: '📥 Shared Contact Card' };
