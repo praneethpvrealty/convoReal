@@ -38,7 +38,7 @@ and polish.
   replaces a Today pin in the app's More menu (an existing Today
   favourite is dropped rather than pointing at a screen that is gone).
 
-  **Migration required:** `258_focus_read_access.sql`. It gives
+  **Migration required:** `259_focus_read_access.sql`. It gives
   `contact_property_inquiries` the `account_id` every other operational
   table has (backfilled from `contacts`, with a membership RLS policy
   alongside the legacy owner one) — until now a portal inquiry was

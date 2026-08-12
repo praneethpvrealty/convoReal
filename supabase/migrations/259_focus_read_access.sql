@@ -1,5 +1,5 @@
 -- ============================================================
--- 258_focus_read_access.sql — let the team read the two inbound-request
+-- 259_focus_read_access.sql — let the team read the two inbound-request
 -- sources the Focus screen ranks.
 --
 -- Focus answers "what should I act on next?" from three request
@@ -32,7 +32,7 @@ ALTER TABLE contact_property_inquiries
   ADD COLUMN IF NOT EXISTS account_id UUID REFERENCES accounts(id) ON DELETE CASCADE;
 
 COMMENT ON COLUMN contact_property_inquiries.account_id IS
-  'Owning tenant, denormalised from contacts.account_id. Nullable only so pre-258 rows written by an un-updated path stay insertable; every writer sets it.';
+  'Owning tenant, denormalised from contacts.account_id. Nullable only so pre-259 rows written by an un-updated path stay insertable; every writer sets it.';
 
 UPDATE contact_property_inquiries AS cpi
 SET account_id = c.account_id
