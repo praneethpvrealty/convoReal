@@ -85,11 +85,13 @@ describe('parseNumberedListing', () => {
       {
         ordinal: 1,
         propertyId: '0f762a3d-cd89-43ae-b011-544e40aa7312',
+        propertyCode: null,
         title: 'Residential Plot in Koramangala',
       },
       {
         ordinal: 2,
         propertyId: '6e3fc698-4010-4726-b385-a81af4dda437',
+        propertyCode: null,
         title: '2400 Sqft Commercial Plot on 100 feet JP Nagar 4th Phase.',
       },
     ]);
@@ -115,12 +117,33 @@ describe('parseNumberedListing', () => {
       {
         ordinal: 1,
         propertyId: null,
+        propertyCode: null,
         title: '2400 Sqft Commercial Plot on 100 feet JP Nagar 4th Phase.',
       },
       {
         ordinal: 2,
         propertyId: null,
+        propertyCode: null,
         title: 'Commercial Corner Property for Sale in Southend Road',
+      },
+    ]);
+  });
+
+  it('reads the property code off a branded link', () => {
+    // What a brokerage with its own subdomain now sends: their domain,
+    // their listing code, no UUID anywhere in the message.
+    const branded = [
+      '*1. Residential Plot in Koramangala*',
+      '₹7.70 Cr · 2,200 Sq.Ft.',
+      'https://kyzion.convoreal.com/?property_id=PROP-1056&v=e630c87f-7d2f-4e1f-8ea0-6ee2b89dc775',
+    ].join('\n');
+
+    expect(parseNumberedListing(branded)).toEqual([
+      {
+        ordinal: 1,
+        propertyId: null,
+        propertyCode: 'PROP-1056',
+        title: 'Residential Plot in Koramangala',
       },
     ]);
   });

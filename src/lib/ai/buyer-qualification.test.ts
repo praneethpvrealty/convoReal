@@ -344,6 +344,23 @@ describe('buildMatchesReply', () => {
     expect(reply).toContain('₹1.75 Cr');
   });
 
+  it('links the brokerage domain and their own listing code', () => {
+    // The bot path used to build links straight from the site URL with
+    // a raw UUID, so a brokerage's own lead got an unbranded
+    // convoreal.com/?property_id=<uuid> — the one thing
+    // account-showcase-url.ts exists to prevent. accountShowcaseOrigin
+    // hands over a bare origin, hence the closed path here.
+    const reply = buildMatchesReply(
+      'Pavan',
+      [match({ property_code: 'PROP-1056' })],
+      'https://kyzion.convoreal.com',
+      'contact-9'
+    );
+    expect(reply).toContain(
+      'https://kyzion.convoreal.com/?property_id=PROP-1056&v=contact-9'
+    );
+  });
+
   it('caps the shortlist at three so a reply never reads as a dump', () => {
     const many = Array.from({ length: 7 }, (_, i) =>
       match({ id: `p-${i}`, title: `Listing ${i}` })

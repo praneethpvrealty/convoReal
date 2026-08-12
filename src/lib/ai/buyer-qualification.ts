@@ -33,6 +33,8 @@ import {
 import { buildPropertyAlertParams } from '@/lib/whatsapp/property-alert-template';
 import { requestsHumanContact } from '@/lib/ai/lead-question';
 import { parseOrdinalReferences } from '@/lib/ai/shortlist-reference';
+import { propertyShowcaseUrl } from '@/lib/share-message-builder';
+import { accountShowcaseOrigin } from '@/lib/showcase/account-showcase-url';
 import { burnCredits } from '@/lib/credits/burn';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 import { recordLearnedFacts } from '@/lib/learning/record';
@@ -263,10 +265,18 @@ export function buildFollowUpQuestion(field: QualifierField): string {
 export function buildListingLines(
   contactName: string | null | undefined,
   matches: RankedPropertyMatch[],
+  /** The account's showcase ORIGIN — accountShowcaseOrigin(), not the
+   *  raw site URL and not the base, which carries `?ref=<uuid>` for an
+   *  account with no subdomain. The listing link is the only thing in
+   *  this message a lead can act on: the brokerage's own domain and
+   *  its property code are what make it read as theirs rather than as
+   *  a tracker. */
   baseUrl: string,
   contactId: string
 ): string[] {
-  const origin = baseUrl.replace(/\/+$/, '');
+  // accountShowcaseOrigin() returns a bare origin, so the path has to
+  // be closed here or the link goes out as `https://host?property_id=`.
+  const base = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
   return matches.slice(0, MAX_MATCHES_SENT).map((m, i) => {
     // Skips the greeting AND the brokerage: this is a free-form list
     // inside a message the bot already signed, so repeating the name on
@@ -279,7 +289,7 @@ export function buildListingLines(
       `*${i + 1}. ${title}*`,
       specs,
       `📍 ${location}`,
-      `${origin}/?property_id=${m.property.id}&v=${contactId}`,
+      `${propertyShowcaseUrl(base, m.property)}&v=${encodeURIComponent(contactId)}`,
     ].join('\n');
   });
 }
@@ -849,7 +859,7 @@ export async function processBuyerQualificationMessage(
     }
 
     const areas = missing === 'location' ? await suggestAreas(accountId) : [];
-    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+    const baseUrl = await accountShowcaseOrigin(db, accountId);
     const outcome = buildQualificationReply(
       prefs,
       contact.name,

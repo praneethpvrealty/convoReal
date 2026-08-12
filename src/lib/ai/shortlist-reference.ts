@@ -100,23 +100,30 @@ export function parseOrdinalReferences(text?: string | null): number[] {
 
 export interface ShortlistEntry {
   ordinal: number;
-  /** Read straight off the listing link when the message carries one. */
+  /** Read straight off the listing link when it carries a UUID. */
   propertyId: string | null;
+  /** The brokerage's own code, which is what a branded link carries. */
+  propertyCode: string | null;
   /** The listing's title, for the messages that carry no link. */
   title: string | null;
 }
 
-const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
-const PROPERTY_LINK = new RegExp(`property_id=(${UUID})`, 'i');
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** `property_id=` carries whichever key the link was built from —
+ *  propertyShowcaseUrl prefers the brokerage's own property code. */
+const PROPERTY_LINK = /property_id=([A-Za-z0-9_-]+)/;
 const ENTRY_HEAD = /^\s*\*?(\d{1,2})\.\s+(.*)$/;
 
 function entryFrom(ordinal: number, body: string[]): ShortlistEntry {
   const link = body.join('\n').match(PROPERTY_LINK);
+  const key = link ? decodeURIComponent(link[1]) : null;
   const bold = body[0].match(/\*([^*]+)\*/);
   const plain = body[0].split(' — ')[0].replace(/\*/g, '').trim();
   return {
     ordinal,
-    propertyId: link ? link[1] : null,
+    propertyId: key && UUID_RE.test(key) ? key.toLowerCase() : null,
+    propertyCode: key && !UUID_RE.test(key) ? key : null,
     title: (bold ? bold[1].trim() : plain) || null,
   };
 }
@@ -202,31 +209,49 @@ export async function resolveShortlistReference(
     .filter((id): id is string => !!id);
   if (linked.length === wanted.length) return linked;
 
-  // Bounded by MAX_REFERENCED_SUBJECTS, and every value came out of a
+  // One builder composes a whole shortlist, so its entries all carry
+  // the same kind of key: codes when the links were branded, titles for
+  // the digest, which links nothing per row. Bounded by
+  // MAX_REFERENCED_SUBJECTS either way, and every value came out of a
   // message we composed from these same rows — never off the wire.
+  const codes = wanted
+    .map((e) => e.propertyCode)
+    .filter((c): c is string => !!c);
   const titles = wanted.map((e) => e.title).filter((t): t is string => !!t);
-  if (titles.length === 0) return linked;
+  const [column, values] =
+    codes.length > 0
+      ? (['property_code', codes] as const)
+      : (['title', titles] as const);
+  if (values.length === 0) return linked;
 
   const { data: candidates } = await db
     .from('properties')
-    .select('id, title')
+    .select('id, title, property_code')
     .eq('account_id', accountId)
-    .in('title', titles);
+    .in(column, values);
 
+  const byCode = new Map<string, string[]>();
   const byTitle = new Map<string, string[]>();
   for (const row of candidates || []) {
+    const code = ((row.property_code as string) || '').toUpperCase();
+    if (code) byCode.set(code, [...(byCode.get(code) || []), row.id as string]);
     const key = normalizeTitle((row.title as string) || '');
-    if (!key) continue;
-    byTitle.set(key, [...(byTitle.get(key) || []), row.id as string]);
+    if (key) byTitle.set(key, [...(byTitle.get(key) || []), row.id as string]);
   }
 
+  // Only ever one hit: an entry we cannot pin to exactly one live
+  // listing is dropped, because answering from the wrong one is worse
+  // than telling the buyer a person will come back to them.
+  const only = (hits?: string[]) => (hits?.length === 1 ? hits[0] : null);
+
   return wanted
-    .map((entry) => {
-      if (entry.propertyId) return entry.propertyId;
-      const hits = entry.title
-        ? byTitle.get(normalizeTitle(entry.title))
-        : null;
-      return hits?.length === 1 ? hits[0] : null;
-    })
+    .map(
+      (entry) =>
+        entry.propertyId ??
+        (entry.propertyCode
+          ? only(byCode.get(entry.propertyCode.toUpperCase()))
+          : null) ??
+        (entry.title ? only(byTitle.get(normalizeTitle(entry.title))) : null)
+    )
     .filter((id): id is string => !!id);
 }

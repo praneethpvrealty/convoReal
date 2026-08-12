@@ -863,6 +863,54 @@ describe('getMatchingContacts', () => {
       const prop = createTestProperty({ type: 'Commercial Office Space' });
       expect(getMatchingContacts(prop, [contact])[0].details.type).toBe('match');
     });
+
+    // The lead answered "Land", then "Commercial or Semi commercial",
+    // and was shown two residential plots under a line that read
+    // "Perfect — commercial land, up to ₹8 Cr". 'plot' means land
+    // rather than a building; it does not mean any sector will do, and
+    // on its own it had been opening the gate to every plot in stock.
+    it('keeps a commercial land buyer away from residential and farm plots', () => {
+      const contact = createTestContact({
+        pref_property_types: ['Commercial Land'],
+        pref_property_categories: ['commercial', 'plot'],
+        pref_extracted_at: new Date().toISOString(),
+      });
+      for (const type of ['Residential Land/ Plot', 'Agricultural Land']) {
+        expect(getMatchingContacts(createTestProperty({ type }), [contact]).length, type).toBe(0);
+      }
+    });
+
+    it('still matches the commercial land that buyer asked for', () => {
+      const contact = createTestContact({
+        pref_property_types: ['Commercial Land'],
+        pref_property_categories: ['commercial', 'plot'],
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const prop = createTestProperty({ type: 'Commercial Land' });
+      expect(getMatchingContacts(prop, [contact])[0].details.type).toBe('match');
+    });
+
+    it('mirrors it: a residential plot buyer is not shown commercial land', () => {
+      const contact = createTestContact({
+        pref_property_categories: ['residential', 'plot'],
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const commercial = createTestProperty({ type: 'Commercial Land' });
+      expect(getMatchingContacts(commercial, [contact]).length).toBe(0);
+      const residential = createTestProperty({ type: 'Residential Land/ Plot' });
+      expect(getMatchingContacts(residential, [contact])[0].details.type).toBe('partial');
+    });
+
+    it('leaves a buyer who only said "land" open to every plot', () => {
+      const contact = createTestContact({
+        pref_property_categories: ['plot'],
+        pref_extracted_at: new Date().toISOString(),
+      });
+      for (const type of ['Residential Land/ Plot', 'Commercial Land', 'Agricultural Land']) {
+        const prop = createTestProperty({ type });
+        expect(getMatchingContacts(prop, [contact])[0].details.type, type).toBe('partial');
+      }
+    });
   });
 
   describe('Strict project watchlist (strict_project_match)', () => {
