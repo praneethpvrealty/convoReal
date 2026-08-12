@@ -5,6 +5,7 @@ import { pushUrl } from "@/lib/navigation";
 import { useMemo } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import DashboardContent from "./dashboard-content";
+import FocusContent from "./focus-content";
 import TodayPage from "../today/today-content";
 import MatchRadarPage from "../radar/radar-content";
 import PulsePage from "../pulse/pulse-content";
@@ -14,22 +15,29 @@ import MarketContent from "./market-content";
 import { FavoriteButton } from "@/components/layout/favorite-button";
 
 type TabId =
+  | "focus"
   | "overview"
-  | "today"
   | "radar"
   | "pulse"
   | "reengagement"
   | "market"
   | "team";
 
+// Focus leads and is where an unqualified /dashboard lands: it answers
+// "what do I do next?", which is the question an agent opens the app
+// with. Overview answers "how are we doing?" — a question you go
+// looking for. Focus replaced the Today tab and absorbed its agenda;
+// Today's remaining signals render underneath it.
 const BASE_TABS: { id: TabId; label: string }[] = [
+  { id: "focus", label: "Focus" },
   { id: "overview", label: "Overview" },
-  { id: "today", label: "Today" },
   { id: "radar", label: "Match Radar" },
   { id: "pulse", label: "Pulse" },
   { id: "reengagement", label: "Re-engagement" },
   { id: "market", label: "Market" },
 ];
+
+const DEFAULT_TAB: TabId = "focus";
 
 export default function DashboardPage() {
   const searchParams = useSearchParams();
@@ -46,13 +54,15 @@ export default function DashboardPage() {
 
   const activeTab = useMemo(() => {
     const tab = searchParams.get("tab") as TabId;
-    return tabs.some((t) => t.id === tab) ? tab : "overview";
+    return tabs.some((t) => t.id === tab) ? tab : DEFAULT_TAB;
   }, [searchParams, tabs]);
 
   const tabMeta = useMemo(() => {
     switch (activeTab) {
-      case "today":
-        return { label: "Today", href: "/dashboard?tab=today", icon: "Sun" };
+      case "focus":
+        return { label: "Focus", href: "/dashboard?tab=focus", icon: "Sun" };
+      case "overview":
+        return { label: "Dashboard", href: "/dashboard?tab=overview", icon: "LayoutDashboard" };
       case "radar":
         return { label: "Match Radar", href: "/dashboard?tab=radar", icon: "Radar" };
       case "pulse":
@@ -67,9 +77,8 @@ export default function DashboardPage() {
         return { label: "Market", href: "/dashboard?tab=market", icon: "MapPin" };
       case "team":
         return { label: "Team", href: "/dashboard?tab=team", icon: "Users" };
-      case "overview":
       default:
-        return { label: "Dashboard", href: "/dashboard", icon: "LayoutDashboard" };
+        return { label: "Focus", href: "/dashboard", icon: "Sun" };
     }
   }, [activeTab]);
 
@@ -112,8 +121,15 @@ export default function DashboardPage() {
 
       {/* Render Active View */}
       <div className="relative z-10">
+        {activeTab === "focus" && (
+          <div className="space-y-6">
+            <FocusContent />
+            {/* Reply windows, cooling leads and the activity numbers —
+                the Today signals Focus has no gist card for. */}
+            <TodayPage embedded />
+          </div>
+        )}
         {activeTab === "overview" && <DashboardContent />}
-        {activeTab === "today" && <TodayPage />}
         {activeTab === "radar" && <MatchRadarPage />}
         {activeTab === "pulse" && <PulsePage />}
         {activeTab === "reengagement" && <ReengagementContent />}

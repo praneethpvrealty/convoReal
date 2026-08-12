@@ -352,6 +352,7 @@ export async function POST(request: Request) {
     const inquiries = written
       .filter((p) => p.fields.last_inquired_property_id)
       .map((p) => ({
+        account_id: ctx.accountId,
         contact_id: contactIdByKey.get(p.key)!,
         property_id: p.fields.last_inquired_property_id!,
         inquiry_source: 'CSV Import',

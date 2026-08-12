@@ -860,6 +860,7 @@ export async function POST(request: Request) {
           .from('contact_property_inquiries')
           .upsert(
             {
+              account_id: accountId,
               contact_id: existingContact.id,
               property_id: matchedPropertyIds[0],
               inquiry_source: parsed.source,
@@ -1039,6 +1040,7 @@ export async function POST(request: Request) {
         .from('contact_property_inquiries')
         .upsert(
           {
+            account_id: accountId,
             contact_id: newContact.id,
             property_id: matchedPropertyIds[0],
             inquiry_source: parsed.source,
