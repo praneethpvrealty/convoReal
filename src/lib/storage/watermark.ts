@@ -44,16 +44,41 @@ export function watermarkLabel(args: {
 
 function overlaySvg(text: string, width: number, height: number): Buffer {
   const safe = escapeXml(text);
+  // Explicit <text> elements rather than a <pattern> fill.
+  //
+  // The pattern version rendered locally and drew NOTHING in production:
+  // the composite completed, the JPEG re-encoded, and the served image
+  // came back pixel-identical to a plain re-encode. sharp's SVG renderer
+  // differs by build, and pattern-with-patternTransform is exactly the
+  // kind of construct that varies. A watermark that silently no-ops is
+  // worse than none, because the copy promises the recipient is
+  // traceable — so this uses only rotated text, which every renderer
+  // handles.
+  const rows: string[] = [];
+  // Spacing adapts to the image. A fixed 420px step put every baseline
+  // outside a small thumbnail, marking nothing — the same silent
+  // no-op this rewrite exists to prevent, just from geometry instead of
+  // the renderer. Halving guarantees at least two marks per axis.
+  const stepX = Math.max(140, Math.min(TILE, Math.round(width / 2)));
+  const stepY = Math.max(
+    90,
+    Math.min(Math.round(TILE * 0.62), Math.round(height / 2))
+  );
+  // Start half a step in so the first baseline sits inside the canvas,
+  // and overdraw the right/bottom edges so the rotation leaves no bare
+  // corner.
+  for (let y = Math.round(stepY / 2); y < height + stepY; y += stepY) {
+    for (let x = -stepX; x < width + stepX; x += stepX) {
+      rows.push(
+        `<text x="${x}" y="${y}" transform="rotate(-30 ${x} ${y})" ` +
+          `font-family="sans-serif" font-size="${FONT_SIZE}" ` +
+          `fill="#ffffff" fill-opacity="0.42" ` +
+          `stroke="#000000" stroke-opacity="0.22" stroke-width="0.6">${safe}</text>`
+      );
+    }
+  }
   return Buffer.from(
-    `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">` +
-      `<defs>` +
-      `<pattern id="wm" width="${TILE}" height="${TILE}" patternUnits="userSpaceOnUse" patternTransform="rotate(-30)">` +
-      `<text x="0" y="${TILE / 2}" font-family="sans-serif" font-size="${FONT_SIZE}" ` +
-      `fill="#ffffff" fill-opacity="0.34" stroke="#000000" stroke-opacity="0.18" stroke-width="0.6">${safe}</text>` +
-      `</pattern>` +
-      `</defs>` +
-      `<rect width="${width}" height="${height}" fill="url(#wm)" />` +
-      `</svg>`,
+    `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">${rows.join('')}</svg>`,
     'utf-8'
   );
 }
