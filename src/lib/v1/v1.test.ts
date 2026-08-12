@@ -142,37 +142,72 @@ describe("boolParam", () => {
   });
 });
 
-describe("toV1Property", () => {
-  it("joins sublocality and location into one readable line", () => {
-    expect(
-      toV1Property({
-        id: "p1",
-        title: "3BHK",
-        sublocality: "Kokapet",
-        location: "Hyderabad",
-      }).location,
-    ).toBe("Kokapet, Hyderabad");
+describe("toV1Property location", () => {
+  const loc = (sublocality: string | null, location: string | null) =>
+    toV1Property({ id: "p1", title: "x", sublocality, location }).location;
+
+  // Every pair below is real (sublocality, location) data from
+  // production inventory. The first shipped rendering repeated the
+  // locality on all of them — "HSR Layout, HSR Layout, Bengaluru,
+  // Karnataka" — because it only skipped an EXACT duplicate, and an
+  // exact duplicate is the case that almost never occurs.
+  it("does not repeat a sublocality the location already contains", () => {
+    expect(loc("Koramangala", "Koramangala, Bangalore, Karnataka")).toBe(
+      "Koramangala, Bangalore, Karnataka",
+    );
+    expect(loc("HSR Layout", "19th Main road, HSR Layout, Bengaluru, Karnataka")).toBe(
+      "19th Main road, HSR Layout, Bengaluru, Karnataka",
+    );
+    expect(loc("SJR Blue waters", "Kudlu, SJR Blue waters, Bangalore, Karnataka")).toBe(
+      "Kudlu, SJR Blue waters, Bangalore, Karnataka",
+    );
   });
 
-  it("does not repeat a sublocality identical to the location", () => {
+  // The stored location is often self-repeating — the intake path has
+  // appended the locality more than once over time. Upstream data, but
+  // not something to hand to a reader.
+  it("collapses a location that repeats itself", () => {
     expect(
-      toV1Property({
-        id: "p1",
-        title: "3BHK",
-        sublocality: "Kokapet",
-        location: "Kokapet",
-      }).location,
-    ).toBe("Kokapet");
+      loc("Agara, HSR Layout", "Agara, HSR Layout, Agara, HSR Layout, Bangalore, Karnataka"),
+    ).toBe("Agara, HSR Layout, Bangalore, Karnataka");
+    // Three repeats collapse to one. "100 ft JP Nagar" survives
+    // alongside "JP Nagar" on purpose: dedupe compares whole segments,
+    // and dropping a segment merely because another contains it would
+    // throw away real components of other addresses.
+    expect(
+      loc(
+        "JP Nagar, 5th phase",
+        "100 ft JP Nagar, 5th phase, JP Nagar, 5th phase, JP Nagar, 5th phase, Bangalore, Karnataka",
+      ),
+    ).toBe("100 ft JP Nagar, 5th phase, JP Nagar, Bangalore, Karnataka");
+  });
+
+  it("matches the sublocality case-insensitively", () => {
+    expect(loc("hsr layout", "HSR Layout, Bengaluru")).toBe("HSR Layout, Bengaluru");
+  });
+
+  it("still prepends a sublocality the location genuinely omits", () => {
+    expect(loc("Whitefield", "Bangalore, Karnataka")).toBe("Whitefield, Bangalore, Karnataka");
+    expect(loc("Kokapet", "Hyderabad")).toBe("Kokapet, Hyderabad");
   });
 
   it("falls back to whichever of the two exists", () => {
-    expect(toV1Property({ id: "p1", title: "x", location: "Hyderabad" }).location).toBe(
-      "Hyderabad",
-    );
-    expect(toV1Property({ id: "p1", title: "x", sublocality: "Kokapet" }).location).toBe("Kokapet");
-    expect(toV1Property({ id: "p1", title: "x" }).location).toBeNull();
+    expect(loc(null, "Hyderabad")).toBe("Hyderabad");
+    expect(loc("Kokapet", null)).toBe("Kokapet");
+    expect(loc(null, null)).toBeNull();
   });
 
+  it("treats a location of only separators as absent", () => {
+    expect(loc("Kokapet", " , , ")).toBe("Kokapet");
+    expect(loc(null, ",,")).toBeNull();
+  });
+
+  it("trims whitespace around segments", () => {
+    expect(loc(null, "  Koramangala ,   Bangalore  ")).toBe("Koramangala, Bangalore");
+  });
+});
+
+describe("toV1Property", () => {
   it("coerces numeric strings from PostgREST numerics", () => {
     const p = toV1Property({
       id: "p1",
