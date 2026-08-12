@@ -13,6 +13,41 @@ and polish.
 
 ### Added
 
+- **Focus — the screen to open the app on.** A consultant's day in three
+  answers, on web (`/dashboard?tab=focus`, now the tab an unqualified
+  `/dashboard` lands on) and in the app (More → Focus). **Tasks &
+  visits** is today's appointments and open to-dos, with overdue rows
+  labelled rather than hidden and located appointments counted as site
+  visits. **Top journeys** ranks live journeys by the priority a human
+  set, then how close to closing they are, then how long they have sat
+  still — and never spends two of the three slots on one relationship
+  seen from both the buyer's and the property's end. **Requests to act
+  on** merges four inbound queues into one ranked list: Owners Den
+  offers, pending listing submissions, unanswered property inquiries and
+  new Match Radar events, scored by kind, by how soon they expire, and
+  by how long someone has been waiting. Each web card expands in place —
+  journeys open the real Journey map inside Focus, not a picture of it.
+  The ranking itself lives in `src/lib/focus/rank.ts` and reaches both
+  surfaces through `GET /api/focus`, so the phone and the browser can
+  never disagree about what to do next.
+
+  The Today tab became Focus: its agenda is now the Tasks & visits card,
+  and its other signals — reply windows closing, hot leads going quiet,
+  the day's numbers — render underneath. `/today` redirects to Focus on
+  web, `/today` deep links open Focus on mobile, and a Focus pin
+  replaces a Today pin in the app's More menu (an existing Today
+  favourite is dropped rather than pointing at a screen that is gone).
+
+  **Migration required:** `259_focus_read_access.sql`. It gives
+  `contact_property_inquiries` the `account_id` every other operational
+  table has (backfilled from `contacts`, with a membership RLS policy
+  alongside the legacy owner one) — until now a portal inquiry was
+  visible only to whichever member happened to own the contact row, and
+  `/api/contacts/merge` was already writing to a column that had never
+  been added. It also gives `public_listing_submissions` the SELECT
+  policy it never had, so a seller's submission is readable by the
+  account it was addressed to. Writes to both stay exactly as they were.
+
 - **Mobile: the helper speaks the agent's language.** The copilot chat,
   guided-tour tooltips and floating button now render in the app
   language the agent picked on the web (Hindi, Kannada, Tamil, Telugu,

@@ -25,7 +25,7 @@ describe('menu registry', () => {
 
 describe('isMenuRouteId', () => {
   it('accepts registered ids and rejects anything else', () => {
-    expect(isMenuRouteId('today')).toBe(true);
+    expect(isMenuRouteId('focus')).toBe(true);
     expect(isMenuRouteId('nope')).toBe(false);
     expect(isMenuRouteId(null)).toBe(false);
     expect(isMenuRouteId(7)).toBe(false);
@@ -39,16 +39,16 @@ describe('isMenuRouteId', () => {
 
 describe('normalizeFavorites', () => {
   it('keeps known ids in their pinned order', () => {
-    expect(normalizeFavorites(['radar', 'today'])).toEqual(['radar', 'today']);
+    expect(normalizeFavorites(['radar', 'focus'])).toEqual(['radar', 'focus']);
   });
 
   it('drops ids this build no longer knows', () => {
-    expect(normalizeFavorites(['today', 'retired-screen'])).toEqual(['today']);
+    expect(normalizeFavorites(['focus', 'retired-screen'])).toEqual(['focus']);
   });
 
   it('dedupes repeats', () => {
-    expect(normalizeFavorites(['today', 'today', 'deals'])).toEqual([
-      'today',
+    expect(normalizeFavorites(['focus', 'focus', 'deals'])).toEqual([
+      'focus',
       'deals',
     ]);
   });
@@ -56,25 +56,25 @@ describe('normalizeFavorites', () => {
   it('falls back to empty for non-arrays — favourites have no default', () => {
     expect(normalizeFavorites(null)).toEqual([]);
     expect(normalizeFavorites(undefined)).toEqual([]);
-    expect(normalizeFavorites('today')).toEqual([]);
-    expect(normalizeFavorites({ ids: ['today'] })).toEqual([]);
+    expect(normalizeFavorites('focus')).toEqual([]);
+    expect(normalizeFavorites({ ids: ['focus'] })).toEqual([]);
   });
 });
 
 describe('toggleFavorite', () => {
   it('appends a new pin at the end', () => {
-    expect(toggleFavorite(['today'], 'radar')).toEqual(['today', 'radar']);
+    expect(toggleFavorite(['focus'], 'radar')).toEqual(['focus', 'radar']);
   });
 
   it('removes an existing pin without disturbing the rest', () => {
-    expect(toggleFavorite(['today', 'radar', 'deals'], 'radar')).toEqual([
-      'today',
+    expect(toggleFavorite(['focus', 'radar', 'deals'], 'radar')).toEqual([
+      'focus',
       'deals',
     ]);
   });
 
   it('does not mutate the list it was given', () => {
-    const list = ['today'] as const;
+    const list = ['focus'] as const;
     const before = [...list];
     toggleFavorite([...list], 'radar');
     expect([...list]).toEqual(before);

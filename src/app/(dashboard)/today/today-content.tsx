@@ -92,6 +92,17 @@ const FILTER_CHIPS: { key: SectionFilter; label: string }[] = [
   { key: 'agenda', label: 'Agenda' },
 ]
 
+interface TodayPageProps {
+  /**
+   * Rendered inside the Focus tab rather than as a page of its own.
+   * Focus supplies the heading and owns the day's agenda through its
+   * Tasks & visits card, so both are dropped here — what remains are
+   * the signals Focus has no card for: reply windows, cooling leads,
+   * and the activity numbers.
+   */
+  embedded?: boolean
+}
+
 // ------------------------------------------------------------
 // Formatting helpers
 // ------------------------------------------------------------
@@ -152,7 +163,7 @@ function classificationBadge(c: Contact | null) {
 // Page
 // ------------------------------------------------------------
 
-export default function TodayPage() {
+export default function TodayPage({ embedded = false }: TodayPageProps = {}) {
   const router = useRouter()
   const { user, accountId } = useAuth()
 
@@ -397,32 +408,35 @@ export default function TodayPage() {
   }
 
   const anyLoading = expiringLoading || hotLoading || agendaLoading
-  const show = (key: Exclude<SectionFilter, 'all'>) => filter === 'all' || filter === key
+  const show = (key: Exclude<SectionFilter, 'all'>) =>
+    (!embedded || key !== 'agenda') && (filter === 'all' || filter === key)
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-extrabold text-white tracking-tight">Today</h1>
-          <p className="mt-1.5 text-xs sm:text-sm text-slate-400 font-medium leading-relaxed">
-            Everything that needs your attention right now — reply windows, cooling leads, today&apos;s schedule, and your activity numbers.
-          </p>
+      {!embedded && (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h1 className="text-3xl font-extrabold text-white tracking-tight">Today</h1>
+            <p className="mt-1.5 text-xs sm:text-sm text-slate-400 font-medium leading-relaxed">
+              Everything that needs your attention right now — reply windows, cooling leads, today&apos;s schedule, and your activity numbers.
+            </p>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={loadAll}
+            disabled={anyLoading}
+            className="shrink-0 text-xs font-bold text-slate-400 hover:text-white hover:bg-slate-900/40 rounded-xl cursor-pointer"
+          >
+            <RefreshCw className={`size-3.5 ${anyLoading ? 'animate-spin' : ''}`} />
+            {refreshedLabel(refreshedAt, now)} · Refresh
+          </Button>
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={loadAll}
-          disabled={anyLoading}
-          className="shrink-0 text-xs font-bold text-slate-400 hover:text-white hover:bg-slate-900/40 rounded-xl cursor-pointer"
-        >
-          <RefreshCw className={`size-3.5 ${anyLoading ? 'animate-spin' : ''}`} />
-          {refreshedLabel(refreshedAt, now)} · Refresh
-        </Button>
-      </div>
+      )}
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className={`grid grid-cols-2 gap-4 ${embedded ? 'lg:grid-cols-3' : 'lg:grid-cols-4'}`}>
         <StatCard
           label="Windows closing"
           value={windowsClosing.length}
@@ -447,14 +461,16 @@ export default function TodayPage() {
           valueClass="text-sky-400"
           hint="Active WhatsApp threads where the customer messaged you but you haven't responded in over 2 hours."
         />
-        <StatCard
-          label="Today's agenda"
-          value={agendaCount}
-          loading={agendaLoading}
-          icon={<CalendarDays className="size-4 text-emerald-400" />}
-          valueClass="text-emerald-400"
-          hint="Your appointments and to-do items due today. Complete or reschedule them from here."
-        />
+        {!embedded && (
+          <StatCard
+            label="Today's agenda"
+            value={agendaCount}
+            loading={agendaLoading}
+            icon={<CalendarDays className="size-4 text-emerald-400" />}
+            valueClass="text-emerald-400"
+            hint="Your appointments and to-do items due today. Complete or reschedule them from here."
+          />
+        )}
       </div>
 
       {/* Activity insights */}
@@ -561,7 +577,7 @@ export default function TodayPage() {
 
       {/* Filter chips */}
       <div className="flex flex-wrap gap-2">
-        {FILTER_CHIPS.map((chip) => (
+        {FILTER_CHIPS.filter((chip) => !embedded || chip.key !== 'agenda').map((chip) => (
           <button
             key={chip.key}
             type="button"
