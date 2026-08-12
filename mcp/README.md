@@ -84,6 +84,28 @@ Claude Desktop (`claude_desktop_config.json`):
 | `convoreal_get_agenda`        | Appointments and open to-dos for a date window, in one call.           |
 | `convoreal_create_todo`       | **write** — create a task, optionally linked to a contact or property. |
 
+### Portfolio (the owner and buyer portals)
+
+| Tool                                | What it does                                                                                    |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `convoreal_get_portfolio_summary`   | Both sides at once: owner stock and its value, buyer budget distribution, bid and shortlist activity. |
+| `convoreal_list_portfolio_owners`   | Owners with a portal login, ranked by live stock.                                               |
+| `convoreal_list_portfolio_buyers`   | Buyers with a portal login, ranked by budget.                                                   |
+
+Only portal users **linked to this workspace** are visible. `den_users` and
+`buyer_users` are global identities — one person may deal with several
+agencies — so every query enters through the account-scoped link table
+(`den_contact_links` / `buyer_contact_links`). A person registered with two
+agencies contributes to each one's numbers separately, and neither can see the
+other's link.
+
+Two distinctions the summary preserves, because collapsing them would mislead:
+
+- A buyer marked **unconstrained** has explicitly said they have no budget
+  ceiling. They are counted separately, never averaged in as zero.
+- A **null** average means nobody has stated a budget at all — different from
+  an average of zero, and rendered as an omitted line rather than `₹0`.
+
 Every tool takes `response_format` (`markdown`, the default, or `json`) and every list tool takes `limit` and `offset`.
 
 ### The two matching tools are the point
@@ -100,7 +122,8 @@ Not an oversight — a boundary:
 
 - **Nothing WhatsApp-facing.** No sending a message, launching a broadcast, or submitting a template. Meta's template rules and the 24-hour window are unforgiving, and a misfired send costs the account's WABA quality rating. Sending stays a deliberate action in the app.
 - **No billing, credits or member management.**
-- **No `/den` or `/buyer` portal data.** Those personas have their own security boundary and are not reachable with a staff API key.
+- **No portal user's private session data.** The Portfolio tools report on the account's *own* linked owners and buyers — the same people already in its contact list. They cannot reach a portal identity the account has not linked, another agency's link to the same person, or anything behind a `/den` or `/buyer` login.
+- **No cross-tenant Deal Mode inventory.** Match Radar `deal_mode` events reference another tenant's property and are legible only through a masked snapshot; they are filtered out of `convoreal_list_radar_events` entirely.
 - **No deletes.** The only writes are creating a contact, appending a note, and creating a task.
 
 ---
@@ -110,7 +133,7 @@ Not an oversight — a boundary:
 ```bash
 npm run dev        # tsx watch
 npm run typecheck
-npm test           # 30 tests: a real MCP client over an in-memory
+npm test           # 37 tests: a real MCP client over an in-memory
                    # transport against a real HTTP stub of /api/v1
 npm run build
 ```

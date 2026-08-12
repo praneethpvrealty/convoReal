@@ -143,3 +143,65 @@ export interface V1Agenda {
   truncated: { appointments: boolean; todos: boolean };
   note?: string;
 }
+
+// ── Portfolio (owner + buyer portals), from /api/v1/portfolio ──
+
+export interface OwnerPortfolioStats {
+  linked_owners: number;
+  owners_with_listings: number;
+  properties: {
+    total: number;
+    available: number;
+    under_contract: number;
+    sold: number;
+    published: number;
+  };
+  asking_value_available: number | null;
+  asking_price_avg_available: number | null;
+  bids: { pending: number; accepted: number };
+}
+
+export interface BuyerPortfolioStats {
+  linked_buyers: number;
+  buyers_with_budget: number;
+  buyers_unconstrained_budget: number;
+  buyers_with_requirement: number;
+  budget: {
+    min_avg: number | null;
+    max_avg: number | null;
+    max_median: number | null;
+    max_lowest: number | null;
+    max_highest: number | null;
+  };
+  shortlist: { items: number; buyers_with_items: number };
+}
+
+export interface PortfolioSummary {
+  owners: OwnerPortfolioStats;
+  buyers: BuyerPortfolioStats;
+}
+
+export interface OwnerPortfolioRow {
+  den_user_id: string;
+  contact_id: string;
+  name: string | null;
+  phone: string | null;
+  linked_at: string | null;
+  digest_frequency: string | null;
+  properties: { total: number; available: number; sold: number };
+  asking_value_available: number | null;
+  bids_pending: number;
+}
+
+export interface BuyerPortfolioRow {
+  buyer_user_id: string;
+  contact_id: string;
+  name: string | null;
+  phone: string | null;
+  linked_at: string | null;
+  budget: { min: number | null; max: number | null; unconstrained: boolean };
+  areas_of_interest: string[];
+  requirements: string | null;
+  requirement_active: boolean;
+  shortlist_count: number;
+}

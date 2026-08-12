@@ -20,6 +20,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 
 import { ConvoRealClient } from './client.js';
 import { registerContactTools } from './tools/contacts.js';
+import { registerPortfolioTools } from './tools/portfolio.js';
 import { registerPropertyTools } from './tools/properties.js';
 import { registerWorkspaceTools } from './tools/workspace.js';
 
@@ -78,6 +79,7 @@ export function createServer(client: ConvoRealClient): McpServer {
   registerPropertyTools(server, client);
   registerContactTools(server, client);
   registerWorkspaceTools(server, client);
+  registerPortfolioTools(server, client);
 
   return server;
 }

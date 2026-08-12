@@ -152,7 +152,7 @@ describe('tool surface', () => {
     const client = await connect();
     const { tools } = await client.listTools();
 
-    expect(tools).toHaveLength(13);
+    expect(tools).toHaveLength(16);
     for (const tool of tools) {
       expect(tool.description, `${tool.name} description`).toBeTruthy();
       expect(tool.annotations, `${tool.name} annotations`).toBeDefined();
@@ -570,5 +570,235 @@ describe('convoreal_get_agenda', () => {
     expect(text).toContain('Kokapet');
     expect(text).toContain('Send brochure');
     expect(text).toContain('Asha Rao');
+  });
+});
+
+describe('portfolio tools', () => {
+  const ownerStats = {
+    linked_owners: 12,
+    owners_with_listings: 9,
+    properties: {
+      total: 31,
+      available: 18,
+      under_contract: 4,
+      sold: 9,
+      published: 22,
+    },
+    asking_value_available: 412_500_000,
+    asking_price_avg_available: 22_916_667,
+    bids: { pending: 3, accepted: 1 },
+  };
+
+  const buyerStats = {
+    linked_buyers: 20,
+    buyers_with_budget: 16,
+    buyers_unconstrained_budget: 2,
+    buyers_with_requirement: 14,
+    budget: {
+      min_avg: 6_500_000,
+      max_avg: 14_200_000,
+      max_median: 12_500_000,
+      max_lowest: 3_500_000,
+      max_highest: 45_000_000,
+    },
+    shortlist: { items: 58, buyers_with_items: 11 },
+  };
+
+  it('reports both sides of the portfolio in one call', async () => {
+    routes.set('/api/v1/portfolio/summary', [
+      200,
+      { owners: ownerStats, buyers: buyerStats },
+    ]);
+    const client = await connect();
+
+    const text = textOf(
+      await client.callTool({
+        name: 'convoreal_get_portfolio_summary',
+        arguments: {},
+      })
+    );
+
+    // Owner side: stock and what it is worth.
+    expect(text).toContain('18 (58%)');
+    expect(text).toContain('₹41.25 Cr');
+    expect(text).toContain('Bids pending');
+
+    // Buyer side: the average the user actually asked for.
+    expect(text).toContain('₹1.42 Cr');
+    expect(text).toContain('₹1.25 Cr');
+    expect(text).toContain('₹35 L – ₹4.5 Cr');
+  });
+
+  it('keeps unconstrained buyers out of the averages and labels them', async () => {
+    routes.set('/api/v1/portfolio/summary', [
+      200,
+      { owners: ownerStats, buyers: buyerStats },
+    ]);
+    const client = await connect();
+
+    const text = textOf(
+      await client.callTool({
+        name: 'convoreal_get_portfolio_summary',
+        arguments: {},
+      })
+    );
+    expect(text).toContain('No budget ceiling');
+  });
+
+  it('omits an average nobody could compute rather than printing zero', async () => {
+    routes.set('/api/v1/portfolio/summary', [
+      200,
+      {
+        owners: {
+          ...ownerStats,
+          properties: { ...ownerStats.properties, available: 0, total: 0 },
+          asking_value_available: null,
+          asking_price_avg_available: null,
+        },
+        buyers: {
+          ...buyerStats,
+          buyers_with_budget: 0,
+          budget: {
+            min_avg: null,
+            max_avg: null,
+            max_median: null,
+            max_lowest: null,
+            max_highest: null,
+          },
+        },
+      },
+    ]);
+    const client = await connect();
+
+    const text = textOf(
+      await client.callTool({
+        name: 'convoreal_get_portfolio_summary',
+        arguments: {},
+      })
+    );
+    expect(text).not.toContain('Average budget');
+    expect(text).not.toContain('Average asking price');
+    expect(text).not.toContain('₹0');
+  });
+
+  it('lists owners with their stock', async () => {
+    routes.set('/api/v1/portfolio/owners', [
+      200,
+      {
+        ...emptyPage,
+        total: 1,
+        count: 1,
+        items: [
+          {
+            den_user_id: 'd1',
+            contact_id: 'c1',
+            name: 'Ramesh Gupta',
+            phone: '919876543210',
+            linked_at: '2026-03-01T00:00:00.000Z',
+            digest_frequency: 'weekly',
+            properties: { total: 4, available: 3, sold: 1 },
+            asking_value_available: 68_000_000,
+            bids_pending: 2,
+          },
+        ],
+      },
+    ]);
+    const client = await connect();
+
+    const text = textOf(
+      await client.callTool({
+        name: 'convoreal_list_portfolio_owners',
+        arguments: {},
+      })
+    );
+
+    expect(text).toContain('Ramesh Gupta');
+    expect(text).toContain('4 total · 3 available · 1 sold');
+    expect(text).toContain('₹6.8 Cr');
+  });
+
+  it('lists buyers ranked by budget', async () => {
+    routes.set('/api/v1/portfolio/buyers', [
+      200,
+      {
+        ...emptyPage,
+        total: 1,
+        count: 1,
+        items: [
+          {
+            buyer_user_id: 'b1',
+            contact_id: 'c2',
+            name: 'Asha Rao',
+            phone: '919000000000',
+            linked_at: '2026-04-02T00:00:00.000Z',
+            budget: { min: 9_000_000, max: 13_000_000, unconstrained: false },
+            areas_of_interest: ['Kokapet', 'Narsingi'],
+            requirements: '3BHK near ORR',
+            requirement_active: true,
+            shortlist_count: 6,
+          },
+        ],
+      },
+    ]);
+    const client = await connect();
+
+    const text = textOf(
+      await client.callTool({
+        name: 'convoreal_list_portfolio_buyers',
+        arguments: {},
+      })
+    );
+
+    expect(text).toContain('Asha Rao');
+    expect(text).toContain('₹90 L – ₹1.3 Cr');
+    expect(text).toContain('Kokapet, Narsingi');
+    expect(text).toContain('3BHK near ORR');
+  });
+
+  it('says "no ceiling" rather than a blank budget', async () => {
+    routes.set('/api/v1/portfolio/buyers', [
+      200,
+      {
+        ...emptyPage,
+        total: 1,
+        count: 1,
+        items: [
+          {
+            buyer_user_id: 'b2',
+            contact_id: 'c3',
+            name: 'Big Fund',
+            phone: null,
+            linked_at: null,
+            budget: { min: null, max: null, unconstrained: true },
+            areas_of_interest: [],
+            requirements: null,
+            requirement_active: true,
+            shortlist_count: 0,
+          },
+        ],
+      },
+    ]);
+    const client = await connect();
+
+    const text = textOf(
+      await client.callTool({
+        name: 'convoreal_list_portfolio_buyers',
+        arguments: {},
+      })
+    );
+    expect(text).toContain('no ceiling');
+  });
+
+  it('explains how a portal login is obtained when nobody has one', async () => {
+    routes.set('/api/v1/portfolio/owners', [200, emptyPage]);
+    const client = await connect();
+
+    const text = textOf(
+      await client.callTool({
+        name: 'convoreal_list_portfolio_owners',
+        arguments: {},
+      })
+    );
+    expect(text).toMatch(/verifying their WhatsApp number/);
   });
 });
