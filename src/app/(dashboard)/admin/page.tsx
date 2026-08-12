@@ -81,6 +81,7 @@ const ExtensionsTab = dynamic(() => import('./extensions-tab'), {
   ),
 });
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { readStored, removeStored, writeStored } from '@/lib/safe-storage';
 
 interface WhatsappConfig {
   account_id: string;
@@ -205,9 +206,9 @@ export default function AdminDashboardPage() {
             setSandboxEnabled(true);
             setSandboxIsEditing(true);
             const seenKey = 'sandbox_autofill_seen';
-            if (typeof window !== 'undefined' && !localStorage.getItem(seenKey)) {
+            if (typeof window !== 'undefined' && !readStored(seenKey)) {
               toast.info('Sandbox credentials auto-filled from your Official API config. Review and save.');
-              localStorage.setItem(seenKey, '1');
+              writeStored(seenKey, '1');
             }
           } else {
             setSandboxIsEditing(true);
@@ -469,7 +470,7 @@ export default function AdminDashboardPage() {
 
       toast.success('Sandbox configuration saved successfully');
       if (typeof window !== 'undefined') {
-        localStorage.removeItem('sandbox_autofill_seen');
+        removeStored('sandbox_autofill_seen');
       }
     } catch (err) {
       console.error('Error saving sandbox config:', err);

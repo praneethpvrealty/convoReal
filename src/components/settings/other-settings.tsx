@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { MessageTemplate } from '@/types';
+import { readStored, writeStored } from '@/lib/safe-storage';
 
 
 const COUNTRIES = [
@@ -314,7 +315,7 @@ export function OtherSettingsPanel() {
     fetchAutoQualify();
 
     // Load last synced from localStorage if exists
-    const stored = localStorage.getItem('krera_last_synced');
+    const stored = readStored('krera_last_synced');
     if (stored) {
       setLastSynced(stored);
     }
@@ -463,7 +464,7 @@ export function OtherSettingsPanel() {
       const data = await res.json();
       const timeStr = new Date().toLocaleString();
       setLastSynced(timeStr);
-      localStorage.setItem('krera_last_synced', timeStr);
+      writeStored('krera_last_synced', timeStr);
       
       await fetchProjectCount();
       

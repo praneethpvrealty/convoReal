@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/hooks/use-auth';
+import { readStored, removeStored, writeStored } from '@/lib/safe-storage';
 
 export interface OnboardingStatus {
   hasWhatsApp: boolean;
@@ -37,9 +38,9 @@ export function useOnboarding() {
   useEffect(() => {
     if (!accountId) return;
     const key = dismissedKey(accountId);
-    setDismissed(localStorage.getItem(key) === 'true');
+    setDismissed(readStored(key) === 'true');
     setEmailLeadsSkipped(
-      localStorage.getItem(emailLeadsSkippedKey(accountId)) === 'true'
+      readStored(emailLeadsSkippedKey(accountId)) === 'true'
     );
   }, [accountId]);
 
@@ -63,20 +64,20 @@ export function useOnboarding() {
 
   function dismiss() {
     if (!accountId) return;
-    localStorage.setItem(dismissedKey(accountId), 'true');
+    writeStored(dismissedKey(accountId), 'true');
     setDismissed(true);
   }
 
   function skipEmailLeads() {
     if (!accountId) return;
-    localStorage.setItem(emailLeadsSkippedKey(accountId), 'true');
+    writeStored(emailLeadsSkippedKey(accountId), 'true');
     setEmailLeadsSkipped(true);
   }
 
   // Un-dismiss: the dashboard setup checklist reopens the wizard here.
   function reopen() {
     if (!accountId) return;
-    localStorage.removeItem(dismissedKey(accountId));
+    removeStored(dismissedKey(accountId));
     setDismissed(false);
   }
 

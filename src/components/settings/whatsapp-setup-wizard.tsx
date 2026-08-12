@@ -53,6 +53,7 @@ import { StepMedia } from '@/components/onboarding/step-media';
 import { MetaConsoleIllustration } from '@/components/onboarding/illustrations';
 import { WhatsAppConciergeForm } from '@/components/settings/whatsapp-concierge-form';
 import type { OnboardingMediaSlug } from '@/lib/onboarding/media';
+import { readStored, writeStored } from '@/lib/safe-storage';
 
 type Mode = 'choose' | 'guided' | 'concierge';
 
@@ -270,7 +271,7 @@ export function WhatsAppSetupWizard() {
     // effect body (react-hooks/set-state-in-effect).
     const timer = setTimeout(() => {
       try {
-        const raw = localStorage.getItem(progressKey(accountId));
+        const raw = readStored(progressKey(accountId));
         if (raw) {
           const saved = JSON.parse(raw) as { mode?: Mode; step?: number };
           if (saved.mode === 'guided' || saved.mode === 'concierge')
@@ -292,7 +293,7 @@ export function WhatsAppSetupWizard() {
       setMode(nextMode);
       setStep(nextStep);
       if (accountId) {
-        localStorage.setItem(
+        writeStored(
           progressKey(accountId),
           JSON.stringify({ mode: nextMode, step: nextStep })
         );

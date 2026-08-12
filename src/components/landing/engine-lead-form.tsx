@@ -2,16 +2,17 @@
 
 import { useMemo, useState } from 'react';
 import { Loader2, MessageCircle, CheckCircle2 } from 'lucide-react';
+import { readStored, writeStored } from '@/lib/safe-storage';
 
 const ROLES = ['Independent agent', 'Broker', 'Builder / Developer', 'Agency / Team'];
 const TEAM_SIZES = ['Just me', '2–5', '6–20', '20+'];
 
 function getSessionKey(): string {
   try {
-    const existing = localStorage.getItem('showcase_session_key');
+    const existing = readStored('showcase_session_key');
     if (existing) return existing;
     const fresh = crypto.randomUUID();
-    localStorage.setItem('showcase_session_key', fresh);
+    writeStored('showcase_session_key', fresh);
     return fresh;
   } catch {
     return crypto.randomUUID();
