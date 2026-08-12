@@ -5,6 +5,7 @@ import {
   parseSharedContactCards,
   ownerFromCard,
   applySharedCardOwner,
+  contactDraftsFromCards,
 } from '@/lib/contacts/shared-cards';
 
 // Verbatim from the thread that prompted this: one phonebook entry
@@ -95,6 +96,50 @@ describe('ownerFromCard', () => {
       nameTag: null,
       phone: '+919848194537',
     });
+  });
+});
+
+describe('contactDraftsFromCards', () => {
+  it('builds the draft straight off the card, with no model in the loop', () => {
+    const container = contactDraftsFromCards(NADEEM_CARD);
+    expect(container?.contacts).toEqual([
+      {
+        name: 'Nadeem Koramangala',
+        name_tag: '8th Block 2100 Sqft Corner Property Owner Nassur',
+        phone: '+91 98861 40608',
+        email: null,
+        company: null,
+        classification: 'Owner',
+        notes: null,
+        requirements: null,
+        referrer_name: null,
+        referrer_phone: null,
+      },
+    ]);
+  });
+
+  it('reads the role the phonebook name states', () => {
+    const roleOf = (name: string) =>
+      contactDraftsFromCards(`${SHARED_CARDS_HEADER}\n${name} (+91 90000 00001)`)?.contacts[0]
+        .classification;
+    expect(roleOf('Ramesh Broker HSR')).toBe('Agent');
+    expect(roleOf('Suresh Builder')).toBe('Developer');
+    expect(roleOf('Anita Buyer 3BHK')).toBe('Buyer');
+    // A tag that names no role stays generic rather than being guessed.
+    expect(roleOf('Nataraj Bank DSA')).toBe('Others');
+  });
+
+  it('carries every card in a multi-card share', () => {
+    const container = contactDraftsFromCards(
+      `${SHARED_CARDS_HEADER}\nRamesh HDFC (+91 90000 00001)\nSuresh Plumber (+91 90000 00002)`
+    );
+    expect(container?.contacts).toHaveLength(2);
+    expect(container?.contacts[1].name).toBe('Suresh');
+  });
+
+  it('returns null for anything that is not a card', () => {
+    expect(contactDraftsFromCards('Ramesh 9000000001 wants a 3BHK')).toBeNull();
+    expect(contactDraftsFromCards(null)).toBeNull();
   });
 });
 

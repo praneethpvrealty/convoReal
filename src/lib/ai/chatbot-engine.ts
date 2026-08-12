@@ -75,6 +75,7 @@ import {
   parseSharedContactCards,
   applySharedCardOwner,
   fileSharedCardContact,
+  contactDraftsFromCards,
 } from '@/lib/contacts/shared-cards';
 import { extractMapLinkFromText } from '@/lib/maps/map-links';
 import {
@@ -655,6 +656,15 @@ export async function processOwnerChatbotMessage(
   const isVideoMsg = message.type === 'video' && message.video?.id;
   const isMediaMsg = isImageMsg || isDocMsg || isVideoMsg;
 
+  // A forwarded vCard is a person. WhatsApp says so structurally, so
+  // there is nothing here to classify and nothing to pay for — and
+  // guessing was actively worse: a phonebook name like "Nadeem
+  // Koramangala 8th Block 2100 Sqft Corner" carries enough listing
+  // words to beat the person under the classifier's own precedence
+  // rule, which was written for forwarded ad copy that happens to
+  // quote an agent's number, not for a card.
+  const isContactCardMsg = message.type === 'contacts';
+
   // Concurrency check: If there is no active session yet, and we are either an image/document message or
   // a text message that is NOT a property initiator (e.g. location map link or quick correction),
   // we check if another customer message arrived in the same conversation within the last 15s.
@@ -1019,6 +1029,15 @@ export async function processOwnerChatbotMessage(
     /is interested in|referred by|magicbricks|99acres|housing\.com/i.test(cleanedText) ||
     (cleanedText.split('\n').length >= 2 && /\b\d{10,15}\b/.test(cleanedText))
   );
+
+  // A card arriving mid-listing is a person to file, never a correction
+  // to the draft — and the draft would otherwise swallow it, because
+  // the keyword test below never matches a card's rendered text.
+  if (propSession && isContactCardMsg) {
+    console.log(`[chatbot-engine] Discarding active property session ${propSession.id} for a shared contact card`);
+    await supabaseAdmin().from('property_draft_sessions').delete().eq('id', propSession.id);
+    propSession = null;
+  }
 
   if (propSession && hasContactKeywords) {
     if (!(await gatedBurn(accountId, 'chatbot_classify'))) {
@@ -2305,6 +2324,40 @@ export async function processOwnerChatbotMessage(
       }
     }
 
+    // A second card is another person, or the same one again — never a
+    // correction to type over the draft. Reconciled the way a second
+    // screenshot is, and free, because the card needs no reading.
+    const incomingCards = isContactCardMsg ? contactDraftsFromCards(cleanedText) : null;
+    if (incomingCards) {
+      const { container: mergedContainer, replaced } = reconcileContactDrafts(container, incomingCards);
+      const { isValid, missingFields } = validateContactDraftsContainer(mergedContainer);
+      const nextStatus = isValid ? 'awaiting_confirmation' : 'collecting';
+
+      await supabaseAdmin()
+        .from('contact_draft_sessions')
+        .update({
+          draft_data: mergedContainer,
+          status: nextStatus,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', contactSession.id);
+
+      await sendContactDraftPreview(
+        phoneNumberId,
+        accessToken,
+        contactRecord.phone,
+        replaced
+          ? `📝 *New Contact Draft — previous one discarded:*`
+          : `📝 *Contact Drafts Updated:*`,
+        mergedContainer,
+        nextStatus,
+        missingFields,
+        conversation.id,
+        accountId
+      );
+      return true;
+    }
+
     // Handle conversational updates to contact drafts
     if (cleanedText) {
       if (!(await gatedBurn(accountId, 'chatbot_classify'))) {
@@ -2351,18 +2404,23 @@ export async function processOwnerChatbotMessage(
 
     const { buffer: mediaBuffer, mimeType: mediaMimeType } = await loadInboundMedia();
 
-    if (!(await gatedBurn(accountId, 'chatbot_classify'))) {
-      return await sendCreditsLockedReply(phoneNumberId, accessToken, contactRecord.phone, conversation.id);
-    }
+    // A card and a document each decide themselves what they are, so
+    // neither reaches the model — and neither is charged for a
+    // classification that never ran.
     let classification: 'property' | 'contact' | 'schedule' | 'client_reply' | 'none';
-    if (isDocMsg) {
+    if (isContactCardMsg) {
+      classification = 'contact';
+    } else if (isDocMsg) {
       classification = 'property';
-    } else if (isVideoMsg) {
-      // The classifier takes images/text, not video bytes — classify
-      // from the caption alone.
-      classification = await classifyImageOrText(cleanedText, undefined, undefined);
     } else {
-      classification = await classifyImageOrText(cleanedText, mediaBuffer, mediaMimeType);
+      if (!(await gatedBurn(accountId, 'chatbot_classify'))) {
+        return await sendCreditsLockedReply(phoneNumberId, accessToken, contactRecord.phone, conversation.id);
+      }
+      classification = isVideoMsg
+        // The classifier takes images/text, not video bytes — classify
+        // from the caption alone.
+        ? await classifyImageOrText(cleanedText, undefined, undefined)
+        : await classifyImageOrText(cleanedText, mediaBuffer, mediaMimeType);
     }
 
     // --- SCHEDULING FLOW (screenshot of a chat that fixes a meeting) ---
@@ -2696,24 +2754,32 @@ export async function processOwnerChatbotMessage(
 
     // --- CONTACT INGESTION FLOW ---
     if (classification === 'contact') {
-      // Gate the parse burn before announcing "Analyzing…" so a
-      // drained balance produces the lock reply, not a dead promise.
-      if (!(await gatedBurn(accountId, 'contact_parse'))) {
-        return await sendCreditsLockedReply(phoneNumberId, accessToken, contactRecord.phone, conversation.id);
+      // A card needs no reading: the name and the number are stated on
+      // it. Skip the parse, its charge, and the "Analyzing…" wait.
+      const cardContainer = isContactCardMsg ? contactDraftsFromCards(cleanedText) : null;
+
+      if (!cardContainer) {
+        // Gate the parse burn before announcing "Analyzing…" so a
+        // drained balance produces the lock reply, not a dead promise.
+        if (!(await gatedBurn(accountId, 'contact_parse'))) {
+          return await sendCreditsLockedReply(phoneNumberId, accessToken, contactRecord.phone, conversation.id);
+        }
+        const analyzingContactMsg = "⏳ _Analyzing contact details... Please wait._";
+        const analyzingContactSendRes = await sendTextMessage({
+          phoneNumberId,
+          accessToken,
+          to: contactRecord.phone,
+          text: analyzingContactMsg
+        });
+        await saveBotMessage(conversation.id, analyzingContactMsg, analyzingContactSendRes.messageId);
       }
-      const analyzingContactMsg = "⏳ _Analyzing contact details... Please wait._";
-      const analyzingContactSendRes = await sendTextMessage({
-        phoneNumberId,
-        accessToken,
-        to: contactRecord.phone,
-        text: analyzingContactMsg
-      });
-      await saveBotMessage(conversation.id, analyzingContactMsg, analyzingContactSendRes.messageId);
 
       try {
         let parsedContainer: ParsedContactDraftsContainer;
 
-        if (isMediaMsg && mediaBuffer && mediaMimeType) {
+        if (cardContainer) {
+          parsedContainer = cardContainer;
+        } else if (isMediaMsg && mediaBuffer && mediaMimeType) {
           parsedContainer = await parseContactFromImageOrText(contentText || '', mediaBuffer, mediaMimeType);
         } else {
           parsedContainer = await parseContactFromImageOrText(cleanedText);

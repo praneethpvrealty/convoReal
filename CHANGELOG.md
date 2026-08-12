@@ -11,6 +11,24 @@ and polish.
 
 ## [Unreleased]
 
+### Changed
+
+- **A forwarded contact card goes to the contact flow, always.** WhatsApp
+  tells us structurally that a message is a vCard, and the assistant was
+  ignoring that and asking an AI to classify the flattened text instead —
+  where a phonebook name like "Nadeem Koramangala 8th Block 2100 Sqft
+  Corner" carries enough listing words to beat the person under the
+  classifier's own precedence rule. A card now routes on its type: no
+  classifier call, no listing draft, and the person lands in the
+  purpose-built contact flow with duplicate warnings, enrichment of
+  somebody already on file, and a Confirm step. The draft is built from
+  the card itself rather than read by a model — name, tag and number are
+  stated on it, and the role too when the phonebook name says "Owner" or
+  "Broker" — so a card costs no AI credits at all, where it used to cost
+  a classify plus a parse. A card arriving mid-listing sets the listing
+  draft aside instead of being typed over it; a second card is
+  reconciled against the draft in flight the way a second screenshot is.
+
 ### Added
 
 - **A forwarded contact card keeps its own name, and its person.** An
