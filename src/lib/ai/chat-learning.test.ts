@@ -23,6 +23,26 @@ describe('carriesPriceFactSignal', () => {
     }
   });
 
+  it('accepts a floor stated as a close, which is how it is usually typed', () => {
+    // "This can be closed at 13 cr" went out about a listing advertised
+    // at 15 and scored nothing: the first signal list was written from
+    // how buyers ask ("is it negotiable?") rather than how agents
+    // answer, so the figure died in the bubble and the listing kept
+    // reading 15.
+    for (const text of [
+      'This can be closed at 13 cr',
+      'closing at 13 cr',
+      'we can close it at 13 cr',
+      'Owner will take 13 cr',
+      'Seller is ok with 13 cr',
+      'Seller will accept 13 cr',
+      'can be done at 13 cr',
+      'builder is fine at 12.5 cr',
+    ]) {
+      expect(carriesPriceFactSignal(text), text).toBe(true);
+    }
+  });
+
   it('rejects ordinary replies without spending a model call', () => {
     for (const text of [
       'Ok thanks',
@@ -30,6 +50,15 @@ describe('carriesPriceFactSignal', () => {
       "I'll call you at 4",
       'Sharing the layout now',
       'Sending you the location pin',
+      // Near-misses of the closing family. Every one carries a figure,
+      // so only the price language keeps them out — and this gate runs
+      // on every outbound agent message, which is what makes a false
+      // positive a real cost rather than a harmless one.
+      'The registration will take 30 days',
+      'We can do a site visit at 4 pm',
+      'I can do 3 pm tomorrow',
+      // The agent repeating the advertised price is not a revision.
+      'The price is 15 Cr',
       '',
       null,
       undefined,
