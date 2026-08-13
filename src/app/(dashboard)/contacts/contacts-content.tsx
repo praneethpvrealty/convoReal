@@ -72,6 +72,7 @@ import {
 import { ContactForm } from '@/components/contacts/contact-form';
 import { ContactCleanupDialog } from '@/components/contacts/cleanup-dialog';
 import { ContactDetailView } from '@/components/contacts/contact-detail-view';
+import { UnmappedPortalAds } from '@/components/contacts/unmapped-portal-ads';
 import { ReengageWizard } from '@/components/contacts/reengage-wizard';
 import { useCan } from '@/hooks/use-can';
 import { GatedButton } from '@/components/ui/gated-button';
@@ -2429,6 +2430,11 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
           </button>
         </div>
       </div>
+
+      {/* Portal ads still waiting on their first assertion. Renders
+          nothing when there are none, so it costs a clean account no
+          space — and it sits above the queue it explains. */}
+      <UnmappedPortalAds onMapped={fetchContactsWithInvalidate} />
 
       {/* Table */}
       <div className="overflow-hidden rounded-lg border border-slate-800">

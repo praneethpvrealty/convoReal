@@ -39,6 +39,7 @@ import {
   Copy,
   Check,
   Star,
+  Link as LinkIcon,
   Loader2,
   Plus,
   Trash2,
@@ -191,6 +192,9 @@ export function ContactDetailView({
   const [savingDetails, setSavingDetails] = useState(false);
   const [approving, setApproving] = useState(false);
   const [inquiredProperty, setInquiredProperty] = useState<Property | null>(null);
+  const [portalAdLink, setPortalAdLink] = useState<{ property_id: string } | null>(null);
+  const [mapAdOpen, setMapAdOpen] = useState(false);
+  const [mappingAd, setMappingAd] = useState(false);
   const [inquiredProperties, setInquiredProperties] = useState<Property[]>([]);
   const [sendDetailsOnApprove, setSendDetailsOnApprove] = useState(true);
   const [propertyMessageStatus, setPropertyMessageStatus] = useState<Record<string, { sent: boolean; responded: boolean; lastSentAt: string | null }>>({});
@@ -338,6 +342,21 @@ export function ContactDetailView({
         setInquiredProperty(propData || null);
       } else {
         setInquiredProperty(null);
+      }
+
+      // Is the portal ad this lead quoted already mapped to a listing?
+      // A mapped ad needs no assertion — the webhook resolved this lead
+      // through it, and will resolve every later one the same way.
+      if (data.lead_portal && data.lead_portal_listing_id) {
+        const { data: link } = await supabase
+          .from('property_portal_listings')
+          .select('property_id')
+          .eq('portal', data.lead_portal)
+          .eq('portal_listing_id', data.lead_portal_listing_id)
+          .maybeSingle();
+        setPortalAdLink(link ?? null);
+      } else {
+        setPortalAdLink(null);
       }
 
       // Fetch all inquired properties from junction table
@@ -573,42 +592,60 @@ export function ContactDetailView({
     }
   }, [supabase, contactId, accountId, onUpdated, inquiredProperties]);
 
+  // Dropping the junction row and clearing the headline pointer are one
+  // correction, not two writes a client can half-apply — the route owns
+  // the pair so mobile cannot diverge from it.
   const handleRemoveInquiredProperty = useCallback(async (propertyId: string) => {
     try {
-      const { data, error } = await supabase
-        .from('contact_property_inquiries')
-        .delete()
-        .eq('contact_id', contactId)
-        .eq('property_id', propertyId)
-        .select('contact_id');
+      const res = await fetch(`/api/contacts/${contactId}/inquiries/${propertyId}`, {
+        method: 'DELETE',
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body?.error || 'Failed to remove property interest');
 
-      if (error) throw error;
-      if (!data?.length) throw new Error('That interest is no longer there.');
-      
-      // Update local state
       setInquiredProperties(prev => prev.filter(p => p.id !== propertyId));
-      
-      // If this was the last_inquired_property_id, clear it too
-      if (editLastInquiredPropertyId === propertyId) {
-        const { data: cleared } = await supabase
-          .from('contacts')
-          .update({ last_inquired_property_id: null })
-          .eq('id', contactId)
-          .select('id');
-        if (!cleared?.length) {
-          throw new Error('Could not clear the linked interest.');
-        }
+      if (body?.data?.pointerCleared) {
         setEditLastInquiredPropertyId(null);
         setInquiredProperty(null);
       }
-      
+
       toast.success('Property removed from interests');
       onUpdated();
     } catch (err) {
       console.error('Failed to remove property interest:', err);
-      toast.error('Failed to remove property interest');
+      toast.error(err instanceof Error ? err.message : 'Failed to remove property interest');
     }
-  }, [supabase, contactId, onUpdated, editLastInquiredPropertyId]);
+  }, [contactId, onUpdated]);
+
+  // The agent's one-time assertion that a portal ad IS a listing. From
+  // then on the lead webhook resolves every enquiry quoting that ad
+  // exactly, and the leads already waiting on it move across now.
+  const handleMapPortalAd = useCallback(async (propertyId: string) => {
+    setMappingAd(true);
+    try {
+      const res = await fetch(`/api/contacts/${contactId}/portal-link`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ propertyId }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body?.error || 'Could not map the ad');
+
+      const others = (body.data?.taggedContacts ?? 1) - 1;
+      toast.success(
+        `Ad mapped to "${body.data?.propertyTitle}".` +
+          (others > 0 ? ` ${others} waiting lead${others === 1 ? '' : 's'} moved across.` : '')
+      );
+      setMapAdOpen(false);
+      await fetchContact();
+      onUpdated();
+    } catch (err) {
+      console.error('Failed to map portal ad:', err);
+      toast.error(err instanceof Error ? err.message : 'Could not map the ad');
+    } finally {
+      setMappingAd(false);
+    }
+  }, [contactId, fetchContact, onUpdated]);
 
 
   useEffect(() => {
@@ -1504,6 +1541,64 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                     </Button>
                   </div>
                 </div>
+
+                {/* What the lead was filed against, and the two
+                    corrections that matter before approving sends them
+                    its details: un-tag a wrong guess, and map the portal
+                    ad once so no later lead on it has to be guessed. */}
+                {inquiredProperty && (
+                  <div className="flex items-center gap-2 pt-1.5 mt-1.5 border-t border-amber-500/15 text-[11px] min-w-0">
+                    <span className="text-slate-500 shrink-0">Contacted about</span>
+                    <span className="text-slate-300 font-semibold truncate">{inquiredProperty.title}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveInquiredProperty(inquiredProperty.id)}
+                      className="text-red-400 hover:text-red-300 font-bold shrink-0 cursor-pointer"
+                    >
+                      Wrong listing?
+                    </button>
+                  </div>
+                )}
+
+                {contact.lead_portal_listing_id && (
+                  <div className="flex items-center gap-2 pt-1.5 mt-1.5 border-t border-amber-500/15 text-[11px] min-w-0">
+                    <LinkIcon className={`size-3 shrink-0 ${portalAdLink ? 'text-emerald-400' : 'text-amber-400'}`} />
+                    <span className="text-slate-300 font-semibold shrink-0">
+                      {contact.source || contact.lead_portal} ad {contact.lead_portal_listing_id}
+                    </span>
+                    {portalAdLink ? (
+                      <span className="text-slate-500 truncate">
+                        mapped — enquiries on it match automatically
+                      </span>
+                    ) : (
+                      <>
+                        <span className="text-slate-500 truncate">not mapped yet</span>
+                        <button
+                          type="button"
+                          onClick={() => setMapAdOpen((v) => !v)}
+                          className="text-primary hover:text-primary/80 font-bold shrink-0 cursor-pointer"
+                        >
+                          {mapAdOpen ? 'Cancel' : 'Map to a listing'}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {mapAdOpen && !portalAdLink && (
+                  <div className="pt-2 space-y-1.5">
+                    <SearchablePropertySelect
+                      properties={allProperties}
+                      value={null}
+                      onChange={(propertyId) => propertyId && handleMapPortalAd(propertyId)}
+                      placeholder={mappingAd ? 'Mapping…' : 'Which listing is this ad?'}
+                    />
+                    <p className="text-[10px] text-slate-500 leading-relaxed">
+                      Asserted once. Every future enquiry quoting this ad id resolves to that listing
+                      exactly, and the leads already waiting on it are tagged now.
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 

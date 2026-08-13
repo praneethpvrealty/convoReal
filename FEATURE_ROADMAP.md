@@ -73,3 +73,9 @@ To build the definitive, WhatsApp-first Engine for independent real estate agenc
 *§2.8 gaps, stated rather than silent. They share one root cause: the mobile app has no account-administration surface at all (no Members, Teams, Billing, Routing or Settings shell), so each of these would be the first of its kind rather than a screen added to an existing section.*
 - [ ] **Owner details request wording (mobile)**: The per-account editor for the seller intake message ships on web only (Settings → WhatsApp → Owners). The *message itself* is at full parity — the mobile sheet reads the same saved wording through `GET /api/owners/details-request/settings` and sends through the same route — so an account that customises it on web sees the change on the phone immediately. Only the editing UI is missing. (migration 262, `src/components/settings/owner-details-request-card.tsx`)
 - [ ] **API Keys Settings UI (mobile)**: See Milestone 6. Same root cause, same deferral.
+
+---
+
+### Deferred: portal posting on mobile
+*A §2.8 gap, stated rather than silent.*
+- [ ] **Portal ad ids on mobile** (`src/components/inventory/portal-post-dialog.tsx`, the `99 / MB / H` badges in `src/components/inventory/property-list.tsx`): recording where a listing is advertised, and the portal's own ad id for it, ships on web only. Mobile has no portal surface at all — posting is a copy-paste flow into the portals' own web forms, assisted by the Chrome extension, so the dialog grew where the work happens. What *is* at parity is the part that matters for lead accuracy: the unmapped-ads queue and the one-tap assertion from a lead both run on the phone (`mobile/components/unmapped-portal-ads.tsx`), reading the same `unmapped_portal_ads` and `POST /api/contacts/[id]/portal-link`. So an agent can map every ad from mobile; they just cannot see or edit the ad id from the listing itself. Closing it means a read-only portal section on the mobile property screen, plus the ad-id editor.

@@ -1032,5 +1032,166 @@ Content-Transfer-Encoding: quoted-printable
       expect((contact.areas_of_interest as string[]) ?? []).not.toContain('Your property');
       expect((contact.pref_areas as string[]) ?? []).not.toContain('Your property');
     });
+
+    it('does not file a Koramangala enquiry against the only house in inventory', async () => {
+      mockDb.properties.push({
+        id: 'prop-hsr',
+        title: '4 BHK Independent Bungalow in HSR Layout',
+        type: 'Residential House',
+        location: 'HSR Layout, Bengaluru, Karnataka',
+        sublocality: 'HSR Layout',
+        bedrooms: 4,
+        area_sqft: null,
+        land_area: 4000,
+        land_area_unit: 'Sq.Ft.',
+        price: 165000000,
+        property_code: 'PROP-1194',
+      });
+
+      const payload = {
+        subject: 'Housing - Lead interested in your property',
+        from: '"Housing.com" <noreply@housing-mailer.com>',
+        text: [
+          'Ranjith would like to talk to you',
+          'Name: Ranjith',
+          'Contact: 9626806002',
+          '3 BHK Independent House in Koramangala',
+        ].join('\n'),
+      };
+
+      const req = new Request('http://localhost/api/leads/email-webhook?account_id=acc-789&token=test-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      expect((await POST(req)).status).toBe(200);
+
+      expect(mockDb.contacts.length).toBe(1);
+      // Same type, wrong locality — the listing must not be tagged, and
+      // its price must not become the buyer's inferred budget.
+      expect(mockDb.contact_property_inquiries.length).toBe(0);
+      expect(mockDb.contacts[0].last_inquired_property_id).toBeNull();
+      expect(mockDb.contacts[0].pref_budget_max).toBeNull();
+
+      const log = mockDb.email_sync_logs.at(-1) as Record<string, unknown>;
+      expect(log.matched_property_id).toBeNull();
+      expect(log.parsed_location).toBe('Koramangala');
+    });
+
+    it('keeps the ad id every portal quotes, in each portal own wording', async () => {
+      // The real shapes. MagicBricks labels it mid-sentence after a
+      // comma, Housing labels it plainly, and 99acres does not label it
+      // at all — it parenthesises the id in prose, which is why its leads
+      // used to arrive with nothing to map.
+      //
+      // The MagicBricks body below never spells the brand out, on
+      // purpose: attribution comes from the sender, and a lead that is
+      // not attributed to a portal discards its ad id however cleanly
+      // that id parsed.
+      const cases = [
+        {
+          from: 'MagicBricks <info@magicbricks.com>',
+          subject: 'Response on your Property Listing',
+          text: [
+            'A user is interested in your Property, ID 83691103: 5 BHK , Villa in Krishnarajapura , Bangalore.',
+            "Sender's Name: manigandan (Individual)",
+            'Mobile: 8867503373',
+          ].join('\n'),
+          portal: 'magicbricks',
+          adId: '83691103',
+        },
+        {
+          from: '99acres <noreply@99acres.com>',
+          subject: 'Property Advertisement Response',
+          text: [
+            'You have received a response on Rs8.4 Crore , Commercial Land/Inst. Land in Dollars Colony (K89065520) on 99acres.com',
+            'Jay Shankar',
+            '+91-9342169577 (Verified)',
+          ].join('\n'),
+          portal: '99acres',
+          adId: 'K89065520',
+        },
+      ];
+
+      for (const c of cases) {
+        mockDb.contacts = [];
+        const req = new Request('http://localhost/api/leads/email-webhook?account_id=acc-789&token=test-token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ subject: c.subject, from: c.from, text: c.text })
+        });
+        expect((await POST(req)).status).toBe(200);
+        expect(mockDb.contacts[0].lead_portal).toBe(c.portal);
+        expect(mockDb.contacts[0].lead_portal_listing_id).toBe(c.adId);
+      }
+    });
+
+    it('keeps the portal ad id on the lead so the agent can map it once', async () => {
+      const payload = {
+        subject: 'Housing - Lead interested in your property',
+        from: '"Housing.com" <noreply@housing-mailer.com>',
+        text: [
+          'Ranjith would like to talk to you',
+          'Name: Ranjith',
+          'Contact: 9626806002',
+          'Property ID: 20327451',
+        ].join('\n'),
+      };
+
+      const req = new Request('http://localhost/api/leads/email-webhook?account_id=acc-789&token=test-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      expect((await POST(req)).status).toBe(200);
+
+      // Unresolved — no property_portal_listings row names this ad yet.
+      // The id is what the agent asserts against, so it is kept whether
+      // or not it resolved.
+      expect(mockDb.contacts[0].lead_portal).toBe('housing');
+      expect(mockDb.contacts[0].lead_portal_listing_id).toBe('20327451');
+    });
+
+    it('does not file an enquiry that names no locality against a same-type listing', async () => {
+      mockDb.properties.push({
+        id: 'prop-hsr',
+        title: '4 BHK Independent Bungalow in HSR Layout',
+        type: 'Residential House',
+        location: 'HSR Layout, Bengaluru, Karnataka',
+        sublocality: 'HSR Layout',
+        bedrooms: 4,
+        area_sqft: null,
+        land_area: 4000,
+        land_area_unit: 'Sq.Ft.',
+        price: 165000000,
+        property_code: 'PROP-1194',
+      });
+
+      const payload = {
+        subject: 'Housing - Lead interested in your property',
+        from: '"Housing.com" <noreply@housing-mailer.com>',
+        text: [
+          'Ranjith would like to talk to you',
+          'Name: Ranjith',
+          'Contact: 9626806002',
+          'who would like to talk to you regarding your independent house:',
+          '4 BHK Independent House',
+        ].join('\n'),
+      };
+
+      const req = new Request('http://localhost/api/leads/email-webhook?account_id=acc-789&token=test-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      expect((await POST(req)).status).toBe(200);
+
+      expect(mockDb.contacts.length).toBe(1);
+      expect(mockDb.contact_property_inquiries.length).toBe(0);
+      expect(mockDb.contacts[0].last_inquired_property_id).toBeNull();
+    });
   });
 });

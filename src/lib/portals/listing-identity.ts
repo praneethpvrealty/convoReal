@@ -23,7 +23,14 @@ const ID_RE: Record<PortalKey, RegExp[]> = {
     /-pd-(\d{6,})/i,
     /\/propertyDetails\/[^?]*?(\d{8,})/i,
   ],
-  housing: [/\/([a-z0-9]{6,})-([a-z0-9]{6,})?$/i, /[?&]property_?id=(\d{5,})/i],
+  // Query form ONLY. Housing's URLs otherwise carry an opaque slug, and
+  // a slug pattern here matched first and won: a pasted listing URL
+  // stored "abc123def" as the ad id, while every Housing lead email
+  // quotes a numeric "Property ID: 20749829". The two could never meet,
+  // so the mapping resolved nothing and failed silently — the agent saw
+  // a saved listing URL and no reason to doubt it. Returning null is the
+  // honest answer; the dialog asks for the id instead.
+  housing: [/[?&]property_?id=(\d{5,})/i],
 };
 
 /** Housing's URLs carry an opaque slug rather than the numeric id its
@@ -48,7 +55,18 @@ export function parseListingIdFromUrl(
 const LEAD_ID_RE: Record<PortalKey, RegExp[]> = {
   // MagicBricks writes it mid-sentence ("your Property, ID 79221031:"),
   // so the separator between the words and the digits is optional.
+  // 99acres labels nothing. Its response emails name the listing in
+  // prose and drop the id in bare parentheses — "Commercial Land/Inst.
+  // Land in Dollars Colony (K89065520) on 99acres.com" — so the labelled
+  // forms below never fired and every 99acres lead arrived with no id to
+  // map. The parenthesised form is read two ways: with "on 99acres"
+  // behind it, which is the observed shape and unambiguous, and on its
+  // own when it carries 99acres' letter prefix. A bare parenthesised
+  // number is deliberately NOT accepted — that is as likely to be an
+  // area or a price as an ad id.
   '99acres': [
+    /\(([a-z]?\d{6,})\)\s*on\s+99acres/i,
+    /\(([a-z]\d{6,})\)/i,
     /(?:property|listing|ad)[,\s]*(?:id|code)\s*[:\-|#]?\s*([a-z]?\d{6,})/i,
     /\bnpxid[:\-\s]*([a-z]?\d{6,})/i,
   ],

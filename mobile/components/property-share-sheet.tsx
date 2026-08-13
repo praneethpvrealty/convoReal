@@ -65,12 +65,15 @@ const DETAILS: { value: ShareDetailLevel; label: string }[] = [
  * Opened from a contact's linked listing the recipient is already
  * known, so `contact` preselects it: both send paths address that
  * contact directly instead of asking again through the picker.
+ * `contacts` does the same for a set picked off the Matching Contacts
+ * list, which the Engine channel then fans out to.
  */
 export function PropertyShareSheet({
   property,
   visible,
   onClose,
   contact = null,
+  contacts,
   onShared,
 }: {
   property: Property;
@@ -78,6 +81,8 @@ export function PropertyShareSheet({
   onClose: () => void;
   /** Preselected recipient; when set, neither send path opens the picker. */
   contact?: Contact | null;
+  /** Preselected recipients. Takes precedence over `contact`. */
+  contacts?: Contact[];
   /** Fired with the recipients a share actually reached, so a caller
    *  showing per-contact share state can refresh it. */
   onShared?: (contactIds: string[]) => void;
@@ -362,7 +367,19 @@ export function PropertyShareSheet({
     });
   }
 
-  const recipientName = contact ? contact.name || contact.phone : null;
+  // One list for both props: a single preselected contact is just a
+  // one-recipient set, so every send path below reads `recipients` and
+  // only falls back to the picker when nothing was preselected.
+  const recipients = useMemo(
+    () => (contacts?.length ? contacts : contact ? [contact] : []),
+    [contacts, contact]
+  );
+  const recipientName =
+    recipients.length === 0
+      ? null
+      : recipients.length === 1
+        ? recipients[0].name || contactHandle(recipients[0])
+        : `${recipients.length} contacts`;
 
   const channels = [
     {
@@ -370,7 +387,13 @@ export function PropertyShareSheet({
       icon: 'logo-whatsapp' as const,
       label: 'WhatsApp',
       color: colors.success,
-      onPress: () => (contact ? void shareExternalWithContact(contact) : setPicker('external')),
+      // WhatsApp's own deep link opens one chat, so a multi-recipient
+      // share falls back to the picker here rather than pretending it
+      // can address the whole set at once.
+      onPress: () =>
+        recipients.length === 1
+          ? void shareExternalWithContact(recipients[0])
+          : setPicker('external'),
     },
     { key: 'telegram', icon: 'paper-plane' as const, label: 'Telegram', color: colors.readTick, onPress: () => Linking.openURL(targets.telegram) },
     { key: 'email', icon: 'mail-outline' as const, label: 'Email', color: colors.primary, onPress: () => Linking.openURL(targets.email) },
@@ -463,7 +486,9 @@ export function PropertyShareSheet({
         <SectionLabel text="Send from ConvoReal" />
         <Pressable
           disabled={engineSending}
-          onPress={() => (contact ? void sendViaConvoReal(contact) : setPicker('engine'))}
+          onPress={() =>
+            recipients.length ? void sendViaConvoRealMany(recipients) : setPicker('engine')
+          }
           accessibilityRole="button"
           accessibilityState={{ disabled: engineSending, busy: engineSending }}
           accessibilityLabel={
@@ -516,9 +541,11 @@ export function PropertyShareSheet({
         </View>
 
         <Text style={{ fontSize: 11.5, color: colors.textFaint, textAlign: 'center' }}>
-          {recipientName
-            ? `Both send to ${recipientName}. ConvoReal WhatsApp delivers from your business number and is tracked in the conversation thread; WhatsApp opens your own app and logs the share on their timeline.`
-            : 'Sending via ConvoReal WhatsApp delivers from your business number and is tracked in the conversation thread. Pick a contact on WhatsApp to log the share on their timeline too.'}
+          {recipients.length > 1
+            ? `Send from ConvoReal reaches all ${recipients.length} from your business number, each with their own greeting and their own 24-hour-window check. WhatsApp opens one chat at a time, so it asks who first.`
+            : recipientName
+              ? `Both send to ${recipientName}. ConvoReal WhatsApp delivers from your business number and is tracked in the conversation thread; WhatsApp opens your own app and logs the share on their timeline.`
+              : 'Sending via ConvoReal WhatsApp delivers from your business number and is tracked in the conversation thread. Pick a contact on WhatsApp to log the share on their timeline too.'}
         </Text>
       </ScrollView>
 

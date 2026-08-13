@@ -21,6 +21,7 @@ import {
   AgentSchedule,
   ContactTags,
   InterestedProperties,
+  PropertyPicker,
 } from '@/components/agent-detail';
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { ApproveCelebration, type ApproveCelebrationState } from '@/components/approve-celebration';
@@ -30,7 +31,7 @@ import { MoveToEngineSheet } from '@/components/move-to-engine-sheet';
 import { OwnerDetailsRequestSheet } from '@/components/owner-details-request-sheet';
 import { PulseRing } from '@/components/motion';
 import { Avatar, Banner, PrimaryButton, SectionLabel, Tag, TextField } from '@/components/ui';
-import { apiFetch } from '@/lib/api';
+import { apiFetch, ApiError } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
 import { useCallLog } from '@/lib/use-call-log';
 import { approveAndSendDetails, type ApproveOutcome } from '@/lib/approve-contact';
@@ -101,7 +102,8 @@ async function fetchContact(id: string): Promise<Contact | null> {
       'id, phone, secondary_phones, name, name_tag, email, company, classification, ' +
         'avatar_url, min_budget, max_budget, no_budget, areas_of_interest, areas_of_interest_geo, ' +
         'strict_area_match, min_roi, requirements, lead_temp, status, referrer, source, ' +
-        'property_interests, last_inquired_property_id, is_favorite, user_id'
+        'property_interests, last_inquired_property_id, lead_portal, lead_portal_listing_id, ' +
+        'is_favorite, user_id'
     )
     .eq('id', id)
     .maybeSingle();
@@ -543,7 +545,44 @@ function ReviewBanner({
 }) {
   const { colors, fonts: f } = useTheme();
   const [busy, setBusy] = useState(false);
-  const { show, dialogProps } = useAppDialog();
+  const { show, close, dialogProps } = useAppDialog();
+
+  // Portal leads are matched by scoring the enquiry against inventory
+  // when the ad itself isn't mapped yet, and a scorer can be wrong. This
+  // is how the agent says so before approving sends the lead the details
+  // of a listing they never asked about.
+  function confirmWrongListing(propertyId: string) {
+    show({
+      title: 'Not this listing?',
+      message:
+        'The listing will be un-tagged from this lead. Map the portal ad below to the right one and every future enquiry on it lands correctly.',
+      actions: [
+        { label: 'Keep it', variant: 'muted', onPress: close },
+        {
+          label: 'Un-tag',
+          variant: 'destructive',
+          onPress: async () => {
+            close();
+            try {
+              await apiFetch(`/api/contacts/${contact.id}/inquiries/${propertyId}`, {
+                method: 'DELETE',
+              });
+              haptic.success();
+              queryClient.invalidateQueries({ queryKey: ['contact', contact.id] });
+              queryClient.invalidateQueries({ queryKey: ['interested-properties', contact.id] });
+              queryClient.invalidateQueries({ queryKey: ['contacts'] });
+            } catch (e) {
+              haptic.warn();
+              show({
+                title: 'Could not un-tag',
+                message: friendlyError(e instanceof ApiError ? e.message : 'Try again.'),
+              });
+            }
+          },
+        },
+      ],
+    });
+  }
 
   async function approve() {
     setBusy(true);
@@ -609,8 +648,131 @@ function ReviewBanner({
         </Pressable>
       </View>
       {contact.last_inquired_property_id ? (
-        <ContactedProperty propertyId={contact.last_inquired_property_id} />
+        <ContactedProperty
+          propertyId={contact.last_inquired_property_id}
+          onWrongListing={() => confirmWrongListing(contact.last_inquired_property_id!)}
+        />
       ) : null}
+      <PortalAdMapping contact={contact} />
+      <AppDialog {...dialogProps} />
+    </View>
+  );
+}
+
+/**
+ * The portal ad this lead quoted, and the agent's one-time assertion of
+ * which listing it is. Until that pair exists in property_portal_listings
+ * the webhook can only score the enquiry against inventory; once it does,
+ * every later lead on the same ad resolves exactly — and asserting it
+ * settles the ones already waiting.
+ */
+function PortalAdMapping({ contact }: { contact: Contact }) {
+  const { colors, fonts: f } = useTheme();
+  const [picking, setPicking] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const { show, dialogProps } = useAppDialog();
+  const portal = contact.lead_portal;
+  const listingId = contact.lead_portal_listing_id;
+
+  const { data: mapped } = useQuery({
+    queryKey: ['portal-ad-link', portal, listingId],
+    enabled: Boolean(portal && listingId),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('property_portal_listings')
+        .select('property_id, properties(title)')
+        .eq('portal', portal!)
+        .eq('portal_listing_id', listingId!)
+        .maybeSingle();
+      if (error) throw error;
+      return data as { property_id: string; properties: { title: string } | null } | null;
+    },
+  });
+
+  if (!portal || !listingId) return null;
+
+  const portalLabel = contact.source || portal;
+
+  async function mapTo(propertyId: string) {
+    setPicking(false);
+    setBusy(true);
+    try {
+      const { data } = await apiFetch<{
+        data: { propertyTitle: string; taggedContacts: number };
+      }>(`/api/contacts/${contact.id}/portal-link`, {
+        method: 'POST',
+        body: JSON.stringify({ propertyId }),
+      });
+      haptic.success();
+      const others = data.taggedContacts - 1;
+      show({
+        title: 'Ad mapped',
+        message:
+          `${portalLabel} ad ${listingId} is now "${data.propertyTitle}". New enquiries on it match ` +
+          `automatically.` +
+          (others > 0 ? ` ${others} lead${others === 1 ? '' : 's'} already waiting moved across too.` : ''),
+      });
+      queryClient.invalidateQueries({ queryKey: ['contact', contact.id] });
+      queryClient.invalidateQueries({ queryKey: ['portal-ad-link', portal, listingId] });
+      queryClient.invalidateQueries({ queryKey: ['interested-properties', contact.id] });
+      queryClient.invalidateQueries({ queryKey: ['contacts'] });
+    } catch (e) {
+      haptic.warn();
+      show({
+        title: 'Could not map the ad',
+        message: friendlyError(e instanceof ApiError ? e.message : 'Try again.'),
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <View
+      style={[
+        styles.portalAdRow,
+        { backgroundColor: colors.surfaceRaised, borderColor: colors.glassBorder },
+      ]}
+    >
+      <Ionicons
+        name={mapped ? 'link' : 'help-circle-outline'}
+        size={16}
+        color={mapped ? colors.success : colors.warning}
+      />
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text style={{ fontSize: 12.5, fontFamily: f.bold, color: colors.text }} numberOfLines={1}>
+          {portalLabel} ad {listingId}
+        </Text>
+        <Text style={{ fontSize: 11.5, color: colors.textMuted }}>
+          {mapped
+            ? `Mapped to ${mapped.properties?.title ?? 'a listing'} — enquiries on it match automatically.`
+            : 'Not mapped yet. Say which listing this ad is and every future enquiry on it matches exactly.'}
+        </Text>
+      </View>
+      {mapped ? null : (
+        <Pressable
+          onPress={() => {
+            haptic.tap();
+            setPicking(true);
+          }}
+          disabled={busy}
+          accessibilityRole="button"
+          accessibilityLabel={`Map ${portalLabel} ad ${listingId} to a listing`}
+          style={[styles.mapAdButton, { borderColor: colors.primary, opacity: busy ? 0.6 : 1 }]}
+        >
+          {busy ? (
+            <ActivityIndicator size="small" color={colors.primary} />
+          ) : (
+            <Text style={{ fontSize: 12, fontFamily: f.bold, color: colors.primary }}>Map</Text>
+          )}
+        </Pressable>
+      )}
+      <PropertyPicker
+        visible={picking}
+        excludeIds={[]}
+        onClose={() => setPicking(false)}
+        onSelect={mapTo}
+      />
       <AppDialog {...dialogProps} />
     </View>
   );
@@ -618,7 +780,13 @@ function ReviewBanner({
 
 /** The listing the lead contacted about — shown in the review banner so
  *  the agent sees the inquiry before approving (web parity). */
-function ContactedProperty({ propertyId }: { propertyId: string }) {
+function ContactedProperty({
+  propertyId,
+  onWrongListing,
+}: {
+  propertyId: string;
+  onWrongListing: () => void;
+}) {
   const { colors, fonts: f } = useTheme();
   const { data: property } = useQuery({
     queryKey: ['contacted-property', propertyId],
@@ -660,6 +828,17 @@ function ContactedProperty({ propertyId }: { propertyId: string }) {
             {property.location}
           </Text>
         ) : null}
+        <Pressable
+          onPress={onWrongListing}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="This is the wrong listing — un-tag it"
+          style={{ alignSelf: 'flex-start' }}
+        >
+          <Text style={{ fontSize: 11.5, fontFamily: f.bold, color: colors.danger }}>
+            Wrong listing?
+          </Text>
+        </Pressable>
       </View>
       <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
     </Pressable>
@@ -1156,6 +1335,20 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     borderWidth: StyleSheet.hairlineWidth,
     padding: 8,
+  },
+  portalAdRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 10,
+  },
+  mapAdButton: {
+    borderRadius: radius.full,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
   },
   contactedThumb: {
     width: 46,

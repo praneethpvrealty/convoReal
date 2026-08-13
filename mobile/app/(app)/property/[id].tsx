@@ -1153,7 +1153,8 @@ function MatchesSection({ property }: { property: Property }) {
   const { colors, fonts: f } = useTheme();
   const queryClient = useQueryClient();
   const [showAgents, setShowAgents] = useState(false);
-  const [shareTo, setShareTo] = useState<Contact | null>(null);
+  const [shareTo, setShareTo] = useState<Contact[] | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const matches = useQuery({
     queryKey: ['property-matches', property.id],
@@ -1169,6 +1170,18 @@ function MatchesSection({ property }: { property: Property }) {
     ? all
     : all.filter((m) => m.contact.classification !== 'Agent');
   const sharedCount = rows.filter((m) => m.sharedAt).length;
+  const allSelected =
+    rows.length > 0 && rows.every((m) => selectedIds.includes(m.contact.id));
+  const selected = rows
+    .filter((m) => selectedIds.includes(m.contact.id))
+    .map((m) => m.contact);
+
+  function toggle(id: string) {
+    haptic.tap();
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  }
 
   return (
     <Section title="Matching Contacts">
@@ -1202,6 +1215,31 @@ function MatchesSection({ property }: { property: Property }) {
             </Text>
           </Pressable>
         ) : null}
+        {rows.length > 0 ? (
+          <Pressable
+            onPress={() => {
+              haptic.tap();
+              setSelectedIds(allSelected ? [] : rows.map((m) => m.contact.id));
+            }}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={
+              allSelected
+                ? 'Clear selection'
+                : `Select all ${rows.length} matching contacts`
+            }
+          >
+            <Text
+              style={{
+                fontSize: 12,
+                fontFamily: f.bold,
+                color: colors.primary,
+              }}
+            >
+              {allSelected ? 'Clear' : `Select all (${rows.length})`}
+            </Text>
+          </Pressable>
+        ) : null}
       </View>
 
       {matches.isLoading ? (
@@ -1227,6 +1265,7 @@ function MatchesSection({ property }: { property: Property }) {
         // without re-sending to someone who already has it. Sharing
         // again stays available — it is a reminder, not a lockout.
         const shared = Boolean(m.sharedAt);
+        const picked = selectedIds.includes(m.contact.id);
         return (
           <Pressable
             key={m.contact.id}
@@ -1239,12 +1278,30 @@ function MatchesSection({ property }: { property: Property }) {
             style={[
               styles.matchRow,
               {
-                backgroundColor: colors.glass,
-                borderColor: colors.glassBorder,
+                backgroundColor: picked ? colors.primarySoft : colors.glass,
+                borderColor: picked ? colors.primary : colors.glassBorder,
               },
-              shared && { opacity: 0.6 },
+              shared && !picked && { opacity: 0.6 },
             ]}
           >
+            {/* Its own tap target: the row still opens the contact, so
+              selecting several to send in one go never costs a
+              navigation. */}
+            <Pressable
+              onPress={() => toggle(m.contact.id)}
+              hitSlop={10}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: picked }}
+              accessibilityLabel={`Select ${m.contact.name || m.contact.phone}`}
+              style={{ paddingTop: 1 }}
+            >
+              <Ionicons
+                name={picked ? 'checkbox' : 'square-outline'}
+                size={20}
+                color={picked ? colors.primary : colors.textFaint}
+              />
+            </Pressable>
+
             <View style={{ flex: 1, gap: 4 }}>
               <View
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
@@ -1316,7 +1373,7 @@ function MatchesSection({ property }: { property: Property }) {
               <Pressable
                 onPress={() => {
                   haptic.tap();
-                  setShareTo(m.contact);
+                  setShareTo([m.contact]);
                 }}
                 hitSlop={10}
                 accessibilityRole="button"
@@ -1339,12 +1396,37 @@ function MatchesSection({ property }: { property: Property }) {
         );
       })}
 
+      {selected.length > 0 ? (
+        <Pressable
+          onPress={() => {
+            haptic.tap();
+            setShareTo(selected);
+          }}
+          accessibilityRole="button"
+          accessibilityLabel={`Share this property with ${selected.length} selected contacts`}
+          style={[styles.bulkShare, { backgroundColor: colors.primary }]}
+        >
+          <Ionicons name="paper-plane" size={16} color={colors.onPrimary} />
+          <Text
+            style={{
+              fontSize: 14,
+              fontFamily: f.bold,
+              color: colors.onPrimary,
+            }}
+          >
+            Share with {selected.length} contact
+            {selected.length === 1 ? '' : 's'}
+          </Text>
+        </Pressable>
+      ) : null}
+
       <PropertyShareSheet
         property={property}
-        contact={shareTo}
+        contacts={shareTo ?? undefined}
         visible={shareTo !== null}
         onClose={() => setShareTo(null)}
-        onShared={() => {
+        onShared={(ids) => {
+          setSelectedIds((prev) => prev.filter((id) => !ids.includes(id)));
           void queryClient.invalidateQueries({
             queryKey: ['property-matches', property.id],
           });
@@ -1629,6 +1711,14 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     borderWidth: StyleSheet.hairlineWidth,
     padding: spacing.md,
+  },
+  bulkShare: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    borderRadius: radius.full,
+    paddingVertical: 13,
   },
   scoreBadge: {
     borderRadius: radius.full,

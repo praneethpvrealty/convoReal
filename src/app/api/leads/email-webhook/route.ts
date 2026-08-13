@@ -379,7 +379,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ status: 'filtered', message: 'Non-lead email filtered out.' });
     }
 
-    const parsed = parsePortalLead(subject, bodyText, htmlContent);
+    const parsed = parsePortalLead(subject, bodyText, htmlContent, sender);
 
     // Ignore portal source emails (e.g. support@housing.com) — they are the
     // sender address, not the lead's actual email.
@@ -674,38 +674,53 @@ export async function POST(request: Request) {
             // locality often lives in sublocality alone: `location` is a
             // full postal/plus-code line whose locality tokens can be
             // spelled differently ("Bengaluru" vs the parsed "Bangalore").
+            let locationMatched = false;
             if (parsed.propertyLocation) {
-              const matchesLocation =
+              locationMatched = Boolean(
                 (p.location && checkLocationMatch(parsed.propertyLocation, p.location)) ||
-                (p.sublocality && checkLocationMatch(parsed.propertyLocation, p.sublocality));
-              if (matchesLocation) {
+                (p.sublocality && checkLocationMatch(parsed.propertyLocation, p.sublocality))
+              );
+              if (locationMatched) {
                 matchScore += 3;
               }
             }
 
             // Match by area (within 10% tolerance)
+            let sizeMatched = false;
             const propertySqft = matchableSqft(p);
             if (parsed.areaSqft && propertySqft) {
               const areaDiff = Math.abs(parsed.areaSqft - propertySqft) / propertySqft;
               if (areaDiff <= 0.1) {
                 matchScore += 2;
+                sizeMatched = true;
               }
             }
 
             // Match by price (within 15% tolerance)
+            let priceMatched = false;
             if (parsed.propertyPrice && p.price) {
               const priceDiff = Math.abs(parsed.propertyPrice - p.price) / p.price;
               if (priceDiff <= 0.15) {
                 matchScore += 2;
+                priceMatched = true;
               }
             }
 
-            return { property: p, score: matchScore };
+            // Type and bedrooms describe a KIND of listing, never a
+            // particular one, so they cannot carry a tag by themselves:
+            // with only those the winner is whichever listing of that kind
+            // is newest, which is how a Koramangala enquiry was filed
+            // against a 4 BHK bungalow in HSR Layout. A listing is tagged
+            // only when the enquiry points at it — its own locality, or
+            // the ad's size and price together.
+            const identifiesListing = locationMatched || (sizeMatched && priceMatched);
+
+            return { property: p, score: matchScore, identifiesListing };
           });
 
           // Require at least 2 points so type-only near-matches still qualify
           const ranked = scoredProperties
-            .filter((sp) => sp.score >= 2)
+            .filter((sp) => sp.score >= 2 && sp.identifiesListing)
             .sort((a, b) => b.score - a.score);
           const matchedProperties = ranked.map((sp) => sp.property);
 
@@ -715,12 +730,12 @@ export async function POST(request: Request) {
             console.log(`[lead-webhook] Matched ${matchedProperties.length} properties: ${matchedProperties.map(p => p.title).join(', ')} from ${parsed.source} inquiry`);
 
             // Find the maximum matching score
-            const maxScore = Math.max(...scoredProperties.map((sp) => sp.score), 0);
+            const maxScore = ranked[0].score;
 
-            // Only use high-confidence matched properties (score >= 3 and score === maxScore) 
-            // to enhance the contact's budget, areas, and interests. This prevents type-only matches 
+            // Only use high-confidence matched properties (score >= 3 and score === maxScore)
+            // to enhance the contact's budget, areas, and interests. This prevents type-only matches
             // (e.g., matching every Plot in the account) from polluting the contact's details.
-            const bestMatchedProperties = scoredProperties
+            const bestMatchedProperties = ranked
               .filter((sp) => sp.score >= 3 && sp.score === maxScore)
               .map((sp) => sp.property);
 
@@ -824,6 +839,8 @@ export async function POST(request: Request) {
         company?: string;
         source?: string;
         last_inquired_property_id?: string | null;
+        lead_portal?: string;
+        lead_portal_listing_id?: string;
       } = {};
       if (maxBudget) updatePayload.max_budget = maxBudget;
       else if (inferredBudget) updatePayload.pref_budget_max = inferredBudget;
@@ -837,7 +854,13 @@ export async function POST(request: Request) {
       }
       if (propertyInterests.length > 0) updatePayload.property_interests = propertyInterests;
       if (matchedPropertyIds.length > 0) updatePayload.last_inquired_property_id = matchedPropertyIds[0];
-      
+      // The ad this enquiry names, kept whether or not it resolved: an
+      // unmapped id is exactly what the agent is asked to assert once.
+      if (leadPortal && parsed.portalListingId) {
+        updatePayload.lead_portal = leadPortal;
+        updatePayload.lead_portal_listing_id = parsed.portalListingId;
+      }
+
       // Tag source
       updatePayload.company = parsed.source;
       updatePayload.source = parsed.source;
@@ -1010,6 +1033,8 @@ export async function POST(request: Request) {
         pref_areas: inferredAreas.length > 0 ? inferredAreas : null,
         property_interests: propertyInterests.length > 0 ? propertyInterests : null,
         last_inquired_property_id: matchedPropertyIds.length > 0 ? matchedPropertyIds[0] : null,
+        lead_portal: leadPortal && parsed.portalListingId ? leadPortal : null,
+        lead_portal_listing_id: leadPortal && parsed.portalListingId ? parsed.portalListingId : null,
         status: 'pending_review',
       })
       .select('id, name')
