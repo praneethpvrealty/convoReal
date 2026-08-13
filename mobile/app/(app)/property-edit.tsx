@@ -20,6 +20,7 @@ import { OptionSheet } from '@/components/option-sheet';
 import { PropertyPhotoEditor } from '@/components/property-photo-editor';
 import { Banner, FilterChip, PriceHint, PrimaryButton, SectionLabel, TextField } from '@/components/ui';
 import { formatInr } from '@/lib/format';
+import { TagsField } from '@/components/tags-field';
 import { apiFetch, ApiError } from '@/lib/api';
 import { friendlyError } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
@@ -90,7 +91,7 @@ async function fetchProperty(id: string): Promise<Property | null> {
       'id, title, description, price, rent_per_month, maintenance, status, listing_type, sold_price, ' +
         'bedrooms, bathrooms, area_sqft, area_unit, is_published, type, images, ' +
         'location, sublocality, city, state, land_area, land_area_unit, super_built_area, ' +
-        'dimensions, facing_direction, google_map_link, showcase_visibility, features, nearby_highlights, ' +
+        'dimensions, facing_direction, google_map_link, showcase_visibility, features, nearby_highlights, tags, ' +
         'floor_tenancies, owner_contact_id, owner:contacts!properties_owner_contact_id_fkey(id, name, phone)'
     )
     .eq('id', id)
@@ -184,6 +185,8 @@ function EditForm({ property }: { property: Property }) {
     }))
   );
   const [description, setDescription] = useState(property.description ?? '');
+  const [tags, setTags] = useState<string[]>(property.tags ?? []);
+  const [tagInput, setTagInput] = useState('');
   const [published, setPublished] = useState(Boolean(property.is_published));
   const [ownerContactId, setOwnerContactId] = useState<string | null>(
     property.owner_contact_id ?? null
@@ -254,6 +257,7 @@ function EditForm({ property }: { property: Property }) {
       showcase_visibility: confidential ? 'teaser' : null,
       features,
       nearby_highlights: nearby,
+      tags,
       images,
       owner_contact_id: ownerContactId,
       // Web parity: only meaningful while Sold; null clears a stale
@@ -682,6 +686,13 @@ function EditForm({ property }: { property: Property }) {
             ) : null}
           </>
         ) : null}
+
+        <TagsField
+          tags={tags}
+          onChange={setTags}
+          input={tagInput}
+          onInputChange={setTagInput}
+        />
 
         <TextField label="Description" value={description} onChangeText={setDescription} multiline />
 
