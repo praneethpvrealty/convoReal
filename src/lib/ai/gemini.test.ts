@@ -1,29 +1,11 @@
+// This file used to read .env.local and copy every variable in it into
+// process.env, then prefer a real GEMINI_API_KEY over a mock one. That
+// put the developer's live service-role key, encryption key and app
+// secret into the unit-test process — overwriting the deliberate dummies
+// in vitest.config.ts for every file sharing the worker — and made the
+// suite's behaviour depend on who was running it. The key now comes from
+// vitest.config.ts like the others, and fetch is stubbed per test below.
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { readFileSync, existsSync } from 'fs';
-import { resolve } from 'path';
-
-// Load env variables manually from .env.local for vitest
-const envPath = resolve(__dirname, '../../../.env.local');
-if (existsSync(envPath)) {
-  const envContent = readFileSync(envPath, 'utf8');
-  for (const line of envContent.split('\n')) {
-    const match = line.match(/^\s*([\w.-]+)\s*=\s*(.*)\s*$/);
-    if (match) {
-      const key = match[1];
-      let value = match[2].trim();
-      if (value.startsWith('"') && value.endsWith('"')) {
-        value = value.substring(1, value.length - 1);
-      } else if (value.startsWith("'") && value.endsWith("'")) {
-        value = value.substring(1, value.length - 1);
-      }
-      process.env[key] = value;
-    }
-  }
-}
-
-if (!process.env.GEMINI_API_KEY) {
-  process.env.GEMINI_API_KEY = 'mock-gemini-api-key-for-testing';
-}
 
 import { generateJson, generateText } from './gemini';
 import { parseListingFromImageOrText, updateListingDraft, parseContactFromImageOrText, updateContactDraft, looksLikePropertyListing, looksLikeBuyerRequirement, inferBuyerFromRequirements, normalizeClassification, promoteClassificationFromNameTag, classifyImageOrText, normalizeListingFeatures } from './gemini';

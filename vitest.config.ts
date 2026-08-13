@@ -26,6 +26,19 @@ export default defineConfig({
       ENCRYPTION_KEY:
         "0000000000000000000000000000000000000000000000000000000000000000",
       META_APP_SECRET: "test-meta-app-secret",
+      // Overrides a real key in the developer's shell, which is the
+      // point. A unit test that reaches unmocked provider code should
+      // fail loudly on a bogus credential, not quietly bill the account
+      // and pass — and a test whose result depends on whether the person
+      // running it has an API key is not a test. Keys are listed here
+      // rather than left unset because "unset" is itself a behaviour
+      // (features degrade to disabled), and one that hides the calls.
+      GEMINI_API_KEY: "test-gemini-api-key",
+      STABILITY_API_KEY: "test-stability-api-key",
+      HF_ACCESS_TOKEN: "test-hf-access-token",
+      SARVAM_API_KEY: "test-sarvam-api-key",
+      RESEND_API_KEY: "test-resend-api-key",
+      GOOGLE_MAPS_API_KEY: "test-google-maps-api-key",
     },
     clearMocks: true,
   },
