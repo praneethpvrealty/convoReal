@@ -76,10 +76,45 @@ Derived per-account averages used for the projections in §5: **~25 MB storage**
 | :--- | :--- | :--- | :--- |
 | **GitHub** | Repo + Actions (`ci.yml`, `opencode.yml`) | Free public / 2,000 min/mo private | `main` protection ruleset requires the `CI` gate job. |
 | **OpenCode** (`anomalyco/opencode/github@latest`) | `/oc` PR-comment agent, `OPENCODE_API_KEY`, model `opencode/deepseek-v4-flash-free` | Free model selected | Third-party Action with repo read access — review if not deliberately adopted. |
-| **Expo / EAS** | Mobile builds, updates, submit. Owner `praneethpvrealtys-team`, project `35ac40bb-d476-4b1f-ae5f-139b38e409dd` | **Free tier** | 15 Android + 15 iOS builds/mo, 1,000 update MAUs, 100 GiB bandwidth, no concurrent builds. Production is $199/mo. |
+| **Expo / EAS** | Mobile builds, updates, submit. Owner `praneethpvrealtys-team`, project `35ac40bb-d476-4b1f-ae5f-139b38e409dd` | **Free tier** | Cost model in §2.6. |
 | **Apple Developer / Google Play** | `com.convoreal.app` distribution | $99/yr + $25 one-time | Required to publish. Store review takes weeks. |
 
-### 2.6 Referenced in docs but not actually used
+### 2.6 Mobile release costs — EAS, Apple, Google
+
+EAS is billed on two independent meters, **builds** and **updates**, and `mobile/` uses both. `expo-updates` (~57.0.8) is a dependency and `mobile/eas.json` defines `development`, `preview` and `production` channels, so the EAS Update MAU allowance is a live constraint, not a theoretical one — not just the build allowance.
+
+#### Plan ladder
+
+| Plan | Price | Build credits | Update MAU | Concurrency |
+| :--- | :--- | :--- | :--- | :--- |
+| **Free** *(current)* | $0 | 15 Android + 15 iOS builds/mo | 1,000 | none — builds queue at low priority |
+| **Starter** | $19/mo + usage | $45/mo | 3,000 | none included |
+| **Production** | $199/mo + usage | $225/mo | 50,000 | 2 included |
+| Enterprise | quoted | — | — | — |
+
+Additional build concurrency is a **$50/concurrency/month** add-on on any paid plan, up to 5. Build credits reset monthly and **do not roll over**.
+
+#### On-demand build cost
+
+Once the free builds or a plan's credits are spent, builds bill per build at roughly **$1–4** depending on platform and worker size — an iOS medium worker is about $2. Larger workers (8 vCPU / 32 GB Android, 10 performance cores / 40 GiB iOS) cost more and build faster.
+
+Practical shape of this: at ~$2/build, the Starter plan's $45 credit is around 20–25 builds. The free tier's 15+15 is generous for pre-release work but the real constraint there is **queue priority, not the count** — free builds wait behind paid ones, which stops mattering the moment a release is time-boxed.
+
+#### The build meter is optional
+
+EAS Build is a convenience, not a dependency. `eas build --local`, or building on self-hosted CI, removes this line entirely — the Expo SDK and CLI are free forever and only the cloud services bill. The catch is iOS: it needs a macOS runner, so a self-hosted path trades an EAS bill for GitHub Actions macOS minutes (billed at a 10× multiplier on private repos) plus the signing-credential handling EAS otherwise does. Worth pricing only if builds ever become a material line; at beta scale they will not.
+
+The **update** meter has no such escape — OTA delivery is the service.
+
+#### Store fees
+
+Apple Developer is **$99/yr**, recurring, and lapsing it pulls the app from the App Store. Google Play is **$25 once**. Both are prerequisites for release, and enrolment plus first review takes weeks — start before the build pipeline is ready, not after.
+
+#### Recommendation
+
+Stay on **Free** through the beta. 15 builds per platform per month covers pre-release iteration, and 1,000 update MAUs comfortably covers a 100-account beta (§7 of `docs/invite-only-beta-plan.md`). Move to **Starter ($19/mo)** at the first of: builds exceeding 15/platform/month, update MAU passing 1,000, or release timing becoming sensitive to queue waits. **Production ($199/mo)** is not justified until MAU approaches ~40,000 — below that it costs more than the overage it prevents.
+
+### 2.7 Referenced in docs but not actually used
 
 `docs/scaling-costs.md` describes a target architecture, not the current one. **Cloudflare R2 is not in use** — all media is on Supabase Storage. **Sentry, BetterStack, Datadog and PostHog are not integrated** — there is currently no error monitoring or uptime alerting anywhere in the codebase.
 
@@ -116,7 +151,7 @@ This table is the infrastructure gate for the invite-only beta; [`docs/invite-on
 | Verify Railway is on Hobby, not Free | ~$10–15/mo | The Free plan's $1/mo credit cannot keep `go-ingress` and `queue-worker` running 24/7. |
 | Upstash: enable pay-as-you-go, stay on the free tier | $0 until 500K commands | Prevents a hard stop at the free ceiling; $0.20/100K after. No fixed plan needed. |
 | Sentry Developer (or equivalent) | $0 | There is currently no error monitoring at all. |
-| Apple Developer + Google Play, if mobile ships | $99/yr + $25 once | Store review takes weeks — start early. |
+| Apple Developer + Google Play, if mobile ships | $99/yr + $25 once | Enrolment plus first review takes weeks — start before the build pipeline is ready (§2.6). |
 
 **Launch-month run rate: ~$68/mo (≈ ₹6,000)**, inclusive of the existing Vercel Pro $20.
 
@@ -137,7 +172,8 @@ Thresholds projected from the §1 per-account averages.
 | **Resend** | >60 emails/day or >2,500/mo | Pro | $20/mo |
 | **Vercel** | Transfer >800 GB or edge requests >8M | Nothing — Pro's $20 credit absorbs overage first | usage-based |
 | **Railway** | Worker CPU sustained >70%, or queue depth growing | Add worker replicas | ~$5/replica |
-| **Expo EAS** | >15 builds/month per platform | Buy on-demand build credits. **Do not move to Production ($199/mo)** until past ~40k MAU | ~$1–2/build |
+| **Expo EAS builds** | >15 builds/month per platform, or release timing blocked by free-tier queue priority | Starter ($19/mo, $45 credits). **Do not move to Production ($199/mo)** until past ~40k MAU — see §2.6 | $19/mo + ~$1–4/build |
+| **Expo EAS updates** | Update MAU >1,000 | Same Starter upgrade (3,000 MAU). This meter is separate from builds and has no self-hosted escape | included in Starter |
 
 The shape of that table matters more than any single row: **Supabase Pro carries the product to roughly 200 accounts before anything else needs money, and the meter that breaks first is image egress from the public showcase** — not database size, not compute. The CDN/R2 migration is the one architectural change worth planning ahead for. Everything in `docs/scaling-costs.md` beyond Tier 1 should stay unbought until its trigger actually moves.
 
@@ -205,6 +241,7 @@ Pricing and limits verified 2026-08-12:
 - [Supabase pricing](https://supabase.com/pricing) · [Supabase custom SMTP](https://supabase.com/docs/guides/auth/auth-smtp) · [Supabase production checklist](https://supabase.com/docs/guides/deployment/going-into-prod)
 - [Vercel Pro plan](https://vercel.com/docs/plans/pro-plan) · [Vercel limits](https://vercel.com/docs/limits) · [Vercel cron jobs](https://vercel.com/docs/cron-jobs)
 - [Upstash Redis pricing](https://upstash.com/pricing/redis) · [Railway pricing plans](https://docs.railway.com/pricing/plans)
-- [Resend pricing](https://resend.com/pricing) · [Resend 2026 repricing and retention changes](https://coldletter.com/blog/resend-pricing/) · [Expo/EAS tiers](https://agentdeals.dev/vendor/expo)
+- [Resend pricing](https://resend.com/pricing) · [Resend 2026 repricing and retention changes](https://coldletter.com/blog/resend-pricing/)
+- [Expo/EAS tiers](https://agentdeals.dev/vendor/expo) · [Expo plans and add-ons](https://docs.expo.dev/billing/plans/) · [Expo usage-based pricing](https://docs.expo.dev/billing/usage-based-pricing/) · [EAS build cost calculator](https://www.applighter.com/blog/expo-eas-build-cost-calculator) · [EAS Update MAU pricing](https://stalliontech.io/expo-eas-update-pricing)
 - [WhatsApp Business API pricing 2026](https://blueticks.co/blog/whatsapp-business-api-pricing-2026) · [India rate update](https://chati.ai/blog/whatsapp-business-api-pricing-update-for-2026)
 - [Gemini API free-tier limits](https://aipromptshub.co/blog/gemini-api-free-tier-rate-limits) · [Gemini pricing](https://findskill.ai/blog/gemini-api-pricing-guide/) · [Google Maps API pricing 2026](https://www.mapsi.dev/google-maps-api-pricing)
