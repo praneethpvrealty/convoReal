@@ -262,6 +262,7 @@ export function PropertyForm({
   const [showcaseVisibility, setShowcaseVisibility] = useState<'' | 'teaser'>('');
   const [notes, setNotes] = useState('');
   const [tags, setTags] = useState<string[]>([]);
+  const [tagSuggestions, setTagSuggestions] = useState<{ tag: string; uses: number }[]>([]);
   const [tagInput, setTagInput] = useState('');
 
   // Document Requests management
@@ -2460,6 +2461,22 @@ export function PropertyForm({
   // Filter project & area lists based on search query
   const query = searchQuery.trim().toLowerCase();
   
+  // Tags already in use in this account, counted server-side
+  // (account_property_tags, migration 265).
+  useEffect(() => {
+    if (!open) return;
+    void (async () => {
+      try {
+        const res = await fetch('/api/properties/tags');
+        if (!res.ok) return;
+        const body = await res.json();
+        setTagSuggestions(Array.isArray(body?.data) ? body.data : []);
+      } catch {
+        // Suggestions are a convenience; the free-text input still works.
+      }
+    })();
+  }, [open]);
+
   const filteredProjects = useMemo(() => {
     if (!query) {
       return POPULAR_PROJECTS.slice(0, 5).map(p => ({
@@ -4423,6 +4440,30 @@ export function PropertyForm({
                           className="h-6 min-w-[140px] flex-1 bg-transparent text-sm text-white placeholder:text-slate-500 focus:outline-none"
                         />
                       </div>
+                      {tagSuggestions.filter((s) => !tags.some((t) => t.toLowerCase() === s.tag.toLowerCase())).length > 0 && (
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {/* Already in use in this account. A tag only earns its
+                              keep if every listing it should cover spells it the
+                              same way — "APM" on three villas of a project and
+                              "AMP" on the fourth leaves the fourth out of the
+                              search the tag exists for. */}
+                          {tagSuggestions
+                            .filter((s) => !tags.some((t) => t.toLowerCase() === s.tag.toLowerCase()))
+                            .slice(0, 10)
+                            .map((s) => (
+                              <button
+                                key={s.tag}
+                                type="button"
+                                onClick={() => setTags([...tags, s.tag])}
+                                className="inline-flex items-center gap-1 rounded-full border border-slate-700 px-2 py-0.5 text-[11px] text-slate-400 hover:border-slate-600 hover:text-slate-200 cursor-pointer"
+                              >
+                                <Plus className="size-2.5" />
+                                {s.tag}
+                                <span className="text-slate-600">{s.uses}</span>
+                              </button>
+                            ))}
+                        </div>
+                      )}
                       <p className="text-[10px] text-slate-500 leading-normal">
                         Builder names, campaigns, deal nicknames — typing any part of a tag finds this property in Inventory search and property pickers.
                       </p>
