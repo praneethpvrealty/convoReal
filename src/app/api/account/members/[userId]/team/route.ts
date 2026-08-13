@@ -49,7 +49,7 @@ export async function PATCH(
       );
     }
 
-    const limit = checkRateLimit(
+    const limit = await checkRateLimit(
       `leader:memberTeam:${ctx.userId}`,
       RATE_LIMITS.adminAction,
     );

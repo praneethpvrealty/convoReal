@@ -269,7 +269,7 @@ convoReal/
 │   │   ├── email/, email.ts      # Resend wrapper + IMAP lead sync
 │   │   ├── maps/                 # Google Places proxy
 │   │   ├── data/                 # Static/locality data
-│   │   ├── rate-limit.ts         # In-memory fixed-window limiter (single instance only)
+│   │   ├── rate-limit.ts         # Fixed-window limiter: Redis when REDIS_URL is set, in-memory otherwise
 │   │   └── utils.ts              # `cn()` Tailwind merge helper
 │   ├── scripts/                  # Background workers and admin scripts
 │   │   ├── queue-worker.ts       # Redis consumer for WhatsApp webhooks
@@ -716,7 +716,7 @@ All cron routes require `AUTOMATION_CRON_SECRET` or `CRON_SECRET`.
 - **Webhook signatures**: Always verify `X-Hub-Signature-256` with `META_APP_SECRET` before processing webhooks. The Go ingress does this; the Next.js fallback route also does it.
 - **RLS**: Keep RLS enabled. Do not create service-role clients in client code. Even service-role routes must enforce `account_id` scoping.
 - **Media proxy**: Never expose Meta media URLs directly; proxy through `/api/whatsapp/media/[mediaId]`.
-- **Rate limiting**: `src/lib/rate-limit.ts` is an in-process fixed-window counter. It holds its Map in one Node process, so horizontal scale silently defeats it. If you deploy more than one instance, swap the `check` implementation for Redis/Upstash keeping the same return shape — call sites do not change.
+- **Rate limiting**: `src/lib/rate-limit.ts` is a fixed-window counter, backed by Redis when `REDIS_URL` is set and by an in-process Map otherwise. `checkRateLimit()` is **async** — every call site must `await` it, and TypeScript enforces that (`RateLimitResult` and `Promise<RateLimitResult>` are not interchangeable at `.success` or at `rateLimitResponse`). The Redis path does INCR + expiry in one Lua script, so instances racing on the first request of a window cannot both set the TTL. When Redis fails it falls back to the in-process counter rather than failing open or closed: a weaker limit beats either removing the limit during an incident or 429-ing the whole product because a cache is down. Without `REDIS_URL` — local dev, the test suite — behaviour is exactly as it was before. Each rate-limited request costs one Redis command; check the Upstash budget in `docs/external-services-audit.md` before adding the limiter to a high-traffic endpoint.
 - **CSP**: Currently report-only (`Content-Security-Policy-Report-Only`). Flip to enforce only after validating no violations across every route for at least two deploys.
 - **Deep linking**: `.well-known/apple-app-site-association` and `.well-known/assetlinks.json` are generated from env vars `APPLE_TEAM_ID` and `ANDROID_APP_CERT_SHA256`.
 - **Security reports**: See `.github/SECURITY.md`. Do not open public security issues.

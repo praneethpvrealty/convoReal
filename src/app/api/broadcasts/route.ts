@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
     const ctx = await requireRole('agent');
 
     // Enforce per-user broadcast campaign start limit
-    const limit = checkRateLimit(`broadcast:${ctx.userId}`, RATE_LIMITS.broadcast);
+    const limit = await checkRateLimit(`broadcast:${ctx.userId}`, RATE_LIMITS.broadcast);
     if (!limit.success) {
       return rateLimitResponse(limit);
     }

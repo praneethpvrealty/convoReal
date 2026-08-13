@@ -44,7 +44,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
 
-    const limit = checkRateLimit(
+    const limit = await checkRateLimit(
       `admin:extension-otp:${auth.userId}`,
       RATE_LIMITS.adminOtp
     );

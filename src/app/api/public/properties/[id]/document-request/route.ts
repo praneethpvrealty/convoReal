@@ -42,9 +42,9 @@ export async function POST(
       request.headers.get("x-forwarded-for")?.split(",")[0].trim() ||
       request.headers.get("x-real-ip") ||
       "unknown";
-    const ipLimit = checkRateLimit(`docreq:ip:${ip}`, DOCREQ_IP_LIMIT);
+    const ipLimit = await checkRateLimit(`docreq:ip:${ip}`, DOCREQ_IP_LIMIT);
     if (!ipLimit.success) return rateLimitResponse(ipLimit);
-    const accountLimit = checkRateLimit(`docreq:account:${account_id}`, DOCREQ_ACCOUNT_LIMIT);
+    const accountLimit = await checkRateLimit(`docreq:account:${account_id}`, DOCREQ_ACCOUNT_LIMIT);
     if (!accountLimit.success) return rateLimitResponse(accountLimit);
 
     const normalizedPhone = normalizePhoneWithCountryCode(requester_phone.trim());

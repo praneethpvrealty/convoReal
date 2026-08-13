@@ -71,7 +71,7 @@ export async function POST(
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
 
-    const limit = checkRateLimit(`admin:plan-otp:${auth.userId}`, RATE_LIMITS.adminOtp)
+    const limit = await checkRateLimit(`admin:plan-otp:${auth.userId}`, RATE_LIMITS.adminOtp)
     if (!limit.success) return rateLimitResponse(limit)
 
     const { id: accountId } = await params

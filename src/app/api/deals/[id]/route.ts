@@ -10,7 +10,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     const ctx = await requireRole('agent');
     const { id: dealId } = await params;
 
-    const limit = checkRateLimit(
+    const limit = await checkRateLimit(
       `agent:updateDeal:${ctx.userId}`,
       RATE_LIMITS.adminAction,
     );
@@ -99,7 +99,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     const ctx = await requireRole('agent');
     const { id: dealId } = await params;
 
-    const limit = checkRateLimit(
+    const limit = await checkRateLimit(
       `agent:dealStatus:${ctx.userId}`,
       RATE_LIMITS.adminAction,
     );
@@ -184,7 +184,7 @@ export async function DELETE(
     const ctx = await requireRole('agent');
     const { id: dealId } = await params;
 
-    const limit = checkRateLimit(
+    const limit = await checkRateLimit(
       `agent:deleteDeal:${ctx.userId}`,
       RATE_LIMITS.adminAction,
     );

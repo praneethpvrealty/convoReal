@@ -290,7 +290,7 @@ export function withApiKeyAuth(requiredScope: ApiKeyScope, handler: ApiKeyHandle
       // the plaintext never reaches the limiter's key space, and so an
       // attacker rotating candidate keys still shares one budget per
       // candidate rather than getting a fresh one each attempt.
-      const limit = checkRateLimit(`v1:${hashApiKey(secret)}`, RATE_LIMITS.apiKeyV1);
+      const limit = await checkRateLimit(`v1:${hashApiKey(secret)}`, RATE_LIMITS.apiKeyV1);
       if (!limit.success) return rateLimitResponse(limit);
 
       const ctx = await resolveApiKey(secret);

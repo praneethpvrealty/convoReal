@@ -16,7 +16,7 @@ export async function POST(
     const { id: workflowId } = await params;
 
     // A WhatsApp send, not an admin action — share the send budget.
-    const limit = checkRateLimit(`send:${ctx.userId}`, RATE_LIMITS.send);
+    const limit = await checkRateLimit(`send:${ctx.userId}`, RATE_LIMITS.send);
     if (!limit.success) return rateLimitResponse(limit);
 
     const body = await request.json().catch(() => null);

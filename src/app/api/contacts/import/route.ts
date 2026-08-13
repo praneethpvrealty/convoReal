@@ -114,7 +114,7 @@ export async function POST(request: Request) {
   try {
     const ctx = await requireRole('agent');
 
-    const limit = checkRateLimit(`agent:importContacts:${ctx.userId}`, {
+    const limit = await checkRateLimit(`agent:importContacts:${ctx.userId}`, {
       limit: 10,
       windowMs: 60_000,
     });

@@ -34,7 +34,7 @@ export async function POST(
     const ctx = await requireRole('agent');
     const { id: contactId } = await params;
 
-    const limit = checkRateLimit(
+    const limit = await checkRateLimit(
       `agent:handoffContact:${ctx.userId}`,
       RATE_LIMITS.adminAction,
     );

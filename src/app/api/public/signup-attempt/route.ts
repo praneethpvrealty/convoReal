@@ -36,9 +36,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid attempt' }, { status: 400 });
     }
 
-    const s = checkRateLimit(`signupattempt:session:${sessionKey}`, SESSION_LIMIT);
+    const s = await checkRateLimit(`signupattempt:session:${sessionKey}`, SESSION_LIMIT);
     if (!s.success) return rateLimitResponse(s);
-    const g = checkRateLimit('signupattempt:global', GLOBAL_LIMIT);
+    const g = await checkRateLimit('signupattempt:global', GLOBAL_LIMIT);
     if (!g.success) return rateLimitResponse(g);
 
     // A landing has no address to record; only a submitted form does.

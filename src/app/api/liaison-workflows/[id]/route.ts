@@ -12,7 +12,7 @@ export async function PUT(
     const ctx = await requireRole('agent');
     const { id: workflowId } = await params;
 
-    const limit = checkRateLimit(
+    const limit = await checkRateLimit(
       `agent:updateLiaisonWorkflow:${ctx.userId}`,
       RATE_LIMITS.adminAction,
     );

@@ -24,7 +24,7 @@ export async function PATCH(
     const ctx = await requireRole('agent');
     const { id: contactId } = await params;
 
-    const limit = checkRateLimit(
+    const limit = await checkRateLimit(
       `agent:favoriteContact:${ctx.userId}`,
       RATE_LIMITS.adminAction
     );

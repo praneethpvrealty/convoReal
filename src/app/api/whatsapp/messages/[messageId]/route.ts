@@ -37,7 +37,7 @@ export async function PATCH(
   }
 
   try {
-    const limit = checkRateLimit(`message-state:${userId}`, {
+    const limit = await checkRateLimit(`message-state:${userId}`, {
       limit: 60,
       windowMs: 60_000,
     });

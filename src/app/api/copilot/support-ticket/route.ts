@@ -62,7 +62,7 @@ export async function POST(request: Request) {
   try {
     const ctx = await getCurrentAccount();
 
-    const limit = checkRateLimit(
+    const limit = await checkRateLimit(
       `support-ticket:${ctx.userId}`,
       RATE_LIMITS.supportTicket
     );

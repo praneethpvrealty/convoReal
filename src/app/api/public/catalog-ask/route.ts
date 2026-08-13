@@ -145,12 +145,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const sessionLimit = checkRateLimit(
+    const sessionLimit = await checkRateLimit(
       `catalogask:session:${sessionKey}`,
       ASK_SESSION_LIMIT
     );
     if (!sessionLimit.success) return rateLimitResponse(sessionLimit);
-    const accountLimit = checkRateLimit(
+    const accountLimit = await checkRateLimit(
       `catalogask:account:${accountId}`,
       ASK_ACCOUNT_LIMIT
     );

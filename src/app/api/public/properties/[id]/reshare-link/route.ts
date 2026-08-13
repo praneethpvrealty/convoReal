@@ -65,9 +65,9 @@ export async function POST(
       request.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
       request.headers.get('x-real-ip') ||
       'unknown';
-    const ipLimit = checkRateLimit(`reshare:ip:${ip}`, RESHARE_IP_LIMIT);
+    const ipLimit = await checkRateLimit(`reshare:ip:${ip}`, RESHARE_IP_LIMIT);
     if (!ipLimit.success) return rateLimitResponse(ipLimit);
-    const accountLimit = checkRateLimit(
+    const accountLimit = await checkRateLimit(
       `reshare:account:${account_id}`,
       RESHARE_ACCOUNT_LIMIT
     );

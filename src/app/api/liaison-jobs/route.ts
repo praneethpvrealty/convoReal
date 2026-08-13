@@ -13,7 +13,7 @@ export async function POST(request: Request) {
   try {
     const ctx = await requireRole('agent');
 
-    const limit = checkRateLimit(
+    const limit = await checkRateLimit(
       `agent:createLiaisonJob:${ctx.userId}`,
       RATE_LIMITS.adminAction,
     );

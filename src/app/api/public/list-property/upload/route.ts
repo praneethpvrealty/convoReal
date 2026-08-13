@@ -45,10 +45,10 @@ export async function POST(request: NextRequest) {
     }
 
     if (sessionKey) {
-      const s = checkRateLimit(`list-upload:session:${sessionKey}`, SESSION_LIMIT);
+      const s = await checkRateLimit(`list-upload:session:${sessionKey}`, SESSION_LIMIT);
       if (!s.success) return rateLimitResponse(s);
     }
-    const a = checkRateLimit(`list-upload:account:${accountId}`, ACCOUNT_LIMIT);
+    const a = await checkRateLimit(`list-upload:account:${accountId}`, ACCOUNT_LIMIT);
     if (!a.success) return rateLimitResponse(a);
 
     // Reject unknown/non-onboarded accounts — without this, the UUID

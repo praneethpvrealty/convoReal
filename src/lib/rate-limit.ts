@@ -1,26 +1,47 @@
 /**
- * In-memory per-key rate limiter.
+ * Per-key rate limiter. Redis-backed when REDIS_URL is set, in-memory
+ * otherwise.
  *
  * Fixed-window counter (not token bucket): every identifier gets a
- * fresh N-request budget each window. Simple, allocation-light, and
- * fine for a single-instance VPS — which is how forkers of this
- * template will usually deploy.
+ * fresh N-request budget each window.
  *
- * Trade-off: a single Node process holds the Map, so horizontal scale
- * (multiple regions, multiple Hostinger nodes, Vercel serverless fan-
- * out) silently defeats the limit. If you scale beyond one instance,
- * swap the `check` implementation for Redis / Upstash / Cloudflare
- * Durable Objects keeping the same return shape. The call sites won't
- * change.
+ * WHY REDIS. The in-memory counter holds its Map in one Node process,
+ * so horizontal scale silently defeats it — and on Vercel that is the
+ * normal case, not an edge case. Every serverless instance keeps its
+ * own Map, so a documented "120 requests a minute" was really "120 per
+ * instance", with no ceiling on the total. That is fine for a
+ * single-instance VPS, which is how a self-hoster deploys, and wrong
+ * for the hosted product.
  *
- * Memory: entries are ~50 bytes each. With LIGHT_SWEEP below, expired
- * keys get cleared opportunistically on every ~1 000th call, so a
- * healthy instance stays in the low-MB range even with thousands of
- * distinct users. No background timer — works in serverless edge
- * runtimes that don't keep timers alive across requests.
+ * WHICH ONE RUNS. `REDIS_URL` decides:
+ *   - set     → Redis. One counter shared by every instance.
+ *   - not set → in-memory, byte-for-byte the old behaviour. Local dev
+ *               and the test suite need no Redis and no network.
+ *
+ * WHEN REDIS FAILS. Falls back to the in-memory counter rather than
+ * failing open or failing closed. Failing open removes the limit
+ * exactly when something is already wrong; failing closed 429s every
+ * rate-limited endpoint in the product because a cache is down. The
+ * fallback degrades to the behaviour we had yesterday, which is a
+ * weaker limit but a working application.
+ *
+ * ATOMICITY. INCR and the expiry are one Lua script, so two instances
+ * racing on the first request of a window cannot both set the TTL and
+ * lose a count.
+ *
+ * COST. One Redis round trip per rate-limited request. Upstash bills
+ * per command; see docs/external-services-audit.md for the free-tier
+ * command budget before enabling this on a high-traffic endpoint.
+ *
+ * Memory (in-memory path): entries are ~50 bytes each. With
+ * LIGHT_SWEEP below, expired keys get cleared opportunistically on
+ * every ~1 000th call, so a healthy instance stays in the low-MB range
+ * even with thousands of distinct users. No background timer — works
+ * in serverless runtimes that don't keep timers alive across requests.
  */
 
 import { NextResponse } from 'next/server';
+import Redis from 'ioredis';
 
 export interface RateLimitOptions {
   /** Max requests allowed in `windowMs`. */
@@ -57,7 +78,68 @@ function sweepExpired(now: number) {
   }
 }
 
-export function checkRateLimit(
+/** Namespaced so a rate-limit key cannot collide with the WhatsApp
+ *  webhook queue sharing the same Redis. */
+const REDIS_PREFIX = 'rl:';
+
+/**
+ * INCR the counter and, only on the first request of a window, set the
+ * expiry. One script so the two cannot interleave across instances.
+ * Returns [count, milliseconds until reset].
+ *
+ * The PTTL guard covers a key that somehow exists without a TTL — it
+ * would otherwise count forever and lock the identifier out
+ * permanently.
+ */
+const INCR_SCRIPT = `
+local current = redis.call('INCR', KEYS[1])
+local ttl = redis.call('PTTL', KEYS[1])
+if current == 1 or ttl < 0 then
+  redis.call('PEXPIRE', KEYS[1], ARGV[1])
+  ttl = tonumber(ARGV[1])
+end
+return {current, ttl}
+`;
+
+let _redis: Redis | null = null;
+let _redisUnavailableLoggedAt = 0;
+
+function redisClient(): Redis | null {
+  if (!process.env.REDIS_URL) return null;
+  if (!_redis) {
+    _redis = new Redis(process.env.REDIS_URL, {
+      // A rate limiter wants a fast answer or none. Retrying inside
+      // the client just holds the request open while the fallback
+      // sits there ready.
+      maxRetriesPerRequest: 1,
+      commandTimeout: 1000,
+      // Without this, commands issued while disconnected queue up
+      // silently and resolve minutes later — the request hangs instead
+      // of falling back.
+      enableOfflineQueue: false,
+    });
+    // ioredis emits 'error' on every reconnection attempt. Unhandled,
+    // it takes the process down; the check path already reports the
+    // failure it cares about, so this only has to stop the crash.
+    _redis.on('error', () => {});
+  }
+  return _redis;
+}
+
+/** Logged at most once a minute — a Redis outage would otherwise write
+ *  one line per request, which buries the incident it is reporting. */
+function noteRedisUnavailable(err: unknown): void {
+  const now = Date.now();
+  if (now - _redisUnavailableLoggedAt < 60_000) return;
+  _redisUnavailableLoggedAt = now;
+  console.error(
+    '[rate-limit] Redis unavailable, falling back to the in-process counter. ' +
+      'Limits are per-instance until it recovers.',
+    err
+  );
+}
+
+function checkInMemory(
   key: string,
   { limit, windowMs }: RateLimitOptions
 ): RateLimitResult {
@@ -92,6 +174,43 @@ export function checkRateLimit(
     reset: entry.resetAt,
     limit,
   };
+}
+
+/**
+ * Consume one request against `key`.
+ *
+ * Async because the Redis path is a network call. Every call site is
+ * already inside an async route handler, and TypeScript rejects a
+ * missing `await` — `RateLimitResult` and `Promise<RateLimitResult>`
+ * are not interchangeable at either `.success` or `rateLimitResponse`.
+ */
+export async function checkRateLimit(
+  key: string,
+  options: RateLimitOptions
+): Promise<RateLimitResult> {
+  const client = redisClient();
+  if (!client) return checkInMemory(key, options);
+
+  const { limit, windowMs } = options;
+
+  try {
+    const [count, ttl] = (await client.eval(
+      INCR_SCRIPT,
+      1,
+      `${REDIS_PREFIX}${key}`,
+      String(windowMs)
+    )) as [number, number];
+
+    const reset = Date.now() + Math.max(ttl, 0);
+
+    if (count > limit) {
+      return { success: false, remaining: 0, reset, limit };
+    }
+    return { success: true, remaining: Math.max(limit - count, 0), reset, limit };
+  } catch (err) {
+    noteRedisUnavailable(err);
+    return checkInMemory(key, options);
+  }
 }
 
 /**
@@ -222,4 +341,8 @@ export const RATE_LIMITS = {
 export function __resetRateLimitForTests() {
   buckets.clear();
   callsSinceSweep = 0;
+  // Drop the cached client too, so a test can flip REDIS_URL and get
+  // the path it asked for instead of one another test warmed up.
+  _redis = null;
+  _redisUnavailableLoggedAt = 0;
 }

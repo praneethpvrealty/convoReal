@@ -47,7 +47,7 @@ export async function POST(request: Request) {
     const ctx = await requireRole('agent');
 
     // AI call — same posture as copilot chat, tighter than adminAction.
-    const limit = checkRateLimit(
+    const limit = await checkRateLimit(
       `liaisonWorkflowGen:${ctx.userId}`,
       RATE_LIMITS.copilotChat,
     );

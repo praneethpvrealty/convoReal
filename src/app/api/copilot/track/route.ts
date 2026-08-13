@@ -24,7 +24,7 @@ export async function POST(request: Request) {
   try {
     const ctx = await getCurrentAccount();
 
-    const limit = checkRateLimit(
+    const limit = await checkRateLimit(
       `copilot-track:${ctx.userId}`,
       RATE_LIMITS.copilotFeedback
     );

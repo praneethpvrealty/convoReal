@@ -60,7 +60,7 @@ export async function PATCH(
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
 
-    const limit = checkRateLimit(`admin:org-status:${auth.userId}`, RATE_LIMITS.adminAction)
+    const limit = await checkRateLimit(`admin:org-status:${auth.userId}`, RATE_LIMITS.adminAction)
     if (!limit.success) return rateLimitResponse(limit)
 
     const { id } = await params
@@ -145,7 +145,7 @@ export async function DELETE(
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
 
-    const limit = checkRateLimit(`admin:org-delete:${auth.userId}`, RATE_LIMITS.adminAction)
+    const limit = await checkRateLimit(`admin:org-delete:${auth.userId}`, RATE_LIMITS.adminAction)
     if (!limit.success) return rateLimitResponse(limit)
 
     const { id } = await params

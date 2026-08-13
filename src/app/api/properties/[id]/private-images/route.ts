@@ -28,7 +28,7 @@ export async function POST(
   try {
     const ctx = await requireRole('agent');
 
-    const limit = checkRateLimit(
+    const limit = await checkRateLimit(
       `agent:privateImages:${ctx.userId}`,
       RATE_LIMITS.adminAction
     );

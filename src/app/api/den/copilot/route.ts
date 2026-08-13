@@ -24,12 +24,12 @@ import { readChatRequest } from '@/lib/copilot/request';
  * to attribute unmet demand to the managing agency.
  */
 export const POST = withDenAuth(async (ctx, req) => {
-  const burst = checkRateLimit(
+  const burst = await checkRateLimit(
     `copilot-den:u:${ctx.denUserId}`,
     RATE_LIMITS.copilotChat
   );
   if (!burst.success) return rateLimitResponse(burst);
-  const daily = checkRateLimit(
+  const daily = await checkRateLimit(
     `copilot-den:d:${ctx.denUserId}`,
     RATE_LIMITS.copilotPortalDaily
   );

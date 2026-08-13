@@ -51,7 +51,7 @@ export async function PUT(request: NextRequest) {
   try {
     const ctx = await requireRole('admin');
 
-    const limit = checkRateLimit(
+    const limit = await checkRateLimit(
       `owner-details-settings:${ctx.userId}`,
       RATE_LIMITS.adminAction
     );

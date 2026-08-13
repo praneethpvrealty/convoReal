@@ -43,7 +43,7 @@ export async function POST(request: Request) {
   const { supabase, userId, accountId } = ctx
 
   try {
-    const limit = checkRateLimit(
+    const limit = await checkRateLimit(
       `admin:templateDraft:${userId}`,
       RATE_LIMITS.adminAction,
     )

@@ -13,7 +13,7 @@ export async function POST() {
   try {
     const ctx = await requireRole('agent');
 
-    const limit = checkRateLimit(`showcase-shares:${ctx.userId}`, RATE_LIMITS.adminAction);
+    const limit = await checkRateLimit(`showcase-shares:${ctx.userId}`, RATE_LIMITS.adminAction);
     if (!limit.success) return rateLimitResponse(limit);
 
     const { data, error } = await ctx.supabase

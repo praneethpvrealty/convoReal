@@ -30,7 +30,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const limit = checkRateLimit(`media-upload:${userId}`, {
+    const limit = await checkRateLimit(`media-upload:${userId}`, {
       limit: 30,
       windowMs: 60_000,
     });

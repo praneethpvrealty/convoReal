@@ -81,10 +81,10 @@ export async function POST(request: NextRequest) {
     // Rate limits — per session, then global (this funnel targets one
     // account, so the global cap protects it from flooding).
     if (sessionKey) {
-      const s = checkRateLimit(`enginelead:session:${sessionKey}`, SESSION_LIMIT);
+      const s = await checkRateLimit(`enginelead:session:${sessionKey}`, SESSION_LIMIT);
       if (!s.success) return rateLimitResponse(s);
     }
-    const g = checkRateLimit('enginelead:global', GLOBAL_LIMIT);
+    const g = await checkRateLimit('enginelead:global', GLOBAL_LIMIT);
     if (!g.success) return rateLimitResponse(g);
 
     // If the funnel isn't configured yet, don't hard-fail the visitor —

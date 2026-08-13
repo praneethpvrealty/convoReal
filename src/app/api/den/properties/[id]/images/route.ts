@@ -23,7 +23,7 @@ const MAX_IMAGES_PER_PROPERTY = 30;
 export const POST = withDenAuth(async (ctx, req, routeCtx) => {
   const { id } = await routeCtx.params;
 
-  const rate = checkRateLimit(`den-images:${ctx.denUserId}`, { limit: 30, windowMs: 60_000 });
+  const rate = await checkRateLimit(`den-images:${ctx.denUserId}`, { limit: 30, windowMs: 60_000 });
   if (!rate.success) return rateLimitResponse(rate);
 
   const existing = await loadOwnedProperty(ctx, id);

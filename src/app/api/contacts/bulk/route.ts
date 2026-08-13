@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
   try {
     const ctx = await requireRole('agent');
 
-    const limit = checkRateLimit(
+    const limit = await checkRateLimit(
       `contacts:bulk:${ctx.userId}`,
       RATE_LIMITS.adminAction
     );

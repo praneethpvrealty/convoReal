@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const limit = checkRateLimit(
+    const limit = await checkRateLimit(
       `owner-details-request:${ctx.userId}`,
       RATE_LIMITS.adminAction
     );

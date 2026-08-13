@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
       return new NextResponse(null, { status: 204 });
     }
 
-    const limit = checkRateLimit(`showcase-beacon:${sessionKey}`, BEACON_LIMIT);
+    const limit = await checkRateLimit(`showcase-beacon:${sessionKey}`, BEACON_LIMIT);
     if (!limit.success) return rateLimitResponse(limit);
 
     const db = adminClient();

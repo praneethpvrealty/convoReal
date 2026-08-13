@@ -82,9 +82,9 @@ export async function POST(request: NextRequest) {
     }
 
     // 1. Rate limits — per session, then per account.
-    const sessionLimit = checkRateLimit(`ask:session:${sessionKey}`, ASK_SESSION_LIMIT);
+    const sessionLimit = await checkRateLimit(`ask:session:${sessionKey}`, ASK_SESSION_LIMIT);
     if (!sessionLimit.success) return rateLimitResponse(sessionLimit);
-    const accountLimit = checkRateLimit(`ask:account:${accountId}`, ASK_ACCOUNT_LIMIT);
+    const accountLimit = await checkRateLimit(`ask:account:${accountId}`, ASK_ACCOUNT_LIMIT);
     if (!accountLimit.success) return rateLimitResponse(accountLimit);
 
     const db = supabaseAdmin();

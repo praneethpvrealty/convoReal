@@ -34,7 +34,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Token and password are required" }, { status: 400 });
     }
 
-    const rate = checkRateLimit(`doc-verify:${token}:${getClientIp(request)}`, DOC_VERIFY_LIMIT);
+    const rate = await checkRateLimit(`doc-verify:${token}:${getClientIp(request)}`, DOC_VERIFY_LIMIT);
     if (!rate.success) return rateLimitResponse(rate);
 
     const admin = supabaseAdmin();

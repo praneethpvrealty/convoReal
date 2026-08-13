@@ -63,12 +63,12 @@ export async function POST(request: Request) {
   try {
     const ctx = await getCurrentAccount()
 
-    const userLimit = checkRateLimit(
+    const userLimit = await checkRateLimit(
       `suggest:u:${ctx.userId}`,
       RATE_LIMITS.suggestReplies,
     )
     if (!userLimit.success) return rateLimitResponse(userLimit)
-    const accountLimit = checkRateLimit(
+    const accountLimit = await checkRateLimit(
       `suggest:a:${ctx.accountId}`,
       RATE_LIMITS.suggestRepliesDaily,
     )

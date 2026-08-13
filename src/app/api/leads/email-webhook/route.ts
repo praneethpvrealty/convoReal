@@ -240,7 +240,7 @@ export async function POST(request: Request) {
       request.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
       request.headers.get('x-real-ip') ||
       'unknown';
-    const limit = checkRateLimit(`lead-webhook:${ip}`, LEAD_WEBHOOK_LIMIT);
+    const limit = await checkRateLimit(`lead-webhook:${ip}`, LEAD_WEBHOOK_LIMIT);
     if (!limit.success) return rateLimitResponse(limit);
 
     const payload = await request.json();

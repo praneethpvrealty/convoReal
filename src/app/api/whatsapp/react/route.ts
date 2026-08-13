@@ -32,7 +32,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const limit = checkRateLimit(`react:${userId}`, RATE_LIMITS.react);
+    const limit = await checkRateLimit(`react:${userId}`, RATE_LIMITS.react);
     if (!limit.success) {
       return rateLimitResponse(limit);
     }

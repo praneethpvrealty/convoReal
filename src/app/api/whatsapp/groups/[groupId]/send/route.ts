@@ -31,7 +31,7 @@ export async function POST(
   }
 
   try {
-    const limit = checkRateLimit(`group-send:${userId}`, RATE_LIMITS.send);
+    const limit = await checkRateLimit(`group-send:${userId}`, RATE_LIMITS.send);
     if (!limit.success) return rateLimitResponse(limit);
 
     const { groupId } = await params;

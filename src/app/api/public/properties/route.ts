@@ -27,7 +27,7 @@ export async function GET(request: Request) {
   try {
     // 1. Per-IP budget. Runs before the API-key check so an unauthenticated
     //    flood is rejected cheaply and key guessing is bounded.
-    const ipLimit = checkRateLimit(
+    const ipLimit = await checkRateLimit(
       `public-catalog:ip:${getClientIp(request)}`,
       RATE_LIMITS.publicCatalog
     );
@@ -58,7 +58,7 @@ export async function GET(request: Request) {
 
     // 4. Per-account budget. The per-IP check above does nothing against a
     //    distributed scrape of one brokerage's inventory; this bounds it.
-    const accountLimit = checkRateLimit(
+    const accountLimit = await checkRateLimit(
       `public-catalog:account:${accountId}`,
       RATE_LIMITS.publicCatalogAccount
     );
