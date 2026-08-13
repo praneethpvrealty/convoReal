@@ -89,6 +89,10 @@ import {
 } from '@/lib/ai/photo-request'
 import { parseOrdinalReferences } from '@/lib/ai/shortlist-reference'
 import {
+  parseEnquiryReply,
+  sendPropertyEnquiryCard,
+} from '@/lib/whatsapp/enquiry-card'
+import {
   parseTemplateQuickReply,
   lastSharedPropertyId,
   buildFullListMessage,
@@ -1094,6 +1098,11 @@ async function processMessage(
     ctwaLinkedPropertyId = ctwaResult.linkedPropertyId
   }
 
+  // The listing this message is about, when its code or title names one
+  // — the showcase's enquiry button always does. Hoisted so the
+  // new-lead alert below can send the enquiry card instead of a generic
+  // "someone messaged you".
+  let enquiryPropertyId: string | null = null
   if (contentText && !ctwaLinkedPropertyId) {
     try {
       const { data: properties } = await supabaseAdmin()
@@ -1111,6 +1120,7 @@ async function processMessage(
         });
 
         if (matchedProperty) {
+          enquiryPropertyId = matchedProperty.id
           await supabaseAdmin()
             .from('contacts')
             .update({
@@ -1268,6 +1278,18 @@ async function processMessage(
       })
       if (handled) return
     }
+    // A tap on the enquiry card. It arrives in the AGENT's thread but
+    // every action operates on the BUYER's, which is why both ids ride
+    // in the button — see enquiry-card.ts.
+    const enquiryAction = parseEnquiryReply(interactiveReplyId)
+    if (enquiryAction) {
+      const handled = await handleEnquiryCardReply(
+        enquiryAction,
+        accountId,
+        configOwnerUserId,
+      )
+      if (handled) return
+    }
   }
 
   const bridged = isControlReply
@@ -1295,6 +1317,25 @@ async function processMessage(
   let pingedOnWhatsApp = false
   if (!ownerCheck.isOwner && isFirstInboundMessage) {
     const preview = (contentText || `[${message.type}]`).slice(0, 140)
+
+    // A first message that names a listing is an enquiry, and an
+    // enquiry deserves the card — property, buyer, and the two sends
+    // the buyer is asking for — rather than a line of text the agent
+    // has to read and act on by hand. Falls back to the plain ping when
+    // no listing is named or the card cannot be delivered.
+    const cardSent = enquiryPropertyId
+      ? await sendPropertyEnquiryCard({
+          db: supabaseAdmin(),
+          accountId,
+          agentUserId: assignedAgentUserId,
+          propertyId: enquiryPropertyId,
+          contactId: contactRecord.id,
+          leadName: contactRecord.name || senderPhone,
+          leadPhone: senderPhone,
+          enquiryText: preview,
+        })
+      : false
+
     const notified = await createNotification({
       accountId,
       userId: assignedAgentUserId,
@@ -1305,16 +1346,23 @@ async function processMessage(
       entityType: 'conversation',
       entityId: conversation.id,
       link: `/inbox?conversation=${conversation.id}`,
-      whatsappText: [
-        '💬 *New lead just messaged you*',
-        `👤 ${contactRecord.name || senderPhone}`,
-        '',
-        preview,
-        '',
-        BRIDGE_REPLY_HINT,
-      ].join('\n'),
+      // The card already reached them on WhatsApp; a second message
+      // saying the same thing less usefully is noise. The in-app and
+      // push notifications still go out either way.
+      ...(cardSent
+        ? {}
+        : {
+            whatsappText: [
+              '💬 *New lead just messaged you*',
+              `👤 ${contactRecord.name || senderPhone}`,
+              '',
+              preview,
+              '',
+              BRIDGE_REPLY_HINT,
+            ].join('\n'),
+          }),
     })
-    pingedOnWhatsApp = notified.whatsapp?.success === true
+    pingedOnWhatsApp = cardSent || notified.whatsapp?.success === true
   } else if (!ownerCheck.isOwner && (conversation.unread_count || 0) === 0) {
     // A reply on an existing thread the agent had already caught up on
     // (unread was 0 before this message). Alert them with an in-app +
@@ -2914,6 +2962,76 @@ export async function handlePropertyShareYesReply(
   } catch (err) {
     console.error('[webhook] Failed in handlePropertyShareYesReply:', err)
   }
+}
+
+/**
+ * Acts on an enquiry-card tap.
+ *
+ * Every branch resolves the BUYER's conversation first: the tap came
+ * from the agent's thread, and sending the photos into that thread
+ * would deliver them to the agent who already has them. Returns true
+ * when the tap was consumed, so the agent's own message never falls
+ * through to the owner chatbot underneath it.
+ */
+async function handleEnquiryCardReply(
+  action: ReturnType<typeof parseEnquiryReply> & object,
+  accountId: string,
+  configOwnerUserId: string,
+): Promise<boolean> {
+  const admin = supabaseAdmin()
+
+  const { data: lead } = await admin
+    .from('contacts')
+    .select('id, name, phone')
+    .eq('id', action.contactId)
+    .eq('account_id', accountId)
+    .maybeSingle()
+  if (!lead?.phone) return false
+
+  // "I'll reply" is the agent taking the thread. Nothing is sent to the
+  // buyer — the point of the button is that the bot stays quiet — and
+  // the lead is left exactly as it was for the agent to answer.
+  if (action.action === 'mine') {
+    await admin
+      .from('conversations')
+      .update({ status: 'pending', updated_at: new Date().toISOString() })
+      .eq('contact_id', action.contactId)
+      .eq('account_id', accountId)
+    return true
+  }
+
+  const { conversation } = await resolveConversation<{ id: string }>(admin, {
+    accountId,
+    contactId: action.contactId,
+    userId: configOwnerUserId,
+    columns: 'id',
+  })
+  if (!conversation) return false
+
+  if (action.action === 'photos') {
+    const sent = await sendSubjectPhotos({
+      db: admin,
+      accountId,
+      userId: configOwnerUserId,
+      contactId: action.contactId,
+      conversationId: conversation.id,
+      propertyIds: [action.propertyId],
+      requestText: 'photos',
+    })
+    if (sent) return true
+    // No public photos to send — fall through to the details, which is
+    // the closest thing to what the buyer asked for.
+  }
+
+  await handlePropertyShareYesReply(
+    action.propertyId,
+    accountId,
+    configOwnerUserId,
+    action.contactId,
+    conversation.id,
+    lead.phone as string,
+  )
+  return true
 }
 
 export async function handlePropertyShareNoReply(

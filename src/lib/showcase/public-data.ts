@@ -7,6 +7,12 @@ import type { Project, Property, ShowcaseSettings } from '@/types';
 
 export interface ShowcaseData {
   settings: ShowcaseSettings | null;
+  /** The Engine's own WhatsApp number (migration 268), so an enquiry
+   *  tapped from the catalog lands in the shared inbox rather than on
+   *  whichever mobile `contact_phone` happens to hold. Null for an
+   *  account on sandbox, or one that has not re-saved its config since
+   *  the column landed — both fall back to the old behaviour. */
+  engineWhatsAppPhone: string | null;
   /** The brokerage's name, from `accounts.name` — the one place it is
    *  stored. Showcase settings used to carry a second copy of it in
    *  `website_name`, which drifted from this one and split the brand
@@ -212,6 +218,7 @@ const fetchShowcaseData = async (
     );
     return {
       settings: settingsResult.data || null,
+      engineWhatsAppPhone: await engineWhatsAppPhone(admin, accountId),
       accountName: accountResult.data?.name || null,
       properties: propertiesResult.data || [],
       agents: [],
@@ -252,12 +259,36 @@ const fetchShowcaseData = async (
 
   return {
     settings: settingsResult.data || null,
+    engineWhatsAppPhone: await engineWhatsAppPhone(admin, accountId),
     accountName: accountResult.data?.name || null,
     properties: propertiesResult.data || [],
     agents: agentsResult.data || [],
     profiles: profilesResult.data || [],
   };
 };
+
+/**
+ * The account's connected WhatsApp number, or null.
+ *
+ * Only `display_phone_number` travels — never the token, the WABA id or
+ * the phone_number_id. This value is serialized into the RSC stream of
+ * a public page, and a dialable number is the only part of that row a
+ * visitor may see. A sandbox account has none, and so keeps the old
+ * fallback.
+ */
+async function engineWhatsAppPhone(
+  admin: ReturnType<typeof supabaseAdmin>,
+  accountId: string
+): Promise<string | null> {
+  const { data } = await admin
+    .from('whatsapp_config')
+    .select('display_phone_number')
+    .eq('account_id', accountId)
+    .eq('integration_type', 'official_api')
+    .eq('status', 'connected')
+    .maybeSingle();
+  return (data?.display_phone_number as string | null) || null;
+}
 
 // The version rides in the cache key rather than the arguments, so a
 // catalogue edit lands on a fresh entry immediately; the TTL is only a

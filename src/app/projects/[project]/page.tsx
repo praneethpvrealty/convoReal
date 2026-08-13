@@ -195,6 +195,7 @@ export default async function ProjectPage({ params, searchParams }: PageProps) {
         settings={data.settings}
         accountId={accountId}
         siteName={data.accountName}
+        engineWhatsAppPhone={data.engineWhatsAppPhone}
         projectInfo={projectInfo}
         hero={{
           title: 'Properties in',

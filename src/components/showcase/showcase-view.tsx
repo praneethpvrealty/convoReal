@@ -81,6 +81,10 @@ interface ShowcaseViewProps {
   siteName?: string | null;
   referrerContactId?: string;
   referrerPhone?: string;
+  /** The Engine's own WhatsApp number (migration 268). When present it
+   *  takes the enquiry taps, so they land in the shared inbox instead
+   *  of on a personal mobile — see enquiryWhatsAppPhone below. */
+  engineWhatsAppPhone?: string | null;
   initialPropertyId?: string;
   initialCategory?: string;
   /** ?mode=view (legacy: agent) resolved on the server so the first paint is already the clean listing view. */
@@ -131,6 +135,7 @@ export function ShowcaseView({
   siteName: siteNameProp,
   referrerContactId,
   referrerPhone,
+  engineWhatsAppPhone,
   initialPropertyId,
   initialCategory,
   initialAgentMode = false,
@@ -805,6 +810,29 @@ export function ShowcaseView({
   const siteName = siteNameProp || BRANDING.name;
   const displayPhone = referrerPhone || settings?.contact_phone || '';
 
+  /**
+   * Where an enquiry tap goes — deliberately NOT displayPhone.
+   *
+   * displayPhone is what the page SHOWS: the "call us" link, the
+   * "Inquire:" line, the agent block. An enquiry is different. It opens
+   * a conversation, and a conversation belongs in the Engine, where the
+   * contact is created, the listing is pinned to the thread, the agent
+   * gets a card, and everything said afterwards is learned from. Sent
+   * to a personal mobile it is invisible to all of that — which is
+   * exactly what happened to a "50x70 Commercial Land" enquiry that
+   * reached an agent's own WhatsApp and never reached the CRM.
+   *
+   * A referral link still wins: a co-broker who shared the listing owns
+   * that lead, and routing their prospect into the listing account's
+   * inbox would quietly reassign it.
+   */
+  const enquiryWhatsAppPhone = (property?: Property) =>
+    referrerPhone ||
+    engineWhatsAppPhone ||
+    property?.agent_details?.phone ||
+    displayPhone ||
+    '';
+
   const getWhatsAppLink = (property: Property) => {
     const defaultTemplate = settings?.whatsapp_message_template || 'Hi! I am interested in your property "{title}" in {location}. Please share details.';
     
@@ -822,19 +850,24 @@ export function ShowcaseView({
       message = message.replace('({property_code})', '').replace('{property_code}', '');
     }
 
-    const phone = property.agent_details?.phone || displayPhone || '';
-    const cleanPhone = phone.replace(/\D/g, '') || '919876543210';
+    const cleanPhone =
+      enquiryWhatsAppPhone(property).replace(/\D/g, '') || '919876543210';
     return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
   };
 
   // Account-level handoff for the assistant, which talks about the
   // catalog rather than any one listing.
   const catalogWhatsAppLink = useMemo(() => {
-    const cleanPhone = (displayPhone || '').replace(/\D/g, '');
+    const cleanPhone = (
+      referrerPhone ||
+      engineWhatsAppPhone ||
+      displayPhone ||
+      ''
+    ).replace(/\D/g, '');
     if (!cleanPhone) return undefined;
     const message = `Hi! I was browsing your property showcase and would like some help.`;
     return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
-  }, [displayPhone]);
+  }, [referrerPhone, engineWhatsAppPhone, displayPhone]);
 
   // Check if selected property is land/plot type
   const isSelectedPropertyLand = useMemo(() => {
