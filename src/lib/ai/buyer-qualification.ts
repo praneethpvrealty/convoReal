@@ -31,9 +31,8 @@ import {
   type RankedPropertyMatch,
 } from '@/lib/radar/engine';
 import { buildPropertyAlertParams } from '@/lib/whatsapp/property-alert-template';
-import { requestsHumanContact } from '@/lib/ai/lead-question';
-import { requestsPropertyPhotos } from '@/lib/ai/photo-request';
-import { parseOrdinalReferences } from '@/lib/ai/shortlist-reference';
+import { carriesRequirementSignal } from '@/lib/ai/requirement-signal';
+import { standsDownFromQualification } from '@/lib/ai/lead-routing';
 import { propertyShowcaseUrl } from '@/lib/share-message-builder';
 import { accountShowcaseOrigin } from '@/lib/showcase/account-showcase-url';
 import { burnCredits } from '@/lib/credits/burn';
@@ -67,22 +66,7 @@ const MAX_MATCHES_SENT = 3;
 /** Localities offered as chips on the location question. */
 const MAX_AREA_SUGGESTIONS = 3;
 
-const PROPERTY_TYPE_SIGNAL =
-  /\b(land|plot|site|acres?|guntha|cents?|flat|apartment|villa|house|duplex|penthouse|studio|bhk|commercial|office|shop|retail|showroom|warehouse|godown|farm ?land|farmhouse|agricultur\w*|residential|independent|builder floor)\b/i;
-
-const BUDGET_SIGNAL =
-  /(\d+\s*(?:\.\d+)?\s*(?:cr|crore|crores|lakh|lakhs|lac|lacs|l|k)\b)|\bbudget\b|\b\d{6,}\b/i;
-
-/**
- * True when an inbound message plausibly carries requirement detail —
- * a property type, a budget figure, or an explicit "looking for".
- * Deterministic on purpose: it gates the AI call, so it must be free.
- */
-export function carriesRequirementSignal(text?: string | null): boolean {
-  const clean = (text || '').trim();
-  if (!clean) return false;
-  return PROPERTY_TYPE_SIGNAL.test(clean) || BUDGET_SIGNAL.test(clean);
-}
+export { carriesRequirementSignal };
 
 function hasType(prefs: ExtractedPreferences): boolean {
   return (
@@ -652,41 +636,22 @@ export async function processBuyerQualificationMessage(
   const text = contentText?.trim();
   if (!text) return false;
 
-  // A lead asking to be called is not answering the ladder. Standing
-  // down here rather than at the chatter guard below matters three
-  // times over: "Call me" is not filed as their requirement, no
-  // extraction is paid for, and the message falls through to the
-  // handover branch that actually summons an agent.
-  if (requestsHumanContact(text)) return false;
-
-  // Nor is a listing number. "Can you share location of Options 1 & 2?
-  // I will visit today." arrived straight after a shortlist, so the
-  // ladder claimed it as an answer and replied "what kind of property
-  // are you looking for?" — restarting the qualification of a lead who
-  // was already reading listings and offering to drive out to two of
-  // them the same day.
+  // A callback, a listing named by number, and a request for photos are
+  // all messages the ladder used to claim and answer with the next
+  // rung — a lead who asked to be phoned got "what budget range are you
+  // working with?", and a lead who asked for images got "what kind of
+  // property are you looking for?".
   //
-  // Numbers rather than question shape, because a bare question is
-  // often best answered by the ladder: a new lead who asks "what do you
-  // have?" wants to be asked what they are after, not told a person
-  // will come back to them. Naming a number is unambiguous — nothing
-  // numbers a listing except the shortlist we sent.
-  if (
-    parseOrdinalReferences(text).length > 0 &&
-    !carriesRequirementSignal(text)
-  ) {
-    return false;
-  }
-
-  // Nor is a photo request. "Sir can I get images  images" states no
-  // requirement — it asks for the listing the lead was just sent, and
-  // the ladder answered it with "what kind of property are you looking
-  // for?", restarting the intake of a buyer who was already reading a
-  // listing. Standing down lets it fall through to the media branch,
-  // which answers with the photos themselves.
-  if (requestsPropertyPhotos(text) && !carriesRequirementSignal(text)) {
-    return false;
-  }
+  // Standing down here rather than at the chatter guard below matters
+  // three times over for each of them: the message is not filed as
+  // their requirement, no extraction is paid for, and it falls through
+  // to the handler that can actually answer it.
+  //
+  // The decision itself lives in lead-routing so the dev simulator
+  // reaches the same verdict — it does not call this function, and for
+  // a while it went on showing agents the ladder question for messages
+  // production had already stopped sending it for.
+  if (standsDownFromQualification(text)) return false;
 
   try {
     const db = supabaseAdmin();
