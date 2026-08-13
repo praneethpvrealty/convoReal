@@ -136,6 +136,11 @@ import { SHARED_CARDS_HEADER } from '@/lib/contacts/shared-cards'
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher'
 import { googleMapsUrlForCoordinates } from '@/lib/maps/resolve-location'
 import { getSandboxSystemConfig } from '@/lib/system-settings'
+import {
+  isSandboxTrialExpired,
+  releaseSandboxSender,
+  type SandboxTenantConfig,
+} from '@/lib/whatsapp/sandbox-trial'
 import type { SandboxSenderMapping } from '@/types'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import {
@@ -305,6 +310,46 @@ async function resolveSandboxOwnerUserId(accountId: string): Promise<string> {
   return (profile?.user_id as string) || ''
 }
 
+/**
+ * The sandbox route for this sender, and the tenant config the caller
+ * still needs for the message-limit check — or null when there is no
+ * LIVE route.
+ *
+ * "Live" is the whole point: a mapping to a tenant whose trial has
+ * lapsed used to resolve, and the message was then dropped with a bare
+ * `continue`. Both callers already treat a null route as "not a sandbox
+ * message", and that path answers — at the first call site by falling
+ * through to whichever Official API account owns the number. So an
+ * expired trial now releases its dead mapping and reports no route,
+ * which puts the sender back on a path that replies instead of
+ * blackholing them forever. See sandbox-trial.ts.
+ */
+async function resolveLiveSandboxRoute(
+  message: WhatsAppMessage,
+  senderPhone: string
+): Promise<{
+  route: SandboxRouteResult
+  tenantConfig: SandboxTenantConfig | null
+} | null> {
+  const route = await resolveSandboxAccount(message, senderPhone)
+  if (!route) return null
+
+  const { data } = await supabaseAdmin()
+    .from('whatsapp_config')
+    .select('trial_ends_at, sandbox_message_count, sandbox_message_limit')
+    .eq('account_id', route.accountId)
+    .maybeSingle()
+  const tenantConfig = (data as SandboxTenantConfig | null) ?? null
+
+  if (!isSandboxTrialExpired(tenantConfig)) return { route, tenantConfig }
+
+  console.warn(
+    `[webhook] Sandbox trial expired for account ${route.accountId} — releasing mapping for ${senderPhone} so this message can fall through instead of being dropped.`
+  )
+  await releaseSandboxSender(supabaseAdmin(), senderPhone)
+  return null
+}
+
 export async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
   if (!body.entry) return
 
@@ -377,24 +422,16 @@ export async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
 
           console.log(`[webhook] Attempting sandbox routing for sender: ${senderPhone}, body: "${message.text?.body?.substring(0, 50) || '[non-text]'}"`)
 
-          const route = await resolveSandboxAccount(message, senderPhone)
-          if (route) {
+          // Null here means "no live sandbox tenant owns this sender" —
+          // never mapped, or mapped to a lapsed trial, which releases
+          // itself. Either way the Official API fallback below answers.
+          const live = await resolveLiveSandboxRoute(message, senderPhone)
+          if (live) {
+            const { route, tenantConfig } = live
             console.log(`[webhook] Resolved sandbox route: account=${route.accountId}, code=${route.sandboxCode}, newMapping=${route.isNewMapping}`)
 
             // Resolve owner user_id if not cached in mapping
             const ownerUserId = route.userId || await resolveSandboxOwnerUserId(route.accountId)
-
-            // Check trial expiration
-            const { data: tenantConfig } = await supabaseAdmin()
-              .from('whatsapp_config')
-              .select('trial_ends_at, sandbox_message_count, sandbox_message_limit')
-              .eq('account_id', route.accountId)
-              .maybeSingle()
-
-            if (tenantConfig?.trial_ends_at && new Date() > new Date(tenantConfig.trial_ends_at)) {
-              console.warn(`[webhook] Sandbox trial expired for account ${route.accountId}. Dropping message.`)
-              continue
-            }
 
             // Rate limit check & atomic increment
             const msgLimit = tenantConfig?.sandbox_message_limit ?? 50
@@ -440,8 +477,8 @@ export async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
             continue
           }
 
-          // No sandbox route found for this message — fall back to Official API config (if same number is also an official number)
-          console.warn(`[webhook] No sandbox route for sender ${senderPhone}. Checking Official API fallback...`)
+          // No LIVE sandbox route for this message — fall back to Official API config (if same number is also an official number)
+          console.warn(`[webhook] No live sandbox route for sender ${senderPhone}. Checking Official API fallback...`)
 
           const { data: fallbackConfigs } = await supabaseAdmin()
             .from('whatsapp_config')
@@ -531,28 +568,22 @@ export async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
 
         console.log(`[webhook] Attempting sandbox routing for sender: ${senderPhone}, body: "${message.text?.body?.substring(0, 50) || '[non-text]'}"`)
 
-        const route = await resolveSandboxAccount(message, senderPhone)
-        if (!route) {
-          console.warn(`[webhook] No hashtag or prior mapping for sender ${senderPhone}. Dropping. Body: "${message.text?.body || ''}"`)
+        // This number has no Official API config at all, so there is
+        // nothing to fall through to — the message is genuinely
+        // unroutable. An expired trial still releases its mapping on
+        // the way past, so the sender is no longer pinned to a dead
+        // tenant the day an official config does exist.
+        const live = await resolveLiveSandboxRoute(message, senderPhone)
+        if (!live) {
+          console.warn(`[webhook] No live sandbox route for sender ${senderPhone}, and no Official API config for ${phoneNumberId}. Dropping. Body: "${message.text?.body || ''}"`)
           continue
         }
 
+        const { route, tenantConfig } = live
         console.log(`[webhook] Resolved sandbox route: account=${route.accountId}, code=${route.sandboxCode}, newMapping=${route.isNewMapping}`)
 
         // Resolve owner user_id if not cached in mapping
         const ownerUserId = route.userId || await resolveSandboxOwnerUserId(route.accountId)
-
-        // Check trial expiration
-        const { data: tenantConfig } = await supabaseAdmin()
-          .from('whatsapp_config')
-          .select('trial_ends_at, sandbox_message_count, sandbox_message_limit')
-          .eq('account_id', route.accountId)
-          .maybeSingle()
-
-        if (tenantConfig?.trial_ends_at && new Date() > new Date(tenantConfig.trial_ends_at)) {
-          console.warn(`[webhook] Sandbox trial expired for account ${route.accountId}. Dropping message.`)
-          continue
-        }
 
         // Rate limit check & atomic increment
         const msgLimit = tenantConfig?.sandbox_message_limit ?? 50
