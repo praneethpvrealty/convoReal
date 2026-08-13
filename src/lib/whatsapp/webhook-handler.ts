@@ -80,7 +80,13 @@ import {
   questionSubjectProperties,
   requestsHumanContact,
   subjectPortalListings,
+  type LeadAnswer,
 } from '@/lib/ai/lead-question'
+import {
+  photoHandoverText,
+  requestsPropertyPhotos,
+  sendSubjectPhotos,
+} from '@/lib/ai/photo-request'
 import { parseOrdinalReferences } from '@/lib/ai/shortlist-reference'
 import {
   parseTemplateQuickReply,
@@ -2242,6 +2248,9 @@ async function processMessage(
     message.type === 'text' &&
     (looksLikeQuestion(inboundText) ||
       requestsHumanContact(inboundText) ||
+      // "Sir can I get images" is not question-shaped either, but it
+      // asks for the listing's own photos, which we hold.
+      requestsPropertyPhotos(inboundText) ||
       // "Option 2" is not question-shaped, but the shortlist that
       // numbered it closed with "reply with the number", so it is an
       // answer to us and it is about one listing.
@@ -2258,25 +2267,53 @@ async function processMessage(
       conversation.id,
       inboundText,
     )
-    const { data: qaConfig } = await admin
-      .from('whatsapp_config')
-      .select('share_seller_final_price')
-      .eq('account_id', accountId)
-      .maybeSingle()
-    const answers = await Promise.all(
-      (subjects.length > 0 ? subjects : [null]).map(async (subject) =>
-        answerLeadQuestion({
-          accountId,
-          question: inboundText,
-          property: subject,
-          shareSellerFinalPrice: qaConfig?.share_seller_final_price === true,
-          portalListings: subject
-            ? await subjectPortalListings(admin, accountId, subject.id)
-            : [],
-        }),
-      ),
-    )
-    const answer = mergeLeadAnswers(answers, subjects)
+
+    // A photo request is answered with the photos themselves, not with
+    // prose about them. When they cannot be sent — no listing pinned to
+    // the thread, or a gallery the confidential switch emptied — the
+    // handover below promises them and summons the person who has them.
+    // A lead asking to be called stays with the callback branch even
+    // when photos are mentioned: a person was requested, so a person
+    // answers.
+    const photoRequest =
+      requestsPropertyPhotos(inboundText) && !requestsHumanContact(inboundText)
+    let answer: LeadAnswer
+    if (photoRequest) {
+      const sentPhotos = await sendSubjectPhotos({
+        db: admin,
+        accountId,
+        userId: configOwnerUserId,
+        contactId: contactRecord.id,
+        conversationId: conversation.id,
+        propertyIds: subjects.map((s) => s.id),
+        requestText: inboundText,
+      })
+      if (sentPhotos) return
+      answer = {
+        text: photoHandoverText(subjects[0]?.title),
+        source: 'handover',
+      }
+    } else {
+      const { data: qaConfig } = await admin
+        .from('whatsapp_config')
+        .select('share_seller_final_price')
+        .eq('account_id', accountId)
+        .maybeSingle()
+      const answers = await Promise.all(
+        (subjects.length > 0 ? subjects : [null]).map(async (subject) =>
+          answerLeadQuestion({
+            accountId,
+            question: inboundText,
+            property: subject,
+            shareSellerFinalPrice: qaConfig?.share_seller_final_price === true,
+            portalListings: subject
+              ? await subjectPortalListings(admin, accountId, subject.id)
+              : [],
+          }),
+        ),
+      )
+      answer = mergeLeadAnswers(answers, subjects)
+    }
 
     await sendWhatsAppMessageAndPersist({
       accountId,

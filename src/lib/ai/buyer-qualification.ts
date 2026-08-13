@@ -32,6 +32,7 @@ import {
 } from '@/lib/radar/engine';
 import { buildPropertyAlertParams } from '@/lib/whatsapp/property-alert-template';
 import { requestsHumanContact } from '@/lib/ai/lead-question';
+import { requestsPropertyPhotos } from '@/lib/ai/photo-request';
 import { parseOrdinalReferences } from '@/lib/ai/shortlist-reference';
 import { propertyShowcaseUrl } from '@/lib/share-message-builder';
 import { accountShowcaseOrigin } from '@/lib/showcase/account-showcase-url';
@@ -674,6 +675,16 @@ export async function processBuyerQualificationMessage(
     parseOrdinalReferences(text).length > 0 &&
     !carriesRequirementSignal(text)
   ) {
+    return false;
+  }
+
+  // Nor is a photo request. "Sir can I get images  images" states no
+  // requirement — it asks for the listing the lead was just sent, and
+  // the ladder answered it with "what kind of property are you looking
+  // for?", restarting the intake of a buyer who was already reading a
+  // listing. Standing down lets it fall through to the media branch,
+  // which answers with the photos themselves.
+  if (requestsPropertyPhotos(text) && !carriesRequirementSignal(text)) {
     return false;
   }
 
