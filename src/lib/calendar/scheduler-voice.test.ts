@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const parseEventFromInput = vi.fn();
+const parseEventsFromInput = vi.fn();
 const burnCredits = vi.fn();
 const getMediaUrl = vi.fn(async () => ({ url: 'https://example.test/a', mimeType: 'audio/ogg' }));
 
 vi.mock('@/lib/calendar/event-parse', async () => {
   const actual = await vi.importActual<typeof import('./event-parse')>('./event-parse');
-  return { ...actual, parseEventFromInput: (...a: unknown[]) => parseEventFromInput(...a) };
+  return { ...actual, parseEventsFromInput: (...a: unknown[]) => parseEventsFromInput(...a) };
 });
 
 vi.mock('@/lib/credits/burn', () => ({
@@ -54,7 +54,7 @@ const baseParams = {
 const voiceMessage = { id: 'm1', type: 'audio', audio: { id: 'media-1', mime_type: 'audio/ogg' } };
 
 beforeEach(() => {
-  parseEventFromInput.mockReset();
+  parseEventsFromInput.mockReset();
   burnCredits.mockReset();
   getMediaUrl.mockClear();
   burnCredits.mockResolvedValue({ success: true });
@@ -62,7 +62,7 @@ beforeEach(() => {
 
 describe('tryHandleOwnerScheduling voice handling', () => {
   it('parses the transcript it was handed instead of fetching the clip again', async () => {
-    parseEventFromInput.mockResolvedValue({ intent: 'none' });
+    parseEventsFromInput.mockResolvedValue([]);
 
     await tryHandleOwnerScheduling({
       ...baseParams,
@@ -71,15 +71,15 @@ describe('tryHandleOwnerScheduling voice handling', () => {
     });
 
     expect(getMediaUrl).not.toHaveBeenCalled();
-    expect(parseEventFromInput.mock.calls[0][0]).toMatchObject({
+    expect(parseEventsFromInput.mock.calls[0][0]).toMatchObject({
       text: 'Remind me to follow up with the advocate after a week',
     });
-    expect(parseEventFromInput.mock.calls[0][0].audio).toBeUndefined();
+    expect(parseEventsFromInput.mock.calls[0][0].audio).toBeUndefined();
     expect(burnCredits.mock.calls[0][1]).toBe('event_parse');
   });
 
   it('lets a transcribed voice note that is not an event fall through to intake', async () => {
-    parseEventFromInput.mockResolvedValue({ intent: 'none' });
+    parseEventsFromInput.mockResolvedValue([]);
 
     const handled = await tryHandleOwnerScheduling({
       ...baseParams,
@@ -91,7 +91,7 @@ describe('tryHandleOwnerScheduling voice handling', () => {
   });
 
   it('still transcribes inside the parse when only raw audio is given', async () => {
-    parseEventFromInput.mockResolvedValue({ intent: 'none' });
+    parseEventsFromInput.mockResolvedValue([]);
 
     const handled = await tryHandleOwnerScheduling({
       ...baseParams,
@@ -100,7 +100,7 @@ describe('tryHandleOwnerScheduling voice handling', () => {
     });
 
     expect(getMediaUrl).toHaveBeenCalledTimes(1);
-    expect(parseEventFromInput.mock.calls[0][0].audio).toMatchObject({ mimeType: 'audio/ogg' });
+    expect(parseEventsFromInput.mock.calls[0][0].audio).toMatchObject({ mimeType: 'audio/ogg' });
     expect(burnCredits.mock.calls[0][1]).toBe('voice_event_parse');
     // No transcript to hand on to intake, so the dead end is still the
     // right answer here — and it is answered, not ignored.
@@ -116,7 +116,7 @@ describe('tryHandleOwnerScheduling voice handling', () => {
 
     expect(handled).toBe(true);
     expect(burnCredits).not.toHaveBeenCalled();
-    expect(parseEventFromInput).not.toHaveBeenCalled();
+    expect(parseEventsFromInput).not.toHaveBeenCalled();
   });
 
   it('files a dictated task list spoken out loud', async () => {
@@ -127,6 +127,6 @@ describe('tryHandleOwnerScheduling voice handling', () => {
     });
 
     expect(handled).toBe(true);
-    expect(parseEventFromInput).not.toHaveBeenCalled();
+    expect(parseEventsFromInput).not.toHaveBeenCalled();
   });
 });

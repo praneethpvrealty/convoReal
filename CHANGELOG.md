@@ -11,6 +11,17 @@ and polish.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A short name no longer matches inside a longer one.** Name
+  resolution scored a plain substring hit, so "Raj" matched
+  "Kusumaraju" — an advocate's meeting was filed under an unrelated
+  contact, and because the liaisons directory is only searched when no
+  contact matched, the false hit also hid the advocate who should have
+  been found. A fragment now has to begin a word and be at least three
+  characters. Real partials still match: "Kumar" finds "Raj Kumar", and
+  a property code still opens its label.
+
 ### Changed
 
 - **A forwarded contact card goes to the contact flow, always.** WhatsApp
@@ -30,6 +41,41 @@ and polish.
   reconciled against the draft in flight the way a second screenshot is.
 
 ### Added
+
+- **A voice note can ask for more than one thing.** The scheduling
+  parser used to be told to extract ONE request and returned one draft,
+  so a note that said "send Sharan the update on the Kusumaraju meeting,
+  the advocate is away a week so follow up after that" produced the
+  follow-up task and silently dropped the update. It now returns every
+  request it found and the WhatsApp assistant files each one, reporting
+  them in a single confirmation card. A message carrying one request is
+  answered exactly as it was before.
+
+- **Telling a teammate something is now a thing you can ask for.**
+  Alongside `schedule` and `task` there is a `notify` intent: "send
+  Sharan the update on the site visit", "let Priya know it's off". It
+  writes no calendar row — the update goes to that teammate's bell, their
+  phone and their own WhatsApp at once, under the account's saved
+  notification preferences. Assigning work and passing on news were
+  previously the same field, `assignee_name`, which meant the only way to
+  tell a colleague anything was to give them a job. A name that is not on
+  the team is reported back rather than guessed at. The new
+  **Teammate sends you an update** toggle is in Settings → Notifications
+  on web and mobile.
+
+- **Saying the same thing twice corrects it instead of duplicating it.**
+  An agent dictates a note walking out of a meeting and again from the
+  car, or repeats a job the next morning because they cannot remember
+  whether it went in. Each pass used to insert another row. A request
+  that restates an event or a to-do already on the books now updates it
+  and says *Updated* rather than *Added*. The rule is deliberately
+  narrow, because merging two things that were never the same one loses
+  a real appointment: the same IST day, wording that clears a two-thirds
+  subject match, and no disagreement about who it is with. Two site
+  visits with one buyer in a week stay two rows, an identically-titled
+  visit with a different buyer stays its own, and another agent's
+  matching task is never touched. A reschedule is unaffected — that is a
+  quote-reply on the card, which names its target outright.
 
 - **A forwarded contact card keeps its own name, and its person.** An
   agent's phonebook entry is rarely just a name — "Nadeem Koramangala

@@ -44,6 +44,25 @@ describe('looksLikeSchedulingText', () => {
     expect(looksLikeSchedulingText('Meet lawyer Kusuma\non 30th July 2026')).toBe(true);
   });
 
+  it('lets a request to tell a teammate through, WHEN or no WHEN', () => {
+    // A notify carries no time of day at all, so the verb-plus-WHEN gate
+    // can never admit one on its own.
+    expect(looksLikeSchedulingText('Send Sharan the update on the Kusumaraju meeting')).toBe(true);
+    expect(looksLikeSchedulingText('let Sharan know the site visit is off')).toBe(true);
+    expect(looksLikeSchedulingText('tell Priya that the advocate is away')).toBe(true);
+    expect(looksLikeSchedulingText('loop Surya in on the HSR deal')).toBe(true);
+    expect(looksLikeSchedulingText('keep Deepak posted on the registration')).toBe(true);
+  });
+
+  it('keeps questions to the bot and edits out of the notify path', () => {
+    // "let me know" and "tell me about X" are addressed to the bot, and
+    // they are the most common phrasings of all.
+    expect(looksLikeSchedulingText('let me know when the EC is ready')).toBe(false);
+    expect(looksLikeSchedulingText('tell me about the JP Nagar plot')).toBe(false);
+    expect(looksLikeSchedulingText('update the price to 1.4 crore')).toBe(false);
+    expect(looksLikeSchedulingText('share the brochure')).toBe(false);
+  });
+
   it('rejects forwarded property listings', () => {
     expect(
       looksLikeSchedulingText(

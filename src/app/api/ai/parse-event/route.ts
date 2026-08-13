@@ -71,6 +71,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ data: { draft, resolved: null } });
     }
 
+    // "Tell Sharan the visit is off" is a real request, but sending it is
+    // a WhatsApp-pipeline capability — this endpoint only ever hands its
+    // caller a draft to confirm, and the smart-add clients on web and
+    // mobile have no recipient field to confirm it with. A to-do to make
+    // the call keeps the request on the speaker's list instead of
+    // dropping it, and keeps the intent union those clients switch on.
+    if (draft.intent === 'notify') {
+      draft = { ...draft, intent: 'task' };
+    }
+
     const [{ data: contacts }, { data: properties }] = await Promise.all([
       ctx.supabase
         .from('contacts')

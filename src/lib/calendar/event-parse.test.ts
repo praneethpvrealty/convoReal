@@ -3,8 +3,10 @@ import {
   normalizeEventType,
   istLocalToUtcIso,
   coerceEventDraft,
+  coerceEventDrafts,
   resolveByName,
   parseEventFromInput,
+  parseEventsFromInput,
   normalizeWeekday,
   alignDraftToNamedWeekday,
   type ParsedEventDraft,
@@ -108,6 +110,99 @@ describe('resolveByName', () => {
     expect(resolveByName('unknown person', contacts, (c) => c.name)).toBeNull();
     expect(resolveByName(null, contacts, (c) => c.name)).toBeNull();
   });
+
+  it('ignores a name buried inside a longer one', () => {
+    // "Kusumaraju" ends in "raju", which contains "Raj" — filing an
+    // advocate's meeting under an unrelated contact, and blocking the
+    // liaisons lookup that only runs when no contact matched.
+    const rows = [{ id: 'raj', name: 'Raj' }];
+    expect(resolveByName('Kusumaraju', rows, (r) => r.name)).toBeNull();
+    expect(resolveByName('Balaraj', rows, (r) => r.name)).toBeNull();
+  });
+
+  it('still matches a name that starts a word', () => {
+    const rows = [
+      { id: 'a', name: 'Raj Kumar' },
+      { id: 'b', name: 'Priya Nair' },
+    ];
+    expect(resolveByName('Kumar', rows, (r) => r.name)?.id).toBe('a');
+    expect(resolveByName('Nair', rows, (r) => r.name)?.id).toBe('b');
+  });
+
+  it('ignores fragments too short to identify anyone', () => {
+    const rows = [{ id: 'a', name: 'Ramesh Gowda' }];
+    expect(resolveByName('me', rows, (r) => r.name)).toBeNull();
+  });
+
+  it('keeps multi-word property matching on word boundaries', () => {
+    const rows = [
+      { id: 'a', name: 'CR-104 JP Nagar villa' },
+      { id: 'b', name: 'Whitefield 18k sqft commercial' },
+    ];
+    expect(resolveByName('18k sqft commercial', rows, (r) => r.name)?.id).toBe('b');
+    expect(resolveByName('104', rows, (r) => r.name)?.id).toBe('a');
+  });
+});
+
+describe('coerceEventDrafts', () => {
+  const request = (over: Record<string, unknown> = {}) => ({
+    intent: 'task',
+    title: 'Follow up with the advocate',
+    ...over,
+  });
+
+  it('reads the requests array and keeps its order', () => {
+    const drafts = coerceEventDrafts({
+      requests: [
+        request({ intent: 'notify', title: 'Kusumaraju meeting outcome' }),
+        request({ title: 'Follow up next week' }),
+      ],
+    });
+
+    expect(drafts.map((d) => d.intent)).toEqual(['notify', 'task']);
+    expect(drafts[0].title).toBe('Kusumaraju meeting outcome');
+    expect(drafts[1].title).toBe('Follow up next week');
+  });
+
+  it('accepts a lone object and a bare array', () => {
+    expect(coerceEventDrafts(request()).map((d) => d.title)).toEqual(['Follow up with the advocate']);
+    expect(coerceEventDrafts([request(), request()])).toHaveLength(2);
+  });
+
+  it('copies the envelope transcript onto every request', () => {
+    const drafts = coerceEventDrafts({
+      transcript: 'Send Sharan the update, and follow up after a week.',
+      requests: [request({ intent: 'notify' }), request()],
+    });
+
+    expect(drafts[0].transcript).toBe('Send Sharan the update, and follow up after a week.');
+    expect(drafts[1].transcript).toBe('Send Sharan the update, and follow up after a week.');
+  });
+
+  it("does not overwrite a request's own transcript", () => {
+    const drafts = coerceEventDrafts({
+      transcript: 'envelope',
+      requests: [request({ transcript: 'its own' })],
+    });
+
+    expect(drafts[0].transcript).toBe('its own');
+  });
+
+  it('drops none entries so an empty result means nothing to do', () => {
+    expect(coerceEventDrafts({ requests: [request({ intent: 'none' })] })).toEqual([]);
+    expect(coerceEventDrafts({ requests: [] })).toEqual([]);
+    expect(coerceEventDrafts({})).toEqual([]);
+    expect(coerceEventDrafts({ requests: [request({ intent: 'none' }), request()] })).toHaveLength(1);
+  });
+
+  it('keeps notify as its own intent and carries the recipient', () => {
+    const [draft] = coerceEventDrafts({
+      requests: [request({ intent: 'notify', recipient_name: 'Sharan' })],
+    });
+
+    expect(draft.intent).toBe('notify');
+    expect(draft.recipient_name).toBe('Sharan');
+  });
 });
 
 describe('parseEventFromInput image branch', () => {
@@ -176,6 +271,68 @@ describe('parseEventFromInput image branch', () => {
 
   it('still rejects an input with no text, audio or image', async () => {
     await expect(parseEventFromInput({})).rejects.toThrow(/requires text, audio or an image/);
+  });
+
+  it('returns every request a voice note carried', async () => {
+    stubGemini({
+      transcript:
+        "Send Sharan the update on the Kusumaraju meeting. The advocate isn't available for a week, so follow up after that.",
+      requests: [
+        {
+          intent: 'notify',
+          title: 'Kusumaraju meeting outcome',
+          recipient_name: 'Sharan',
+          notes: 'Advocate unavailable for a week.',
+        },
+        {
+          intent: 'task',
+          title: "Follow up with Kusumaraju's advocate",
+          start_time: '2026-08-20T10:00',
+        },
+      ],
+    });
+    const drafts = await parseEventsFromInput({
+      audio: { base64: 'AAAA', mimeType: 'audio/ogg' },
+      now: new Date('2026-08-13T04:00:00Z'),
+    });
+
+    expect(drafts).toHaveLength(2);
+    expect(drafts[0].intent).toBe('notify');
+    expect(drafts[0].recipient_name).toBe('Sharan');
+    expect(drafts[1].intent).toBe('task');
+    expect(istLocalToUtcIso(drafts[1].start_time)).toBe('2026-08-20T04:30:00.000Z');
+    expect(drafts[0].transcript).toContain('Send Sharan the update');
+  });
+
+  it('keeps the single-draft callers on the first request', async () => {
+    stubGemini({
+      requests: [
+        { intent: 'notify', title: 'Tell Sharan', recipient_name: 'Sharan' },
+        { intent: 'task', title: 'Follow up' },
+      ],
+    });
+    const draft = await parseEventFromInput({ text: 'let sharan know, then follow up' });
+
+    expect(draft.intent).toBe('notify');
+    expect(draft.title).toBe('Tell Sharan');
+  });
+
+  it('hands back a none draft that still carries the transcript', async () => {
+    stubGemini({ transcript: 'Three BHK in Whitefield, 1.2 crore', requests: [] });
+    const draft = await parseEventFromInput({
+      audio: { base64: 'AAAA', mimeType: 'audio/ogg' },
+    });
+
+    expect(draft.intent).toBe('none');
+    expect(draft.transcript).toBe('Three BHK in Whitefield, 1.2 crore');
+  });
+
+  it('asks the model for every request, not just one', async () => {
+    stubGemini({ requests: [] });
+    await parseEventsFromInput({ text: 'anything' });
+
+    expect(captured[0].system).toContain('EVERY separate thing');
+    expect(captured[0].system).toContain('"requests"');
   });
 
   it('corrects the model’s weekday arithmetic before returning', async () => {

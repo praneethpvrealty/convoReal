@@ -17,6 +17,7 @@ import { burnCredits } from '@/lib/credits/burn';
 import { AI_FEATURE_COSTS, type AiFeatureKey } from '@/lib/credits/types';
 import {
   parseEventFromInput,
+  parseEventsFromInput,
   parseEventUpdate,
   resolveByName,
   istLocalToUtcIso,
@@ -25,6 +26,7 @@ import {
 import { recordBotTarget } from '@/lib/whatsapp/bot-message-target';
 import { parseEventOutcome } from '@/lib/calendar/event-outcome';
 import { autoLinkContactProperty } from '@/lib/calendar/auto-link';
+import { findDuplicate, type ExistingRow } from '@/lib/calendar/event-dedupe';
 import { createNotification } from '@/lib/notifications/create';
 
 const EVENT_TYPE_EMOJI: Record<string, string> = {
@@ -55,6 +57,19 @@ const TASK_PREFIX = /\b(task|todo|to-do)s?\b(\s*(:|-|\d)|\s+list\b)/i;
 
 /** Something that happens at a time, which needs a WHEN to be a request. */
 const EVENT_VERB = /\b(call|meet|meeting|visit|appointment)\b/i;
+
+/**
+ * Telling a teammate something — a request with no WHEN at all, so the
+ * verb-plus-time gate below can never let it through on its own.
+ *
+ * Every branch names who is being told, because the bare verbs are the
+ * ambiguous ones: "update the price" is an edit and "tell me the rate" is
+ * a question. First and second person are excluded for the same reason —
+ * "let me know" and "tell me about X" are addressed to the bot, not to a
+ * colleague, and they are far and away the most common phrasings.
+ */
+const NOTIFY_VERB =
+  /\b(tell|inform)\s+(?!me\b|us\b|you\b)\w+\s+(that|about|the)\b|\blet\s+(?!me\b|us\b)\w+\s+know\b|\b(send|share|pass on)\b[^.!?]{0,40}\bupdate\b|\bloop\s+\w+\s+in\b|\bkeep\s+(?!me\b|us\b)\w+\s+(posted|updated|informed)\b/i;
 
 /**
  * Relative days and clock times: "tomorrow", "next fri", "at 4pm", "18:30".
@@ -93,7 +108,7 @@ export function looksLikeSchedulingText(text: string): boolean {
   // pattern: "on Monday, meet the lawyer" is the same request as "meet
   // the lawyer on Monday", and a WhatsApp message often wraps the two
   // onto separate lines.
-  const explicit = SCHEDULING_VERB.test(t) || TASK_PREFIX.test(t);
+  const explicit = SCHEDULING_VERB.test(t) || TASK_PREFIX.test(t) || NOTIFY_VERB.test(t);
   const verbWithWhen = EVENT_VERB.test(t) && (TIME_CUE.test(t) || DATE_CUE.test(t));
   if (!explicit && !verbWithWhen) return false;
 
@@ -802,23 +817,23 @@ export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): P
     .select('user_id, full_name')
     .eq('account_id', accountId);
 
-  let draft: ParsedEventDraft;
+  let drafts: ParsedEventDraft[];
   try {
     if (needsAudioParse) {
       const { url, mimeType } = await getMediaUrl({ mediaId: message.audio!.id, accessToken });
       const { buffer } = await downloadMedia({ downloadUrl: url, accessToken });
-      draft = await parseEventFromInput({
+      drafts = await parseEventsFromInput({
         audio: { base64: buffer.toString('base64'), mimeType: mimeType || message.audio!.mime_type || 'audio/ogg' },
         memberNames: (members || []).map((m) => m.full_name).filter(Boolean) as string[],
       });
     } else if (isImage) {
-      draft = await parseEventFromInput({
+      drafts = await parseEventsFromInput({
         image: { base64: image!.buffer.toString('base64'), mimeType: image!.mimeType },
         text: text || undefined,
         memberNames: (members || []).map((m) => m.full_name).filter(Boolean) as string[],
       });
     } else {
-      draft = await parseEventFromInput({
+      drafts = await parseEventsFromInput({
         text,
         memberNames: (members || []).map((m) => m.full_name).filter(Boolean) as string[],
       });
@@ -841,7 +856,7 @@ export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): P
   // Not an event. When the words are already in hand this falls through
   // to listing and contact intake — a spoken listing is still a listing —
   // and only a caller that gave us raw audio gets the dead end.
-  if (draft.intent === 'none') {
+  if (drafts.length === 0) {
     if (needsAudioParse) {
       await replyAndLog({
         phoneNumberId,
@@ -861,32 +876,258 @@ export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): P
   const [{ data: contacts }, { data: properties }, { data: liaisons }] = await Promise.all([
     admin.from('contacts').select('id, name, phone, last_inquired_property_id').eq('account_id', accountId),
     admin.from('properties').select('id, title, property_code, location, sublocality').eq('account_id', accountId),
-    draft.service_provider_role
+    drafts.some((d) => d.service_provider_role)
       ? admin.from('liaisons').select('id, name, phone').eq('account_id', accountId).eq('is_active', true)
       : Promise.resolve({ data: [] as { id: string; name: string; phone: string | null }[] }),
   ]);
 
+  const ctx: DraftFilingContext = {
+    admin,
+    accountId,
+    userId,
+    contacts: (contacts || []) as SchedulerContact[],
+    properties: (properties || []) as SchedulerProperty[],
+    liaisons: (liaisons || []) as SchedulerLiaison[],
+    members: (members || []) as SchedulerMember[],
+    source: isAudio ? 'voice' : 'whatsapp',
+    // `text` is the transcript when the words were spoken and the message
+    // itself when typed — either way it is what the event was read from,
+    // and dropping it left voice-created events with no record of what
+    // was actually said.
+    fallbackTranscript: text || null,
+  };
+
+  // One block per request, filed in the order they were spoken. A failure
+  // on one is reported in its own block instead of aborting the rest —
+  // losing the second job because the first one's insert failed is how a
+  // dictated pair of instructions half-disappears.
+  const filed: FiledDraft[] = [];
+  for (const draft of drafts) {
+    filed.push(await fileDraft(draft, ctx));
+  }
+
+  const confirmation = [
+    ...filed.flatMap((f) => [...f.lines, '']),
+    '_Reply *today* anytime to see your day\'s schedule._',
+  ].join('\n');
+
+  const confirmationWamid = await replyAndLog({
+    phoneNumberId,
+    accessToken,
+    toPhone: contactRecord.phone,
+    conversationId: conversation.id,
+    text: confirmation,
+  });
+  // Lets a quote-reply on this card edit the row instead of creating a
+  // second one (migration 185). Only when the card announced exactly one
+  // row — against a card carrying three, "move it to Monday" names no
+  // particular one, so a correction is better off becoming a fresh event
+  // than silently rewriting whichever we happened to register.
+  const createdRows = filed.map((f) => f.row).filter((c): c is CreatedRow => c !== null);
+  if (createdRows.length === 1) {
+    await recordBotTarget({
+      accountId,
+      waMessageId: confirmationWamid,
+      entityType: createdRows[0].type,
+      entityId: createdRows[0].id,
+      client: admin,
+    });
+  }
+  return true;
+}
+
+interface SchedulerContact {
+  id: string;
+  name: string | null;
+  phone: string | null;
+  last_inquired_property_id?: string | null;
+}
+interface SchedulerProperty {
+  id: string;
+  title: string | null;
+  property_code: string | null;
+  location: string | null;
+  sublocality: string | null;
+}
+interface SchedulerLiaison {
+  id: string;
+  name: string;
+  phone: string | null;
+}
+interface SchedulerMember {
+  user_id: string;
+  full_name: string | null;
+}
+
+interface DraftFilingContext {
+  admin: ReturnType<typeof supabaseAdmin>;
+  accountId: string;
+  userId: string;
+  contacts: SchedulerContact[];
+  properties: SchedulerProperty[];
+  liaisons: SchedulerLiaison[];
+  members: SchedulerMember[];
+  source: 'voice' | 'whatsapp';
+  fallbackTranscript: string | null;
+}
+
+type CreatedRow = { type: 'appointment' | 'todo'; id: string };
+
+interface FiledDraft {
+  /** The confirmation block for this request, without the shared footer. */
+  lines: string[];
+  /** The row this block announced, created or updated — the target a
+   *  quote-reply on the card should edit. */
+  row: CreatedRow | null;
+}
+
+/**
+ * The already-existing appointment this request restates, if any.
+ *
+ * Bounded to the draft's own IST day and to the rows the new one would
+ * belong to, so the scan is small and can never reach another agent's
+ * calendar. Cancelled and completed events are history and never match.
+ */
+async function existingAppointment(
+  ctx: DraftFilingContext,
+  startIso: string,
+  assignedTo: string
+): Promise<ExistingRow[]> {
+  const day = istDayWindow(new Date(startIso));
+  const { data, error } = await ctx.admin
+    .from('appointments')
+    .select('id, title, start_time, contact_id, liaison_id, assigned_to, user_id')
+    .eq('account_id', ctx.accountId)
+    .eq('status', 'scheduled')
+    .gte('start_time', day.startIso)
+    .lt('start_time', day.endIso)
+    .limit(50);
+  if (error) {
+    console.error('[wa-scheduler] duplicate lookup failed:', error);
+    return [];
+  }
+  // assigned_to wins over user_id, the same ownership rule the reminders
+  // and the agenda use.
+  return (data || [])
+    .filter((r) => (r.assigned_to || r.user_id) === assignedTo)
+    .map((r) => ({
+      id: r.id as string,
+      title: (r.title as string) || '',
+      when: r.start_time as string,
+      contact_id: (r.contact_id as string | null) ?? null,
+      liaison_id: (r.liaison_id as string | null) ?? null,
+    }));
+}
+
+/** The already-existing open to-do this request restates, if any. An
+ *  undated repeat matches only another undated one, which findDuplicate
+ *  enforces; the query just has to offer both. */
+async function existingTodos(
+  ctx: DraftFilingContext,
+  dueIso: string | null,
+  assignedTo: string
+): Promise<ExistingRow[]> {
+  let query = ctx.admin
+    .from('todos')
+    .select('id, title, due_date, contact_id, assigned_to, user_id')
+    .eq('account_id', ctx.accountId)
+    .eq('completed', false)
+    .limit(50);
+  if (dueIso) {
+    const day = istDayWindow(new Date(dueIso));
+    query = query.gte('due_date', day.startIso).lt('due_date', day.endIso);
+  } else {
+    query = query.is('due_date', null);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    console.error('[wa-scheduler] duplicate lookup failed:', error);
+    return [];
+  }
+  return (data || [])
+    .filter((r) => (r.assigned_to || r.user_id) === assignedTo)
+    .map((r) => ({
+      id: r.id as string,
+      title: (r.title as string) || '',
+      when: (r.due_date as string | null) ?? null,
+      contact_id: (r.contact_id as string | null) ?? null,
+    }));
+}
+
+function whenLabel(iso: string): string {
+  return new Date(iso).toLocaleString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+}
+
+/** The body of an appointment card, under whichever headline says
+ *  whether the row is new or was corrected. */
+function appointmentCardLines(
+  headline: string,
+  p: {
+    draft: ParsedEventDraft;
+    startIso: string;
+    attendees: { id: string; name: string | null }[];
+    liaison: { name: string } | null;
+    property: { title: string | null } | null;
+    assignee: { id: string; full_name: string | null } | null;
+    unknownProvider: string | null;
+    selfUserId: string;
+  }
+): string[] {
+  const emoji = EVENT_TYPE_EMOJI[p.draft.event_type] || '🗓';
+  return [
+    headline,
+    `${emoji} ${p.draft.title}`,
+    `🕐 ${whenLabel(p.startIso)}`,
+    p.attendees.length > 0 ? `👤 ${p.attendees.map((c) => c.name).join(', ')}` : null,
+    p.liaison ? `⚖️ ${p.liaison.name} (${p.draft.service_provider_role})` : null,
+    p.property ? `🏠 ${p.property.title}` : null,
+    p.draft.location ? `📌 ${p.draft.location}` : null,
+    p.assignee && p.assignee.id !== p.selfUserId ? `➡️ Assigned to ${p.assignee.full_name}` : null,
+    p.unknownProvider
+      ? `\n💡 ${p.unknownProvider} (${p.draft.service_provider_role}) isn't in your contacts or your liaisons directory. Add them under *Liaisons* to keep their number and fees to hand.`
+      : null,
+  ].filter((l): l is string => l !== null);
+}
+
+/**
+ * Files ONE parsed request and describes what happened.
+ *
+ * Split out of tryHandleOwnerScheduling when a voice note stopped being
+ * one request: the resolution and confirmation work is per-request, while
+ * the tenant lookups feeding it are per-message and stay with the caller.
+ */
+async function fileDraft(draft: ParsedEventDraft, ctx: DraftFilingContext): Promise<FiledDraft> {
+  if (draft.intent === 'notify') {
+    return sendTeammateUpdate(draft, ctx);
+  }
+
+  const memberRefs = ctx.members.map((m) => ({ id: m.user_id, full_name: m.full_name }));
   const { contact, property } = autoLinkContactProperty(
-    resolveByName(draft.contact_name, contacts || [], (c) => c.name || ''),
+    resolveByName(draft.contact_name, ctx.contacts, (c) => c.name || ''),
     resolveByName(
       draft.property_hint,
-      properties || [],
+      ctx.properties,
       (p) => `${p.property_code || ''} ${p.title || ''} ${p.location || ''} ${p.sublocality || ''}`
     ),
-    contacts || [],
-    properties || []
+    ctx.contacts,
+    ctx.properties
   );
-  const assignee = resolveByName(
-    draft.assignee_name,
-    (members || []).map((m) => ({ id: m.user_id as string, full_name: m.full_name as string | null })),
-    (m) => m.full_name || ''
-  );
+  const assignee = resolveByName(draft.assignee_name, memberRefs, (m) => m.full_name || '');
 
   // Both parties to the conversation are attendees. The person being met is
   // often an outside professional with no Engine record, while the person who
   // arranged it usually IS a contact — linking only the former left the event
   // attached to nobody, so nobody got a client reminder.
-  const counterparty = resolveByName(draft.counterparty_name, contacts || [], (c) => c.name || '');
+  const counterparty = resolveByName(draft.counterparty_name, ctx.contacts, (c) => c.name || '');
   const attendees = [contact, counterparty].filter(
     (c, i, all): c is NonNullable<typeof c> => !!c && all.findIndex((o) => o?.id === c.id) === i
   );
@@ -898,7 +1139,7 @@ export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): P
   // contact stays one.
   const liaison =
     draft.service_provider_role && !contact
-      ? resolveByName(draft.contact_name, liaisons || [], (l) => l.name || '')
+      ? resolveByName(draft.contact_name, ctx.liaisons, (l) => l.name || '')
       : null;
   // Named a professional we have never recorded: the event still saves,
   // but say so, because silently dropping them is what left the meeting
@@ -912,135 +1153,255 @@ export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): P
     endIso = new Date(new Date(startIso).getTime() + (draft.duration_minutes || 60) * 60 * 1000).toISOString();
   }
 
-  // `text` is the transcript when the words were spoken and the message
-  // itself when typed — either way it is what the event was read from,
-  // and dropping it left voice-created events with no record of what
-  // was actually said.
-  const transcript = draft.transcript || text || null;
-  const assignedTo = assignee?.id || userId;
-  const source = isAudio ? 'voice' : 'whatsapp';
+  const transcript = draft.transcript || ctx.fallbackTranscript;
+  const assignedTo = assignee?.id || ctx.userId;
 
-  let confirmation: string;
-  let created: { type: 'appointment' | 'todo'; id: string } | null = null;
   if (draft.intent === 'schedule' && startIso) {
-    const { data: createdAppt, error } = await admin.from('appointments').insert({
-      account_id: accountId,
-      user_id: userId,
-      assigned_to: assignedTo,
+    const fields = {
       title: draft.title,
       description: draft.notes,
       event_type: draft.event_type,
       start_time: startIso,
       end_time: endIso || startIso,
       location: draft.location,
-      status: 'scheduled',
       contact_id: attendees[0]?.id || null,
       contact_ids: attendees.map((c) => c.id),
       property_id: property?.id || null,
       liaison_id: liaison?.id || null,
-      source,
       transcript,
+    };
+
+    // Same meeting, dictated twice. Restating it corrects the row that is
+    // already there rather than putting a second one beside it.
+    const duplicate = findDuplicate(
+      {
+        title: draft.title,
+        when: startIso,
+        contactId: attendees[0]?.id || null,
+        liaisonId: liaison?.id || null,
+      },
+      await existingAppointment(ctx, startIso, assignedTo)
+    );
+
+    if (duplicate) {
+      const { error: updateErr } = await ctx.admin
+        .from('appointments')
+        .update({ ...fields, assigned_to: assignedTo })
+        .eq('id', duplicate.id)
+        .eq('account_id', ctx.accountId);
+      if (updateErr) {
+        console.error('[wa-scheduler] appointment update failed:', updateErr);
+        return {
+          lines: [
+            '⚠️ *Couldn\'t update that event*',
+            `🗓 ${draft.title}`,
+            'Please try again or edit it from the Calendar page.',
+          ],
+          row: null,
+        };
+      }
+      return {
+        lines: appointmentCardLines('✏️ *Updated on your calendar*', {
+          draft,
+          startIso,
+          attendees,
+          liaison,
+          property,
+          assignee,
+          unknownProvider,
+          selfUserId: ctx.userId,
+        }),
+        row: { type: 'appointment', id: duplicate.id },
+      };
+    }
+
+    const { data: createdAppt, error } = await ctx.admin.from('appointments').insert({
+      account_id: ctx.accountId,
+      user_id: ctx.userId,
+      assigned_to: assignedTo,
+      status: 'scheduled',
+      source: ctx.source,
+      ...fields,
     }).select('id').single();
     if (error) {
       console.error('[wa-scheduler] appointment insert failed:', error);
-      await replyAndLog({
-        phoneNumberId,
-        accessToken,
-        toPhone: contactRecord.phone,
-        conversationId: conversation.id,
-        text: '⚠️ Something went wrong saving that event. Please try again or add it from the Calendar page.',
-      });
-      return true;
+      return {
+        lines: [
+          '⚠️ *Couldn\'t save that event*',
+          `🗓 ${draft.title}`,
+          'Please try again or add it from the Calendar page.',
+        ],
+        row: null,
+      };
     }
-    if (createdAppt?.id) created = { type: 'appointment', id: createdAppt.id as string };
 
-    const when = new Date(startIso).toLocaleString('en-IN', {
-      timeZone: 'Asia/Kolkata',
-      weekday: 'short',
-      day: 'numeric',
-      month: 'short',
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-    });
-    const emoji = EVENT_TYPE_EMOJI[draft.event_type] || '🗓';
-    confirmation = [
-      '✅ *Added to your calendar*',
-      `${emoji} ${draft.title}`,
-      `🕐 ${when}`,
-      attendees.length > 0 ? `👤 ${attendees.map((c) => c.name).join(', ')}` : null,
-      liaison ? `⚖️ ${liaison.name} (${draft.service_provider_role})` : null,
-      property ? `🏠 ${property.title}` : null,
-      draft.location ? `📌 ${draft.location}` : null,
-      assignee && assignee.id !== userId ? `➡️ Assigned to ${assignee.full_name}` : null,
-      unknownProvider
-        ? `\n💡 ${unknownProvider} (${draft.service_provider_role}) isn't in your contacts or your liaisons directory. Add them under *Liaisons* to keep their number and fees to hand.`
-        : null,
-      '',
-      '_Reply *today* anytime to see your day\'s schedule._',
-    ]
-      .filter((l): l is string => l !== null)
-      .join('\n');
-  } else {
-    const { data: createdTodo, error } = await admin.from('todos').insert({
-      account_id: accountId,
-      user_id: userId,
-      assigned_to: assignedTo,
-      title: draft.title,
-      description: draft.notes,
-      due_date: startIso,
-      priority: draft.priority,
-      completed: false,
-      contact_id: attendees[0]?.id || null,
-      property_id: property?.id || null,
-      source,
-    }).select('id').single();
-    if (error) {
-      console.error('[wa-scheduler] todo insert failed:', error);
-      await replyAndLog({
-        phoneNumberId,
-        accessToken,
-        toPhone: contactRecord.phone,
-        conversationId: conversation.id,
-        text: '⚠️ Something went wrong saving that task. Please try again or add it from the Calendar page.',
-      });
-      return true;
-    }
-    if (createdTodo?.id) created = { type: 'todo', id: createdTodo.id as string };
-    confirmation = [
-      '✅ *Task added to your list*',
+    return {
+      lines: appointmentCardLines('✅ *Added to your calendar*', {
+        draft,
+        startIso,
+        attendees,
+        liaison,
+        property,
+        assignee,
+        unknownProvider,
+        selfUserId: ctx.userId,
+      }),
+      row: createdAppt?.id ? { type: 'appointment', id: createdAppt.id as string } : null,
+    };
+  }
+
+  const todoFields = {
+    title: draft.title,
+    description: draft.notes,
+    due_date: startIso,
+    priority: draft.priority,
+    contact_id: attendees[0]?.id || null,
+    property_id: property?.id || null,
+  };
+
+  // The same job dictated again — twice out of the car, or the next
+  // morning because the agent cannot remember whether it went in.
+  const duplicate = findDuplicate(
+    { title: draft.title, when: startIso, contactId: attendees[0]?.id || null },
+    await existingTodos(ctx, startIso, assignedTo)
+  );
+
+  const cardLines = (headline: string): string[] =>
+    [
+      headline,
       `📝 ${draft.title}`,
-      startIso
-        ? `🕐 Due ${new Date(startIso).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true })}`
-        : null,
+      startIso ? `🕐 Due ${whenLabel(startIso)}` : null,
       attendees[0] ? `👤 ${attendees[0].name}` : null,
       draft.priority === 'high' ? '🔴 High priority' : null,
-      '',
-      '_Reply *today* anytime to see your day\'s schedule._',
-    ]
-      .filter((l): l is string => l !== null)
-      .join('\n');
+      assignee && assignee.id !== ctx.userId ? `➡️ Assigned to ${assignee.full_name}` : null,
+    ].filter((l): l is string => l !== null);
+
+  if (duplicate) {
+    const { error: updateErr } = await ctx.admin
+      .from('todos')
+      .update({ ...todoFields, assigned_to: assignedTo })
+      .eq('id', duplicate.id)
+      .eq('account_id', ctx.accountId);
+    if (updateErr) {
+      console.error('[wa-scheduler] todo update failed:', updateErr);
+      return {
+        lines: [
+          '⚠️ *Couldn\'t update that task*',
+          `📝 ${draft.title}`,
+          'Please try again or edit it from the Calendar page.',
+        ],
+        row: null,
+      };
+    }
+    return { lines: cardLines('✏️ *Task updated*'), row: { type: 'todo', id: duplicate.id } };
   }
 
-  const confirmationWamid = await replyAndLog({
-    phoneNumberId,
-    accessToken,
-    toPhone: contactRecord.phone,
-    conversationId: conversation.id,
-    text: confirmation,
-  });
-  // Lets a quote-reply on this card edit the row instead of creating
-  // a second one (migration 185).
-  if (created) {
-    await recordBotTarget({
-      accountId,
-      waMessageId: confirmationWamid,
-      entityType: created.type,
-      entityId: created.id,
-      client: admin,
-    });
+  const { data: createdTodo, error } = await ctx.admin.from('todos').insert({
+    account_id: ctx.accountId,
+    user_id: ctx.userId,
+    assigned_to: assignedTo,
+    completed: false,
+    source: ctx.source,
+    ...todoFields,
+  }).select('id').single();
+  if (error) {
+    console.error('[wa-scheduler] todo insert failed:', error);
+    return {
+      lines: [
+        '⚠️ *Couldn\'t save that task*',
+        `📝 ${draft.title}`,
+        'Please try again or add it from the Calendar page.',
+      ],
+      row: null,
+    };
   }
-  return true;
+  return {
+    lines: cardLines('✅ *Task added to your list*'),
+    row: createdTodo?.id ? { type: 'todo', id: createdTodo.id as string } : null,
+  };
+}
+
+/**
+ * "Send Sharan the update on the Kusumaraju meeting."
+ *
+ * Writes no calendar row — the update IS the deliverable, and filing it as
+ * a to-do on the speaker's own list is what used to lose it. Delivery goes
+ * through createNotification so it lands on the bell, on push and on the
+ * teammate's own WhatsApp at once, under the account's saved channel
+ * preferences.
+ *
+ * The recipient must be a member of this account: resolution runs against
+ * the same profiles rows the caller loaded, so a name that is not on the
+ * team resolves to nothing and is reported rather than guessed at.
+ */
+async function sendTeammateUpdate(
+  draft: ParsedEventDraft,
+  ctx: DraftFilingContext
+): Promise<FiledDraft> {
+  const recipient = resolveByName(
+    draft.recipient_name,
+    ctx.members.map((m) => ({ id: m.user_id, full_name: m.full_name })),
+    (m) => m.full_name || ''
+  );
+
+  // Resolving to the speaker means the name matched nobody useful — an
+  // update pinged back to its own author tells them nothing.
+  if (!recipient || recipient.id === ctx.userId) {
+    return {
+      lines: [
+        '⚠️ *Couldn\'t send that update*',
+        draft.recipient_name
+          ? `👤 No teammate called *${draft.recipient_name}* — check the spelling, or add them under *Agents*.`
+          : '👤 Say who should get it, e.g. "send Sharan the update on the site visit".',
+        `💬 ${draft.title}`,
+      ],
+      row: null,
+    };
+  }
+
+  const senderName = ctx.members.find((m) => m.user_id === ctx.userId)?.full_name || null;
+  const body = [draft.title, draft.notes].filter((l): l is string => !!l).join('\n');
+  const result = await createNotification({
+    accountId: ctx.accountId,
+    userId: recipient.id,
+    type: 'teammate_update',
+    eventKey: 'teammate_update',
+    title: senderName ? `Update from ${senderName}` : 'Update from your team',
+    body,
+    whatsappText: [
+      senderName ? `📨 *Update from ${senderName}*` : '📨 *Update from your team*',
+      `💬 ${draft.title}`,
+      draft.notes ? `\n${draft.notes}` : null,
+    ]
+      .filter((l): l is string => l !== null)
+      .join('\n'),
+  });
+
+  const delivered = !!result.inAppId || !!result.whatsapp?.success || result.pushCount > 0;
+  if (!delivered) {
+    return {
+      lines: [
+        `⚠️ *Couldn't deliver that update to ${recipient.full_name}*`,
+        `💬 ${draft.title}`,
+        'Tell them directly for now.',
+      ],
+      row: null,
+    };
+  }
+
+  return {
+    lines: [
+      `📨 *Update sent to ${recipient.full_name}*`,
+      `💬 ${draft.title}`,
+      // Attempted and refused — a teammate with no number on their profile,
+      // or one outside the 24-hour window. They still have it in the app,
+      // so this is a nudge rather than a failure.
+      result.whatsapp && !result.whatsapp.success
+        ? '📵 WhatsApp couldn\'t reach them — they\'ll see it in the app.'
+        : null,
+    ].filter((l): l is string => l !== null),
+    row: null,
+  };
 }
 
 export interface InboundSchedulingParams {
