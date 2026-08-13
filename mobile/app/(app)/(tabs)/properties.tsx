@@ -56,6 +56,7 @@ import {
 } from '@/lib/showcase-share';
 import { openContactChat } from '@/lib/open-chat';
 import { useDebounced } from '@/lib/use-debounced';
+import { BulkTagBar } from '@/components/bulk-tag-bar';
 import { haptic } from '@/lib/haptics';
 import {
   activePropertyFilterCount,
@@ -171,6 +172,18 @@ export default function PropertiesScreen() {
   } = usePropertySearch();
   const [locating, setLocating] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  // Bulk tagging. Long-press a card to start; a tag applies to the whole
+  // selection in one call, which is what a project-wide label actually
+  // is (src/app/api/properties/bulk-tags).
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const selecting = selectedIds.length > 0;
+
+  function toggleSelected(id: string) {
+    haptic.tap();
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  }
   const [sharePicker, setSharePicker] = useState(false);
   const { show, close, dialogProps } = useAppDialog();
   const [geoError, setGeoError] = useState<string | null>(null);
@@ -608,11 +621,26 @@ export default function PropertiesScreen() {
           }
           renderItem={({ item, index }) => (
             <EnterRow index={index}>
-              <PropertyCard property={item} gateStats={gateStats} />
+              <PropertyCard
+                property={item}
+                gateStats={gateStats}
+                selecting={selecting}
+                selected={selectedIds.includes(item.id)}
+                onToggle={() => toggleSelected(item.id)}
+                onStartSelecting={() => {
+                  haptic.tap();
+                  setSelectedIds([item.id]);
+                }}
+              />
             </EnterRow>
           )}
         />
       )}
+      <BulkTagBar
+        selectedIds={selectedIds}
+        onClear={() => setSelectedIds([])}
+        onTagged={() => setSelectedIds([])}
+      />
       <AppDialog {...dialogProps} />
       <PropertyFiltersSheet
         visible={filtersOpen}
@@ -873,9 +901,17 @@ function LocalitySearchBox() {
 function PropertyCard({
   property,
   gateStats,
+  selecting,
+  selected,
+  onToggle,
+  onStartSelecting,
 }: {
   property: Property;
   gateStats?: GateStatsMap;
+  selecting: boolean;
+  selected: boolean;
+  onToggle: () => void;
+  onStartSelecting: () => void;
 }) {
   const { colors } = useTheme();
   const gated = property.showcase_visibility === 'teaser';
@@ -907,14 +943,34 @@ function PropertyCard({
 
   return (
     <PressScale
-      onPress={() => router.push(`/(app)/property/${property.id}`)}
+      onPress={() =>
+        selecting ? onToggle() : router.push(`/(app)/property/${property.id}`)
+      }
+      onLongPress={onStartSelecting}
       accessibilityRole="button"
-      accessibilityLabel={`Open property ${property.title}`}
+      accessibilityLabel={
+        selecting
+          ? `${selected ? 'Deselect' : 'Select'} ${property.title}`
+          : `Open property ${property.title}`
+      }
+      accessibilityState={selecting ? { selected } : undefined}
       contentStyle={StyleSheet.flatten([
         styles.card,
-        { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+        {
+          backgroundColor: selected ? colors.primarySoft : colors.glass,
+          borderColor: selected ? colors.primary : colors.glassBorder,
+        },
       ])}
     >
+      {selecting ? (
+        <View style={styles.selectTick}>
+          <Ionicons
+            name={selected ? 'checkmark-circle' : 'ellipse-outline'}
+            size={24}
+            color={selected ? colors.primary : colors.textFaint}
+          />
+        </View>
+      ) : null}
       <View style={styles.coverWrap}>
         {cover ? (
           <Image
@@ -1126,6 +1182,14 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     borderWidth: 1,
     padding: 10,
+  },
+  selectTick: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    zIndex: 2,
+    borderRadius: 999,
+    backgroundColor: 'rgba(0,0,0,0.35)',
   },
   coverWrap: { height: 175, borderRadius: radius.lg, overflow: 'hidden' },
   coverEmpty: { alignItems: 'center', justifyContent: 'center' },
