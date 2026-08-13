@@ -40,9 +40,22 @@ const AI_FEATURE = 'chatbot_classify' as const;
  * a plain "the price is 4.41 Cr" is the agent repeating the listing,
  * not revising it, so a bare price word is not enough — the sentence
  * has to carry finality, a revision, or a rate.
+ *
+ * Narrow is not the same as academic, though. The first list was
+ * written from how the question gets asked ("is it negotiable?") rather
+ * than from how the answer gets typed, and it missed the phrasing this
+ * market actually uses: "This can be closed at 13 cr", sent about a
+ * listing advertised at 15, is a seller's floor stated as plainly as it
+ * ever is — and it scored nothing, so the figure died in the bubble and
+ * the listing still reads 15. The closing/taking family below is that
+ * sentence and its neighbours.
+ *
+ * Every addition still names the seller or the deal. "We can do 13" is
+ * left out on purpose: an agent doing a site visit at 4 says the same
+ * words, and this gate runs on every outbound message.
  */
 const PRICE_FACT_SIGNAL =
-  /\b(final(is|iz)?(ed)?|final price|best price|bottom line|lowest|last price|net price|will (not |n[o']t )?go below|settle(d)? (at|for)|agreed (at|to)|accept(s|ed)? (at|for)|come down to|reduced to|revised to|negotiab\w*|per\s*sq\.?\s*ft|per\s*sqft|psf)\b/i;
+  /\b(final(is|iz)?(ed)?|final price|best price|bottom line|lowest|last price|net price|will (not |n[o']t )?go below|settle(d)? (at|for)|agreed (at|to)|accept(s|ed)? (at|for)|come down to|reduced to|revised to|negotiab\w*|clos(e|es|ed|ing)\s+(it\s+|this\s+|the\s+deal\s+)?(at|for)|(owner|seller|party|landlord|builder)s?\s+(will|can|would|may|is willing to)\s+(take|accept|do|go|come)|(owner|seller|party|landlord|builder)s?\s+(is|are)\s+(ok|okay|fine|agreeable|comfortable)|(done|workable|possible)\s+(at|for)|per\s*sq\.?\s*ft|per\s*sqft|psf)\b/i;
 
 /** A figure has to be present too — "the price is final" states no number. */
 const AMOUNT_SIGNAL =
