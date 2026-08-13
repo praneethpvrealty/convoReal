@@ -70,6 +70,7 @@ export function buildOwnerHelpMessage(): string {
     '*🏠 Add a listing*',
     'Paste the details, or forward an ad screenshot or brochure PDF. I pull out price, area, locality, type and amenities, then show you a draft to confirm.',
     '_e.g. "3750 sqft commercial site, Koramangala 3rd Block, 24.37 Cr, 60 ft road"_',
+    'Sending the location pin first is fine — I hold it and attach it to the details that follow.',
     '',
     '*👤 Add a contact or lead*',
     'Paste their profile, forward a portal lead (MagicBricks / Housing / 99acres), or send a screenshot. What they are looking for is saved as their requirement.',
@@ -79,7 +80,9 @@ export function buildOwnerHelpMessage(): string {
     '• *today* — your visits, calls and to-dos for the day',
     '• "Site visit with Varun tomorrow 4pm at JP Nagar" — books it',
     '• "Remind me to call Deepak on Friday" — adds a to-do',
-    '• A voice note works too — say what, who and when',
+    '',
+    '*🎙 Or just say it*',
+    'A voice note does any of the above — a listing, a lead, a reminder, or a correction to a draft. I write down what you said and file it the same way.',
     '',
     '*💬 Answer a lead*',
     'Reply to any lead alert I send you and your message goes straight to them.',
@@ -101,11 +104,18 @@ export function buildOwnerHelpMessage(): string {
  * Reply to a message that reached the assistant but classified as
  * neither a listing nor a contact. Names the likely intents instead of
  * restating the whole menu.
+ *
+ * `heard` is set only for a voice note, and quotes the transcript the
+ * assistant worked from. Without it the sender has no way to tell a
+ * misheard word from a misunderstood request, and no reason to trust
+ * that speaking is worth doing at all.
  */
-export function buildOwnerFallbackMessage(): string {
+export function buildOwnerFallbackMessage(heard?: string | null): string {
+  const spoken = (heard ?? '').trim();
   return [
     "🤔 *I couldn't tell what that was.*",
     '',
+    ...(spoken ? [`🎙 _I heard:_ "${spoken}"`, ''] : []),
     '• *A property?* Paste the listing details, or forward an ad screenshot or PDF.',
     '• *A lead?* Send their name, number and what they are looking for.',
     '• *Something to schedule?* Try "Site visit with Varun tomorrow 4pm" — or send *today* for your schedule.',

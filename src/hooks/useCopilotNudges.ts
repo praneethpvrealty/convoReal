@@ -15,6 +15,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import type { CopilotNudge } from "@/lib/copilot/nudges";
+import { readStored, readStoredJson, writeStored } from "@/lib/safe-storage";
 
 const FETCH_DELAY_MS = 8_000;
 const GLOBAL_COOLDOWN_MS = 24 * 60 * 60 * 1000;
@@ -22,11 +23,7 @@ const PER_NUDGE_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
 const SESSION_FETCH_KEY = "copilot_nudges_fetched";
 
 function readSeen(key: string): Record<string, number> {
-  try {
-    return JSON.parse(localStorage.getItem(key) ?? "{}");
-  } catch {
-    return {};
-  }
+  return readStoredJson<Record<string, number>>(key, {});
 }
 
 export function useCopilotNudges(): {
@@ -45,12 +42,12 @@ export function useCopilotNudges(): {
     const lastShownKey = `copilot_nudge_last_shown_${accountId}`;
     const seenKey = `copilot_nudge_seen_${accountId}`;
 
-    const lastShown = Number(localStorage.getItem(lastShownKey) ?? 0);
+    const lastShown = Number(readStored(lastShownKey) ?? 0);
     if (Date.now() - lastShown < GLOBAL_COOLDOWN_MS) return;
-    if (sessionStorage.getItem(SESSION_FETCH_KEY)) return;
+    if (readStored(SESSION_FETCH_KEY, "session")) return;
 
     const timer = setTimeout(async () => {
-      sessionStorage.setItem(SESSION_FETCH_KEY, "1");
+      writeStored(SESSION_FETCH_KEY, "1", "session");
       try {
         const res = await fetch("/api/copilot/nudges");
         if (!res.ok) return;
@@ -69,14 +66,11 @@ export function useCopilotNudges(): {
 
   const markSeen = useCallback(() => {
     if (!accountId || !nudge) return;
-    localStorage.setItem(
-      `copilot_nudge_last_shown_${accountId}`,
-      String(Date.now()),
-    );
+    writeStored(`copilot_nudge_last_shown_${accountId}`, String(Date.now()));
     const seenKey = `copilot_nudge_seen_${accountId}`;
     const seen = readSeen(seenKey);
     seen[nudge.id] = Date.now();
-    localStorage.setItem(seenKey, JSON.stringify(seen));
+    writeStored(seenKey, JSON.stringify(seen));
     setNudge(null);
   }, [accountId, nudge]);
 

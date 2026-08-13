@@ -60,6 +60,7 @@ import {
   ArrowUp,
   Waypoints,
   ArrowRightLeft,
+  ClipboardList,
 } from 'lucide-react';
 import {
   Tooltip,
@@ -81,6 +82,7 @@ import { PropertyShareDialog } from '@/components/inventory/property-share-dialo
 import { LogExternalShareDialog } from '@/components/contacts/log-external-share-dialog';
 import { CallRecordingAnalyzer, CallAnalysisSection } from '@/components/contacts/call-analysis';
 import { GreetingsGeneratorDialog } from '@/components/contacts/greetings-generator-dialog';
+import { OwnerDetailsRequestDialog } from '@/components/contacts/owner-details-request-dialog';
 import { MoveToEngineDialog } from '@/components/contacts/move-to-engine-dialog';
 import { SearchablePropertySelect } from '@/components/ui/searchable-property-select';
 import { isLocationGuarded } from '@/lib/inventory/location-guard';
@@ -135,6 +137,7 @@ export function ContactDetailView({
   const [logShareOpen, setLogShareOpen] = useState(false);
   const [greetingsOpen, setGreetingsOpen] = useState(false);
   const [moveToEngineOpen, setMoveToEngineOpen] = useState(false);
+  const [detailsRequestOpen, setDetailsRequestOpen] = useState(false);
 
   // Details tab
   const [editName, setEditName] = useState('');
@@ -1452,6 +1455,14 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                     >
                       <Share2 className="size-3 text-amber-400" />
                       Share Listing
+                    </button>
+                    <button
+                      onClick={() => setDetailsRequestOpen(true)}
+                      className="flex items-center gap-1.5 text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 border border-amber-500/20 rounded-md px-2 py-0.5 transition-all cursor-pointer font-medium"
+                      title="Ask this owner for the full property details, and tell them what updates this number will send back"
+                    >
+                      <ClipboardList className="size-3 text-amber-400" />
+                      Ask for Details
                     </button>
                     <button
                       onClick={() => router.push(`/journey?contact=${contact.id}`)}
@@ -3013,6 +3024,17 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                 onOpenChange={setMoveToEngineOpen}
                 contactName={contact.name || ''}
                 contactPhone={contact.phone}
+              />
+            )}
+            {/* Owner Property Details Request Dialog */}
+            {contactId && contact && hasPhone(contact) && (
+              <OwnerDetailsRequestDialog
+                open={detailsRequestOpen}
+                onOpenChange={setDetailsRequestOpen}
+                contactId={contactId}
+                contactName={contact.name || ''}
+                contactPhone={contact.phone}
+                properties={associatedProperties}
               />
             )}
             {/* Greetings Generator Dialog */}

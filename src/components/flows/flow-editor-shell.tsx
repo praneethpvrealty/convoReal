@@ -26,6 +26,7 @@ import { EditorHeader } from "./header";
 import { ValidationPanel } from "./validation-panel";
 import { cn } from "@/lib/utils";
 import type { FlowRow, FlowNodeRow } from "@/lib/flows/types";
+import { readStored, writeStored } from '@/lib/safe-storage';
 
 /**
  * Below this viewport width we force list view and hide the toggle.
@@ -52,7 +53,7 @@ export function FlowEditorShell({ initialFlow, initialNodes }: Props) {
   // Default to `canvas` (the new default) when nothing is saved.
   const [view, setView] = useState<View>(() => {
     try {
-      const saved = window.localStorage.getItem(STORAGE_KEY);
+      const saved = readStored(STORAGE_KEY);
       if (saved === "canvas" || saved === "list") return saved;
     } catch {
       // Private browsing / disabled storage — fall through to default.
@@ -70,7 +71,7 @@ export function FlowEditorShell({ initialFlow, initialNodes }: Props) {
   const choose = (next: View) => {
     setView(next);
     try {
-      window.localStorage.setItem(STORAGE_KEY, next);
+      writeStored(STORAGE_KEY, next);
     } catch {
       // ignore
     }

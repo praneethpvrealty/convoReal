@@ -19,6 +19,7 @@ import {
   type LanguageCode,
 } from '@/lib/languages';
 import { translate, type MessageKey } from '@/lib/i18n/messages';
+import { readStored, writeStored } from '@/lib/safe-storage';
 
 /**
  * LocaleProvider — the agent's own UI language.
@@ -92,7 +93,7 @@ export function sanitizeLanguageSet(input: unknown): LanguageCode[] {
  */
 function getActiveSnapshot(): LanguageCode {
   try {
-    const stored = localStorage.getItem(LOCALE_STORAGE_KEY);
+    const stored = readStored(LOCALE_STORAGE_KEY);
     if (isLanguageCode(stored)) return stored;
   } catch {
     // localStorage throws in private-browsing / sandboxed contexts.
@@ -102,7 +103,7 @@ function getActiveSnapshot(): LanguageCode {
 
 function getSetSnapshot(): string {
   try {
-    const stored = localStorage.getItem(LOCALE_SET_STORAGE_KEY);
+    const stored = readStored(LOCALE_SET_STORAGE_KEY);
     if (stored) return sanitizeLanguageSet(stored.split(',')).join(',');
   } catch {
     // See above.
@@ -135,8 +136,8 @@ function subscribe(onChange: () => void): () => void {
 
 function writeCache(active: LanguageCode, set: LanguageCode[]): void {
   try {
-    localStorage.setItem(LOCALE_STORAGE_KEY, active);
-    localStorage.setItem(LOCALE_SET_STORAGE_KEY, set.join(','));
+    writeStored(LOCALE_STORAGE_KEY, active);
+    writeStored(LOCALE_SET_STORAGE_KEY, set.join(','));
   } catch {
     // Nothing to cache to; the profile is still the truth and the
     // in-memory notify below still repaints this tab.

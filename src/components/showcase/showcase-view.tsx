@@ -50,6 +50,7 @@ import {
   PropertyRatingBar,
   HIGH_INTEREST_RATING,
 } from '@/components/showcase/property-rating-bar';
+import { readStored, removeStored, writeStored } from '@/lib/safe-storage';
 
 // Dwell-time cap for Pulse view_property events — a tab left open in the
 // background must not report hours of "viewing".
@@ -408,7 +409,7 @@ export function ShowcaseView({
     }
 
     // Load from localStorage if less than 7 days old
-    const savedStateStr = disableSavedState ? null : localStorage.getItem('showcase_state');
+    const savedStateStr = disableSavedState ? null : readStored('showcase_state');
     let savedState: SavedShowcaseState | null = null;
     if (savedStateStr) {
       try {
@@ -417,7 +418,7 @@ export function ShowcaseView({
         if (age < 7 * 24 * 60 * 60 * 1000) {
           savedState = parsed;
         } else {
-          localStorage.removeItem('showcase_state');
+          removeStored('showcase_state');
         }
       } catch (e) {
         console.error('Failed to parse showcase state:', e);
@@ -495,7 +496,7 @@ export function ShowcaseView({
       selectedPropertyId: selectedProperty?.property_code || selectedProperty?.id || null
     };
 
-    localStorage.setItem('showcase_state', JSON.stringify(stateToSave));
+    writeStored('showcase_state', JSON.stringify(stateToSave));
   }, [selectedType, selectedListingType, minBeds, sortBy, searchQuery, selectedProperty, disableSavedState]);
 
   // 3. Debounced Search Analytics Event
@@ -567,10 +568,10 @@ export function ShowcaseView({
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const storedName = localStorage.getItem('visitor_name') || '';
-      const storedPhone = localStorage.getItem('visitor_phone') || '';
-      const storedEmail = localStorage.getItem('visitor_email') || '';
-      const storedInterests = localStorage.getItem('visitor_interests');
+      const storedName = readStored('visitor_name') || '';
+      const storedPhone = readStored('visitor_phone') || '';
+      const storedEmail = readStored('visitor_email') || '';
+      const storedInterests = readStored('visitor_interests');
 
       setVisitorName(storedName);
       setVisitorPhone(storedPhone);
@@ -621,10 +622,10 @@ export function ShowcaseView({
   }, [settings?.meta_pixel_id]);
 
   const saveVisitorInfo = (name: string, phone: string, email?: string) => {
-    localStorage.setItem('visitor_name', name);
-    localStorage.setItem('visitor_phone', phone);
+    writeStored('visitor_name', name);
+    writeStored('visitor_phone', phone);
     if (email) {
-      localStorage.setItem('visitor_email', email);
+      writeStored('visitor_email', email);
     }
     setVisitorName(name);
     setVisitorPhone(phone);
@@ -640,7 +641,7 @@ export function ShowcaseView({
   const updateInterestStatus = (propertyId: string, status: 'interested' | 'not_interested') => {
     const updated = { ...interestStatus, [propertyId]: status };
     setInterestStatus(updated);
-    localStorage.setItem('visitor_interests', JSON.stringify(updated));
+    writeStored('visitor_interests', JSON.stringify(updated));
   };
 
   // High ratings from a visitor we already know become a priority
@@ -697,7 +698,7 @@ export function ShowcaseView({
       const updated = { ...interestStatus };
       delete updated[property.id];
       setInterestStatus(updated);
-      localStorage.setItem('visitor_interests', JSON.stringify(updated));
+      writeStored('visitor_interests', JSON.stringify(updated));
     }
 
     void postRating(property, rating, missReasons);
@@ -1561,7 +1562,7 @@ export function ShowcaseView({
                         const updated = { ...interestStatus };
                         delete updated[property.id];
                         setInterestStatus(updated);
-                        localStorage.setItem('visitor_interests', JSON.stringify(updated));
+                        writeStored('visitor_interests', JSON.stringify(updated));
                       }}
                       className="border-slate-850 hover:border-slate-700 bg-slate-950 hover:bg-slate-900 text-slate-300 text-xs font-semibold px-3 py-1 cursor-pointer"
                     >

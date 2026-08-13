@@ -28,6 +28,7 @@ import { ApproveCelebration, type ApproveCelebrationState } from '@/components/a
 import { AreasOfInterestInput } from '@/components/areas-of-interest-input';
 import { ConvoRealLoader } from '@/components/loader';
 import { MoveToEngineSheet } from '@/components/move-to-engine-sheet';
+import { OwnerDetailsRequestSheet } from '@/components/owner-details-request-sheet';
 import { PulseRing } from '@/components/motion';
 import { Avatar, Banner, PrimaryButton, SectionLabel, Tag, TextField } from '@/components/ui';
 import { apiFetch, ApiError } from '@/lib/api';
@@ -218,6 +219,7 @@ function ContactCard({ contact }: { contact: Contact }) {
   const { colors, dark, fonts: f } = useTheme();
   const [celebration, setCelebration] = useState<ApproveCelebrationState | null>(null);
   const [moveToEngineOpen, setMoveToEngineOpen] = useState(false);
+  const [detailsRequestOpen, setDetailsRequestOpen] = useState(false);
   const [favoriting, setFavoriting] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const {
@@ -395,6 +397,11 @@ function ContactCard({ contact }: { contact: Contact }) {
               label="To Engine"
               onPress={() => setMoveToEngineOpen(true)}
             />
+            <ActionButton
+              icon="clipboard-outline"
+              label="Ask Details"
+              onPress={() => setDetailsRequestOpen(true)}
+            />
           </>
         ) : null}
         {contact.classification === 'Agent' ? (
@@ -510,6 +517,11 @@ function ContactCard({ contact }: { contact: Contact }) {
     <MoveToEngineSheet
       visible={moveToEngineOpen}
       onClose={() => setMoveToEngineOpen(false)}
+      contact={contact}
+    />
+    <OwnerDetailsRequestSheet
+      visible={detailsRequestOpen}
+      onClose={() => setDetailsRequestOpen(false)}
       contact={contact}
     />
     <AppDialog {...screenDialogProps} />

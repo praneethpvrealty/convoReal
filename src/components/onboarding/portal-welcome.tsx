@@ -13,6 +13,7 @@ import { ArrowLeft, ArrowRight, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { StepMedia } from '@/components/onboarding/step-media';
 import type { OnboardingMediaSlug } from '@/lib/onboarding/media';
+import { readStored, writeStored } from '@/lib/safe-storage';
 
 export interface PortalWelcomeStep {
   icon: React.ReactNode;
@@ -40,7 +41,7 @@ export function PortalWelcome({
   const [open, setOpen] = useState(() => {
     if (typeof window === 'undefined') return false;
     try {
-      return localStorage.getItem(storageKey) !== 'true';
+      return readStored(storageKey) !== 'true';
     } catch {
       // Storage unavailable (private mode) — skip rather than nag every visit.
       return false;
@@ -50,7 +51,7 @@ export function PortalWelcome({
 
   function dismiss() {
     try {
-      localStorage.setItem(storageKey, 'true');
+      writeStored(storageKey, 'true');
     } catch {
       // Best effort.
     }

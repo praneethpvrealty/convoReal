@@ -11,6 +11,7 @@ import {
   parseContactFromImageOrText,
   parseClientReplyFromImageOrText,
   updateContactDraft,
+  transcribeVoiceNote,
   type ParsedContactDraftsContainer,
   normalizeClassification
 } from '@/lib/ai/gemini';
@@ -70,6 +71,19 @@ import {
   formatContactDraftsPreview,
   backfillLocationFromMapLink,
 } from '@/lib/ai/intake-core';
+import {
+  parseSharedContactCards,
+  applySharedCardOwner,
+  fileSharedCardContact,
+  contactDraftsFromCards,
+} from '@/lib/contacts/shared-cards';
+import { extractMapLinkFromText } from '@/lib/maps/map-links';
+import {
+  parkMapPin,
+  takePendingMapPin,
+  applyPinToDraft,
+  buildPinParkedMessage,
+} from '@/lib/maps/pending-pin';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { recordRequirementResponse } from '@/lib/requirements/respond';
 
@@ -601,13 +615,55 @@ export async function processOwnerChatbotMessage(
   let propSession = propSessionData;
   let contactSession = contactSessionData;
 
-  const cleanedText = contentText?.trim() || '';
+  const isAudioMsg = message.type === 'audio' && !!message.audio?.id;
+
+  // A voice note is the same request said out loud, so it is transcribed
+  // once here and read as text by every path below — draft corrections,
+  // the calendar, listing and contact intake alike.
+  //
+  // Audio used to reach exactly one destination: the calendar parser. A
+  // dictated listing was therefore forced into an event or answered with
+  // "I couldn't find an event in that" — and a voice note that arrived
+  // while a draft was open matched no branch at all and got silence, no
+  // reply and nothing saved.
+  let spokenText = '';
+  if (isAudioMsg) {
+    if (!(await gatedBurn(accountId, 'voice_transcribe'))) {
+      return await sendCreditsLockedReply(phoneNumberId, accessToken, contactRecord.phone, conversation.id);
+    }
+    try {
+      const { url, mimeType } = await getMediaUrl({ mediaId: message.audio!.id, accessToken });
+      const { buffer } = await downloadMedia({ downloadUrl: url, accessToken });
+      spokenText = await transcribeVoiceNote(buffer, mimeType || message.audio!.mime_type || 'audio/ogg');
+    } catch (err) {
+      console.error('[chatbot-engine] voice note transcription failed:', err);
+    }
+
+    if (!spokenText) {
+      const reply =
+        "🎙 *I couldn't make out that voice note.* Try again somewhere quieter, or type it out — I can take a listing, a contact, or something to schedule either way.";
+      const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+      await saveBotMessage(conversation.id, reply, sendRes.messageId);
+      return true;
+    }
+  }
+
+  const cleanedText = (spokenText || contentText || '').trim();
   const lowerText = cleanedText.toLowerCase();
 
   const isImageMsg = message.type === 'image' && message.image?.id;
   const isDocMsg = message.type === 'document' && message.document?.id;
   const isVideoMsg = message.type === 'video' && message.video?.id;
   const isMediaMsg = isImageMsg || isDocMsg || isVideoMsg;
+
+  // A forwarded vCard is a person. WhatsApp says so structurally, so
+  // there is nothing here to classify and nothing to pay for — and
+  // guessing was actively worse: a phonebook name like "Nadeem
+  // Koramangala 8th Block 2100 Sqft Corner" carries enough listing
+  // words to beat the person under the classifier's own precedence
+  // rule, which was written for forwarded ad copy that happens to
+  // quote an agent's number, not for a card.
+  const isContactCardMsg = message.type === 'contacts';
 
   // Concurrency check: If there is no active session yet, and we are either an image/document message or
   // a text message that is NOT a property initiator (e.g. location map link or quick correction),
@@ -943,7 +999,14 @@ export async function processOwnerChatbotMessage(
   // later list ever reached the calendar. The draft itself is left
   // alone — a half-built listing is still wanted, it just isn't what
   // this message is about.
-  if ((!propSession && !contactSession) || isDictatedTaskList(cleanedText)) {
+  //
+  // A voice note is the other exception, for the same reason and one
+  // more: nobody forwards a listing by speaking it into their own
+  // Engine number, so there is no correction to hijack — and a draft
+  // left open from an hour ago used to swallow the whole recording
+  // without a word back. The parser returns 'none' for a spoken
+  // correction, which falls through to the draft below untouched.
+  if ((!propSession && !contactSession) || isDictatedTaskList(cleanedText) || isAudioMsg) {
     try {
       const scheduled = await tryHandleOwnerScheduling({
         message,
@@ -966,6 +1029,15 @@ export async function processOwnerChatbotMessage(
     /is interested in|referred by|magicbricks|99acres|housing\.com/i.test(cleanedText) ||
     (cleanedText.split('\n').length >= 2 && /\b\d{10,15}\b/.test(cleanedText))
   );
+
+  // A card arriving mid-listing is a person to file, never a correction
+  // to the draft — and the draft would otherwise swallow it, because
+  // the keyword test below never matches a card's rendered text.
+  if (propSession && isContactCardMsg) {
+    console.log(`[chatbot-engine] Discarding active property session ${propSession.id} for a shared contact card`);
+    await supabaseAdmin().from('property_draft_sessions').delete().eq('id', propSession.id);
+    propSession = null;
+  }
 
   if (propSession && hasContactKeywords) {
     if (!(await gatedBurn(accountId, 'chatbot_classify'))) {
@@ -1117,6 +1189,7 @@ export async function processOwnerChatbotMessage(
                 account_id: accountId,
                 user_id: userId,
                 name: ownerName,
+                name_tag: draft.owner_contact_name_tag?.trim() || null,
                 phone: normalizedPhone,
                 classification: newClassification,
                 status: 'pending_review',
@@ -1674,6 +1747,10 @@ export async function processOwnerChatbotMessage(
 
         const currentDraft = latestSession.draft_data as ParsedPropertyDraft;
         updatedDraft = await updateListingDraft(currentDraft, cleanedText);
+        // Same rule as fresh intake: a card re-forwarded into an open
+        // draft still states the person's name outright, and the model
+        // guesses at it just as readily on this path as on that one.
+        updatedDraft = applySharedCardOwner(updatedDraft, cleanedText);
         updatedDraft = await backfillLocationFromMapLink(updatedDraft);
 
         const validation = validateDraft(updatedDraft);
@@ -1708,13 +1785,32 @@ export async function processOwnerChatbotMessage(
 
       const actualSavedTime = finalUpdateData[0].updated_at;
 
+      // A card shared into an open draft is still a person shared. File
+      // them here too, or an agent who forwards the card a second time
+      // loses them the moment they tap Cancel.
+      const cardFiled =
+        parseSharedContactCards(cleanedText).length > 0 && updatedDraft.owner_contact_name
+          ? await fileSharedCardContact({
+              accountId,
+              userId,
+              owner: {
+                name: updatedDraft.owner_contact_name,
+                nameTag: updatedDraft.owner_contact_name_tag ?? null,
+                phone: updatedDraft.owner_contact_phone,
+              },
+              role: updatedDraft.owner_contact_role,
+            })
+          : null;
+
       sendPropertyDraftPreviewDebounced(
         propSession.id,
         actualSavedTime,
         phoneNumberId,
         accessToken,
         contactRecord.phone,
-        `📝 *Draft Listing Updated:*`,
+        cardFiled?.created
+          ? `📝 *Draft Listing Updated:*\n👤 _Saved ${cardFiled.name} to Contacts._`
+          : `📝 *Draft Listing Updated:*`,
         conversation.id
       );
       return true;
@@ -2228,6 +2324,40 @@ export async function processOwnerChatbotMessage(
       }
     }
 
+    // A second card is another person, or the same one again — never a
+    // correction to type over the draft. Reconciled the way a second
+    // screenshot is, and free, because the card needs no reading.
+    const incomingCards = isContactCardMsg ? contactDraftsFromCards(cleanedText) : null;
+    if (incomingCards) {
+      const { container: mergedContainer, replaced } = reconcileContactDrafts(container, incomingCards);
+      const { isValid, missingFields } = validateContactDraftsContainer(mergedContainer);
+      const nextStatus = isValid ? 'awaiting_confirmation' : 'collecting';
+
+      await supabaseAdmin()
+        .from('contact_draft_sessions')
+        .update({
+          draft_data: mergedContainer,
+          status: nextStatus,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', contactSession.id);
+
+      await sendContactDraftPreview(
+        phoneNumberId,
+        accessToken,
+        contactRecord.phone,
+        replaced
+          ? `📝 *New Contact Draft — previous one discarded:*`
+          : `📝 *Contact Drafts Updated:*`,
+        mergedContainer,
+        nextStatus,
+        missingFields,
+        conversation.id,
+        accountId
+      );
+      return true;
+    }
+
     // Handle conversational updates to contact drafts
     if (cleanedText) {
       if (!(await gatedBurn(accountId, 'chatbot_classify'))) {
@@ -2274,18 +2404,23 @@ export async function processOwnerChatbotMessage(
 
     const { buffer: mediaBuffer, mimeType: mediaMimeType } = await loadInboundMedia();
 
-    if (!(await gatedBurn(accountId, 'chatbot_classify'))) {
-      return await sendCreditsLockedReply(phoneNumberId, accessToken, contactRecord.phone, conversation.id);
-    }
+    // A card and a document each decide themselves what they are, so
+    // neither reaches the model — and neither is charged for a
+    // classification that never ran.
     let classification: 'property' | 'contact' | 'schedule' | 'client_reply' | 'none';
-    if (isDocMsg) {
+    if (isContactCardMsg) {
+      classification = 'contact';
+    } else if (isDocMsg) {
       classification = 'property';
-    } else if (isVideoMsg) {
-      // The classifier takes images/text, not video bytes — classify
-      // from the caption alone.
-      classification = await classifyImageOrText(cleanedText, undefined, undefined);
     } else {
-      classification = await classifyImageOrText(cleanedText, mediaBuffer, mediaMimeType);
+      if (!(await gatedBurn(accountId, 'chatbot_classify'))) {
+        return await sendCreditsLockedReply(phoneNumberId, accessToken, contactRecord.phone, conversation.id);
+      }
+      classification = isVideoMsg
+        // The classifier takes images/text, not video bytes — classify
+        // from the caption alone.
+        ? await classifyImageOrText(cleanedText, undefined, undefined)
+        : await classifyImageOrText(cleanedText, mediaBuffer, mediaMimeType);
     }
 
     // --- SCHEDULING FLOW (screenshot of a chat that fixes a meeting) ---
@@ -2412,6 +2547,20 @@ export async function processOwnerChatbotMessage(
         } else {
           parsedDraft = await parseListingFromImageOrText(cleanedText);
           parsedDraft.images = [];
+        }
+
+        // A forwarded contact card states the person's name outright,
+        // so it wins over whichever word the model picked out of the
+        // phonebook label it was reading. No-op for every other message.
+        const fromSharedCard = parseSharedContactCards(cleanedText).length > 0;
+        parsedDraft = applySharedCardOwner(parsedDraft, cleanedText);
+
+        // A pin shared moments before this message was waiting for the
+        // listing it belongs to. Applied before the backfill so the
+        // geocoding runs once, on whichever link the draft ends up with.
+        const pendingPin = await takePendingMapPin(accountId, contactRecord.id);
+        if (pendingPin) {
+          parsedDraft = applyPinToDraft(parsedDraft, pendingPin);
         }
 
         parsedDraft = await backfillLocationFromMapLink(parsedDraft);
@@ -2564,6 +2713,22 @@ export async function processOwnerChatbotMessage(
         }
 
         if (!insertErr && insertedData && insertedData.length > 0) {
+          // Someone who shares a contact card has shared a person, and
+          // the listing draft they also described may never be
+          // confirmed. File them now rather than losing them with it.
+          const filedContact = fromSharedCard && parsedDraft.owner_contact_name
+            ? await fileSharedCardContact({
+                accountId,
+                userId,
+                owner: {
+                  name: parsedDraft.owner_contact_name,
+                  nameTag: parsedDraft.owner_contact_name_tag ?? null,
+                  phone: parsedDraft.owner_contact_phone,
+                },
+                role: parsedDraft.owner_contact_role,
+              })
+            : null;
+
           const savedTime = insertedData[0].updated_at;
           sendPropertyDraftPreviewDebounced(
             insertedData[0].id,
@@ -2571,7 +2736,9 @@ export async function processOwnerChatbotMessage(
             phoneNumberId,
             accessToken,
             contactRecord.phone,
-            `📝 *Draft Property Listing Created!*`,
+            filedContact?.created
+              ? `📝 *Draft Property Listing Created!*\n👤 _Saved ${filedContact.name} to Contacts._`
+              : `📝 *Draft Property Listing Created!*`,
             conversation.id
           );
         }
@@ -2587,24 +2754,32 @@ export async function processOwnerChatbotMessage(
 
     // --- CONTACT INGESTION FLOW ---
     if (classification === 'contact') {
-      // Gate the parse burn before announcing "Analyzing…" so a
-      // drained balance produces the lock reply, not a dead promise.
-      if (!(await gatedBurn(accountId, 'contact_parse'))) {
-        return await sendCreditsLockedReply(phoneNumberId, accessToken, contactRecord.phone, conversation.id);
+      // A card needs no reading: the name and the number are stated on
+      // it. Skip the parse, its charge, and the "Analyzing…" wait.
+      const cardContainer = isContactCardMsg ? contactDraftsFromCards(cleanedText) : null;
+
+      if (!cardContainer) {
+        // Gate the parse burn before announcing "Analyzing…" so a
+        // drained balance produces the lock reply, not a dead promise.
+        if (!(await gatedBurn(accountId, 'contact_parse'))) {
+          return await sendCreditsLockedReply(phoneNumberId, accessToken, contactRecord.phone, conversation.id);
+        }
+        const analyzingContactMsg = "⏳ _Analyzing contact details... Please wait._";
+        const analyzingContactSendRes = await sendTextMessage({
+          phoneNumberId,
+          accessToken,
+          to: contactRecord.phone,
+          text: analyzingContactMsg
+        });
+        await saveBotMessage(conversation.id, analyzingContactMsg, analyzingContactSendRes.messageId);
       }
-      const analyzingContactMsg = "⏳ _Analyzing contact details... Please wait._";
-      const analyzingContactSendRes = await sendTextMessage({
-        phoneNumberId,
-        accessToken,
-        to: contactRecord.phone,
-        text: analyzingContactMsg
-      });
-      await saveBotMessage(conversation.id, analyzingContactMsg, analyzingContactSendRes.messageId);
 
       try {
         let parsedContainer: ParsedContactDraftsContainer;
 
-        if (isMediaMsg && mediaBuffer && mediaMimeType) {
+        if (cardContainer) {
+          parsedContainer = cardContainer;
+        } else if (isMediaMsg && mediaBuffer && mediaMimeType) {
           parsedContainer = await parseContactFromImageOrText(contentText || '', mediaBuffer, mediaMimeType);
         } else {
           parsedContainer = await parseContactFromImageOrText(cleanedText);
@@ -2643,6 +2818,27 @@ export async function processOwnerChatbotMessage(
         return true;
       }
     }
+
+    // --- MAP PIN AHEAD OF ITS LISTING ---
+    // A shared pin carries no listing and no person, so it lands here as
+    // 'none'. It is not noise: the details follow it seconds later, and
+    // answering "I couldn't tell what that was" threw away the most
+    // precise thing the lister had. Hold it for the next draft instead.
+    if (classification === 'none' && !isMediaMsg) {
+      const mapLink = extractMapLinkFromText(cleanedText);
+      if (mapLink) {
+        const pin = await parkMapPin({
+          accountId,
+          contactId: contactRecord.id,
+          conversationId: conversation.id,
+          mapLink,
+        });
+        const reply = buildPinParkedMessage(pin);
+        const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+        await saveBotMessage(conversation.id, reply, sendRes.messageId);
+        return true;
+      }
+    }
   }
 
   // Handle help command or general welcome instructions.
@@ -2656,7 +2852,7 @@ export async function processOwnerChatbotMessage(
     // nor a contact, and is better served by a short nudge.
     const reply = isOwnerHelpCommand(lowerText)
       ? buildOwnerHelpMessage()
-      : buildOwnerFallbackMessage();
+      : buildOwnerFallbackMessage(spokenText || null);
 
     const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
     await saveBotMessage(conversation.id, reply, sendRes.messageId);

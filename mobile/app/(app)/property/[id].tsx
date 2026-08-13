@@ -14,6 +14,7 @@ import {
   Text,
   View,
   useWindowDimensions,
+  type ImageSourcePropType,
 } from 'react-native';
 
 import { BlurView } from 'expo-blur';
@@ -27,7 +28,8 @@ import { PropertyShareSheet } from '@/components/property-share-sheet';
 import { SectionLabel, Tag, nameTagCap } from '@/components/ui';
 import { nativeMapsAvailable } from '@/lib/maps-support';
 import { openInMaps } from '@/lib/open-maps';
-import { storagePublicUrl } from '@/lib/storage-url';
+import { internalPhotoSources } from '@/lib/photo-sources';
+import { usePhotoSources } from '@/lib/use-photo-source';
 import { apiFetch, ApiError } from '@/lib/api';
 import { friendlyError } from '@/lib/errors';
 import { chatListTime, formatInr } from '@/lib/format';
@@ -85,6 +87,20 @@ export default function PropertyDetailScreen() {
     queryFn: () => fetchProperty(id),
     enabled: Boolean(id),
   });
+
+  // A gated listing's photos live in the guarded bucket, so the gallery
+  // is not `property.images` — those stream through the authenticated
+  // proxy instead. Resolved before the early return: it is a hook.
+  const photos =
+    usePhotoSources(
+      property
+        ? internalPhotoSources({
+            id: property.id,
+            images: property.images,
+            private_images: property.private_images,
+          })
+        : []
+    ) ?? [];
 
   if (isLoading || !property) {
     return (
@@ -245,7 +261,7 @@ export default function PropertyDetailScreen() {
           }}
         />
 
-        {property.images?.length ? (
+        {photos.length ? (
           <View>
             <ScrollView
               ref={pagerRef}
@@ -261,15 +277,15 @@ export default function PropertyDetailScreen() {
                 )
               }
             >
-              {property.images.map((url, i) => (
+              {photos.map((source, i) => (
                 <Pressable
-                  key={url}
+                  key={i}
                   onPress={() => setViewerOpen(true)}
                   accessibilityRole="button"
                   accessibilityLabel={`View photo ${i + 1} full screen`}
                 >
                   <Image
-                    source={{ uri: storagePublicUrl(url) }}
+                    source={source}
                     style={{ width: winW, height: 270 }}
                     resizeMode="cover"
                   />
@@ -285,19 +301,19 @@ export default function PropertyDetailScreen() {
             >
               <Ionicons name="expand" size={13} color="#fff" />
               <Text style={styles.expandChipText}>
-                {activeImage + 1}/{property.images.length}
+                {activeImage + 1}/{photos.length}
               </Text>
             </Pressable>
-            {property.images.length > 1 ? (
+            {photos.length > 1 ? (
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 style={styles.thumbStrip}
                 contentContainerStyle={{ gap: 8 }}
               >
-                {property.images.slice(0, 8).map((url, i) => (
+                {photos.slice(0, 8).map((source, i) => (
                   <Pressable
-                    key={url}
+                    key={i}
                     onPress={() => {
                       setActiveImage(i);
                       pagerRef.current?.scrollTo({
@@ -306,10 +322,10 @@ export default function PropertyDetailScreen() {
                       });
                     }}
                     accessibilityRole="button"
-                    accessibilityLabel={`Photo ${i + 1} of ${property.images!.length}`}
+                    accessibilityLabel={`Photo ${i + 1} of ${photos.length}`}
                   >
                     <Image
-                      source={{ uri: storagePublicUrl(url) }}
+                      source={source}
                       style={[
                         styles.thumb,
                         i === activeImage && {
@@ -320,15 +336,15 @@ export default function PropertyDetailScreen() {
                     />
                   </Pressable>
                 ))}
-                {property.images.length > 8 ? (
+                {photos.length > 8 ? (
                   <Pressable
                     onPress={() => setViewerOpen(true)}
                     accessibilityRole="button"
-                    accessibilityLabel={`View all ${property.images.length} photos`}
+                    accessibilityLabel={`View all ${photos.length} photos`}
                     style={[styles.thumb, styles.thumbMore]}
                   >
                     <Text style={styles.thumbMoreText}>
-                      +{property.images.length - 8}
+                      +{photos.length - 8}
                     </Text>
                   </Pressable>
                 ) : null}
@@ -336,7 +352,7 @@ export default function PropertyDetailScreen() {
             ) : null}
             {viewerOpen ? (
               <GalleryViewer
-                images={property.images.map(storagePublicUrl)}
+                images={photos}
                 initialIndex={activeImage}
                 onClose={() => setViewerOpen(false)}
               />
@@ -1430,7 +1446,7 @@ function GalleryViewer({
   initialIndex,
   onClose,
 }: {
-  images: string[];
+  images: ImageSourcePropType[];
   initialIndex: number;
   onClose: () => void;
 }) {
@@ -1457,7 +1473,7 @@ function GalleryViewer({
             offset: width * i,
             index: i,
           })}
-          keyExtractor={(u) => u}
+          keyExtractor={(_, i) => String(i)}
           onMomentumScrollEnd={(e) =>
             setIndex(
               Math.round(
@@ -1475,7 +1491,7 @@ function GalleryViewer({
               bouncesZoom
             >
               <Image
-                source={{ uri: item }}
+                source={item}
                 style={{ width, height }}
                 resizeMode="contain"
                 accessibilityIgnoresInvertColors

@@ -239,6 +239,9 @@ export function formatDraftPreviewMessage(
     const rolePart = draft.owner_contact_role ? ` [${draft.owner_contact_role}]` : '';
     const phonePart = draft.owner_contact_phone ? ` (${draft.owner_contact_phone})` : '';
     reply += `*Listing Owner/Agent:* ${draft.owner_contact_name}${phonePart}${rolePart}\n`;
+    if (draft.owner_contact_name_tag) {
+      reply += `*Name Tag:* 🏷️ ${draft.owner_contact_name_tag}\n`;
+    }
   }
 
   reply += (draft.video_url || draft.youtube_video_id ? `*Video:* Attached 🎬\n` : '') +

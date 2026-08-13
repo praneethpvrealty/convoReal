@@ -1,3 +1,4 @@
+import { readStored, removeStored, writeStored } from '@/lib/safe-storage';
 // ============================================================
 // Sidebar favourites — localStorage owner.
 //
@@ -24,12 +25,12 @@ export interface FavoriteItem {
 export function readFavorites(): FavoriteItem[] {
   if (typeof window === "undefined") return [];
 
-  let raw = localStorage.getItem(KEY);
+  let raw = readStored(KEY);
   if (raw === null) {
-    raw = localStorage.getItem(LEGACY_KEY);
+    raw = readStored(LEGACY_KEY);
     if (raw === null) return [];
-    localStorage.setItem(KEY, raw);
-    localStorage.removeItem(LEGACY_KEY);
+    writeStored(KEY, raw);
+    removeStored(LEGACY_KEY);
   }
 
   try {
@@ -43,5 +44,5 @@ export function readFavorites(): FavoriteItem[] {
 
 export function writeFavorites(favorites: FavoriteItem[]): void {
   if (typeof window === "undefined") return;
-  localStorage.setItem(KEY, JSON.stringify(favorites));
+  writeStored(KEY, JSON.stringify(favorites));
 }

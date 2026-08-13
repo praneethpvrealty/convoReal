@@ -25,6 +25,7 @@ import {
   Newspaper,
   Bell,
   Ticket,
+  KeyRound,
 } from 'lucide-react';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import {
@@ -36,6 +37,7 @@ import {
 import { WhatsAppConfig } from '@/components/settings/whatsapp-config';
 import { WhatsAppFlowsCard } from '@/components/settings/whatsapp-flows-card';
 import { OwnerDigestCard } from '@/components/settings/owner-digest-card';
+import { OwnerDetailsRequestCard } from '@/components/settings/owner-details-request-card';
 import { AgentInventoryDigestCard } from '@/components/settings/agent-inventory-digest-card';
 import { AgentTaskDigestCard } from '@/components/settings/agent-task-digest-card';
 import { MetaAdsTab } from '@/components/settings/meta-ads-tab';
@@ -64,6 +66,7 @@ import { cn } from '@/lib/utils';
 import { InfoHint } from '@/components/ui/info-hint';
 import { FavoriteButton } from "@/components/layout/favorite-button";
 import { BetaInviteHub } from "@/components/settings/beta-invite-hub";
+import { ApiKeysTab } from "@/components/settings/api-keys-tab";
 
 const BASE_TAB_VALUES = [
   'profile',
@@ -80,7 +83,7 @@ const BASE_TAB_VALUES = [
   'billing',
   'credits',
 ] as const;
-const FLAGGED_TAB_VALUES = ['members', 'teams', 'routing', 'ads', 'invites'] as const;
+const FLAGGED_TAB_VALUES = ['members', 'teams', 'routing', 'ads', 'invites', 'api-keys'] as const;
 const TAB_VALUES = [...BASE_TAB_VALUES, ...FLAGGED_TAB_VALUES] as const;
 type TabValue = (typeof TAB_VALUES)[number];
 
@@ -95,7 +98,7 @@ const WHATSAPP_SUBTABS = [
   { value: 'connection', label: 'Connection', icon: Plug },
   { value: 'templates', label: 'Templates', icon: MessageSquare },
   { value: 'flows', label: 'Flows', icon: Workflow },
-  { value: 'digest', label: 'Owner Digest', icon: Newspaper },
+  { value: 'digest', label: 'Owners', icon: Newspaper },
 ] as const;
 type WhatsAppSub = (typeof WHATSAPP_SUBTABS)[number]['value'];
 
@@ -189,7 +192,8 @@ export default function SettingsPage() {
       : (requestedTab === 'members' && !membersEnabled) ||
           (requestedTab === 'teams' && !teamsEnabled) ||
           (requestedTab === 'routing' && !routingEnabled) ||
-          (requestedTab === 'ads' && !metaAdsEnabled)
+          (requestedTab === 'ads' && !metaAdsEnabled) ||
+          (requestedTab === 'api-keys' && !membersEnabled)
         ? 'profile'
         : requestedTab;
 
@@ -279,6 +283,7 @@ export default function SettingsPage() {
         { value: 'invites' as TabValue, label: 'Invites', icon: Ticket },
         ...(teamsEnabled ? [{ value: 'teams' as TabValue, label: 'Teams', icon: Users }] : []),
         ...(routingEnabled ? [{ value: 'routing' as TabValue, label: 'Routing', icon: Route }] : []),
+        ...(membersEnabled ? [{ value: 'api-keys' as TabValue, label: 'API Keys', icon: KeyRound }] : []),
       ],
     },
   ];
@@ -490,6 +495,7 @@ export default function SettingsPage() {
             {whatsappSub === 'flows' && <WhatsAppFlowsCard />}
             {whatsappSub === 'digest' && (
               <div className="space-y-6">
+                <OwnerDetailsRequestCard />
                 <OwnerDigestCard />
                 <AgentInventoryDigestCard />
                 <AgentTaskDigestCard />
@@ -557,6 +563,12 @@ export default function SettingsPage() {
           {routingEnabled && (
             <TabsContent value="routing" className="mt-0">
               <RoutingRulesTab />
+            </TabsContent>
+          )}
+
+          {membersEnabled && (
+            <TabsContent value="api-keys" className="mt-0">
+              <ApiKeysTab />
             </TabsContent>
           )}
         </div>

@@ -33,6 +33,7 @@ import {
   FileText,
   Users,
 } from 'lucide-react';
+import { readStored, writeStored } from '@/lib/safe-storage';
 
 export default function AgentsPage() {
   const supabase = createClient();
@@ -66,7 +67,7 @@ export default function AgentsPage() {
   const [listCollapsed, setListCollapsed] = useState(false);
 
   useEffect(() => {
-    const saved = Number(window.localStorage.getItem('agents-list-width'));
+    const saved = Number(readStored('agents-list-width'));
     if (saved >= 220 && saved <= 560) setListWidth(saved);
   }, []);
 
@@ -81,7 +82,7 @@ export default function AgentsPage() {
     const onUp = (ev: PointerEvent) => {
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
-      window.localStorage.setItem(
+      writeStored(
         'agents-list-width',
         String(Math.min(560, Math.max(220, startWidth + ev.clientX - startX)))
       );

@@ -29,6 +29,7 @@ import {
 // in map-links.ts because the property form imports it in the browser.
 export {
   extractCoordinatesFromMapUrl,
+  extractMapLinkFromText,
   extractPlaceNameFromMapUrl,
   googleMapsUrlForCoordinates,
   parseCoordinatePair,

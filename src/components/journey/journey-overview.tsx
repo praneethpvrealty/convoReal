@@ -58,6 +58,7 @@ import {
   type JourneyPriority,
   type JourneySort,
 } from "./shared";
+import { readStored, writeStored } from '@/lib/safe-storage';
 
 interface JourneyGroup {
   subjectId: string;
@@ -75,14 +76,14 @@ interface JourneyGroup {
 function readIdSet(key: string): Set<string> {
   if (typeof window === "undefined") return new Set();
   try {
-    return new Set(JSON.parse(localStorage.getItem(key) ?? "[]") as string[]);
+    return new Set(JSON.parse(readStored(key) ?? "[]") as string[]);
   } catch {
     return new Set();
   }
 }
 function writeIdSet(key: string, ids: Set<string>) {
   try {
-    localStorage.setItem(key, JSON.stringify(Array.from(ids)));
+    writeStored(key, JSON.stringify(Array.from(ids)));
   } catch {
     // storage full / private mode — preference just won't persist
   }
@@ -90,7 +91,7 @@ function writeIdSet(key: string, ids: Set<string>) {
 
 function readSort(key: string): JourneySort {
   if (typeof window === "undefined") return "priority";
-  const stored = localStorage.getItem(key);
+  const stored = readStored(key);
   return stored === "recent" || stored === "stage" ? stored : "priority";
 }
 
@@ -137,7 +138,7 @@ export function JourneyOverview({
   const changeSort = (next: JourneySort) => {
     setSort(next);
     try {
-      localStorage.setItem(sortKey, next);
+      writeStored(sortKey, next);
     } catch {
       // storage full / private mode — preference just won't persist
     }

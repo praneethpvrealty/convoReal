@@ -11,7 +11,114 @@ and polish.
 
 ## [Unreleased]
 
+### Changed
+
+- **A forwarded contact card goes to the contact flow, always.** WhatsApp
+  tells us structurally that a message is a vCard, and the assistant was
+  ignoring that and asking an AI to classify the flattened text instead —
+  where a phonebook name like "Nadeem Koramangala 8th Block 2100 Sqft
+  Corner" carries enough listing words to beat the person under the
+  classifier's own precedence rule. A card now routes on its type: no
+  classifier call, no listing draft, and the person lands in the
+  purpose-built contact flow with duplicate warnings, enrichment of
+  somebody already on file, and a Confirm step. The draft is built from
+  the card itself rather than read by a model — name, tag and number are
+  stated on it, and the role too when the phonebook name says "Owner" or
+  "Broker" — so a card costs no AI credits at all, where it used to cost
+  a classify plus a parse. A card arriving mid-listing sets the listing
+  draft aside instead of being typed over it; a second card is
+  reconciled against the draft in flight the way a second screenshot is.
+
 ### Added
+
+- **A forwarded contact card keeps its own name, and its person.** An
+  agent's phonebook entry is rarely just a name — "Nadeem Koramangala
+  8th Block 2100 Sqft Corner Property Owner Nassur" is a person, a
+  property and a second name in one string. Forwarded as a card it
+  becomes a listing draft, correctly, but the owner on that draft used
+  to be whichever word the model picked out of the label: it chose
+  "Nassur" and dropped the name the card leads with. The card states the
+  name outright, so it is now read from the card rather than inferred,
+  and split into name and Name Tag by the same deterministic rule the
+  contact intake already uses — no AI call, and the listing fields are
+  left exactly as parsed. The person is also filed as a contact the
+  moment the card arrives, marked for review, instead of only when the
+  listing draft is confirmed: a draft can sit unconfirmed for an hour,
+  and cancelling it used to take the person with it. Somebody already on
+  file is never renamed by a phonebook label.
+
+- **Voice notes, understood and acted on.** A voice note sent to the
+  WhatsApp assistant is now transcribed once and read as text by every
+  path that already existed — so speaking a listing files a listing,
+  speaking a contact files a contact, speaking *today* returns your
+  agenda, and speaking a correction edits the open draft. Before this,
+  audio reached exactly one destination, the calendar parser: anything
+  that wasn't an event came back "I couldn't find an event or task in
+  that", and a voice note that arrived while a listing draft was open
+  matched no branch at all and was answered with **nothing** — no reply,
+  nothing saved. Non-English notes are transcribed and translated, so a
+  listing dictated in Hindi, Telugu or Kannada goes through the same
+  prompts as a typed one. When the assistant still can't place what was
+  said, it now quotes the transcript back, so a misheard word is
+  distinguishable from a misunderstood request. Voice-created events
+  keep the transcript on the record. Spoken scheduling costs the same as
+  it did (`voice_transcribe` + `event_parse` = the old
+  `voice_event_parse`); everything else voice can now do is new.
+
+- **The map pin that arrives before its listing.** Forwarding a Google
+  Maps pin to the WhatsApp assistant on its own used to come back with
+  "I couldn't tell what that was", and the pin was gone — so the listing
+  details sent seconds later were saved with no coordinates, invisible
+  to radius matching and ad targeting, even though the lister had sent
+  the most precise thing they had. The pin is now acknowledged, named
+  where the geocoder can name it, and attached to the next listing draft
+  that sender opens: map link, coordinates, and whichever of
+  locality/city/state the listing itself didn't state. The listing's own
+  words always win — a pin only fills gaps, and a listing carrying its
+  own pin is left alone. Held for 15 minutes only: stamping a stale pin
+  onto an unrelated property puts it in the wrong place, which is worse
+  than leaving it unpinned. A pin sent *during* an open draft already
+  worked and is unchanged. **Migration required:** `261_pending_map_pins.sql`.
+
+- **Ask an owner for the property details, in one message** (**migration
+  required**: `262_owner_details_request_settings.sql`). The first message an
+  agent sends a seller, and the one that moves them onto the business number.
+  **Ask for Details** on a web contact, **Ask Details** on the mobile contact
+  screen.
+
+  It goes from the agent's **own** WhatsApp, because that is where first
+  contact with a seller happens — there is no open 24-hour window on the
+  business number until the owner writes to it, and there may never be one.
+  So the message carries a one-tap link to the office number with `START
+  UPDATES` pre-filled: the owner's tap opens the window, creates the thread
+  the whole team can see, and records digest consent at the same moment.
+  That is what makes the closing promise — every enquiry, every shortlisted
+  buyer, every site visit, every offer — something the Engine can actually
+  keep rather than a claim. Sending from the office number stays available
+  for an owner already inside the window; outside it the route answers 409
+  and both surfaces fall back to the same hand-off instead of dead-ending.
+
+  **The first ask is the minimum, and asks for no documents.** No title deed,
+  no khata, no encumbrance certificate: papers change hands after a buyer is
+  finalised and the token is paid, and the message says so in as many words.
+  The papers checklist still exists and is one tap away for the agent who has
+  reached that stage. The rest of the checklist follows the property's own
+  type, so a plot owner is never asked for a BHK configuration or a building
+  sanction.
+
+  A brokerage can make it theirs in **Settings → WhatsApp → Owners**: pick
+  what the first ask carries, or replace the prose entirely with
+  `{{placeholders}}`. Keeping `{{checklist}}` means even a fully rewritten
+  message still asks the right questions for the property in front of it, and
+  `{{engine_link}}` keeps the one-tap hand-off. Leave both empty and the
+  built-in message is what goes out, forever.
+
+  Wording lives in `src/lib/owners/details-request.ts`, sends through
+  `POST /api/owners/details-request`, and is stored per account in
+  `owner_details_request_settings`. The mobile copy of the builder is
+  drift-guarded literal by literal in `src/lib/mobile-parity.test.ts`. The
+  settings *editor* is web-only for now — the message itself is at full
+  parity, and the gap is recorded in `FEATURE_ROADMAP.md`.
 
 - **The confidential-listing request drawer, on the phone.** Tapping the
   Confidential chip on a property card in the app now opens who asked for
@@ -136,6 +243,32 @@ and polish.
   already accepted.
 
 ### Fixed
+
+- **A confidential listing's own share link could not open it.** Share
+  links name a listing by its property code, and the teaser reduction
+  strips `property_code` — so the catalog had nothing to match the code
+  against, the detail modal never opened, and the recipient of a link
+  sent for that listing landed on the general grid with no route to
+  "Request full details". The server now resolves the code to the row's
+  id before handing it to the catalog, which fixes links already sent.
+
+- **A visitor with site data blocked got the error page on every
+  showcase link.** Chrome with cookies/site data blocked does not return
+  null from `localStorage` — reading the property throws. The showcase
+  read it unguarded while restoring saved filters, so the page fell to
+  the error boundary for that visitor while working for everyone else,
+  on a URL that served a correct 200. Every web-storage read and write
+  now goes through `src/lib/safe-storage.ts`, which degrades to "not
+  remembered" instead of throwing.
+
+- **A listing's own photos disappeared from the app once it was made
+  confidential.** Gating moves the photos into the guarded bucket so a
+  forwarded public link cannot carry them — but every internal view read
+  the public `images` array alone, so the agent's own gallery and card
+  cover went blank. The photos were never lost; nothing was reading them.
+  Internal galleries now fall back to the authenticated proxy, which
+  re-checks the viewer on every request. Publishing paths — share links,
+  flyers, portal post kits — deliberately still see only public photos.
 
 - **The watermark on confidential photos never marked anything in
   production.** Guarded photos are stamped with the recipient's masked
