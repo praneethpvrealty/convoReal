@@ -28,7 +28,7 @@ export async function GET(
 
     const ip =
       request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
-    const limit = checkRateLimit(`ogImage:${ip}`, RATE_LIMITS.flyerRender);
+    const limit = await checkRateLimit(`ogImage:${ip}`, RATE_LIMITS.flyerRender);
     if (!limit.success) return rateLimitResponse(limit);
 
     const admin = supabaseAdmin();

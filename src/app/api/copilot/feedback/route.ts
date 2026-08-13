@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
   try {
     const ctx = await getCurrentAccount();
 
-    const limit = checkRateLimit(
+    const limit = await checkRateLimit(
       `copilot-fb:${ctx.userId}`,
       RATE_LIMITS.copilotFeedback,
     );

@@ -45,7 +45,7 @@ function portalRowStatus(parsed: ParsedListing): 'active' | 'expired' | 'removed
 export async function POST(request: Request) {
   try {
     const ctx = await requireRole('agent');
-    const rate = checkRateLimit(`portal-import:${ctx.userId}`, IMPORT_RATE);
+    const rate = await checkRateLimit(`portal-import:${ctx.userId}`, IMPORT_RATE);
     if (!rate.success) return rateLimitResponse(rate);
 
     const body = (await request.json()) as Partial<HarvestPayload>;

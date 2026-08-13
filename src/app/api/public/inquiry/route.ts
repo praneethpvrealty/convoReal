@@ -28,9 +28,9 @@ export async function POST(request: Request) {
       request.headers.get("x-real-ip") ||
       "unknown";
     const sessionId = typeof sessionKey === "string" && sessionKey.trim() ? sessionKey.trim().slice(0, 64) : ip;
-    const sessionLimit = checkRateLimit(`inquiry:session:${sessionId}`, INQUIRY_SESSION_LIMIT);
+    const sessionLimit = await checkRateLimit(`inquiry:session:${sessionId}`, INQUIRY_SESSION_LIMIT);
     if (!sessionLimit.success) return rateLimitResponse(sessionLimit);
-    const accountLimit = checkRateLimit(`inquiry:account:${accountId}`, INQUIRY_ACCOUNT_LIMIT);
+    const accountLimit = await checkRateLimit(`inquiry:account:${accountId}`, INQUIRY_ACCOUNT_LIMIT);
     if (!accountLimit.success) return rateLimitResponse(accountLimit);
 
     if (!phone) {

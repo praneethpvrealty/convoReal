@@ -26,7 +26,7 @@ export async function GET(
     const ip =
       request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
       'unknown';
-    const limit = checkRateLimit(`revealImage:${ip}`, REVEAL_IMAGE_LIMIT);
+    const limit = await checkRateLimit(`revealImage:${ip}`, REVEAL_IMAGE_LIMIT);
     if (!limit.success) return rateLimitResponse(limit);
 
     const admin = supabaseAdmin();

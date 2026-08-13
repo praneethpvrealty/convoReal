@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const limited = checkRateLimit(`wa-setup-request:${ctx.accountId}`, {
+    const limited = await checkRateLimit(`wa-setup-request:${ctx.accountId}`, {
       limit: 3,
       windowMs: 60 * 60 * 1000,
     });

@@ -11,7 +11,7 @@ export async function POST(
     const ctx = await requireRole('agent');
     const { id: jobId } = await params;
 
-    const limit = checkRateLimit(
+    const limit = await checkRateLimit(
       `agent:createLiaisonPayment:${ctx.userId}`,
       RATE_LIMITS.adminAction,
     );

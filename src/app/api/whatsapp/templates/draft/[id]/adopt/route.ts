@@ -46,7 +46,7 @@ export async function POST(
   const { supabase, userId, accountId } = ctx;
 
   try {
-    const limit = checkRateLimit(
+    const limit = await checkRateLimit(
       `admin:templateAdopt:${userId}`,
       RATE_LIMITS.adminAction,
     );

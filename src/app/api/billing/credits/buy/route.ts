@@ -20,7 +20,7 @@ export async function POST(request: Request) {
   try {
     const ctx = await requireRole('agent');
 
-    const limit = checkRateLimit(`agent:buyCredits:${ctx.userId}`, RATE_LIMITS.adminAction);
+    const limit = await checkRateLimit(`agent:buyCredits:${ctx.userId}`, RATE_LIMITS.adminAction);
     if (!limit.success) return rateLimitResponse(limit);
 
     const body = await request.json().catch(() => ({}));

@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     } = await supabase.auth.getUser();
     if (userErr || !user) throw new UnauthorizedError();
 
-    const rate = checkRateLimit(`buyer-auth-complete:${user.id}`, {
+    const rate = await checkRateLimit(`buyer-auth-complete:${user.id}`, {
       limit: 10,
       windowMs: 60_000,
     });

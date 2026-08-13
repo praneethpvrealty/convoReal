@@ -26,12 +26,12 @@ export async function POST(req: NextRequest) {
   try {
     const ctx = await getCurrentAccount();
 
-    const userLimit = checkRateLimit(
+    const userLimit = await checkRateLimit(
       `copilot:u:${ctx.userId}`,
       RATE_LIMITS.copilotChat
     );
     if (!userLimit.success) return rateLimitResponse(userLimit);
-    const accountLimit = checkRateLimit(
+    const accountLimit = await checkRateLimit(
       `copilot:a:${ctx.accountId}`,
       RATE_LIMITS.copilotChatDaily
     );

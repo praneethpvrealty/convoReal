@@ -16,7 +16,7 @@ export async function POST(request: Request) {
   try {
     ctx = await requireRole('agent');
 
-    const limit = checkRateLimit(
+    const limit = await checkRateLimit(
       `agent:greetings:${ctx.userId}`,
       RATE_LIMITS.adminAction,
     );

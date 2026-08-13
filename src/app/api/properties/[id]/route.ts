@@ -76,7 +76,7 @@ export async function PUT(
     const ctx = await requireRole("agent");
 
     // Rate limiting to prevent abuse
-    const limit = checkRateLimit(
+    const limit = await checkRateLimit(
       `agent:updateProperty:${ctx.userId}`,
       RATE_LIMITS.adminAction
     );
@@ -776,7 +776,7 @@ export async function DELETE(
     const ctx = await requireRole("agent");
 
     // Rate limiting to prevent abuse
-    const limit = checkRateLimit(
+    const limit = await checkRateLimit(
       `agent:deleteProperty:${ctx.userId}`,
       RATE_LIMITS.adminAction
     );

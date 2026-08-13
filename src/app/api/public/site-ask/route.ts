@@ -40,13 +40,13 @@ export async function POST(request: NextRequest) {
     }
 
     if (sessionKey) {
-      const sessionLimit = checkRateLimit(
+      const sessionLimit = await checkRateLimit(
         `siteask:session:${sessionKey}`,
         ASK_SESSION_LIMIT
       );
       if (!sessionLimit.success) return rateLimitResponse(sessionLimit);
     }
-    const globalLimit = checkRateLimit('siteask:global', ASK_GLOBAL_LIMIT);
+    const globalLimit = await checkRateLimit('siteask:global', ASK_GLOBAL_LIMIT);
     if (!globalLimit.success) return rateLimitResponse(globalLimit);
 
     const structured = answerFromSiteData(question);

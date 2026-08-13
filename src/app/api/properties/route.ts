@@ -458,7 +458,7 @@ export async function POST(request: Request) {
     const ctx = await requireRole("agent");
 
     // Rate limiting to prevent abuse
-    const limit = checkRateLimit(
+    const limit = await checkRateLimit(
       `agent:createProperty:${ctx.userId}`,
       RATE_LIMITS.adminAction // Re-use standard admin rate limits
     );

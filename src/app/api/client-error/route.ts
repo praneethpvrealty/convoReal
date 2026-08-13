@@ -27,7 +27,7 @@ export async function POST(request: Request) {
       'unknown';
     // A crash loop must not become its own outage: over budget we drop
     // the report rather than the request, so the browser never retries.
-    const limit = checkRateLimit(`clientError:${ip}`, REPORT_LIMIT);
+    const limit = await checkRateLimit(`clientError:${ip}`, REPORT_LIMIT);
     if (!limit.success) return NextResponse.json({ ok: true });
 
     const body = (await request.json().catch(() => null)) as {

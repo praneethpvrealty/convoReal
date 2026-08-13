@@ -65,7 +65,7 @@ To build the definitive, WhatsApp-first Engine for independent real estate agenc
 - [x] **API Keys Settings UI (web)**: Create, list and revoke keys from Settings → API Keys. Admin+ and Agency-plan gated, matching the server. The secret is shown once, read-only is the default, and revoked keys stay listed so the record survives. (`src/components/settings/api-keys-tab.tsx`)
 - [ ] **API Keys Settings UI (mobile)**: Not built — a §2.8 gap, stated rather than silent. The mobile app has no account-administration surface at all today (no Members, Teams, Billing or Routing), so API keys would be the first of its kind and needs a Settings shell to live in rather than a one-off screen. Deferred with the rest of that surface.
 - [ ] **Hosted Remote MCP**: OAuth 2.1 with dynamic client registration at `/api/mcp`, so a workspace can be connected without running a local process. Deliberately deferred until the stdio server shows real usage.
-- [ ] **Rate Limiting Across Instances**: `RATE_LIMITS.apiKeyV1` is enforced by the in-process limiter in `src/lib/rate-limit.ts`, which holds its Map in one Node process. Horizontal scale silently defeats it — swap for Redis before this surface is promoted beyond design partners.
+- [x] **Rate Limiting Across Instances**: `src/lib/rate-limit.ts` now counts in Redis when `REDIS_URL` is set, so one budget is shared by every serverless instance instead of one per instance. INCR and the expiry are a single Lua script; a Redis failure degrades to the in-process counter rather than removing the limit or 429-ing everything. `checkRateLimit()` became async and all 155 call sites were migrated. Without `REDIS_URL` the old in-memory behaviour is unchanged, so a self-hoster needs no Redis.
 
 ---
 

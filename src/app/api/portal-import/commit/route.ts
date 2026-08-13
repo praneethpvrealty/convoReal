@@ -88,7 +88,7 @@ async function linkItemsToProperty(ctx: AccountContext, items: StagedItem[], pro
 export async function POST(request: Request) {
   try {
     const ctx = await requireRole('agent');
-    const rate = checkRateLimit(`portal-import-commit:${ctx.userId}`, RATE_LIMITS.adminAction);
+    const rate = await checkRateLimit(`portal-import-commit:${ctx.userId}`, RATE_LIMITS.adminAction);
     if (!rate.success) return rateLimitResponse(rate);
 
     const body = (await request.json().catch(() => null)) as

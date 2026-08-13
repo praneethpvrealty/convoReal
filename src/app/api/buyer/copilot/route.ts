@@ -23,12 +23,12 @@ import { readChatRequest } from '@/lib/copilot/request';
  * attribute unmet demand to.
  */
 export const POST = withBuyerAuth(async (ctx, req) => {
-  const burst = checkRateLimit(
+  const burst = await checkRateLimit(
     `copilot-buyer:u:${ctx.buyerUserId}`,
     RATE_LIMITS.copilotChat
   );
   if (!burst.success) return rateLimitResponse(burst);
-  const daily = checkRateLimit(
+  const daily = await checkRateLimit(
     `copilot-buyer:d:${ctx.buyerUserId}`,
     RATE_LIMITS.copilotPortalDaily
   );

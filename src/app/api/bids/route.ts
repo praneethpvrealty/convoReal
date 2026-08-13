@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
   try {
     const ctx = await requireRole("agent");
 
-    const rate = checkRateLimit(`bids:${ctx.accountId}`, { limit: 20, windowMs: 60_000 });
+    const rate = await checkRateLimit(`bids:${ctx.accountId}`, { limit: 20, windowMs: 60_000 });
     if (!rate.success) return rateLimitResponse(rate);
 
     const body = (await req.json().catch(() => null)) as {

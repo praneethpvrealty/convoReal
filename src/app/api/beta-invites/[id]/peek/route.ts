@@ -39,7 +39,7 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const limit = checkRateLimit(
+  const limit = await checkRateLimit(
     `beta-peek:${getClientIp(request)}`,
     RATE_LIMITS.invitationPeek,
   );

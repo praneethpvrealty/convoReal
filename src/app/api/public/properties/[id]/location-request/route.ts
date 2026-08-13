@@ -62,9 +62,9 @@ export async function POST(
       request.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
       request.headers.get('x-real-ip') ||
       'unknown';
-    const ipLimit = checkRateLimit(`locreq:ip:${ip}`, LOCREQ_IP_LIMIT);
+    const ipLimit = await checkRateLimit(`locreq:ip:${ip}`, LOCREQ_IP_LIMIT);
     if (!ipLimit.success) return rateLimitResponse(ipLimit);
-    const accountLimit = checkRateLimit(
+    const accountLimit = await checkRateLimit(
       `locreq:account:${account_id}`,
       LOCREQ_ACCOUNT_LIMIT
     );

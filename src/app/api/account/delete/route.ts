@@ -36,7 +36,7 @@ export async function DELETE(request: Request) {
   try {
     const ctx = await getCurrentAccount();
 
-    const limit = checkRateLimit(
+    const limit = await checkRateLimit(
       `account:delete:${ctx.userId}`,
       RATE_LIMITS.adminAction
     );

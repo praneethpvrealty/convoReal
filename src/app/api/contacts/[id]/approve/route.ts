@@ -31,7 +31,7 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     const { id: contactId } = await params;
     const ctx = await requireRole('agent');
 
-    const limit = checkRateLimit(`contact:approve:${ctx.userId}`, RATE_LIMITS.adminAction);
+    const limit = await checkRateLimit(`contact:approve:${ctx.userId}`, RATE_LIMITS.adminAction);
     if (!limit.success) return rateLimitResponse(limit);
 
     const { data: contact, error: contactErr } = await ctx.supabase

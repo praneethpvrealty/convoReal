@@ -64,7 +64,7 @@ export async function POST(request: Request) {
   try {
     const ctx = await requireRole("admin");
 
-    const limit = checkRateLimit(`admin:apiKeyCreate:${ctx.userId}`, RATE_LIMITS.adminAction);
+    const limit = await checkRateLimit(`admin:apiKeyCreate:${ctx.userId}`, RATE_LIMITS.adminAction);
     if (!limit.success) return rateLimitResponse(limit);
 
     // "API access & outbound webhooks" is an Agency-plan feature (see

@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
   try {
     const ctx = await requireRole('owner');
 
-    const limit = checkRateLimit(
+    const limit = await checkRateLimit(
       `data-sharing:${ctx.userId}`,
       RATE_LIMITS.adminAction,
     );

@@ -13,7 +13,7 @@ export async function PUT(
     const ctx = await requireRole('agent');
     const { id: contactId } = await params;
 
-    const limit = checkRateLimit(
+    const limit = await checkRateLimit(
       `agent:updateContact:${ctx.userId}`,
       RATE_LIMITS.adminAction,
     );
@@ -223,7 +223,7 @@ export async function DELETE(
     const ctx = await requireRole('agent');
     const { id: contactId } = await params;
 
-    const limit = checkRateLimit(
+    const limit = await checkRateLimit(
       `agent:deleteContact:${ctx.userId}`,
       RATE_LIMITS.adminAction,
     );

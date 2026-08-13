@@ -53,7 +53,7 @@ export async function PATCH(
   const { supabase, userId, accountId } = ctx;
 
   try {
-    const limit = checkRateLimit(
+    const limit = await checkRateLimit(
       `admin:templateDraftEdit:${userId}`,
       RATE_LIMITS.adminAction,
     );

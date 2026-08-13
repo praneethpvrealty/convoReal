@@ -23,7 +23,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   try {
     const ctx = await requireRole("admin");
 
-    const limit = checkRateLimit(`admin:apiKeyRevoke:${ctx.userId}`, RATE_LIMITS.adminAction);
+    const limit = await checkRateLimit(`admin:apiKeyRevoke:${ctx.userId}`, RATE_LIMITS.adminAction);
     if (!limit.success) return rateLimitResponse(limit);
 
     const { id } = await params;

@@ -54,7 +54,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const limit = checkRateLimit(`group-create:${userId}`, {
+    const limit = await checkRateLimit(`group-create:${userId}`, {
       limit: 10,
       windowMs: 60_000,
     });

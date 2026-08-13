@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
   try {
     const ctx = await requireRole('agent');
 
-    const limit = checkRateLimit(`radar:send:${ctx.userId}`, RATE_LIMITS.adminAction);
+    const limit = await checkRateLimit(`radar:send:${ctx.userId}`, RATE_LIMITS.adminAction);
     if (!limit.success) return rateLimitResponse(limit);
 
     const body = (await request.json().catch(() => null)) as

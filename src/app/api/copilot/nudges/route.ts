@@ -12,7 +12,7 @@ export async function GET() {
   try {
     const ctx = await getCurrentAccount();
 
-    const limit = checkRateLimit(
+    const limit = await checkRateLimit(
       `copilot-nudges:${ctx.accountId}`,
       RATE_LIMITS.copilotNudges,
     );

@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
   try {
     const ctx = await requireRole('viewer');
 
-    const limit = checkRateLimit(`maps:autocomplete:${ctx.userId}`, AUTOCOMPLETE_LIMIT);
+    const limit = await checkRateLimit(`maps:autocomplete:${ctx.userId}`, AUTOCOMPLETE_LIMIT);
     if (!limit.success) return rateLimitResponse(limit);
 
     if (!hasGoogleMapsKey()) {

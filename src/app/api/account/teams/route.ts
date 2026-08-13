@@ -66,7 +66,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const limit = checkRateLimit(
+    const limit = await checkRateLimit(
       `leader:createTeam:${ctx.userId}`,
       RATE_LIMITS.adminAction,
     );

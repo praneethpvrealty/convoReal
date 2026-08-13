@@ -19,7 +19,7 @@ export async function PUT(
     const ctx = await requireRole('agent');
     const { id: jobId } = await params;
 
-    const limit = checkRateLimit(
+    const limit = await checkRateLimit(
       `agent:updateLiaisonJob:${ctx.userId}`,
       RATE_LIMITS.adminAction,
     );

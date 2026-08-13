@@ -36,7 +36,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const limit = checkRateLimit(`forward:${ctx.userId}`, RATE_LIMITS.send);
+    const limit = await checkRateLimit(`forward:${ctx.userId}`, RATE_LIMITS.send);
     if (!limit.success) return rateLimitResponse(limit);
 
     const body = (await request.json().catch(() => null)) as {

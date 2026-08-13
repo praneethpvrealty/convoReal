@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
   try {
     const ctx = await requireRole('viewer');
 
-    const limit = checkRateLimit(`maps:place-details:${ctx.userId}`, RATE_LIMITS.adminAction);
+    const limit = await checkRateLimit(`maps:place-details:${ctx.userId}`, RATE_LIMITS.adminAction);
     if (!limit.success) return rateLimitResponse(limit);
 
     if (!hasGoogleMapsKey()) {

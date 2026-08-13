@@ -67,12 +67,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
     }
 
-    const sessionLimit = checkRateLimit(
+    const sessionLimit = await checkRateLimit(
       `ratings:session:${sessionKey}`,
       RATING_SESSION_LIMIT
     );
     if (!sessionLimit.success) return rateLimitResponse(sessionLimit);
-    const accountLimit = checkRateLimit(
+    const accountLimit = await checkRateLimit(
       `ratings:account:${accountId}`,
       RATING_ACCOUNT_LIMIT
     );

@@ -49,7 +49,7 @@ export async function POST(
     const ctx = await requireRole('agent');
     const { id: contactId, callId } = await params;
 
-    const limit = checkRateLimit(`send:${ctx.userId}`, RATE_LIMITS.send);
+    const limit = await checkRateLimit(`send:${ctx.userId}`, RATE_LIMITS.send);
     if (!limit.success) return rateLimitResponse(limit);
 
     const body = (await request.json().catch(() => null)) as { message?: string } | null;

@@ -57,9 +57,9 @@ export async function POST(request: Request) {
       request.headers.get("x-forwarded-for")?.split(",")[0].trim() ||
       request.headers.get("x-real-ip") ||
       "unknown";
-    const sessionLimit = checkRateLimit(`requirements:session:${ip}`, REQUIREMENTS_SESSION_LIMIT);
+    const sessionLimit = await checkRateLimit(`requirements:session:${ip}`, REQUIREMENTS_SESSION_LIMIT);
     if (!sessionLimit.success) return rateLimitResponse(sessionLimit);
-    const accountLimit = checkRateLimit(`requirements:account:${accountId}`, REQUIREMENTS_ACCOUNT_LIMIT);
+    const accountLimit = await checkRateLimit(`requirements:account:${accountId}`, REQUIREMENTS_ACCOUNT_LIMIT);
     if (!accountLimit.success) return rateLimitResponse(accountLimit);
 
     if (!phone) {

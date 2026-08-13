@@ -29,7 +29,7 @@ export async function PATCH(
       );
     }
 
-    const limit = checkRateLimit(
+    const limit = await checkRateLimit(
       `manager:updateRoutingRule:${ctx.userId}`,
       RATE_LIMITS.adminAction,
     );
@@ -102,7 +102,7 @@ export async function DELETE(
       );
     }
 
-    const limit = checkRateLimit(
+    const limit = await checkRateLimit(
       `manager:deleteRoutingRule:${ctx.userId}`,
       RATE_LIMITS.adminAction,
     );

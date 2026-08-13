@@ -35,7 +35,7 @@ export async function PATCH(
       );
     }
 
-    const limit = checkRateLimit(
+    const limit = await checkRateLimit(
       `leader:updateTeam:${ctx.userId}`,
       RATE_LIMITS.adminAction,
     );
@@ -108,7 +108,7 @@ export async function DELETE(
       );
     }
 
-    const limit = checkRateLimit(
+    const limit = await checkRateLimit(
       `manager:deleteTeam:${ctx.userId}`,
       RATE_LIMITS.adminAction,
     );
