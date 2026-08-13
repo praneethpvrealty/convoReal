@@ -2,7 +2,7 @@
 
 An inventory of every third-party service ConvoReal depends on, what tier each one sits on, the limits that bind at that tier, and the order in which to upgrade them around launch.
 
-**Account state verified live on 2026-08-12** against the Vercel and Supabase management APIs. **Public pricing verified the same day** — vendor pricing drifts, so re-check the figures before acting on anything more than a few months later.
+**Account state verified live on 2026-08-12** against the Vercel and Supabase management APIs. **Public pricing verified the same day**, with one stated exception — the EAS per-build rates in §2.6, which could not be read from the vendor's own schedule. Vendor pricing drifts, so re-check the figures before acting on anything more than a few months later.
 
 ---
 
@@ -96,7 +96,9 @@ Additional build concurrency is a **$50/concurrency/month** add-on on any paid p
 
 #### On-demand build cost
 
-Once the free builds or a plan's credits are spent, builds bill per build at roughly **$1–4** depending on platform and worker size — an iOS medium worker is about $2. Larger workers (8 vCPU / 32 GB Android, 10 performance cores / 40 GiB iOS) cost more and build faster.
+Once the free builds or a plan's credits are spent, builds bill per build at roughly **$1–4** depending on platform and worker size — around $1 for a medium Android worker and $2–4 for iOS. Larger workers (8 vCPU / 32 GB Android, 10 performance cores / 40 GiB iOS) cost more and build faster.
+
+> **These figures are not confirmed against the authoritative schedule.** Expo publishes the per-build price table only on `expo.dev/pricing`, and both `expo.dev` and `docs.expo.dev` are blocked by this environment's egress policy (403 on the proxy CONNECT tunnel), so it could not be read. The numbers above come from the worked examples in Expo's own documentation source, [`docs/pages/billing/usage-based-pricing.mdx`](https://github.com/expo/expo/blob/main/docs/pages/billing/usage-based-pricing.mdx), which presents them as illustrative calculations rather than a price table and defers to the pricing page for the real schedule. Treat the *shape* as reliable and the exact dollar amounts as indicative. **Check `expo.dev/pricing` before letting these drive the Starter-versus-Production decision.** The plan ladder above, by contrast, is corroborated across independent sources.
 
 Practical shape of this: at ~$2/build, the Starter plan's $45 credit is around 20–25 builds. The free tier's 15+15 is generous for pre-release work but the real constraint there is **queue priority, not the count** — free builds wait behind paid ones, which stops mattering the moment a release is time-boxed.
 
@@ -242,6 +244,6 @@ Pricing and limits verified 2026-08-12:
 - [Vercel Pro plan](https://vercel.com/docs/plans/pro-plan) · [Vercel limits](https://vercel.com/docs/limits) · [Vercel cron jobs](https://vercel.com/docs/cron-jobs)
 - [Upstash Redis pricing](https://upstash.com/pricing/redis) · [Railway pricing plans](https://docs.railway.com/pricing/plans)
 - [Resend pricing](https://resend.com/pricing) · [Resend 2026 repricing and retention changes](https://coldletter.com/blog/resend-pricing/)
-- [Expo/EAS tiers](https://agentdeals.dev/vendor/expo) · [Expo plans and add-ons](https://docs.expo.dev/billing/plans/) · [Expo usage-based pricing](https://docs.expo.dev/billing/usage-based-pricing/) · [EAS build cost calculator](https://www.applighter.com/blog/expo-eas-build-cost-calculator) · [EAS Update MAU pricing](https://stalliontech.io/expo-eas-update-pricing)
+- Expo/EAS — [usage-based pricing, docs source](https://github.com/expo/expo/blob/main/docs/pages/billing/usage-based-pricing.mdx) (read directly; the vendor site was unreachable, see §2.6) · [Expo pricing page](https://expo.dev/pricing) (**authoritative for per-build rates, not read**) · [plan tiers](https://agentdeals.dev/vendor/expo) · [EAS Update MAU pricing](https://stalliontech.io/expo-eas-update-pricing)
 - [WhatsApp Business API pricing 2026](https://blueticks.co/blog/whatsapp-business-api-pricing-2026) · [India rate update](https://chati.ai/blog/whatsapp-business-api-pricing-update-for-2026)
 - [Gemini API free-tier limits](https://aipromptshub.co/blog/gemini-api-free-tier-rate-limits) · [Gemini pricing](https://findskill.ai/blog/gemini-api-pricing-guide/) · [Google Maps API pricing 2026](https://www.mapsi.dev/google-maps-api-pricing)
