@@ -12,8 +12,10 @@
  *   npx tsx src/scripts/backfill-lead-portal-refs.ts            # preview
  *   npx tsx src/scripts/backfill-lead-portal-refs.ts --apply    # write
  *
- * Requires in .env.local:
- *   NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+ * Requires NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY, from
+ * .env.local or already exported into the environment — in a hosted
+ * agent session there is no .env.local and the dotenv call below is a
+ * no-op (AGENTS.md §6).
  *
  * Preview by default — the opposite of the other scripts here, because
  * this one writes to contacts rather than to a derived column, and the
