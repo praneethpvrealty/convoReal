@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { MatchDetails } from '@shared/lib/matching';
-import { matchChips, scoreTone } from './match-chips';
+import { inMatchAudience, matchChips, scoreTone } from './match-chips';
 
 function details(overrides: Partial<MatchDetails> = {}): MatchDetails {
   return {
@@ -61,5 +61,26 @@ describe('scoreTone', () => {
     expect(scoreTone(69)).toBe('fair');
     expect(scoreTone(30)).toBe('fair');
     expect(scoreTone(29)).toBe('weak');
+  });
+});
+
+describe('inMatchAudience', () => {
+  it("treats 'buyers' as every non-agent classification", () => {
+    expect(inMatchAudience('Buyer', 'buyers')).toBe(true);
+    expect(inMatchAudience('Owner & Buyer', 'buyers')).toBe(true);
+    expect(inMatchAudience(null, 'buyers')).toBe(true);
+    expect(inMatchAudience('Agent', 'buyers')).toBe(false);
+  });
+
+  it("keeps 'agents' to agents alone", () => {
+    expect(inMatchAudience('Agent', 'agents')).toBe(true);
+    expect(inMatchAudience('Buyer', 'agents')).toBe(false);
+    expect(inMatchAudience(null, 'agents')).toBe(false);
+  });
+
+  it("lets 'all' through regardless of classification", () => {
+    expect(inMatchAudience('Agent', 'all')).toBe(true);
+    expect(inMatchAudience('Buyer', 'all')).toBe(true);
+    expect(inMatchAudience(undefined, 'all')).toBe(true);
   });
 });

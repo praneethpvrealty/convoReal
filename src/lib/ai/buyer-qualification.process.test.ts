@@ -211,6 +211,42 @@ describe('processBuyerQualificationMessage — free-text requirement updates', (
   });
 });
 
+describe('processBuyerQualificationMessage — a photo request', () => {
+  // "Sir can I get images  images" right after a listing was shared.
+  // The ladder claimed it and restarted intake with "what kind of
+  // property are you looking for?"; the photos went out by hand.
+  it('stands down so the media branch answers with the photos', async () => {
+    const handled = await processBuyerQualificationMessage(
+      'Sir can I get images  images',
+      { id: 'c1', phone: '919000000000', name: 'Adi' },
+      { id: 'conv-1' },
+      'acct-1',
+      'token',
+      'phone-id',
+      'owner-1'
+    );
+
+    expect(handled).toBe(false);
+    expect(sendTextMessage).not.toHaveBeenCalled();
+    expect(extractContactPreferences).not.toHaveBeenCalled();
+  });
+
+  it('still claims a message that carries a requirement alongside the ask', async () => {
+    const handled = await processBuyerQualificationMessage(
+      'Looking for a villa in Whitefield, send photos',
+      { id: 'c1', phone: '919000000000', name: 'Adi' },
+      { id: 'conv-1' },
+      'acct-1',
+      'token',
+      'phone-id',
+      'owner-1'
+    );
+
+    expect(handled).toBe(true);
+    expect(recordLearnedFacts).toHaveBeenCalled();
+  });
+});
+
 describe('processBuyerQualificationMessage — a lead still typing', () => {
   // "Land", then "Commercial or Semi commercial" three seconds later.
   // Two webhooks, two replies: "Noted — residential land/plot" (a guess

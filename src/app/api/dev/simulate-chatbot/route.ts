@@ -22,6 +22,19 @@ import {
   tallyAreaSuggestions,
 } from '@/lib/ai/buyer-qualification';
 import {
+  routeLeadMessage,
+  LEAD_ROUTE_EXPLANATIONS,
+  type LeadRoute,
+} from '@/lib/ai/lead-routing';
+import {
+  buildPhotoReplyText,
+  photoHandoverText,
+  plannedPhotoCount,
+} from '@/lib/ai/photo-request';
+import { CALLBACK_HANDOVER_TEXT } from '@/lib/ai/lead-question';
+import { propertyShowcaseUrl } from '@/lib/share-message-builder';
+import { accountShowcaseOrigin } from '@/lib/showcase/account-showcase-url';
+import {
   buildPreferenceSourceText,
   extractContactPreferences,
 } from '@/lib/ai/preference-extraction';
@@ -57,6 +70,7 @@ export async function POST(request: Request) {
       mode?: 'owner_intake' | 'lead_reply';
       priorRequirements?: string;
       contactName?: string;
+      subjectPropertyCode?: string;
     } | null;
 
     const text = (body?.text || '').trim().slice(0, MAX_TEXT_LEN);
@@ -74,6 +88,7 @@ export async function POST(request: Request) {
         text,
         priorRequirements: (body.priorRequirements || '').trim().slice(0, MAX_TEXT_LEN),
         contactName: (body.contactName || '').trim() || null,
+        subjectPropertyCode: (body.subjectPropertyCode || '').trim() || null,
       });
     }
 
@@ -166,10 +181,18 @@ export async function POST(request: Request) {
   }
 }
 
-// Dry run of src/lib/ai/buyer-qualification.ts: the same signal gate,
-// the same extraction, the same ladder and the same reply builder the
-// live handler uses — against this account's real inventory, but with
-// nothing sent, nothing written to the contact, and no credits burned.
+// Dry run of the lead path: the same routing decision, the same signal
+// gate, the same extraction, the same ladder and the same reply
+// builders the live handler uses — against this account's real
+// inventory, but with nothing sent, nothing written to the contact, and
+// no credits burned.
+//
+// Routing comes FIRST, because the ladder is no longer the only thing
+// that answers a lead. Three kinds of message are carved out of it
+// (see lead-routing), and this tool used to know about none of them:
+// an agent typing "can I get photos" was shown the ladder's "what kind
+// of property are you looking for?", which is the exact reply the
+// carve-out exists to prevent.
 //
 // `priorRequirements` stands in for what the contact already has on
 // file, which is how a mid-ladder turn is reproduced: put the earlier
@@ -180,8 +203,27 @@ async function simulateLeadReply(args: {
   text: string;
   priorRequirements: string;
   contactName: string | null;
+  subjectPropertyCode: string | null;
 }): Promise<NextResponse> {
-  const { accountId, supabase, text, priorRequirements, contactName } = args;
+  const {
+    accountId,
+    supabase,
+    text,
+    priorRequirements,
+    contactName,
+    subjectPropertyCode,
+  } = args;
+
+  const route = routeLeadMessage(text);
+  if (route !== 'qualification') {
+    return simulateCarveOut({
+      accountId,
+      supabase,
+      route,
+      text,
+      subjectPropertyCode,
+    });
+  }
 
   const hasSignal = carriesRequirementSignal(text);
   const requirements = appendRequirement(priorRequirements, text);
@@ -238,6 +280,8 @@ async function simulateLeadReply(args: {
 
   return NextResponse.json({
     mode: 'lead_reply',
+    route: 'qualification' satisfies LeadRoute,
+    routeExplanation: LEAD_ROUTE_EXPLANATIONS.qualification,
     // False means the live handler answers only if this text arrived
     // directly after a bot question; on its own it would be left alone.
     carriesRequirementSignal: hasSignal,
@@ -253,4 +297,108 @@ async function simulateLeadReply(args: {
     inventorySize: (properties || []).length,
     previewText: outcome.reply,
   });
+}
+
+/**
+ * The three routes the ladder stands down for.
+ *
+ * Which listing the lead is looking at comes off the share ledger in
+ * production, and there is no contact here to have a ledger — so the
+ * agent names it with `subjectPropertyCode`. Left empty, the preview
+ * shows the handover the live bot sends when the thread cannot be
+ * pinned to a listing, which is a real outcome worth being able to see.
+ */
+async function simulateCarveOut(args: {
+  accountId: string;
+  supabase: Awaited<ReturnType<typeof requireRole>>['supabase'];
+  route: Exclude<LeadRoute, 'qualification'>;
+  text: string;
+  subjectPropertyCode: string | null;
+}): Promise<NextResponse> {
+  const { accountId, supabase, route, text, subjectPropertyCode } = args;
+
+  const base = {
+    mode: 'lead_reply' as const,
+    route,
+    routeExplanation: LEAD_ROUTE_EXPLANATIONS[route],
+    // The carve-outs run before any extraction: nothing is filed on the
+    // contact and no Gemini call is made, in the tool exactly as live.
+    carriesRequirementSignal: carriesRequirementSignal(text),
+    preferences: null,
+    nextQualifier: null,
+    ladderStoodDown: true,
+  };
+
+  if (route === 'callback_handover') {
+    return NextResponse.json({
+      ...base,
+      previewText: CALLBACK_HANDOVER_TEXT,
+      notifiesAgent: true,
+    });
+  }
+
+  if (route === 'shortlist_reference') {
+    return NextResponse.json({
+      ...base,
+      previewText: null,
+      answeredFromListing: true,
+    });
+  }
+
+  const subject = subjectPropertyCode
+    ? await loadSubjectByCode(supabase, accountId, subjectPropertyCode)
+    : null;
+
+  if (!subject) {
+    return NextResponse.json({
+      ...base,
+      previewText: photoHandoverText(null),
+      notifiesAgent: true,
+      photoCount: 0,
+    });
+  }
+
+  const images = (subject.images || []).filter((u) => u && u.trim().length > 0);
+  if (images.length === 0) {
+    return NextResponse.json({
+      ...base,
+      previewText: photoHandoverText(subject.title),
+      notifiesAgent: true,
+      photoCount: 0,
+    });
+  }
+
+  const origin = await accountShowcaseOrigin(supabase, accountId);
+  const sent = plannedPhotoCount(images.length, 1);
+  return NextResponse.json({
+    ...base,
+    photoCount: sent,
+    galleryCount: images.length,
+    previewText: buildPhotoReplyText([
+      {
+        title: subject.title,
+        sent,
+        total: images.length,
+        url: `${propertyShowcaseUrl(origin.endsWith('/') ? origin : `${origin}/`, subject)}&v=simulated-contact`,
+      },
+    ]),
+  });
+}
+
+/** The listing an agent named, by the brokerage's own property code. */
+async function loadSubjectByCode(
+  supabase: Awaited<ReturnType<typeof requireRole>>['supabase'],
+  accountId: string,
+  code: string
+): Promise<Pick<Property, 'id' | 'title' | 'images' | 'property_code'> | null> {
+  const { data } = await supabase
+    .from('properties')
+    .select('id, title, images, property_code')
+    .eq('account_id', accountId)
+    .ilike('property_code', code)
+    .maybeSingle();
+  return (data as Pick<
+    Property,
+    'id' | 'title' | 'images' | 'property_code'
+  > | null) ?? null;
 }

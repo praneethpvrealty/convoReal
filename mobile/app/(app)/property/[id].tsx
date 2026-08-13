@@ -25,7 +25,7 @@ import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { FlyerSheet } from '@/components/flyer-sheet';
 import { ConvoRealLoader } from '@/components/loader';
 import { PropertyShareSheet } from '@/components/property-share-sheet';
-import { SectionLabel, Tag, nameTagCap } from '@/components/ui';
+import { FilterChip, SectionLabel, Tag, nameTagCap } from '@/components/ui';
 import { nativeMapsAvailable } from '@/lib/maps-support';
 import { openInMaps } from '@/lib/open-maps';
 import { internalPhotoSources } from '@/lib/photo-sources';
@@ -35,7 +35,13 @@ import { friendlyError } from '@/lib/errors';
 import { chatListTime, formatInr } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
 import { listingPrice } from '@/lib/listing-price';
-import { matchChips, scoreTone, type MatchChipTone } from '@/lib/match-chips';
+import {
+  inMatchAudience,
+  matchChips,
+  scoreTone,
+  type MatchAudience,
+  type MatchChipTone,
+} from '@/lib/match-chips';
 import { fetchPropertyMatches } from '@/lib/property-matches';
 import { PropertyDocuments } from '@/components/property-documents';
 import { useAuthStore } from '@/lib/auth-store';
@@ -1145,14 +1151,16 @@ function chipColor(tone: MatchChipTone, colors: ThemeColors): string {
 }
 
 /**
- * Web parity: the Matching Contacts tab of the property dialog. Buyers
- * are always listed and agents sit behind a toggle, ranked by the same
- * server-side engine, so a listing scores identically on both surfaces.
+ * Web parity: the Matching Contacts tab of the property dialog. The
+ * audience filter (Buyers / Agents / All) picks who the list offers —
+ * buyers by default, agents alone for a co-broker blast — ranked by the
+ * same server-side engine, so a listing scores identically on both
+ * surfaces.
  */
 function MatchesSection({ property }: { property: Property }) {
   const { colors, fonts: f } = useTheme();
   const queryClient = useQueryClient();
-  const [showAgents, setShowAgents] = useState(false);
+  const [audience, setAudience] = useState<MatchAudience>('buyers');
   const [shareTo, setShareTo] = useState<Contact[] | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
@@ -1166,9 +1174,9 @@ function MatchesSection({ property }: { property: Property }) {
   const agentCount = all.filter(
     (m) => m.contact.classification === 'Agent'
   ).length;
-  const rows = showAgents
-    ? all
-    : all.filter((m) => m.contact.classification !== 'Agent');
+  const rows = all.filter((m) =>
+    inMatchAudience(m.contact.classification, audience)
+  );
   const sharedCount = rows.filter((m) => m.sharedAt).length;
   const allSelected =
     rows.length > 0 && rows.every((m) => selectedIds.includes(m.contact.id));
@@ -1181,6 +1189,20 @@ function MatchesSection({ property }: { property: Property }) {
     setSelectedIds((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
     );
+  }
+
+  // Switching audience drops selections outside it, so "Select all"
+  // then share never carries hidden picks from the previous tab.
+  function switchAudience(next: MatchAudience) {
+    haptic.tap();
+    setAudience(next);
+    if (next === 'all') return;
+    const visible = new Set(
+      all
+        .filter((m) => inMatchAudience(m.contact.classification, next))
+        .map((m) => m.contact.id)
+    );
+    setSelectedIds((prev) => prev.filter((id) => visible.has(id)));
   }
 
   return (
@@ -1198,23 +1220,6 @@ function MatchesSection({ property }: { property: Property }) {
                 : `Found ${rows.length} matching contact${rows.length === 1 ? '' : 's'}` +
                   (sharedCount > 0 ? ` · ${sharedCount} already shared` : '')}
         </Text>
-        {agentCount > 0 ? (
-          <Pressable
-            onPress={() => setShowAgents((v) => !v)}
-            hitSlop={8}
-            accessibilityRole="button"
-          >
-            <Text
-              style={{
-                fontSize: 12,
-                fontFamily: f.bold,
-                color: colors.primary,
-              }}
-            >
-              {showAgents ? 'Hide agents' : `Show agents (${agentCount})`}
-            </Text>
-          </Pressable>
-        ) : null}
         {rows.length > 0 ? (
           <Pressable
             onPress={() => {
@@ -1241,6 +1246,29 @@ function MatchesSection({ property }: { property: Property }) {
           </Pressable>
         ) : null}
       </View>
+
+      {/* Also shown while a non-default audience is active with no
+        agents left, so a refetch can never strand the section on an
+        empty tab with no way back. */}
+      {agentCount > 0 || audience !== 'buyers' ? (
+        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+          <FilterChip
+            label="Buyers"
+            active={audience === 'buyers'}
+            onPress={() => switchAudience('buyers')}
+          />
+          <FilterChip
+            label={`Agents (${agentCount})`}
+            active={audience === 'agents'}
+            onPress={() => switchAudience('agents')}
+          />
+          <FilterChip
+            label="All"
+            active={audience === 'all'}
+            onPress={() => switchAudience('all')}
+          />
+        </View>
+      ) : null}
 
       {matches.isLoading ? (
         <ActivityIndicator size="small" color={colors.primary} />
