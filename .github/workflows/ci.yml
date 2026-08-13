@@ -13,6 +13,16 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+# dorny/paths-filter reads the PR's file list through the API, so it needs
+# pull-requests: read. Without it the job dies with "Resource not accessible
+# by integration" — which is how the run on PR #507 skipped every real job.
+# Declaring the scopes explicitly also stops a repo-level default of
+# "contents: read only" from silently removing it, and matters more now the
+# repository is public: pull_request runs from a fork get a restricted token.
+permissions:
+  contents: read
+  pull-requests: read
+
 # Dummy env vars so `next build` doesn't fail when it reads the public
 # Supabase config at build time. These never leave CI and never hit a real
 # service — they just satisfy the `!` non-null assertions in the client
@@ -193,16 +203,29 @@ jobs:
 
   # The single required status check. It always reports, so a PR that skips
   # every job (docs-only, say) still goes green instead of hanging.
+  #
+  # `changes` is in `needs` for one reason: every other job is gated on its
+  # outputs, so when it fails they all SKIP — and a skip is not a failure.
+  # PR #507 merged exactly that way: paths-filter hit "Resource not
+  # accessible by integration", lint, typecheck, test, build and mobile all
+  # skipped, and this job reported success having verified nothing. A skip
+  # is only trustworthy evidence of "not needed" when the detector that
+  # decided it actually ran.
   ci:
     name: CI
     if: always()
-    needs: [lint, typecheck, test, build, mobile]
+    needs: [changes, lint, typecheck, test, build, mobile]
     runs-on: ubuntu-latest
     steps:
+      - name: Fail if change detection did not run
+        if: needs.changes.result != 'success'
+        run: |
+          echo 'Change detection ${{ needs.changes.result }} — every downstream job skipped, so nothing was verified.'
+          exit 1
       - name: Fail if any required job failed
         run: |
           if echo '${{ join(needs.*.result, ' ') }}' | grep -qE 'failure|cancelled'; then
             echo 'One or more CI jobs failed.'
             exit 1
           fi
-          echo 'All CI jobs passed or were skipped.'
+          echo 'All CI jobs passed, or were skipped by a change detector that ran.'
