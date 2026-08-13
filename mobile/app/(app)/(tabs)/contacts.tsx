@@ -42,6 +42,7 @@ import {
   listCard,
   nameTagCap,
 } from '@/components/ui';
+import { UnmappedPortalAds } from '@/components/unmapped-portal-ads';
 import { apiFetch, ApiError, isCancelled, isTimeout } from '@/lib/api';
 import { contactHandle, hasPhone } from '@/lib/reachability';
 import { approveAndSendDetails } from '@/lib/approve-contact';
@@ -745,6 +746,10 @@ export default function ContactsScreen() {
               tintColor={colors.primary}
             />
           }
+          // Renders nothing when every ad is mapped, so a clean account
+          // pays no space for it — and it sits above the queue of leads
+          // that the missing mappings are what filled.
+          ListHeaderComponent={<UnmappedPortalAds />}
           ListEmptyComponent={
             <EmptyState
               icon="people-outline"
