@@ -44,7 +44,10 @@ import { PropertyConstructionLoader } from '@/components/ui/property-constructio
 import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import { gateSummary, type GateStatsMap } from '@/lib/inventory/gate-stats';
-import { internalPhotoSources } from '@/lib/inventory/photo-sources';
+import {
+  emptyPhotoLabel,
+  internalPhotoSources,
+} from '@/lib/inventory/photo-sources';
 import { PORTALS, type PortalKey } from '@/lib/portals/post-kit';
 import { CheckSquare, Square } from 'lucide-react';
 
@@ -321,8 +324,12 @@ export function PropertyList({
                 />
               ) : (
                 <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-slate-600">
-                  <Building className="size-10 opacity-40" />
-                  <span className="text-xs">No photos uploaded</span>
+                  {(property.private_images_count ?? 0) > 0 ? (
+                    <Lock className="size-9 opacity-40" />
+                  ) : (
+                    <Building className="size-10 opacity-40" />
+                  )}
+                  <span className="text-xs">{emptyPhotoLabel(property)}</span>
                 </div>
               )}
 

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  emptyPhotoLabel,
   guardedPhotoPath,
   internalPhotoCount,
   internalPhotoSources,
@@ -63,5 +64,49 @@ describe('internalPhotoCount', () => {
         private_images: ['b.jpg', 'c.jpg'],
       })
     ).toBe(3);
+  });
+});
+
+describe('emptyPhotoLabel', () => {
+  // The masked shape: maskPropertyForViewer clears private_images and
+  // leaves the count, so the tile has nothing to draw but does know
+  // photos exist. Saying "No photos uploaded" here is simply false.
+  it('says how many photos are being withheld', () => {
+    expect(
+      emptyPhotoLabel({
+        id: 'p1',
+        images: [],
+        private_images: [],
+        private_images_count: 2,
+      })
+    ).toBe('2 photos · confidential');
+  });
+
+  it('uses the singular for one', () => {
+    expect(
+      emptyPhotoLabel({ id: 'p1', private_images_count: 1 })
+    ).toBe('1 photo · confidential');
+  });
+
+  it('keeps the plain wording when the listing genuinely has none', () => {
+    expect(emptyPhotoLabel({ id: 'p1' })).toBe('No photos uploaded');
+    expect(
+      emptyPhotoLabel({ id: 'p1', images: [], private_images_count: 0 })
+    ).toBe('No photos uploaded');
+  });
+
+  // A privileged viewer holds the paths, so the count is theirs to see
+  // through — the label must not claim a gallery they can open is
+  // confidential. Callers only render it when there is no photo, but the
+  // helper must not depend on that.
+  it('does not label a listing whose photos the viewer can actually see', () => {
+    expect(
+      emptyPhotoLabel({
+        id: 'p1',
+        images: [],
+        private_images: ['priv/a.jpg', 'priv/b.jpg'],
+        private_images_count: 2,
+      })
+    ).toBe('No photos uploaded');
   });
 });

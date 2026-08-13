@@ -41,3 +41,15 @@ export function internalPhotoSources(p: PhotoSourceInput): PhotoSource[] {
 export function internalPhotoCount(p: PhotoSourceInput): number {
   return clean(p.images).length + clean(p.private_images).length;
 }
+
+/** What a thumbnail says when there is no photo to render. A guarded
+ *  listing's photos are stripped for viewers who may not see them, and
+ *  only `private_images_count` survives — without it the withheld
+ *  gallery looks identical to a listing with no photos at all. */
+export function emptyPhotoLabel(
+  p: PhotoSourceInput & { private_images_count?: number | null }
+): string {
+  const withheld = p.private_images_count ?? 0;
+  if (internalPhotoCount(p) > 0 || withheld <= 0) return 'No photos uploaded';
+  return `${withheld} photo${withheld === 1 ? '' : 's'} · confidential`;
+}

@@ -56,3 +56,21 @@ export function internalPhotoSources(p: PhotoSourceInput): PhotoSource[] {
 export function internalPhotoCount(p: PhotoSourceInput): number {
   return clean(p.images).length + clean(p.private_images).length;
 }
+
+/**
+ * What a thumbnail says when `internalPhotoSources` gives it nothing.
+ *
+ * `maskPropertyForViewer` strips `private_images` from a guarded listing
+ * for anyone who is neither admin+ nor its listing agent, and leaves
+ * `private_images_count` behind precisely so the viewer can tell that
+ * photos exist. Without reading it the withheld gallery renders as the
+ * same empty tile as a listing nobody photographed — on web it went
+ * further and claimed "No photos uploaded", which is untrue.
+ */
+export function emptyPhotoLabel(
+  p: PhotoSourceInput & { private_images_count?: number | null }
+): string {
+  const withheld = p.private_images_count ?? 0;
+  if (internalPhotoCount(p) > 0 || withheld <= 0) return 'No photos uploaded';
+  return `${withheld} photo${withheld === 1 ? '' : 's'} · confidential`;
+}
