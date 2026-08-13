@@ -54,4 +54,12 @@ export const NOTIFICATION_EVENTS: NotificationEventDef[] = [
     description: 'Your appointments and to-dos for the day.',
     defaults: { app: true, whatsapp: false },
   },
+  {
+    key: 'teammate_update',
+    group: 'Calendar',
+    label: 'Teammate sends you an update',
+    description:
+      'A colleague dictates an update for you ("send Sharan the outcome of the site visit"). WhatsApp is on by default — an update held back until the next digest has usually gone stale.',
+    defaults: { app: true, whatsapp: true },
+  },
 ];

@@ -32,6 +32,7 @@ export type NotificationType =
   | 'appointment_reminder'
   | 'appointment_overdue'
   | 'daily_digest'
+  | 'teammate_update'
   | 'location_request'
   | 'subscription_extended'
   | 'listing_interest';

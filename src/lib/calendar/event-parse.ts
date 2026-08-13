@@ -17,7 +17,10 @@ import { INPUT_LANGUAGE_HINT } from '@/lib/languages';
 export type EventTypeKey = 'site_visit' | 'call' | 'follow_up' | 'document' | 'meeting' | 'other';
 
 export interface ParsedEventDraft {
-  intent: 'schedule' | 'task' | 'none';
+  /** "notify" is the odd one out: it writes no calendar row at all, it
+   *  sends what the speaker said to a teammate. Only the WhatsApp owner
+   *  path acts on it — see the note on parseEventsFromInput. */
+  intent: 'schedule' | 'task' | 'notify' | 'none';
   title: string;
   event_type: EventTypeKey;
   start_time: string | null;
@@ -34,6 +37,10 @@ export interface ParsedEventDraft {
   service_provider_role: string | null;
   property_hint: string | null;
   assignee_name: string | null;
+  /** The teammate to be told, for intent "notify". Distinct from
+   *  assignee_name: assigning gives someone the work, notifying tells
+   *  them what happened and leaves the work where it was. */
+  recipient_name: string | null;
   location: string | null;
   priority: 'low' | 'medium' | 'high';
   notes: string | null;
@@ -90,7 +97,7 @@ export function coerceEventDraft(raw: unknown): ParsedEventDraft {
 
   const intentRaw = str(obj.intent)?.toLowerCase();
   const intent: ParsedEventDraft['intent'] =
-    intentRaw === 'schedule' || intentRaw === 'task' ? intentRaw : 'none';
+    intentRaw === 'schedule' || intentRaw === 'task' || intentRaw === 'notify' ? intentRaw : 'none';
 
   const priorityRaw = str(obj.priority)?.toLowerCase();
   const priority: ParsedEventDraft['priority'] =
@@ -108,12 +115,51 @@ export function coerceEventDraft(raw: unknown): ParsedEventDraft {
     service_provider_role: str(obj.service_provider_role),
     property_hint: str(obj.property_hint),
     assignee_name: str(obj.assignee_name),
+    recipient_name: str(obj.recipient_name),
     location: str(obj.location),
     priority,
     notes: str(obj.notes),
     transcript: str(obj.transcript),
     day_of_week: str(obj.day_of_week),
   };
+}
+
+/** The transcript off whichever shape the model returned — the envelope
+ *  of a multi-request answer, or a lone request object. */
+function readTranscript(raw: unknown): string | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const val = (raw as Record<string, unknown>).transcript;
+  return typeof val === 'string' && val.trim().length > 0 ? val.trim() : null;
+}
+
+/**
+ * Normalizes the multi-request envelope into drafts worth acting on.
+ *
+ * Accepts all three shapes the model reaches for — `{ requests: [...] }`,
+ * a bare array, and a lone object — because a single-request note is the
+ * common case and a model asked for an array still sometimes answers with
+ * just the object.
+ *
+ * `transcript` is read off the envelope rather than the request: it
+ * describes the input, not any one thing asked for inside it, and
+ * duplicating it per request only invites the model to paraphrase it
+ * differently each time.
+ *
+ * Drops `none` entries, so an empty result means "nothing to act on" and
+ * callers need no second check.
+ */
+export function coerceEventDrafts(raw: unknown): ParsedEventDraft[] {
+  const envelope = (raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {}) as Record<
+    string,
+    unknown
+  >;
+  const list = Array.isArray(raw) ? raw : Array.isArray(envelope.requests) ? envelope.requests : [raw];
+  const transcript = readTranscript(raw);
+
+  return list
+    .map((item) => coerceEventDraft(item))
+    .map((draft) => (draft.transcript ? draft : { ...draft, transcript }))
+    .filter((draft) => draft.intent !== 'none');
 }
 
 const WEEKDAYS = [
@@ -193,9 +239,12 @@ function buildSystemPrompt(now: Date, memberNames: string[]): string {
     'You are the scheduling assistant inside a sales platform used by Indian real-estate agents. ' +
     `The user logs calendar events and tasks by typing or speaking (${INPUT_LANGUAGE_HINT}). ` +
     `Current date/time in India (IST): ${nowInIst(now)}.\n\n` +
-    'From the given text or audio, extract ONE scheduling request as JSON with exactly these keys:\n' +
+    'From the given text or audio, extract EVERY separate thing the speaker wants done, as JSON:\n' +
+    '{ "transcript": when the input is audio, the verbatim transcript translated to English; null for text input,\n' +
+    '  "requests": [ ...one object per thing asked for, in the order spoken... ] }\n\n' +
+    'Each object in "requests" has exactly these keys:\n' +
     '{\n' +
-    '  "intent": "schedule" (has a specific date/time to be on a calendar) | "task" (a to-do, possibly with just a due date) | "none" (not a scheduling request at all),\n' +
+    '  "intent": "schedule" (has a specific date/time to be on a calendar) | "task" (a to-do, possibly with just a due date) | "notify" (the speaker wants a TEAM MEMBER TOLD something — "send Sharan the update on the Kusumaraju meeting", "let Priya know the site visit is off") | "none" (not a request at all),\n' +
     '  "title": short imperative summary WITHOUT the date/time words, e.g. "Site visit with Varun - JP Nagar plot",\n' +
     '  "event_type": one of "site_visit" | "call" | "follow_up" | "document" | "meeting" | "other",\n' +
     '  "start_time": "YYYY-MM-DDTHH:mm" in IST local time, resolving relative phrases like "tomorrow evening" (evening=17:00, morning=10:00, afternoon=14:00, night=20:00), or null,\n' +
@@ -207,18 +256,28 @@ function buildSystemPrompt(now: Date, memberNames: string[]): string {
     '  "service_provider_role": the professional role named alongside contact_name when there is one — "lawyer", "advocate", "surveyor", "architect", "CA", "khata agent", "registrar", "engineer", "contractor", "valuer" ("meeting with Kusuma lawyer" -> "lawyer"). Null when contact_name is a buyer, seller, owner or plain client,\n' +
     '  "property_hint": any property/project/locality identifying words, e.g. "18k sqft JP Nagar commercial", or null,\n' +
     '  "assignee_name": a TEAM member the speaker assigns this to ("ask Surya to...", "Surya should call..."), or null when the speaker will do it themselves,\n' +
+    '  "recipient_name": for intent "notify" ONLY — the TEAM member to be told. Null for every other intent,\n' +
     '  "location": meeting place or address if stated, or null,\n' +
     '  "priority": "low" | "medium" | "high" (urgent words like "pakka", "important", "urgent", "asap" mean high),\n' +
-    '  "notes": any remaining useful detail, or null,\n' +
-    '  "transcript": when the input is audio, the verbatim transcript translated to English; null for text input\n' +
+    '  "notes": any remaining useful detail, or null\n' +
     '}\n\n' +
     (memberNames.length > 0
       ? `Team member names for assignee matching: ${memberNames.join(', ')}.\n`
       : '') +
+    'Splitting: one entry per thing the speaker wants done, and NEVER more. One event keeps all of its own ' +
+    'detail together — "site visit with Varun tomorrow 4pm at the JP Nagar plot" is ONE request, not one per ' +
+    'person, time and place. Split only when the actions are genuinely separate and could be done by different ' +
+    'people on different days: "Send Sharan the update on the Kusumaraju meeting. The advocate is away a week, ' +
+    'so follow up after that" is TWO — a "notify" for Sharan carrying what happened, and a "task" for the ' +
+    'follow-up. Context a later request needs is repeated into it rather than left behind in an earlier one. ' +
+    'Return an empty "requests" array when there is nothing to act on.\n' +
     'Rules: never invent a date/time that was not implied. "Remind me to X" with no time is intent "task". ' +
     'A stated calendar date with no time of day ("meet the lawyer on 30th July") IS intent "schedule" — ' +
     'use 10:00 as the hour, the same default as "morning", rather than midnight. ' +
     'A forwarded property listing or a lead\'s contact details is intent "none". ' +
+    'For intent "notify", "title" is the subject line and "notes" carries everything the recipient needs to ' +
+    'know — they see only those two and cannot hear the original message. Telling someone about a meeting is ' +
+    '"notify"; being asked to do the work is "task" with assignee_name. ' +
     'Respond with ONLY the JSON object.'
   );
 }
@@ -245,12 +304,37 @@ export interface EventParseInput {
   now?: Date;
 }
 
+/**
+ * Every request the input carries, in the order they were spoken.
+ *
+ * One voice note is routinely two jobs — "tell Sharan what happened, and
+ * remind me to chase it next week" — and returning the first one silently
+ * dropped the rest. Only the WhatsApp owner path consumes the full array
+ * today; parseEventFromInput below keeps the single-draft contract for the
+ * callers whose UI shows exactly one card.
+ */
+export async function parseEventsFromInput(input: EventParseInput): Promise<ParsedEventDraft[]> {
+  return (await runEventParse(input)).drafts;
+}
+
+/**
+ * The first request, or a "none" draft when there is nothing to act on.
+ * The transcript survives an empty result — a caller that found no request
+ * still wants to show the agent what was heard.
+ */
 export async function parseEventFromInput(input: EventParseInput): Promise<ParsedEventDraft> {
+  const { drafts, transcript } = await runEventParse(input);
+  return drafts[0] || { ...coerceEventDraft({}), transcript };
+}
+
+async function runEventParse(
+  input: EventParseInput
+): Promise<{ drafts: ParsedEventDraft[]; transcript: string | null }> {
   const parts: GeminiPart[] = [];
   if (input.audio) {
     const mimeType = input.audio.mimeType.split(';')[0].trim() || 'audio/ogg';
     parts.push({ inlineData: { mimeType, data: input.audio.base64 } });
-    parts.push({ text: 'Extract the scheduling request from this voice note.' });
+    parts.push({ text: 'Extract every request from this voice note.' });
   }
   if (input.image) {
     const mimeType = input.image.mimeType.split(';')[0].trim() || 'image/jpeg';
@@ -284,10 +368,15 @@ export async function parseEventFromInput(input: EventParseInput): Promise<Parse
     const match = raw.match(/\{[\s\S]*\}/);
     parsed = match ? JSON.parse(match[0]) : {};
   }
-  // Weekday arithmetic is the one part of the extraction the model gets
-  // wrong often enough to matter, so it is redone here deterministically
-  // for every input path — typed, spoken and screenshotted alike.
-  return alignDraftToNamedWeekday(coerceEventDraft(parsed), input.now || new Date());
+  const now = input.now || new Date();
+  const drafts = coerceEventDrafts(parsed);
+  return {
+    // Weekday arithmetic is the one part of the extraction the model gets
+    // wrong often enough to matter, so it is redone here deterministically
+    // for every input path — typed, spoken and screenshotted alike.
+    drafts: drafts.map((draft) => alignDraftToNamedWeekday(draft, now)),
+    transcript: drafts[0]?.transcript || readTranscript(parsed),
+  };
 }
 
 export interface EventUpdateInput {
@@ -351,8 +440,32 @@ export interface NamedRef {
   label: string;
 }
 
-/** Case-insensitive best match: exact > startsWith > includes >
- *  all-words-included. Returns null rather than guessing badly. */
+/** Shortest run treated as a real name fragment. Below this a substring
+ *  hit is noise — two letters land inside somebody in any list. */
+const MIN_FRAGMENT = 3;
+
+/**
+ * A substring hit that starts where a word starts.
+ *
+ * Plain `includes` matched "Raj" against "Kusumaraju", filing an advocate's
+ * meeting under an unrelated contact and — because the liaisons lookup only
+ * runs when no contact matched — hiding the advocate we should have found
+ * instead. Requiring the fragment to begin a word keeps every real partial
+ * ("Kumar" in "Raj Kumar", a property code opening a label) and drops the
+ * ones that merely happen to fall inside a longer name.
+ */
+function containsFragment(haystack: string, needle: string): boolean {
+  if (needle.length < MIN_FRAGMENT) return false;
+  for (let from = 0; ; ) {
+    const at = haystack.indexOf(needle, from);
+    if (at < 0) return false;
+    if (at === 0 || !/[a-z0-9]/i.test(haystack[at - 1])) return true;
+    from = at + 1;
+  }
+}
+
+/** Case-insensitive best match: exact > startsWith > word-boundary
+ *  substring > all-words-included. Returns null rather than guessing badly. */
 export function resolveByName<T extends { id: string }>(
   query: string | null,
   rows: T[],
@@ -370,10 +483,10 @@ export function resolveByName<T extends { id: string }>(
     let score = 0;
     if (label === q) score = 4;
     else if (label.startsWith(q) || q.startsWith(label)) score = 3;
-    else if (label.includes(q) || q.includes(label)) score = 2;
+    else if (containsFragment(label, q) || containsFragment(q, label)) score = 2;
     else {
-      const words = q.split(/\s+/).filter((w) => w.length > 2);
-      if (words.length > 0 && words.every((w) => label.includes(w))) score = 1;
+      const words = q.split(/\s+/).filter((w) => w.length >= MIN_FRAGMENT);
+      if (words.length > 0 && words.every((w) => containsFragment(label, w))) score = 1;
     }
     if (score > bestScore) {
       best = row;
