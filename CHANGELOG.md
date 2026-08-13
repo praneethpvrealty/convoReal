@@ -34,6 +34,21 @@ and polish.
 
 ### Fixed
 
+- **A portal's "your listing is live" email can no longer become a
+  lead.** The portals confirm every posting, review, go-live and refresh
+  by email to the same mailbox as the leads, and none of those subjects
+  matched a non-lead filter pattern — so they fell through to the lead
+  parser, and Housing's publish confirmation quotes the agent's own
+  registered phone number, ready to be filed as a buyer enquiry. The
+  lifecycle subjects are now filtered, with the real emails preserved as
+  redacted fixtures (`src/app/api/leads/email-webhook/__fixtures__/`)
+  and a fixture-driven test so a re-worded portal template surfaces as a
+  test failure. The samples also settle the identity question for the
+  future sync consumer: 99acres names a `C`-prefixed code in prose,
+  MagicBricks quotes its id only when posting (its refresh email carries
+  dates but no id), and Housing lifecycle mail never quotes an id at
+  all.
+
 - **A sold listing stops generating outbound messages.** The owner
   digest, the agent reach digest and the deal-mode sweep all scanned
   `properties` with no filter on status. A listing that leaves the

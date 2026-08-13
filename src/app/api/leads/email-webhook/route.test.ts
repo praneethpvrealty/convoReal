@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 type MockRecord = Record<string, unknown>;
 
@@ -556,6 +558,24 @@ Content-Transfer-Encoding: quoted-printable
       expect(checkIsNonLeadEmail('Magicbricks Weekly Digest', 'info@magicbricks.com')).toBe(true);
       expect(checkIsNonLeadEmail('Flash Sale! Save 50% now', 'marketing@deals.com')).toBe(true);
       expect(checkIsNonLeadEmail('Exclusive Offer for subscribers', 'promo@service.com')).toBe(true);
+    });
+
+    // The portals' listing-lifecycle mail is not a lead — it announces the
+    // agent's OWN ad being posted, reviewed, made live or refreshed, and
+    // Housing's variant even quotes the agent's registered phone number,
+    // which the extractor would otherwise file as a buyer. Driven by the
+    // real samples in __fixtures__ so a re-worded template shows up here.
+    it('filters every listing-lifecycle fixture out of the lead path', () => {
+      const fixtures = readdirSync(join(__dirname, '__fixtures__')).filter((f) =>
+        f.endsWith('.txt')
+      );
+      expect(fixtures.length).toBeGreaterThan(0);
+      for (const file of fixtures) {
+        const raw = readFileSync(join(__dirname, '__fixtures__', file), 'utf8');
+        const [subject, , fromLine] = raw.split('\n');
+        const sender = fromLine?.match(/<([^>]+)>/)?.[1] ?? fromLine?.replace(/^From:\s*/, '') ?? '';
+        expect(checkIsNonLeadEmail(subject, sender), `${file}: "${subject}"`).toBe(true);
+      }
     });
   });
 
