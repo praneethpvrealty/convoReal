@@ -13,6 +13,19 @@ and polish.
 
 ### Fixed
 
+- **A sold listing stops generating outbound messages.** The owner
+  digest, the agent reach digest and the deal-mode sweep all scanned
+  `properties` with no filter on status. A listing that leaves the
+  market keeps every row that references it — enquiries, deals, shares,
+  showcase views — so a property marked Sold went on producing digests,
+  and asked its former owner over WhatsApp whether they would like
+  status updates about buyer interest in it. All three senders now skip
+  listings that are Sold, Off Market, Archived or Rejected; Available
+  and Under Contract still report, since a listing under offer is one an
+  owner still wants to hear about. Reactive paths are unchanged — a sold
+  property's owner can still request its documents, and the
+  already-sold notification to interested buyers still goes out.
+
 - **A short name no longer matches inside a longer one.** Name
   resolution scored a plain substring hit, so "Raj" matched
   "Kusumaraju" — an advocate's meeting was filed under an unrelated

@@ -27,6 +27,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Contact, MatchEventTarget, Property } from "@/types";
 import { getMatchingContacts, type MatchDetails } from "@/lib/matching";
+import { CLOSED_LISTING_STATUS_FILTER } from "@/lib/inventory/listing-status";
 import { buildMaskedPropertySnapshot, type MaskedPropertySnapshot } from "./masking";
 import { sendDenNotification } from "./notify";
 import { contactHandle } from '@/lib/contacts/reachability';
@@ -75,6 +76,7 @@ export async function runDealModeSweep(
     .select("*")
     .neq("deal_mode", "off")
     .eq("is_published", true)
+    .not("status", "in", CLOSED_LISTING_STATUS_FILTER)
     .limit(MAX_POOL);
   if (opts.propertyId) poolQuery = poolQuery.eq("id", opts.propertyId);
   const { data: pool, error: poolErr } = await poolQuery;

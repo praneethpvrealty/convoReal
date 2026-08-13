@@ -6,6 +6,7 @@ import {
   buildOwnerDigestSummaryLine,
   buildOwnerDigestMessage,
   buildConsentRequestMessage,
+  gatherOwnerDigests,
   parseOwnerDigestCommand,
   CONSENT_BUTTONS,
   istHour,
@@ -210,5 +211,85 @@ describe('CONSENT_BUTTONS', () => {
       expect(btn.title.length).toBeLessThanOrEqual(20);
       expect(parseOwnerDigestCommand(btn.title)).not.toBeNull();
     }
+  });
+});
+
+type Row = Record<string, unknown>;
+
+/** Applies the PostgREST filters the query builder is handed, so the
+ *  test exercises the real operands rather than asserting a call shape. */
+function tableStub(rows: Row[]) {
+  const filters: Array<(r: Row) => boolean> = [];
+  const builder = {
+    select: () => builder,
+    limit: () => builder,
+    gte: () => builder,
+    lt: () => builder,
+    eq: (col: string, val: unknown) => {
+      filters.push((r) => r[col] === val);
+      return builder;
+    },
+    neq: (col: string, val: unknown) => {
+      filters.push((r) => r[col] !== val);
+      return builder;
+    },
+    in: (col: string, vals: unknown[]) => {
+      filters.push((r) => vals.includes(r[col]));
+      return builder;
+    },
+    not: (col: string, op: string, operand: unknown) => {
+      if (op === 'is') filters.push((r) => r[col] !== null && r[col] !== undefined);
+      else {
+        const allowed = String(operand)
+          .slice(1, -1)
+          .split(',')
+          .map((v) => v.replace(/^"|"$/g, ''));
+        filters.push((r) => !allowed.includes(r[col] as string));
+      }
+      return builder;
+    },
+    then: (resolve: (res: { data: Row[] }) => unknown) =>
+      resolve({ data: rows.filter((r) => filters.every((f) => f(r))) }),
+  };
+  return builder;
+}
+
+describe('gatherOwnerDigests', () => {
+  const period = digestPeriod('daily', MONDAY);
+
+  const run = (properties: Row[]) =>
+    gatherOwnerDigests(
+      {
+        from: (table: string) =>
+          tableStub(table === 'properties' ? properties : []),
+      } as never,
+      'acc1',
+      period
+    );
+
+  const listing = (id: string, status: string): Row => ({
+    id,
+    title: `${status} listing`,
+    owner_contact_id: 'c1',
+    status,
+    listing_source: 'owner',
+    account_id: 'acc1',
+  });
+
+  it('leaves listings that are off the market out of the digest', async () => {
+    const [owner] = await run([
+      listing('p1', 'Available'),
+      listing('p2', 'Under Contract'),
+      listing('p3', 'Sold'),
+      listing('p4', 'Off Market'),
+      listing('p5', 'Archived'),
+    ]);
+    expect(owner.properties.map((p) => p.property_id)).toEqual(['p1', 'p2']);
+  });
+
+  it('drops an owner entirely once their only listing is sold', async () => {
+    // The consent request is what the owner sees first, so an owner with
+    // nothing live must not reach the sender at all.
+    expect(await run([listing('p1', 'Sold')])).toEqual([]);
   });
 });

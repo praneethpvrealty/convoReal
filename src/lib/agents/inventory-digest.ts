@@ -24,6 +24,7 @@ import {
   type DigestPeriod,
 } from '@/lib/owners/owner-digest'
 import type { MessageTemplate } from '@/types'
+import { CLOSED_LISTING_STATUS_FILTER } from '@/lib/inventory/listing-status'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 
 /**
@@ -261,6 +262,7 @@ export async function gatherAgentInventoryDigests(
     .from('properties')
     .select('id, title, owner_contact_id')
     .eq('account_id', accountId)
+    .not('status', 'in', CLOSED_LISTING_STATUS_FILTER)
     .eq('listing_source', 'agent')
   propertiesQuery = agentContactIds
     ? propertiesQuery.in('owner_contact_id', agentContactIds)
