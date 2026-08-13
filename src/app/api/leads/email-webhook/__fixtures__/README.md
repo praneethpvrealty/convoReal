@@ -52,24 +52,57 @@ Lead emails — the enquiry path, already partly covered:
 | owner/broker enquiry rather than a buyer | | | |
 | enquiry forwarded by the agent, not direct | | | |
 
-Listing-lifecycle emails — **the gap**, and the reason for this folder.
-These arrive today and `checkIsNonLeadEmail()` (`route.ts:167`) discards
-them as "not a lead", which is right for lead ingestion and is exactly
-what a portal-sync consumer needs:
+Listing-lifecycle emails — the reason for this folder. These arrive
+today and `checkIsNonLeadEmail()` discards them as "not a lead", which
+is right for lead ingestion and is exactly what a portal-sync consumer
+needs. (Until Aug 2026 they were **not** discarded — no filter pattern
+matched them, so they fell through to the lead parser, and Housing's
+publish confirmation quotes the agent's own registered phone number,
+ready to be filed as a buyer. The lifecycle patterns in
+`checkIsNonLeadEmail()` and the fixture-driven test in `route.test.ts`
+are what now stop that.)
 
 | | 99acres | MagicBricks | Housing |
 |---|---|---|---|
-| listing posted / went live | | | |
+| listing posted / went live | ✅ `99acres-posted-live.txt` | ✅ `magicbricks-posted-screening.txt` | ✅ `housing-publish-received.txt`, `housing-live.txt` |
 | listing edited (price, area, description) | | | |
 | listing expiring soon | | | |
 | listing expired / taken down | | | |
 | listing rejected or needs attention | | | |
-| paid boost applied or lapsed | | | |
+| paid boost / refresh applied | | ✅ `magicbricks-refreshed.txt` | |
 | weekly performance digest | | | |
 
-The lifecycle table is the one worth filling first. Each row is a signal
-that could keep `property_portal_listings` current without any portal
-API — see Milestone 4 in `FEATURE_ROADMAP.md`.
+What the collected samples establish about identity — the thing a sync
+consumer has to resolve before it can update anything:
+
+- **99acres names its code in prose**, `C93313942` — with a `C` prefix
+  that lead emails' bare numeric ids do not carry. Whether the buyer-side
+  id is the same number without the prefix is unconfirmed; do not assume
+  it when building the consumer.
+- **MagicBricks quotes the id only when posting** (subject *and* body).
+  Its refresh confirmation carries **no id at all** — just the snapshot
+  (type, area, price, locality) plus `Refreshed Date` / `Expiring On`.
+  Resolving a refresh to a `property_portal_listings` row means matching
+  the snapshot, exactly the job `listing-matcher.ts` already does.
+  The refresh email is also the only source of a **fresh `expires_on`**
+  (13 Aug → 13 Oct: 60 days), which the drift checks (migration 267)
+  otherwise see go stale.
+- **Housing lifecycle mail never quotes an id** — not when the publish
+  request is received, not when the listing goes live. Only the snapshot
+  and the `Manage Listing` link (whose URL carries the slug, per the
+  lead-email note above). Same resolution problem as the MagicBricks
+  refresh.
+
+These lifecycle samples were transcribed from the agent's mailbox
+(screenshots/screen recording), redacted per the rules above. Structure
+and wording are verbatim; whitespace is approximate. Before a parser is
+built against one, replace it with the raw text via Gmail's
+"Show original" so the wrapping is real — the lead samples already in
+`route.test.ts` went through that upgrade.
+
+Each filled row is a signal that could keep `property_portal_listings`
+current without any portal API — see Milestone 4 in
+`FEATURE_ROADMAP.md`.
 
 ## Using them
 

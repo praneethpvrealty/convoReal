@@ -29,6 +29,7 @@ import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { ContactPickerSheet } from '@/components/contact-picker-sheet';
 import { GateRequestsSheet } from '@/components/gate-requests-sheet';
 import { EnterRow, PressScale } from '@/components/motion';
+import { PortalDriftPanel } from '@/components/portal-drift-panel';
 import { PropertyApprovals } from '@/components/property-approvals';
 import { PropertyFiltersSheet } from '@/components/property-filters-sheet';
 import {
@@ -533,12 +534,20 @@ export default function PropertiesScreen() {
           // on the tab that owns them. Renders nothing when there are
           // none to review.
           ListHeaderComponent={
-            <PropertyApprovals
-              style={{
-                paddingHorizontal: spacing.lg,
-                paddingBottom: spacing.sm,
-              }}
-            />
+            <>
+              <PortalDriftPanel
+                style={{
+                  marginHorizontal: spacing.lg,
+                  marginBottom: spacing.sm,
+                }}
+              />
+              <PropertyApprovals
+                style={{
+                  paddingHorizontal: spacing.lg,
+                  paddingBottom: spacing.sm,
+                }}
+              />
+            </>
           }
           onEndReached={() => hasNextPage && fetchNextPage()}
           onEndReachedThreshold={0.4}

@@ -11,6 +11,27 @@ and polish.
 
 ## [Unreleased]
 
+### Added
+
+- **The Engine notices when a portal ad and its listing disagree.**
+  Once an ad is mapped, nothing told anyone when the two sides diverged
+  — a listing was archived while its MagicBricks ad stayed live,
+  approved, and producing leads for withdrawn stock. Four drift checks
+  now run over the leads and sync logs already in the database
+  (**migration required**: `267_portal_listing_drift.sql`): leads
+  arriving on an ad whose listing is Sold/Archived/Off Market/Rejected;
+  leads arriving after the recorded expiry (the expiry is stale, not
+  the ad); no leads well past the expiry (the ad probably lapsed); and
+  the ad's parsed type, price or area drifting from the listing's, one
+  side having been edited. Findings appear on the Inventory page on web
+  and the Properties tab on mobile, each with the facts behind it and a
+  link to the ad. Nothing to dismiss: fixing the condition — relist,
+  update the expiry, mark the ad removed — is what clears a row. Lead
+  emails now also record the quoted ad id next to the parsed enquiry in
+  the sync log (backfilled for existing leads from their retro-tagged
+  contacts), which is what lets "what the ad currently says" be compared
+  to the listing at all.
+
 ### Changed
 
 - **A stated max budget now implies a floor.** Matching treated a
@@ -36,6 +57,21 @@ and polish.
   carries hidden picks from the previous tab.
 
 ### Fixed
+
+- **A portal's "your listing is live" email can no longer become a
+  lead.** The portals confirm every posting, review, go-live and refresh
+  by email to the same mailbox as the leads, and none of those subjects
+  matched a non-lead filter pattern — so they fell through to the lead
+  parser, and Housing's publish confirmation quotes the agent's own
+  registered phone number, ready to be filed as a buyer enquiry. The
+  lifecycle subjects are now filtered, with the real emails preserved as
+  redacted fixtures (`src/app/api/leads/email-webhook/__fixtures__/`)
+  and a fixture-driven test so a re-worded portal template surfaces as a
+  test failure. The samples also settle the identity question for the
+  future sync consumer: 99acres names a `C`-prefixed code in prose,
+  MagicBricks quotes its id only when posting (its refresh email carries
+  dates but no id), and Housing lifecycle mail never quotes an id at
+  all.
 
 - **A sold listing stops generating outbound messages.** The owner
   digest, the agent reach digest and the deal-mode sweep all scanned

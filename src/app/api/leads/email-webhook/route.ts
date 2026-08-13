@@ -167,6 +167,19 @@ export function checkIsNonLeadEmail(subject: string, sender: string): boolean {
   // Property listing updates (not individual inquiries)
   if (/(new\s+listings?\s+in|property\s+alert|price\s+drop|listing\s+update)/i.test(subject) && !/buyer\s+wants/i.test(subject)) return true;
 
+  // Listing-lifecycle mail from the portals about the agent's OWN ad —
+  // posted, under review, live, refreshed. Never a lead, and the Housing
+  // variant carries the agent's own registered phone number in the body,
+  // which the phone extractor would file as a buyer. Real samples in
+  // __fixtures__/; the portal-sync consumer that will read these is
+  // Milestone 4 in FEATURE_ROADMAP.md, but the lead path must drop them.
+  if (
+    /(your\s+listing\s+is\s+(now\s+)?live|property\s+refreshed\s+successfully|thanks?\s+for\s+posting\s+the\s+property|received\s+your\s+request\s+to\s+publish|new\s+property\s+\([A-Z0-9]+\)\s+posted|get\s+more\s+responses\s+now)/i.test(
+      subject
+    )
+  )
+    return true;
+
   // Auto-generated reports
   if (/(weekly|monthly|daily)\s+report/i.test(subject)) return true;
 
@@ -792,6 +805,9 @@ export async function POST(request: Request) {
       parsedBedrooms: parsed.bedrooms,
       matchedPropertyId: matchedPropertyIds[0] ?? null,
       matchScore: topMatchScore,
+      leadPortal: leadPortal && parsed.portalListingId ? leadPortal : null,
+      leadPortalListingId:
+        leadPortal && parsed.portalListingId ? parsed.portalListingId : null,
     };
 
     const cleanPhone = normalizedPhoneNum.replace(/\D/g, '');
