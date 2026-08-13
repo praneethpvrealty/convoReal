@@ -42,7 +42,7 @@ import {
   FileText,
   Ban,
 } from 'lucide-react';
-import { getMatchingContacts, type MatchDetails } from '@/lib/matching';
+import { getMatchingContacts, inMatchAudience, type MatchAudience, type MatchDetails } from '@/lib/matching';
 import { recordPropertyShares } from '@/lib/inventory/share-log';
 import { isLocationGuarded, localityLabel } from '@/lib/inventory/location-guard';
 import {
@@ -125,7 +125,9 @@ export function PropertyShareDialog({
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loadingContacts, setLoadingContacts] = useState(false);
   const [selectedContactIds, setSelectedContactIds] = useState<string[]>([]);
-  const [showAgentsInMatches, setShowAgentsInMatches] = useState(false);
+  // Who the matched list offers: buyers by default, agents only for a
+  // co-broker blast, or both together.
+  const [matchAudience, setMatchAudience] = useState<MatchAudience>('buyers');
 
   // Template config
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
@@ -765,6 +767,7 @@ export function PropertyShareDialog({
       setSearchQuery('');
       setCopiedLink(false);
       setSelectedContactIds(preSelectedContactId ? [preSelectedContactId] : []);
+      setMatchAudience('buyers');
       setSelectedTemplate(null);
       setVariableMappings({});
       setCustomVariableValues({});
@@ -838,11 +841,9 @@ export function PropertyShareDialog({
     let result: Array<{ contact: Contact; score: number; details: MatchDetails; matchedFields: { budget: boolean; area: boolean; interest: boolean } }> = [];
 
     if (!searchQuery.trim()) {
-      result = matchedContacts.filter(({ contact: c }) => {
-        if (c.classification === 'Buyer') return true;
-        if (c.classification === 'Agent' && showAgentsInMatches) return true;
-        return false;
-      });
+      result = matchedContacts.filter(({ contact: c }) =>
+        inMatchAudience(c.classification, matchAudience)
+      );
 
       // Ensure pre-selected contacts always appear — even if they're not
       // in matchedContacts (due to classification or no-match score).
@@ -867,7 +868,7 @@ export function PropertyShareDialog({
       const q = searchQuery.toLowerCase().trim();
       const filtered = contacts.filter((c) => {
         if (!hasPhone(c)) return false;
-        if (c.classification === 'Agent' && !showAgentsInMatches) return false;
+        if (!inMatchAudience(c.classification, matchAudience)) return false;
         return (
           (c.name && c.name.toLowerCase().includes(q)) ||
           (c.phone && c.phone.includes(q))
@@ -902,7 +903,22 @@ export function PropertyShareDialog({
       if (!aSelected && bSelected) return 1;
       return 0;
     });
-  }, [searchQuery, contacts, matchedContacts, showAgentsInMatches, selectedContactIds]);
+  }, [searchQuery, contacts, matchedContacts, matchAudience, selectedContactIds]);
+
+  // Switching audience drops selections outside it (except the
+  // pre-selected contact), so "Select All" then send never carries
+  // hidden picks from the previous tab.
+  function handleAudienceChange(audience: MatchAudience) {
+    setMatchAudience(audience);
+    if (audience === 'all') return;
+    setSelectedContactIds((prev) =>
+      prev.filter((id) => {
+        if (id === preSelectedContactId) return true;
+        const c = contacts.find((x) => x.id === id);
+        return !c || inMatchAudience(c.classification, audience);
+      })
+    );
+  }
 
   // Toggle single selection
   function toggleContactSelection(id: string) {
@@ -2255,24 +2271,28 @@ export function PropertyShareDialog({
                     </span>
                   )}
                 </div>
-                <label className="inline-flex items-center gap-1.5 text-xs text-slate-450 cursor-pointer select-none bg-slate-900 border border-slate-800 px-2 py-0.5 rounded hover:text-white transition-all">
-                  <input
-                    type="checkbox"
-                    checked={showAgentsInMatches}
-                    onChange={(e) => {
-                      setShowAgentsInMatches(e.target.checked);
-                      if (!e.target.checked) {
-                        // Deselect any selected agents to keep select state consistent
-                        const agentIds = matchedContacts
-                          .filter(({ contact: c }) => c.classification === 'Agent')
-                          .map(({ contact: c }) => c.id);
-                        setSelectedContactIds((prev) => prev.filter((id) => !agentIds.includes(id)));
-                      }
-                    }}
-                    className="rounded border-slate-700 bg-slate-850 text-primary focus:ring-0 focus:ring-offset-0 h-3 w-3 cursor-pointer"
-                  />
-                  Show Agents
-                </label>
+                <div className="inline-flex items-center bg-slate-900 border border-slate-800 rounded p-0.5">
+                  {(
+                    [
+                      { key: 'buyers', label: 'Buyers' },
+                      { key: 'agents', label: 'Agents' },
+                      { key: 'all', label: 'All' },
+                    ] as const
+                  ).map(({ key, label }) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => handleAudienceChange(key)}
+                      className={`px-2 py-0.5 rounded text-xs cursor-pointer transition-all ${
+                        matchAudience === key
+                          ? 'bg-primary/15 text-primary font-bold'
+                          : 'text-slate-450 hover:text-white'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div className="flex items-center gap-3">
@@ -2392,7 +2412,7 @@ export function PropertyShareDialog({
                         No contacts match &ldquo;{searchQuery.trim()}&rdquo;
                       </p>
                       <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-                        Try a different name or phone number{!showAgentsInMatches ? ', enable "Show Agents" above,' : ''} or add a fresh contact inline to share.
+                        Try a different name or phone number{matchAudience !== 'all' ? ', switch the audience to "All" above,' : ''} or add a fresh contact inline to share.
                       </p>
                     </>
                   ) : (

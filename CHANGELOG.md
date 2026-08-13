@@ -11,6 +11,30 @@ and polish.
 
 ## [Unreleased]
 
+### Changed
+
+- **A stated max budget now implies a floor.** Matching treated a
+  budget as a ceiling only, so a buyer with ₹20 Cr on file scored
+  "Budget fit" on a ₹4.32 Cr listing — every cheaper property in
+  inventory read as a match for the biggest budgets. A max with no min
+  now implies a floor at half the max: within half-to-full of the
+  stated budget is a fit, down to 40% grades as flexible, further out
+  excludes the contact from matches, shares and digests alike. Stating
+  an explicit min budget on the contact widens the band on purpose.
+  Explicit ceilings keep their old floor-less reading: "under X"
+  phrasing in notes, a max at the entry band of its market ("Under
+  ₹50 Lakh" / "Under ₹25K a month" — the whole bottom of the market),
+  and a sale-scale budget read against a rental's monthly rent.
+  Applies everywhere the engine runs — web, mobile, Radar, deal-mode
+  and buyer digests.
+
+- **The matched-contacts list can target agents alone.** The share
+  dialog, the property form's matches tab and the mobile matches
+  section replace the "Show Agents" toggle with a Buyers / Agents / All
+  audience filter, so a co-broker blast is: Agents → Select All → send.
+  Switching audience drops selections outside it, so a send never
+  carries hidden picks from the previous tab.
+
 ### Fixed
 
 - **A sold listing stops generating outbound messages.** The owner

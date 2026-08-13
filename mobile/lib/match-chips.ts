@@ -63,3 +63,22 @@ export function scoreTone(score: number): 'strong' | 'fair' | 'weak' {
   if (score >= 30) return 'fair';
   return 'weak';
 }
+
+/**
+ * Web parity: inMatchAudience in src/lib/matching.ts — the one
+ * predicate every matched-contacts list filters and prunes by.
+ * 'buyers' means every non-agent classification rather than literally
+ * 'Buyer', so a match pool widened to mixed roles can never strand a
+ * selected row outside all audiences.
+ */
+export type MatchAudience = 'buyers' | 'agents' | 'all';
+
+export function inMatchAudience(
+  classification: string | null | undefined,
+  audience: MatchAudience
+): boolean {
+  if (audience === 'all') return true;
+  return audience === 'agents'
+    ? classification === 'Agent'
+    : classification !== 'Agent';
+}

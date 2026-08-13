@@ -130,7 +130,13 @@ function calculateHaversineDistance(lat1: number, lon1: number, lat2: number, lo
  *    of the stated areas is a placeholder ("any location") that opens it.
  *  - Budget is applied last: a price outside the contact's stated budget
  *    (beyond tolerance) excludes them, but budget alone never qualifies a
- *    contact — "only budget matches" is not a match.
+ *    contact — "only budget matches" is not a match. A stated max with no
+ *    min still implies a floor at half the max — a ₹20 Cr buyer is not
+ *    shopping at ₹4 Cr — so far-cheaper stock excludes too; stating an
+ *    explicit min is how an agent widens that band on purpose. Explicit
+ *    ceilings ("under X" phrasing, entry-band maxima, sale budgets read
+ *    against rent) keep their old floor-less reading — see the budget
+ *    step for the exact carve-outs.
  *
  * Preference sources, in priority order:
  *  1. Explicit fields the agent filled in (min/max budget, areas_of_interest,
@@ -291,19 +297,30 @@ function isNegated(text: string, keyword: string): boolean {
   return false;
 }
 
-/** Extracts min and max budget bounds from unstructured requirements/notes text. */
-function parseBudgetFromText(text: string): { min: number | null; max: number | null } {
+/**
+ * Extracts min and max budget bounds from unstructured requirements/notes
+ * text. `maxIsCeiling` records whether the max came from ceiling phrasing
+ * ("under/below/up to/max 1.5 Cr") rather than an anchor ("budget of
+ * 20 cr") — a ceiling states no floor, an anchor implies one.
+ */
+function parseBudgetFromText(text: string): {
+  min: number | null;
+  max: number | null;
+  maxIsCeiling: boolean;
+} {
   const clean = text.toLowerCase();
   let maxBudgetVal: number | null = null;
   let minBudgetVal: number | null = null;
+  let maxIsCeiling = false;
 
   const unitMultiplier = (unit: string) =>
     unit.startsWith('cr') ? 10000000 : 100000;
 
-  const maxPattern = /(?:under|below|up\s*to|max|maximum|budget\s+of|budget\s+around|budget\s+is)\s*(?:of\s+)?(\d+(?:\.\d+)?)\s*(cr|crore|lakh|lakhs|l|cr\.)/g;
+  const maxPattern = /(?:(under|below|up\s*to|max|maximum)|budget\s+of|budget\s+around|budget\s+is)\s*(?:of\s+)?(\d+(?:\.\d+)?)\s*(cr|crore|lakh|lakhs|l|cr\.)/g;
   let match;
   while ((match = maxPattern.exec(clean)) !== null) {
-    maxBudgetVal = parseFloat(match[1]) * unitMultiplier(match[2]);
+    maxBudgetVal = parseFloat(match[2]) * unitMultiplier(match[3]);
+    maxIsCeiling = match[1] !== undefined;
   }
 
   const minPattern = /(?:above|at\s*least|min|minimum)\s*(?:of\s+)?(\d+(?:\.\d+)?)\s*(cr|crore|lakh|lakhs|l|cr\.)/g;
@@ -311,7 +328,7 @@ function parseBudgetFromText(text: string): { min: number | null; max: number | 
     minBudgetVal = parseFloat(match[1]) * unitMultiplier(match[2]);
   }
 
-  return { min: minBudgetVal, max: maxBudgetVal };
+  return { min: minBudgetVal, max: maxBudgetVal, maxIsCeiling };
 }
 
 /** Extracts a minimum expected ROI/yield percentage from free text. */
@@ -716,24 +733,48 @@ export function getMatchingContacts(
     const explicitMax = contact.max_budget != null && Number(contact.max_budget) > 0 ? Number(contact.max_budget) : null;
     let budgetMin = explicitMin ?? (contact.pref_budget_min != null ? Number(contact.pref_budget_min) : null);
     let budgetMax = explicitMax ?? (contact.pref_budget_max != null ? Number(contact.pref_budget_max) : null);
+    let maxIsCeiling = false;
     if (budgetMin === null && budgetMax === null && !hasExtraction) {
       const parsed = parseBudgetFromText(combinedText);
       budgetMin = parsed.min;
       budgetMax = parsed.max;
+      maxIsCeiling = parsed.maxIsCeiling;
     }
 
     const BUDGET_TOLERANCE_MIN = 0.2; // Allowing 20% gap/tolerance on lower side
     const BUDGET_TOLERANCE_MAX = 0.1; // Keeping strict 10% gap/tolerance on upper side
+    // A max with no min still anchors intent: a ₹20 Cr buyer is not
+    // shopping at ₹4 Cr. Half the max is the implied floor; the lower
+    // tolerance below it grades partial, further out excludes. Three
+    // maxima keep the old ceiling-only reading: "under X" phrasing in
+    // text; a max at the entry band of its market (the bottom rung of
+    // SALE_BANDS/RENT_BANDS in src/lib/whatsapp/budget-band.ts — "Under
+    // ₹50 Lakh" is the whole bottom of the market, there is no floor to
+    // imply); and a rent comparison for a contact who never stated Rent
+    // intent, whose max is a sale-scale number that would exclude every
+    // rental if halved.
+    const IMPLIED_FLOOR_OF_MAX = 0.5;
+    const isRentComparison =
+      propertyListingType === 'Rent' || propertyListingType === 'Built to Suit';
+    const ENTRY_BAND_MAX = isRentComparison ? 25_000 : 5_000_000;
     let budgetVerdict: MatchVerdict = 'unknown';
     if (contact.no_budget) {
       budgetVerdict = 'partial'; // flexible — no constraint stated on purpose
     } else if ((budgetMin !== null || budgetMax !== null) && budgetComparisonValue > 0) {
-      const minOk = budgetMin === null || budgetComparisonValue >= budgetMin;
+      const impliedFloor =
+        budgetMax !== null &&
+        !maxIsCeiling &&
+        budgetMax > ENTRY_BAND_MAX &&
+        (!isRentComparison || wantedListingTypes.has('Rent'))
+          ? budgetMax * IMPLIED_FLOOR_OF_MAX
+          : null;
+      const floor = budgetMin ?? impliedFloor;
+      const minOk = floor === null || budgetComparisonValue >= floor;
       const maxOk = budgetMax === null || budgetComparisonValue <= budgetMax;
       if (minOk && maxOk) {
         budgetVerdict = 'match';
       } else {
-        const nearMin = budgetMin === null || budgetComparisonValue >= budgetMin * (1 - BUDGET_TOLERANCE_MIN);
+        const nearMin = floor === null || budgetComparisonValue >= floor * (1 - BUDGET_TOLERANCE_MIN);
         const nearMax = budgetMax === null || budgetComparisonValue <= budgetMax * (1 + BUDGET_TOLERANCE_MAX);
         budgetVerdict = nearMin && nearMax ? 'partial' : 'mismatch';
       }
@@ -810,4 +851,25 @@ export function getMatchingContacts(
   }
 
   return results.sort((a, b) => b.score - a.score);
+}
+
+// ── Share audiences ─────────────────────────────────────────────────
+
+export type MatchAudience = 'buyers' | 'agents' | 'all';
+
+/**
+ * Who a matched-contacts list offers. The one definition every surface
+ * filters, prunes and displays by (mobile mirrors it in
+ * mobile/lib/match-chips.ts). 'buyers' means every non-agent
+ * classification rather than literally 'Buyer', so a match pool widened
+ * to mixed roles can never strand a selected row outside all audiences.
+ */
+export function inMatchAudience(
+  classification: string | null | undefined,
+  audience: MatchAudience
+): boolean {
+  if (audience === 'all') return true;
+  return audience === 'agents'
+    ? classification === 'Agent'
+    : classification !== 'Agent';
 }
