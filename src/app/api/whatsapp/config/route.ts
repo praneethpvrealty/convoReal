@@ -325,6 +325,12 @@ export async function POST(request: Request) {
 
     const baseRow = {
       phone_number_id: intType === 'official_api' ? phone_number_id : null,
+      // Meta's dialable number, which verifyPhoneNumber already fetched
+      // above. Persisted so anything outside the send path can address
+      // the business number — the public showcase's enquiry button most
+      // of all (migration 268).
+      display_phone_number:
+        intType === 'official_api' ? (phoneInfo?.display_phone_number || null) : null,
       waba_id: intType === 'official_api' ? (waba_id || null) : null,
       access_token: intType === 'official_api' ? encryptedAccessToken : null,
       verify_token: intType === 'official_api' ? encryptedVerifyToken : null,

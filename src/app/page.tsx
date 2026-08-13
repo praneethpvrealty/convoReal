@@ -371,6 +371,7 @@ export default async function RootPage({ searchParams }: PageProps) {
   const {
     settings,
     accountName,
+    engineWhatsAppPhone,
     properties: publishedProperties,
     agents: agentContacts,
     profiles,
@@ -485,6 +486,7 @@ export default async function RootPage({ searchParams }: PageProps) {
         siteName={accountName}
         referrerContactId={filterContactId || undefined}
         referrerPhone={referrerPhone || undefined}
+        engineWhatsAppPhone={engineWhatsAppPhone}
         initialPropertyId={targetProperty?.id ?? initialPropertyId}
         initialCategory={resolvedParams.category}
         initialAgentMode={isAgentMode}

@@ -20,6 +20,11 @@ import {
   OWNER_APPROVE_PREFIX,
   OWNER_REJECT_PREFIX,
 } from '@/lib/inventory/location-requests';
+import {
+  ENQUIRY_DETAILS_PREFIX,
+  ENQUIRY_MINE_PREFIX,
+  ENQUIRY_PHOTOS_PREFIX,
+} from '@/lib/whatsapp/enquiry-card';
 
 /** Prefixes whose replies are instructions to the Engine. Bare ids
  *  (no trailing payload) belong in EXACT_CONTROL_REPLY_IDS instead. */
@@ -28,6 +33,14 @@ export const CONTROL_REPLY_PREFIXES = [
   CONSENT_DECLINE_PREFIX,
   OWNER_APPROVE_PREFIX,
   OWNER_REJECT_PREFIX,
+  // The enquiry card goes to the routed agent, who on a small team is
+  // the account owner — so its taps arrive from the very sender the
+  // owner chatbot intercepts by design, exactly like the approvals
+  // above. Left out of this list, "📸 Send photos" was read as a
+  // forwarded client conversation.
+  ENQUIRY_PHOTOS_PREFIX,
+  ENQUIRY_DETAILS_PREFIX,
+  ENQUIRY_MINE_PREFIX,
 ] as const;
 
 /** True when this reply id is a button the Engine minted, and so must

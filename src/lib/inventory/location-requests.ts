@@ -444,7 +444,7 @@ export async function requestConsentFromContact(
  * that case and the dispatcher resolves (or creates) the contact from
  * the number, exactly as it does for any other outbound send.
  */
-async function resolveOwnerWhatsAppContact(
+export async function resolveOwnerWhatsAppContact(
   admin: SupabaseClient,
   accountId: string,
   targetUserId: string
