@@ -28,7 +28,7 @@ import { PropertyShareSheet } from '@/components/property-share-sheet';
 import { FilterChip, SectionLabel, Tag, nameTagCap } from '@/components/ui';
 import { nativeMapsAvailable } from '@/lib/maps-support';
 import { openInMaps } from '@/lib/open-maps';
-import { internalPhotoSources } from '@/lib/photo-sources';
+import { emptyPhotoLabel, internalPhotoSources } from '@/lib/photo-sources';
 import { usePhotoSources } from '@/lib/use-photo-source';
 import { apiFetch, ApiError } from '@/lib/api';
 import { friendlyError } from '@/lib/errors';
@@ -370,10 +370,24 @@ export default function PropertyDetailScreen() {
               height: 170,
               alignItems: 'center',
               justifyContent: 'center',
+              gap: 8,
               backgroundColor: colors.primarySoft,
             }}
           >
-            <Ionicons name="home-outline" size={40} color={colors.primary} />
+            <Ionicons
+              name={
+                (property.private_images_count ?? 0) > 0
+                  ? 'lock-closed-outline'
+                  : 'home-outline'
+              }
+              size={40}
+              color={colors.primary}
+            />
+            {(property.private_images_count ?? 0) > 0 ? (
+              <Text style={{ fontSize: 12.5, color: colors.primary }}>
+                {emptyPhotoLabel(property)}
+              </Text>
+            ) : null}
           </View>
         )}
 

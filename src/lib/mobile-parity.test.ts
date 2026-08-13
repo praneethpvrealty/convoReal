@@ -497,6 +497,22 @@ describe('mobile/lib/photo-sources.ts mirrors photo-sources', () => {
   it('indexes guarded photos by their place in private_images', () => {
     expect(source).toContain('guardedPhotoPath(p.id, i)');
   });
+
+  // An agent who sees "2 photos · confidential" on the desktop and a
+  // bare tile on the phone has no way to tell which surface is lying
+  // about the listing they are about to pitch.
+  it('withholds photos with the same wording', () => {
+    expect(source).toContain(
+      '`${withheld} photo${withheld === 1 ? \'\' : \'s\'} · confidential`'
+    );
+    expect(source).toContain("'No photos uploaded'");
+  });
+
+  it('applies the same guard before labelling', () => {
+    expect(source).toContain(
+      'internalPhotoCount(p) > 0 || withheld <= 0'
+    );
+  });
 });
 
 describe('mobile/lib/gate-stats.ts mirrors gate-stats', () => {

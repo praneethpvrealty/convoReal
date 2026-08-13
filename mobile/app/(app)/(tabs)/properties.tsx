@@ -39,7 +39,7 @@ import {
   SearchBar,
 } from '@/components/ui';
 import { gateSummary, type GateStatsMap } from '@/lib/gate-stats';
-import { internalPhotoSources } from '@/lib/photo-sources';
+import { emptyPhotoLabel, internalPhotoSources } from '@/lib/photo-sources';
 import { usePhotoSources } from '@/lib/use-photo-source';
 import {
   apiFetch,
@@ -938,6 +938,10 @@ function PropertyCard({
       private_images: property.private_images,
     }).slice(0, 1)
   )?.[0];
+  // Stripped by the mask for a viewer who may not see them — the count
+  // is all that survives, and is what tells the empty tile apart from a
+  // listing nobody photographed.
+  const withheldPhotos = property.private_images_count ?? 0;
   const price =
     property.listing_type === 'Rent'
       ? property.rent_per_month
@@ -994,7 +998,16 @@ function PropertyCard({
             end={{ x: 1, y: 1 }}
             style={[StyleSheet.absoluteFill, styles.coverEmpty]}
           >
-            <Ionicons name="home-outline" size={38} color={onGradient.faint} />
+            <Ionicons
+              name={withheldPhotos > 0 ? 'lock-closed-outline' : 'home-outline'}
+              size={38}
+              color={onGradient.faint}
+            />
+            {withheldPhotos > 0 ? (
+              <Text style={[styles.coverEmptyText, { color: onGradient.faint }]}>
+                {emptyPhotoLabel(property)}
+              </Text>
+            ) : null}
           </LinearGradient>
         )}
         {property.listing_type || typeof property.distance_km === 'number' ? (
@@ -1201,7 +1214,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.35)',
   },
   coverWrap: { height: 175, borderRadius: radius.lg, overflow: 'hidden' },
-  coverEmpty: { alignItems: 'center', justifyContent: 'center' },
+  coverEmpty: { alignItems: 'center', justifyContent: 'center', gap: 6 },
+  coverEmptyText: { fontSize: 11, fontWeight: '600' },
   statusChip: {
     position: 'absolute',
     top: 10,
