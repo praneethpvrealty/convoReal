@@ -63,6 +63,7 @@ import { ShowcaseShareDialog } from '@/components/inventory/showcase-share-dialo
 import { STARRED_PROPERTY_CAP } from '@/lib/starred-properties';
 import { PortalPostDialog } from '@/components/inventory/portal-post-dialog';
 import { PortalSyncDialog } from '@/components/inventory/portal-sync-dialog';
+import { PortalDriftPanel } from '@/components/inventory/portal-drift-panel';
 import { PORTALS, type PortalKey } from '@/lib/portals/post-kit';
 import type { PortalBadge } from '@/components/inventory/property-list';
 import { BulkTagBar } from '@/components/inventory/bulk-tag-bar';
@@ -955,6 +956,8 @@ export default function InventoryPage() {
           </div>
         </div>
       </div>
+
+      <PortalDriftPanel />
 
       {/* Review Tabs */}
       <div className="flex items-center gap-1 border-b border-slate-800">

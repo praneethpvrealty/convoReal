@@ -11,6 +11,27 @@ and polish.
 
 ## [Unreleased]
 
+### Added
+
+- **The Engine notices when a portal ad and its listing disagree.**
+  Once an ad is mapped, nothing told anyone when the two sides diverged
+  — a listing was archived while its MagicBricks ad stayed live,
+  approved, and producing leads for withdrawn stock. Four drift checks
+  now run over the leads and sync logs already in the database
+  (**migration required**: `267_portal_listing_drift.sql`): leads
+  arriving on an ad whose listing is Sold/Archived/Off Market/Rejected;
+  leads arriving after the recorded expiry (the expiry is stale, not
+  the ad); no leads well past the expiry (the ad probably lapsed); and
+  the ad's parsed type, price or area drifting from the listing's, one
+  side having been edited. Findings appear on the Inventory page on web
+  and the Properties tab on mobile, each with the facts behind it and a
+  link to the ad. Nothing to dismiss: fixing the condition — relist,
+  update the expiry, mark the ad removed — is what clears a row. Lead
+  emails now also record the quoted ad id next to the parsed enquiry in
+  the sync log (backfilled for existing leads from their retro-tagged
+  contacts), which is what lets "what the ad currently says" be compared
+  to the listing at all.
+
 ### Fixed
 
 - **A sold listing stops generating outbound messages.** The owner

@@ -792,6 +792,9 @@ export async function POST(request: Request) {
       parsedBedrooms: parsed.bedrooms,
       matchedPropertyId: matchedPropertyIds[0] ?? null,
       matchScore: topMatchScore,
+      leadPortal: leadPortal && parsed.portalListingId ? leadPortal : null,
+      leadPortalListingId:
+        leadPortal && parsed.portalListingId ? parsed.portalListingId : null,
     };
 
     const cleanPhone = normalizedPhoneNum.replace(/\D/g, '');

@@ -50,11 +50,11 @@ export async function assignTagsToContact(
   tagNames: string[]
 ): Promise<void> {
   const tagColorMap: Record<string, string> = {
-    'Residential': '#10b981',
-    'Commercial': '#f59e0b',
+    Residential: '#10b981',
+    Commercial: '#f59e0b',
     'Plots/Land': '#8b5cf6',
     'Flat/Apartment': '#3b82f6',
-    'Villa': '#ec4899',
+    Villa: '#ec4899',
     'Housing Lead': '#06b6d4',
     'Budget 150Cr+': '#991b1b',
     'Budget 100-150Cr': '#b91c1c',
@@ -70,15 +70,22 @@ export async function assignTagsToContact(
   };
 
   for (const tagName of tagNames) {
-    const tagId = await findOrCreateTag(supabase, accountId, userId, tagName, tagColorMap[tagName] || '#3b82f6');
+    const tagId = await findOrCreateTag(
+      supabase,
+      accountId,
+      userId,
+      tagName,
+      tagColorMap[tagName] || '#3b82f6'
+    );
     if (tagId) {
       // Assign tag to contact (ignore if already assigned)
-      await supabase
-        .from('contact_tags')
-        .upsert({
+      await supabase.from('contact_tags').upsert(
+        {
           contact_id: contactId,
           tag_id: tagId,
-        }, { onConflict: 'contact_id,tag_id' });
+        },
+        { onConflict: 'contact_id,tag_id' }
+      );
     }
   }
 }
@@ -94,6 +101,8 @@ export interface SyncLogMatchAudit {
   parsedBedrooms?: number | null;
   matchedPropertyId?: string | null;
   matchScore?: number | null;
+  leadPortal?: string | null;
+  leadPortalListingId?: string | null;
 }
 
 export async function writeSyncLog(args: {
@@ -129,6 +138,8 @@ export async function writeSyncLog(args: {
       parsed_bedrooms: args.match?.parsedBedrooms ?? null,
       matched_property_id: args.match?.matchedPropertyId ?? null,
       match_score: args.match?.matchScore ?? null,
+      lead_portal: args.match?.leadPortal ?? null,
+      lead_portal_listing_id: args.match?.leadPortalListingId ?? null,
     });
   } catch (err) {
     console.error('[lead-webhook] Failed to write sync log:', err);
