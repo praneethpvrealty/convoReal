@@ -633,7 +633,9 @@ export function PropertyForm({
     }
   };
   const [selectedContactIds, setSelectedContactIds] = useState<string[]>([]);
-  const [showAgentsInMatches, setShowAgentsInMatches] = useState(false);
+  // Who the matched list offers: buyers by default, agents only for a
+  // co-broker blast, or both together.
+  const [matchAudience, setMatchAudience] = useState<'buyers' | 'agents' | 'all'>('buyers');
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
   const [loadingTemplates, setLoadingTemplates] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<MessageTemplate | null>(null);
@@ -867,11 +869,27 @@ export function PropertyForm({
 
   const displayedMatches = useMemo(() => {
     return matchedContacts.filter(({ contact: c }) => {
-      if (c.classification === 'Buyer') return true;
-      if (c.classification === 'Agent' && showAgentsInMatches) return true;
-      return false;
+      if (matchAudience === 'agents') return c.classification === 'Agent';
+      if (matchAudience === 'buyers') return c.classification === 'Buyer';
+      return true;
     });
-  }, [matchedContacts, showAgentsInMatches]);
+  }, [matchedContacts, matchAudience]);
+
+  // Switching audience drops selections outside it, so "Select All"
+  // then send never carries hidden picks from the previous tab.
+  const handleAudienceChange = (audience: 'buyers' | 'agents' | 'all') => {
+    setMatchAudience(audience);
+    if (audience === 'all') return;
+    setSelectedContactIds((prev) =>
+      prev.filter((id) => {
+        const c = contacts.find((x) => x.id === id);
+        if (!c) return true;
+        return audience === 'agents'
+          ? c.classification === 'Agent'
+          : c.classification !== 'Agent';
+      })
+    );
+  };
 
   const sharedMatchCount = useMemo(
     () => displayedMatches.filter(({ contact: c }) => sharedAtByContact[c.id]).length,
@@ -5903,24 +5921,28 @@ export function PropertyForm({
                             )}
                           </div>
                           {contacts.length > 0 && (
-                            <label className="inline-flex items-center gap-1.5 text-xs text-slate-400 cursor-pointer select-none bg-slate-900 border border-slate-700 px-2 py-0.5 rounded hover:text-white transition-all">
-                              <input
-                                type="checkbox"
-                                checked={showAgentsInMatches}
-                                onChange={(e) => {
-                                  setShowAgentsInMatches(e.target.checked);
-                                  if (!e.target.checked) {
-                                    // Deselect any selected agents when hiding them to keep state consistent
-                                    const agentIds = matchedContacts
-                                      .filter(({ contact: c }) => c.classification === 'Agent')
-                                      .map(({ contact: c }) => c.id);
-                                    setSelectedContactIds((prev) => prev.filter((id) => !agentIds.includes(id)));
-                                  }
-                                }}
-                                className="rounded border-slate-650 bg-slate-800 text-primary focus:ring-0 focus:ring-offset-0 h-3 w-3 cursor-pointer"
-                              />
-                              Show Agents
-                            </label>
+                            <div className="inline-flex items-center bg-slate-900 border border-slate-700 rounded p-0.5">
+                              {(
+                                [
+                                  { key: 'buyers', label: 'Buyers' },
+                                  { key: 'agents', label: 'Agents' },
+                                  { key: 'all', label: 'All' },
+                                ] as const
+                              ).map(({ key, label }) => (
+                                <button
+                                  key={key}
+                                  type="button"
+                                  onClick={() => handleAudienceChange(key)}
+                                  className={`px-2 py-0.5 rounded text-xs cursor-pointer transition-all ${
+                                    matchAudience === key
+                                      ? 'bg-primary/15 text-primary font-bold'
+                                      : 'text-slate-400 hover:text-white'
+                                  }`}
+                                >
+                                  {label}
+                                </button>
+                              ))}
+                            </div>
                           )}
                         </div>
                         {displayedMatches.length > 0 && (

@@ -130,7 +130,10 @@ function calculateHaversineDistance(lat1: number, lon1: number, lat2: number, lo
  *    of the stated areas is a placeholder ("any location") that opens it.
  *  - Budget is applied last: a price outside the contact's stated budget
  *    (beyond tolerance) excludes them, but budget alone never qualifies a
- *    contact — "only budget matches" is not a match.
+ *    contact — "only budget matches" is not a match. A stated max with no
+ *    min still implies a floor at half the max — a ₹20 Cr buyer is not
+ *    shopping at ₹4 Cr — so far-cheaper stock excludes too; stating an
+ *    explicit min is how an agent widens that band on purpose.
  *
  * Preference sources, in priority order:
  *  1. Explicit fields the agent filled in (min/max budget, areas_of_interest,
@@ -724,16 +727,21 @@ export function getMatchingContacts(
 
     const BUDGET_TOLERANCE_MIN = 0.2; // Allowing 20% gap/tolerance on lower side
     const BUDGET_TOLERANCE_MAX = 0.1; // Keeping strict 10% gap/tolerance on upper side
+    // A max with no min still anchors intent: a ₹20 Cr buyer is not
+    // shopping at ₹4 Cr. Half the max is the implied floor; the lower
+    // tolerance below it grades partial, further out excludes.
+    const IMPLIED_FLOOR_OF_MAX = 0.5;
     let budgetVerdict: MatchVerdict = 'unknown';
     if (contact.no_budget) {
       budgetVerdict = 'partial'; // flexible — no constraint stated on purpose
     } else if ((budgetMin !== null || budgetMax !== null) && budgetComparisonValue > 0) {
-      const minOk = budgetMin === null || budgetComparisonValue >= budgetMin;
+      const floor = budgetMin ?? (budgetMax !== null ? budgetMax * IMPLIED_FLOOR_OF_MAX : null);
+      const minOk = floor === null || budgetComparisonValue >= floor;
       const maxOk = budgetMax === null || budgetComparisonValue <= budgetMax;
       if (minOk && maxOk) {
         budgetVerdict = 'match';
       } else {
-        const nearMin = budgetMin === null || budgetComparisonValue >= budgetMin * (1 - BUDGET_TOLERANCE_MIN);
+        const nearMin = floor === null || budgetComparisonValue >= floor * (1 - BUDGET_TOLERANCE_MIN);
         const nearMax = budgetMax === null || budgetComparisonValue <= budgetMax * (1 + BUDGET_TOLERANCE_MAX);
         budgetVerdict = nearMin && nearMax ? 'partial' : 'mismatch';
       }

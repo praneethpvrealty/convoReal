@@ -365,6 +365,41 @@ describe('getMatchingContacts', () => {
       expect(results.find((r) => r.contact.id === 'c-near')?.details.budget).toBe('partial');
     });
 
+    it('excludes a type match whose stated max budget is far above the price', () => {
+      const contact = createTestContact({
+        pref_property_types: ['Residential House'],
+        max_budget: 200000000, // 20 Cr
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const property = createTestProperty({ type: 'Residential House', price: 43200000 }); // 4.32 Cr
+      expect(getMatchingContacts(property, [contact]).length).toBe(0);
+    });
+
+    it('grades a price just under half the stated max as partial', () => {
+      const contact = createTestContact({
+        pref_property_types: ['Residential House'],
+        max_budget: 200000000, // 20 Cr → implied floor 10 Cr, partial down to 8 Cr
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const property = createTestProperty({ type: 'Residential House', price: 85000000 }); // 8.5 Cr
+      const results = getMatchingContacts(property, [contact]);
+      expect(results.length).toBe(1);
+      expect(results[0].details.budget).toBe('partial');
+    });
+
+    it('lets an explicit min budget widen the band below the implied floor', () => {
+      const contact = createTestContact({
+        pref_property_types: ['Residential House'],
+        min_budget: 20000000, // 2 Cr
+        max_budget: 200000000, // 20 Cr
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const property = createTestProperty({ type: 'Residential House', price: 43200000 }); // 4.32 Cr
+      const results = getMatchingContacts(property, [contact]);
+      expect(results.length).toBe(1);
+      expect(results[0].details.budget).toBe('match');
+    });
+
     it('extracts budget limits from notes text when no structured budget exists', () => {
       const contact = createTestContact({
         requirements: 'looking for office spaces under 1.5 Cr',
