@@ -55,7 +55,18 @@ export function parseListingIdFromUrl(
 const LEAD_ID_RE: Record<PortalKey, RegExp[]> = {
   // MagicBricks writes it mid-sentence ("your Property, ID 79221031:"),
   // so the separator between the words and the digits is optional.
+  // 99acres labels nothing. Its response emails name the listing in
+  // prose and drop the id in bare parentheses — "Commercial Land/Inst.
+  // Land in Dollars Colony (K89065520) on 99acres.com" — so the labelled
+  // forms below never fired and every 99acres lead arrived with no id to
+  // map. The parenthesised form is read two ways: with "on 99acres"
+  // behind it, which is the observed shape and unambiguous, and on its
+  // own when it carries 99acres' letter prefix. A bare parenthesised
+  // number is deliberately NOT accepted — that is as likely to be an
+  // area or a price as an ad id.
   '99acres': [
+    /\(([a-z]?\d{6,})\)\s*on\s+99acres/i,
+    /\(([a-z]\d{6,})\)/i,
     /(?:property|listing|ad)[,\s]*(?:id|code)\s*[:\-|#]?\s*([a-z]?\d{6,})/i,
     /\bnpxid[:\-\s]*([a-z]?\d{6,})/i,
   ],

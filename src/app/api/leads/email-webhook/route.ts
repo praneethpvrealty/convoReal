@@ -379,7 +379,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ status: 'filtered', message: 'Non-lead email filtered out.' });
     }
 
-    const parsed = parsePortalLead(subject, bodyText, htmlContent);
+    const parsed = parsePortalLead(subject, bodyText, htmlContent, sender);
 
     // Ignore portal source emails (e.g. support@housing.com) — they are the
     // sender address, not the lead's actual email.

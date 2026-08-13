@@ -399,7 +399,12 @@ export function areaLabelFromListing(p: {
 }
 
 // Extractor rules for different portals
-export function parsePortalLead(subject: string, bodyText: string, html: string) {
+export function parsePortalLead(
+  subject: string,
+  bodyText: string,
+  html: string,
+  sender = ''
+) {
   // If the body text contains HTML tags, convert it to clean plain text first
   if (bodyText.includes('<') && bodyText.includes('>')) {
     bodyText = stripHtmlToText(bodyText);
@@ -421,7 +426,15 @@ export function parsePortalLead(subject: string, bodyText: string, html: string)
 
   const combined = `${subject}\n${bodyText}`;
 
-  if (combined.toLowerCase().includes('magicbricks')) {
+  // Which portal sent this. The sender is the most reliable signal and
+  // the only one guaranteed to be there — a body that never spells the
+  // brand out leaves the lead unattributed, and an unattributed lead
+  // discards its ad id however cleanly that id parsed. It is kept out of
+  // `combined` deliberately: that string also feeds id, price and area
+  // extraction, and an address is not listing content.
+  const sourceText = `${sender}\n${combined}`.toLowerCase();
+
+  if (sourceText.includes('magicbricks')) {
     source = 'Magic Bricks';
     
     // Name extraction: "Client Name: John Doe" or "Name: John Doe"
@@ -440,7 +453,7 @@ export function parsePortalLead(subject: string, bodyText: string, html: string)
     const reqMatch = bodyText.match(/(?:requirement|preference|interest)\s*:\s*(.+)/i);
     if (reqMatch) requirementText = reqMatch[1].trim();
 
-  } else if (combined.toLowerCase().includes('housing')) {
+  } else if (sourceText.includes('housing')) {
     source = 'Housing';
 
     // Name extraction: "Name - Jane Doe" or "Name: Jane Doe"
@@ -503,7 +516,7 @@ export function parsePortalLead(subject: string, bodyText: string, html: string)
       housingPropertyId = propIdMatch[1];
     }
 
-  } else if (combined.toLowerCase().includes('99acres')) {
+  } else if (sourceText.includes('99acres')) {
     source = '99acres';
 
     // Name extraction: "Lead Name: Robert Smith" or "Sender Name: Robert Smith"
@@ -655,7 +668,17 @@ export function parsePortalLead(subject: string, bodyText: string, html: string)
     bedrooms = parseInt(propertyTypeMatch[1]);
     propertyType = propertyTypeMatch[2];
   }
-  
+
+  // The count on its own, when the type does not follow the BHK
+  // immediately. It usually doesn't: MagicBricks writes "5 BHK , Villa"
+  // and Housing "3 BHK Independent House", and the pattern above needs
+  // the bare type adjacent — so the bedroom count was dropped on the
+  // house and villa enquiries it matters most for.
+  if (bedrooms === null) {
+    const bhkMatch = combinedText.match(/(\d+)\s*BHK\b/i);
+    if (bhkMatch) bedrooms = parseInt(bhkMatch[1]);
+  }
+
   // Try intelligent type mapping first
   const mappedType = extractPropertyType(combinedText);
   if (mappedType) {

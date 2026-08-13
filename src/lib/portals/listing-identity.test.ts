@@ -63,6 +63,37 @@ describe('parseListingIdFromUrl', () => {
 });
 
 describe('parseListingIdFromLead', () => {
+  it('reads the id 99acres leaves unlabelled in parentheses', () => {
+    // The real shape of a 99acres response email: the listing is named
+    // in prose and the id is parenthesised, with no "Property ID" label
+    // anywhere. Until this matched, every 99acres lead arrived with no
+    // id and could never be mapped to a listing.
+    expect(
+      parseListingIdFromLead(
+        '99acres',
+        'You have received a response on Rs8.4 Crore , Commercial Land/Inst. Land in Dollars Colony (K89065520) on 99acres.com'
+      )
+    ).toBe('K89065520');
+    // Letter-prefixed ids are recognisable on their own…
+    expect(
+      parseListingIdFromLead('99acres', 'Dollars Colony (K89065520)')
+    ).toBe('K89065520');
+    // …but a bare parenthesised number is as likely to be an area or a
+    // price, so it is left alone.
+    expect(
+      parseListingIdFromLead('99acres', 'Plot in Dollars Colony (2400) sq ft')
+    ).toBe(null);
+  });
+
+  it('reads the id MagicBricks writes mid-sentence after a comma', () => {
+    expect(
+      parseListingIdFromLead(
+        'magicbricks',
+        'A user is interested in your Property, ID 83691103: 5 BHK , Villa in Krishnarajapura , Bangalore.'
+      )
+    ).toBe('83691103');
+  });
+
   it('reads only labelled ids, never a bare number', () => {
     expect(
       parseListingIdFromLead('housing', 'Property ID: 20327451\nName: Asha')
