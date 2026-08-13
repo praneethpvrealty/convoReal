@@ -42,7 +42,7 @@ import {
   FileText,
   Ban,
 } from 'lucide-react';
-import { getMatchingContacts, type MatchDetails } from '@/lib/matching';
+import { getMatchingContacts, inMatchAudience, type MatchAudience, type MatchDetails } from '@/lib/matching';
 import { recordPropertyShares } from '@/lib/inventory/share-log';
 import { isLocationGuarded, localityLabel } from '@/lib/inventory/location-guard';
 import {
@@ -127,7 +127,7 @@ export function PropertyShareDialog({
   const [selectedContactIds, setSelectedContactIds] = useState<string[]>([]);
   // Who the matched list offers: buyers by default, agents only for a
   // co-broker blast, or both together.
-  const [matchAudience, setMatchAudience] = useState<'buyers' | 'agents' | 'all'>('buyers');
+  const [matchAudience, setMatchAudience] = useState<MatchAudience>('buyers');
 
   // Template config
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
@@ -841,11 +841,9 @@ export function PropertyShareDialog({
     let result: Array<{ contact: Contact; score: number; details: MatchDetails; matchedFields: { budget: boolean; area: boolean; interest: boolean } }> = [];
 
     if (!searchQuery.trim()) {
-      result = matchedContacts.filter(({ contact: c }) => {
-        if (matchAudience === 'agents') return c.classification === 'Agent';
-        if (matchAudience === 'buyers') return c.classification === 'Buyer';
-        return true;
-      });
+      result = matchedContacts.filter(({ contact: c }) =>
+        inMatchAudience(c.classification, matchAudience)
+      );
 
       // Ensure pre-selected contacts always appear — even if they're not
       // in matchedContacts (due to classification or no-match score).
@@ -870,8 +868,7 @@ export function PropertyShareDialog({
       const q = searchQuery.toLowerCase().trim();
       const filtered = contacts.filter((c) => {
         if (!hasPhone(c)) return false;
-        if (matchAudience === 'agents' && c.classification !== 'Agent') return false;
-        if (matchAudience === 'buyers' && c.classification === 'Agent') return false;
+        if (!inMatchAudience(c.classification, matchAudience)) return false;
         return (
           (c.name && c.name.toLowerCase().includes(q)) ||
           (c.phone && c.phone.includes(q))
@@ -911,17 +908,14 @@ export function PropertyShareDialog({
   // Switching audience drops selections outside it (except the
   // pre-selected contact), so "Select All" then send never carries
   // hidden picks from the previous tab.
-  function handleAudienceChange(audience: 'buyers' | 'agents' | 'all') {
+  function handleAudienceChange(audience: MatchAudience) {
     setMatchAudience(audience);
     if (audience === 'all') return;
     setSelectedContactIds((prev) =>
       prev.filter((id) => {
         if (id === preSelectedContactId) return true;
         const c = contacts.find((x) => x.id === id);
-        if (!c) return true;
-        return audience === 'agents'
-          ? c.classification === 'Agent'
-          : c.classification !== 'Agent';
+        return !c || inMatchAudience(c.classification, audience);
       })
     );
   }

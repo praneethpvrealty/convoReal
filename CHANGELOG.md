@@ -21,6 +21,10 @@ and polish.
   stated budget is a fit, down to 40% grades as flexible, further out
   excludes the contact from matches, shares and digests alike. Stating
   an explicit min budget on the contact widens the band on purpose.
+  Explicit ceilings keep their old floor-less reading: "under X"
+  phrasing in notes, a max at the entry band of its market ("Under
+  ₹50 Lakh" / "Under ₹25K a month" — the whole bottom of the market),
+  and a sale-scale budget read against a rental's monthly rent.
   Applies everywhere the engine runs — web, mobile, Radar, deal-mode
   and buyer digests.
 

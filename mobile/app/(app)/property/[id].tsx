@@ -35,7 +35,13 @@ import { friendlyError } from '@/lib/errors';
 import { chatListTime, formatInr } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
 import { listingPrice } from '@/lib/listing-price';
-import { matchChips, scoreTone, type MatchChipTone } from '@/lib/match-chips';
+import {
+  inMatchAudience,
+  matchChips,
+  scoreTone,
+  type MatchAudience,
+  type MatchChipTone,
+} from '@/lib/match-chips';
 import { fetchPropertyMatches } from '@/lib/property-matches';
 import { PropertyDocuments } from '@/components/property-documents';
 import { useAuthStore } from '@/lib/auth-store';
@@ -1154,7 +1160,7 @@ function chipColor(tone: MatchChipTone, colors: ThemeColors): string {
 function MatchesSection({ property }: { property: Property }) {
   const { colors, fonts: f } = useTheme();
   const queryClient = useQueryClient();
-  const [audience, setAudience] = useState<'buyers' | 'agents' | 'all'>('buyers');
+  const [audience, setAudience] = useState<MatchAudience>('buyers');
   const [shareTo, setShareTo] = useState<Contact[] | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
@@ -1168,15 +1174,9 @@ function MatchesSection({ property }: { property: Property }) {
   const agentCount = all.filter(
     (m) => m.contact.classification === 'Agent'
   ).length;
-  const inAudience = (
-    m: (typeof all)[number],
-    aud: 'buyers' | 'agents' | 'all'
-  ) =>
-    aud === 'all' ||
-    (aud === 'agents'
-      ? m.contact.classification === 'Agent'
-      : m.contact.classification !== 'Agent');
-  const rows = all.filter((m) => inAudience(m, audience));
+  const rows = all.filter((m) =>
+    inMatchAudience(m.contact.classification, audience)
+  );
   const sharedCount = rows.filter((m) => m.sharedAt).length;
   const allSelected =
     rows.length > 0 && rows.every((m) => selectedIds.includes(m.contact.id));
@@ -1193,12 +1193,14 @@ function MatchesSection({ property }: { property: Property }) {
 
   // Switching audience drops selections outside it, so "Select all"
   // then share never carries hidden picks from the previous tab.
-  function switchAudience(next: 'buyers' | 'agents' | 'all') {
+  function switchAudience(next: MatchAudience) {
     haptic.tap();
     setAudience(next);
     if (next === 'all') return;
     const visible = new Set(
-      all.filter((m) => inAudience(m, next)).map((m) => m.contact.id)
+      all
+        .filter((m) => inMatchAudience(m.contact.classification, next))
+        .map((m) => m.contact.id)
     );
     setSelectedIds((prev) => prev.filter((id) => visible.has(id)));
   }
@@ -1245,7 +1247,10 @@ function MatchesSection({ property }: { property: Property }) {
         ) : null}
       </View>
 
-      {agentCount > 0 ? (
+      {/* Also shown while a non-default audience is active with no
+        agents left, so a refetch can never strand the section on an
+        empty tab with no way back. */}
+      {agentCount > 0 || audience !== 'buyers' ? (
         <View style={{ flexDirection: 'row', gap: spacing.sm }}>
           <FilterChip
             label="Buyers"

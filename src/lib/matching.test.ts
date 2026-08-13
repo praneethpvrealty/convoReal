@@ -411,6 +411,59 @@ describe('getMatchingContacts', () => {
       expect(getMatchingContacts(cheapProp, [contact]).length).toBe(1);
       expect(getMatchingContacts(expensiveProp, [contact]).length).toBe(0);
     });
+
+    it('keeps ceiling-only semantics for "under X" phrasing in text', () => {
+      const contact = createTestContact({
+        requirements: 'looking for office spaces under 1.5 Cr',
+      });
+      const farBelow = createTestProperty({ type: 'Commercial Office', price: 5000000 }); // 50L, under half of 1.5 Cr
+      const results = getMatchingContacts(farBelow, [contact]);
+      expect(results.length).toBe(1);
+      expect(results[0].details.budget).toBe('match');
+    });
+
+    it('implies no floor for an entry-band max ("Under ₹50 Lakh")', () => {
+      const contact = createTestContact({
+        pref_property_types: ['Residential Land/ Plot'],
+        pref_budget_max: 5000000, // the bottom sale band
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const plot = createTestProperty({ type: 'Residential Land/ Plot', price: 1500000 }); // 15L
+      const results = getMatchingContacts(plot, [contact]);
+      expect(results.length).toBe(1);
+      expect(results[0].details.budget).toBe('match');
+    });
+
+    it('does not let a sale-scale max exclude rentals for a contact with no rent intent', () => {
+      const contact = createTestContact({
+        pref_property_types: ['Flat/ Apartment'],
+        max_budget: 20000000, // 2 Cr purchase budget
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const rental = createTestProperty({
+        type: 'Flat/ Apartment',
+        listing_type: 'Rent',
+        rent_per_month: 60000,
+      });
+      const results = getMatchingContacts(rental, [contact]);
+      expect(results.length).toBe(1);
+      expect(results[0].details.budget).toBe('match');
+    });
+
+    it('keeps the implied floor for a rent-intent contact with a rent-scale max', () => {
+      const contact = createTestContact({
+        pref_property_types: ['Flat/ Apartment'],
+        pref_listing_types: ['Rent'],
+        pref_budget_max: 100000, // ₹1L/month
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const cheapRental = createTestProperty({
+        type: 'Flat/ Apartment',
+        listing_type: 'Rent',
+        rent_per_month: 25000,
+      });
+      expect(getMatchingContacts(cheapRental, [contact]).length).toBe(0);
+    });
   });
 
   describe('BHK fit', () => {

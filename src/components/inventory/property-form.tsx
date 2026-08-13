@@ -72,7 +72,7 @@ import {
 } from 'lucide-react';
 import { haversineKm } from '@/lib/geo';
 import { extractCoordinatesFromMapUrl } from '@/lib/maps/map-links';
-import { getMatchingContacts } from '@/lib/matching';
+import { getMatchingContacts, inMatchAudience, type MatchAudience } from '@/lib/matching';
 import { fetchPropertyShareLog, recordPropertyShares } from '@/lib/inventory/share-log';
 import { MatchDetailChips } from '@/components/inventory/match-detail-chips';
 import { ListingVideoCard } from '@/components/inventory/listing-video-card';
@@ -635,7 +635,7 @@ export function PropertyForm({
   const [selectedContactIds, setSelectedContactIds] = useState<string[]>([]);
   // Who the matched list offers: buyers by default, agents only for a
   // co-broker blast, or both together.
-  const [matchAudience, setMatchAudience] = useState<'buyers' | 'agents' | 'all'>('buyers');
+  const [matchAudience, setMatchAudience] = useState<MatchAudience>('buyers');
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
   const [loadingTemplates, setLoadingTemplates] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<MessageTemplate | null>(null);
@@ -868,25 +868,20 @@ export function PropertyForm({
   }, [contacts, title, description, price, address, type, sublocality, city, stateVal, project, bedrooms, features, nearbyHighlights, geoPick, listingType, rentPerMonth, rentalIncome, roiValue]);
 
   const displayedMatches = useMemo(() => {
-    return matchedContacts.filter(({ contact: c }) => {
-      if (matchAudience === 'agents') return c.classification === 'Agent';
-      if (matchAudience === 'buyers') return c.classification === 'Buyer';
-      return true;
-    });
+    return matchedContacts.filter(({ contact: c }) =>
+      inMatchAudience(c.classification, matchAudience)
+    );
   }, [matchedContacts, matchAudience]);
 
   // Switching audience drops selections outside it, so "Select All"
   // then send never carries hidden picks from the previous tab.
-  const handleAudienceChange = (audience: 'buyers' | 'agents' | 'all') => {
+  const handleAudienceChange = (audience: MatchAudience) => {
     setMatchAudience(audience);
     if (audience === 'all') return;
     setSelectedContactIds((prev) =>
       prev.filter((id) => {
         const c = contacts.find((x) => x.id === id);
-        if (!c) return true;
-        return audience === 'agents'
-          ? c.classification === 'Agent'
-          : c.classification !== 'Agent';
+        return !c || inMatchAudience(c.classification, audience);
       })
     );
   };
