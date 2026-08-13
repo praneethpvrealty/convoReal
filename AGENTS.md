@@ -443,6 +443,21 @@ grep -rhoE 'process\.env\.[A-Z_0-9]+' src go-ingress | sed 's/process\.env\.//' 
 
 The mobile app uses its own `EXPO_PUBLIC_*` variables (`EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `EXPO_PUBLIC_API_BASE_URL`).
 
+### Credentials in an agent session: check the environment, not `.env.local`
+
+**A missing `.env.local` does not mean there are no credentials.** In a hosted agent session (Claude Code on the web, CI, a container) the secrets are exported into the process environment directly, and no `.env.local` file exists at all. `dotenv.config({ path: '.env.local' })` at the top of every script in `src/scripts/` is a no-op there and is *meant* to be — `process.env` is already populated.
+
+So before reporting that a script cannot be run, check what is actually set:
+
+```bash
+printenv | cut -d= -f1 | grep -Ei 'SUPABASE|ENCRYPTION|META_|GEMINI' | sort
+```
+
+Never echo the values. Two things this session's environment gets wrong in a way worth knowing:
+
+- `SUPABASE_SERVICE_ROLE_KEY` and `ENCRYPTION_KEY` are present; `NEXT_PUBLIC_SUPABASE_URL` is **not**. The session carries `SUPABASE_DB_URL` instead, so scripts that construct a Supabase JS client need the project URL supplied: `NEXT_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co npx tsx src/scripts/<script>.ts`.
+- The Supabase MCP connection runs as the service role with no `auth.uid()`, so any `SECURITY DEFINER` function guarded by `is_account_member()` returns **zero rows** when called through it. That is the guard working, not a broken function — verify such functions against their underlying tables instead.
+
 ### Vitest dummy secrets
 
 `vitest.config.ts` stubs `ENCRYPTION_KEY` and `META_APP_SECRET` so unit tests run without `.env.local`. CI sets the same placeholders plus dummy public Supabase values so `next build` succeeds. Integration tests load real credentials from `.env.local` and skip if absent.
