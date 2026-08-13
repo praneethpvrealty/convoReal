@@ -65,6 +65,7 @@ import { PortalPostDialog } from '@/components/inventory/portal-post-dialog';
 import { PortalSyncDialog } from '@/components/inventory/portal-sync-dialog';
 import { PORTALS, type PortalKey } from '@/lib/portals/post-kit';
 import type { PortalBadge } from '@/components/inventory/property-list';
+import { BulkTagBar } from '@/components/inventory/bulk-tag-bar';
 import { AnimatedCounter } from '@/components/ui/animated-counter';
 import { InfoHint } from '@/components/ui/info-hint';
 
@@ -181,6 +182,10 @@ export default function InventoryPage() {
   // Everything on this page that comes from the server hangs off the
   // 'inventory' key, so a write invalidates the lot with one call
   // instead of clearing a hand-rolled Map and re-running each fetcher.
+  // Bulk tagging selection. Empty means the bar and the card
+  // checkboxes are not rendered at all.
+  const [selectedForTagging, setSelectedForTagging] = useState<string[]>([]);
+
   const refreshInventory = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: ['inventory'] });
   }, [queryClient]);
@@ -1363,33 +1368,50 @@ export default function InventoryPage() {
           currency={currency}
         />
       ) : (
-        <PropertyList
-          properties={properties}
-          loading={loading}
-          onView={handleViewClick}
-          onEdit={handleEditClick}
-          onDelete={handleDeleteClick}
-          onTogglePublish={handleTogglePublish}
-          onToggleStar={handleToggleStar}
-          onPortals={(property) => {
-            setPortalProperty(property);
-            setPortalOpen(true);
-          }}
-          portalBadges={portalBadges}
-          gateStats={gateStats}
-          onGateRequests={setGateRequestsProperty}
-          canEdit={canEdit}
-          onFlyer={handleFlyerClick}
-          onPromote={META_ADS_ENABLED ? handlePromoteClick : undefined}
-          onShare={handleShareClick}
-          onMatches={(property) => handleViewClick(property, 'matches')}
-          matchCounts={matchContactsQuery.data ? matchCounts : undefined}
-          onEmailShare={handleEmailShareClick}
-          onApprove={handleApprove}
-          onReject={handleReject}
-          onArchive={handleArchive}
-          currency={currency}
-        />
+        <>
+          <BulkTagBar
+            selectedIds={selectedForTagging}
+            onClear={() => setSelectedForTagging([])}
+            onTagged={() => {
+              setSelectedForTagging([]);
+              refreshInventory();
+            }}
+          />
+
+          <PropertyList
+            selectedIds={selectedForTagging}
+            onToggleSelected={(id) =>
+              setSelectedForTagging((prev) =>
+                prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+              )
+            }
+            properties={properties}
+            loading={loading}
+            onView={handleViewClick}
+            onEdit={handleEditClick}
+            onDelete={handleDeleteClick}
+            onTogglePublish={handleTogglePublish}
+            onToggleStar={handleToggleStar}
+            onPortals={(property) => {
+              setPortalProperty(property);
+              setPortalOpen(true);
+            }}
+            portalBadges={portalBadges}
+            gateStats={gateStats}
+            onGateRequests={setGateRequestsProperty}
+            canEdit={canEdit}
+            onFlyer={handleFlyerClick}
+            onPromote={META_ADS_ENABLED ? handlePromoteClick : undefined}
+            onShare={handleShareClick}
+            onMatches={(property) => handleViewClick(property, 'matches')}
+            matchCounts={matchContactsQuery.data ? matchCounts : undefined}
+            onEmailShare={handleEmailShareClick}
+            onApprove={handleApprove}
+            onReject={handleReject}
+            onArchive={handleArchive}
+            currency={currency}
+          />
+        </>
       )}
 
       {/* Add / Edit Form Modal */}

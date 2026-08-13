@@ -46,6 +46,7 @@ import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import { gateSummary, type GateStatsMap } from '@/lib/inventory/gate-stats';
 import { internalPhotoSources } from '@/lib/inventory/photo-sources';
 import { PORTALS, type PortalKey } from '@/lib/portals/post-kit';
+import { CheckSquare, Square } from 'lucide-react';
 
 const highlightIcons: Record<string, string> = {
   School: '🏫',
@@ -98,10 +99,16 @@ interface PropertyListProps {
   onReject?: (property: Property) => Promise<void>;
   onArchive?: (property: Property) => Promise<void>;
   currency?: string;
+  /** Bulk tagging. Absent means no selection UI at all, so a surface
+   *  that does not offer it pays nothing for it. */
+  selectedIds?: string[];
+  onToggleSelected?: (propertyId: string) => void;
 }
 
 export function PropertyList({
   properties,
+  selectedIds,
+  onToggleSelected,
   loading,
   onView,
   onEdit,
@@ -279,10 +286,28 @@ export function PropertyList({
         return (
           <div
             key={property.id}
-            className="group flex flex-col overflow-hidden rounded-xl border border-slate-800 bg-slate-900 transition-all duration-300 hover:border-slate-700 hover:shadow-md"
+            className={`group flex flex-col overflow-hidden rounded-xl border bg-slate-900 transition-all duration-300 hover:shadow-md ${
+              selectedIds?.includes(property.id)
+                ? 'border-primary/60 ring-primary/20 ring-1'
+                : 'border-slate-800 hover:border-slate-700'
+            }`}
           >
             {/* Card Thumbnail */}
             <div className="relative h-48 w-full shrink-0 overflow-hidden bg-slate-950">
+              {onToggleSelected && (
+                <button
+                  type="button"
+                  onClick={() => onToggleSelected(property.id)}
+                  title="Select for bulk tagging"
+                  className="absolute top-2 left-2 z-10 rounded-full bg-slate-950/70 p-1 text-slate-300 hover:text-white cursor-pointer"
+                >
+                  {selectedIds?.includes(property.id) ? (
+                    <CheckSquare className="text-primary size-4" />
+                  ) : (
+                    <Square className="size-4" />
+                  )}
+                </button>
+              )}
               {mainImage ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
