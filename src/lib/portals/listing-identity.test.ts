@@ -34,6 +34,25 @@ describe('parseListingIdFromUrl', () => {
     ).toBe('20327451');
   });
 
+  it('refuses a Housing slug rather than storing an id no lead can match', () => {
+    // Housing lead emails quote a numeric "Property ID"; its listing
+    // URLs carry a slug. Reading the slug as the ad id produced a
+    // mapping that silently matched nothing, so the slug forms return
+    // null and the agent is asked for the number instead.
+    expect(
+      parseListingIdFromUrl(
+        'housing',
+        'https://housing.com/in/buy/resale/page/abc123def-xyz789ghi'
+      )
+    ).toBe(null);
+    expect(
+      parseListingIdFromUrl(
+        'housing',
+        'https://housing.com/in/buy/resale/page/abc123def'
+      )
+    ).toBe(null);
+  });
+
   it('returns null for a URL with no id and for empty input', () => {
     expect(parseListingIdFromUrl('99acres', 'https://www.99acres.com/')).toBe(
       null

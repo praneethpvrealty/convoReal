@@ -23,7 +23,14 @@ const ID_RE: Record<PortalKey, RegExp[]> = {
     /-pd-(\d{6,})/i,
     /\/propertyDetails\/[^?]*?(\d{8,})/i,
   ],
-  housing: [/\/([a-z0-9]{6,})-([a-z0-9]{6,})?$/i, /[?&]property_?id=(\d{5,})/i],
+  // Query form ONLY. Housing's URLs otherwise carry an opaque slug, and
+  // a slug pattern here matched first and won: a pasted listing URL
+  // stored "abc123def" as the ad id, while every Housing lead email
+  // quotes a numeric "Property ID: 20749829". The two could never meet,
+  // so the mapping resolved nothing and failed silently — the agent saw
+  // a saved listing URL and no reason to doubt it. Returning null is the
+  // honest answer; the dialog asks for the id instead.
+  housing: [/[?&]property_?id=(\d{5,})/i],
 };
 
 /** Housing's URLs carry an opaque slug rather than the numeric id its

@@ -45,6 +45,7 @@ import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import { gateSummary, type GateStatsMap } from '@/lib/inventory/gate-stats';
 import { internalPhotoSources } from '@/lib/inventory/photo-sources';
+import { PORTALS, type PortalKey } from '@/lib/portals/post-kit';
 
 const highlightIcons: Record<string, string> = {
   School: '🏫',
@@ -58,6 +59,15 @@ const highlightIcons: Record<string, string> = {
   Park: '🌳',
   Supermarket: '🛒',
 };
+
+/** A portal a listing is live on, and the portal's own ad id for it when
+ *  one has been recorded. Without the id the mapping cannot resolve a
+ *  lead, so the badge shows the difference rather than hiding it. */
+export interface PortalBadge {
+  code: string;
+  portal: PortalKey;
+  adId: string | null;
+}
 
 interface PropertyListProps {
   properties: Property[];
@@ -77,7 +87,7 @@ interface PropertyListProps {
   onEmailShare?: (property: Property) => void;
   onPortals?: (property: Property) => void;
   /** propertyId → portal short codes ("99" | "MB" | "H") currently live. */
-  portalBadges?: Record<string, string[]>;
+  portalBadges?: Record<string, PortalBadge[]>;
   /** propertyId → confidential-gate rollup. Absent for every listing
    *  that is neither gated nor has request history. */
   gateStats?: GateStatsMap;
@@ -398,13 +408,22 @@ export function PropertyList({
                     {property.type}
                   </div>
                   <div className="flex items-center gap-1">
-                    {(portalBadges?.[property.id] || []).map((code) => (
+                    {(portalBadges?.[property.id] || []).map((badge) => (
                       <span
-                        key={code}
-                        title={`Live on ${code === '99' ? '99acres' : code === 'MB' ? 'MagicBricks' : 'Housing.com'}`}
-                        className="rounded border border-emerald-500/25 bg-emerald-500/10 px-1 py-0.5 text-[9px] font-black text-emerald-400"
+                        key={badge.portal}
+                        title={
+                          badge.adId
+                            ? `Live on ${PORTALS[badge.portal].label} · ad ${badge.adId} — leads quoting it match this listing automatically`
+                            : `Live on ${PORTALS[badge.portal].label}, but no ad id recorded — its leads are matched by guesswork. Add the id from Post to portals.`
+                        }
+                        className={`rounded border px-1 py-0.5 text-[9px] font-black ${
+                          badge.adId
+                            ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-400'
+                            : 'border-amber-500/30 bg-amber-500/10 text-amber-400'
+                        }`}
                       >
-                        {code}
+                        {badge.code}
+                        {badge.adId ? ` ${badge.adId}` : ' ?'}
                       </span>
                     ))}
                     {(property.like_count ?? 0) > 0 && (

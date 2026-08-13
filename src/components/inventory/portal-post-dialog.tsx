@@ -42,6 +42,7 @@ interface PortalListingRow {
   id: string;
   portal: PortalKey;
   listing_url: string | null;
+  portal_listing_id: string | null;
   posted_at: string;
   expires_on: string | null;
   status: 'active' | 'expired' | 'removed';
@@ -78,6 +79,7 @@ export function PortalPostDialog({ open, onOpenChange, property, currency = 'INR
   const [showMarkForm, setShowMarkForm] = useState(false);
   const [formUrl, setFormUrl] = useState('');
   const [formExpiry, setFormExpiry] = useState(defaultExpiryDate());
+  const [formAdId, setFormAdId] = useState('');
   // Chrome-extension bridge (extension/portal-autofill): detected via a
   // ping/pong handshake over window.postMessage; "Send to Extension"
   // hands the listing payload to the portal-side autofill panel.
@@ -89,7 +91,7 @@ export function PortalPostDialog({ open, onOpenChange, property, currency = 'INR
     try {
       const { data, error } = await supabase
         .from('property_portal_listings')
-        .select('id, portal, listing_url, posted_at, expires_on, status')
+        .select('id, portal, listing_url, portal_listing_id, posted_at, expires_on, status')
         .eq('account_id', accountId)
         .eq('property_id', property.id);
       if (error) throw error;
@@ -200,6 +202,41 @@ export function PortalPostDialog({ open, onOpenChange, property, currency = 'INR
 
   const markPosted = async () => {
     if (!property || !accountId) return;
+    // Typed id first, URL only as a fallback — and never a Housing slug,
+    // which parseListingIdFromUrl now refuses rather than storing an id
+    // no lead can match.
+    const adId = formAdId.trim() || parseListingIdFromUrl(activePortal, formUrl);
+
+    if (adId) {
+      // One ad, one listing — the same rule the lead-side assertion
+      // enforces (POST /api/contacts/[id]/portal-link). Claiming an id
+      // that already belongs to another listing would silently move
+      // every future enquiry on it across.
+      const { data: claimed } = await supabase
+        .from('property_portal_listings')
+        .select('property_id, properties(title)')
+        .eq('account_id', accountId)
+        .eq('portal', activePortal)
+        .eq('portal_listing_id', adId)
+        .maybeSingle();
+      if (claimed && claimed.property_id !== property.id) {
+        const title = (claimed.properties as { title?: string } | null)?.title ?? 'another listing';
+        toast.error(`${meta.label} ad ${adId} is already mapped to "${title}". Unmap it there first.`);
+        return;
+      }
+      // A re-post gets a new ad id for the same listing. Replacing is
+      // right — the old ad is gone — but it must be said out loud, not
+      // swapped in silently.
+      const previous = activeListing?.portal_listing_id;
+      if (previous && previous !== adId) {
+        const ok = window.confirm(
+          `This replaces ${meta.label} ad ${previous} with ${adId} for this listing.\n\n` +
+            `Leads already tagged keep their listing. New enquiries quoting ${previous} would fall back to matching by type and locality.`
+        );
+        if (!ok) return;
+      }
+    }
+
     setSaving(true);
     try {
       const { error } = await supabase.from('property_portal_listings').upsert(
@@ -209,7 +246,10 @@ export function PortalPostDialog({ open, onOpenChange, property, currency = 'INR
           user_id: user?.id || null,
           portal: activePortal,
           listing_url: formUrl.trim() || null,
-          portal_listing_id: parseListingIdFromUrl(activePortal, formUrl),
+          // Typed id wins over the URL: Housing's listing URLs carry no
+          // numeric id at all, and that is the portal whose lead emails
+          // quote one on every enquiry.
+          portal_listing_id: adId,
           expires_on: formExpiry || null,
           status: 'active',
           expiry_reminder_sent: false,
@@ -332,6 +372,11 @@ export function PortalPostDialog({ open, onOpenChange, property, currency = 'INR
                     {new Date(`${activeListing.expires_on}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
                   </>
                 )}
+                {activeListing.portal_listing_id ? (
+                  <> · ad {activeListing.portal_listing_id}</>
+                ) : (
+                  <span className="ml-1 text-amber-400">· no ad id — leads matched by guesswork</span>
+                )}
                 {activeListing.listing_url && (
                   <a
                     href={activeListing.listing_url}
@@ -350,6 +395,7 @@ export function PortalPostDialog({ open, onOpenChange, property, currency = 'INR
                 size="sm"
                 onClick={() => {
                   setFormUrl(activeListing.listing_url || '');
+                  setFormAdId(activeListing.portal_listing_id || '');
                   setFormExpiry(activeListing.expires_on || defaultExpiryDate());
                   setShowMarkForm(true);
                 }}
@@ -437,6 +483,22 @@ export function PortalPostDialog({ open, onOpenChange, property, currency = 'INR
                   placeholder={`https://www.${activePortal === 'housing' ? 'housing.com' : `${activePortal}.com`}/...`}
                   className="bg-slate-900 border-slate-700 text-xs h-9 text-slate-200"
                 />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[11px] text-slate-300 font-semibold">
+                  {meta.label} ad / property ID
+                </Label>
+                <Input
+                  value={formAdId}
+                  onChange={(e) => setFormAdId(e.target.value)}
+                  placeholder={activePortal === 'housing' ? 'e.g. 20749829' : 'e.g. 79221031'}
+                  className="bg-slate-900 border-slate-700 text-xs h-9 text-slate-200"
+                />
+                <p className="text-[10px] leading-relaxed text-slate-500">
+                  The id {meta.label} quotes in its lead emails. With it, every enquiry on this
+                  ad matches this listing exactly; without it they are matched by type, locality
+                  and price — which is a guess.
+                </p>
               </div>
               <div className="space-y-1">
                 <Label className="text-[11px] text-slate-300 font-semibold flex items-center gap-1">

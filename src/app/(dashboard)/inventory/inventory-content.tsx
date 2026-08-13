@@ -64,12 +64,13 @@ import { STARRED_PROPERTY_CAP } from '@/lib/starred-properties';
 import { PortalPostDialog } from '@/components/inventory/portal-post-dialog';
 import { PortalSyncDialog } from '@/components/inventory/portal-sync-dialog';
 import { PORTALS, type PortalKey } from '@/lib/portals/post-kit';
+import type { PortalBadge } from '@/components/inventory/property-list';
 import { AnimatedCounter } from '@/components/ui/animated-counter';
 import { InfoHint } from '@/components/ui/info-hint';
 
 // Counts across ALL properties, independent of the current page/filters
 // so the summary cards always show accurate totals.
-const EMPTY_BADGES: Record<string, string[]> = {};
+const EMPTY_BADGES: Record<string, PortalBadge[]> = {};
 // Stable identity: a fresh {} each render would re-run the memo chain
 // that feeds PropertyList, same reason EMPTY_BADGES exists.
 const EMPTY_GATE_STATS: GateStatsMap = {};
@@ -626,16 +627,23 @@ export default function InventoryPage() {
       const supabaseClient = createClient();
       const { data } = await supabaseClient
         .from('property_portal_listings')
-        .select('property_id, portal')
+        .select('property_id, portal, portal_listing_id')
         .eq('account_id', accountId)
         .eq('status', 'active')
         .in('property_id', visiblePropertyIds);
-      const map: Record<string, string[]> = {};
+      const map: Record<string, PortalBadge[]> = {};
       for (const row of data || []) {
         const code = PORTALS[row.portal as PortalKey]?.shortCode;
         if (!code) continue;
         if (!map[row.property_id]) map[row.property_id] = [];
-        map[row.property_id].push(code);
+        // The ad id rides along so the badge can say WHICH ad, and so a
+        // listing posted without one reads as unmapped rather than as
+        // fully wired up — an ad with no id resolves no lead.
+        map[row.property_id].push({
+          code,
+          portal: row.portal as PortalKey,
+          adId: (row.portal_listing_id as string | null) ?? null,
+        });
       }
       return map;
     },
