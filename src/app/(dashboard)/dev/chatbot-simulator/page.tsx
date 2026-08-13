@@ -15,6 +15,19 @@ import { Textarea } from '@/components/ui/textarea';
 
 type Mode = 'owner_intake' | 'lead_reply';
 
+type LeadRoute =
+  | 'callback_handover'
+  | 'photo_request'
+  | 'shortlist_reference'
+  | 'qualification';
+
+const ROUTE_LABELS: Record<LeadRoute, string> = {
+  callback_handover: 'Callback handover',
+  photo_request: 'Photo request',
+  shortlist_reference: 'Listing by number',
+  qualification: 'Qualification ladder',
+};
+
 interface SimulateResult {
   classification?: 'property' | 'contact' | 'schedule' | 'none';
   draft?: unknown;
@@ -24,6 +37,13 @@ interface SimulateResult {
   previewText: string | null;
   // lead_reply only
   mode?: Mode;
+  route?: LeadRoute;
+  routeExplanation?: string;
+  ladderStoodDown?: boolean;
+  notifiesAgent?: boolean;
+  answeredFromListing?: boolean;
+  photoCount?: number;
+  galleryCount?: number;
   carriesRequirementSignal?: boolean;
   requirements?: string;
   preferences?: unknown;
@@ -51,6 +71,7 @@ export default function ChatbotSimulatorPage() {
   const [text, setText] = useState('');
   const [priorRequirements, setPriorRequirements] = useState('');
   const [contactName, setContactName] = useState('');
+  const [subjectPropertyCode, setSubjectPropertyCode] = useState('');
   const [image, setImage] = useState<{ file: File; previewUrl: string } | null>(null);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -82,11 +103,13 @@ export default function ChatbotSimulatorPage() {
         mode?: Mode;
         priorRequirements?: string;
         contactName?: string;
+        subjectPropertyCode?: string;
       } = { text: text.trim() };
       if (mode === 'lead_reply') {
         body.mode = 'lead_reply';
         body.priorRequirements = priorRequirements.trim();
         body.contactName = contactName.trim();
+        body.subjectPropertyCode = subjectPropertyCode.trim();
       } else if (image) {
         body.imageBase64 = await fileToBase64(image.file);
         body.mimeType = image.file.type;
@@ -152,7 +175,7 @@ export default function ChatbotSimulatorPage() {
           <p className="text-xs text-slate-500">
             {mode === 'owner_intake'
               ? 'You messaging your own Engine number — classify → parse → draft preview.'
-              : 'A lead answering the auto-reply — signal gate → preference extraction → qualifier ladder → reply.'}
+              : 'A lead replying on WhatsApp — routing → signal gate → preference extraction → qualifier ladder → reply.'}
           </p>
 
           {mode === 'lead_reply' && (
@@ -177,6 +200,21 @@ export default function ChatbotSimulatorPage() {
                 rows={3}
                 placeholder="e.g. Land , 1.5 to 2cr"
                 className="bg-slate-950 border-slate-800 text-white placeholder:text-slate-600 text-sm resize-y"
+              />
+
+              <label className="block text-sm font-semibold text-white">
+                Listing the lead is looking at
+                <span className="block font-normal text-xs text-slate-500 mt-0.5">
+                  Property code. Live this comes off the share ledger — set it here to
+                  preview a photo request. Leave empty to see what a lead gets when the
+                  thread isn&apos;t pinned to a listing.
+                </span>
+              </label>
+              <input
+                value={subjectPropertyCode}
+                onChange={(e) => setSubjectPropertyCode(e.target.value)}
+                placeholder="e.g. PROP-1031"
+                className="w-full rounded-lg bg-slate-950 border border-slate-800 text-white placeholder:text-slate-600 text-sm px-3 py-2"
               />
             </>
           )}
@@ -258,38 +296,82 @@ export default function ChatbotSimulatorPage() {
           {result && result.mode === 'lead_reply' && (
             <div className="space-y-4">
               <div>
-                <span className="text-xs uppercase tracking-wider text-slate-500">Would the bot answer?</span>
+                <span className="text-xs uppercase tracking-wider text-slate-500">Who answers this</span>
                 <p className="text-sm font-bold text-white">
-                  {result.carriesRequirementSignal ? (
-                    'Yes — the message carries requirement detail'
-                  ) : (
-                    <>
-                      Only mid-ladder
-                      <span className="text-slate-400 font-normal">
-                        {' '}
-                        — no signal on its own, so the live handler answers this only if it arrives right after a bot
-                        question
-                      </span>
-                    </>
-                  )}
+                  {result.route ? ROUTE_LABELS[result.route] : 'Qualification ladder'}
                 </p>
+                {result.routeExplanation && (
+                  <p className="text-xs text-slate-400 mt-0.5">{result.routeExplanation}</p>
+                )}
               </div>
 
-              <div>
-                <span className="text-xs uppercase tracking-wider text-slate-500">Ladder</span>
-                <p className="text-sm font-bold text-white">
-                  {result.nextQualifier ? (
-                    <>
-                      Asking for <span className="capitalize">{result.nextQualifier}</span>
-                    </>
-                  ) : (
-                    <>
-                      Complete — {result.matchCount} match{result.matchCount === 1 ? '' : 'es'} from{' '}
-                      {result.inventorySize} live listing{result.inventorySize === 1 ? '' : 's'}
-                    </>
+              {result.ladderStoodDown ? (
+                <div>
+                  <span className="text-xs uppercase tracking-wider text-slate-500">Ladder</span>
+                  <p className="text-sm font-bold text-white">
+                    Stands down
+                    <span className="text-slate-400 font-normal">
+                      {' '}
+                      — nothing filed on the contact, no extraction charged
+                    </span>
+                  </p>
+                  {result.notifiesAgent && (
+                    <p className="text-xs text-amber-400 mt-0.5">
+                      An agent is notified — the lead has been promised something a person owes them.
+                    </p>
                   )}
-                </p>
-              </div>
+                  {result.answeredFromListing && (
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      The exact wording depends on the listing and the question, so it isn&apos;t previewed here.
+                    </p>
+                  )}
+                  {typeof result.photoCount === 'number' && result.photoCount > 0 && (
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      {result.photoCount} photo{result.photoCount === 1 ? '' : 's'} sent
+                      {typeof result.galleryCount === 'number' && result.galleryCount > result.photoCount
+                        ? ` of ${result.galleryCount} — the rest are behind the link`
+                        : ''}
+                      .
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <>
+                  <div>
+                    <span className="text-xs uppercase tracking-wider text-slate-500">Would the bot answer?</span>
+                    <p className="text-sm font-bold text-white">
+                      {result.carriesRequirementSignal ? (
+                        'Yes — the message carries requirement detail'
+                      ) : (
+                        <>
+                          Only mid-ladder
+                          <span className="text-slate-400 font-normal">
+                            {' '}
+                            — no signal on its own, so the live handler answers this only if it arrives right after a bot
+                            question
+                          </span>
+                        </>
+                      )}
+                    </p>
+                  </div>
+
+                  <div>
+                    <span className="text-xs uppercase tracking-wider text-slate-500">Ladder</span>
+                    <p className="text-sm font-bold text-white">
+                      {result.nextQualifier ? (
+                        <>
+                          Asking for <span className="capitalize">{result.nextQualifier}</span>
+                        </>
+                      ) : (
+                        <>
+                          Complete — {result.matchCount} match{result.matchCount === 1 ? '' : 'es'} from{' '}
+                          {result.inventorySize} live listing{result.inventorySize === 1 ? '' : 's'}
+                        </>
+                      )}
+                    </p>
+                  </div>
+                </>
+              )}
 
               {result.matches && result.matches.length > 0 && (
                 <div>
@@ -314,12 +396,14 @@ export default function ChatbotSimulatorPage() {
                 </div>
               )}
 
-              <div>
-                <span className="text-xs uppercase tracking-wider text-slate-500">Extracted preferences</span>
-                <pre className="mt-1 whitespace-pre-wrap text-xs text-slate-400 bg-slate-950 border border-slate-800 rounded-lg p-3 font-mono max-h-80 overflow-y-auto">
-                  {JSON.stringify(result.preferences, null, 2)}
-                </pre>
-              </div>
+              {result.preferences != null && (
+                <div>
+                  <span className="text-xs uppercase tracking-wider text-slate-500">Extracted preferences</span>
+                  <pre className="mt-1 whitespace-pre-wrap text-xs text-slate-400 bg-slate-950 border border-slate-800 rounded-lg p-3 font-mono max-h-80 overflow-y-auto">
+                    {JSON.stringify(result.preferences, null, 2)}
+                  </pre>
+                </div>
+              )}
             </div>
           )}
 

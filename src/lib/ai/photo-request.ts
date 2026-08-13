@@ -27,6 +27,17 @@ import { accountPropertyShowcaseUrl } from '@/lib/showcase/account-showcase-url'
 const PHOTOS_SINGLE_SUBJECT = 4;
 const PHOTOS_PER_SUBJECT_MULTI = 2;
 
+/** How many of a listing's photos this reply carries. Exported so the
+ *  dev simulator previews the real count rather than its own guess. */
+export function plannedPhotoCount(
+  imageCount: number,
+  subjectCount: number
+): number {
+  const perSubject =
+    subjectCount === 1 ? PHOTOS_SINGLE_SUBJECT : PHOTOS_PER_SUBJECT_MULTI;
+  return Math.min(Math.max(imageCount, 0), perSubject);
+}
+
 const MEDIA_NOUN = 'photos?|pics?|pix|pictures?|images?|imgs?|videos?|snaps?';
 
 /** A request verb with a media noun within reach of it — "can I get
@@ -152,12 +163,11 @@ export async function sendSubjectPhotos(
   if (rows.length === 0) return false;
 
   const wantsVideo = VIDEO_ASK.test(args.requestText);
-  const perSubject =
-    rows.length === 1 ? PHOTOS_SINGLE_SUBJECT : PHOTOS_PER_SUBJECT_MULTI;
   const parts: PhotoReplyPart[] = [];
 
   for (const row of rows) {
     const images = (row.images ?? []).filter((u) => u && u.trim().length > 0);
+    const perSubject = plannedPhotoCount(images.length, rows.length);
     let sent = 0;
 
     for (const [i, image] of images.slice(0, perSubject).entries()) {
