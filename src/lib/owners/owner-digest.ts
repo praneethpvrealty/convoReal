@@ -18,6 +18,7 @@ import {
   buildOwnerDigestConsentParams,
 } from '@/lib/whatsapp/owner-digest-template'
 import type { MessageTemplate } from '@/types'
+import { CLOSED_LISTING_STATUS_FILTER } from '@/lib/inventory/listing-status'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 
 /**
@@ -383,6 +384,10 @@ export async function gatherOwnerDigests(
     .from('properties')
     .select('id, title, owner_contact_id')
     .eq('account_id', accountId)
+    // Sold/withdrawn listings keep their enquiry and view rows, so
+    // without this they go on generating digests — and consent
+    // requests — for a property the owner no longer has to sell.
+    .not('status', 'in', CLOSED_LISTING_STATUS_FILTER)
     // Agent-referred listings put the referring agent in
     // owner_contact_id — they get the agent inventory digest, not an
     // owner digest (migration 191 has the full story).
