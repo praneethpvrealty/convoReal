@@ -63,6 +63,20 @@ and polish.
   **Teammate sends you an update** toggle is in Settings → Notifications
   on web and mobile.
 
+- **Saying the same thing twice corrects it instead of duplicating it.**
+  An agent dictates a note walking out of a meeting and again from the
+  car, or repeats a job the next morning because they cannot remember
+  whether it went in. Each pass used to insert another row. A request
+  that restates an event or a to-do already on the books now updates it
+  and says *Updated* rather than *Added*. The rule is deliberately
+  narrow, because merging two things that were never the same one loses
+  a real appointment: the same IST day, wording that clears a two-thirds
+  subject match, and no disagreement about who it is with. Two site
+  visits with one buyer in a week stay two rows, an identically-titled
+  visit with a different buyer stays its own, and another agent's
+  matching task is never touched. A reschedule is unaffected — that is a
+  quote-reply on the card, which names its target outright.
+
 - **A forwarded contact card keeps its own name, and its person.** An
   agent's phonebook entry is rarely just a name — "Nadeem Koramangala
   8th Block 2100 Sqft Corner Property Owner Nassur" is a person, a

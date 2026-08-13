@@ -50,6 +50,8 @@ vi.mock('@/lib/automations/admin-client', () => ({
         or: () => builder,
         gte: () => builder,
         lt: () => builder,
+        limit: () => builder,
+        is: () => builder,
         order: () => builder,
         single: async () =>
           failInserts.has(table)

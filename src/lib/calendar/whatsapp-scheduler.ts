@@ -26,6 +26,7 @@ import {
 import { recordBotTarget } from '@/lib/whatsapp/bot-message-target';
 import { parseEventOutcome } from '@/lib/calendar/event-outcome';
 import { autoLinkContactProperty } from '@/lib/calendar/auto-link';
+import { findDuplicate, type ExistingRow } from '@/lib/calendar/event-dedupe';
 import { createNotification } from '@/lib/notifications/create';
 
 const EVENT_TYPE_EMOJI: Record<string, string> = {
@@ -922,7 +923,7 @@ export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): P
   // row — against a card carrying three, "move it to Monday" names no
   // particular one, so a correction is better off becoming a fresh event
   // than silently rewriting whichever we happened to register.
-  const createdRows = filed.map((f) => f.created).filter((c): c is CreatedRow => c !== null);
+  const createdRows = filed.map((f) => f.row).filter((c): c is CreatedRow => c !== null);
   if (createdRows.length === 1) {
     await recordBotTarget({
       accountId,
@@ -975,7 +976,83 @@ type CreatedRow = { type: 'appointment' | 'todo'; id: string };
 interface FiledDraft {
   /** The confirmation block for this request, without the shared footer. */
   lines: string[];
-  created: CreatedRow | null;
+  /** The row this block announced, created or updated — the target a
+   *  quote-reply on the card should edit. */
+  row: CreatedRow | null;
+}
+
+/**
+ * The already-existing appointment this request restates, if any.
+ *
+ * Bounded to the draft's own IST day and to the rows the new one would
+ * belong to, so the scan is small and can never reach another agent's
+ * calendar. Cancelled and completed events are history and never match.
+ */
+async function existingAppointment(
+  ctx: DraftFilingContext,
+  startIso: string,
+  assignedTo: string
+): Promise<ExistingRow[]> {
+  const day = istDayWindow(new Date(startIso));
+  const { data, error } = await ctx.admin
+    .from('appointments')
+    .select('id, title, start_time, contact_id, liaison_id, assigned_to, user_id')
+    .eq('account_id', ctx.accountId)
+    .eq('status', 'scheduled')
+    .gte('start_time', day.startIso)
+    .lt('start_time', day.endIso)
+    .limit(50);
+  if (error) {
+    console.error('[wa-scheduler] duplicate lookup failed:', error);
+    return [];
+  }
+  // assigned_to wins over user_id, the same ownership rule the reminders
+  // and the agenda use.
+  return (data || [])
+    .filter((r) => (r.assigned_to || r.user_id) === assignedTo)
+    .map((r) => ({
+      id: r.id as string,
+      title: (r.title as string) || '',
+      when: r.start_time as string,
+      contact_id: (r.contact_id as string | null) ?? null,
+      liaison_id: (r.liaison_id as string | null) ?? null,
+    }));
+}
+
+/** The already-existing open to-do this request restates, if any. An
+ *  undated repeat matches only another undated one, which findDuplicate
+ *  enforces; the query just has to offer both. */
+async function existingTodos(
+  ctx: DraftFilingContext,
+  dueIso: string | null,
+  assignedTo: string
+): Promise<ExistingRow[]> {
+  let query = ctx.admin
+    .from('todos')
+    .select('id, title, due_date, contact_id, assigned_to, user_id')
+    .eq('account_id', ctx.accountId)
+    .eq('completed', false)
+    .limit(50);
+  if (dueIso) {
+    const day = istDayWindow(new Date(dueIso));
+    query = query.gte('due_date', day.startIso).lt('due_date', day.endIso);
+  } else {
+    query = query.is('due_date', null);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    console.error('[wa-scheduler] duplicate lookup failed:', error);
+    return [];
+  }
+  return (data || [])
+    .filter((r) => (r.assigned_to || r.user_id) === assignedTo)
+    .map((r) => ({
+      id: r.id as string,
+      title: (r.title as string) || '',
+      when: (r.due_date as string | null) ?? null,
+      contact_id: (r.contact_id as string | null) ?? null,
+    }));
 }
 
 function whenLabel(iso: string): string {
@@ -988,6 +1065,37 @@ function whenLabel(iso: string): string {
     minute: '2-digit',
     hour12: true,
   });
+}
+
+/** The body of an appointment card, under whichever headline says
+ *  whether the row is new or was corrected. */
+function appointmentCardLines(
+  headline: string,
+  p: {
+    draft: ParsedEventDraft;
+    startIso: string;
+    attendees: { id: string; name: string | null }[];
+    liaison: { name: string } | null;
+    property: { title: string | null } | null;
+    assignee: { id: string; full_name: string | null } | null;
+    unknownProvider: string | null;
+    selfUserId: string;
+  }
+): string[] {
+  const emoji = EVENT_TYPE_EMOJI[p.draft.event_type] || '🗓';
+  return [
+    headline,
+    `${emoji} ${p.draft.title}`,
+    `🕐 ${whenLabel(p.startIso)}`,
+    p.attendees.length > 0 ? `👤 ${p.attendees.map((c) => c.name).join(', ')}` : null,
+    p.liaison ? `⚖️ ${p.liaison.name} (${p.draft.service_provider_role})` : null,
+    p.property ? `🏠 ${p.property.title}` : null,
+    p.draft.location ? `📌 ${p.draft.location}` : null,
+    p.assignee && p.assignee.id !== p.selfUserId ? `➡️ Assigned to ${p.assignee.full_name}` : null,
+    p.unknownProvider
+      ? `\n💡 ${p.unknownProvider} (${p.draft.service_provider_role}) isn't in your contacts or your liaisons directory. Add them under *Liaisons* to keep their number and fees to hand.`
+      : null,
+  ].filter((l): l is string => l !== null);
 }
 
 /**
@@ -1049,23 +1157,71 @@ async function fileDraft(draft: ParsedEventDraft, ctx: DraftFilingContext): Prom
   const assignedTo = assignee?.id || ctx.userId;
 
   if (draft.intent === 'schedule' && startIso) {
-    const { data: createdAppt, error } = await ctx.admin.from('appointments').insert({
-      account_id: ctx.accountId,
-      user_id: ctx.userId,
-      assigned_to: assignedTo,
+    const fields = {
       title: draft.title,
       description: draft.notes,
       event_type: draft.event_type,
       start_time: startIso,
       end_time: endIso || startIso,
       location: draft.location,
-      status: 'scheduled',
       contact_id: attendees[0]?.id || null,
       contact_ids: attendees.map((c) => c.id),
       property_id: property?.id || null,
       liaison_id: liaison?.id || null,
-      source: ctx.source,
       transcript,
+    };
+
+    // Same meeting, dictated twice. Restating it corrects the row that is
+    // already there rather than putting a second one beside it.
+    const duplicate = findDuplicate(
+      {
+        title: draft.title,
+        when: startIso,
+        contactId: attendees[0]?.id || null,
+        liaisonId: liaison?.id || null,
+      },
+      await existingAppointment(ctx, startIso, assignedTo)
+    );
+
+    if (duplicate) {
+      const { error: updateErr } = await ctx.admin
+        .from('appointments')
+        .update({ ...fields, assigned_to: assignedTo })
+        .eq('id', duplicate.id)
+        .eq('account_id', ctx.accountId);
+      if (updateErr) {
+        console.error('[wa-scheduler] appointment update failed:', updateErr);
+        return {
+          lines: [
+            '⚠️ *Couldn\'t update that event*',
+            `🗓 ${draft.title}`,
+            'Please try again or edit it from the Calendar page.',
+          ],
+          row: null,
+        };
+      }
+      return {
+        lines: appointmentCardLines('✏️ *Updated on your calendar*', {
+          draft,
+          startIso,
+          attendees,
+          liaison,
+          property,
+          assignee,
+          unknownProvider,
+          selfUserId: ctx.userId,
+        }),
+        row: { type: 'appointment', id: duplicate.id },
+      };
+    }
+
+    const { data: createdAppt, error } = await ctx.admin.from('appointments').insert({
+      account_id: ctx.accountId,
+      user_id: ctx.userId,
+      assigned_to: assignedTo,
+      status: 'scheduled',
+      source: ctx.source,
+      ...fields,
     }).select('id').single();
     if (error) {
       console.error('[wa-scheduler] appointment insert failed:', error);
@@ -1075,41 +1231,78 @@ async function fileDraft(draft: ParsedEventDraft, ctx: DraftFilingContext): Prom
           `🗓 ${draft.title}`,
           'Please try again or add it from the Calendar page.',
         ],
-        created: null,
+        row: null,
       };
     }
 
-    const emoji = EVENT_TYPE_EMOJI[draft.event_type] || '🗓';
     return {
-      lines: [
-        '✅ *Added to your calendar*',
-        `${emoji} ${draft.title}`,
-        `🕐 ${whenLabel(startIso)}`,
-        attendees.length > 0 ? `👤 ${attendees.map((c) => c.name).join(', ')}` : null,
-        liaison ? `⚖️ ${liaison.name} (${draft.service_provider_role})` : null,
-        property ? `🏠 ${property.title}` : null,
-        draft.location ? `📌 ${draft.location}` : null,
-        assignee && assignee.id !== ctx.userId ? `➡️ Assigned to ${assignee.full_name}` : null,
-        unknownProvider
-          ? `\n💡 ${unknownProvider} (${draft.service_provider_role}) isn't in your contacts or your liaisons directory. Add them under *Liaisons* to keep their number and fees to hand.`
-          : null,
-      ].filter((l): l is string => l !== null),
-      created: createdAppt?.id ? { type: 'appointment', id: createdAppt.id as string } : null,
+      lines: appointmentCardLines('✅ *Added to your calendar*', {
+        draft,
+        startIso,
+        attendees,
+        liaison,
+        property,
+        assignee,
+        unknownProvider,
+        selfUserId: ctx.userId,
+      }),
+      row: createdAppt?.id ? { type: 'appointment', id: createdAppt.id as string } : null,
     };
+  }
+
+  const todoFields = {
+    title: draft.title,
+    description: draft.notes,
+    due_date: startIso,
+    priority: draft.priority,
+    contact_id: attendees[0]?.id || null,
+    property_id: property?.id || null,
+  };
+
+  // The same job dictated again — twice out of the car, or the next
+  // morning because the agent cannot remember whether it went in.
+  const duplicate = findDuplicate(
+    { title: draft.title, when: startIso, contactId: attendees[0]?.id || null },
+    await existingTodos(ctx, startIso, assignedTo)
+  );
+
+  const cardLines = (headline: string): string[] =>
+    [
+      headline,
+      `📝 ${draft.title}`,
+      startIso ? `🕐 Due ${whenLabel(startIso)}` : null,
+      attendees[0] ? `👤 ${attendees[0].name}` : null,
+      draft.priority === 'high' ? '🔴 High priority' : null,
+      assignee && assignee.id !== ctx.userId ? `➡️ Assigned to ${assignee.full_name}` : null,
+    ].filter((l): l is string => l !== null);
+
+  if (duplicate) {
+    const { error: updateErr } = await ctx.admin
+      .from('todos')
+      .update({ ...todoFields, assigned_to: assignedTo })
+      .eq('id', duplicate.id)
+      .eq('account_id', ctx.accountId);
+    if (updateErr) {
+      console.error('[wa-scheduler] todo update failed:', updateErr);
+      return {
+        lines: [
+          '⚠️ *Couldn\'t update that task*',
+          `📝 ${draft.title}`,
+          'Please try again or edit it from the Calendar page.',
+        ],
+        row: null,
+      };
+    }
+    return { lines: cardLines('✏️ *Task updated*'), row: { type: 'todo', id: duplicate.id } };
   }
 
   const { data: createdTodo, error } = await ctx.admin.from('todos').insert({
     account_id: ctx.accountId,
     user_id: ctx.userId,
     assigned_to: assignedTo,
-    title: draft.title,
-    description: draft.notes,
-    due_date: startIso,
-    priority: draft.priority,
     completed: false,
-    contact_id: attendees[0]?.id || null,
-    property_id: property?.id || null,
     source: ctx.source,
+    ...todoFields,
   }).select('id').single();
   if (error) {
     console.error('[wa-scheduler] todo insert failed:', error);
@@ -1119,19 +1312,12 @@ async function fileDraft(draft: ParsedEventDraft, ctx: DraftFilingContext): Prom
         `📝 ${draft.title}`,
         'Please try again or add it from the Calendar page.',
       ],
-      created: null,
+      row: null,
     };
   }
   return {
-    lines: [
-      '✅ *Task added to your list*',
-      `📝 ${draft.title}`,
-      startIso ? `🕐 Due ${whenLabel(startIso)}` : null,
-      attendees[0] ? `👤 ${attendees[0].name}` : null,
-      draft.priority === 'high' ? '🔴 High priority' : null,
-      assignee && assignee.id !== ctx.userId ? `➡️ Assigned to ${assignee.full_name}` : null,
-    ].filter((l): l is string => l !== null),
-    created: createdTodo?.id ? { type: 'todo', id: createdTodo.id as string } : null,
+    lines: cardLines('✅ *Task added to your list*'),
+    row: createdTodo?.id ? { type: 'todo', id: createdTodo.id as string } : null,
   };
 }
 
@@ -1169,7 +1355,7 @@ async function sendTeammateUpdate(
           : '👤 Say who should get it, e.g. "send Sharan the update on the site visit".',
         `💬 ${draft.title}`,
       ],
-      created: null,
+      row: null,
     };
   }
 
@@ -1199,7 +1385,7 @@ async function sendTeammateUpdate(
         `💬 ${draft.title}`,
         'Tell them directly for now.',
       ],
-      created: null,
+      row: null,
     };
   }
 
@@ -1214,7 +1400,7 @@ async function sendTeammateUpdate(
         ? '📵 WhatsApp couldn\'t reach them — they\'ll see it in the app.'
         : null,
     ].filter((l): l is string => l !== null),
-    created: null,
+    row: null,
   };
 }
 
