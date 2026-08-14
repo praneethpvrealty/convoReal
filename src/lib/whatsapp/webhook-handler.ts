@@ -1362,9 +1362,13 @@ async function processMessage(
       entityId: conversation.id,
       link: `/inbox?conversation=${conversation.id}`,
       // The card is the WhatsApp ping. Only when it could not be
-      // delivered does the plain text one stand in for it.
+      // delivered does the plain text one stand in for it — and the
+      // channel has to be forced off, not merely left without a text:
+      // createNotification falls back to title+body on WhatsApp, which
+      // put a second "Enquiry: …" bubble under the card on the very
+      // first live run.
       ...(cardSent
-        ? {}
+        ? { channels: { inApp: true, push: true, whatsapp: false } }
         : {
             whatsappText: [
               '🔔 *New property enquiry*',
@@ -1424,10 +1428,12 @@ async function processMessage(
       entityId: conversation.id,
       link: `/inbox?conversation=${conversation.id}`,
       // The card already reached them on WhatsApp; a second message
-      // saying the same thing less usefully is noise. The in-app and
-      // push notifications still go out either way.
+      // saying the same thing less usefully is noise. The channel is
+      // forced off rather than left without a text, because
+      // createNotification falls back to title+body on WhatsApp. The
+      // in-app and push notifications still go out either way.
       ...(cardSent
-        ? {}
+        ? { channels: { inApp: true, push: true, whatsapp: false } }
         : {
             whatsappText: [
               '💬 *New lead just messaged you*',
