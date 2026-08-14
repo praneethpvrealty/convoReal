@@ -142,7 +142,8 @@ export async function fetchHotGoingQuiet(): Promise<QuietHotLead[]> {
   const { data, error } = await supabase
     .from('contacts')
     .select('id, name, phone, name_tag, last_contacted_at, created_at')
-    .eq('status', 'active')
+    .eq('is_merged', false)
+    .in('status', ['active', 'pending_review'])
     .eq('lead_temp', 'HOT');
   if (error) throw error;
 

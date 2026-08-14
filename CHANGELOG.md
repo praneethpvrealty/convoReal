@@ -113,6 +113,17 @@ and polish.
 
 ### Fixed
 
+- **Merged contacts stayed visible on mobile.** Merging two duplicates
+  soft-deletes the loser, and the web contact list has always hidden
+  it — the mobile app never learned to, so a merged pair kept showing
+  as two rows in Contacts (and inflating the tab counts), and the
+  pickers on appointments, deals and shares could attach new work to
+  the soft-deleted half. Every mobile contact list, count and picker
+  now skips merge losers, and so do the HOT-lead surfaces on both
+  platforms (the /today panel and the follow-up radar), where a loser
+  that was HOT when it lost would otherwise draw follow-up cards for a
+  thread the inbox no longer resolves.
+
 - **The confidential-listing gate had two buttons with the same label,
   and the first one did nothing visible.** "Request full details"
   opened the form; a second button with identical wording inside it
