@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
@@ -800,9 +801,25 @@ function CampaignDetailDialog({
                     return (
                       <TableRow key={r.id}>
                         <TableCell>
-                          <div className="text-sm font-medium text-white">
-                            {contact?.name || 'Unknown'}
-                          </div>
+                          {contact ? (
+                            // New tab on purpose: this list is being
+                            // reviewed inside a dialog, and navigating
+                            // away to fix one contact's details would
+                            // close it.
+                            <Link
+                              href={`/contacts?contactId=${contact.id}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title="Open contact"
+                              className="hover:text-primary text-sm font-medium text-white transition-colors"
+                            >
+                              {contact.name || 'Unknown'}
+                            </Link>
+                          ) : (
+                            <div className="text-sm font-medium text-white">
+                              Unknown
+                            </div>
+                          )}
                           <div className="text-xs text-slate-500">
                             {contact?.phone}
                           </div>
