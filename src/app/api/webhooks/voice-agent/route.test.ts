@@ -24,12 +24,22 @@ describe('parseVoiceCallPayload', () => {
       outcome: 'connected',
       durationSeconds: null,
       calledAt: null,
+      budgetMin: null,
       budgetMax: null,
       areas: [],
       propertyInterest: null,
       campaignId: null,
       qualification: null,
     });
+  });
+
+  it('parses a stated budget range', () => {
+    const parsed = parseVoiceCallPayload({
+      caller_phone: '9876543210',
+      requirement: { budget_min: 8000000, budget_max: 12000000 },
+    });
+    expect(parsed?.budgetMin).toBe(8000000);
+    expect(parsed?.budgetMax).toBe(12000000);
   });
 
   it('parses campaign linkage and the qualification block', () => {
@@ -126,15 +136,21 @@ describe('POST /api/webhooks/voice-agent', () => {
       })
     );
 
-  it('fails closed with 503 when VOICE_AGENT_WEBHOOK_TOKEN is unset', async () => {
+  it('fails closed with 503 when no credential exists to check against', async () => {
     vi.stubEnv('VOICE_AGENT_WEBHOOK_TOKEN', '');
-    const res = await post('?token=anything&account_id=acc');
+    const res = await post('?token=anything');
     expect(res.status).toBe(503);
   });
 
   it('rejects a wrong token with 401', async () => {
     vi.stubEnv('VOICE_AGENT_WEBHOOK_TOKEN', 'right-token');
     const res = await post('?token=wrong-token&account_id=acc');
+    expect(res.status).toBe(401);
+  });
+
+  it('rejects an unknown per-account token with 401', async () => {
+    vi.stubEnv('VOICE_AGENT_WEBHOOK_TOKEN', '');
+    const res = await post('?token=some-account-token&account_id=acc');
     expect(res.status).toBe(401);
   });
 
