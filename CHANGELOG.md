@@ -93,6 +93,14 @@ and polish.
 
 ### Fixed
 
+- **The confidential-listing gate had two buttons with the same label,
+  and the first one did nothing visible.** "Request full details"
+  opened the form; a second button with identical wording inside it
+  actually sent the request. A buyer tapped once, told the agent he had
+  asked, and waited on a request that was never made. The form is now
+  the gate — one tap sends it — and an incomplete form says what is
+  missing instead of absorbing the tap.
+
 - **An expired sandbox trial no longer blackholes a sender forever.**
   The shared sandbox number routes by sender: the first `#code` message
   writes a mapping, and every later message from that number resolves
