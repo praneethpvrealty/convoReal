@@ -16,6 +16,7 @@ import { sanitizeFloorTenancies } from "@/lib/inventory/floor-tenancies";
 import { isoDateOrNull } from "@/lib/inventory/iso-date";
 import { maskPropertyForViewer } from "@/lib/inventory/location-guard";
 import { SQFT_PER_AREA_UNIT } from "@/lib/inventory/property-options";
+import { rentalYieldPercent } from "@/lib/inventory/rental-yield";
 import type { Property } from "@/types";
 
 const MAX_LIMIT = 100;
@@ -516,7 +517,6 @@ export async function POST(request: Request) {
       location_privacy,
       showcase_visibility,
       rental_income,
-      roi,
       floor_tenancies,
       listing_source,
       // rental fields
@@ -646,7 +646,14 @@ export async function POST(request: Request) {
           ? showcase_visibility
           : null,
       rental_income: typeof rental_income === "number" ? rental_income : null,
-      roi: typeof roi === "number" ? roi : null,
+      // Derived here rather than trusted: a rental's price is its
+      // monthly rent, so a client that divides one by the other stores a
+      // 1200% yield. See src/lib/inventory/rental-yield.ts.
+      roi: rentalYieldPercent(
+        parsedListingType,
+        parsedPrice,
+        typeof rental_income === "number" ? rental_income : null
+      ),
       floor_tenancies: sanitizeFloorTenancies(floor_tenancies),
       listing_source: listing_source === "agent" ? "agent" : "owner",
       listing_type: parsedListingType,

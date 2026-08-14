@@ -13,6 +13,7 @@ import {
   maskPropertyForViewer,
 } from "@/lib/inventory/location-guard";
 import { applyGatingCustody } from "@/lib/inventory/gated-photos";
+import { rentalYieldPercent } from "@/lib/inventory/rental-yield";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import type { Property } from "@/types";
 
@@ -142,7 +143,6 @@ export async function PUT(
       location_privacy,
       showcase_visibility,
       rental_income,
-      roi,
       floor_tenancies,
       listing_source,
       // rental fields
@@ -475,10 +475,6 @@ export async function PUT(
       updateData.rental_income = typeof rental_income === "number" ? rental_income : null;
     }
 
-    if (roi !== undefined) {
-      updateData.roi = typeof roi === "number" ? roi : null;
-    }
-
     if (floor_tenancies !== undefined) {
       updateData.floor_tenancies = sanitizeFloorTenancies(floor_tenancies);
     }
@@ -543,7 +539,7 @@ export async function PUT(
     // Verify it exists in this account before updating (defensive check)
     const { data: existing, error: findError } = await ctx.supabase
       .from("properties")
-      .select("id, type, user_id, location_privacy, status, showcase_visibility, images, private_images, gated_locked_images")
+      .select("id, type, user_id, location_privacy, status, showcase_visibility, images, private_images, gated_locked_images, listing_type, price, rental_income")
       .eq("id", id)
       .eq("account_id", ctx.accountId)
       .maybeSingle();
@@ -560,6 +556,28 @@ export async function PUT(
       return NextResponse.json(
         { error: "Property not found or access denied" },
         { status: 404 }
+      );
+    }
+
+    // Derived from the row this update leaves behind, never from the
+    // client — and recomputed on every update, so a sale that becomes a
+    // rental loses the yield it used to have rather than keeping a
+    // figure its new price cannot support. See
+    // src/lib/inventory/rental-yield.ts.
+    {
+      const prior = existing as {
+        listing_type?: string | null;
+        price?: number | null;
+        rental_income?: number | null;
+      };
+      // `in` rather than `??`: this update may be clearing rental_income
+      // to null, which is not the same as leaving it alone.
+      const settled = <T>(key: string, fallback: T): T =>
+        key in updateData ? (updateData[key] as T) : fallback;
+      updateData.roi = rentalYieldPercent(
+        settled('listing_type', prior.listing_type ?? null),
+        settled('price', prior.price ?? null),
+        settled('rental_income', prior.rental_income ?? null)
       );
     }
 

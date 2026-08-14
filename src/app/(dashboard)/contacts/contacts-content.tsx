@@ -48,6 +48,7 @@ import {
   Upload,
   Archive,
   MoreHorizontal,
+  ClipboardList,
   Pencil,
   Trash2,
   Loader2,
@@ -88,6 +89,7 @@ import {
   type PendingDial,
 } from '@/components/contacts/log-call-prompt';
 import { ScheduleDialog } from '@/components/calendar/schedule-dialog';
+import { OwnerDetailsRequestDialog } from '@/components/contacts/owner-details-request-dialog';
 import { CalendarDays } from 'lucide-react';
 import { DuplicatesPanel } from '@/components/contacts/duplicates-panel';
 import { InfoHint } from '@/components/ui/info-hint';
@@ -803,6 +805,8 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
   const [scheduleContactId, setScheduleContactId] = useState<string | null>(
     null
   );
+  const [detailsRequestContact, setDetailsRequestContact] =
+    useState<Contact | null>(null);
 
   // Bulk Device Import state
   const [bulkImportOpen, setBulkImportOpen] = useState(false);
@@ -2826,6 +2830,18 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                             <CalendarDays className="size-4" />
                             Schedule
                           </DropdownMenuItem>
+                          {contact.phone && (
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDetailsRequestContact(contact);
+                              }}
+                              className="text-slate-300 focus:bg-slate-800 focus:text-white"
+                            >
+                              <ClipboardList className="size-4" />
+                              Ask for property details
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuSeparator className="bg-slate-700" />
                           <DropdownMenuItem
                             onClick={(e) => {
@@ -2992,6 +3008,21 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
         onOpenChange={setScheduleOpen}
         contactId={scheduleContactId}
       />
+
+      {/* The first ask, straight off the row — the same message the
+          contact page sends, so an agent working the list does not have
+          to open each contact to send it. */}
+      {detailsRequestContact && (
+        <OwnerDetailsRequestDialog
+          open
+          onOpenChange={(next) => {
+            if (!next) setDetailsRequestContact(null);
+          }}
+          contactId={detailsRequestContact.id}
+          contactName={detailsRequestContact.name ?? ''}
+          contactPhone={detailsRequestContact.phone ?? ''}
+        />
+      )}
     </div>
   );
 }

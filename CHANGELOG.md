@@ -26,6 +26,26 @@ and polish.
   outage. This completes the reminder-channel trio: text templates,
   voice-agent calls (Phase B), and now voice notes.
 
+- **"Ask for property details" now offers the listing page too, and
+  sends from the contact row.** The first message an agent sends a
+  seller carried one route — the office WhatsApp number. It now carries
+  both: the number, and the account's own **List your property** page
+  (`/list?ref=…`, on the brokerage's subdomain when it has one), which
+  takes the details, the photos and a PDF brochure in one form and
+  verifies the sender's number on WhatsApp at the end. An agent sitting
+  on a deck will usually take that one. The message also now says what
+  answering it buys them — the property gets a page of its own, goes out
+  to the buyers already looking for exactly it, and is ready for the
+  portals — before the existing promise of updates on enquiries, visits
+  and offers. It still goes from the agent's own WhatsApp, which is
+  where a first conversation with an owner actually happens. Accounts
+  writing their own wording get a `{{listing_link}}` placeholder. The
+  action now sits on the contact **row menu** as well as the contact
+  page, on web and mobile alike, so a list of owners can be worked
+  through without opening each one. `docs/property-intake-consolidation.md`
+  audits all six ways a property can get into the Engine and records why
+  this page is the one to hand to anyone outside the brokerage.
+
 - **Hot leads no longer go quiet unnoticed** (**migration required**:
   `272_follow_up_nudges.sql`). A ₹5-10 Cr portal lead enquired on two
   listings, asked "is the price negotiable", said "we can talk
@@ -156,6 +176,21 @@ and polish.
   floor_tenancies, and the brochure stays attached to the property.
 
 ### Fixed
+
+- **A rental no longer advertises a 1200% yield** (**migration
+  required**: `278_clear_rental_listing_yield.sql`). PROP-1205, a J. P.
+  Nagar office at ₹15.5 L/month, read "₹15.5 L/mo · 1200% yield" on its
+  detail screen. Every writer computed the yield as annual rent over
+  `price` — but a Rent or Built to Suit listing stores the _monthly_
+  rent in `price`, so the sum divided a year of rent by a month of it,
+  and a JV/JD deal has no asking price to divide by at all. Yield now
+  comes from one rule (`src/lib/inventory/rental-yield.ts`), applies to
+  sales only, and is derived server-side on every write rather than
+  taken from the client — so the form, the API, the WhatsApp intake
+  parser, the inventory card and the mobile detail screen cannot
+  disagree. The ROI box disappears from the property form for listings
+  that cannot have one, and the migration clears the figures already
+  stored.
 
 - **The ladder no longer re-sends a shortlist the lead is already
   looking at.** A buyer answered a one-listing shortlist with "Looking

@@ -313,6 +313,47 @@ describe('buildOwnerDetailsRequestMessage', () => {
     expect(message).toContain('our business number keeps you posted');
   });
 
+  // The second route: whoever would rather fill a form once than type a
+  // listing into a chat — an agent sitting on a brochure, usually.
+  it('offers the public listing page alongside the office number', () => {
+    const message = buildOwnerDetailsRequestMessage({
+      ...nadeem,
+      listingLink: 'https://aryavartaventures.convoreal.com/list?ref=acc-1',
+    });
+    expect(message).toContain('our office WhatsApp');
+    expect(message).toContain(
+      'https://aryavartaventures.convoreal.com/list?ref=acc-1'
+    );
+    expect(message).toContain(
+      'photos and the brochure upload straight into it'
+    );
+  });
+
+  it('offers the page even when no office number is connected', () => {
+    const message = buildOwnerDetailsRequestMessage({
+      ...nadeem,
+      engineLink: null,
+      listingLink: 'https://convoreal.com/list?ref=acc-1',
+    });
+    expect(message).toContain('https://convoreal.com/list?ref=acc-1');
+    expect(message).toContain('right here');
+  });
+
+  it('says nothing about a page the account does not have', () => {
+    const message = buildOwnerDetailsRequestMessage(nadeem);
+    expect(message).not.toContain('/list?ref=');
+    expect(message).not.toContain('fill it in once');
+  });
+
+  // What the seller or agent gets out of answering — the reason they
+  // bother at all.
+  it('says what listing it does for them', () => {
+    const message = buildOwnerDetailsRequestMessage(nadeem);
+    expect(message).toContain('*Why this is worth the ten minutes*');
+    expect(message).toContain('a page of its own');
+    expect(message).toContain('portals');
+  });
+
   it('promises the updates the owner digest actually sends', () => {
     const message = buildOwnerDetailsRequestMessage(nadeem);
     expect(message).toContain('enquires');

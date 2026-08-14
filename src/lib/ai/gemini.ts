@@ -915,11 +915,7 @@ export async function parseListingFromImageOrText(
       floor_tenancies: sanitizeFloorTenancies(parsed.floor_tenancies)
     };
 
-    const derived = applyListingDerivations(draft, text);
-    if (derived.rental_income && derived.price) {
-      derived.roi = Number(((derived.rental_income * 12) / derived.price * 100).toFixed(2));
-    }
-    return derived;
+    return applyListingDerivations(draft, text);
   } catch (err) {
     console.error("[Gemini AI] Error parsing listing details:", err);
     throw err;
@@ -990,15 +986,7 @@ export async function updateListingDraft(
       images: currentDraft.images || []
     };
 
-    const derived = applyListingDerivations(updatedDraft, updateRequest, currentDraft);
-
-    if (derived.rental_income && derived.price) {
-      derived.roi = Number(((derived.rental_income * 12) / derived.price * 100).toFixed(2));
-    } else {
-      derived.roi = null;
-    }
-
-    return derived;
+    return applyListingDerivations(updatedDraft, updateRequest, currentDraft);
   } catch (err) {
     console.error("[Gemini AI] Error updating draft:", err);
     return currentDraft; // Return unchanged on error
