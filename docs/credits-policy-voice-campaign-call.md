@@ -90,8 +90,10 @@ Every credit-charging control states its price **before** the user
 commits:
 
 - Web: the create-campaign dialog and the Voice Calls tab InfoHint
-  both read the price from `AI_FEATURE_COSTS` — "Costs 25 cr per
-  connected call; unanswered attempts are refunded automatically."
-- Mobile: the create sheet shows the same line, priced from
-  `GET /api/config` (`ai_costs`) so it can never drift from what is
-  burned.
+  both price from `voiceCallCost(mode)` — "Costs 250 cr per connected
+  call; unanswered attempts are refunded automatically." Starting a
+  campaign restates it as the trade above, for the number of calls
+  actually queued.
+- Mobile: the create sheet and the campaign screen show the same
+  figures, priced from `GET /api/config` (`ai_costs`) and the
+  account's mode, so neither can drift from what is burned.
