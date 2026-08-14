@@ -121,3 +121,13 @@ To build the definitive, WhatsApp-first Engine for independent real estate agenc
 ### Deferred: portal posting on mobile
 *A §2.8 gap, stated rather than silent.*
 - [ ] **Portal ad ids on mobile** (`src/components/inventory/portal-post-dialog.tsx`, the `99 / MB / H` badges in `src/components/inventory/property-list.tsx`): recording where a listing is advertised, and the portal's own ad id for it, ships on web only. Mobile has no portal surface at all — posting is a copy-paste flow into the portals' own web forms, assisted by the Chrome extension, so the dialog grew where the work happens. What *is* at parity is the part that matters for lead accuracy: the unmapped-ads queue and the one-tap assertion from a lead both run on the phone (`mobile/components/unmapped-portal-ads.tsx`), reading the same `unmapped_portal_ads` and `POST /api/contacts/[id]/portal-link`. So an agent can map every ad from mobile; they just cannot see or edit the ad id from the listing itself. Closing it means a read-only portal section on the mobile property screen, plus the ad-id editor.
+
+---
+
+### Deferred: follow-up radar, layers 2 and 3
+
+*The shipped slice (auto-heat + the daily WhatsApp follow-up card, `src/lib/contacts/auto-heat.ts` and `src/lib/contacts/follow-up-nudges.ts`) covers detection and the agency-side reminder. What it deliberately does not do yet:*
+
+- [ ] **Commitment capture**: a lead's own callback promise ("we can talk whenever", "will call you Monday") should create a follow-up to-do with a parsed due date — the machinery exists in `handleClientFollowupReply` and `event-parse.ts`, it is just never triggered from an inbound lead message. Until then such a lead is only caught by the generic 48h-silence radar.
+- [ ] **Automatic client check-ins**: today the bot only messages the lead when the agent taps 💬 Check in on the card. A per-account opt-in could let the radar check in on its own after N quiet days, under the same caps (one per lead per week, stop after two unanswered, honours STOP).
+- [ ] **Escalation to the owner**: a card the assigned agent leaves untouched for 48h should notify the account owner. Needs per-card action tracking on `follow_up_nudges`.

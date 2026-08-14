@@ -138,10 +138,13 @@ export interface QuietHotLead {
  * working the list, not scrolling it.
  */
 export async function loadHotGoingQuiet(db: DB): Promise<QuietHotLead[]> {
+  // pending_review included on purpose: the webhook's property matcher
+  // sets it on every enquiry, and an enquiring lead is exactly who this
+  // panel exists for.
   const { data, error } = await db
     .from('contacts')
     .select('*')
-    .eq('status', 'active')
+    .in('status', ['active', 'pending_review'])
     .eq('lead_temp', 'HOT')
   if (error) throw error
 

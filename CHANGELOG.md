@@ -13,6 +13,26 @@ and polish.
 
 ### Added
 
+- **Hot leads no longer go quiet unnoticed** (**migration required**:
+  `272_follow_up_nudges.sql`). A ₹5-10 Cr portal lead enquired on two
+  listings, asked "is the price negotiable", said "we can talk
+  whenever" — and went six days unanswered, because the HOT-going-quiet
+  panel on /today only watches leads someone remembered to mark HOT,
+  and only on the days someone opens /today. Two changes close that.
+  The webhook now sets `lead_temp = HOT` itself when a lead's own words
+  show heat — a deliberate enquiry (property code in the message), a
+  price/negotiation question, or site-visit intent — never overwriting
+  a temperature an agent set by hand. And a daily cron
+  (`/api/cron/follow-up-nudges`, 04:15 UTC) cards the routed agent on
+  WhatsApp about each HOT lead silent for 48h+: lead, listing, days
+  quiet, with **💬 Check in** (the bot nudges the lead — free-form
+  inside their 24-hour window, the approved `enquiry_checkin_notice`
+  template outside it), **⏰ Snooze 3 days** and **❄️ Mark cold**.
+  Per-lead state in `follow_up_nudges` caps the radar at one card per
+  lead per week, capped at three cards per account per day. The /today
+  panel also now includes `pending_review` leads, which every enquiry
+  produces by design.
+
 - **A buyer asking for photos now gets the photos.** "Sir can I get
   images  images", sent moments after a listing was shared, was answered
   with "What kind of property are you looking for?" — the message is not
