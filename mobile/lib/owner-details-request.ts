@@ -19,7 +19,9 @@
 //      thread the whole team can see, and — because the link pre-fills
 //      START UPDATES — records digest consent in the same tap. Without
 //      it, the promise of updates in the closing block is not one the
-//      Engine can keep.
+//      Engine can keep. The account's public /list page rides alongside
+//      it for whoever would rather fill a form once — an agent with a
+//      deck, usually — and lands in the same pending-review queue.
 //   3. THE FIRST ASK IS THE MINIMUM. No title deed, no khata, no
 //      encumbrance certificate. Documents change hands after a buyer is
 //      finalised and the token is paid; asking for them in the opening
@@ -342,6 +344,12 @@ export interface OwnerDetailsRequestInput {
   /** From ownerHandoverLink(). Absent — no number connected yet — drops
    *  the one-tap link and asks them to reply here instead. */
   engineLink?: string | null;
+  /** The account's public "List your property" page, `/list?ref=<account>`
+   *  (see /api/owners/details-request/settings). Offered alongside the
+   *  office number for whoever would rather fill a form once than type
+   *  a listing into a chat — an agent with a deck, most often. Absent
+   *  drops the option rather than linking a page that will not resolve. */
+  listingLink?: string | null;
   /** The account's own wording, with {{placeholders}}. Null composes
    *  the built-in message below. */
   bodyTemplate?: string | null;
@@ -358,6 +366,7 @@ export const OWNER_DETAILS_PLACEHOLDERS = [
   'property',
   'checklist',
   'engine_link',
+  'listing_link',
   'agent_name',
   'agent_phone',
   'brand_name',
@@ -394,22 +403,41 @@ function signOff(input: OwnerDetailsRequestInput): string {
  */
 function handover(input: OwnerDetailsRequestInput): string {
   const link = input.engineLink?.trim();
+  const listing = input.listingLink?.trim();
+  const form = listing
+    ? [
+        'Or fill it in once on this page — photos and the brochure upload straight into it, and you confirm your number on WhatsApp at the end:',
+        listing,
+      ].join('\n')
+    : '';
+
   if (!link) {
-    return 'You can send all of it right here — photos, voice notes, whatever is easiest.';
+    return [
+      'You can send all of it right here — photos, voice notes, whatever is easiest.',
+      form,
+    ]
+      .filter(Boolean)
+      .join('\n\n');
   }
   return [
-    'Please send these across on our office WhatsApp, so the whole team can act on it instead of it sitting on one phone:',
-    link,
-    'One tap opens the chat — photos, voice notes, whatever is easiest.',
-  ].join('\n');
+    [
+      'Please send these across on our office WhatsApp, so the whole team can act on it instead of it sitting on one phone:',
+      link,
+      'One tap opens the chat — photos, voice notes, whatever is easiest.',
+    ].join('\n'),
+    form,
+  ]
+    .filter(Boolean)
+    .join('\n\n');
 }
 
 function updatesBlock(engineLink?: string | null): string {
   return [
-    '*What you get back from that number*',
+    '*Why this is worth the ten minutes*',
+    'The moment these details are in, the property gets a page of its own, goes out to the buyers already looking for exactly it, and is ready to post on the portals — instead of being retyped by hand every time someone asks.',
     engineLink
-      ? 'From the moment your property is live, it keeps you posted. You will not have to call and ask:'
-      : 'From the moment your property is live, our business number keeps you posted. You will not have to call and ask:',
+      ? 'And from then on it keeps you posted. You will not have to call and ask:'
+      : 'And from then on our business number keeps you posted. You will not have to call and ask:',
     '• Every buyer who enquires about it',
     '• Buyers we shortlist and take it to',
     '• Site visits — scheduled, and how each one went',
@@ -470,6 +498,7 @@ export function buildOwnerDetailsRequestMessage(
       property: input.propertyLabel?.trim() || 'your property',
       checklist,
       engine_link: input.engineLink?.trim() ?? '',
+      listing_link: input.listingLink?.trim() ?? '',
       agent_name: input.agentName?.trim() ?? '',
       agent_phone: input.agentPhone?.trim() ?? '',
       brand_name: input.brandName?.trim() ?? '',

@@ -41,6 +41,9 @@ interface EngineNumber {
 interface DetailsRequestSettings {
   sections: OwnerDetailsSection[];
   body_template: string | null;
+  /** The account's public /list page, or null when no public number is
+   *  set up to verify a submission. */
+  listing_link: string | null;
 }
 
 interface OwnedProperty {
@@ -181,6 +184,7 @@ export function OwnerDetailsRequestSheet({
         agentPhone: identityQuery.data?.phone,
         brandName: identityQuery.data?.account?.name,
         engineLink,
+        listingLink: settingsQuery.data?.listing_link,
         bodyTemplate: settingsQuery.data?.body_template,
         now: new Date(),
       }),

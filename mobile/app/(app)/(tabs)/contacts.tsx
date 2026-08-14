@@ -25,6 +25,7 @@ import { EnterRow, PressScale, PulseRing } from '@/components/motion';
 import { ContextMenu } from '@/components/context-menu';
 import { ContactFiltersSheet } from '@/components/contact-filters-sheet';
 import { InterestFilterSheet } from '@/components/interest-filter-sheet';
+import { OwnerDetailsRequestSheet } from '@/components/owner-details-request-sheet';
 import { BottomSheet, sheetScrollArea } from '@/components/sheet';
 import { TourTarget } from '@/components/copilot-tour';
 import {
@@ -508,6 +509,11 @@ export default function ContactsScreen() {
     x: number;
     y: number;
   } | null>(null);
+  // The first ask, straight off the row — web parity with the contacts
+  // table's row menu, so the list is workable without opening each
+  // contact.
+  const [detailsRequestContact, setDetailsRequestContact] =
+    useState<Contact | null>(null);
   // Approving flips the contact, drafts the details and sends them over
   // WhatsApp — several round-trips. The row confirms the tap straight
   // away and the send finishes in the background, so a queue of leads can
@@ -868,10 +874,22 @@ export default function ContactsScreen() {
                     }
                   },
                 },
+                {
+                  icon: 'clipboard-outline',
+                  label: 'Ask for property details',
+                  onPress: () => setDetailsRequestContact(waMenu.contact),
+                },
               ]
             : []
         }
       />
+      {detailsRequestContact && (
+        <OwnerDetailsRequestSheet
+          visible
+          onClose={() => setDetailsRequestContact(null)}
+          contact={detailsRequestContact}
+        />
+      )}
       <AppDialog {...dialogProps} />
       <AppDialog {...callLogProps} />
     </View>

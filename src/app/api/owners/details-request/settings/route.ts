@@ -9,6 +9,7 @@ import {
   OWNER_DETAILS_SECTIONS,
   type OwnerDetailsSection,
 } from '@/lib/owners/details-request';
+import { publicListingIntakeUrl } from '@/lib/inventory/listing-intake';
 
 // GET/PUT /api/owners/details-request/settings
 //
@@ -28,18 +29,42 @@ export async function GET() {
   try {
     const ctx = await requireRole('agent');
 
-    const { data, error } = await ctx.supabase
-      .from('owner_details_request_settings')
-      .select('sections, body_template, updated_at')
-      .eq('account_id', ctx.accountId)
-      .maybeSingle();
-    if (error) throw error;
+    const [settings, showcase] = await Promise.all([
+      ctx.supabase
+        .from('owner_details_request_settings')
+        .select('sections, body_template, updated_at')
+        .eq('account_id', ctx.accountId)
+        .maybeSingle(),
+      ctx.supabase
+        .from('showcase_settings')
+        .select('subdomain, contact_phone')
+        .eq('account_id', ctx.accountId)
+        .maybeSingle(),
+    ]);
+    if (settings.error) throw settings.error;
+    const data = settings.data;
+
+    // The self-serve half of the ask, built here so the dialog and the
+    // mobile sheet cannot assemble different URLs. The page hands the
+    // submission to the same WhatsApp verification the office number
+    // uses, so an account with no public number has nothing to link to.
+    const contactPhone = (
+      (showcase.data?.contact_phone as string | null) ?? ''
+    ).replace(/\D/g, '');
+    const listingLink = contactPhone
+      ? publicListingIntakeUrl(
+          process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000',
+          (showcase.data?.subdomain as string | null) ?? null,
+          ctx.accountId
+        )
+      : null;
 
     return NextResponse.json({
       data: {
         sections: (data?.sections as string[] | null) ?? [],
         body_template: (data?.body_template as string | null) ?? null,
         updated_at: (data?.updated_at as string | null) ?? null,
+        listing_link: listingLink,
       },
     });
   } catch (err) {

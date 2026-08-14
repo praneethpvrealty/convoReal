@@ -53,6 +53,10 @@ import {
   gateSummary,
 } from '@/lib/inventory/gate-stats';
 import {
+  MONTHLY_PRICED_LISTING_TYPES,
+  rentalYieldPercent,
+} from '@/lib/inventory/rental-yield';
+import {
   FLOW_CHECKBOX_MAX_ITEMS,
   PROPERTY_INTEREST_FLOW_IDS,
   PROPERTY_INTEREST_OPTIONS,
@@ -503,15 +507,13 @@ describe('mobile/lib/photo-sources.ts mirrors photo-sources', () => {
   // about the listing they are about to pitch.
   it('withholds photos with the same wording', () => {
     expect(source).toContain(
-      '`${withheld} photo${withheld === 1 ? \'\' : \'s\'} · confidential`'
+      "`${withheld} photo${withheld === 1 ? '' : 's'} · confidential`"
     );
     expect(source).toContain("'No photos uploaded'");
   });
 
   it('applies the same guard before labelling', () => {
-    expect(source).toContain(
-      'internalPhotoCount(p) > 0 || withheld <= 0'
-    );
+    expect(source).toContain('internalPhotoCount(p) > 0 || withheld <= 0');
   });
 });
 
@@ -560,6 +562,40 @@ describe('mobile/lib/gate-stats.ts mirrors gate-stats', () => {
       expect(source).toContain(`'${gateRequestStatusLabel(status)}'`);
     }
   );
+});
+
+describe('mobile/lib/rental-yield.ts mirrors rental-yield', () => {
+  // A rental's price is its monthly rent, so the naive sum reads 1200%.
+  // The two surfaces showing a different yield for the same listing is
+  // the drift that produced PROP-1205 in the first place.
+  const source = mobileSource('lib/rental-yield.ts');
+
+  it.each([
+    ['Sale', 30_000_000, 150_000],
+    ['Rent', 1_548_000, 1_548_000],
+    ['Built to Suit', 1_548_000, 1_548_000],
+    ['JV/JD', 30_000_000, 150_000],
+    [null, 13_500_000, 62_000],
+  ] as const)('agrees on %s', (listingType, price, rentalIncome) => {
+    // The mobile copy is text here, so the shape is asserted rather than
+    // executed: same excluded types, same formula, same rounding.
+    expect(rentalYieldPercent(listingType, price, rentalIncome)).toBe(
+      listingType === 'Sale' || listingType === null
+        ? Number((((rentalIncome * 12) / price) * 100).toFixed(2))
+        : null
+    );
+  });
+
+  it('excludes the same listing types', () => {
+    for (const type of MONTHLY_PRICED_LISTING_TYPES) {
+      expect(source).toContain(`'${type}'`);
+    }
+    expect(source).toContain("return value === 'Sale'");
+  });
+
+  it('uses the same formula and rounding', () => {
+    expect(source).toContain('(((r * 12) / p) * 100).toFixed(2)');
+  });
 });
 
 describe('mobile/lib/format.ts mirrors priceInWords', () => {

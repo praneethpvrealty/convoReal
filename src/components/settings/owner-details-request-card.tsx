@@ -49,6 +49,7 @@ export function OwnerDetailsRequestCard() {
   const [saving, setSaving] = useState(false);
   const [sections, setSections] = useState<OwnerDetailsSection[]>([]);
   const [bodyTemplate, setBodyTemplate] = useState('');
+  const [listingLink, setListingLink] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -57,10 +58,15 @@ export function OwnerDetailsRequestCard() {
       .then((json) => {
         if (cancelled) return;
         const data = json?.data as
-          | { sections?: OwnerDetailsSection[]; body_template?: string | null }
+          | {
+              sections?: OwnerDetailsSection[];
+              body_template?: string | null;
+              listing_link?: string | null;
+            }
           | undefined;
         setSections(data?.sections ?? []);
         setBodyTemplate(data?.body_template ?? '');
+        setListingLink(data?.listing_link ?? null);
       })
       .catch(() => {
         if (!cancelled) toast.error('Could not load the details request');
@@ -89,10 +95,11 @@ export function OwnerDetailsRequestCard() {
         agentPhone: '+91 90000 00000',
         brandName: 'your brokerage',
         engineLink: ownerHandoverLink(SAMPLE_ENGINE),
+        listingLink,
         bodyTemplate: bodyTemplate.trim() || null,
         now: new Date(),
       }),
-    [effectiveSections, bodyTemplate]
+    [effectiveSections, bodyTemplate, listingLink]
   );
 
   function toggleSection(section: OwnerDetailsSection) {
@@ -204,7 +211,10 @@ export function OwnerDetailsRequestCard() {
                 Keep <code className="text-slate-400">{'{{checklist}}'}</code>{' '}
                 so the questions still follow the property type, and{' '}
                 <code className="text-slate-400">{'{{engine_link}}'}</code> so
-                the owner can still reach your office number in one tap.
+                the owner can still reach your office number in one tap. Add{' '}
+                <code className="text-slate-400">{'{{listing_link}}'}</code> to
+                offer your public listing page as well — the form route, which
+                an agent sitting on a brochure will usually prefer.
               </p>
             </div>
 

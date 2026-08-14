@@ -107,6 +107,7 @@ import {
   isApartmentType,
 } from '@/lib/inventory/property-options';
 import { isGuardedType, isLocationGuarded } from '@/lib/inventory/location-guard';
+import { rentalYieldPercent, yieldApplies } from '@/lib/inventory/rental-yield';
 import { contactHandle, hasPhone } from '@/lib/contacts/reachability';
 
 interface PropertyFormProps {
@@ -407,12 +408,13 @@ export function PropertyForm({
 
   const [localitiesDb, setLocalitiesDb] = useState<{ detailed: string[] } | null>(null);
   const [rentalIncome, setRentalIncome] = useState('');
-  const roiValue = useMemo(() => {
-    const p = Number(price);
-    const r = Number(rentalIncome);
-    if (!p || !r || isNaN(p) || isNaN(r) || p <= 0) return null;
-    return Number(((r * 12) / p * 100).toFixed(2));
-  }, [price, rentalIncome]);
+  // A rental's price is its monthly rent, so it has no yield to show —
+  // see src/lib/inventory/rental-yield.ts. The API derives the stored
+  // figure the same way; this is only what the form previews.
+  const roiValue = useMemo(
+    () => rentalYieldPercent(listingType, Number(price), Number(rentalIncome)),
+    [listingType, price, rentalIncome]
+  );
 
   // Floor-wise tenancy (rent roll) for pre-leased commercial buildings
   // under sale — string drafts of lib/inventory/floor-tenancies rows.
@@ -2399,7 +2401,6 @@ export function PropertyForm({
         location_privacy: locationPrivacy || null,
         showcase_visibility: showcaseVisibility || null,
         rental_income: hasCommercialFields && rentalIncome.trim() !== '' ? Number(rentalIncome) : null,
-        roi: hasCommercialFields && roiValue !== null ? roiValue : null,
         // Server-side sanitizeFloorTenancies() drops empty rows and
         // re-validates every value.
         floor_tenancies: hasCommercialFields
@@ -4533,18 +4534,20 @@ export function PropertyForm({
                           <PriceHint value={rentalIncome} />
                         </div>
 
-                        <div className="space-y-1.5">
-                          <Label htmlFor="prop-roi" className="text-slate-300">
-                            ROI (Return on Investment)
-                          </Label>
-                          <Input
-                            id="prop-roi"
-                            type="text"
-                            value={roiValue !== null ? `${roiValue}%` : 'calculated automatically'}
-                            readOnly
-                            className="bg-slate-850 border-slate-800 text-primary font-medium h-9 cursor-not-allowed"
-                          />
-                        </div>
+                        {yieldApplies(listingType) && (
+                          <div className="space-y-1.5">
+                            <Label htmlFor="prop-roi" className="text-slate-300">
+                              ROI (Return on Investment)
+                            </Label>
+                            <Input
+                              id="prop-roi"
+                              type="text"
+                              value={roiValue !== null ? `${roiValue}%` : 'calculated automatically'}
+                              readOnly
+                              className="bg-slate-850 border-slate-800 text-primary font-medium h-9 cursor-not-allowed"
+                            />
+                          </div>
+                        )}
                       </>
                     )}
                   </div>

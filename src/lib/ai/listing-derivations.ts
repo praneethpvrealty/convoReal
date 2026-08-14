@@ -11,6 +11,7 @@
 
 import type { ParsedPropertyDraft } from '@/lib/ai/gemini';
 import { canonicalAreaUnit, toSquareFeet } from '@/lib/area-units';
+import { rentalYieldPercent } from '@/lib/inventory/rental-yield';
 
 export { canonicalAreaUnit, toSquareFeet };
 
@@ -256,6 +257,11 @@ export function applyListingDerivations(
       next.price_from_rate = false;
     }
   }
+
+  // Last, so it reads the price this function settled on rather than the
+  // one the model guessed — and so a draft that turned out to be a
+  // rental loses the yield the previous pass gave it.
+  next.roi = rentalYieldPercent(next.listing_type, next.price, next.rental_income);
 
   return next;
 }

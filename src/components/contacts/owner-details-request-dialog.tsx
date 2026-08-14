@@ -15,6 +15,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/hooks/use-auth';
 import { useCan } from '@/hooks/use-can';
+import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
 import {
   ClipboardList,
@@ -40,10 +41,17 @@ interface OwnerDetailsRequestDialogProps {
   contactId: string;
   contactName: string;
   contactPhone: string;
-  /** The properties this contact is the owner of. Empty is fine — the
-   *  request then reads "your property". */
+  /** The properties this contact is the owner of, when the caller is
+   *  already holding them. Omitted — the contacts list, which holds
+   *  rows not listings — they are fetched here instead, the way the
+   *  mobile sheet does. */
   properties?: Property[];
 }
+
+type OwnedProperty = Pick<
+  Property,
+  'id' | 'title' | 'type' | 'sublocality' | 'city'
+>;
 
 interface EngineNumber {
   phone: string;
@@ -54,6 +62,9 @@ interface EngineNumber {
 interface DetailsRequestSettings {
   sections: OwnerDetailsSection[];
   body_template: string | null;
+  /** The account's public /list page, or null when no public number is
+   *  set up to verify a submission. */
+  listing_link: string | null;
 }
 
 /**
@@ -76,10 +87,25 @@ export function OwnerDetailsRequestDialog({
   contactId,
   contactName,
   contactPhone,
-  properties = [],
+  properties: givenProperties,
 }: OwnerDetailsRequestDialogProps) {
   const { profile, account } = useAuth();
   const canSend = useCan('send-messages');
+
+  const ownedQuery = useQuery({
+    queryKey: ['owned-properties', contactId],
+    enabled: open && givenProperties === undefined,
+    staleTime: 60 * 1000,
+    queryFn: async (): Promise<OwnedProperty[]> => {
+      const { data } = await createClient()
+        .from('properties')
+        .select('id, title, type, sublocality, city')
+        .eq('owner_contact_id', contactId)
+        .order('created_at', { ascending: false });
+      return (data ?? []) as OwnedProperty[];
+    },
+  });
+  const properties: OwnedProperty[] = givenProperties ?? ownedQuery.data ?? [];
 
   // The connected number rarely changes, so it is cached across every
   // contact the agent opens. A failure is not fatal: the message drops
@@ -153,6 +179,7 @@ export function OwnerDetailsRequestDialog({
         agentPhone: profile?.phone,
         brandName: account?.name,
         engineLink,
+        listingLink: settingsQuery.data?.listing_link,
         bodyTemplate: settingsQuery.data?.body_template,
         now: new Date(),
       }),
@@ -338,6 +365,9 @@ export function OwnerDetailsRequestDialog({
               {engineLink
                 ? 'Keep the office WhatsApp link — their tap on it is what opens the thread and switches their updates on.'
                 : 'No number is connected yet, so the message asks them to reply where they are. Connect one in Settings → WhatsApp to hand them over.'}
+              {settingsQuery.data?.listing_link
+                ? ' The listing page below it is the same ask as a form — an agent with a brochure will usually take that one.'
+                : ''}
             </p>
           </div>
 

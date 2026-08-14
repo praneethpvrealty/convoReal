@@ -43,6 +43,7 @@ import {
   type MatchChipTone,
 } from '@/lib/match-chips';
 import { fetchPropertyMatches } from '@/lib/property-matches';
+import { rentalYieldPercent } from '@/lib/rental-yield';
 import { PropertyDocuments } from '@/components/property-documents';
 import { useAuthStore } from '@/lib/auth-store';
 import { queryClient } from '@/lib/query';
@@ -215,10 +216,11 @@ export default function PropertyDetailScreen() {
     typeof property.rental_income === 'number' && property.rental_income > 0
       ? property.rental_income
       : null;
-  const yieldPct =
-    rentalIncome && property.price
-      ? Math.round(((rentalIncome * 12) / property.price) * 1000) / 10
-      : null;
+  const yieldPct = rentalYieldPercent(
+    property.listing_type,
+    property.price,
+    rentalIncome
+  );
   // Web parity: "Listing Metadata" key/value rows, all conditional.
   const metadata = [
     property.super_built_area
