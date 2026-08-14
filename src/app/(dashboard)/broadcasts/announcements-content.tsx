@@ -73,6 +73,7 @@ function countsSummary(counts: Partial<AnnouncementSendCounts>): string | null {
   const parts: string[] = [];
   if (counts.audio) parts.push(`${counts.audio} voice`);
   if (counts.text) parts.push(`${counts.text} text`);
+  if (counts.video_template) parts.push(`${counts.video_template} video`);
   if (counts.skipped_window)
     parts.push(`${counts.skipped_window} outside window`);
   if (counts.skipped_voice_pref)

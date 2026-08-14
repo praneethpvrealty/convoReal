@@ -21,6 +21,9 @@ import type { NarrationLanguage } from '@/lib/video/listing-video';
  */
 
 const FFMPEG = process.env.FFMPEG_PATH || 'ffmpeg';
+const FONT =
+  process.env.VIDEO_FONT_PATH ||
+  '/usr/share/fonts/ttf-dejavu/DejaVuSans-Bold.ttf';
 const SARVAM_API_KEY = process.env.SARVAM_API_KEY || '';
 const SARVAM_API_BASE = process.env.SARVAM_API_BASE || 'https://api.sarvam.ai';
 
@@ -142,7 +145,7 @@ export async function processAnnouncementAudioJob(
   const admin = supabaseAdmin();
   const { data: announcement } = await admin
     .from('voice_announcements')
-    .select('id, account_id, body_text, language, status')
+    .select('id, account_id, title, body_text, language, status')
     .eq('id', job.announcementId)
     .eq('account_id', job.accountId)
     .maybeSingle();
@@ -187,9 +190,76 @@ export async function processAnnouncementAudioJob(
       .from('announcements')
       .getPublicUrl(storagePath);
 
+    // The same narration packaged as an mp4 (branded still + audio) so
+    // a VIDEO-header template can carry it to contacts outside the
+    // 24-hour window — Meta has no audio template format. Best-effort:
+    // an announcement without a video is still ready, just window-bound.
+    let videoUrl: string | null = null;
+    try {
+      const titleFile = path.join(workDir, 'title.txt');
+      fs.writeFileSync(titleFile, announcement.title || 'Announcement');
+      const card = path.join(workDir, 'card.png');
+      run(FFMPEG, [
+        '-f',
+        'lavfi',
+        '-i',
+        'color=c=0x0f172a:s=720x720',
+        '-vf',
+        `drawtext=fontfile=${FONT}:textfile=${titleFile}:fontcolor=white:fontsize=42:x=(w-text_w)/2:y=(h-text_h)/2`,
+        '-frames:v',
+        '1',
+        '-y',
+        card,
+      ]);
+      const mp4 = path.join(workDir, 'announcement.mp4');
+      run(FFMPEG, [
+        '-loop',
+        '1',
+        '-i',
+        card,
+        '-i',
+        ogg,
+        '-c:v',
+        'libx264',
+        '-tune',
+        'stillimage',
+        '-pix_fmt',
+        'yuv420p',
+        '-c:a',
+        'aac',
+        '-b:a',
+        '96k',
+        '-shortest',
+        '-movflags',
+        '+faststart',
+        '-y',
+        mp4,
+      ]);
+      const videoPath = `${announcement.account_id}/${announcement.id}.mp4`;
+      const { error: vidErr } = await admin.storage
+        .from('announcements')
+        .upload(videoPath, fs.readFileSync(mp4), {
+          contentType: 'video/mp4',
+          upsert: true,
+        });
+      if (vidErr) throw new Error(vidErr.message);
+      videoUrl = admin.storage.from('announcements').getPublicUrl(videoPath)
+        .data.publicUrl;
+    } catch (videoErr) {
+      console.warn(
+        `[announcement-audio] Video packaging failed for ${announcement.id} (voice note still ready):`,
+        videoErr instanceof Error ? videoErr.message : videoErr
+      );
+    }
+
     await admin
       .from('voice_announcements')
-      .update({ status: 'ready', audio_url: pub.publicUrl, error: null })
+      .update({
+        status: 'ready',
+        audio_url: pub.publicUrl,
+        video_url: videoUrl,
+        error: null,
+      })
       .eq('id', announcement.id)
       .select('id');
   } catch (err) {

@@ -1119,6 +1119,7 @@ function ContactEditor({
   const [updateChannel, setUpdateChannel] = useState<UpdateChannelValue | null>(
     contact.preferred_update_channel ?? null
   );
+  const [askedChannel, setAskedChannel] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -1425,6 +1426,42 @@ function ContactEditor({
             How announcements and reminders reach them. Nothing selected lets
             each send pick its own default.
           </Text>
+          <Pressable
+            onPress={async () => {
+              try {
+                await apiFetch(
+                  `/api/contacts/${contact.id}/ask-update-channel`,
+                  {
+                    method: 'POST',
+                  }
+                );
+                haptic.success();
+                setAskedChannel(true);
+                setError(null);
+              } catch (err) {
+                haptic.warn();
+                setError(
+                  err instanceof Error
+                    ? friendlyError(err.message)
+                    : 'Failed to send'
+                );
+              }
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Ask them on WhatsApp"
+          >
+            <Text
+              style={{
+                fontSize: 12.5,
+                fontFamily: f.semibold,
+                color: colors.primary,
+              }}
+            >
+              {askedChannel
+                ? 'Asked ✓ — their tap sets it automatically'
+                : 'Ask them on WhatsApp instead →'}
+            </Text>
+          </Pressable>
         </View>
 
         {showPrefs ? (

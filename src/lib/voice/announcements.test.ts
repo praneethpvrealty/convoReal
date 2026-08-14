@@ -4,6 +4,9 @@ import {
   announcementDeliveryFor,
   emptySendCounts,
   isUpdateChannel,
+  parseUpdateChannelReplyId,
+  updateChannelConfirmation,
+  updateChannelReplyId,
 } from './announcements';
 
 describe('isUpdateChannel', () => {
@@ -48,6 +51,43 @@ describe('announcementDeliveryFor', () => {
     expect(announcementDeliveryFor(null, 'whatsapp_audio', true)).toBe('audio');
     expect(announcementDeliveryFor(null, 'whatsapp_text', true)).toBe('text');
   });
+
+  it('falls back to the video template for closed-window audio recipients', () => {
+    expect(announcementDeliveryFor(null, 'whatsapp_audio', false, true)).toBe(
+      'video_template'
+    );
+    expect(
+      announcementDeliveryFor('whatsapp_audio', 'whatsapp_text', false, true)
+    ).toBe('video_template');
+    // Text-channel recipients get no video; without the template nobody does.
+    expect(
+      announcementDeliveryFor('whatsapp_text', 'whatsapp_audio', false, true)
+    ).toBe('skipped_window');
+    expect(announcementDeliveryFor(null, 'whatsapp_audio', false, false)).toBe(
+      'skipped_window'
+    );
+  });
+});
+
+describe('update-channel reply ids', () => {
+  it('round-trips each channel and rejects everything else', () => {
+    expect(
+      parseUpdateChannelReplyId(updateChannelReplyId('whatsapp_audio'))
+    ).toBe('whatsapp_audio');
+    expect(parseUpdateChannelReplyId(updateChannelReplyId('voice_call'))).toBe(
+      'voice_call'
+    );
+    expect(parseUpdateChannelReplyId('updch:email')).toBeNull();
+    expect(parseUpdateChannelReplyId('enq_approve:123')).toBeNull();
+  });
+
+  it('confirms each channel in plain words', () => {
+    expect(updateChannelConfirmation('whatsapp_audio')).toContain(
+      'voice notes'
+    );
+    expect(updateChannelConfirmation('voice_call')).toContain('call');
+    expect(updateChannelConfirmation('whatsapp_text')).toContain('text');
+  });
 });
 
 describe('accumulateSendCounts', () => {
@@ -56,6 +96,7 @@ describe('accumulateSendCounts', () => {
     expect(accumulateSendCounts(null, run)).toEqual({
       audio: 2,
       text: 0,
+      video_template: 0,
       skipped_voice_pref: 0,
       skipped_window: 1,
       failed: 0,
@@ -63,6 +104,7 @@ describe('accumulateSendCounts', () => {
     expect(accumulateSendCounts({ audio: 3, text: 1 }, run)).toEqual({
       audio: 5,
       text: 1,
+      video_template: 0,
       skipped_voice_pref: 0,
       skipped_window: 1,
       failed: 0,

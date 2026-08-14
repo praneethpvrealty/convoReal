@@ -285,9 +285,29 @@ surfaces (§2.8): web as the "Announcements" tab on `/broadcasts`
 (`announcements-content.tsx` — create with language picker and price disclosure, generation
 status with inline audio preview, send dialog with recipient picker + default-channel
 choice, per-run result summaries, delete), mobile under More → Marketing
-(`mobile/app/(app)/announcements.tsx` — same flows; audio preview is web-only). Still open
-in this phase: the video-template path for closed windows (path 2 above), reminder/digest
-consumption of the preference, and WhatsApp reply-button capture of the preference.
+(`mobile/app/(app)/announcements.tsx` — same flows; audio preview is web-only).
+
+**Closed-window path (shipped).** The worker also packages every announcement as an mp4 —
+branded still card + the narration (migration 273 adds `video_url` and the video mime type to
+the bucket) — and the send loop falls back to the `audio_announcement_notice` VIDEO-header
+template (`src/lib/whatsapp/announcement-template.ts`, registered in `ENGINE_TEMPLATES` for
+one-tap submission from the Templates screen; review sample at
+`/brand/announcement-sample.mp4`). Submitted honestly as Marketing (§2.7). The fallback fires
+only for audio-channel recipients when the template is approved; sends are counted as
+`video_template`. Until the template is approved, closed-window recipients stay
+`skipped_window` — visible, never silent.
+
+**Reply-button capture (shipped).** `POST /api/contacts/[id]/ask-update-channel` sends the
+"How would you like updates?" reply buttons (open window required — buttons are free-form);
+the `updch:*` reply ids are registered control replies, and a tap stores the choice on the
+contact and confirms it in the thread (`src/lib/voice/update-channel-reply.ts`). Reachable
+from the contact form on web and the contact editor on mobile ("Ask them on WhatsApp").
+
+**Still open in this phase:** reminder/digest consumption of the preference. The `voice_call`
+half is blocked on Phase B (per-account voice config — reminder calls need an `agent_ref` and
+the campaign dispatcher has none outside a campaign); the `whatsapp_audio` half needs a
+per-reminder TTS job design (each reminder is unique text, so it cannot reuse one rendered
+note). Deliberately deferred rather than half-wired.
 
 ## 8. Phase E — voice preference intake → matching
 

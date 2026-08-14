@@ -14,6 +14,11 @@ import {
   isUpdateChannel,
   type UpdateChannel,
 } from '@/lib/voice/announcements';
+import {
+  ANNOUNCEMENT_TEMPLATE_NAMES,
+  buildAnnouncementParams,
+  pickAnnouncementTemplate,
+} from '@/lib/whatsapp/announcement-template';
 
 const MAX_BATCH = 100;
 const LOOKUP_CHUNK = 100;
@@ -62,7 +67,7 @@ export async function POST(
 
     const { data: announcement } = await ctx.supabase
       .from('voice_announcements')
-      .select('id, body_text, status, audio_url, sent_counts')
+      .select('id, body_text, status, audio_url, video_url, sent_counts')
       .eq('account_id', ctx.accountId)
       .eq('id', id)
       .maybeSingle();
@@ -82,9 +87,28 @@ export async function POST(
       );
     }
 
+    // The closed-window fallback: a VIDEO-header template carrying the
+    // packaged narration, available only when both the video and the
+    // approved template exist.
+    let announcementTemplate: Record<string, unknown> | null = null;
+    if (announcement.video_url) {
+      const { data: templateRows } = await ctx.supabase
+        .from('message_templates')
+        .select('*')
+        .eq('account_id', ctx.accountId)
+        .in('name', ANNOUNCEMENT_TEMPLATE_NAMES);
+      announcementTemplate = pickAnnouncementTemplate(
+        (templateRows ?? []) as { name: string; status?: string | null }[]
+      ) as Record<string, unknown> | null;
+    }
+    const videoTemplateAvailable = Boolean(
+      announcement.video_url && announcementTemplate
+    );
+
     // Chunked .in() — an unbounded id list travels in the URL (§2.6).
     const contacts: {
       id: string;
+      name: string | null;
       preferred_update_channel: string | null;
     }[] = [];
     const windows = new Map<string, string | null>();
@@ -92,7 +116,7 @@ export async function POST(
       const chunk = contactIds.slice(i, i + LOOKUP_CHUNK);
       const { data: rows } = await ctx.supabase
         .from('contacts')
-        .select('id, preferred_update_channel')
+        .select('id, name, preferred_update_channel')
         .eq('account_id', ctx.accountId)
         .in('id', chunk)
         .not('phone', 'is', null)
@@ -118,31 +142,49 @@ export async function POST(
       const delivery = announcementDeliveryFor(
         preference,
         senderDefault,
-        isWithinCustomerWindow(windows.get(contact.id))
+        isWithinCustomerWindow(windows.get(contact.id)),
+        videoTemplateAvailable
       );
       if (delivery === 'skipped_voice_pref' || delivery === 'skipped_window') {
         counts[delivery]++;
         continue;
       }
+      const base = {
+        accountId: ctx.accountId,
+        userId: ctx.userId,
+        contactId: contact.id,
+        senderType: 'user' as const,
+      };
       const result = await sendWhatsAppMessageAndPersist(
         delivery === 'audio'
           ? {
-              accountId: ctx.accountId,
-              userId: ctx.userId,
-              contactId: contact.id,
+              ...base,
               kind: 'media',
-              senderType: 'user',
               mediaKind: 'audio',
               mediaLink: announcement.audio_url,
             }
-          : {
-              accountId: ctx.accountId,
-              userId: ctx.userId,
-              contactId: contact.id,
-              kind: 'text',
-              senderType: 'user',
-              text: announcement.body_text,
-            }
+          : delivery === 'video_template'
+            ? {
+                ...base,
+                kind: 'template',
+                templateName: announcementTemplate!.name as string,
+                templateLanguage:
+                  (announcementTemplate!.language as string) || 'en_US',
+                templateParams: buildAnnouncementParams(
+                  contact.name,
+                  ctx.account.name
+                ),
+                messageParams: {
+                  body: buildAnnouncementParams(contact.name, ctx.account.name),
+                  headerMediaUrl: announcement.video_url,
+                },
+                templateRow: announcementTemplate,
+              }
+            : {
+                ...base,
+                kind: 'text',
+                text: announcement.body_text,
+              }
       );
       if (result.success) counts[delivery]++;
       else counts.failed++;
