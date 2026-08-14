@@ -231,9 +231,12 @@ budget), the provider-pluggable outbound-call client in `src/lib/voice/outbound-
 (`VOICE_CALLS_DRY_RUN` for end-to-end testing, `SARVAM_OUTBOUND_CALL_PATH` override until the
 GA API path is pinned), and the webhook writeback (`campaign_id` + `qualification` in the §4
 payload → recipient resolution, stated-budget/areas overwrite, Qualified / Budget Mismatch
-tags, `do_not_call`). The web UI ships as a "Voice Calls" tab on `/broadcasts` (list, create
-with enquiry seeding, activate/pause, recipient add/remove). Still open: the mobile campaigns
-UI (§2.8) and per-call credit gating.
+tags, `do_not_call`). The UI ships on both surfaces (§2.8): web as a "Voice Calls" tab on
+`/broadcasts`, mobile under More → Marketing (`voice-campaigns` list/create +
+`voice-campaign/[id]` detail, pure logic in `mobile/lib/voice-campaigns.ts`) — list, create
+with enquiry seeding, activate/pause, recipient add/remove and qualification results on both;
+editing an existing campaign's `agent_ref` stays web-only for now. Still open: per-call
+credit gating.
 
 ## 7. Phase D — audio announcements on WhatsApp + per-contact channel preference
 
