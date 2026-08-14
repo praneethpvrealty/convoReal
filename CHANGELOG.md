@@ -178,7 +178,7 @@ and polish.
 ### Fixed
 
 - **A rental no longer advertises a 1200% yield** (**migration
-  required**: `277_clear_rental_listing_yield.sql`). PROP-1205, a J. P.
+  required**: `278_clear_rental_listing_yield.sql`). PROP-1205, a J. P.
   Nagar office at ₹15.5 L/month, read "₹15.5 L/mo · 1200% yield" on its
   detail screen. Every writer computed the yield as annual rent over
   `price` — but a Rent or Built to Suit listing stores the _monthly_
