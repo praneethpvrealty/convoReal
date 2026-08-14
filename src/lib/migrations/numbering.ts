@@ -12,6 +12,15 @@
 export const KNOWN_DUPLICATE_PREFIXES: ReadonlySet<string> = new Set([
   "063", "073", "078", "092", "103", "110", "115", "126", "151", "154",
   "166", "173", "175", "179", "194", "195", "198", "200", "203", "204",
+  // 276 is the collision this guard cannot prevent on its own: #540
+  // (listing submission documents) and #539 (reminder audio) both took
+  // it, each went green while the other was still open, and the pair
+  // only met on main. A merge queue would have caught it, but GitHub's
+  // needs an organization-owned repository and this one is user-owned,
+  // so the trigger is inert (see AGENTS.md §12). Frozen rather than
+  // renumbered because both are already merged, and the two touch
+  // different tables — nothing depends on their order.
+  "276",
 ]);
 
 export function migrationPrefix(filename: string): string | null {
