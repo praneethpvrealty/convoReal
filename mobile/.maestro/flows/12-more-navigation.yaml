@@ -4,10 +4,11 @@ name: more-navigation
 - launchApp
 - tapOn:
     id: "tab-more"
-# Each menu row is a route that has to mount without throwing. The
-# pushed screen hides the menu, so waiting for the row to disappear is
-# what proves the navigation happened — several screens carry the same
-# title text as the row that opened them.
+# Each menu row is a route that has to mount without throwing. Waiting
+# for the row itself to disappear is what proves the push happened: a
+# text selector matches substrings, so asserting a screen title like
+# "Overview" would already be satisfied by the "Overview & stats" row
+# that opened it, and the flow would pass without navigating anywhere.
 - scrollUntilVisible:
     element:
       id: "menu-focus"
@@ -36,7 +37,8 @@ name: more-navigation
 - tapOn:
     id: "menu-dashboard"
 - extendedWaitUntil:
-    visible: "Overview"
+    notVisible:
+      id: "menu-dashboard"
     timeout: 20000
 - takeScreenshot: .maestro/shots/12-dashboard
 - back
@@ -47,7 +49,8 @@ name: more-navigation
 - tapOn:
     id: "menu-notifications"
 - extendedWaitUntil:
-    visible: "Notifications"
+    notVisible:
+      id: "menu-notifications"
     timeout: 20000
 - back
 - assertVisible:

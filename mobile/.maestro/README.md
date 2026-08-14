@@ -61,6 +61,24 @@ Screenshots land in `mobile/.maestro/shots/` (git-ignored). `01-login`
 clears app state and signs in; the later flows reuse that session, so run
 the suite in order — or run `01-login` first when running one flow alone.
 
+## Why the selectors are ids
+
+Two things make text selectors unreliable here, and both cost a red run
+before the rule was written down:
+
+- **iOS folds a pressable's text into its accessibility label.** The
+  calendar's jump button renders "Today" inside a `Pressable` labelled
+  "Jump to today", so the word "Today" is nowhere in the hierarchy.
+- **Maestro matches text as a substring.** `"Needs reply"` matches a
+  conversation row reading "Needs reply · 2h" as readily as the filter
+  chip, and `"Overview"` matches the "Overview & stats" menu row that
+  opens the Overview screen — which would assert a navigation that never
+  happened.
+
+Reach for a `testID`. Where a text selector is unavoidable, match the
+accessibility label rather than the rendered copy, and pick a string
+nothing else on screen contains.
+
 ## Simulator setup tip
 
 iOS pops a "Save Password?" sheet after the login form submits, which

@@ -8,5 +8,8 @@ name: calendar
     visible:
       id: "calendar-screen"
     timeout: 20000
-- assertVisible: "Today"
+# The month header's jump button, matched by its accessibility label:
+# iOS folds a Pressable's child text into the parent's label, so the
+# word it renders ("Today") is not in the hierarchy at all.
+- assertVisible: "Jump to today"
 - takeScreenshot: .maestro/shots/06-calendar
