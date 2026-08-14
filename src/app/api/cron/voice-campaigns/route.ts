@@ -65,7 +65,7 @@ export async function GET(request: Request) {
     const { data: campaigns } = await supabase
       .from('voice_campaigns')
       .select(
-        'id, account_id, sarvam_agent_id, script_context, call_window_start_hour, call_window_end_hour, max_attempts'
+        'id, account_id, agent_ref, script_context, call_window_start_hour, call_window_end_hour, max_attempts'
       )
       .eq('status', 'active')
       .limit(CAMPAIGNS_PER_RUN);
@@ -81,9 +81,9 @@ export async function GET(request: Request) {
       ) {
         continue;
       }
-      if (!campaign.sarvam_agent_id) {
+      if (!campaign.agent_ref) {
         console.warn(
-          `[voice-campaigns] Campaign ${campaign.id} is active without a sarvam_agent_id — skipping.`
+          `[voice-campaigns] Campaign ${campaign.id} is active without a agent_ref — skipping.`
         );
         continue;
       }
@@ -134,7 +134,7 @@ export async function GET(request: Request) {
             ? (campaign.script_context as Record<string, string>)
             : {};
         const result = await startOutboundCall({
-          agentId: campaign.sarvam_agent_id,
+          agentId: campaign.agent_ref,
           phone: contact.phone,
           context: { contact_name: contact.name ?? '', ...scriptContext },
         });

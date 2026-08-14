@@ -62,7 +62,7 @@ export async function PATCH(
     const { data: existing } = await ctx.supabase
       .from('voice_campaigns')
       .select(
-        'id, sarvam_agent_id, call_window_start_hour, call_window_end_hour'
+        'id, agent_ref, call_window_start_hour, call_window_end_hour'
       )
       .eq('account_id', ctx.accountId)
       .eq('id', id)
@@ -78,8 +78,8 @@ export async function PATCH(
     if (typeof body.name === 'string' && body.name.trim()) {
       patch.name = body.name.trim().slice(0, 200);
     }
-    if (typeof body.sarvam_agent_id === 'string') {
-      patch.sarvam_agent_id = body.sarvam_agent_id.trim() || null;
+    if (typeof body.agent_ref === 'string') {
+      patch.agent_ref = body.agent_ref.trim() || null;
     }
     if (body.call_window_start_hour !== undefined) {
       patch.call_window_start_hour = Number(body.call_window_start_hour);
@@ -130,10 +130,10 @@ export async function PATCH(
     }
     if (
       patch.status === 'active' &&
-      !(patch.sarvam_agent_id ?? existing.sarvam_agent_id)
+      !(patch.agent_ref ?? existing.agent_ref)
     ) {
       return NextResponse.json(
-        { error: 'Set the Sarvam agent id before activating this campaign' },
+        { error: 'Set the voice agent id before activating this campaign' },
         { status: 400 }
       );
     }
@@ -147,7 +147,7 @@ export async function PATCH(
       .eq('account_id', ctx.accountId)
       .eq('id', id)
       .select(
-        'id, name, status, sarvam_agent_id, call_window_start_hour, call_window_end_hour, max_attempts'
+        'id, name, status, agent_ref, call_window_start_hour, call_window_end_hour, max_attempts'
       )
       .single();
     if (error || !updated) {

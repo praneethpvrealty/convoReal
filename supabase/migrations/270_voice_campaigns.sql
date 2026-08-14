@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS voice_campaigns (
   created_by UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   property_id UUID REFERENCES properties(id) ON DELETE SET NULL,
   name TEXT NOT NULL,
-  sarvam_agent_id TEXT,
+  agent_ref TEXT,
   script_context JSONB NOT NULL DEFAULT '{}'::jsonb,
   status TEXT NOT NULL DEFAULT 'draft'
     CHECK (status IN ('draft', 'active', 'paused', 'completed')),

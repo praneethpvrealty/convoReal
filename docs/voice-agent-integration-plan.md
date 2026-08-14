@@ -212,16 +212,28 @@ The appointment-reminder call ("your site visit is tomorrow at 11 — confirm?")
 dispatch machinery with the appointments cron (`/api/appointments/cron`) as the trigger instead
 of a campaign; it ships on top of Phase C once the channel preference below exists.
 
+**Provider fallback.** Sarvam is the default dialer, not a hard dependency. The dispatcher
+calls through `src/lib/voice/outbound-call.ts`, which picks its provider from
+`VOICE_CALL_PROVIDER`: `sarvam` (default) or `custom` — a generic HTTP bridge
+(`VOICE_CALL_CUSTOM_URL` + optional `VOICE_CALL_CUSTOM_TOKEN` bearer auth) for any other
+vendor (Twilio middleware, Exotel, a self-hosted stack). All providers receive the same
+normalised request (`agent_ref`, `phone_number`, `variables`) and report results through the
+same §4 webhook contract, so an outage or pricing change is an env flip plus re-creating the
+agents at the fallback vendor — a campaign's `agent_ref` names the agent in whichever
+provider is active. Nothing downstream (recipients, writeback, journal, matching) knows which
+vendor dialed.
+
 **Implementation status.** The server side is shipped: migration `270_voice_campaigns.sql`
 (tables, `contacts.do_not_call`, the recipient-counts RPC), CRUD + recipient routes under
 `src/app/api/voice-campaigns/`, the dispatcher at `/api/cron/voice-campaigns` (every 10 min in
 `vercel.json`, IST call windows, queued→calling claim guard, stale-calling requeue, attempt
-budget), the Sarvam outbound-call client in `src/lib/voice/outbound-call.ts`
+budget), the provider-pluggable outbound-call client in `src/lib/voice/outbound-call.ts`
 (`VOICE_CALLS_DRY_RUN` for end-to-end testing, `SARVAM_OUTBOUND_CALL_PATH` override until the
 GA API path is pinned), and the webhook writeback (`campaign_id` + `qualification` in the §4
 payload → recipient resolution, stated-budget/areas overwrite, Qualified / Budget Mismatch
-tags, `do_not_call`). Still open: the campaigns UI (web **and** mobile, §2.8) and per-call
-credit gating.
+tags, `do_not_call`). The web UI ships as a "Voice Calls" tab on `/broadcasts` (list, create
+with enquiry seeding, activate/pause, recipient add/remove). Still open: the mobile campaigns
+UI (§2.8) and per-call credit gating.
 
 ## 7. Phase D — audio announcements on WhatsApp + per-contact channel preference
 

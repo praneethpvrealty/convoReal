@@ -20,7 +20,7 @@ export async function GET() {
     const { data: campaigns, error } = await ctx.supabase
       .from('voice_campaigns')
       .select(
-        'id, name, property_id, sarvam_agent_id, status, call_window_start_hour, call_window_end_hour, max_attempts, script_context, created_at, updated_at'
+        'id, name, property_id, agent_ref, status, call_window_start_hour, call_window_end_hour, max_attempts, script_context, created_at, updated_at'
       )
       .eq('account_id', ctx.accountId)
       .order('created_at', { ascending: false });
@@ -127,10 +127,10 @@ export async function POST(request: NextRequest) {
         created_by: ctx.userId,
         name: body.name.trim().slice(0, 200),
         property_id: propertyId,
-        sarvam_agent_id:
-          typeof body.sarvam_agent_id === 'string' &&
-          body.sarvam_agent_id.trim()
-            ? body.sarvam_agent_id.trim()
+        agent_ref:
+          typeof body.agent_ref === 'string' &&
+          body.agent_ref.trim()
+            ? body.agent_ref.trim()
             : null,
         script_context: scriptContext,
         call_window_start_hour: startHour,
