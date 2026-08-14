@@ -90,7 +90,9 @@ import {
 import { parseOrdinalReferences } from '@/lib/ai/shortlist-reference'
 import {
   buildEnquiryAckText,
+  buildEnquiryRejectText,
   parseEnquiryReply,
+  resolveEnquiryTeamPhone,
   sendPropertyEnquiryCard,
 } from '@/lib/whatsapp/enquiry-card'
 import {
@@ -2795,10 +2797,14 @@ async function findOrCreateContact(
       ? normalizedSender.slice(-8)
       : normalizedSender
 
+  // is_merged excluded so a merge winner always claims the thread — the
+  // arbitrary pick among duplicates here is what let two contacts on one
+  // number keep trading the same sender's messages between their threads.
   const { data: contacts, error: contactsError } = await supabaseAdmin()
     .from('contacts')
     .select('*')
     .eq('account_id', accountId)
+    .eq('is_merged', false)
     .like('phone', `%${phoneSuffix}`)
 
   if (contactsError) {
@@ -3097,19 +3103,50 @@ async function handleEnquiryCardReply(
     ? `*${propertyRow.title}*`
     : 'the listing'
 
-  // Reject and "I'll reply" are the agent taking the thread. Nothing is
-  // sent to the buyer — the point is that the bot stays quiet — and the
+  // Reject and "I'll reply" are the agent taking the thread: the
   // conversation is flagged pending so it sits at the top of the inbox
-  // for the agent to answer personally.
+  // for them to answer personally. Reject also closes the bot's side
+  // with the buyer — the ack promised them the details "shortly", so
+  // instead of going silent it points them at the team's own number.
+  // The legacy "I'll answer" button stays fully quiet, as it said.
   if (action.action === 'reject' || action.action === 'mine') {
     await admin
       .from('conversations')
       .update({ status: 'pending', updated_at: new Date().toISOString() })
       .eq('contact_id', action.contactId)
       .eq('account_id', accountId)
-    await confirmToAgent(
-      `❌ Rejected — nothing was sent to ${lead.name || lead.phone}. The thread is flagged for you in the inbox.`,
-    )
+    if (action.action === 'reject') {
+      const teamPhone = await resolveEnquiryTeamPhone(
+        admin,
+        accountId,
+        configOwnerUserId,
+      )
+      const { conversation: leadConversation } = await resolveConversation<{
+        id: string
+      }>(admin, {
+        accountId,
+        contactId: action.contactId,
+        userId: configOwnerUserId,
+        columns: 'id',
+      })
+      await sendWhatsAppMessageAndPersist({
+        accountId,
+        userId: configOwnerUserId,
+        contactId: action.contactId,
+        ...(leadConversation ? { conversationId: leadConversation.id } : {}),
+        toPhone: lead.phone as string,
+        kind: 'text',
+        senderType: 'bot',
+        text: buildEnquiryRejectText(lead.name, propertyRow?.title, teamPhone),
+      })
+      await confirmToAgent(
+        `❌ Rejected — ${lead.name || lead.phone} was asked to reach your team directly${teamPhone ? ` on ${teamPhone}` : ''}. The thread is flagged for you in the inbox.`,
+      )
+    } else {
+      await confirmToAgent(
+        `❌ Rejected — nothing was sent to ${lead.name || lead.phone}. The thread is flagged for you in the inbox.`,
+      )
+    }
     return true
   }
 

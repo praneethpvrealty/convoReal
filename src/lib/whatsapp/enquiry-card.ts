@@ -113,7 +113,7 @@ export function buildEnquiryCardBody(
     '',
     `"${enquiryText.slice(0, 160)}"`,
     '',
-    'Approve to send them the complete details — photo, price, specs and the listing link — on WhatsApp. Reject and the bot stays out of it; the thread is yours in the inbox.',
+    "Approve to send them the complete details — photo, price, specs and the listing link — on WhatsApp. Reject to point them to your team's direct number instead; the thread is yours in the inbox.",
   ].join('\n');
 }
 
@@ -131,6 +131,46 @@ export function buildEnquiryAckText(
   const greeting = first ? `Thanks ${first}!` : 'Thanks!';
   const subject = title ? `*${title}*` : 'that property';
   return `${greeting} Your enquiry for ${subject} has reached our team — you'll receive the complete details right here shortly.`;
+}
+
+/**
+ * What the buyer hears when the agent taps Reject. The ack promised
+ * them the details "shortly" — going silent breaks that promise, so
+ * the bot closes its side by pointing them at the team's own number.
+ */
+export function buildEnquiryRejectText(
+  leadName: string | null | undefined,
+  title: string | null | undefined,
+  teamPhone: string | null | undefined
+): string {
+  const first = (leadName || '').trim().split(/\s+/)[0];
+  const greeting = first ? `Hi ${first}!` : 'Hi!';
+  const subject = title ? `*${title}*` : 'that property';
+  const reach = teamPhone
+    ? `please speak with our team directly on ${teamPhone}`
+    : 'our team will reach out to you directly';
+  return `${greeting} Thanks for your enquiry about ${subject}. For the details on this one, ${reach} — they'll help you personally.`;
+}
+
+/**
+ * The number a rejected buyer is pointed to: the contact number the
+ * brokerage publishes on its showcase, falling back to the routed
+ * agent's own WhatsApp when none is set.
+ */
+export async function resolveEnquiryTeamPhone(
+  db: SupabaseClient,
+  accountId: string,
+  agentUserId: string
+): Promise<string | null> {
+  const { data } = await db
+    .from('showcase_settings')
+    .select('contact_phone')
+    .eq('account_id', accountId)
+    .maybeSingle();
+  const configured = ((data?.contact_phone as string) || '').trim();
+  if (configured) return configured;
+  const agent = await resolveOwnerWhatsAppContact(db, accountId, agentUserId);
+  return agent?.phone || null;
 }
 
 export interface SendEnquiryCardArgs {

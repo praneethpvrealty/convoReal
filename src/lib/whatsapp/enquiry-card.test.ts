@@ -26,6 +26,8 @@ const {
   parseEnquiryReply,
   buildEnquiryCardBody,
   buildEnquiryAckText,
+  buildEnquiryRejectText,
+  resolveEnquiryTeamPhone,
   sendPropertyEnquiryCard,
   ENQUIRY_APPROVE_PREFIX,
   ENQUIRY_PHOTOS_PREFIX,
@@ -151,6 +153,76 @@ describe('buildEnquiryAckText', () => {
     const text = buildEnquiryAckText(null, null);
     expect(text).toContain('Thanks!');
     expect(text).toContain('that property');
+  });
+});
+
+describe('buildEnquiryRejectText', () => {
+  it('points the buyer at the team, closing the promise the ack made', () => {
+    // The ack said "you'll receive the complete details right here
+    // shortly" — a rejected buyer used to hear nothing at all after
+    // that. This is the message that closes the loop instead.
+    const text = buildEnquiryRejectText(
+      'Ganesh K P',
+      '50x70 Commercial Land',
+      '+919900277111'
+    );
+    expect(text).toContain('Hi Ganesh!');
+    expect(text).toContain('*50x70 Commercial Land*');
+    expect(text).toContain('speak with our team directly on +919900277111');
+    // "Rejected" is the agent's word, never the buyer's.
+    expect(text).not.toMatch(/reject/i);
+  });
+
+  it('still closes the loop when no team number is resolvable', () => {
+    const text = buildEnquiryRejectText(null, null, null);
+    expect(text).toContain('Hi!');
+    expect(text).toContain('that property');
+    expect(text).toContain('reach out to you directly');
+    expect(text).not.toContain('null');
+  });
+});
+
+describe('resolveEnquiryTeamPhone', () => {
+  function settingsDb(contactPhone: string | null) {
+    return {
+      from: () => {
+        const chain: Record<string, unknown> = {};
+        for (const m of ['select', 'eq']) chain[m] = () => chain;
+        chain.maybeSingle = async () => ({
+          data: contactPhone === null ? null : { contact_phone: contactPhone },
+        });
+        return chain;
+      },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any;
+  }
+
+  it('prefers the number the brokerage publishes on its showcase', async () => {
+    resolveOwnerWhatsAppContact.mockResolvedValue({
+      contactId: 'agent-contact',
+      phone: '+911111111111',
+    });
+    expect(
+      await resolveEnquiryTeamPhone(settingsDb('+919900277111'), 'a', 'u')
+    ).toBe('+919900277111');
+  });
+
+  it('falls back to the routed agent when none is set', async () => {
+    resolveOwnerWhatsAppContact.mockResolvedValue({
+      contactId: 'agent-contact',
+      phone: '+919900277111',
+    });
+    expect(await resolveEnquiryTeamPhone(settingsDb('  '), 'a', 'u')).toBe(
+      '+919900277111'
+    );
+    expect(await resolveEnquiryTeamPhone(settingsDb(null), 'a', 'u')).toBe(
+      '+919900277111'
+    );
+  });
+
+  it('reports null rather than inventing a number', async () => {
+    resolveOwnerWhatsAppContact.mockResolvedValue(null);
+    expect(await resolveEnquiryTeamPhone(settingsDb(null), 'a', 'u')).toBeNull();
   });
 });
 
@@ -303,6 +375,19 @@ describe('the webhook wires the card up', () => {
 
   it('confirms each tap back to the agent, like the location card does', () => {
     expect(source).toContain('✅ Approved — complete details for');
+    expect(source).toContain('was asked to reach your team directly');
+    // The legacy "I'll answer" button alone stays fully silent.
     expect(source).toContain('❌ Rejected — nothing was sent to');
+  });
+
+  it('tells a rejected buyer where the team is, instead of going quiet', () => {
+    // Live test: the buyer tapped Enquire, got the ack's promise of
+    // details "shortly", the agent tapped Reject — and the buyer heard
+    // nothing, ever. The reject branch must message the buyer's thread,
+    // not just flag the agent's.
+    expect(source).toContain(
+      'buildEnquiryRejectText(lead.name, propertyRow?.title, teamPhone)'
+    );
+    expect(source).toContain('resolveEnquiryTeamPhone(');
   });
 });
