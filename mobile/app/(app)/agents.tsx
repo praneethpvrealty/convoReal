@@ -52,6 +52,7 @@ async function fetchAgents(): Promise<AgentsData> {
         'areas_of_interest, property_interests, last_inquired_property_id'
     )
     .eq('classification', 'Agent')
+    .eq('is_merged', false)
     .order('name');
   if (error) throw error;
   const agents = (data ?? []) as unknown as Contact[];

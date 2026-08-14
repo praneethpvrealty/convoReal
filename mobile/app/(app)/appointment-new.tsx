@@ -95,6 +95,7 @@ export default function NewAppointmentScreen() {
       const { data } = await supabase
         .from('contacts')
         .select('id, name, name_tag, phone')
+        .eq('is_merged', false)
         .or(`name.ilike.${term},name_tag.ilike.${term},phone.ilike.${term}`)
         .limit(6);
       return (data ?? []) as Contact[];

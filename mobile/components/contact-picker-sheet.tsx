@@ -93,6 +93,7 @@ export function ContactPickerSheet({
       const { data: rows } = await supabase
         .from('contacts')
         .select('id, name, name_tag, phone')
+        .eq('is_merged', false)
         .or(or)
         .limit(8);
       const contacts = (rows ?? []) as Contact[];

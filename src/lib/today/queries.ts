@@ -144,6 +144,7 @@ export async function loadHotGoingQuiet(db: DB): Promise<QuietHotLead[]> {
   const { data, error } = await db
     .from('contacts')
     .select('*')
+    .eq('is_merged', false)
     .in('status', ['active', 'pending_review'])
     .eq('lead_temp', 'HOT')
   if (error) throw error
