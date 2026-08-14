@@ -601,6 +601,14 @@ describe('the live handler feeds the thread history in', () => {
 });
 
 describe('preferenceSignature', () => {
+  it('reads a size bound as new information', () => {
+    // The smaller/bigger anchor writes only these fields; a signature
+    // blind to them would file the update and then answer nothing.
+    expect(preferenceSignature(prefs({ land_area_max_sqft: 3570 }))).not.toBe(
+      preferenceSignature(prefs())
+    );
+  });
+
   it('is stable across ordering and case', () => {
     expect(
       preferenceSignature(prefs({ areas: ['Devanahalli', 'Sarjapur'] }))

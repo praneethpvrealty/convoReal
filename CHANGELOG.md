@@ -111,6 +111,22 @@ and polish.
   Switching audience drops selections outside it, so a send never
   carries hidden picks from the previous tab.
 
+### Added
+
+- **Plot size is now a matching facet** (**migration required**:
+  `274_pref_land_area.sql`). "Looking for lesser dimensions" used to
+  have nowhere to land: size wasn't a preference the engine knew, so
+  the feedback changed nothing. Preference extraction now captures
+  stated sizes in canonical square feet ("30x40 site" → 1,200; "up to
+  half an acre" → 21,780), the matcher enforces the band the way it
+  enforces budget (±10% grades a near-miss; further out excludes), and
+  relative feedback with no figure — smaller/bigger, "too big", "lesser
+  dimensions" — is anchored to the listing the thread is pinned to, at
+  a ratio chosen so the rejected listing itself can never crawl back in
+  as a near-miss. The learned bound rides the audit registry like every
+  other preference, and the requirement playback card shows it ("up to
+  3,570 sq.ft"), one tap from correction.
+
 ### Fixed
 
 - **The ladder no longer re-sends a shortlist the lead is already

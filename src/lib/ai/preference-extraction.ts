@@ -29,6 +29,10 @@ export interface ExtractedPreferences {
   bhk_max: number | null;
   budget_min: number | null;
   budget_max: number | null;
+  /** Plot/built-up size band, canonical square feet ("30x40 site" is
+   *  1200-1200; "at least half an acre" is 21780-null). */
+  land_area_min_sqft: number | null;
+  land_area_max_sqft: number | null;
   areas: string[];
   excluded_areas: string[];
   /** Specific named projects/societies/buildings the buyer wants
@@ -48,6 +52,8 @@ export const EMPTY_PREFERENCES: ExtractedPreferences = {
   bhk_max: null,
   budget_min: null,
   budget_max: null,
+  land_area_min_sqft: null,
+  land_area_max_sqft: null,
   areas: [],
   excluded_areas: [],
   projects: [],
@@ -134,6 +140,8 @@ export async function extractContactPreferences(sourceText: string): Promise<Ext
     '  "bhk_max": Maximum bedroom count wanted (e.g. "2 or 3 BHK" -> 3, "3BHK" -> 3) or null,\n' +
     '  "budget_min": Minimum budget in INR (e.g. "above 1 Cr" -> 10000000, "80L to 1.2Cr" -> 8000000) or null,\n' +
     '  "budget_max": Maximum budget in INR (e.g. "under 1.2 Cr" -> 12000000, "budget 90 lakhs" -> 9000000) or null,\n' +
+    '  "land_area_min_sqft": Minimum plot/land or built-up size wanted, converted to SQUARE FEET (e.g. "30x40 site" -> 1200, "at least 1 acre" -> 43560, "2400 sqft plot" -> 2400) or null,\n' +
+    '  "land_area_max_sqft": Maximum plot/land or built-up size wanted in SQUARE FEET (e.g. "30x40 site" -> 1200, "up to 4000 sqft" -> 4000, "not more than half acre" -> 21780) or null,\n' +
     '  "areas": Array of localities/neighbourhoods/cities the contact WANTS (e.g. ["HSR Layout", "Koramangala"]). Empty array if none or "any location".,\n' +
     '  "excluded_areas": Array of localities the contact explicitly does NOT want (e.g. "not Jayanagar" -> ["Jayanagar"]). Empty array if none.,\n' +
     '  "projects": Array of SPECIFIC named projects/apartments/societies/buildings the contact wants (e.g. ["Purva Vantage", "DSR Rainbow Heights", "Meenakshi Classic"]). These are proper names of developments, NOT localities — put neighbourhoods/areas in "areas" instead. Keep the name as written; drop qualifiers like "(Sector 1)" or "last choice". Empty array if none named.,\n' +
@@ -146,6 +154,7 @@ export async function extractContactPreferences(sourceText: string): Promise<Ext
     "2. A single budget figure with no qualifier (e.g. 'budget 1 Cr') means budget_max, leave budget_min null. '±'/'around'/'approx' also maps to budget_max.\n" +
     "2b. A bare number with NO unit means different things for rent and for purchase, and you must use the surrounding context to decide. For a RENTAL (monthly rent, 'rent', 'lease', 'to let'): a bare figure under 1000 is thousands per month — 'Budget 35 to 40' -> budget_min 35000, budget_max 40000; 'rent 18000' is already rupees -> 18000. For a PURCHASE: a bare figure up to 60 means crores — '1-2' -> 10000000 to 20000000, '60' -> 600000000; a bare figure between 61 and 999 means lakh — 'budget 80' -> 8000000. Use ONE unit for the whole range, chosen from the larger figure: '55 to 65' is 5500000 to 6500000, never 55 crore to 65 lakh. Never read a bare number as literal rupees when it is plainly a budget: nobody is buying a house for 35 rupees.\n" +
     "3. 'X BHK' means bhk_min = bhk_max = X unless a range is given.\n" +
+    "3b. Plot sizes: 'AxB' or 'A by B' site dimensions multiply to square feet ('30x40' -> 1200, '50x80' -> 4000). Convert units: 1 acre = 43560 sqft, 1 gunta = 1089 sqft, 1 cent = 435.6 sqft, 1 sq yard = 9 sqft. A single stated size ('30x40 site', '1200 sqft') means land_area_min_sqft = land_area_max_sqft = that size. Relative words with no figure ('smaller', 'lesser dimensions', 'bigger plot') stay null — do NOT invent a number.\n" +
     "4. Only extract what the CONTACT wants. Ignore details about properties they already own or sold, meeting logistics, or agent chatter.\n" +
     "5. Distinguish wanted vs rejected: 'not interested in commercial' must NOT add 'commercial' to property_categories; 'avoid Whitefield' goes to excluded_areas.\n" +
     "6. Set fields to null / empty array when genuinely not stated. Do NOT guess.\n" +
@@ -175,6 +184,8 @@ export async function extractContactPreferences(sourceText: string): Promise<Ext
     bhk_max: toNumberOrNull(parsed.bhk_max),
     budget_min: toNumberOrNull(parsed.budget_min),
     budget_max: toNumberOrNull(parsed.budget_max),
+    land_area_min_sqft: toNumberOrNull(parsed.land_area_min_sqft),
+    land_area_max_sqft: toNumberOrNull(parsed.land_area_max_sqft),
     areas: toStringArray(parsed.areas),
     excluded_areas: toStringArray(parsed.excluded_areas),
     projects: [...new Set(toStringArray(parsed.projects))],
