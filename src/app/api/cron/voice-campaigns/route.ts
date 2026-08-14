@@ -193,7 +193,15 @@ export async function GET(request: Request) {
         const result = await startOutboundCall({
           agentId: agentRef,
           phone: contact.phone,
-          context: { contact_name: contact.name ?? '', ...scriptContext },
+          // campaign_id travels with the call so the agent can echo it
+          // back in its post-call webhook: that is what resolves the
+          // recipient row, so without it a connected call never leaves
+          // 'calling' and gets redialled by the stale requeue.
+          context: {
+            contact_name: contact.name ?? '',
+            campaign_id: campaign.id,
+            ...scriptContext,
+          },
         });
 
         if (result.ok) {

@@ -14,7 +14,7 @@ and polish.
 ### Added
 
 - **Appointment reminders as WhatsApp voice notes** (**migration
-  required**: `276_reminder_audio.sql`). Contacts who chose audio
+  required**: `277_reminder_audio.sql`). Contacts who chose audio
   updates (`preferred_update_channel = whatsapp_audio`) now get their
   reminder spoken — the reminder cron queues a per-reminder TTS job and
   the queue worker renders it in the contact's conversation language

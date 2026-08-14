@@ -1,5 +1,5 @@
 -- ============================================================
--- 276_reminder_audio.sql — appointment reminders as voice notes.
+-- 277_reminder_audio.sql — appointment reminders as voice notes.
 --
 -- The whatsapp_audio half of reminder delivery: contacts who chose
 -- audio updates get their reminder spoken (Sarvam TTS on the queue
