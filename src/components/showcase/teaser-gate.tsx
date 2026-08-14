@@ -47,7 +47,6 @@ export function TeaserGate({
   onSaveVisitorInfo,
   onClose,
 }: TeaserGateProps) {
-  const [open, setOpen] = useState(false);
   const [name, setName] = useState(visitorName);
   const [phone, setPhone] = useState(visitorPhone);
   const [submitting, setSubmitting] = useState(false);
@@ -65,7 +64,16 @@ export function TeaserGate({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !phone.trim()) return;
+    // Never fail silently here. The previous gate had a button that only
+    // revealed this form and carried the same label as the one that
+    // submits it, so a buyer tapped once, believed he had asked, and
+    // waited on a request that was never made.
+    if (!name.trim() || !phone.trim()) {
+      toast.error(
+        'Add your name and WhatsApp number so we can send it to you.'
+      );
+      return;
+    }
     setSubmitting(true);
     try {
       const res = await fetch(
@@ -187,7 +195,9 @@ export function TeaserGate({
                 Request sent — you will receive the full listing on WhatsApp
                 once the owner approves it.
               </div>
-            ) : open ? (
+            ) : (
+              /* The form is the gate — there is no reveal step in front
+                 of it. One tap on the button below sends the request. */
               <form onSubmit={handleSubmit} className="space-y-2">
                 <div className="grid grid-cols-2 gap-2">
                   <Input
@@ -223,15 +233,6 @@ export function TeaserGate({
                   published anywhere.
                 </p>
               </form>
-            ) : (
-              <Button
-                type="button"
-                onClick={() => setOpen(true)}
-                className="bg-primary hover:bg-primary-hover text-primary-foreground flex h-9 w-full items-center justify-center gap-2 text-xs font-bold"
-              >
-                <Lock className="size-3" />
-                Request full details
-              </Button>
             )}
           </div>
         </div>
