@@ -28,6 +28,11 @@ import {
   ENQUIRY_REJECT_PREFIX,
 } from '@/lib/whatsapp/enquiry-card';
 import { UPDATE_CHANNEL_REPLY_PREFIX } from '@/lib/voice/announcements';
+import {
+  FOLLOWUP_CHECKIN_PREFIX,
+  FOLLOWUP_COLD_PREFIX,
+  FOLLOWUP_SNOOZE_PREFIX,
+} from '@/lib/contacts/follow-up-nudges';
 
 /** Prefixes whose replies are instructions to the Engine. Bare ids
  *  (no trailing payload) belong in EXACT_CONTROL_REPLY_IDS instead. */
@@ -49,6 +54,11 @@ export const CONTROL_REPLY_PREFIXES = [
   // "How would you like updates?" channel picks — a tap sets
   // contacts.preferred_update_channel, it is not a message to relay.
   UPDATE_CHANNEL_REPLY_PREFIX,
+  // The follow-up radar card goes to the same recipient as the enquiry
+  // card, so its taps face the same interception hazard.
+  FOLLOWUP_CHECKIN_PREFIX,
+  FOLLOWUP_SNOOZE_PREFIX,
+  FOLLOWUP_COLD_PREFIX,
 ] as const;
 
 /** True when this reply id is a button the Engine minted, and so must

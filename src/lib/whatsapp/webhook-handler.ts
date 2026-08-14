@@ -95,6 +95,11 @@ import {
   resolveEnquiryTeamPhone,
   sendPropertyEnquiryCard,
 } from '@/lib/whatsapp/enquiry-card'
+import { maybeAutoHeatContact } from '@/lib/contacts/auto-heat'
+import {
+  handleFollowUpReply,
+  parseFollowUpReply,
+} from '@/lib/contacts/follow-up-nudges'
 import {
   parseTemplateQuickReply,
   lastSharedPropertyId,
@@ -1313,6 +1318,18 @@ async function processMessage(
       )
       if (handled) return
     }
+    // A tap on the follow-up radar card — same shape as the enquiry
+    // card: delivered to the agent, acting on the lead.
+    const followUpAction = parseFollowUpReply(interactiveReplyId)
+    if (followUpAction) {
+      const handled = await handleFollowUpReply(
+        followUpAction,
+        accountId,
+        configOwnerUserId,
+        { contactId: contactRecord.id, conversationId: conversation.id },
+      )
+      if (handled) return
+    }
   }
 
   const bridged = isControlReply
@@ -1334,6 +1351,22 @@ async function processMessage(
     routingUpdate.assigned_agent_id ||
     (conversation as { assigned_agent_id?: string | null }).assigned_agent_id ||
     configOwnerUserId
+
+  // A lead whose own words show heat — a deliberate enquiry, a price
+  // question, site-visit intent — becomes HOT without waiting for an
+  // agent to remember the flag. The HOT-going-quiet watchdog and the
+  // follow-up cron both key on it, and a hot lead they cannot see is a
+  // lead nobody follows up (never overwrites a temperature an agent
+  // set by hand — see auto-heat.ts).
+  if (!ownerCheck.isOwner && message.type === 'text') {
+    await maybeAutoHeatContact({
+      db: supabaseAdmin(),
+      accountId,
+      contact: contactRecord,
+      text: contentText,
+      explicitEnquiry: enquiryByCode,
+    })
+  }
 
   // A deliberate enquiry — the property CODE is in the message, which
   // nothing produces except the showcase's Enquire button or a buyer
