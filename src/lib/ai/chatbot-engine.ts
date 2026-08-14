@@ -17,6 +17,7 @@ import {
 } from '@/lib/ai/gemini';
 import {
   processClientReplyScreenshot,
+  completeClientResponseProperty,
   handleAgentFollowupReply,
   AGENT_FOLLOWUP_PREFIX,
   type ClientReplyOutcome,
@@ -46,6 +47,10 @@ import {
   type BookContact,
   type PhoneLinkSuggestion,
 } from '@/lib/contacts/draft-match';
+import {
+  parsePropertyAnswer,
+  PROPERTY_QUESTION_FINGERPRINT,
+} from '@/lib/journey/property-answer';
 import { syncContactPreferences } from '@/lib/contacts/preference-sync';
 import { parseEventOutcome } from '@/lib/calendar/event-outcome';
 import {
@@ -54,7 +59,7 @@ import {
   openEventLabel,
   type OpenEventSubject,
 } from '@/lib/calendar/open-event-subject';
-import { recordBotTarget, resolveBotTarget, latestBotTarget } from '@/lib/whatsapp/bot-message-target';
+import { recordBotTarget, resolveBotTarget, latestBotTarget, latestBotTargetForPrompt } from '@/lib/whatsapp/bot-message-target';
 import { resolveReplayTarget, replayText } from '@/lib/whatsapp/message-replay';
 import { applyRecordUpdate } from '@/lib/ai/record-edit';
 import { matchProjectByName } from '@/lib/inventory/projects';
@@ -807,7 +812,70 @@ export async function processOwnerChatbotMessage(
         })
       : await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: outcome.text });
     await saveBotMessage(conversation.id, outcome.text, sendRes.messageId);
+    // The response is logged but its listing is still unknown. Register
+    // the question against the message that asks it, so the code the
+    // agent types next completes this instead of reading as a new
+    // listing — which is what it used to do, opening a draft with every
+    // field Missing.
+    if (outcome.pendingPropertyContactId) {
+      await recordBotTarget({
+        accountId,
+        waMessageId: sendRes.messageId,
+        entityType: 'contact',
+        entityId: outcome.pendingPropertyContactId,
+      });
+    }
     return true;
+  }
+
+  // 1.66. The answer to "which property is this about?".
+  //
+  // A forwarded client reply that named no listing is logged against
+  // the contact, and the agent is asked which listing it belongs to.
+  // The answer comes back as the code alone — "Prop-1194" — which the
+  // listing classifier read as a brand-new listing and turned into a
+  // draft with every field Missing, while the response it was meant to
+  // complete stayed unlinked.
+  //
+  // Both gates are deterministic and free: the text has to read as
+  // nothing but a listing reference, and the bot's own question has to
+  // be standing in this thread with the contact registered against it.
+  // Anything else falls through untouched.
+  if (cleanedText) {
+    const propertyAnswer = parsePropertyAnswer(cleanedText);
+    if (propertyAnswer) {
+      const pending = await latestBotTargetForPrompt({
+        accountId,
+        conversationId: conversation.id,
+        entityType: 'contact',
+        prompt: PROPERTY_QUESTION_FINGERPRINT,
+      });
+      if (pending) {
+        const outcome = await completeClientResponseProperty({
+          db: supabaseAdmin(),
+          accountId,
+          userId,
+          contactId: pending.entityId,
+          answer: propertyAnswer,
+          accessToken,
+          phoneNumberId,
+        });
+        const text =
+          outcome?.text ??
+          `❓ I couldn't find *${propertyAnswer.code || propertyAnswer.title}* in your inventory. Check the code and send it again — or open the listing and share it here.`;
+        const sendRes = outcome?.buttons
+          ? await sendInteractiveButtons({
+              phoneNumberId,
+              accessToken,
+              to: contactRecord.phone,
+              bodyText: text,
+              buttons: outcome.buttons,
+            })
+          : await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text });
+        await saveBotMessage(conversation.id, text, sendRes.messageId);
+        return true;
+      }
+    }
   }
 
   // 1.65. Quote-reply on a confirmation card = a correction to the row

@@ -192,6 +192,22 @@ and polish.
   that cannot have one, and the migration clears the figures already
   stored.
 
+- **The bot now hears the answer to its own "which property?"
+  question.** A forwarded client reply that names no listing is logged
+  against the contact, and the agent is asked which property it belongs
+  to. Typing the code back — "Prop-1194" — reached the listing
+  classifier instead, which read a bare code as a brand-new listing and
+  opened a draft with Title, Price, Location and Type all Missing,
+  while the response it was meant to complete stayed unlinked. A short
+  message that is nothing but a listing reference, sent while that
+  question is standing in the thread, now completes it: the journey
+  item, its event, the client's timeline ask and the deal notes all run
+  exactly as they would have on the first pass, with the client's own
+  words recovered from the note already written. An unresolvable code
+  says so instead of guessing. The question's copy also now invites the
+  reply the agents were already giving ("Reply with the property name
+  or code…, or forward a screenshot showing it").
+
 - **The ladder no longer re-sends a shortlist the lead is already
   looking at.** A buyer answered a one-listing shortlist with "Looking
   for lesser dimensions" — feedback the matcher has no size facet for —
