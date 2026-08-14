@@ -1,0 +1,11 @@
+appId: com.convoreal.app
+name: properties
+---
+- launchApp
+- tapOn:
+    id: "tab-properties"
+- extendedWaitUntil:
+    visible:
+      id: "properties-search"
+    timeout: 15000
+- takeScreenshot: .maestro/shots/04-properties

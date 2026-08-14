@@ -419,6 +419,7 @@ export default function ConversationScreen() {
 
   return (
     <KeyboardAvoidingView
+      testID="conversation-screen"
       style={{ flex: 1 }}
       // Android needs an explicit behavior too: under SDK 57 edge-to-edge
       // the window no longer auto-resizes for the keyboard, so without this

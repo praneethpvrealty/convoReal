@@ -1,0 +1,22 @@
+appId: com.convoreal.app
+name: conversation
+---
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: "inbox-search"
+    timeout: 20000
+# Needs at least one thread in the workspace; on an empty account the
+# tap has nothing to hit and the flow fails by design rather than
+# passing vacuously.
+- tapOn:
+    id: "conversation-row"
+    index: 0
+- extendedWaitUntil:
+    visible:
+      id: "conversation-screen"
+    timeout: 20000
+- takeScreenshot: .maestro/shots/09-conversation
+- back
+- assertVisible:
+    id: "inbox-search"

@@ -1,0 +1,18 @@
+appId: com.convoreal.app
+name: inbox-search
+---
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: "inbox-search"
+    timeout: 20000
+- tapOn:
+    id: "inbox-search"
+# A string no contact can match: the list must empty out rather than
+# keep showing rows the query excludes.
+- inputText: "zzzqqq"
+- assertNotVisible:
+    id: "conversation-row"
+- takeScreenshot: .maestro/shots/08-inbox-search
+- tapOn: "Clear search"
+- hideKeyboard

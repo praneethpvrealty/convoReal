@@ -1,0 +1,11 @@
+appId: com.convoreal.app
+name: contacts
+---
+- launchApp
+- tapOn:
+    id: "tab-contacts"
+- extendedWaitUntil:
+    visible:
+      id: "contacts-search"
+    timeout: 15000
+- takeScreenshot: .maestro/shots/03-contacts

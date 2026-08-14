@@ -1,5 +1,5 @@
 -- ============================================================
--- 274_pref_land_area.sql — plot/built-up size as a matching facet.
+-- 275_pref_land_area.sql — plot/built-up size as a matching facet.
 --
 -- A buyer answered a 4,200 sq.ft. shortlist with "Looking for lesser
 -- dimensions" and the matcher had nowhere to put it: size was not a

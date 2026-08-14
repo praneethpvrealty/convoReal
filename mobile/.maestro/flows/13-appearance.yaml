@@ -1,0 +1,21 @@
+appId: com.convoreal.app
+name: appearance
+---
+- launchApp
+- tapOn:
+    id: "tab-more"
+- scrollUntilVisible:
+    element:
+      id: "appearance-light"
+- tapOn:
+    id: "appearance-light"
+- takeScreenshot: .maestro/shots/13-appearance-light
+- tapOn:
+    id: "appearance-dark"
+- takeScreenshot: .maestro/shots/13-appearance-dark
+# Leave the app on the mode it defaults to, so a later flow's
+# screenshots are not coloured by whatever this one selected last.
+- tapOn:
+    id: "appearance-system"
+- assertVisible:
+    id: "tab-inbox"

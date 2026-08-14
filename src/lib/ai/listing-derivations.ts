@@ -10,16 +10,9 @@
 // ============================================================
 
 import type { ParsedPropertyDraft } from '@/lib/ai/gemini';
+import { canonicalAreaUnit, toSquareFeet } from '@/lib/area-units';
 
-const SQFT_PER_UNIT: Record<string, number> = {
-  sqft: 1,
-  sqyd: 9,
-  sqmtr: 10.7639,
-  acre: 43_560,
-  gunta: 1_089,
-  cent: 435.6,
-  ground: 2_400,
-};
+export { canonicalAreaUnit, toSquareFeet };
 
 const AMOUNT_MULTIPLIER: Record<string, number> = {
   cr: 1_00_00_000,
@@ -49,26 +42,6 @@ const DIMENSION_RE = /(\d{1,5}(?:\.\d+)?)\s*(?:ft\.?|feet|')?\s*[x×*]\s*(\d{1,5
 
 const MIN_DIMENSION_FT = 5;
 const MAX_DIMENSION_FT = 10_000;
-
-/** Maps any spelling of an area unit onto a `SQFT_PER_UNIT` key. */
-export function canonicalAreaUnit(raw: string | null | undefined): string | null {
-  if (!raw) return null;
-  const key = raw.toLowerCase().replace(/[^a-z]/g, '').replace(/s$/, '');
-  if (key.startsWith('sqf') || key === 'sf') return 'sqft';
-  if (key.startsWith('sqy')) return 'sqyd';
-  if (key.startsWith('sqm')) return 'sqmtr';
-  if (key.startsWith('acre')) return 'acre';
-  if (key.startsWith('gunta') || key.startsWith('guntha')) return 'gunta';
-  if (key.startsWith('cent')) return 'cent';
-  if (key.startsWith('ground')) return 'ground';
-  return null;
-}
-
-export function toSquareFeet(value: number | null | undefined, unit: string | null | undefined): number | null {
-  if (!value || value <= 0 || !Number.isFinite(value)) return null;
-  const factor = SQFT_PER_UNIT[canonicalAreaUnit(unit) ?? 'sqft'];
-  return factor ? value * factor : null;
-}
 
 /** "60*40" → 2400 Sq.Ft. */
 export function parseDimensionsToSqft(dimensions: string | null | undefined): number | null {
@@ -119,7 +92,9 @@ export function extractRateQuote(text: string | null | undefined): RateQuote | n
   if (!unitKey) return null;
 
   const amount = base * (match[2] ? AMOUNT_MULTIPLIER[match[2].toLowerCase()] ?? 1 : 1);
-  const perSqft = amount / SQFT_PER_UNIT[unitKey];
+  const sqftPerUnit = toSquareFeet(1, unitKey);
+  if (!sqftPerUnit) return null;
+  const perSqft = amount / sqftPerUnit;
   if (!Number.isFinite(perSqft) || perSqft <= 0) return null;
 
   return { perSqft, amount };

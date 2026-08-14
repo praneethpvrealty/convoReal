@@ -835,6 +835,7 @@ function LocalitySearchBox() {
   return (
     <View>
       <SearchBar
+        testID="properties-search"
         value={search}
         onChangeText={setSearch}
         placeholder='Area, project, or "2bhk under 80L"'
@@ -956,6 +957,7 @@ function PropertyCard({
 
   return (
     <PressScale
+      testID="property-card"
       onPress={() =>
         selecting ? onToggle() : router.push(`/(app)/property/${property.id}`)
       }

@@ -1,7 +1,7 @@
 import type { Contact, Property } from '@/types';
 import { normalizePropertyType } from '@/lib/property-types';
 import { textContainsProject } from '@/lib/project-match';
-import { toSquareFeet } from '@/lib/ai/listing-derivations';
+import { toSquareFeet } from '@/lib/area-units';
 
 // Static geocoordinates for major Bangalore sublocalities used for proximity-based matching.
 const BANGALORE_LOCALITIES_COORDS: Record<string, { lat: number; lng: number }> = {

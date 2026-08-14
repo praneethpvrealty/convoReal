@@ -1,0 +1,20 @@
+flows:
+  - "flows/*.yaml"
+executionOrder:
+  continueOnFailure: false
+  flowsOrder:
+    - login
+    - inbox
+    - contacts
+    - properties
+    - connection-check
+    - calendar
+    - inbox-filters
+    - inbox-search
+    - conversation
+    - contact-detail
+    - property-detail
+    - more-navigation
+    - appearance
+    - favourites-bar
+    - tab-cycle

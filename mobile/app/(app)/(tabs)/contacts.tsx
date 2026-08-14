@@ -671,6 +671,7 @@ export default function ContactsScreen() {
           </View>
         </View>
         <SearchBar
+          testID="contacts-search"
           value={search}
           onChangeText={setSearch}
           placeholder="Search name, phone, tag, company…"
@@ -1211,6 +1212,7 @@ function ContactRow({
 
   return (
     <PressScale
+      testID="contact-row"
       onPress={() => router.push(`/(app)/contact/${contact.id}`)}
       // Hold-to-peek: the detail card expands below while the finger
       // is down and collapses on release.

@@ -1,0 +1,27 @@
+appId: com.convoreal.app
+name: login
+---
+- launchApp:
+    clearState: true
+- assertVisible: "ConvoReal"
+- tapOn:
+    id: "login-mode-email"
+- tapOn:
+    id: "login-email"
+- inputText: ${MAESTRO_EMAIL}
+- tapOn:
+    id: "login-password"
+- inputText: ${MAESTRO_PASSWORD}
+- hideKeyboard
+- tapOn:
+    id: "login-submit"
+# iOS offers to save the typed password; the sheet covers the app until
+# dismissed. Skipped silently when AutoFill is off or never prompts.
+- tapOn:
+    text: "Not Now"
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: "inbox-search"
+    timeout: 60000
+- takeScreenshot: .maestro/shots/01-login

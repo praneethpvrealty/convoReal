@@ -114,7 +114,7 @@ and polish.
 ### Added
 
 - **Plot size is now a matching facet** (**migration required**:
-  `274_pref_land_area.sql`). "Looking for lesser dimensions" used to
+  `275_pref_land_area.sql`). "Looking for lesser dimensions" used to
   have nowhere to land: size wasn't a preference the engine knew, so
   the feedback changed nothing. Preference extraction now captures
   stated sizes in canonical square feet ("30x40 site" → 1,200; "up to

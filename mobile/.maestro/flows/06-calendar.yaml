@@ -1,0 +1,12 @@
+appId: com.convoreal.app
+name: calendar
+---
+- launchApp
+- tapOn:
+    id: "tab-calendar"
+- extendedWaitUntil:
+    visible:
+      id: "calendar-screen"
+    timeout: 20000
+- assertVisible: "Today"
+- takeScreenshot: .maestro/shots/06-calendar

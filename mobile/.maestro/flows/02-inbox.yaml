@@ -1,0 +1,17 @@
+appId: com.convoreal.app
+name: inbox
+---
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: "inbox-search"
+    timeout: 15000
+- assertVisible:
+    id: "tab-contacts"
+- assertVisible:
+    id: "tab-properties"
+- assertVisible:
+    id: "tab-calendar"
+- assertVisible:
+    id: "tab-more"
+- takeScreenshot: .maestro/shots/02-inbox

@@ -509,16 +509,19 @@ export function PrimaryButton({
   busy = false,
   disabled = false,
   icon,
+  testID,
 }: {
   label: string;
   onPress: () => void;
   busy?: boolean;
   disabled?: boolean;
   icon?: keyof typeof Ionicons.glyphMap;
+  testID?: string;
 }) {
   const { colors, fonts: f } = useTheme();
   return (
     <Pressable
+      testID={testID}
       disabled={disabled || busy}
       onPress={onPress}
       accessibilityRole="button"

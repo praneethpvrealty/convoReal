@@ -268,6 +268,7 @@ function MenuRow({ id, divided }: { id: MenuRouteId; divided: boolean }) {
     >
       <Link href={link.href} asChild>
         <Pressable
+          testID={`menu-${id}`}
           style={styles.menuTap}
           android_ripple={{ color: colors.border }}
         >
@@ -325,6 +326,7 @@ function AppearancePicker() {
         return (
           <Pressable
             key={opt.value}
+            testID={`appearance-${opt.value}`}
             onPress={() => setMode(opt.value)}
             accessibilityRole="button"
             accessibilityLabel={`${opt.label} appearance`}

@@ -140,6 +140,7 @@ export default function TabsLayout() {
           name="index"
           options={{
             title: 'Inbox',
+            tabBarButtonTestID: 'tab-inbox',
             tabBarIcon: ({ focused }) => (
               <TabIcon
                 focused={focused}
@@ -153,6 +154,7 @@ export default function TabsLayout() {
           name="contacts"
           options={{
             title: 'Contacts',
+            tabBarButtonTestID: 'tab-contacts',
             tabBarIcon: ({ focused }) => (
               <TabIcon
                 focused={focused}
@@ -166,6 +168,7 @@ export default function TabsLayout() {
           name="properties"
           options={{
             title: 'Properties',
+            tabBarButtonTestID: 'tab-properties',
             tabBarIcon: ({ focused }) => (
               <TabIcon focused={focused} name="home" outline="home-outline" />
             ),
@@ -175,6 +178,7 @@ export default function TabsLayout() {
           name="calendar"
           options={{
             title: 'Calendar',
+            tabBarButtonTestID: 'tab-calendar',
             tabBarIcon: ({ focused }) => (
               <TabIcon
                 focused={focused}
@@ -188,6 +192,7 @@ export default function TabsLayout() {
           name="favourites"
           options={{
             title: 'Favourites',
+            tabBarButtonTestID: 'tab-favourites',
             // Never focused (the press is intercepted), so the icon and
             // label take their active state from the bar instead.
             tabBarIcon: () => (
@@ -219,6 +224,7 @@ export default function TabsLayout() {
           name="more"
           options={{
             title: 'More',
+            tabBarButtonTestID: 'tab-more',
             tabBarIcon: ({ focused }) => (
               <TabIcon
                 focused={focused}
