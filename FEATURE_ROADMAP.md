@@ -97,6 +97,15 @@ To build the definitive, WhatsApp-first Engine for independent real estate agenc
 
 ---
 
+### Milestone 7: Voice Agent Telephony (Planned — see `docs/voice-agent-integration-plan.md`)
+*Answer and qualify phone leads with Sarvam Voice Agents — telephony is the one lead channel the platform does not cover today.*
+- [x] **Post-call webhook ingestion**: `POST /api/webhooks/voice-agent` find-or-creates the contact, journals the call (`contact_call_logs.source = 'voice_agent'`, idempotent on the provider's call id), stamps the inbox thread preview, and fires `new_contact_created` automations. (migration 269, `src/app/api/webhooks/voice-agent/route.ts`)
+- [ ] **Per-account configuration**: `voice_agent_config` table + Settings → Integrations UI on web **and** mobile (§2.8), replacing the global `VOICE_AGENT_WEBHOOK_TOKEN` with per-account secrets. Not started.
+- [ ] **Outbound reminder calls**: voice appointment confirmations from `/api/appointments/cron`, credit-gated like listing videos. Not started.
+- [ ] **Voice preference intake → matching**: structured call answers land on contact preference fields for `src/lib/matching.ts` and Match Radar, mirroring the WhatsApp preference flow. Not started.
+
+---
+
 ### Deferred: dictating a teammate update from web or mobile
 *A §2.8 gap, stated rather than silent.*
 - [ ] **Notify intent in Smart Add (web + mobile)**: Speaking or typing "tell Sharan the visit is off" sends the update only through the WhatsApp owner chatbot. The *receiving* half is already at full parity — `createNotification` fans out to the in-app bell on web, Expo push on mobile, and the teammate's own WhatsApp, and the new `teammate_update` toggle ships in Settings → Notifications on both surfaces. What is missing is the sending half in Smart Add (`src/components/calendar/smart-add-bar.tsx`, `mobile/components/voice-scheduler.tsx`): both render one confirm card built around a date, a contact and a property, with no recipient field and no send action. `/api/ai/parse-event` therefore downgrades a `notify` draft to a `task`, so the request lands on the speaker's own list rather than vanishing. Closing it means a recipient row on the confirm card and a route that performs the send.
