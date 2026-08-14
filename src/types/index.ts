@@ -177,6 +177,9 @@ export interface Contact {
   chain_only?: boolean;
   status?: 'active' | 'pending_review';
   lead_temp?: 'HOT' | 'COLD' | 'Not Responding' | 'Dead' | null;
+  /** How announcements/reminders reach this contact; null = no stated
+   *  preference, the sender's default applies. */
+  preferred_update_channel?: 'whatsapp_text' | 'whatsapp_audio' | 'voice_call' | null;
   dob?: string | null;
   feedback_status?: 'not_requested' | 'requested' | 'collected';
   last_contacted_at?: string | null;
