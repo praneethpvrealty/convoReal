@@ -14,6 +14,7 @@ export interface VoiceAgentConfig {
   webhook_token: string;
   is_active: boolean;
   reminder_calls_enabled: boolean;
+  reminder_audio_enabled: boolean;
 }
 
 export async function getVoiceConfig(
@@ -23,7 +24,7 @@ export async function getVoiceConfig(
   const { data } = await admin
     .from('voice_agent_config')
     .select(
-      'account_id, agent_ref, phone_number, webhook_token, is_active, reminder_calls_enabled'
+      'account_id, agent_ref, phone_number, webhook_token, is_active, reminder_calls_enabled, reminder_audio_enabled'
     )
     .eq('account_id', accountId)
     .maybeSingle();

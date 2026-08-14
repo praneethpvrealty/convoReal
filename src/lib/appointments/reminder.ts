@@ -3,6 +3,12 @@ import { sanitizePhoneForMeta, isValidE164 } from '@/lib/whatsapp/phone-utils';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { placeReminderCall } from '@/lib/voice/reminder-call';
 import {
+  enqueueReminderAudioJob,
+  reminderSpokenText,
+} from '@/lib/voice/reminder-audio';
+import { getVoiceConfig } from '@/lib/voice/config';
+import { isWithinCustomerWindow } from '@/lib/whatsapp/customer-window';
+import {
   loadTemplateForContact,
   warnLanguageFallback,
 } from '@/lib/whatsapp/template-language';
@@ -232,6 +238,35 @@ async function sendToAllRecipients(
       ? GENERIC_AGENDA_TEMPLATE_NAME
       : GENERIC_TEMPLATE_NAME;
 
+  // Contacts who asked for audio updates get the reminder spoken and
+  // sent as a voice note — a queue-worker TTS job, because Sarvam and
+  // ffmpeg only run there. Gated on the account's opt-in (the render
+  // costs credits) and on each contact's 24-hour window (a voice note
+  // is a free-form message). Anyone the gate excludes stays on the
+  // template below.
+  const wantsAudio = reachable.filter(
+    (c) => c.preferred_update_channel === 'whatsapp_audio'
+  );
+  let audioEnabled = false;
+  const audioWindows = new Map<string, string | null>();
+  if (wantsAudio.length > 0 && process.env.REDIS_URL) {
+    const voiceConfig = await getVoiceConfig(admin, appt.account_id);
+    if (voiceConfig?.reminder_audio_enabled) {
+      audioEnabled = true;
+      const { data: convos } = await admin
+        .from('conversations')
+        .select('contact_id, last_customer_message_at')
+        .eq('account_id', appt.account_id)
+        .in(
+          'contact_id',
+          wantsAudio.map((c) => c.id)
+        );
+      for (const c of convos ?? []) {
+        audioWindows.set(c.contact_id, c.last_customer_message_at);
+      }
+    }
+  }
+
   let allCovered = true;
   for (const contact of reachable) {
     // Claim this recipient. A unique-violation means an earlier tick
@@ -305,6 +340,48 @@ async function sendToAllRecipients(
       bodyText = `Hi ${clientName}, this is a friendly reminder from ${accountName} that you have a scheduled meeting: "${visitTitle}" on ${formattedTime}. Location: ${locationText}. Agenda for the meeting: ${agendaParam}. Please tap a button below to confirm or request a change.`;
     }
 
+    const templateParams = agendaParam
+      ? [
+          clientName,
+          visitTitle,
+          formattedTime,
+          locationText,
+          agendaParam,
+          accountName,
+        ]
+      : [clientName, visitTitle, formattedTime, locationText, accountName];
+
+    if (
+      audioEnabled &&
+      contact.preferred_update_channel === 'whatsapp_audio' &&
+      isWithinCustomerWindow(audioWindows.get(contact.id))
+    ) {
+      const queued = await enqueueReminderAudioJob({
+        kind: 'reminder_audio',
+        accountId: appt.account_id,
+        appointmentId: appt.id,
+        contactId: contact.id,
+        userId: appt.user_id || null,
+        reminderType,
+        spokenText: reminderSpokenText({
+          clientName,
+          brandName: accountName,
+          title: visitTitle,
+          formattedTime,
+          locationText,
+          agenda: agendaParam,
+          isSiteVisit,
+        }),
+        fallback: { templateName, templateParams, bodyText },
+      });
+      if (queued) {
+        console.log(
+          `[Reminder Cron] Queued ${reminderType} reminder NOTE for appt ${appt.id} to contact ${contact.id}`
+        );
+        continue;
+      }
+    }
+
     // The reminder goes to THIS contact, so their language decides the
     // variant. Resolved per recipient rather than per appointment: one
     // site visit can have a Tamil buyer and an English co-broker on it.
@@ -334,16 +411,7 @@ async function sendToAllRecipients(
       senderType: 'agent', // reminders logged as sent by agent
       templateName,
       templateLanguage: langTemplate?.language || 'en_US',
-      templateParams: agendaParam
-        ? [
-            clientName,
-            visitTitle,
-            formattedTime,
-            locationText,
-            agendaParam,
-            accountName,
-          ]
-        : [clientName, visitTitle, formattedTime, locationText, accountName],
+      templateParams,
       text: bodyText, // Store formatted preview text in DB
       customDbClient: admin,
     });
