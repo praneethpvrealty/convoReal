@@ -32,6 +32,11 @@ import {
 } from '@/lib/radar/engine';
 import { buildPropertyAlertParams } from '@/lib/whatsapp/property-alert-template';
 import { carriesRequirementSignal } from '@/lib/ai/requirement-signal';
+import {
+  applySizeAnchor,
+  parseRelativeSizeSignal,
+} from '@/lib/ai/size-feedback';
+import { toSquareFeet } from '@/lib/ai/listing-derivations';
 import { standsDownFromQualification } from '@/lib/ai/lead-routing';
 import { propertyShowcaseUrl } from '@/lib/share-message-builder';
 import { accountShowcaseOrigin } from '@/lib/showcase/account-showcase-url';
@@ -447,6 +452,8 @@ export function preferenceSignature(prefs: ExtractedPreferences): string {
     prefs.bhk_max,
     prefs.budget_min,
     prefs.budget_max,
+    prefs.land_area_min_sqft,
+    prefs.land_area_max_sqft,
     comparableList(prefs.areas),
     comparableList(prefs.excluded_areas),
     comparableList(prefs.projects),
@@ -473,6 +480,8 @@ export function preferenceFacts(
     { field: 'pref_bhk_max', value: prefs.bhk_max },
     { field: 'pref_budget_min', value: prefs.budget_min },
     { field: 'pref_budget_max', value: prefs.budget_max },
+    { field: 'pref_land_area_min_sqft', value: prefs.land_area_min_sqft },
+    { field: 'pref_land_area_max_sqft', value: prefs.land_area_max_sqft },
     { field: 'pref_areas', value: prefs.areas },
     { field: 'pref_excluded_areas', value: prefs.excluded_areas },
     { field: 'pref_projects', value: prefs.projects },
@@ -528,6 +537,8 @@ export function prefsFromContact(contact: Contact): ExtractedPreferences {
     bhk_max: contact.pref_bhk_max ?? null,
     budget_min: contact.pref_budget_min ?? null,
     budget_max: contact.pref_budget_max ?? null,
+    land_area_min_sqft: contact.pref_land_area_min_sqft ?? null,
+    land_area_max_sqft: contact.pref_land_area_max_sqft ?? null,
     areas: contact.pref_areas || [],
     excluded_areas: contact.pref_excluded_areas || [],
     projects: contact.pref_projects || [],
@@ -665,6 +676,30 @@ async function supersededByLaterMessage(
  * Handles an inbound lead message that states what they are looking
  * for. Returns true when the message was consumed and answered.
  */
+/** The pinned listing's size in canonical square feet — land area
+ *  first, built-up as the fallback — or null when neither is on file. */
+async function lastShownListingAreaSqft(
+  db: ReturnType<typeof supabaseAdmin>,
+  accountId: string,
+  propertyId: string | null | undefined
+): Promise<number | null> {
+  if (!propertyId) return null;
+  const { data } = await db
+    .from('properties')
+    .select('land_area, land_area_unit, area_sqft')
+    .eq('id', propertyId)
+    .eq('account_id', accountId)
+    .maybeSingle();
+  if (!data) return null;
+  const land = toSquareFeet(
+    data.land_area as number | null,
+    data.land_area_unit as string | null
+  );
+  if (land && land > 0) return land;
+  const built = data.area_sqft != null ? Number(data.area_sqft) : null;
+  return built && built > 0 ? built : null;
+}
+
 export async function processBuyerQualificationMessage(
   contentText: string | null,
   contactRecord: { id: string; phone: string; name?: string | null },
@@ -759,10 +794,28 @@ export async function processBuyerQualificationMessage(
     );
     const hash = preferenceSourceHash(sourceText);
 
+    // "Looking for lesser dimensions" states no figure the extraction
+    // may file — it is relative to the listing the thread is pinned to.
+    // Anchor the bound from that listing's own size, folded into the
+    // extraction BEFORE the unchanged-signature early-out below, or the
+    // message reads as chatter and earns silence.
+    const sizeSignal = parseRelativeSizeSignal(text);
+    const sizeAnchorSqft = sizeSignal
+      ? await lastShownListingAreaSqft(
+          db,
+          accountId,
+          contact.last_inquired_property_id
+        )
+      : null;
+
     let prefs = prefsFromContact(contact);
     if (hash !== contact.pref_source_hash) {
       await softBurn(accountId);
-      const extracted = await extractContactPreferences(sourceText);
+      const extracted = applySizeAnchor(
+        await extractContactPreferences(sourceText),
+        sizeSignal,
+        sizeAnchorSqft
+      );
 
       // The message added nothing the contact didn't already say — it's
       // chatter ("ok", "call me"), not an answer. Don't file it as a
@@ -874,6 +927,8 @@ export async function processBuyerQualificationMessage(
           pref_bhk_max: prefs.bhk_max,
           pref_budget_min: prefs.budget_min,
           pref_budget_max: prefs.budget_max,
+          pref_land_area_min_sqft: prefs.land_area_min_sqft,
+          pref_land_area_max_sqft: prefs.land_area_max_sqft,
           pref_areas: prefs.areas,
           pref_listing_types: prefs.listing_types,
         } as Contact,

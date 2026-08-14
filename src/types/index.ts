@@ -213,6 +213,8 @@ export interface Contact {
   pref_bhk_max?: number | null;
   pref_budget_min?: number | null;
   pref_budget_max?: number | null;
+  pref_land_area_min_sqft?: number | null;
+  pref_land_area_max_sqft?: number | null;
   pref_areas?: string[] | null;
   pref_excluded_areas?: string[] | null;
   /** AI-extracted named projects/societies the buyer wants (migration 156),

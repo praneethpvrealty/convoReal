@@ -82,6 +82,29 @@ describe('buildRequirementSummary', () => {
     expect(summary).toContain('2–3 BHK');
   });
 
+  it('shows the size band, so "lesser dimensions" is visibly on file', () => {
+    const capped = buildRequirementSummary({
+      ...aryan,
+      pref_land_area_max_sqft: 3570,
+    } as Contact);
+    expect(capped).toContain('up to 3,570 sq.ft');
+
+    const banded = buildRequirementSummary({
+      ...aryan,
+      pref_land_area_min_sqft: 1200,
+      pref_land_area_max_sqft: 2400,
+    } as Contact);
+    expect(banded).toContain('1,200 sq.ft–2,400 sq.ft');
+
+    const exact = buildRequirementSummary({
+      ...aryan,
+      pref_land_area_min_sqft: 1200,
+      pref_land_area_max_sqft: 1200,
+    } as Contact);
+    expect(exact).toContain('1,200 sq.ft');
+    expect(exact).not.toContain('–1,200');
+  });
+
   it('returns null with nothing on file, so callers keep their fallback', () => {
     expect(buildRequirementSummary({ id: 'c1' } as Contact)).toBeNull();
   });

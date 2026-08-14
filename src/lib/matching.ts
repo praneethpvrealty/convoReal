@@ -1,6 +1,7 @@
 import type { Contact, Property } from '@/types';
 import { normalizePropertyType } from '@/lib/property-types';
 import { textContainsProject } from '@/lib/project-match';
+import { toSquareFeet } from '@/lib/ai/listing-derivations';
 
 // Static geocoordinates for major Bangalore sublocalities used for proximity-based matching.
 const BANGALORE_LOCALITIES_COORDS: Record<string, { lat: number; lng: number }> = {
@@ -158,6 +159,11 @@ export interface MatchDetails {
   budget: MatchVerdict;
   bhk: MatchVerdict;
   roi: MatchVerdict;
+  /** Plot/built-up size against the contact's stated band (canonical
+   *  sqft). 'partial' = within 20% of a bound; a further miss excludes,
+   *  like budget — "lesser dimensions" must actually drop the plot the
+   *  lead just declined. */
+  size?: MatchVerdict;
   /** 'match' = the property's project/title is one the contact named
    *  in projects_of_interest/pref_projects — a decisive, high-intent
    *  signal. */
@@ -781,7 +787,47 @@ export function getMatchingContacts(
     }
     if (budgetVerdict === 'mismatch') continue;
 
-    // ── 5. BHK fit ────────────────────────────────────────────────
+    // ── 5. Plot/built-up size ─────────────────────────────────────
+    // Canonical square feet on both sides: the contact's band is stored
+    // in sqft, the property's land area converts through the same table
+    // the intake derives prices with. Built-up area stands in for
+    // properties that have no land figure (apartments).
+    const sizeMin =
+      contact.pref_land_area_min_sqft != null && Number(contact.pref_land_area_min_sqft) > 0
+        ? Number(contact.pref_land_area_min_sqft)
+        : null;
+    const sizeMax =
+      contact.pref_land_area_max_sqft != null && Number(contact.pref_land_area_max_sqft) > 0
+        ? Number(contact.pref_land_area_max_sqft)
+        : null;
+    let sizeVerdict: MatchVerdict = 'unknown';
+    if (sizeMin !== null || sizeMax !== null) {
+      const landSqft = toSquareFeet(property.land_area, property.land_area_unit);
+      const propAreaSqft =
+        landSqft && landSqft > 0
+          ? landSqft
+          : property.area_sqft && Number(property.area_sqft) > 0
+            ? Number(property.area_sqft)
+            : null;
+      if (propAreaSqft !== null) {
+        const minOk = sizeMin === null || propAreaSqft >= sizeMin;
+        const maxOk = sizeMax === null || propAreaSqft <= sizeMax;
+        if (minOk && maxOk) {
+          sizeVerdict = 'match';
+        } else {
+          // ±10%, tighter than budget's band on purpose: the smaller/
+          // bigger anchor (size-feedback.ts) is derived at 0.85 of the
+          // rejected listing, and the two constants together guarantee
+          // that listing lands outside even the near-miss band.
+          const nearMin = sizeMin === null || propAreaSqft >= sizeMin * 0.9;
+          const nearMax = sizeMax === null || propAreaSqft <= sizeMax * 1.1;
+          sizeVerdict = nearMin && nearMax ? 'partial' : 'mismatch';
+        }
+      }
+    }
+    if (sizeVerdict === 'mismatch') continue;
+
+    // ── 6. BHK fit ────────────────────────────────────────────────
     const bhkMin = contact.pref_bhk_min != null ? Number(contact.pref_bhk_min) : null;
     const bhkMax = contact.pref_bhk_max != null ? Number(contact.pref_bhk_max) : null;
     let bhkVerdict: MatchVerdict = 'unknown';
@@ -825,6 +871,9 @@ export function getMatchingContacts(
     if (bhkVerdict === 'match') score += 10;
     else if (bhkVerdict === 'mismatch') score -= bhkDistance >= 2 ? 15 : 5;
 
+    if (sizeVerdict === 'match') score += 10;
+    else if (sizeVerdict === 'partial') score += 4;
+
     if (roiVerdict === 'match') score += 5;
 
     score = Math.max(0, Math.min(100, score));
@@ -838,6 +887,7 @@ export function getMatchingContacts(
         budget: budgetVerdict,
         bhk: bhkVerdict,
         roi: roiVerdict,
+        size: sizeVerdict,
         project: projectMatch ? 'match' : 'unknown',
       },
       matchedFields: {

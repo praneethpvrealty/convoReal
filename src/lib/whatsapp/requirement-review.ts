@@ -54,6 +54,19 @@ export function buildRequirementSummary(contact: Contact): string | null {
     parts.push(lo === hi ? `${lo} BHK` : `${lo}–${hi} BHK`);
   }
 
+  const sqft = (n: number) => `${Math.round(n).toLocaleString('en-IN')} sq.ft`;
+  const sizeMin = contact.pref_land_area_min_sqft ?? null;
+  const sizeMax = contact.pref_land_area_max_sqft ?? null;
+  if (sizeMin != null && sizeMax != null) {
+    parts.push(
+      sizeMin === sizeMax ? sqft(sizeMin) : `${sqft(sizeMin)}–${sqft(sizeMax)}`
+    );
+  } else if (sizeMax != null) {
+    parts.push(`up to ${sqft(sizeMax)}`);
+  } else if (sizeMin != null) {
+    parts.push(`above ${sqft(sizeMin)}`);
+  }
+
   const seen = new Set<string>();
   const areas = [
     ...(contact.areas_of_interest ?? []),
