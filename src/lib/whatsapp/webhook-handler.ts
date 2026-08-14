@@ -89,6 +89,7 @@ import {
 } from '@/lib/ai/photo-request'
 import { parseOrdinalReferences } from '@/lib/ai/shortlist-reference'
 import {
+  buildEnquiryAckText,
   parseEnquiryReply,
   sendPropertyEnquiryCard,
 } from '@/lib/whatsapp/enquiry-card'
@@ -1103,6 +1104,12 @@ async function processMessage(
   // new-lead alert below can send the enquiry card instead of a generic
   // "someone messaged you".
   let enquiryPropertyId: string | null = null
+  // The property CODE appearing in the message is a deliberate enquiry
+  // — nothing puts "PROP-1030" in a buyer's message except the showcase
+  // CTA or the buyer copying it on purpose. A TITLE appearing is much
+  // weaker: any chat about a listing contains its title.
+  let enquiryByCode = false
+  let enquiryPropertyTitle: string | null = null
   if (contentText && !ctwaLinkedPropertyId) {
     try {
       const { data: properties } = await supabaseAdmin()
@@ -1112,15 +1119,17 @@ async function processMessage(
         .eq('is_published', true);
 
       if (properties) {
+        const textLower = contentText.toLowerCase();
         const matchedProperty = properties.find((p: { id: string; title: string; property_code?: string }) => {
-          const textLower = contentText.toLowerCase();
           const titleMatches = textLower.includes(p.title.toLowerCase());
           const codeMatches = p.property_code ? textLower.includes(p.property_code.toLowerCase()) : false;
+          if (codeMatches) enquiryByCode = true
           return titleMatches || codeMatches;
         });
 
         if (matchedProperty) {
           enquiryPropertyId = matchedProperty.id
+          enquiryPropertyTitle = matchedProperty.title
           await supabaseAdmin()
             .from('contacts')
             .update({
@@ -1287,6 +1296,7 @@ async function processMessage(
         enquiryAction,
         accountId,
         configOwnerUserId,
+        { contactId: contactRecord.id, conversationId: conversation.id },
       )
       if (handled) return
     }
@@ -1311,6 +1321,73 @@ async function processMessage(
     routingUpdate.assigned_agent_id ||
     (conversation as { assigned_agent_id?: string | null }).assigned_agent_id ||
     configOwnerUserId
+
+  // A deliberate enquiry — the property CODE is in the message, which
+  // nothing produces except the showcase's Enquire button or a buyer
+  // quoting the code on purpose. This is a request for one listing, not
+  // a requirement to qualify: the first live tap of the button was
+  // answered by the ladder with "what budget range are you working
+  // with?" — interrogating a buyer who had just named the exact
+  // property — and no card reached the agent, because the card was
+  // gated on the contact's first-ever message and this buyer had
+  // messaged before. Buyer gets an acknowledgement, the agent gets the
+  // Approve/Reject card, and the message is consumed so nothing
+  // downstream can talk over the approval.
+  if (
+    !ownerCheck.isOwner &&
+    enquiryPropertyId &&
+    enquiryByCode &&
+    message.type === 'text'
+  ) {
+    const preview = (contentText || '').slice(0, 140)
+    const cardSent = await sendPropertyEnquiryCard({
+      db: supabaseAdmin(),
+      accountId,
+      agentUserId: assignedAgentUserId,
+      propertyId: enquiryPropertyId,
+      contactId: contactRecord.id,
+      leadName: contactRecord.name || senderPhone,
+      leadPhone: senderPhone,
+      enquiryText: preview,
+    })
+
+    await createNotification({
+      accountId,
+      userId: assignedAgentUserId,
+      type: 'new_message',
+      eventKey: 'property_enquiry',
+      title: `Enquiry: ${contactRecord.name || senderPhone}`,
+      body: preview,
+      entityType: 'conversation',
+      entityId: conversation.id,
+      link: `/inbox?conversation=${conversation.id}`,
+      // The card is the WhatsApp ping. Only when it could not be
+      // delivered does the plain text one stand in for it.
+      ...(cardSent
+        ? {}
+        : {
+            whatsappText: [
+              '🔔 *New property enquiry*',
+              `👤 ${contactRecord.name || senderPhone}`,
+              '',
+              preview,
+              '',
+              BRIDGE_REPLY_HINT,
+            ].join('\n'),
+          }),
+    })
+
+    await sendWhatsAppMessageAndPersist({
+      accountId,
+      userId: configOwnerUserId,
+      contactId: contactRecord.id,
+      conversationId: conversation.id,
+      kind: 'text',
+      senderType: 'bot',
+      text: buildEnquiryAckText(contactRecord.name, enquiryPropertyTitle),
+    })
+    return
+  }
 
   // First message on a brand-new lead thread — alert the assigned agent
   // once (in-app + push + WhatsApp).
@@ -2977,6 +3054,10 @@ async function handleEnquiryCardReply(
   action: ReturnType<typeof parseEnquiryReply> & object,
   accountId: string,
   configOwnerUserId: string,
+  /** The AGENT's own thread — where the tap arrived, and where the
+   *  outcome is confirmed, the same way the location card answers
+   *  "Approved — ConvoReal has sent the exact location...". */
+  agentThread: { contactId: string; conversationId: string },
 ): Promise<boolean> {
   const admin = supabaseAdmin()
 
@@ -2988,15 +3069,41 @@ async function handleEnquiryCardReply(
     .maybeSingle()
   if (!lead?.phone) return false
 
-  // "I'll reply" is the agent taking the thread. Nothing is sent to the
-  // buyer — the point of the button is that the bot stays quiet — and
-  // the lead is left exactly as it was for the agent to answer.
-  if (action.action === 'mine') {
+  const confirmToAgent = async (text: string) => {
+    await sendWhatsAppMessageAndPersist({
+      accountId,
+      userId: configOwnerUserId,
+      contactId: agentThread.contactId,
+      conversationId: agentThread.conversationId,
+      kind: 'text',
+      senderType: 'bot',
+      text,
+    })
+  }
+
+  const { data: propertyRow } = await admin
+    .from('properties')
+    .select('title')
+    .eq('id', action.propertyId)
+    .eq('account_id', accountId)
+    .maybeSingle()
+  const propertyLabel = propertyRow?.title
+    ? `*${propertyRow.title}*`
+    : 'the listing'
+
+  // Reject and "I'll reply" are the agent taking the thread. Nothing is
+  // sent to the buyer — the point is that the bot stays quiet — and the
+  // conversation is flagged pending so it sits at the top of the inbox
+  // for the agent to answer personally.
+  if (action.action === 'reject' || action.action === 'mine') {
     await admin
       .from('conversations')
       .update({ status: 'pending', updated_at: new Date().toISOString() })
       .eq('contact_id', action.contactId)
       .eq('account_id', accountId)
+    await confirmToAgent(
+      `❌ Rejected — nothing was sent to ${lead.name || lead.phone}. The thread is flagged for you in the inbox.`,
+    )
     return true
   }
 
@@ -3018,11 +3125,19 @@ async function handleEnquiryCardReply(
       propertyIds: [action.propertyId],
       requestText: 'photos',
     })
-    if (sent) return true
+    if (sent) {
+      await confirmToAgent(
+        `✅ Photos of ${propertyLabel} sent to ${lead.name || lead.phone} on WhatsApp.`,
+      )
+      return true
+    }
     // No public photos to send — fall through to the details, which is
     // the closest thing to what the buyer asked for.
   }
 
+  // Approve (and the legacy "details" button): the complete details —
+  // photo, price, specs, description and the listing link — straight to
+  // the buyer's number.
   await handlePropertyShareYesReply(
     action.propertyId,
     accountId,
@@ -3030,6 +3145,9 @@ async function handleEnquiryCardReply(
     action.contactId,
     conversation.id,
     lead.phone as string,
+  )
+  await confirmToAgent(
+    `✅ Approved — complete details for ${propertyLabel} sent to ${lead.name || lead.phone} on WhatsApp.`,
   )
   return true
 }

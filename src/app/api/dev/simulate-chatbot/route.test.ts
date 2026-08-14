@@ -94,6 +94,23 @@ describe('simulate-chatbot — lead routing', () => {
     expect(result.previewText).toContain('call you shortly');
   });
 
+  it('previews the enquiry ack, not the ladder question, for an Enquire tap', async () => {
+    const result = await run(
+      'Hi! I am interested in your property "6 BHK Villa in Swiss Town, Devanahalli". Please share details. (Property ID: PROP-1031)',
+      'PROP-1031'
+    );
+
+    expect(result.route).toBe('property_enquiry');
+    expect(result.ladderStoodDown).toBe(true);
+    expect(result.notifiesAgent).toBe(true);
+    expect(result.previewText).toContain('reached our team');
+    expect(result.previewText).toContain(
+      '*6 BHK Villa in Swiss Town, Devanahalli*'
+    );
+    // The reply the first live tap actually got.
+    expect(result.previewText).not.toMatch(/budget range/i);
+  });
+
   it('marks a numbered listing as answered from the listing itself', async () => {
     const result = await run('option 2');
 

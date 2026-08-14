@@ -21,9 +21,11 @@ import {
   OWNER_REJECT_PREFIX,
 } from '@/lib/inventory/location-requests';
 import {
+  ENQUIRY_APPROVE_PREFIX,
   ENQUIRY_DETAILS_PREFIX,
   ENQUIRY_MINE_PREFIX,
   ENQUIRY_PHOTOS_PREFIX,
+  ENQUIRY_REJECT_PREFIX,
 } from '@/lib/whatsapp/enquiry-card';
 
 /** Prefixes whose replies are instructions to the Engine. Bare ids
@@ -38,6 +40,8 @@ export const CONTROL_REPLY_PREFIXES = [
   // owner chatbot intercepts by design, exactly like the approvals
   // above. Left out of this list, "📸 Send photos" was read as a
   // forwarded client conversation.
+  ENQUIRY_APPROVE_PREFIX,
+  ENQUIRY_REJECT_PREFIX,
   ENQUIRY_PHOTOS_PREFIX,
   ENQUIRY_DETAILS_PREFIX,
   ENQUIRY_MINE_PREFIX,

@@ -28,9 +28,23 @@ import { carriesRequirementSignal } from '@/lib/ai/buyer-qualification';
 
 export type LeadRoute =
   | 'callback_handover'
+  | 'property_enquiry'
   | 'photo_request'
   | 'shortlist_reference'
   | 'qualification';
+
+/**
+ * The showcase's Enquire button always stamps its message with
+ * "(Property ID: <code>)" — nothing else writes that phrase into a
+ * buyer's message. Matched here as the phrase rather than any one
+ * account's code format, because this module is pure text and codes
+ * are per-account.
+ */
+const EXPLICIT_ENQUIRY = /\bproperty\s*id\b\s*[:#]?/i;
+
+export function isExplicitPropertyEnquiry(text?: string | null): boolean {
+  return EXPLICIT_ENQUIRY.test((text || '').trim());
+}
 
 /**
  * The handler that claims this message.
@@ -57,6 +71,14 @@ export function routeLeadMessage(text?: string | null): LeadRoute {
 
   if (requestsHumanContact(value)) return 'callback_handover';
 
+  // Before the requirement check on purpose: an enquiry names the exact
+  // listing, and the listing's own title puts a property-type word in
+  // the message ("Commercial Land in 6th Block…") — so the requirement
+  // signal is true by construction. Reading it as a requirement is what
+  // answered a buyer who tapped Enquire with "what budget range are you
+  // working with?" instead of an acknowledgement and an approval card.
+  if (isExplicitPropertyEnquiry(value)) return 'property_enquiry';
+
   const hasRequirement = carriesRequirementSignal(value);
   if (requestsPropertyPhotos(value) && !hasRequirement) return 'photo_request';
   if (parseOrdinalReferences(value).length > 0 && !hasRequirement) {
@@ -75,6 +97,8 @@ export function standsDownFromQualification(text?: string | null): boolean {
 export const LEAD_ROUTE_EXPLANATIONS: Record<LeadRoute, string> = {
   callback_handover:
     'Asks for a person. The bot promises a callback and notifies the assigned agent — the ladder never sees it.',
+  property_enquiry:
+    'Names a listing by its property code — the showcase Enquire button. The buyer gets an acknowledgement and the agent gets the Approve/Reject card; approving sends the complete details.',
   photo_request:
     "Asks for a listing's photos. The bot sends the photos of whichever listing the thread is pinned to, then a link to the full gallery.",
   shortlist_reference:
