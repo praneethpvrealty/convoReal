@@ -7,6 +7,7 @@ import { Copy, Loader2, PhoneCall, RefreshCw } from 'lucide-react';
 import { useCan } from '@/hooks/use-can';
 import { useAuth } from '@/hooks/use-auth';
 import { cn } from '@/lib/utils';
+import { AI_FEATURE_COSTS, voiceCallCost } from '@/lib/credits/types';
 import {
   Card,
   CardContent,
@@ -323,8 +324,8 @@ export function VoiceAgentCard() {
             </p>
             <p className="text-xs text-slate-500">
               Contacts who prefer phone calls get their reminder as a
-              voice-agent call (25 cr per call, refunded if it fails to start).
-              Others are unaffected.
+              voice-agent call ({voiceCallCost(mode)} cr per call, refunded if
+              it fails to start). Others are unaffected.
             </p>
           </div>
           <Switch
@@ -342,8 +343,9 @@ export function VoiceAgentCard() {
             </p>
             <p className="text-xs text-slate-500">
               Contacts who prefer audio updates get their reminder spoken and
-              sent as a WhatsApp voice note when their 24-hour window is open (2
-              cr per note, refunded if it never lands). Others are unaffected.
+              sent as a WhatsApp voice note when their 24-hour window is open (
+              {AI_FEATURE_COSTS.reminder_audio} cr per note, refunded if it
+              never lands). Others are unaffected.
             </p>
           </div>
           <Switch
