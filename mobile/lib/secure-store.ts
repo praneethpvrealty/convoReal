@@ -2,6 +2,7 @@ import 'react-native-get-random-values';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as aesjs from 'aes-js';
+import * as Device from 'expo-device';
 import * as SecureStore from 'expo-secure-store';
 
 /**
@@ -12,7 +13,16 @@ import * as SecureStore from 'expo-secure-store';
  * in the keychain directly. Standard pattern from the Supabase Expo
  * guide: a per-key AES-256-CTR key lives in SecureStore (Keychain /
  * Keystore), the encrypted session lives in AsyncStorage.
+ *
+ * Simulators can lack keychain entitlements entirely, which makes
+ * SecureStore throw and login unable to persist a session. On a
+ * simulator only (`!Device.isDevice`) the AES key falls back to
+ * AsyncStorage; on real hardware a keychain failure still throws —
+ * the fallback can never weaken storage for an actual user.
  */
+const simulatorFallback = !Device.isDevice;
+const fallbackKey = (key: string) => `${key}.simulator-keychain-fallback`;
+
 export class LargeSecureStore {
   private async encrypt(key: string, value: string): Promise<string> {
     const encryptionKey = crypto.getRandomValues(new Uint8Array(256 / 8));
@@ -22,15 +32,26 @@ export class LargeSecureStore {
     );
     const encryptedBytes = cipher.encrypt(aesjs.utils.utf8.toBytes(value));
 
-    await SecureStore.setItemAsync(
-      key,
-      aesjs.utils.hex.fromBytes(encryptionKey)
-    );
+    const keyHex = aesjs.utils.hex.fromBytes(encryptionKey);
+    try {
+      await SecureStore.setItemAsync(key, keyHex);
+    } catch (e) {
+      if (!simulatorFallback) throw e;
+      await AsyncStorage.setItem(fallbackKey(key), keyHex);
+    }
     return aesjs.utils.hex.fromBytes(encryptedBytes);
   }
 
   private async decrypt(key: string, value: string): Promise<string | null> {
-    const encryptionKeyHex = await SecureStore.getItemAsync(key);
+    let encryptionKeyHex: string | null = null;
+    try {
+      encryptionKeyHex = await SecureStore.getItemAsync(key);
+    } catch (e) {
+      if (!simulatorFallback) throw e;
+    }
+    if (!encryptionKeyHex && simulatorFallback) {
+      encryptionKeyHex = await AsyncStorage.getItem(fallbackKey(key));
+    }
     if (!encryptionKeyHex) {
       return null;
     }
@@ -57,7 +78,11 @@ export class LargeSecureStore {
   }
 
   async removeItem(key: string): Promise<void> {
-    await AsyncStorage.removeItem(key);
-    await SecureStore.deleteItemAsync(key);
+    await AsyncStorage.multiRemove([key, fallbackKey(key)]);
+    try {
+      await SecureStore.deleteItemAsync(key);
+    } catch (e) {
+      if (!simulatorFallback) throw e;
+    }
   }
 }

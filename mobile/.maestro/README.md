@@ -50,6 +50,14 @@ Screenshots land in `mobile/.maestro/shots/` (git-ignored). `01-login`
 clears app state and signs in; the later flows reuse that session, so run
 the suite in order — or run `01-login` first when running one flow alone.
 
+## Simulator setup tip
+
+iOS pops a "Save Password?" sheet after the login form submits, which
+hides the app from Maestro. The login flow dismisses it (`Not Now`,
+optional), but turning it off per simulator avoids the beat entirely:
+Settings → General → AutoFill & Passwords → disable "AutoFill Passwords
+and Passkeys".
+
 ## Debugging selectors
 
 `maestro studio` opens an inspector against the booted simulator showing
