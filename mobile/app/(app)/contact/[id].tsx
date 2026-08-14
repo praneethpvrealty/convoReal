@@ -24,17 +24,30 @@ import {
   PropertyPicker,
 } from '@/components/agent-detail';
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
-import { ApproveCelebration, type ApproveCelebrationState } from '@/components/approve-celebration';
+import {
+  ApproveCelebration,
+  type ApproveCelebrationState,
+} from '@/components/approve-celebration';
 import { AreasOfInterestInput } from '@/components/areas-of-interest-input';
 import { ConvoRealLoader } from '@/components/loader';
 import { MoveToEngineSheet } from '@/components/move-to-engine-sheet';
 import { OwnerDetailsRequestSheet } from '@/components/owner-details-request-sheet';
 import { PulseRing } from '@/components/motion';
-import { Avatar, Banner, PrimaryButton, SectionLabel, Tag, TextField } from '@/components/ui';
+import {
+  Avatar,
+  Banner,
+  PrimaryButton,
+  SectionLabel,
+  Tag,
+  TextField,
+} from '@/components/ui';
 import { apiFetch, ApiError } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
 import { useCallLog } from '@/lib/use-call-log';
-import { approveAndSendDetails, type ApproveOutcome } from '@/lib/approve-contact';
+import {
+  approveAndSendDetails,
+  type ApproveOutcome,
+} from '@/lib/approve-contact';
 import { contactFullName } from '@/lib/contact-name';
 import { storagePublicUrl } from '@/lib/storage-url';
 import { cleanPhoneInput, formatBudgetRange, formatInr } from '@/lib/format';
@@ -42,7 +55,13 @@ import { friendlyError } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
-import { classificationColors, radius, spacing, useTheme , fonts } from '@/lib/theme';
+import {
+  classificationColors,
+  radius,
+  spacing,
+  useTheme,
+  fonts,
+} from '@/lib/theme';
 import { openWelcomeWhatsApp } from '@/lib/welcome-message';
 import { contactHandle, hasPhone } from '@/lib/reachability';
 import {
@@ -90,6 +109,13 @@ const PROPERTY_INTEREST_OPTIONS = [
  *  free text in Requirements — they aren't shopping to a budget. */
 const BUYER_PREF_CLASSIFICATIONS: Classification[] = ['Buyer', 'Owner & Buyer'];
 
+type UpdateChannelValue = 'whatsapp_text' | 'whatsapp_audio' | 'voice_call';
+const UPDATE_CHANNEL_OPTIONS: { value: UpdateChannelValue; label: string }[] = [
+  { value: 'whatsapp_text', label: '💬 Text' },
+  { value: 'whatsapp_audio', label: '🎙️ Voice note' },
+  { value: 'voice_call', label: '📞 Call' },
+];
+
 function parseAmount(s: string): number | null {
   const n = Number(s.replace(/[^\d.]/g, ''));
   return s.trim() && !Number.isNaN(n) && n > 0 ? n : null;
@@ -102,6 +128,7 @@ async function fetchContact(id: string): Promise<Contact | null> {
       'id, phone, secondary_phones, name, name_tag, email, company, classification, ' +
         'avatar_url, min_budget, max_budget, no_budget, areas_of_interest, areas_of_interest_geo, ' +
         'strict_area_match, min_roi, requirements, lead_temp, status, referrer, source, ' +
+        'preferred_update_channel, ' +
         'property_interests, last_inquired_property_id, lead_portal, lead_portal_listing_id, ' +
         'is_favorite, user_id'
     )
@@ -149,11 +176,20 @@ export default function ContactDetailScreen() {
       <Stack.Screen
         options={{
           headerShown: true,
-          title: (contact ? contactFullName(contact) : '') || contact?.phone || 'Contact',
+          title:
+            (contact ? contactFullName(contact) : '') ||
+            contact?.phone ||
+            'Contact',
           headerRight: () =>
             contact ? (
               <Pressable onPress={() => setEditing((e) => !e)} hitSlop={8}>
-                <Text style={{ color: colors.primary, fontSize: 15.5, fontFamily: f.bold }}>
+                <Text
+                  style={{
+                    color: colors.primary,
+                    fontSize: 15.5,
+                    fontFamily: f.bold,
+                  }}
+                >
                   {editing ? 'Cancel' : 'Edit'}
                 </Text>
               </Pressable>
@@ -161,7 +197,9 @@ export default function ContactDetailScreen() {
         }}
       />
       {isLoading || !contact ? (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+        <View
+          style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}
+        >
           <ConvoRealLoader />
         </View>
       ) : (
@@ -184,8 +222,12 @@ export default function ContactDetailScreen() {
                     style={[
                       styles.agentChip,
                       {
-                        backgroundColor: active ? colors.primarySoft : colors.glass,
-                        borderColor: active ? colors.primary : colors.glassBorder,
+                        backgroundColor: active
+                          ? colors.primarySoft
+                          : colors.glass,
+                        borderColor: active
+                          ? colors.primary
+                          : colors.glassBorder,
                       },
                     ]}
                   >
@@ -217,7 +259,8 @@ export default function ContactDetailScreen() {
 
 function ContactCard({ contact }: { contact: Contact }) {
   const { colors, dark, fonts: f } = useTheme();
-  const [celebration, setCelebration] = useState<ApproveCelebrationState | null>(null);
+  const [celebration, setCelebration] =
+    useState<ApproveCelebrationState | null>(null);
   const [moveToEngineOpen, setMoveToEngineOpen] = useState(false);
   const [detailsRequestOpen, setDetailsRequestOpen] = useState(false);
   const [favoriting, setFavoriting] = useState(false);
@@ -271,7 +314,9 @@ function ContactCard({ contact }: { contact: Contact }) {
       haptic.warn();
       showDialog({
         title: 'Could not update favourite',
-        message: friendlyError(err instanceof Error ? err.message : 'Try again.'),
+        message: friendlyError(
+          err instanceof Error ? err.message : 'Try again.'
+        ),
       });
     } finally {
       setFavoriting(false);
@@ -321,7 +366,9 @@ function ContactCard({ contact }: { contact: Contact }) {
       setDeleting(false);
       showDialog({
         title: 'Could not delete',
-        message: friendlyError(err instanceof Error ? err.message : 'Try again.'),
+        message: friendlyError(
+          err instanceof Error ? err.message : 'Try again.'
+        ),
       });
     }
   }
@@ -330,202 +377,267 @@ function ContactCard({ contact }: { contact: Contact }) {
     ? classificationColors[contact.classification]?.[dark ? 'dark' : 'light']
     : undefined;
 
-  const budget = formatBudgetRange(contact.min_budget, contact.max_budget, contact.no_budget);
+  const budget = formatBudgetRange(
+    contact.min_budget,
+    contact.max_budget,
+    contact.no_budget
+  );
 
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-    <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag">
-      {contact.status === 'pending_review' ? (
-        <ReviewBanner
-          contact={contact}
-          onApproved={(outcome) => setCelebration({ contact, outcome })}
-        />
-      ) : null}
-      <View style={styles.identity}>
-        <Avatar name={name} size={72} />
-        <View style={styles.nameRow}>
-          <Text style={[styles.name, { color: colors.text, fontFamily: f.extrabold }]}>{name}</Text>
-          <Pressable
-            hitSlop={10}
-            onPress={toggleFavorite}
-            disabled={favoriting}
-            accessibilityRole="button"
-            accessibilityLabel={
-              contact.is_favorite
-                ? `Remove ${name} from favourites`
-                : `Add ${name} to favourites`
-            }
-            accessibilityState={{ disabled: favoriting, busy: favoriting }}
+      <ScrollView
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+      >
+        {contact.status === 'pending_review' ? (
+          <ReviewBanner
+            contact={contact}
+            onApproved={(outcome) => setCelebration({ contact, outcome })}
+          />
+        ) : null}
+        <View style={styles.identity}>
+          <Avatar name={name} size={72} />
+          <View style={styles.nameRow}>
+            <Text
+              style={[
+                styles.name,
+                { color: colors.text, fontFamily: f.extrabold },
+              ]}
+            >
+              {name}
+            </Text>
+            <Pressable
+              hitSlop={10}
+              onPress={toggleFavorite}
+              disabled={favoriting}
+              accessibilityRole="button"
+              accessibilityLabel={
+                contact.is_favorite
+                  ? `Remove ${name} from favourites`
+                  : `Add ${name} to favourites`
+              }
+              accessibilityState={{ disabled: favoriting, busy: favoriting }}
+            >
+              <Ionicons
+                name={contact.is_favorite ? 'star' : 'star-outline'}
+                size={22}
+                color={contact.is_favorite ? colors.warning : colors.textFaint}
+              />
+            </Pressable>
+          </View>
+          <View
+            style={{
+              flexDirection: 'row',
+              gap: 6,
+              flexWrap: 'wrap',
+              justifyContent: 'center',
+            }}
           >
-            <Ionicons
-              name={contact.is_favorite ? 'star' : 'star-outline'}
-              size={22}
-              color={contact.is_favorite ? colors.warning : colors.textFaint}
-            />
-          </Pressable>
+            {contact.classification ? (
+              <Tag label={contact.classification} color={clsColor} />
+            ) : null}
+            {contact.name_tag ? <Tag label={contact.name_tag} /> : null}
+            {contact.lead_temp ? (
+              <Tag
+                label={contact.lead_temp}
+                color={
+                  contact.lead_temp === 'HOT' ? colors.danger : colors.textMuted
+                }
+              />
+            ) : null}
+          </View>
         </View>
-        <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', justifyContent: 'center' }}>
-          {contact.classification ? (
-            <Tag label={contact.classification} color={clsColor} />
-          ) : null}
-          {contact.name_tag ? <Tag label={contact.name_tag} /> : null}
-          {contact.lead_temp ? (
-            <Tag
-              label={contact.lead_temp}
-              color={contact.lead_temp === 'HOT' ? colors.danger : colors.textMuted}
-            />
-          ) : null}
-        </View>
-      </View>
 
-      <View style={styles.actions}>
-        {hasPhone(contact) ? (
-          <>
-            <ActionButton icon="call" label="Call" onPress={() => startCall(contact)} />
+        <View style={styles.actions}>
+          {hasPhone(contact) ? (
+            <>
+              <ActionButton
+                icon="call"
+                label="Call"
+                onPress={() => startCall(contact)}
+              />
+              <ActionButton
+                icon="logo-whatsapp"
+                label="WhatsApp"
+                onPress={() => openWelcomeWhatsApp(contact)}
+              />
+              <ActionButton
+                icon="chatbubbles"
+                label="Inbox"
+                onPress={() => openConversation(contact.id)}
+              />
+              <ActionButton
+                icon="swap-horizontal"
+                label="To Engine"
+                onPress={() => setMoveToEngineOpen(true)}
+              />
+              <ActionButton
+                icon="clipboard-outline"
+                label="Ask Details"
+                onPress={() => setDetailsRequestOpen(true)}
+              />
+            </>
+          ) : null}
+          {contact.classification === 'Agent' ? (
             <ActionButton
-              icon="logo-whatsapp"
-              label="WhatsApp"
-              onPress={() => openWelcomeWhatsApp(contact)}
+              icon="map-outline"
+              label="Journey"
+              onPress={() =>
+                router.push(`/(app)/journey?contactId=${contact.id}`)
+              }
             />
-            <ActionButton icon="chatbubbles" label="Inbox" onPress={() => openConversation(contact.id)} />
-            <ActionButton
-              icon="swap-horizontal"
-              label="To Engine"
-              onPress={() => setMoveToEngineOpen(true)}
+          ) : null}
+        </View>
+
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+          ]}
+        >
+          {contact.phone ? (
+            <InfoRow icon="call-outline" label="Phone" value={contact.phone} />
+          ) : null}
+          {contact.secondary_phones?.length ? (
+            <InfoRow
+              icon="call-outline"
+              label="Other phones"
+              value={contact.secondary_phones.join(', ')}
             />
-            <ActionButton
-              icon="clipboard-outline"
-              label="Ask Details"
-              onPress={() => setDetailsRequestOpen(true)}
+          ) : null}
+          {contact.email ? (
+            <InfoRow icon="mail-outline" label="Email" value={contact.email} />
+          ) : null}
+          {contact.company ? (
+            <InfoRow
+              icon="business-outline"
+              label="Company"
+              value={contact.company}
             />
-          </>
+          ) : null}
+          {budget ? (
+            <InfoRow icon="cash-outline" label="Budget" value={budget} />
+          ) : null}
+          {contact.areas_of_interest?.length ? (
+            <InfoRow
+              icon="location-outline"
+              label="Areas of interest"
+              value={
+                contact.areas_of_interest.join(', ') +
+                (contact.strict_area_match ? ' · strict match' : '')
+              }
+            />
+          ) : null}
+          {contact.property_interests?.length ? (
+            <InfoRow
+              icon="pricetags-outline"
+              label="Property interests"
+              value={contact.property_interests.join(', ')}
+            />
+          ) : null}
+          {contact.min_roi ? (
+            <InfoRow
+              icon="trending-up-outline"
+              label="Min ROI"
+              value={`${contact.min_roi}%`}
+            />
+          ) : null}
+          {contact.requirements ? (
+            <InfoRow
+              icon="list-outline"
+              label="Requirements"
+              value={contact.requirements}
+            />
+          ) : null}
+        </View>
+
+        {contact.classification &&
+        ['Owner', 'Seller', 'Developer', 'Owner & Buyer', 'Agent'].includes(
+          contact.classification
+        ) ? (
+          <AgentProperties
+            contactId={contact.id}
+            title={
+              contact.classification === 'Agent'
+                ? 'Showcase properties'
+                : 'Managed properties'
+            }
+          />
+        ) : null}
+        {contact.classification &&
+        ['Buyer', 'Agent', 'Owner & Buyer'].includes(contact.classification) ? (
+          <InterestedProperties contact={contact} />
         ) : null}
         {contact.classification === 'Agent' ? (
-          <ActionButton
-            icon="map-outline"
-            label="Journey"
-            onPress={() => router.push(`/(app)/journey?contactId=${contact.id}`)}
-          />
+          <AgentSchedule contact={contact} />
         ) : null}
-      </View>
-
-      <View style={[styles.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
-        {contact.phone ? (
-          <InfoRow icon="call-outline" label="Phone" value={contact.phone} />
-        ) : null}
-        {contact.secondary_phones?.length ? (
-          <InfoRow
-            icon="call-outline"
-            label="Other phones"
-            value={contact.secondary_phones.join(', ')}
-          />
-        ) : null}
-        {contact.email ? (
-          <InfoRow icon="mail-outline" label="Email" value={contact.email} />
-        ) : null}
-        {contact.company ? (
-          <InfoRow icon="business-outline" label="Company" value={contact.company} />
-        ) : null}
-        {budget ? <InfoRow icon="cash-outline" label="Budget" value={budget} /> : null}
-        {contact.areas_of_interest?.length ? (
-          <InfoRow
-            icon="location-outline"
-            label="Areas of interest"
-            value={
-              contact.areas_of_interest.join(', ') +
-              (contact.strict_area_match ? ' · strict match' : '')
-            }
-          />
-        ) : null}
-        {contact.property_interests?.length ? (
-          <InfoRow
-            icon="pricetags-outline"
-            label="Property interests"
-            value={contact.property_interests.join(', ')}
-          />
-        ) : null}
-        {contact.min_roi ? (
-          <InfoRow icon="trending-up-outline" label="Min ROI" value={`${contact.min_roi}%`} />
-        ) : null}
-        {contact.requirements ? (
-          <InfoRow icon="list-outline" label="Requirements" value={contact.requirements} />
-        ) : null}
-      </View>
-
-      {contact.classification &&
-      ['Owner', 'Seller', 'Developer', 'Owner & Buyer', 'Agent'].includes(contact.classification) ? (
-        <AgentProperties
+        <ContactTags contactId={contact.id} />
+        <AgentNotes
           contactId={contact.id}
-          title={contact.classification === 'Agent' ? 'Showcase properties' : 'Managed properties'}
+          title={contact.classification === 'Agent' ? 'Agent notes' : 'Notes'}
         />
-      ) : null}
-      {contact.classification &&
-      ['Buyer', 'Agent', 'Owner & Buyer'].includes(contact.classification) ? (
-        <InterestedProperties contact={contact} />
-      ) : null}
-      {contact.classification === 'Agent' ? <AgentSchedule contact={contact} /> : null}
-      <ContactTags contactId={contact.id} />
-      <AgentNotes
-        contactId={contact.id}
-        title={contact.classification === 'Agent' ? 'Agent notes' : 'Notes'}
-      />
 
-      <Text style={{ fontSize: 12, color: colors.textFaint, textAlign: 'center' }}>
-        {contact.classification === 'Agent'
-          ? 'Tap Edit above to update their details and requirements.'
-          : 'Tap Edit above to update budget, areas and buyer preferences.'}
-      </Text>
-
-      <Pressable
-        onPress={canDelete ? confirmDelete : explainCannotDelete}
-        disabled={deleting}
-        accessibilityRole="button"
-        accessibilityLabel={
-          canDelete ? `Delete ${name}` : `Why ${name} cannot be deleted`
-        }
-        accessibilityState={{ disabled: deleting, busy: deleting }}
-        style={({ pressed }) => [
-          styles.deleteContact,
-          {
-            backgroundColor: canDelete ? colors.dangerSoft : colors.glass,
-            borderColor: canDelete ? colors.danger : colors.glassBorder,
-            opacity: deleting ? 0.55 : pressed ? 0.85 : 1,
-          },
-        ]}
-      >
-        <Ionicons
-          name="trash-outline"
-          size={16}
-          color={canDelete ? colors.danger : colors.textFaint}
-        />
         <Text
-          style={{
-            fontSize: 14,
-            fontFamily: f.bold,
-            color: canDelete ? colors.danger : colors.textFaint,
-          }}
+          style={{ fontSize: 12, color: colors.textFaint, textAlign: 'center' }}
         >
-          {deleting ? 'Deleting…' : 'Delete contact'}
+          {contact.classification === 'Agent'
+            ? 'Tap Edit above to update their details and requirements.'
+            : 'Tap Edit above to update budget, areas and buyer preferences.'}
         </Text>
-      </Pressable>
-    </ScrollView>
-    <ApproveCelebration celebration={celebration} onClose={() => setCelebration(null)} />
-    <MoveToEngineSheet
-      visible={moveToEngineOpen}
-      onClose={() => setMoveToEngineOpen(false)}
-      contact={contact}
-    />
-    <OwnerDetailsRequestSheet
-      visible={detailsRequestOpen}
-      onClose={() => setDetailsRequestOpen(false)}
-      contact={contact}
-    />
-    <AppDialog {...screenDialogProps} />
-    <AppDialog {...callLogProps} />
+
+        <Pressable
+          onPress={canDelete ? confirmDelete : explainCannotDelete}
+          disabled={deleting}
+          accessibilityRole="button"
+          accessibilityLabel={
+            canDelete ? `Delete ${name}` : `Why ${name} cannot be deleted`
+          }
+          accessibilityState={{ disabled: deleting, busy: deleting }}
+          style={({ pressed }) => [
+            styles.deleteContact,
+            {
+              backgroundColor: canDelete ? colors.dangerSoft : colors.glass,
+              borderColor: canDelete ? colors.danger : colors.glassBorder,
+              opacity: deleting ? 0.55 : pressed ? 0.85 : 1,
+            },
+          ]}
+        >
+          <Ionicons
+            name="trash-outline"
+            size={16}
+            color={canDelete ? colors.danger : colors.textFaint}
+          />
+          <Text
+            style={{
+              fontSize: 14,
+              fontFamily: f.bold,
+              color: canDelete ? colors.danger : colors.textFaint,
+            }}
+          >
+            {deleting ? 'Deleting…' : 'Delete contact'}
+          </Text>
+        </Pressable>
+      </ScrollView>
+      <ApproveCelebration
+        celebration={celebration}
+        onClose={() => setCelebration(null)}
+      />
+      <MoveToEngineSheet
+        visible={moveToEngineOpen}
+        onClose={() => setMoveToEngineOpen(false)}
+        contact={contact}
+      />
+      <OwnerDetailsRequestSheet
+        visible={detailsRequestOpen}
+        onClose={() => setDetailsRequestOpen(false)}
+        contact={contact}
+      />
+      <AppDialog {...screenDialogProps} />
+      <AppDialog {...callLogProps} />
     </KeyboardAvoidingView>
   );
 }
@@ -564,18 +676,27 @@ function ReviewBanner({
           onPress: async () => {
             close();
             try {
-              await apiFetch(`/api/contacts/${contact.id}/inquiries/${propertyId}`, {
-                method: 'DELETE',
-              });
+              await apiFetch(
+                `/api/contacts/${contact.id}/inquiries/${propertyId}`,
+                {
+                  method: 'DELETE',
+                }
+              );
               haptic.success();
-              queryClient.invalidateQueries({ queryKey: ['contact', contact.id] });
-              queryClient.invalidateQueries({ queryKey: ['interested-properties', contact.id] });
+              queryClient.invalidateQueries({
+                queryKey: ['contact', contact.id],
+              });
+              queryClient.invalidateQueries({
+                queryKey: ['interested-properties', contact.id],
+              });
               queryClient.invalidateQueries({ queryKey: ['contacts'] });
             } catch (e) {
               haptic.warn();
               show({
                 title: 'Could not un-tag',
-                message: friendlyError(e instanceof ApiError ? e.message : 'Try again.'),
+                message: friendlyError(
+                  e instanceof ApiError ? e.message : 'Try again.'
+                ),
               });
             }
           },
@@ -590,7 +711,10 @@ function ReviewBanner({
     setBusy(false);
     if (!result.ok) {
       haptic.warn();
-      show({ title: 'Could not approve', message: friendlyError(result.error ?? 'Try again.') });
+      show({
+        title: 'Could not approve',
+        message: friendlyError(result.error ?? 'Try again.'),
+      });
       return;
     }
     onApproved(result);
@@ -618,16 +742,33 @@ function ReviewBanner({
               justifyContent: 'center',
             }}
           >
-            <Ionicons name="hourglass-outline" size={14} color={colors.onWarning} />
+            <Ionicons
+              name="hourglass-outline"
+              size={14}
+              color={colors.onWarning}
+            />
           </View>
         </PulseRing>
         <View style={{ flex: 1, gap: 2 }}>
-          <Text style={{ fontSize: 13.5, fontFamily: f.bold, color: colors.warning }}>
+          <Text
+            style={{
+              fontSize: 13.5,
+              fontFamily: f.bold,
+              color: colors.warning,
+            }}
+          >
             Needs review
           </Text>
-          <Text style={{ fontSize: 12, color: colors.textMuted }} numberOfLines={2}>
-            From {contact.referrer || contact.source || 'an external source'} — approve to move it
-            into your active contacts{contact.last_inquired_property_id ? ' and send them the details below' : ''}.
+          <Text
+            style={{ fontSize: 12, color: colors.textMuted }}
+            numberOfLines={2}
+          >
+            From {contact.referrer || contact.source || 'an external source'} —
+            approve to move it into your active contacts
+            {contact.last_inquired_property_id
+              ? ' and send them the details below'
+              : ''}
+            .
           </Text>
         </View>
         <Pressable
@@ -635,14 +776,25 @@ function ReviewBanner({
           disabled={busy}
           accessibilityRole="button"
           accessibilityLabel="Approve contact"
-          style={[styles.approveButton, { backgroundColor: colors.warning, opacity: busy ? 0.6 : 1 }]}
+          style={[
+            styles.approveButton,
+            { backgroundColor: colors.warning, opacity: busy ? 0.6 : 1 },
+          ]}
         >
           {busy ? (
             <ActivityIndicator size="small" color={colors.onWarning} />
           ) : (
             <>
               <Ionicons name="checkmark" size={16} color={colors.onWarning} />
-              <Text style={{ fontSize: 13.5, fontFamily: f.bold, color: colors.onWarning }}>Approve</Text>
+              <Text
+                style={{
+                  fontSize: 13.5,
+                  fontFamily: f.bold,
+                  color: colors.onWarning,
+                }}
+              >
+                Approve
+              </Text>
             </>
           )}
         </Pressable>
@@ -650,7 +802,9 @@ function ReviewBanner({
       {contact.last_inquired_property_id ? (
         <ContactedProperty
           propertyId={contact.last_inquired_property_id}
-          onWrongListing={() => confirmWrongListing(contact.last_inquired_property_id!)}
+          onWrongListing={() =>
+            confirmWrongListing(contact.last_inquired_property_id!)
+          }
         />
       ) : null}
       <PortalAdMapping contact={contact} />
@@ -685,7 +839,10 @@ function PortalAdMapping({ contact }: { contact: Contact }) {
         .eq('portal_listing_id', listingId!)
         .maybeSingle();
       if (error) throw error;
-      return data as { property_id: string; properties: { title: string } | null } | null;
+      return data as {
+        property_id: string;
+        properties: { title: string } | null;
+      } | null;
     },
   });
 
@@ -710,17 +867,25 @@ function PortalAdMapping({ contact }: { contact: Contact }) {
         message:
           `${portalLabel} ad ${listingId} is now "${data.propertyTitle}". New enquiries on it match ` +
           `automatically.` +
-          (others > 0 ? ` ${others} lead${others === 1 ? '' : 's'} already waiting moved across too.` : ''),
+          (others > 0
+            ? ` ${others} lead${others === 1 ? '' : 's'} already waiting moved across too.`
+            : ''),
       });
       queryClient.invalidateQueries({ queryKey: ['contact', contact.id] });
-      queryClient.invalidateQueries({ queryKey: ['portal-ad-link', portal, listingId] });
-      queryClient.invalidateQueries({ queryKey: ['interested-properties', contact.id] });
+      queryClient.invalidateQueries({
+        queryKey: ['portal-ad-link', portal, listingId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['interested-properties', contact.id],
+      });
       queryClient.invalidateQueries({ queryKey: ['contacts'] });
     } catch (e) {
       haptic.warn();
       show({
         title: 'Could not map the ad',
-        message: friendlyError(e instanceof ApiError ? e.message : 'Try again.'),
+        message: friendlyError(
+          e instanceof ApiError ? e.message : 'Try again.'
+        ),
       });
     } finally {
       setBusy(false);
@@ -731,7 +896,10 @@ function PortalAdMapping({ contact }: { contact: Contact }) {
     <View
       style={[
         styles.portalAdRow,
-        { backgroundColor: colors.surfaceRaised, borderColor: colors.glassBorder },
+        {
+          backgroundColor: colors.surfaceRaised,
+          borderColor: colors.glassBorder,
+        },
       ]}
     >
       <Ionicons
@@ -740,7 +908,10 @@ function PortalAdMapping({ contact }: { contact: Contact }) {
         color={mapped ? colors.success : colors.warning}
       />
       <View style={{ flex: 1, gap: 2 }}>
-        <Text style={{ fontSize: 12.5, fontFamily: f.bold, color: colors.text }} numberOfLines={1}>
+        <Text
+          style={{ fontSize: 12.5, fontFamily: f.bold, color: colors.text }}
+          numberOfLines={1}
+        >
           {portalLabel} ad {listingId}
         </Text>
         <Text style={{ fontSize: 11.5, color: colors.textMuted }}>
@@ -758,12 +929,23 @@ function PortalAdMapping({ contact }: { contact: Contact }) {
           disabled={busy}
           accessibilityRole="button"
           accessibilityLabel={`Map ${portalLabel} ad ${listingId} to a listing`}
-          style={[styles.mapAdButton, { borderColor: colors.primary, opacity: busy ? 0.6 : 1 }]}
+          style={[
+            styles.mapAdButton,
+            { borderColor: colors.primary, opacity: busy ? 0.6 : 1 },
+          ]}
         >
           {busy ? (
             <ActivityIndicator size="small" color={colors.primary} />
           ) : (
-            <Text style={{ fontSize: 12, fontFamily: f.bold, color: colors.primary }}>Map</Text>
+            <Text
+              style={{
+                fontSize: 12,
+                fontFamily: f.bold,
+                color: colors.primary,
+              }}
+            >
+              Map
+            </Text>
           )}
         </Pressable>
       )}
@@ -797,7 +979,10 @@ function ContactedProperty({
         .eq('id', propertyId)
         .maybeSingle();
       if (error) throw error;
-      return data as Pick<Property, 'id' | 'title' | 'location' | 'images'> | null;
+      return data as Pick<
+        Property,
+        'id' | 'title' | 'location' | 'images'
+      > | null;
     },
   });
   if (!property) return null;
@@ -807,24 +992,55 @@ function ContactedProperty({
       onPress={() => router.push(`/(app)/property/${property.id}`)}
       accessibilityRole="button"
       accessibilityLabel={`Contacted about ${property.title}`}
-      style={[styles.contactedProperty, { backgroundColor: colors.surfaceRaised, borderColor: colors.glassBorder }]}
+      style={[
+        styles.contactedProperty,
+        {
+          backgroundColor: colors.surfaceRaised,
+          borderColor: colors.glassBorder,
+        },
+      ]}
     >
       {property.images?.[0] ? (
-        <Image source={{ uri: storagePublicUrl(property.images[0]) }} style={styles.contactedThumb} />
+        <Image
+          source={{ uri: storagePublicUrl(property.images[0]) }}
+          style={styles.contactedThumb}
+        />
       ) : (
-        <View style={[styles.contactedThumb, { backgroundColor: colors.surfaceSunken, alignItems: 'center', justifyContent: 'center' }]}>
+        <View
+          style={[
+            styles.contactedThumb,
+            {
+              backgroundColor: colors.surfaceSunken,
+              alignItems: 'center',
+              justifyContent: 'center',
+            },
+          ]}
+        >
           <Ionicons name="home-outline" size={18} color={colors.textFaint} />
         </View>
       )}
       <View style={{ flex: 1, gap: 2 }}>
-        <Text style={{ fontSize: 10.5, fontFamily: f.bold, color: colors.warning, letterSpacing: 0.3 }}>
+        <Text
+          style={{
+            fontSize: 10.5,
+            fontFamily: f.bold,
+            color: colors.warning,
+            letterSpacing: 0.3,
+          }}
+        >
           CONTACTED ABOUT
         </Text>
-        <Text style={{ fontSize: 13.5, fontFamily: f.bold, color: colors.text }} numberOfLines={1}>
+        <Text
+          style={{ fontSize: 13.5, fontFamily: f.bold, color: colors.text }}
+          numberOfLines={1}
+        >
           {property.title}
         </Text>
         {property.location ? (
-          <Text style={{ fontSize: 12, color: colors.textMuted }} numberOfLines={1}>
+          <Text
+            style={{ fontSize: 12, color: colors.textMuted }}
+            numberOfLines={1}
+          >
             {property.location}
           </Text>
         ) : null}
@@ -835,7 +1051,9 @@ function ContactedProperty({
           accessibilityLabel="This is the wrong listing — un-tag it"
           style={{ alignSelf: 'flex-start' }}
         >
-          <Text style={{ fontSize: 11.5, fontFamily: f.bold, color: colors.danger }}>
+          <Text
+            style={{ fontSize: 11.5, fontFamily: f.bold, color: colors.danger }}
+          >
             Wrong listing?
           </Text>
         </Pressable>
@@ -844,7 +1062,6 @@ function ContactedProperty({
     </Pressable>
   );
 }
-
 
 async function openConversation(contactId: string) {
   const { data } = await supabase
@@ -859,7 +1076,13 @@ async function openConversation(contactId: string) {
   }
 }
 
-function ContactEditor({ contact, onDone }: { contact: Contact; onDone: () => void }) {
+function ContactEditor({
+  contact,
+  onDone,
+}: {
+  contact: Contact;
+  onDone: () => void;
+}) {
   const { colors, dark, fonts: f } = useTheme();
   const [name, setName] = useState(contact.name ?? '');
   const [secondName, setSecondName] = useState(contact.second_name ?? '');
@@ -870,9 +1093,9 @@ function ContactEditor({ contact, onDone }: { contact: Contact; onDone: () => vo
   const [email, setEmail] = useState(contact.email ?? '');
   const [company, setCompany] = useState(contact.company ?? '');
   const [requirements, setRequirements] = useState(contact.requirements ?? '');
-  const [classification, setClassification] = useState<Classification | undefined>(
-    contact.classification
-  );
+  const [classification, setClassification] = useState<
+    Classification | undefined
+  >(contact.classification);
   const [minBudget, setMinBudget] = useState(
     contact.min_budget != null ? String(contact.min_budget) : ''
   );
@@ -884,26 +1107,39 @@ function ContactEditor({ contact, onDone }: { contact: Contact; onDone: () => vo
   const [areasGeo, setAreasGeo] = useState<AreaOfInterestGeo[]>(
     contact.areas_of_interest_geo ?? []
   );
-  const [strictArea, setStrictArea] = useState(Boolean(contact.strict_area_match));
+  const [strictArea, setStrictArea] = useState(
+    Boolean(contact.strict_area_match)
+  );
   const [propertyInterests, setPropertyInterests] = useState<string[]>(
     contact.property_interests ?? []
   );
-  const [minRoi, setMinRoi] = useState(contact.min_roi != null ? String(contact.min_roi) : '');
+  const [minRoi, setMinRoi] = useState(
+    contact.min_roi != null ? String(contact.min_roi) : ''
+  );
+  const [updateChannel, setUpdateChannel] = useState<UpdateChannelValue | null>(
+    contact.preferred_update_channel ?? null
+  );
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const showPrefs = Boolean(classification && BUYER_PREF_CLASSIFICATIONS.includes(classification));
+  const showPrefs = Boolean(
+    classification && BUYER_PREF_CLASSIFICATIONS.includes(classification)
+  );
 
   function toggleInterest(option: string) {
     setPropertyInterests((prev) =>
-      prev.includes(option) ? prev.filter((o) => o !== option) : [...prev, option]
+      prev.includes(option)
+        ? prev.filter((o) => o !== option)
+        : [...prev, option]
     );
   }
 
   async function save() {
     const cleanEmail = email.trim();
     if (cleanEmail && !/^\S+@\S+\.\S+$/.test(cleanEmail)) {
-      setError('That email address doesn\u2019t look right \u2014 check it and try again.');
+      setError(
+        'That email address doesn\u2019t look right \u2014 check it and try again.'
+      );
       return;
     }
     // Blank rows are just an unused "Add another number" tap, so they drop
@@ -919,7 +1155,8 @@ function ContactEditor({ contact, onDone }: { contact: Contact; onDone: () => vo
         );
         return;
       }
-      if (normalized === contact.phone || normalizedPhones.includes(normalized)) continue;
+      if (normalized === contact.phone || normalizedPhones.includes(normalized))
+        continue;
       normalizedPhones.push(normalized);
     }
     setSaving(true);
@@ -941,11 +1178,14 @@ function ContactEditor({ contact, onDone }: { contact: Contact; onDone: () => vo
         areas_of_interest: areas,
         // Drop coordinates for any area no longer in the list (web parity).
         areas_of_interest_geo: areasGeo.filter((g) =>
-          areas.some((a) => a.trim().toLowerCase() === g.name.trim().toLowerCase())
+          areas.some(
+            (a) => a.trim().toLowerCase() === g.name.trim().toLowerCase()
+          )
         ),
         strict_area_match: strictArea,
         property_interests: propertyInterests,
         min_roi: parseAmount(minRoi),
+        preferred_update_channel: updateChannel,
       })
       .eq('id', contact.id)
       .select('id');
@@ -972,11 +1212,19 @@ function ContactEditor({ contact, onDone }: { contact: Contact; onDone: () => vo
       style={{ flex: 1 }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag">
+      <ScrollView
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+      >
         {error ? <Banner kind="error" text={error} /> : null}
 
-        <TextField label="Name" value={name} onChangeText={setName} placeholder="First name" />
+        <TextField
+          label="Name"
+          value={name}
+          onChangeText={setName}
+          placeholder="First name"
+        />
         <TextField
           label="Second Name"
           value={secondName}
@@ -992,12 +1240,28 @@ function ContactEditor({ contact, onDone }: { contact: Contact; onDone: () => vo
         {/* Primary number is set at creation and stays put — these are the
             extra numbers (a second mobile, a WhatsApp-only number). */}
         <View style={{ gap: spacing.sm }}>
-          <SectionLabel text="Other numbers" style={{ color: colors.textMuted }} />
-          <Text style={{ fontSize: 11.5, color: colors.textFaint, marginTop: -spacing.xs }}>
+          <SectionLabel
+            text="Other numbers"
+            style={{ color: colors.textMuted }}
+          />
+          <Text
+            style={{
+              fontSize: 11.5,
+              color: colors.textFaint,
+              marginTop: -spacing.xs,
+            }}
+          >
             Primary: {contact.phone}
           </Text>
           {secondaryPhones.map((value, idx) => (
-            <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+            <View
+              key={idx}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: spacing.sm,
+              }}
+            >
               <View style={{ flex: 1 }}>
                 <TextField
                   value={value}
@@ -1015,12 +1279,18 @@ function ContactEditor({ contact, onDone }: { contact: Contact; onDone: () => vo
                 hitSlop={10}
                 onPress={() => {
                   haptic.tap();
-                  setSecondaryPhones((prev) => prev.filter((_, i) => i !== idx));
+                  setSecondaryPhones((prev) =>
+                    prev.filter((_, i) => i !== idx)
+                  );
                 }}
                 accessibilityRole="button"
                 accessibilityLabel={`Remove number ${idx + 1}`}
               >
-                <Ionicons name="close-circle-outline" size={22} color={colors.textMuted} />
+                <Ionicons
+                  name="close-circle-outline"
+                  size={22}
+                  color={colors.textMuted}
+                />
               </Pressable>
             </View>
           ))}
@@ -1033,8 +1303,18 @@ function ContactEditor({ contact, onDone }: { contact: Contact; onDone: () => vo
             accessibilityLabel="Add another number"
             style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
           >
-            <Ionicons name="add-circle-outline" size={18} color={colors.primary} />
-            <Text style={{ fontSize: 13.5, fontFamily: f.semibold, color: colors.primary }}>
+            <Ionicons
+              name="add-circle-outline"
+              size={18}
+              color={colors.primary}
+            />
+            <Text
+              style={{
+                fontSize: 13.5,
+                fontFamily: f.semibold,
+                color: colors.primary,
+              }}
+            >
               Add another number
             </Text>
           </Pressable>
@@ -1048,7 +1328,12 @@ function ContactEditor({ contact, onDone }: { contact: Contact; onDone: () => vo
           keyboardType="email-address"
           autoCapitalize="none"
         />
-        <TextField label="Company" value={company} onChangeText={setCompany} placeholder="Company" />
+        <TextField
+          label="Company"
+          value={company}
+          onChangeText={setCompany}
+          placeholder="Company"
+        />
         <TextField
           label="Requirements"
           value={requirements}
@@ -1058,8 +1343,12 @@ function ContactEditor({ contact, onDone }: { contact: Contact; onDone: () => vo
         />
 
         <View style={{ gap: spacing.sm }}>
-          <Text style={[styles.fieldLabel, { color: colors.textMuted }]}>Classification</Text>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+          <Text style={[styles.fieldLabel, { color: colors.textMuted }]}>
+            Classification
+          </Text>
+          <View
+            style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}
+          >
             {CLASSIFICATIONS.map((c) => {
               const active = classification === c;
               const hue = classificationColors[c]?.[dark ? 'dark' : 'light'];
@@ -1071,7 +1360,9 @@ function ContactEditor({ contact, onDone }: { contact: Contact; onDone: () => vo
                     paddingHorizontal: 12,
                     paddingVertical: 7,
                     borderRadius: radius.full,
-                    backgroundColor: active ? colors.primarySoft : colors.surface,
+                    backgroundColor: active
+                      ? colors.primarySoft
+                      : colors.surface,
                     borderWidth: active ? 1.5 : StyleSheet.hairlineWidth,
                     borderColor: active ? colors.primary : colors.border,
                   }}
@@ -1080,7 +1371,9 @@ function ContactEditor({ contact, onDone }: { contact: Contact; onDone: () => vo
                     style={{
                       fontSize: 13,
                       fontFamily: f.semibold,
-                      color: active ? colors.primary : (hue ?? colors.textMuted),
+                      color: active
+                        ? colors.primary
+                        : (hue ?? colors.textMuted),
                     }}
                   >
                     {c}
@@ -1091,11 +1384,60 @@ function ContactEditor({ contact, onDone }: { contact: Contact; onDone: () => vo
           </View>
         </View>
 
+        <View style={{ gap: spacing.sm }}>
+          <Text style={[styles.fieldLabel, { color: colors.textMuted }]}>
+            Preferred update channel
+          </Text>
+          <View
+            style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}
+          >
+            {UPDATE_CHANNEL_OPTIONS.map((opt) => {
+              const active = updateChannel === opt.value;
+              return (
+                <Pressable
+                  key={opt.value}
+                  onPress={() => setUpdateChannel(active ? null : opt.value)}
+                  style={{
+                    paddingHorizontal: 12,
+                    paddingVertical: 7,
+                    borderRadius: radius.full,
+                    backgroundColor: active
+                      ? colors.primarySoft
+                      : colors.surface,
+                    borderWidth: active ? 1.5 : StyleSheet.hairlineWidth,
+                    borderColor: active ? colors.primary : colors.border,
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 13,
+                      fontFamily: f.semibold,
+                      color: active ? colors.primary : colors.textMuted,
+                    }}
+                  >
+                    {opt.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          <Text style={[styles.hint, { color: colors.textFaint }]}>
+            How announcements and reminders reach them. Nothing selected lets
+            each send pick its own default.
+          </Text>
+        </View>
+
         {showPrefs ? (
           <View style={{ gap: spacing.md, marginTop: spacing.sm }}>
-            <Text style={[styles.fieldLabel, { color: colors.textMuted }]}>Buyer preferences</Text>
+            <Text style={[styles.fieldLabel, { color: colors.textMuted }]}>
+              Buyer preferences
+            </Text>
 
-            <CheckRow label="No budget limit" checked={noBudget} onToggle={() => setNoBudget((v) => !v)} />
+            <CheckRow
+              label="No budget limit"
+              checked={noBudget}
+              onToggle={() => setNoBudget((v) => !v)}
+            />
             {!noBudget ? (
               <View style={{ flexDirection: 'row', gap: spacing.md }}>
                 <View style={{ flex: 1, gap: spacing.xs }}>
@@ -1130,7 +1472,9 @@ function ContactEditor({ contact, onDone }: { contact: Contact; onDone: () => vo
             ) : null}
 
             <View style={{ gap: spacing.sm }}>
-              <Text style={[styles.fieldLabel, { color: colors.textMuted }]}>Areas of interest</Text>
+              <Text style={[styles.fieldLabel, { color: colors.textMuted }]}>
+                Areas of interest
+              </Text>
               <AreasOfInterestInput
                 areas={areas}
                 geo={areasGeo}
@@ -1148,8 +1492,16 @@ function ContactEditor({ contact, onDone }: { contact: Contact; onDone: () => vo
             />
 
             <View style={{ gap: spacing.sm }}>
-              <Text style={[styles.fieldLabel, { color: colors.textMuted }]}>Property interests</Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+              <Text style={[styles.fieldLabel, { color: colors.textMuted }]}>
+                Property interests
+              </Text>
+              <View
+                style={{
+                  flexDirection: 'row',
+                  flexWrap: 'wrap',
+                  gap: spacing.sm,
+                }}
+              >
                 {PROPERTY_INTEREST_OPTIONS.map((option) => {
                   const active = propertyInterests.includes(option);
                   return (
@@ -1163,7 +1515,9 @@ function ContactEditor({ contact, onDone }: { contact: Contact; onDone: () => vo
                         paddingHorizontal: 12,
                         paddingVertical: 7,
                         borderRadius: radius.full,
-                        backgroundColor: active ? colors.primarySoft : colors.surface,
+                        backgroundColor: active
+                          ? colors.primarySoft
+                          : colors.surface,
                         borderWidth: active ? 1.5 : StyleSheet.hairlineWidth,
                         borderColor: active ? colors.primary : colors.border,
                       }}
@@ -1231,9 +1585,15 @@ function CheckRow({
           borderColor: colors.border,
         }}
       >
-        {checked ? <Ionicons name="checkmark" size={15} color={colors.onPrimary} /> : null}
+        {checked ? (
+          <Ionicons name="checkmark" size={15} color={colors.onPrimary} />
+        ) : null}
       </View>
-      <Text style={{ fontSize: 14.5, fontFamily: f.medium, color: colors.text }}>{label}</Text>
+      <Text
+        style={{ fontSize: 14.5, fontFamily: f.medium, color: colors.text }}
+      >
+        {label}
+      </Text>
     </Pressable>
   );
 }
@@ -1251,10 +1611,17 @@ function ActionButton({
   return (
     <Pressable
       onPress={onPress}
-      style={[styles.actionButton, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
+      style={[
+        styles.actionButton,
+        { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+      ]}
     >
       <Ionicons name={icon} size={20} color={colors.primary} />
-      <Text style={{ fontSize: 12.5, fontFamily: f.semibold, color: colors.text }}>{label}</Text>
+      <Text
+        style={{ fontSize: 12.5, fontFamily: f.semibold, color: colors.text }}
+      >
+        {label}
+      </Text>
     </Pressable>
   );
 }
@@ -1271,10 +1638,19 @@ function InfoRow({
   const { colors, fonts: f } = useTheme();
   return (
     <View style={[styles.infoRow, { borderTopColor: colors.border }]}>
-      <Ionicons name={icon} size={17} color={colors.textMuted} style={{ marginTop: 2 }} />
+      <Ionicons
+        name={icon}
+        size={17}
+        color={colors.textMuted}
+        style={{ marginTop: 2 }}
+      />
       <View style={{ flex: 1, gap: 1 }}>
         <Text style={{ fontSize: 12, color: colors.textFaint }}>{label}</Text>
-        <Text style={{ fontSize: 14.5, fontFamily: f.medium, color: colors.text }}>{value}</Text>
+        <Text
+          style={{ fontSize: 14.5, fontFamily: f.medium, color: colors.text }}
+        >
+          {value}
+        </Text>
       </View>
     </View>
   );
@@ -1291,10 +1667,29 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingVertical: 12,
   },
-  identity: { alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.sm },
-  name: { fontSize: 22, fontFamily: fonts.extrabold, textAlign: 'center', flexShrink: 1 },
-  nameRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs },
-  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, justifyContent: 'center' },
+  identity: {
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+  },
+  name: {
+    fontSize: 22,
+    fontFamily: fonts.extrabold,
+    textAlign: 'center',
+    flexShrink: 1,
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+  },
+  actions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.md,
+    justifyContent: 'center',
+  },
   actionButton: {
     alignItems: 'center',
     gap: 4,
@@ -1315,7 +1710,12 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
-  fieldLabel: { fontSize: 12.5, fontFamily: fonts.bold, textTransform: 'uppercase', letterSpacing: 0.4 },
+  fieldLabel: {
+    fontSize: 12.5,
+    fontFamily: fonts.bold,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
   hint: { fontSize: 12, fontFamily: fonts.medium, paddingHorizontal: 2 },
   reviewBanner: {
     gap: spacing.md,

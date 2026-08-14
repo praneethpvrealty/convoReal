@@ -35,6 +35,11 @@ export const MENU_LINKS = {
     icon: 'call-outline',
     label: 'Voice campaigns',
   },
+  announcements: {
+    href: '/(app)/announcements',
+    icon: 'mic-outline',
+    label: 'Audio announcements',
+  },
   pulse: {
     href: '/(app)/pulse',
     icon: 'analytics-outline',
@@ -86,7 +91,13 @@ export const MENU_SECTIONS: { title: string; ids: readonly MenuRouteId[] }[] = [
   },
   {
     title: 'Marketing',
-    ids: ['broadcasts', 'voiceCampaigns', 'pulse', 'automations'],
+    ids: [
+      'broadcasts',
+      'voiceCampaigns',
+      'announcements',
+      'pulse',
+      'automations',
+    ],
   },
   {
     title: 'App & account',

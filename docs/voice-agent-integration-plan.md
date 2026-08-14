@@ -264,10 +264,30 @@ per recipient at send time:
    Phase C dispatcher as a one-off campaign.
 
 **Channel preference**: `contacts.preferred_update_channel`
-(`'whatsapp_text' | 'whatsapp_audio' | 'voice_call'`, default text) captured with interactive
-reply buttons or the existing preference flow, editable from the contact drawer on web and
-mobile (§2.8). The appointment-reminder cron, digests, and announcement broadcasts all consult
-it before choosing a path.
+(`'whatsapp_text' | 'whatsapp_audio' | 'voice_call'`, NULL = no stated preference so the
+sender's default applies) captured with interactive reply buttons or the existing preference
+flow, editable from the contact drawer on web and mobile (§2.8). The appointment-reminder
+cron, digests, and announcement broadcasts all consult it before choosing a path.
+
+**Implementation status (chunk 1).** Shipped: migration `271_audio_announcements.sql`
+(`preferred_update_channel` on contacts, `voice_announcements` table, public `announcements`
+storage bucket); the preference control on both surfaces (web contact form select, mobile
+contact editor chips — §2.8 closed for the field); the generation pipeline —
+`POST /api/announcements` burns `AI_FEATURE_COSTS.audio_announcement` (5 cr, worker-refunded
+on failure) and queues an `announcement_audio` job that the queue worker renders via Sarvam
+translate + TTS → ffmpeg ogg/opus → public bucket (`src/lib/voice/announcement-worker.ts`);
+and `POST /api/announcements/[id]/send` — per-recipient channel from
+`announcementDeliveryFor()` (explicit preference beats the sender default, voice_call
+preferences skipped and counted, closed 24-hour windows skipped and counted), delivered
+through `sendWhatsAppMessageAndPersist` so every note lands in the inbox thread, with
+per-status counts accumulated on the announcement row. The announcements UI ships on both
+surfaces (§2.8): web as the "Announcements" tab on `/broadcasts`
+(`announcements-content.tsx` — create with language picker and price disclosure, generation
+status with inline audio preview, send dialog with recipient picker + default-channel
+choice, per-run result summaries, delete), mobile under More → Marketing
+(`mobile/app/(app)/announcements.tsx` — same flows; audio preview is web-only). Still open
+in this phase: the video-template path for closed windows (path 2 above), reminder/digest
+consumption of the preference, and WhatsApp reply-button capture of the preference.
 
 ## 8. Phase E — voice preference intake → matching
 
@@ -298,10 +318,10 @@ agent ever typing their requirement.
   dev server with `VOICE_CALLS_DRY_RUN=true` plus throwaway `VOICE_AGENT_WEBHOOK_TOKEN` /
   `AUTOMATION_CRON_SECRET`, then drive the full loop under a disposable account (created with
   `app_context` metadata to skip the beta gate, deleted by cascade afterwards): seed a property
-  + enquiry → create campaign via bearer-JWT API (enquiry seeding) → activate → cron dispatch
-  (claim + 25 cr upfront burn) → webhook with a budget-mismatch `qualification` (recipient
-  completed, stated budget/areas written back, Budget Mismatch tag, `voice_agent` journal row)
-  → duplicate `call_id` deduped → second recipient with `no_answer` (requeued + auto-refund) →
-  drained wallet (creditBlocked, claim reverted) → ledger shows exactly 2 burns + 1 refund.
-  Note: the engine grants monthly credits on first wallet use, so assert ledger deltas, not
-  absolute balances.
+  - enquiry → create campaign via bearer-JWT API (enquiry seeding) → activate → cron dispatch
+    (claim + 25 cr upfront burn) → webhook with a budget-mismatch `qualification` (recipient
+    completed, stated budget/areas written back, Budget Mismatch tag, `voice_agent` journal row)
+    → duplicate `call_id` deduped → second recipient with `no_answer` (requeued + auto-refund) →
+    drained wallet (creditBlocked, claim reverted) → ledger shows exactly 2 burns + 1 refund.
+    Note: the engine grants monthly credits on first wallet use, so assert ledger deltas, not
+    absolute balances.

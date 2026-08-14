@@ -13,6 +13,7 @@ import { contactFullName } from '@/lib/contacts/full-name';
 import { contactHandle } from '@/lib/contacts/reachability';
 import { pruneAreasGeo } from '@/lib/contacts/area-geo';
 import { LANGUAGE_CODES, languageDisplay, type LanguageCode } from '@/lib/languages';
+import type { UpdateChannel } from '@/lib/voice/announcements';
 import {
   Dialog,
   DialogContent,
@@ -65,6 +66,7 @@ export function ContactForm({
   const [company, setCompany] = useState('');
   const [classification, setClassification] = useState<'Owner' | 'Seller' | 'Buyer' | 'Agent' | 'Developer' | 'Owner & Buyer' | 'Others'>('Others');
   const [leadTemp, setLeadTemp] = useState<'HOT' | 'COLD' | 'Not Responding' | 'Dead' | ''>('');
+  const [updateChannel, setUpdateChannel] = useState<UpdateChannel | ''>('');
   const [preferredLanguage, setPreferredLanguage] = useState<LanguageCode | ''>('');
   const [lastInquiredPropertyId, setLastInquiredPropertyId] = useState<string | null>(null);
   const [referrer, setReferrer] = useState('');
@@ -175,6 +177,7 @@ export function ContactForm({
       setCompany(contact?.company ?? '');
       setClassification((contact as Contact)?.classification ?? 'Others');
       setLeadTemp(contact?.lead_temp ?? '');
+      setUpdateChannel(contact?.preferred_update_channel ?? '');
       setLastInquiredPropertyId(contact?.last_inquired_property_id ?? null);
       setReferrer(contact?.referrer ?? '');
       setReferrerContactId(contact?.referrer_contact_id ?? null);
@@ -312,6 +315,7 @@ export function ContactForm({
         company: company.trim() || null,
         classification,
         lead_temp: leadTemp || null,
+        preferred_update_channel: updateChannel || null,
         last_inquired_property_id: lastInquiredPropertyId,
         referrer: referrer.trim() || null,
         referrer_contact_id: referrerContactId,
@@ -700,6 +704,27 @@ export function ContactForm({
             <p className="text-xs text-slate-500">
               Picks the language variant of a WhatsApp template when one exists.
               Sends fall back to English if it doesn&apos;t.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="cf-update-channel" className="text-slate-300">
+              Preferred Update Channel
+            </Label>
+            <select
+              id="cf-update-channel"
+              value={updateChannel}
+              onChange={(e) => setUpdateChannel(e.target.value as UpdateChannel | '')}
+              className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
+            >
+              <option value="">No preference</option>
+              <option value="whatsapp_text">💬 WhatsApp text</option>
+              <option value="whatsapp_audio">🎙️ WhatsApp voice note</option>
+              <option value="voice_call">📞 Phone call</option>
+            </select>
+            <p className="text-xs text-slate-500">
+              How announcements and reminders reach this contact. No preference
+              lets each send pick its own default.
             </p>
           </div>
 
