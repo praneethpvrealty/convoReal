@@ -414,6 +414,7 @@ function InboxHeader({
         </View>
       </View>
       <SearchBar
+        testID="inbox-search"
         value={search}
         onChangeText={onSearch}
         placeholder="Search name, phone or message"

@@ -835,6 +835,7 @@ function LocalitySearchBox() {
   return (
     <View>
       <SearchBar
+        testID="properties-search"
         value={search}
         onChangeText={setSearch}
         placeholder='Area, project, or "2bhk under 80L"'

@@ -2,8 +2,11 @@
 
 Smoke flows that drive the real app on a booted simulator: email login →
 inbox → contacts → properties → More → Connection check. Selectors are
-visible text (the app has no testIDs yet), so copy changes on those
-screens will need matching edits here.
+`testID`s (`id:` in the YAML) so UI copy can change freely; the ids live
+on the login screen, the tab bar (`tabBarButtonTestID`), each tab's
+`SearchBar`, and the More menu rows (`menu-<id>` from `lib/menu.ts`).
+Only the Connection check assertions match text, because the row labels
+are the thing under test.
 
 ## One-time setup (Mac)
 
@@ -50,12 +53,7 @@ the suite in order — or run `01-login` first when running one flow alone.
 ## Debugging selectors
 
 `maestro studio` opens an inspector against the booted simulator showing
-the live view hierarchy — use it when a text selector stops matching.
+the live view hierarchy — use it when a selector stops matching.
 
-## Known device-dependent steps
-
-- `01-login` taps `text: "Email", index: 1` — index 0 is the mode toggle,
-  index 1 the field placeholder. If Maestro resolves them in a different
-  order on some runtime, fix the index via `maestro studio`.
-- Push, camera, and WhatsApp OTP are out of scope in the simulator; these
-  flows deliberately avoid them.
+Push, camera, and WhatsApp OTP are out of scope in the simulator; these
+flows deliberately avoid them.

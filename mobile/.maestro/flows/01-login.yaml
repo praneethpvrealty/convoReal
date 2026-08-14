@@ -4,18 +4,19 @@ name: login
 - launchApp:
     clearState: true
 - assertVisible: "ConvoReal"
-# Before the toggle only the segment button says "Email"; after it the
-# field placeholder says "Email" too, so the field is index 1.
-- tapOn: "Email"
 - tapOn:
-    text: "Email"
-    index: 1
+    id: "login-mode-email"
+- tapOn:
+    id: "login-email"
 - inputText: ${MAESTRO_EMAIL}
-- tapOn: "Password"
+- tapOn:
+    id: "login-password"
 - inputText: ${MAESTRO_PASSWORD}
 - hideKeyboard
-- tapOn: "Sign in"
+- tapOn:
+    id: "login-submit"
 - extendedWaitUntil:
-    visible: "Search name, phone or message"
+    visible:
+      id: "inbox-search"
     timeout: 30000
 - takeScreenshot: .maestro/shots/01-login

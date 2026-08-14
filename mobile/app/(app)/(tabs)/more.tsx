@@ -268,6 +268,7 @@ function MenuRow({ id, divided }: { id: MenuRouteId; divided: boolean }) {
     >
       <Link href={link.href} asChild>
         <Pressable
+          testID={`menu-${id}`}
           style={styles.menuTap}
           android_ripple={{ color: colors.border }}
         >

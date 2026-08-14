@@ -70,12 +70,14 @@ export default function LoginScreen() {
                 icon="logo-whatsapp"
                 active={mode === 'whatsapp'}
                 onPress={() => setMode('whatsapp')}
+                testID="login-mode-whatsapp"
               />
               <SegmentButton
                 label="Email"
                 icon="mail-outline"
                 active={mode === 'email'}
                 onPress={() => setMode('email')}
+                testID="login-mode-email"
               />
             </View>
 
@@ -108,15 +110,18 @@ function SegmentButton({
   icon,
   active,
   onPress,
+  testID,
 }: {
   label: string;
   icon: React.ComponentProps<typeof Ionicons>['name'];
   active: boolean;
   onPress: () => void;
+  testID?: string;
 }) {
   const { colors, fonts: f } = useTheme();
   return (
     <Pressable
+      testID={testID}
       onPress={onPress}
       style={[
         styles.segmentButton,
@@ -305,6 +310,7 @@ function EmailLogin() {
     <View style={{ gap: spacing.lg }}>
       {error ? <Banner kind="error" text={error} /> : null}
       <TextField
+        testID="login-email"
         icon="mail-outline"
         placeholder="Email"
         keyboardType="email-address"
@@ -317,6 +323,7 @@ function EmailLogin() {
         onChangeText={setEmail}
       />
       <TextField
+        testID="login-password"
         ref={passwordRef}
         icon="lock-closed-outline"
         placeholder="Password"
@@ -328,6 +335,7 @@ function EmailLogin() {
         onChangeText={setPassword}
       />
       <PrimaryButton
+        testID="login-submit"
         label="Sign in"
         busy={busy}
         disabled={!email.trim() || !password}

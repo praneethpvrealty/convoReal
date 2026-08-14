@@ -2,8 +2,10 @@ appId: com.convoreal.app
 name: properties
 ---
 - launchApp
-- tapOn: "Properties"
+- tapOn:
+    id: "tab-properties"
 - extendedWaitUntil:
-    visible: 'Area, project, or "2bhk under 80L"'
+    visible:
+      id: "properties-search"
     timeout: 15000
 - takeScreenshot: .maestro/shots/04-properties

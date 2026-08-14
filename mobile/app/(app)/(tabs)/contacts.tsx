@@ -665,6 +665,7 @@ export default function ContactsScreen() {
           </View>
         </View>
         <SearchBar
+          testID="contacts-search"
           value={search}
           onChangeText={setSearch}
           placeholder="Search name, phone, tag, company…"
