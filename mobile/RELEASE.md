@@ -56,8 +56,31 @@ JS-only changes (most feature work) can ship over the air without a
 store review:
 
 ```bash
-eas update --channel production --message "what changed"
+eas update --channel preview --environment preview --message "what changed"
 ```
+
+**Publish to the channel the installed apps were built on.** A channel
+maps to the same-named branch, and an app only ever receives updates on
+the channel baked into its binary. Every build this project has made so
+far is `preview` (`eas build --profile preview`), so `--channel
+production` publishes to a branch nothing is listening to — it reports
+success and reaches no device. Check before publishing:
+
+```bash
+eas build:list --limit 5      # look at the channel column
+```
+
+`--environment` decides which EAS environment variables get baked into
+the bundle, and is required under `--non-interactive`. Match it to the
+profile the builds used, or the update ships pointing at the wrong
+backend. `preview` and `production` currently hold the same four values.
+
+After publishing, check the runtime version in the output matches the
+installed builds'. `runtimeVersion` is on the `fingerprint` policy, so a
+JS-only change keeps it (nothing under `app/` or `lib/` is a fingerprint
+source) — but a bumped dependency or a plugin change moves it, and an
+update at a runtime no device has installed is silently ignored. See
+`fingerprint.config.js` for a case that used to move it by accident.
 
 Native changes (new native modules, app.json plugins/permissions)
 need a new `eas build` + store submission.
