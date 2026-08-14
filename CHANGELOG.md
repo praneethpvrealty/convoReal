@@ -113,6 +113,16 @@ and polish.
 
 ### Fixed
 
+- **The ladder no longer re-sends a shortlist the lead is already
+  looking at.** A buyer answered a one-listing shortlist with "Looking
+  for lesser dimensions" — feedback the matcher has no size facet for —
+  so re-ranking produced the identical listing and the bot sent the
+  same 70x60 plot again as "one that fits", four minutes after she
+  asked for something smaller. The reply builder now checks the
+  thread's recent bot messages: when every listing it would show
+  already went out, it acknowledges the updated brief and asks the next
+  open rung (or promises the watch) instead of repeating itself.
+
 - **Merged contacts stayed visible on mobile.** Merging two duplicates
   soft-deletes the loser, and the web contact list has always hidden
   it — the mobile app never learned to, so a merged pair kept showing

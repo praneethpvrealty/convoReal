@@ -319,6 +319,40 @@ export function buildNoMatchReply(
   );
 }
 
+/**
+ * True when every listing this reply would show already went out in the
+ * thread's recent bot messages. A lead who answers a shortlist with
+ * feedback the matcher has no facet for ("looking for lesser
+ * dimensions") re-ranks to the identical set — and was re-sent the same
+ * listing as "one that fits", four minutes after implicitly rejecting
+ * it. Matched on the title because that is the one line of a listing
+ * block that appears verbatim in every send.
+ */
+export function shortlistAlreadySent(
+  matches: RankedPropertyMatch[],
+  recentBotTexts: (string | null)[]
+): boolean {
+  const shown = matches.slice(0, MAX_MATCHES_SENT);
+  if (shown.length === 0) return false;
+  return shown.every((m) => {
+    const title = (m.property.title || '').trim();
+    if (!title) return false;
+    return recentBotTexts.some((t) => !!t && t.includes(title));
+  });
+}
+
+/** The reply when the brief moved but the shortlist did not: file the
+ *  update and keep the conversation going without repeating listings
+ *  the lead is already looking at. */
+export function buildShortlistStandsReply(
+  contactName: string | null | undefined,
+  laddered: QualifierField | null
+): string {
+  const noted = `Noted, ${firstName(contactName)} — I've updated your brief.`;
+  if (laddered) return `${noted} ${buildFollowUpQuestion(laddered)}`;
+  return `${noted} Those are still the closest live fits — the moment a new listing matches, you'll hear from us right here.`;
+}
+
 export interface QualificationOutcome {
   /** The rung being asked, or null when the reply carries listings. */
   missing: QualifierField | null;
@@ -339,7 +373,10 @@ export function buildQualificationReply(
   baseUrl: string,
   contactId: string,
   /** Rungs this thread has already put to the lead — see nextQualifier. */
-  asked: QualifierField[] = []
+  asked: QualifierField[] = [],
+  /** The thread's recent bot messages, so a shortlist that already went
+   *  out is acknowledged rather than re-sent verbatim. */
+  recentBotTexts: (string | null)[] = []
 ): QualificationOutcome {
   const laddered = nextQualifier(prefs, asked);
   const shortCircuit = shouldSendMatchesNow(prefs, matches.length);
@@ -349,6 +386,15 @@ export function buildQualificationReply(
     return {
       missing,
       reply: buildQualifierQuestion(missing, prefs, areaSuggestions),
+    };
+  }
+  if (matches.length && shortlistAlreadySent(matches, recentBotTexts)) {
+    return {
+      missing: null,
+      reply: buildShortlistStandsReply(
+        contactName,
+        shortCircuit && laddered ? laddered : null
+      ),
     };
   }
   return {
@@ -692,12 +738,13 @@ export async function processBuyerQualificationMessage(
     const humanActive = (recent || []).some((m) => m.sender_type === 'agent');
 
     // The same window doubles as the record of what the ladder has
-    // already asked, so a rung is never put twice to the same lead.
-    const asked = askedQualifiers(
-      (recent || [])
-        .filter((m) => m.sender_type === 'bot')
-        .map((m) => m.content_text as string | null)
-    );
+    // already asked — so a rung is never put twice — and of which
+    // listings already went out, so a shortlist is never re-sent to a
+    // lead who is answering it.
+    const recentBotTexts = (recent || [])
+      .filter((m) => m.sender_type === 'bot')
+      .map((m) => m.content_text as string | null);
+    const asked = askedQualifiers(recentBotTexts);
 
     // A bare answer ("Devanahalli") carries no signal of its own — it
     // only means something because we asked the question directly
@@ -843,7 +890,8 @@ export async function processBuyerQualificationMessage(
       areas,
       baseUrl,
       contact.id,
-      asked
+      asked,
+      recentBotTexts
     );
 
     await reply(
