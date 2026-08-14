@@ -774,7 +774,14 @@ function CampaignDetailDialog({
                     <TableHead>Status</TableHead>
                     <TableHead>Attempts</TableHead>
                     <TableHead>Qualification</TableHead>
-                    {canManage && <TableHead className="w-10" />}
+                    {/* Pinned: removing someone is the reason this list is
+                        editable, and it must not be the column that scrolls
+                        out of sight on a narrow window. */}
+                    {canManage && (
+                      <TableHead className="bg-popover sticky right-0 w-16">
+                        Remove
+                      </TableHead>
+                    )}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -813,17 +820,17 @@ function CampaignDetailDialog({
                           <QualificationChip q={r.qualification} />
                         </TableCell>
                         {canManage && (
-                          <TableCell>
+                          <TableCell className="bg-popover sticky right-0">
                             <Button
                               size="sm"
                               variant="ghost"
                               disabled={removeMutation.isPending}
-                              title="Remove from campaign"
+                              title={`Remove ${contact?.name || 'this contact'} from the campaign`}
                               onClick={() =>
                                 contact && removeMutation.mutate(contact.id)
                               }
                             >
-                              <X className="h-3.5 w-3.5 text-slate-500" />
+                              <X className="h-3.5 w-3.5 text-slate-500 hover:text-rose-400" />
                             </Button>
                           </TableCell>
                         )}
