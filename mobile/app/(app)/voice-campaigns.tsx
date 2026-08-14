@@ -3,6 +3,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { Stack, router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   FlatList,
   Pressable,
   RefreshControl,
@@ -14,7 +15,7 @@ import {
 } from 'react-native';
 
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
-import { BottomSheet } from '@/components/sheet';
+import { BottomSheet, sheetScrollArea } from '@/components/sheet';
 import {
   EmptyState,
   PrimaryButton,
@@ -454,13 +455,30 @@ function PropertySelectSheet({
 
   return (
     <BottomSheet visible={visible} onClose={onClose} title="Select property">
-      <View style={{ gap: spacing.md, flex: 1 }}>
+      <View style={{ gap: spacing.md, minHeight: 320, flexShrink: 1 }}>
         <SearchBar
           value={search}
           onChangeText={setSearch}
           placeholder="Search by title or locality"
         />
-        <ScrollView keyboardShouldPersistTaps="handled">
+        {!data ? (
+          <ActivityIndicator style={{ marginTop: spacing.xl }} />
+        ) : filtered.length === 0 ? (
+          <Text
+            style={{
+              marginTop: spacing.xl,
+              textAlign: 'center',
+              fontSize: 13.5,
+              color: colors.textFaint,
+            }}
+          >
+            {search.trim() ? 'No listings match.' : 'No listings yet.'}
+          </Text>
+        ) : null}
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          style={sheetScrollArea}
+        >
           {filtered.map((p) => (
             <Pressable
               key={p.id}
