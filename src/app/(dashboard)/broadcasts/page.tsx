@@ -5,13 +5,15 @@ import { pushUrl } from "@/lib/navigation";
 import { useMemo } from "react";
 import BroadcastsContent from "./broadcasts-content";
 import TemplatePerformanceContent from "./template-performance-content";
+import VoiceCampaignsContent from "./voice-campaigns-content";
 import { FavoriteButton } from "@/components/layout/favorite-button";
 
-type TabId = "campaigns" | "templates";
+type TabId = "campaigns" | "templates" | "voice";
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "campaigns", label: "Campaigns" },
   { id: "templates", label: "Templates" },
+  { id: "voice", label: "Voice Calls" },
 ];
 
 export default function BroadcastsPage() {
@@ -27,6 +29,8 @@ export default function BroadcastsPage() {
     switch (activeTab) {
       case "templates":
         return { label: "Template Performance", href: "/broadcasts?tab=templates", icon: "FileBarChart" };
+      case "voice":
+        return { label: "Voice Campaigns", href: "/broadcasts?tab=voice", icon: "PhoneCall" };
       case "campaigns":
       default:
         return { label: "Broadcasts", href: "/broadcasts", icon: "Radio" };
@@ -73,6 +77,7 @@ export default function BroadcastsPage() {
       <div className="relative z-10">
         {activeTab === "campaigns" && <BroadcastsContent />}
         {activeTab === "templates" && <TemplatePerformanceContent />}
+        {activeTab === "voice" && <VoiceCampaignsContent />}
       </div>
     </div>
   );
