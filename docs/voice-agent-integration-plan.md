@@ -31,7 +31,7 @@ Match Radar, automations, Hot Leads) take over. The differentiated value is the 
 as CTWA ads: **call → contact → property match → deal**, which a bare voice-agent platform
 cannot do because it does not own the Engine side.
 
-**Non-goals** (parked, see §8): routing WhatsApp through Sarvam, live call transfer to agents,
+**Non-goals** (parked, see §9): routing WhatsApp through Sarvam, live call transfer to agents,
 in-app softphone/dialer, call recording ingestion from Sarvam (the existing recording-analysis
 path in migration 195 stays manual-upload).
 
@@ -169,16 +169,78 @@ product. Phase B:
 - Settings UI under Settings → Integrations, **web and mobile in the same change** (§2.8).
 - `docs/external-services-audit.md` and `.env.local.example` updated accordingly.
 
-## 6. Phase C — outbound reminder calls
+## 6. Phase C — qualification call campaigns
 
-The appointments cron (`/api/appointments/cron`, every 15 min) already selects due reminders.
-Phase C adds a voice channel: for accounts with `voice_agent_config.is_active`, trigger a
-Sarvam outbound call ("your site visit is tomorrow at 11 — confirm?") via their outbound-call
-API, and write the confirm/reschedule answer back through the Phase A webhook
-(`direction: 'outbound'`). Credit-gate it like listing videos
-(`docs/credits-policy-listing-video.md` is the model) since per-minute telephony has real cost.
+**The driving case:** a Koramangala listing at ₹14.7 Cr pulled a large batch of Housing
+enquiries of which ~95% were unqualified on budget. The email webhook already files every one
+of those leads with the enquired property attached (`contact_property_inquiries`,
+`last_inquired_property_id`) and the listing price as inferred budget (`pref_budget_max`).
+What is missing is the second tier: calling each lead to ask "you enquired about X at
+₹14.7 Cr — is that within your budget? If not, what are you actually looking for?" — done
+today by hand, one call at a time.
 
-## 7. Phase D — voice preference intake → matching
+Phase C makes that a **broadcast-style outbound call campaign**:
+
+- **Migrations**: `voice_campaigns` + `voice_campaign_recipients` (standard §7.2 columns),
+  mirroring the `broadcasts` / `broadcast_recipients` split. A campaign names the property it
+  is about, the script variables (property title, asking price, locality), and per-recipient
+  status (`queued` → `calling` → `completed` / `no_answer` / `failed` / `opted_out`) with an
+  attempt counter.
+- **Recipient selection**: seed from `contact_property_inquiries` for the chosen property —
+  the Koramangala batch is one click — then add/remove individually, and reuse the broadcast
+  audience patterns (`src/components/broadcasts/step2-select-audience.tsx` currently offers
+  all/tags/custom-field/CSV; this adds an "enquired about property" source, which the broadcast
+  wizard should gain at the same time). Recipients stay editable until the campaign starts, and
+  removable while it runs.
+- **Dispatch**: a cron walks `queued` recipients within calling hours (default 10:00–19:00
+  IST), triggers a Sarvam outbound call per recipient with the campaign's context variables,
+  and throttles to a per-account concurrency cap. Retries `no_answer`/`busy` up to N attempts
+  across days, then parks the recipient.
+- **Writeback**: results arrive through the Phase A webhook (`direction: 'outbound'`), extended
+  with optional `campaign_id` and a `qualification` block:
+  `{budget_confirmed, stated_budget, stated_areas, wants_alternatives}`. A confirmed budget
+  tags the contact `Qualified`; a mismatch replaces the inferred `pref_budget_max` with the
+  stated `max_budget` (stated-beats-inferred, the email webhook's existing convention), retags
+  the budget band, and — because preferences are now real — `src/lib/matching.ts` and Match
+  Radar can immediately propose alternative inventory the agent actually has.
+- **Guardrails**: these are callbacks to people who enquired first, but every script must
+  offer "don't call me again" → `opted_out` sets a do-not-call flag respected by all future
+  campaigns; credit-gate per connected call (`docs/credits-policy-listing-video.md` is the
+  model) since per-minute telephony has real cost.
+
+The appointment-reminder call ("your site visit is tomorrow at 11 — confirm?") is the same
+dispatch machinery with the appointments cron (`/api/appointments/cron`) as the trigger instead
+of a campaign; it ships on top of Phase C once the channel preference below exists.
+
+## 7. Phase D — audio announcements on WhatsApp + per-contact channel preference
+
+**The ask:** plain announcements delivered as a voice recording on WhatsApp, with each contact
+choosing how they want reminders/updates — audio message, text, or a call.
+
+**The Meta constraint that shapes this:** template headers are TEXT / IMAGE / VIDEO / DOCUMENT
+only (`src/lib/whatsapp/template-components.ts`) — there is **no audio template format**, so a
+voice note cannot open a conversation outside the 24-hour window. Three delivery paths, picked
+per recipient at send time:
+
+1. **Inside the 24-hour window** (contact messaged recently): send a real audio message —
+   `sendMedia` in `src/lib/whatsapp/meta-api.ts` already supports `kind: 'audio'`; the
+   broadcast sender gains an audio-message branch that checks `customer-window.ts` first.
+2. **Outside the window**: package the announcement as a **video template header** — the
+   announcement script through the existing Sarvam translate + TTS pipeline
+   (`src/lib/video/listing-video-worker.ts` already does exactly this for listing narration)
+   over a branded still card via the same ffmpeg worker. Video is an accepted header format,
+   so the "audio" announcement rides a normal MARKETING/UTILITY template and plays with one
+   tap. This is a reuse of shipped machinery, not a new media pipeline.
+3. **Voice call**: for contacts who prefer being called, route the announcement through the
+   Phase C dispatcher as a one-off campaign.
+
+**Channel preference**: `contacts.preferred_update_channel`
+(`'whatsapp_text' | 'whatsapp_audio' | 'voice_call'`, default text) captured with interactive
+reply buttons or the existing preference flow, editable from the contact drawer on web and
+mobile (§2.8). The appointment-reminder cron, digests, and announcement broadcasts all consult
+it before choosing a path.
+
+## 8. Phase E — voice preference intake → matching
 
 Promote the qualification script to full preference intake mirroring the WhatsApp preference
 flow (`src/lib/whatsapp/preference-flow.ts`): structured budget/locality/type answers land on
@@ -186,7 +248,7 @@ the contact's preference fields, which `src/lib/matching.ts` and Match Radar con
 further work. Success metric: a phone-only lead receives a property-alert digest without an
 agent ever typing their requirement.
 
-## 8. Non-goals and boundaries
+## 9. Non-goals and boundaries
 
 - **No WhatsApp via Sarvam.** Sarvam's WhatsApp channel is enterprise-on-request and would put
   a second bot on a WABA number ConvoReal's inbox, window bookkeeping, and chatbot engine
@@ -196,7 +258,7 @@ agent ever typing their requirement.
 - **No live transfer / softphone.** If a caller demands a human, the agent promises a callback
   (`outcome: 'callback_requested'`) and the inbox thread's `awaiting_reply` flag carries it.
 
-## 9. Validation
+## 10. Validation
 
 - `npm run typecheck && npm run lint && npm test` (Phase A ships
   `src/app/api/webhooks/voice-agent/route.test.ts`).
