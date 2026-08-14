@@ -52,35 +52,60 @@ to the package `com.convoreal.app`.
 
 ## Updating a live app
 
-JS-only changes (most feature work) can ship over the air without a
-store review:
+JS-only changes (most feature work) ship over the air without a store
+review, and **`.github/workflows/eas-update.yml` does it automatically**
+when a change under `mobile/` lands on `main`. It re-runs lint,
+typecheck and tests on the merged tree, then refuses to publish anything
+no installed app could receive. Publish by hand only for a change that
+did not go through `main`:
 
 ```bash
 eas update --channel preview --environment preview --message "what changed"
 ```
 
-**Publish to the channel the installed apps were built on.** A channel
-maps to the same-named branch, and an app only ever receives updates on
-the channel baked into its binary. Every build this project has made so
-far is `preview` (`eas build --profile preview`), so `--channel
-production` publishes to a branch nothing is listening to — it reports
-success and reaches no device. Check before publishing:
+Three things decide whether an update reaches anybody. The workflow
+checks all three; if you publish by hand, you are the check.
+
+**The channel must be the one the installed apps were built on.** A
+channel maps to the same-named branch, and an app only ever receives
+updates on the channel baked into its binary. Every recent build is
+`preview`. `production` is not an alias for "the real one": its only
+build predates the fingerprint runtime policy, so nothing published
+there today can ever match it, and two updates already sit on that
+branch having reached nobody.
+
+**The runtime version must match a real build.** `runtimeVersion` is on
+the `fingerprint` policy, so a JS-only change keeps it — nothing under
+`app/` or `lib/` is a fingerprint source. A bumped dependency, an
+app.json plugin or a new permission moves it, and an update at a runtime
+no installed build carries is ignored in silence: the app reports itself
+up to date and stays on the old bundle. That case needs `eas build`, not
+an update. See `fingerprint.config.js` for a way the runtime once moved
+by accident.
 
 ```bash
-eas build:list --limit 5      # look at the channel column
+eas fingerprint:generate -p android --environment preview   # what this tree is
+eas build:list --channel preview --platform android --status finished --limit 5
 ```
 
-`--environment` decides which EAS environment variables get baked into
-the bundle, and is required under `--non-interactive`. Match it to the
-profile the builds used, or the update ships pointing at the wrong
-backend. `preview` and `production` currently hold the same four values.
+Note `fingerprint:generate --json` prefixes stdout with a plain-English
+line about loaded environment variables, so piping it straight into a
+JSON parser fails — read from the first `{`.
 
-After publishing, check the runtime version in the output matches the
-installed builds'. `runtimeVersion` is on the `fingerprint` policy, so a
-JS-only change keeps it (nothing under `app/` or `lib/` is a fingerprint
-source) — but a bumped dependency or a plugin change moves it, and an
-update at a runtime no device has installed is silently ignored. See
-`fingerprint.config.js` for a case that used to move it by accident.
+**`--environment` decides which EAS variables get baked into the
+bundle**, and is required under `--non-interactive`. Match it to the
+profile the builds used or the update ships pointing at another backend,
+which no test catches. `preview` and `production` currently hold the
+same four values.
+
+### iOS is not currently reachable
+
+The only iOS build ever made is a simulator build (`preview-sim`,
+runtime `1d747312…`), and the project has since moved past that runtime.
+Until a real iOS build exists, iOS updates reach nothing — the workflow
+skips iOS with a warning and publishes Android alone rather than failing
+the run. `eas build -p ios --profile preview` (or `production`, for
+TestFlight) is what closes that; see `IOS_RELEASE.md`.
 
 Native changes (new native modules, app.json plugins/permissions)
 need a new `eas build` + store submission.

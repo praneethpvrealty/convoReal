@@ -1,0 +1,195 @@
+name: EAS Update
+
+# Publishes the mobile app's JS bundle over the air when a change to
+# mobile/ lands on main. Until this existed, every mobile change waited
+# on somebody remembering to run `eas update` by hand — #519 shipped to
+# the web the moment it merged and reached phones only because the gap
+# was noticed.
+#
+# An OTA update is not a deploy behind a review. It replaces the running
+# bundle on every installed app, so the mobile checks run again here on
+# the merged tree rather than being trusted from the PR: two PRs that
+# were each green can merge into a main that is not.
+#
+# The publish is gated on a check that installed apps can actually
+# receive it. Both ways that can fail are silent — the CLI reports a
+# successful publish either way and the apps stay on their old bundle:
+#
+#   - Wrong channel. An app only receives updates on the channel baked
+#     into its binary. `production` looks plausible and has a branch,
+#     but its newest build predates the fingerprint runtime policy, so
+#     nothing published there today can ever match it.
+#   - Native change. A new dependency, an app.json plugin or a
+#     permission moves the fingerprint runtime version, and no installed
+#     build carries the new one. That needs `eas build`, not an update.
+#
+# The verdict is per platform. At the time of writing iOS has only ever
+# had a simulator build, on a runtime the project has since moved past,
+# so iOS is skipped with a warning while Android publishes normally.
+# When a real iOS build exists it starts publishing with no change here.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'mobile/**'
+      # Docs do not change the bundle, and every publish costs build
+      # minutes and an update group.
+      - '!mobile/**.md'
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: 'EAS channel to publish to. Must already have a build whose runtime version matches this project.'
+        required: true
+        default: preview
+
+concurrency:
+  # Serialize, never cancel: a cancelled publish can leave one platform's
+  # update group published and the other not.
+  group: eas-update-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  # Every build the installed apps came from is on this channel. The
+  # gate below fails loudly rather than let a wrong value publish into
+  # the void, so this does not have to be trusted on faith.
+  CHANNEL: ${{ inputs.channel || 'preview' }}
+  # Pinned rather than @latest so a CLI release cannot change publishing
+  # behaviour without a commit. eas.json requires >= 16.
+  EAS_VERSION: 21.8.0
+
+jobs:
+  publish:
+    name: Publish OTA update
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Require EXPO_TOKEN
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error::EXPO_TOKEN repository secret is not set. Create a token at https://expo.dev/settings/access-tokens and add it under Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Installed once, up front, rather than invoked through `npx` at
+      # each call site. The first `npx --yes` of a package installs it,
+      # and that install writes to stdout — which silently truncated the
+      # fingerprint JSON this workflow redirects to a file. Every CI run
+      # starts with a cold npx cache, so that first call is always the
+      # affected one.
+      - name: Install EAS CLI
+        run: npm install --global "eas-cli@${EAS_VERSION}"
+
+      # Same three the PR ran, re-run on the merged tree. A broken bundle
+      # published here reaches users directly, with no store review and
+      # no preview URL in between.
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Check installed apps can receive this update
+        run: |
+          set -uo pipefail
+
+          # `--json` documents that non-JSON goes to stderr, and
+          # `fingerprint:generate` breaks that promise: it prefixes
+          # stdout with a plain-English line naming the environment
+          # variables it loaded, so a straight json.load of its output
+          # fails. Parse from the first brace instead.
+          #
+          # Insisting the result is hash-shaped matters more than it
+          # looks: `build:list --runtime-version ""` silently drops the
+          # filter and returns builds, so an unreadable fingerprint
+          # would wave through the very publish this step exists to
+          # block. app.json pins the fingerprint policy, whose runtime
+          # version is always 40 hex characters. Retried because a
+          # network hiccup here should not fail a merge.
+          fingerprint() {
+            local platform=$1 out=$2 attempt hash
+            for attempt in 1 2 3; do
+              if eas fingerprint:generate --platform "$platform" \
+                   --environment "$CHANNEL" --json --non-interactive > "$out"; then
+                hash=$(python3 -c 'import json,sys; t=open(sys.argv[1]).read(); i=t.find("{"); print(json.loads(t[i:]).get("hash","") if i>=0 else "")' "$out" 2>/dev/null || true)
+                if printf '%s' "$hash" | grep -qE '^[0-9a-f]{40}$'; then
+                  printf '%s' "$hash"
+                  return 0
+                fi
+              fi
+              echo "$platform fingerprint attempt $attempt produced no usable hash; retrying" >&2
+            done
+            return 1
+          }
+
+          # Judged per platform, not for the run as a whole. iOS has
+          # never had a non-simulator build, so a single verdict would
+          # either block every Android update on that or wave both
+          # through. A platform nothing can receive is skipped and
+          # reported; the job fails only when that is true of both.
+          publishable=()
+          for platform in android ios; do
+            # --json writes megabytes of fingerprint sources to stdout;
+            # a file keeps it out of the log and off a pipe.
+            if ! runtime=$(fingerprint "$platform" "$RUNNER_TEMP/fingerprint-$platform.json"); then
+              echo "::error::Could not compute a $platform fingerprint after 3 attempts. Publishing without it would risk an update no device can receive, so this is a hard stop rather than a skipped check."
+              exit 1
+            fi
+
+            builds=$(eas build:list --channel "$CHANNEL" \
+              --platform "$platform" --runtime-version "$runtime" \
+              --status finished --limit 1 --json --non-interactive)
+            if [ "$(printf '%s' "$builds" | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))')" = "0" ]; then
+              echo "::warning::Skipping $platform: no finished build on channel '$CHANNEL' carries runtime $runtime, so an update would reach no device. Either a native change moved the fingerprint, or that platform has no current build — run 'eas build -p $platform --profile $CHANNEL'."
+              echo "- \`$platform\` runtime \`$runtime\` — **skipped, no build can receive it**" >> "$GITHUB_STEP_SUMMARY"
+              continue
+            fi
+            echo "$platform runtime $runtime matches an installed build."
+            echo "- \`$platform\` runtime \`$runtime\` — published" >> "$GITHUB_STEP_SUMMARY"
+            publishable+=("$platform")
+          done
+
+          if [ ${#publishable[@]} -eq 0 ]; then
+            echo "::error::Neither platform has a build that could receive this update on channel '$CHANNEL'. Nothing was published."
+            exit 1
+          fi
+          if [ ${#publishable[@]} -eq 2 ]; then
+            echo "PUBLISH_PLATFORM=all" >> "$GITHUB_ENV"
+          else
+            echo "PUBLISH_PLATFORM=${publishable[0]}" >> "$GITHUB_ENV"
+          fi
+
+      - name: Publish update
+        run: |
+          subject=$(git log -1 --pretty=%s)
+          # --environment decides which EAS variables are baked into the
+          # bundle. This project's environments are named after its
+          # channels; a mismatch ships the app pointing at another
+          # backend, which nothing here would catch.
+          eas update \
+            --channel "$CHANNEL" \
+            --environment "$CHANNEL" \
+            --platform "$PUBLISH_PLATFORM" \
+            --message "${subject} (${GITHUB_SHA:0:7})" \
+            --non-interactive
