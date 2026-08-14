@@ -165,6 +165,7 @@ export default function ContactDetailScreen() {
         .from('contacts')
         .select('id, name, phone')
         .eq('classification', 'Agent')
+        .eq('is_merged', false)
         .order('name');
       if (error) throw error;
       return (data ?? []) as Pick<Contact, 'id' | 'name' | 'phone'>[];

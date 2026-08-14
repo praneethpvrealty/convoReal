@@ -111,7 +111,44 @@ and polish.
   Switching audience drops selections outside it, so a send never
   carries hidden picks from the previous tab.
 
+### Added
+
+- **Plot size is now a matching facet** (**migration required**:
+  `274_pref_land_area.sql`). "Looking for lesser dimensions" used to
+  have nowhere to land: size wasn't a preference the engine knew, so
+  the feedback changed nothing. Preference extraction now captures
+  stated sizes in canonical square feet ("30x40 site" → 1,200; "up to
+  half an acre" → 21,780), the matcher enforces the band the way it
+  enforces budget (±10% grades a near-miss; further out excludes), and
+  relative feedback with no figure — smaller/bigger, "too big", "lesser
+  dimensions" — is anchored to the listing the thread is pinned to, at
+  a ratio chosen so the rejected listing itself can never crawl back in
+  as a near-miss. The learned bound rides the audit registry like every
+  other preference, and the requirement playback card shows it ("up to
+  3,570 sq.ft"), one tap from correction.
+
 ### Fixed
+
+- **The ladder no longer re-sends a shortlist the lead is already
+  looking at.** A buyer answered a one-listing shortlist with "Looking
+  for lesser dimensions" — feedback the matcher has no size facet for —
+  so re-ranking produced the identical listing and the bot sent the
+  same 70x60 plot again as "one that fits", four minutes after she
+  asked for something smaller. The reply builder now checks the
+  thread's recent bot messages: when every listing it would show
+  already went out, it acknowledges the updated brief and asks the next
+  open rung (or promises the watch) instead of repeating itself.
+
+- **Merged contacts stayed visible on mobile.** Merging two duplicates
+  soft-deletes the loser, and the web contact list has always hidden
+  it — the mobile app never learned to, so a merged pair kept showing
+  as two rows in Contacts (and inflating the tab counts), and the
+  pickers on appointments, deals and shares could attach new work to
+  the soft-deleted half. Every mobile contact list, count and picker
+  now skips merge losers, and so do the HOT-lead surfaces on both
+  platforms (the /today panel and the follow-up radar), where a loser
+  that was HOT when it lost would otherwise draw follow-up cards for a
+  thread the inbox no longer resolves.
 
 - **The confidential-listing gate had two buttons with the same label,
   and the first one did nothing visible.** "Request full details"

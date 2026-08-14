@@ -1058,4 +1058,74 @@ describe('getMatchingContacts', () => {
       expect(getMatchingContacts(prop, [contact]).length).toBe(1);
     });
   });
+
+  describe('Plot/built-up size band', () => {
+    // "Looking for lesser dimensions" against a 4,200 sq.ft. plot: the
+    // anchored cap (3,780) must actually exclude that plot, not grade
+    // it a near-miss.
+    const seeker = (over: Partial<Contact>) =>
+      createTestContact({
+        pref_property_types: ['Commercial Land'],
+        pref_extracted_at: new Date().toISOString(),
+        ...over,
+      });
+    const plot = (land_area: number, unit = 'sqft') =>
+      createTestProperty({
+        type: 'Commercial Land',
+        land_area,
+        land_area_unit: unit,
+      });
+
+    it('excludes a plot beyond the stated cap', () => {
+      const contact = seeker({ pref_land_area_max_sqft: 3780 });
+      expect(getMatchingContacts(plot(4200), [contact]).length).toBe(0);
+    });
+
+    it('matches inside the band and grades a near-miss partial', () => {
+      const contact = seeker({ pref_land_area_max_sqft: 3780 });
+      expect(
+        getMatchingContacts(plot(2400), [contact])[0]?.details.size
+      ).toBe('match');
+      expect(
+        getMatchingContacts(plot(4000), [contact])[0]?.details.size
+      ).toBe('partial');
+    });
+
+    it('converts the property unit before comparing', () => {
+      const contact = seeker({ pref_land_area_min_sqft: 40000 });
+      // 1 acre = 43,560 sqft — inside the band despite the small figure.
+      expect(
+        getMatchingContacts(plot(1, 'acre'), [contact])[0]?.details.size
+      ).toBe('match');
+    });
+
+    it('enforces a floor the same way', () => {
+      const contact = seeker({ pref_land_area_min_sqft: 4000 });
+      expect(getMatchingContacts(plot(1200), [contact]).length).toBe(0);
+      expect(
+        getMatchingContacts(plot(4200), [contact])[0]?.details.size
+      ).toBe('match');
+    });
+
+    it('falls back to built-up area when there is no land figure', () => {
+      const contact = createTestContact({
+        pref_property_types: ['Flat/ Apartment'],
+        pref_land_area_max_sqft: 1500,
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const flat = createTestProperty({
+        type: 'Flat/ Apartment',
+        area_sqft: 2400,
+      });
+      expect(getMatchingContacts(flat, [contact]).length).toBe(0);
+    });
+
+    it('stays unknown for a property with no size on file', () => {
+      const contact = seeker({ pref_land_area_max_sqft: 3780 });
+      const sizeless = createTestProperty({ type: 'Commercial Land' });
+      expect(
+        getMatchingContacts(sizeless, [contact])[0]?.details.size
+      ).toBe('unknown');
+    });
+  });
 });

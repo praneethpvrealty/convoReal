@@ -4,6 +4,7 @@ import { burnCredits, refundCredits } from '@/lib/credits/burn';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { isWithinCallWindow, STALE_CALLING_MS } from '@/lib/voice/campaigns';
+import { getVoiceConfig, type VoiceAgentConfig } from '@/lib/voice/config';
 import { startOutboundCall } from '@/lib/voice/outbound-call';
 
 /**
@@ -53,6 +54,7 @@ export async function GET(request: Request) {
   let failed = 0;
   let creditBlocked = 0;
   let completedCampaigns = 0;
+  const configs = new Map<string, VoiceAgentConfig | null>();
 
   try {
     // A stale 'calling' row means the call never happened or its result
@@ -100,9 +102,21 @@ export async function GET(request: Request) {
       ) {
         continue;
       }
-      if (!campaign.agent_ref) {
+      // The campaign's own agent_ref wins; the account default from
+      // voice_agent_config (Phase B) fills in when it is blank.
+      let agentRef = campaign.agent_ref as string | null;
+      if (!agentRef) {
+        if (!configs.has(campaign.account_id)) {
+          configs.set(
+            campaign.account_id,
+            await getVoiceConfig(supabase, campaign.account_id)
+          );
+        }
+        agentRef = configs.get(campaign.account_id)?.agent_ref ?? null;
+      }
+      if (!agentRef) {
         console.warn(
-          `[voice-campaigns] Campaign ${campaign.id} is active without a agent_ref — skipping.`
+          `[voice-campaigns] Campaign ${campaign.id} is active without an agent_ref (campaign or account default) — skipping.`
         );
         continue;
       }
@@ -177,7 +191,7 @@ export async function GET(request: Request) {
             ? (campaign.script_context as Record<string, string>)
             : {};
         const result = await startOutboundCall({
-          agentId: campaign.agent_ref,
+          agentId: agentRef,
           phone: contact.phone,
           context: { contact_name: contact.name ?? '', ...scriptContext },
         });

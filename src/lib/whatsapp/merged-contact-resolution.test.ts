@@ -32,3 +32,22 @@ describe('phone-based contact resolution skips merge losers', () => {
     );
   });
 });
+
+// The lists that key on lead_temp must skip them too: a merge loser
+// that was HOT when it lost would otherwise sit in the Today panel
+// forever and draw follow-up radar cards for a contact that no longer
+// exists as far as the inbox is concerned.
+describe('HOT-lead surfaces skip merge losers', () => {
+  it.each([
+    'src/lib/today/queries.ts',
+    'src/lib/contacts/follow-up-nudges.ts',
+    'mobile/lib/today.ts',
+  ])('%s', (path) => {
+    const source = read(path);
+    const hot = source.indexOf("'HOT'");
+    expect(hot).toBeGreaterThan(-1);
+    expect(source.slice(Math.max(0, hot - 400), hot)).toContain(
+      "eq('is_merged', false)"
+    );
+  });
+});

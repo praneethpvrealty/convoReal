@@ -1,4 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 // The callback guard must stand down before the first query. A mock
 // that throws proves it: reaching the database at all fails the test,
@@ -26,6 +28,8 @@ import {
   buildFollowUpQuestion,
   preferenceFacts,
   askedQualifiers,
+  shortlistAlreadySent,
+  buildShortlistStandsReply,
 } from './buyer-qualification';
 import {
   EMPTY_PREFERENCES,
@@ -499,9 +503,112 @@ describe('buildQualificationReply', () => {
     expect(out.missing).toBeNull();
     expect(out.reply).toContain('call you shortly');
   });
+
+  it('never re-sends a shortlist the thread already carries', () => {
+    // Live: "Looking for lesser dimensions" — feedback the matcher has
+    // no facet for — re-ranked to the identical single listing, and the
+    // lead was sent the same 70x60 plot as "one that fits" four minutes
+    // after asking for something smaller.
+    const out = buildQualificationReply(
+      prefs({
+        property_categories: ['plot'],
+        budget_max: 20_000_000,
+        areas: ['Devanahalli'],
+      }),
+      'Anju',
+      [match({})],
+      [],
+      'https://convoreal.com',
+      'c1',
+      [],
+      ["Thanks Anju — here's one that fits 👇\n\n*1. Farm Land in Devanahalli*"]
+    );
+    expect(out.missing).toBeNull();
+    expect(out.reply).toContain('Noted, Anju');
+    expect(out.reply).not.toContain('*1. Farm Land in Devanahalli*');
+    expect(out.reply).not.toContain('one that fits');
+  });
+
+  it('re-sends when the shortlist actually changed', () => {
+    const out = buildQualificationReply(
+      prefs({
+        property_categories: ['plot'],
+        budget_max: 20_000_000,
+        areas: ['Devanahalli'],
+      }),
+      'Anju',
+      [match({}), match({ id: 'p-2', title: 'Smaller Plot in Devanahalli' })],
+      [],
+      'https://convoreal.com',
+      'c1',
+      [],
+      ['*1. Farm Land in Devanahalli*']
+    );
+    expect(out.reply).toContain('Smaller Plot in Devanahalli');
+  });
+});
+
+describe('shortlistAlreadySent', () => {
+  it('is true only when every shown listing already went out', () => {
+    const sent = ['*1. Farm Land in Devanahalli*'];
+    expect(shortlistAlreadySent([match({})], sent)).toBe(true);
+    expect(
+      shortlistAlreadySent(
+        [match({}), match({ id: 'p-2', title: 'New Plot' })],
+        sent
+      )
+    ).toBe(false);
+    expect(shortlistAlreadySent([], sent)).toBe(false);
+    expect(shortlistAlreadySent([match({})], [null, ''])).toBe(false);
+  });
+
+  it('only looks at the capped shortlist, matching what a reply would show', () => {
+    const many = Array.from({ length: 5 }, (_, i) =>
+      match({ id: `p-${i}`, title: `Listing ${i}` })
+    );
+    // The first three (all that would be sent) are in the thread; the
+    // unsent tail must not force a repeat.
+    expect(
+      shortlistAlreadySent(many, ['*1. Listing 0*\n*2. Listing 1*\n*3. Listing 2*'])
+    ).toBe(true);
+  });
+});
+
+describe('buildShortlistStandsReply', () => {
+  it('keeps the conversation moving with the next rung when one is open', () => {
+    const reply = buildShortlistStandsReply('Anju', 'budget');
+    expect(reply).toContain('Noted, Anju');
+    expect(reply).toContain('budget');
+  });
+
+  it('promises the watch when nothing is left to ask', () => {
+    const reply = buildShortlistStandsReply('Anju', null);
+    expect(reply).toContain('Noted, Anju');
+    expect(reply).toMatch(/moment a new listing matches/i);
+  });
+});
+
+describe('the live handler feeds the thread history in', () => {
+  it('passes the recent bot messages to buildQualificationReply', () => {
+    const source = readFileSync(
+      join(process.cwd(), 'src/lib/ai/buyer-qualification.ts'),
+      'utf8'
+    );
+    const call = source.indexOf('const outcome = buildQualificationReply(');
+    expect(call).toBeGreaterThan(-1);
+    expect(source.slice(call, call + 300)).toContain('recentBotTexts');
+  });
 });
 
 describe('preferenceSignature', () => {
+  it('reads a size bound as new information', () => {
+    // The smaller/bigger anchor writes only these fields; a signature
+    // blind to them would file the update and then answer nothing.
+    expect(preferenceSignature(prefs({ land_area_max_sqft: 3570 }))).not.toBe(
+      preferenceSignature(prefs())
+    );
+  });
+
   it('is stable across ordering and case', () => {
     expect(
       preferenceSignature(prefs({ areas: ['Devanahalli', 'Sarjapur'] }))

@@ -272,8 +272,10 @@ async function fetchContacts(
         (filters.tagId ? ', contact_tags!inner(tag_id)' : '')
     )
     // Web parity: a chain-only contact is a re-share intermediary's
-    // attribution, not a lead of this account.
+    // attribution, not a lead of this account, and a merge loser is the
+    // soft-deleted half of a duplicate — its winner is the row to show.
     .eq('chain_only', false)
+    .eq('is_merged', false)
     .order(order.column, { ascending: order.ascending, nullsFirst: false })
     .limit(150);
 
@@ -446,6 +448,7 @@ async function fetchSegmentCounts(): Promise<Record<SegmentKey, number>> {
         .from('contacts')
         .select('id', { count: 'exact', head: true })
         .eq('chain_only', false)
+        .eq('is_merged', false)
         .eq('status', 'active')
     ),
     excludeStaff(
@@ -453,6 +456,7 @@ async function fetchSegmentCounts(): Promise<Record<SegmentKey, number>> {
         .from('contacts')
         .select('id', { count: 'exact', head: true })
         .eq('chain_only', false)
+        .eq('is_merged', false)
         .eq('status', 'pending_review')
     ),
     excludeStaff(
@@ -460,6 +464,7 @@ async function fetchSegmentCounts(): Promise<Record<SegmentKey, number>> {
         .from('contacts')
         .select('id', { count: 'exact', head: true })
         .eq('chain_only', false)
+        .eq('is_merged', false)
         .eq('is_favorite', true)
     ),
     excludeStaff(
@@ -467,6 +472,7 @@ async function fetchSegmentCounts(): Promise<Record<SegmentKey, number>> {
         .from('contacts')
         .select('id', { count: 'exact', head: true })
         .eq('chain_only', false)
+        .eq('is_merged', false)
         .eq('status', 'active')
         .or('lead_temp.eq.HOT,last_inquired_property_id.not.is.null')
     ),

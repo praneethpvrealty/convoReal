@@ -61,9 +61,7 @@ export async function PATCH(
 
     const { data: existing } = await ctx.supabase
       .from('voice_campaigns')
-      .select(
-        'id, agent_ref, call_window_start_hour, call_window_end_hour'
-      )
+      .select('id, agent_ref, call_window_start_hour, call_window_end_hour')
       .eq('account_id', ctx.accountId)
       .eq('id', id)
       .maybeSingle();
@@ -128,14 +126,21 @@ export async function PATCH(
         { status: 400 }
       );
     }
-    if (
-      patch.status === 'active' &&
-      !(patch.agent_ref ?? existing.agent_ref)
-    ) {
-      return NextResponse.json(
-        { error: 'Set the voice agent id before activating this campaign' },
-        { status: 400 }
-      );
+    if (patch.status === 'active' && !(patch.agent_ref ?? existing.agent_ref)) {
+      const { data: config } = await ctx.supabase
+        .from('voice_agent_config')
+        .select('agent_ref')
+        .eq('account_id', ctx.accountId)
+        .maybeSingle();
+      if (!config?.agent_ref) {
+        return NextResponse.json(
+          {
+            error:
+              'Set a voice agent id on the campaign, or an account default under Settings → WhatsApp → Voice, before activating.',
+          },
+          { status: 400 }
+        );
+      }
     }
     if (Object.keys(patch).length === 0) {
       return NextResponse.json({ error: 'Nothing to update' }, { status: 400 });

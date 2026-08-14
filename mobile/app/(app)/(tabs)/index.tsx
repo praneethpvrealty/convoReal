@@ -293,6 +293,7 @@ function HotLeadsStrip() {
       const { data: rows, error } = await supabase
         .from('contacts')
         .select('id, name, phone')
+        .eq('is_merged', false)
         .eq('lead_temp', 'HOT')
         .order('updated_at', { ascending: false })
         .limit(12);

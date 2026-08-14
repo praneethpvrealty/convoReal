@@ -136,6 +136,7 @@ export async function gatherFollowUpLeads(
       'id, name, phone, last_contacted_at, created_at, assigned_agent_id, last_inquired_property_id'
     )
     .eq('account_id', accountId)
+    .eq('is_merged', false)
     .eq('lead_temp', 'HOT')
     .in('status', ['active', 'pending_review']);
   if (!contacts?.length) return [];

@@ -32,6 +32,11 @@ import {
 } from '@/lib/radar/engine';
 import { buildPropertyAlertParams } from '@/lib/whatsapp/property-alert-template';
 import { carriesRequirementSignal } from '@/lib/ai/requirement-signal';
+import {
+  applySizeAnchor,
+  parseRelativeSizeSignal,
+} from '@/lib/ai/size-feedback';
+import { toSquareFeet } from '@/lib/ai/listing-derivations';
 import { standsDownFromQualification } from '@/lib/ai/lead-routing';
 import { propertyShowcaseUrl } from '@/lib/share-message-builder';
 import { accountShowcaseOrigin } from '@/lib/showcase/account-showcase-url';
@@ -319,6 +324,40 @@ export function buildNoMatchReply(
   );
 }
 
+/**
+ * True when every listing this reply would show already went out in the
+ * thread's recent bot messages. A lead who answers a shortlist with
+ * feedback the matcher has no facet for ("looking for lesser
+ * dimensions") re-ranks to the identical set — and was re-sent the same
+ * listing as "one that fits", four minutes after implicitly rejecting
+ * it. Matched on the title because that is the one line of a listing
+ * block that appears verbatim in every send.
+ */
+export function shortlistAlreadySent(
+  matches: RankedPropertyMatch[],
+  recentBotTexts: (string | null)[]
+): boolean {
+  const shown = matches.slice(0, MAX_MATCHES_SENT);
+  if (shown.length === 0) return false;
+  return shown.every((m) => {
+    const title = (m.property.title || '').trim();
+    if (!title) return false;
+    return recentBotTexts.some((t) => !!t && t.includes(title));
+  });
+}
+
+/** The reply when the brief moved but the shortlist did not: file the
+ *  update and keep the conversation going without repeating listings
+ *  the lead is already looking at. */
+export function buildShortlistStandsReply(
+  contactName: string | null | undefined,
+  laddered: QualifierField | null
+): string {
+  const noted = `Noted, ${firstName(contactName)} — I've updated your brief.`;
+  if (laddered) return `${noted} ${buildFollowUpQuestion(laddered)}`;
+  return `${noted} Those are still the closest live fits — the moment a new listing matches, you'll hear from us right here.`;
+}
+
 export interface QualificationOutcome {
   /** The rung being asked, or null when the reply carries listings. */
   missing: QualifierField | null;
@@ -339,7 +378,10 @@ export function buildQualificationReply(
   baseUrl: string,
   contactId: string,
   /** Rungs this thread has already put to the lead — see nextQualifier. */
-  asked: QualifierField[] = []
+  asked: QualifierField[] = [],
+  /** The thread's recent bot messages, so a shortlist that already went
+   *  out is acknowledged rather than re-sent verbatim. */
+  recentBotTexts: (string | null)[] = []
 ): QualificationOutcome {
   const laddered = nextQualifier(prefs, asked);
   const shortCircuit = shouldSendMatchesNow(prefs, matches.length);
@@ -349,6 +391,15 @@ export function buildQualificationReply(
     return {
       missing,
       reply: buildQualifierQuestion(missing, prefs, areaSuggestions),
+    };
+  }
+  if (matches.length && shortlistAlreadySent(matches, recentBotTexts)) {
+    return {
+      missing: null,
+      reply: buildShortlistStandsReply(
+        contactName,
+        shortCircuit && laddered ? laddered : null
+      ),
     };
   }
   return {
@@ -401,6 +452,8 @@ export function preferenceSignature(prefs: ExtractedPreferences): string {
     prefs.bhk_max,
     prefs.budget_min,
     prefs.budget_max,
+    prefs.land_area_min_sqft,
+    prefs.land_area_max_sqft,
     comparableList(prefs.areas),
     comparableList(prefs.excluded_areas),
     comparableList(prefs.projects),
@@ -427,6 +480,8 @@ export function preferenceFacts(
     { field: 'pref_bhk_max', value: prefs.bhk_max },
     { field: 'pref_budget_min', value: prefs.budget_min },
     { field: 'pref_budget_max', value: prefs.budget_max },
+    { field: 'pref_land_area_min_sqft', value: prefs.land_area_min_sqft },
+    { field: 'pref_land_area_max_sqft', value: prefs.land_area_max_sqft },
     { field: 'pref_areas', value: prefs.areas },
     { field: 'pref_excluded_areas', value: prefs.excluded_areas },
     { field: 'pref_projects', value: prefs.projects },
@@ -482,6 +537,8 @@ export function prefsFromContact(contact: Contact): ExtractedPreferences {
     bhk_max: contact.pref_bhk_max ?? null,
     budget_min: contact.pref_budget_min ?? null,
     budget_max: contact.pref_budget_max ?? null,
+    land_area_min_sqft: contact.pref_land_area_min_sqft ?? null,
+    land_area_max_sqft: contact.pref_land_area_max_sqft ?? null,
     areas: contact.pref_areas || [],
     excluded_areas: contact.pref_excluded_areas || [],
     projects: contact.pref_projects || [],
@@ -619,6 +676,30 @@ async function supersededByLaterMessage(
  * Handles an inbound lead message that states what they are looking
  * for. Returns true when the message was consumed and answered.
  */
+/** The pinned listing's size in canonical square feet — land area
+ *  first, built-up as the fallback — or null when neither is on file. */
+async function lastShownListingAreaSqft(
+  db: ReturnType<typeof supabaseAdmin>,
+  accountId: string,
+  propertyId: string | null | undefined
+): Promise<number | null> {
+  if (!propertyId) return null;
+  const { data } = await db
+    .from('properties')
+    .select('land_area, land_area_unit, area_sqft')
+    .eq('id', propertyId)
+    .eq('account_id', accountId)
+    .maybeSingle();
+  if (!data) return null;
+  const land = toSquareFeet(
+    data.land_area as number | null,
+    data.land_area_unit as string | null
+  );
+  if (land && land > 0) return land;
+  const built = data.area_sqft != null ? Number(data.area_sqft) : null;
+  return built && built > 0 ? built : null;
+}
+
 export async function processBuyerQualificationMessage(
   contentText: string | null,
   contactRecord: { id: string; phone: string; name?: string | null },
@@ -692,12 +773,13 @@ export async function processBuyerQualificationMessage(
     const humanActive = (recent || []).some((m) => m.sender_type === 'agent');
 
     // The same window doubles as the record of what the ladder has
-    // already asked, so a rung is never put twice to the same lead.
-    const asked = askedQualifiers(
-      (recent || [])
-        .filter((m) => m.sender_type === 'bot')
-        .map((m) => m.content_text as string | null)
-    );
+    // already asked — so a rung is never put twice — and of which
+    // listings already went out, so a shortlist is never re-sent to a
+    // lead who is answering it.
+    const recentBotTexts = (recent || [])
+      .filter((m) => m.sender_type === 'bot')
+      .map((m) => m.content_text as string | null);
+    const asked = askedQualifiers(recentBotTexts);
 
     // A bare answer ("Devanahalli") carries no signal of its own — it
     // only means something because we asked the question directly
@@ -712,10 +794,28 @@ export async function processBuyerQualificationMessage(
     );
     const hash = preferenceSourceHash(sourceText);
 
+    // "Looking for lesser dimensions" states no figure the extraction
+    // may file — it is relative to the listing the thread is pinned to.
+    // Anchor the bound from that listing's own size, folded into the
+    // extraction BEFORE the unchanged-signature early-out below, or the
+    // message reads as chatter and earns silence.
+    const sizeSignal = parseRelativeSizeSignal(text);
+    const sizeAnchorSqft = sizeSignal
+      ? await lastShownListingAreaSqft(
+          db,
+          accountId,
+          contact.last_inquired_property_id
+        )
+      : null;
+
     let prefs = prefsFromContact(contact);
     if (hash !== contact.pref_source_hash) {
       await softBurn(accountId);
-      const extracted = await extractContactPreferences(sourceText);
+      const extracted = applySizeAnchor(
+        await extractContactPreferences(sourceText),
+        sizeSignal,
+        sizeAnchorSqft
+      );
 
       // The message added nothing the contact didn't already say — it's
       // chatter ("ok", "call me"), not an answer. Don't file it as a
@@ -827,6 +927,8 @@ export async function processBuyerQualificationMessage(
           pref_bhk_max: prefs.bhk_max,
           pref_budget_min: prefs.budget_min,
           pref_budget_max: prefs.budget_max,
+          pref_land_area_min_sqft: prefs.land_area_min_sqft,
+          pref_land_area_max_sqft: prefs.land_area_max_sqft,
           pref_areas: prefs.areas,
           pref_listing_types: prefs.listing_types,
         } as Contact,
@@ -843,7 +945,8 @@ export async function processBuyerQualificationMessage(
       areas,
       baseUrl,
       contact.id,
-      asked
+      asked,
+      recentBotTexts
     );
 
     await reply(
