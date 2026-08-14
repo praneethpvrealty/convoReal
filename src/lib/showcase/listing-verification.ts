@@ -18,7 +18,14 @@
 import { randomInt } from 'node:crypto';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { parseListingFromImageOrText } from '@/lib/ai/gemini';
-import { validateDraft, backfillLocationFromMapLink } from '@/lib/ai/intake-core';
+import {
+  validateDraft,
+  backfillLocationFromMapLink,
+} from '@/lib/ai/intake-core';
+import { extractImagesFromPdf } from '@/lib/pdf/image-extractor';
+import { sanitizeFloorTenancies } from '@/lib/inventory/floor-tenancies';
+import { uploadPropertyImage } from '@/lib/storage/upload';
+import { storagePublicUrl } from '@/lib/storage/url';
 import { burnCredits } from '@/lib/credits/burn';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 import { recordRequirementResponse } from '@/lib/requirements/respond';
@@ -27,9 +34,28 @@ import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatche
 let _admin: SupabaseClient | null = null;
 function admin(): SupabaseClient {
   if (!_admin) {
-    _admin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
+    _admin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
   }
   return _admin;
+}
+
+/** Download a submitted brochure from our own storage. Bounded and
+ *  non-fatal: a missing or oversized object degrades to the text-only
+ *  parse rather than failing the verification. */
+async function fetchStoredPdf(url: string): Promise<Buffer | null> {
+  try {
+    const res = await fetch(storagePublicUrl(url));
+    if (!res.ok) return null;
+    const bytes = Buffer.from(await res.arrayBuffer());
+    if (bytes.length === 0 || bytes.length > 20 * 1024 * 1024) return null;
+    return bytes;
+  } catch (err) {
+    console.error('[listing-verification] brochure fetch failed:', err);
+    return null;
+  }
 }
 
 // Unambiguous alphabet — no 0/O/1/I/L to avoid transcription errors
@@ -52,7 +78,9 @@ export function generateSubmissionCode(): string {
 const CODE_RE = new RegExp(`\\bLIST-([${CODE_ALPHABET}]{${CODE_LEN}})\\b`, 'i');
 
 /** Extracts a submission code from an inbound message, or null. */
-export function extractSubmissionCode(text: string | null | undefined): string | null {
+export function extractSubmissionCode(
+  text: string | null | undefined
+): string | null {
   if (!text) return null;
   const m = text.match(CODE_RE);
   return m ? `${CODE_PREFIX}${m[1].toUpperCase()}` : null;
@@ -77,8 +105,11 @@ interface ProcessArgs {
  * short-circuits the normal chatbot flow), false when it wasn't one of
  * ours (fall through untouched).
  */
-export async function processListingVerification(args: ProcessArgs): Promise<boolean> {
-  const { accountId, contentText, senderPhone, contactRecord, conversationId } = args;
+export async function processListingVerification(
+  args: ProcessArgs
+): Promise<boolean> {
+  const { accountId, contentText, senderPhone, contactRecord, conversationId } =
+    args;
 
   const code = extractSubmissionCode(contentText);
   if (!code) return false;
@@ -118,7 +149,11 @@ export async function processListingVerification(args: ProcessArgs): Promise<boo
   // proceeds; the loser falls into the "no longer valid" branch below.
   const { data: claimed } = await db
     .from('public_listing_submissions')
-    .update({ status: 'verified', verified_at: new Date().toISOString(), verified_phone: senderPhone })
+    .update({
+      status: 'verified',
+      verified_at: new Date().toISOString(),
+      verified_phone: senderPhone,
+    })
     .eq('id', submission.id)
     .eq('status', 'pending')
     .gt('expires_at', new Date().toISOString())
@@ -135,19 +170,66 @@ export async function processListingVerification(args: ProcessArgs): Promise<boo
       .eq('id', submission.id)
       .eq('status', 'pending')
       .lt('expires_at', new Date().toISOString());
-    await reply("This listing code is no longer valid — it may have already been submitted or expired. Please resubmit from the website.");
+    await reply(
+      'This listing code is no longer valid — it may have already been submitted or expired. Please resubmit from the website.'
+    );
     return true;
   }
 
   try {
     // Soft-burn the parse cost — external/inbound engine never blocks.
     try {
-      await burnCredits(accountId, 'listing_parse', AI_FEATURE_COSTS.listing_parse, { hardBlock: false });
+      await burnCredits(
+        accountId,
+        'listing_parse',
+        AI_FEATURE_COSTS.listing_parse,
+        { hardBlock: false }
+      );
     } catch (err) {
-      console.error('[listing-verification] credit burn failed (non-fatal):', err);
+      console.error(
+        '[listing-verification] credit burn failed (non-fatal):',
+        err
+      );
     }
 
-    let draft = await parseListingFromImageOrText(claimed.raw_text);
+    // A brochure beats a paste: when the submission carries a PDF deck,
+    // the deck itself is what gets parsed — Gemini reads the document
+    // directly, the same path the owner chatbot has always used for
+    // PDFs — and its embedded photos become the listing's gallery.
+    const submittedDocs: string[] = Array.isArray(claimed.documents)
+      ? claimed.documents
+      : [];
+    const deckBuffer =
+      submittedDocs.length > 0 ? await fetchStoredPdf(submittedDocs[0]) : null;
+
+    let draft;
+    let deckImages: string[] = [];
+    if (deckBuffer) {
+      const [parsed, extracted] = await Promise.all([
+        parseListingFromImageOrText(
+          claimed.raw_text || '',
+          deckBuffer,
+          'application/pdf'
+        ),
+        extractImagesFromPdf(deckBuffer).catch(() => [] as Buffer[]),
+      ]);
+      draft = parsed;
+      deckImages = (
+        await Promise.all(
+          extracted.slice(0, 15).map((buf) =>
+            uploadPropertyImage(accountId, buf, 'image/jpeg').catch((err) => {
+              console.error(
+                '[listing-verification] deck image upload failed:',
+                err
+              );
+              return null;
+            })
+          )
+        )
+      ).filter((u): u is string => !!u);
+    } else {
+      draft = await parseListingFromImageOrText(claimed.raw_text);
+    }
     draft = await backfillLocationFromMapLink(draft);
     const { isValid, missingFields } = validateDraft(draft);
 
@@ -155,8 +237,14 @@ export async function processListingVerification(args: ProcessArgs): Promise<boo
     // paste was thin — the agent completes it during Pending Review.
     const title = draft.title?.trim() || 'Untitled listing (pending review)';
     const location = draft.location?.trim() || 'Location pending';
-    const price = draft.listing_type === 'Rent' ? (draft.rent_per_month || 0) : (draft.price || 0);
-    const images: string[] = Array.isArray(claimed.images) ? claimed.images : [];
+    const price =
+      draft.listing_type === 'Rent'
+        ? draft.rent_per_month || 0
+        : draft.price || 0;
+    const submittedImages: string[] = Array.isArray(claimed.images)
+      ? claimed.images
+      : [];
+    const images = [...submittedImages, ...deckImages].slice(0, 15);
 
     const { data: prop, error: propErr } = await db
       .from('properties')
@@ -164,7 +252,9 @@ export async function processListingVerification(args: ProcessArgs): Promise<boo
         account_id: accountId,
         user_id: null,
         title,
-        description: draft.description || 'Submitted via the website listing form, pending review.',
+        description:
+          draft.description ||
+          'Submitted via the website listing form, pending review.',
         price,
         location,
         type: draft.type || 'Others',
@@ -181,6 +271,10 @@ export async function processListingVerification(args: ProcessArgs): Promise<boo
         features: draft.features || [],
         nearby_highlights: draft.nearby_highlights || [],
         images,
+        documents: submittedDocs,
+        // A commercial deck's rent roll — one row per floor. The decks
+        // this feature was built for carry exactly this.
+        floor_tenancies: sanitizeFloorTenancies(draft.floor_tenancies),
         rental_income: draft.rental_income,
         roi: draft.roi,
         google_map_link: draft.google_map_link,
@@ -206,15 +300,23 @@ export async function processListingVerification(args: ProcessArgs): Promise<boo
     if (propErr || !prop) {
       console.error('[listing-verification] property insert failed:', propErr);
       await revertClaim(db, submission.id);
-      await reply("❌ Something went wrong saving your listing. Please try again from the website.");
+      await reply(
+        '❌ Something went wrong saving your listing. Please try again from the website.'
+      );
       return true;
     }
 
     // Mark the sender: a co-broker answering a shared requirement is an
     // Agent, anyone else is an Owner lead (only upgrade generic contacts).
-    if (!contactRecord.classification || contactRecord.classification === 'Others') {
+    if (
+      !contactRecord.classification ||
+      contactRecord.classification === 'Others'
+    ) {
       const classification = claimed.requirement_link_id ? 'Agent' : 'Owner';
-      await db.from('contacts').update({ classification }).eq('id', contactRecord.id);
+      await db
+        .from('contacts')
+        .update({ classification })
+        .eq('id', contactRecord.id);
     }
 
     // Claim already flipped status -> 'verified' above; just attach the
@@ -226,10 +328,14 @@ export async function processListingVerification(args: ProcessArgs): Promise<boo
 
     let requirementRef: string | null = null;
     if (claimed.requirement_link_id) {
-      requirementRef = await recordRequirementResponse(db, claimed.requirement_link_id, {
-        propertyCode: prop.property_code,
-        title: prop.title,
-      });
+      requirementRef = await recordRequirementResponse(
+        db,
+        claimed.requirement_link_id,
+        {
+          propertyCode: prop.property_code,
+          title: prop.title,
+        }
+      );
     }
 
     let confirmation =
@@ -252,7 +358,9 @@ export async function processListingVerification(args: ProcessArgs): Promise<boo
   } catch (err) {
     console.error('[listing-verification] processing failed:', err);
     await revertClaim(db, submission.id);
-    await reply("❌ Something went wrong processing your listing. Please try again from the website.");
+    await reply(
+      '❌ Something went wrong processing your listing. Please try again from the website.'
+    );
     return true;
   }
 }
@@ -263,7 +371,10 @@ export async function processListingVerification(args: ProcessArgs): Promise<boo
  * Scoped with `created_property_id IS NULL` — never touches a
  * submission that actually finished successfully.
  */
-async function revertClaim(db: SupabaseClient, submissionId: string): Promise<void> {
+async function revertClaim(
+  db: SupabaseClient,
+  submissionId: string
+): Promise<void> {
   try {
     await db
       .from('public_listing_submissions')
@@ -272,6 +383,9 @@ async function revertClaim(db: SupabaseClient, submissionId: string): Promise<vo
       .eq('status', 'verified')
       .is('created_property_id', null);
   } catch (err) {
-    console.error('[listing-verification] revertClaim failed (non-fatal):', err);
+    console.error(
+      '[listing-verification] revertClaim failed (non-fatal):',
+      err
+    );
   }
 }
