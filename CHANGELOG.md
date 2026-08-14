@@ -13,6 +13,41 @@ and polish.
 
 ### Added
 
+- **A buyer asking for photos now gets the photos.** "Sir can I get
+  images  images", sent moments after a listing was shared, was answered
+  with "What kind of property are you looking for?" — the message is not
+  question-shaped, carries no budget or property type, and numbers no
+  shortlist entry, so the qualification ladder claimed it and restarted
+  the intake of someone already reading a listing. An agent sent the
+  photos by hand eight minutes later. The bot now replies with up to
+  four of the listing's public photos (two each when several listings
+  are in play), the first captioned with the title, the listing video
+  when it is asked for and ready, and a closing line linking the rest of
+  the gallery. Only the public photos ever travel: confidential and
+  gated photos stay behind their proxy however the request is worded.
+  When nothing can be sent — no listing pinned to the thread, or an
+  empty public gallery — the reply promises the photos and hands the
+  thread to an agent rather than going quiet.
+
+- **A showcase enquiry lands in the Engine, as a card**
+  (**migration required**: `268_whatsapp_display_phone_number.sql`).
+  Tapping Enquire on the public catalog opened a chat to
+  `showcase_settings.contact_phone` — in practice an agent's personal
+  mobile — so the enquiry, and every message after it, was invisible to
+  the Engine: no contact, no conversation, no Radar, nothing learned
+  from the negotiation. `whatsapp_config` only ever stored Meta's opaque
+  `phone_number_id`, so the showcase could not address the business
+  number even in principle; it now also stores the dialable number,
+  which the config save was already fetching and discarding. The
+  enquiry tap resolves separately from what the page displays —
+  `contact_phone` keeps the call link, the "Inquire:" line and the agent
+  block — and a referral link still wins over both, so a co-broker's
+  lead is never quietly reassigned. An enquiry that reaches the Engine
+  now arrives as a card naming the listing and the buyer, with buttons
+  to send the photos, send the full details, or take the thread and keep
+  the bot out of it. Accounts on sandbox, or not yet re-saved, keep the
+  previous behaviour.
+
 - **The Engine notices when a portal ad and its listing disagree.**
   Once an ad is mapped, nothing told anyone when the two sides diverged
   — a listing was archived while its MagicBricks ad stayed live,
@@ -57,6 +92,43 @@ and polish.
   carries hidden picks from the previous tab.
 
 ### Fixed
+
+- **An expired sandbox trial no longer blackholes a sender forever.**
+  The shared sandbox number routes by sender: the first `#code` message
+  writes a mapping, and every later message from that number resolves
+  through it. The mapping never expired — the trial behind it did — so
+  once a tenant's trial lapsed, every message routing through one of
+  their mappings was dropped with no reply, no message row, and no trace
+  on either side. A real number sat in that state for five weeks, still
+  messaging, and it took the ingress logs to see it because the CRM held
+  no evidence at all. A lapsed trial now releases its dead mapping, so
+  the message falls through to whichever Official API account owns the
+  number — and so does every message after it, without manual repair.
+  The per-tenant message limit is unchanged: a live tenant over their
+  cap is still capped.
+
+- **A seller's floor stated as a close is now recognised.** An agent
+  typing "This can be closed at 13 cr" about a listing advertised at 15
+  scored nothing: the free gate in front of the price learner was
+  written from how buyers ask ("is it negotiable?") rather than how
+  agents answer, and "closed at" was not in its vocabulary. So the
+  figure died in the bubble and the next buyer to ask whether there was
+  room got "let me check with the team". The closing and taking family —
+  closed/closing at, owner will take, seller is ok with, done at — now
+  reaches the extraction, which still proposes rather than writes.
+  "We can do 13" is deliberately excluded: an agent booking a site visit
+  at 4 says the same words, and this gate runs on every outbound
+  message.
+
+- **The chatbot simulator no longer contradicts production.** It ran the
+  qualification ladder directly, so it never knew about the messages the
+  ladder now stands down for: typing "can I get photos" into it showed
+  "What kind of property are you looking for?" — the exact reply the
+  photo handling exists to prevent, demonstrated by the tool an agent
+  would use to check the behaviour. Callback requests and listings named
+  by number were mispreviewed the same way. The routing decision now
+  lives in one place both the live handler and the simulator reach, and
+  the simulator previews what each route actually sends.
 
 - **A portal's "your listing is live" email can no longer become a
   lead.** The portals confirm every posting, review, go-live and refresh
