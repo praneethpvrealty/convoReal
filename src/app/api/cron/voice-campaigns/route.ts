@@ -1,5 +1,7 @@
 import { timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
+import { burnCredits, refundCredits } from '@/lib/credits/burn';
+import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { isWithinCallWindow, STALE_CALLING_MS } from '@/lib/voice/campaigns';
 import { startOutboundCall } from '@/lib/voice/outbound-call';
@@ -23,6 +25,7 @@ import { startOutboundCall } from '@/lib/voice/outbound-call';
 const CAMPAIGNS_PER_RUN = 20;
 const CALLS_PER_CAMPAIGN = 5;
 const CALLS_PER_RUN = 25;
+const CALL_COST = AI_FEATURE_COSTS.voice_campaign_call;
 
 export async function GET(request: Request) {
   const expected =
@@ -48,19 +51,35 @@ export async function GET(request: Request) {
   let requeued = 0;
   let started = 0;
   let failed = 0;
+  let creditBlocked = 0;
   let completedCampaigns = 0;
 
   try {
+    // A stale 'calling' row means the call never happened or its result
+    // was lost — the attempt's upfront charge is returned before the
+    // row goes back in the queue.
     const staleBefore = new Date(
       now.getTime() - STALE_CALLING_MS
     ).toISOString();
-    const { data: requeuedRows } = await supabase
+    const { data: staleRows } = await supabase
       .from('voice_campaign_recipients')
-      .update({ status: 'queued' })
+      .select('id, account_id')
       .eq('status', 'calling')
       .lt('last_attempt_at', staleBefore)
-      .select('id');
-    requeued = requeuedRows?.length ?? 0;
+      .limit(200);
+    for (const stale of staleRows ?? []) {
+      const { data: requeuedRow } = await supabase
+        .from('voice_campaign_recipients')
+        .update({ status: 'queued' })
+        .eq('id', stale.id)
+        .eq('status', 'calling')
+        .select('id');
+      if (!requeuedRow || requeuedRow.length === 0) continue;
+      requeued++;
+      await refundCredits(stale.account_id, 'voice_campaign_call', CALL_COST, {
+        description: `voice_campaign_call stale refund (recipient ${stale.id})`,
+      });
+    }
 
     const { data: campaigns } = await supabase
       .from('voice_campaigns')
@@ -129,6 +148,30 @@ export async function GET(request: Request) {
           .select('id');
         if (!claimed || claimed.length === 0) continue;
 
+        // Burn before the external call (credits-engine rule). The
+        // retry key makes a crashed-and-rerun dispatch idempotent per
+        // attempt. Unconnected attempts are refunded (stale requeue,
+        // start failure below, no-answer/busy via the webhook).
+        const burn = await burnCredits(
+          campaign.account_id,
+          'voice_campaign_call',
+          CALL_COST,
+          { retryKey: `voice-call:${recipient.id}:${recipient.attempts + 1}` }
+        );
+        if (!burn.success) {
+          creditBlocked++;
+          await supabase
+            .from('voice_campaign_recipients')
+            .update({ status: 'queued', attempts: recipient.attempts })
+            .eq('id', recipient.id)
+            .eq('status', 'calling')
+            .select('id');
+          console.warn(
+            `[voice-campaigns] Insufficient credits (short ${burn.deficit}) for account ${campaign.account_id} — skipping campaign ${campaign.id}.`
+          );
+          break;
+        }
+
         const scriptContext =
           campaign.script_context && typeof campaign.script_context === 'object'
             ? (campaign.script_context as Record<string, string>)
@@ -153,6 +196,14 @@ export async function GET(request: Request) {
             .eq('id', recipient.id)
             .eq('status', 'calling')
             .select('id');
+          await refundCredits(
+            campaign.account_id,
+            'voice_campaign_call',
+            CALL_COST,
+            {
+              description: `voice_campaign_call start-failure refund (recipient ${recipient.id})`,
+            }
+          );
         }
       }
 
@@ -172,7 +223,13 @@ export async function GET(request: Request) {
       }
     }
 
-    const result = { requeued, started, failed, completedCampaigns };
+    const result = {
+      requeued,
+      started,
+      failed,
+      creditBlocked,
+      completedCampaigns,
+    };
     console.log('[voice-campaigns]', JSON.stringify(result));
     return NextResponse.json(result);
   } catch (err) {

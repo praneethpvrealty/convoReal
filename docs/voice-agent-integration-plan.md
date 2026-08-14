@@ -235,8 +235,11 @@ tags, `do_not_call`). The UI ships on both surfaces (§2.8): web as a "Voice Cal
 `/broadcasts`, mobile under More → Marketing (`voice-campaigns` list/create +
 `voice-campaign/[id]` detail, pure logic in `mobile/lib/voice-campaigns.ts`) — list, create
 with enquiry seeding, activate/pause, recipient add/remove and qualification results on both;
-editing an existing campaign's `agent_ref` stays web-only for now. Still open: per-call
-credit gating.
+editing an existing campaign's `agent_ref` stays web-only for now. Credit gating is live:
+`AI_FEATURE_COSTS.voice_campaign_call` (25 cr) is burned per dial attempt before the external
+call and auto-refunded whenever the call never connects, with a hard block that skips the
+campaign until the wallet is topped up — the policy and mechanics are in
+`docs/credits-policy-voice-campaign-call.md`. Phase C is complete.
 
 ## 7. Phase D — audio announcements on WhatsApp + per-contact channel preference
 

@@ -12,6 +12,8 @@ import {
 import { runAutomationsForTrigger } from '@/lib/automations/engine';
 import { interestFromTypeText } from '@/app/api/leads/email-webhook/route';
 import { assignTagsToContact } from '@/app/api/leads/email-webhook/db-utils';
+import { refundCredits } from '@/lib/credits/burn';
+import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 import {
   nextRecipientStatus,
   parseQualification,
@@ -291,7 +293,7 @@ export async function POST(request: Request) {
     if (payload.campaignId) {
       const { data: recipient } = await supabase
         .from('voice_campaign_recipients')
-        .select('id, attempts, campaign:voice_campaigns(max_attempts)')
+        .select('id, status, attempts, campaign:voice_campaigns(max_attempts)')
         .eq('account_id', accountId)
         .eq('campaign_id', payload.campaignId)
         .eq('contact_id', contactId)
@@ -316,6 +318,24 @@ export async function POST(request: Request) {
           })
           .eq('id', recipient.id)
           .select('id');
+        // The attempt was charged at dispatch; a call nobody answered
+        // is returned, so accounts pay per connected call. Guarded on
+        // the pre-update 'calling' status so a stale-requeue refund
+        // (dispatcher) and this one can never both fire for the same
+        // attempt.
+        if (
+          recipient.status === 'calling' &&
+          (payload.outcome === 'no_answer' || payload.outcome === 'busy')
+        ) {
+          await refundCredits(
+            accountId,
+            'voice_campaign_call',
+            AI_FEATURE_COSTS.voice_campaign_call,
+            {
+              description: `voice_campaign_call no-answer refund (recipient ${recipient.id})`,
+            }
+          );
+        }
       }
     }
 

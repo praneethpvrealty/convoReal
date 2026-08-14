@@ -17,6 +17,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { useCan } from '@/hooks/use-can';
 import { cn } from '@/lib/utils';
 import { formatCurrencyShort } from '@/lib/currency-utils';
+import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 import { Button } from '@/components/ui/button';
 import { GatedButton } from '@/components/ui/gated-button';
 import { Input } from '@/components/ui/input';
@@ -222,7 +223,9 @@ export default function VoiceCampaignsContent() {
           Outbound qualification calls to a listing&apos;s enquirers — the voice
           agent checks budget and requirements, and answers land back on the
           contact.
-          <InfoHint text="Recipients are seeded from a property's enquiries. Calls go out inside the campaign's IST window, retry unanswered numbers, and respect do-not-call. Results (stated budget, areas, opt-outs) are written back to the contact automatically." />
+          <InfoHint
+            text={`Recipients are seeded from a property's enquiries. Calls go out inside the campaign's IST window, retry unanswered numbers, and respect do-not-call. Results (stated budget, areas, opt-outs) are written back to the contact automatically. Each connected call costs ${AI_FEATURE_COSTS.voice_campaign_call} cr — unanswered attempts are refunded.`}
+          />
         </p>
         <GatedButton
           canAct={canManage}
@@ -462,7 +465,9 @@ function CreateCampaignDialog({
           <DialogTitle>New voice campaign</DialogTitle>
           <DialogDescription>
             The voice agent calls each recipient about the selected listing and
-            captures their real budget and requirements.
+            captures their real budget and requirements. Costs{' '}
+            {AI_FEATURE_COSTS.voice_campaign_call} cr per connected call;
+            unanswered attempts are refunded automatically.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">

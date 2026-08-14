@@ -27,6 +27,7 @@ import { useAuthStore } from '@/lib/auth-store';
 import { formatInr } from '@/lib/format';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
+import { useAppConfig } from '@/lib/use-app-config';
 import {
   fonts,
   radius,
@@ -234,6 +235,9 @@ function CreateCampaignSheet({
 }) {
   const { colors, fonts: f } = useTheme();
   const dialog = useAppDialog();
+  // Server truth via /api/config; the fallback mirrors
+  // AI_FEATURE_COSTS.voice_campaign_call for the first offline run.
+  const callCost = useAppConfig()?.ai_costs.voice_campaign_call ?? 25;
   const [name, setName] = useState('');
   const [property, setProperty] = useState<PropertyOption | null>(null);
   const [propertyPickerOpen, setPropertyPickerOpen] = useState(false);
@@ -381,6 +385,16 @@ function CreateCampaignSheet({
             trackColor={{ true: colors.primary }}
           />
         </View>
+        <Text
+          style={{
+            fontSize: 12,
+            color: colors.textFaint,
+            textAlign: 'center',
+          }}
+        >
+          Costs {callCost} cr per connected call — unanswered attempts are
+          refunded automatically.
+        </Text>
         <PrimaryButton
           label="Create campaign"
           icon="call-outline"
