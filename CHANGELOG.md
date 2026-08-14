@@ -127,6 +127,21 @@ and polish.
   other preference, and the requirement playback card shows it ("up to
   3,570 sq.ft"), one tap from correction.
 
+### Added
+
+- **The /list page takes the deck** (**migration required**:
+  `276_listing_submission_documents.sql`). Commercial landlords do not
+  paste text — they send the brochure. Suraj Group's first contact was
+  two PDF decks over WhatsApp, and the seller funnel had nowhere to put
+  them: the draft came back with every field Missing. The List-your-
+  property page now accepts one PDF brochure per property alongside
+  photos, and "PFA our deck" is a complete submission — the text floor
+  only applies when no deck is attached. On WhatsApp verification the
+  deck itself is parsed (Gemini reads the document directly, the same
+  path the owner chatbot has always used for PDFs), its embedded photos
+  become the listing gallery, floor-wise rent rolls land in
+  floor_tenancies, and the brochure stays attached to the property.
+
 ### Fixed
 
 - **The ladder no longer re-sends a shortlist the lead is already

@@ -1,7 +1,14 @@
 'use client';
 
 import { useMemo, useRef, useState } from 'react';
-import { Loader2, MessageCircle, Upload, X, CheckCircle2 } from 'lucide-react';
+import {
+  FileText,
+  Loader2,
+  MessageCircle,
+  Upload,
+  X,
+  CheckCircle2,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -28,11 +35,17 @@ export function ListPropertyForm({
   const [rawText, setRawText] = useState('');
   const [name, setName] = useState('');
   const [images, setImages] = useState<UploadedImage[]>([]);
+  const [document, setDocument] = useState<UploadedImage | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadingDoc, setUploadingDoc] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<{ code: string; whatsappLink: string } | null>(null);
+  const [result, setResult] = useState<{
+    code: string;
+    whatsappLink: string;
+  } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const docInputRef = useRef<HTMLInputElement>(null);
   const sessionKey = useMemo(getShowcaseSessionKey, []);
 
   async function handleFiles(files: FileList | null) {
@@ -45,8 +58,14 @@ export function ListPropertyForm({
         form.append('account_id', accountId);
         form.append('session_key', sessionKey);
         form.append('file', file);
-        const res = await fetch('/api/public/list-property/upload', { method: 'POST', body: form });
-        const data = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
+        const res = await fetch('/api/public/list-property/upload', {
+          method: 'POST',
+          body: form,
+        });
+        const data = (await res.json().catch(() => ({}))) as {
+          url?: string;
+          error?: string;
+        };
         if (!res.ok || !data.url) {
           setError(data.error || 'One or more photos failed to upload.');
           continue;
@@ -63,9 +82,38 @@ export function ListPropertyForm({
     setImages((prev) => prev.filter((img) => img.url !== url));
   }
 
+  async function handleDocument(files: FileList | null) {
+    const file = files?.[0];
+    if (!file) return;
+    setError(null);
+    setUploadingDoc(true);
+    try {
+      const form = new FormData();
+      form.append('account_id', accountId);
+      form.append('session_key', sessionKey);
+      form.append('file', file);
+      const res = await fetch('/api/public/list-property/upload', {
+        method: 'POST',
+        body: form,
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        url?: string;
+        error?: string;
+      };
+      if (!res.ok || !data.url) {
+        setError(data.error || 'The brochure failed to upload.');
+        return;
+      }
+      setDocument({ url: data.url, name: file.name });
+    } finally {
+      setUploadingDoc(false);
+      if (docInputRef.current) docInputRef.current.value = '';
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (submitting || rawText.trim().length < 15) return;
+    if (submitting || (rawText.trim().length < 15 && !document)) return;
     setError(null);
     setSubmitting(true);
     try {
@@ -76,6 +124,7 @@ export function ListPropertyForm({
           account_id: accountId,
           raw_text: rawText.trim(),
           images: images.map((i) => i.url),
+          documents: document ? [document.url] : [],
           submitter_name: name.trim() || undefined,
           session_key: sessionKey,
           requirement_link_token: requirementLinkToken,
@@ -87,7 +136,9 @@ export function ListPropertyForm({
         error?: string;
       };
       if (!res.ok || !data.code || !data.whatsappLink) {
-        setError(data.error || 'Could not submit your listing. Please try again.');
+        setError(
+          data.error || 'Could not submit your listing. Please try again.'
+        );
         return;
       }
       setResult({ code: data.code, whatsappLink: data.whatsappLink });
@@ -100,67 +151,94 @@ export function ListPropertyForm({
 
   if (result) {
     return (
-      <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 text-center space-y-4">
-        <CheckCircle2 className="size-12 text-emerald-500 mx-auto" />
-        <h2 className="text-xl font-bold text-white">One last step to submit</h2>
-        <p className="text-sm text-slate-300 leading-relaxed">
-          Tap the button below to send your verification code on WhatsApp. This confirms your number
-          so {siteName} can {requirementReference ? `match your listing against ${requirementReference}` : 'publish your listing'}. Your details are saved for 24 hours.
+      <div className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/60 p-6 text-center">
+        <CheckCircle2 className="mx-auto size-12 text-emerald-500" />
+        <h2 className="text-xl font-bold text-white">
+          One last step to submit
+        </h2>
+        <p className="text-sm leading-relaxed text-slate-300">
+          Tap the button below to send your verification code on WhatsApp. This
+          confirms your number so {siteName} can{' '}
+          {requirementReference
+            ? `match your listing against ${requirementReference}`
+            : 'publish your listing'}
+          . Your details are saved for 24 hours.
         </p>
-        <div className="rounded-lg bg-slate-950 border border-slate-800 py-3">
-          <p className="text-[11px] uppercase tracking-wider text-slate-500">Your code</p>
-          <p className="text-2xl font-bold text-white tracking-widest">{result.code}</p>
+        <div className="rounded-lg border border-slate-800 bg-slate-950 py-3">
+          <p className="text-[11px] tracking-wider text-slate-500 uppercase">
+            Your code
+          </p>
+          <p className="text-2xl font-bold tracking-widest text-white">
+            {result.code}
+          </p>
         </div>
         <a
           href={result.whatsappLink}
           target="_blank"
           rel="noreferrer"
-          className="inline-flex items-center justify-center gap-2 w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-3 rounded-lg transition-colors"
+          className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-3 font-bold text-white transition-colors hover:bg-emerald-500"
         >
           <MessageCircle className="size-5 fill-white text-emerald-600" />
           Send code on WhatsApp
         </a>
         <p className="text-xs text-slate-500">
-          After you send it, you&apos;ll get a confirmation with your property code.
+          After you send it, you&apos;ll get a confirmation with your property
+          code.
         </p>
       </div>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit} className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 space-y-5">
+    <form
+      onSubmit={handleSubmit}
+      className="space-y-5 rounded-2xl border border-slate-800 bg-slate-900/60 p-6"
+    >
       <div>
-        <label className="block text-sm font-semibold text-white mb-1.5">Property details</label>
+        <label className="mb-1.5 block text-sm font-semibold text-white">
+          Property details
+        </label>
         <Textarea
           value={rawText}
           onChange={(e) => setRawText(e.target.value)}
           rows={8}
-          required
+          required={!document}
           placeholder={
             'Paste or type everything about your property — e.g.\n\n3 BHK apartment for sale in HSR Layout, 1450 sqft, ₹1.35 Cr, east facing, 2 covered parking, near Silk Board metro.'
           }
-          className="bg-slate-950 border-slate-800 text-white placeholder:text-slate-600 focus:border-primary text-sm resize-y"
+          className="focus:border-primary resize-y border-slate-800 bg-slate-950 text-sm text-white placeholder:text-slate-600"
         />
-        <p className="text-xs text-slate-500 mt-1">
-          Include price, location, size, and type. Our AI will structure it for you.
+        <p className="mt-1 text-xs text-slate-500">
+          Include price, location, size, and type — or just attach your brochure
+          below. Our AI will structure it for you.
         </p>
       </div>
 
       <div>
-        <label className="block text-sm font-semibold text-white mb-1.5">
-          Photos <span className="font-normal text-slate-500">(optional, up to 15)</span>
+        <label className="mb-1.5 block text-sm font-semibold text-white">
+          Photos{' '}
+          <span className="font-normal text-slate-500">
+            (optional, up to 15)
+          </span>
         </label>
         {images.length > 0 && (
-          <div className="grid grid-cols-4 gap-2 mb-2">
+          <div className="mb-2 grid grid-cols-4 gap-2">
             {images.map((img) => (
-              <div key={img.url} className="relative aspect-square rounded-lg overflow-hidden border border-slate-800">
+              <div
+                key={img.url}
+                className="relative aspect-square overflow-hidden rounded-lg border border-slate-800"
+              >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={img.url} alt={img.name} className="w-full h-full object-cover" />
+                <img
+                  src={img.url}
+                  alt={img.name}
+                  className="h-full w-full object-cover"
+                />
                 <button
                   type="button"
                   onClick={() => removeImage(img.url)}
                   aria-label="Remove photo"
-                  className="absolute top-1 right-1 bg-black/60 hover:bg-black/80 rounded-full p-0.5"
+                  className="absolute top-1 right-1 rounded-full bg-black/60 p-0.5 hover:bg-black/80"
                 >
                   <X className="size-3.5 text-white" />
                 </button>
@@ -183,20 +261,78 @@ export function ListPropertyForm({
           onClick={() => fileInputRef.current?.click()}
           className="w-full border-slate-800 text-slate-200 hover:bg-slate-800"
         >
-          {uploading ? <Loader2 className="size-4 animate-spin mr-2" /> : <Upload className="size-4 mr-2" />}
+          {uploading ? (
+            <Loader2 className="mr-2 size-4 animate-spin" />
+          ) : (
+            <Upload className="mr-2 size-4" />
+          )}
           {uploading ? 'Uploading…' : 'Add photos'}
         </Button>
       </div>
 
       <div>
-        <label className="block text-sm font-semibold text-white mb-1.5">
-          Your name <span className="font-normal text-slate-500">(optional)</span>
+        <label className="mb-1.5 block text-sm font-semibold text-white">
+          Brochure / deck{' '}
+          <span className="font-normal text-slate-500">
+            (optional, one PDF per property)
+          </span>
+        </label>
+        {document ? (
+          <div className="flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-950 px-3 py-2.5">
+            <FileText className="size-4 shrink-0 text-slate-400" />
+            <span className="flex-1 truncate text-sm text-slate-200">
+              {document.name}
+            </span>
+            <button
+              type="button"
+              onClick={() => setDocument(null)}
+              aria-label="Remove brochure"
+              className="rounded-full bg-black/60 p-0.5 hover:bg-black/80"
+            >
+              <X className="size-3.5 text-white" />
+            </button>
+          </div>
+        ) : (
+          <>
+            <input
+              ref={docInputRef}
+              type="file"
+              accept="application/pdf"
+              onChange={(e) => handleDocument(e.target.files)}
+              className="hidden"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              disabled={uploadingDoc}
+              onClick={() => docInputRef.current?.click()}
+              className="w-full border-slate-800 text-slate-200 hover:bg-slate-800"
+            >
+              {uploadingDoc ? (
+                <Loader2 className="mr-2 size-4 animate-spin" />
+              ) : (
+                <FileText className="mr-2 size-4" />
+              )}
+              {uploadingDoc ? 'Uploading…' : 'Attach PDF brochure'}
+            </Button>
+          </>
+        )}
+        <p className="mt-1 text-xs text-slate-500">
+          We read the deck itself — details, floor plans, rent rolls and photos
+          come from it.
+        </p>
+      </div>
+
+      <div>
+        <label className="mb-1.5 block text-sm font-semibold text-white">
+          Your name{' '}
+          <span className="font-normal text-slate-500">(optional)</span>
         </label>
         <Input
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Name"
-          className="bg-slate-950 border-slate-800 text-white placeholder:text-slate-600 focus:border-primary"
+          className="focus:border-primary border-slate-800 bg-slate-950 text-white placeholder:text-slate-600"
         />
       </div>
 
@@ -204,13 +340,18 @@ export function ListPropertyForm({
 
       <Button
         type="submit"
-        disabled={submitting || uploading || rawText.trim().length < 15}
-        className="w-full bg-primary hover:bg-primary-hover text-primary-foreground font-bold py-3"
+        disabled={
+          submitting ||
+          uploading ||
+          uploadingDoc ||
+          (rawText.trim().length < 15 && !document)
+        }
+        className="bg-primary hover:bg-primary-hover text-primary-foreground w-full py-3 font-bold"
       >
-        {submitting ? <Loader2 className="size-4 animate-spin mr-2" /> : null}
+        {submitting ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
         Continue to WhatsApp verification
       </Button>
-      <p className="text-xs text-slate-500 text-center">
+      <p className="text-center text-xs text-slate-500">
         You&apos;ll confirm your phone number on WhatsApp — no account needed.
       </p>
     </form>
