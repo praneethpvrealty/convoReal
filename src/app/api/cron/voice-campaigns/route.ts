@@ -24,8 +24,14 @@ import { startOutboundCall } from '@/lib/voice/outbound-call';
  */
 
 const CAMPAIGNS_PER_RUN = 20;
-const CALLS_PER_CAMPAIGN = 5;
-const CALLS_PER_RUN = 25;
+// Dials a tick may start, bounded by the provider's concurrent-channel
+// allowance rather than by us: a call lasts minutes, so every dial this
+// tick starts is still live when the next one goes out. Sarvam's
+// pay-as-you-go plan allows 4 channels, and a dial past the cap is
+// rejected — which costs an attempt and a refund, not a call. Raise
+// VOICE_CALL_CHANNELS to match the plan when it changes.
+const CALLS_PER_RUN = Math.max(1, Number(process.env.VOICE_CALL_CHANNELS) || 4);
+const CALLS_PER_CAMPAIGN = Math.min(5, CALLS_PER_RUN);
 const CALL_COST = AI_FEATURE_COSTS.voice_campaign_call;
 
 export async function GET(request: Request) {

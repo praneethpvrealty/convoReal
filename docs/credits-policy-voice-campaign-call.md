@@ -4,27 +4,41 @@
 
 A qualification call (docs/voice-agent-integration-plan.md §6) consumes:
 
-| Item                | Typical usage               | Notes                                                                                                                                       |
-| ------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| Voice-agent minutes | ~2–3 min per connected call | Sarvam Voice Agents managed telephony; per-minute pricing — verify the current rate on platform.sarvam.ai when the workspace is provisioned |
-| Unanswered attempt  | ~0                          | no connection, no meaningful telephony cost                                                                                                 |
-| Webhook processing  | negligible                  | own infra                                                                                                                                   |
+| Item                | Typical usage               | Notes                                                                        |
+| ------------------- | --------------------------- | ---------------------------------------------------------------------------- |
+| Voice-agent minutes | ~2–3 min per connected call | ₹4.50/min on Sarvam's pay-as-you-go plan (₹4.00 on Business, ₹3.50 on Scale) |
+| Telephony           | same minutes                | ₹0.40/min on every plan                                                      |
+| Phone number        | ₹159/month                  | flat rental, not per call                                                    |
+| Unanswered attempt  | ~0                          | no connection, no meaningful telephony cost                                  |
+| Webhook processing  | negligible                  | own infra                                                                    |
 
-Estimated raw cost per connected call: **~₹3–8** at typical Indian
-voice-agent per-minute rates. Re-check this table against Sarvam's
-published Voice Agents pricing once live — the platform went GA in
-August 2026 and rates may move. A custom provider
-(`VOICE_CALL_PROVIDER=custom`) has its own economics; revisit the
-price if the fallback becomes the primary.
+Measured raw cost per connected call: **₹9.80–14.70** — ₹4.90/min
+all-in over a 2–3 minute qualification call, read off Sarvam's
+published pricing (indus.sarvam.ai/samvaad/pricing, August 2026). This
+replaces the earlier ₹3–8 estimate, which was low. A custom provider
+(`VOICE_CALL_PROVIDER=custom`) has its own economics; revisit the price
+if the fallback becomes the primary.
 
 ## Our price to the account
 
 `AI_FEATURE_COSTS.voice_campaign_call = 25 cr` (src/lib/credits/types.ts).
 
-Policy rule, consistent with the other AI features: **price at ≥5×
-raw cost**. 25 cr ≈ ₹3–8 raw → ~3–8× today at the estimate's midpoint;
-tighten upward only if measured per-minute costs come in above the
-estimate — cutting a price is fine, raising one is not.
+**This price is currently below raw cost, and knowing that is the
+point of writing it down.** A credit sells for ₹0.062–0.099 depending
+on the pack (migration 087: 1,000 cr for ₹99 up to 16,000 cr for ₹999),
+so 25 cr is **₹1.56–2.48** of revenue against a ₹9.80–14.70 call — a
+subsidy of roughly 4–9×, not the ≥5× margin the policy rule asks for.
+
+The earlier version of this file claimed "25 cr ≈ ₹3–8 raw → ~3–8×"
+by reading credits as rupees. They are not the same unit, and no other
+feature price in `AI_FEATURE_COSTS` should be read that way either.
+
+Policy rule, unchanged and consistent with the other AI features:
+**price at ≥5× raw cost**. Honouring it here means roughly 600–1,000 cr
+per connected call; covering bare cost means roughly 150 cr. Raising a
+live price is a product decision, not a code change — until it is
+taken, voice campaigns run as a deliberate loss-leader, and that is
+fine only while the operator and the account are the same company.
 
 Charging mechanics:
 
