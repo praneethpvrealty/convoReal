@@ -14,6 +14,8 @@ import { interestFromTypeText } from '@/app/api/leads/email-webhook/route';
 import { assignTagsToContact } from '@/app/api/leads/email-webhook/db-utils';
 import { refundCredits } from '@/lib/credits/burn';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
+import { getVoiceConfig } from '@/lib/voice/config';
+import { generateMatchEventForContact } from '@/lib/radar/engine';
 import {
   nextRecipientStatus,
   parseQualification,
@@ -51,6 +53,7 @@ export interface VoiceCallPayload {
   summary: string | null;
   transcript: string | null;
   requirementText: string | null;
+  budgetMin: number | null;
   budgetMax: number | null;
   areas: string[];
   propertyInterest: string | null;
@@ -90,6 +93,7 @@ export function parseVoiceCallPayload(body: unknown): VoiceCallPayload | null {
   const calledAtMs = calledAtRaw ? Date.parse(calledAtRaw) : NaN;
 
   const budget = Number(requirement.budget_max);
+  const budgetMin = Number(requirement.budget_min);
 
   const areas = Array.isArray(requirement.areas)
     ? [
@@ -116,6 +120,7 @@ export function parseVoiceCallPayload(body: unknown): VoiceCallPayload | null {
     summary: asText(raw.summary, SUMMARY_MAX),
     transcript: asText(raw.transcript, TRANSCRIPT_MAX),
     requirementText: asText(requirement.text, SUMMARY_MAX),
+    budgetMin: Number.isFinite(budgetMin) && budgetMin > 0 ? budgetMin : null,
     budgetMax: Number.isFinite(budget) && budget > 0 ? budget : null,
     areas,
     propertyInterest: asText(requirement.property_interest, 120),
@@ -130,25 +135,37 @@ export async function POST(request: Request) {
     const token = searchParams.get('token') || '';
     const accountId = searchParams.get('account_id') || '';
 
-    // Token is REQUIRED — fail closed. A missing VOICE_AGENT_WEBHOOK_TOKEN
-    // must never leave the endpoint open, since it creates contacts and
-    // call-journal rows inside a tenant's workspace.
-    const expectedToken = process.env.VOICE_AGENT_WEBHOOK_TOKEN;
-    if (!expectedToken) {
-      console.error(
-        '[voice-agent-webhook] VOICE_AGENT_WEBHOOK_TOKEN is not set — rejecting request.'
+    // Token is REQUIRED — fail closed. The account's own webhook token
+    // (voice_agent_config, Phase B) is the primary credential; the
+    // global VOICE_AGENT_WEBHOOK_TOKEN stays as a deprecation
+    // fallback. With neither configured the endpoint stays shut, since
+    // it creates contacts and call-journal rows inside a tenant's
+    // workspace.
+    const tokenMatches = (expected: string | null | undefined): boolean => {
+      if (!expected || !token) return false;
+      const tokenBuf = Buffer.from(token);
+      const expectedBuf = Buffer.from(expected);
+      return (
+        tokenBuf.length === expectedBuf.length &&
+        timingSafeEqual(tokenBuf, expectedBuf)
       );
-      return NextResponse.json(
-        { error: 'Webhook not configured' },
-        { status: 503 }
-      );
+    };
+    let authorized = tokenMatches(process.env.VOICE_AGENT_WEBHOOK_TOKEN);
+    if (!authorized && accountId) {
+      try {
+        const config = await getVoiceConfig(supabaseAdmin(), accountId);
+        authorized = tokenMatches(config?.webhook_token);
+      } catch {
+        // Config unreachable — stays unauthorized rather than open.
+      }
     }
-    const tokenBuf = Buffer.from(token);
-    const expectedBuf = Buffer.from(expectedToken);
-    if (
-      tokenBuf.length !== expectedBuf.length ||
-      !timingSafeEqual(tokenBuf, expectedBuf)
-    ) {
+    if (!authorized) {
+      if (!process.env.VOICE_AGENT_WEBHOOK_TOKEN && !accountId) {
+        return NextResponse.json(
+          { error: 'Webhook not configured' },
+          { status: 503 }
+        );
+      }
       return NextResponse.json(
         { error: 'Unauthorized token' },
         { status: 401 }
@@ -221,6 +238,7 @@ export async function POST(request: Request) {
       name,
       source: VOICE_AGENT_SOURCE,
       classification: 'Buyer',
+      minBudget: payload.budgetMin,
       maxBudget: payload.qualification?.statedBudget ?? payload.budgetMax,
       areasOfInterest: statedAreas.length > 0 ? statedAreas : payload.areas,
       propertyInterests: interest ? [interest] : [],
@@ -358,6 +376,19 @@ export async function POST(request: Request) {
         contactId,
         tags
       );
+    }
+
+    // Phase E: the call stated a requirement, so the preference fields
+    // just changed — rank the account's inventory against them and file
+    // a Match Radar event, the same hook preference edits and the
+    // public requirements form fire. Failures are swallowed inside.
+    if (
+      payload.qualification ||
+      payload.requirementText ||
+      payload.budgetMax ||
+      payload.areas.length > 0
+    ) {
+      await generateMatchEventForContact(supabase, accountId, contactId);
     }
 
     if (isNew) {

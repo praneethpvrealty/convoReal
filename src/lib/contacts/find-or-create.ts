@@ -18,9 +18,9 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 export interface ContactInput {
   accountId: string;
-  userId: string;           // agent/owner to own this contact
-  phone?: string | null;    // raw phone from lead source; null for an
-                            // email-only lead (a company mailbox)
+  userId: string; // agent/owner to own this contact
+  phone?: string | null; // raw phone from lead source; null for an
+  // email-only lead (a company mailbox)
   name?: string | null;
   email?: string | null;
   company?: string | null;
@@ -29,6 +29,7 @@ export interface ContactInput {
   referrer?: string | null;
   referrerContactId?: string | null;
   lastInquiredPropertyId?: string | null;
+  minBudget?: number | null;
   maxBudget?: number | null;
   areasOfInterest?: string[];
   propertyInterests?: string[];
@@ -52,7 +53,7 @@ export function normaliseEmail(email: string): string {
 
 export async function findOrCreateContact(
   supabase: SupabaseClient,
-  input: ContactInput,
+  input: ContactInput
 ): Promise<FindOrCreateResult> {
   const rawPhone = input.phone?.trim() || null;
   const normPhone = rawPhone ? normalisePhone(rawPhone) : '';
@@ -70,7 +71,9 @@ export async function findOrCreateContact(
       .select('id')
       .eq('account_id', input.accountId)
       .eq('is_merged', false)
-      .or(`phone.eq."${rawPhone.replace(/[\\"]/g, '\\$&')}",phone.eq.${normPhone}`)
+      .or(
+        `phone.eq."${rawPhone.replace(/[\\"]/g, '\\$&')}",phone.eq.${normPhone}`
+      )
       .limit(1)
       .maybeSingle();
 
@@ -112,6 +115,7 @@ export async function findOrCreateContact(
       referrer: input.referrer ?? null,
       referrer_contact_id: input.referrerContactId ?? null,
       last_inquired_property_id: input.lastInquiredPropertyId ?? null,
+      min_budget: input.minBudget ?? null,
       max_budget: input.maxBudget ?? null,
       areas_of_interest: input.areasOfInterest ?? [],
       property_interests: input.propertyInterests ?? [],
@@ -128,7 +132,7 @@ export async function findOrCreateContact(
 async function applyUpdates(
   supabase: SupabaseClient,
   contactId: string,
-  input: ContactInput,
+  input: ContactInput
 ): Promise<void> {
   const patch: Record<string, unknown> = {
     status: 'pending_review',
@@ -140,11 +144,16 @@ async function applyUpdates(
   if (input.email) patch.email = normaliseEmail(input.email);
   if (input.company) patch.company = input.company;
   if (input.source) patch.source = input.source;
-  if (input.referrerContactId) patch.referrer_contact_id = input.referrerContactId;
-  if (input.lastInquiredPropertyId) patch.last_inquired_property_id = input.lastInquiredPropertyId;
+  if (input.referrerContactId)
+    patch.referrer_contact_id = input.referrerContactId;
+  if (input.lastInquiredPropertyId)
+    patch.last_inquired_property_id = input.lastInquiredPropertyId;
+  if (input.minBudget) patch.min_budget = input.minBudget;
   if (input.maxBudget) patch.max_budget = input.maxBudget;
-  if (input.areasOfInterest?.length) patch.areas_of_interest = input.areasOfInterest;
-  if (input.propertyInterests?.length) patch.property_interests = input.propertyInterests;
+  if (input.areasOfInterest?.length)
+    patch.areas_of_interest = input.areasOfInterest;
+  if (input.propertyInterests?.length)
+    patch.property_interests = input.propertyInterests;
 
   // Don't overwrite a real name with "Unknown Lead"
   delete patch.name_fallback;

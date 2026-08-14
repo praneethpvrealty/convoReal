@@ -1,15 +1,16 @@
-import { supabaseAdmin } from '@/lib/automations/admin-client'
-import { sanitizePhoneForMeta, isValidE164 } from '@/lib/whatsapp/phone-utils'
-import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher'
+import { supabaseAdmin } from '@/lib/automations/admin-client';
+import { sanitizePhoneForMeta, isValidE164 } from '@/lib/whatsapp/phone-utils';
+import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
+import { placeReminderCall } from '@/lib/voice/reminder-call';
 import {
   loadTemplateForContact,
   warnLanguageFallback,
-} from '@/lib/whatsapp/template-language'
-import { sendTemplateMessage } from '@/lib/whatsapp/meta-api'
-import { decrypt } from '@/lib/whatsapp/encryption'
-import { istDayWindow, istHourOf } from '@/lib/calendar/whatsapp-scheduler'
-import { localityLabel } from '@/lib/inventory/location-guard'
-import type { SupabaseClient } from '@supabase/supabase-js'
+} from '@/lib/whatsapp/template-language';
+import { sendTemplateMessage } from '@/lib/whatsapp/meta-api';
+import { decrypt } from '@/lib/whatsapp/encryption';
+import { istDayWindow, istHourOf } from '@/lib/calendar/whatsapp-scheduler';
+import { localityLabel } from '@/lib/inventory/location-guard';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 // ============================================================
 // Client-facing appointment reminders. Every appointment can now
@@ -32,7 +33,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 // is covered.
 // ============================================================
 
-const HOUR_MS = 60 * 60 * 1000
+const HOUR_MS = 60 * 60 * 1000;
 
 /**
  * What the reminder says when nobody typed a meeting point.
@@ -43,17 +44,17 @@ const HOUR_MS = 60 * 60 * 1000
  * reads like a variable nobody filled in, because it is one. This at
  * least states a fact and sets an expectation.
  */
-export const LOCATION_TO_FOLLOW = 'to be shared before the visit'
+export const LOCATION_TO_FOLLOW = 'to be shared before the visit';
 
 /** Property fields the location text needs. */
 export interface ReminderProperty {
-  title?: string | null
-  type?: string | null
-  location_privacy?: string | null
-  location?: string | null
-  sublocality?: string | null
-  city?: string | null
-  state?: string | null
+  title?: string | null;
+  type?: string | null;
+  location_privacy?: string | null;
+  location?: string | null;
+  sublocality?: string | null;
+  city?: string | null;
+  state?: string | null;
 }
 
 /**
@@ -83,68 +84,69 @@ export function reminderLocationText(
   appointmentLocation: string | null | undefined,
   property: ReminderProperty | null | undefined
 ): string {
-  const typed = (appointmentLocation || '').trim()
-  if (typed) return typed
+  const typed = (appointmentLocation || '').trim();
+  if (typed) return typed;
 
-  const exact = (property?.location || '').trim()
-  if (exact) return exact
+  const exact = (property?.location || '').trim();
+  if (exact) return exact;
 
   // No street address on the listing either — the locality still beats
   // saying nothing, unless it degrades to localityLabel's own showcase
   // fallback, which answers a question the client did not ask.
   if (property) {
-    const label = localityLabel(property)
-    if (label && !/available on request/i.test(label)) return label
+    const label = localityLabel(property);
+    if (label && !/available on request/i.test(label)) return label;
   }
 
-  return LOCATION_TO_FOLLOW
+  return LOCATION_TO_FOLLOW;
 }
 
 // property_visit_reminder wording only fits event_type = 'site_visit'.
 // Everything else (meeting, call, follow_up, document, other) uses the
 // generic pair seeded DRAFT by migration 140 — sending "your scheduled
 // property visit" for a plain meeting or call reminder is confusing.
-const BASE_TEMPLATE_NAME = 'property_visit_reminder'
+const BASE_TEMPLATE_NAME = 'property_visit_reminder';
 // Agenda-carrying template variant (seeded DRAFT by migration 129).
 // Used only for accounts whose copy Meta has APPROVED; everyone else
 // stays on the original 5-placeholder template.
-const AGENDA_TEMPLATE_NAME = 'property_visit_reminder_agenda'
-const GENERIC_TEMPLATE_NAME = 'appointment_reminder'
-const GENERIC_AGENDA_TEMPLATE_NAME = 'appointment_reminder_agenda'
+const AGENDA_TEMPLATE_NAME = 'property_visit_reminder_agenda';
+const GENERIC_TEMPLATE_NAME = 'appointment_reminder';
+const GENERIC_AGENDA_TEMPLATE_NAME = 'appointment_reminder_agenda';
 
-type ReminderType = 'morning' | '1h'
+type ReminderType = 'morning' | '1h';
 
 interface ReminderContact {
-  id: string
-  name: string | null
-  phone: string | null
+  id: string;
+  name: string | null;
+  phone: string | null;
+  preferred_update_channel?: string | null;
 }
 
 interface ReminderAppointment {
-  id: string
-  account_id: string
-  user_id: string | null
-  title: string
-  start_time: string
-  location: string | null
-  agenda: string | null
-  event_type: string
-  contact_id: string | null
-  contact_ids: string[] | null
-  reminder_morning_sent: boolean
-  reminder_1h_sent: boolean
-  remind_liaison: boolean
-  liaison_id: string | null
-  liaison: { id: string; name: string | null; phone: string | null } | null
-  property: (ReminderProperty & { id: string }) | null
-  account: { name: string } | null
+  id: string;
+  account_id: string;
+  user_id: string | null;
+  title: string;
+  start_time: string;
+  location: string | null;
+  agenda: string | null;
+  event_type: string;
+  contact_id: string | null;
+  contact_ids: string[] | null;
+  reminder_morning_sent: boolean;
+  reminder_1h_sent: boolean;
+  remind_liaison: boolean;
+  liaison_id: string | null;
+  liaison: { id: string; name: string | null; phone: string | null } | null;
+  property: (ReminderProperty & { id: string }) | null;
+  account: { name: string } | null;
 }
 
 /** Union of the multi-contact array and the legacy single column. */
 function recipientIds(appt: ReminderAppointment): string[] {
-  const ids = new Set<string>(appt.contact_ids || [])
-  if (appt.contact_id) ids.add(appt.contact_id)
-  return [...ids]
+  const ids = new Set<string>(appt.contact_ids || []);
+  if (appt.contact_id) ids.add(appt.contact_id);
+  return [...ids];
 }
 
 /** Returns null on fetch failure so the caller can abort the tick —
@@ -153,23 +155,26 @@ async function loadContacts(
   admin: SupabaseClient,
   ids: string[]
 ): Promise<Map<string, ReminderContact> | null> {
-  const map = new Map<string, ReminderContact>()
-  if (ids.length === 0) return map
-  const { data, error } = await admin.from('contacts').select('id, name, phone').in('id', ids)
+  const map = new Map<string, ReminderContact>();
+  if (ids.length === 0) return map;
+  const { data, error } = await admin
+    .from('contacts')
+    .select('id, name, phone, preferred_update_channel')
+    .in('id', ids);
   if (error) {
-    console.error('[Reminder Cron] contacts fetch failed:', error)
-    return null
+    console.error('[Reminder Cron] contacts fetch failed:', error);
+    return null;
   }
-  for (const c of data || []) map.set(c.id, c as ReminderContact)
-  return map
+  for (const c of data || []) map.set(c.id, c as ReminderContact);
+  return map;
 }
 
 /** Meta rejects template params containing newlines/tabs, and long
  *  params can push the rendered body past its limit — flatten the
  *  free-text agenda into one bounded line. */
 function sanitizeTemplateParam(text: string, max = 300): string {
-  const flat = text.replace(/\s+/g, ' ').trim()
-  return flat.length > max ? `${flat.slice(0, max - 1)}…` : flat
+  const flat = text.replace(/\s+/g, ' ').trim();
+  return flat.length > max ? `${flat.slice(0, max - 1)}…` : flat;
 }
 
 function formatIstTime(iso: string): string {
@@ -181,7 +186,7 @@ function formatIstTime(iso: string): string {
     hour: '2-digit',
     minute: '2-digit',
     hour12: true,
-  })
+  });
 }
 
 /**
@@ -201,42 +206,85 @@ async function sendToAllRecipients(
 ): Promise<boolean> {
   const reachable = recipientIds(appt)
     .map((id) => contacts.get(id))
-    .filter((c): c is ReminderContact => !!c && !!c.phone && isValidE164(sanitizePhoneForMeta(c.phone)))
+    .filter(
+      (c): c is ReminderContact =>
+        !!c && !!c.phone && isValidE164(sanitizePhoneForMeta(c.phone))
+    );
 
   if (reachable.length === 0) {
-    console.warn(`[Reminder Cron] No reachable contacts for appointment ${appt.id} (${reminderType})`)
-    return true // nothing to retry — mark sent so we stop re-scanning it
+    console.warn(
+      `[Reminder Cron] No reachable contacts for appointment ${appt.id} (${reminderType})`
+    );
+    return true; // nothing to retry — mark sent so we stop re-scanning it
   }
 
-  const accountName = appt.account?.name || 'our team'
-  const formattedTime = formatIstTime(appt.start_time)
+  const accountName = appt.account?.name || 'our team';
+  const formattedTime = formatIstTime(appt.start_time);
   const agendaParam =
-    useAgendaTemplate && appt.agenda ? sanitizeTemplateParam(appt.agenda) : null
+    useAgendaTemplate && appt.agenda
+      ? sanitizeTemplateParam(appt.agenda)
+      : null;
   const templateName = isSiteVisit
-    ? (agendaParam ? AGENDA_TEMPLATE_NAME : BASE_TEMPLATE_NAME)
-    : (agendaParam ? GENERIC_AGENDA_TEMPLATE_NAME : GENERIC_TEMPLATE_NAME)
+    ? agendaParam
+      ? AGENDA_TEMPLATE_NAME
+      : BASE_TEMPLATE_NAME
+    : agendaParam
+      ? GENERIC_AGENDA_TEMPLATE_NAME
+      : GENERIC_TEMPLATE_NAME;
 
-  let allCovered = true
+  let allCovered = true;
   for (const contact of reachable) {
     // Claim this recipient. A unique-violation means an earlier tick
     // already delivered (or another cron instance owns it) — skip.
-    const { error: claimErr } = await admin.from('appointment_reminder_log').insert({
-      account_id: appt.account_id,
-      appointment_id: appt.id,
-      contact_id: contact.id,
-      reminder_type: reminderType,
-    })
+    const { error: claimErr } = await admin
+      .from('appointment_reminder_log')
+      .insert({
+        account_id: appt.account_id,
+        appointment_id: appt.id,
+        contact_id: contact.id,
+        reminder_type: reminderType,
+      });
     if (claimErr) {
       if (claimErr.code !== '23505') {
-        console.error('[Reminder Cron] claim insert failed:', claimErr)
-        allCovered = false
+        console.error('[Reminder Cron] claim insert failed:', claimErr);
+        allCovered = false;
       }
-      continue
+      continue;
     }
 
-    const clientName = contact.name || 'Client'
-    const visitTitle = appt.property?.title || appt.title || (isSiteVisit ? 'Property visit' : 'Appointment')
-    const locationText = reminderLocationText(appt.location, appt.property)
+    const clientName = contact.name || 'Client';
+    const visitTitle =
+      appt.property?.title ||
+      appt.title ||
+      (isSiteVisit ? 'Property visit' : 'Appointment');
+    const locationText = reminderLocationText(appt.location, appt.property);
+
+    // A contact who asked for phone-call updates gets the reminder as a
+    // voice-agent call when the account opted in (Settings → WhatsApp →
+    // Voice); any failure falls through to the WhatsApp template below
+    // so the reminder still lands. The claim above stays either way.
+    if (contact.preferred_update_channel === 'voice_call') {
+      const called = await placeReminderCall({
+        admin,
+        accountId: appt.account_id,
+        contactId: contact.id,
+        phone: contact.phone!,
+        retryKey: `voice-reminder:${appt.id}:${contact.id}:${reminderType}`,
+        context: {
+          contact_name: clientName,
+          appointment_title: visitTitle,
+          appointment_time: formattedTime,
+          location: locationText,
+          brand_name: accountName,
+        },
+      });
+      if (called) {
+        console.log(
+          `[Reminder Cron] Placed ${reminderType} reminder CALL for appt ${appt.id} to contact ${contact.id}`
+        );
+        continue;
+      }
+    }
     // Must mirror the four approved template bodies word-for-word —
     // Meta renders {{n}} positionally against whatever it approved,
     // so this string is only the local Inbox preview copy, but it
@@ -246,28 +294,36 @@ async function sendToAllRecipients(
     // end of the body even wrapped in punctuation — see
     // supabase/migrations/143_reminder_template_wording_fix.sql and
     // 145_reminder_template_trailing_variable_fix.sql.)
-    let bodyText: string
+    let bodyText: string;
     if (isSiteVisit && !agendaParam) {
-      bodyText = `Hi ${clientName}, this is a friendly reminder from ${accountName} about your scheduled property visit for "${visitTitle}" on ${formattedTime}. Location: ${locationText}. Please tap a button below to confirm or request a change.`
+      bodyText = `Hi ${clientName}, this is a friendly reminder from ${accountName} about your scheduled property visit for "${visitTitle}" on ${formattedTime}. Location: ${locationText}. Please tap a button below to confirm or request a change.`;
     } else if (isSiteVisit) {
-      bodyText = `Hi ${clientName}, this is a friendly reminder from ${accountName} that you have a scheduled property visit for "${visitTitle}" on ${formattedTime}. Location: ${locationText}. Agenda for the visit: ${agendaParam}. Please tap a button below to confirm or request a change.`
+      bodyText = `Hi ${clientName}, this is a friendly reminder from ${accountName} that you have a scheduled property visit for "${visitTitle}" on ${formattedTime}. Location: ${locationText}. Agenda for the visit: ${agendaParam}. Please tap a button below to confirm or request a change.`;
     } else if (!agendaParam) {
-      bodyText = `Hi ${clientName}, this is a friendly reminder from ${accountName} that you have a scheduled meeting: "${visitTitle}" on ${formattedTime}. Location: ${locationText}. Please tap a button below to confirm or request a change.`
+      bodyText = `Hi ${clientName}, this is a friendly reminder from ${accountName} that you have a scheduled meeting: "${visitTitle}" on ${formattedTime}. Location: ${locationText}. Please tap a button below to confirm or request a change.`;
     } else {
-      bodyText = `Hi ${clientName}, this is a friendly reminder from ${accountName} that you have a scheduled meeting: "${visitTitle}" on ${formattedTime}. Location: ${locationText}. Agenda for the meeting: ${agendaParam}. Please tap a button below to confirm or request a change.`
+      bodyText = `Hi ${clientName}, this is a friendly reminder from ${accountName} that you have a scheduled meeting: "${visitTitle}" on ${formattedTime}. Location: ${locationText}. Agenda for the meeting: ${agendaParam}. Please tap a button below to confirm or request a change.`;
     }
 
     // The reminder goes to THIS contact, so their language decides the
     // variant. Resolved per recipient rather than per appointment: one
     // site visit can have a Tamil buyer and an English co-broker on it.
-    const { template: langTemplate, language, fellBack } =
-      await loadTemplateForContact(admin, {
-        accountId: appt.account_id,
-        contactId: contact.id,
-        names: [templateName],
-      })
+    const {
+      template: langTemplate,
+      language,
+      fellBack,
+    } = await loadTemplateForContact(admin, {
+      accountId: appt.account_id,
+      contactId: contact.id,
+      names: [templateName],
+    });
     if (fellBack) {
-      warnLanguageFallback('Reminder Cron', appt.account_id, language, langTemplate)
+      warnLanguageFallback(
+        'Reminder Cron',
+        appt.account_id,
+        language,
+        langTemplate
+      );
     }
 
     const result = await sendWhatsAppMessageAndPersist({
@@ -279,14 +335,23 @@ async function sendToAllRecipients(
       templateName,
       templateLanguage: langTemplate?.language || 'en_US',
       templateParams: agendaParam
-        ? [clientName, visitTitle, formattedTime, locationText, agendaParam, accountName]
+        ? [
+            clientName,
+            visitTitle,
+            formattedTime,
+            locationText,
+            agendaParam,
+            accountName,
+          ]
         : [clientName, visitTitle, formattedTime, locationText, accountName],
       text: bodyText, // Store formatted preview text in DB
       customDbClient: admin,
-    })
+    });
 
     if (result.success) {
-      console.log(`[Reminder Cron] Sent ${reminderType} reminder for appt ${appt.id} to contact ${contact.id}`)
+      console.log(
+        `[Reminder Cron] Sent ${reminderType} reminder for appt ${appt.id} to contact ${contact.id}`
+      );
       // Record Meta's message id on the claim row so the webhook can
       // match an inbound "Fine" / "Requesting reschedule" button tap
       // (its context.id) back to this appointment.
@@ -296,21 +361,24 @@ async function sendToAllRecipients(
           .update({ wa_message_id: result.whatsappMessageId })
           .eq('appointment_id', appt.id)
           .eq('contact_id', contact.id)
-          .eq('reminder_type', reminderType)
+          .eq('reminder_type', reminderType);
       }
     } else {
-      console.error(`[Reminder Cron] Failed ${reminderType} reminder to ${contact.phone}:`, result.error)
-      allCovered = false
+      console.error(
+        `[Reminder Cron] Failed ${reminderType} reminder to ${contact.phone}:`,
+        result.error
+      );
+      allCovered = false;
       // Release the claim so the next tick retries this recipient.
       await admin
         .from('appointment_reminder_log')
         .delete()
         .eq('appointment_id', appt.id)
         .eq('contact_id', contact.id)
-        .eq('reminder_type', reminderType)
+        .eq('reminder_type', reminderType);
     }
   }
-  return allCovered
+  return allCovered;
 }
 
 // ── Liaison reminders (opt-in per event) ─────────────────────────
@@ -320,8 +388,8 @@ async function sendToAllRecipients(
 // Claims use the same appointment_reminder_log keyed on liaison_id.
 
 interface LiaisonWaConfig {
-  phoneNumberId: string
-  accessToken: string
+  phoneNumberId: string;
+  accessToken: string;
 }
 
 /** Per-tick cache: account_id → send credentials, or null when the
@@ -332,13 +400,13 @@ async function loadLiaisonWaConfig(
   accountId: string,
   cache: Map<string, LiaisonWaConfig | null>
 ): Promise<LiaisonWaConfig | null> {
-  if (cache.has(accountId)) return cache.get(accountId) ?? null
-  let out: LiaisonWaConfig | null = null
+  if (cache.has(accountId)) return cache.get(accountId) ?? null;
+  let out: LiaisonWaConfig | null = null;
   const { data: config } = await admin
     .from('whatsapp_config')
     .select('phone_number_id, access_token, integration_type')
     .eq('account_id', accountId)
-    .maybeSingle()
+    .maybeSingle();
   if (
     config &&
     config.integration_type !== 'sandbox' &&
@@ -346,13 +414,16 @@ async function loadLiaisonWaConfig(
     config.access_token
   ) {
     try {
-      out = { phoneNumberId: config.phone_number_id, accessToken: decrypt(config.access_token) }
+      out = {
+        phoneNumberId: config.phone_number_id,
+        accessToken: decrypt(config.access_token),
+      };
     } catch (err) {
-      console.error('[Reminder Cron] liaison config decrypt failed:', err)
+      console.error('[Reminder Cron] liaison config decrypt failed:', err);
     }
   }
-  cache.set(accountId, out)
-  return out
+  cache.set(accountId, out);
+  return out;
 }
 
 /**
@@ -367,36 +438,47 @@ async function sendLiaisonReminder(
   isSiteVisit: boolean,
   waCache: Map<string, LiaisonWaConfig | null>
 ): Promise<boolean> {
-  if (!appt.remind_liaison || !appt.liaison_id || !appt.liaison) return true
+  if (!appt.remind_liaison || !appt.liaison_id || !appt.liaison) return true;
 
-  const phone = appt.liaison.phone ? sanitizePhoneForMeta(appt.liaison.phone) : ''
+  const phone = appt.liaison.phone
+    ? sanitizePhoneForMeta(appt.liaison.phone)
+    : '';
   if (!phone || !isValidE164(phone)) {
-    console.warn(`[Reminder Cron] Liaison ${appt.liaison_id} has no valid phone for appt ${appt.id}`)
-    return true // nothing to retry
+    console.warn(
+      `[Reminder Cron] Liaison ${appt.liaison_id} has no valid phone for appt ${appt.id}`
+    );
+    return true; // nothing to retry
   }
 
-  const wa = await loadLiaisonWaConfig(admin, appt.account_id, waCache)
+  const wa = await loadLiaisonWaConfig(admin, appt.account_id, waCache);
   if (!wa) {
-    console.warn(`[Reminder Cron] No liaison-capable WhatsApp config for account ${appt.account_id}`)
-    return true
+    console.warn(
+      `[Reminder Cron] No liaison-capable WhatsApp config for account ${appt.account_id}`
+    );
+    return true;
   }
 
-  const { error: claimErr } = await admin.from('appointment_reminder_log').insert({
-    account_id: appt.account_id,
-    appointment_id: appt.id,
-    liaison_id: appt.liaison_id,
-    reminder_type: reminderType,
-  })
+  const { error: claimErr } = await admin
+    .from('appointment_reminder_log')
+    .insert({
+      account_id: appt.account_id,
+      appointment_id: appt.id,
+      liaison_id: appt.liaison_id,
+      reminder_type: reminderType,
+    });
   if (claimErr) {
     if (claimErr.code !== '23505') {
-      console.error('[Reminder Cron] liaison claim insert failed:', claimErr)
-      return false
+      console.error('[Reminder Cron] liaison claim insert failed:', claimErr);
+      return false;
     }
-    return true // already delivered on an earlier tick
+    return true; // already delivered on an earlier tick
   }
 
-  const templateName = isSiteVisit ? BASE_TEMPLATE_NAME : GENERIC_TEMPLATE_NAME
-  const visitTitle = appt.property?.title || appt.title || (isSiteVisit ? 'Property visit' : 'Appointment')
+  const templateName = isSiteVisit ? BASE_TEMPLATE_NAME : GENERIC_TEMPLATE_NAME;
+  const visitTitle =
+    appt.property?.title ||
+    appt.title ||
+    (isSiteVisit ? 'Property visit' : 'Appointment');
   try {
     await sendTemplateMessage({
       phoneNumberId: wa.phoneNumberId,
@@ -411,31 +493,40 @@ async function sendLiaisonReminder(
         reminderLocationText(appt.location, appt.property),
         appt.account?.name || 'our team',
       ],
-    })
-    console.log(`[Reminder Cron] Sent ${reminderType} reminder for appt ${appt.id} to liaison ${appt.liaison_id}`)
-    return true
+    });
+    console.log(
+      `[Reminder Cron] Sent ${reminderType} reminder for appt ${appt.id} to liaison ${appt.liaison_id}`
+    );
+    return true;
   } catch (err) {
-    console.error(`[Reminder Cron] Failed ${reminderType} liaison reminder for appt ${appt.id}:`, err)
+    console.error(
+      `[Reminder Cron] Failed ${reminderType} liaison reminder for appt ${appt.id}:`,
+      err
+    );
     await admin
       .from('appointment_reminder_log')
       .delete()
       .eq('appointment_id', appt.id)
       .eq('liaison_id', appt.liaison_id)
-      .eq('reminder_type', reminderType)
-    return false
+      .eq('reminder_type', reminderType);
+    return false;
   }
 }
 
-export async function checkAndSendAppointmentReminders(now: Date = new Date()): Promise<void> {
-  const admin = supabaseAdmin()
-  const oneHourOut = new Date(now.getTime() + HOUR_MS)
-  const { endIso: dayEndIso } = istDayWindow(now)
-  const dayEndMs = new Date(dayEndIso).getTime()
-  const morningWindowOpen = istHourOf(now) >= 7
+export async function checkAndSendAppointmentReminders(
+  now: Date = new Date()
+): Promise<void> {
+  const admin = supabaseAdmin();
+  const oneHourOut = new Date(now.getTime() + HOUR_MS);
+  const { endIso: dayEndIso } = istDayWindow(now);
+  const dayEndMs = new Date(dayEndIso).getTime();
+  const morningWindowOpen = istHourOf(now) >= 7;
 
   // One fetch covers both passes: everything left today (IST) plus
   // anything inside the 1h window that spills past IST midnight.
-  const horizonIso = new Date(Math.max(dayEndMs, oneHourOut.getTime())).toISOString()
+  const horizonIso = new Date(
+    Math.max(dayEndMs, oneHourOut.getTime())
+  ).toISOString();
 
   const { data: appointments, error } = await admin
     .from('appointments')
@@ -446,18 +537,20 @@ export async function checkAndSendAppointmentReminders(now: Date = new Date()): 
     .neq('event_type', 'call')
     .gt('start_time', now.toISOString())
     .lte('start_time', horizonIso)
-    .or('reminder_morning_sent.eq.false,reminder_1h_sent.eq.false')
+    .or('reminder_morning_sent.eq.false,reminder_1h_sent.eq.false');
 
   if (error) {
-    console.error('[Reminder Cron] Error fetching appointments:', error)
-    return
+    console.error('[Reminder Cron] Error fetching appointments:', error);
+    return;
   }
-  if (!appointments || appointments.length === 0) return
+  if (!appointments || appointments.length === 0) return;
 
-  const rows = appointments as unknown as ReminderAppointment[]
-  const contacts = await loadContacts(admin, [...new Set(rows.flatMap(recipientIds))])
-  if (!contacts) return // transient failure — retry the whole tick later
-  const liaisonWaCache = new Map<string, LiaisonWaConfig | null>()
+  const rows = appointments as unknown as ReminderAppointment[];
+  const contacts = await loadContacts(admin, [
+    ...new Set(rows.flatMap(recipientIds)),
+  ]);
+  if (!contacts) return; // transient failure — retry the whole tick later
+  const liaisonWaCache = new Map<string, LiaisonWaConfig | null>();
 
   // Accounts whose agenda-carrying template variant Meta has approved
   // get the agenda in client reminders; everyone else stays on the
@@ -465,28 +558,34 @@ export async function checkAndSendAppointmentReminders(now: Date = new Date()): 
   // must never block the reminders themselves. Site-visit and generic
   // (meeting/call/follow_up/document/other) appointments each have
   // their own template pair, approved independently per account.
-  const siteVisitAgendaAccounts = new Set<string>()
-  const genericAgendaAccounts = new Set<string>()
-  const apptsWithAgenda = rows.filter((r) => r.agenda)
+  const siteVisitAgendaAccounts = new Set<string>();
+  const genericAgendaAccounts = new Set<string>();
+  const apptsWithAgenda = rows.filter((r) => r.agenda);
   if (apptsWithAgenda.length > 0) {
     const { data: agendaTemplates, error: tplErr } = await admin
       .from('message_templates')
       .select('account_id, name')
       .in('name', [AGENDA_TEMPLATE_NAME, GENERIC_AGENDA_TEMPLATE_NAME])
       .eq('status', 'APPROVED')
-      .in('account_id', [...new Set(apptsWithAgenda.map((r) => r.account_id))])
+      .in('account_id', [...new Set(apptsWithAgenda.map((r) => r.account_id))]);
     if (tplErr) {
-      console.warn('[Reminder Cron] agenda template lookup failed, using base template:', tplErr)
+      console.warn(
+        '[Reminder Cron] agenda template lookup failed, using base template:',
+        tplErr
+      );
     }
     for (const t of agendaTemplates || []) {
-      const set = t.name === AGENDA_TEMPLATE_NAME ? siteVisitAgendaAccounts : genericAgendaAccounts
-      set.add(t.account_id as string)
+      const set =
+        t.name === AGENDA_TEMPLATE_NAME
+          ? siteVisitAgendaAccounts
+          : genericAgendaAccounts;
+      set.add(t.account_id as string);
     }
   }
 
   for (const appt of rows) {
-    const msUntilStart = new Date(appt.start_time).getTime() - now.getTime()
-    const isDue1h = !appt.reminder_1h_sent && msUntilStart <= HOUR_MS
+    const msUntilStart = new Date(appt.start_time).getTime() - now.getTime();
+    const isDue1h = !appt.reminder_1h_sent && msUntilStart <= HOUR_MS;
     // Morning-of brief: fires once the 7 AM IST window opens, for
     // today's events still more than an hour away (the 1h reminder
     // covers anything closer — two near-identical messages back to
@@ -495,29 +594,58 @@ export async function checkAndSendAppointmentReminders(now: Date = new Date()): 
       !appt.reminder_morning_sent &&
       morningWindowOpen &&
       msUntilStart > HOUR_MS &&
-      new Date(appt.start_time).getTime() < dayEndMs
+      new Date(appt.start_time).getTime() < dayEndMs;
 
-    const isSiteVisit = appt.event_type === 'site_visit'
+    const isSiteVisit = appt.event_type === 'site_visit';
     const useAgendaTemplate = isSiteVisit
       ? siteVisitAgendaAccounts.has(appt.account_id)
-      : genericAgendaAccounts.has(appt.account_id)
+      : genericAgendaAccounts.has(appt.account_id);
 
     if (isDue1h) {
-      const contactsCovered = await sendToAllRecipients(admin, appt, contacts, '1h', isSiteVisit, useAgendaTemplate)
-      const liaisonCovered = await sendLiaisonReminder(admin, appt, '1h', isSiteVisit, liaisonWaCache)
+      const contactsCovered = await sendToAllRecipients(
+        admin,
+        appt,
+        contacts,
+        '1h',
+        isSiteVisit,
+        useAgendaTemplate
+      );
+      const liaisonCovered = await sendLiaisonReminder(
+        admin,
+        appt,
+        '1h',
+        isSiteVisit,
+        liaisonWaCache
+      );
       if (contactsCovered && liaisonCovered) {
         // An event that got its 1h reminder no longer needs the
         // morning one — mark both so it drops out of the scan.
         await admin
           .from('appointments')
           .update({ reminder_1h_sent: true, reminder_morning_sent: true })
-          .eq('id', appt.id)
+          .eq('id', appt.id);
       }
     } else if (isDueMorning) {
-      const contactsCovered = await sendToAllRecipients(admin, appt, contacts, 'morning', isSiteVisit, useAgendaTemplate)
-      const liaisonCovered = await sendLiaisonReminder(admin, appt, 'morning', isSiteVisit, liaisonWaCache)
+      const contactsCovered = await sendToAllRecipients(
+        admin,
+        appt,
+        contacts,
+        'morning',
+        isSiteVisit,
+        useAgendaTemplate
+      );
+      const liaisonCovered = await sendLiaisonReminder(
+        admin,
+        appt,
+        'morning',
+        isSiteVisit,
+        liaisonWaCache
+      );
       if (contactsCovered && liaisonCovered) {
-        await admin.from('appointments').update({ reminder_morning_sent: true }).eq('id', appt.id)
+        await admin
+          .from('appointments')
+          .update({ reminder_morning_sent: true })
+          .eq('id', appt.id);
       }
     }
   }

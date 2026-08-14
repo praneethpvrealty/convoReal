@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { replaceUrl } from "@/lib/navigation";
+import { replaceUrl } from '@/lib/navigation';
 import {
   Settings,
   MessageSquare,
@@ -23,6 +23,7 @@ import {
   Plug,
   Workflow,
   Newspaper,
+  PhoneCall,
   Bell,
   Ticket,
   KeyRound,
@@ -37,6 +38,7 @@ import {
 import { WhatsAppConfig } from '@/components/settings/whatsapp-config';
 import { WhatsAppFlowsCard } from '@/components/settings/whatsapp-flows-card';
 import { OwnerDigestCard } from '@/components/settings/owner-digest-card';
+import { VoiceAgentCard } from '@/components/settings/voice-agent-card';
 import { OwnerDetailsRequestCard } from '@/components/settings/owner-details-request-card';
 import { AgentInventoryDigestCard } from '@/components/settings/agent-inventory-digest-card';
 import { AgentTaskDigestCard } from '@/components/settings/agent-task-digest-card';
@@ -64,9 +66,9 @@ import { BillingTab } from '@/components/settings/billing-tab';
 import { CreditsTab } from '@/components/settings/credits-tab';
 import { cn } from '@/lib/utils';
 import { InfoHint } from '@/components/ui/info-hint';
-import { FavoriteButton } from "@/components/layout/favorite-button";
-import { BetaInviteHub } from "@/components/settings/beta-invite-hub";
-import { ApiKeysTab } from "@/components/settings/api-keys-tab";
+import { FavoriteButton } from '@/components/layout/favorite-button';
+import { BetaInviteHub } from '@/components/settings/beta-invite-hub';
+import { ApiKeysTab } from '@/components/settings/api-keys-tab';
 
 const BASE_TAB_VALUES = [
   'profile',
@@ -83,7 +85,14 @@ const BASE_TAB_VALUES = [
   'billing',
   'credits',
 ] as const;
-const FLAGGED_TAB_VALUES = ['members', 'teams', 'routing', 'ads', 'invites', 'api-keys'] as const;
+const FLAGGED_TAB_VALUES = [
+  'members',
+  'teams',
+  'routing',
+  'ads',
+  'invites',
+  'api-keys',
+] as const;
 const TAB_VALUES = [...BASE_TAB_VALUES, ...FLAGGED_TAB_VALUES] as const;
 type TabValue = (typeof TAB_VALUES)[number];
 
@@ -99,6 +108,7 @@ const WHATSAPP_SUBTABS = [
   { value: 'templates', label: 'Templates', icon: MessageSquare },
   { value: 'flows', label: 'Flows', icon: Workflow },
   { value: 'digest', label: 'Owners', icon: Newspaper },
+  { value: 'voice', label: 'Voice', icon: PhoneCall },
 ] as const;
 type WhatsAppSub = (typeof WHATSAPP_SUBTABS)[number]['value'];
 
@@ -117,7 +127,7 @@ function useEdgeFades() {
     const left = el.scrollLeft > 8;
     const right = el.scrollWidth - el.clientWidth - el.scrollLeft > 8;
     setFades((prev) =>
-      prev.left === left && prev.right === right ? prev : { left, right },
+      prev.left === left && prev.right === right ? prev : { left, right }
     );
   }, []);
   useEffect(() => {
@@ -142,7 +152,11 @@ function isWhatsAppSub(v: string | null): v is WhatsAppSub {
 // Grouped sidebar items for compact navigation
 interface NavGroup {
   label: string;
-  items: { value: TabValue; label: string; icon: React.ComponentType<{ className?: string }> }[];
+  items: {
+    value: TabValue;
+    label: string;
+    icon: React.ComponentType<{ className?: string }>;
+  }[];
 }
 
 export default function SettingsPage() {
@@ -164,7 +178,8 @@ export default function SettingsPage() {
   // empty shell). Routing rules are further gated Manager-only inside
   // the tab itself, but the trigger is shown to Leaders too since
   // they can still view team structure via the Teams tab.
-  const teamsEnabled = !planLoading && isAllowed('teams') && (isOrgManager || isOrgLeader);
+  const teamsEnabled =
+    !planLoading && isAllowed('teams') && (isOrgManager || isOrgLeader);
   const routingEnabled = !planLoading && isAllowed('teams') && isOrgManager;
 
   // Kill switch for the whole Meta Ads feature while Meta app review is
@@ -229,7 +244,11 @@ export default function SettingsPage() {
   useEffect(() => {
     document
       .querySelector(`[data-tour="settings-tab-${tab}"]`)
-      ?.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'auto' });
+      ?.scrollIntoView({
+        block: 'nearest',
+        inline: 'center',
+        behavior: 'auto',
+      });
   }, [tab]);
   useEffect(() => {
     if (tab !== 'whatsapp') return;
@@ -239,7 +258,11 @@ export default function SettingsPage() {
         : `settings-tab-whatsapp-${whatsappSub}`;
     document
       .querySelector(`[data-tour="${tour}"]`)
-      ?.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'auto' });
+      ?.scrollIntoView({
+        block: 'nearest',
+        inline: 'center',
+        behavior: 'auto',
+      });
   }, [tab, whatsappSub]);
 
   // Build navigation groups dynamically based on feature flags
@@ -263,7 +286,9 @@ export default function SettingsPage() {
       items: [
         // Templates moved under WhatsApp as a sub-tab.
         { value: 'whatsapp', label: 'WhatsApp', icon: Settings },
-        ...(metaAdsEnabled ? [{ value: 'ads' as TabValue, label: 'Ads', icon: Megaphone }] : []),
+        ...(metaAdsEnabled
+          ? [{ value: 'ads' as TabValue, label: 'Ads', icon: Megaphone }]
+          : []),
         { value: 'tags', label: 'Tags', icon: Tag },
       ],
     },
@@ -279,11 +304,31 @@ export default function SettingsPage() {
         { value: 'showcase', label: 'Showcase', icon: Globe },
         { value: 'ai', label: 'AI Config', icon: Sparkles },
         { value: 'other', label: 'Other', icon: Sliders },
-        ...(membersEnabled ? [{ value: 'members' as TabValue, label: 'Members', icon: UsersRound }] : []),
+        ...(membersEnabled
+          ? [
+              {
+                value: 'members' as TabValue,
+                label: 'Members',
+                icon: UsersRound,
+              },
+            ]
+          : []),
         { value: 'invites' as TabValue, label: 'Invites', icon: Ticket },
-        ...(teamsEnabled ? [{ value: 'teams' as TabValue, label: 'Teams', icon: Users }] : []),
-        ...(routingEnabled ? [{ value: 'routing' as TabValue, label: 'Routing', icon: Route }] : []),
-        ...(membersEnabled ? [{ value: 'api-keys' as TabValue, label: 'API Keys', icon: KeyRound }] : []),
+        ...(teamsEnabled
+          ? [{ value: 'teams' as TabValue, label: 'Teams', icon: Users }]
+          : []),
+        ...(routingEnabled
+          ? [{ value: 'routing' as TabValue, label: 'Routing', icon: Route }]
+          : []),
+        ...(membersEnabled
+          ? [
+              {
+                value: 'api-keys' as TabValue,
+                label: 'API Keys',
+                icon: KeyRound,
+              },
+            ]
+          : []),
       ],
     },
   ];
@@ -302,12 +347,13 @@ export default function SettingsPage() {
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white flex items-center">
+          <h1 className="flex items-center text-2xl font-bold text-white">
             Settings
             <InfoHint text="Configure your WhatsApp integration, message templates, team members, custom tags, and Showcase branding." />
           </h1>
-          <p className="text-sm text-slate-400 mt-1">
-            Manage your profile, WhatsApp® integration, message templates, and tags.
+          <p className="mt-1 text-sm text-slate-400">
+            Manage your profile, WhatsApp® integration, message templates, and
+            tags.
           </p>
         </div>
         <FavoriteButton
@@ -316,12 +362,20 @@ export default function SettingsPage() {
               ? `Settings: WhatsApp · ${WHATSAPP_SUBTABS.find((s) => s.value === whatsappSub)?.label}`
               : `Settings: ${tab.charAt(0).toUpperCase() + tab.slice(1)}`
           }
-          href={tab === 'whatsapp' ? `/settings?tab=whatsapp&sub=${whatsappSub}` : `/settings?tab=${tab}`}
+          href={
+            tab === 'whatsapp'
+              ? `/settings?tab=whatsapp&sub=${whatsappSub}`
+              : `/settings?tab=${tab}`
+          }
           icon="Settings"
         />
       </div>
 
-      <Tabs value={tab} onValueChange={(v) => onChange(v as TabValue)} className="flex flex-col gap-5">
+      <Tabs
+        value={tab}
+        onValueChange={(v) => onChange(v as TabValue)}
+        className="flex flex-col gap-5"
+      >
         {/* Horizontal Tab Navigation — group labels dropped in favor of a
             thin divider between clusters; a header line reads fine stacked
             above a column but wastes space and looks noisy repeated across
@@ -337,28 +391,33 @@ export default function SettingsPage() {
           <div
             ref={mainBarRef}
             data-settings-tabbar
-            className="flex flex-nowrap items-center gap-1 border-b border-slate-800 pb-3 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+            className="flex [scrollbar-width:none] flex-nowrap items-center gap-1 overflow-x-auto border-b border-slate-800 pb-3 [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
           >
             {navGroups.map((group, groupIdx) => (
               <div
                 key={group.label}
                 className={cn(
-                  'flex items-center gap-1 shrink-0',
+                  'flex shrink-0 items-center gap-1',
                   // Tail groups collapse into the More menu on phones.
-                  groupIdx >= MOBILE_INLINE_GROUPS && 'hidden md:flex',
+                  groupIdx >= MOBILE_INLINE_GROUPS && 'hidden md:flex'
                 )}
               >
-                {groupIdx > 0 && <div className="h-4 w-px bg-slate-800 mx-2 shrink-0" aria-hidden="true" />}
+                {groupIdx > 0 && (
+                  <div
+                    className="mx-2 h-4 w-px shrink-0 bg-slate-800"
+                    aria-hidden="true"
+                  />
+                )}
                 {group.items.map(({ value, label, icon: Icon }) => (
                   <button
                     key={value}
                     onClick={() => onChange(value)}
                     data-tour={`settings-tab-${value}`}
                     className={cn(
-                      'flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md transition-colors whitespace-nowrap',
+                      'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs whitespace-nowrap transition-colors',
                       tab === value
                         ? 'bg-primary/10 text-primary font-medium'
-                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                        : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'
                     )}
                   >
                     <Icon className="size-3.5 shrink-0" />
@@ -372,17 +431,20 @@ export default function SettingsPage() {
                 that tab's icon + label + active styling so the current
                 location stays visible in the bar. */}
             {moreItems.length > 0 && (
-              <div className="flex items-center gap-1 shrink-0 md:hidden">
-                <div className="h-4 w-px bg-slate-800 mx-2 shrink-0" aria-hidden="true" />
+              <div className="flex shrink-0 items-center gap-1 md:hidden">
+                <div
+                  className="mx-2 h-4 w-px shrink-0 bg-slate-800"
+                  aria-hidden="true"
+                />
                 <DropdownMenu>
                   <DropdownMenuTrigger
                     render={
                       <button
                         className={cn(
-                          'flex shrink-0 items-center gap-1.5 px-3 py-1.5 text-xs rounded-md transition-colors whitespace-nowrap',
+                          'flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-xs whitespace-nowrap transition-colors',
                           activeMoreItem
                             ? 'bg-primary/10 text-primary font-medium'
-                            : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50',
+                            : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'
                         )}
                       />
                     }
@@ -392,12 +454,14 @@ export default function SettingsPage() {
                     ) : (
                       <MoreHorizontal className="size-3.5 shrink-0" />
                     )}
-                    <span>{activeMoreItem ? activeMoreItem.label : 'More'}</span>
+                    <span>
+                      {activeMoreItem ? activeMoreItem.label : 'More'}
+                    </span>
                     <ChevronDown className="size-3 shrink-0 opacity-70" />
                   </DropdownMenuTrigger>
                   <DropdownMenuContent
                     align="end"
-                    className="min-w-44 bg-slate-900 border-slate-700"
+                    className="min-w-44 border-slate-700 bg-slate-900"
                   >
                     {moreItems.map(({ value, label, icon: Icon }) => (
                       <DropdownMenuItem
@@ -405,7 +469,7 @@ export default function SettingsPage() {
                         onClick={() => onChange(value)}
                         className={cn(
                           'gap-2 text-slate-300 focus:bg-slate-800 focus:text-white',
-                          tab === value && 'text-primary focus:text-primary',
+                          tab === value && 'text-primary focus:text-primary'
                         )}
                       >
                         <Icon className="size-3.5" />
@@ -424,21 +488,21 @@ export default function SettingsPage() {
             aria-hidden="true"
             className={cn(
               'pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-slate-950/90 to-transparent transition-opacity duration-200',
-              mainFades.left ? 'opacity-100' : 'opacity-0',
+              mainFades.left ? 'opacity-100' : 'opacity-0'
             )}
           />
           <div
             aria-hidden="true"
             className={cn(
               'pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-slate-950/90 to-transparent transition-opacity duration-200',
-              mainFades.right ? 'opacity-100' : 'opacity-0',
+              mainFades.right ? 'opacity-100' : 'opacity-0'
             )}
           />
         </div>
 
         {/* Content Area — now spans the full page width */}
         <div className="w-full min-w-0">
-          <TabsContent value="profile" className="space-y-6 mt-0">
+          <TabsContent value="profile" className="mt-0 space-y-6">
             <ProfileForm />
             <BusinessNameCard />
             <DefaultLanguageCard />
@@ -447,7 +511,11 @@ export default function SettingsPage() {
             <SessionsCard />
           </TabsContent>
 
-          <TabsContent value="whatsapp" className="mt-0 space-y-5" data-tour="whatsapp-config-form">
+          <TabsContent
+            value="whatsapp"
+            className="mt-0 space-y-5"
+            data-tour="whatsapp-config-form"
+          >
             {/* WhatsApp sub-navigation: connection, templates, flows,
                 owner digest. Everything WhatsApp lives here instead of
                 one endless scroll + a separate top-level Templates tab. */}
@@ -455,7 +523,7 @@ export default function SettingsPage() {
               <div
                 ref={subBarRef}
                 data-settings-subtabbar
-                className="flex w-fit max-w-full flex-nowrap items-center gap-1 rounded-lg border border-slate-800 bg-slate-900/60 p-1 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+                className="flex w-fit max-w-full [scrollbar-width:none] flex-nowrap items-center gap-1 overflow-x-auto rounded-lg border border-slate-800 bg-slate-900/60 p-1 [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
               >
                 {WHATSAPP_SUBTABS.map(({ value, label, icon: Icon }) => (
                   <button
@@ -463,10 +531,10 @@ export default function SettingsPage() {
                     onClick={() => onSubChange(value)}
                     data-tour={`settings-tab-${value === 'templates' ? 'templates' : `whatsapp-${value}`}`}
                     className={cn(
-                      'flex shrink-0 items-center gap-1.5 px-3 py-1.5 text-xs rounded-md transition-colors whitespace-nowrap',
+                      'flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-xs whitespace-nowrap transition-colors',
                       whatsappSub === value
                         ? 'bg-primary/10 text-primary font-medium'
-                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                        : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'
                     )}
                   >
                     <Icon className="size-3.5 shrink-0" />
@@ -478,14 +546,14 @@ export default function SettingsPage() {
                 aria-hidden="true"
                 className={cn(
                   'pointer-events-none absolute inset-y-0 left-0 w-8 rounded-l-lg bg-gradient-to-r from-slate-950/90 to-transparent transition-opacity duration-200',
-                  subFades.left ? 'opacity-100' : 'opacity-0',
+                  subFades.left ? 'opacity-100' : 'opacity-0'
                 )}
               />
               <div
                 aria-hidden="true"
                 className={cn(
                   'pointer-events-none absolute inset-y-0 right-0 w-8 rounded-r-lg bg-gradient-to-l from-slate-950/90 to-transparent transition-opacity duration-200',
-                  subFades.right ? 'opacity-100' : 'opacity-0',
+                  subFades.right ? 'opacity-100' : 'opacity-0'
                 )}
               />
             </div>
@@ -501,6 +569,7 @@ export default function SettingsPage() {
                 <AgentTaskDigestCard />
               </div>
             )}
+            {whatsappSub === 'voice' && <VoiceAgentCard />}
           </TabsContent>
 
           {metaAdsEnabled && (

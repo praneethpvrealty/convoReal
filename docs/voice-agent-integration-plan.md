@@ -169,6 +169,21 @@ product. Phase B:
 - Settings UI under Settings → Integrations, **web and mobile in the same change** (§2.8).
 - `docs/external-services-audit.md` and `.env.local.example` updated accordingly.
 
+**Implementation status (shipped).** Migration `274_voice_agent_config.sql` (per-account
+`webhook_token` generated server-side, default `agent_ref`, provisioned number, `is_active`,
+`reminder_calls_enabled`; RLS member-read/admin-write). The webhook accepts the account's own
+token first, with `VOICE_AGENT_WEBHOOK_TOKEN` as the global deprecation fallback — with
+neither, it stays shut. The campaign dispatcher and activation check fall back to the
+account's default `agent_ref` when a campaign carries none. Settings UI ships as the "Voice"
+sub-tab under Settings → WhatsApp (`voice-agent-card.tsx`: agent id, number, copy-able
+webhook URL with token rotation, active + reminder-calls switches). Reminder calls — the
+Phase D leftover this unblocks — are live: the appointment reminder cron places a voice-agent
+call for contacts whose `preferred_update_channel` is `voice_call` when the account opted in
+(`src/lib/voice/reminder-call.ts`, charged per attempt with an idempotent retry key, refunded
+on start failure, WhatsApp-template fallback so the reminder always lands). The mobile
+settings surface stays a stated §2.8 gap alongside the other account-administration screens
+(same root cause: no mobile admin shell); the reminder-call _behaviour_ needs no mobile UI.
+
 ## 6. Phase C — qualification call campaigns (server side implemented)
 
 **The driving case:** a Koramangala listing at ₹14.7 Cr pulled a large batch of Housing
@@ -303,11 +318,10 @@ the `updch:*` reply ids are registered control replies, and a tap stores the cho
 contact and confirms it in the thread (`src/lib/voice/update-channel-reply.ts`). Reachable
 from the contact form on web and the contact editor on mobile ("Ask them on WhatsApp").
 
-**Still open in this phase:** reminder/digest consumption of the preference. The `voice_call`
-half is blocked on Phase B (per-account voice config — reminder calls need an `agent_ref` and
-the campaign dispatcher has none outside a campaign); the `whatsapp_audio` half needs a
-per-reminder TTS job design (each reminder is unique text, so it cannot reuse one rendered
-note). Deliberately deferred rather than half-wired.
+**Still open in this phase:** the `whatsapp_audio` half of reminder delivery — each reminder
+is unique text, so it needs a per-reminder TTS job design rather than one rendered note.
+(The `voice_call` half shipped with Phase B: see §5, reminder calls.) Deliberately deferred
+rather than half-wired.
 
 ## 8. Phase E — voice preference intake → matching
 
@@ -316,6 +330,15 @@ flow (`src/lib/whatsapp/preference-flow.ts`): structured budget/locality/type an
 the contact's preference fields, which `src/lib/matching.ts` and Match Radar consume with no
 further work. Success metric: a phone-only lead receives a property-alert digest without an
 agent ever typing their requirement.
+
+**Implementation status (shipped).** The §4 `requirement` block now carries the full stated
+range (`budget_min` joined `budget_max`; both land on the contact via the shared
+find-or-create), and after any call that stated a requirement or qualification the webhook
+fires `generateMatchEventForContact` — the same Match Radar hook preference edits and the
+public requirements form use. The pipeline end-to-end: voice agent captures the requirement →
+contact preference fields update → inventory is ranked immediately and a Radar event surfaces
+the matches to the agent → the existing daily matching/digest crons pick the contact up like
+any other, so a phone-only lead flows into property alerts with no agent typing.
 
 ## 9. Non-goals and boundaries
 
