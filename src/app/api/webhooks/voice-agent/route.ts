@@ -43,6 +43,7 @@ const AREAS_MAX_COUNT = 10;
 
 export interface VoiceCallPayload {
   callId: string | null;
+  accountId: string | null;
   callerPhone: string;
   callerName: string | null;
   direction: 'inbound' | 'outbound';
@@ -107,6 +108,7 @@ export function parseVoiceCallPayload(body: unknown): VoiceCallPayload | null {
 
   return {
     callId: asText(raw.call_id, 128),
+    accountId: asText(raw.account_id, 64),
     callerPhone,
     callerName: asText(raw.caller_name, 120),
     direction: raw.direction === 'outbound' ? 'outbound' : 'inbound',
@@ -133,7 +135,7 @@ export async function POST(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const token = searchParams.get('token') || '';
-    const accountId = searchParams.get('account_id') || '';
+    const urlAccountId = searchParams.get('account_id') || '';
 
     // Token is REQUIRED — fail closed. The account's own webhook token
     // (voice_agent_config, Phase B) is the primary credential; the
@@ -150,17 +152,20 @@ export async function POST(request: Request) {
         timingSafeEqual(tokenBuf, expectedBuf)
       );
     };
-    let authorized = tokenMatches(process.env.VOICE_AGENT_WEBHOOK_TOKEN);
-    if (!authorized && accountId) {
+    const platformAuthorized = tokenMatches(
+      process.env.VOICE_AGENT_WEBHOOK_TOKEN
+    );
+    let authorized = platformAuthorized;
+    if (!authorized && urlAccountId) {
       try {
-        const config = await getVoiceConfig(supabaseAdmin(), accountId);
+        const config = await getVoiceConfig(supabaseAdmin(), urlAccountId);
         authorized = tokenMatches(config?.webhook_token);
       } catch {
         // Config unreachable — stays unauthorized rather than open.
       }
     }
     if (!authorized) {
-      if (!process.env.VOICE_AGENT_WEBHOOK_TOKEN && !accountId) {
+      if (!process.env.VOICE_AGENT_WEBHOOK_TOKEN && !urlAccountId) {
         return NextResponse.json(
           { error: 'Webhook not configured' },
           { status: 503 }
@@ -182,19 +187,38 @@ export async function POST(request: Request) {
     );
     if (!limit.success) return rateLimitResponse(limit);
 
-    if (!accountId) {
-      return NextResponse.json(
-        { error: 'account_id is required' },
-        { status: 400 }
-      );
-    }
-
     const payload = parseVoiceCallPayload(
       await request.json().catch(() => null)
     );
     if (!payload) {
       return NextResponse.json(
         { error: 'caller_phone is required' },
+        { status: 400 }
+      );
+    }
+
+    // Whose workspace this call belongs to. A per-account webhook URL
+    // names it and always wins — a body field must never redirect a
+    // result into a tenant whose token was not presented. Only the
+    // shared pool arrives without one, because its agent serves every
+    // account from a single URL authorized by the platform token; the
+    // account then rides in the payload, echoed from the call
+    // variables the dispatcher sent.
+    let accountId = urlAccountId;
+    if (!accountId && platformAuthorized) {
+      accountId = payload.accountId ?? '';
+      if (!accountId && payload.campaignId) {
+        const { data: campaign } = await supabaseAdmin()
+          .from('voice_campaigns')
+          .select('account_id')
+          .eq('id', payload.campaignId)
+          .maybeSingle();
+        accountId = (campaign?.account_id as string | undefined) ?? '';
+      }
+    }
+    if (!accountId) {
+      return NextResponse.json(
+        { error: 'account_id is required' },
         { status: 400 }
       );
     }

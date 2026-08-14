@@ -81,6 +81,35 @@ Take the agent id from the console once saved — that is the
 
 ---
 
+## 1b. Which mode the account runs in
+
+Settings → WhatsApp → Voice offers the account owner three ways to get
+calls made (migration 278). Everything else in this guide is about the
+second and third.
+
+| Mode                  | Setup                                 | Caller id          | Callbacks                        | Who pays the provider |
+| --------------------- | ------------------------------------- | ------------------ | -------------------------------- | --------------------- |
+| **Shared number**     | none                                  | a ConvoReal number | not attributable — outbound only | the platform          |
+| **Your own number**   | agent id + a number in our workspace  | the account's      | reach the account                | the platform          |
+| **Your own provider** | agent id + API key + their own number | the account's      | reach the account                | the account           |
+
+Shared is the default for a new account, so a brokerage can run a
+qualification campaign having provisioned nothing — the point is to let
+someone try the feature, or run one campaign a quarter, without buying a
+number. Its one real limitation is the caller id: the lead sees a
+ConvoReal number, and a callback to it cannot be traced to a tenant, so
+the pool is outbound-only. Move to a dedicated number before the number
+matters commercially.
+
+Deployment side: shared mode needs `VOICE_SHARED_AGENT_ID` set to a
+platform-owned agent, whose post-call webhook posts to
+`/api/webhooks/voice-agent?token=<VOICE_AGENT_WEBHOOK_TOKEN>` with **no**
+`account_id` — that agent serves every shared account, so the tenant is
+read from the `account_id` the dispatcher passes as a call variable
+(falling back to a `campaign_id` lookup). A body field can never
+substitute for a credential: without the platform token the request is
+refused before the account is looked at.
+
 ## 2. Point ConvoReal at the agent
 
 **Settings → WhatsApp → Voice** (web):

@@ -10,6 +10,7 @@ import {
   Pause,
   Trash2,
   UserPlus,
+  Users,
   X,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
@@ -224,7 +225,7 @@ export default function VoiceCampaignsContent() {
           agent checks budget and requirements, and answers land back on the
           contact.
           <InfoHint
-            text={`Recipients are seeded from a property's enquiries. Calls go out inside the campaign's IST window, retry unanswered numbers, and respect do-not-call. Results (stated budget, areas, opt-outs) are written back to the contact automatically. Each connected call costs ${AI_FEATURE_COSTS.voice_campaign_call} cr — unanswered attempts are refunded.`}
+            text={`Recipients are seeded from a property's enquiries — open Recipients on a campaign to add or remove people before starting it. Calls go out inside the campaign's IST window, retry unanswered numbers, and respect do-not-call. Results (stated budget, areas, opt-outs) are written back to the contact automatically. Each connected call costs ${AI_FEATURE_COSTS.voice_campaign_call} cr — unanswered attempts are refunded.`}
           />
         </p>
         <GatedButton
@@ -321,6 +322,14 @@ export default function VoiceCampaignsContent() {
                       onClick={(e) => e.stopPropagation()}
                     >
                       <div className="flex items-center justify-end gap-1.5">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setDetailId(c.id)}
+                        >
+                          <Users className="h-3.5 w-3.5" />
+                          Recipients
+                        </Button>
                         {(c.status === 'draft' || c.status === 'paused') && (
                           <GatedButton
                             canAct={canManage}
@@ -691,7 +700,7 @@ function CampaignDetailDialog({
                 {detail.script_context.property_title &&
                   ` · ${detail.script_context.property_title}`}
                 {!detail.agent_ref &&
-                  ' · no voice agent id set — required before starting'}
+                  ' · using the account default from Settings → WhatsApp → Voice'}
               </DialogDescription>
             </DialogHeader>
 

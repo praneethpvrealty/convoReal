@@ -10,9 +10,14 @@ import {
   rateLimitResponse,
   RATE_LIMITS,
 } from '@/lib/rate-limit';
+import { encrypt } from '@/lib/whatsapp/encryption';
+import { isVoiceMode } from '@/lib/voice/config';
 
+// api_key_encrypted is deliberately absent: the stored provider key is
+// never returned to a client, only replaced. `has_api_key` below tells
+// the UI whether one is on file.
 const CONFIG_COLUMNS =
-  'agent_ref, phone_number, webhook_token, is_active, reminder_calls_enabled, reminder_audio_enabled, updated_at';
+  'mode, provider, agent_ref, phone_number, webhook_token, is_active, reminder_calls_enabled, reminder_audio_enabled, updated_at';
 
 // GET /api/voice-config — the account's voice provider configuration
 export async function GET() {
@@ -20,10 +25,14 @@ export async function GET() {
     const ctx = await getCurrentAccount();
     const { data } = await ctx.supabase
       .from('voice_agent_config')
-      .select(CONFIG_COLUMNS)
+      .select(`${CONFIG_COLUMNS}, api_key_encrypted`)
       .eq('account_id', ctx.accountId)
       .maybeSingle();
-    return NextResponse.json({ data: data ?? null });
+    if (!data) return NextResponse.json({ data: null });
+    const { api_key_encrypted, ...config } = data as Record<string, unknown>;
+    return NextResponse.json({
+      data: { ...config, has_api_key: Boolean(api_key_encrypted) },
+    });
   } catch (err) {
     return toErrorResponse(err);
   }
@@ -65,11 +74,34 @@ export async function PUT(request: NextRequest) {
     if (body.regenerate_token === true) {
       patch.webhook_token = randomBytes(24).toString('hex');
     }
+    if (body.mode !== undefined) {
+      if (!isVoiceMode(body.mode)) {
+        return NextResponse.json({ error: 'Invalid mode' }, { status: 400 });
+      }
+      patch.mode = body.mode;
+    }
+    if (body.provider !== undefined) {
+      const provider =
+        typeof body.provider === 'string' ? body.provider.trim() : '';
+      if (provider && provider !== 'sarvam' && provider !== 'custom') {
+        return NextResponse.json(
+          { error: 'Invalid provider' },
+          { status: 400 }
+        );
+      }
+      patch.provider = provider || null;
+    }
+    // Written encrypted, never read back (§2.5) — same handling as the
+    // WhatsApp access token. An empty string clears it.
+    if (typeof body.api_key === 'string') {
+      const key = body.api_key.trim();
+      patch.api_key_encrypted = key ? encrypt(key) : null;
+    }
 
     const { data, error } = await ctx.supabase
       .from('voice_agent_config')
       .upsert(patch, { onConflict: 'account_id' })
-      .select(CONFIG_COLUMNS)
+      .select(`${CONFIG_COLUMNS}, api_key_encrypted`)
       .single();
     if (error || !data) {
       return NextResponse.json(
@@ -77,7 +109,10 @@ export async function PUT(request: NextRequest) {
         { status: 500 }
       );
     }
-    return NextResponse.json({ data });
+    const { api_key_encrypted, ...config } = data as Record<string, unknown>;
+    return NextResponse.json({
+      data: { ...config, has_api_key: Boolean(api_key_encrypted) },
+    });
   } catch (err) {
     return toErrorResponse(err);
   }

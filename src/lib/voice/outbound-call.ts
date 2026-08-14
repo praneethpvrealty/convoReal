@@ -26,6 +26,10 @@ export interface OutboundCallRequest {
   agentId: string;
   phone: string;
   context: Record<string, string>;
+  /** Account's own provider key (byo mode). Null uses the platform's. */
+  apiKey?: string | null;
+  /** Account's own provider (byo mode). Null uses VOICE_CALL_PROVIDER. */
+  provider?: string | null;
 }
 
 export type OutboundCallResult =
@@ -70,7 +74,7 @@ async function postCall(
 async function sarvamCall(
   req: OutboundCallRequest
 ): Promise<OutboundCallResult> {
-  const apiKey = process.env.SARVAM_API_KEY;
+  const apiKey = req.apiKey || process.env.SARVAM_API_KEY;
   if (!apiKey) {
     return { ok: false, error: 'SARVAM_API_KEY is not set' };
   }
@@ -95,7 +99,7 @@ async function customCall(
   if (!url) {
     return { ok: false, error: 'VOICE_CALL_CUSTOM_URL is not set' };
   }
-  const token = process.env.VOICE_CALL_CUSTOM_TOKEN;
+  const token = req.apiKey || process.env.VOICE_CALL_CUSTOM_TOKEN;
   return postCall(url, token ? { Authorization: `Bearer ${token}` } : {}, {
     agent_ref: req.agentId,
     phone_number: req.phone,
@@ -109,8 +113,8 @@ export async function startOutboundCall(
   if (process.env.VOICE_CALLS_DRY_RUN === 'true') {
     return { ok: true, callId: `dry-run-${randomUUID()}`, dryRun: true };
   }
-  const provider = process.env.VOICE_CALL_PROVIDER || 'sarvam';
+  const provider = req.provider || process.env.VOICE_CALL_PROVIDER || 'sarvam';
   if (provider === 'sarvam') return sarvamCall(req);
   if (provider === 'custom') return customCall(req);
-  return { ok: false, error: `Unknown VOICE_CALL_PROVIDER: ${provider}` };
+  return { ok: false, error: `Unknown voice call provider: ${provider}` };
 }

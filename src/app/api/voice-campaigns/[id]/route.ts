@@ -129,10 +129,13 @@ export async function PATCH(
     if (patch.status === 'active' && !(patch.agent_ref ?? existing.agent_ref)) {
       const { data: config } = await ctx.supabase
         .from('voice_agent_config')
-        .select('agent_ref')
+        .select('mode, agent_ref')
         .eq('account_id', ctx.accountId)
         .maybeSingle();
-      if (!config?.agent_ref) {
+      // Shared mode dials the platform's pool agent, so an account
+      // that has provisioned nothing can still start a campaign.
+      const sharedPool = (config?.mode ?? 'shared') === 'shared';
+      if (!sharedPool && !config?.agent_ref) {
         return NextResponse.json(
           {
             error:
