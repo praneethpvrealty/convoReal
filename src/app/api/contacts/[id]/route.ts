@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit';
 import { sanitizeAreasGeo } from '@/lib/contacts/area-geo';
+import { isUpdateChannel } from '@/lib/voice/announcements';
 
 // PUT /api/contacts/[id] — update a contact with tags, notes, and property links
 // in a single server-side call (replaces multi-step client writes in contact-form.tsx).
@@ -30,6 +31,7 @@ export async function PUT(
       min_budget, max_budget, no_budget, areas_of_interest, areas_of_interest_geo,
       property_interests, min_roi, source, dob, feedback_status,
       strict_area_match, projects_of_interest, strict_project_match,
+      preferred_update_channel,
       // Related entities
       tag_ids,
       note_text,
@@ -77,6 +79,9 @@ export async function PUT(
       strict_area_match: typeof strict_area_match === 'boolean' ? strict_area_match : false,
       projects_of_interest: Array.isArray(projects_of_interest) ? projects_of_interest : [],
       strict_project_match: typeof strict_project_match === 'boolean' ? strict_project_match : false,
+      preferred_update_channel: isUpdateChannel(preferred_update_channel)
+        ? preferred_update_channel
+        : null,
       updated_at: new Date().toISOString(),
     };
 

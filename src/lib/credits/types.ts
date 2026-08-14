@@ -147,6 +147,11 @@ export const AI_FEATURE_COSTS = {
    *  failure, stale, no-answer/busy) — accounts pay per connected
    *  call. See docs/credits-policy-voice-campaign-call.md. */
   voice_campaign_call: 25,
+  /** Rendering an announcement to a WhatsApp voice note: Sarvam
+   *  translate + TTS on the worker (src/lib/voice/announcement-worker.ts).
+   *  Charged per generation, refunded by the worker on failure;
+   *  sending the note costs nothing further. */
+  audio_announcement: 5,
 } as const;
 
 export type AiFeatureKey = keyof typeof AI_FEATURE_COSTS;

@@ -4,6 +4,10 @@ import Redis from 'ioredis';
 import { processWebhook } from '../lib/whatsapp/webhook-handler';
 import { processListingVideoJob, type ListingVideoJob } from '../lib/video/listing-video-worker';
 import { syncPropertyVideoToYouTube, type YouTubeUploadJob } from '../lib/youtube/upload';
+import {
+  processAnnouncementAudioJob,
+  type AnnouncementAudioJob,
+} from '../lib/voice/announcement-worker';
 
 // Helper to manually load Next.js environment files
 function loadEnv() {
@@ -62,13 +66,21 @@ async function startWorker() {
 
         if (queueName === 'listing-videos') {
           try {
-            const job = JSON.parse(payloadStr) as ListingVideoJob | YouTubeUploadJob;
+            const job = JSON.parse(payloadStr) as
+              | ListingVideoJob
+              | YouTubeUploadJob
+              | AnnouncementAudioJob;
             const t0 = Date.now();
             if (job.kind === 'youtube_upload') {
               console.log(`[Worker] YouTube upload job: property=${job.propertyId}`);
               // Marks the property's youtube_status failed internally
               // on operational errors — no DLQ needed.
               await syncPropertyVideoToYouTube({ propertyId: job.propertyId, accountId: job.accountId });
+            } else if (job.kind === 'announcement_audio') {
+              console.log(`[Worker] Announcement-audio job: announcement=${job.announcementId}`);
+              // Marks the announcement failed + refunds internally on
+              // operational errors — no DLQ needed.
+              await processAnnouncementAudioJob(job);
             } else {
               console.log(`[Worker] Listing-video job: property=${job.propertyId} lang=${job.language}`);
               // Marks the property failed + refunds credits internally
