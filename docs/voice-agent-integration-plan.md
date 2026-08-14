@@ -294,3 +294,14 @@ agent ever typing their requirement.
 - Manual: `curl -X POST '<domain>/api/webhooks/voice-agent?token=…&account_id=…' -d @sample.json
 -H 'content-type: application/json'` twice with the same `call_id` — second response must be
   `duplicate`; contact appears once, in `pending_review`, with one call-journal row.
+- **End-to-end dry-run (verified 2026-08-14, 23/23 checks against the live project):** run the
+  dev server with `VOICE_CALLS_DRY_RUN=true` plus throwaway `VOICE_AGENT_WEBHOOK_TOKEN` /
+  `AUTOMATION_CRON_SECRET`, then drive the full loop under a disposable account (created with
+  `app_context` metadata to skip the beta gate, deleted by cascade afterwards): seed a property
+  + enquiry → create campaign via bearer-JWT API (enquiry seeding) → activate → cron dispatch
+  (claim + 25 cr upfront burn) → webhook with a budget-mismatch `qualification` (recipient
+  completed, stated budget/areas written back, Budget Mismatch tag, `voice_agent` journal row)
+  → duplicate `call_id` deduped → second recipient with `no_answer` (requeued + auto-refund) →
+  drained wallet (creditBlocked, claim reverted) → ledger shows exactly 2 burns + 1 refund.
+  Note: the engine grants monthly credits on first wallet use, so assert ledger deltas, not
+  absolute balances.
