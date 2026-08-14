@@ -27,6 +27,11 @@ import {
   ENQUIRY_PHOTOS_PREFIX,
   ENQUIRY_REJECT_PREFIX,
 } from '@/lib/whatsapp/enquiry-card';
+import {
+  FOLLOWUP_CHECKIN_PREFIX,
+  FOLLOWUP_COLD_PREFIX,
+  FOLLOWUP_SNOOZE_PREFIX,
+} from '@/lib/contacts/follow-up-nudges';
 
 /** Prefixes whose replies are instructions to the Engine. Bare ids
  *  (no trailing payload) belong in EXACT_CONTROL_REPLY_IDS instead. */
@@ -45,6 +50,11 @@ export const CONTROL_REPLY_PREFIXES = [
   ENQUIRY_PHOTOS_PREFIX,
   ENQUIRY_DETAILS_PREFIX,
   ENQUIRY_MINE_PREFIX,
+  // The follow-up radar card goes to the same recipient as the enquiry
+  // card, so its taps face the same interception hazard.
+  FOLLOWUP_CHECKIN_PREFIX,
+  FOLLOWUP_SNOOZE_PREFIX,
+  FOLLOWUP_COLD_PREFIX,
 ] as const;
 
 /** True when this reply id is a button the Engine minted, and so must
