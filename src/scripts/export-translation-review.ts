@@ -54,14 +54,33 @@ const TEMPLATE_LABELS: Record<EngineTemplateKey, string> = {
   journey_timeline: 'Enquiry timeline — when should we check back with you?',
   journey_followup_reminder:
     'Enquiry follow-up reminder — confirm or move the scheduled follow-up date',
+  audio_announcement:
+    'Audio announcement — a voice-note update, delivered as a playable video',
 };
 
 /** What each numbered placeholder gets filled with at send time. */
 const PLACEHOLDER_MEANINGS: Record<EngineTemplateKey, string[]> = {
-  property_alert: ['buyer first name', 'brokerage name', 'listing title', 'price / size', 'locality'],
-  property_enquiry_photos: ['buyer first name', 'brokerage name', 'listing title', 'price / size', 'locality'],
+  property_alert: [
+    'buyer first name',
+    'brokerage name',
+    'listing title',
+    'price / size',
+    'locality',
+  ],
+  property_enquiry_photos: [
+    'buyer first name',
+    'brokerage name',
+    'listing title',
+    'price / size',
+    'locality',
+  ],
   location_reveal: ['requester first name', 'listing title'],
-  inventory_update: ['contact first name', 'residential summary', 'commercial summary', 'farm & land summary'],
+  inventory_update: [
+    'contact first name',
+    'residential summary',
+    'commercial summary',
+    'farm & land summary',
+  ],
   enquiry_followup: ['lead first name', 'brokerage name'],
   enquiry_notice: ['lead first name', 'brokerage name', 'listing title'],
   journey_checkin: ['lead first name', 'brokerage name', 'listing title'],
@@ -72,6 +91,7 @@ const PLACEHOLDER_MEANINGS: Record<EngineTemplateKey, string[]> = {
     'listing title',
     'scheduled follow-up date',
   ],
+  audio_announcement: ['contact first name', 'brokerage name'],
 };
 
 /** The buttons each template actually carries, so a bubble shows the
@@ -90,9 +110,12 @@ const REPLY_BUTTONS: Record<EngineTemplateKey, TemplateButtonAction[]> = {
     'timeline_2_days',
     'timeline_unsure',
   ],
+  audio_announcement: [],
 };
 
-const BUTTON_ORDER = Object.keys(TEMPLATE_BUTTON_LABELS) as TemplateButtonAction[];
+const BUTTON_ORDER = Object.keys(
+  TEMPLATE_BUTTON_LABELS
+) as TemplateButtonAction[];
 const TEMPLATE_ORDER = Object.keys(TEMPLATE_COPY_TABLE) as EngineTemplateKey[];
 
 function quote(text: string): string {
@@ -109,24 +132,24 @@ function sheet(code: LanguageCode): string {
   out.push(`# ${native} (${label}) — WhatsApp message review`);
   out.push('');
   out.push(
-    `These are every word ConvoReal sends to a client in ${label}. They were drafted by a machine and have **not** been checked by anyone who speaks ${label}. Please read them as a customer would.`,
+    `These are every word ConvoReal sends to a client in ${label}. They were drafted by a machine and have **not** been checked by anyone who speaks ${label}. Please read them as a customer would.`
   );
   out.push('');
   out.push('## What to look for');
   out.push('');
   out.push(`1. **Does it read naturally**, or like translated English?`);
   out.push(
-    '2. **Keep it flat and factual.** These are deliberately dry — labelled fields, no emoji, no "don\'t miss out". That dryness is what lets WhatsApp classify them as *Utility* messages, which reach people who have hit their marketing limit. Adding warmth or urgency can get the message re-classified, and that cannot be undone. Please do not make it more persuasive.',
+    '2. **Keep it flat and factual.** These are deliberately dry — labelled fields, no emoji, no "don\'t miss out". That dryness is what lets WhatsApp classify them as *Utility* messages, which reach people who have hit their marketing limit. Adding warmth or urgency can get the message re-classified, and that cannot be undone. Please do not make it more persuasive.'
   );
   out.push(
-    '3. **Leave every `{{1}}`, `{{2}}` … exactly as they are.** They are filled in with real names and prices when the message is sent. You may move one within the sentence, but do not delete one, add one, or let two sit next to each other with only a comma between.',
+    '3. **Leave every `{{1}}`, `{{2}}` … exactly as they are.** They are filled in with real names and prices when the message is sent. You may move one within the sentence, but do not delete one, add one, or let two sit next to each other with only a comma between.'
   );
   out.push(
-    `4. **Buttons must stay under ${MAX_BUTTON_CHARS} characters** — WhatsApp refuses longer ones.`,
+    `4. **Buttons must stay under ${MAX_BUTTON_CHARS} characters** — WhatsApp refuses longer ones.`
   );
   out.push('');
   out.push(
-    'Write your correction in the last column / block. Leave it blank if the current wording is fine.',
+    'Write your correction in the last column / block. Leave it blank if the current wording is fine.'
   );
   out.push('');
   out.push('---');
@@ -142,7 +165,9 @@ function sheet(code: LanguageCode): string {
   BUTTON_ORDER.forEach((action, i) => {
     const en = TEMPLATE_BUTTON_LABELS[action].en;
     const tr = TEMPLATE_BUTTON_LABELS[action][code];
-    out.push(`| ${i + 1} | ${en} | ${tr} | ${tr.length}/${MAX_BUTTON_CHARS} | |`);
+    out.push(
+      `| ${i + 1} | ${en} | ${tr} | ${tr.length}/${MAX_BUTTON_CHARS} | |`
+    );
   });
   out.push('');
   out.push('---');
@@ -157,7 +182,7 @@ function sheet(code: LanguageCode): string {
     out.push('');
     if (meanings.length > 0) {
       out.push(
-        `*Placeholders:* ${meanings.map((m, n) => `\`{{${n + 1}}}\` = ${m}`).join(' · ')}`,
+        `*Placeholders:* ${meanings.map((m, n) => `\`{{${n + 1}}}\` = ${m}`).join(' · ')}`
       );
       out.push('');
     }
@@ -190,7 +215,7 @@ function sheet(code: LanguageCode): string {
   out.push('## When you are done');
   out.push('');
   out.push(
-    `Send this back with your corrections. They get applied to \`src/lib/whatsapp/template-copy.ts\` (the \`${code}:\` entries), which fixes the wording for every account at once — not just one.`,
+    `Send this back with your corrections. They get applied to \`src/lib/whatsapp/template-copy.ts\` (the \`${code}:\` entries), which fixes the wording for every account at once — not just one.`
   );
   out.push('');
 

@@ -27,6 +27,7 @@ import {
   ENQUIRY_PHOTOS_PREFIX,
   ENQUIRY_REJECT_PREFIX,
 } from '@/lib/whatsapp/enquiry-card';
+import { UPDATE_CHANNEL_REPLY_PREFIX } from '@/lib/voice/announcements';
 import {
   FOLLOWUP_CHECKIN_PREFIX,
   FOLLOWUP_COLD_PREFIX,
@@ -50,6 +51,9 @@ export const CONTROL_REPLY_PREFIXES = [
   ENQUIRY_PHOTOS_PREFIX,
   ENQUIRY_DETAILS_PREFIX,
   ENQUIRY_MINE_PREFIX,
+  // "How would you like updates?" channel picks — a tap sets
+  // contacts.preferred_update_channel, it is not a message to relay.
+  UPDATE_CHANNEL_REPLY_PREFIX,
   // The follow-up radar card goes to the same recipient as the enquiry
   // card, so its taps face the same interception hazard.
   FOLLOWUP_CHECKIN_PREFIX,
