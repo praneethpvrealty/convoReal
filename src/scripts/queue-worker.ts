@@ -2,12 +2,20 @@ import fs from 'fs';
 import path from 'path';
 import Redis from 'ioredis';
 import { processWebhook } from '../lib/whatsapp/webhook-handler';
-import { processListingVideoJob, type ListingVideoJob } from '../lib/video/listing-video-worker';
-import { syncPropertyVideoToYouTube, type YouTubeUploadJob } from '../lib/youtube/upload';
+import {
+  processListingVideoJob,
+  type ListingVideoJob,
+} from '../lib/video/listing-video-worker';
+import {
+  syncPropertyVideoToYouTube,
+  type YouTubeUploadJob,
+} from '../lib/youtube/upload';
 import {
   processAnnouncementAudioJob,
   type AnnouncementAudioJob,
 } from '../lib/voice/announcement-worker';
+import { processReminderAudioJob } from '../lib/voice/reminder-audio-worker';
+import type { ReminderAudioJob } from '../lib/voice/reminder-audio';
 
 // Helper to manually load Next.js environment files
 function loadEnv() {
@@ -60,7 +68,11 @@ async function startWorker() {
       // webhook events (high frequency) or listing-video render jobs
       // (rare, CPU-heavy — processed inline so a render naturally
       // backpressures webhook consumption for its ~30s duration).
-      const result = await redis.blpop('whatsapp-webhooks', 'listing-videos', 0);
+      const result = await redis.blpop(
+        'whatsapp-webhooks',
+        'listing-videos',
+        0
+      );
       if (result) {
         const [queueName, payloadStr] = result;
 
@@ -69,39 +81,64 @@ async function startWorker() {
             const job = JSON.parse(payloadStr) as
               | ListingVideoJob
               | YouTubeUploadJob
-              | AnnouncementAudioJob;
+              | AnnouncementAudioJob
+              | ReminderAudioJob;
             const t0 = Date.now();
             if (job.kind === 'youtube_upload') {
-              console.log(`[Worker] YouTube upload job: property=${job.propertyId}`);
+              console.log(
+                `[Worker] YouTube upload job: property=${job.propertyId}`
+              );
               // Marks the property's youtube_status failed internally
               // on operational errors — no DLQ needed.
-              await syncPropertyVideoToYouTube({ propertyId: job.propertyId, accountId: job.accountId });
+              await syncPropertyVideoToYouTube({
+                propertyId: job.propertyId,
+                accountId: job.accountId,
+              });
             } else if (job.kind === 'announcement_audio') {
-              console.log(`[Worker] Announcement-audio job: announcement=${job.announcementId}`);
+              console.log(
+                `[Worker] Announcement-audio job: announcement=${job.announcementId}`
+              );
               // Marks the announcement failed + refunds internally on
               // operational errors — no DLQ needed.
               await processAnnouncementAudioJob(job);
+            } else if (job.kind === 'reminder_audio') {
+              console.log(
+                `[Worker] Reminder-audio job: appt=${job.appointmentId} contact=${job.contactId}`
+              );
+              // Falls back to the reminder template internally, and on
+              // total failure releases the claim so the cron retries —
+              // no DLQ needed.
+              await processReminderAudioJob(job);
             } else {
-              console.log(`[Worker] Listing-video job: property=${job.propertyId} lang=${job.language}`);
+              console.log(
+                `[Worker] Listing-video job: property=${job.propertyId} lang=${job.language}`
+              );
               // Marks the property failed + refunds credits internally
               // on operational errors — no DLQ needed.
               await processListingVideoJob(job);
             }
-            console.log(`[Worker] Listing-video job finished in ${Date.now() - t0}ms`);
+            console.log(
+              `[Worker] Listing-video job finished in ${Date.now() - t0}ms`
+            );
           } catch (videoErr) {
             console.error('[Worker] Listing-video job crashed:', videoErr);
           }
           continue;
         }
-        
+
         let body: Parameters<typeof processWebhook>[0];
         try {
           body = JSON.parse(payloadStr);
         } catch (parseErr) {
-          console.error('[Worker] Failed to parse payload JSON. Moving to Dead Letter Queue...', parseErr);
+          console.error(
+            '[Worker] Failed to parse payload JSON. Moving to Dead Letter Queue...',
+            parseErr
+          );
           const dlqItem = {
             payload: payloadStr,
-            error: 'Malformed JSON payload: ' + (parseErr instanceof Error ? parseErr.message : String(parseErr)),
+            error:
+              'Malformed JSON payload: ' +
+              (parseErr instanceof Error ? parseErr.message : String(parseErr)),
             failedAt: new Date().toISOString(),
           };
           await redis.rpush('whatsapp-webhooks-dlq', JSON.stringify(dlqItem));
@@ -110,7 +147,7 @@ async function startWorker() {
 
         console.log(`[Worker] Popped job from queue. Processing...`);
         const startTime = Date.now();
-        
+
         let success = false;
         const maxAttempts = 3;
         let lastError: unknown = null;
@@ -122,7 +159,10 @@ async function startWorker() {
             break;
           } catch (processErr) {
             lastError = processErr;
-            console.error(`[Worker] Attempt ${attempt}/${maxAttempts} failed:`, processErr);
+            console.error(
+              `[Worker] Attempt ${attempt}/${maxAttempts} failed:`,
+              processErr
+            );
             if (attempt < maxAttempts) {
               const delay = attempt * 2000; // 2s, 4s backoff
               console.log(`[Worker] Retrying in ${delay}ms...`);
@@ -134,10 +174,15 @@ async function startWorker() {
         if (success) {
           console.log(`[Worker] Processed job in ${Date.now() - startTime}ms`);
         } else {
-          console.error(`[Worker] Job failed after ${maxAttempts} attempts. Moving to Dead Letter Queue (DLQ)...`);
+          console.error(
+            `[Worker] Job failed after ${maxAttempts} attempts. Moving to Dead Letter Queue (DLQ)...`
+          );
           const dlqItem = {
             payload: body,
-            error: lastError instanceof Error ? lastError.message : String(lastError),
+            error:
+              lastError instanceof Error
+                ? lastError.message
+                : String(lastError),
             stack: lastError instanceof Error ? lastError.stack : null,
             failedAt: new Date().toISOString(),
           };

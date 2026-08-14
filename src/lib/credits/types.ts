@@ -152,6 +152,12 @@ export const AI_FEATURE_COSTS = {
    *  Charged per generation, refunded by the worker on failure;
    *  sending the note costs nothing further. */
   audio_announcement: 5,
+  /** One appointment reminder spoken as a voice note: a short
+   *  per-reminder Sarvam translate + TTS render on the worker
+   *  (src/lib/voice/reminder-audio-worker.ts). Refunded whenever the
+   *  note never reaches the contact — the WhatsApp-template fallback
+   *  that lands instead is free, like every other reminder. */
+  reminder_audio: 2,
 } as const;
 
 export type AiFeatureKey = keyof typeof AI_FEATURE_COSTS;

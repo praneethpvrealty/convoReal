@@ -24,6 +24,7 @@ interface VoiceConfig {
   webhook_token: string;
   is_active: boolean;
   reminder_calls_enabled: boolean;
+  reminder_audio_enabled: boolean;
 }
 
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
@@ -211,6 +212,25 @@ export function VoiceAgentCard() {
             disabled={!canManage || saveMutation.isPending}
             onCheckedChange={(v) =>
               saveMutation.mutate({ reminder_calls_enabled: v })
+            }
+          />
+        </div>
+        <div className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2.5">
+          <div>
+            <p className="text-sm font-medium text-white">
+              Appointment reminders as voice notes
+            </p>
+            <p className="text-xs text-slate-500">
+              Contacts who prefer audio updates get their reminder spoken and
+              sent as a WhatsApp voice note when their 24-hour window is open (2
+              cr per note, refunded if it never lands). Others are unaffected.
+            </p>
+          </div>
+          <Switch
+            checked={config?.reminder_audio_enabled ?? false}
+            disabled={!canManage || saveMutation.isPending}
+            onCheckedChange={(v) =>
+              saveMutation.mutate({ reminder_audio_enabled: v })
             }
           />
         </div>

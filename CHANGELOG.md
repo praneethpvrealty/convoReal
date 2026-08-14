@@ -13,6 +13,19 @@ and polish.
 
 ### Added
 
+- **Appointment reminders as WhatsApp voice notes** (**migration
+  required**: `276_reminder_audio.sql`). Contacts who chose audio
+  updates (`preferred_update_channel = whatsapp_audio`) now get their
+  reminder spoken — the reminder cron queues a per-reminder TTS job and
+  the queue worker renders it in the contact's conversation language
+  (Sarvam translate + TTS → ogg/opus) and sends it as a voice note,
+  when the account has opted in under Settings → WhatsApp → Voice and
+  the contact's 24-hour window is open. 2 credits per note, refunded
+  whenever the note never lands; every failure path falls back to the
+  usual reminder template, so no reminder is lost to a render or queue
+  outage. This completes the reminder-channel trio: text templates,
+  voice-agent calls (Phase B), and now voice notes.
+
 - **Hot leads no longer go quiet unnoticed** (**migration required**:
   `272_follow_up_nudges.sql`). A ₹5-10 Cr portal lead enquired on two
   listings, asked "is the price negotiable", said "we can talk
@@ -34,7 +47,7 @@ and polish.
   produces by design.
 
 - **A buyer asking for photos now gets the photos.** "Sir can I get
-  images  images", sent moments after a listing was shared, was answered
+  images images", sent moments after a listing was shared, was answered
   with "What kind of property are you looking for?" — the message is not
   question-shaped, carries no budget or property type, and numbers no
   shortlist entry, so the qualification ladder claimed it and restarted
@@ -293,7 +306,7 @@ and polish.
   car, or repeats a job the next morning because they cannot remember
   whether it went in. Each pass used to insert another row. A request
   that restates an event or a to-do already on the books now updates it
-  and says *Updated* rather than *Added*. The rule is deliberately
+  and says _Updated_ rather than _Added_. The rule is deliberately
   narrow, because merging two things that were never the same one loses
   a real appointment: the same IST day, wording that clears a two-thirds
   subject match, and no disagreement about who it is with. Two site
@@ -321,7 +334,7 @@ and polish.
 - **Voice notes, understood and acted on.** A voice note sent to the
   WhatsApp assistant is now transcribed once and read as text by every
   path that already existed — so speaking a listing files a listing,
-  speaking a contact files a contact, speaking *today* returns your
+  speaking a contact files a contact, speaking _today_ returns your
   agenda, and speaking a correction edits the open draft. Before this,
   audio reached exactly one destination, the calendar parser: anything
   that wasn't an event came back "I couldn't find an event or task in
@@ -348,7 +361,7 @@ and polish.
   words always win — a pin only fills gaps, and a listing carrying its
   own pin is left alone. Held for 15 minutes only: stamping a stale pin
   onto an unrelated property puts it in the wrong place, which is worse
-  than leaving it unpinned. A pin sent *during* an open draft already
+  than leaving it unpinned. A pin sent _during_ an open draft already
   worked and is unchanged. **Migration required:** `261_pending_map_pins.sql`.
 
 - **Ask an owner for the property details, in one message** (**migration
@@ -361,7 +374,7 @@ and polish.
   contact with a seller happens — there is no open 24-hour window on the
   business number until the owner writes to it, and there may never be one.
   So the message carries a one-tap link to the office number with `START
-  UPDATES` pre-filled: the owner's tap opens the window, creates the thread
+UPDATES` pre-filled: the owner's tap opens the window, creates the thread
   the whole team can see, and records digest consent at the same moment.
   That is what makes the closing promise — every enquiry, every shortlisted
   buyer, every site visit, every offer — something the Engine can actually
@@ -388,7 +401,7 @@ and polish.
   `POST /api/owners/details-request`, and is stored per account in
   `owner_details_request_settings`. The mobile copy of the builder is
   drift-guarded literal by literal in `src/lib/mobile-parity.test.ts`. The
-  settings *editor* is web-only for now — the message itself is at full
+  settings _editor_ is web-only for now — the message itself is at full
   parity, and the gap is recorded in `FEATURE_ROADMAP.md`.
 
 - **The confidential-listing request drawer, on the phone.** Tapping the
@@ -584,8 +597,8 @@ and polish.
   many are on. Selections apply as they are made and the footer button
   counts what is left ("Show 12 contacts"), so a chip's effect is
   visible without dismissing the sheet. Semantics match web exactly: a
-  *budget from* bound admits contacts marked as having no budget
-  constraint, a *budget up to* bound does not, and the budget ladder
+  _budget from_ bound admits contacts marked as having no budget
+  constraint, a _budget up to_ bound does not, and the budget ladder
   itself is now a shared constant that a drift test holds the two
   platforms to. Segment counts hide while any narrowing filter is on
   rather than contradicting the list below them.
@@ -640,7 +653,7 @@ and polish.
 
 - **A booking with a real date now reaches the calendar.** "Meet lawyer
   Kusuma regarding the Whitefield property on 30th July 2026" was filed
-  as a *contact draft* instead of an appointment: the scheduling gate
+  as a _contact draft_ instead of an appointment: the scheduling gate
   recognised only relative days ("tomorrow", "next Friday") and clock
   times ("at 4pm"), so a stated calendar date counted as no time at all
   and the message fell through to contact ingestion. Written-out dates
@@ -678,10 +691,10 @@ and polish.
   do.** Texting your own Engine number used to answer with a four-line
   "AI Ingestion Chatbot" card that only described draft-session
   commands — and showed `*Cancel*` literally, because it used Markdown
-  bold instead of WhatsApp's. Send *help* (or hi / menu / start) and
+  bold instead of WhatsApp's. Send _help_ (or hi / menu / start) and
   you now get the real capability guide with worked examples: add a
   listing from text, an ad screenshot or a brochure PDF; add a contact
-  or portal lead; the *today* agenda, event and to-do commands and
+  or portal lead; the _today_ agenda, event and to-do commands and
   voice notes; answering a lead alert directly; and the photo /
   plain-language-correction / Confirm / Cancel / 15-minute-expiry rules
   for an open draft. A message that classifies as neither a listing nor
@@ -916,7 +929,6 @@ and polish.
   in the result. New dependency: `expo-contacts` — run `npm install`
   in `mobile/`. The Requirements tab stays web-only for now.
 
-
 - **Mobile: the web's rich share dialog, on the property screen.**
   Tapping Share now opens a full share sheet instead of the bare OS
   sheet: To Client / To Co-Broker audience cards (client links open
@@ -1042,7 +1054,7 @@ and polish.
 
 - **Flows recover when customers go off-script.** Three fixes to the
   conversation-flow engine, found watching a real seller lead derail:
-  (1) tapping a button on an *earlier* message (e.g. "List My
+  (1) tapping a button on an _earlier_ message (e.g. "List My
   Property" on the welcome bubble after already tapping "Buy
   Property") now switches to that button's branch instead of
   re-sending the current branch's prompt; (2) free text the flow
@@ -1371,7 +1383,7 @@ and polish.
   static words each (e.g. "...this is a friendly reminder **that you
   have** a scheduled meeting..."); `property_visit_reminder` already
   had exactly enough and is unchanged. `src/lib/appointments/
-  reminder.ts`'s local Inbox-preview copy updated to match each
+reminder.ts`'s local Inbox-preview copy updated to match each
   variant word-for-word.
 
 - **A message template stuck in "Draft" (e.g. a migration-seeded one
@@ -1484,7 +1496,7 @@ and polish.
   new `reschedule_requested_at` — shown as an amber reschedule icon on
   the Calendar month view and a banner in the edit dialog — and pings
   the assigned agent directly on WhatsApp (`src/lib/whatsapp/
-  webhook-handler.ts`, matching the button tap back to its appointment
+webhook-handler.ts`, matching the button tap back to its appointment
   via the outbound reminder's Meta message id, now recorded on
   `appointment_reminder_log.wa_message_id`). Actually moving the
   appointment to a new time clears the flag automatically. Since this
@@ -1527,7 +1539,7 @@ and polish.
   declared (Android intent filters + iOS associated domains, app ids
   `com.convoreal.app`) and the web now serves the verification files —
   `/.well-known/assetlinks.json` and `/.well-known/
-  apple-app-site-association`, env-gated on `ANDROID_APP_CERT_SHA256` /
+apple-app-site-association`, env-gated on `ANDROID_APP_CERT_SHA256` /
   `APPLE_TEAM_ID` — so they activate with the first EAS build's signing
   cert (OS-level verification can't point at Expo Go).
 
@@ -1552,7 +1564,7 @@ and polish.
   web inventory uses, with 2/5/10/25 km radius picker and distance /
   "In area" badges on cards), the search box doubles as the web's
   **Google locality autocomplete** (via the existing `/api/maps/
-  autocomplete` + `place-details` proxies — key stays server-side;
+autocomplete` + `place-details` proxies — key stays server-side;
   degrades to plain text search when unconfigured), a **native map
   screen** renders the current search as pins (tap through to the
   property), and property details embed a mini-map when coordinates
@@ -1631,7 +1643,7 @@ and polish.
   AsyncStorage for offline reads), text replies via
   `POST /api/whatsapp/send`, and a contacts tab with native dialer /
   WhatsApp deep links. Run it with `cd mobile && npm install && npm
-  start` (see `mobile/README.md`). Root tsconfig/eslint/Vercel configs
+start` (see `mobile/README.md`). Root tsconfig/eslint/Vercel configs
   ignore `mobile/`, so web builds and deploys are unaffected.
 
 - **API routes now accept `Authorization: Bearer <access_token>`** —
@@ -1712,7 +1724,7 @@ and polish.
 
 - **Showcase page: next-step CTAs for visitors.** Two cards under the
   hero on the public showcase (`src/components/showcase/
-  showcase-view.tsx`) nudge visitors toward the two things the agent
+showcase-view.tsx`) nudge visitors toward the two things the agent
   most wants from them:
   - **"Get Deal Alerts"** — opens the existing requirements modal
     (already feeds Match Radar for future property matches); framed
@@ -1900,7 +1912,7 @@ as the sole owner of their own account and sees identical data.
 
 - **Calendar voice logging ("tap the mic and say it") was silently
   broken for every visitor.** A site-wide `Permissions-Policy:
-  microphone=()` header (`next.config.ts`) unconditionally vetoed
+microphone=()` header (`next.config.ts`) unconditionally vetoed
   microphone access before the browser's own per-site permission
   prompt could matter — no amount of allowing the mic in Chrome would
   have worked. Scoped the policy to `microphone=(self)`. Also stopped
@@ -1914,7 +1926,7 @@ as the sole owner of their own account and sees identical data.
   Per-field `init-value` is only valid on inputs outside a `Form`
   component; ours are Form-wrapped, so the bindings now live on the
   Form's `init-values` map instead (`src/lib/whatsapp/
-  preference-flow.ts`).
+preference-flow.ts`).
 - **WhatsApp preference flow JSON also failed Meta's publish
   validation** on `min_budget`/`max_budget`/`min_roi`
   ("Expected property 'min_budget' to be of type 'number' but found
@@ -1939,7 +1951,7 @@ as the sole owner of their own account and sees identical data.
   `src/proxy.ts` (this Next.js version's `middleware.ts`) gated every
   `/api/whatsapp/*` request behind a logged-in browser session unless
   the path contained `/webhook`. `/api/whatsapp/flows/endpoint/
-  [accountId]` — the server-to-server callback Meta calls directly for
+[accountId]` — the server-to-server callback Meta calls directly for
   health-check pings, `INIT`, and `data_exchange` — carries no session
   cookie and doesn't match `/webhook`, so it got a blanket 401 before
   the route handler (which already authenticates via HMAC signature +
@@ -1984,8 +1996,8 @@ as the sole owner of their own account and sees identical data.
 
 - `supabase/migrations/020_account_sharing_followups.sql` —
   composite partial indexes on `automations(account_id,
-  trigger_type) WHERE is_active` and `flows(account_id) WHERE
-  status='active'` for the engine dispatch hot path; updated
+trigger_type) WHERE is_active` and `flows(account_id) WHERE
+status='active'` for the engine dispatch hot path; updated
   `flow-media` storage RLS to allow account-member writes under
   the new path convention. Idempotent.
 

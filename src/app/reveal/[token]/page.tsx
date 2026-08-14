@@ -54,8 +54,7 @@ export default async function RevealPage({ params }: PageProps) {
     }
     const target = (
       Array.isArray(grant.property) ? grant.property[0] : grant.property
-    ) as // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    any;
+    ) as Parameters<typeof propertySlug>[0] | null;
     if (!target) return <ErrorState reason="invalid" />;
     redirect(
       `/property/${propertySlug(target)}?g=${encodeURIComponent(token)}`
