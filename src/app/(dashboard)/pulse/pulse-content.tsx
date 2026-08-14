@@ -102,7 +102,7 @@ export default function PulsePage() {
       if (conversationId) {
         router.push(`/inbox?c=${conversationId}`);
       } else {
-        router.push(`/contacts?q=${contactId}`);
+        router.push(`/contacts?contactId=${contactId}`);
       }
     } catch (err) {
       console.error("[pulse] chat lookup failed:", err);

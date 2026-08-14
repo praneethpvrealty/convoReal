@@ -110,7 +110,7 @@ export function PropertyViewersDialog({
           .order("updated_at", { ascending: false })
           .limit(1);
         const conversationId = (data as { id: string }[] | null)?.[0]?.id;
-        router.push(conversationId ? `/inbox?c=${conversationId}` : `/contacts?q=${contactId}`);
+        router.push(conversationId ? `/inbox?c=${conversationId}` : `/contacts?contactId=${contactId}`);
       } catch (err) {
         console.error("[viewers] chat lookup failed:", err);
         toast.error("Failed to open conversation");

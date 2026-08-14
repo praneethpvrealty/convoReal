@@ -205,7 +205,7 @@ export function ReengagementOutcome({
                   >
                     <td className="px-3 py-2">
                       <Link
-                        href={`/contacts?contact=${lead.contactId}`}
+                        href={`/contacts?contactId=${lead.contactId}`}
                         className="font-medium text-white hover:underline"
                       >
                         {lead.contactName?.trim() ||

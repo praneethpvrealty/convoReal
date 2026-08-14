@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
@@ -774,7 +775,14 @@ function CampaignDetailDialog({
                     <TableHead>Status</TableHead>
                     <TableHead>Attempts</TableHead>
                     <TableHead>Qualification</TableHead>
-                    {canManage && <TableHead className="w-10" />}
+                    {/* Pinned: removing someone is the reason this list is
+                        editable, and it must not be the column that scrolls
+                        out of sight on a narrow window. */}
+                    {canManage && (
+                      <TableHead className="bg-popover sticky right-0 w-16">
+                        Remove
+                      </TableHead>
+                    )}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -793,9 +801,25 @@ function CampaignDetailDialog({
                     return (
                       <TableRow key={r.id}>
                         <TableCell>
-                          <div className="text-sm font-medium text-white">
-                            {contact?.name || 'Unknown'}
-                          </div>
+                          {contact ? (
+                            // New tab on purpose: this list is being
+                            // reviewed inside a dialog, and navigating
+                            // away to fix one contact's details would
+                            // close it.
+                            <Link
+                              href={`/contacts?contactId=${contact.id}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title="Open contact"
+                              className="hover:text-primary text-sm font-medium text-white transition-colors"
+                            >
+                              {contact.name || 'Unknown'}
+                            </Link>
+                          ) : (
+                            <div className="text-sm font-medium text-white">
+                              Unknown
+                            </div>
+                          )}
                           <div className="text-xs text-slate-500">
                             {contact?.phone}
                           </div>
@@ -813,17 +837,17 @@ function CampaignDetailDialog({
                           <QualificationChip q={r.qualification} />
                         </TableCell>
                         {canManage && (
-                          <TableCell>
+                          <TableCell className="bg-popover sticky right-0">
                             <Button
                               size="sm"
                               variant="ghost"
                               disabled={removeMutation.isPending}
-                              title="Remove from campaign"
+                              title={`Remove ${contact?.name || 'this contact'} from the campaign`}
                               onClick={() =>
                                 contact && removeMutation.mutate(contact.id)
                               }
                             >
-                              <X className="h-3.5 w-3.5 text-slate-500" />
+                              <X className="h-3.5 w-3.5 text-slate-500 hover:text-rose-400" />
                             </Button>
                           </TableCell>
                         )}
