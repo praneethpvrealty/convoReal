@@ -559,6 +559,7 @@ function ConversationRow({
       {/* PressScale + router.push instead of Link asChild: gives iOS
           press feedback (scale) and avoids the Slot flat-style rule. */}
       <PressScale
+        testID="conversation-row"
         onPress={() => router.push(`/(app)/conversation/${conversation.id}`)}
         accessibilityRole="button"
         accessibilityLabel={`Open conversation with ${name}`}

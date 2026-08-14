@@ -253,7 +253,7 @@ export default function PropertyDetailScreen() {
   ].filter((r): r is NonNullable<typeof r> => r !== null);
 
   return (
-    <View style={{ flex: 1 }}>
+    <View testID="property-detail-screen" style={{ flex: 1 }}>
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{

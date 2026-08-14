@@ -1,0 +1,54 @@
+appId: com.convoreal.app
+name: more-navigation
+---
+- launchApp
+- tapOn:
+    id: "tab-more"
+# Each menu row is a route that has to mount without throwing. The
+# pushed screen hides the menu, so waiting for the row to disappear is
+# what proves the navigation happened — several screens carry the same
+# title text as the row that opened them.
+- scrollUntilVisible:
+    element:
+      id: "menu-focus"
+- tapOn:
+    id: "menu-focus"
+- extendedWaitUntil:
+    notVisible:
+      id: "menu-focus"
+    timeout: 20000
+- back
+
+- scrollUntilVisible:
+    element:
+      id: "menu-deals"
+- tapOn:
+    id: "menu-deals"
+- extendedWaitUntil:
+    notVisible:
+      id: "menu-deals"
+    timeout: 20000
+- back
+
+- scrollUntilVisible:
+    element:
+      id: "menu-dashboard"
+- tapOn:
+    id: "menu-dashboard"
+- extendedWaitUntil:
+    visible: "Overview"
+    timeout: 20000
+- takeScreenshot: .maestro/shots/12-dashboard
+- back
+
+- scrollUntilVisible:
+    element:
+      id: "menu-notifications"
+- tapOn:
+    id: "menu-notifications"
+- extendedWaitUntil:
+    visible: "Notifications"
+    timeout: 20000
+- back
+- assertVisible:
+    id: "menu-notifications"

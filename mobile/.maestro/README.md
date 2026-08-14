@@ -1,7 +1,18 @@
 # Maestro e2e on the iOS Simulator
 
-Smoke flows that drive the real app on a booted simulator: email login →
-inbox → contacts → properties → More → Connection check. Selectors are
+Flows that drive the real app on a booted simulator. `config.yaml` runs
+them in order: login, the four tab screens and Connection check first,
+then inbox filtering and search, the conversation / contact / property
+detail screens, More-menu routes, appearance switching, the favourites
+bar, and a rapid tab cycle.
+
+Three of them — `conversation`, `contact-detail`, `property-detail` —
+open the first row of a list, so they need a workspace with at least one
+conversation, contact and property. On an empty account they fail rather
+than pass vacuously, which is the intended behaviour: use a real
+workspace.
+
+Selectors are
 `testID`s (`id:` in the YAML) so UI copy can change freely; the ids live
 on the login screen, the tab bar (`tabBarButtonTestID`), each tab's
 `SearchBar`, and the More menu rows (`menu-<id>` from `lib/menu.ts`).

@@ -386,6 +386,7 @@ function ContactCard({ contact }: { contact: Contact }) {
 
   return (
     <KeyboardAvoidingView
+      testID="contact-detail-screen"
       style={{ flex: 1 }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >

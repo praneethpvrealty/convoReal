@@ -957,6 +957,7 @@ function PropertyCard({
 
   return (
     <PressScale
+      testID="property-card"
       onPress={() =>
         selecting ? onToggle() : router.push(`/(app)/property/${property.id}`)
       }

@@ -158,6 +158,7 @@ export default function CalendarScreen() {
       </View>
 
       <ScrollView
+        testID="calendar-screen"
         style={{ flex: 1 }}
         contentContainerStyle={{
           padding: spacing.lg,

@@ -1,0 +1,26 @@
+appId: com.convoreal.app
+name: tab-cycle
+---
+- launchApp
+# Rapid switching is where a screen that mounts fine in isolation blows
+# up — stale queries, listeners torn down twice. Two laps of the bar.
+- repeat:
+    times: 2
+    commands:
+      - tapOn:
+          id: "tab-contacts"
+      - assertVisible:
+          id: "contacts-search"
+      - tapOn:
+          id: "tab-properties"
+      - assertVisible:
+          id: "properties-search"
+      - tapOn:
+          id: "tab-calendar"
+      - assertVisible:
+          id: "calendar-screen"
+      - tapOn:
+          id: "tab-inbox"
+      - assertVisible:
+          id: "inbox-search"
+- takeScreenshot: .maestro/shots/15-tab-cycle

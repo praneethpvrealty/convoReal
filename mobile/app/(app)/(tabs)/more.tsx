@@ -326,6 +326,7 @@ function AppearancePicker() {
         return (
           <Pressable
             key={opt.value}
+            testID={`appearance-${opt.value}`}
             onPress={() => setMode(opt.value)}
             accessibilityRole="button"
             accessibilityLabel={`${opt.label} appearance`}
