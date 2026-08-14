@@ -168,6 +168,7 @@ export async function sendWhatsAppMessageAndPersist(
         .from('contacts')
         .select('*')
         .eq('account_id', accountId)
+        .eq('is_merged', false)
         .like('phone', `%${phoneSuffix}`)
 
       if (error) {
