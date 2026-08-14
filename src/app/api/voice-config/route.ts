@@ -12,7 +12,7 @@ import {
 } from '@/lib/rate-limit';
 
 const CONFIG_COLUMNS =
-  'agent_ref, phone_number, webhook_token, is_active, reminder_calls_enabled, updated_at';
+  'agent_ref, phone_number, webhook_token, is_active, reminder_calls_enabled, reminder_audio_enabled, updated_at';
 
 // GET /api/voice-config — the account's voice provider configuration
 export async function GET() {
@@ -58,6 +58,9 @@ export async function PUT(request: NextRequest) {
     if (typeof body.is_active === 'boolean') patch.is_active = body.is_active;
     if (typeof body.reminder_calls_enabled === 'boolean') {
       patch.reminder_calls_enabled = body.reminder_calls_enabled;
+    }
+    if (typeof body.reminder_audio_enabled === 'boolean') {
+      patch.reminder_audio_enabled = body.reminder_audio_enabled;
     }
     if (body.regenerate_token === true) {
       patch.webhook_token = randomBytes(24).toString('hex');

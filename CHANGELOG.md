@@ -13,6 +13,19 @@ and polish.
 
 ### Added
 
+- **Appointment reminders as WhatsApp voice notes** (**migration
+  required**: `276_reminder_audio.sql`). Contacts who chose audio
+  updates (`preferred_update_channel = whatsapp_audio`) now get their
+  reminder spoken — the reminder cron queues a per-reminder TTS job and
+  the queue worker renders it in the contact's conversation language
+  (Sarvam translate + TTS → ogg/opus) and sends it as a voice note,
+  when the account has opted in under Settings → WhatsApp → Voice and
+  the contact's 24-hour window is open. 2 credits per note, refunded
+  whenever the note never lands; every failure path falls back to the
+  usual reminder template, so no reminder is lost to a render or queue
+  outage. This completes the reminder-channel trio: text templates,
+  voice-agent calls (Phase B), and now voice notes.
+
 - **"Ask for property details" now offers the listing page too, and
   sends from the contact row.** The first message an agent sends a
   seller carried one route — the office WhatsApp number. It now carries

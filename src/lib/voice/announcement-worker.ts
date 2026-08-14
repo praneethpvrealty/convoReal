@@ -139,6 +139,32 @@ async function speechWav(
   return out;
 }
 
+/** English text → WhatsApp-ready ogg/opus voice note in workDir.
+ *  Shared by announcements and per-reminder audio jobs. */
+export async function synthesizeVoiceNoteOgg(
+  englishText: string,
+  language: NarrationLanguage,
+  workDir: string
+): Promise<string> {
+  const wav = await speechWav(englishText, language, workDir);
+  const ogg = path.join(workDir, 'note.ogg');
+  run(FFMPEG, [
+    '-y',
+    '-i',
+    wav,
+    '-c:a',
+    'libopus',
+    '-b:a',
+    '24k',
+    '-ar',
+    '48000',
+    '-ac',
+    '1',
+    ogg,
+  ]);
+  return ogg;
+}
+
 export async function processAnnouncementAudioJob(
   job: AnnouncementAudioJob
 ): Promise<void> {
@@ -159,26 +185,11 @@ export async function processAnnouncementAudioJob(
 
   const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'announcement-'));
   try {
-    const wav = await speechWav(
+    const ogg = await synthesizeVoiceNoteOgg(
       announcement.body_text,
       announcement.language as NarrationLanguage,
       workDir
     );
-    const ogg = path.join(workDir, 'announcement.ogg');
-    run(FFMPEG, [
-      '-y',
-      '-i',
-      wav,
-      '-c:a',
-      'libopus',
-      '-b:a',
-      '24k',
-      '-ar',
-      '48000',
-      '-ac',
-      '1',
-      ogg,
-    ]);
 
     const storagePath = `${announcement.account_id}/${announcement.id}.ogg`;
     const bytes = fs.readFileSync(ogg);

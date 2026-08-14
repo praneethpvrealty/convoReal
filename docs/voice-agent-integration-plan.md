@@ -318,10 +318,20 @@ the `updch:*` reply ids are registered control replies, and a tap stores the cho
 contact and confirms it in the thread (`src/lib/voice/update-channel-reply.ts`). Reachable
 from the contact form on web and the contact editor on mobile ("Ask them on WhatsApp").
 
-**Still open in this phase:** the `whatsapp_audio` half of reminder delivery — each reminder
-is unique text, so it needs a per-reminder TTS job design rather than one rendered note.
-(The `voice_call` half shipped with Phase B: see §5, reminder calls.) Deliberately deferred
-rather than half-wired.
+**Reminders as voice notes (shipped).** The `whatsapp_audio` half of reminder delivery —
+each reminder is unique text, so unlike announcements there is no pre-rendered note: the
+reminder cron enqueues one `reminder_audio` job per audio-preferring recipient
+(`src/lib/voice/reminder-audio.ts`) and the queue worker renders and sends it
+(`src/lib/voice/reminder-audio-worker.ts`, reusing the announcement TTS→opus pipeline via
+`synthesizeVoiceNoteOgg`, spoken in the contact's resolved conversation language). Gated
+three ways: the account's `reminder_audio_enabled` opt-in on the Voice settings card
+(migration 276 — the render burns `AI_FEATURE_COSTS.reminder_audio`, 2 cr, refunded whenever
+the note never lands), the contact's open 24-hour window (a voice note is free-form), and a
+configured Redis queue. Anyone the gate excludes stays on the template exactly as before,
+and the job itself falls back to the same template send on any failure — only when even
+that fails does it release the recipient's claim and re-open the appointment flag so the
+next cron tick retries. (The `voice_call` half shipped with Phase B: see §5, reminder
+calls.) Phase D is complete.
 
 ## 8. Phase E — voice preference intake → matching
 
