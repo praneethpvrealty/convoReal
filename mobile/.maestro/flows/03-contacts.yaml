@@ -1,0 +1,9 @@
+appId: com.convoreal.app
+name: contacts
+---
+- launchApp
+- tapOn: "Contacts"
+- extendedWaitUntil:
+    visible: "Search name, phone, tag, company…"
+    timeout: 15000
+- takeScreenshot: .maestro/shots/03-contacts

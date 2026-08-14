@@ -1,0 +1,12 @@
+appId: com.convoreal.app
+name: inbox
+---
+- launchApp
+- extendedWaitUntil:
+    visible: "Search name, phone or message"
+    timeout: 15000
+- assertVisible: "Contacts"
+- assertVisible: "Properties"
+- assertVisible: "Calendar"
+- assertVisible: "More"
+- takeScreenshot: .maestro/shots/02-inbox

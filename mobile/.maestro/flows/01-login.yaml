@@ -1,0 +1,21 @@
+appId: com.convoreal.app
+name: login
+---
+- launchApp:
+    clearState: true
+- assertVisible: "ConvoReal"
+# Before the toggle only the segment button says "Email"; after it the
+# field placeholder says "Email" too, so the field is index 1.
+- tapOn: "Email"
+- tapOn:
+    text: "Email"
+    index: 1
+- inputText: ${MAESTRO_EMAIL}
+- tapOn: "Password"
+- inputText: ${MAESTRO_PASSWORD}
+- hideKeyboard
+- tapOn: "Sign in"
+- extendedWaitUntil:
+    visible: "Search name, phone or message"
+    timeout: 30000
+- takeScreenshot: .maestro/shots/01-login

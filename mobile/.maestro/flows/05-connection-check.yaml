@@ -1,0 +1,14 @@
+appId: com.convoreal.app
+name: connection-check
+---
+- launchApp
+- tapOn: "More"
+- scrollUntilVisible:
+    element:
+      text: "Connection check"
+- tapOn: "Connection check"
+- extendedWaitUntil:
+    visible: "API with token (configured base)"
+    timeout: 20000
+- assertVisible: "Token valid at app project"
+- takeScreenshot: .maestro/shots/05-connection-check

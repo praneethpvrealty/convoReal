@@ -1,0 +1,10 @@
+flows:
+  - "flows/*.yaml"
+executionOrder:
+  continueOnFailure: false
+  flowsOrder:
+    - login
+    - inbox
+    - contacts
+    - properties
+    - connection-check
