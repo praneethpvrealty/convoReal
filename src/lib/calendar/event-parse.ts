@@ -464,18 +464,25 @@ function containsFragment(haystack: string, needle: string): boolean {
   }
 }
 
-/** Case-insensitive best match: exact > startsWith > word-boundary
- *  substring > all-words-included. Returns null rather than guessing badly. */
-export function resolveByName<T extends { id: string }>(
+/**
+ * Every row tied at the best score, in list order.
+ *
+ * A dictated first name is ambiguous far more often than the single-winner
+ * lookup admitted: two Ravis in the book both score 3, and the one read
+ * first wins by accident. Callers that can break the tie on something real
+ * — how much the account actually talks to each of them — need the whole
+ * tied set, not the arbitrary head of it.
+ */
+export function resolveAllByName<T extends { id: string }>(
   query: string | null,
   rows: T[],
   getLabel: (row: T) => string
-): T | null {
-  if (!query) return null;
+): T[] {
+  if (!query) return [];
   const q = query.toLowerCase().trim();
-  if (!q) return null;
+  if (!q) return [];
 
-  let best: T | null = null;
+  let best: T[] = [];
   let bestScore = 0;
   for (const row of rows) {
     const label = getLabel(row).toLowerCase();
@@ -489,9 +496,21 @@ export function resolveByName<T extends { id: string }>(
       if (words.length > 0 && words.every((w) => containsFragment(label, w))) score = 1;
     }
     if (score > bestScore) {
-      best = row;
+      best = [row];
       bestScore = score;
+    } else if (score === bestScore && score > 0) {
+      best.push(row);
     }
   }
   return best;
+}
+
+/** Case-insensitive best match: exact > startsWith > word-boundary
+ *  substring > all-words-included. Returns null rather than guessing badly. */
+export function resolveByName<T extends { id: string }>(
+  query: string | null,
+  rows: T[],
+  getLabel: (row: T) => string
+): T | null {
+  return resolveAllByName(query, rows, getLabel)[0] || null;
 }

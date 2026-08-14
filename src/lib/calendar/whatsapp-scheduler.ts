@@ -20,9 +20,12 @@ import {
   parseEventsFromInput,
   parseEventUpdate,
   resolveByName,
+  resolveAllByName,
   istLocalToUtcIso,
   type ParsedEventDraft,
 } from '@/lib/calendar/event-parse';
+import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
+import { isReengagementError } from '@/lib/whatsapp/customer-window';
 import { recordBotTarget } from '@/lib/whatsapp/bot-message-target';
 import { parseEventOutcome } from '@/lib/calendar/event-outcome';
 import { autoLinkContactProperty } from '@/lib/calendar/auto-link';
@@ -874,7 +877,10 @@ export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): P
   // when the model flagged a professional role — a meeting with a buyer
   // never needs the directory.
   const [{ data: contacts }, { data: properties }, { data: liaisons }] = await Promise.all([
-    admin.from('contacts').select('id, name, phone, last_inquired_property_id').eq('account_id', accountId),
+    admin
+      .from('contacts')
+      .select('id, name, phone, last_inquired_property_id, last_contacted_at')
+      .eq('account_id', accountId),
     admin.from('properties').select('id, title, property_code, location, sublocality').eq('account_id', accountId),
     drafts.some((d) => d.service_provider_role)
       ? admin.from('liaisons').select('id, name, phone').eq('account_id', accountId).eq('is_active', true)
@@ -941,6 +947,7 @@ interface SchedulerContact {
   name: string | null;
   phone: string | null;
   last_inquired_property_id?: string | null;
+  last_contacted_at?: string | null;
 }
 interface SchedulerProperty {
   id: string;
@@ -1321,45 +1328,95 @@ async function fileDraft(draft: ParsedEventDraft, ctx: DraftFilingContext): Prom
   };
 }
 
+/** How many equally-good name matches are worth ranking. Past this the
+ *  name was never specific enough for any winner to be the right one. */
+const MAX_TIED_CONTACTS = 10;
+
+/**
+ * The one of several same-named contacts the account actually deals with.
+ *
+ * "Send Ravi the update" turns ambiguous the moment two Ravis are in the
+ * book, and taking whichever row the query returned first sends a client's
+ * update to a stranger. Traffic settles it: the Ravi this account has
+ * exchanged the most messages with is the Ravi being spoken about, with the
+ * more recent conversation breaking a tie on volume.
+ *
+ * The counts are per-candidate COUNT(*)s rather than one grouped scan, which
+ * is only affordable because the tied set is tiny and this runs once per
+ * dictated update — never on a screen.
+ */
+async function busiestContact(
+  ctx: DraftFilingContext,
+  candidates: SchedulerContact[]
+): Promise<SchedulerContact | null> {
+  if (candidates.length <= 1) return candidates[0] || null;
+
+  const ranked = candidates.slice(0, MAX_TIED_CONTACTS);
+  const { data: conversations } = await ctx.admin
+    .from('conversations')
+    .select('id, contact_id')
+    .eq('account_id', ctx.accountId)
+    .in('contact_id', ranked.map((c) => c.id));
+
+  const traffic = new Map<string, number>();
+  await Promise.all(
+    ((conversations || []) as { id: string; contact_id: string }[]).map(async (convo) => {
+      const { count } = await ctx.admin
+        .from('messages')
+        .select('id', { count: 'exact', head: true })
+        .eq('conversation_id', convo.id);
+      traffic.set(convo.contact_id, (traffic.get(convo.contact_id) || 0) + (count || 0));
+    })
+  );
+
+  const lastSpokenTo = (c: SchedulerContact): number =>
+    c.last_contacted_at ? new Date(c.last_contacted_at).getTime() || 0 : 0;
+
+  return (
+    ranked
+      .slice()
+      .sort(
+        (a, b) =>
+          (traffic.get(b.id) || 0) - (traffic.get(a.id) || 0) || lastSpokenTo(b) - lastSpokenTo(a)
+      )[0] || null
+  );
+}
+
 /**
  * "Send Sharan the update on the Kusumaraju meeting."
  *
  * Writes no calendar row — the update IS the deliverable, and filing it as
- * a to-do on the speaker's own list is what used to lose it. Delivery goes
- * through createNotification so it lands on the bell, on push and on the
- * teammate's own WhatsApp at once, under the account's saved channel
- * preferences.
+ * a to-do on the speaker's own list is what used to lose it.
  *
- * The recipient must be a member of this account: resolution runs against
- * the same profiles rows the caller loaded, so a name that is not on the
- * team resolves to nothing and is reported rather than guessed at.
+ * The name is looked up in two places, in the order an agent means them.
+ * Teammates first: a colleague reached through createNotification lands on
+ * the bell, on push and on their own WhatsApp at once, under the account's
+ * saved channel preferences. Only when no teammate answers to the name do
+ * contacts get their turn — "send Kusumaraju the update" is an ordinary
+ * thing to say about a client, and refusing it because the client is not on
+ * staff is what sent the agent back to their personal WhatsApp.
  */
 async function sendTeammateUpdate(
   draft: ParsedEventDraft,
   ctx: DraftFilingContext
 ): Promise<FiledDraft> {
+  // The speaker is dropped before matching rather than after: an update
+  // pinged back to its own author tells them nothing, and letting them win
+  // the match would also rob the contact lookup of its turn.
   const recipient = resolveByName(
     draft.recipient_name,
-    ctx.members.map((m) => ({ id: m.user_id, full_name: m.full_name })),
+    ctx.members
+      .filter((m) => m.user_id !== ctx.userId)
+      .map((m) => ({ id: m.user_id, full_name: m.full_name })),
     (m) => m.full_name || ''
   );
 
-  // Resolving to the speaker means the name matched nobody useful — an
-  // update pinged back to its own author tells them nothing.
-  if (!recipient || recipient.id === ctx.userId) {
-    return {
-      lines: [
-        '⚠️ *Couldn\'t send that update*',
-        draft.recipient_name
-          ? `👤 No teammate called *${draft.recipient_name}* — check the spelling, or add them under *Agents*.`
-          : '👤 Say who should get it, e.g. "send Sharan the update on the site visit".',
-        `💬 ${draft.title}`,
-      ],
-      row: null,
-    };
+  const senderName = ctx.members.find((m) => m.user_id === ctx.userId)?.full_name || null;
+
+  if (!recipient) {
+    return sendContactUpdate(draft, ctx, senderName);
   }
 
-  const senderName = ctx.members.find((m) => m.user_id === ctx.userId)?.full_name || null;
   const body = [draft.title, draft.notes].filter((l): l is string => !!l).join('\n');
   const result = await createNotification({
     accountId: ctx.accountId,
@@ -1398,6 +1455,89 @@ async function sendTeammateUpdate(
       // so this is a nudge rather than a failure.
       result.whatsapp && !result.whatsapp.success
         ? '📵 WhatsApp couldn\'t reach them — they\'ll see it in the app.'
+        : null,
+    ].filter((l): l is string => l !== null),
+    row: null,
+  };
+}
+
+/**
+ * The same update, addressed to a contact instead of a colleague.
+ *
+ * Nobody on staff answers to the name, so the book is the next place an
+ * agent means. It goes out from the business number on the contact's own
+ * thread, which is the point: sent from the Engine it is logged, attributed
+ * and visible to the rest of the team, where the personal-phone version of
+ * the same message was none of those things.
+ *
+ * Everything that can refuse the send — no number on file, a dead or
+ * chain-only contact, a closed 24-hour window — is the dispatcher's call,
+ * and its refusal is reported as it stands rather than worked around.
+ */
+async function sendContactUpdate(
+  draft: ParsedEventDraft,
+  ctx: DraftFilingContext,
+  senderName: string | null
+): Promise<FiledDraft> {
+  const named = resolveAllByName(
+    draft.recipient_name,
+    ctx.contacts.filter((c) => !!c.phone),
+    (c) => c.name || ''
+  );
+  const contact = await busiestContact(ctx, named);
+
+  if (!contact) {
+    return {
+      lines: [
+        '⚠️ *Couldn\'t send that update*',
+        draft.recipient_name
+          ? `👤 Nobody called *${draft.recipient_name}* in your team or your contacts — check the spelling, or add them under *Agents* or *Contacts*.`
+          : '👤 Say who should get it, e.g. "send Sharan the update on the site visit".',
+        `💬 ${draft.title}`,
+      ],
+      row: null,
+    };
+  }
+
+  const contactName = contact.name || draft.recipient_name || 'your contact';
+  const result = await sendWhatsAppMessageAndPersist({
+    accountId: ctx.accountId,
+    userId: ctx.userId,
+    contactId: contact.id,
+    kind: 'text',
+    senderType: 'bot',
+    text: [
+      senderName ? `📨 *Update from ${senderName}*` : '📨 *Update*',
+      `💬 ${draft.title}`,
+      draft.notes ? `\n${draft.notes}` : null,
+    ]
+      .filter((l): l is string => l !== null)
+      .join('\n'),
+    customDbClient: ctx.admin,
+  });
+
+  if (!result.success) {
+    return {
+      lines: [
+        `⚠️ *Couldn't deliver that update to ${contactName}*`,
+        `💬 ${draft.title}`,
+        isReengagementError(result.error)
+          ? '⏳ Their 24-hour window has closed — send them a template from the inbox.'
+          : 'Tell them directly for now.',
+      ],
+      row: null,
+    };
+  }
+
+  return {
+    lines: [
+      `📨 *Update sent to ${contactName}*`,
+      '📇 Not on your team — sent to them as a contact.',
+      `💬 ${draft.title}`,
+      // Said out loud, because the alternative is the agent believing the
+      // other Ravi got it. Only when the name was genuinely ambiguous.
+      named.length > 1
+        ? `👥 ${named.length} contacts match *${draft.recipient_name}* — picked the one you talk to most.`
         : null,
     ].filter((l): l is string => l !== null),
     row: null,
