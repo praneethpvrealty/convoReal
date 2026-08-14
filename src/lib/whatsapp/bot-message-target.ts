@@ -122,6 +122,81 @@ export async function latestBotTarget(params: {
   }
 }
 
+/**
+ * The target of the newest bot message in a thread whose TEXT matches
+ * `prompt` — the card behind a specific question, rather than the
+ * newest card of a type.
+ *
+ * A bot that asks "which property is this about?" has to be able to
+ * read the answer typed straight back at it, and the answer names the
+ * question by being next, not by quoting. Keying on the question's own
+ * wamid keeps that unambiguous: an unrelated card of the same entity
+ * type standing in the thread cannot be mistaken for the thing being
+ * answered.
+ */
+export async function latestBotTargetForPrompt(params: {
+  accountId: string;
+  conversationId: string;
+  entityType: BotTargetEntity;
+  prompt: RegExp;
+  withinHours?: number;
+  client?: SupabaseClient;
+}): Promise<BotTarget | null> {
+  try {
+    const db = params.client || supabaseAdmin();
+    const since = new Date(
+      Date.now() - (params.withinHours ?? 48) * 60 * 60 * 1000
+    ).toISOString();
+
+    const { data: recent, error: msgErr } = await db
+      .from('messages')
+      .select('message_id, content_text, created_at')
+      .eq('conversation_id', params.conversationId)
+      .eq('sender_type', 'bot')
+      .not('message_id', 'is', null)
+      .gte('created_at', since)
+      .order('created_at', { ascending: false })
+      .limit(10);
+    if (msgErr) {
+      console.error('[bot-target] prompt lookup failed:', msgErr);
+      return null;
+    }
+
+    const wamids = (recent || [])
+      .filter((m) => params.prompt.test((m.content_text as string) || ''))
+      .map((m) => m.message_id as string | null)
+      .filter((id): id is string => !!id);
+    if (!wamids.length) return null;
+
+    const { data, error } = await db
+      .from('bot_message_targets')
+      .select('entity_type, entity_id, wa_message_id')
+      .eq('account_id', params.accountId)
+      .eq('entity_type', params.entityType)
+      .in('wa_message_id', wamids);
+    if (error) {
+      console.error('[bot-target] prompt target lookup failed:', error);
+      return null;
+    }
+    if (!data?.length) return null;
+
+    const byWamid = new Map(data.map((t) => [t.wa_message_id as string, t]));
+    for (const id of wamids) {
+      const hit = byWamid.get(id);
+      if (hit) {
+        return {
+          entityType: hit.entity_type as BotTargetEntity,
+          entityId: hit.entity_id as string,
+        };
+      }
+    }
+    return null;
+  } catch (err) {
+    console.error('[bot-target] prompt lookup threw:', err);
+    return null;
+  }
+}
+
 /** The row a quote-reply is aimed at, or null when the reply quotes
  *  something that was never a confirmation card. */
 export async function resolveBotTarget(params: {
@@ -143,7 +218,10 @@ export async function resolveBotTarget(params: {
       return null;
     }
     if (!data) return null;
-    return { entityType: data.entity_type as BotTargetEntity, entityId: data.entity_id as string };
+    return {
+      entityType: data.entity_type as BotTargetEntity,
+      entityId: data.entity_id as string,
+    };
   } catch (err) {
     console.error('[bot-target] lookup threw:', err);
     return null;

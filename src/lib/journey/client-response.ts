@@ -36,6 +36,11 @@ import { isWithinCustomerWindow } from '@/lib/whatsapp/customer-window';
 import { sendInteractiveButtons } from '@/lib/whatsapp/meta-api';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { phonesMatch } from '@/lib/whatsapp/phone-utils';
+import {
+  extractLoggedSummary,
+  PROPERTY_QUESTION_PROMPT,
+  type PropertyAnswer,
+} from '@/lib/journey/property-answer';
 import { resolveConversation } from '@/lib/conversations/resolve';
 import { DEFAULT_LANGUAGE, type LanguageCode } from '@/lib/languages';
 import { resolveSendLanguage } from '@/lib/whatsapp/template-language';
@@ -621,6 +626,11 @@ export interface ProcessClientReplyArgs {
 export interface ClientReplyOutcome {
   text: string;
   buttons?: Array<{ id: string; title: string }>;
+  /** Set when the response was logged but no listing could be matched:
+   *  the contact the standing "which property?" question is about, so
+   *  the caller can register it against the message it sends and the
+   *  agent's next line can answer it. */
+  pendingPropertyContactId?: string;
 }
 
 /**
@@ -673,9 +683,60 @@ export async function processClientReplyScreenshot(
       text:
         `✅ *Logged ${contactName}'s response*` +
         (summary ? `:\n_"${summary}"_` : '.') +
-        `\n\n📒 Saved to their contact notes — but I couldn't tell which property this is about, so the journey wasn't updated. Forward a screenshot showing the property name or code (e.g. PROP-1138).`,
+        `\n\n📒 Saved to their contact notes — but ${PROPERTY_QUESTION_PROMPT}`,
+      pendingPropertyContactId: contact.id,
     };
   }
+
+  return await linkClientResponseToProperty({
+    db,
+    accountId,
+    userId,
+    contact,
+    contactName,
+    property,
+    label,
+    summary,
+    accessToken,
+    phoneNumberId,
+  });
+}
+
+interface LinkArgs {
+  db: SupabaseClient;
+  accountId: string;
+  userId: string;
+  contact: BookContact;
+  contactName: string;
+  property: PropertyRow;
+  label: string;
+  summary: string | null;
+  accessToken: string;
+  phoneNumberId: string;
+}
+
+/**
+ * Everything that follows knowing WHICH listing a logged response is
+ * about: the journey item and its event, the client's timeline ask,
+ * and the deal notes. Split out because the property can arrive later
+ * — the agent answering "which property?" runs exactly this, minutes
+ * after the response itself was logged.
+ */
+async function linkClientResponseToProperty(
+  args: LinkArgs
+): Promise<ClientReplyOutcome> {
+  const {
+    db,
+    accountId,
+    userId,
+    contact,
+    contactName,
+    property,
+    label,
+    summary,
+    accessToken,
+    phoneNumberId,
+  } = args;
 
   const stages = await loadStages(db, accountId);
   const item = await ensureJourneyItem(
@@ -741,6 +802,74 @@ export async function processClientReplyScreenshot(
     }),
     buttons: item ? buildAgentFollowupButtons(item.id) : undefined,
   };
+}
+
+export interface CompletePropertyAnswerArgs {
+  db: SupabaseClient;
+  accountId: string;
+  userId: string;
+  /** The contact whose logged response is waiting for its listing. */
+  contactId: string;
+  answer: PropertyAnswer;
+  accessToken: string;
+  phoneNumberId: string;
+}
+
+/**
+ * The agent's answer to "which property is this about?".
+ *
+ * The response was already logged against the contact; all that was
+ * missing is the listing, so this resolves it and runs the half that
+ * was skipped. Returns null when the named listing cannot be resolved,
+ * which the caller reports rather than guessing — a journey update
+ * filed against the wrong listing is worse than none.
+ */
+export async function completeClientResponseProperty(
+  args: CompletePropertyAnswerArgs
+): Promise<ClientReplyOutcome | null> {
+  const { db, accountId, userId, contactId, answer } = args;
+
+  const { data: contactRow } = await db
+    .from('contacts')
+    .select('id, name, phone')
+    .eq('id', contactId)
+    .eq('account_id', accountId)
+    .maybeSingle();
+  if (!contactRow) return null;
+  const contact = contactRow as BookContact;
+
+  const property = await matchClientProperty(db, accountId, {
+    property_code: answer.code ?? null,
+    property_title: answer.title ?? null,
+  } as ParsedClientReply);
+  if (!property) return null;
+
+  // What the client actually said, recovered from the note written when
+  // the response was logged — so the journey event and the client's
+  // timeline ask read the same as they would have on the first pass.
+  const { data: notes } = await db
+    .from('contact_notes')
+    .select('note_text')
+    .eq('contact_id', contactId)
+    .order('created_at', { ascending: false })
+    .limit(5);
+  const summary =
+    (notes ?? [])
+      .map((n) => extractLoggedSummary(n.note_text as string))
+      .find((s): s is string => !!s) ?? null;
+
+  return await linkClientResponseToProperty({
+    db,
+    accountId,
+    userId,
+    contact,
+    contactName: contact.name || 'Client',
+    property,
+    label: propertyLabel(property),
+    summary,
+    accessToken: args.accessToken,
+    phoneNumberId: args.phoneNumberId,
+  });
 }
 
 export interface HandleClientFollowupArgs {
