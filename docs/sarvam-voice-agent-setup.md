@@ -19,7 +19,7 @@ contract in §3 is what any provider must satisfy.
 | Sarvam account with Voice Agents | `indus.sarvam.ai/samvaad`       | The Voice Agents console — separate section from the API usage dashboard                                                                                                          |
 | `SARVAM_API_KEY`                 | Vercel env                      | The same key the listing-video and announcement TTS already use; if Bulbul is billing, this is set                                                                                |
 | An outbound phone number         | Sarvam → Deploy → Phone numbers | Outbound calls need a number attached to the agent. Sarvam also integrates telephony providers (Exotel, Plivo) — either way the number lives on the Sarvam side, not in ConvoReal |
-| Credits in the ConvoReal wallet  | Header pill                     | 25 cr per connected call. A 15-recipient campaign at 3 attempts is at most 1,125 cr, and unanswered attempts are refunded                                                         |
+| Credits in the ConvoReal wallet  | Header pill                     | 250 cr per connected call (10 cr in byo mode, where you pay your own provider). Unanswered attempts are refunded — see docs/credits-policy-voice-campaign-call.md                 |
 
 Two bills, not one: Sarvam charges you for telephony and model usage,
 ConvoReal charges the account's credit wallet per connected call.
@@ -84,7 +84,7 @@ Take the agent id from the console once saved — that is the
 ## 1b. Which mode the account runs in
 
 Settings → WhatsApp → Voice offers the account owner three ways to get
-calls made (migration 278). Everything else in this guide is about the
+calls made (migration 279). Everything else in this guide is about the
 second and third.
 
 | Mode                  | Setup                                 | Caller id          | Callbacks                        | Who pays the provider |
