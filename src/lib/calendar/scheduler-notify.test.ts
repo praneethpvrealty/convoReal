@@ -55,8 +55,16 @@ vi.mock('@/lib/automations/admin-client', () => ({
           inserts.push({ table, row });
           return builder;
         },
+        upsert: (row: Record<string, unknown>) => {
+          inserts.push({ table, row });
+          tables[table] = [row];
+          return builder;
+        },
         update: () => builder,
-        delete: () => builder,
+        delete: () => {
+          tables[table] = [];
+          return builder;
+        },
         eq: (col: string, value: string) => {
           if (counting !== null && col === 'conversation_id') counting = value;
           return builder;
@@ -72,7 +80,7 @@ vi.mock('@/lib/automations/admin-client', () => ({
           failInserts.has(table)
             ? { data: null, error: { message: 'insert failed' } }
             : { data: { id: `new-${table}` }, error: null },
-        maybeSingle: async () => ({ data: null, error: null }),
+        maybeSingle: async () => ({ data: (tables[table] ?? [])[0] ?? null, error: null }),
         then: (resolve: (v: { data: unknown[]; error: null; count?: number }) => unknown) =>
           resolve(
             counting !== null
@@ -234,7 +242,7 @@ describe('notify intent', () => {
     expect(card()).toContain("WhatsApp couldn't reach them");
   });
 
-  it('falls back to a contact of that name when nobody on the team matches', async () => {
+  it('asks before sending to a contact instead of sending', async () => {
     tables.contacts = [{ id: 'ct-1', name: 'Kusumaraju', phone: '+919000000001' }];
     parseEventsFromInput.mockResolvedValue([notify({ recipient_name: 'Kusumaraju' })]);
 
@@ -244,14 +252,100 @@ describe('notify intent', () => {
     });
 
     expect(createNotification).not.toHaveBeenCalled();
+    expect(sendWhatsAppMessageAndPersist).not.toHaveBeenCalled();
+    expect(card()).toContain("Kusumaraju isn't on your team");
+    expect(card()).toContain('Send this to them on WhatsApp?');
+    expect(card()).toContain('Reply *send*');
+
+    const held = inserts.find((i) => i.table === 'pending_contact_updates');
+    expect(held?.row.contact_id).toBe('ct-1');
+    expect(held?.row.conversation_id).toBe('conv-1');
+    expect(held?.row.body).toContain('Update from Praneeth');
+    expect(held?.row.body).toContain('Kusumaraju meeting outcome');
+  });
+
+  it('sends the held update when the agent says send', async () => {
+    tables.pending_contact_updates = [
+      {
+        id: 'pend-1',
+        contact_id: 'ct-1',
+        contact_name: 'Kusumaraju',
+        summary: 'Kusumaraju meeting outcome',
+        body: '📨 *Update from Praneeth*',
+        created_at: new Date().toISOString(),
+      },
+    ];
+
+    const handled = await tryHandleOwnerScheduling({
+      ...baseParams,
+      contentText: 'send',
+    });
+
+    expect(handled).toBe(true);
+    expect(parseEventsFromInput).not.toHaveBeenCalled();
     expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledTimes(1);
     const sent = sendWhatsAppMessageAndPersist.mock.calls[0][0];
     expect(sent.contactId).toBe('ct-1');
-    expect(sent.kind).toBe('text');
-    expect(sent.text).toContain('Update from Praneeth');
-    expect(sent.text).toContain('Kusumaraju meeting outcome');
+    expect(sent.text).toBe('📨 *Update from Praneeth*');
     expect(card()).toContain('📨 *Update sent to Kusumaraju*');
-    expect(card()).toContain('Not on your team');
+    // Spent on the first answer, so a second "send" cannot deliver twice.
+    expect(tables.pending_contact_updates).toEqual([]);
+  });
+
+  it('drops the held update when the agent says no', async () => {
+    tables.pending_contact_updates = [
+      {
+        id: 'pend-1',
+        contact_id: 'ct-1',
+        contact_name: 'Kusumaraju',
+        summary: 'Kusumaraju meeting outcome',
+        body: '📨 *Update from Praneeth*',
+        created_at: new Date().toISOString(),
+      },
+    ];
+
+    const handled = await tryHandleOwnerScheduling({
+      ...baseParams,
+      contentText: 'no',
+    });
+
+    expect(handled).toBe(true);
+    expect(sendWhatsAppMessageAndPersist).not.toHaveBeenCalled();
+    expect(card()).toContain('Not sent');
+    expect(tables.pending_contact_updates).toEqual([]);
+  });
+
+  it('ignores a yes that arrives long after the update was held', async () => {
+    tables.pending_contact_updates = [
+      {
+        id: 'pend-1',
+        contact_id: 'ct-1',
+        contact_name: 'Kusumaraju',
+        summary: 'Kusumaraju meeting outcome',
+        body: '📨 *Update from Praneeth*',
+        created_at: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+      },
+    ];
+
+    const handled = await tryHandleOwnerScheduling({
+      ...baseParams,
+      contentText: 'yes',
+    });
+
+    expect(handled).toBe(false);
+    expect(sendWhatsAppMessageAndPersist).not.toHaveBeenCalled();
+  });
+
+  it('leaves an ordinary message alone when nothing is held', async () => {
+    parseEventsFromInput.mockResolvedValue([]);
+
+    await tryHandleOwnerScheduling({
+      ...baseParams,
+      contentText: 'send',
+    });
+
+    expect(sendWhatsAppMessageAndPersist).not.toHaveBeenCalled();
+    expect(sendTextMessage).not.toHaveBeenCalled();
   });
 
   it('prefers a teammate over a contact of the same name', async () => {
@@ -284,7 +378,8 @@ describe('notify intent', () => {
       contentText: 'send ravi the update',
     });
 
-    expect(sendWhatsAppMessageAndPersist.mock.calls[0][0].contactId).toBe('ct-busy');
+    const held = inserts.find((i) => i.table === 'pending_contact_updates');
+    expect(held?.row.contact_id).toBe('ct-busy');
     expect(card()).toContain('2 contacts match');
   });
 
@@ -310,7 +405,8 @@ describe('notify intent', () => {
       contentText: 'send ravi the update',
     });
 
-    expect(sendWhatsAppMessageAndPersist.mock.calls[0][0].contactId).toBe('ct-recent');
+    const held = inserts.find((i) => i.table === 'pending_contact_updates');
+    expect(held?.row.contact_id).toBe('ct-recent');
   });
 
   it('reports a name that is in neither list', async () => {
@@ -326,18 +422,23 @@ describe('notify intent', () => {
     expect(card()).toContain('your team or your contacts');
   });
 
-  it('says the window closed when the contact cannot be reached free-form', async () => {
-    tables.contacts = [{ id: 'ct-1', name: 'Kusumaraju', phone: '+919000000001' }];
+  it('says the window closed when the confirmed send is refused', async () => {
+    tables.pending_contact_updates = [
+      {
+        id: 'pend-1',
+        contact_id: 'ct-1',
+        contact_name: 'Kusumaraju',
+        summary: 'Kusumaraju meeting outcome',
+        body: '📨 *Update from Praneeth*',
+        created_at: new Date().toISOString(),
+      },
+    ];
     sendWhatsAppMessageAndPersist.mockResolvedValue({
       success: false,
       error: 'Cannot send free-form message: 24 hours window has closed',
     });
-    parseEventsFromInput.mockResolvedValue([notify({ recipient_name: 'Kusumaraju' })]);
 
-    await tryHandleOwnerScheduling({
-      ...baseParams,
-      contentText: 'send kusumaraju the update',
-    });
+    await tryHandleOwnerScheduling({ ...baseParams, contentText: 'send' });
 
     expect(card()).toContain("Couldn't deliver that update to Kusumaraju");
     expect(card()).toContain('24-hour window has closed');

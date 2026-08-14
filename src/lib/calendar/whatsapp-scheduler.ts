@@ -688,6 +688,25 @@ export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): P
   // hands over raw audio still pays to transcribe it inside the parse.
   const needsAudioParse = isAudio && !text;
 
+  // The answer to "send this to your contact?" — checked before anything
+  // else, because a bare "send" looks like nothing at all to the
+  // scheduling pre-filter further down.
+  if (
+    text &&
+    (await tryConfirmContactUpdate({
+      admin,
+      text,
+      accountId,
+      conversationId: conversation.id,
+      toPhone: contactRecord.phone,
+      accessToken,
+      phoneNumberId,
+      userId,
+    }))
+  ) {
+    return true;
+  }
+
   // Free deterministic agenda command — no AI, no credits. Spoken
   // counts: "today" said out loud is the same request as typed.
   if (text && isAgendaCommand(text)) {
@@ -891,6 +910,7 @@ export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): P
     admin,
     accountId,
     userId,
+    conversationId: conversation.id,
     contacts: (contacts || []) as SchedulerContact[],
     properties: (properties || []) as SchedulerProperty[],
     liaisons: (liaisons || []) as SchedulerLiaison[],
@@ -970,6 +990,9 @@ interface DraftFilingContext {
   admin: ReturnType<typeof supabaseAdmin>;
   accountId: string;
   userId: string;
+  /** The agent's own bot thread — where a held contact update waits for
+   *  its yes or no. */
+  conversationId: string;
   contacts: SchedulerContact[];
   properties: SchedulerProperty[];
   liaisons: SchedulerLiaison[];
@@ -1500,30 +1523,26 @@ async function sendContactUpdate(
   }
 
   const contactName = contact.name || draft.recipient_name || 'your contact';
-  const result = await sendWhatsAppMessageAndPersist({
-    accountId: ctx.accountId,
-    userId: ctx.userId,
-    contactId: contact.id,
-    kind: 'text',
-    senderType: 'bot',
-    text: [
-      senderName ? `📨 *Update from ${senderName}*` : '📨 *Update*',
-      `💬 ${draft.title}`,
-      draft.notes ? `\n${draft.notes}` : null,
-    ]
-      .filter((l): l is string => l !== null)
-      .join('\n'),
-    customDbClient: ctx.admin,
-  });
-
-  if (!result.success) {
+  const { error } = await ctx.admin.from('pending_contact_updates').upsert(
+    {
+      account_id: ctx.accountId,
+      conversation_id: ctx.conversationId,
+      user_id: ctx.userId,
+      contact_id: contact.id,
+      contact_name: contactName,
+      summary: draft.title,
+      body: contactUpdateText(draft, senderName),
+      created_at: new Date().toISOString(),
+    },
+    { onConflict: 'conversation_id' }
+  );
+  if (error) {
+    console.error('[wa-scheduler] pending contact update failed:', error);
     return {
       lines: [
-        `⚠️ *Couldn't deliver that update to ${contactName}*`,
+        `⚠️ *Couldn't set up that update to ${contactName}*`,
         `💬 ${draft.title}`,
-        isReengagementError(result.error)
-          ? '⏳ Their 24-hour window has closed — send them a template from the inbox.'
-          : 'Tell them directly for now.',
+        'Send it from the inbox for now.',
       ],
       row: null,
     };
@@ -1531,17 +1550,131 @@ async function sendContactUpdate(
 
   return {
     lines: [
-      `📨 *Update sent to ${contactName}*`,
-      '📇 Not on your team — sent to them as a contact.',
+      `❓ *${draft.recipient_name} isn't on your team*`,
+      `📇 ${contactName} in your contacts matches. Send this to them on WhatsApp?`,
       `💬 ${draft.title}`,
-      // Said out loud, because the alternative is the agent believing the
-      // other Ravi got it. Only when the name was genuinely ambiguous.
+      // Said out loud, because the alternative is the agent confirming a
+      // send to the other Ravi. Only when the name was genuinely ambiguous.
       named.length > 1
-        ? `👥 ${named.length} contacts match *${draft.recipient_name}* — picked the one you talk to most.`
+        ? `👥 ${named.length} contacts match *${draft.recipient_name}* — this is the one you talk to most.`
         : null,
+      `✅ Reply *${CONTACT_UPDATE_CONFIRM_WORD}* to send it, or *no* to drop it.`,
     ].filter((l): l is string => l !== null),
     row: null,
   };
+}
+
+/** The message body as the contact will read it. Built in one place so
+ *  the held draft and the eventual send can never disagree. */
+function contactUpdateText(draft: ParsedEventDraft, senderName: string | null): string {
+  return [
+    senderName ? `📨 *Update from ${senderName}*` : '📨 *Update*',
+    `💬 ${draft.title}`,
+    draft.notes ? `\n${draft.notes}` : null,
+  ]
+    .filter((l): l is string => l !== null)
+    .join('\n');
+}
+
+/** The word the card asks for, and the only one that sends. */
+const CONTACT_UPDATE_CONFIRM_WORD = 'send';
+
+/** Answers to "send this to them?" — nothing longer, so a fresh request
+ *  that merely begins with "yes" is never read as a confirmation. */
+const CONTACT_UPDATE_CONFIRM = /^(send|send it|yes|yes send|yep|ok|okay|confirm|go ahead|haan|ha)[.!]?$/i;
+const CONTACT_UPDATE_DECLINE = /^(no|nope|don'?t|dont|cancel|drop it|leave it|stop)[.!]?$/i;
+
+/** How long a held update stays answerable. Past this the agent has moved
+ *  on, and a stray "ok" hours later must not put a message on a client's
+ *  phone. */
+const PENDING_UPDATE_TTL_MS = 30 * 60 * 1000;
+
+interface PendingContactUpdate {
+  id: string;
+  contact_id: string;
+  contact_name: string | null;
+  summary: string;
+  body: string;
+  created_at: string;
+}
+
+/**
+ * "yes" / "no" answering the confirmation card above.
+ *
+ * Deterministic and free — no parse, no credits — and it runs before the
+ * scheduling pre-filter, which would otherwise drop a bare "send" as not
+ * looking like a scheduling request at all.
+ *
+ * Returns false when there is nothing held or the words are not an answer,
+ * so an ordinary message carries on into the rest of the pipeline.
+ */
+async function tryConfirmContactUpdate(params: {
+  admin: ReturnType<typeof supabaseAdmin>;
+  text: string;
+  accountId: string;
+  conversationId: string;
+  toPhone: string;
+  accessToken: string;
+  phoneNumberId: string;
+  userId: string;
+}): Promise<boolean> {
+  const confirming = CONTACT_UPDATE_CONFIRM.test(params.text);
+  const declining = CONTACT_UPDATE_DECLINE.test(params.text);
+  if (!confirming && !declining) return false;
+
+  const { data: pending } = await params.admin
+    .from('pending_contact_updates')
+    .select('id, contact_id, contact_name, summary, body, created_at')
+    .eq('account_id', params.accountId)
+    .eq('conversation_id', params.conversationId)
+    .maybeSingle<PendingContactUpdate>();
+  if (!pending) return false;
+
+  // Answered or not, the draft is spent: it is deleted before the send so
+  // a double "yes" cannot deliver the same update to a client twice.
+  await params.admin.from('pending_contact_updates').delete().eq('id', pending.id);
+
+  const held = new Date(pending.created_at).getTime();
+  if (!held || Date.now() - held > PENDING_UPDATE_TTL_MS) return false;
+
+  const contactName = pending.contact_name || 'your contact';
+  if (declining) {
+    await replyAndLog({
+      phoneNumberId: params.phoneNumberId,
+      accessToken: params.accessToken,
+      toPhone: params.toPhone,
+      conversationId: params.conversationId,
+      text: `👍 *Not sent.* Nothing went to ${contactName}.`,
+    });
+    return true;
+  }
+
+  const result = await sendWhatsAppMessageAndPersist({
+    accountId: params.accountId,
+    userId: params.userId,
+    contactId: pending.contact_id,
+    kind: 'text',
+    senderType: 'bot',
+    text: pending.body,
+    customDbClient: params.admin,
+  });
+
+  await replyAndLog({
+    phoneNumberId: params.phoneNumberId,
+    accessToken: params.accessToken,
+    toPhone: params.toPhone,
+    conversationId: params.conversationId,
+    text: result.success
+      ? [`📨 *Update sent to ${contactName}*`, `💬 ${pending.summary}`].join('\n')
+      : [
+          `⚠️ *Couldn't deliver that update to ${contactName}*`,
+          `💬 ${pending.summary}`,
+          isReengagementError(result.error)
+            ? '⏳ Their 24-hour window has closed — send them a template from the inbox.'
+            : 'Tell them directly for now.',
+        ].join('\n'),
+  });
+  return true;
 }
 
 export interface InboundSchedulingParams {
