@@ -280,9 +280,13 @@ and `POST /api/announcements/[id]/send` — per-recipient channel from
 `announcementDeliveryFor()` (explicit preference beats the sender default, voice_call
 preferences skipped and counted, closed 24-hour windows skipped and counted), delivered
 through `sendWhatsAppMessageAndPersist` so every note lands in the inbox thread, with
-per-status counts accumulated on the announcement row. Still open in this phase: the
-announcements UI (web + mobile — the API is surface-neutral, so no §2.8 gap between
-surfaces yet), the video-template path for closed windows (path 2 above), reminder/digest
+per-status counts accumulated on the announcement row. The announcements UI ships on both
+surfaces (§2.8): web as the "Announcements" tab on `/broadcasts`
+(`announcements-content.tsx` — create with language picker and price disclosure, generation
+status with inline audio preview, send dialog with recipient picker + default-channel
+choice, per-run result summaries, delete), mobile under More → Marketing
+(`mobile/app/(app)/announcements.tsx` — same flows; audio preview is web-only). Still open
+in this phase: the video-template path for closed windows (path 2 above), reminder/digest
 consumption of the preference, and WhatsApp reply-button capture of the preference.
 
 ## 8. Phase E — voice preference intake → matching
