@@ -335,7 +335,9 @@ export async function POST(request: Request) {
     if (payload.campaignId) {
       const { data: recipient } = await supabase
         .from('voice_campaign_recipients')
-        .select('id, status, attempts, campaign:voice_campaigns(max_attempts)')
+        .select(
+          'id, status, attempts, charged_credits, campaign:voice_campaigns(max_attempts)'
+        )
         .eq('account_id', accountId)
         .eq('campaign_id', payload.campaignId)
         .eq('contact_id', contactId)
@@ -369,10 +371,13 @@ export async function POST(request: Request) {
           recipient.status === 'calling' &&
           (payload.outcome === 'no_answer' || payload.outcome === 'busy')
         ) {
+          // Exactly what this attempt was charged (migration 279) —
+          // the account's mode, and so its price, may have changed
+          // since the dial.
           await refundCredits(
             accountId,
             'voice_campaign_call',
-            AI_FEATURE_COSTS.voice_campaign_call,
+            recipient.charged_credits ?? AI_FEATURE_COSTS.voice_campaign_call,
             {
               description: `voice_campaign_call no-answer refund (recipient ${recipient.id})`,
             }

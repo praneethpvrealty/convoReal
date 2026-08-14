@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { burnCredits, refundCredits } from '@/lib/credits/burn';
-import { AI_FEATURE_COSTS } from '@/lib/credits/types';
+import { voiceCallCost } from '@/lib/credits/types';
 import { decrypt } from '@/lib/whatsapp/encryption';
 import { getVoiceConfig, resolveDialCredentials } from './config';
 import { startOutboundCall } from './outbound-call';
@@ -33,7 +33,7 @@ export async function placeReminderCall(args: {
     return false;
   }
 
-  const cost = AI_FEATURE_COSTS.voice_campaign_call;
+  const cost = voiceCallCost(credentials.mode);
   const burn = await burnCredits(args.accountId, 'voice_campaign_call', cost, {
     retryKey: args.retryKey,
   });

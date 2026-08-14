@@ -238,7 +238,19 @@ function CreateCampaignSheet({
   const dialog = useAppDialog();
   // Server truth via /api/config; the fallback mirrors
   // AI_FEATURE_COSTS.voice_campaign_call for the first offline run.
-  const callCost = useAppConfig()?.ai_costs.voice_campaign_call ?? 25;
+  // byo accounts pay their own provider and are charged for
+  // orchestration only, so the quoted price follows the account's mode.
+  const costs = useAppConfig()?.ai_costs;
+  const { data: voiceConfig } = useQuery({
+    queryKey: ['voice-config'],
+    queryFn: async () =>
+      (await apiFetch<{ data: { mode?: string } | null }>('/api/voice-config'))
+        .data,
+  });
+  const callCost =
+    voiceConfig?.mode === 'byo'
+      ? (costs?.voice_campaign_call_byo ?? 10)
+      : (costs?.voice_campaign_call ?? 250);
   const [name, setName] = useState('');
   const [property, setProperty] = useState<PropertyOption | null>(null);
   const [propertyPickerOpen, setPropertyPickerOpen] = useState(false);
@@ -475,10 +487,7 @@ function PropertySelectSheet({
             {search.trim() ? 'No listings match.' : 'No listings yet.'}
           </Text>
         ) : null}
-        <ScrollView
-          keyboardShouldPersistTaps="handled"
-          style={sheetScrollArea}
-        >
+        <ScrollView keyboardShouldPersistTaps="handled" style={sheetScrollArea}>
           {filtered.map((p) => (
             <Pressable
               key={p.id}

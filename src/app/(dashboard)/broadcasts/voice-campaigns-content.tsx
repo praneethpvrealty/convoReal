@@ -18,7 +18,8 @@ import { useAuth } from '@/hooks/use-auth';
 import { useCan } from '@/hooks/use-can';
 import { cn } from '@/lib/utils';
 import { formatCurrencyShort } from '@/lib/currency-utils';
-import { AI_FEATURE_COSTS } from '@/lib/credits/types';
+import { voiceCallCost } from '@/lib/credits/types';
+import { callTimeValueLabel } from '@/lib/credits/time-value';
 import { Button } from '@/components/ui/button';
 import { GatedButton } from '@/components/ui/gated-button';
 import { Input } from '@/components/ui/input';
@@ -174,9 +175,21 @@ function QualificationChip({ q }: { q: RecipientQualification | null }) {
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
+/** The account's per-call price, which depends on its voice mode —
+ *  byo accounts pay their own provider and are charged for
+ *  orchestration only. Shares the settings card's query cache. */
+function useCallCost(): number {
+  const { data } = useQuery({
+    queryKey: ['voice-config'],
+    queryFn: () => api<{ mode: string } | null>('/api/voice-config'),
+  });
+  return voiceCallCost(data?.mode);
+}
+
 export default function VoiceCampaignsContent() {
   const canManage = useCan('send-messages');
   const queryClient = useQueryClient();
+  const callCost = useCallCost();
   const [createOpen, setCreateOpen] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
 
@@ -225,7 +238,7 @@ export default function VoiceCampaignsContent() {
           agent checks budget and requirements, and answers land back on the
           contact.
           <InfoHint
-            text={`Recipients are seeded from a property's enquiries — open Recipients on a campaign to add or remove people before starting it. Calls go out inside the campaign's IST window, retry unanswered numbers, and respect do-not-call. Results (stated budget, areas, opt-outs) are written back to the contact automatically. Each connected call costs ${AI_FEATURE_COSTS.voice_campaign_call} cr — unanswered attempts are refunded.`}
+            text={`Recipients are seeded from a property's enquiries — open Recipients on a campaign to add or remove people before starting it. Calls go out inside the campaign's IST window, retry unanswered numbers, and respect do-not-call. Results (stated budget, areas, opt-outs) are written back to the contact automatically. Each connected call costs ${callCost} cr — unanswered attempts are refunded.`}
           />
         </p>
         <GatedButton
@@ -337,12 +350,27 @@ export default function VoiceCampaignsContent() {
                             size="sm"
                             variant="outline"
                             disabled={statusMutation.isPending}
-                            onClick={() =>
+                            onClick={() => {
+                              // Starting is what commits the spend, so
+                              // the trade is stated here rather than
+                              // only as a per-call price.
+                              const trade = callTimeValueLabel(
+                                counts.queued ?? 0,
+                                callCost
+                              );
+                              if (
+                                trade &&
+                                !window.confirm(
+                                  `Start "${c.name}"?\n\n${trade}`
+                                )
+                              ) {
+                                return;
+                              }
                               statusMutation.mutate({
                                 id: c.id,
                                 status: 'active',
-                              })
-                            }
+                              });
+                            }}
                           >
                             <Play className="h-3.5 w-3.5" />
                             Start
@@ -413,6 +441,7 @@ function CreateCampaignDialog({
 }) {
   const queryClient = useQueryClient();
   const { accountId } = useAuth();
+  const callCost = useCallCost();
   const [name, setName] = useState('');
   const [propertyId, setPropertyId] = useState<string | null>(null);
   const [agentRef, setAgentRef] = useState('');
@@ -474,9 +503,8 @@ function CreateCampaignDialog({
           <DialogTitle>New voice campaign</DialogTitle>
           <DialogDescription>
             The voice agent calls each recipient about the selected listing and
-            captures their real budget and requirements. Costs{' '}
-            {AI_FEATURE_COSTS.voice_campaign_call} cr per connected call;
-            unanswered attempts are refunded automatically.
+            captures their real budget and requirements. Costs {callCost} cr per
+            connected call; unanswered attempts are refunded automatically.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
@@ -596,6 +624,7 @@ function CampaignDetailDialog({
 }) {
   const queryClient = useQueryClient();
   const { accountId } = useAuth();
+  const callCost = useCallCost();
   const [addIds, setAddIds] = useState<string[]>([]);
 
   const detailQuery = useQuery({
@@ -670,6 +699,12 @@ function CampaignDetailDialog({
       (contactsQuery.data ?? []).filter((c) => !existingContactIds.has(c.id)),
     [contactsQuery.data, existingContactIds]
   );
+  // What the calls still to be made will cost, against the agent time
+  // they replace.
+  const pendingTrade = callTimeValueLabel(
+    (detail?.recipients ?? []).filter((r) => r.status === 'queued').length,
+    callCost
+  );
 
   return (
     <Dialog
@@ -703,6 +738,12 @@ function CampaignDetailDialog({
                   ' · using the account default from Settings → WhatsApp → Voice'}
               </DialogDescription>
             </DialogHeader>
+
+            {pendingTrade && (
+              <p className="rounded-lg border border-slate-800 bg-slate-900/50 px-3 py-2 text-xs text-slate-400">
+                {pendingTrade}
+              </p>
+            )}
 
             {canManage && detail.status !== 'completed' && (
               <div className="flex items-end gap-2">

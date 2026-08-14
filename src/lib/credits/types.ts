@@ -142,11 +142,20 @@ export const AI_FEATURE_COSTS = {
    *  render on the worker (src/lib/video/). Priced above raw cost
    *  (~₹1-4 TTS + worker CPU) as a premium feature. */
   listing_video: 50,
-  /** One voice-campaign dial attempt (src/lib/voice/). Burned at
-   *  dispatch, auto-refunded when the call never connects (start
-   *  failure, stale, no-answer/busy) — accounts pay per connected
-   *  call. See docs/credits-policy-voice-campaign-call.md. */
-  voice_campaign_call: 25,
+  /** One voice-campaign dial attempt where WE pay the provider
+   *  (shared and dedicated modes). Burned at dispatch, auto-refunded
+   *  when the call never connects (start failure, stale,
+   *  no-answer/busy) — accounts pay per connected call. Priced at
+   *  ~2x the measured ₹9.80-14.70 raw cost of a 2-3 minute call; a
+   *  credit is ₹0.062-0.099, not ₹1. See
+   *  docs/credits-policy-voice-campaign-call.md. */
+  voice_campaign_call: 250,
+  /** The same dial in byo mode, where the account's own provider
+   *  account is billed for the minutes. We charge for orchestration
+   *  only — dispatch, retries, refunds, transcript ingestion and the
+   *  writeback into matching — never for telephony they already
+   *  paid for. */
+  voice_campaign_call_byo: 10,
   /** Rendering an announcement to a WhatsApp voice note: Sarvam
    *  translate + TTS on the worker (src/lib/voice/announcement-worker.ts).
    *  Charged per generation, refunded by the worker on failure;
@@ -161,6 +170,19 @@ export const AI_FEATURE_COSTS = {
 } as const;
 
 export type AiFeatureKey = keyof typeof AI_FEATURE_COSTS;
+
+/**
+ * What one dial attempt costs this account, which depends on who is
+ * billed for the minutes: byo accounts pay their own provider, so they
+ * are charged for orchestration only. Client-safe, because the price
+ * has to be disclosed before the campaign is committed to (web dialog,
+ * mobile sheet) and must never drift from what is burned.
+ */
+export function voiceCallCost(mode: string | null | undefined): number {
+  return mode === 'byo'
+    ? AI_FEATURE_COSTS.voice_campaign_call_byo
+    : AI_FEATURE_COSTS.voice_campaign_call;
+}
 
 /** Non-AI billable feature keys (Owners Den marketplace actions).
  *  Same wallet, same burn/refund RPCs — just a different product

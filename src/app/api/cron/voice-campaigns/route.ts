@@ -1,7 +1,7 @@
 import { timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { burnCredits, refundCredits } from '@/lib/credits/burn';
-import { AI_FEATURE_COSTS } from '@/lib/credits/types';
+import { AI_FEATURE_COSTS, voiceCallCost } from '@/lib/credits/types';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { isWithinCallWindow, STALE_CALLING_MS } from '@/lib/voice/campaigns';
 import {
@@ -37,7 +37,9 @@ const CAMPAIGNS_PER_RUN = 20;
 // VOICE_CALL_CHANNELS to match the plan when it changes.
 const CALLS_PER_RUN = Math.max(1, Number(process.env.VOICE_CALL_CHANNELS) || 4);
 const CALLS_PER_CAMPAIGN = Math.min(5, CALLS_PER_RUN);
-const CALL_COST = AI_FEATURE_COSTS.voice_campaign_call;
+/** Falls back to the platform-paid price for attempts charged before
+ *  migration 279 recorded what each one cost. */
+const FALLBACK_CALL_COST = AI_FEATURE_COSTS.voice_campaign_call;
 
 export async function GET(request: Request) {
   const expected =
@@ -76,7 +78,7 @@ export async function GET(request: Request) {
     ).toISOString();
     const { data: staleRows } = await supabase
       .from('voice_campaign_recipients')
-      .select('id, account_id')
+      .select('id, account_id, charged_credits')
       .eq('status', 'calling')
       .lt('last_attempt_at', staleBefore)
       .limit(200);
@@ -89,9 +91,14 @@ export async function GET(request: Request) {
         .select('id');
       if (!requeuedRow || requeuedRow.length === 0) continue;
       requeued++;
-      await refundCredits(stale.account_id, 'voice_campaign_call', CALL_COST, {
-        description: `voice_campaign_call stale refund (recipient ${stale.id})`,
-      });
+      await refundCredits(
+        stale.account_id,
+        'voice_campaign_call',
+        stale.charged_credits ?? FALLBACK_CALL_COST,
+        {
+          description: `voice_campaign_call stale refund (recipient ${stale.id})`,
+        }
+      );
     }
 
     const { data: campaigns } = await supabase
@@ -180,10 +187,15 @@ export async function GET(request: Request) {
         // retry key makes a crashed-and-rerun dispatch idempotent per
         // attempt. Unconnected attempts are refunded (stale requeue,
         // start failure below, no-answer/busy via the webhook).
+        // byo accounts pay their own provider, so they are charged for
+        // orchestration only. The amount is recorded on the attempt
+        // below, because the refund paths that run elsewhere must
+        // return exactly this, whatever the mode says later.
+        const callCost = voiceCallCost(credentials.mode);
         const burn = await burnCredits(
           campaign.account_id,
           'voice_campaign_call',
-          CALL_COST,
+          callCost,
           { retryKey: `voice-call:${recipient.id}:${recipient.attempts + 1}` }
         );
         if (!burn.success) {
@@ -199,6 +211,11 @@ export async function GET(request: Request) {
           );
           break;
         }
+        await supabase
+          .from('voice_campaign_recipients')
+          .update({ charged_credits: callCost })
+          .eq('id', recipient.id)
+          .select('id');
 
         const scriptContext =
           campaign.script_context && typeof campaign.script_context === 'object'
@@ -241,7 +258,7 @@ export async function GET(request: Request) {
           await refundCredits(
             campaign.account_id,
             'voice_campaign_call',
-            CALL_COST,
+            callCost,
             {
               description: `voice_campaign_call start-failure refund (recipient ${recipient.id})`,
             }
