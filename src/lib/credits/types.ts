@@ -3,7 +3,13 @@
 // Server and client code import from here; never re-declare locally.
 // ============================================================
 
-export type CreditBucket = 'monthly' | 'bonus' | 'referral' | 'purchased' | 'promo' | 'pending_referral';
+export type CreditBucket =
+  | 'monthly'
+  | 'bonus'
+  | 'referral'
+  | 'purchased'
+  | 'promo'
+  | 'pending_referral';
 
 export type CreditTransactionType =
   | 'subscription_grant'
@@ -19,9 +25,21 @@ export type CreditTransactionType =
   | 'refund';
 
 export type ReferralTier = 'bronze' | 'silver' | 'gold' | 'platinum';
-export type ReferralStatus = 'pending' | 'active' | 'converted' | 'expired' | 'invalid';
+export type ReferralStatus =
+  | 'pending'
+  | 'active'
+  | 'converted'
+  | 'expired'
+  | 'invalid';
 export type PaymentGateway = 'razorpay' | 'stripe';
-export type CreditCurrency = 'INR' | 'USD' | 'GBP' | 'EUR' | 'AED' | 'SGD' | 'AUD';
+export type CreditCurrency =
+  | 'INR'
+  | 'USD'
+  | 'GBP'
+  | 'EUR'
+  | 'AED'
+  | 'SGD'
+  | 'AUD';
 export type SubscriptionPlanForCredits = 'solo_pro' | 'team' | 'agency';
 export type BillingCycleForCredits = 'monthly' | '3month' | '6month' | 'annual';
 
@@ -124,6 +142,11 @@ export const AI_FEATURE_COSTS = {
    *  render on the worker (src/lib/video/). Priced above raw cost
    *  (~₹1-4 TTS + worker CPU) as a premium feature. */
   listing_video: 50,
+  /** One voice-campaign dial attempt (src/lib/voice/). Burned at
+   *  dispatch, auto-refunded when the call never connects (start
+   *  failure, stale, no-answer/busy) — accounts pay per connected
+   *  call. See docs/credits-policy-voice-campaign-call.md. */
+  voice_campaign_call: 25,
 } as const;
 
 export type AiFeatureKey = keyof typeof AI_FEATURE_COSTS;
@@ -153,8 +176,8 @@ export const MONTHLY_GRANT: Record<SubscriptionPlanForCredits, number> = {
 export const COMMITMENT_BONUS_PCT: Record<BillingCycleForCredits, number> = {
   monthly: 0,
   '3month': 0.15,
-  '6month': 0.30,
-  annual: 0.50,
+  '6month': 0.3,
+  annual: 0.5,
 };
 
 export const CYCLE_MONTHS: Record<BillingCycleForCredits, number> = {
@@ -166,15 +189,19 @@ export const CYCLE_MONTHS: Record<BillingCycleForCredits, number> = {
 
 /** Referrer reward for a referee upgrading to a paid plan — paid
  *  instantly and spendably since real payment already occurred. */
-export const PLAN_CONVERSION_BONUS: Record<SubscriptionPlanForCredits, number> = {
-  solo_pro: 500,
-  team: 1500,
-  agency: 4000,
-};
+export const PLAN_CONVERSION_BONUS: Record<SubscriptionPlanForCredits, number> =
+  {
+    solo_pro: 500,
+    team: 1500,
+    agency: 4000,
+  };
 
 export const REFERRAL_SIGNUP_BONUS = 200; // both referee (instant) and referrer (pending)
 
-export const REFERRAL_TIER_THRESHOLDS: { tier: ReferralTier; minConversions: number }[] = [
+export const REFERRAL_TIER_THRESHOLDS: {
+  tier: ReferralTier;
+  minConversions: number;
+}[] = [
   { tier: 'platinum', minConversions: 15 },
   { tier: 'gold', minConversions: 7 },
   { tier: 'silver', minConversions: 3 },
@@ -183,15 +210,21 @@ export const REFERRAL_TIER_THRESHOLDS: { tier: ReferralTier; minConversions: num
 
 export function referralTierMultiplier(tier: ReferralTier): number {
   switch (tier) {
-    case 'silver': return 1.1;
-    case 'gold': return 1.25;
-    case 'platinum': return 1.5;
-    default: return 1;
+    case 'silver':
+      return 1.1;
+    case 'gold':
+      return 1.25;
+    case 'platinum':
+      return 1.5;
+    default:
+      return 1;
   }
 }
 
 export function recomputeReferralTier(paidReferralCount: number): ReferralTier {
-  const match = REFERRAL_TIER_THRESHOLDS.find((t) => paidReferralCount >= t.minConversions);
+  const match = REFERRAL_TIER_THRESHOLDS.find(
+    (t) => paidReferralCount >= t.minConversions
+  );
   return match?.tier ?? 'bronze';
 }
 

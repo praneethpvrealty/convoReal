@@ -719,6 +719,7 @@ Defined in `vercel.json`:
 - `/api/cron/buyer-match-digest` — daily 05:45 UTC
 - `/api/cron/lead-sync-reconcile` — hourly at :10
 - `/api/appointments/cron` — every 15 minutes
+- `/api/cron/voice-campaigns` — every 10 minutes
 
 All cron routes require `AUTOMATION_CRON_SECRET` or `CRON_SECRET`.
 
@@ -760,7 +761,7 @@ All cron routes require `AUTOMATION_CRON_SECRET` or `CRON_SECRET`.
 | `docs/OWNERS_DEN_TESTING.md` | Owners Den testing checklist |
 | `docs/CLOUDFLARE_EMAIL_SETUP.md` / `docs/cloudflare-waf.md` | Cloudflare email routing and WAF |
 | `docs/GUIDE_MOBILE_APPLICATION_PORTABILITY.md` | Web/native split for shared features |
-| `docs/ai-photo-enhancement.md` / `docs/credits-policy-listing-video.md` | AI media features and their credit policy |
+| `docs/ai-photo-enhancement.md` / `docs/credits-policy-listing-video.md` / `docs/credits-policy-voice-campaign-call.md` | AI media/voice features and their credit policy |
 | `docs/youtube-integration-setup.md` | YouTube OAuth and upload setup |
 | `docs/domain-rehosting-guide.md` / `docs/region-migration-mumbai.md` | Domain and region migrations |
 | `docs/refactoring-audit.md` | Known debt and refactor targets |
