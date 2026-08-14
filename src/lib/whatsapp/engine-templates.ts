@@ -13,19 +13,44 @@
 import type { TemplatePayload } from '@/lib/whatsapp/template-validators';
 import type { LanguageCode } from '@/lib/languages';
 import type { EngineTemplateKey } from '@/lib/whatsapp/template-copy';
-import { buildPropertyAlertTemplatePayload, PROPERTY_ALERT_TEMPLATE_NAME } from './property-alert-template';
-import { buildPropertyEnquiryPhotosTemplatePayload, PROPERTY_ENQUIRY_PHOTOS_TEMPLATE_NAME } from './property-enquiry-photos-template';
-import { buildLocationRevealTemplatePayload, LOCATION_REVEAL_TEMPLATE_NAME } from './location-reveal-template';
-import { buildInventoryUpdateTemplatePayload, INVENTORY_UPDATE_TEMPLATE_NAME } from './inventory-update-template';
-import { buildEnquiryFollowupTemplatePayload, ENQUIRY_FOLLOWUP_TEMPLATE_NAME } from './enquiry-followup-template';
-import { buildEnquiryNoticeTemplatePayload, ENQUIRY_NOTICE_TEMPLATE_NAME } from './enquiry-notice-template';
-import { buildJourneyCheckinTemplatePayload, JOURNEY_CHECKIN_TEMPLATE_NAME } from './journey-checkin-template';
+import {
+  buildPropertyAlertTemplatePayload,
+  PROPERTY_ALERT_TEMPLATE_NAME,
+} from './property-alert-template';
+import {
+  buildPropertyEnquiryPhotosTemplatePayload,
+  PROPERTY_ENQUIRY_PHOTOS_TEMPLATE_NAME,
+} from './property-enquiry-photos-template';
+import {
+  buildLocationRevealTemplatePayload,
+  LOCATION_REVEAL_TEMPLATE_NAME,
+} from './location-reveal-template';
+import {
+  buildInventoryUpdateTemplatePayload,
+  INVENTORY_UPDATE_TEMPLATE_NAME,
+} from './inventory-update-template';
+import {
+  buildEnquiryFollowupTemplatePayload,
+  ENQUIRY_FOLLOWUP_TEMPLATE_NAME,
+} from './enquiry-followup-template';
+import {
+  buildEnquiryNoticeTemplatePayload,
+  ENQUIRY_NOTICE_TEMPLATE_NAME,
+} from './enquiry-notice-template';
+import {
+  buildJourneyCheckinTemplatePayload,
+  JOURNEY_CHECKIN_TEMPLATE_NAME,
+} from './journey-checkin-template';
 import {
   buildTimelineAskTemplatePayload,
   buildFollowupReminderTemplatePayload,
   TIMELINE_ASK_TEMPLATE_NAME,
   FOLLOWUP_REMINDER_TEMPLATE_NAME,
 } from './timeline-ask-template';
+import {
+  buildAnnouncementTemplatePayload,
+  ANNOUNCEMENT_TEMPLATE_NAME,
+} from './announcement-template';
 
 export interface EngineTemplateDef {
   name: string;
@@ -71,7 +96,8 @@ export const ENGINE_TEMPLATES: EngineTemplateDef[] = [
     name: INVENTORY_UPDATE_TEMPLATE_NAME,
     copyKey: 'inventory_update',
     label: 'Inventory update',
-    whyItMatters: 'Carries an inventory update to a contact with no open service window.',
+    whyItMatters:
+      'Carries an inventory update to a contact with no open service window.',
     build: buildInventoryUpdateTemplatePayload,
   },
   {
@@ -111,8 +137,16 @@ export const ENGINE_TEMPLATES: EngineTemplateDef[] = [
     copyKey: 'journey_followup_reminder',
     label: 'Enquiry follow-up reminder',
     whyItMatters:
-      'The Utility-shaped replacement for Enquiry timeline: states the follow-up date already set on the lead\'s open enquiry and lets them confirm or move it, the same shape the four approved reminder templates use. Preferred over the Marketing row as soon as Meta approves it.',
+      "The Utility-shaped replacement for Enquiry timeline: states the follow-up date already set on the lead's open enquiry and lets them confirm or move it, the same shape the four approved reminder templates use. Preferred over the Marketing row as soon as Meta approves it.",
     build: buildFollowupReminderTemplatePayload,
+  },
+  {
+    name: ANNOUNCEMENT_TEMPLATE_NAME,
+    copyKey: 'audio_announcement',
+    label: 'Audio announcement',
+    whyItMatters:
+      "Carries an audio announcement (as a playable video) to contacts outside the 24-hour window — without it, announcements only reach contacts who messaged recently. Marketing category by nature; sends stay opt-in via each contact's update-channel preference.",
+    build: buildAnnouncementTemplatePayload,
   },
 ];
 
@@ -127,7 +161,7 @@ export const ENGINE_TEMPLATES: EngineTemplateDef[] = [
  */
 export function engineCopyKey(name: string): EngineTemplateKey | null {
   const match = ENGINE_TEMPLATES.find(
-    (t) => t.name.toLowerCase() === name.trim().toLowerCase(),
+    (t) => t.name.toLowerCase() === name.trim().toLowerCase()
   );
   return match?.copyKey ?? null;
 }
@@ -136,7 +170,7 @@ export function engineCopyKey(name: string): EngineTemplateKey | null {
  *  translation-review gate, which must not require a review for a
  *  template the account wrote itself. */
 export const ENGINE_TEMPLATE_NAMES: ReadonlySet<string> = new Set(
-  ENGINE_TEMPLATES.map((t) => t.name),
+  ENGINE_TEMPLATES.map((t) => t.name)
 );
 
 /**
@@ -148,7 +182,7 @@ export const ENGINE_TEMPLATE_NAMES: ReadonlySet<string> = new Set(
  * Exported for tests.
  */
 export function missingEngineTemplates(
-  existingNames: readonly string[],
+  existingNames: readonly string[]
 ): EngineTemplateDef[] {
   const have = new Set(existingNames.map((n) => n.trim().toLowerCase()));
   return ENGINE_TEMPLATES.filter((t) => !have.has(t.name.toLowerCase()));

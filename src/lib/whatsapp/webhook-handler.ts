@@ -120,6 +120,8 @@ import {
   handleOwnerLocationReply,
 } from '@/lib/inventory/location-requests'
 import { isEngineControlReplyId } from '@/lib/whatsapp/control-reply-ids'
+import { UPDATE_CHANNEL_REPLY_PREFIX } from '@/lib/voice/announcements'
+import { handleUpdateChannelReply } from '@/lib/voice/update-channel-reply'
 import { parseBuyerMatchesCommand } from '@/lib/buyer/digest'
 import { buildBuyerMatchReply } from '@/lib/buyer/match-reply'
 import {
@@ -1282,6 +1284,15 @@ async function processMessage(
       interactiveReplyId.startsWith(OWNER_REJECT_PREFIX)
     ) {
       const handled = await handleOwnerLocationReply({
+        admin: supabaseAdmin(),
+        accountId,
+        replyId: interactiveReplyId,
+        senderPhone,
+      })
+      if (handled) return
+    }
+    if (interactiveReplyId.startsWith(UPDATE_CHANNEL_REPLY_PREFIX)) {
+      const handled = await handleUpdateChannelReply({
         admin: supabaseAdmin(),
         accountId,
         replyId: interactiveReplyId,

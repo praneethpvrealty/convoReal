@@ -27,6 +27,7 @@ import {
   ENQUIRY_PHOTOS_PREFIX,
   ENQUIRY_REJECT_PREFIX,
 } from '@/lib/whatsapp/enquiry-card';
+import { UPDATE_CHANNEL_REPLY_PREFIX } from '@/lib/voice/announcements';
 
 /** Prefixes whose replies are instructions to the Engine. Bare ids
  *  (no trailing payload) belong in EXACT_CONTROL_REPLY_IDS instead. */
@@ -45,6 +46,9 @@ export const CONTROL_REPLY_PREFIXES = [
   ENQUIRY_PHOTOS_PREFIX,
   ENQUIRY_DETAILS_PREFIX,
   ENQUIRY_MINE_PREFIX,
+  // "How would you like updates?" channel picks — a tap sets
+  // contacts.preferred_update_channel, it is not a message to relay.
+  UPDATE_CHANNEL_REPLY_PREFIX,
 ] as const;
 
 /** True when this reply id is a button the Engine minted, and so must

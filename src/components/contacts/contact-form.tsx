@@ -4,7 +4,13 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
-import type { Contact, Tag, ContactTag, Property, AreaOfInterestGeo } from '@/types';
+import type {
+  Contact,
+  Tag,
+  ContactTag,
+  Property,
+  AreaOfInterestGeo,
+} from '@/types';
 import { AreasOfInterestInput } from '@/components/contacts/areas-of-interest-input';
 import { PROPERTY_INTEREST_OPTIONS } from '@/lib/property-interests';
 import { ProjectsOfInterestInput } from '@/components/contacts/projects-of-interest-input';
@@ -12,7 +18,11 @@ import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import { contactFullName } from '@/lib/contacts/full-name';
 import { contactHandle } from '@/lib/contacts/reachability';
 import { pruneAreasGeo } from '@/lib/contacts/area-geo';
-import { LANGUAGE_CODES, languageDisplay, type LanguageCode } from '@/lib/languages';
+import {
+  LANGUAGE_CODES,
+  languageDisplay,
+  type LanguageCode,
+} from '@/lib/languages';
 import type { UpdateChannel } from '@/lib/voice/announcements';
 import {
   Dialog,
@@ -35,8 +45,6 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
-
-
 
 interface ContactFormProps {
   open: boolean;
@@ -64,19 +72,37 @@ export function ContactForm({
   const [secondaryPhones, setSecondaryPhones] = useState<string[]>([]);
   const [email, setEmail] = useState('');
   const [company, setCompany] = useState('');
-  const [classification, setClassification] = useState<'Owner' | 'Seller' | 'Buyer' | 'Agent' | 'Developer' | 'Owner & Buyer' | 'Others'>('Others');
-  const [leadTemp, setLeadTemp] = useState<'HOT' | 'COLD' | 'Not Responding' | 'Dead' | ''>('');
+  const [classification, setClassification] = useState<
+    | 'Owner'
+    | 'Seller'
+    | 'Buyer'
+    | 'Agent'
+    | 'Developer'
+    | 'Owner & Buyer'
+    | 'Others'
+  >('Others');
+  const [leadTemp, setLeadTemp] = useState<
+    'HOT' | 'COLD' | 'Not Responding' | 'Dead' | ''
+  >('');
   const [updateChannel, setUpdateChannel] = useState<UpdateChannel | ''>('');
-  const [preferredLanguage, setPreferredLanguage] = useState<LanguageCode | ''>('');
-  const [lastInquiredPropertyId, setLastInquiredPropertyId] = useState<string | null>(null);
+  const [preferredLanguage, setPreferredLanguage] = useState<LanguageCode | ''>(
+    ''
+  );
+  const [lastInquiredPropertyId, setLastInquiredPropertyId] = useState<
+    string | null
+  >(null);
   const [referrer, setReferrer] = useState('');
-  const [referrerContactId, setReferrerContactId] = useState<string | null>(null);
+  const [referrerContactId, setReferrerContactId] = useState<string | null>(
+    null
+  );
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [showReferrerSuggestions, setShowReferrerSuggestions] = useState(false);
   const [source, setSource] = useState('');
   const [saving, setSaving] = useState(false);
   const [dob, setDob] = useState('');
-  const [feedbackStatus, setFeedbackStatus] = useState<'not_requested' | 'requested' | 'collected'>('not_requested');
+  const [feedbackStatus, setFeedbackStatus] = useState<
+    'not_requested' | 'requested' | 'collected'
+  >('not_requested');
 
   // Notes state
   const [notesText, setNotesText] = useState('');
@@ -109,19 +135,13 @@ export function ContactForm({
 
   const fetchTags = useCallback(async () => {
     setLoadingTags(true);
-    const { data } = await supabase
-      .from('tags')
-      .select('*')
-      .order('name');
+    const { data } = await supabase.from('tags').select('*').order('name');
     if (data) setTags(data);
     setLoadingTags(false);
   }, [supabase]);
 
   const fetchContacts = useCallback(async () => {
-    const { data } = await supabase
-      .from('contacts')
-      .select('*')
-      .order('name');
+    const { data } = await supabase.from('contacts').select('*').order('name');
     if (data) setContacts(data);
   }, [supabase]);
 
@@ -135,35 +155,41 @@ export function ContactForm({
     setLoadingProperties(false);
   }, [supabase]);
 
-  const fetchRecentNote = useCallback(async (contactId: string) => {
-    const { data } = await supabase
-      .from('contact_notes')
-      .select('*')
-      .eq('contact_id', contactId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+  const fetchRecentNote = useCallback(
+    async (contactId: string) => {
+      const { data } = await supabase
+        .from('contact_notes')
+        .select('*')
+        .eq('contact_id', contactId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-    if (data) {
-      setNotesText(data.note_text ?? '');
-      setRecentNoteId(data.id);
-    } else {
-      setNotesText('');
-      setRecentNoteId(null);
-    }
-  }, [supabase]);
+      if (data) {
+        setNotesText(data.note_text ?? '');
+        setRecentNoteId(data.id);
+      } else {
+        setNotesText('');
+        setRecentNoteId(null);
+      }
+    },
+    [supabase]
+  );
 
-  const fetchAssociatedProperties = useCallback(async (contactId: string) => {
-    const { data } = await supabase
-      .from('properties')
-      .select('id')
-      .eq('owner_contact_id', contactId);
-    if (data) {
-      setSelectedPropertyIds(data.map((p) => p.id));
-    } else {
-      setSelectedPropertyIds([]);
-    }
-  }, [supabase]);
+  const fetchAssociatedProperties = useCallback(
+    async (contactId: string) => {
+      const { data } = await supabase
+        .from('properties')
+        .select('id')
+        .eq('owner_contact_id', contactId);
+      if (data) {
+        setSelectedPropertyIds(data.map((p) => p.id));
+      } else {
+        setSelectedPropertyIds([]);
+      }
+    },
+    [supabase]
+  );
 
   useEffect(() => {
     if (open) {
@@ -187,11 +213,15 @@ export function ContactForm({
       setStrictAreaMatch(!!contact?.strict_area_match);
       const initialAreas = contact?.areas_of_interest ?? [];
       setAreasOfInterest(initialAreas);
-      setAreasText(initialAreas.join(', ') + (initialAreas.length > 0 ? ', ' : ''));
+      setAreasText(
+        initialAreas.join(', ') + (initialAreas.length > 0 ? ', ' : '')
+      );
       setAreasGeo(contact?.areas_of_interest_geo ?? []);
       const initialProjects = contact?.projects_of_interest ?? [];
       setProjectsOfInterest(initialProjects);
-      setProjectsText(initialProjects.join(', ') + (initialProjects.length > 0 ? ', ' : ''));
+      setProjectsText(
+        initialProjects.join(', ') + (initialProjects.length > 0 ? ', ' : '')
+      );
       setStrictProjectMatch(!!contact?.strict_project_match);
       setPropertyInterests(contact?.property_interests ?? []);
       setMinRoi(contact?.min_roi ? String(contact.min_roi) : '');
@@ -212,7 +242,16 @@ export function ContactForm({
         setSelectedPropertyIds([]);
       }
     }
-  }, [open, contact, contactTags, fetchTags, fetchContacts, fetchProperties, fetchRecentNote, fetchAssociatedProperties]);
+  }, [
+    open,
+    contact,
+    contactTags,
+    fetchTags,
+    fetchContacts,
+    fetchProperties,
+    fetchRecentNote,
+    fetchAssociatedProperties,
+  ]);
 
   useEffect(() => {
     if (!open) return;
@@ -244,12 +283,14 @@ export function ContactForm({
 
   const filteredReferrerContacts = useMemo(() => {
     if (!referrer.trim()) return [];
-    return contacts.filter(
-      (c) =>
-        c.id !== contact?.id &&
-        (contactFullName(c).toLowerCase().includes(referrer.toLowerCase()) ||
-         (c.phone && c.phone.includes(referrer)))
-    ).slice(0, 5);
+    return contacts
+      .filter(
+        (c) =>
+          c.id !== contact?.id &&
+          (contactFullName(c).toLowerCase().includes(referrer.toLowerCase()) ||
+            (c.phone && c.phone.includes(referrer)))
+      )
+      .slice(0, 5);
   }, [contacts, referrer, contact]);
 
   const handleSwapSecondaryToPrimary = (idx: number) => {
@@ -283,7 +324,8 @@ export function ContactForm({
     setSaving(true);
 
     try {
-      if (!user || !accountId) throw new Error('Not authenticated or account not loaded');
+      if (!user || !accountId)
+        throw new Error('Not authenticated or account not loaded');
 
       const isEdit = !!contact?.id;
       const contactId = contact?.id;
@@ -326,7 +368,8 @@ export function ContactForm({
         areas_of_interest: areasOfInterest,
         areas_of_interest_geo: pruneAreasGeo(areasGeo, areasOfInterest),
         projects_of_interest: projectsOfInterest,
-        strict_project_match: projectsOfInterest.length > 0 && strictProjectMatch,
+        strict_project_match:
+          projectsOfInterest.length > 0 && strictProjectMatch,
         property_interests: propertyInterests,
         min_roi: minRoi ? Number(minRoi) : null,
         source: source.trim() || null,
@@ -349,7 +392,9 @@ export function ContactForm({
       });
 
       if (!res.ok) {
-        const data = await res.json().catch(() => ({ error: 'Failed to save contact' }));
+        const data = await res
+          .json()
+          .catch(() => ({ error: 'Failed to save contact' }));
         throw new Error(data.error || 'Failed to save contact');
       }
 
@@ -357,7 +402,8 @@ export function ContactForm({
       onOpenChange(false);
       onSaved();
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to save contact';
+      const message =
+        err instanceof Error ? err.message : 'Failed to save contact';
       toast.error(message);
     } finally {
       setSaving(false);
@@ -366,8 +412,8 @@ export function ContactForm({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-slate-900 border-slate-700 text-slate-200 sm:max-w-lg max-h-[85vh] p-0 gap-0 flex flex-col overflow-hidden">
-        <DialogHeader className="p-6 pb-4 border-b border-slate-800">
+      <DialogContent className="flex max-h-[85vh] flex-col gap-0 overflow-hidden border-slate-700 bg-slate-900 p-0 text-slate-200 sm:max-w-lg">
+        <DialogHeader className="border-b border-slate-800 p-6 pb-4">
           <DialogTitle className="text-white">
             {isEdit ? 'Edit Contact' : 'Add Contact'}
           </DialogTitle>
@@ -378,636 +424,746 @@ export function ContactForm({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0 overflow-hidden">
-          <div className="flex-1 overflow-y-auto p-6 pt-4 space-y-4">
-          <div className="grid grid-cols-6 gap-3">
-            <div className="space-y-2 col-span-2">
-              <Label htmlFor="cf-name" className="text-slate-300">
-                Name
-              </Label>
-              <Input
-                id="cf-name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="John"
-                className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
-              />
-            </div>
-            <div className="space-y-2 col-span-2">
-              <Label htmlFor="cf-second-name" className="text-slate-300">
-                Second Name
-              </Label>
-              <Input
-                id="cf-second-name"
-                value={secondName}
-                onChange={(e) => setSecondName(e.target.value)}
-                placeholder="Doe"
-                className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
-              />
-            </div>
-            <div className="space-y-2 col-span-2">
-              <Label htmlFor="cf-name-tag" className="text-slate-300">
-                Name Tag
-              </Label>
-              <Input
-                id="cf-name-tag"
-                value={nameTag}
-                onChange={(e) => setNameTag(e.target.value)}
-                placeholder="Bank DSA"
-                className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
-              />
-            </div>
-            <p className="col-span-6 -mt-1 text-xs text-slate-500">
-              Messages always address the contact by Name alone — Second Name and
-              Name Tag show only inside the Engine. Name + Second Name must be unique
-              across your contacts.
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="cf-phone" className="text-slate-300">
-              Phone{' '}
-              {email.trim() ? (
-                <span className="text-slate-500">(optional)</span>
-              ) : (
-                <span className="text-red-400">*</span>
-              )}
-            </Label>
-            <Input
-              id="cf-phone"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="+91 98765 43210"
-              className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
-            />
-            <p className="text-xs text-slate-500">
-              Include country code, e.g. +91 for India. Leave blank for a
-              contact you only have an email for — WhatsApp features stay
-              switched off for those.
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label className="text-slate-300">Secondary Phone Numbers</Label>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setSecondaryPhones([...secondaryPhones, ''])}
-                className="h-6 px-2 text-xs text-primary hover:text-primary-hover hover:bg-slate-800 flex items-center gap-1 border border-slate-700/50"
-              >
-                <Plus className="h-3 w-3" />
-                Add Number
-              </Button>
-            </div>
-
-            {secondaryPhones.length > 0 && (
-              <div className="space-y-2 mt-1">
-                {secondaryPhones.map((secPhone, idx) => (
-                  <div key={idx} className="flex items-center gap-2">
-                    <Input
-                      value={secPhone}
-                      onChange={(e) => {
-                        const updated = [...secondaryPhones];
-                        updated[idx] = e.target.value;
-                        setSecondaryPhones(updated);
-                      }}
-                      placeholder="+91 98765 43210"
-                      className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 flex-1 h-9"
-                    />
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger
-                          render={
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleSwapSecondaryToPrimary(idx)}
-                              className="text-slate-400 hover:text-primary hover:bg-slate-800 h-9 w-9 shrink-0"
-                            />
-                          }
-                        >
-                          <ArrowUp className="h-4 w-4" />
-                        </TooltipTrigger>
-                        <TooltipContent side="top">
-                          Make primary (swap with current primary)
-                        </TooltipContent>
-                      </Tooltip>
-
-                      <Tooltip>
-                        <TooltipTrigger
-                          render={
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => {
-                                setSecondaryPhones(secondaryPhones.filter((_, i) => i !== idx));
-                              }}
-                              className="text-slate-400 hover:text-red-400 hover:bg-slate-800 h-9 w-9 shrink-0"
-                            />
-                          }
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </TooltipTrigger>
-                        <TooltipContent side="top">
-                          Delete secondary number
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </div>
-                ))}
+        <form
+          onSubmit={handleSubmit}
+          className="flex min-h-0 flex-1 flex-col overflow-hidden"
+        >
+          <div className="flex-1 space-y-4 overflow-y-auto p-6 pt-4">
+            <div className="grid grid-cols-6 gap-3">
+              <div className="col-span-2 space-y-2">
+                <Label htmlFor="cf-name" className="text-slate-300">
+                  Name
+                </Label>
+                <Input
+                  id="cf-name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="John"
+                  className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
+                />
               </div>
-            )}
-            <p className="text-xs text-slate-500">
-              For calling/referral lookup only. WhatsApp messages always route to the primary number.
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="cf-email" className="text-slate-300">
-              Email{' '}
-              {!phone.trim() && <span className="text-red-400">*</span>}
-            </Label>
-            <Input
-              id="cf-email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="john@example.com"
-              className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="cf-company" className="text-slate-300">
-              Company
-            </Label>
-            <Input
-              id="cf-company"
-              value={company}
-              onChange={(e) => setCompany(e.target.value)}
-              placeholder="Acme Inc."
-              className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
-            />
-          </div>
-
-          <div className="space-y-2 relative">
-            <Label htmlFor="cf-referrer" className="text-slate-300">
-              Referer
-            </Label>
-            <div className="relative">
-              <Input
-                id="cf-referrer"
-                value={referrer}
-                onChange={(e) => {
-                  setReferrer(e.target.value);
-                  setReferrerContactId(null);
-                  setShowReferrerSuggestions(true);
-                }}
-                onFocus={() => setShowReferrerSuggestions(true)}
-                onBlur={() => {
-                  setTimeout(() => setShowReferrerSuggestions(false), 200);
-                }}
-                placeholder="Search existing contact or type a name..."
-                className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 pr-16 animate-none"
-              />
-              {referrerContactId && (
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] bg-primary/20 text-primary border border-primary/30 px-1.5 py-0.5 rounded font-medium">
-                  Linked
-                </span>
-              )}
+              <div className="col-span-2 space-y-2">
+                <Label htmlFor="cf-second-name" className="text-slate-300">
+                  Second Name
+                </Label>
+                <Input
+                  id="cf-second-name"
+                  value={secondName}
+                  onChange={(e) => setSecondName(e.target.value)}
+                  placeholder="Doe"
+                  className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
+                />
+              </div>
+              <div className="col-span-2 space-y-2">
+                <Label htmlFor="cf-name-tag" className="text-slate-300">
+                  Name Tag
+                </Label>
+                <Input
+                  id="cf-name-tag"
+                  value={nameTag}
+                  onChange={(e) => setNameTag(e.target.value)}
+                  placeholder="Bank DSA"
+                  className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
+                />
+              </div>
+              <p className="col-span-6 -mt-1 text-xs text-slate-500">
+                Messages always address the contact by Name alone — Second Name
+                and Name Tag show only inside the Engine. Name + Second Name
+                must be unique across your contacts.
+              </p>
             </div>
-            
-            {showReferrerSuggestions && filteredReferrerContacts.length > 0 && (
-              <div className="absolute z-50 w-full mt-1 bg-slate-900 border border-slate-700 rounded-md shadow-lg max-h-48 overflow-y-auto p-1 space-y-0.5">
-                <div className="text-[10px] text-slate-500 font-semibold px-2 py-1 border-b border-slate-800 mb-1">
-                  Link to existing contact:
-                </div>
-                {filteredReferrerContacts.map((c) => (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onMouseDown={() => {
-                      setReferrer(c.name || 'Unnamed');
-                      setReferrerContactId(c.id);
-                      setShowReferrerSuggestions(false);
-                    }}
-                    className="w-full text-left flex items-center justify-between px-2 py-1.5 hover:bg-slate-800 rounded text-xs text-slate-200"
-                  >
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-semibold">{contactFullName(c) || 'Unnamed'}</span>
-                      <NameTagBadge tag={c.name_tag} />
-                      <span className="text-slate-400 ml-1.5 text-[10px]">({contactHandle(c)})</span>
+
+            <div className="space-y-2">
+              <Label htmlFor="cf-phone" className="text-slate-300">
+                Phone{' '}
+                {email.trim() ? (
+                  <span className="text-slate-500">(optional)</span>
+                ) : (
+                  <span className="text-red-400">*</span>
+                )}
+              </Label>
+              <Input
+                id="cf-phone"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="+91 98765 43210"
+                className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
+              />
+              <p className="text-xs text-slate-500">
+                Include country code, e.g. +91 for India. Leave blank for a
+                contact you only have an email for — WhatsApp features stay
+                switched off for those.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-slate-300">
+                  Secondary Phone Numbers
+                </Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSecondaryPhones([...secondaryPhones, ''])}
+                  className="text-primary hover:text-primary-hover flex h-6 items-center gap-1 border border-slate-700/50 px-2 text-xs hover:bg-slate-800"
+                >
+                  <Plus className="h-3 w-3" />
+                  Add Number
+                </Button>
+              </div>
+
+              {secondaryPhones.length > 0 && (
+                <div className="mt-1 space-y-2">
+                  {secondaryPhones.map((secPhone, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <Input
+                        value={secPhone}
+                        onChange={(e) => {
+                          const updated = [...secondaryPhones];
+                          updated[idx] = e.target.value;
+                          setSecondaryPhones(updated);
+                        }}
+                        placeholder="+91 98765 43210"
+                        className="h-9 flex-1 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
+                      />
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger
+                            render={
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={() =>
+                                  handleSwapSecondaryToPrimary(idx)
+                                }
+                                className="hover:text-primary h-9 w-9 shrink-0 text-slate-400 hover:bg-slate-800"
+                              />
+                            }
+                          >
+                            <ArrowUp className="h-4 w-4" />
+                          </TooltipTrigger>
+                          <TooltipContent side="top">
+                            Make primary (swap with current primary)
+                          </TooltipContent>
+                        </Tooltip>
+
+                        <Tooltip>
+                          <TooltipTrigger
+                            render={
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => {
+                                  setSecondaryPhones(
+                                    secondaryPhones.filter((_, i) => i !== idx)
+                                  );
+                                }}
+                                className="h-9 w-9 shrink-0 text-slate-400 hover:bg-slate-800 hover:text-red-400"
+                              />
+                            }
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </TooltipTrigger>
+                          <TooltipContent side="top">
+                            Delete secondary number
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     </div>
-                    <span className="text-[10px] bg-slate-800 px-1 py-0.5 rounded text-slate-400 font-bold">
-                      {c.classification}
-                    </span>
-                  </button>
-                ))}
+                  ))}
+                </div>
+              )}
+              <p className="text-xs text-slate-500">
+                For calling/referral lookup only. WhatsApp messages always route
+                to the primary number.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="cf-email" className="text-slate-300">
+                Email {!phone.trim() && <span className="text-red-400">*</span>}
+              </Label>
+              <Input
+                id="cf-email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="john@example.com"
+                className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="cf-company" className="text-slate-300">
+                Company
+              </Label>
+              <Input
+                id="cf-company"
+                value={company}
+                onChange={(e) => setCompany(e.target.value)}
+                placeholder="Acme Inc."
+                className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
+              />
+            </div>
+
+            <div className="relative space-y-2">
+              <Label htmlFor="cf-referrer" className="text-slate-300">
+                Referer
+              </Label>
+              <div className="relative">
+                <Input
+                  id="cf-referrer"
+                  value={referrer}
+                  onChange={(e) => {
+                    setReferrer(e.target.value);
+                    setReferrerContactId(null);
+                    setShowReferrerSuggestions(true);
+                  }}
+                  onFocus={() => setShowReferrerSuggestions(true)}
+                  onBlur={() => {
+                    setTimeout(() => setShowReferrerSuggestions(false), 200);
+                  }}
+                  placeholder="Search existing contact or type a name..."
+                  className="animate-none border-slate-700 bg-slate-800 pr-16 text-white placeholder:text-slate-500"
+                />
+                {referrerContactId && (
+                  <span className="bg-primary/20 text-primary border-primary/30 absolute top-1/2 right-3 -translate-y-1/2 rounded border px-1.5 py-0.5 text-[10px] font-medium">
+                    Linked
+                  </span>
+                )}
               </div>
-            )}
-          </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="cf-classification" className="text-slate-300">
-              Classification
-            </Label>
-            <select
-              id="cf-classification"
-              value={classification}
-              onChange={(e) => setClassification(e.target.value as 'Owner' | 'Seller' | 'Buyer' | 'Agent' | 'Developer' | 'Owner & Buyer' | 'Others')}
-              className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
-            >
-              <option value="Others">Others</option>
-              <option value="Owner">Owner</option>
-              <option value="Seller">Seller</option>
-              <option value="Buyer">Buyer</option>
-              <option value="Agent">Agent</option>
-              <option value="Developer">Developer</option>
-              <option value="Owner & Buyer">Owner & Buyer</option>
-            </select>
-          </div>
+              {showReferrerSuggestions &&
+                filteredReferrerContacts.length > 0 && (
+                  <div className="absolute z-50 mt-1 max-h-48 w-full space-y-0.5 overflow-y-auto rounded-md border border-slate-700 bg-slate-900 p-1 shadow-lg">
+                    <div className="mb-1 border-b border-slate-800 px-2 py-1 text-[10px] font-semibold text-slate-500">
+                      Link to existing contact:
+                    </div>
+                    {filteredReferrerContacts.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onMouseDown={() => {
+                          setReferrer(c.name || 'Unnamed');
+                          setReferrerContactId(c.id);
+                          setShowReferrerSuggestions(false);
+                        }}
+                        className="flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-xs text-slate-200 hover:bg-slate-800"
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-semibold">
+                            {contactFullName(c) || 'Unnamed'}
+                          </span>
+                          <NameTagBadge tag={c.name_tag} />
+                          <span className="ml-1.5 text-[10px] text-slate-400">
+                            ({contactHandle(c)})
+                          </span>
+                        </div>
+                        <span className="rounded bg-slate-800 px-1 py-0.5 text-[10px] font-bold text-slate-400">
+                          {c.classification}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+            </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="cf-source" className="text-slate-300">
-              Source
-            </Label>
-            <select
-              id="cf-source"
-              value={source}
-              onChange={(e) => setSource(e.target.value)}
-              className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
-            >
-              <option value="">Select Source</option>
-              <option value="Magic Bricks">Magic Bricks</option>
-              <option value="Housing">Housing</option>
-              <option value="99acres">99acres</option>
-              <option value="Facebook">Facebook</option>
-              <option value="Instagram">Instagram</option>
-              <option value="Reference">Reference</option>
-              <option value="WhatsApp">WhatsApp</option>
-              <option value="Others">Others</option>
-            </select>
-          </div>
+            <div className="space-y-2">
+              <Label htmlFor="cf-classification" className="text-slate-300">
+                Classification
+              </Label>
+              <select
+                id="cf-classification"
+                value={classification}
+                onChange={(e) =>
+                  setClassification(
+                    e.target.value as
+                      | 'Owner'
+                      | 'Seller'
+                      | 'Buyer'
+                      | 'Agent'
+                      | 'Developer'
+                      | 'Owner & Buyer'
+                      | 'Others'
+                  )
+                }
+                className="focus:border-primary w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:outline-none"
+              >
+                <option value="Others">Others</option>
+                <option value="Owner">Owner</option>
+                <option value="Seller">Seller</option>
+                <option value="Buyer">Buyer</option>
+                <option value="Agent">Agent</option>
+                <option value="Developer">Developer</option>
+                <option value="Owner & Buyer">Owner & Buyer</option>
+              </select>
+            </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="cf-dob" className="text-slate-300">
-              Date of Birth
-            </Label>
-            <Input
-              id="cf-dob"
-              type="date"
-              value={dob}
-              onChange={(e) => setDob(e.target.value)}
-              className="w-full bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-10 text-sm focus-visible:ring-1 focus-visible:ring-primary focus-visible:border-primary"
-            />
-          </div>
+            <div className="space-y-2">
+              <Label htmlFor="cf-source" className="text-slate-300">
+                Source
+              </Label>
+              <select
+                id="cf-source"
+                value={source}
+                onChange={(e) => setSource(e.target.value)}
+                className="focus:border-primary w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:outline-none"
+              >
+                <option value="">Select Source</option>
+                <option value="Magic Bricks">Magic Bricks</option>
+                <option value="Housing">Housing</option>
+                <option value="99acres">99acres</option>
+                <option value="Facebook">Facebook</option>
+                <option value="Instagram">Instagram</option>
+                <option value="Reference">Reference</option>
+                <option value="WhatsApp">WhatsApp</option>
+                <option value="Others">Others</option>
+              </select>
+            </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="cf-lead-temp" className="text-slate-300">
-              Lead Temperature / Status
-            </Label>
-            <select
-              id="cf-lead-temp"
-              value={leadTemp}
-              onChange={(e) => setLeadTemp(e.target.value as 'HOT' | 'COLD' | 'Not Responding' | 'Dead' | '')}
-              className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
-            >
-              <option value="">None</option>
-              <option value="HOT">🔥 HOT</option>
-              <option value="COLD">❄️ COLD</option>
-              <option value="Not Responding">⏳ Not Responding</option>
-              <option value="Dead">💀 Dead</option>
-            </select>
-          </div>
+            <div className="space-y-2">
+              <Label htmlFor="cf-dob" className="text-slate-300">
+                Date of Birth
+              </Label>
+              <Input
+                id="cf-dob"
+                type="date"
+                value={dob}
+                onChange={(e) => setDob(e.target.value)}
+                className="focus-visible:ring-primary focus-visible:border-primary h-10 w-full border-slate-700 bg-slate-800 text-sm text-white placeholder:text-slate-500 focus-visible:ring-1"
+              />
+            </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="cf-preferred-language" className="text-slate-300">
-              Preferred Language
-            </Label>
-            <select
-              id="cf-preferred-language"
-              value={preferredLanguage}
-              onChange={(e) => setPreferredLanguage(e.target.value as LanguageCode | '')}
-              className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
-            >
-              <option value="">Use account default</option>
-              {LANGUAGE_CODES.map((code) => (
-                <option key={code} value={code}>
-                  {languageDisplay(code)}
-                </option>
-              ))}
-            </select>
-            <p className="text-xs text-slate-500">
-              Picks the language variant of a WhatsApp template when one exists.
-              Sends fall back to English if it doesn&apos;t.
-            </p>
-          </div>
+            <div className="space-y-2">
+              <Label htmlFor="cf-lead-temp" className="text-slate-300">
+                Lead Temperature / Status
+              </Label>
+              <select
+                id="cf-lead-temp"
+                value={leadTemp}
+                onChange={(e) =>
+                  setLeadTemp(
+                    e.target.value as
+                      | 'HOT'
+                      | 'COLD'
+                      | 'Not Responding'
+                      | 'Dead'
+                      | ''
+                  )
+                }
+                className="focus:border-primary w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:outline-none"
+              >
+                <option value="">None</option>
+                <option value="HOT">🔥 HOT</option>
+                <option value="COLD">❄️ COLD</option>
+                <option value="Not Responding">⏳ Not Responding</option>
+                <option value="Dead">💀 Dead</option>
+              </select>
+            </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="cf-update-channel" className="text-slate-300">
-              Preferred Update Channel
-            </Label>
-            <select
-              id="cf-update-channel"
-              value={updateChannel}
-              onChange={(e) => setUpdateChannel(e.target.value as UpdateChannel | '')}
-              className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
-            >
-              <option value="">No preference</option>
-              <option value="whatsapp_text">💬 WhatsApp text</option>
-              <option value="whatsapp_audio">🎙️ WhatsApp voice note</option>
-              <option value="voice_call">📞 Phone call</option>
-            </select>
-            <p className="text-xs text-slate-500">
-              How announcements and reminders reach this contact. No preference
-              lets each send pick its own default.
-            </p>
-          </div>
+            <div className="space-y-2">
+              <Label htmlFor="cf-preferred-language" className="text-slate-300">
+                Preferred Language
+              </Label>
+              <select
+                id="cf-preferred-language"
+                value={preferredLanguage}
+                onChange={(e) =>
+                  setPreferredLanguage(e.target.value as LanguageCode | '')
+                }
+                className="focus:border-primary w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:outline-none"
+              >
+                <option value="">Use account default</option>
+                {LANGUAGE_CODES.map((code) => (
+                  <option key={code} value={code}>
+                    {languageDisplay(code)}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-slate-500">
+                Picks the language variant of a WhatsApp template when one
+                exists. Sends fall back to English if it doesn&apos;t.
+              </p>
+            </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="cf-inquired-property" className="text-slate-300">
-              Shown Interest / Inquired Property
-            </Label>
-            <select
-              id="cf-inquired-property"
-              value={lastInquiredPropertyId || ''}
-              onChange={(e) => setLastInquiredPropertyId(e.target.value || null)}
-              className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
-            >
-              <option value="">None</option>
-              {propertiesList.map((prop) => (
-                <option key={prop.id} value={prop.id}>
-                  {prop.property_code ? `[${prop.property_code}] ` : ''}{prop.title}
-                </option>
-              ))}
-            </select>
-          </div>
+            <div className="space-y-2">
+              <Label htmlFor="cf-update-channel" className="text-slate-300">
+                Preferred Update Channel
+              </Label>
+              <select
+                id="cf-update-channel"
+                value={updateChannel}
+                onChange={(e) =>
+                  setUpdateChannel(e.target.value as UpdateChannel | '')
+                }
+                className="focus:border-primary w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:outline-none"
+              >
+                <option value="">No preference</option>
+                <option value="whatsapp_text">💬 WhatsApp text</option>
+                <option value="whatsapp_audio">🎙️ WhatsApp voice note</option>
+                <option value="voice_call">📞 Phone call</option>
+              </select>
+              <p className="text-xs text-slate-500">
+                How announcements and reminders reach this contact. No
+                preference lets each send pick its own default.
+              </p>
+              {contact?.id && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      const res = await fetch(
+                        `/api/contacts/${contact.id}/ask-update-channel`,
+                        { method: 'POST' }
+                      );
+                      const json = await res.json().catch(() => ({}));
+                      if (!res.ok)
+                        throw new Error(json.error || 'Failed to send');
+                      toast.success(
+                        'Asked on WhatsApp — their tap sets the preference automatically.'
+                      );
+                    } catch (err) {
+                      toast.error(
+                        err instanceof Error ? err.message : 'Failed to send'
+                      );
+                    }
+                  }}
+                  className="text-primary text-xs font-medium hover:underline"
+                >
+                  Ask them on WhatsApp instead →
+                </button>
+              )}
+            </div>
 
-          {/* Real Estate Preferences */}
-          {classification === 'Buyer' && (
-            <div className="border-t border-slate-800 pt-4 mt-2 space-y-4">
-              <h4 className="text-sm font-bold text-white tracking-wide uppercase">Real Estate Preferences</h4>
+            <div className="space-y-2">
+              <Label htmlFor="cf-inquired-property" className="text-slate-300">
+                Shown Interest / Inquired Property
+              </Label>
+              <select
+                id="cf-inquired-property"
+                value={lastInquiredPropertyId || ''}
+                onChange={(e) =>
+                  setLastInquiredPropertyId(e.target.value || null)
+                }
+                className="focus:border-primary w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:outline-none"
+              >
+                <option value="">None</option>
+                {propertiesList.map((prop) => (
+                  <option key={prop.id} value={prop.id}>
+                    {prop.property_code ? `[${prop.property_code}] ` : ''}
+                    {prop.title}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-              {/* Budget Fields */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label className="text-slate-300">Budget Range (INR)</Label>
-                  <label className="flex items-center gap-1.5 text-xs text-slate-400 cursor-pointer select-none">
+            {/* Real Estate Preferences */}
+            {classification === 'Buyer' && (
+              <div className="mt-2 space-y-4 border-t border-slate-800 pt-4">
+                <h4 className="text-sm font-bold tracking-wide text-white uppercase">
+                  Real Estate Preferences
+                </h4>
+
+                {/* Budget Fields */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-slate-300">Budget Range (INR)</Label>
+                    <label className="flex cursor-pointer items-center gap-1.5 text-xs text-slate-400 select-none">
+                      <input
+                        type="checkbox"
+                        checked={noBudget}
+                        onChange={(e) => {
+                          setNoBudget(e.target.checked);
+                          if (e.target.checked) {
+                            setMinBudget('');
+                            setMaxBudget('');
+                          }
+                        }}
+                        className="border-slate-750 text-primary focus:ring-primary/40 h-3.5 w-3.5 rounded bg-slate-800"
+                      />
+                      No Budget Limit
+                    </label>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Input
+                        type="number"
+                        disabled={noBudget}
+                        value={minBudget}
+                        onChange={(e) => setMinBudget(e.target.value)}
+                        placeholder="Min Budget"
+                        className="h-8 border-slate-700 bg-slate-800 text-xs text-white placeholder:text-slate-500 disabled:opacity-40"
+                      />
+                      <PriceHint
+                        value={minBudget}
+                        compact
+                        className="block text-[10px]"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Input
+                        type="number"
+                        disabled={noBudget}
+                        value={maxBudget}
+                        onChange={(e) => setMaxBudget(e.target.value)}
+                        placeholder="Max Budget"
+                        className="h-8 border-slate-700 bg-slate-800 text-xs text-white placeholder:text-slate-500 disabled:opacity-40"
+                      />
+                      <PriceHint
+                        value={maxBudget}
+                        compact
+                        className="block text-[10px]"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* ROI Preference Field */}
+                <div className="space-y-2">
+                  <Label htmlFor="cf-min-roi" className="text-slate-300">
+                    Expected Min ROI (%)
+                  </Label>
+                  <Input
+                    id="cf-min-roi"
+                    type="number"
+                    step="0.01"
+                    value={minRoi}
+                    onChange={(e) => setMinRoi(e.target.value)}
+                    placeholder="e.g. 4.5"
+                    className="focus-visible:ring-primary h-8.5 border-slate-700 bg-slate-800 text-xs text-white placeholder:text-slate-500 focus-visible:ring-1 focus-visible:ring-offset-0"
+                  />
+                </div>
+
+                {/* Areas of Interest */}
+                <div className="space-y-2">
+                  <Label className="text-slate-300">Areas of Interest</Label>
+
+                  <AreasOfInterestInput
+                    areasText={areasText}
+                    areasOfInterest={areasOfInterest}
+                    onChange={(text, areas) => {
+                      setAreasText(text);
+                      setAreasOfInterest(areas);
+                    }}
+                    onPickGeo={(geo) =>
+                      setAreasGeo((prev) => [
+                        ...prev.filter(
+                          (g) => g.name.toLowerCase() !== geo.name.toLowerCase()
+                        ),
+                        geo,
+                      ])
+                    }
+                  />
+
+                  {/* Strict Area Match Checkbox */}
+                  <div className="flex items-center space-x-2 pt-2">
                     <input
                       type="checkbox"
-                      checked={noBudget}
-                      onChange={(e) => {
-                        setNoBudget(e.target.checked);
-                        if (e.target.checked) {
-                          setMinBudget('');
-                          setMaxBudget('');
-                        }
-                      }}
-                      className="rounded border-slate-750 bg-slate-800 text-primary focus:ring-primary/40 h-3.5 w-3.5"
+                      id="cf-strict-area-match"
+                      checked={strictAreaMatch}
+                      onChange={(e) => setStrictAreaMatch(e.target.checked)}
+                      className="text-primary size-3.5 rounded border-slate-700 bg-slate-800 focus:ring-0 focus:ring-offset-0"
                     />
-                    No Budget Limit
-                  </label>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <Input
-                      type="number"
-                      disabled={noBudget}
-                      value={minBudget}
-                      onChange={(e) => setMinBudget(e.target.value)}
-                      placeholder="Min Budget"
-                      className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-8 text-xs disabled:opacity-40"
-                    />
-                    <PriceHint value={minBudget} compact className="text-[10px] block" />
-                  </div>
-                  <div className="space-y-1">
-                    <Input
-                      type="number"
-                      disabled={noBudget}
-                      value={maxBudget}
-                      onChange={(e) => setMaxBudget(e.target.value)}
-                      placeholder="Max Budget"
-                      className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-8 text-xs disabled:opacity-40"
-                    />
-                    <PriceHint value={maxBudget} compact className="text-[10px] block" />
+                    <label
+                      htmlFor="cf-strict-area-match"
+                      className="cursor-pointer text-[11px] font-medium text-slate-400 select-none"
+                    >
+                      Strict Area Match (Matches within 5 kms instead of 20 kms)
+                    </label>
                   </div>
                 </div>
-              </div>
 
-              {/* ROI Preference Field */}
-              <div className="space-y-2">
-                <Label htmlFor="cf-min-roi" className="text-slate-300">Expected Min ROI (%)</Label>
-                <Input
-                  id="cf-min-roi"
-                  type="number"
-                  step="0.01"
-                  value={minRoi}
-                  onChange={(e) => setMinRoi(e.target.value)}
-                  placeholder="e.g. 4.5"
-                  className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-8.5 text-xs focus-visible:ring-1 focus-visible:ring-primary focus-visible:ring-offset-0"
-                />
-              </div>
+                {/* Named Projects */}
+                <div className="space-y-2">
+                  <Label className="text-slate-300">Projects of Interest</Label>
 
-              {/* Areas of Interest */}
-              <div className="space-y-2">
-                <Label className="text-slate-300">Areas of Interest</Label>
-
-                <AreasOfInterestInput
-                  areasText={areasText}
-                  areasOfInterest={areasOfInterest}
-                  onChange={(text, areas) => {
-                    setAreasText(text);
-                    setAreasOfInterest(areas);
-                  }}
-                  onPickGeo={(geo) =>
-                    setAreasGeo((prev) => [
-                      ...prev.filter((g) => g.name.toLowerCase() !== geo.name.toLowerCase()),
-                      geo,
-                    ])
-                  }
-                />
-
-                {/* Strict Area Match Checkbox */}
-                <div className="flex items-center space-x-2 pt-2">
-                  <input
-                    type="checkbox"
-                    id="cf-strict-area-match"
-                    checked={strictAreaMatch}
-                    onChange={(e) => setStrictAreaMatch(e.target.checked)}
-                    className="rounded border-slate-700 bg-slate-800 text-primary focus:ring-0 focus:ring-offset-0 size-3.5"
+                  <ProjectsOfInterestInput
+                    projectsText={projectsText}
+                    projects={projectsOfInterest}
+                    strict={strictProjectMatch}
+                    onChange={(text, projects) => {
+                      setProjectsText(text);
+                      setProjectsOfInterest(projects);
+                    }}
+                    onStrictChange={setStrictProjectMatch}
+                    idPrefix="cf"
                   />
-                  <label htmlFor="cf-strict-area-match" className="text-[11px] text-slate-400 font-medium cursor-pointer select-none">
-                    Strict Area Match (Matches within 5 kms instead of 20 kms)
-                  </label>
+                </div>
+
+                {/* Property Interests Checklist */}
+                <div className="space-y-2">
+                  <Label className="text-slate-300">
+                    Property Category Interests
+                  </Label>
+                  <div className="grid grid-cols-1 gap-2 rounded-lg border border-slate-800/80 bg-slate-950/20 p-3">
+                    {PROPERTY_INTEREST_OPTIONS.map((option) => {
+                      const checked = propertyInterests.includes(option);
+                      return (
+                        <label
+                          key={option}
+                          className="flex cursor-pointer items-start gap-2.5 text-xs text-slate-300 select-none hover:text-white"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setPropertyInterests((prev) => [
+                                  ...prev,
+                                  option,
+                                ]);
+                              } else {
+                                setPropertyInterests((prev) =>
+                                  prev.filter((o) => o !== option)
+                                );
+                              }
+                            }}
+                            className="text-primary focus:ring-primary/40 mt-0.5 h-3.5 w-3.5 cursor-pointer rounded border-slate-700 bg-slate-800"
+                          />
+                          <span>{option}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
+            )}
 
-              {/* Named Projects */}
-              <div className="space-y-2">
-                <Label className="text-slate-300">Projects of Interest</Label>
-
-                <ProjectsOfInterestInput
-                  projectsText={projectsText}
-                  projects={projectsOfInterest}
-                  strict={strictProjectMatch}
-                  onChange={(text, projects) => {
-                    setProjectsText(text);
-                    setProjectsOfInterest(projects);
-                  }}
-                  onStrictChange={setStrictProjectMatch}
-                  idPrefix="cf"
-                />
-              </div>
-
-              {/* Property Interests Checklist */}
-              <div className="space-y-2">
-                <Label className="text-slate-300">Property Category Interests</Label>
-                <div className="grid grid-cols-1 gap-2 bg-slate-950/20 border border-slate-800/80 rounded-lg p-3">
-                  {PROPERTY_INTEREST_OPTIONS.map(option => {
-                    const checked = propertyInterests.includes(option);
+            <div className="space-y-2 border-t border-slate-800 pt-4">
+              <Label className="text-slate-300">Tags</Label>
+              {loadingTags ? (
+                <div className="flex items-center gap-2 text-sm text-slate-500">
+                  <Loader2 className="size-3 animate-spin" />
+                  Loading tags...
+                </div>
+              ) : tags.length === 0 ? (
+                <p className="text-xs text-slate-500">
+                  No tags available. Create tags in Settings.
+                </p>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {tags.map((tag) => {
+                    const selected = selectedTagIds.includes(tag.id);
                     return (
-                      <label key={option} className="flex items-start gap-2.5 text-xs text-slate-300 cursor-pointer select-none hover:text-white">
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setPropertyInterests(prev => [...prev, option]);
-                            } else {
-                              setPropertyInterests(prev => prev.filter(o => o !== option));
-                            }
-                          }}
-                          className="rounded border-slate-700 bg-slate-800 text-primary focus:ring-primary/40 mt-0.5 h-3.5 w-3.5 cursor-pointer"
-                        />
-                        <span>{option}</span>
-                      </label>
+                      <button
+                        key={tag.id}
+                        type="button"
+                        onClick={() => toggleTag(tag.id)}
+                        className={`inline-flex cursor-pointer items-center rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors ${
+                          selected
+                            ? 'ring-primary ring-2 ring-offset-1 ring-offset-slate-900'
+                            : 'opacity-60 hover:opacity-100'
+                        }`}
+                        style={{
+                          backgroundColor: tag.color + '20',
+                          color: tag.color,
+                          borderColor: tag.color,
+                        }}
+                      >
+                        {tag.name}
+                      </button>
                     );
                   })}
                 </div>
-              </div>
+              )}
             </div>
-          )}
 
-          <div className="space-y-2 border-t border-slate-800 pt-4">
-            <Label className="text-slate-300">Tags</Label>
-            {loadingTags ? (
-              <div className="flex items-center gap-2 text-slate-500 text-sm">
-                <Loader2 className="size-3 animate-spin" />
-                Loading tags...
-              </div>
-            ) : tags.length === 0 ? (
-              <p className="text-xs text-slate-500">
-                No tags available. Create tags in Settings.
-              </p>
-            ) : (
-              <div className="flex flex-wrap gap-1.5">
-                {tags.map((tag) => {
-                  const selected = selectedTagIds.includes(tag.id);
-                  return (
-                    <button
-                      key={tag.id}
-                      type="button"
-                      onClick={() => toggleTag(tag.id)}
-                      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors cursor-pointer ${
-                        selected
-                          ? 'ring-2 ring-primary ring-offset-1 ring-offset-slate-900'
-                          : 'opacity-60 hover:opacity-100'
-                      }`}
-                      style={{
-                        backgroundColor: tag.color + '20',
-                        color: tag.color,
-                        borderColor: tag.color,
-                      }}
-                    >
-                      {tag.name}
-                    </button>
-                  );
-                })}
+            {/* Notes Field */}
+            <div className="space-y-2 border-t border-slate-800 pt-4">
+              <Label htmlFor="cf-notes" className="text-slate-300">
+                Notes
+              </Label>
+              <Textarea
+                id="cf-notes"
+                value={notesText}
+                onChange={(e) => setNotesText(e.target.value)}
+                placeholder="Add any notes or description about the contact..."
+                className="min-h-[80px] resize-y border-slate-700 bg-slate-800 text-xs text-white placeholder:text-slate-500"
+              />
+            </div>
+
+            {/* Properties Association checklist */}
+            {[
+              'Buyer',
+              'Seller',
+              'Agent',
+              'Developer',
+              'Owner',
+              'Owner & Buyer',
+            ].includes(classification) && (
+              <div className="space-y-2 border-t border-slate-800 pt-4">
+                <Label className="text-slate-350">Associated Properties</Label>
+                <div className="relative">
+                  <Search className="absolute top-1/2 left-2.5 size-3 -translate-y-1/2 text-slate-500" />
+                  <Input
+                    value={propertySearch}
+                    onChange={(e) => setPropertySearch(e.target.value)}
+                    placeholder="Search properties to link..."
+                    className="focus-visible:ring-primary h-8 border-slate-700 bg-slate-800 pl-8 text-xs text-white placeholder:text-slate-500 focus-visible:ring-1 focus-visible:ring-offset-0"
+                  />
+                </div>
+                <div className="mt-2 max-h-40 space-y-1.5 overflow-y-auto rounded-lg border border-slate-800 bg-slate-950/20 p-2.5">
+                  {loadingProperties ? (
+                    <div className="flex items-center justify-center gap-1.5 py-4 text-xs text-slate-500">
+                      <Loader2 className="text-primary size-3 animate-spin" />
+                      Loading properties...
+                    </div>
+                  ) : filteredProperties.length === 0 ? (
+                    <p className="py-4 text-center text-[11px] text-slate-500">
+                      No matching properties found.
+                    </p>
+                  ) : (
+                    filteredProperties.map((prop) => {
+                      const checked = selectedPropertyIds.includes(prop.id);
+                      return (
+                        <label
+                          key={prop.id}
+                          className="hover:bg-slate-850/40 flex cursor-pointer items-start gap-2.5 rounded p-1.5 text-xs text-slate-300 select-none hover:text-white"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedPropertyIds((prev) => [
+                                  ...prev,
+                                  prop.id,
+                                ]);
+                              } else {
+                                setSelectedPropertyIds((prev) =>
+                                  prev.filter((id) => id !== prop.id)
+                                );
+                              }
+                            }}
+                            className="text-primary focus:ring-primary/40 mt-0.5 h-3.5 w-3.5 cursor-pointer rounded border-slate-700 bg-slate-800"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <span className="block truncate font-semibold text-slate-200">
+                              {prop.title}
+                            </span>
+                            <span className="block truncate text-left text-[10px] text-slate-500">
+                              {prop.location} •{' '}
+                              {prop.price >= 10000000
+                                ? `₹${(prop.price / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`
+                                : prop.price >= 100000
+                                  ? `₹${(prop.price / 100000).toFixed(2).replace(/\.00$/, '')} Lakhs`
+                                  : `₹${prop.price.toLocaleString('en-IN')}`}
+                            </span>
+                          </div>
+                        </label>
+                      );
+                    })
+                  )}
+                </div>
               </div>
             )}
           </div>
 
-          {/* Notes Field */}
-          <div className="space-y-2 border-t border-slate-800 pt-4">
-            <Label htmlFor="cf-notes" className="text-slate-300">
-              Notes
-            </Label>
-            <Textarea
-              id="cf-notes"
-              value={notesText}
-              onChange={(e) => setNotesText(e.target.value)}
-              placeholder="Add any notes or description about the contact..."
-              className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 min-h-[80px] text-xs resize-y"
-            />
-          </div>
-
-          {/* Properties Association checklist */}
-          {['Buyer', 'Seller', 'Agent', 'Developer', 'Owner', 'Owner & Buyer'].includes(classification) && (
-            <div className="space-y-2 border-t border-slate-800 pt-4">
-              <Label className="text-slate-350">Associated Properties</Label>
-              <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3 text-slate-500" />
-                <Input
-                  value={propertySearch}
-                  onChange={(e) => setPropertySearch(e.target.value)}
-                  placeholder="Search properties to link..."
-                  className="pl-8 bg-slate-800 border-slate-700 text-xs h-8 text-white placeholder:text-slate-500 focus-visible:ring-1 focus-visible:ring-primary focus-visible:ring-offset-0"
-                />
-              </div>
-              <div className="max-h-40 overflow-y-auto border border-slate-800 bg-slate-950/20 rounded-lg p-2.5 space-y-1.5 mt-2">
-                {loadingProperties ? (
-                  <div className="flex items-center justify-center py-4 text-xs text-slate-500 gap-1.5">
-                    <Loader2 className="size-3 animate-spin text-primary" />
-                    Loading properties...
-                  </div>
-                ) : filteredProperties.length === 0 ? (
-                  <p className="text-[11px] text-slate-500 text-center py-4">No matching properties found.</p>
-                ) : (
-                  filteredProperties.map((prop) => {
-                    const checked = selectedPropertyIds.includes(prop.id);
-                    return (
-                      <label
-                        key={prop.id}
-                        className="flex items-start gap-2.5 text-xs text-slate-300 cursor-pointer select-none hover:text-white hover:bg-slate-850/40 p-1.5 rounded"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedPropertyIds((prev) => [...prev, prop.id]);
-                            } else {
-                              setSelectedPropertyIds((prev) => prev.filter((id) => id !== prop.id));
-                            }
-                          }}
-                          className="rounded border-slate-700 bg-slate-800 text-primary focus:ring-primary/40 mt-0.5 h-3.5 w-3.5 cursor-pointer"
-                        />
-                        <div className="min-w-0 flex-1">
-                          <span className="font-semibold text-slate-200 block truncate">{prop.title}</span>
-                          <span className="text-[10px] text-slate-500 block truncate text-left">
-                            {prop.location} • {prop.price >= 10000000 
-                              ? `₹${(prop.price / 10000000).toFixed(2).replace(/\.00$/, '')} Cr` 
-                              : prop.price >= 100000 
-                                ? `₹${(prop.price / 100000).toFixed(2).replace(/\.00$/, '')} Lakhs` 
-                                : `₹${prop.price.toLocaleString('en-IN')}`}
-                          </span>
-                        </div>
-                      </label>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-          )}
- 
-          </div>
-
-          <DialogFooter className="bg-slate-950/40 border-t border-slate-800 p-4 mx-0 mb-0 rounded-none rounded-b-xl">
+          <DialogFooter className="mx-0 mb-0 rounded-none rounded-b-xl border-t border-slate-800 bg-slate-950/40 p-4">
             <Button
               type="button"
               variant="outline"
