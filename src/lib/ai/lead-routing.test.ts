@@ -37,6 +37,18 @@ describe('routeLeadMessage', () => {
     ).toBe('qualification');
   });
 
+  it('sends a showcase enquiry to the approval card, not the ladder', () => {
+    // Verbatim from the Enquire button. "Commercial Land" in the title
+    // makes the requirement signal true by construction, and the ladder
+    // claiming it answered a buyer who had named the exact listing with
+    // "what budget range are you working with?".
+    expect(
+      routeLeadMessage(
+        'Hi! I am interested in your property "50x70 Commercial Land in 6th Block, Koramangala" in 6th Block, Koramangala, Bengaluru. Please share details. (Property ID: PROP-1030)'
+      )
+    ).toBe('property_enquiry');
+  });
+
   it('treats an empty message as the ladder, which then declines it', () => {
     expect(routeLeadMessage('')).toBe('qualification');
     expect(routeLeadMessage(null)).toBe('qualification');
@@ -49,6 +61,12 @@ describe('routeLeadMessage — precedence', () => {
     expect(routeLeadMessage('Call me and send the photos')).toBe(
       'callback_handover'
     );
+  });
+
+  it('lets a callback beat an enquiry: the person brings the details too', () => {
+    expect(
+      routeLeadMessage('Please call me about this (Property ID: PROP-1030)')
+    ).toBe('callback_handover');
   });
 
   it('lets photos beat a bare listing number', () => {
@@ -81,6 +99,7 @@ describe('standsDownFromQualification', () => {
 describe('every route is explained for the simulator', () => {
   it.each([
     'callback_handover',
+    'property_enquiry',
     'photo_request',
     'shortlist_reference',
     'qualification',

@@ -25,7 +25,9 @@ vi.mock('@/lib/inventory/location-requests', () => ({
 const {
   parseEnquiryReply,
   buildEnquiryCardBody,
+  buildEnquiryAckText,
   sendPropertyEnquiryCard,
+  ENQUIRY_APPROVE_PREFIX,
   ENQUIRY_PHOTOS_PREFIX,
 } = await import('./enquiry-card');
 
@@ -44,6 +46,18 @@ describe('parseEnquiryReply', () => {
   });
 
   it('reads each action', () => {
+    expect(
+      parseEnquiryReply(`enq_approve:${PROPERTY_ID}:${CONTACT_ID}`)?.action
+    ).toBe('approve');
+    expect(
+      parseEnquiryReply(`enq_reject:${PROPERTY_ID}:${CONTACT_ID}`)?.action
+    ).toBe('reject');
+  });
+
+  it('still reads the first card generation, which may sit untapped in a thread', () => {
+    expect(
+      parseEnquiryReply(`enq_photos:${PROPERTY_ID}:${CONTACT_ID}`)?.action
+    ).toBe('photos');
     expect(
       parseEnquiryReply(`enq_details:${PROPERTY_ID}:${CONTACT_ID}`)?.action
     ).toBe('details');
@@ -122,6 +136,24 @@ describe('buildEnquiryCardBody', () => {
   });
 });
 
+describe('buildEnquiryAckText', () => {
+  it('promises the details rather than interrogating', () => {
+    // What the buyer used to get here was "what budget range are you
+    // working with?" — asked of someone who had named the listing.
+    const text = buildEnquiryAckText('Ganesh K P', '50x70 Commercial Land');
+    expect(text).toContain('Thanks Ganesh!');
+    expect(text).toContain('*50x70 Commercial Land*');
+    expect(text).toMatch(/details.*shortly/i);
+    expect(text).not.toMatch(/budget/i);
+  });
+
+  it('survives a nameless contact and an unloaded title', () => {
+    const text = buildEnquiryAckText(null, null);
+    expect(text).toContain('Thanks!');
+    expect(text).toContain('that property');
+  });
+});
+
 describe('sendPropertyEnquiryCard', () => {
   function db(property: unknown) {
     return {
@@ -146,7 +178,7 @@ describe('sendPropertyEnquiryCard', () => {
     enquiryText: 'Hi! I am interested',
   });
 
-  it('sends three buttons, each carrying both ids', async () => {
+  it('sends Approve and Reject, each carrying both ids', async () => {
     vi.clearAllMocks();
     resolveOwnerWhatsAppContact.mockResolvedValue({
       contactId: 'agent-contact',
@@ -158,7 +190,12 @@ describe('sendPropertyEnquiryCard', () => {
 
     const call = sendWhatsAppMessageAndPersist.mock.calls[0][0];
     expect(call.contactId).toBe('agent-contact');
-    expect(call.interactiveButtons).toHaveLength(3);
+    expect(call.interactiveButtons).toHaveLength(2);
+    expect(call.interactiveButtons[0].id).toBe(
+      `${ENQUIRY_APPROVE_PREFIX}${PROPERTY_ID}:${CONTACT_ID}`
+    );
+    expect(call.interactiveButtons[0].title).toContain('Approve');
+    expect(call.interactiveButtons[1].title).toContain('Reject');
     for (const button of call.interactiveButtons) {
       expect(button.id).toContain(PROPERTY_ID);
       expect(button.id).toContain(CONTACT_ID);
@@ -245,5 +282,27 @@ describe('the webhook wires the card up', () => {
     expect(tap).toBeGreaterThan(-1);
     expect(ownerChatbot).toBeGreaterThan(-1);
     expect(tap).toBeLessThan(ownerChatbot);
+  });
+
+  it('consumes an explicit enquiry before the ladder can interrogate it', () => {
+    // The first live tap of the Enquire button was answered with "what
+    // budget range are you working with?" — the qualification ladder
+    // claiming a buyer who had just named the exact listing — because
+    // the enquiry branch was gated on the contact's first-ever message
+    // and this buyer had messaged before.
+    const enquiryBranch = source.indexOf('enquiryByCode &&');
+    const ladder = source.indexOf('processBuyerQualificationMessage(');
+    expect(enquiryBranch).toBeGreaterThan(-1);
+    expect(ladder).toBeGreaterThan(-1);
+    expect(enquiryBranch).toBeLessThan(ladder);
+    // And it acknowledges the buyer rather than going quiet on them.
+    expect(source).toContain(
+      'buildEnquiryAckText(contactRecord.name, enquiryPropertyTitle)'
+    );
+  });
+
+  it('confirms each tap back to the agent, like the location card does', () => {
+    expect(source).toContain('✅ Approved — complete details for');
+    expect(source).toContain('❌ Rejected — nothing was sent to');
   });
 });

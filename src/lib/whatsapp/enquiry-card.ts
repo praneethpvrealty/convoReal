@@ -24,12 +24,16 @@ import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatche
 // rather than rewritten so both cards reach the same person.
 import { resolveOwnerWhatsAppContact } from '@/lib/inventory/location-requests';
 
+export const ENQUIRY_APPROVE_PREFIX = 'enq_approve:';
+export const ENQUIRY_REJECT_PREFIX = 'enq_reject:';
+// The first card shipped with these three; kept parseable so a card
+// already sitting in an agent's WhatsApp still works when tapped.
 export const ENQUIRY_PHOTOS_PREFIX = 'enq_photos:';
 export const ENQUIRY_DETAILS_PREFIX = 'enq_details:';
 export const ENQUIRY_MINE_PREFIX = 'enq_mine:';
 
 export interface EnquiryAction {
-  action: 'photos' | 'details' | 'mine';
+  action: 'approve' | 'reject' | 'photos' | 'details' | 'mine';
   propertyId: string;
   contactId: string;
 }
@@ -46,6 +50,8 @@ export function parseEnquiryReply(
 ): EnquiryAction | null {
   const id = (replyId || '').trim();
   const prefixes = [
+    [ENQUIRY_APPROVE_PREFIX, 'approve'],
+    [ENQUIRY_REJECT_PREFIX, 'reject'],
     [ENQUIRY_PHOTOS_PREFIX, 'photos'],
     [ENQUIRY_DETAILS_PREFIX, 'details'],
     [ENQUIRY_MINE_PREFIX, 'mine'],
@@ -107,8 +113,24 @@ export function buildEnquiryCardBody(
     '',
     `"${enquiryText.slice(0, 160)}"`,
     '',
-    'Send the photos or the full details straight to them, or take it yourself and the bot stays out of the way.',
+    'Approve to send them the complete details — photo, price, specs and the listing link — on WhatsApp. Reject and the bot stays out of it; the thread is yours in the inbox.',
   ].join('\n');
+}
+
+/**
+ * What the buyer hears the moment they enquire. A promise, not the
+ * details: the details are the agent's to release, and this is what
+ * replaced the ladder asking "what budget range are you working with?"
+ * of a buyer who had just named the exact listing.
+ */
+export function buildEnquiryAckText(
+  leadName: string | null | undefined,
+  title: string | null | undefined
+): string {
+  const first = (leadName || '').trim().split(/\s+/)[0];
+  const greeting = first ? `Thanks ${first}!` : 'Thanks!';
+  const subject = title ? `*${title}*` : 'that property';
+  return `${greeting} Your enquiry for ${subject} has reached our team — you'll receive the complete details right here shortly.`;
 }
 
 export interface SendEnquiryCardArgs {
@@ -163,16 +185,12 @@ export async function sendPropertyEnquiryCard(
       ),
       interactiveButtons: [
         {
-          id: encode(ENQUIRY_PHOTOS_PREFIX, propertyId, contactId),
-          title: '📸 Send photos',
+          id: encode(ENQUIRY_APPROVE_PREFIX, propertyId, contactId),
+          title: '✅ Approve',
         },
         {
-          id: encode(ENQUIRY_DETAILS_PREFIX, propertyId, contactId),
-          title: '📋 Send details',
-        },
-        {
-          id: encode(ENQUIRY_MINE_PREFIX, propertyId, contactId),
-          title: "✋ I'll reply",
+          id: encode(ENQUIRY_REJECT_PREFIX, propertyId, contactId),
+          title: '❌ Reject',
         },
       ],
     });

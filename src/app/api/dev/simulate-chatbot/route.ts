@@ -32,6 +32,7 @@ import {
   plannedPhotoCount,
 } from '@/lib/ai/photo-request';
 import { CALLBACK_HANDOVER_TEXT } from '@/lib/ai/lead-question';
+import { buildEnquiryAckText } from '@/lib/whatsapp/enquiry-card';
 import { propertyShowcaseUrl } from '@/lib/share-message-builder';
 import { accountShowcaseOrigin } from '@/lib/showcase/account-showcase-url';
 import {
@@ -348,6 +349,16 @@ async function simulateCarveOut(args: {
   const subject = subjectPropertyCode
     ? await loadSubjectByCode(supabase, accountId, subjectPropertyCode)
     : null;
+
+  if (route === 'property_enquiry') {
+    // The buyer's half of the flow — the Approve/Reject card goes to
+    // the agent, and approving is what releases the details.
+    return NextResponse.json({
+      ...base,
+      previewText: buildEnquiryAckText(null, subject?.title ?? null),
+      notifiesAgent: true,
+    });
+  }
 
   if (!subject) {
     return NextResponse.json({
