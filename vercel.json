@@ -53,6 +53,10 @@
     {
       "path": "/api/cron/broadcast-sweep",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/voice-campaigns",
+      "schedule": "*/10 * * * *"
     }
   ]
 }

@@ -11,6 +11,13 @@ import {
 } from '@/lib/contacts/lead-placeholder';
 import { runAutomationsForTrigger } from '@/lib/automations/engine';
 import { interestFromTypeText } from '@/app/api/leads/email-webhook/route';
+import { assignTagsToContact } from '@/app/api/leads/email-webhook/db-utils';
+import {
+  nextRecipientStatus,
+  parseQualification,
+  qualificationTags,
+  type Qualification,
+} from '@/lib/voice/campaigns';
 
 const VOICE_WEBHOOK_LIMIT = { limit: 60, windowMs: 60_000 };
 const VOICE_AGENT_SOURCE = 'Voice Agent';
@@ -45,6 +52,8 @@ export interface VoiceCallPayload {
   budgetMax: number | null;
   areas: string[];
   propertyInterest: string | null;
+  campaignId: string | null;
+  qualification: Qualification | null;
 }
 
 function asText(value: unknown, max: number): string | null {
@@ -108,6 +117,8 @@ export function parseVoiceCallPayload(body: unknown): VoiceCallPayload | null {
     budgetMax: Number.isFinite(budget) && budget > 0 ? budget : null,
     areas,
     propertyInterest: asText(requirement.property_interest, 120),
+    campaignId: asText(raw.campaign_id, 64),
+    qualification: parseQualification(raw.qualification),
   };
 }
 
@@ -200,6 +211,7 @@ export async function POST(request: Request) {
       ? interestFromTypeText(payload.propertyInterest)
       : null;
 
+    const statedAreas = payload.qualification?.statedAreas ?? [];
     const { contactId, isNew } = await findOrCreateContact(supabase, {
       accountId,
       userId: profile.user_id,
@@ -207,8 +219,8 @@ export async function POST(request: Request) {
       name,
       source: VOICE_AGENT_SOURCE,
       classification: 'Buyer',
-      maxBudget: payload.budgetMax,
-      areasOfInterest: payload.areas,
+      maxBudget: payload.qualification?.statedBudget ?? payload.budgetMax,
+      areasOfInterest: statedAreas.length > 0 ? statedAreas : payload.areas,
       propertyInterests: interest ? [interest] : [],
     });
 
@@ -274,6 +286,58 @@ export async function POST(request: Request) {
         .from('conversations')
         .update({ ...threadState, updated_at: new Date().toISOString() })
         .eq('id', conversation.id);
+    }
+
+    if (payload.campaignId) {
+      const { data: recipient } = await supabase
+        .from('voice_campaign_recipients')
+        .select('id, attempts, campaign:voice_campaigns(max_attempts)')
+        .eq('account_id', accountId)
+        .eq('campaign_id', payload.campaignId)
+        .eq('contact_id', contactId)
+        .maybeSingle();
+      if (recipient) {
+        const campaignRow = Array.isArray(recipient.campaign)
+          ? recipient.campaign[0]
+          : recipient.campaign;
+        const status = payload.qualification?.doNotCall
+          ? 'opted_out'
+          : nextRecipientStatus(
+              payload.outcome,
+              recipient.attempts,
+              campaignRow?.max_attempts ?? 3
+            );
+        await supabase
+          .from('voice_campaign_recipients')
+          .update({
+            status,
+            call_log_id: callLog.id,
+            qualification: payload.qualification ?? null,
+          })
+          .eq('id', recipient.id)
+          .select('id');
+      }
+    }
+
+    if (payload.qualification?.doNotCall) {
+      await supabase
+        .from('contacts')
+        .update({ do_not_call: true })
+        .eq('account_id', accountId)
+        .eq('id', contactId)
+        .select('id');
+    }
+    const tags = payload.qualification
+      ? qualificationTags(payload.qualification)
+      : [];
+    if (tags.length > 0) {
+      await assignTagsToContact(
+        supabase,
+        accountId,
+        profile.user_id,
+        contactId,
+        tags
+      );
     }
 
     if (isNew) {

@@ -169,7 +169,7 @@ product. Phase B:
 - Settings UI under Settings → Integrations, **web and mobile in the same change** (§2.8).
 - `docs/external-services-audit.md` and `.env.local.example` updated accordingly.
 
-## 6. Phase C — qualification call campaigns
+## 6. Phase C — qualification call campaigns (server side implemented)
 
 **The driving case:** a Koramangala listing at ₹14.7 Cr pulled a large batch of Housing
 enquiries of which ~95% were unqualified on budget. The email webhook already files every one
@@ -211,6 +211,17 @@ Phase C makes that a **broadcast-style outbound call campaign**:
 The appointment-reminder call ("your site visit is tomorrow at 11 — confirm?") is the same
 dispatch machinery with the appointments cron (`/api/appointments/cron`) as the trigger instead
 of a campaign; it ships on top of Phase C once the channel preference below exists.
+
+**Implementation status.** The server side is shipped: migration `270_voice_campaigns.sql`
+(tables, `contacts.do_not_call`, the recipient-counts RPC), CRUD + recipient routes under
+`src/app/api/voice-campaigns/`, the dispatcher at `/api/cron/voice-campaigns` (every 10 min in
+`vercel.json`, IST call windows, queued→calling claim guard, stale-calling requeue, attempt
+budget), the Sarvam outbound-call client in `src/lib/voice/outbound-call.ts`
+(`VOICE_CALLS_DRY_RUN` for end-to-end testing, `SARVAM_OUTBOUND_CALL_PATH` override until the
+GA API path is pinned), and the webhook writeback (`campaign_id` + `qualification` in the §4
+payload → recipient resolution, stated-budget/areas overwrite, Qualified / Budget Mismatch
+tags, `do_not_call`). Still open: the campaigns UI (web **and** mobile, §2.8) and per-call
+credit gating.
 
 ## 7. Phase D — audio announcements on WhatsApp + per-contact channel preference
 

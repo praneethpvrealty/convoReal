@@ -27,6 +27,30 @@ describe('parseVoiceCallPayload', () => {
       budgetMax: null,
       areas: [],
       propertyInterest: null,
+      campaignId: null,
+      qualification: null,
+    });
+  });
+
+  it('parses campaign linkage and the qualification block', () => {
+    const parsed = parseVoiceCallPayload({
+      caller_phone: '9876543210',
+      campaign_id: 'a4e7a6de-0000-0000-0000-000000000000',
+      qualification: {
+        budget_confirmed: false,
+        stated_budget: 25000000,
+        stated_areas: ['HSR Layout'],
+        wants_alternatives: true,
+        do_not_call: false,
+      },
+    });
+    expect(parsed?.campaignId).toBe('a4e7a6de-0000-0000-0000-000000000000');
+    expect(parsed?.qualification).toEqual({
+      budgetConfirmed: false,
+      statedBudget: 25000000,
+      statedAreas: ['HSR Layout'],
+      wantsAlternatives: true,
+      doNotCall: false,
     });
   });
 

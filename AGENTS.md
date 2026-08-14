@@ -719,6 +719,7 @@ Defined in `vercel.json`:
 - `/api/cron/buyer-match-digest` — daily 05:45 UTC
 - `/api/cron/lead-sync-reconcile` — hourly at :10
 - `/api/appointments/cron` — every 15 minutes
+- `/api/cron/voice-campaigns` — every 10 minutes
 
 All cron routes require `AUTOMATION_CRON_SECRET` or `CRON_SECRET`.
 
