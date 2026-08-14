@@ -13,6 +13,28 @@ and polish.
 
 ### Added
 
+- **Migrations are numbered by the clock now, not by hand.** Two
+  branches open at once both took the next free sequential number, git
+  raised no conflict because the filenames differed, and each PR went
+  green while the other was still open — the collision only appeared
+  once both were on `main`. It happened twice on 14 August alone (276
+  between #539/#540, then 277 between #542/#541) and twenty prefixes in
+  the back catalogue are doubled up the same way. GitHub's merge queue
+  would serialise it but needs an org-owned repository, so that trigger
+  is inert here. New migrations are now `YYYYMMDDHHMMSS_description.sql`
+  in UTC — nobody picks, so nobody can pick the same one — created with
+  `npm run migration:new -- "what it does"`, which also scaffolds
+  `account_id`, the `updated_at` trigger, RLS and `is_account_member`
+  policies under `--table=<name>`. The 298 sequential migrations already
+  merged keep their names: renaming one a self-hoster has applied would
+  surface on their next pull as a file they have never run. The guard
+  now fails the build on a new sequential migration, not just on a
+  duplicate. **No action for self-hosters** — nothing existing was
+  renamed. One quirk worth knowing: a plain `ls` sorts a timestamp
+  between `199` and `200`, so use `npm run migration:list` for the real
+  apply order (`-- --since=278` shows what a database at 278 still
+  owes).
+
 - **Appointment reminders as WhatsApp voice notes** (**migration
   required**: `277_reminder_audio.sql`). Contacts who chose audio
   updates (`preferred_update_channel = whatsapp_audio`) now get their

@@ -285,7 +285,7 @@ convoReal/
 │   ├── Dockerfile                # Multi-stage Alpine build
 │   ├── go.mod / go.sum           # Go 1.24.3, go-redis v9
 ├── supabase/
-│   ├── migrations/               # 186 numbered SQL migrations (001–174, with gaps/collisions)
+│   ├── migrations/               # 298 SQL migrations: sequential 001–278 (closed), then timestamped
 │   └── RUN_IN_SUPABASE_SQL_EDITOR.sql  # Consolidated schema seed
 ├── docs/                         # Deployment, scaling, integration and design guides
 ├── mobile/                       # Expo React Native app (own package.json + AGENTS.md)
@@ -299,7 +299,7 @@ convoReal/
 - `src/components`: ~212 files.
 - `src/lib`: ~303 files.
 - `src/**/*.test.ts(x)`: ~118 test files.
-- `supabase/migrations`: 186 SQL files.
+- `supabase/migrations`: 298 SQL files.
 
 These numbers drift with every feature. Re-count rather than trusting them if a decision depends on the exact figure.
 
@@ -324,6 +324,8 @@ All commands run from the project root unless noted.
 | `npm run test:integration` | Run integration tests against the live Supabase project (requires `.env.local` secrets). |
 | `npm run worker` | Run the Redis webhook queue worker (`tsx src/scripts/queue-worker.ts`). |
 | `npm run queue:replay-dlq` | Replay dead-letter queue messages back into the main queue. |
+| `npm run migration:new -- "what it does"` | Create a timestamped migration. `--table=<name>` scaffolds an operational table (account_id, trigger, RLS, policies). Never name one by hand — see §7.1.1. |
+| `npm run migration:list` | Every migration in apply order, which is **not** `ls` order. `-- --since=278` shows what a database at 278 still owes. |
 | `npm run check-db` | Run `src/scripts/check-documents-column.ts`. |
 | `npm run reconcile-pins` | Reconcile property map pins with derived coordinates. |
 
@@ -468,9 +470,26 @@ Never echo the values. Two things this session's environment gets wrong in a way
 
 ### 7.1 Schema source
 
-- **Incremental migrations**: `supabase/migrations/NNN_description.sql` (186 files, numbered roughly 001–174 with some gaps and collisions — e.g. two `063_*` and two `173_*` files). Pick the next free number by listing the directory, and expect duplicates to already exist.
+- **Incremental migrations**: `supabase/migrations/`. **Never name one by hand — run `npm run migration:new -- "what it does"`** (add `--table=<name>` to scaffold an operational table with `account_id`, the `updated_at` trigger, RLS and `is_account_member` policies). See §7.1.1 for why.
 - **Consolidated seed**: `supabase/RUN_IN_SUPABASE_SQL_EDITOR.sql` — a single file intended to be run in the Supabase SQL Editor to set up/reset the schema.
 - **Schema documentation**: `DATABASE_SCHEMA.md` describes the major table groups.
+
+#### 7.1.1 Two numbering schemes, and why
+
+Migrations used to be a sequence — `001_`, `002_`, … — and that scheme had a failure mode nothing in CI could catch. Two branches open at once both take the next free number, git raises no conflict because the filenames differ, and each PR goes green while the other is still open; the collision only exists once both are on `main`. It happened **twice on 2026-08-14 alone** (276 between #539/#540, then 277 between #542/#541), and twenty prefixes in the back catalogue are doubled up the same way. A merge queue would serialise it, but GitHub's needs an organization-owned repository and this one is user-owned, so the `merge_group` trigger is inert (§12).
+
+So there are two eras, and `src/lib/migrations/numbering.ts` is the authority on both:
+
+| Era | Shape | Status |
+|-----|-------|--------|
+| Sequential | `NNN_description.sql`, `001`–`278` | **Closed.** 298 files, with gaps and 20 duplicated prefixes. Left exactly as-is — renaming a migration a self-hoster has applied shows up on their next pull as a file they have never run |
+| Timestamped | `YYYYMMDDHHMMSS_description.sql` (UTC) | **Current.** Two branches cannot collide, because neither is picking — the clock is. Same shape the Supabase CLI generates, so adopting the CLI later is a no-op |
+
+`numbering.test.ts` fails the build on a new sequential migration (`findLateSequentialMigrations`), on a duplicate prefix outside the frozen history, and on a `LEGACY_SEQUENCE_CEILING` raised to make room for one more sequential file.
+
+**Ordering.** Migrations are applied by hand, one named file at a time, in the Supabase SQL Editor — there is no runner sorting this directory, so nothing breaks where the two schemes meet. But be aware that a plain `ls` sorts a timestamp *between* `199` and `200`, because `'0'` beats `'7'` at the second character. That is string sorting, not apply order. `npm run migration:list` prints the real order; `npm run migration:list -- --since=278` prints what a database already at 278 still owes.
+
+**Name the file in the CHANGELOG entry** — a bare "migration required" tells a self-hoster nothing about which file to paste.
 
 ### 7.2 Migration conventions
 
@@ -489,6 +508,8 @@ Plus:
 - `ALTER TABLE <table> ENABLE ROW LEVEL SECURITY;`
 - RLS policies using `is_account_member(target_account_id, min_role)`.
 - Use `IF NOT EXISTS` for idempotency.
+
+`npm run migration:new -- "…" --table=<name>` writes all of the above for you; check it rather than trusting it.
 
 ### 7.3 Key tables by domain
 
