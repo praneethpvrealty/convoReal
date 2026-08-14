@@ -4,27 +4,63 @@
 
 A qualification call (docs/voice-agent-integration-plan.md §6) consumes:
 
-| Item                | Typical usage               | Notes                                                                                                                                       |
-| ------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| Voice-agent minutes | ~2–3 min per connected call | Sarvam Voice Agents managed telephony; per-minute pricing — verify the current rate on platform.sarvam.ai when the workspace is provisioned |
-| Unanswered attempt  | ~0                          | no connection, no meaningful telephony cost                                                                                                 |
-| Webhook processing  | negligible                  | own infra                                                                                                                                   |
+| Item                | Typical usage               | Notes                                                                        |
+| ------------------- | --------------------------- | ---------------------------------------------------------------------------- |
+| Voice-agent minutes | ~2–3 min per connected call | ₹4.50/min on Sarvam's pay-as-you-go plan (₹4.00 on Business, ₹3.50 on Scale) |
+| Telephony           | same minutes                | ₹0.40/min on every plan                                                      |
+| Phone number        | ₹159/month                  | flat rental, not per call                                                    |
+| Unanswered attempt  | ~0                          | no connection, no meaningful telephony cost                                  |
+| Webhook processing  | negligible                  | own infra                                                                    |
 
-Estimated raw cost per connected call: **~₹3–8** at typical Indian
-voice-agent per-minute rates. Re-check this table against Sarvam's
-published Voice Agents pricing once live — the platform went GA in
-August 2026 and rates may move. A custom provider
-(`VOICE_CALL_PROVIDER=custom`) has its own economics; revisit the
-price if the fallback becomes the primary.
+Measured raw cost per connected call: **₹9.80–14.70** — ₹4.90/min
+all-in over a 2–3 minute qualification call, read off Sarvam's
+published pricing (indus.sarvam.ai/samvaad/pricing, August 2026). This
+replaces the earlier ₹3–8 estimate, which was low. A custom provider
+(`VOICE_CALL_PROVIDER=custom`) has its own economics; revisit the price
+if the fallback becomes the primary.
 
 ## Our price to the account
 
-`AI_FEATURE_COSTS.voice_campaign_call = 25 cr` (src/lib/credits/types.ts).
+Two prices, because two different parties pay the provider
+(src/lib/credits/types.ts, resolved by `voiceCallCost(mode)`):
 
-Policy rule, consistent with the other AI features: **price at ≥5×
-raw cost**. 25 cr ≈ ₹3–8 raw → ~3–8× today at the estimate's midpoint;
-tighten upward only if measured per-minute costs come in above the
-estimate — cutting a price is fine, raising one is not.
+| Mode                  | Price      | Why                                                                    |
+| --------------------- | ---------- | ---------------------------------------------------------------------- |
+| `shared`, `dedicated` | **250 cr** | We pay Sarvam for the minutes, so the charge has to cover them         |
+| `byo`                 | **10 cr**  | The account's own provider is billed; we charge for orchestration only |
+
+At ₹0.062–0.099 per credit (migration 087: 1,000 cr for ₹99 up to
+16,000 cr for ₹999), 250 cr is **₹15.60–24.75** against a ₹9.80–14.70
+call — roughly 2× raw cost. That is below the ≥5× rule the other AI
+features follow, and deliberately so: 5× would be ₹37–59 a call, which
+does not survive comparison with a person making the same call.
+
+An earlier version of this file claimed 25 cr was "3–8×" its cost by
+reading credits as rupees. They are not the same unit, and no other
+price in `AI_FEATURE_COSTS` should be read that way either.
+
+**Refund exactly what was charged.** The price now depends on a mode
+the account can change, and two of the three refund paths run long
+after the dial (the webhook, the stale sweep). Migration 279 records
+`charged_credits` on the attempt, and every refund returns that
+number — never a freshly computed one.
+
+## What the account is told
+
+A price per call is not a decision an agency can act on. Both surfaces
+put the charge next to the thing it replaces, at the moment the
+campaign is started (`src/lib/credits/time-value.ts`, mirrored in
+`mobile/lib/time-value.ts`):
+
+> 3,500 cr (₹347) for calls that would take an agent 1.0 hours by hand
+> — ₹750 of their time. Saves about ₹404.
+
+The assumptions behind that line are all set to understate the saving:
+credits are valued at the **dearest** pack (₹0.099; bulk buyers pay
+less and save more), the manual rate is a brisk 14 calls an hour, and
+the comparison prices every call as connecting when unanswered ones are
+refunded. The default salary is ₹1.5L/month over a 200-hour month —
+₹750/hour.
 
 Charging mechanics:
 
@@ -54,8 +90,10 @@ Every credit-charging control states its price **before** the user
 commits:
 
 - Web: the create-campaign dialog and the Voice Calls tab InfoHint
-  both read the price from `AI_FEATURE_COSTS` — "Costs 25 cr per
-  connected call; unanswered attempts are refunded automatically."
-- Mobile: the create sheet shows the same line, priced from
-  `GET /api/config` (`ai_costs`) so it can never drift from what is
-  burned.
+  both price from `voiceCallCost(mode)` — "Costs 250 cr per connected
+  call; unanswered attempts are refunded automatically." Starting a
+  campaign restates it as the trade above, for the number of calls
+  actually queued.
+- Mobile: the create sheet and the campaign screen show the same
+  figures, priced from `GET /api/config` (`ai_costs`) and the
+  account's mode, so neither can drift from what is burned.

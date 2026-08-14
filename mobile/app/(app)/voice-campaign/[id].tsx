@@ -19,6 +19,8 @@ import { apiFetch } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
 import { queryClient } from '@/lib/query';
 import { radius, spacing, useTheme, type ThemeColors } from '@/lib/theme';
+import { callTimeValueLabel } from '@/lib/time-value';
+import { useAppConfig } from '@/lib/use-app-config';
 import { usePullRefresh } from '@/lib/use-pull-refresh';
 import {
   qualificationLabel,
@@ -50,6 +52,20 @@ export default function VoiceCampaignDetailScreen() {
   const dialog = useAppDialog();
   const canManage = useAuthStore((s) => s.profile?.account_role) !== 'viewer';
   const [pickerOpen, setPickerOpen] = useState(false);
+
+  // byo accounts pay their own provider, so the quoted price follows
+  // the account's voice mode — same rule as web.
+  const costs = useAppConfig()?.ai_costs;
+  const { data: voiceConfig } = useQuery({
+    queryKey: ['voice-config'],
+    queryFn: async () =>
+      (await apiFetch<{ data: { mode?: string } | null }>('/api/voice-config'))
+        .data,
+  });
+  const callCost =
+    voiceConfig?.mode === 'byo'
+      ? (costs?.voice_campaign_call_byo ?? 10)
+      : (costs?.voice_campaign_call ?? 250);
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['voice-campaign', id],
@@ -233,7 +249,31 @@ export default function VoiceCampaignDetailScreen() {
                       icon="play"
                       label="Start"
                       busy={statusMutation.isPending}
-                      onPress={() => statusMutation.mutate('active')}
+                      onPress={() => {
+                        // Starting commits the spend, so the trade is
+                        // stated here, as on web.
+                        const trade = callTimeValueLabel(
+                          data.recipients.filter((r) => r.status === 'queued')
+                            .length,
+                          callCost
+                        );
+                        if (!trade) {
+                          statusMutation.mutate('active');
+                          return;
+                        }
+                        dialog.show({
+                          title: `Start "${data.name}"?`,
+                          message: trade,
+                          actions: [
+                            { label: 'Cancel', onPress: dialog.close },
+                            {
+                              label: 'Start',
+                              variant: 'primary',
+                              onPress: () => statusMutation.mutate('active'),
+                            },
+                          ],
+                        });
+                      }}
                     />
                   )}
                   {data.status === 'active' && (

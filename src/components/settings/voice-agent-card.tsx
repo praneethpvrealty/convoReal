@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { Copy, Loader2, PhoneCall, RefreshCw } from 'lucide-react';
 import { useCan } from '@/hooks/use-can';
 import { useAuth } from '@/hooks/use-auth';
+import { cn } from '@/lib/utils';
 import {
   Card,
   CardContent,
@@ -18,7 +19,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 
+type VoiceMode = 'shared' | 'dedicated' | 'byo';
+
 interface VoiceConfig {
+  mode: VoiceMode;
+  provider: string | null;
+  has_api_key: boolean;
   agent_ref: string | null;
   phone_number: string | null;
   webhook_token: string;
@@ -26,6 +32,31 @@ interface VoiceConfig {
   reminder_calls_enabled: boolean;
   reminder_audio_enabled: boolean;
 }
+
+const MODES: {
+  value: VoiceMode;
+  title: string;
+  blurb: string;
+}[] = [
+  {
+    value: 'shared',
+    title: 'Shared number',
+    blurb:
+      'Use our voice agent and number. Nothing to set up — best for trying it out or running the occasional campaign. Calls show a ConvoReal number, so callbacks reach us, not you.',
+  },
+  {
+    value: 'dedicated',
+    title: 'Your own number',
+    blurb:
+      'Your agent and your number, hosted in our provider workspace. Leads see your number and callbacks reach you. You supply the agent id; we bill the minutes as credits.',
+  },
+  {
+    value: 'byo',
+    title: 'Your own provider account',
+    blurb:
+      'Your provider credentials, your bill, your call capacity. Best at volume or where compliance sits with you. Paste your API key below — it is encrypted and never shown again.',
+  },
+];
 
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, {
@@ -53,12 +84,14 @@ export function VoiceAgentCard() {
   const queryClient = useQueryClient();
   const [agentRef, setAgentRef] = useState<string | null>(null);
   const [phoneNumber, setPhoneNumber] = useState<string | null>(null);
+  const [apiKey, setApiKey] = useState('');
 
   const configQuery = useQuery({
     queryKey: ['voice-config'],
     queryFn: () => api<VoiceConfig | null>('/api/voice-config'),
   });
   const config = configQuery.data ?? null;
+  const mode: VoiceMode = config?.mode ?? 'shared';
 
   const saveMutation = useMutation({
     mutationFn: (patch: Record<string, unknown>) =>
@@ -102,7 +135,94 @@ export function VoiceAgentCard() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label>How your calls are made</Label>
+          <div className="grid gap-2">
+            {MODES.map((m) => {
+              const active = mode === m.value;
+              return (
+                <button
+                  key={m.value}
+                  type="button"
+                  disabled={!canManage || saveMutation.isPending}
+                  onClick={() => saveMutation.mutate({ mode: m.value })}
+                  className={cn(
+                    'rounded-lg border px-3 py-2.5 text-left transition-colors',
+                    active
+                      ? 'border-primary/60 bg-primary/10'
+                      : 'border-slate-800 bg-slate-950/40 hover:border-slate-700',
+                    !canManage && 'cursor-not-allowed opacity-60'
+                  )}
+                >
+                  <p className="text-sm font-medium text-white">{m.title}</p>
+                  <p className="mt-0.5 text-xs text-slate-500">{m.blurb}</p>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {mode === 'byo' && (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="vac-provider">Provider</Label>
+              <select
+                id="vac-provider"
+                value={config?.provider ?? 'sarvam'}
+                disabled={!canManage || saveMutation.isPending}
+                onChange={(e) =>
+                  saveMutation.mutate({ provider: e.target.value })
+                }
+                className="w-full rounded-md border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-white"
+              >
+                <option value="sarvam">Sarvam</option>
+                <option value="custom">Custom HTTP bridge</option>
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="vac-key">
+                API key{' '}
+                {config?.has_api_key && (
+                  <span className="text-xs text-emerald-400">— on file</span>
+                )}
+              </Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="vac-key"
+                  type="password"
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  placeholder={
+                    config?.has_api_key ? 'Replace stored key' : 'Paste key'
+                  }
+                  disabled={!canManage}
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={!canManage || !apiKey.trim()}
+                  onClick={() => {
+                    saveMutation.mutate({ api_key: apiKey.trim() });
+                    setApiKey('');
+                  }}
+                >
+                  Save
+                </Button>
+              </div>
+              <p className="text-xs text-slate-500">
+                Encrypted at rest and never displayed again.
+              </p>
+            </div>
+          </div>
+        )}
+
+        <div
+          className={cn(
+            'grid gap-4 sm:grid-cols-2',
+            mode === 'shared' && 'hidden'
+          )}
+        >
           <div className="space-y-1.5">
             <Label htmlFor="vac-agent">Default voice agent id</Label>
             <Input
@@ -132,7 +252,7 @@ export function VoiceAgentCard() {
           </div>
         </div>
 
-        {config && (
+        {config && mode !== 'shared' && (
           <div className="space-y-1.5">
             <Label>Post-call webhook URL</Label>
             <div className="flex items-center gap-2">
@@ -235,7 +355,7 @@ export function VoiceAgentCard() {
           />
         </div>
 
-        {canManage && (
+        {canManage && mode !== 'shared' && (
           <Button
             disabled={saveMutation.isPending}
             onClick={() =>

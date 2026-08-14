@@ -29,6 +29,7 @@ describe('parseVoiceCallPayload', () => {
       areas: [],
       propertyInterest: null,
       campaignId: null,
+      accountId: null,
       qualification: null,
     });
   });
@@ -158,5 +159,38 @@ describe('POST /api/webhooks/voice-agent', () => {
     vi.stubEnv('VOICE_AGENT_WEBHOOK_TOKEN', 'right-token');
     const res = await post('?token=right-token');
     expect(res.status).toBe(400);
+  });
+
+  // The shared pool's agent serves every account from one webhook URL,
+  // so the account rides in the body. That must never become a way to
+  // reach a tenant without holding a credential for one.
+  it('does not let a body account_id stand in for a credential', async () => {
+    vi.stubEnv('VOICE_AGENT_WEBHOOK_TOKEN', '');
+    const res = await POST(
+      new Request(`${url}?token=anything`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          caller_phone: '9876543210',
+          account_id: 'victim-account',
+        }),
+      })
+    );
+    expect(res.status).toBe(503);
+  });
+
+  it('does not let a body account_id past a wrong platform token', async () => {
+    vi.stubEnv('VOICE_AGENT_WEBHOOK_TOKEN', 'right-token');
+    const res = await POST(
+      new Request(`${url}?token=wrong-token`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          caller_phone: '9876543210',
+          account_id: 'victim-account',
+        }),
+      })
+    );
+    expect(res.status).toBe(401);
   });
 });

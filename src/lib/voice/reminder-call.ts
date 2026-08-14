@@ -1,7 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { burnCredits, refundCredits } from '@/lib/credits/burn';
-import { AI_FEATURE_COSTS } from '@/lib/credits/types';
-import { getVoiceConfig } from './config';
+import { voiceCallCost } from '@/lib/credits/types';
+import { decrypt } from '@/lib/whatsapp/encryption';
+import { getVoiceConfig, resolveDialCredentials } from './config';
 import { startOutboundCall } from './outbound-call';
 
 /**
@@ -23,15 +24,16 @@ export async function placeReminderCall(args: {
   context: Record<string, string>;
 }): Promise<boolean> {
   const config = await getVoiceConfig(args.admin, args.accountId);
-  if (
-    !config?.is_active ||
-    !config.reminder_calls_enabled ||
-    !config.agent_ref
-  ) {
+  if (!config?.is_active || !config.reminder_calls_enabled) return false;
+  const credentials = resolveDialCredentials(config, null, decrypt);
+  if (!credentials.ok) {
+    console.warn(
+      `[reminder-call] Cannot dial for account ${args.accountId}: ${credentials.error}`
+    );
     return false;
   }
 
-  const cost = AI_FEATURE_COSTS.voice_campaign_call;
+  const cost = voiceCallCost(credentials.mode);
   const burn = await burnCredits(args.accountId, 'voice_campaign_call', cost, {
     retryKey: args.retryKey,
   });
@@ -43,9 +45,13 @@ export async function placeReminderCall(args: {
   }
 
   const result = await startOutboundCall({
-    agentId: config.agent_ref,
+    agentId: credentials.agentId,
+    apiKey: credentials.apiKey,
+    provider: credentials.provider,
     phone: args.phone,
-    context: args.context,
+    // No campaign to key on, so the account rides with the call —
+    // the shared pool's webhook URL names no tenant.
+    context: { ...args.context, account_id: args.accountId },
   });
   if (!result.ok) {
     console.error(

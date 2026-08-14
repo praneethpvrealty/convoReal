@@ -1,10 +1,15 @@
 import { timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { burnCredits, refundCredits } from '@/lib/credits/burn';
-import { AI_FEATURE_COSTS } from '@/lib/credits/types';
+import { AI_FEATURE_COSTS, voiceCallCost } from '@/lib/credits/types';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { isWithinCallWindow, STALE_CALLING_MS } from '@/lib/voice/campaigns';
-import { getVoiceConfig, type VoiceAgentConfig } from '@/lib/voice/config';
+import {
+  getVoiceConfig,
+  resolveDialCredentials,
+  type VoiceAgentConfig,
+} from '@/lib/voice/config';
+import { decrypt } from '@/lib/whatsapp/encryption';
 import { startOutboundCall } from '@/lib/voice/outbound-call';
 
 /**
@@ -24,9 +29,17 @@ import { startOutboundCall } from '@/lib/voice/outbound-call';
  */
 
 const CAMPAIGNS_PER_RUN = 20;
-const CALLS_PER_CAMPAIGN = 5;
-const CALLS_PER_RUN = 25;
-const CALL_COST = AI_FEATURE_COSTS.voice_campaign_call;
+// Dials a tick may start, bounded by the provider's concurrent-channel
+// allowance rather than by us: a call lasts minutes, so every dial this
+// tick starts is still live when the next one goes out. Sarvam's
+// pay-as-you-go plan allows 4 channels, and a dial past the cap is
+// rejected — which costs an attempt and a refund, not a call. Raise
+// VOICE_CALL_CHANNELS to match the plan when it changes.
+const CALLS_PER_RUN = Math.max(1, Number(process.env.VOICE_CALL_CHANNELS) || 4);
+const CALLS_PER_CAMPAIGN = Math.min(5, CALLS_PER_RUN);
+/** Falls back to the platform-paid price for attempts charged before
+ *  migration 279 recorded what each one cost. */
+const FALLBACK_CALL_COST = AI_FEATURE_COSTS.voice_campaign_call;
 
 export async function GET(request: Request) {
   const expected =
@@ -65,7 +78,7 @@ export async function GET(request: Request) {
     ).toISOString();
     const { data: staleRows } = await supabase
       .from('voice_campaign_recipients')
-      .select('id, account_id')
+      .select('id, account_id, charged_credits')
       .eq('status', 'calling')
       .lt('last_attempt_at', staleBefore)
       .limit(200);
@@ -78,9 +91,14 @@ export async function GET(request: Request) {
         .select('id');
       if (!requeuedRow || requeuedRow.length === 0) continue;
       requeued++;
-      await refundCredits(stale.account_id, 'voice_campaign_call', CALL_COST, {
-        description: `voice_campaign_call stale refund (recipient ${stale.id})`,
-      });
+      await refundCredits(
+        stale.account_id,
+        'voice_campaign_call',
+        stale.charged_credits ?? FALLBACK_CALL_COST,
+        {
+          description: `voice_campaign_call stale refund (recipient ${stale.id})`,
+        }
+      );
     }
 
     const { data: campaigns } = await supabase
@@ -102,21 +120,24 @@ export async function GET(request: Request) {
       ) {
         continue;
       }
-      // The campaign's own agent_ref wins; the account default from
-      // voice_agent_config (Phase B) fills in when it is blank.
-      let agentRef = campaign.agent_ref as string | null;
-      if (!agentRef) {
-        if (!configs.has(campaign.account_id)) {
-          configs.set(
-            campaign.account_id,
-            await getVoiceConfig(supabase, campaign.account_id)
-          );
-        }
-        agentRef = configs.get(campaign.account_id)?.agent_ref ?? null;
+      // Which agent, whose credentials: the account's mode decides
+      // (shared pool / own agent / own provider account). The
+      // campaign's own agent_ref still wins over the account default
+      // in the two modes that dial account-owned agents.
+      if (!configs.has(campaign.account_id)) {
+        configs.set(
+          campaign.account_id,
+          await getVoiceConfig(supabase, campaign.account_id)
+        );
       }
-      if (!agentRef) {
+      const credentials = resolveDialCredentials(
+        configs.get(campaign.account_id) ?? null,
+        campaign.agent_ref as string | null,
+        decrypt
+      );
+      if (!credentials.ok) {
         console.warn(
-          `[voice-campaigns] Campaign ${campaign.id} is active without an agent_ref (campaign or account default) — skipping.`
+          `[voice-campaigns] Campaign ${campaign.id} cannot dial: ${credentials.error} — skipping.`
         );
         continue;
       }
@@ -166,10 +187,15 @@ export async function GET(request: Request) {
         // retry key makes a crashed-and-rerun dispatch idempotent per
         // attempt. Unconnected attempts are refunded (stale requeue,
         // start failure below, no-answer/busy via the webhook).
+        // byo accounts pay their own provider, so they are charged for
+        // orchestration only. The amount is recorded on the attempt
+        // below, because the refund paths that run elsewhere must
+        // return exactly this, whatever the mode says later.
+        const callCost = voiceCallCost(credentials.mode);
         const burn = await burnCredits(
           campaign.account_id,
           'voice_campaign_call',
-          CALL_COST,
+          callCost,
           { retryKey: `voice-call:${recipient.id}:${recipient.attempts + 1}` }
         );
         if (!burn.success) {
@@ -185,21 +211,32 @@ export async function GET(request: Request) {
           );
           break;
         }
+        await supabase
+          .from('voice_campaign_recipients')
+          .update({ charged_credits: callCost })
+          .eq('id', recipient.id)
+          .select('id');
 
         const scriptContext =
           campaign.script_context && typeof campaign.script_context === 'object'
             ? (campaign.script_context as Record<string, string>)
             : {};
         const result = await startOutboundCall({
-          agentId: agentRef,
+          agentId: credentials.agentId,
+          apiKey: credentials.apiKey,
+          provider: credentials.provider,
           phone: contact.phone,
           // campaign_id travels with the call so the agent can echo it
           // back in its post-call webhook: that is what resolves the
           // recipient row, so without it a connected call never leaves
           // 'calling' and gets redialled by the stale requeue.
+          // account_id rides along for the same reason — the shared
+          // pool's agent serves every account, so its webhook URL
+          // cannot name one.
           context: {
             contact_name: contact.name ?? '',
             campaign_id: campaign.id,
+            account_id: campaign.account_id,
             ...scriptContext,
           },
         });
@@ -221,7 +258,7 @@ export async function GET(request: Request) {
           await refundCredits(
             campaign.account_id,
             'voice_campaign_call',
-            CALL_COST,
+            callCost,
             {
               description: `voice_campaign_call start-failure refund (recipient ${recipient.id})`,
             }
