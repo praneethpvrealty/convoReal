@@ -68,6 +68,10 @@ export async function GET(request: Request) {
   let creditBlocked = 0;
   let completedCampaigns = 0;
   const configs = new Map<string, VoiceAgentConfig | null>();
+  // Whose name the agent says it is calling on behalf of. Cached per
+  // run like the config beside it, since one tick dials for at most a
+  // handful of accounts.
+  const brandNames = new Map<string, string>();
 
   try {
     // A stale 'calling' row means the call never happened or its result
@@ -129,6 +133,12 @@ export async function GET(request: Request) {
           campaign.account_id,
           await getVoiceConfig(supabase, campaign.account_id)
         );
+        const { data: account } = await supabase
+          .from('accounts')
+          .select('name')
+          .eq('id', campaign.account_id)
+          .maybeSingle();
+        brandNames.set(campaign.account_id, account?.name || 'our team');
       }
       const credentials = resolveDialCredentials(
         configs.get(campaign.account_id) ?? null,
@@ -235,6 +245,9 @@ export async function GET(request: Request) {
           // cannot name one.
           context: {
             contact_name: contact.name ?? '',
+            // The brokerage the call is on behalf of. A cold follow-up
+            // that cannot name who is calling is worse than no call.
+            brand_name: brandNames.get(campaign.account_id) ?? 'our team',
             campaign_id: campaign.id,
             account_id: campaign.account_id,
             ...scriptContext,

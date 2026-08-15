@@ -38,10 +38,12 @@ them in the agent's prompt using Sarvam's variable syntax:
 | Variable         | Example                              | Source                                                                    |
 | ---------------- | ------------------------------------ | ------------------------------------------------------------------------- |
 | `contact_name`   | `Gopi`                               | The contact row; empty string when unknown                                |
-| `campaign_id`    | `6f0e…`                              | The campaign — **must be echoed back** (§3)                               |
+| `brand_name`     | `Aryavarta Ventures`                 | The account name — who the call is on behalf of                           |
 | `property_title` | `Old House in Koramangala 1st Block` | The listing the campaign is about                                         |
 | `asking_price`   | `147000000`                          | Raw rupees, unformatted — have the agent say "14.7 crore", not the digits |
 | `locality`       | `Koramangala 1st Block`              | Listing sublocality, falling back to location                             |
+| `campaign_id`    | `6f0e…`                              | Plumbing, not script — **must be echoed back** (§3)                       |
+| `account_id`     | `a41c…`                              | Plumbing, not script — echo it back in shared mode (§1b)                  |
 
 Reminder calls (Settings → WhatsApp → Voice → _Appointment reminders as
 calls_) pass a different set to the same agent: `contact_name`,
