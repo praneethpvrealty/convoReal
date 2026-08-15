@@ -84,8 +84,16 @@ User-defined contact attributes.
 - `contact_custom_values`: Stores matching values.
 
 #### 7. `contact_notes`
-Timeline log entries.
-- `id`, `contact_id`, `author_id` (`profiles.user_id`), `content` (TEXT), `account_id`.
+Timeline log entries. Doubles as a per-contact to-do list — a note can be ticked off (`contact-sidebar.tsx`).
+- `id` (UUID, PK, default `uuid_generate_v4()`).
+- `contact_id` (UUID, NOT NULL, FK → `contacts`).
+- `account_id` (UUID, NOT NULL, FK → `accounts`).
+- `user_id` (UUID, NOT NULL): the author.
+- `note_text` (TEXT, NOT NULL): the note body.
+- `is_completed` (BOOLEAN, NOT NULL, default `false`): ticked-off state.
+- `created_at` / `updated_at` (TIMESTAMPTZ, default `now()`).
+
+> The column is `note_text`, not `content`, and the author column is `user_id`, not `author_id`. This entry named both wrongly until Aug 2026, and at least one insert was written against the wrong names — PostgREST rejects it, and a caller that wraps the insert in a `try/catch` swallows the rejection, so the note silently never appears. Both `account_id` and `user_id` are NOT NULL and must be supplied explicitly.
 
 #### 7b. `liaisons` (migration 147)
 Liaisoning people directory — the government-office fixers (khata transfer, EC, registration, BBMP work) with the fees they quoted per service.

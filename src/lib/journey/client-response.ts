@@ -660,6 +660,7 @@ export async function processClientReplyScreenshot(
     ' (from forwarded chat)';
   const { error: noteError } = await db.from('contact_notes').insert({
     contact_id: contact.id,
+    account_id: accountId,
     user_id: userId,
     note_text: noteText,
   });
@@ -1258,6 +1259,7 @@ export async function handleInboxCheckinReply(
 
   const { error: noteError } = await db.from('contact_notes').insert({
     contact_id: contact.id,
+    account_id: accountId,
     user_id: ownerUserId,
     note_text: `💬 ${contactName} on ${label}: "${response}" (check-in reply)`,
   });
