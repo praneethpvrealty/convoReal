@@ -10,6 +10,7 @@ import {
   type VoiceAgentConfig,
 } from '@/lib/voice/config';
 import { decrypt } from '@/lib/whatsapp/encryption';
+import { assignedAgentCache } from '@/lib/voice/assigned-agent';
 import { startOutboundCall } from '@/lib/voice/outbound-call';
 
 /**
@@ -72,6 +73,7 @@ export async function GET(request: Request) {
   // run like the config beside it, since one tick dials for at most a
   // handful of accounts.
   const brandNames = new Map<string, string>();
+  const agentCaches = new Map<string, ReturnType<typeof assignedAgentCache>>();
 
   try {
     // A stale 'calling' row means the call never happened or its result
@@ -108,7 +110,7 @@ export async function GET(request: Request) {
     const { data: campaigns } = await supabase
       .from('voice_campaigns')
       .select(
-        'id, account_id, agent_ref, script_context, call_window_start_hour, call_window_end_hour, max_attempts'
+        'id, account_id, created_by, agent_ref, script_context, call_window_start_hour, call_window_end_hour, max_attempts'
       )
       .eq('status', 'active')
       .limit(CAMPAIGNS_PER_RUN);
@@ -139,7 +141,14 @@ export async function GET(request: Request) {
           .eq('id', campaign.account_id)
           .maybeSingle();
         brandNames.set(campaign.account_id, account?.name || 'our team');
+        agentCaches.set(
+          campaign.account_id,
+          assignedAgentCache(supabase, campaign.account_id)
+        );
       }
+      const agentFor =
+        agentCaches.get(campaign.account_id) ??
+        assignedAgentCache(supabase, campaign.account_id);
       const credentials = resolveDialCredentials(
         configs.get(campaign.account_id) ?? null,
         campaign.agent_ref as string | null,
@@ -155,7 +164,7 @@ export async function GET(request: Request) {
       const { data: recipients } = await supabase
         .from('voice_campaign_recipients')
         .select(
-          'id, contact_id, attempts, contact:contacts(id, name, phone, do_not_call)'
+          'id, contact_id, attempts, contact:contacts(id, name, phone, do_not_call, assigned_agent_id)'
         )
         .eq('account_id', campaign.account_id)
         .eq('campaign_id', campaign.id)
@@ -231,6 +240,14 @@ export async function GET(request: Request) {
           campaign.script_context && typeof campaign.script_context === 'object'
             ? (campaign.script_context as Record<string, string>)
             : {};
+
+        // Who the agent hands off to. The contact's own agent when they
+        // have one, otherwise whoever launched the campaign — a call
+        // that cannot name a follow-up ends weaker than it needs to.
+        const agent = await agentFor(
+          (contact as { assigned_agent_id?: string | null })
+            .assigned_agent_id ?? (campaign.created_by as string)
+        );
         const result = await startOutboundCall({
           agentId: credentials.agentId,
           apiKey: credentials.apiKey,
@@ -248,6 +265,8 @@ export async function GET(request: Request) {
             // The brokerage the call is on behalf of. A cold follow-up
             // that cannot name who is calling is worse than no call.
             brand_name: brandNames.get(campaign.account_id) ?? 'our team',
+            agent_name: agent?.name ?? '',
+            agent_phone: agent?.phone ?? '',
             campaign_id: campaign.id,
             account_id: campaign.account_id,
             ...scriptContext,

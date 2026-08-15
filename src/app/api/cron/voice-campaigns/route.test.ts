@@ -43,4 +43,10 @@ describe('voice campaign dispatcher call context', () => {
   it('names the brokerage the call is made for', () => {
     expect(dispatcherSource()).toContain('brand_name: brandNames.get(');
   });
+
+  it('carries the agent to hand off to', () => {
+    const source = dispatcherSource();
+    expect(source).toContain('agent_name: agent?.name');
+    expect(source).toContain('agent_phone: agent?.phone');
+  });
 });
