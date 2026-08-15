@@ -158,6 +158,8 @@ without** — a payload lacking it is rejected.
   "transcript": "{{transcript}}",
   "campaign_id": "{{campaign_id}}",
   "callback_requested": false,
+  "disposition": "budget_mismatch_open",
+  "check_back_at": "2026-11-01T05:00:00Z",
   "requirement": {
     "text": "4 BHK, ready to move",
     "budget_min": 80000000,
@@ -193,6 +195,21 @@ Field notes, all enforced server-side:
   omitting it tags nothing.
 - **`qualification.do_not_call: true`** opts the recipient out of the
   campaign and sets `do_not_call` on the contact. Honour it.
+- **`disposition`** is what the conversation actually produced, and it
+  drives the WhatsApp follow-up (`docs/post-call-followup-plan.md`).
+  One of: `qualified`, `budget_mismatch_open`,
+  `budget_mismatch_closed`, `requirement_changed`, `not_now`,
+  `already_bought`, `just_browsing`, `wants_site_visit`,
+  `wants_details`, `wants_human`, `language_barrier`, `do_not_call`,
+  `is_agent_broker`, `has_property_to_sell`. Unknown values are
+  dropped rather than guessed; when the field is absent one is derived
+  from the qualification block (`budget_confirmed: true` →
+  `qualified`; `false` → `budget_mismatch_open`/`_closed` by
+  `wants_alternatives`; `do_not_call` always wins). Only `connected`
+  calls dispatch a follow-up.
+- **`check_back_at`** (ISO timestamp) is when a `not_now` lead said to
+  come back — "after Diwali". It dates the scheduled check-in; absent,
+  the check-in defaults to 30 days out.
 - Unanswered outcomes (`no_answer`, `busy`) refund the call's credits
   automatically.
 

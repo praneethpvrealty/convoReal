@@ -127,6 +127,10 @@ import {
 import { isEngineControlReplyId } from '@/lib/whatsapp/control-reply-ids'
 import { UPDATE_CHANNEL_REPLY_PREFIX } from '@/lib/voice/announcements'
 import { handleUpdateChannelReply } from '@/lib/voice/update-channel-reply'
+import {
+  POST_CALL_OPEN_PREFIX,
+  handlePostCallOpenReply,
+} from '@/lib/outreach/dispatcher'
 import { parseBuyerMatchesCommand } from '@/lib/buyer/digest'
 import { buildBuyerMatchReply } from '@/lib/buyer/match-reply'
 import {
@@ -1298,6 +1302,18 @@ async function processMessage(
     }
     if (interactiveReplyId.startsWith(UPDATE_CHANNEL_REPLY_PREFIX)) {
       const handled = await handleUpdateChannelReply({
+        admin: supabaseAdmin(),
+        accountId,
+        replyId: interactiveReplyId,
+        senderPhone,
+      })
+      if (handled) return
+    }
+    // The post-call opener's quick reply — the lead asking for the
+    // matched-listing follow-up. Their own tap just opened the window,
+    // so the rich half goes out free-form.
+    if (interactiveReplyId.startsWith(POST_CALL_OPEN_PREFIX)) {
+      const handled = await handlePostCallOpenReply({
         admin: supabaseAdmin(),
         accountId,
         replyId: interactiveReplyId,

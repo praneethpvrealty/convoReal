@@ -22,6 +22,11 @@ import {
   qualificationTags,
   type Qualification,
 } from '@/lib/voice/campaigns';
+import {
+  resolveDisposition,
+  type Disposition,
+} from '@/lib/outreach/dispositions';
+import { dispatchPostCallFollowUp } from '@/lib/outreach/dispatcher';
 
 const VOICE_WEBHOOK_LIMIT = { limit: 60, windowMs: 60_000 };
 const VOICE_AGENT_SOURCE = 'Voice Agent';
@@ -60,6 +65,8 @@ export interface VoiceCallPayload {
   propertyInterest: string | null;
   campaignId: string | null;
   qualification: Qualification | null;
+  disposition: Disposition | null;
+  checkBackAt: string | null;
 }
 
 function asText(value: unknown, max: number): string | null {
@@ -95,6 +102,9 @@ export function parseVoiceCallPayload(body: unknown): VoiceCallPayload | null {
 
   const budget = Number(requirement.budget_max);
   const budgetMin = Number(requirement.budget_min);
+  const qualification = parseQualification(raw.qualification);
+  const checkBackRaw = asText(raw.check_back_at, 40);
+  const checkBackMs = checkBackRaw ? Date.parse(checkBackRaw) : NaN;
 
   const areas = Array.isArray(requirement.areas)
     ? [
@@ -127,7 +137,11 @@ export function parseVoiceCallPayload(body: unknown): VoiceCallPayload | null {
     areas,
     propertyInterest: asText(requirement.property_interest, 120),
     campaignId: asText(raw.campaign_id, 64),
-    qualification: parseQualification(raw.qualification),
+    qualification,
+    disposition: resolveDisposition(raw.disposition, qualification),
+    checkBackAt: Number.isFinite(checkBackMs)
+      ? new Date(checkBackMs).toISOString()
+      : null,
   };
 }
 
@@ -290,6 +304,7 @@ export async function POST(request: Request) {
         transcript: payload.transcript,
         source: 'voice_agent',
         external_call_id: payload.callId,
+        disposition: payload.disposition,
       })
       .select('id')
       .single();
@@ -425,6 +440,28 @@ export async function POST(request: Request) {
         accountId,
         triggerType: 'new_contact_created',
         contactId,
+      });
+    }
+
+    // What the call produced decides what the lead hears next
+    // (docs/post-call-followup-plan.md). Only a conversation carries a
+    // disposition — unanswered attempts are the campaign dispatcher's
+    // to retry, not the playbook's to message. Never throws.
+    if (payload.outcome === 'connected' && payload.disposition) {
+      await dispatchPostCallFollowUp({
+        accountId,
+        contactId,
+        callLogId: callLog.id,
+        userId: profile.user_id,
+        disposition: payload.disposition,
+        statedBudgetMin: payload.budgetMin,
+        statedBudgetMax: payload.qualification?.statedBudget ?? payload.budgetMax,
+        areas:
+          (payload.qualification?.statedAreas?.length ?? 0) > 0
+            ? payload.qualification!.statedAreas
+            : payload.areas,
+        requirementText: payload.requirementText,
+        checkBackAt: payload.checkBackAt,
       });
     }
 

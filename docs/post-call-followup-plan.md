@@ -6,8 +6,15 @@ flow, not only buyer qualification: the next one is cold-calling
 property owners to onboard them, and it should need a playbook, not a
 new mechanism.
 
-Nothing here is built yet. `docs/voice-agent-integration-plan.md` covers
-the calling itself, which ships.
+Built: phases A–D ship (dispositions in
+`src/lib/outreach/dispositions.ts`, playbooks in
+`src/lib/outreach/playbooks.ts`, the dispatcher and its gates in
+`src/lib/outreach/dispatcher.ts`, the `post_call_options` opener as an
+engine template, `outreach_followups` in migration 281, the hourly
+sweep at `/api/cron/outreach-followups`, and the Call Analytics tab
+reading it all back). Phase E — owner onboarding — awaits its
+playbook. `docs/voice-agent-integration-plan.md` covers the calling
+itself, which ships.
 
 ---
 

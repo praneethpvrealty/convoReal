@@ -18,6 +18,7 @@ describe('missingEngineTemplates', () => {
       'enquiry_timeline_notice',
       'property_enquiry_reminder',
       'audio_announcement_notice',
+      'post_call_options',
     ]);
   });
 
