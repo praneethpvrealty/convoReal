@@ -19,6 +19,18 @@ npm install
 npm run dev
 ```
 
+## Run it in GitHub Codespaces
+
+1. Open the repository on GitHub.
+2. Select **Code**, then **Codespaces**, then **Create codespace on main**.
+3. Wait for the setup command to install the web, mobile, MCP, and Go dependencies.
+4. Add the required values from `.env.local.example` to `.env.local`.
+5. Run `npm run dev` in the Codespace terminal.
+
+The Codespace forwards the web app on port 3000 and Expo Metro on port 8081.
+The generated `.env.local` contains placeholders and is ignored by Git; never
+commit real credentials.
+
 Full setup (Supabase migrations, WhatsApp Business API, deploy) lives in
 [`docs/`](./docs/README.md). The mobile app has its own dependency tree and
 its own [`mobile/AGENTS.md`](./mobile/AGENTS.md) — read that before touching

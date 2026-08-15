@@ -40,10 +40,6 @@ const MAX_ANSWER_LEN = 60;
 
 const CODE = /\bprop[\s_-]*(\d{1,6})\b/i;
 
-/** A link is never a listing name. Live: an agent shared the property's
- *  Google Maps pin into a thread where this question was still standing
- *  and got back "I couldn't find https://maps.app.goo.gl/… in your
- *  inventory" — twice — while the pin never reached the open draft. */
 const LINK = /(?:https?:\/\/|\bwww\.)\S/i;
 
 /**
