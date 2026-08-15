@@ -11,6 +11,23 @@ and polish.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Two more contact notes that never saved.** The forwarded-chat reply
+  and inbox check-in reply handlers (`src/lib/journey/client-response.ts`)
+  both omitted the NOT NULL `account_id`, so their note insert was
+  rejected and only logged. Found by auditing every `contact_notes`
+  write after the same bug turned up in the greetings dialog; no other
+  call site is affected.
+
+- **`DATABASE_SCHEMA.md` and `AGENTS.md` §12 corrected.** The schema doc
+  described `contact_notes` as having `author_id` and `content`; the
+  real columns are `user_id` and `note_text`, and code written against
+  the documented names is rejected at runtime — which is how the two
+  bugs above were written in the first place. The CI note claimed
+  `build` never runs on pull requests; it runs whenever a PR adds or
+  renames a route, `next.config.ts`, or `ci.yml`.
+
 ### Added
 
 - **WhatsApp marketing consent is visible and settable per contact**, on
