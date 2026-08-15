@@ -59,7 +59,7 @@ import {
   openEventLabel,
   type OpenEventSubject,
 } from '@/lib/calendar/open-event-subject';
-import { recordBotTarget, resolveBotTarget, latestBotTarget, latestBotTargetForPrompt } from '@/lib/whatsapp/bot-message-target';
+import { recordBotTarget, resolveBotTarget, latestBotTarget, latestBotTargetForPrompt, clearBotTarget } from '@/lib/whatsapp/bot-message-target';
 import { resolveReplayTarget, replayText } from '@/lib/whatsapp/message-replay';
 import { applyRecordUpdate } from '@/lib/ai/record-edit';
 import { matchProjectByName } from '@/lib/inventory/projects';
@@ -841,7 +841,14 @@ export async function processOwnerChatbotMessage(
   // nothing but a listing reference, and the bot's own question has to
   // be standing in this thread with the contact registered against it.
   // Anything else falls through untouched.
-  if (cleanedText) {
+  //
+  // Never a tap: an interactive reply carries its instruction in the
+  // button id and only its LABEL in the text — live, "Today itself"
+  // (the follow-up reminder button on the completion card itself) read
+  // as a listing name here and was answered with "couldn't find Today
+  // itself in your inventory" while the reminder never got set. Taps
+  // belong to their id dispatchers below.
+  if (cleanedText && message.type !== 'interactive') {
     const propertyAnswer = parsePropertyAnswer(cleanedText);
     if (propertyAnswer) {
       const pending = await latestBotTargetForPrompt({
@@ -860,6 +867,16 @@ export async function processOwnerChatbotMessage(
           accessToken,
           phoneNumberId,
         });
+        // Answered: the question stops standing, so later short
+        // messages — including this card's own reminder buttons —
+        // cannot re-trigger it. An unresolved code leaves it standing
+        // for the corrected retry.
+        if (outcome) {
+          await clearBotTarget({
+            accountId,
+            waMessageId: pending.waMessageId,
+          });
+        }
         const text =
           outcome?.text ??
           `❓ I couldn't find *${propertyAnswer.code || propertyAnswer.title}* in your inventory. Check the code and send it again — or open the listing and share it here.`;

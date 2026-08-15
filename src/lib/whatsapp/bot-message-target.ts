@@ -20,6 +20,32 @@ export type BotTargetEntity = 'appointment' | 'todo' | 'contact' | 'property';
 export interface BotTarget {
   entityType: BotTargetEntity;
   entityId: string;
+  /** Set by latestBotTargetForPrompt: the wamid of the message the
+   *  target rides on, so a one-shot question can be cleared once its
+   *  answer has been acted on. */
+  waMessageId?: string;
+}
+
+/** Retire a registered target — for questions that must be answered
+ *  once, not re-answered by every later message that happens to fit.
+ *  Best-effort like recording: failure only costs an extra reply. */
+export async function clearBotTarget(params: {
+  accountId: string;
+  waMessageId: string | null | undefined;
+  client?: SupabaseClient;
+}): Promise<void> {
+  if (!params.waMessageId) return;
+  try {
+    const db = params.client || supabaseAdmin();
+    const { error } = await db
+      .from('bot_message_targets')
+      .delete()
+      .eq('account_id', params.accountId)
+      .eq('wa_message_id', params.waMessageId);
+    if (error) console.error('[bot-target] clear failed:', error);
+  } catch (err) {
+    console.error('[bot-target] clear threw:', err);
+  }
 }
 
 export async function recordBotTarget(params: {
@@ -187,6 +213,7 @@ export async function latestBotTargetForPrompt(params: {
         return {
           entityType: hit.entity_type as BotTargetEntity,
           entityId: hit.entity_id as string,
+          waMessageId: id,
         };
       }
     }
