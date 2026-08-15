@@ -13,6 +13,30 @@ and polish.
 
 ### Added
 
+- **WhatsApp marketing consent is visible and settable per contact**, on
+  web (the contact editor, under Preferred Update Channel) and on mobile
+  (the contact screen, same place). Until now `buyer_alerts_consent` was
+  written only by the contact's own STOP/START ALERTS reply, the buyer
+  portal, the public requirements form and mark-dead — an agent could
+  neither see it nor record what a client told them on a call. Three
+  states, each with what it means for sends: Not asked yet, Opted in,
+  Opted out. Moving someone to Opted out is always allowed; moving them
+  *off* Opted out undoes a refusal they made themselves, so it takes an
+  explicit confirmation (`PATCH /api/contacts/[id]/consent` returns
+  `CONSENT_OVERRIDE_REQUIRES_ACK` until acknowledged). Every agent-side
+  change writes a dated, attributed line to `contact_notes`, because
+  consent is a compliance record and "who changed this, and when"
+  is the question that gets asked about it.
+
+### Fixed
+
+- **The AI greetings dialog never actually logged its sends.** Its
+  `contact_notes` insert used a `content` column that does not exist
+  (the column is `note_text`) and omitted the NOT NULL `account_id`, so
+  every insert failed into a `catch` that only logged to the console.
+  Found while adding the consent audit trail, which writes to the same
+  table.
+
 - **Occasion greetings on mobile.** The Greetings surface now exists on
   both platforms (§2.8): More → Marketing → Occasion greetings lists the
   account's greetings, composes one with the AI (occasion, tone, optional
