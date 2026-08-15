@@ -874,7 +874,14 @@ export async function processOwnerChatbotMessage(
   // as a listing name here and was answered with "couldn't find Today
   // itself in your inventory" while the reminder never got set. Taps
   // belong to their id dispatchers below.
-  if (cleanedText && !isInteractiveTap) {
+  // Never over an open listing draft either: the question stands for 48
+  // hours, and while it stands every short message in the thread reads
+  // as an answer to it — including the corrections and the map pin the
+  // agent is sending INTO the draft they have open. Live, a pin shared
+  // at a draft came back "I couldn't find https://maps.app.goo.gl/… in
+  // your inventory" and never reached the listing. A draft is the
+  // nearer context; the question keeps standing for after it closes.
+  if (cleanedText && !isInteractiveTap && !propSession) {
     const propertyAnswer = parsePropertyAnswer(cleanedText);
     if (propertyAnswer) {
       const pending = await latestBotTargetForPrompt({

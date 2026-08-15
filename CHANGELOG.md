@@ -208,6 +208,20 @@ and polish.
 
 ### Fixed
 
+- **A shared map pin reaches the listing again.** An agent forwarded a
+  property's Google Maps pin into an open listing draft and got back "I
+  couldn't find *https://maps.app.goo.gl/…* in your inventory" — twice —
+  while the listing was saved with no coordinates at all. A "which
+  property is this about?" question from hours earlier was still
+  standing, and the pin's URL is 48 characters of mostly letters, so the
+  property-answer reader took it for a listing NAME and swallowed the
+  message before it could reach the draft. Two gates now: a link is
+  never a listing name (a link that carries the code — "open the listing
+  and share it here" — still answers), and the reader yields entirely
+  while a listing draft is open, because a draft is the nearer context
+  and every short correction typed into one was at risk the same way.
+  The question keeps standing for after the draft closes.
+
 - **No button label can be read as free text anywhere in the owner
   chatbot.** An audit after the "Today itself" misfire found the same
   hole across the whole interpretive corridor: a tap's label text could

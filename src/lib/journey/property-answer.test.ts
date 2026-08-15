@@ -50,6 +50,29 @@ describe('parsePropertyAnswer', () => {
   ])('%s → not an answer', (text) => {
     expect(parsePropertyAnswer(text)).toBeNull();
   });
+
+  // Live: the agent shared the property's Google Maps pin while this
+  // question was still standing from hours earlier. It is 48 characters
+  // of mostly letters, so it read as a listing NAME — answered "I
+  // couldn't find https://maps.app.goo.gl/… in your inventory", twice,
+  // while the pin never reached the draft the agent had open.
+  it.each([
+    ['https://maps.app.goo.gl/5zoGWBcgoyAMDJow7?g_st=iw'],
+    ['https://maps.app.goo.gl/5zoGWBcgoyAMDJow7'],
+    ['https://www.google.com/maps/search/?api=1&query=12.97,77.65'],
+    ['www.99acres.com/some-listing'],
+    ['Pin: https://maps.app.goo.gl/5zoGWBcgoyAMDJow7'],
+  ])('%s → a link is not a listing name', (text) => {
+    expect(parsePropertyAnswer(text)).toBeNull();
+  });
+
+  it('still reads the code out of a shared listing link', () => {
+    // The prompt's own fallback invites "open the listing and share it
+    // here", so a link that names the code is a real answer.
+    expect(parsePropertyAnswer('/property/prop-1194-jayanagar')).toEqual({
+      code: 'PROP-1194',
+    });
+  });
 });
 
 describe('the question and its fingerprint stay together', () => {
@@ -127,6 +150,16 @@ describe('the engine answers the question it asked', () => {
     // set. A tap carries its instruction in the id; the text is only
     // the label.
     expect(source).toContain('cleanedText && !isInteractiveTap');
+  });
+
+  it('yields to an open listing draft', () => {
+    // The question stands for 48 hours. While it stands, every short
+    // message reads as an answer to it — including the corrections and
+    // the map pin the agent is sending into the draft they have open,
+    // which is where the pin actually gets attached.
+    expect(source).toContain(
+      'cleanedText && !isInteractiveTap && !propSession) {\n    const propertyAnswer'
+    );
   });
 
   it('retires the question once it is answered', () => {

@@ -14,6 +14,8 @@
 // the records.
 // ============================================================
 
+import { extractMapLinkFromText } from '@/lib/maps/map-links';
+
 /** The question, verbatim. One source of truth so the copy that goes
  *  out and the fingerprint that finds it cannot drift apart. */
 export const PROPERTY_QUESTION_PROMPT =
@@ -38,6 +40,12 @@ const MAX_ANSWER_LEN = 60;
 
 const CODE = /\bprop[\s_-]*(\d{1,6})\b/i;
 
+/** A link is never a listing name. Live: an agent shared the property's
+ *  Google Maps pin into a thread where this question was still standing
+ *  and got back "I couldn't find https://maps.app.goo.gl/… in your
+ *  inventory" — twice — while the pin never reached the open draft. */
+const LINK = /(?:https?:\/\/|\bwww\.)\S/i;
+
 /**
  * What the agent named, or null when the message is not an answer to
  * the property question.
@@ -57,7 +65,9 @@ export function parsePropertyAnswer(
 
   // No code: the prompt also invites the name. Needs enough letters to
   // stand a chance of matching one listing and only one — the resolver
-  // refuses an ambiguous hit either way.
+  // refuses an ambiguous hit either way, and a link is a URL's worth of
+  // letters that names nothing.
+  if (LINK.test(value) || extractMapLinkFromText(value)) return null;
   const letters = value.replace(/[^a-z]/gi, '');
   if (letters.length < 6) return null;
   return { title: value };
