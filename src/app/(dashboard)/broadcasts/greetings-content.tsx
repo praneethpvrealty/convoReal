@@ -344,10 +344,11 @@ function ComposeGreetingDialog({
       ),
     onSuccess: (result) => {
       setMessage(result.text);
-      if (result.imagePath) {
-        setImagePath(result.imagePath);
-        setImageUrl(result.imageUrl);
-      }
+      // Always replace, never merge: a second compose with images off —
+      // or one whose image failed — would otherwise keep the previous
+      // occasion's card and attach it to the new greeting.
+      setImagePath(result.imagePath);
+      setImageUrl(result.imageUrl);
       if (withImage && !result.imagePath) {
         toast.info('Card image could not be generated — the text is ready.');
       }
@@ -619,17 +620,13 @@ function SendGreetingDialog({
     enabled: Boolean(greeting),
   });
 
+  // Counted in SQL (migration 284), not with a client-side
+  // count: 'exact' over the account's contacts — see AGENTS.md §2.6.
   const optedInCountQuery = useQuery({
-    queryKey: ['occasion-greetings', 'opted-in-count', accountId],
-    queryFn: async () => {
-      const supabase = createClient();
-      const { count } = await supabase
-        .from('contacts')
-        .select('id', { count: 'exact', head: true })
-        .eq('buyer_alerts_consent', 'granted');
-      return count ?? 0;
-    },
-    enabled: Boolean(greeting) && Boolean(accountId),
+    queryKey: ['contacts', 'consent-counts'],
+    queryFn: async () =>
+      (await api<{ granted: number }>('/api/contacts/consent-counts')).granted,
+    enabled: Boolean(greeting),
   });
 
   const tagsQuery = useQuery({

@@ -995,7 +995,12 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
           let query = supabaseClient
             .from('contacts')
             .select(
-              'id, user_id, name, name_tag, phone, email, company, classification, lead_temp, last_contacted_at, last_inquired_property_id, referrer, referrer_contact_id, min_budget, max_budget, no_budget, areas_of_interest, property_interests, is_favorite, min_roi, source, status, is_dead, dead_reason, is_archived, created_at, updated_at, pref_budget_max, pref_areas, pref_property_categories, pref_property_types',
+              // buyer_alerts_consent(+_requested_at) are carried even though
+              // the list never renders them: the edit form opens from this
+              // row, and a consent control fed an absent value would show
+              // every contact as "Not asked yet" — a wrong answer to a
+              // compliance question, which is worse than a slightly larger page.
+              'id, user_id, name, name_tag, phone, email, company, classification, lead_temp, last_contacted_at, last_inquired_property_id, referrer, referrer_contact_id, min_budget, max_budget, no_budget, areas_of_interest, property_interests, is_favorite, min_roi, source, status, is_dead, dead_reason, is_archived, created_at, updated_at, pref_budget_max, pref_areas, pref_property_categories, pref_property_types, buyer_alerts_consent, buyer_alerts_consent_requested_at',
               { count: 'exact' }
             )
             .eq('account_id', accountId)

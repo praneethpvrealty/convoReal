@@ -30,6 +30,25 @@ and polish.
 
 ### Fixed
 
+- **A greeting composed twice could carry the wrong card.** Composing
+  again with the image toggle off — or after an image failure — left the
+  previous occasion's artwork attached, so the saved greeting could go
+  out with a Diwali card on a New Year message. Both surfaces now
+  replace the card state on every compose instead of merging it.
+
+- **The opted-in count is aggregated in SQL** (**migration required**:
+  `284_alerts_consent_counts.sql`). Both greeting send dialogs counted
+  opted-in contacts with a client-side `count: 'exact'` — a real
+  `COUNT(*)` over the account's contacts on every open, on every device,
+  which AGENTS.md §2.6 forbids. It now goes through
+  `account_alerts_consent_counts()`, a `SECURITY DEFINER` function
+  guarded by `is_account_member()`, served by
+  `GET /api/contacts/consent-counts` and shared by both surfaces.
+
+- **Editing a greeting works on mobile.** The card offered Send and
+  Delete but no Edit, so a typo meant deleting and recreating — while
+  the web card had had the action all along.
+
 - **The AI greetings dialog never actually logged its sends.** Its
   `contact_notes` insert used a `content` column that does not exist
   (the column is `note_text`) and omitted the NOT NULL `account_id`, so

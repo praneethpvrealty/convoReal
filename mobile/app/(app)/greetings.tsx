@@ -66,6 +66,7 @@ export default function GreetingsScreen() {
   const canManage = useAuthStore((s) => s.profile?.account_role) !== 'viewer';
   const [composeOpen, setComposeOpen] = useState(false);
   const [presetOccasion, setPresetOccasion] = useState<string | null>(null);
+  const [editTarget, setEditTarget] = useState<Greeting | null>(null);
   const [sendTarget, setSendTarget] = useState<Greeting | null>(null);
 
   const { data, isLoading, refetch } = useQuery({
@@ -267,6 +268,19 @@ export default function GreetingsScreen() {
                   />
                 </View>
                 <Pressable
+                  onPress={() => setEditTarget(item)}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Edit ${item.occasion_label}`}
+                  style={{ justifyContent: 'center', paddingHorizontal: 6 }}
+                >
+                  <Ionicons
+                    name="create-outline"
+                    size={20}
+                    color={colors.textMuted}
+                  />
+                </Pressable>
+                <Pressable
                   onPress={() => confirmDelete(item)}
                   hitSlop={8}
                   accessibilityRole="button"
@@ -289,6 +303,10 @@ export default function GreetingsScreen() {
         presetOccasionId={presetOccasion}
         occasions={occasions?.occasions ?? []}
         onClose={() => setComposeOpen(false)}
+      />
+      <EditGreetingSheet
+        greeting={editTarget}
+        onClose={() => setEditTarget(null)}
       />
       <SendGreetingSheet
         greeting={sendTarget}
@@ -357,10 +375,12 @@ function ComposeGreetingSheet({
       }),
     onSuccess: ({ data }) => {
       setMessage(data.text);
-      if (data.imagePath) {
-        setImagePath(data.imagePath);
-        setImageUrl(data.imageUrl);
-      } else if (withImage) {
+      // Always replace, never merge: a second compose with images off —
+      // or one whose image failed — would otherwise keep the previous
+      // occasion's card and attach it to the new greeting.
+      setImagePath(data.imagePath);
+      setImageUrl(data.imageUrl);
+      if (!data.imagePath && withImage) {
         dialog.show({
           title: 'Card image unavailable',
           message:
@@ -517,6 +537,80 @@ function ComposeGreetingSheet({
   );
 }
 
+function EditGreetingSheet({
+  greeting,
+  onClose,
+}: {
+  greeting: Greeting | null;
+  onClose: () => void;
+}) {
+  const { colors } = useTheme();
+  const dialog = useAppDialog();
+  const [message, setMessage] = useState('');
+  const [loadedId, setLoadedId] = useState<string | null>(null);
+
+  if (greeting && greeting.id !== loadedId) {
+    setLoadedId(greeting.id);
+    setMessage(greeting.message_text);
+  }
+
+  const saveMutation = useMutation({
+    mutationFn: () =>
+      apiFetch<{ data: Greeting }>(`/api/greetings/${greeting!.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ messageText: message }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['occasion-greetings'] });
+      setLoadedId(null);
+      onClose();
+    },
+    onError: (err: Error) =>
+      dialog.show({ title: 'Could not save', message: err.message }),
+  });
+
+  return (
+    <BottomSheet
+      visible={Boolean(greeting)}
+      onClose={() => {
+        setLoadedId(null);
+        onClose();
+      }}
+      title={`Edit "${greeting?.occasion_label ?? ''}"`}
+    >
+      <ScrollView
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ gap: spacing.md, paddingBottom: spacing.lg }}
+      >
+        <TextField
+          label="Greeting message"
+          value={message}
+          onChangeText={(v) => setMessage(v.slice(0, GREETING_MESSAGE_MAX))}
+          multiline
+        />
+        <Text
+          style={{
+            fontSize: 11,
+            color: colors.textFaint,
+            textAlign: 'right',
+            marginTop: -spacing.sm,
+          }}
+        >
+          {message.length}/{GREETING_MESSAGE_MAX}
+        </Text>
+        <PrimaryButton
+          label="Save changes"
+          icon="save-outline"
+          disabled={!message.trim()}
+          busy={saveMutation.isPending}
+          onPress={() => saveMutation.mutate()}
+        />
+      </ScrollView>
+      <AppDialog {...dialog.dialogProps} />
+    </BottomSheet>
+  );
+}
+
 function SendGreetingSheet({
   greeting,
   onClose,
@@ -550,15 +644,16 @@ function SendGreetingSheet({
     enabled: Boolean(greeting),
   });
 
+  // Counted in SQL (migration 284), not with a client-side
+  // count: 'exact' over the account's contacts — see AGENTS.md §2.6.
   const { data: optedInCount } = useQuery({
-    queryKey: ['greetings-opted-in-count'],
-    queryFn: async () => {
-      const { count } = await supabase
-        .from('contacts')
-        .select('id', { count: 'exact', head: true })
-        .eq('buyer_alerts_consent', 'granted');
-      return count ?? 0;
-    },
+    queryKey: ['contacts', 'consent-counts'],
+    queryFn: async () =>
+      (
+        await apiFetch<{ data: { granted: number } }>(
+          '/api/contacts/consent-counts'
+        )
+      ).data.granted,
     enabled: Boolean(greeting),
   });
 

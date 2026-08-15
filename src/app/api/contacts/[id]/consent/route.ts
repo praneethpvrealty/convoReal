@@ -75,17 +75,31 @@ export async function PATCH(
       );
     }
 
+    // Conditional on the value the override check was made against. A
+    // contact can reply STOP ALERTS in the moment between that read and
+    // this write; an unconditional update would overwrite their fresh
+    // refusal with a decision taken before it, and skip the
+    // acknowledgement that undoing a refusal is supposed to require.
+    // Zero rows means the row moved under us, not that it is missing.
     const { data: updated, error } = await ctx.supabase
       .from('contacts')
       .update({ buyer_alerts_consent: next })
       .eq('account_id', ctx.accountId)
       .eq('id', id)
+      .eq('buyer_alerts_consent', previous)
       .select('id');
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
     if (!updated || updated.length === 0) {
-      return NextResponse.json({ error: 'Contact not found' }, { status: 404 });
+      return NextResponse.json(
+        {
+          error:
+            'This contact’s consent changed while you were editing — most likely they replied on WhatsApp. Reopen the contact to see where it stands now.',
+          code: 'CONSENT_CHANGED_CONCURRENTLY',
+        },
+        { status: 409 }
+      );
     }
 
     // Consent is a compliance record, so every agent-side change leaves
