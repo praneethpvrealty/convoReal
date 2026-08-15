@@ -45,6 +45,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
+import { AlertsConsentControl } from '@/components/contacts/alerts-consent-control';
 
 interface ContactFormProps {
   open: boolean;
@@ -837,6 +838,14 @@ export function ContactForm({
                 </button>
               )}
             </div>
+
+            {contact?.id && (
+              <AlertsConsentControl
+                contactId={contact.id}
+                consent={contact.buyer_alerts_consent}
+                requestedAt={contact.buyer_alerts_consent_requested_at}
+              />
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="cf-inquired-property" className="text-slate-300">

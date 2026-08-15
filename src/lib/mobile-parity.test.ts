@@ -47,6 +47,12 @@ import {
   ownerDetailsSectionItems,
 } from '@/lib/owners/details-request';
 import {
+  CONSENT_HINTS,
+  CONSENT_LABELS,
+  CONSENT_OVERRIDE_WARNING,
+  CONSENT_STATES,
+} from '@/lib/contacts/alerts-consent';
+import {
   GREETING_MESSAGE_MAX,
   GREETING_TONES,
 } from '@/lib/greetings/generate';
@@ -245,6 +251,40 @@ describe('mobile/lib/property-options.ts mirrors the web option catalog', () => 
     ]);
 
     expect(Object.fromEntries(categories)).toEqual(AMENITIES_BY_CATEGORY);
+  });
+});
+
+describe('mobile/lib/consent.ts mirrors the alerts-consent wording', () => {
+  // Consent is a compliance state. Two surfaces describing the same
+  // state in different words — or warning differently before undoing a
+  // contact's own opt-out — is worse than either wording alone.
+  const source = mobileSource('lib/consent.ts');
+
+  it('carries the same label for every state', () => {
+    for (const state of CONSENT_STATES) {
+      expect(source, state).toContain(`'${CONSENT_LABELS[state]}'`);
+    }
+  });
+
+  it('carries the same hint for every state', () => {
+    for (const state of CONSENT_STATES) {
+      for (const fragment of CONSENT_HINTS[state].split('. ')) {
+        const trimmed = fragment.trim();
+        if (trimmed.length > 24) expect(source, state).toContain(trimmed);
+      }
+    }
+  });
+
+  it('warns with the same words before undoing an opt-out', () => {
+    for (const fragment of CONSENT_OVERRIDE_WARNING.split(' — ')) {
+      expect(source).toContain(fragment.trim());
+    }
+  });
+
+  it('offers exactly the states the column allows', () => {
+    expect(stringLiteralsInConst(source, 'CONSENT_STATES')).toEqual([
+      ...CONSENT_STATES,
+    ]);
   });
 });
 

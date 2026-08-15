@@ -65,6 +65,14 @@ import {
 import { openWelcomeWhatsApp } from '@/lib/welcome-message';
 import { contactHandle, hasPhone } from '@/lib/reachability';
 import {
+  CONSENT_HINTS,
+  CONSENT_LABELS,
+  CONSENT_OVERRIDE_WARNING,
+  CONSENT_STATES,
+  isConsentState,
+  type AlertsConsent,
+} from '@/lib/consent';
+import {
   CLASSIFICATIONS,
   type AreaOfInterestGeo,
   type Classification,
@@ -128,7 +136,7 @@ async function fetchContact(id: string): Promise<Contact | null> {
       'id, phone, secondary_phones, name, name_tag, email, company, classification, ' +
         'avatar_url, min_budget, max_budget, no_budget, areas_of_interest, areas_of_interest_geo, ' +
         'strict_area_match, min_roi, requirements, lead_temp, status, referrer, source, ' +
-        'preferred_update_channel, ' +
+        'preferred_update_channel, buyer_alerts_consent, buyer_alerts_consent_requested_at, ' +
         'property_interests, last_inquired_property_id, lead_portal, lead_portal_listing_id, ' +
         'is_favorite, user_id'
     )
@@ -1466,6 +1474,11 @@ function ContactEditor({
           </Pressable>
         </View>
 
+        <AlertsConsentField
+          contactId={contact.id}
+          consent={contact.buyer_alerts_consent}
+        />
+
         {showPrefs ? (
           <View style={{ gap: spacing.md, marginTop: spacing.sm }}>
             <Text style={[styles.fieldLabel, { color: colors.textMuted }]}>
@@ -1591,6 +1604,111 @@ function ContactEditor({
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
+  );
+}
+
+/**
+ * WhatsApp marketing consent. Saves immediately rather than with the
+ * rest of the editor: it is a compliance record, and the server decides
+ * whether undoing a contact's own opt-out needs acknowledging.
+ */
+function AlertsConsentField({
+  contactId,
+  consent,
+}: {
+  contactId: string;
+  consent?: string | null;
+}) {
+  const { colors, fonts: f } = useTheme();
+  const { show, close, dialogProps } = useAppDialog();
+  const [value, setValue] = useState<AlertsConsent>(
+    isConsentState(consent) ? consent : 'pending'
+  );
+  const [saving, setSaving] = useState(false);
+
+  const apply = async (next: AlertsConsent, acknowledgeOverride = false) => {
+    if (next === value || saving) return;
+    setSaving(true);
+    try {
+      await apiFetch(`/api/contacts/${contactId}/consent`, {
+        method: 'PATCH',
+        body: JSON.stringify({ consent: next, acknowledgeOverride }),
+      });
+      setValue(next);
+      haptic.success();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Could not update';
+      if (message.includes('opted out themselves')) {
+        haptic.warn();
+        show({
+          title: 'Undo their opt-out?',
+          message: CONSENT_OVERRIDE_WARNING,
+          actions: [
+            {
+              label: 'Opt them back in',
+              variant: 'primary',
+              onPress: () => {
+                close();
+                void apply(next, true);
+              },
+            },
+            { label: 'Cancel', variant: 'muted', onPress: close },
+          ],
+        });
+      } else {
+        haptic.warn();
+        show({ title: 'Could not update', message });
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <View style={{ gap: spacing.sm }}>
+      <Text style={[styles.fieldLabel, { color: colors.textMuted }]}>
+        WhatsApp marketing consent
+      </Text>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+        {CONSENT_STATES.map((state) => {
+          const active = value === state;
+          return (
+            <Pressable
+              key={state}
+              disabled={saving}
+              onPress={() => apply(state)}
+              style={{
+                paddingHorizontal: 12,
+                paddingVertical: 7,
+                borderRadius: radius.full,
+                backgroundColor: active ? colors.primarySoft : colors.surface,
+                borderWidth: active ? 1.5 : StyleSheet.hairlineWidth,
+                borderColor: active ? colors.primary : colors.border,
+                opacity: saving ? 0.6 : 1,
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 13,
+                  fontFamily: f.semibold,
+                  color: active ? colors.primary : colors.textMuted,
+                }}
+              >
+                {CONSENT_LABELS[state]}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      <Text style={[styles.hint, { color: colors.textFaint }]}>
+        {CONSENT_HINTS[value]}
+      </Text>
+      <Text style={[styles.hint, { color: colors.textFaint }]}>
+        Their own STOP ALERTS reply updates this too, and is the stronger
+        record — set it here only for what they told you directly.
+      </Text>
+      <AppDialog {...dialogProps} />
+    </View>
   );
 }
 

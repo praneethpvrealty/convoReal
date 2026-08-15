@@ -40,7 +40,7 @@ export function GreetingsGeneratorDialog({
   contactPhone,
 }: GreetingsGeneratorDialogProps) {
   const supabase = createClient();
-  const { user } = useAuth();
+  const { user, accountId } = useAuth();
 
   const [selectedOccasion, setSelectedOccasion] = useState('New Year');
   const [customOccasion, setCustomOccasion] = useState('');
@@ -107,8 +107,9 @@ export function GreetingsGeneratorDialog({
     try {
       await supabase.from('contact_notes').insert({
         contact_id: contactId,
+        account_id: accountId,
         user_id: user?.id,
-        content: `Sent AI Greeting (${selectedOccasion === 'Custom' ? customOccasion : selectedOccasion}) via WhatsApp:\n\n"${generatedText}"`,
+        note_text: `Sent AI Greeting (${selectedOccasion === 'Custom' ? customOccasion : selectedOccasion}) via WhatsApp:\n\n"${generatedText}"`,
       });
     } catch (logErr) {
       console.error('Failed to log greeting share:', logErr);
