@@ -117,7 +117,7 @@ async function main() {
       .select('id, status')
       .eq('account_id', config.account_id)
       .eq('name', LOCATION_REVEAL_TEMPLATE_NAME)
-      .order('last_submitted_at', { ascending: false })
+      .order('last_submitted_at', { ascending: false, nullsFirst: false })
       .limit(1)
       .maybeSingle();
     if (existing && ['APPROVED', 'PENDING'].includes(existing.status)) {

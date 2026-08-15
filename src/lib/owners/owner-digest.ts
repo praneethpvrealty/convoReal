@@ -564,7 +564,7 @@ export async function sendOwnerStatusDigests(options?: {
           .select('*')
           .eq('account_id', accountId)
           .eq('name', name)
-          .order('last_submitted_at', { ascending: false })
+          .order('last_submitted_at', { ascending: false, nullsFirst: false })
         return (rows || []) as MessageTemplate[]
       }
       const [digestVariants, consentVariants] = await Promise.all([

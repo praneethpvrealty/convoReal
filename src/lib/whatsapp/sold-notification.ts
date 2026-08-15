@@ -119,7 +119,7 @@ async function ensureSoldUpdateTemplate(
     .select('*')
     .eq('account_id', accountId)
     .eq('name', SOLD_UPDATE_TEMPLATE_NAME)
-    .order('last_submitted_at', { ascending: false })
+    .order('last_submitted_at', { ascending: false, nullsFirst: false })
     .limit(1)
     .maybeSingle();
 
@@ -262,7 +262,7 @@ export async function notifyBuyersOfSoldProperty(
         .select('*')
         .eq('account_id', accountId)
         .eq('name', template.name)
-        .order('last_submitted_at', { ascending: false })
+        .order('last_submitted_at', { ascending: false, nullsFirst: false })
     : { data: null };
   const accountLanguage = await accountDefaultLanguage(db, accountId);
 

@@ -24,7 +24,7 @@ export async function GET() {
       .select('status, category, rejection_reason, last_submitted_at')
       .eq('account_id', ctx.accountId)
       .eq('name', OCCASION_GREETING_TEMPLATE_NAME)
-      .order('last_submitted_at', { ascending: false })
+      .order('last_submitted_at', { ascending: false, nullsFirst: false })
       .limit(1)
       .maybeSingle();
     if (error) {

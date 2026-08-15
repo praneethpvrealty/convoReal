@@ -201,7 +201,7 @@ export async function sendPropertyToContact(opts: {
     .select('*')
     .eq('account_id', accountId)
     .in('name', PROPERTY_SHARE_TEMPLATE_NAMES)
-    .order('last_submitted_at', { ascending: false });
+    .order('last_submitted_at', { ascending: false, nullsFirst: false });
   const candidates = (templateRows || []) as MessageTemplate[];
   const latestTemplate = candidates[0] ?? null;
 
