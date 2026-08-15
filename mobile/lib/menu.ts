@@ -40,6 +40,11 @@ export const MENU_LINKS = {
     icon: 'mic-outline',
     label: 'Audio announcements',
   },
+  greetings: {
+    href: '/(app)/greetings',
+    icon: 'sparkles-outline',
+    label: 'Occasion greetings',
+  },
   pulse: {
     href: '/(app)/pulse',
     icon: 'analytics-outline',
@@ -95,6 +100,7 @@ export const MENU_SECTIONS: { title: string; ids: readonly MenuRouteId[] }[] = [
       'broadcasts',
       'voiceCampaigns',
       'announcements',
+      'greetings',
       'pulse',
       'automations',
     ],
