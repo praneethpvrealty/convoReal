@@ -46,6 +46,11 @@ import {
   buildOwnerDetailsRequestMessage,
   ownerDetailsSectionItems,
 } from '@/lib/owners/details-request';
+import {
+  GREETING_MESSAGE_MAX,
+  GREETING_TONES,
+} from '@/lib/greetings/generate';
+import { OCCASIONS } from '@/lib/greetings/occasions';
 import { priceInWords } from '@/lib/currency-utils';
 import { confidentialityNote } from '@/lib/share-message-builder';
 import {
@@ -240,6 +245,36 @@ describe('mobile/lib/property-options.ts mirrors the web option catalog', () => 
     ]);
 
     expect(Object.fromEntries(categories)).toEqual(AMENITIES_BY_CATEGORY);
+  });
+});
+
+describe('mobile/lib/greetings.ts mirrors the greeting composer limits', () => {
+  // The occasion catalog itself is served over the API rather than
+  // copied, so the only thing that can drift is the composer's own
+  // limits. A mobile cap larger than the web's would let an agent write
+  // a greeting the API then rejects, after they had already paid the
+  // credits to generate it.
+  const source = mobileSource('lib/greetings.ts');
+
+  it('caps the greeting at the same length the API enforces', () => {
+    expect(source).toContain(
+      `GREETING_MESSAGE_MAX = ${GREETING_MESSAGE_MAX}`
+    );
+  });
+
+  it('offers the same tones the prompt builder accepts', () => {
+    expect(stringLiteralsInConst(source, 'GREETING_TONES')).toEqual([
+      ...GREETING_TONES,
+    ]);
+  });
+
+  it('does not copy the occasion catalog, which shifts every year', () => {
+    for (const occasion of OCCASIONS) {
+      expect(
+        source.includes(`'${occasion.label}'`),
+        `mobile hardcodes the occasion "${occasion.label}" — it must come from /api/greetings/occasions`
+      ).toBe(false);
+    }
   });
 });
 

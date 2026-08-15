@@ -13,6 +13,18 @@ and polish.
 
 ### Added
 
+- **Occasion greetings on mobile.** The Greetings surface now exists on
+  both platforms (§2.8): More → Marketing → Occasion greetings lists the
+  account's greetings, composes one with the AI (occasion, tone, optional
+  guidance, card image), and sends it to all contacts or by tag, with the
+  same strict opt-in toggle and opted-in count the web dialog offers.
+  Nothing about the feature is re-implemented natively — the screen is a
+  client of the same `/api/greetings/*` routes. The occasion calendar in
+  particular is **not** copied into the app: festival dates shift every
+  year and a copy inside an installed build would go stale, so the new
+  `GET /api/greetings/occasions` serves it from
+  `src/lib/greetings/occasions.ts`, the module the web imports directly.
+
 - **Occasion greetings** (**migration required**:
   `283_occasion_greetings.sql`). A "Greetings" tab on `/broadcasts`: pick
   an upcoming occasion (Ganesh Chaturthi, Diwali, New Year, Onam and
