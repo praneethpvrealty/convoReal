@@ -828,6 +828,32 @@ export async function processOwnerChatbotMessage(
     return true;
   }
 
+  // 1.67. A tap is an instruction carried in its button id — the text
+  // is only the label. The id dispatches run here, before every
+  // free-text reader below, and the interpretive corridor (1.66 down
+  // to the scheduling intercept) is gated on isInteractiveTap: live, a
+  // "Today itself" reminder tap read as a listing lookup, and a bare
+  // "Cancel" label satisfies the appointment-outcome regex outright.
+  // Session buttons (confirm/cancel) are read by their own session
+  // blocks further down, which this does not touch.
+  const isInteractiveTap = message.type === 'interactive';
+  const buttonId = isInteractiveTap
+    ? message.interactive?.button_reply?.id ?? message.interactive?.list_reply?.id
+    : null;
+
+  // The agent setting their own follow-up date on a client's branch.
+  if (buttonId?.startsWith(AGENT_FOLLOWUP_PREFIX)) {
+    const handledAgentFollowup = await handleAgentFollowupReply({
+      db: supabaseAdmin(),
+      accountId,
+      ownerUserId: userId,
+      contact: { id: contactRecord.id, name: contactRecord.name, phone: contactRecord.phone },
+      conversationId: conversation.id,
+      replyId: buttonId,
+    });
+    if (handledAgentFollowup) return true;
+  }
+
   // 1.66. The answer to "which property is this about?".
   //
   // A forwarded client reply that named no listing is logged against
@@ -848,7 +874,7 @@ export async function processOwnerChatbotMessage(
   // as a listing name here and was answered with "couldn't find Today
   // itself in your inventory" while the reminder never got set. Taps
   // belong to their id dispatchers below.
-  if (cleanedText && message.type !== 'interactive') {
+  if (cleanedText && !isInteractiveTap) {
     const propertyAnswer = parsePropertyAnswer(cleanedText);
     if (propertyAnswer) {
       const pending = await latestBotTargetForPrompt({
@@ -901,7 +927,7 @@ export async function processOwnerChatbotMessage(
   // is gone or no longer editable falls through to the create paths, so
   // the correction still lands — the reply just says "added" not
   // "updated".
-  let editTarget = cleanedText
+  let editTarget = cleanedText && !isInteractiveTap
     ? await resolveBotTarget({ accountId, contextId: message.context?.id })
     : null;
 
@@ -920,7 +946,7 @@ export async function processOwnerChatbotMessage(
   // anything is looked up. Anything vaguer falls through to the paths
   // below untouched.
   let outcomeSubject: OpenEventSubject | null = null;
-  if (!editTarget && cleanedText && parseEventOutcome(cleanedText)) {
+  if (!editTarget && cleanedText && !isInteractiveTap && parseEventOutcome(cleanedText)) {
     editTarget = await latestBotTarget({
       accountId,
       conversationId: conversation.id,
@@ -1016,7 +1042,7 @@ export async function processOwnerChatbotMessage(
   // wins) and only with no draft open, so a correction mid-intake is
   // never mistaken for a replay. The synthetic message carries no
   // `context`, which is what stops this re-entering itself.
-  if (!editTarget && !propSession && !contactSession && message.context?.id) {
+  if (!editTarget && !isInteractiveTap && !propSession && !contactSession && message.context?.id) {
     const replaySource = await resolveReplayTarget(
       supabaseAdmin(),
       conversation.id,
@@ -1091,7 +1117,7 @@ export async function processOwnerChatbotMessage(
   // left open from an hour ago used to swallow the whole recording
   // without a word back. The parser returns 'none' for a spoken
   // correction, which falls through to the draft below untouched.
-  if ((!propSession && !contactSession) || isDictatedTaskList(cleanedText) || isAudioMsg) {
+  if (!isInteractiveTap && ((!propSession && !contactSession) || isDictatedTaskList(cleanedText) || isAudioMsg)) {
     try {
       const scheduled = await tryHandleOwnerScheduling({
         message,
@@ -1189,26 +1215,6 @@ export async function processOwnerChatbotMessage(
         contactSession = null;
       }
     }
-  }
-
-  const buttonId = message.type === 'interactive'
-    ? message.interactive?.button_reply?.id ?? message.interactive?.list_reply?.id
-    : null;
-
-  // The agent setting their own follow-up date on a client's branch.
-  // Handled before every draft branch below: the tap carries the button
-  // title as its text, which would otherwise be classified as a fresh
-  // intake and answered with the help card.
-  if (buttonId?.startsWith(AGENT_FOLLOWUP_PREFIX)) {
-    const handledAgentFollowup = await handleAgentFollowupReply({
-      db: supabaseAdmin(),
-      accountId,
-      ownerUserId: userId,
-      contact: { id: contactRecord.id, name: contactRecord.name, phone: contactRecord.phone },
-      conversationId: conversation.id,
-      replyId: buttonId,
-    });
-    if (handledAgentFollowup) return true;
   }
 
   // 2. Active Property Session Exists Flow

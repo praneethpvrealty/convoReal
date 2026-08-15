@@ -177,6 +177,20 @@ and polish.
 
 ### Fixed
 
+- **No button label can be read as free text anywhere in the owner
+  chatbot.** An audit after the "Today itself" misfire found the same
+  hole across the whole interpretive corridor: a tap's label text could
+  reach the quote-correction reader, the appointment-outcome reader (a
+  bare "Cancel" or "Done" label satisfies its regex outright — with an
+  appointment card standing in the thread, that tap would have
+  cancelled or completed it), the message-replay path (a tap quotes its
+  own card by construction), and the calendar scheduling intercept.
+  Button-id dispatch now runs before every free-text reader, and each
+  reader is gated against interactive replies — pinned by a corridor
+  test suite so a new reader cannot ship without the gate. Lead-side
+  flows were audited clean: the ladder and Q&A branches only ever run
+  on plain text messages.
+
 - **A follow-up reminder button no longer reads as a property name.**
   The "which property?" completion card offers Today itself / In 2 days
   / Can't say yet reminder buttons — and tapping one was answered with
