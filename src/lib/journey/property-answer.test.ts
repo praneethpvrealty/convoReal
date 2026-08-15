@@ -119,6 +119,27 @@ describe('the engine answers the question it asked', () => {
     expect(source).toContain('outcome.pendingPropertyContactId');
     expect(source).toContain('completeClientResponseProperty({');
   });
+
+  it('never claims a button tap — the label is not an answer', () => {
+    // Live: the completion card's own "Today itself" reminder button
+    // was read as a listing name and answered with "couldn't find
+    // Today itself in your inventory", while the reminder never got
+    // set. A tap carries its instruction in the id; the text is only
+    // the label.
+    expect(source).toContain(
+      "cleanedText && message.type !== 'interactive'"
+    );
+  });
+
+  it('retires the question once it is answered', () => {
+    // Without this the question keeps standing for its 48-hour window
+    // and every later short message re-answers it.
+    const cleared = source.indexOf('clearBotTarget({');
+    const fallbackText = source.indexOf("I couldn't find *${propertyAnswer.code");
+    expect(cleared).toBeGreaterThan(-1);
+    expect(fallbackText).toBeGreaterThan(-1);
+    expect(cleared).toBeLessThan(fallbackText);
+  });
 });
 
 describe('the capture hands the pending contact back', () => {

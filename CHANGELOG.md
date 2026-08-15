@@ -177,6 +177,18 @@ and polish.
 
 ### Fixed
 
+- **A follow-up reminder button no longer reads as a property name.**
+  The "which property?" completion card offers Today itself / In 2 days
+  / Can't say yet reminder buttons — and tapping one was answered with
+  "I couldn't find *Today itself* in your inventory": the tap's label
+  text reached the new property-answer reader before the button's own
+  id dispatcher, and the already-answered question was still standing.
+  The reader now never claims an interactive reply (a tap's instruction
+  is its id; the text is only the label), and an answered question is
+  retired on the spot, so nothing later in its 48-hour window can
+  re-trigger it. An unresolved code still leaves it standing for the
+  corrected retry.
+
 - **A rental no longer advertises a 1200% yield** (**migration
   required**: `278_clear_rental_listing_yield.sql`). PROP-1205, a J. P.
   Nagar office at ₹15.5 L/month, read "₹15.5 L/mo · 1200% yield" on its
