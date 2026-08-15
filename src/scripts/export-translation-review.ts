@@ -56,6 +56,8 @@ const TEMPLATE_LABELS: Record<EngineTemplateKey, string> = {
     'Enquiry follow-up reminder — confirm or move the scheduled follow-up date',
   audio_announcement:
     'Audio announcement — a voice-note update, delivered as a playable video',
+  post_call_options:
+    'Post-call options — after a qualification call, offer the matching listings',
 };
 
 /** What each numbered placeholder gets filled with at send time. */
@@ -92,6 +94,11 @@ const PLACEHOLDER_MEANINGS: Record<EngineTemplateKey, string[]> = {
     'scheduled follow-up date',
   ],
   audio_announcement: ['contact first name', 'brokerage name'],
+  post_call_options: [
+    'lead first name',
+    'brokerage name',
+    'stated requirement (budget / areas)',
+  ],
 };
 
 /** The buttons each template actually carries, so a bubble shows the
@@ -111,6 +118,7 @@ const REPLY_BUTTONS: Record<EngineTemplateKey, TemplateButtonAction[]> = {
     'timeline_unsure',
   ],
   audio_announcement: [],
+  post_call_options: ['send_options'],
 };
 
 const BUTTON_ORDER = Object.keys(

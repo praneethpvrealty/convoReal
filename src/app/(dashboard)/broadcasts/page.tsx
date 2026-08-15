@@ -7,14 +7,16 @@ import BroadcastsContent from "./broadcasts-content";
 import TemplatePerformanceContent from "./template-performance-content";
 import VoiceCampaignsContent from "./voice-campaigns-content";
 import AnnouncementsContent from "./announcements-content";
+import CallAnalyticsContent from "./call-analytics-content";
 import { FavoriteButton } from "@/components/layout/favorite-button";
 
-type TabId = "campaigns" | "templates" | "voice" | "announcements";
+type TabId = "campaigns" | "templates" | "voice" | "calls" | "announcements";
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "campaigns", label: "Campaigns" },
   { id: "templates", label: "Templates" },
   { id: "voice", label: "Voice Calls" },
+  { id: "calls", label: "Call Analytics" },
   { id: "announcements", label: "Announcements" },
 ];
 
@@ -33,6 +35,8 @@ export default function BroadcastsPage() {
         return { label: "Template Performance", href: "/broadcasts?tab=templates", icon: "FileBarChart" };
       case "voice":
         return { label: "Voice Campaigns", href: "/broadcasts?tab=voice", icon: "PhoneCall" };
+      case "calls":
+        return { label: "Call Analytics", href: "/broadcasts?tab=calls", icon: "PhoneOutgoing" };
       case "announcements":
         return { label: "Announcements", href: "/broadcasts?tab=announcements", icon: "Mic" };
       case "campaigns":
@@ -82,6 +86,7 @@ export default function BroadcastsPage() {
         {activeTab === "campaigns" && <BroadcastsContent />}
         {activeTab === "templates" && <TemplatePerformanceContent />}
         {activeTab === "voice" && <VoiceCampaignsContent />}
+        {activeTab === "calls" && <CallAnalyticsContent />}
         {activeTab === "announcements" && <AnnouncementsContent />}
       </div>
     </div>
