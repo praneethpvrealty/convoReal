@@ -8,9 +8,16 @@ import TemplatePerformanceContent from "./template-performance-content";
 import VoiceCampaignsContent from "./voice-campaigns-content";
 import AnnouncementsContent from "./announcements-content";
 import CallAnalyticsContent from "./call-analytics-content";
+import GreetingsContent from "./greetings-content";
 import { FavoriteButton } from "@/components/layout/favorite-button";
 
-type TabId = "campaigns" | "templates" | "voice" | "calls" | "announcements";
+type TabId =
+  | "campaigns"
+  | "templates"
+  | "voice"
+  | "calls"
+  | "announcements"
+  | "greetings";
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "campaigns", label: "Campaigns" },
@@ -18,6 +25,7 @@ const TABS: { id: TabId; label: string }[] = [
   { id: "voice", label: "Voice Calls" },
   { id: "calls", label: "Call Analytics" },
   { id: "announcements", label: "Announcements" },
+  { id: "greetings", label: "Greetings" },
 ];
 
 export default function BroadcastsPage() {
@@ -39,6 +47,8 @@ export default function BroadcastsPage() {
         return { label: "Call Analytics", href: "/broadcasts?tab=calls", icon: "PhoneOutgoing" };
       case "announcements":
         return { label: "Announcements", href: "/broadcasts?tab=announcements", icon: "Mic" };
+      case "greetings":
+        return { label: "Greetings", href: "/broadcasts?tab=greetings", icon: "PartyPopper" };
       case "campaigns":
       default:
         return { label: "Broadcasts", href: "/broadcasts", icon: "Radio" };
@@ -88,6 +98,7 @@ export default function BroadcastsPage() {
         {activeTab === "voice" && <VoiceCampaignsContent />}
         {activeTab === "calls" && <CallAnalyticsContent />}
         {activeTab === "announcements" && <AnnouncementsContent />}
+        {activeTab === "greetings" && <GreetingsContent />}
       </div>
     </div>
   );

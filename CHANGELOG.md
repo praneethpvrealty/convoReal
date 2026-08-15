@@ -13,6 +13,32 @@ and polish.
 
 ### Added
 
+- **Occasion greetings** (**migration required**:
+  `283_occasion_greetings.sql`). A "Greetings" tab on `/broadcasts`: pick
+  an upcoming occasion (Ganesh Chaturthi, Diwali, New Year, Onam and
+  more, or type your own), have the AI write the greeting in your
+  agency's voice and design a festive card image (10 credits per
+  compose, text refunded on failure — the same `greetings_generate`
+  price as the per-contact generator), edit it, and broadcast it to all
+  contacts or by tags. Sends ride a shared `occasion_greeting` WhatsApp
+  template (image header + client name, greeting, agency name as
+  variables) that is auto-submitted to Meta once per account and reused
+  for every occasion; the fan-out is a normal broadcast, so delivery
+  tracking, retries and the sweep cron apply, and contacts who replied
+  STOP ALERTS are excluded. Note: Meta classifies festival greetings as
+  **Marketing**, so sends count against Meta's per-user marketing caps —
+  the template is submitted as Marketing deliberately (see AGENTS.md
+  §2.7 on why chasing Utility burns template names). The send dialog
+  offers a strict **"only clients who explicitly opted in"** toggle
+  (`buyer_alerts_consent = 'granted'`), shows how many contacts have
+  opted in, and explains where grants come from — the free-form ask a
+  pending contact gets the first time they message in, and the portal
+  enquiry forms. There is deliberately no consent-ask template: Meta
+  classified the earlier `buyer_alerts_consent` template as Marketing,
+  and a marketing template asking permission for marketing is the thing
+  consent exists to prevent (`src/lib/buyer/consent-ask.ts`). Mobile
+  parity is a stated gap in `FEATURE_ROADMAP.md`.
+
 - **Post-call WhatsApp follow-up** (**migration required**:
   `281_post_call_followups.sql`). What a voice call produced now
   decides what the lead hears next. The provider's webhook carries an

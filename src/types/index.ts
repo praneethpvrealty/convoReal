@@ -774,6 +774,7 @@ export interface Broadcast {
   template_language: string;
   template_variables?: Record<string, unknown>;
   audience_filter?: Record<string, unknown>;
+  header_media_url?: string | null;
   scheduled_at?: string;
   status: BroadcastStatus;
   total_recipients: number;

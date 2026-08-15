@@ -72,6 +72,49 @@ export async function uploadPropertyImage(
 }
 
 /**
+ * Uploads an AI-generated greeting card image to the public 'greetings'
+ * bucket under the account's folder and returns the bucket-relative
+ * object path. Public because Meta fetches the template header image
+ * from this URL at send time.
+ */
+export async function uploadGreetingImage(
+  accountId: string,
+  buffer: Buffer,
+  mimeType: string
+): Promise<string> {
+  const supabase = supabaseAdmin();
+
+  const compressed = await compressImage(buffer, mimeType);
+  buffer = compressed.buffer;
+  mimeType = compressed.mimeType;
+
+  let ext = 'png';
+  if (mimeType) {
+    const parts = mimeType.split('/');
+    if (parts.length > 1) {
+      ext = parts[1].split('+')[0];
+    }
+  }
+
+  const randomStr = Math.random().toString(36).substring(2, 7);
+  const path = `${accountId}/card-${Date.now()}-${randomStr}.${ext}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from('greetings')
+    .upload(path, buffer, {
+      cacheControl: '3600',
+      upsert: true,
+      contentType: mimeType,
+    });
+
+  if (uploadError) {
+    throw new Error(`Storage greeting upload failed: ${uploadError.message}`);
+  }
+
+  return `greetings/${path}`;
+}
+
+/**
  * Uploads a video buffer directly to the 'property-videos' Supabase storage bucket under the account's folder,
  * returning the public URL. The bucket only accepts video/mp4 (20MB cap — WhatsApp's own limit is 16MB).
  */
