@@ -302,7 +302,7 @@ Per-(contact × property) funnel tracking behind the `/journey` canvas — recor
 - `automation_logs`: Execution history audits.
 - `automation_pending_executions`: Queue for delayed actions.
 - `flows` / `flow_nodes` / `flow_runs` / `flow_run_events`: WhatsApp interactive tree flows.
-- `occasion_greetings` (migration 281): Festival/occasion greeting drafts —
+- `occasion_greetings` (migration 283): Festival/occasion greeting drafts —
   occasion, message text, optional AI card image (`image_path` in the public
   `greetings` bucket), and `broadcast_id` linking to the `broadcasts` row that
   fanned it out on the shared `occasion_greeting` template. The same migration

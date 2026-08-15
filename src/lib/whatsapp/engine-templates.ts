@@ -51,6 +51,10 @@ import {
   buildAnnouncementTemplatePayload,
   ANNOUNCEMENT_TEMPLATE_NAME,
 } from './announcement-template';
+import {
+  buildPostCallOpenerTemplatePayload,
+  POST_CALL_OPENER_TEMPLATE_NAME,
+} from './post-call-template';
 
 export interface EngineTemplateDef {
   name: string;
@@ -147,6 +151,14 @@ export const ENGINE_TEMPLATES: EngineTemplateDef[] = [
     whyItMatters:
       "Carries an audio announcement (as a playable video) to contacts outside the 24-hour window — without it, announcements only reach contacts who messaged recently. Marketing category by nature; sends stay opt-in via each contact's update-channel preference.",
     build: buildAnnouncementTemplatePayload,
+  },
+  {
+    name: POST_CALL_OPENER_TEMPLATE_NAME,
+    copyKey: 'post_call_options',
+    label: 'Post-call options',
+    whyItMatters:
+      'The first message after a voice call — a phone call does not open the 24-hour window, so without this opener a qualified lead who never messaged in hears nothing after hanging up. Its quick reply opens the window for the matched-listing follow-up.',
+    build: (_origin, language) => buildPostCallOpenerTemplatePayload(language),
   },
 ];
 

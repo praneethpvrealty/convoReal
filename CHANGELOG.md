@@ -14,7 +14,7 @@ and polish.
 ### Added
 
 - **Occasion greetings** (**migration required**:
-  `281_occasion_greetings.sql`). A "Greetings" tab on `/broadcasts`: pick
+  `283_occasion_greetings.sql`). A "Greetings" tab on `/broadcasts`: pick
   an upcoming occasion (Ganesh Chaturthi, Diwali, New Year, Onam and
   more, or type your own), have the AI write the greeting in your
   agency's voice and design a festive card image (10 credits per
@@ -38,6 +38,37 @@ and polish.
   and a marketing template asking permission for marketing is the thing
   consent exists to prevent (`src/lib/buyer/consent-ask.ts`). Mobile
   parity is a stated gap in `FEATURE_ROADMAP.md`.
+
+- **Post-call WhatsApp follow-up** (**migration required**:
+  `281_post_call_followups.sql`). What a voice call produced now
+  decides what the lead hears next. The provider's webhook carries an
+  explicit `disposition` (or one is derived from the qualification
+  block), and a per-flow playbook maps it to an action: the
+  matched-listing shortlist for `qualified` / `budget_mismatch_open` /
+  `requirement_changed`, a courtesy close for `budget_mismatch_closed`
+  and `already_bought`, an agent handoff plus a to-do for
+  `wants_site_visit` / `wants_details` / `wants_human`, a dated
+  check-in for `not_now` (at the lead's stated `check_back_at`, else
+  30 days — swept hourly by `/api/cron/outreach-followups`), and
+  deliberate silence for the rest. A phone call does not open Meta's
+  24-hour window, so a shut window sends one Utility opener template
+  (`post_call_options`, new engine template in all 7 languages,
+  gated on approved-and-Utility) whose "Yes, send them" tap opens the
+  window and pulls the shortlist free-form. Every send passes one
+  gate — do-not-call, window state, template category, webhook
+  dedupe — and every non-send records its reason on
+  `outreach_followups` instead of vanishing.
+
+- **Call Analytics** (**migration required**:
+  `282_call_analytics_rpcs.sql`). A new tab on Broadcasts analysing
+  the account's calls: volume, connect rate and average call length,
+  calls per day (total vs connected, bucketed in the viewer's time
+  zone), the outcome split, what each conversation produced by
+  disposition with follow-ups sent and opener taps per row, and the
+  post-call follow-up funnel — including why skipped follow-ups were
+  skipped. Served by SECURITY DEFINER aggregates behind
+  `GET /api/calls/analytics`, so mobile can consume the same bundle
+  later (gap recorded in `FEATURE_ROADMAP.md`).
 
 - **Appointment reminders as WhatsApp voice notes** (**migration
   required**: `277_reminder_audio.sql`). Contacts who chose audio

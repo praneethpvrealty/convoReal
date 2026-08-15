@@ -33,6 +33,7 @@ import {
   FOLLOWUP_COLD_PREFIX,
   FOLLOWUP_SNOOZE_PREFIX,
 } from '@/lib/contacts/follow-up-nudges';
+import { POST_CALL_OPEN_PREFIX } from '@/lib/outreach/dispatcher';
 
 /** Prefixes whose replies are instructions to the Engine. Bare ids
  *  (no trailing payload) belong in EXACT_CONTROL_REPLY_IDS instead. */
@@ -59,6 +60,9 @@ export const CONTROL_REPLY_PREFIXES = [
   FOLLOWUP_CHECKIN_PREFIX,
   FOLLOWUP_SNOOZE_PREFIX,
   FOLLOWUP_COLD_PREFIX,
+  // The post-call opener's quick reply — the tap that opens the
+  // 24-hour window and asks for the matched-listing follow-up.
+  POST_CALL_OPEN_PREFIX,
 ] as const;
 
 /** True when this reply id is a button the Engine minted, and so must

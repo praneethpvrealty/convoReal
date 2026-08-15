@@ -47,6 +47,10 @@
       "schedule": "10 * * * *"
     },
     {
+      "path": "/api/cron/outreach-followups",
+      "schedule": "25 * * * *"
+    },
+    {
       "path": "/api/appointments/cron",
       "schedule": "*/15 * * * *"
     },
