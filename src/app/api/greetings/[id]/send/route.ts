@@ -79,6 +79,7 @@ export async function POST(
         { status: 400 }
       );
     }
+    const optedInOnly = body?.optedInOnly === true;
 
     const templateState = await ensureOccasionGreetingTemplate(ctx.accountId);
     if (!templateState.template) {
@@ -112,15 +113,26 @@ export async function POST(
     }
     const template = templateState.template;
 
-    const contacts = await resolveAudienceOnServer(
+    const resolved = await resolveAudienceOnServer(
       ctx.supabase,
       ctx.accountId,
       ctx.userId,
       audience
     );
+    // resolveAudienceOnServer already drops declined contacts; the
+    // strict mode narrows a Marketing-category send to explicit grants
+    // (contacts are asked free-form the first time they message in —
+    // see src/lib/buyer/consent-ask.ts for why there is no ask template).
+    const contacts = optedInOnly
+      ? resolved.filter((c) => c.buyer_alerts_consent === 'granted')
+      : resolved;
     if (contacts.length === 0) {
       return NextResponse.json(
-        { error: 'Audience is empty. No contacts matched the criteria.' },
+        {
+          error: optedInOnly
+            ? 'No contacts in this audience have explicitly opted in yet. Clients are asked to opt in automatically the first time they message you on WhatsApp, and portal enquiry forms record consent too.'
+            : 'Audience is empty. No contacts matched the criteria.',
+        },
         { status: 400 }
       );
     }
@@ -143,7 +155,7 @@ export async function POST(
           greeting.message_text,
           ctx.account.name
         ),
-        audience_filter: audience,
+        audience_filter: { ...audience, optedInOnly },
         header_media_url: headerMediaUrl,
         status: 'sending',
         total_recipients: contacts.length,

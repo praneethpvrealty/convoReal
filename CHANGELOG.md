@@ -28,8 +28,16 @@ and polish.
   STOP ALERTS are excluded. Note: Meta classifies festival greetings as
   **Marketing**, so sends count against Meta's per-user marketing caps —
   the template is submitted as Marketing deliberately (see AGENTS.md
-  §2.7 on why chasing Utility burns template names). Mobile parity is a
-  stated gap in `FEATURE_ROADMAP.md`.
+  §2.7 on why chasing Utility burns template names). The send dialog
+  offers a strict **"only clients who explicitly opted in"** toggle
+  (`buyer_alerts_consent = 'granted'`), shows how many contacts have
+  opted in, and explains where grants come from — the free-form ask a
+  pending contact gets the first time they message in, and the portal
+  enquiry forms. There is deliberately no consent-ask template: Meta
+  classified the earlier `buyer_alerts_consent` template as Marketing,
+  and a marketing template asking permission for marketing is the thing
+  consent exists to prevent (`src/lib/buyer/consent-ask.ts`). Mobile
+  parity is a stated gap in `FEATURE_ROADMAP.md`.
 
 - **Appointment reminders as WhatsApp voice notes** (**migration
   required**: `277_reminder_audio.sql`). Contacts who chose audio

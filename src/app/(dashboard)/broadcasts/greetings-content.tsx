@@ -611,11 +611,25 @@ function SendGreetingDialog({
   const { accountId } = useAuth();
   const [audienceType, setAudienceType] = useState<'all' | 'tags'>('all');
   const [tagIds, setTagIds] = useState<string[]>([]);
+  const [optedInOnly, setOptedInOnly] = useState(false);
 
   const templateQuery = useQuery({
     queryKey: ['occasion-greeting-template'],
     queryFn: () => api<TemplateState>('/api/greetings/template'),
     enabled: Boolean(greeting),
+  });
+
+  const optedInCountQuery = useQuery({
+    queryKey: ['occasion-greetings', 'opted-in-count', accountId],
+    queryFn: async () => {
+      const supabase = createClient();
+      const { count } = await supabase
+        .from('contacts')
+        .select('id', { count: 'exact', head: true })
+        .eq('buyer_alerts_consent', 'granted');
+      return count ?? 0;
+    },
+    enabled: Boolean(greeting) && Boolean(accountId),
   });
 
   const tagsQuery = useQuery({
@@ -660,6 +674,7 @@ function SendGreetingDialog({
               audienceType === 'tags'
                 ? { type: 'tags', tagIds }
                 : { type: 'all' },
+            optedInOnly,
           }),
         }
       ),
@@ -788,6 +803,28 @@ function SendGreetingDialog({
               )}
             </div>
           )}
+          <div className="space-y-1">
+            <label className="flex items-center gap-2 text-sm text-slate-300">
+              <input
+                type="checkbox"
+                checked={optedInOnly}
+                onChange={(e) => setOptedInOnly(e.target.checked)}
+                className="accent-primary h-4 w-4"
+              />
+              Only clients who explicitly opted in
+              {typeof optedInCountQuery.data === 'number' && (
+                <span className="text-xs text-slate-500">
+                  ({optedInCountQuery.data} opted in)
+                </span>
+              )}
+            </label>
+            <p className="text-xs text-slate-500">
+              Clients are asked to opt in the first time they message you on
+              WhatsApp, and portal enquiry forms record consent too. Without
+              this, the greeting goes to everyone except contacts who replied
+              STOP ALERTS.
+            </p>
+          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
