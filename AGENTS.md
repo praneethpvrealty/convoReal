@@ -60,27 +60,27 @@ Two canonical rules the subsections below do not otherwise restate:
 
 ### 2.3 Stack immutables
 
-| Layer | Technology | Constraint |
-|-------|-----------|------------|
-| Framework | Next.js 16 (App Router) | Use `app/` directory conventions; no `pages/` router |
-| React | 19.x | Functional components and hooks only; no class components |
-| TypeScript | ^6 | `strict` mode; avoid `any` |
-| Styling | Tailwind CSS v4 | `src/app/globals.css` with `@import "tailwindcss"`; PostCSS v4 setup |
-| UI primitives | shadcn/ui (`base-nova` style) on `@base-ui/react` | Reuse `src/components/ui/`; do not duplicate |
-| Icons | lucide-react | Do not import other icon libraries |
-| Database | Supabase (PostgreSQL) | Every operational table must have `account_id` and RLS |
-| Auth | Supabase Auth | `@supabase/ssr` for SSR; `useAuth()` for client |
-| Client state | React Context + hooks | No Redux, Zustand, or other external state managers |
-| Server cache | @tanstack/react-query | For anything fetched. Not a state manager — it owns loading/error/refetch and dedupes requests, which the rule above does not cover. Mobile already used it; web adopted it starting with the dashboard. Do not hand-roll a new `useEffect` + `fetch` + `useState` triple |
-| Charts | Recharts | Do not add another chart library |
-| Toasts | sonner | Used via `<Toaster>` in root layout |
-| Dates | date-fns | No moment.js or dayjs |
-| Drag & drop | @dnd-kit | Pipeline Kanban board |
-| Flow builder | @xyflow/react (+ @dagrejs/dagre for layout) | Automations/flows/journey visual builders |
-| Image processing | sharp | Server-side resize/encode; do not add another imaging lib |
-| HTTP client | `fetch` (built-in) | No axios |
-| Webhook ingress | Go 1.24 (`go-ingress/`) | HMAC validation + Redis fan-out |
-| Queue | Redis (go-redis + ioredis) | `whatsapp-webhooks` list, `whatsapp-webhooks-dlq` for dead letters |
+| Layer            | Technology                                        | Constraint                                                                                                                                                                                                                                                                |
+| ---------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Framework        | Next.js 16 (App Router)                           | Use `app/` directory conventions; no `pages/` router                                                                                                                                                                                                                      |
+| React            | 19.x                                              | Functional components and hooks only; no class components                                                                                                                                                                                                                 |
+| TypeScript       | ^6                                                | `strict` mode; avoid `any`                                                                                                                                                                                                                                                |
+| Styling          | Tailwind CSS v4                                   | `src/app/globals.css` with `@import "tailwindcss"`; PostCSS v4 setup                                                                                                                                                                                                      |
+| UI primitives    | shadcn/ui (`base-nova` style) on `@base-ui/react` | Reuse `src/components/ui/`; do not duplicate                                                                                                                                                                                                                              |
+| Icons            | lucide-react                                      | Do not import other icon libraries                                                                                                                                                                                                                                        |
+| Database         | Supabase (PostgreSQL)                             | Every operational table must have `account_id` and RLS                                                                                                                                                                                                                    |
+| Auth             | Supabase Auth                                     | `@supabase/ssr` for SSR; `useAuth()` for client                                                                                                                                                                                                                           |
+| Client state     | React Context + hooks                             | No Redux, Zustand, or other external state managers                                                                                                                                                                                                                       |
+| Server cache     | @tanstack/react-query                             | For anything fetched. Not a state manager — it owns loading/error/refetch and dedupes requests, which the rule above does not cover. Mobile already used it; web adopted it starting with the dashboard. Do not hand-roll a new `useEffect` + `fetch` + `useState` triple |
+| Charts           | Recharts                                          | Do not add another chart library                                                                                                                                                                                                                                          |
+| Toasts           | sonner                                            | Used via `<Toaster>` in root layout                                                                                                                                                                                                                                       |
+| Dates            | date-fns                                          | No moment.js or dayjs                                                                                                                                                                                                                                                     |
+| Drag & drop      | @dnd-kit                                          | Pipeline Kanban board                                                                                                                                                                                                                                                     |
+| Flow builder     | @xyflow/react (+ @dagrejs/dagre for layout)       | Automations/flows/journey visual builders                                                                                                                                                                                                                                 |
+| Image processing | sharp                                             | Server-side resize/encode; do not add another imaging lib                                                                                                                                                                                                                 |
+| HTTP client      | `fetch` (built-in)                                | No axios                                                                                                                                                                                                                                                                  |
+| Webhook ingress  | Go 1.24 (`go-ingress/`)                           | HMAC validation + Redis fan-out                                                                                                                                                                                                                                           |
+| Queue            | Redis (go-redis + ioredis)                        | `whatsapp-webhooks` list, `whatsapp-webhooks-dlq` for dead letters                                                                                                                                                                                                        |
 
 ### 2.4 File and naming conventions
 
@@ -135,34 +135,34 @@ Web (`src/`) and mobile (`mobile/`) are two surfaces of one product, not two pro
 
 ## 3. Tech stack
 
-| Layer | Technology | Notes |
-|-------|-----------|-------|
-| Runtime | Node.js >= 20 | `engines` in `package.json`; CI runs Node 20 |
-| App server | Next.js 16.2.6 (App Router) | `next.config.ts` at project root |
-| Language | TypeScript ^6 | `tsconfig.json` strict mode, `@/` alias |
-| React | 19.2.4 | Server components by default |
-| Styling | Tailwind CSS v4 | `@import "tailwindcss"` in `src/app/globals.css` |
-| UI kit | shadcn/ui (`base-nova`) | `components.json` configures aliases and style |
-| Icons | lucide-react | Only icon library used |
-| Database | Supabase (PostgreSQL + RLS + Realtime) | `supabase/migrations/` and `supabase/RUN_IN_SUPABASE_SQL_EDITOR.sql` |
-| Auth | Supabase Auth (GoTrue) | `@supabase/ssr` cookie-based SSR + mobile bearer-token support |
-| Storage | Supabase Storage (S3-compatible) | Avatars, property images, documents |
-| WhatsApp | Meta Cloud API v21.0 | `META_API_VERSION` in `src/lib/whatsapp/meta-api.ts` |
-| AI | Google Gemini (3.x / 2.5 flash family + `gemini-embedding-001`) | Model ids live in `src/lib/ai/gemini.ts` — read them there, do not hardcode elsewhere |
-| AI images | Gemini image models, Stability, Hugging Face | `src/lib/ai/image-gen.ts`; `GEMINI_IMAGE_MODEL` / `STABILITY_API_KEY` / `HF_ACCESS_TOKEN` |
-| Listing video | ffmpeg + Sarvam TTS | `src/lib/video/listing-video-worker.ts` |
-| Video publishing | YouTube Data API (Google OAuth) | `src/lib/youtube/`, `youtube_config` table |
-| Queue | Redis | `ioredis` in Node, `go-redis` v9 in Go |
-| Ingress | Go 1.24.3 | `go-ingress/main.go` + `Dockerfile` |
-| Email | Resend | `src/lib/email.ts` |
-| Payments | Razorpay + Stripe | `src/lib/marketplace/razorpay.ts`, `src/lib/credits/stripe.ts` |
-| Maps | Google Places | `src/lib/maps/google-places.ts` |
-| Cron | Vercel Cron | `vercel.json` |
-| Analytics | Vercel Analytics | `@vercel/analytics` |
-| CI | GitHub Actions | `.github/workflows/ci.yml` — path-filtered, tiered; see §12 |
-| Mobile | Expo ~57 / React Native 0.86 / React 19.2.7 | `mobile/` directory, separate package.json and lockfile |
-| Browser extension | Chrome portal autofill | `extension/portal-autofill/` |
-| MCP server | @modelcontextprotocol/sdk (stdio) | `mcp/` directory, own package.json and lockfile; a client of `/api/v1` |
+| Layer             | Technology                                                      | Notes                                                                                     |
+| ----------------- | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Runtime           | Node.js >= 20                                                   | `engines` in `package.json`; CI runs Node 20                                              |
+| App server        | Next.js 16.2.6 (App Router)                                     | `next.config.ts` at project root                                                          |
+| Language          | TypeScript ^6                                                   | `tsconfig.json` strict mode, `@/` alias                                                   |
+| React             | 19.2.4                                                          | Server components by default                                                              |
+| Styling           | Tailwind CSS v4                                                 | `@import "tailwindcss"` in `src/app/globals.css`                                          |
+| UI kit            | shadcn/ui (`base-nova`)                                         | `components.json` configures aliases and style                                            |
+| Icons             | lucide-react                                                    | Only icon library used                                                                    |
+| Database          | Supabase (PostgreSQL + RLS + Realtime)                          | `supabase/migrations/` and `supabase/RUN_IN_SUPABASE_SQL_EDITOR.sql`                      |
+| Auth              | Supabase Auth (GoTrue)                                          | `@supabase/ssr` cookie-based SSR + mobile bearer-token support                            |
+| Storage           | Supabase Storage (S3-compatible)                                | Avatars, property images, documents                                                       |
+| WhatsApp          | Meta Cloud API v21.0                                            | `META_API_VERSION` in `src/lib/whatsapp/meta-api.ts`                                      |
+| AI                | Google Gemini (3.x / 2.5 flash family + `gemini-embedding-001`) | Model ids live in `src/lib/ai/gemini.ts` — read them there, do not hardcode elsewhere     |
+| AI images         | Gemini image models, Stability, Hugging Face                    | `src/lib/ai/image-gen.ts`; `GEMINI_IMAGE_MODEL` / `STABILITY_API_KEY` / `HF_ACCESS_TOKEN` |
+| Listing video     | ffmpeg + Sarvam TTS                                             | `src/lib/video/listing-video-worker.ts`                                                   |
+| Video publishing  | YouTube Data API (Google OAuth)                                 | `src/lib/youtube/`, `youtube_config` table                                                |
+| Queue             | Redis                                                           | `ioredis` in Node, `go-redis` v9 in Go                                                    |
+| Ingress           | Go 1.24.3                                                       | `go-ingress/main.go` + `Dockerfile`                                                       |
+| Email             | Resend                                                          | `src/lib/email.ts`                                                                        |
+| Payments          | Razorpay + Stripe                                               | `src/lib/marketplace/razorpay.ts`, `src/lib/credits/stripe.ts`                            |
+| Maps              | Google Places                                                   | `src/lib/maps/google-places.ts`                                                           |
+| Cron              | Vercel Cron                                                     | `vercel.json`                                                                             |
+| Analytics         | Vercel Analytics                                                | `@vercel/analytics`                                                                       |
+| CI                | GitHub Actions                                                  | `.github/workflows/ci.yml` — path-filtered, tiered; see §12                               |
+| Mobile            | Expo ~57 / React Native 0.86 / React 19.2.7                     | `mobile/` directory, separate package.json and lockfile                                   |
+| Browser extension | Chrome portal autofill                                          | `extension/portal-autofill/`                                                              |
+| MCP server        | @modelcontextprotocol/sdk (stdio)                               | `mcp/` directory, own package.json and lockfile; a client of `/api/v1`                    |
 
 ---
 
@@ -309,23 +309,23 @@ These numbers drift with every feature. Re-count rather than trusting them if a 
 
 All commands run from the project root unless noted.
 
-| Command | What it does |
-|---------|-------------|
-| `npm install` | Install Node dependencies. |
-| `npm run dev` | Start Next.js dev server on `http://localhost:3000` (Turbopack). |
-| `npm run build` | Production build. Next.js also runs its own typecheck here. |
-| `npm start` | Start the production Next.js server. |
-| `npm run typecheck` | `tsc --noEmit` — fast TypeScript-only check. |
-| `npm run lint` | ESLint via `eslint-config-next`. |
-| `npm run format` | Prettier write. |
-| `npm run format:check` | Prettier check (useful in CI). |
-| `npm test` | Run Vitest unit tests (no network, dummy secrets). |
-| `npm run test:watch` | Run Vitest in watch mode. |
+| Command                    | What it does                                                                             |
+| -------------------------- | ---------------------------------------------------------------------------------------- |
+| `npm install`              | Install Node dependencies.                                                               |
+| `npm run dev`              | Start Next.js dev server on `http://localhost:3000` (Turbopack).                         |
+| `npm run build`            | Production build. Next.js also runs its own typecheck here.                              |
+| `npm start`                | Start the production Next.js server.                                                     |
+| `npm run typecheck`        | `tsc --noEmit` — fast TypeScript-only check.                                             |
+| `npm run lint`             | ESLint via `eslint-config-next`.                                                         |
+| `npm run format`           | Prettier write.                                                                          |
+| `npm run format:check`     | Prettier check (useful in CI).                                                           |
+| `npm test`                 | Run Vitest unit tests (no network, dummy secrets).                                       |
+| `npm run test:watch`       | Run Vitest in watch mode.                                                                |
 | `npm run test:integration` | Run integration tests against the live Supabase project (requires `.env.local` secrets). |
-| `npm run worker` | Run the Redis webhook queue worker (`tsx src/scripts/queue-worker.ts`). |
-| `npm run queue:replay-dlq` | Replay dead-letter queue messages back into the main queue. |
-| `npm run check-db` | Run `src/scripts/check-documents-column.ts`. |
-| `npm run reconcile-pins` | Reconcile property map pins with derived coordinates. |
+| `npm run worker`           | Run the Redis webhook queue worker (`tsx src/scripts/queue-worker.ts`).                  |
+| `npm run queue:replay-dlq` | Replay dead-letter queue messages back into the main queue.                              |
+| `npm run check-db`         | Run `src/scripts/check-documents-column.ts`.                                             |
+| `npm run reconcile-pins`   | Reconcile property map pins with derived coordinates.                                    |
 
 CI (`.github/workflows/ci.yml`) is tiered. A `changes` job classifies the diff, then `lint`, `typecheck` and `test` run in parallel whenever web paths changed, and the `mobile` job runs only when `mobile/**` changed. `build` is deliberately **not** run on pull requests — Vercel already builds every push and `typecheck` covers the same type errors — so it runs on `merge_group` and `push: main` only, with `.next/cache` restored between runs. `ci` is an `if: always()` gate job and is the single status check to mark required; do not require the individual jobs, since a skipped job never reports. Run the same commands locally before pushing.
 
@@ -333,27 +333,27 @@ CI (`.github/workflows/ci.yml`) is tiered. A `changes` job classifies the diff, 
 
 Run from `mobile/`:
 
-| Command | What it does |
-|---------|-------------|
-| `cd mobile && npm install` | Install mobile dependencies. |
-| `cd mobile && npm run start` | Start Expo dev server. |
-| `cd mobile && npm run android` | Start Expo for Android. |
-| `cd mobile && npm run ios` | Start Expo for iOS. |
-| `cd mobile && npm run lint` | Expo lint. |
-| `cd mobile && npm run typecheck` | TypeScript check for mobile. |
-| `cd mobile && npm test` | Vitest over the mobile app's pure logic (`mobile/lib/**/*.test.ts`). |
+| Command                          | What it does                                                         |
+| -------------------------------- | -------------------------------------------------------------------- |
+| `cd mobile && npm install`       | Install mobile dependencies.                                         |
+| `cd mobile && npm run start`     | Start Expo dev server.                                               |
+| `cd mobile && npm run android`   | Start Expo for Android.                                              |
+| `cd mobile && npm run ios`       | Start Expo for iOS.                                                  |
+| `cd mobile && npm run lint`      | Expo lint.                                                           |
+| `cd mobile && npm run typecheck` | TypeScript check for mobile.                                         |
+| `cd mobile && npm test`          | Vitest over the mobile app's pure logic (`mobile/lib/**/*.test.ts`). |
 
 ### MCP server
 
 Run from `mcp/`:
 
-| Command | What it does |
-|---------|-------------|
-| `cd mcp && npm install` | Install MCP server dependencies. |
-| `cd mcp && npm run build` | Compile to `dist/`. Required before a client can launch it. |
-| `cd mcp && npm run typecheck` | TypeScript check for the MCP package. |
-| `cd mcp && npm test` | Vitest: a real MCP client over an in-memory transport against an HTTP stub of `/api/v1`. |
-| `cd mcp && npm run dev` | tsx watch. |
+| Command                       | What it does                                                                             |
+| ----------------------------- | ---------------------------------------------------------------------------------------- |
+| `cd mcp && npm install`       | Install MCP server dependencies.                                                         |
+| `cd mcp && npm run build`     | Compile to `dist/`. Required before a client can launch it.                              |
+| `cd mcp && npm run typecheck` | TypeScript check for the MCP package.                                                    |
+| `cd mcp && npm test`          | Vitest: a real MCP client over an in-memory transport against an HTTP stub of `/api/v1`. |
+| `cd mcp && npm run dev`       | tsx watch.                                                                               |
 
 Read `mcp/README.md` before touching `mcp/`. The package is excluded from the root `tsconfig.json`, ESLint config and Vercel build, so root validation does not cover it.
 
@@ -380,60 +380,60 @@ Copy `.env.local.example` to `.env.local` and fill in the required values. The a
 
 ### Required core variables
 
-| Variable | Purpose |
-|----------|---------|
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anonymous/public key (browser + SSR) |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service-role key (server-only) |
-| `ENCRYPTION_KEY` | 64-character hex string for AES-256-GCM token encryption |
-| `META_APP_SECRET` | Meta App Secret for WhatsApp webhook HMAC verification |
-| `NEXT_PUBLIC_SITE_URL` | Canonical public URL of the app (used in links and by the Go ingress proxy fallback) |
+| Variable                        | Purpose                                                                              |
+| ------------------------------- | ------------------------------------------------------------------------------------ |
+| `NEXT_PUBLIC_SUPABASE_URL`      | Supabase project URL                                                                 |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anonymous/public key (browser + SSR)                                        |
+| `SUPABASE_SERVICE_ROLE_KEY`     | Supabase service-role key (server-only)                                              |
+| `ENCRYPTION_KEY`                | 64-character hex string for AES-256-GCM token encryption                             |
+| `META_APP_SECRET`               | Meta App Secret for WhatsApp webhook HMAC verification                               |
+| `NEXT_PUBLIC_SITE_URL`          | Canonical public URL of the app (used in links and by the Go ingress proxy fallback) |
 
 ### Commonly used optional variables
 
-| Variable | Purpose |
-|----------|---------|
-| `REDIS_URL` | Redis connection string for webhook queueing and DLQ. Format: `redis://...` or `rediss://...` |
-| `WHATSAPP_VERIFY_TOKEN` | Static Meta webhook verification token (used by Go ingress; falls back to DB-backed verification) |
-| `GEMINI_API_KEY` | Google Gemini API key for AI features |
-| `GOOGLE_MAPS_API_KEY` | Google Places / Maps API key (server-side) |
-| `NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY` | Referrer-restricted Maps JavaScript API key for the Inventory map view; without it the map degrades to a hint panel |
-| `RESEND_API_KEY` | Resend API key for transactional emails |
-| `RESEND_FROM_EMAIL` | Sender email address (defaults to `noreply@convoreal.com`) |
-| `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` | Razorpay credentials |
-| `RAZORPAY_WEBHOOK_SECRET` | Razorpay webhook signature secret |
-| `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | Stripe credentials for credit top-ups |
-| `META_ADS_APP_ID` / `META_ADS_APP_SECRET` | Meta Ads integration (feature-flagged by `META_ADS_ENABLED=true`) |
-| `NEXT_PUBLIC_META_ADS_APP_ID` | Public Meta Ads App ID (controls UI visibility) |
-| `IMAP_HOST` / `IMAP_PORT` / `IMAP_USER` / `IMAP_PASSWORD` / `IMAP_SECURE` | IMAP email lead sync |
-| `LEADS_WEBHOOK_TOKEN` | Secret for `/api/leads/email-webhook`; also the bearer token for the Cloudflare worker's ledger API |
-| `LEADS_WORKER_URL` | Cloudflare email worker URL, polled by `/api/cron/lead-sync-reconcile` to re-ingest leads the push path dropped |
-| `AUTOMATION_CRON_SECRET` / `CRON_SECRET` | Secret required by cron/endpoint routes |
-| `SUPABASE_SMS_HOOK_SECRET` | Secret for `/api/auth/sms-hook` (WhatsApp OTP) |
-| `TOKEN_SAFE_WEBHOOK_SECRET` | Secret for the token-safe escrow webhook |
-| `HF_ACCESS_TOKEN` / `HF_IMAGE_URL` | Hugging Face token and endpoint for image generation |
-| `GEMINI_IMAGE_MODEL` | Override the Gemini image model id |
-| `STABILITY_API_KEY` / `STABILITY_MODEL` | Stability credentials for AI photo enhancement |
-| `SARVAM_API_KEY` / `SARVAM_API_BASE` / `SARVAM_SPEAKER` | Sarvam TTS for generated listing videos |
-| `FFMPEG_PATH` / `VIDEO_FONT_PATH` | ffmpeg binary and font used by the listing-video worker |
-| `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` | Google OAuth for YouTube upload |
-| `ALLOWED_INVITE_HOSTS` | Allow-list of hosts accepted in invitation redirect links |
-| `CONVOREAL_MASTER_ACCOUNT_ID` | Master account used by admin/marketplace tooling |
-| `NEXT_PUBLIC_LEADS_EMAIL_DOMAIN` | Domain shown for per-account portal lead email addresses |
-| `PUBLIC_API_KEY` | API key for the public API surface |
-| `WHATSAPP_TEMPLATES_DRY_RUN` | Skip real template submissions to Meta when set |
-| `NEXT_PUBLIC_APP_URL` | Optional alias for the app URL (fallback for `NEXT_PUBLIC_SITE_URL`) |
-| `NEXT_PUBLIC_BASE_DOMAIN` | Base domain for branding/subdomain logic (default `convoreal.com`) |
-| `NEXT_PUBLIC_DEFAULT_WEBSITE_NAME` | Default site name (default `ConvoReal`) |
-| `NEXT_PUBLIC_DEFAULT_WEBSITE_URL` | Default website URL (default `https://www.convoreal.com`) |
-| `NEXT_PUBLIC_DEFAULT_COUNTRY_CODE` | Default phone country code (default `91`) |
-| `NEXT_PUBLIC_DEFAULT_ACCOUNT_ID` | Default account for the public showcase landing page |
-| `NEXT_PUBLIC_ENGINE_VERTICAL` | Active vertical (default `real_estate`) |
-| `NEXT_PUBLIC_COPILOT_ENABLED` | Copilot feature flag (default `true`) |
-| `NEXT_PUBLIC_CONVOREAL_SALES_WHATSAPP` | Sales WhatsApp number for landing-page fallback |
-| `NEXT_PUBLIC_BUILD_ID` | Git short SHA; injected by Vercel build command in `vercel.json` |
-| `REDIRECT_FROM_DOMAIN` / `REDIRECT_TO_DOMAIN` | Domain redirect rules in `next.config.ts` |
-| `APPLE_TEAM_ID` / `ANDROID_APP_CERT_SHA256` | Deep-link / app-link configuration files |
+| Variable                                                                  | Purpose                                                                                                             |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `REDIS_URL`                                                               | Redis connection string for webhook queueing and DLQ. Format: `redis://...` or `rediss://...`                       |
+| `WHATSAPP_VERIFY_TOKEN`                                                   | Static Meta webhook verification token (used by Go ingress; falls back to DB-backed verification)                   |
+| `GEMINI_API_KEY`                                                          | Google Gemini API key for AI features                                                                               |
+| `GOOGLE_MAPS_API_KEY`                                                     | Google Places / Maps API key (server-side)                                                                          |
+| `NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY`                                     | Referrer-restricted Maps JavaScript API key for the Inventory map view; without it the map degrades to a hint panel |
+| `RESEND_API_KEY`                                                          | Resend API key for transactional emails                                                                             |
+| `RESEND_FROM_EMAIL`                                                       | Sender email address (defaults to `noreply@convoreal.com`)                                                          |
+| `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET`                                 | Razorpay credentials                                                                                                |
+| `RAZORPAY_WEBHOOK_SECRET`                                                 | Razorpay webhook signature secret                                                                                   |
+| `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET`                             | Stripe credentials for credit top-ups                                                                               |
+| `META_ADS_APP_ID` / `META_ADS_APP_SECRET`                                 | Meta Ads integration (feature-flagged by `META_ADS_ENABLED=true`)                                                   |
+| `NEXT_PUBLIC_META_ADS_APP_ID`                                             | Public Meta Ads App ID (controls UI visibility)                                                                     |
+| `IMAP_HOST` / `IMAP_PORT` / `IMAP_USER` / `IMAP_PASSWORD` / `IMAP_SECURE` | IMAP email lead sync                                                                                                |
+| `LEADS_WEBHOOK_TOKEN`                                                     | Secret for `/api/leads/email-webhook`; also the bearer token for the Cloudflare worker's ledger API                 |
+| `LEADS_WORKER_URL`                                                        | Cloudflare email worker URL, polled by `/api/cron/lead-sync-reconcile` to re-ingest leads the push path dropped     |
+| `AUTOMATION_CRON_SECRET` / `CRON_SECRET`                                  | Secret required by cron/endpoint routes                                                                             |
+| `SUPABASE_SMS_HOOK_SECRET`                                                | Secret for `/api/auth/sms-hook` (WhatsApp OTP)                                                                      |
+| `TOKEN_SAFE_WEBHOOK_SECRET`                                               | Secret for the token-safe escrow webhook                                                                            |
+| `HF_ACCESS_TOKEN` / `HF_IMAGE_URL`                                        | Hugging Face token and endpoint for image generation                                                                |
+| `GEMINI_IMAGE_MODEL`                                                      | Override the Gemini image model id                                                                                  |
+| `STABILITY_API_KEY` / `STABILITY_MODEL`                                   | Stability credentials for AI photo enhancement                                                                      |
+| `SARVAM_API_KEY` / `SARVAM_API_BASE` / `SARVAM_SPEAKER`                   | Sarvam TTS for generated listing videos                                                                             |
+| `FFMPEG_PATH` / `VIDEO_FONT_PATH`                                         | ffmpeg binary and font used by the listing-video worker                                                             |
+| `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET`                   | Google OAuth for YouTube upload                                                                                     |
+| `ALLOWED_INVITE_HOSTS`                                                    | Allow-list of hosts accepted in invitation redirect links                                                           |
+| `CONVOREAL_MASTER_ACCOUNT_ID`                                             | Master account used by admin/marketplace tooling                                                                    |
+| `NEXT_PUBLIC_LEADS_EMAIL_DOMAIN`                                          | Domain shown for per-account portal lead email addresses                                                            |
+| `PUBLIC_API_KEY`                                                          | API key for the public API surface                                                                                  |
+| `WHATSAPP_TEMPLATES_DRY_RUN`                                              | Skip real template submissions to Meta when set                                                                     |
+| `NEXT_PUBLIC_APP_URL`                                                     | Optional alias for the app URL (fallback for `NEXT_PUBLIC_SITE_URL`)                                                |
+| `NEXT_PUBLIC_BASE_DOMAIN`                                                 | Base domain for branding/subdomain logic (default `convoreal.com`)                                                  |
+| `NEXT_PUBLIC_DEFAULT_WEBSITE_NAME`                                        | Default site name (default `ConvoReal`)                                                                             |
+| `NEXT_PUBLIC_DEFAULT_WEBSITE_URL`                                         | Default website URL (default `https://www.convoreal.com`)                                                           |
+| `NEXT_PUBLIC_DEFAULT_COUNTRY_CODE`                                        | Default phone country code (default `91`)                                                                           |
+| `NEXT_PUBLIC_DEFAULT_ACCOUNT_ID`                                          | Default account for the public showcase landing page                                                                |
+| `NEXT_PUBLIC_ENGINE_VERTICAL`                                             | Active vertical (default `real_estate`)                                                                             |
+| `NEXT_PUBLIC_COPILOT_ENABLED`                                             | Copilot feature flag (default `true`)                                                                               |
+| `NEXT_PUBLIC_CONVOREAL_SALES_WHATSAPP`                                    | Sales WhatsApp number for landing-page fallback                                                                     |
+| `NEXT_PUBLIC_BUILD_ID`                                                    | Git short SHA; injected by Vercel build command in `vercel.json`                                                    |
+| `REDIRECT_FROM_DOMAIN` / `REDIRECT_TO_DOMAIN`                             | Domain redirect rules in `next.config.ts`                                                                           |
+| `APPLE_TEAM_ID` / `ANDROID_APP_CERT_SHA256`                               | Deep-link / app-link configuration files                                                                            |
 
 The authoritative list is the code, not this table. To re-derive it:
 
@@ -445,7 +445,7 @@ The mobile app uses its own `EXPO_PUBLIC_*` variables (`EXPO_PUBLIC_SUPABASE_URL
 
 ### Credentials in an agent session: check the environment, not `.env.local`
 
-**A missing `.env.local` does not mean there are no credentials.** In a hosted agent session (Claude Code on the web, CI, a container) the secrets are exported into the process environment directly, and no `.env.local` file exists at all. `dotenv.config({ path: '.env.local' })` at the top of every script in `src/scripts/` is a no-op there and is *meant* to be — `process.env` is already populated.
+**A missing `.env.local` does not mean there are no credentials.** In a hosted agent session (Claude Code on the web, CI, a container) the secrets are exported into the process environment directly, and no `.env.local` file exists at all. `dotenv.config({ path: '.env.local' })` at the top of every script in `src/scripts/` is a no-op there and is _meant_ to be — `process.env` is already populated.
 
 So before reporting that a script cannot be run, check what is actually set:
 
@@ -492,25 +492,25 @@ Plus:
 
 ### 7.3 Key tables by domain
 
-| Domain | Key tables |
-|--------|-----------|
-| Tenancy | `accounts`, `profiles`, `teams`, `account_invitations`, `account_lifecycle_log` |
-| Contacts | `contacts`, `tags`, `contact_tags`, `custom_fields`, `contact_custom_values`, `contact_notes`, `contact_call_logs`, `contact_draft_sessions`, `contact_merge_log` |
-| Properties | `properties`, `showcase_settings`, `rera_projects`, `property_document_requests`, `property_draft_sessions`, `property_likes`, `property_ratings`, `property_shares`, `property_portal_listings` |
-| WhatsApp | `conversations`, `messages`, `message_reactions`, `message_templates`, `whatsapp_config`, `whatsapp_meta_flows`, `whatsapp_meta_flow_sessions`, `whatsapp_reply_bridges`, `routing_rules` |
-| Pipelines | `pipelines`, `pipeline_stages`, `deals` |
-| Calendar | `appointments`, `appointment_reminder_log`, `todos` |
-| Automations | `automations`, `automation_steps`, `automation_logs`, `automation_pending_executions` |
-| Flows | `flows`, `flow_nodes`, `flow_runs`, `flow_run_events` |
-| Journey | `journey_stages`, `journey_items`, `journey_events` |
-| Owners Den | `den_users`, `den_contact_links`, `match_events`, `den_match_unlocks`, `property_bids`, `property_bid_events`, `deal_rooms`, `token_escrows` |
-| Buyer portal | `buyer_users`, `buyer_contact_links`, `buyer_shortlist_items`, `buyer_match_digest_log` |
-| Liaisons | `liaisons`, `liaison_jobs`, `liaison_workflows`, `liaison_job_payments` |
-| Digests | `owner_digest_settings`, `owner_digest_log`, `agent_inventory_digest_settings`, `agent_inventory_digest_log`, `agent_digest_log` |
-| Marketing | `broadcasts`, `broadcast_recipients`, `contact_property_inquiries`, `showcase_events`, `showcase_share_links`, `public_listing_submissions` |
-| Lead sources | `email_sync_configs`, `email_sync_logs`, `portal_accounts`, `portal_import_items`, `ad_campaigns`, `meta_ads_config`, `ctwa_referrals` |
-| Billing | `subscriptions`, `subscription_events`, `credit_wallets`, `credit_transactions`, `credit_packages`, `credit_package_prices`, `razorpay_orders`, `referrals`, `marketplace_items`, `marketplace_item_nodes`, `account_marketplace_items` |
-| Platform | `notifications`, `notification_devices`, `notification_preferences`, `copilot_qa_cache`, `ai_call_log`, `market_stats`, `image_cleanup_log`, `youtube_config`, `update_sessions` |
+| Domain       | Key tables                                                                                                                                                                                                                              |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tenancy      | `accounts`, `profiles`, `teams`, `account_invitations`, `account_lifecycle_log`                                                                                                                                                         |
+| Contacts     | `contacts`, `tags`, `contact_tags`, `custom_fields`, `contact_custom_values`, `contact_notes`, `contact_call_logs`, `contact_draft_sessions`, `contact_merge_log`                                                                       |
+| Properties   | `properties`, `showcase_settings`, `rera_projects`, `property_document_requests`, `property_draft_sessions`, `property_likes`, `property_ratings`, `property_shares`, `property_portal_listings`                                        |
+| WhatsApp     | `conversations`, `messages`, `message_reactions`, `message_templates`, `whatsapp_config`, `whatsapp_meta_flows`, `whatsapp_meta_flow_sessions`, `whatsapp_reply_bridges`, `routing_rules`                                               |
+| Pipelines    | `pipelines`, `pipeline_stages`, `deals`                                                                                                                                                                                                 |
+| Calendar     | `appointments`, `appointment_reminder_log`, `todos`                                                                                                                                                                                     |
+| Automations  | `automations`, `automation_steps`, `automation_logs`, `automation_pending_executions`                                                                                                                                                   |
+| Flows        | `flows`, `flow_nodes`, `flow_runs`, `flow_run_events`                                                                                                                                                                                   |
+| Journey      | `journey_stages`, `journey_items`, `journey_events`                                                                                                                                                                                     |
+| Owners Den   | `den_users`, `den_contact_links`, `match_events`, `den_match_unlocks`, `property_bids`, `property_bid_events`, `deal_rooms`, `token_escrows`                                                                                            |
+| Buyer portal | `buyer_users`, `buyer_contact_links`, `buyer_shortlist_items`, `buyer_match_digest_log`                                                                                                                                                 |
+| Liaisons     | `liaisons`, `liaison_jobs`, `liaison_workflows`, `liaison_job_payments`                                                                                                                                                                 |
+| Digests      | `owner_digest_settings`, `owner_digest_log`, `agent_inventory_digest_settings`, `agent_inventory_digest_log`, `agent_digest_log`                                                                                                        |
+| Marketing    | `broadcasts`, `broadcast_recipients`, `contact_property_inquiries`, `showcase_events`, `showcase_share_links`, `public_listing_submissions`                                                                                             |
+| Lead sources | `email_sync_configs`, `email_sync_logs`, `portal_accounts`, `portal_import_items`, `ad_campaigns`, `meta_ads_config`, `ctwa_referrals`                                                                                                  |
+| Billing      | `subscriptions`, `subscription_events`, `credit_wallets`, `credit_transactions`, `credit_packages`, `credit_package_prices`, `razorpay_orders`, `referrals`, `marketplace_items`, `marketplace_item_nodes`, `account_marketplace_items` |
+| Platform     | `notifications`, `notification_devices`, `notification_preferences`, `copilot_qa_cache`, `ai_call_log`, `market_stats`, `image_cleanup_log`, `youtube_config`, `update_sessions`                                                        |
 
 ### 7.4 RLS and multi-tenancy
 
@@ -532,12 +532,12 @@ Plus:
 
 ### 8.2 RBAC
 
-| Role | Capabilities |
-|------|-------------|
-| `owner` | Full control, billing, ownership transfer |
-| `admin` | User management, settings |
-| `agent` | Operational data (contacts, properties, messages, deals) |
-| `viewer` | Read-only dashboard access |
+| Role     | Capabilities                                             |
+| -------- | -------------------------------------------------------- |
+| `owner`  | Full control, billing, ownership transfer                |
+| `admin`  | User management, settings                                |
+| `agent`  | Operational data (contacts, properties, messages, deals) |
+| `viewer` | Read-only dashboard access                               |
 
 - Server-side: `requireRole(minRole)` helpers in API routes.
 - Client-side: `useCan(action)` hook for conditional rendering.
@@ -550,7 +550,7 @@ Den and buyer users are `auth.users` rows with **no `profiles` row**, so every E
 1. Resolve a `DenContext` / `BuyerContext` via `withDenAuth()` (`src/lib/den/auth.ts`) or `withBuyerAuth()` (`src/lib/buyer/auth.ts`).
 2. Query with the service-role client under **explicit** owner/buyer scoping (`ctx.links`, `resolveOwnerPropertyIds(ctx)`, shortlist rows).
 
-That explicit scoping *is* the security boundary for these routes — RLS is not doing it for you. Never return service-role results from a Den or buyer handler without filtering through the context. Both personas require WhatsApp phone verification before the context is considered complete.
+That explicit scoping _is_ the security boundary for these routes — RLS is not doing it for you. Never return service-role results from a Den or buyer handler without filtering through the context. Both personas require WhatsApp phone verification before the context is considered complete.
 
 ### 8.4 Auth gating (no Next.js middleware.ts)
 
@@ -598,26 +598,26 @@ Meta Cloud API
 
 ### Key files
 
-| File | Responsibility |
-|------|---------------|
-| `src/lib/whatsapp/meta-api.ts` | Meta Graph API client (messages, templates, media, catalogs, registration) |
-| `src/lib/whatsapp/webhook-handler.ts` | Main webhook processing business logic |
-| `src/lib/whatsapp/webhook-signature.ts` | HMAC-SHA256 verification |
-| `src/lib/whatsapp/encryption.ts` | AES-256-GCM token encryption/decryption |
-| `src/lib/whatsapp/flow-crypto.ts` | Meta Flows RSA-OAEP + AES-GCM crypto handshake |
-| `src/lib/whatsapp/meta-flow-service.ts` | Native Meta Flows lifecycle (create, publish, register keys) |
-| `src/lib/whatsapp/preference-flow.ts` | Buyer preference intake native-flow blueprint |
-| `src/lib/whatsapp/routing-engine.ts` | Message routing rules |
-| `src/lib/whatsapp/reply-bridge.ts` | Direct replies: agent pings are answerable from the agent's own WhatsApp |
-| `src/lib/whatsapp/customer-window.ts` | 24-hour free-form window bookkeeping |
-| `src/lib/whatsapp/template-*.ts` | Template build, validation, status normalisation, lifecycle, webhooks |
-| `src/lib/whatsapp/ctwa-attribution.ts` | Click-to-WhatsApp ad attribution |
-| `src/lib/whatsapp/*-digest-template.ts` | Owner, agent-inventory and property-alert digest templates |
-| `src/lib/bot/funnels.ts` | WhatsApp funnel + catalog-match conversation logic |
-| `src/app/api/whatsapp/webhook/route.ts` | Next.js fallback webhook endpoint (also can enqueue to Redis) |
-| `go-ingress/main.go` | Fast webhook ingress |
-| `src/scripts/queue-worker.ts` | Redis queue consumer |
-| `src/scripts/replay-dlq.ts` | Dead-letter queue recovery |
+| File                                    | Responsibility                                                             |
+| --------------------------------------- | -------------------------------------------------------------------------- |
+| `src/lib/whatsapp/meta-api.ts`          | Meta Graph API client (messages, templates, media, catalogs, registration) |
+| `src/lib/whatsapp/webhook-handler.ts`   | Main webhook processing business logic                                     |
+| `src/lib/whatsapp/webhook-signature.ts` | HMAC-SHA256 verification                                                   |
+| `src/lib/whatsapp/encryption.ts`        | AES-256-GCM token encryption/decryption                                    |
+| `src/lib/whatsapp/flow-crypto.ts`       | Meta Flows RSA-OAEP + AES-GCM crypto handshake                             |
+| `src/lib/whatsapp/meta-flow-service.ts` | Native Meta Flows lifecycle (create, publish, register keys)               |
+| `src/lib/whatsapp/preference-flow.ts`   | Buyer preference intake native-flow blueprint                              |
+| `src/lib/whatsapp/routing-engine.ts`    | Message routing rules                                                      |
+| `src/lib/whatsapp/reply-bridge.ts`      | Direct replies: agent pings are answerable from the agent's own WhatsApp   |
+| `src/lib/whatsapp/customer-window.ts`   | 24-hour free-form window bookkeeping                                       |
+| `src/lib/whatsapp/template-*.ts`        | Template build, validation, status normalisation, lifecycle, webhooks      |
+| `src/lib/whatsapp/ctwa-attribution.ts`  | Click-to-WhatsApp ad attribution                                           |
+| `src/lib/whatsapp/*-digest-template.ts` | Owner, agent-inventory and property-alert digest templates                 |
+| `src/lib/bot/funnels.ts`                | WhatsApp funnel + catalog-match conversation logic                         |
+| `src/app/api/whatsapp/webhook/route.ts` | Next.js fallback webhook endpoint (also can enqueue to Redis)              |
+| `go-ingress/main.go`                    | Fast webhook ingress                                                       |
+| `src/scripts/queue-worker.ts`           | Redis queue consumer                                                       |
+| `src/scripts/replay-dlq.ts`             | Dead-letter queue recovery                                                 |
 
 ### Media handling
 
@@ -741,33 +741,33 @@ All cron routes require `AUTOMATION_CRON_SECRET` or `CRON_SECRET`.
 
 ## 15. Useful resources
 
-| File | What it covers |
-|------|---------------|
-| [ConvoReal Engineering OS](https://github.com/praneethpvrealty/ConvoReal-Engineering-OS) | Cross-project knowledge repo: foundation, business, architecture, engineering, AI, governance (ADRs), operations, templates. `INDEX.md` lists every document. Source of the constitution restated in §2 |
-| `README.md` | Project overview, quick start, feature list |
-| `DATABASE_SCHEMA.md` | Table-by-table schema reference |
-| `PROJECT_HANDOVER.md` | Recent milestones, key features, coding standards |
-| `CONTRIBUTING.md` | Fork/PR workflow, dev-loop commands |
-| `CHANGELOG.md` | Recent changes and feature history — the best record of current behaviour |
-| `FEATURE_ROADMAP.md` / `IMPLEMENTATION_PLAN.md` | Upcoming features and in-flight plans |
-| `mobile/AGENTS.md` | Rules for the Expo app — read it before touching `mobile/` |
-| `src/lib/copilot/README.md` | Copilot module: tours, nudges, cost model |
-| `docs/production-deployment.md` | Step-by-step production deployment |
-| `docs/scaling-architecture.md` / `docs/scaling-costs.md` | Scaling roadmap and cost model |
-| `docs/external-services-audit.md` | Every third-party service, its tier, its limits, and the launch upgrade order |
-| `docs/ultimate-whatsapp-onboarding-guide.md` / `docs/meta-onboarding-guide.md` | WhatsApp/Meta onboarding |
-| `docs/meta-ads-integration-plan.md` | Meta Ads OAuth and campaign integration |
-| `docs/embedded-signup-plan.md` | Embedded Signup + Coexistence onboarding plan (one-click WABA, same-number app+API) |
-| `docs/property-intake-consolidation.md` | Every way a property gets in, and which one to hand to people outside the brokerage |
-| `docs/OWNERS_DEN_TESTING.md` | Owners Den testing checklist |
-| `docs/CLOUDFLARE_EMAIL_SETUP.md` / `docs/cloudflare-waf.md` | Cloudflare email routing and WAF |
-| `docs/GUIDE_MOBILE_APPLICATION_PORTABILITY.md` | Web/native split for shared features |
-| `docs/ai-photo-enhancement.md` / `docs/credits-policy-listing-video.md` / `docs/credits-policy-voice-campaign-call.md` | AI media/voice features and their credit policy |
-| `docs/sarvam-voice-agent-setup.md` / `docs/voice-agent-integration-plan.md` | Connecting a voice provider (agent, phone number, post-call webhook contract) and the phased integration design |
-| `docs/youtube-integration-setup.md` | YouTube OAuth and upload setup |
-| `docs/domain-rehosting-guide.md` / `docs/region-migration-mumbai.md` | Domain and region migrations |
-| `docs/refactoring-audit.md` | Known debt and refactor targets |
-| `.github/SECURITY.md` | Vulnerability reporting policy |
+| File                                                                                                                   | What it covers                                                                                                                                                                                          |
+| ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [ConvoReal Engineering OS](https://github.com/praneethpvrealty/ConvoReal-Engineering-OS)                               | Cross-project knowledge repo: foundation, business, architecture, engineering, AI, governance (ADRs), operations, templates. `INDEX.md` lists every document. Source of the constitution restated in §2 |
+| `README.md`                                                                                                            | Project overview, quick start, feature list                                                                                                                                                             |
+| `DATABASE_SCHEMA.md`                                                                                                   | Table-by-table schema reference                                                                                                                                                                         |
+| `PROJECT_HANDOVER.md`                                                                                                  | Recent milestones, key features, coding standards                                                                                                                                                       |
+| `CONTRIBUTING.md`                                                                                                      | Fork/PR workflow, dev-loop commands                                                                                                                                                                     |
+| `CHANGELOG.md`                                                                                                         | Recent changes and feature history — the best record of current behaviour                                                                                                                               |
+| `FEATURE_ROADMAP.md` / `IMPLEMENTATION_PLAN.md`                                                                        | Upcoming features and in-flight plans                                                                                                                                                                   |
+| `mobile/AGENTS.md`                                                                                                     | Rules for the Expo app — read it before touching `mobile/`                                                                                                                                              |
+| `src/lib/copilot/README.md`                                                                                            | Copilot module: tours, nudges, cost model                                                                                                                                                               |
+| `docs/production-deployment.md`                                                                                        | Step-by-step production deployment                                                                                                                                                                      |
+| `docs/scaling-architecture.md` / `docs/scaling-costs.md`                                                               | Scaling roadmap and cost model                                                                                                                                                                          |
+| `docs/external-services-audit.md`                                                                                      | Every third-party service, its tier, its limits, and the launch upgrade order                                                                                                                           |
+| `docs/ultimate-whatsapp-onboarding-guide.md` / `docs/meta-onboarding-guide.md`                                         | WhatsApp/Meta onboarding                                                                                                                                                                                |
+| `docs/meta-ads-integration-plan.md`                                                                                    | Meta Ads OAuth and campaign integration                                                                                                                                                                 |
+| `docs/embedded-signup-plan.md`                                                                                         | Embedded Signup + Coexistence onboarding plan (one-click WABA, same-number app+API)                                                                                                                     |
+| `docs/property-intake-consolidation.md`                                                                                | Every way a property gets in, and which one to hand to people outside the brokerage                                                                                                                     |
+| `docs/OWNERS_DEN_TESTING.md`                                                                                           | Owners Den testing checklist                                                                                                                                                                            |
+| `docs/CLOUDFLARE_EMAIL_SETUP.md` / `docs/cloudflare-waf.md`                                                            | Cloudflare email routing and WAF                                                                                                                                                                        |
+| `docs/GUIDE_MOBILE_APPLICATION_PORTABILITY.md`                                                                         | Web/native split for shared features                                                                                                                                                                    |
+| `docs/ai-photo-enhancement.md` / `docs/credits-policy-listing-video.md` / `docs/credits-policy-voice-campaign-call.md` | AI media/voice features and their credit policy                                                                                                                                                         |
+| `docs/sarvam-voice-agent-setup.md` / `docs/voice-agent-integration-plan.md` / `docs/post-call-followup-plan.md`        | Connecting a voice provider (agent, phone number, post-call webhook contract), the phased integration design, and the planned disposition-driven WhatsApp follow-up after each call                     |
+| `docs/youtube-integration-setup.md`                                                                                    | YouTube OAuth and upload setup                                                                                                                                                                          |
+| `docs/domain-rehosting-guide.md` / `docs/region-migration-mumbai.md`                                                   | Domain and region migrations                                                                                                                                                                            |
+| `docs/refactoring-audit.md`                                                                                            | Known debt and refactor targets                                                                                                                                                                         |
+| `.github/SECURITY.md`                                                                                                  | Vulnerability reporting policy                                                                                                                                                                          |
 
 ---
 

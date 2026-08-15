@@ -134,6 +134,7 @@ _§2.8 gaps, stated rather than silent. They share one root cause: the mobile ap
 
 - [ ] **Owner details request wording (mobile)**: The per-account editor for the seller intake message ships on web only (Settings → WhatsApp → Owners). The _message itself_ is at full parity — the mobile sheet reads the same saved wording through `GET /api/owners/details-request/settings` and sends through the same route — so an account that customises it on web sees the change on the phone immediately. Only the editing UI is missing. (migration 262, `src/components/settings/owner-details-request-card.tsx`)
 - [ ] **API Keys Settings UI (mobile)**: See Milestone 6. Same root cause, same deferral.
+- [ ] **Post-call WhatsApp follow-up** (designed — `docs/post-call-followup-plan.md`): what the lead receives after a voice call ends, decided by an explicit `disposition` the agent reports (qualified, budget-mismatch-but-open, not-now-with-a-date, wants site visit, has property to sell, do-not-call, …). One Utility opener template per flow whose button tap opens the 24-hour window; everything rich rides free-form behind it. Playbooks are `(flow_kind, disposition) → actions` in pure TS, dispatched through one gate (opt-outs, window state, `canSendToEveryLead()`, dedupe), with `outreach_followups` carrying dated re-engagement for the "not now, after Diwali" lead — the long game the product currently drops. Flow-agnostic on purpose: owner cold-call onboarding is the second `flow_kind`.
 
 ---
 
