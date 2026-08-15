@@ -13,6 +13,24 @@ and polish.
 
 ### Added
 
+- **Occasion greetings** (**migration required**:
+  `281_occasion_greetings.sql`). A "Greetings" tab on `/broadcasts`: pick
+  an upcoming occasion (Ganesh Chaturthi, Diwali, New Year, Onam and
+  more, or type your own), have the AI write the greeting in your
+  agency's voice and design a festive card image (10 credits per
+  compose, text refunded on failure — the same `greetings_generate`
+  price as the per-contact generator), edit it, and broadcast it to all
+  contacts or by tags. Sends ride a shared `occasion_greeting` WhatsApp
+  template (image header + client name, greeting, agency name as
+  variables) that is auto-submitted to Meta once per account and reused
+  for every occasion; the fan-out is a normal broadcast, so delivery
+  tracking, retries and the sweep cron apply, and contacts who replied
+  STOP ALERTS are excluded. Note: Meta classifies festival greetings as
+  **Marketing**, so sends count against Meta's per-user marketing caps —
+  the template is submitted as Marketing deliberately (see AGENTS.md
+  §2.7 on why chasing Utility burns template names). Mobile parity is a
+  stated gap in `FEATURE_ROADMAP.md`.
+
 - **Appointment reminders as WhatsApp voice notes** (**migration
   required**: `277_reminder_audio.sql`). Contacts who chose audio
   updates (`preferred_update_channel = whatsapp_audio`) now get their

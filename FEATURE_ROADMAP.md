@@ -146,6 +146,14 @@ _A §2.8 gap, stated rather than silent._
 
 ---
 
+### Deferred: occasion greetings on mobile
+
+_A §2.8 gap, stated rather than silent._
+
+- [ ] **Occasion greetings (mobile)** (migration `281_occasion_greetings.sql`, `src/lib/greetings/`, `src/app/api/greetings/`, the "Greetings" tab on `/broadcasts`): composing an AI festival/occasion greeting in the agency's voice — text plus card image — and broadcasting it to clients on the shared `occasion_greeting` template ships on web only. All the logic sits behind `/api/greetings/*` (bearer-token capable, so mobile is a client away): occasions catalog and prompts in `src/lib/greetings/`, template ensure/variables in `src/lib/whatsapp/occasion-greeting-template.ts`, and the fan-out is an ordinary `broadcasts` row, which mobile's existing broadcast detail screen (`mobile/app/(app)/broadcast/[id].tsx`) can already display. Closing it means a greetings screen (list + compose + send) under More → Marketing, a `MENU_LINKS.greetings` entry in `mobile/lib/menu.ts`, and an occasions-catalog mirror covered by `mobile-parity.test.ts`.
+
+---
+
 ### Deferred: follow-up radar, layers 2 and 3
 
 _The shipped slice (auto-heat + the daily WhatsApp follow-up card, `src/lib/contacts/auto-heat.ts` and `src/lib/contacts/follow-up-nudges.ts`) covers detection and the agency-side reminder. What it deliberately does not do yet:_

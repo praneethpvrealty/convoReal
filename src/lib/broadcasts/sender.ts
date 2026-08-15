@@ -331,6 +331,7 @@ async function dispatchClaimedRecipients(
     template_name: string;
     template_language?: string | null;
     template_variables?: Record<string, VariableMapping> | null;
+    header_media_url?: string | null;
   },
   broadcastId: string,
   accountId: string,
@@ -625,6 +626,12 @@ async function dispatchClaimedRecipients(
           templateLanguage:
             recipientTemplate?.language || broadcast.template_language || 'en_US',
           templateParams: truncatedParams,
+          messageParams: broadcast.header_media_url
+            ? {
+                body: truncatedParams,
+                headerMediaUrl: broadcast.header_media_url,
+              }
+            : undefined,
           templateRow: recipientTemplate ?? undefined,
           text: resolvedText,
           customDbClient: supabase,
