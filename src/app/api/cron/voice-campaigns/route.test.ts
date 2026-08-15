@@ -35,4 +35,18 @@ describe('voice campaign dispatcher call context', () => {
   it('names the contact, so the agent can greet them', () => {
     expect(dispatcherSource()).toContain('contact_name: contact.name');
   });
+
+  // The documented agent prompt opens "You are calling on behalf of
+  // {{brand_name}}". Drop the variable and every campaign call opens
+  // with a blank where the brokerage should be — a cold caller that
+  // cannot say who it is.
+  it('names the brokerage the call is made for', () => {
+    expect(dispatcherSource()).toContain('brand_name: brandNames.get(');
+  });
+
+  it('carries the agent to hand off to', () => {
+    const source = dispatcherSource();
+    expect(source).toContain('agent_name: agent?.name');
+    expect(source).toContain('agent_phone: agent?.phone');
+  });
 });

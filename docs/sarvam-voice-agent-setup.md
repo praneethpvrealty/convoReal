@@ -38,10 +38,14 @@ them in the agent's prompt using Sarvam's variable syntax:
 | Variable         | Example                              | Source                                                                    |
 | ---------------- | ------------------------------------ | ------------------------------------------------------------------------- |
 | `contact_name`   | `Gopi`                               | The contact row; empty string when unknown                                |
-| `campaign_id`    | `6f0e…`                              | The campaign — **must be echoed back** (§3)                               |
+| `brand_name`     | `Aryavarta Ventures`                 | The account name — who the call is on behalf of                           |
 | `property_title` | `Old House in Koramangala 1st Block` | The listing the campaign is about                                         |
 | `asking_price`   | `147000000`                          | Raw rupees, unformatted — have the agent say "14.7 crore", not the digits |
 | `locality`       | `Koramangala 1st Block`              | Listing sublocality, falling back to location                             |
+| `agent_name`     | `Rahul Nair`                         | The contact's assigned agent, else whoever launched the campaign          |
+| `agent_phone`    | `919876543210`                       | That agent's WhatsApp-reachable number. Empty when there is none          |
+| `campaign_id`    | `6f0e…`                              | Plumbing, not script — **must be echoed back** (§3)                       |
+| `account_id`     | `a41c…`                              | Plumbing, not script — echo it back in shared mode (§1b)                  |
 
 Reminder calls (Settings → WhatsApp → Voice → _Appointment reminders as
 calls_) pass a different set to the same agent: `contact_name`,
@@ -68,6 +72,11 @@ Your job, in this order:
    localities they are looking in, and what kind of property.
 4. Ask whether they want to be shown alternatives that fit.
 5. If they ask not to be called again, acknowledge it and end politely.
+
+Close by naming who follows up: {{agent_name}} will send options on
+WhatsApp. Only offer the callback number {{agent_phone}} if they ask
+for one, and never read out either field when it is empty — say a
+colleague will follow up instead.
 
 Be brief and respectful — this is a cold follow-up to a web enquiry,
 not a sales pitch. Speak whichever of English, Hindi or Kannada the
