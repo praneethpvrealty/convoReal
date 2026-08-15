@@ -126,9 +126,7 @@ describe('the engine answers the question it asked', () => {
     // Today itself in your inventory", while the reminder never got
     // set. A tap carries its instruction in the id; the text is only
     // the label.
-    expect(source).toContain(
-      "cleanedText && message.type !== 'interactive'"
-    );
+    expect(source).toContain('cleanedText && !isInteractiveTap');
   });
 
   it('retires the question once it is answered', () => {
