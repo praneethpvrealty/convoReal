@@ -33,7 +33,7 @@ describe('tap labels never enter the interpretive corridor', () => {
     // Each reader, and the gate that keeps a label out of it.
     [
       'property answer',
-      'cleanedText && !isInteractiveTap) {\n    const propertyAnswer',
+      'cleanedText && !isInteractiveTap && !propSession) {\n    const propertyAnswer',
     ],
     [
       'quote-correction',
