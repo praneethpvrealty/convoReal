@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
     }
 
     const cost = AI_FEATURE_COSTS[AI_FEATURE];
-    const burn = await burnCredits(ctx.accountId, AI_FEATURE, cost, { client: ctx.supabase });
+    const burn = await burnCredits(ctx.accountId, AI_FEATURE, cost);
     if (!burn.success) {
       return NextResponse.json(
         { error: 'Insufficient credits to draft the email.', creditsNeeded: cost, upgradeRequired: true },
@@ -103,14 +103,14 @@ export async function POST(request: NextRequest) {
     try {
       raw = await generateText(prompt, SHARE_EMAIL_SYSTEM_PROMPT, { feature: 'share_email' });
     } catch (apiErr) {
-      await refundCredits(ctx.accountId, AI_FEATURE, cost, { client: ctx.supabase });
+      await refundCredits(ctx.accountId, AI_FEATURE, cost);
       throw apiErr;
     }
 
     const draft = parseAiShareEmail(raw);
     if (!draft) {
       // Model returned unusable output — refund and let the user retry.
-      await refundCredits(ctx.accountId, AI_FEATURE, cost, { client: ctx.supabase });
+      await refundCredits(ctx.accountId, AI_FEATURE, cost);
       return NextResponse.json({ error: 'Could not draft the email. Please try again.' }, { status: 502 });
     }
 

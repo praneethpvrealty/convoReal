@@ -64,9 +64,7 @@ export async function POST(request: NextRequest) {
     // Burn before the external call, per credit engine convention —
     // never charge for a call that didn't happen, never skip
     // charging one that did.
-    const burn = await burnCredits(ctx.accountId, "property_description", cost, {
-      client: ctx.supabase,
-    });
+    const burn = await burnCredits(ctx.accountId, "property_description", cost);
     if (!burn.success) {
       return NextResponse.json(
         {
@@ -82,7 +80,7 @@ export async function POST(request: NextRequest) {
     try {
       description = await generateText(prompt, systemInstruction);
     } catch (apiErr: unknown) {
-      await refundCredits(ctx.accountId, "property_description", cost, { client: ctx.supabase });
+      await refundCredits(ctx.accountId, "property_description", cost);
       const msg = apiErr instanceof Error ? apiErr.message : String(apiErr);
       console.error('[AI Description] generateText failed, refunded credits. Error:', msg);
       throw apiErr;

@@ -68,9 +68,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const burn = await burnCredits(ctx.accountId, AI_FEATURE, cost, {
-      client: ctx.supabase,
-    });
+    const burn = await burnCredits(ctx.accountId, AI_FEATURE, cost);
     if (!burn.success) {
       return NextResponse.json(
         {
@@ -127,9 +125,7 @@ export async function POST(request: NextRequest) {
         },
       });
     } catch (generationErr) {
-      await refundCredits(ctx.accountId, AI_FEATURE, cost, {
-        client: ctx.supabase,
-      });
+      await refundCredits(ctx.accountId, AI_FEATURE, cost);
       throw generationErr;
     }
   } catch (err) {

@@ -58,7 +58,7 @@ export async function POST(
     }
 
     const cost = AI_FEATURE_COSTS.action_item_events;
-    const burn = await burnCredits(ctx.accountId, 'action_item_events', cost, { client: ctx.supabase });
+    const burn = await burnCredits(ctx.accountId, 'action_item_events', cost);
     if (!burn.success) {
       return NextResponse.json(
         { error: 'Insufficient credits to create events.', creditsNeeded: cost, upgradeRequired: true },
@@ -74,7 +74,7 @@ export async function POST(
         contactName: contact.name,
       });
     } catch (apiErr) {
-      await refundCredits(ctx.accountId, 'action_item_events', cost, { client: ctx.supabase });
+      await refundCredits(ctx.accountId, 'action_item_events', cost);
       console.error('[create-events] Gemini call failed:', apiErr);
       return NextResponse.json(
         { error: 'Could not turn the action items into events. Please try again.' },
@@ -82,7 +82,7 @@ export async function POST(
       );
     }
     if (parsed.events.length === 0) {
-      await refundCredits(ctx.accountId, 'action_item_events', cost, { client: ctx.supabase });
+      await refundCredits(ctx.accountId, 'action_item_events', cost);
       return NextResponse.json(
         { error: 'No schedulable events found in the action items.' },
         { status: 422 },

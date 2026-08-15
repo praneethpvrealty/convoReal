@@ -83,9 +83,7 @@ export async function POST(request: NextRequest) {
     // Charge BEFORE the work is queued (credits-engine rule); the
     // worker refunds on failure.
     const cost = AI_FEATURE_COSTS.audio_announcement;
-    const burn = await burnCredits(ctx.accountId, 'audio_announcement', cost, {
-      client: ctx.supabase,
-    });
+    const burn = await burnCredits(ctx.accountId, 'audio_announcement', cost);
     if (!burn.success) {
       return NextResponse.json(
         {

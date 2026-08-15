@@ -64,9 +64,7 @@ export async function POST(
     // Charge BEFORE the work is queued (credits-engine rule); the
     // worker refunds on failure.
     const cost = AI_FEATURE_COSTS.listing_video;
-    const burn = await burnCredits(ctx.accountId, 'listing_video', cost, {
-      client: ctx.supabase,
-    });
+    const burn = await burnCredits(ctx.accountId, 'listing_video', cost);
     if (!burn.success) {
       return NextResponse.json(
         { error: `Not enough credits — generating a video costs ${cost} cr.`, deficit: burn.deficit },

@@ -44,7 +44,7 @@ export async function POST(request: Request) {
     }
 
     // Burn credits
-    const burn = await burnCredits(ctx.accountId, 'greetings_generate', cost, { client: ctx.supabase });
+    const burn = await burnCredits(ctx.accountId, 'greetings_generate', cost);
     if (!burn.success) {
       return NextResponse.json(
         {
@@ -87,7 +87,7 @@ export async function POST(request: Request) {
 
     } catch (generationErr) {
       // Refund credits on failure
-      await refundCredits(ctx.accountId, 'greetings_generate', cost, { client: ctx.supabase });
+      await refundCredits(ctx.accountId, 'greetings_generate', cost);
       throw generationErr;
     }
 
