@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
@@ -23,7 +23,7 @@ const WIDGET_ICONS: Record<WidgetId, keyof typeof Ionicons.glyphMap> = {
 };
 
 /** Tapping a widget opens the screen it summarizes. */
-const WIDGET_ROUTES: Record<WidgetId, string> = {
+const WIDGET_ROUTES: Record<WidgetId, Href> = {
   inbox: '/(app)/(tabs)',
   calendar: '/(app)/(tabs)/calendar',
   contacts: '/(app)/(tabs)/contacts',
