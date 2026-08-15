@@ -28,6 +28,7 @@ npm run dev
 5. Run `npm run dev` in the Codespace terminal.
 
 The Codespace forwards the web app on port 3000 and Expo Metro on port 8081.
+It also enables SSH access for GitHub CLI, VS Code, and local development tools.
 The generated `.env.local` contains placeholders and is ignored by Git; never
 commit real credentials.
 

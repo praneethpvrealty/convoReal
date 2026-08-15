@@ -5,6 +5,9 @@
     "ghcr.io/devcontainers/features/github-cli:1": {},
     "ghcr.io/devcontainers/features/go:1": {
       "version": "1.24.3"
+    },
+    "ghcr.io/devcontainers/features/sshd:1": {
+      "version": "latest"
     }
   },
   "forwardPorts": [3000, 8081],
