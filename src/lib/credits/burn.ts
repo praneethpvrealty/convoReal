@@ -3,9 +3,13 @@
 //
 // Must be called BEFORE the external AI API call, never after
 // (source design doc's explicit rule).
+//
+// Service-role only, by design: migration 263 revoked EXECUTE on both
+// RPCs from anon and authenticated, so an RLS-scoped client fails with
+// "permission denied for function burn_credits_tx". Do not re-add a
+// client option — callers must resolve the account id server-side.
 // ============================================================
 
-import type { SupabaseClient } from '@supabase/supabase-js';
 import { billingAdmin } from '@/lib/billing/admin-client';
 import { getOrCreateWallet } from './wallet';
 import type { BillableFeatureKey } from './types';
@@ -33,10 +37,6 @@ export interface BurnOptions {
   /** Idempotency key for retries (e.g. webhook redelivery) — a retry
    *  within 60s of the same key is free. */
   retryKey?: string;
-  /** Pass the caller's own RLS-scoped client when available (user-
-   *  authed routes); falls back to the service-role client for
-   *  no-auth contexts (chatbot webhook). */
-  client?: SupabaseClient;
 }
 
 /**
@@ -50,11 +50,11 @@ export async function burnCredits(
   opts: BurnOptions = {},
 ): Promise<BurnResult> {
   const hardBlock = opts.hardBlock ?? true;
-  const supabase = opts.client ?? billingAdmin();
+  const supabase = billingAdmin();
 
   // Ensure the wallet exists before attempting the RPC — accounts
   // created outside the normal signup trigger may not have one yet.
-  await getOrCreateWallet(accountId, opts.client);
+  await getOrCreateWallet(accountId);
 
   const { data, error } = await supabase.rpc('burn_credits_tx', {
     p_account_id: accountId,
@@ -84,9 +84,9 @@ export async function refundCredits(
   accountId: string,
   feature: BillableFeatureKey,
   cost: number,
-  opts: { client?: SupabaseClient; description?: string } = {},
+  opts: { description?: string } = {},
 ): Promise<{ success: boolean; balanceAfter: number }> {
-  const supabase = opts.client ?? billingAdmin();
+  const supabase = billingAdmin();
   const description = opts.description ?? `${feature} refund`;
 
   const { data, error } = await supabase.rpc('refund_credits_tx', {

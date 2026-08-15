@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
 
     const feature = audioBase64 ? 'voice_event_parse' : 'event_parse';
     const cost = AI_FEATURE_COSTS[feature];
-    const burn = await burnCredits(ctx.accountId, feature, cost, { client: ctx.supabase });
+    const burn = await burnCredits(ctx.accountId, feature, cost);
     if (!burn.success) {
       return NextResponse.json(
         { error: 'Insufficient credits to parse this event.', creditsNeeded: cost, upgradeRequired: true },
@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
         memberNames: (members || []).map((m) => m.full_name).filter(Boolean) as string[],
       });
     } catch (apiErr) {
-      await refundCredits(ctx.accountId, feature, cost, { client: ctx.supabase });
+      await refundCredits(ctx.accountId, feature, cost);
       console.error('[parse-event] Gemini call failed:', apiErr);
       return NextResponse.json({ error: 'Could not understand that. Please try again.' }, { status: 502 });
     }

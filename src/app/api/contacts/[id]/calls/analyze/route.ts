@@ -67,7 +67,7 @@ export async function POST(
 
     const feature = audioBase64 ? 'call_recording_analysis' : 'call_analysis';
     const cost = AI_FEATURE_COSTS[feature];
-    const burn = await burnCredits(ctx.accountId, feature, cost, { client: ctx.supabase });
+    const burn = await burnCredits(ctx.accountId, feature, cost);
     if (!burn.success) {
       return NextResponse.json(
         { error: 'Insufficient credits to analyze this call.', creditsNeeded: cost, upgradeRequired: true },
@@ -88,7 +88,7 @@ export async function POST(
         context: context || undefined,
       });
     } catch (apiErr) {
-      await refundCredits(ctx.accountId, feature, cost, { client: ctx.supabase });
+      await refundCredits(ctx.accountId, feature, cost);
       console.error('[calls/analyze] Gemini call failed:', apiErr);
       return NextResponse.json(
         { error: 'Could not analyze that call. Please try again.' },

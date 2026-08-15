@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
     }
 
     const cost = AI_FEATURE_COSTS[AI_FEATURE];
-    const burn = await burnCredits(ctx.accountId, AI_FEATURE, cost, { client: ctx.supabase });
+    const burn = await burnCredits(ctx.accountId, AI_FEATURE, cost);
     if (!burn.success) {
       return NextResponse.json(
         { error: 'Insufficient credits to generate ad copy.', creditsNeeded: cost, upgradeRequired: true },
@@ -57,14 +57,14 @@ export async function POST(request: NextRequest) {
     try {
       raw = await generateText(buildAdCopyPrompt(property), AD_COPY_SYSTEM_PROMPT, { feature: 'ad_copy' });
     } catch (apiErr) {
-      await refundCredits(ctx.accountId, AI_FEATURE, cost, { client: ctx.supabase });
+      await refundCredits(ctx.accountId, AI_FEATURE, cost);
       throw apiErr;
     }
 
     const copy = parseAdCopy(raw);
     if (!copy) {
       // Model returned unusable output — refund and let the user retry.
-      await refundCredits(ctx.accountId, AI_FEATURE, cost, { client: ctx.supabase });
+      await refundCredits(ctx.accountId, AI_FEATURE, cost);
       return NextResponse.json({ error: 'Could not generate ad copy. Please try again.' }, { status: 502 });
     }
 

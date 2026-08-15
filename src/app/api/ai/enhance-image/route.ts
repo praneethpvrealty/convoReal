@@ -58,7 +58,7 @@ export async function POST(request: Request) {
     // Burn before the external call. Single flat cost regardless of
     // provider (Imagen vs HuggingFace) — no separate "full generation"
     // endpoint exists to justify pricing them differently.
-    const burn = await burnCredits(accountId, 'image_enhance', cost, { client: supabase });
+    const burn = await burnCredits(accountId, 'image_enhance', cost);
     if (!burn.success) {
       return NextResponse.json(
         {
@@ -80,7 +80,7 @@ export async function POST(request: Request) {
       imageResult = await generateAiImage({ prompt, aspectRatio, provider, stabilityModel });
     } catch (apiErr: unknown) {
       // API or network failure: refund the credits
-      await refundCredits(accountId, 'image_enhance', cost, { client: supabase });
+      await refundCredits(accountId, 'image_enhance', cost);
       const err = apiErr as StatusError;
       console.error('[AI Enhance] API call failed, refunded credits. Error:', err.message);
       const status = err.status || 500;
