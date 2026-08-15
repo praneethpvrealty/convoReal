@@ -93,12 +93,14 @@ export async function ensureOccasionGreetingTemplate(
 ): Promise<OccasionGreetingTemplateState> {
   const db = supabaseAdmin();
 
+  // DESC sorts NULLS FIRST, so without nullsFirst a never-submitted
+  // draft outranks the approved row and every send is refused.
   const { data: latestRow } = await db
     .from('message_templates')
     .select('*')
     .eq('account_id', accountId)
     .eq('name', OCCASION_GREETING_TEMPLATE_NAME)
-    .order('last_submitted_at', { ascending: false })
+    .order('last_submitted_at', { ascending: false, nullsFirst: false })
     .limit(1)
     .maybeSingle();
 

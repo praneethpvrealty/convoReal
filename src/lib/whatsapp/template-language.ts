@@ -206,7 +206,7 @@ export async function loadTemplateForContact<T extends TemplateRow>(
     .select('*')
     .eq('account_id', opts.accountId)
     .in('name', opts.names as string[])
-    .order('last_submitted_at', { ascending: false });
+    .order('last_submitted_at', { ascending: false, nullsFirst: false });
 
   const template = pickTemplateForLanguage((data ?? []) as T[], language);
   return { template, language, fellBack: isLanguageFallback(template, language) };

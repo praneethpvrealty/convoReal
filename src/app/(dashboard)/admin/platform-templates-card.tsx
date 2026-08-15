@@ -85,7 +85,7 @@ export default function PlatformTemplatesCard() {
           'name',
           SLOTS.map((s) => s.name)
         )
-        .order('last_submitted_at', { ascending: false });
+        .order('last_submitted_at', { ascending: false, nullsFirst: false });
 
       const next: Record<string, string | null> = {};
       for (const row of data || []) {

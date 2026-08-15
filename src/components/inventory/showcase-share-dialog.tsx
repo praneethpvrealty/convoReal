@@ -285,7 +285,7 @@ Best regards`;
       .select('*')
       .eq('account_id', accountId)
       .eq('name', INVENTORY_UPDATE_TEMPLATE_NAME)
-      .order('last_submitted_at', { ascending: false })
+      .order('last_submitted_at', { ascending: false, nullsFirst: false })
       .limit(1)
       .maybeSingle();
     setEngineTemplate((data as MessageTemplate | null) || null);

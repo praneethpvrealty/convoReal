@@ -109,7 +109,7 @@ export async function sendAutoReply({
         .eq('account_id', accountId)
         .eq('name', syncConfig.auto_reply_template_name)
         .eq('status', 'APPROVED')
-        .order('last_submitted_at', { ascending: false });
+        .order('last_submitted_at', { ascending: false, nullsFirst: false });
       const language = await accountDefaultLanguage(supabase, accountId);
       template = pickTemplateForLanguage(
         (variants ?? []) as MessageTemplate[],

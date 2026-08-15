@@ -86,7 +86,7 @@ export function OwnerDigestCard() {
             'name',
             TEMPLATE_SLOTS.map((t) => t.name)
           )
-          .order('last_submitted_at', { ascending: false }),
+          .order('last_submitted_at', { ascending: false, nullsFirst: false }),
       ]);
       if (settings?.frequency) setFrequency(settings.frequency as Frequency);
       const statuses: Record<string, string | null> = {};

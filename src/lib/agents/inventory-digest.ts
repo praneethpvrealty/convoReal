@@ -446,7 +446,7 @@ export async function sendAgentInventoryDigests(options?: {
         .eq('account_id', accountId)
         .in('name', AGENT_INVENTORY_DIGEST_TEMPLATE_NAMES)
         .eq('status', 'APPROVED')
-        .order('last_submitted_at', { ascending: false })
+        .order('last_submitted_at', { ascending: false, nullsFirst: false })
       const approved = (templateRows || []) as MessageTemplate[]
       const accountLanguage = await accountDefaultLanguage(db, accountId)
       // These "agents" are contact rows (co-brokers on this account), so

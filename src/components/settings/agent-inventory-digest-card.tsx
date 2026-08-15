@@ -62,7 +62,7 @@ export function AgentInventoryDigestCard() {
           .select('id, name, status, category, meta_template_id, last_submitted_at')
           .eq('account_id', accountId)
           .in('name', AGENT_INVENTORY_DIGEST_TEMPLATE_NAMES)
-          .order('last_submitted_at', { ascending: false }),
+          .order('last_submitted_at', { ascending: false, nullsFirst: false }),
       ]);
       if (settings?.frequency) setFrequency(settings.frequency as Frequency);
       // Mirrors the send path: the shared owner template wins, and a
