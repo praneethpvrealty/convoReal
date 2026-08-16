@@ -13,6 +13,8 @@ import { AreasOfInterestInput } from '@/components/contacts/areas-of-interest-in
 import { PROPERTY_INTEREST_OPTIONS } from '@/lib/property-interests';
 import { ProjectsOfInterestInput } from '@/components/contacts/projects-of-interest-input';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
+import { PartyPanel } from '@/components/contacts/party-panel';
+import { useCan } from '@/hooks/use-can';
 import { LogCallPrompt, type PendingDial } from '@/components/contacts/log-call-prompt';
 import { contactFullName } from '@/lib/contacts/full-name';
 import { hasPhone } from '@/lib/contacts/reachability';
@@ -660,6 +662,10 @@ export function ContactDetailView({
       loadContacts();
     }
   }, [contactId, supabase]);
+
+  // Linking a party writes contact data, so it takes the same agent+
+  // gate the API route enforces.
+  const canEditContacts = useCan('send-messages');
 
   const filteredReferrerContacts = useMemo(() => {
     if (!editReferrer.trim()) return [];
@@ -1901,6 +1907,14 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                       </div>
                     )}
                   </div>
+                  {contactId && (
+                    <PartyPanel
+                      contactId={contactId}
+                      contacts={contactsList}
+                      canEdit={canEditContacts}
+                    />
+                  )}
+
                   <div className="space-y-1.5">
                     <Label className="text-slate-400 text-xs">Classification</Label>
                     <select

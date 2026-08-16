@@ -156,6 +156,8 @@ describe('gatherClosingDeals', () => {
     closing_deal_nudges: Record<string, unknown>[];
     contacts: Record<string, unknown>[];
     properties: Record<string, unknown>[];
+    contact_parties?: Record<string, unknown>[];
+    contact_party_members?: Record<string, unknown>[];
   };
 
   /** Applies eq/in itself rather than trusting the fixture: the stage
@@ -241,7 +243,21 @@ describe('gatherClosingDeals', () => {
     properties: [
       { id: 'p-1', account_id: ACCOUNT, title: 'JP Nagar Building' },
     ],
+    contact_parties: [],
+    contact_party_members: [],
     ...over,
+  });
+
+  const asParty = (...contactIds: string[]) => ({
+    contact_parties: [
+      { id: 'party-1', account_id: ACCOUNT, name: null, kind: 'household' },
+    ],
+    contact_party_members: contactIds.map((id, i) => ({
+      account_id: ACCOUNT,
+      party_id: 'party-1',
+      contact_id: id,
+      is_primary: i === 0,
+    })),
   });
 
   it('cards a stalled deal with its stage and next stage', async () => {
@@ -339,6 +355,54 @@ describe('gatherClosingDeals', () => {
       NOW
     );
     expect(deals).toHaveLength(0);
+  });
+
+  // A couple buying one property has a journey item each, so two
+  // stalled deals that are really one closing.
+  describe('people buying together', () => {
+    it('cards one deal and names both buyers', async () => {
+      const deals = await gatherClosingDeals(
+        db(
+          base({
+            journey_items: [
+              item('1', { property_id: 'p-1' }),
+              item('2', { contact_id: 'c-2', property_id: 'p-1' }),
+            ],
+            contacts: [contact('1'), contact('2')],
+            ...asParty('c-1', 'c-2'),
+          })
+        ),
+        ACCOUNT,
+        NOW
+      );
+      expect(deals).toHaveLength(1);
+      expect(deals[0].contactId).toBe('c-1');
+      expect(deals[0].partyName).toBe('Buyer 1 & Buyer 2');
+    });
+
+    // They can be closing on one flat and still buying another; those
+    // are two deals however many people sign each.
+    it('keeps two properties as two cards', async () => {
+      const deals = await gatherClosingDeals(
+        db(
+          base({
+            journey_items: [
+              item('1', { property_id: 'p-1' }),
+              item('2', { contact_id: 'c-2', property_id: 'p-2' }),
+            ],
+            contacts: [contact('1'), contact('2')],
+            properties: [
+              { id: 'p-1', account_id: ACCOUNT, title: 'JP Nagar Building' },
+              { id: 'p-2', account_id: ACCOUNT, title: 'Whitefield Flat' },
+            ],
+            ...asParty('c-1', 'c-2'),
+          })
+        ),
+        ACCOUNT,
+        NOW
+      );
+      expect(deals).toHaveLength(2);
+    });
   });
 
   it('caps the run and leads with the longest-stalled', async () => {
