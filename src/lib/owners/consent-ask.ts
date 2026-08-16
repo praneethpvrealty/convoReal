@@ -1,10 +1,13 @@
 // Ask an owner for digest consent at the moment their window is open.
 //
 // The owner digest cron already asks (owner-digest.ts sendConsentRequest),
-// but only once a day and template-first, because an owner's 24-hour
-// window is almost never open at 04:30 IST. When no approved consent
-// template exists for the account the ask is skipped entirely, and the
-// owner sits at 'pending' forever.
+// but only once a day and template-first. The hour is not the problem —
+// it runs 04:30 UTC / 10:00 IST, a deliberately reasonable one. The
+// problem is that an open 24-hour window needs the owner to have
+// messaged US within the last day, which on any given morning almost
+// none of them have. So the cron falls to the template, and when the
+// account has no approved consent template it skips the owner outright
+// and they sit at 'pending' forever.
 //
 // An owner who messages us has opened that window themselves. The ask is
 // then free-form: no template, no category, no Meta review — the same
