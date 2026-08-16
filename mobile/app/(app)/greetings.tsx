@@ -3,8 +3,10 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { Stack } from 'expo-router';
 import { useState } from 'react';
 import {
+  ActivityIndicator,
   FlatList,
   Image,
+  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -68,6 +70,7 @@ export default function GreetingsScreen() {
   const [presetOccasion, setPresetOccasion] = useState<string | null>(null);
   const [editTarget, setEditTarget] = useState<Greeting | null>(null);
   const [sendTarget, setSendTarget] = useState<Greeting | null>(null);
+  const [cardPreview, setCardPreview] = useState<Greeting | null>(null);
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['occasion-greetings'],
@@ -218,10 +221,16 @@ export default function GreetingsScreen() {
           >
             <View style={styles.cardTop}>
               {item.image_path ? (
-                <Image
-                  source={{ uri: storagePublicUrl(item.image_path) }}
-                  style={styles.thumb}
-                />
+                <Pressable
+                  onPress={() => setCardPreview(item)}
+                  accessibilityLabel={`View the ${item.occasion_label} card full size`}
+                >
+                  <Image
+                    source={{ uri: storagePublicUrl(item.image_path) }}
+                    resizeMode="contain"
+                    style={styles.thumb}
+                  />
+                </Pressable>
               ) : null}
               <View style={{ flex: 1, gap: 4 }}>
                 <View style={styles.cardTop}>
@@ -312,6 +321,28 @@ export default function GreetingsScreen() {
         greeting={sendTarget}
         onClose={() => setSendTarget(null)}
       />
+      {cardPreview?.image_path ? (
+        <Modal
+          visible
+          transparent
+          animationType="fade"
+          statusBarTranslucent
+          onRequestClose={() => setCardPreview(null)}
+        >
+          <Pressable
+            style={styles.previewBackdrop}
+            onPress={() => setCardPreview(null)}
+            accessibilityRole="button"
+            accessibilityLabel="Close card preview"
+          >
+            <Image
+              source={{ uri: storagePublicUrl(cardPreview.image_path) }}
+              resizeMode="contain"
+              style={styles.previewFull}
+            />
+          </Pressable>
+        </Modal>
+      ) : null}
       <AppDialog {...dialog.dialogProps} />
     </View>
   );
@@ -338,6 +369,10 @@ function ComposeGreetingSheet({
   const [message, setMessage] = useState('');
   const [imagePath, setImagePath] = useState<string | null>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [cardStatus, setCardStatus] = useState<'loading' | 'ready' | 'error'>(
+    'loading'
+  );
+  const [cardExpanded, setCardExpanded] = useState(false);
   const [lastPreset, setLastPreset] = useState<string | null>(null);
 
   if (visible && presetOccasionId !== lastPreset) {
@@ -352,6 +387,8 @@ function ComposeGreetingSheet({
     setMessage('');
     setImagePath(null);
     setImageUrl(null);
+    setCardStatus('loading');
+    setCardExpanded(false);
     setNotes('');
     setLastPreset(null);
   };
@@ -380,6 +417,8 @@ function ComposeGreetingSheet({
       // occasion's card and attach it to the new greeting.
       setImagePath(data.imagePath);
       setImageUrl(data.imageUrl);
+      setCardStatus('loading');
+      setCardExpanded(false);
       if (!data.imagePath && withImage) {
         dialog.show({
           title: 'Card image unavailable',
@@ -504,11 +543,49 @@ function ComposeGreetingSheet({
 
         {imageUrl ? (
           <View style={{ alignItems: 'center', gap: spacing.sm }}>
-            <Image source={{ uri: imageUrl }} style={styles.preview} />
+            <Pressable
+              onPress={() =>
+                cardStatus === 'ready' && setCardExpanded((v) => !v)
+              }
+              accessibilityLabel={
+                cardExpanded ? 'Collapse card' : 'View card full size'
+              }
+            >
+              <Image
+                source={{ uri: imageUrl }}
+                resizeMode="contain"
+                onLoad={() => setCardStatus('ready')}
+                onError={() => setCardStatus('error')}
+                style={cardExpanded ? styles.previewLarge : styles.preview}
+              />
+              {cardStatus !== 'ready' ? (
+                <View style={styles.previewOverlay}>
+                  {cardStatus === 'loading' ? (
+                    <ActivityIndicator color={colors.textFaint} />
+                  ) : (
+                    <Ionicons
+                      name="image-outline"
+                      size={24}
+                      color={colors.textFaint}
+                    />
+                  )}
+                </View>
+              ) : null}
+            </Pressable>
+            <Text style={{ fontSize: 12, color: colors.textFaint }}>
+              {cardStatus === 'loading'
+                ? 'Loading card…'
+                : cardStatus === 'error'
+                  ? 'The card image could not be loaded.'
+                  : cardExpanded
+                    ? 'Tap to shrink'
+                    : 'Tap to view full size'}
+            </Text>
             <Pressable
               onPress={() => {
                 setImagePath(null);
                 setImageUrl(null);
+                setCardExpanded(false);
               }}
             >
               <Text style={{ fontSize: 12, color: colors.danger }}>
@@ -842,5 +919,30 @@ const styles = StyleSheet.create({
     width: 140,
     height: 140,
     borderRadius: radius.md,
+  },
+  previewBackdrop: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.85)',
+    padding: spacing.lg,
+  },
+  previewFull: {
+    width: '100%',
+    height: '80%',
+  },
+  previewLarge: {
+    width: 280,
+    height: 280,
+    borderRadius: radius.md,
+  },
+  previewOverlay: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

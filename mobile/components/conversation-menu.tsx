@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import type { ComponentProps } from 'react';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text } from 'react-native';
@@ -73,15 +73,15 @@ export function ConversationMenu({
                   key: 'contact',
                   label: 'Contact profile',
                   icon: 'person-outline',
-                  href: `/(app)/contact/${contactId}`,
+                  href: { pathname: '/(app)/contact/[id]' as const, params: { id: contactId } },
                 },
                 {
                   key: 'journey',
                   label: 'Journey',
                   icon: 'git-network-outline',
-                  href: `/(app)/journey?contactId=${contactId}`,
+                  href: { pathname: '/(app)/journey' as const, params: { contactId } },
                 },
-              ] as { key: string; label: string; icon: IconName; href: string }[]
+              ] satisfies { key: string; label: string; icon: IconName; href: Href }[]
             ).map((link) => (
               <Pressable
                 key={link.key}
