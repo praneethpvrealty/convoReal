@@ -3,6 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -20,6 +22,8 @@ import { OptionSheet } from '@/components/option-sheet';
 import { PropertyFloorPlans, type FloorPlanDraft } from '@/components/property-floor-plans';
 import { PropertyPhotoEditor } from '@/components/property-photo-editor';
 import { Banner, FilterChip, PriceHint, PrimaryButton, SectionLabel, TextField } from '@/components/ui';
+import { pickAndUploadFloorPlan } from '@/lib/floor-plan-upload';
+import { storagePublicUrl } from '@/lib/storage-url';
 import { formatInr } from '@/lib/format';
 import { TagsField } from '@/components/tags-field';
 import { apiFetch, ApiError } from '@/lib/api';
@@ -64,9 +68,9 @@ interface TenancyDraft {
   lock_in_months: string;
   maintenance: string;
   notes: string;
-  /** Round-tripped, not edited here: mobile pins plans through the
-   *  Floor Plans editor below, and dropping this on save would erase a
-   *  plan attached to a rent-roll row on the web. */
+  /** This floor's plan drawing, attached from the row itself. Also
+   *  round-tripped on save, so a plan pinned on the web survives an
+   *  edit made here that never touches it. */
   floor_plan: string;
 }
 
@@ -210,6 +214,7 @@ function EditForm({ property }: { property: Property }) {
     property.owner?.name || property.owner?.phone || ''
   );
   const [error, setError] = useState<string | null>(null);
+  const [planBusyIdx, setPlanBusyIdx] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [sheet, setSheet] = useState<'type' | 'features' | 'nearby' | 'owner' | null>(null);
 
@@ -230,6 +235,25 @@ function EditForm({ property }: { property: Property }) {
 
   function updateTenancy(idx: number, key: keyof TenancyDraft, value: string) {
     setTenancies((prev) => prev.map((t, i) => (i === idx ? { ...t, [key]: value } : t)));
+  }
+
+  // Same picker and bucket the Floor Plans editor uses; only the field
+  // it lands in differs. Failures surface in the screen's own banner
+  // rather than a second dialog stack.
+  async function attachTenancyPlan(idx: number) {
+    if (planBusyIdx !== null) return;
+    setPlanBusyIdx(idx);
+    haptic.tap();
+    const outcome = await pickAndUploadFloorPlan();
+    setPlanBusyIdx(null);
+    if (outcome.status === 'uploaded') {
+      updateTenancy(idx, 'floor_plan', outcome.path);
+      setError(null);
+      haptic.success();
+    } else if (outcome.status === 'error') {
+      haptic.warn();
+      setError(outcome.message ? `${outcome.title}: ${outcome.message}` : outcome.title);
+    }
   }
 
   const tenancyTotal = tenancies.reduce((sum, t) => sum + (num(t.monthly_rent) ?? 0), 0);
@@ -671,6 +695,63 @@ function EditForm({ property }: { property: Property }) {
                   onChangeText={(v) => updateTenancy(i, 'notes', v)}
                   placeholder="e.g. 3-Star Hotel · 27 rooms"
                 />
+                <View style={styles.tenancyPlanRow}>
+                  {t.floor_plan ? (
+                    <Image
+                      source={{ uri: storagePublicUrl(t.floor_plan) }}
+                      style={[styles.tenancyPlanThumb, { borderColor: colors.border }]}
+                      resizeMode="contain"
+                    />
+                  ) : (
+                    <View
+                      style={[
+                        styles.tenancyPlanThumb,
+                        styles.tenancyPlanEmpty,
+                        { borderColor: colors.border },
+                      ]}
+                    >
+                      <Ionicons name="grid-outline" size={16} color={colors.textFaint} />
+                    </View>
+                  )}
+                  <Text
+                    style={{
+                      flex: 1,
+                      fontSize: 12.5,
+                      fontFamily: f.regular,
+                      color: t.floor_plan ? colors.text : colors.textMuted,
+                    }}
+                  >
+                    {t.floor_plan ? 'Floor plan attached' : 'No floor plan'}
+                  </Text>
+                  <Pressable
+                    onPress={() => attachTenancyPlan(i)}
+                    disabled={planBusyIdx !== null}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${t.floor_plan ? 'Replace' : 'Attach'} floor plan for floor ${i + 1}`}
+                  >
+                    {planBusyIdx === i ? (
+                      <ActivityIndicator size="small" color={colors.primary} />
+                    ) : (
+                      <Text style={{ fontSize: 12.5, fontFamily: f.bold, color: colors.primary }}>
+                        {t.floor_plan ? 'Replace' : 'Attach'}
+                      </Text>
+                    )}
+                  </Pressable>
+                  {t.floor_plan ? (
+                    <Pressable
+                      onPress={() => {
+                        haptic.tap();
+                        updateTenancy(i, 'floor_plan', '');
+                      }}
+                      hitSlop={8}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Remove floor plan for floor ${i + 1}`}
+                    >
+                      <Ionicons name="close-circle-outline" size={18} color={colors.textMuted} />
+                    </Pressable>
+                  ) : null}
+                </View>
               </View>
             ))}
             <Pressable
@@ -969,6 +1050,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  tenancyPlanRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  tenancyPlanThumb: {
+    width: 34,
+    height: 34,
+    borderRadius: radius.sm,
+    borderWidth: StyleSheet.hairlineWidth,
+    backgroundColor: '#fff',
+  },
+  tenancyPlanEmpty: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'transparent',
   },
   addFloorRow: {
     flexDirection: 'row',

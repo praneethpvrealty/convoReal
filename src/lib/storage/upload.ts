@@ -5,6 +5,22 @@ import { DOCUMENT_SIZE_LIMIT } from '@/lib/inventory/documents';
 const IMAGE_MAX_WIDTH = 1200;
 const JPEG_QUALITY = 75;
 
+/** Storage's own refusal of an oversize object, however it phrases it.
+ *  Matched on code and status as well as text so a wording change
+ *  upstream cannot silently turn this back into "please try again". */
+export function isEntityTooLarge(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false;
+  const e = err as { message?: unknown; statusCode?: unknown; error?: unknown };
+  const status = String(e.statusCode ?? '');
+  return (
+    status === '413' ||
+    String(e.error ?? '') === 'Payload too large' ||
+    /exceeded the maximum allowed size|entity too large|payload too large/i.test(
+      String(e.message ?? '')
+    )
+  );
+}
+
 /** Thrown when a document is past the bucket ceiling. Carries the size
  *  so callers can tell the sender what to shrink, rather than asking
  *  them to "try again" at a size that can never succeed. */
@@ -22,20 +38,34 @@ export class DocumentTooLargeError extends Error {
   }
 }
 
-async function compressImage(buffer: Buffer, mimeType: string): Promise<{ buffer: Buffer; mimeType: string }> {
-  const isImage = mimeType.startsWith('image/') && mimeType !== 'image/svg+xml' && mimeType !== 'image/gif';
+async function compressImage(
+  buffer: Buffer,
+  mimeType: string
+): Promise<{ buffer: Buffer; mimeType: string }> {
+  const isImage =
+    mimeType.startsWith('image/') &&
+    mimeType !== 'image/svg+xml' &&
+    mimeType !== 'image/gif';
   if (!isImage) return { buffer, mimeType };
 
   try {
-    const pipeline = sharp(buffer).resize(IMAGE_MAX_WIDTH, null, { withoutEnlargement: true });
+    const pipeline = sharp(buffer).resize(IMAGE_MAX_WIDTH, null, {
+      withoutEnlargement: true,
+    });
 
     if (mimeType === 'image/png') {
-      const compressed = await pipeline.png({ quality: 80, compressionLevel: 9 }).toBuffer();
-      if (compressed.length < buffer.length * 0.9) return { buffer: compressed, mimeType };
+      const compressed = await pipeline
+        .png({ quality: 80, compressionLevel: 9 })
+        .toBuffer();
+      if (compressed.length < buffer.length * 0.9)
+        return { buffer: compressed, mimeType };
     }
 
-    const jpeg = await pipeline.jpeg({ quality: JPEG_QUALITY, mozjpeg: true }).toBuffer();
-    if (jpeg.length < buffer.length * 0.9) return { buffer: jpeg, mimeType: 'image/jpeg' };
+    const jpeg = await pipeline
+      .jpeg({ quality: JPEG_QUALITY, mozjpeg: true })
+      .toBuffer();
+    if (jpeg.length < buffer.length * 0.9)
+      return { buffer: jpeg, mimeType: 'image/jpeg' };
 
     return { buffer, mimeType };
   } catch {
@@ -230,7 +260,7 @@ export async function uploadPropertyDocument(
       ext = parts[1].split('+')[0]; // strip any metadata like xml+svg
     }
   }
-  
+
   const randomStr = Math.random().toString(36).substring(2, 7);
   // Clean original filename or construct fallback
   const cleanName = originalFilename
@@ -248,6 +278,14 @@ export async function uploadPropertyDocument(
     });
 
   if (uploadError) {
+    // Storage refuses an oversize object with a bare "exceeded the
+    // maximum allowed size". The effective ceiling is the *lower* of the
+    // bucket limit and the project-wide upload limit, so a file can pass
+    // the guard above and still be refused here — report it as the size
+    // problem it is rather than as advice to retry, which cannot work.
+    if (isEntityTooLarge(uploadError)) {
+      throw new DocumentTooLargeError(buffer.length, originalFilename);
+    }
     throw new Error(`Storage document upload failed: ${uploadError.message}`);
   }
 
@@ -281,7 +319,9 @@ export async function uploadChatMedia(
   const fromName = originalFilename?.includes('.')
     ? originalFilename.split('.').pop()
     : undefined;
-  const ext = (fromName || fromMime || 'bin').replace(/[^a-zA-Z0-9]/g, '').slice(0, 8);
+  const ext = (fromName || fromMime || 'bin')
+    .replace(/[^a-zA-Z0-9]/g, '')
+    .slice(0, 8);
 
   const randomStr = Math.random().toString(36).substring(2, 9);
   const path = `${accountId}/chat-${Date.now()}-${randomStr}.${ext}`;
