@@ -7,9 +7,9 @@ import { chromium } from 'playwright';
 const baseUrl = required('E2E_BASE_URL').replace(/\/$/, '');
 const supabaseUrl = required('NEXT_PUBLIC_SUPABASE_URL');
 const serviceRoleKey = required('SUPABASE_SERVICE_ROLE_KEY');
-const smokeEmail = process.env.AI_SMOKE_EMAIL ?? 'daily-ai-smoke@convoreal.test';
-const smokePhone = process.env.AI_SMOKE_PHONE ?? '+919000000099';
-const evidenceDir = process.env.AI_SMOKE_ARTIFACT_DIR ?? 'test-results/ai-billing-smoke';
+const smokeEmail = process.env.AI_SMOKE_EMAIL || 'daily-ai-smoke@convoreal.test';
+const smokePhone = process.env.AI_SMOKE_PHONE || '+919000000099';
+const evidenceDir = process.env.AI_SMOKE_ARTIFACT_DIR || 'test-results/ai-billing-smoke';
 
 const admin = createClient(supabaseUrl, serviceRoleKey, {
   auth: { persistSession: false, autoRefreshToken: false },
@@ -193,6 +193,15 @@ async function verifyRefundRpc(accountId) {
     throw new Error(`Refund probe failed: ${refundError?.message ?? 'no response'}`);
   }
   expect(await wallet(accountId) === before, 'Refund probe did not restore the starting balance');
+  const transactions = await ledger(accountId);
+  expect(
+    transactions.filter((transaction) => transaction.type === 'ai_burn' && transaction.ai_feature === 'event_parse' && transaction.amount === -3).length >= 2,
+    'Refund probe did not write its matching burn ledger row',
+  );
+  expect(
+    transactions.filter((transaction) => transaction.type === 'refund' && transaction.ai_feature === 'event_parse' && transaction.amount === 3).length === 1,
+    'Refund probe did not write exactly one refund ledger row',
+  );
 }
 
 async function main() {
@@ -220,6 +229,10 @@ async function main() {
     });
     expect(description.status === 200 && typeof description.body?.description === 'string', `Description failed: ${JSON.stringify(description)}`);
     expect(await wallet(accountId) === 6, `Description should burn 10 credits; balance is ${await wallet(accountId)}`);
+    expect(
+      (await ledger(accountId)).filter((transaction) => transaction.type === 'ai_burn' && transaction.ai_feature === 'property_description' && transaction.amount === -10).length === 1,
+      'Description did not write exactly one matching burn ledger row',
+    );
     record('description burn', '200 response and exactly 10 credits burned');
 
     const event = await post(browser.page, '/api/ai/parse-event', {
@@ -227,6 +240,10 @@ async function main() {
     });
     expect(event.status === 200 && event.body?.data?.draft, `Event parsing failed: ${JSON.stringify(event)}`);
     expect(await wallet(accountId) === 3, `Event parsing should burn 3 credits; balance is ${await wallet(accountId)}`);
+    expect(
+      (await ledger(accountId)).filter((transaction) => transaction.type === 'ai_burn' && transaction.ai_feature === 'event_parse' && transaction.amount === -3).length === 1,
+      'Event parsing did not write exactly one matching burn ledger row',
+    );
     record('event-parse burn', '200 response and exactly 3 credits burned');
 
     await verifyRefundRpc(accountId);
