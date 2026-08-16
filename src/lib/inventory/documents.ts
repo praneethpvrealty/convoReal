@@ -9,11 +9,23 @@
 
 import { storagePublicUrl } from '@/lib/storage/url';
 
-/** Upload ceiling for a property document, matching both the
- *  property-documents bucket (migration 285) and WhatsApp's own
- *  document limit — so a brochure Meta was willing to deliver to the
- *  intake bot is never one storage then refuses to keep. */
-export const DOCUMENT_SIZE_LIMIT = 100 * 1024 * 1024;
+/**
+ * Upload ceiling for a property document.
+ *
+ * The real limit is the LOWER of the bucket's file_size_limit and the
+ * project-wide upload limit, and the project one wins here: the bucket
+ * is set to 100 MB (migration 285) but a Supabase free plan caps the
+ * project at 50 MB, so 51 MB is refused with EntityTooLarge however the
+ * bucket is configured. Measured, not assumed — 50 MB uploads, 51 MB
+ * does not.
+ *
+ * Raise this to 100 MB (matching the bucket, and WhatsApp's own
+ * document limit) once the project is on a plan whose upload limit has
+ * been lifted past it. Nothing else needs to change: uploadPropertyDocument()
+ * also catches storage's own refusal, so an over-ceiling file is
+ * reported as too large either way.
+ */
+export const DOCUMENT_SIZE_LIMIT = 50 * 1024 * 1024;
 
 export interface PropertyDocument {
   url: string;

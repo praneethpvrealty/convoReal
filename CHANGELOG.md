@@ -13,6 +13,15 @@ and polish.
 
 ### Added
 
+- **An over-size brochure now yields its contents instead of failing.**
+  The listing details, floor plans and photos are extracted and kept; only
+  the file itself is dropped, and the WhatsApp reply says so — naming the
+  size, the limit, and what was kept — rather than reporting a bare
+  failure. A brochure's worth to a listing is what is in it, and that part
+  is a fraction of the size. Applies to a PDF that opens a draft and one
+  forwarded into an open draft alike, and to non-PDF documents too.
+
+
 - **Floor plans, pinned per floor** (**migration required**: `285`). A new
   `properties.floor_plans` array holds one plan drawing per floor — floor
   label, image, area and notes — for any property type, and
@@ -33,9 +42,14 @@ and polish.
   intake bot was rejected by storage and reported only as "Failed to
   upload document. Please try again." — advice that could never work, on
   a draft that went on showing "Documents: 0 attached". The ceiling is
-  now 100 MB, matching WhatsApp's own document limit, and is the same
-  number on every surface (bucket, web form, mobile). An oversize file
-  now names itself and its size instead of asking for a retry.
+  now 100 MB on the bucket — but the **effective** ceiling is the lower of
+  the bucket limit and the project-wide upload limit, so on a Supabase
+  free plan it is 50 MB. Measured, not assumed: 50 MB uploads, 51 MB is
+  refused with `EntityTooLarge`. `DOCUMENT_SIZE_LIMIT` is 50 MB to match,
+  on every surface, and storage's own refusal is now reported as a size
+  problem rather than as advice to retry. Raise the constant to 100 MB
+  once the project's upload limit is lifted past it — nothing else needs
+  to change.
 
 - **PDF floor plans were silently skipped.** Image extraction read only
   `/DCTDecode` (JPEG) streams, which is what photographs use; line art —

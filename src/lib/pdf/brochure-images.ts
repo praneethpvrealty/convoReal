@@ -1,9 +1,55 @@
 import { extractPdfImageAssets } from './image-extractor';
-import { uploadPropertyImage } from '@/lib/storage/upload';
+import {
+  uploadPropertyImage,
+  uploadPropertyDocument,
+  DocumentTooLargeError,
+} from '@/lib/storage/upload';
 import type { PlanCandidate } from '@/lib/inventory/floor-plans';
 
 const MAX_PHOTOS = 15;
 const MAX_PLANS = 20;
+
+export interface StoredBrochure {
+  /** Stored path, or null when the file itself could not be kept. */
+  url: string | null;
+  /** Size of the file we had to drop, so the sender can be told why. */
+  droppedBytes: number | null;
+}
+
+/**
+ * Stores the brochure itself, tolerating one that is too big to keep.
+ *
+ * A brochure's worth to a listing is its contents — the parsed details,
+ * the floor plans, the photos — all of which are extracted separately
+ * and are a fraction of the size. When the file exceeds what storage
+ * will take, keeping those and dropping the original beats refusing the
+ * whole message, which is what used to happen. The caller says so in
+ * its reply rather than letting the file vanish silently.
+ */
+export async function storeBrochureDocument(
+  accountId: string,
+  buffer: Buffer,
+  mimeType: string,
+  filename: string
+): Promise<StoredBrochure> {
+  try {
+    const url = await uploadPropertyDocument(
+      accountId,
+      buffer,
+      mimeType,
+      filename
+    );
+    return { url, droppedBytes: null };
+  } catch (err) {
+    if (err instanceof DocumentTooLargeError) {
+      console.warn(
+        `[brochure-images] "${filename}" is ${buffer.length} bytes, past the storage ceiling — keeping its contents, dropping the file.`
+      );
+      return { url: null, droppedBytes: buffer.length };
+    }
+    throw err;
+  }
+}
 
 export interface BrochureImages {
   /** Photographs, for the listing's image gallery. */

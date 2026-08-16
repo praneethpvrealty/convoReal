@@ -80,7 +80,9 @@ describe('parsePropertyDocuments', () => {
 });
 
 describe('DOCUMENT_SIZE_LIMIT', () => {
-  it('matches the WhatsApp document ceiling and the bucket', () => {
-    expect(DOCUMENT_SIZE_LIMIT).toBe(100 * 1024 * 1024);
+  // Must stay equal to the web constant: a mismatch means a file the
+  // phone accepts is refused by storage, or vice versa.
+  it('matches the effective storage ceiling', () => {
+    expect(DOCUMENT_SIZE_LIMIT).toBe(50 * 1024 * 1024);
   });
 });

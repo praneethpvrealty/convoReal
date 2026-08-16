@@ -7,12 +7,13 @@
 // so a file added from either surface reads identically on the other.
 // ------------------------------------------------------------------
 
-/** Upload ceiling for a property document, matching the
- *  property-documents bucket (migration 285), the web form and
- *  WhatsApp's own document limit. A single ceiling across surfaces is
- *  what stops a brochure that uploaded fine from one client being
- *  rejected from another. */
-export const DOCUMENT_SIZE_LIMIT = 100 * 1024 * 1024;
+/** Upload ceiling for a property document — must equal the web's
+ *  DOCUMENT_SIZE_LIMIT (src/lib/inventory/documents.ts), which explains
+ *  where the number comes from. Short version: the bucket allows 100 MB
+ *  but the Supabase project-wide limit is lower and wins, so 50 MB is
+ *  what actually uploads. A single ceiling across surfaces is what stops
+ *  a file that uploaded fine from one client being rejected from another. */
+export const DOCUMENT_SIZE_LIMIT = 50 * 1024 * 1024;
 
 /**
  * Filename to show for a stored document path.

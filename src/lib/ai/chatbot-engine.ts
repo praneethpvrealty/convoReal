@@ -23,7 +23,7 @@ import {
   type ClientReplyOutcome,
 } from '@/lib/journey/client-response';
 import { applyListingDerivations } from '@/lib/ai/listing-derivations';
-import { uploadPropertyImage, uploadPropertyDocument, uploadPropertyVideo, DocumentTooLargeError } from '@/lib/storage/upload';
+import { uploadPropertyImage, uploadPropertyVideo, DocumentTooLargeError } from '@/lib/storage/upload';
 import { queueYouTubeUploadIfConnected } from '@/lib/youtube/upload';
 import { sanitizeFloorTenancies } from '@/lib/inventory/floor-tenancies';
 import {
@@ -34,7 +34,8 @@ import {
   sendReactionMessage
 } from '@/lib/whatsapp/meta-api';
 import { autoSyncPropertyCatalogIfNeeded } from '@/lib/whatsapp/catalog-sync-helper';
-import { uploadBrochureImages } from '@/lib/pdf/brochure-images';
+import { uploadBrochureImages, storeBrochureDocument } from '@/lib/pdf/brochure-images';
+import { DOCUMENT_SIZE_LIMIT } from '@/lib/inventory/documents';
 import { pinBrochurePlans, sanitizeFloorPlans, plansWithImages } from '@/lib/inventory/floor-plans';
 import { checkAccountPropertyLimit } from '@/lib/billing/gates';
 import { burnCredits } from '@/lib/credits/burn';
@@ -350,6 +351,29 @@ async function touchDraftSession(sessionId: string): Promise<void> {
   }
 }
 
+/** Start of the dropped-brochure note, so the header rewrites in
+ *  sendPropertyDraftPreview() can find and preserve it. */
+const BROCHURE_NOTE_MARKER = '\n\n📄 _The ';
+
+/**
+ * Tells the sender their brochure was read but not kept.
+ *
+ * Silence here would read as the file having uploaded — the draft shows
+ * "Documents: 0 attached" and nothing explains it, which is the exact
+ * confusion this whole path exists to remove. Empty string when the
+ * document stored fine, so the caller can always concatenate.
+ */
+function brochureDroppedNote(bytes: number | null): string {
+  if (!bytes) return '';
+  const mb = (bytes / (1024 * 1024)).toFixed(0);
+  const limitMb = Math.round(DOCUMENT_SIZE_LIMIT / (1024 * 1024));
+  return (
+    `${BROCHURE_NOTE_MARKER}${mb} MB file was too large to store (limit ${limitMb} MB), ` +
+    `so I kept what was in it — details, photos and floor plans — and discarded the file itself. ` +
+    `Send a compressed copy if you need the brochure attached._`
+  );
+}
+
 async function sendPropertyDraftPreviewDebounced(
   sessionId: string,
   updatedAtString: string,
@@ -389,11 +413,17 @@ async function sendPropertyDraftPreviewDebounced(
     const missingFields = validation.missingFields;
 
     // Customize header counts — this thread may be summarizing several
-    // attachments that landed after the header string was built.
+    // attachments that landed after the header string was built. The
+    // rewrites below replace the whole header, so any note appended by
+    // the caller is lifted off first and put back after; losing it would
+    // leave a dropped brochure unexplained.
+    const noteAt = header.indexOf(BROCHURE_NOTE_MARKER);
+    const note = noteAt === -1 ? '' : header.slice(noteAt);
+    const base = noteAt === -1 ? header : header.slice(0, noteAt);
     let finalHeader = header;
-    if (header.includes('Photo added successfully') || header.includes('Photos added successfully')) {
-      finalHeader = `📸 *Photos added successfully!* Total photos attached: *${latestDraft.images.length}*.`;
-    } else if (header.includes('Document added successfully') || header.includes('Documents added successfully')) {
+    if (base.includes('Photo added successfully') || base.includes('Photos added successfully')) {
+      finalHeader = `📸 *Photos added successfully!* Total photos attached: *${latestDraft.images.length}*.` + note;
+    } else if (base.includes('Document added successfully') || base.includes('Documents added successfully')) {
       // A brochure usually arrives carrying pictures too. Saying so is
       // what tells the sender the PDF was read, not merely filed.
       const plans = plansWithImages(latestDraft.floor_plans).length;
@@ -403,7 +433,8 @@ async function sendPropertyDraftPreviewDebounced(
       ].filter(Boolean);
       finalHeader =
         `📄 *Documents added successfully!* Total documents attached: *${(latestDraft.documents || []).length}*.` +
-        (extras.length ? `\nRead from the brochure: ${extras.join(' and ')}.` : '');
+        (extras.length ? `\nRead from the brochure: ${extras.join(' and ')}.` : '') +
+        note;
     }
 
     await sendPropertyDraftPreview(
@@ -1719,7 +1750,10 @@ export async function processOwnerChatbotMessage(
       try {
         const { buffer, mimeType } = await loadInboundMedia();
         const filename = message.document.filename || `doc-${Date.now()}`;
-        const publicUrl = await uploadPropertyDocument(accountId, buffer!, mimeType!, filename);
+        // Too large to keep is not too large to read: the contents are
+        // extracted below either way, and the reply says which half landed.
+        const stored = await storeBrochureDocument(accountId, buffer!, mimeType!, filename);
+        const publicUrl = stored.url;
 
         // A brochure sent into an open draft used to be filed and
         // nothing more, so its photos and floor plans stayed locked in
@@ -1753,9 +1787,10 @@ export async function processOwnerChatbotMessage(
 
           const currentDraft = latestSession.draft_data as ParsedPropertyDraft;
           const currentDocs = currentDraft.documents || [];
-          const updatedDocs = currentDocs.includes(publicUrl)
-            ? currentDocs
-            : [...currentDocs, publicUrl];
+          const updatedDocs =
+            !publicUrl || currentDocs.includes(publicUrl)
+              ? currentDocs
+              : [...currentDocs, publicUrl];
 
           const { plans, unused } = pinBrochurePlans(
             currentDraft.floor_plans,
@@ -1809,7 +1844,8 @@ export async function processOwnerChatbotMessage(
           phoneNumberId,
           accessToken,
           contactRecord.phone,
-          `📄 *Documents added successfully!* Total documents attached: *${(updatedDraft.documents || []).length}*.`,
+          `📄 *Documents added successfully!* Total documents attached: *${(updatedDraft.documents || []).length}*.` +
+            brochureDroppedNote(stored.droppedBytes),
           conversation.id
         );
         return true;
@@ -2604,6 +2640,10 @@ export async function processOwnerChatbotMessage(
       try {
         let parsedDraft: ParsedPropertyDraft;
         const uploadedImages: string[] = [];
+        // Set when the brochure itself was past what storage will hold.
+        // Its contents still made it in; the sender is told which half
+        // was kept so a missing document is never a silent surprise.
+        let droppedBrochureBytes: number | null = null;
 
         if (isMediaMsg && mediaBuffer && mediaMimeType) {
           if (isImageMsg) {
@@ -2632,14 +2672,18 @@ export async function processOwnerChatbotMessage(
           } else if (mediaMimeType === 'application/pdf') {
             const filename = message.document?.filename || `doc-${Date.now()}.pdf`;
             // Parallel parse text details, extract images, and upload the PDF document itself
-            const [parsed, brochure, documentUrl] = await Promise.all([
+            const [parsed, brochure, stored] = await Promise.all([
               parseListingFromImageOrText(contentText || '', mediaBuffer, mediaMimeType),
               uploadBrochureImages(accountId, mediaBuffer),
-              uploadPropertyDocument(accountId, mediaBuffer, mediaMimeType, filename)
+              storeBrochureDocument(accountId, mediaBuffer, mediaMimeType, filename)
             ]);
 
             parsedDraft = parsed;
-            parsedDraft.documents = [documentUrl];
+            // A brochure too big for storage still yields its details,
+            // plans and photos; only the file is dropped, and the reply
+            // says so.
+            parsedDraft.documents = stored.url ? [stored.url] : [];
+            droppedBrochureBytes = stored.droppedBytes;
 
             uploadedImages.push(...brochure.photos);
             parsedDraft.images = uploadedImages;
@@ -2659,13 +2703,14 @@ export async function processOwnerChatbotMessage(
           } else {
             // Other document types fallback
             const filename = message.document?.filename || `doc-${Date.now()}`;
-            const [parsed, documentUrl] = await Promise.all([
+            const [parsed, stored] = await Promise.all([
               parseListingFromImageOrText(contentText || '', mediaBuffer, mediaMimeType),
-              uploadPropertyDocument(accountId, mediaBuffer, mediaMimeType, filename)
+              storeBrochureDocument(accountId, mediaBuffer, mediaMimeType, filename)
             ]);
             parsedDraft = parsed;
             parsedDraft.images = [];
-            parsedDraft.documents = [documentUrl];
+            parsedDraft.documents = stored.url ? [stored.url] : [];
+            droppedBrochureBytes = stored.droppedBytes;
           }
         } else {
           parsedDraft = await parseListingFromImageOrText(cleanedText);
@@ -2825,7 +2870,7 @@ export async function processOwnerChatbotMessage(
                   phoneNumberId,
                   accessToken,
                   contactRecord.phone,
-                  `📝 *Listing details and photos merged into draft!*`,
+                  `📝 *Listing details and photos merged into draft!*` + brochureDroppedNote(droppedBrochureBytes),
                   conversation.id
                 );
                 return true;
@@ -2859,9 +2904,9 @@ export async function processOwnerChatbotMessage(
             phoneNumberId,
             accessToken,
             contactRecord.phone,
-            filedContact?.created
+            (filedContact?.created
               ? `📝 *Draft Property Listing Created!*\n👤 _Saved ${filedContact.name} to Contacts._`
-              : `📝 *Draft Property Listing Created!*`,
+              : `📝 *Draft Property Listing Created!*`) + brochureDroppedNote(droppedBrochureBytes),
             conversation.id
           );
         }
