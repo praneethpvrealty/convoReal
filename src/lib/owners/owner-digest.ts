@@ -243,8 +243,13 @@ interface AccountRunSummary {
   failed: number
 }
 
-/** Freeform consent request (open 24h window). Pure — unit tested. */
-export function buildConsentRequestMessage(digest: OwnerDigest): string {
+/** Freeform consent request (open 24h window). Pure — unit tested.
+ *  Takes only the fields it reads, so the inbound ask can pass an
+ *  owner's listings without gathering a full activity digest. */
+export function buildConsentRequestMessage(digest: {
+  name: string | null
+  properties: { title: string }[]
+}): string {
   const firstName = digest.name?.trim().split(/\s+/)[0] || 'there'
   const titles = digest.properties.map((p) => p.title?.trim()).filter(Boolean)
   const listingPhrase =
