@@ -9,6 +9,12 @@
 
 import { storagePublicUrl } from '@/lib/storage/url';
 
+/** Upload ceiling for a property document, matching both the
+ *  property-documents bucket (migration 285) and WhatsApp's own
+ *  document limit — so a brochure Meta was willing to deliver to the
+ *  intake bot is never one storage then refuses to keep. */
+export const DOCUMENT_SIZE_LIMIT = 100 * 1024 * 1024;
+
 export interface PropertyDocument {
   url: string;
   title: string;

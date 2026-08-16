@@ -11,7 +11,44 @@ and polish.
 
 ## [Unreleased]
 
+### Added
+
+- **Floor plans, pinned per floor** (**migration required**: `285`). A new
+  `properties.floor_plans` array holds one plan drawing per floor — floor
+  label, image, area and notes — for any property type, and
+  `floor_tenancies` rows gain an optional `floor_plan` so a commercial
+  rent-roll floor keeps its layout beside its tenant. Editable on web
+  (Media → Floor Plans, plus Attach on each tenancy row) and on mobile
+  (property edit → Floor Plans); shown on the property view of both.
+  Brochures forwarded to the WhatsApp intake bot fill it in themselves:
+  the parser names the floors it sees plans for and the extractor pins
+  each drawing to the page that captions it, leaving a floor empty
+  rather than guessing.
+
 ### Fixed
+
+- **A brochure over 10 MB could not be uploaded at all** (**migration
+  required**: `285`). The `property-documents` bucket was capped at 10 MB
+  (migration 058), so a 33 MB developer PDF forwarded to the WhatsApp
+  intake bot was rejected by storage and reported only as "Failed to
+  upload document. Please try again." — advice that could never work, on
+  a draft that went on showing "Documents: 0 attached". The ceiling is
+  now 100 MB, matching WhatsApp's own document limit, and is the same
+  number on every surface (bucket, web form, mobile). An oversize file
+  now names itself and its size instead of asking for a retry.
+
+- **PDF floor plans were silently skipped.** Image extraction read only
+  `/DCTDecode` (JPEG) streams, which is what photographs use; line art —
+  floor plans, site plans, elevations — is almost always `/FlateDecode`,
+  so plans present in the file were never found. The extractor now
+  inflates and un-predicts those streams too, and tells drawings from
+  photographs so each can be filed where it belongs.
+
+- **A PDF sent into an open draft was filed but never read.** Only a PDF
+  that *started* a draft had its images extracted; one forwarded into a
+  session already in progress was stored as a document and nothing more.
+  Both paths now get the same treatment, and the confirmation says what
+  the brochure yielded.
 
 - **Two more contact notes that never saved.** The forwarded-chat reply
   and inbox check-in reply handlers (`src/lib/journey/client-response.ts`)

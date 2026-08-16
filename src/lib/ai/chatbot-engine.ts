@@ -23,7 +23,7 @@ import {
   type ClientReplyOutcome,
 } from '@/lib/journey/client-response';
 import { applyListingDerivations } from '@/lib/ai/listing-derivations';
-import { uploadPropertyImage, uploadPropertyDocument, uploadPropertyVideo } from '@/lib/storage/upload';
+import { uploadPropertyImage, uploadPropertyDocument, uploadPropertyVideo, DocumentTooLargeError } from '@/lib/storage/upload';
 import { queueYouTubeUploadIfConnected } from '@/lib/youtube/upload';
 import { sanitizeFloorTenancies } from '@/lib/inventory/floor-tenancies';
 import {
@@ -34,7 +34,8 @@ import {
   sendReactionMessage
 } from '@/lib/whatsapp/meta-api';
 import { autoSyncPropertyCatalogIfNeeded } from '@/lib/whatsapp/catalog-sync-helper';
-import { extractImagesFromPdf } from '@/lib/pdf/image-extractor';
+import { uploadBrochureImages } from '@/lib/pdf/brochure-images';
+import { pinBrochurePlans, sanitizeFloorPlans, plansWithImages } from '@/lib/inventory/floor-plans';
 import { checkAccountPropertyLimit } from '@/lib/billing/gates';
 import { burnCredits } from '@/lib/credits/burn';
 import { AI_FEATURE_COSTS, type AiFeatureKey } from '@/lib/credits/types';
@@ -393,7 +394,16 @@ async function sendPropertyDraftPreviewDebounced(
     if (header.includes('Photo added successfully') || header.includes('Photos added successfully')) {
       finalHeader = `📸 *Photos added successfully!* Total photos attached: *${latestDraft.images.length}*.`;
     } else if (header.includes('Document added successfully') || header.includes('Documents added successfully')) {
-      finalHeader = `📄 *Documents added successfully!* Total documents attached: *${(latestDraft.documents || []).length}*.`;
+      // A brochure usually arrives carrying pictures too. Saying so is
+      // what tells the sender the PDF was read, not merely filed.
+      const plans = plansWithImages(latestDraft.floor_plans).length;
+      const extras = [
+        latestDraft.images.length ? `*${latestDraft.images.length}* photo(s)` : '',
+        plans ? `*${plans}* floor plan(s)` : '',
+      ].filter(Boolean);
+      finalHeader =
+        `📄 *Documents added successfully!* Total documents attached: *${(latestDraft.documents || []).length}*.` +
+        (extras.length ? `\nRead from the brochure: ${extras.join(' and ')}.` : '');
     }
 
     await sendPropertyDraftPreview(
@@ -1354,6 +1364,7 @@ export async function processOwnerChatbotMessage(
           rental_income: parseNumeric(draft.rental_income),
           roi: parseNumeric(draft.roi),
           floor_tenancies: sanitizeFloorTenancies(draft.floor_tenancies),
+          floor_plans: sanitizeFloorPlans(draft.floor_plans),
           google_map_link: draft.google_map_link,
           latitude: draft.latitude ?? null,
           longitude: draft.longitude ?? null,
@@ -1710,6 +1721,14 @@ export async function processOwnerChatbotMessage(
         const filename = message.document.filename || `doc-${Date.now()}`;
         const publicUrl = await uploadPropertyDocument(accountId, buffer!, mimeType!, filename);
 
+        // A brochure sent into an open draft used to be filed and
+        // nothing more, so its photos and floor plans stayed locked in
+        // the PDF. Same treatment as one that opens a draft.
+        const brochure =
+          mimeType === 'application/pdf'
+            ? await uploadBrochureImages(accountId, buffer!)
+            : { photos: [], planCandidates: [] };
+
         let updatedDraft = draft;
         let nextStatus = propSession.status;
         let success = false;
@@ -1738,7 +1757,20 @@ export async function processOwnerChatbotMessage(
             ? currentDocs
             : [...currentDocs, publicUrl];
 
-          updatedDraft = { ...currentDraft, documents: updatedDocs };
+          const { plans, unused } = pinBrochurePlans(
+            currentDraft.floor_plans,
+            brochure.planCandidates
+          );
+          const mergedImages = Array.from(
+            new Set([...(currentDraft.images || []), ...brochure.photos, ...unused])
+          );
+
+          updatedDraft = {
+            ...currentDraft,
+            documents: updatedDocs,
+            images: mergedImages,
+            floor_plans: plans.length > 0 ? plans : currentDraft.floor_plans ?? null,
+          };
 
           const validation = validateDraft(updatedDraft);
           nextStatus = validation.isValid ? 'awaiting_confirmation' : 'collecting';
@@ -1783,7 +1815,12 @@ export async function processOwnerChatbotMessage(
         return true;
       } catch (err) {
         console.error('[chatbot-engine] Error processing document upload:', err);
-        const reply = "❌ *Failed to upload document.* Please try again.";
+        // An oversize file says so, with its size: "try again" is advice
+        // that cannot work, and the sender has no way to guess the cap.
+        const reply =
+          err instanceof DocumentTooLargeError
+            ? `❌ *That document is too large.* ${err.message} Send a compressed copy, or split it.`
+            : "❌ *Failed to upload document.* Please try again.";
         const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
         await saveBotMessage(conversation.id, reply, sendRes.messageId);
         sendPropertyDraftPreviewDebounced(
@@ -2595,36 +2632,30 @@ export async function processOwnerChatbotMessage(
           } else if (mediaMimeType === 'application/pdf') {
             const filename = message.document?.filename || `doc-${Date.now()}.pdf`;
             // Parallel parse text details, extract images, and upload the PDF document itself
-            const [parsed, extractedImgBuffers, documentUrl] = await Promise.all([
+            const [parsed, brochure, documentUrl] = await Promise.all([
               parseListingFromImageOrText(contentText || '', mediaBuffer, mediaMimeType),
-              extractImagesFromPdf(mediaBuffer),
+              uploadBrochureImages(accountId, mediaBuffer),
               uploadPropertyDocument(accountId, mediaBuffer, mediaMimeType, filename)
             ]);
 
             parsedDraft = parsed;
             parsedDraft.documents = [documentUrl];
 
-            // Limit and upload extracted images
-            if (extractedImgBuffers.length > 0) {
-              const maxImages = 15;
-              const imagesToUpload = extractedImgBuffers.slice(0, maxImages);
-              console.log(`[chatbot-engine] Extracted ${extractedImgBuffers.length} images from PDF. Uploading top ${imagesToUpload.length} to storage...`);
+            uploadedImages.push(...brochure.photos);
+            parsedDraft.images = uploadedImages;
 
-              const uploadPromises = imagesToUpload.map(buf =>
-                uploadPropertyImage(accountId, buf, 'image/jpeg')
-                  .catch(err => {
-                    console.error('[chatbot-engine] Image upload from PDF failed:', err);
-                    return null;
-                  })
-              );
-
-              const urls = await Promise.all(uploadPromises);
-              const validUrls = urls.filter((url): url is string => url !== null);
-              uploadedImages.push(...validUrls);
+            // The parser names the floors; the extractor supplies the
+            // drawings. Any drawing left over after every named floor
+            // has one joins the gallery rather than being discarded.
+            const { plans, unused } = pinBrochurePlans(parsedDraft.floor_plans, brochure.planCandidates);
+            parsedDraft.floor_plans = plans;
+            if (unused.length > 0) {
+              uploadedImages.push(...unused);
               parsedDraft.images = uploadedImages;
-            } else {
-              parsedDraft.images = [];
             }
+            console.log(
+              `[chatbot-engine] PDF gave ${brochure.photos.length} photo(s) and ${brochure.planCandidates.length} plan drawing(s) across ${plans.length} floor(s).`
+            );
           } else {
             // Other document types fallback
             const filename = message.document?.filename || `doc-${Date.now()}`;
@@ -3161,6 +3192,7 @@ export async function processExternalListingMessage(
         rental_income: draft.rental_income,
         roi: draft.roi,
         floor_tenancies: sanitizeFloorTenancies(draft.floor_tenancies),
+        floor_plans: sanitizeFloorPlans(draft.floor_plans),
         google_map_link: draft.google_map_link,
         latitude: draft.latitude ?? null,
         longitude: draft.longitude ?? null,

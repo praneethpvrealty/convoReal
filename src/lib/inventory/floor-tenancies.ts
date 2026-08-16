@@ -11,6 +11,7 @@
 // ============================================================
 
 import { isoDateOrNull } from './iso-date';
+import { sanitizeFloorPlanImage } from './floor-plans';
 
 export interface FloorTenancy {
   /** Floor / unit label, e.g. "Ground Floor", "2nd + 3rd Floor". */
@@ -31,6 +32,10 @@ export interface FloorTenancy {
   maintenance: string | null;
   /** Usage / anything else: "3-Star Hotel · 27 rooms". */
   notes: string | null;
+  /** This floor's plan drawing, as a stored image path (migration 285).
+   *  Same shape as FloorPlan.image — a rent-roll floor keeps its
+   *  layout beside its tenant rather than in a parallel list. */
+  floor_plan?: string | null;
 }
 
 const MAX_FLOORS = 60;
@@ -69,6 +74,7 @@ export function sanitizeFloorTenancies(raw: unknown): FloorTenancy[] {
       lock_in_months: num(r.lock_in_months),
       maintenance: str(r.maintenance),
       notes: str(r.notes),
+      floor_plan: sanitizeFloorPlanImage(r.floor_plan),
     };
     const hasData =
       row.floor ||
@@ -80,7 +86,8 @@ export function sanitizeFloorTenancies(raw: unknown): FloorTenancy[] {
       row.lease_end ||
       row.lock_in_months !== null ||
       row.maintenance ||
-      row.notes;
+      row.notes ||
+      row.floor_plan;
     if (hasData) rows.push(row);
   }
   return rows;

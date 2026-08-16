@@ -6,6 +6,7 @@ import { geocodeAddress, hasGoogleMapsKey } from "@/lib/maps/google-places";
 import { resolveCoordinatesFromMapLink } from "@/lib/maps/resolve-location";
 import { STARRED_PROPERTY_CAP } from "@/lib/starred-properties";
 import { sanitizeFloorTenancies } from "@/lib/inventory/floor-tenancies";
+import { sanitizeFloorPlans } from "@/lib/inventory/floor-plans";
 import { notifyBuyersOfSoldProperty } from "@/lib/whatsapp/sold-notification";
 import { isoDateOrNull } from "@/lib/inventory/iso-date";
 import {
@@ -144,6 +145,7 @@ export async function PUT(
       showcase_visibility,
       rental_income,
       floor_tenancies,
+      floor_plans,
       listing_source,
       // rental fields
       listing_type,
@@ -475,6 +477,9 @@ export async function PUT(
       updateData.rental_income = typeof rental_income === "number" ? rental_income : null;
     }
 
+    if (floor_plans !== undefined) {
+      updateData.floor_plans = sanitizeFloorPlans(floor_plans);
+    }
     if (floor_tenancies !== undefined) {
       updateData.floor_tenancies = sanitizeFloorTenancies(floor_tenancies);
     }

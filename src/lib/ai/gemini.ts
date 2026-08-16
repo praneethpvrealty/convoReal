@@ -1,5 +1,7 @@
 import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
 import { PROPERTY_TYPE_VALUES, normalizePropertyType } from '@/lib/property-types';
+import type { FloorPlan } from "@/lib/inventory/floor-plans";
+import { sanitizeFloorPlans } from "@/lib/inventory/floor-plans";
 import { sanitizeFloorTenancies, type FloorTenancy } from '@/lib/inventory/floor-tenancies';
 import { logAiCall } from '@/lib/ai/call-log';
 import { applyListingDerivations } from '@/lib/ai/listing-derivations';
@@ -623,6 +625,10 @@ export interface ParsedPropertyDraft {
   goodwill_amount?: number | null;
   /** Floor-wise rent roll for pre-leased commercial buildings. */
   floor_tenancies?: FloorTenancy[] | null;
+  /** Floors the source document draws a plan for, in document order.
+   *  The model supplies the labels and page numbers; the drawings
+   *  themselves are matched in from the PDF's extracted images. */
+  floor_plans?: FloorPlan[] | null;
 }
 
 /**
@@ -822,6 +828,7 @@ export async function parseListingFromImageOrText(
     "  \"builder_share_percent\": Numeric builder's/developer's share of the JV/JD deal in percent or null,\n" +
     "  \"goodwill_amount\": Numeric non-refundable upfront goodwill paid to the landowner in a JV/JD deal in INR or null,\n" +
     "  \"floor_tenancies\": For commercial buildings sold with a floor-wise / unit-wise breakdown (rent roll), an array with one entry per floor or unit that has any rent, tenant, or usage detail: [{\"floor\": \"Ground + First Floor\", \"area_sqft\": 20000 or null, \"tenant_name\": \"tenant/business name or null\", \"monthly_rent\": monthly rent in INR excluding GST (e.g. '₹8,00,000' -> 800000) or null, \"advance\": interest-free security deposit for this floor in INR, resolving multiples against that floor's rent (e.g. '6 months deposit' on ₹8,00,000 -> 4800000) or null, \"lease_start\": \"YYYY-MM-DD\" or null, \"lease_end\": \"YYYY-MM-DD\" or null, \"lock_in_months\": numeric or null, \"maintenance\": \"maintenance terms or null\", \"notes\": \"usage, e.g. 'Hypermarket' or '3-Star Hotel, 27 rooms'\"}]. Empty array when the input has no floor-wise breakdown\n" +
+    "  \"floor_plans\": Floors the document draws a PLAN or LAYOUT for (a line drawing of rooms/walls, not a photograph), in the order they appear: [{\"floor\": \"Ground Floor\", \"area_sqft\": built-up area labelled on that plan (numeric) or null, \"notes\": \"what the plan shows, e.g. '3 BHK + pooja room'\", \"page\": 1-based page number the plan is printed on, or null}]. Include one entry per floor drawing. Empty array when the document contains no floor plan\n" +
     "}\n\n" +
     "Important parsing rules:\n" +
     "0. CRITICAL: The 'title' field is a human-readable summary and will often restate details — like BHK count, area, or location — that ALSO belong in their own structured fields below. NEVER treat a detail as 'already handled' just because it appears in the title. You MUST still populate every matching structured field (bedrooms, area_sqft, land_area, location, type, etc.) independently and completely whenever that information is present anywhere in the input, even if it's redundant with the title.\n" +
@@ -912,7 +919,8 @@ export async function parseListingFromImageOrText(
       owner_share_percent: parsed.owner_share_percent ?? null,
       builder_share_percent: parsed.builder_share_percent ?? null,
       goodwill_amount: parsed.goodwill_amount ?? null,
-      floor_tenancies: sanitizeFloorTenancies(parsed.floor_tenancies)
+      floor_tenancies: sanitizeFloorTenancies(parsed.floor_tenancies),
+      floor_plans: sanitizeFloorPlans(parsed.floor_plans)
     };
 
     return applyListingDerivations(draft, text);
@@ -976,6 +984,9 @@ export async function updateListingDraft(
         parsed.floor_tenancies !== undefined
           ? sanitizeFloorTenancies(parsed.floor_tenancies)
           : currentDraft.floor_tenancies ?? null,
+      // A correction never re-reads the brochure, so plans the intake
+      // already pinned survive it untouched.
+      floor_plans: currentDraft.floor_plans ?? null,
       // Normalize features whether the update touched them or not.
       features: normalizeListingFeatures(parsed.features ?? currentDraft.features),
       // A correction that doesn't mention the plot size or the per-unit
