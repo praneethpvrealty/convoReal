@@ -38,6 +38,11 @@ import { addDays } from 'date-fns';
 
 import { CLOSING_STAGE_KINDS } from '@/components/journey/shared';
 import { leadFirstName } from '@/lib/contacts/lead-placeholder';
+import {
+  collapseToParties,
+  loadContactParties,
+  partyDisplayName,
+} from '@/lib/contacts/parties';
 import { resolveConversation } from '@/lib/conversations/resolve';
 import { resolveOwnerWhatsAppContact } from '@/lib/inventory/location-requests';
 import { loadPastEnquiryContacts } from '@/lib/journey/past-enquiry';
@@ -109,6 +114,9 @@ export interface ClosingDeal {
   /** The stage this item would move to. Null at the end of the board. */
   nextStageName: string | null;
   daysStalled: number;
+  /** Set when the property is being bought by several people together.
+   *  One card covers the deal; the addressed contact is still `name`. */
+  partyName?: string | null;
 }
 
 /** The advance button is labelled with the stage it moves to, so the
@@ -125,7 +133,12 @@ export function buildClosingCardBody(deal: ClosingDeal): string {
   const stalled = `${deal.daysStalled} day${deal.daysStalled === 1 ? '' : 's'}`;
   return [
     '🧾 *Closing in progress*',
-    `👤 ${deal.name || deal.phone} · ${deal.phone}`,
+    ...(deal.partyName
+      ? [
+          `👥 ${deal.partyName}`,
+          `↳ we'd message ${deal.name || deal.phone} · ${deal.phone}`,
+        ]
+      : [`👤 ${deal.name || deal.phone} · ${deal.phone}`]),
     ...(deal.propertyTitle ? [`🏠 ${deal.propertyTitle}`] : []),
     `At *${deal.stageName}* — no movement for ${stalled}.`,
     '',
@@ -253,11 +266,21 @@ export async function gatherClosingDeals(
     ).map((c) => [c.id, c])
   );
 
-  const due = candidates
-    .filter((i) => contacts.get(i.contact_id)?.phone)
+  // A couple buying one property has two journey items on it, so two
+  // stalled deals that are really one. Collapse to the party before the
+  // cap, or a single stuck registration eats two of the three cards.
+  const parties = await loadContactParties(db, accountId);
+  const due = collapseToParties(
+    candidates.filter((i) => contacts.get(i.contact_id)?.phone),
+    (i) => i.contact_id,
+    parties,
+    // Scoped by property: a couple can be closing on one flat and still
+    // buying another, and those are two deals however many people sign.
+    (i) => i.property_id
+  )
     // Oldest stage movement first — the deal that has been still the
     // longest is the one most likely to have quietly died.
-    .sort((a, b) => a.updated_at.localeCompare(b.updated_at))
+    .sort((a, b) => a.row.updated_at.localeCompare(b.row.updated_at))
     .slice(0, CLOSING_MAX_PER_RUN);
   if (!due.length) return [];
 
@@ -267,7 +290,7 @@ export async function gatherClosingDeals(
     .eq('account_id', accountId)
     .in(
       'id',
-      due.map((i) => i.property_id)
+      due.map(({ row }) => row.property_id)
     );
   const titles = new Map(
     ((propertyRows ?? []) as { id: string; title: string }[]).map((p) => [
@@ -276,15 +299,22 @@ export async function gatherClosingDeals(
     ])
   );
 
-  return due.map((item) => {
+  return due.map(({ row: item, party, alsoInvolved }) => {
     const contact = contacts.get(item.contact_id);
     const idx = stages.findIndex((s) => s.id === item.stage_id);
+    const memberNames = party
+      ? [
+          contact?.name ?? '',
+          ...alsoInvolved.map((o) => contacts.get(o.contact_id)?.name ?? ''),
+        ]
+      : [];
     return {
       itemId: item.id,
       contactId: item.contact_id,
       name: contact?.name ?? null,
       phone: contact?.phone as string,
       assignedAgentUserId: contact?.assigned_agent_id ?? null,
+      partyName: partyDisplayName(party, memberNames),
       propertyTitle: titles.get(item.property_id) ?? null,
       stageName: stages[idx]?.name ?? 'closing',
       nextStageName: idx >= 0 ? (stages[idx + 1]?.name ?? null) : null,

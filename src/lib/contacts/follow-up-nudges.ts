@@ -29,6 +29,12 @@ import { resolveOwnerWhatsAppContact } from '@/lib/inventory/location-requests';
 import { resolveConversation } from '@/lib/conversations/resolve';
 import { isWithinCustomerWindow } from '@/lib/whatsapp/customer-window';
 import { leadFirstName } from '@/lib/contacts/lead-placeholder';
+import {
+  collapseToParties,
+  loadContactParties,
+  partyDisplayName,
+  partyLastTouch,
+} from '@/lib/contacts/parties';
 import { loadPastEnquiryContacts } from '@/lib/journey/past-enquiry';
 import { describeEnquiredProperty } from '@/lib/whatsapp/enquiry-notice-template';
 import {
@@ -87,12 +93,25 @@ export interface FollowUpLead {
   assignedAgentUserId: string | null;
   daysSilent: number;
   propertyTitle: string | null;
+  /** Set when this lead buys with others — a couple, or colleagues from
+   *  one firm. The card names the party and the actions still operate on
+   *  the contact we address. */
+  partyName?: string | null;
+  /** Every member of the party, including the addressed contact. Empty
+   *  for a lead who buys alone. */
+  partyContactIds?: string[];
 }
 
 export function buildFollowUpCardBody(lead: FollowUpLead): string {
+  // With a party the headline is the deal, and the line below says who
+  // the check-in would actually reach — an agent must never tap Check
+  // in wondering which of the two people gets the message.
+  const who = lead.partyName
+    ? [`👥 ${lead.partyName}`, `↳ we'd message ${lead.name || lead.phone} · ${lead.phone}`]
+    : [`👤 ${lead.name || lead.phone} · ${lead.phone}`];
   return [
     '⏰ *Follow-up due*',
-    `👤 ${lead.name || lead.phone} · ${lead.phone}`,
+    ...who,
     ...(lead.propertyTitle ? [`🏠 ${lead.propertyTitle}`] : []),
     `Hot lead — quiet for ${lead.daysSilent} day${lead.daysSilent === 1 ? '' : 's'}.`,
     '',
@@ -145,12 +164,47 @@ export async function gatherFollowUpLeads(
     assigned_agent_id: string | null;
     last_inquired_property_id: string | null;
   };
+  // Silence is per WhatsApp thread, which is wrong for people buying
+  // together: a reply from the wife never reset the husband's clock, so
+  // both were carded as quiet on one listing while the deal was in
+  // active contact. The party's clock is its most recently contacted
+  // member, and every member reads from it.
+  const parties = await loadContactParties(db, accountId);
+  const touchOf = (c: Row) => c.last_contacted_at ?? c.created_at;
+  const touchByContactId = new Map(
+    (contacts as Row[]).map((c) => [c.id, touchOf(c)])
+  );
+  // Members outside the HOT/active filter above still count: the wife
+  // may be filed COLD and still be the one who replied. Bounded by the
+  // account's party membership, which is a handful of rows.
+  const memberIds = [...new Set([...parties.values()].flatMap((p) => p.memberIds))]
+    .filter((id) => !touchByContactId.has(id));
+  if (memberIds.length) {
+    const { data: memberRows } = await db
+      .from('contacts')
+      .select('id, last_contacted_at, created_at')
+      .eq('account_id', accountId)
+      .in('id', memberIds);
+    for (const m of (memberRows ?? []) as {
+      id: string;
+      last_contacted_at: string | null;
+      created_at: string;
+    }[]) {
+      touchByContactId.set(m.id, m.last_contacted_at ?? m.created_at);
+    }
+  }
+  const lastTouchFor = (c: Row): number => {
+    const party = parties.get(c.id);
+    if (!party) return new Date(touchOf(c)).getTime();
+    const touches = party.memberIds.map(
+      (id) => touchByContactId.get(id) ?? null
+    );
+    return partyLastTouch(touches) ?? new Date(touchOf(c)).getTime();
+  };
+
   const quiet = (contacts as Row[]).filter((c) => {
     if (!c.phone) return false;
-    const lastTouch = c.last_contacted_at
-      ? new Date(c.last_contacted_at).getTime()
-      : new Date(c.created_at).getTime();
-    return lastTouch <= cutoff;
+    return lastTouchFor(c) <= cutoff;
   });
   if (!quiet.length) return [];
 
@@ -177,12 +231,24 @@ export async function gatherFollowUpLeads(
     if (snoozed || recent) held.add(n.contact_id);
   }
 
-  const due = quiet
-    .filter((c) => !held.has(c.id) && !pastEnquiry.has(c.id))
-    .map((c) => {
-      const lastTouch = c.last_contacted_at
-        ? new Date(c.last_contacted_at).getTime()
-        : new Date(c.created_at).getTime();
+  // A hold or a closing deal on ANY member covers the whole party: one
+  // agent snoozing the husband must not leave the wife's card to fire
+  // tomorrow, which is the duplicate this feature exists to stop.
+  const heldParty = (c: Row) => {
+    const party = parties.get(c.id);
+    const ids = party ? party.memberIds : [c.id];
+    return ids.some((id) => held.has(id) || pastEnquiry.has(id));
+  };
+
+  const due = collapseToParties(
+    quiet.filter((c) => !heldParty(c)),
+    (c) => c.id,
+    parties
+  )
+    .map(({ row: c, party, alsoInvolved }) => {
+      const names = party
+        ? [c.name ?? '', ...alsoInvolved.map((m) => m.name ?? '')]
+        : [];
       return {
         contactId: c.id,
         name: c.name,
@@ -190,10 +256,12 @@ export async function gatherFollowUpLeads(
         assignedAgentUserId: c.assigned_agent_id,
         daysSilent: Math.max(
           1,
-          Math.floor((now.getTime() - lastTouch) / DAY_MS)
+          Math.floor((now.getTime() - lastTouchFor(c)) / DAY_MS)
         ),
         propertyId: c.last_inquired_property_id,
         propertyTitle: null as string | null,
+        partyName: partyDisplayName(party, names),
+        partyContactIds: party ? party.memberIds : [],
       };
     })
     .sort((a, b) => b.daysSilent - a.daysSilent)
@@ -227,7 +295,11 @@ export async function gatherFollowUpLeads(
       assignedAgentUserId,
       daysSilent,
       propertyTitle,
+      partyName,
+      partyContactIds,
     }) => ({
+      partyName,
+      partyContactIds,
       contactId,
       name,
       phone,
@@ -238,19 +310,27 @@ export async function gatherFollowUpLeads(
   );
 }
 
+/**
+ * Stamps the hold on every member of the lead's party, not just the
+ * contact we addressed. Snoozing the husband and being shown the wife's
+ * card the next morning is precisely the duplicate parties exist to
+ * stop, and the state table is keyed by contact.
+ */
 async function stampNudgeState(
   db: SupabaseClient,
   accountId: string,
   contactId: string,
-  patch: { last_nudged_at?: string; snoozed_until?: string | null }
+  patch: { last_nudged_at?: string; snoozed_until?: string | null },
+  alsoContactIds: string[] = []
 ): Promise<void> {
+  const ids = [...new Set([contactId, ...alsoContactIds])];
   await db.from('follow_up_nudges').upsert(
-    {
+    ids.map((id) => ({
       account_id: accountId,
-      contact_id: contactId,
+      contact_id: id,
       ...patch,
       updated_at: new Date().toISOString(),
-    },
+    })),
     { onConflict: 'account_id,contact_id' }
   );
 }
@@ -316,9 +396,13 @@ export async function sendFollowUpNudges(
         });
         if (!result.success) continue;
         nudges += 1;
-        await stampNudgeState(admin, accountId, lead.contactId, {
-          last_nudged_at: now.toISOString(),
-        });
+        await stampNudgeState(
+          admin,
+          accountId,
+          lead.contactId,
+          { last_nudged_at: now.toISOString() },
+          lead.partyContactIds ?? []
+        );
       }
     } catch (err) {
       console.error(`[follow-up-nudges] account ${accountId} failed:`, err);
@@ -360,7 +444,27 @@ export async function handleFollowUpReply(
       text,
     });
   };
-  const who = lead.name || lead.phone;
+  // The tap acts on the deal, so it acts on everyone buying together.
+  // Anything less and the other half of the couple keeps their own
+  // radar state — snoozed here, carded tomorrow.
+  const parties = await loadContactParties(admin, accountId);
+  const party = parties.get(action.contactId);
+  const partyIds = party ? party.memberIds : [action.contactId];
+
+  const { data: memberRows } = party
+    ? await admin
+        .from('contacts')
+        .select('id, name')
+        .eq('account_id', accountId)
+        .in('id', party.memberIds)
+    : { data: null };
+  const who =
+    partyDisplayName(
+      party ?? null,
+      ((memberRows ?? []) as { name: string | null }[]).map((m) => m.name ?? '')
+    ) ||
+    lead.name ||
+    lead.phone;
 
   // Re-checked here and not only in the gather step: a card is a
   // WhatsApp button that can be tapped days later, by which time the
@@ -368,7 +472,9 @@ export async function handleFollowUpReply(
   // just the check-in — marking a buyer mid-registration COLD corrupts
   // the record as surely as telling them their enquiry is still open.
   const pastEnquiry = await loadPastEnquiryContacts(admin, accountId);
-  const closingStage = pastEnquiry.get(action.contactId);
+  const closingStage = partyIds
+    .map((id) => pastEnquiry.get(id))
+    .find((stage): stage is string => Boolean(stage));
   if (closingStage) {
     await confirmToAgent(
       `🧾 ${who} is at *${closingStage}* — this deal is already in progress, so nothing was sent. Update the journey instead if the paperwork has moved.`
@@ -377,10 +483,12 @@ export async function handleFollowUpReply(
   }
 
   if (action.action === 'cold') {
+    // The whole party goes cold: they share one requirement, so leaving
+    // the spouse HOT would just re-card the same dead deal.
     await admin
       .from('contacts')
       .update({ lead_temp: 'COLD', updated_at: new Date().toISOString() })
-      .eq('id', action.contactId)
+      .in('id', partyIds)
       .eq('account_id', accountId);
     await confirmToAgent(
       `❄️ Marked ${who} cold — the follow-up radar will leave them alone.`
@@ -389,9 +497,15 @@ export async function handleFollowUpReply(
   }
 
   if (action.action === 'snooze') {
-    await stampNudgeState(admin, accountId, action.contactId, {
-      snoozed_until: addDays(new Date(), FOLLOWUP_SNOOZE_DAYS).toISOString(),
-    });
+    await stampNudgeState(
+      admin,
+      accountId,
+      action.contactId,
+      {
+        snoozed_until: addDays(new Date(), FOLLOWUP_SNOOZE_DAYS).toISOString(),
+      },
+      partyIds
+    );
     await confirmToAgent(
       `⏰ Snoozed — ${who} comes back in ${FOLLOWUP_SNOOZE_DAYS} days.`
     );
@@ -459,10 +573,20 @@ export async function handleFollowUpReply(
   }
 
   if (sent) {
-    await stampNudgeState(admin, accountId, action.contactId, {
-      snoozed_until: addDays(new Date(), FOLLOWUP_RENUDGE_DAYS).toISOString(),
-    });
-    await confirmToAgent(`✅ Check-in sent to ${who} on WhatsApp.`);
+    await stampNudgeState(
+      admin,
+      accountId,
+      action.contactId,
+      {
+        snoozed_until: addDays(new Date(), FOLLOWUP_RENUDGE_DAYS).toISOString(),
+      },
+      partyIds
+    );
+    await confirmToAgent(
+      party
+        ? `✅ Check-in sent to ${lead.name || lead.phone} on WhatsApp, for ${who}.`
+        : `✅ Check-in sent to ${who} on WhatsApp.`
+    );
   } else {
     await confirmToAgent(
       `⚠️ Couldn't reach ${who} on WhatsApp — open the thread to follow up by hand.`

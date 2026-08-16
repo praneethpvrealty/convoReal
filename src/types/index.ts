@@ -679,6 +679,25 @@ export interface Deal {
 
 // ── Journey Mind Map (migration 131) ────────────────────────
 
+/** Several people, one requirement — a couple buying together, or two
+ *  colleagues from one firm (migration 288). Not a merge: each keeps
+ *  their own contact row, number, consent and WhatsApp thread. */
+export type PartyKind = 'household' | 'company' | 'partners';
+
+export interface ContactPartyMember {
+  contact_id: string;
+  is_primary: boolean;
+  name: string | null;
+  phone: string | null;
+}
+
+export interface ContactPartySummary {
+  id: string;
+  name: string | null;
+  kind: PartyKind;
+  members: ContactPartyMember[];
+}
+
 /** What a stage means for a relationship (migration 286). `closing`
  *  and `won` put the deal past the enquiry, which holds the contact out
  *  of the follow-up radar. */

@@ -563,6 +563,7 @@ function ContactCard({ contact }: { contact: Contact }) {
               value={contact.requirements}
             />
           ) : null}
+          <BuysWithRow contactId={contact.id} />
         </View>
 
         {contact.classification &&
@@ -1781,6 +1782,36 @@ function ActionButton({
       </Text>
     </Pressable>
   );
+}
+
+/**
+ * Who this contact buys with — a spouse, partner or colleague sharing
+ * one requirement (migration 288). Read-only here: linking is done on
+ * the web, and the rule that matters (one follow-up card per party, a
+ * silence clock that counts a reply from any member) is server-side, so
+ * both surfaces already behave the same. Showing it stops an agent on
+ * the phone wondering why only one of the two was carded.
+ */
+function BuysWithRow({ contactId }: { contactId: string }) {
+  const { data } = useQuery({
+    queryKey: ['contact-party', contactId],
+    queryFn: () =>
+      apiFetch<{
+        data: {
+          members: { contact_id: string; name: string | null; is_primary: boolean }[];
+        } | null;
+      }>(`/api/contacts/${contactId}/party`),
+  });
+
+  const members = (data?.data?.members ?? []).filter(
+    (m) => m.contact_id !== contactId
+  );
+  if (!members.length) return null;
+
+  const names = members
+    .map((m) => (m.name ?? '').trim() || 'Unnamed')
+    .join(', ');
+  return <InfoRow icon="people-outline" label="Buys with" value={names} />;
 }
 
 function InfoRow({

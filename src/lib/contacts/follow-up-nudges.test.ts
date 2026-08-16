@@ -108,16 +108,30 @@ describe('gatherFollowUpLeads', () => {
     properties: Record<string, unknown>[];
     journey_stages?: Record<string, unknown>[];
     journey_items?: Record<string, unknown>[];
+    contact_parties?: Record<string, unknown>[];
+    contact_party_members?: Record<string, unknown>[];
   };
 
+  /** Filters are pass-through except `.in('id', …)`, which the party
+   *  path uses to fetch members who fell outside the HOT filter — the
+   *  COLD spouse who is nonetheless the one who replied. */
   function db(tables: Tables) {
     return {
       from: (table: keyof Tables) => {
-        const chain: Record<string, unknown> = {};
-        for (const m of ['select', 'eq', 'in']) chain[m] = () => chain;
+        let rows = tables[table] ?? [];
+        const chain: Record<string, unknown> = {
+          select: () => chain,
+          eq: () => chain,
+          in: (column: string, value: unknown[]) => {
+            if (column === 'id') {
+              rows = rows.filter((r) => value.includes(r.id));
+            }
+            return chain;
+          },
+        };
         (chain as { then: unknown }).then = (
           resolve: (v: { data: unknown }) => void
-        ) => resolve({ data: tables[table] });
+        ) => resolve({ data: rows });
         return chain;
       },
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -249,6 +263,126 @@ describe('gatherFollowUpLeads', () => {
     // The 28-day "silence" is a registration in progress. Dropping it
     // before the cap is what lets the fourth lead onto the card run.
     expect(leads.map((l) => l.contactId)).toEqual(['2', '3', '4']);
+  });
+
+  // The live incident: husband and wife, one listing, two cards saying
+  // "quiet for 28 days" and "quiet for 19 days".
+  describe('people buying together', () => {
+    const asParty = (...contactIds: string[]) => ({
+      contact_parties: [{ id: 'p-1', name: null, kind: 'household' }],
+      contact_party_members: contactIds.map((id, i) => ({
+        party_id: 'p-1',
+        contact_id: id,
+        is_primary: i === 0,
+      })),
+    });
+
+    it('cards the deal once and names both people', async () => {
+      const leads = await gatherFollowUpLeads(
+        db({
+          contacts: [contact('1'), contact('2')],
+          follow_up_nudges: [],
+          properties: [],
+          ...asParty('1', '2'),
+        }),
+        'acct-1',
+        NOW
+      );
+      expect(leads).toHaveLength(1);
+      expect(leads[0].contactId).toBe('1');
+      expect(leads[0].partyName).toBe('Lead 1 & Lead 2');
+      expect(leads[0].partyContactIds).toEqual(['1', '2']);
+    });
+
+    // The heart of it: silence is per thread, so the wife replying
+    // never reset the husband's clock and the deal read as quiet while
+    // it was in active contact.
+    it('is not quiet when any member has replied recently', async () => {
+      const leads = await gatherFollowUpLeads(
+        db({
+          contacts: [
+            contact('1', { last_contacted_at: daysAgo(28) }),
+            contact('2', { last_contacted_at: daysAgo(1) }),
+          ],
+          follow_up_nudges: [],
+          properties: [],
+          ...asParty('1', '2'),
+        }),
+        'acct-1',
+        NOW
+      );
+      expect(leads).toHaveLength(0);
+    });
+
+    it('counts the silence from the party, not the addressed member', async () => {
+      const leads = await gatherFollowUpLeads(
+        db({
+          contacts: [
+            contact('1', { last_contacted_at: daysAgo(28) }),
+            contact('2', { last_contacted_at: daysAgo(19) }),
+          ],
+          follow_up_nudges: [],
+          properties: [],
+          ...asParty('1', '2'),
+        }),
+        'acct-1',
+        NOW
+      );
+      expect(leads[0].daysSilent).toBe(19);
+    });
+
+    // Snoozing the husband must not leave the wife's card to fire the
+    // next morning — that is the duplicate, one day later.
+    it('honours a hold placed on any member', async () => {
+      const leads = await gatherFollowUpLeads(
+        db({
+          contacts: [contact('1'), contact('2')],
+          follow_up_nudges: [
+            { contact_id: '2', last_nudged_at: null, snoozed_until: daysAgo(-2) },
+          ],
+          properties: [],
+          ...asParty('1', '2'),
+        }),
+        'acct-1',
+        NOW
+      );
+      expect(leads).toHaveLength(0);
+    });
+
+    // The spouse who replied may be filed COLD, so she never appears in
+    // the HOT query the radar starts from — her reply still counts.
+    it('counts a reply from a member the radar itself would not card', async () => {
+      const leads = await gatherFollowUpLeads(
+        db({
+          // Only the husband is HOT, so only he is returned by the
+          // first query; the wife is fetched by id for her timestamp.
+          contacts: [
+            contact('1', { last_contacted_at: daysAgo(28) }),
+            contact('cold', { last_contacted_at: daysAgo(1) }),
+          ],
+          follow_up_nudges: [],
+          properties: [],
+          ...asParty('1', 'cold'),
+        }),
+        'acct-1',
+        NOW
+      );
+      expect(leads).toHaveLength(0);
+    });
+
+    it('addresses the primary member', async () => {
+      const leads = await gatherFollowUpLeads(
+        db({
+          contacts: [contact('1'), contact('2')],
+          follow_up_nudges: [],
+          properties: [],
+          ...asParty('2', '1'),
+        }),
+        'acct-1',
+        NOW
+      );
+      expect(leads[0].contactId).toBe('2');
+    });
   });
 
   it('caps the run and leads with the longest-silent', async () => {
