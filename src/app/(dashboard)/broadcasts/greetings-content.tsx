@@ -7,6 +7,10 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import {
   ExternalLink,
+  ImageOff,
+  Loader2,
+  Maximize2,
+  Minimize2,
   PartyPopper,
   Pencil,
   Plus,
@@ -85,6 +89,7 @@ export default function GreetingsContent() {
   const [composeOpen, setComposeOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<OccasionGreeting | null>(null);
   const [sendTarget, setSendTarget] = useState<OccasionGreeting | null>(null);
+  const [cardPreview, setCardPreview] = useState<OccasionGreeting | null>(null);
 
   const greetingsQuery = useQuery({
     queryKey: ['occasion-greetings'],
@@ -186,12 +191,19 @@ export default function GreetingsContent() {
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="flex min-w-0 flex-1 gap-3">
                   {g.image_path && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={storagePublicUrl(g.image_path)}
-                      alt={g.occasion_label}
-                      className="h-16 w-16 shrink-0 rounded-lg border border-slate-800 object-cover"
-                    />
+                    <button
+                      type="button"
+                      onClick={() => setCardPreview(g)}
+                      aria-label={`View the ${g.occasion_label} card full size`}
+                      className="h-16 w-16 shrink-0 cursor-zoom-in overflow-hidden rounded-lg border border-slate-800 bg-slate-900 hover:border-slate-600"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={storagePublicUrl(g.image_path)}
+                        alt={g.occasion_label}
+                        className="h-full w-full object-contain"
+                      />
+                    </button>
                   )}
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
@@ -283,6 +295,24 @@ export default function GreetingsContent() {
         greeting={sendTarget}
         onClose={() => setSendTarget(null)}
       />
+      <Dialog
+        open={!!cardPreview}
+        onOpenChange={(o) => !o && setCardPreview(null)}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{cardPreview?.occasion_label}</DialogTitle>
+          </DialogHeader>
+          {cardPreview?.image_path && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={storagePublicUrl(cardPreview.image_path)}
+              alt={`${cardPreview.occasion_label} card`}
+              className="max-h-[70vh] w-full rounded-lg border border-slate-800 bg-slate-950 object-contain"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -307,6 +337,10 @@ function ComposeGreetingDialog({
   const [message, setMessage] = useState('');
   const [imagePath, setImagePath] = useState<string | null>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [cardStatus, setCardStatus] = useState<'loading' | 'ready' | 'error'>(
+    'loading'
+  );
+  const [cardExpanded, setCardExpanded] = useState(false);
   const [lastPreset, setLastPreset] = useState<string | null>(null);
 
   if (open && presetOccasionId !== lastPreset) {
@@ -323,6 +357,8 @@ function ComposeGreetingDialog({
     setMessage('');
     setImagePath(null);
     setImageUrl(null);
+    setCardStatus('loading');
+    setCardExpanded(false);
     setNotes('');
     setCustomLabel('');
     setLastPreset(null);
@@ -349,6 +385,8 @@ function ComposeGreetingDialog({
       // occasion's card and attach it to the new greeting.
       setImagePath(result.imagePath);
       setImageUrl(result.imageUrl);
+      setCardStatus('loading');
+      setCardExpanded(false);
       if (withImage && !result.imagePath) {
         toast.info('Card image could not be generated — the text is ready.');
       }
@@ -488,24 +526,86 @@ function ComposeGreetingDialog({
             </p>
           </div>
           {imageUrl && (
-            <div className="flex items-center gap-3">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={imageUrl}
-                alt="Greeting card"
-                className="h-24 w-24 rounded-lg border border-slate-800 object-cover"
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setImagePath(null);
-                  setImageUrl(null);
-                }}
-              >
-                Remove card
-              </Button>
+            <div className="space-y-2">
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setCardExpanded((v) => !v)}
+                  disabled={cardStatus !== 'ready'}
+                  aria-label={
+                    cardExpanded ? 'Collapse card' : 'View card full size'
+                  }
+                  className={cn(
+                    'relative h-24 w-24 shrink-0 overflow-hidden rounded-lg border border-slate-800 bg-slate-900',
+                    cardStatus === 'ready' &&
+                      'cursor-zoom-in hover:border-slate-600'
+                  )}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={imageUrl}
+                    alt="Greeting card"
+                    onLoad={() => setCardStatus('ready')}
+                    onError={() => setCardStatus('error')}
+                    className={cn(
+                      'h-full w-full object-contain transition-opacity',
+                      cardStatus === 'ready' ? 'opacity-100' : 'opacity-0'
+                    )}
+                  />
+                  {cardStatus === 'loading' && (
+                    <Loader2 className="absolute inset-0 m-auto h-5 w-5 animate-spin text-slate-500" />
+                  )}
+                  {cardStatus === 'error' && (
+                    <ImageOff className="absolute inset-0 m-auto h-5 w-5 text-slate-600" />
+                  )}
+                </button>
+                <div className="min-w-0 space-y-1">
+                  <p className="text-xs text-slate-400">
+                    {cardStatus === 'loading'
+                      ? 'Loading card…'
+                      : cardStatus === 'error'
+                        ? 'The card image could not be loaded. Compose again or remove it.'
+                        : 'Card attached to this greeting.'}
+                  </p>
+                  <div className="flex flex-wrap gap-1">
+                    {cardStatus === 'ready' && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setCardExpanded((v) => !v)}
+                      >
+                        {cardExpanded ? (
+                          <Minimize2 className="mr-1.5 h-3.5 w-3.5" />
+                        ) : (
+                          <Maximize2 className="mr-1.5 h-3.5 w-3.5" />
+                        )}
+                        {cardExpanded ? 'Collapse' : 'View full size'}
+                      </Button>
+                    )}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setImagePath(null);
+                        setImageUrl(null);
+                        setCardExpanded(false);
+                      }}
+                    >
+                      Remove card
+                    </Button>
+                  </div>
+                </div>
+              </div>
+              {cardExpanded && cardStatus === 'ready' && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={imageUrl}
+                  alt="Greeting card, full size"
+                  className="max-h-80 w-full rounded-lg border border-slate-800 bg-slate-950 object-contain"
+                />
+              )}
             </div>
           )}
         </div>
