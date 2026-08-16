@@ -107,6 +107,7 @@ import {
 } from '@/lib/contacts/follow-up-nudges'
 import {
   handleClosingReply,
+  handlePurchaseProgressReply,
   parseClosingReply,
 } from '@/lib/journey/closing-nudges'
 import {
@@ -1651,6 +1652,24 @@ async function processMessage(
       buttonText: message.button.text,
     })
     if (handledTimeline) return
+  }
+
+  // Ahead of the enquiry buttons below: these come from a buyer who is
+  // mid-purchase, and the enquiry handlers would file their answer as a
+  // decision about an open enquiry.
+  const progressAction = matchTemplateButton(message.button?.text)
+  if (
+    progressAction === 'paperwork_on_track' ||
+    progressAction === 'paperwork_pending'
+  ) {
+    const handledProgress = await handlePurchaseProgressReply({
+      accountId,
+      ownerUserId: configOwnerUserId,
+      contact: { id: contactRecord.id, name: contactRecord.name },
+      conversationId: conversation.id,
+      onTrack: progressAction === 'paperwork_on_track',
+    })
+    if (handledProgress) return
   }
 
   if (matchTemplateButton(message.button?.text) === 'still_considering') {

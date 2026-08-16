@@ -17,6 +17,7 @@ describe('missingEngineTemplates', () => {
       'enquiry_checkin_notice',
       'enquiry_timeline_notice',
       'property_enquiry_reminder',
+      'purchase_progress_notice',
       'audio_announcement_notice',
       'post_call_options',
     ]);

@@ -58,6 +58,8 @@ export type TemplateButtonAction =
   | 'timeline_2_days'
   | 'timeline_unsure'
   | 'send_options'
+  | 'paperwork_on_track'
+  | 'paperwork_pending'
   // URL buttons — display only.
   | 'view_full_details'
   | 'view_location'
@@ -147,6 +149,24 @@ const BUTTON_LABELS: Record<TemplateButtonAction, Localised> = {
     ml: 'അതെ, അയയ്ക്കൂ',
     mr: 'हो, पाठवा',
   },
+  paperwork_on_track: {
+    en: 'Paperwork on track',
+    hi: 'कागज़ी काम ठीक है',
+    kn: 'ದಾಖಲೆ ಕೆಲಸ ಸರಿಯಿದೆ',
+    ta: 'ஆவணப் பணி சரி',
+    te: 'పత్రాల పని సవ్యంగా ఉంది',
+    ml: 'രേഖകൾ ശരിയാണ്',
+    mr: 'कागदपत्रे ठीक आहेत',
+  },
+  paperwork_pending: {
+    en: 'Something is pending',
+    hi: 'कुछ बाकी है',
+    kn: 'ಏನೋ ಬಾಕಿ ಇದೆ',
+    ta: 'ஏதோ நிலுவையில் உள்ளது',
+    te: 'ఏదో పెండింగ్‌లో ఉంది',
+    ml: 'എന്തോ ബാക്കിയുണ്ട്',
+    mr: 'काहीतरी बाकी आहे',
+  },
   timeline_unsure: {
     en: "Can't say yet",
     hi: 'अभी कह नहीं सकते',
@@ -234,6 +254,7 @@ export type EngineTemplateKey =
   | 'journey_checkin'
   | 'journey_timeline'
   | 'journey_followup_reminder'
+  | 'purchase_progress'
   | 'audio_announcement'
   | 'post_call_options';
 
@@ -1001,6 +1022,87 @@ const TEMPLATE_COPY: Record<
         'पुढील संपर्क नियोजित: {{4}}',
         '',
         'ही तारीख निश्चित करण्यासाठी किंवा बदलण्यासाठी खालील बटण दाबा. "आत्ता सांगू शकत नाही" निवडल्यास नियोजित संपर्क काढून टाकला जाईल आणि चौकशी खुली राहील.'
+      ),
+    },
+  },
+  // The only template in the catalogue addressed to a BUYER MID-
+  // PURCHASE rather than mid-enquiry, which is the whole point of it:
+  // every enquiry template asserts an open enquiry awaiting a decision,
+  // and saying that to someone a week from registration is false. It
+  // states the step their own purchase is recorded at and asks where
+  // the paperwork stands — administration of a transaction the reader
+  // is already party to, which is Meta's Utility test. No opt-out
+  // footer, no emoji, no persuasive CTA, nothing about other options:
+  // all four read as Marketing at review.
+  purchase_progress: {
+    en: {
+      body: lines(
+        'Hi {{1}}, an update on your property purchase with {{2}}.',
+        '',
+        'Property: {{3}}',
+        'Current step: {{4}}',
+        '',
+        'Our records still show this step as open. Reply here to tell us where the paperwork stands, or what is pending at our end.'
+      ),
+    },
+    hi: {
+      body: lines(
+        'नमस्ते {{1}}, आपकी संपत्ति खरीद पर {{2}} की ओर से एक अपडेट।',
+        '',
+        'संपत्ति: {{3}}',
+        'वर्तमान चरण: {{4}}',
+        '',
+        'हमारे रिकॉर्ड में यह चरण अब भी खुला दर्ज है। कागज़ी कार्रवाई किस स्थिति में है, या हमारी ओर से क्या बाकी है, यह बताने के लिए यहाँ उत्तर दें।'
+      ),
+    },
+    kn: {
+      body: lines(
+        'ನಮಸ್ಕಾರ {{1}}, ನಿಮ್ಮ ಆಸ್ತಿ ಖರೀದಿಯ ಕುರಿತು {{2}} ಕಡೆಯಿಂದ ಒಂದು ಮಾಹಿತಿ.',
+        '',
+        'ಆಸ್ತಿ: {{3}}',
+        'ಪ್ರಸ್ತುತ ಹಂತ: {{4}}',
+        '',
+        'ನಮ್ಮ ದಾಖಲೆಗಳಲ್ಲಿ ಈ ಹಂತ ಇನ್ನೂ ತೆರೆದಿದೆ ಎಂದು ನಮೂದಾಗಿದೆ. ದಾಖಲೆ ಕೆಲಸ ಯಾವ ಹಂತದಲ್ಲಿದೆ, ಅಥವಾ ನಮ್ಮ ಕಡೆಯಿಂದ ಏನು ಬಾಕಿ ಇದೆ ಎಂಬುದನ್ನು ತಿಳಿಸಲು ಇಲ್ಲಿ ಉತ್ತರಿಸಿ.'
+      ),
+    },
+    ta: {
+      body: lines(
+        'வணக்கம் {{1}}, உங்கள் சொத்து வாங்குதல் குறித்து {{2}} சார்பில் ஒரு தகவல்.',
+        '',
+        'சொத்து: {{3}}',
+        'தற்போதைய படி: {{4}}',
+        '',
+        'எங்கள் பதிவுகளில் இந்தப் படி இன்னும் திறந்திருப்பதாக உள்ளது. ஆவணப் பணி எந்த நிலையில் உள்ளது, அல்லது எங்கள் பக்கம் என்ன நிலுவையில் உள்ளது என்பதைத் தெரிவிக்க இங்கே பதிலளிக்கவும்.'
+      ),
+    },
+    te: {
+      body: lines(
+        'నమస్కారం {{1}}, మీ ఆస్తి కొనుగోలుపై {{2}} తరఫున ఒక సమాచారం.',
+        '',
+        'ఆస్తి: {{3}}',
+        'ప్రస్తుత దశ: {{4}}',
+        '',
+        'మా రికార్డుల్లో ఈ దశ ఇంకా తెరిచి ఉన్నట్లు నమోదైంది. పత్రాల పని ఏ దశలో ఉందో, లేదా మా వైపు నుంచి ఏమి పెండింగ్‌లో ఉందో తెలియజేయడానికి ఇక్కడ బదులివ్వండి.'
+      ),
+    },
+    ml: {
+      body: lines(
+        'നമസ്കാരം {{1}}, നിങ്ങളുടെ വസ്തു വാങ്ങലിനെക്കുറിച്ച് {{2}} ന്റെ ഭാഗത്തുനിന്ന് ഒരു അറിയിപ്പ്.',
+        '',
+        'വസ്തു: {{3}}',
+        'നിലവിലെ ഘട്ടം: {{4}}',
+        '',
+        'ഞങ്ങളുടെ രേഖകളിൽ ഈ ഘട്ടം ഇപ്പോഴും തുറന്നതായി രേഖപ്പെടുത്തിയിരിക്കുന്നു. രേഖാ നടപടികൾ ഏത് ഘട്ടത്തിലാണ്, അല്ലെങ്കിൽ ഞങ്ങളുടെ ഭാഗത്ത് എന്താണ് ബാക്കിയുള്ളത് എന്ന് അറിയിക്കാൻ ഇവിടെ മറുപടി നൽകുക.'
+      ),
+    },
+    mr: {
+      body: lines(
+        'नमस्कार {{1}}, तुमच्या मालमत्ता खरेदीबाबत {{2}} कडून एक माहिती.',
+        '',
+        'मालमत्ता: {{3}}',
+        'सध्याचा टप्पा: {{4}}',
+        '',
+        'आमच्या नोंदींमध्ये हा टप्पा अजूनही खुला आहे. कागदपत्रांचे काम कोणत्या टप्प्यावर आहे, किंवा आमच्याकडून काय बाकी आहे हे कळवण्यासाठी इथे उत्तर द्या.'
       ),
     },
   },
