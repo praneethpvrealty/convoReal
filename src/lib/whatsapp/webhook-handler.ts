@@ -2466,9 +2466,9 @@ async function processMessage(
     if (ownerHandled) {
       // The owner's window is open — the one moment their digest consent
       // can be asked free-form, with buttons and no template. The cron
-      // only reaches owners whose window happens to be open at 04:30 IST,
-      // and skips them entirely when the account has no approved consent
-      // template, so most owners never get asked at all.
+      // reaches only owners who happen to have messaged us in the last
+      // 24 hours when it runs, and skips the rest entirely when the
+      // account has no approved consent template.
       try {
         const ownerAsk = await claimOwnerConsentAsk(
           supabaseAdmin(),
