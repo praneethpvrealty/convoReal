@@ -10,21 +10,54 @@
 
 import { differenceInCalendarDays } from "date-fns";
 
-import type { JourneyItem, JourneyStage } from "@/types";
+import type { JourneyItem, JourneyStage, JourneyStageKind } from "@/types";
 
 export type JourneyMode = "buyer" | "property";
 
 /** Seeded on first visit when the account has no stages yet —
  *  mirrors how the kanban seeds its default pipeline. Fully
  *  editable afterwards via the stage editor. */
-export const DEFAULT_JOURNEY_STAGES = [
-  { name: "Shared", color: "#3b82f6" }, // blue
-  { name: "Shortlisted", color: "#eab308" }, // yellow
-  { name: "Visited", color: "#f97316" }, // orange
-  { name: "Owner Meeting", color: "#8b5cf6" }, // violet
-  { name: "Token & Legal", color: "#06b6d4" }, // cyan
-  { name: "Registration", color: "#10b981" }, // emerald
-  { name: "Brokerage Paid", color: "#22c55e" }, // green
+export const DEFAULT_JOURNEY_STAGES: {
+  name: string;
+  color: string;
+  kind: JourneyStageKind;
+}[] = [
+  { name: "Shared", color: "#3b82f6", kind: "prospecting" }, // blue
+  { name: "Shortlisted", color: "#eab308", kind: "prospecting" }, // yellow
+  { name: "Visited", color: "#f97316", kind: "prospecting" }, // orange
+  { name: "Owner Meeting", color: "#8b5cf6", kind: "prospecting" }, // violet
+  { name: "Token & Legal", color: "#06b6d4", kind: "closing" }, // cyan
+  { name: "Registration", color: "#10b981", kind: "closing" }, // emerald
+  { name: "Brokerage Paid", color: "#22c55e", kind: "won" }, // green
+];
+
+/** Stage kinds that put a relationship past the enquiry. A contact
+ *  sitting on one of these is out of the follow-up radar: they are
+ *  quiet on WhatsApp because the work moved to lawyers and the
+ *  sub-registrar, not because they went cold. */
+export const PAST_ENQUIRY_STAGE_KINDS: JourneyStageKind[] = ["closing", "won"];
+
+export const JOURNEY_STAGE_KIND_META: Record<
+  JourneyStageKind,
+  { label: string; hint: string }
+> = {
+  prospecting: {
+    label: "Prospecting",
+    hint: "Still being worked as an enquiry — the follow-up radar chases it.",
+  },
+  closing: {
+    label: "Closing",
+    hint: "Token paid, legal or registration under way — no enquiry check-ins.",
+  },
+  won: { label: "Won", hint: "Deal completed." },
+  lost: { label: "Lost", hint: "Deal died." },
+};
+
+export const JOURNEY_STAGE_KIND_ORDER: JourneyStageKind[] = [
+  "prospecting",
+  "closing",
+  "won",
+  "lost",
 ];
 
 export type JourneyPriority = "high" | "medium" | "low";

@@ -106,6 +106,8 @@ describe('gatherFollowUpLeads', () => {
     contacts: Record<string, unknown>[];
     follow_up_nudges: Record<string, unknown>[];
     properties: Record<string, unknown>[];
+    journey_stages?: Record<string, unknown>[];
+    journey_items?: Record<string, unknown>[];
   };
 
   function db(tables: Tables) {
@@ -212,6 +214,43 @@ describe('gatherFollowUpLeads', () => {
     expect(leads).toHaveLength(0);
   });
 
+  it('leaves a lead alone once the deal reaches legal', async () => {
+    const leads = await gatherFollowUpLeads(
+      db({
+        contacts: [contact('1'), contact('2')],
+        follow_up_nudges: [],
+        properties: [],
+        journey_stages: [{ id: 's-legal', name: 'Token & Legal' }],
+        journey_items: [{ contact_id: '1', stage_id: 's-legal' }],
+      }),
+      'acct-1',
+      NOW
+    );
+    expect(leads.map((l) => l.contactId)).toEqual(['2']);
+  });
+
+  it('spends the run on leads a closing deal would have crowded out', async () => {
+    const leads = await gatherFollowUpLeads(
+      db({
+        contacts: [
+          contact('1', { last_contacted_at: daysAgo(28) }),
+          contact('2', { last_contacted_at: daysAgo(9) }),
+          contact('3', { last_contacted_at: daysAgo(5) }),
+          contact('4', { last_contacted_at: daysAgo(3) }),
+        ],
+        follow_up_nudges: [],
+        properties: [],
+        journey_stages: [{ id: 's-legal', name: 'Token & Legal' }],
+        journey_items: [{ contact_id: '1', stage_id: 's-legal' }],
+      }),
+      'acct-1',
+      NOW
+    );
+    // The 28-day "silence" is a registration in progress. Dropping it
+    // before the cap is what lets the fourth lead onto the card run.
+    expect(leads.map((l) => l.contactId)).toEqual(['2', '3', '4']);
+  });
+
   it('caps the run and leads with the longest-silent', async () => {
     const leads = await gatherFollowUpLeads(
       db({
@@ -254,6 +293,19 @@ describe('the radar is wired up', () => {
     expect(heat).toBeGreaterThan(-1);
     expect(enquiryBranch).toBeGreaterThan(-1);
     expect(heat).toBeLessThan(enquiryBranch);
+  });
+
+  // A card is a button that survives in the agent's chat, so the tap
+  // can land days after the lead moved to legal. Filtering the cron's
+  // query alone would still fire the check-in on that stale tap.
+  it('the tap handler re-checks the stage before any action runs', () => {
+    const source = read('src/lib/contacts/follow-up-nudges.ts');
+    const handler = source.indexOf('export async function handleFollowUpReply');
+    const guard = source.indexOf('loadPastEnquiryContacts(admin', handler);
+    const coldAction = source.indexOf("if (action.action === 'cold')", handler);
+    expect(guard).toBeGreaterThan(-1);
+    expect(coldAction).toBeGreaterThan(-1);
+    expect(guard).toBeLessThan(coldAction);
   });
 
   it('the cron is scheduled', () => {

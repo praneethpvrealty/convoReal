@@ -48,6 +48,7 @@ export async function ensureJourneyStages(
         name: s.name,
         color: s.color,
         position: idx,
+        stage_kind: s.kind,
       })),
     );
     // A racing seed from another tab violates nothing (no unique

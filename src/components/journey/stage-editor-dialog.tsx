@@ -3,11 +3,15 @@
 /**
  * Stage editor — the "customisable" half of the journey spec.
  *
- * Account-level: rename, recolor, reorder (up/down), add, delete.
- * Deleting is blocked while any journey item sits on the stage (the
- * DB FK is RESTRICT for the same reason) — the user is told to move
- * those items first rather than us guessing where they should go.
+ * Account-level: rename, recolor, reorder (up/down), retype, add,
+ * delete. Deleting is blocked while any journey item sits on the stage
+ * (the DB FK is RESTRICT for the same reason) — the user is told to
+ * move those items first rather than us guessing where they should go.
  * Writes go straight to Supabase; the parent refreshes on close.
+ *
+ * The kind selector is not cosmetic: a stage marked Closing or Won
+ * takes its contacts out of the follow-up radar, so a board with
+ * renamed stages can still say where the enquiry ends.
  */
 
 import { useState } from "react";
@@ -19,14 +23,25 @@ import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import type { JourneyStage } from "@/types";
-import { STAGE_COLOR_CHOICES } from "./shared";
+import type { JourneyStage, JourneyStageKind } from "@/types";
+import {
+  JOURNEY_STAGE_KIND_META,
+  JOURNEY_STAGE_KIND_ORDER,
+  STAGE_COLOR_CHOICES,
+} from "./shared";
 
 export interface StageEditorDialogProps {
   open: boolean;
@@ -84,6 +99,20 @@ export function StageEditorDialog({
       return data?.length
         ? null
         : "Color change failed: that stage is no longer there.";
+    });
+
+  const retype = (stage: JourneyStage, kind: JourneyStageKind) =>
+    run(async () => {
+      if (kind === stage.stage_kind) return null;
+      const { data, error } = await supabase
+        .from("journey_stages")
+        .update({ stage_kind: kind })
+        .eq("id", stage.id)
+        .select("id");
+      if (error) return `Stage kind change failed: ${error.message}`;
+      return data?.length
+        ? null
+        : "Stage kind change failed: that stage is no longer there.";
     });
 
   const move = (idx: number, dir: -1 | 1) =>
@@ -183,16 +212,36 @@ export function StageEditorDialog({
                 </button>
               </div>
 
-              <Input
-                defaultValue={s.name}
-                // Commit on blur / Enter — per-keystroke writes would
-                // spam the DB and refetch mid-typing.
-                onBlur={(e) => rename(s, e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-                }}
-                className="h-8 flex-1 border-slate-800 bg-slate-950 text-xs"
-              />
+              <div className="flex flex-1 flex-col gap-1">
+                <Input
+                  defaultValue={s.name}
+                  // Commit on blur / Enter — per-keystroke writes would
+                  // spam the DB and refetch mid-typing.
+                  onBlur={(e) => rename(s, e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                  }}
+                  className="h-8 border-slate-800 bg-slate-950 text-xs"
+                />
+                <Select
+                  value={s.stage_kind}
+                  onValueChange={(v) => retype(s, v as JourneyStageKind)}
+                >
+                  <SelectTrigger
+                    className="h-7 border-slate-800 bg-slate-950 text-[11px] text-slate-400"
+                    aria-label={`${s.name} stage kind`}
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {JOURNEY_STAGE_KIND_ORDER.map((kind) => (
+                      <SelectItem key={kind} value={kind}>
+                        {JOURNEY_STAGE_KIND_META[kind].label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
               <div className="flex shrink-0 items-center gap-1">
                 {STAGE_COLOR_CHOICES.slice(0, 7).map((c) => (

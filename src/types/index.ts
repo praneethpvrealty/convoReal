@@ -679,12 +679,18 @@ export interface Deal {
 
 // ── Journey Mind Map (migration 131) ────────────────────────
 
+/** What a stage means for a relationship (migration 285). `closing`
+ *  and `won` put the deal past the enquiry, which holds the contact out
+ *  of the follow-up radar. */
+export type JourneyStageKind = 'prospecting' | 'closing' | 'won' | 'lost';
+
 export interface JourneyStage {
   id: string;
   account_id: string;
   name: string;
   color: string;
   position: number;
+  stage_kind: JourneyStageKind;
   created_at: string;
   updated_at: string;
 }

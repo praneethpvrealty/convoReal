@@ -137,7 +137,36 @@ export interface QuietHotLead {
   daysSilent: number;
 }
 
-/** Active HOT leads not touched in 48h+, longest-silent first, capped at 20. */
+/** Stage kinds that put a relationship past the enquiry — mirrors
+ *  PAST_ENQUIRY_STAGE_KINDS in src/components/journey/shared.ts. */
+const PAST_ENQUIRY_STAGE_KINDS = ['closing', 'won'];
+
+/**
+ * Contacts with an active journey item on a closing or won stage. Web
+ * parity: src/lib/journey/past-enquiry.ts. A buyer at legal or
+ * registration is quiet because the work moved to lawyers, not because
+ * they went cold, so they belong out of every "gone quiet" list.
+ */
+async function fetchPastEnquiryContacts(): Promise<Set<string>> {
+  const { data: stages } = await supabase
+    .from('journey_stages')
+    .select('id')
+    .in('stage_kind', PAST_ENQUIRY_STAGE_KINDS);
+  const stageIds = ((stages ?? []) as { id: string }[]).map((s) => s.id);
+  if (!stageIds.length) return new Set();
+
+  const { data: items } = await supabase
+    .from('journey_items')
+    .select('contact_id')
+    .eq('status', 'active')
+    .in('stage_id', stageIds);
+  return new Set(
+    ((items ?? []) as { contact_id: string }[]).map((i) => i.contact_id)
+  );
+}
+
+/** Active HOT leads not touched in 48h+, longest-silent first, capped
+ *  at 20. Deals already at legal or registration are left out. */
 export async function fetchHotGoingQuiet(): Promise<QuietHotLead[]> {
   const { data, error } = await supabase
     .from('contacts')
@@ -146,6 +175,8 @@ export async function fetchHotGoingQuiet(): Promise<QuietHotLead[]> {
     .in('status', ['active', 'pending_review'])
     .eq('lead_temp', 'HOT');
   if (error) throw error;
+
+  const pastEnquiry = await fetchPastEnquiryContacts();
 
   const cutoff = Date.now() - 48 * HOUR_MS;
   const leads: QuietHotLead[] = [];
@@ -157,6 +188,7 @@ export async function fetchHotGoingQuiet(): Promise<QuietHotLead[]> {
     last_contacted_at: string | null;
     created_at: string;
   }[]) {
+    if (pastEnquiry.has(contact.id)) continue;
     const lastTouch = contact.last_contacted_at
       ? new Date(contact.last_contacted_at).getTime()
       : null;

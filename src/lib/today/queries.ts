@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { startOfLocalDay } from '@/lib/dashboard/date-utils'
+import { loadPastEnquiryContacts } from '@/lib/journey/past-enquiry'
 import type { Contact, Conversation } from '@/types'
 
 // ------------------------------------------------------------
@@ -136,6 +137,10 @@ export interface QuietHotLead {
  * Active HOT leads not touched in 48h+ (or never contacted at all),
  * longest-silent first. Capped at 20 — past that the agent should be
  * working the list, not scrolling it.
+ *
+ * Leads whose journey has reached a closing or won stage are left out:
+ * they are quiet because the deal moved to legal, and this panel is
+ * about neglect. Same rule the follow-up radar applies.
  */
 export async function loadHotGoingQuiet(db: DB): Promise<QuietHotLead[]> {
   // pending_review included on purpose: the webhook's property matcher
@@ -149,9 +154,12 @@ export async function loadHotGoingQuiet(db: DB): Promise<QuietHotLead[]> {
     .eq('lead_temp', 'HOT')
   if (error) throw error
 
+  const pastEnquiry = await loadPastEnquiryContacts(db)
+
   const cutoff = Date.now() - 48 * HOUR_MS
   const leads: QuietHotLead[] = []
   for (const contact of (data ?? []) as Contact[]) {
+    if (pastEnquiry.has(contact.id)) continue
     const lastTouch = contact.last_contacted_at
       ? new Date(contact.last_contacted_at).getTime()
       : null
