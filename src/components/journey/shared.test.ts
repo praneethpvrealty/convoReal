@@ -17,6 +17,7 @@ function stage(id: string, position: number): JourneyStage {
     name: id,
     color: "#000",
     position,
+    stage_kind: "prospecting",
     created_at: "2026-01-01",
     updated_at: "2026-01-01",
   };

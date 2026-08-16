@@ -239,6 +239,7 @@ async function loadStages(
         name: s.name,
         color: s.color,
         position: idx,
+        stage_kind: s.kind,
       }))
     );
     if (error)

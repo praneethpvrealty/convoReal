@@ -28,7 +28,8 @@ import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatche
 import { resolveOwnerWhatsAppContact } from '@/lib/inventory/location-requests';
 import { resolveConversation } from '@/lib/conversations/resolve';
 import { isWithinCustomerWindow } from '@/lib/whatsapp/customer-window';
-import { isPlaceholderLeadName } from '@/lib/contacts/lead-placeholder';
+import { leadFirstName } from '@/lib/contacts/lead-placeholder';
+import { loadPastEnquiryContacts } from '@/lib/journey/past-enquiry';
 import { describeEnquiredProperty } from '@/lib/whatsapp/enquiry-notice-template';
 import {
   buildJourneyCheckinParams,
@@ -88,14 +89,6 @@ export interface FollowUpLead {
   propertyTitle: string | null;
 }
 
-/** First name for a greeting, or nothing when the lead is filed under a
- *  placeholder like "Housing Lead" or their own phone number. */
-function firstName(name: string | null | undefined): string {
-  const raw = (name || '').trim();
-  if (!raw || isPlaceholderLeadName(raw)) return '';
-  return raw.split(/\s+/)[0];
-}
-
 export function buildFollowUpCardBody(lead: FollowUpLead): string {
   return [
     '⏰ *Follow-up due*',
@@ -114,7 +107,7 @@ export function buildFollowUpCheckinText(
   leadName: string | null | undefined,
   propertyTitle: string | null | undefined
 ): string {
-  const first = firstName(leadName);
+  const first = leadFirstName(leadName);
   const greeting = first ? `Hi ${first}!` : 'Hi!';
   const subject = propertyTitle ? `*${propertyTitle}*` : 'your property search';
   return `${greeting} Just checking in on ${subject} — where do you stand? If you'd like to talk it over or plan a visit, reply here and we'll set it up.`;
@@ -122,8 +115,9 @@ export function buildFollowUpCheckinText(
 
 /**
  * The quiet HOT leads this account should be nudged about right now:
- * lead_temp HOT, silent past the threshold, not snoozed, not nudged
- * within the re-nudge window. Longest silent first, capped.
+ * lead_temp HOT, silent past the threshold, not already closing, not
+ * snoozed, not nudged within the re-nudge window. Longest silent first,
+ * capped.
  */
 export async function gatherFollowUpLeads(
   db: SupabaseClient,
@@ -160,6 +154,11 @@ export async function gatherFollowUpLeads(
   });
   if (!quiet.length) return [];
 
+  // Silence on a deal already at legal or registration means the work
+  // moved offline, not that the lead went cold. Applied before the cap
+  // so a closing deal never spends one of the run's three cards.
+  const pastEnquiry = await loadPastEnquiryContacts(db, accountId);
+
   const { data: nudges } = await db
     .from('follow_up_nudges')
     .select('contact_id, last_nudged_at, snoozed_until')
@@ -179,7 +178,7 @@ export async function gatherFollowUpLeads(
   }
 
   const due = quiet
-    .filter((c) => !held.has(c.id))
+    .filter((c) => !held.has(c.id) && !pastEnquiry.has(c.id))
     .map((c) => {
       const lastTouch = c.last_contacted_at
         ? new Date(c.last_contacted_at).getTime()
@@ -362,6 +361,20 @@ export async function handleFollowUpReply(
     });
   };
   const who = lead.name || lead.phone;
+
+  // Re-checked here and not only in the gather step: a card is a
+  // WhatsApp button that can be tapped days later, by which time the
+  // lead may have moved to legal. Every action is refused rather than
+  // just the check-in — marking a buyer mid-registration COLD corrupts
+  // the record as surely as telling them their enquiry is still open.
+  const pastEnquiry = await loadPastEnquiryContacts(admin, accountId);
+  const closingStage = pastEnquiry.get(action.contactId);
+  if (closingStage) {
+    await confirmToAgent(
+      `🧾 ${who} is at *${closingStage}* — this deal is already in progress, so nothing was sent. Update the journey instead if the paperwork has moved.`
+    );
+    return true;
+  }
 
   if (action.action === 'cold') {
     await admin
