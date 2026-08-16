@@ -812,10 +812,15 @@ export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): P
     return true;
   }
 
-  const { data: members } = await admin
-    .from('profiles')
-    .select('user_id, full_name')
-    .eq('account_id', accountId);
+  const [{ data: members }, { data: contacts }] = await Promise.all([
+    admin.from('profiles').select('user_id, full_name').eq('account_id', accountId),
+    admin
+      .from('contacts')
+      .select('id, name, phone, last_inquired_property_id')
+      .eq('account_id', accountId),
+  ]);
+  const memberNames = (members || []).map((m) => m.full_name).filter(Boolean) as string[];
+  const contactNames = (contacts || []).map((contact) => contact.name).filter(Boolean) as string[];
 
   let drafts: ParsedEventDraft[];
   try {
@@ -824,18 +829,21 @@ export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): P
       const { buffer } = await downloadMedia({ downloadUrl: url, accessToken });
       drafts = await parseEventsFromInput({
         audio: { base64: buffer.toString('base64'), mimeType: mimeType || message.audio!.mime_type || 'audio/ogg' },
-        memberNames: (members || []).map((m) => m.full_name).filter(Boolean) as string[],
+        memberNames,
+        contactNames,
       });
     } else if (isImage) {
       drafts = await parseEventsFromInput({
         image: { base64: image!.buffer.toString('base64'), mimeType: image!.mimeType },
         text: text || undefined,
-        memberNames: (members || []).map((m) => m.full_name).filter(Boolean) as string[],
+        memberNames,
+        contactNames,
       });
     } else {
       drafts = await parseEventsFromInput({
         text,
-        memberNames: (members || []).map((m) => m.full_name).filter(Boolean) as string[],
+        memberNames,
+        contactNames,
       });
     }
   } catch (err) {
@@ -873,8 +881,7 @@ export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): P
   // Resolve references against tenant data. Liaisons are fetched only
   // when the model flagged a professional role — a meeting with a buyer
   // never needs the directory.
-  const [{ data: contacts }, { data: properties }, { data: liaisons }] = await Promise.all([
-    admin.from('contacts').select('id, name, phone, last_inquired_property_id').eq('account_id', accountId),
+  const [{ data: properties }, { data: liaisons }] = await Promise.all([
     admin.from('properties').select('id, title, property_code, location, sublocality').eq('account_id', accountId),
     drafts.some((d) => d.service_provider_role)
       ? admin.from('liaisons').select('id, name, phone').eq('account_id', accountId).eq('is_active', true)
@@ -1107,7 +1114,36 @@ function appointmentCardLines(
  */
 async function fileDraft(draft: ParsedEventDraft, ctx: DraftFilingContext): Promise<FiledDraft> {
   if (draft.intent === 'notify') {
-    return sendTeammateUpdate(draft, ctx);
+    const member = resolveByName(
+      draft.recipient_name,
+      ctx.members.map((m) => ({ id: m.user_id, full_name: m.full_name })),
+      (m) => m.full_name || ''
+    );
+    const contact = resolveByName(
+      draft.recipient_name,
+      ctx.contacts,
+      (c) => c.name || ''
+    );
+
+    if (member && contact) {
+      return {
+        lines: [
+          '🤔 *Which person do you mean?*',
+          `*${draft.recipient_name}* matches both a client and a teammate. Say “client ${contact.name}” or “teammate ${member.full_name}”.`,
+        ],
+        row: null,
+      };
+    }
+    if (member || !contact) {
+      return sendTeammateUpdate(draft, ctx);
+    }
+    draft = {
+      ...draft,
+      intent: 'task',
+      contact_name: contact.name,
+      recipient_name: null,
+      assignee_name: null,
+    };
   }
 
   const memberRefs = ctx.members.map((m) => ({ id: m.user_id, full_name: m.full_name }));
