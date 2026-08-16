@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 /**
  * All-journeys overview — every relationship's funnel in one
@@ -17,7 +17,7 @@
  * canvases are heavy, so the rest mount lazily on click.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ArrowDownWideNarrow,
   Building2,
@@ -27,26 +27,27 @@ import {
   Expand,
   Flag,
   Plus,
+  Shrink,
   UserRound,
   X,
-} from "lucide-react";
-import { toast } from "sonner";
+} from 'lucide-react';
+import { toast } from 'sonner';
 
-import { cn } from "@/lib/utils";
-import { createClient } from "@/lib/supabase/client";
-import { useAuth } from "@/hooks/use-auth";
-import { Button } from "@/components/ui/button";
-import { ConvoRealLoader } from "@/components/ui/convoreal-loader";
-import { NameTagBadge } from "@/components/contacts/name-tag-badge";
+import { cn } from '@/lib/utils';
+import { createClient } from '@/lib/supabase/client';
+import { useAuth } from '@/hooks/use-auth';
+import { Button } from '@/components/ui/button';
+import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
+import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import type { Contact, JourneyItem, JourneyStage, Property } from "@/types";
-import { JourneySection } from "./journey-section";
-import { NewJourneyDialog } from "./new-journey-dialog";
+} from '@/components/ui/dropdown-menu';
+import type { Contact, JourneyItem, JourneyStage, Property } from '@/types';
+import { JourneySection } from './journey-section';
+import { NewJourneyDialog } from './new-journey-dialog';
 import {
   JOURNEY_PRIORITY_META,
   JOURNEY_PRIORITY_ORDER,
@@ -57,7 +58,7 @@ import {
   type JourneyMode,
   type JourneyPriority,
   type JourneySort,
-} from "./shared";
+} from './shared';
 import { readStored, writeStored } from '@/lib/safe-storage';
 
 interface JourneyGroup {
@@ -74,9 +75,9 @@ interface JourneyGroup {
 
 // localStorage helpers — view preferences only, never data.
 function readIdSet(key: string): Set<string> {
-  if (typeof window === "undefined") return new Set();
+  if (typeof window === 'undefined') return new Set();
   try {
-    return new Set(JSON.parse(readStored(key) ?? "[]") as string[]);
+    return new Set(JSON.parse(readStored(key) ?? '[]') as string[]);
   } catch {
     return new Set();
   }
@@ -90,9 +91,9 @@ function writeIdSet(key: string, ids: Set<string>) {
 }
 
 function readSort(key: string): JourneySort {
-  if (typeof window === "undefined") return "priority";
+  if (typeof window === 'undefined') return 'priority';
   const stored = readStored(key);
-  return stored === "recent" || stored === "stage" ? stored : "priority";
+  return stored === 'recent' || stored === 'stage' ? stored : 'priority';
 }
 
 export function JourneyOverview({
@@ -116,7 +117,7 @@ export function JourneyOverview({
   const [groups, setGroups] = useState<JourneyGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(() =>
-    readIdSet(hiddenKey),
+    readIdSet(hiddenKey)
   );
   const [openIds, setOpenIds] = useState<Set<string> | null>(() => {
     const stored = readIdSet(openKey);
@@ -124,6 +125,7 @@ export function JourneyOverview({
   });
   const [newJourneyOpen, setNewJourneyOpen] = useState(false);
   const [sort, setSort] = useState<JourneySort>(() => readSort(sortKey));
+  const [fullscreenId, setFullscreenId] = useState<string | null>(null);
 
   // Mode switch swaps the storage keys — reload the prefs.
   useEffect(() => {
@@ -147,41 +149,44 @@ export function JourneyOverview({
   const loadGroups = useCallback(async () => {
     if (!accountId) return;
     const select =
-      mode === "buyer"
-        ? "id, contact_id, property_id, stage_id, status, hidden, updated_at, contact:contacts(*)"
-        : "id, contact_id, property_id, stage_id, status, hidden, updated_at, property:properties(*)";
+      mode === 'buyer'
+        ? 'id, contact_id, property_id, stage_id, status, hidden, updated_at, contact:contacts(*)'
+        : 'id, contact_id, property_id, stage_id, status, hidden, updated_at, property:properties(*)';
     const [{ data, error }, { data: priorityRows }] = await Promise.all([
       supabase
-        .from("journey_items")
+        .from('journey_items')
         .select(select)
-        .eq("account_id", accountId)
-        .order("updated_at", { ascending: false })
+        .eq('account_id', accountId)
+        .order('updated_at', { ascending: false })
         .limit(2000),
       supabase
-        .from("journey_priorities")
-        .select("subject_id, priority")
-        .eq("account_id", accountId)
-        .eq("mode", mode),
+        .from('journey_priorities')
+        .select('subject_id, priority')
+        .eq('account_id', accountId)
+        .eq('mode', mode),
     ]);
     const priorities = new Map<string, JourneyPriority>(
-      ((priorityRows ?? []) as { subject_id: string; priority: JourneyPriority }[]).map(
-        (r) => [r.subject_id, r.priority],
-      ),
+      (
+        (priorityRows ?? []) as {
+          subject_id: string;
+          priority: JourneyPriority;
+        }[]
+      ).map((r) => [r.subject_id, r.priority])
     );
     if (error) {
-      console.error("Failed to load journeys:", error.message);
+      console.error('Failed to load journeys:', error.message);
       setLoading(false);
       return;
     }
     const byId = new Map<string, JourneyGroup>();
     for (const row of (data ?? []) as unknown as JourneyItem[]) {
-      const key = mode === "buyer" ? row.contact_id : row.property_id;
+      const key = mode === 'buyer' ? row.contact_id : row.property_id;
       let g = byId.get(key);
       if (!g) {
         g = {
           subjectId: key,
-          contact: mode === "buyer" ? (row.contact ?? null) : null,
-          property: mode === "buyer" ? null : (row.property ?? null),
+          contact: mode === 'buyer' ? (row.contact ?? null) : null,
+          property: mode === 'buyer' ? null : (row.property ?? null),
           active: 0,
           dropped: 0,
           captured: 0,
@@ -192,9 +197,12 @@ export function JourneyOverview({
         byId.set(key, g);
       }
       if (row.hidden) g.captured += 1;
-      else if (row.status === "dropped") g.dropped += 1;
+      else if (row.status === 'dropped') g.dropped += 1;
       else g.active += 1;
-      g.furthestStageIdx = Math.max(g.furthestStageIdx, stageIndexOf(row, stages));
+      g.furthestStageIdx = Math.max(
+        g.furthestStageIdx,
+        stageIndexOf(row, stages)
+      );
       if (row.updated_at > g.lastUpdated) g.lastUpdated = row.updated_at;
     }
     // Rows arrive newest-first, so map insertion order is already
@@ -207,13 +215,38 @@ export function JourneyOverview({
     Promise.resolve().then(() => loadGroups());
   }, [loadGroups]);
 
+  const fullscreenGroup = useMemo(
+    () => groups.find((g) => g.subjectId === fullscreenId) ?? null,
+    [groups, fullscreenId]
+  );
+
+  // Esc closes the overlay, and the page behind it must not scroll
+  // while a journey owns the whole viewport.
+  useEffect(() => {
+    if (!fullscreenGroup) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setFullscreenId(null);
+    };
+    window.addEventListener('keydown', onKey);
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.body.style.overflow = previous;
+    };
+  }, [fullscreenGroup]);
+
   const visibleGroups = useMemo(
-    () => sortJourneys(groups.filter((g) => !hiddenIds.has(g.subjectId)), sort),
-    [groups, hiddenIds, sort],
+    () =>
+      sortJourneys(
+        groups.filter((g) => !hiddenIds.has(g.subjectId)),
+        sort
+      ),
+    [groups, hiddenIds, sort]
   );
   const hiddenGroups = useMemo(
     () => groups.filter((g) => hiddenIds.has(g.subjectId)),
-    [groups, hiddenIds],
+    [groups, hiddenIds]
   );
 
   // Default expansion: the most recently touched journey only.
@@ -242,16 +275,16 @@ export function JourneyOverview({
   // clearing it deletes the row rather than storing a fourth level.
   const setPriority = async (
     g: JourneyGroup,
-    priority: JourneyPriority | null,
+    priority: JourneyPriority | null
   ) => {
     if (!accountId) return;
     const previous = g.priority;
     setGroups((prev) =>
-      prev.map((x) => (x.subjectId === g.subjectId ? { ...x, priority } : x)),
+      prev.map((x) => (x.subjectId === g.subjectId ? { ...x, priority } : x))
     );
     const { data, error } = priority
       ? await supabase
-          .from("journey_priorities")
+          .from('journey_priorities')
           .upsert(
             {
               account_id: accountId,
@@ -260,25 +293,25 @@ export function JourneyOverview({
               priority,
               created_by: user?.id ?? null,
             },
-            { onConflict: "account_id,mode,subject_id" },
+            { onConflict: 'account_id,mode,subject_id' }
           )
-          .select("id")
+          .select('id')
       : await supabase
-          .from("journey_priorities")
+          .from('journey_priorities')
           .delete()
-          .eq("account_id", accountId)
-          .eq("mode", mode)
-          .eq("subject_id", g.subjectId)
-          .select("id");
+          .eq('account_id', accountId)
+          .eq('mode', mode)
+          .eq('subject_id', g.subjectId)
+          .select('id');
     // A refused write returns zero rows and no error; a clear that
     // matched nothing was already unrated, so only guard the upsert.
     if (error || (priority && !data?.length)) {
       setGroups((prev) =>
         prev.map((x) =>
-          x.subjectId === g.subjectId ? { ...x, priority: previous } : x,
-        ),
+          x.subjectId === g.subjectId ? { ...x, priority: previous } : x
+        )
       );
-      toast.error(`Failed to set priority${error ? `: ${error.message}` : ""}`);
+      toast.error(`Failed to set priority${error ? `: ${error.message}` : ''}`);
     }
   };
 
@@ -289,17 +322,17 @@ export function JourneyOverview({
   const deleteJourney = async (g: JourneyGroup) => {
     if (!accountId) return;
     const { data: removed, error } = await supabase
-      .from("journey_items")
+      .from('journey_items')
       .delete()
-      .eq("account_id", accountId)
-      .eq(mode === "buyer" ? "contact_id" : "property_id", g.subjectId)
-      .select("id");
+      .eq('account_id', accountId)
+      .eq(mode === 'buyer' ? 'contact_id' : 'property_id', g.subjectId)
+      .select('id');
     if (error) {
       toast.error(`Failed to remove: ${error.message}`);
       return;
     }
     if (!removed?.length) {
-      toast.error("Nothing was removed — reload and try again.");
+      toast.error('Nothing was removed — reload and try again.');
       return;
     }
     setHidden(g.subjectId, false); // drop the stale view pref too
@@ -308,16 +341,16 @@ export function JourneyOverview({
   };
 
   const groupTitle = (g: JourneyGroup) =>
-    mode === "buyer"
-      ? g.contact?.name || g.contact?.phone || "Unknown contact"
-      : g.property?.title || "Unknown property";
+    mode === 'buyer'
+      ? g.contact?.name || g.contact?.phone || 'Unknown contact'
+      : g.property?.title || 'Unknown property';
 
   const groupSubtitle = (g: JourneyGroup) =>
-    mode === "buyer"
-      ? g.contact?.phone ?? ""
+    mode === 'buyer'
+      ? (g.contact?.phone ?? '')
       : [g.property?.property_code, g.property?.location]
           .filter(Boolean)
-          .join(" · ");
+          .join(' · ');
 
   if (loading) {
     return (
@@ -331,7 +364,7 @@ export function JourneyOverview({
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
         <p className="text-xs text-slate-500">
-          {visibleGroups.length} journey{visibleGroups.length === 1 ? "" : "s"}
+          {visibleGroups.length} journey{visibleGroups.length === 1 ? '' : 's'}
           {hiddenGroups.length > 0 && ` · ${hiddenGroups.length} hidden`}
         </p>
         <div className="flex items-center gap-2">
@@ -361,8 +394,8 @@ export function JourneyOverview({
       {visibleGroups.length === 0 ? (
         <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-slate-700 bg-slate-900/50 px-6 py-12 text-center">
           <p className="text-sm text-slate-400">
-            {mode === "buyer"
-              ? "No buyer journeys yet. Share a property over WhatsApp or start one manually."
+            {mode === 'buyer'
+              ? 'No buyer journeys yet. Share a property over WhatsApp or start one manually.'
               : "No property journeys yet. Add contacts to a property's journey to start one."}
           </p>
           <Button size="sm" onClick={() => setNewJourneyOpen(true)}>
@@ -388,7 +421,7 @@ export function JourneyOverview({
                 tabIndex={0}
                 onClick={() => toggleOpen(g.subjectId)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
+                  if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
                     toggleOpen(g.subjectId);
                   }
@@ -397,21 +430,21 @@ export function JourneyOverview({
               >
                 <ChevronDown
                   className={cn(
-                    "h-4 w-4 shrink-0 text-slate-500 transition-transform",
-                    !open && "-rotate-90",
+                    'h-4 w-4 shrink-0 text-slate-500 transition-transform',
+                    !open && '-rotate-90'
                   )}
                 />
                 <span
                   title={`Rank ${rank + 1} of ${visibleGroups.length}`}
-                  className="w-6 shrink-0 text-right text-[11px] font-semibold tabular-nums text-slate-500"
+                  className="w-6 shrink-0 text-right text-[11px] font-semibold text-slate-500 tabular-nums"
                 >
                   #{rank + 1}
                 </span>
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                  {mode === "buyer" ? (
-                    <UserRound className="h-3.5 w-3.5 text-primary" />
+                <span className="bg-primary/10 flex h-7 w-7 shrink-0 items-center justify-center rounded-full">
+                  {mode === 'buyer' ? (
+                    <UserRound className="text-primary h-3.5 w-3.5" />
                   ) : (
-                    <Building2 className="h-3.5 w-3.5 text-primary" />
+                    <Building2 className="text-primary h-3.5 w-3.5" />
                   )}
                 </span>
                 <span className="min-w-0 flex-1">
@@ -419,7 +452,7 @@ export function JourneyOverview({
                     <span className="truncate text-sm font-bold text-white">
                       {groupTitle(g)}
                     </span>
-                    {mode === "buyer" && g.contact?.name && (
+                    {mode === 'buyer' && g.contact?.name && (
                       <NameTagBadge tag={g.contact.name_tag} />
                     )}
                   </span>
@@ -437,14 +470,14 @@ export function JourneyOverview({
                       <DropdownMenuTrigger
                         title="Set priority"
                         className={cn(
-                          "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors",
+                          'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors',
                           priorityMeta
                             ? priorityMeta.className
-                            : "border-slate-700 text-slate-500 hover:text-slate-300",
+                            : 'border-slate-700 text-slate-500 hover:text-slate-300'
                         )}
                       >
                         <Flag className="h-3 w-3" />
-                        {priorityMeta?.label ?? "Set priority"}
+                        {priorityMeta?.label ?? 'Set priority'}
                       </DropdownMenuTrigger>
                       <DropdownMenuContent
                         align="end"
@@ -457,15 +490,17 @@ export function JourneyOverview({
                           >
                             <span
                               className={cn(
-                                "mr-2 h-2 w-2 rounded-full",
-                                JOURNEY_PRIORITY_META[p].dot,
+                                'mr-2 h-2 w-2 rounded-full',
+                                JOURNEY_PRIORITY_META[p].dot
                               )}
                             />
                             {JOURNEY_PRIORITY_META[p].label}
                           </DropdownMenuItem>
                         ))}
                         {g.priority && (
-                          <DropdownMenuItem onClick={() => setPriority(g, null)}>
+                          <DropdownMenuItem
+                            onClick={() => setPriority(g, null)}
+                          >
                             Clear priority
                           </DropdownMenuItem>
                         )}
@@ -475,8 +510,8 @@ export function JourneyOverview({
                     priorityMeta && (
                       <span
                         className={cn(
-                          "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold",
-                          priorityMeta.className,
+                          'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold',
+                          priorityMeta.className
                         )}
                       >
                         <Flag className="h-3 w-3" />
@@ -511,14 +546,10 @@ export function JourneyOverview({
                   <button
                     type="button"
                     title="Open full screen"
-                    aria-label="Open full screen"
+                    aria-label={`Open ${groupTitle(g)}'s journey full screen`}
                     onClick={(e) => {
                       e.stopPropagation();
-                      navigateJourney(
-                        mode === "buyer"
-                          ? `/journey?contact=${g.subjectId}`
-                          : `/journey?property=${g.subjectId}`,
-                      );
+                      setFullscreenId(g.subjectId);
                     }}
                     className="flex h-7 w-7 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-800 hover:text-white"
                   >
@@ -561,7 +592,7 @@ export function JourneyOverview({
 
       {hiddenGroups.length > 0 && (
         <div className="rounded-xl border border-slate-800/60 bg-slate-950/50 px-3.5 py-3">
-          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+          <p className="mb-2 text-[11px] font-semibold tracking-wider text-slate-500 uppercase">
             Hidden journeys
           </p>
           <div className="flex flex-wrap gap-2">
@@ -574,7 +605,7 @@ export function JourneyOverview({
                   type="button"
                   onClick={() => setHidden(g.subjectId, false)}
                   title="Show this journey again"
-                  className="inline-flex items-center gap-1.5 py-1 pl-2.5 pr-1.5 transition-colors hover:text-white"
+                  className="inline-flex items-center gap-1.5 py-1 pr-1.5 pl-2.5 transition-colors hover:text-white"
                 >
                   <Eye className="h-3 w-3" />
                   {groupTitle(g)}
@@ -596,7 +627,62 @@ export function JourneyOverview({
         </div>
       )}
 
-      <NewJourneyDialog open={newJourneyOpen} onOpenChange={setNewJourneyOpen} />
+      {fullscreenGroup && (
+        <div className="fixed inset-0 z-50 flex flex-col bg-slate-950">
+          <div className="flex items-center justify-between gap-3 border-b border-slate-800 px-4 py-2.5">
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="truncate text-sm font-semibold text-white">
+                {groupTitle(fullscreenGroup)}
+              </span>
+              <span className="hidden text-[11px] text-slate-500 sm:inline">
+                Press Esc to close
+              </span>
+            </div>
+            <div className="flex shrink-0 items-center gap-1.5">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() =>
+                  navigateJourney(
+                    mode === 'buyer'
+                      ? `/journey?contact=${fullscreenGroup.subjectId}`
+                      : `/journey?property=${fullscreenGroup.subjectId}`
+                  )
+                }
+              >
+                Open as page
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setFullscreenId(null)}
+                aria-label="Close full screen"
+              >
+                <Shrink className="mr-1.5 h-3.5 w-3.5" />
+                Close
+              </Button>
+            </div>
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto p-3">
+            <JourneySection
+              mode={mode}
+              subjectId={fullscreenGroup.subjectId}
+              stages={stages}
+              currency={currency}
+              canEdit={canEdit}
+              variant="fullscreen"
+              preloadedContact={fullscreenGroup.contact}
+              preloadedProperty={fullscreenGroup.property}
+              onItemsChanged={loadGroups}
+            />
+          </div>
+        </div>
+      )}
+
+      <NewJourneyDialog
+        open={newJourneyOpen}
+        onOpenChange={setNewJourneyOpen}
+      />
     </div>
   );
 }
