@@ -101,6 +101,10 @@ import {
   parseFollowUpReply,
 } from '@/lib/contacts/follow-up-nudges'
 import {
+  handleClosingReply,
+  parseClosingReply,
+} from '@/lib/journey/closing-nudges'
+import {
   parseTemplateQuickReply,
   lastSharedPropertyId,
   buildFullListMessage,
@@ -1340,6 +1344,18 @@ async function processMessage(
     if (followUpAction) {
       const handled = await handleFollowUpReply(
         followUpAction,
+        accountId,
+        configOwnerUserId,
+        { contactId: contactRecord.id, conversationId: conversation.id },
+      )
+      if (handled) return
+    }
+    // A tap on the closing card — the radar's sibling for deals already
+    // at legal, acting on the journey item rather than the contact.
+    const closingAction = parseClosingReply(interactiveReplyId)
+    if (closingAction) {
+      const handled = await handleClosingReply(
+        closingAction,
         accountId,
         configOwnerUserId,
         { contactId: contactRecord.id, conversationId: conversation.id },

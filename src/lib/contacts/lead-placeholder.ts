@@ -39,6 +39,14 @@ export function isPlaceholderLeadName(name?: string | null): boolean {
   return PLACEHOLDER_NAME.test(trimmed);
 }
 
+/** First name for a greeting, or nothing when the lead is filed under a
+ *  placeholder. Empty means "greet without a name". */
+export function leadFirstName(name?: string | null): string {
+  const raw = (name ?? '').trim();
+  if (isPlaceholderLeadName(raw)) return '';
+  return raw.split(/\s+/)[0];
+}
+
 /** How to address this contact in an outbound message. */
 export function greetingName(name?: string | null): string {
   return isPlaceholderLeadName(name) ? 'there' : (name ?? '').trim();

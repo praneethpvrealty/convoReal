@@ -37,6 +37,12 @@ export const DEFAULT_JOURNEY_STAGES: {
  *  sub-registrar, not because they went cold. */
 export const PAST_ENQUIRY_STAGE_KINDS: JourneyStageKind[] = ["closing", "won"];
 
+/** Stage kinds the closing card watches. Narrower than
+ *  PAST_ENQUIRY_STAGE_KINDS on purpose: a won deal is out of the
+ *  enquiry radar AND has nothing left to chase, so it is carded to
+ *  nobody. */
+export const CLOSING_STAGE_KINDS: JourneyStageKind[] = ["closing"];
+
 export const JOURNEY_STAGE_KIND_META: Record<
   JourneyStageKind,
   { label: string; hint: string }

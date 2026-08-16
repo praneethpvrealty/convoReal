@@ -1,12 +1,19 @@
 import { timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { sendFollowUpNudges } from '@/lib/contacts/follow-up-nudges';
+import { sendClosingDealNudges } from '@/lib/journey/closing-nudges';
 
 /**
  * Follow-up radar cron — cards each account's routed agent on WhatsApp
  * about HOT leads gone quiet (48h+ silence), with Check in / Snooze /
  * Mark cold buttons. Per-lead state in follow_up_nudges caps this at
  * one card per lead per week, so reruns are no-ops.
+ *
+ * The same run sends the closing card: deals already at legal, which
+ * the radar deliberately skips, carded instead when their journey stage
+ * has not moved in a fortnight. One cron because the two are one job —
+ * "what needs chasing today" — split only by which half of the funnel
+ * the relationship sits in.
  *
  * Registered in vercel.json (daily, 04:15 UTC = 09:45 IST — inside the
  * engine's IST morning send window, before the digests).
@@ -38,7 +45,12 @@ export async function GET(request: Request) {
   try {
     const result = await sendFollowUpNudges();
     console.log('[follow-up-nudges]', JSON.stringify(result));
-    return NextResponse.json(result);
+    // Run after the radar rather than alongside it: both send WhatsApp
+    // cards to the same agents, and a serial run keeps one account's
+    // burst inside Meta's per-number pacing.
+    const closing = await sendClosingDealNudges();
+    console.log('[closing-nudges]', JSON.stringify(closing));
+    return NextResponse.json({ ...result, closing });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error('[follow-up-nudges] run failed:', message);

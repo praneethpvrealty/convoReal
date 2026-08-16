@@ -28,7 +28,7 @@ import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatche
 import { resolveOwnerWhatsAppContact } from '@/lib/inventory/location-requests';
 import { resolveConversation } from '@/lib/conversations/resolve';
 import { isWithinCustomerWindow } from '@/lib/whatsapp/customer-window';
-import { isPlaceholderLeadName } from '@/lib/contacts/lead-placeholder';
+import { leadFirstName } from '@/lib/contacts/lead-placeholder';
 import { loadPastEnquiryContacts } from '@/lib/journey/past-enquiry';
 import { describeEnquiredProperty } from '@/lib/whatsapp/enquiry-notice-template';
 import {
@@ -89,14 +89,6 @@ export interface FollowUpLead {
   propertyTitle: string | null;
 }
 
-/** First name for a greeting, or nothing when the lead is filed under a
- *  placeholder like "Housing Lead" or their own phone number. */
-function firstName(name: string | null | undefined): string {
-  const raw = (name || '').trim();
-  if (!raw || isPlaceholderLeadName(raw)) return '';
-  return raw.split(/\s+/)[0];
-}
-
 export function buildFollowUpCardBody(lead: FollowUpLead): string {
   return [
     '⏰ *Follow-up due*',
@@ -115,7 +107,7 @@ export function buildFollowUpCheckinText(
   leadName: string | null | undefined,
   propertyTitle: string | null | undefined
 ): string {
-  const first = firstName(leadName);
+  const first = leadFirstName(leadName);
   const greeting = first ? `Hi ${first}!` : 'Hi!';
   const subject = propertyTitle ? `*${propertyTitle}*` : 'your property search';
   return `${greeting} Just checking in on ${subject} — where do you stand? If you'd like to talk it over or plan a visit, reply here and we'll set it up.`;
