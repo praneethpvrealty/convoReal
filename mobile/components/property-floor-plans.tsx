@@ -12,13 +12,10 @@ import {
 
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { SectionLabel } from '@/components/ui';
-import { useAuthStore } from '@/lib/auth-store';
+import { pickAndUploadFloorPlan } from '@/lib/floor-plan-upload';
 import { haptic } from '@/lib/haptics';
 import { storagePublicUrl } from '@/lib/storage-url';
-import { supabase } from '@/lib/supabase';
 import { radius, spacing, useTheme } from '@/lib/theme';
-
-const BUCKET = 'property-images';
 
 /** String draft of a lib/inventory/floor-plans row (web parity). */
 export interface FloorPlanDraft {
@@ -34,19 +31,6 @@ export const emptyFloorPlan: FloorPlanDraft = {
   area_sqft: '',
   notes: '',
 };
-
-/** Module scope so the timestamp and nonce are not read during render. */
-function planPath(accountId: string): string {
-  const rand = Math.random().toString(36).substring(2, 7);
-  return `${accountId}/plan-${Date.now()}-${rand}.jpg`;
-}
-
-function decodeBase64(b64: string): Uint8Array {
-  const bin = atob(b64);
-  const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  return bytes;
-}
 
 /**
  * Floor plans editor: one plan drawing per floor, stored in the same
@@ -70,61 +54,16 @@ export function PropertyFloorPlans({
 
   async function attach(idx: number) {
     if (busyIdx !== null) return;
-    let ImagePicker: typeof import('expo-image-picker');
-    try {
-      ImagePicker = await import('expo-image-picker');
-    } catch {
-      show({
-        title: 'Update the app',
-        message:
-          'Adding floor plans needs the latest ConvoReal build. Install the newest version, then try again.',
-      });
-      return;
-    }
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) {
-      show({
-        title: 'Permission needed',
-        message: 'Allow photo access to add a floor plan.',
-      });
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      quality: 0.8,
-      base64: true,
-    });
-    if (result.canceled) return;
-    const asset = result.assets[0];
-    if (!asset?.base64) return;
-    const accountId = useAuthStore.getState().profile?.account_id;
-    if (!accountId) {
-      show({ title: 'Not signed in' });
-      return;
-    }
-
     setBusyIdx(idx);
     haptic.tap();
-    try {
-      const bytes = decodeBase64(asset.base64);
-      const path = planPath(accountId);
-      const { error } = await supabase.storage
-        .from(BUCKET)
-        .upload(path, bytes.buffer as ArrayBuffer, {
-          contentType: 'image/jpeg',
-          upsert: true,
-          cacheControl: '3600',
-        });
-      if (error) throw new Error(error.message);
-      update(idx, 'image', `${BUCKET}/${path}`);
+    const outcome = await pickAndUploadFloorPlan();
+    setBusyIdx(null);
+    if (outcome.status === 'uploaded') {
+      update(idx, 'image', outcome.path);
       haptic.success();
-    } catch (e) {
+    } else if (outcome.status === 'error') {
       haptic.warn();
-      show({
-        title: 'Upload failed',
-        message: e instanceof Error ? e.message : 'Please try again.',
-      });
-    } finally {
-      setBusyIdx(null);
+      show({ title: outcome.title, message: outcome.message });
     }
   }
 

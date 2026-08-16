@@ -17,9 +17,9 @@ and polish.
   `properties.floor_plans` array holds one plan drawing per floor — floor
   label, image, area and notes — for any property type, and
   `floor_tenancies` rows gain an optional `floor_plan` so a commercial
-  rent-roll floor keeps its layout beside its tenant. Editable on web
-  (Media → Floor Plans, plus Attach on each tenancy row) and on mobile
-  (property edit → Floor Plans); shown on the property view of both.
+  rent-roll floor keeps its layout beside its tenant. Editable at full
+  parity on web and mobile — a Floor Plans editor plus an Attach/Replace
+  control on each rent-roll row — and shown on the property view of both.
   Brochures forwarded to the WhatsApp intake bot fill it in themselves:
   the parser names the floors it sees plans for and the extractor pins
   each drawing to the page that captions it, leaving a floor empty
