@@ -1,7 +1,7 @@
 // ============================================================
 // The closing card — a deal at legal that has stopped moving.
 //
-// Migration 285 took deals at Token & Legal and Registration out of the
+// Migration 286 took deals at Token & Legal and Registration out of the
 // follow-up radar, because silence there means the work moved to
 // lawyers and the sub-registrar rather than that the lead went cold.
 // That fixed the wrong message, but it left the deal watched by
@@ -29,7 +29,7 @@
 // is why a new template is not minted here on a hunch: a category is
 // decided once, unfixable, and a burned name is burned for good.
 //
-// closing_deal_nudges (migration 286) is the per-item state that keeps
+// closing_deal_nudges (migration 287) is the per-item state that keeps
 // this from becoming spam.
 // ============================================================
 

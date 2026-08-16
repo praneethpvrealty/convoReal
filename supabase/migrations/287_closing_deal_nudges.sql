@@ -1,7 +1,7 @@
 -- ============================================================
--- 286_closing_deal_nudges.sql — per-deal state for the closing card.
+-- 287_closing_deal_nudges.sql — per-deal state for the closing card.
 --
--- Migration 285 took deals at legal out of the enquiry radar. Silence
+-- Migration 286 took deals at legal out of the enquiry radar. Silence
 -- there is not neglect, but it is not nothing either: a registration
 -- slips as often as a lead goes cold, and once the enquiry card stops
 -- firing nothing else watches the deal at all. The closing card is the

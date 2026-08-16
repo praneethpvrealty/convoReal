@@ -11,7 +11,7 @@
 // the contact dead.
 //
 // journey_items already records the furthest stage per contact×property
-// pair, and journey_stages.stage_kind (migration 285) says which stages
+// pair, and journey_stages.stage_kind (migration 286) says which stages
 // mean the deal is in flight. This module joins the two.
 // ============================================================
 

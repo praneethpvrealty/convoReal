@@ -1,5 +1,5 @@
 -- ============================================================
--- 285_journey_stage_kind.sql — which journey stages mean the deal is
+-- 286_journey_stage_kind.sql — which journey stages mean the deal is
 -- already in flight.
 --
 -- The follow-up radar cards a HOT lead who has gone quiet on WhatsApp
