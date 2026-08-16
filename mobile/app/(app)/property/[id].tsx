@@ -28,6 +28,8 @@ import { PropertyShareSheet } from '@/components/property-share-sheet';
 import { FilterChip, SectionLabel, Tag, nameTagCap } from '@/components/ui';
 import { nativeMapsAvailable } from '@/lib/maps-support';
 import { openInMaps } from '@/lib/open-maps';
+import { plansWithImages } from '@shared/lib/inventory/floor-plans';
+import { storagePublicUrl } from '@/lib/storage-url';
 import { emptyPhotoLabel, internalPhotoSources } from '@/lib/photo-sources';
 import { usePhotoSources } from '@/lib/use-photo-source';
 import { apiFetch, ApiError } from '@/lib/api';
@@ -522,6 +524,51 @@ export default function PropertyDetailScreen() {
                   </View>
                 ))}
               </View>
+            </Section>
+          ) : null}
+
+          {plansWithImages(property.floor_plans).length ? (
+            <Section title="Floor Plans">
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ gap: spacing.sm }}
+              >
+                {plansWithImages(property.floor_plans).map((fp, i) => (
+                  <View
+                    key={i}
+                    style={[
+                      styles.planCard,
+                      { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+                    ]}
+                  >
+                    <Image
+                      source={{ uri: storagePublicUrl(fp.image!) }}
+                      style={styles.planImg}
+                      resizeMode="contain"
+                    />
+                    <Text
+                      numberOfLines={1}
+                      style={{ fontSize: 12, fontFamily: f.bold, color: colors.text }}
+                    >
+                      {fp.floor || `Floor ${i + 1}`}
+                    </Text>
+                    {fp.area_sqft || fp.notes ? (
+                      <Text
+                        numberOfLines={1}
+                        style={{ fontSize: 11, fontFamily: f.regular, color: colors.textMuted }}
+                      >
+                        {[
+                          fp.area_sqft ? `${fp.area_sqft.toLocaleString('en-IN')} Sq.Ft.` : '',
+                          fp.notes,
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </Text>
+                    ) : null}
+                  </View>
+                ))}
+              </ScrollView>
             </Section>
           ) : null}
 
@@ -1743,6 +1790,19 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: spacing.md,
     gap: 4,
+  },
+  planCard: {
+    width: 160,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    padding: spacing.sm,
+    gap: 4,
+  },
+  planImg: {
+    width: '100%',
+    height: 110,
+    borderRadius: radius.sm,
+    backgroundColor: '#fff',
   },
   notesCard: {
     borderRadius: radius.md,

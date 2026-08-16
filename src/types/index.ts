@@ -1163,6 +1163,10 @@ export interface Property {
   floor_tenancies?:
     | import('@/lib/inventory/floor-tenancies').FloorTenancy[]
     | null;
+  /** Per-floor plan drawings (migration 285). Unlike floor_tenancies
+   *  this applies to any property type.
+   *  Shape: src/lib/inventory/floor-plans.ts FloorPlan[]. */
+  floor_plans?: import('@/lib/inventory/floor-plans').FloorPlan[] | null;
   listing_source?: 'owner' | 'agent' | 'whatsapp_lister' | 'web_lister';
   /** Upstream property this listing was imported from via a co-broker
    *  share (migration 154) — cross-account lineage for indirect-reach
