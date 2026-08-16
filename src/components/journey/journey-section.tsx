@@ -1,14 +1,16 @@
-"use client";
+'use client';
 
 /**
  * One complete journey — data, mutations, canvas, and dialogs — for a
  * single subject (a buyer contact, or a property in seller mode).
  *
- * Two hosts render this:
+ * Three hosts render this:
  *   - the focused view (/journey?contact= / ?property=) with
  *     variant "full" (viewport-height canvas)
  *   - the all-journeys overview, which stacks one embedded section
  *     per subject, each expanding lazily
+ *   - that overview's full-screen overlay, variant "fullscreen",
+ *     where one journey owns the whole viewport
  *
  * Everything per-subject lives here: item rows, advance / move /
  * drop / reactivate / remove / hide, the Captured tray, the add
@@ -16,7 +18,7 @@
  * stage editor, currency, and routing stay with the page.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Building2,
   Import,
@@ -25,15 +27,15 @@ import {
   NotebookPen,
   Plus,
   UserRound,
-} from "lucide-react";
-import { toast } from "sonner";
+} from 'lucide-react';
+import { toast } from 'sonner';
 
-import { createClient } from "@/lib/supabase/client";
-import { useAuth } from "@/hooks/use-auth";
-import { Button } from "@/components/ui/button";
-import { ConvoRealLoader } from "@/components/ui/convoreal-loader";
-import { NameTagBadge } from "@/components/contacts/name-tag-badge";
-import { formatCurrencyShort } from "@/lib/currency-utils";
+import { createClient } from '@/lib/supabase/client';
+import { useAuth } from '@/hooks/use-auth';
+import { Button } from '@/components/ui/button';
+import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
+import { NameTagBadge } from '@/components/contacts/name-tag-badge';
+import { formatCurrencyShort } from '@/lib/currency-utils';
 import type {
   Contact,
   JourneyEventType,
@@ -41,15 +43,15 @@ import type {
   JourneyItemSource,
   JourneyStage,
   Property,
-} from "@/types";
-import { captureJourneyItems } from "@/lib/journey/capture";
-import { scanMessagesForProperties } from "@/lib/journey/chat-scan";
-import { JourneyCanvas } from "./journey-canvas";
-import { JourneyItemSheet } from "./journey-item-sheet";
-import { AddItemsDialog } from "./add-items-dialog";
-import { CapturedTrayDialog } from "./captured-tray-dialog";
-import { ContactNotesDialog } from "./contact-notes-dialog";
-import type { JourneyMode } from "./shared";
+} from '@/types';
+import { captureJourneyItems } from '@/lib/journey/capture';
+import { scanMessagesForProperties } from '@/lib/journey/chat-scan';
+import { JourneyCanvas } from './journey-canvas';
+import { JourneyItemSheet } from './journey-item-sheet';
+import { AddItemsDialog } from './add-items-dialog';
+import { CapturedTrayDialog } from './captured-tray-dialog';
+import { ContactNotesDialog } from './contact-notes-dialog';
+import type { JourneyMode } from './shared';
 
 export interface JourneySectionProps {
   mode: JourneyMode;
@@ -58,8 +60,10 @@ export interface JourneySectionProps {
   currency: string;
   canEdit: boolean;
   /** "full" fills the viewport (focused page); "embedded" renders a
-   *  fixed-height band inside the overview list. */
-  variant: "full" | "embedded";
+   *  fixed-height band inside the overview list; "fullscreen" is the
+   *  overview's expanded overlay, which has no page chrome to leave
+   *  room for. */
+  variant: 'full' | 'embedded' | 'fullscreen';
   /** Instant paint for the overview — the section still refetches the
    *  complete row in the background. */
   preloadedContact?: Contact | null;
@@ -84,10 +88,10 @@ export function JourneySection({
   const { user, accountId } = useAuth();
 
   const [subjectContact, setSubjectContact] = useState<Contact | null>(
-    preloadedContact ?? null,
+    preloadedContact ?? null
   );
   const [subjectProperty, setSubjectProperty] = useState<Property | null>(
-    preloadedProperty ?? null,
+    preloadedProperty ?? null
   );
   const [items, setItems] = useState<JourneyItem[]>([]);
   const [itemsLoading, setItemsLoading] = useState(true);
@@ -102,25 +106,29 @@ export function JourneySection({
 
   // ── Load subject + items ─────────────────────────────────────
   const loadJourney = useCallback(async () => {
-    if (mode === "buyer") {
+    if (mode === 'buyer') {
       const [{ data: c }, { data: rows }] = await Promise.all([
-        supabase.from("contacts").select("*").eq("id", subjectId).maybeSingle(),
+        supabase.from('contacts').select('*').eq('id', subjectId).maybeSingle(),
         supabase
-          .from("journey_items")
-          .select("*, property:properties(*)")
-          .eq("contact_id", subjectId)
-          .order("created_at"),
+          .from('journey_items')
+          .select('*, property:properties(*)')
+          .eq('contact_id', subjectId)
+          .order('created_at'),
       ]);
       setSubjectContact((c as Contact) ?? null);
       setItems((rows ?? []) as JourneyItem[]);
     } else {
       const [{ data: p }, { data: rows }] = await Promise.all([
-        supabase.from("properties").select("*").eq("id", subjectId).maybeSingle(),
         supabase
-          .from("journey_items")
-          .select("*, contact:contacts(*)")
-          .eq("property_id", subjectId)
-          .order("created_at"),
+          .from('properties')
+          .select('*')
+          .eq('id', subjectId)
+          .maybeSingle(),
+        supabase
+          .from('journey_items')
+          .select('*, contact:contacts(*)')
+          .eq('property_id', subjectId)
+          .order('created_at'),
       ]);
       setSubjectProperty((p as Property) ?? null);
       setItems((rows ?? []) as JourneyItem[]);
@@ -150,20 +158,20 @@ export function JourneySection({
 
   // ── Importable inquiries (buyer mode) ────────────────────────
   useEffect(() => {
-    if (mode !== "buyer") {
+    if (mode !== 'buyer') {
       Promise.resolve().then(() => setImportableCount(0));
       return;
     }
     let cancelled = false;
     (async () => {
       const { data } = await supabase
-        .from("contact_property_inquiries")
-        .select("property_id")
-        .eq("contact_id", subjectId);
+        .from('contact_property_inquiries')
+        .select('property_id')
+        .eq('contact_id', subjectId);
       if (cancelled) return;
       const existing = new Set(items.map((i) => i.property_id));
       setImportableCount(
-        (data ?? []).filter((r) => !existing.has(r.property_id)).length,
+        (data ?? []).filter((r) => !existing.has(r.property_id)).length
       );
     })();
     return () => {
@@ -173,16 +181,16 @@ export function JourneySection({
 
   // ── Contact note count (buyer mode) ──────────────────────────
   useEffect(() => {
-    if (mode !== "buyer") {
+    if (mode !== 'buyer') {
       Promise.resolve().then(() => setNotesCount(0));
       return;
     }
     let cancelled = false;
     (async () => {
       const { count } = await supabase
-        .from("contact_notes")
-        .select("id", { count: "exact", head: true })
-        .eq("contact_id", subjectId);
+        .from('contact_notes')
+        .select('id', { count: 'exact', head: true })
+        .eq('contact_id', subjectId);
       if (!cancelled) setNotesCount(count ?? 0);
     })();
     return () => {
@@ -197,10 +205,10 @@ export function JourneySection({
       eventType: JourneyEventType,
       fromStageId: string | null,
       toStageId: string | null,
-      reason?: string,
+      reason?: string
     ) => {
       if (!accountId) return;
-      const { error } = await supabase.from("journey_events").insert({
+      const { error } = await supabase.from('journey_events').insert({
         account_id: accountId,
         item_id: itemId,
         event_type: eventType,
@@ -209,21 +217,21 @@ export function JourneySection({
         reason: reason ?? null,
         created_by: user?.id ?? null,
       });
-      if (error) console.error("Failed to log journey event:", error.message);
+      if (error) console.error('Failed to log journey event:', error.message);
     },
-    [accountId, supabase, user?.id],
+    [accountId, supabase, user?.id]
   );
 
   // ── Mutations ────────────────────────────────────────────────
   const handleAddItems = useCallback(
-    async (ids: string[], source: JourneyItemSource = "manual") => {
+    async (ids: string[], source: JourneyItemSource = 'manual') => {
       if (!accountId) return;
       const { created, error } = await captureJourneyItems({
         accountId,
         userId: user?.id,
         pairs: ids.map((id) => ({
-          contactId: mode === "buyer" ? subjectId : id,
-          propertyId: mode === "buyer" ? id : subjectId,
+          contactId: mode === 'buyer' ? subjectId : id,
+          propertyId: mode === 'buyer' ? id : subjectId,
         })),
         source,
         hidden: false,
@@ -233,65 +241,71 @@ export function JourneySection({
         return;
       }
       if (created === 0) {
-        toast.info("Already on the journey — nothing new to add.");
+        toast.info('Already on the journey — nothing new to add.');
         await refresh();
         return;
       }
       toast.success(
-        `Added ${created} ${mode === "buyer" ? "propert" : "contact"}${
-          created === 1 ? (mode === "buyer" ? "y" : "") : mode === "buyer" ? "ies" : "s"
-        }`,
+        `Added ${created} ${mode === 'buyer' ? 'propert' : 'contact'}${
+          created === 1
+            ? mode === 'buyer'
+              ? 'y'
+              : ''
+            : mode === 'buyer'
+              ? 'ies'
+              : 's'
+        }`
       );
       await refresh();
     },
-    [accountId, subjectId, mode, user?.id, refresh],
+    [accountId, subjectId, mode, user?.id, refresh]
   );
 
   const handleImportInquiries = useCallback(async () => {
-    if (mode !== "buyer") return;
+    if (mode !== 'buyer') return;
     const { data } = await supabase
-      .from("contact_property_inquiries")
-      .select("property_id")
-      .eq("contact_id", subjectId);
+      .from('contact_property_inquiries')
+      .select('property_id')
+      .eq('contact_id', subjectId);
     const existing = new Set(items.map((i) => i.property_id));
     const fresh = Array.from(
       new Set(
         (data ?? [])
           .map((r) => r.property_id as string)
-          .filter((id) => !existing.has(id)),
-      ),
+          .filter((id) => !existing.has(id))
+      )
     );
     if (fresh.length === 0) {
-      toast.info("All inquiries are already on the map.");
+      toast.info('All inquiries are already on the map.');
       return;
     }
-    await handleAddItems(fresh, "inquiry_import");
+    await handleAddItems(fresh, 'inquiry_import');
   }, [mode, subjectId, items, supabase, handleAddItems]);
 
   const handleImportFromChat = useCallback(async () => {
-    if (mode !== "buyer" || !accountId || scanningChat) return;
+    if (mode !== 'buyer' || !accountId || scanningChat) return;
     setScanningChat(true);
     try {
       const { data: conv } = await supabase
-        .from("conversations")
-        .select("id")
-        .eq("contact_id", subjectId)
+        .from('conversations')
+        .select('id')
+        .eq('contact_id', subjectId)
         .maybeSingle();
       if (!conv) {
-        toast.info("No WhatsApp conversation with this contact yet.");
+        toast.info('No WhatsApp conversation with this contact yet.');
         return;
       }
       const [{ data: messages }, { data: props }] = await Promise.all([
         supabase
-          .from("messages")
-          .select("content_text, created_at")
-          .eq("conversation_id", conv.id)
-          .eq("sender_type", "agent")
-          .order("created_at", { ascending: false }),
+          .from('messages')
+          .select('content_text, created_at')
+          .eq('conversation_id', conv.id)
+          .eq('sender_type', 'agent')
+          .order('created_at', { ascending: false }),
         supabase
-          .from("properties")
-          .select("id, property_code, title")
-          .eq("account_id", accountId)
+          .from('properties')
+          .select('id, property_code, title')
+          .eq('account_id', accountId)
           .limit(2000),
       ]);
       const found = scanMessagesForProperties(messages ?? [], props ?? []);
@@ -300,28 +314,36 @@ export function JourneySection({
       if (fresh.length === 0) {
         toast.info(
           found.size > 0
-            ? "Every property shared in chat is already on the journey."
-            : "No shared properties found in the chat history.",
+            ? 'Every property shared in chat is already on the journey.'
+            : 'No shared properties found in the chat history.'
         );
         return;
       }
-      await handleAddItems(fresh, "chat_import");
+      await handleAddItems(fresh, 'chat_import');
     } finally {
       setScanningChat(false);
     }
-  }, [mode, subjectId, accountId, scanningChat, supabase, items, handleAddItems]);
+  }, [
+    mode,
+    subjectId,
+    accountId,
+    scanningChat,
+    supabase,
+    items,
+    handleAddItems,
+  ]);
 
   const moveItem = useCallback(
     async (
       item: JourneyItem,
       toStageId: string,
-      eventType: "advanced" | "moved",
+      eventType: 'advanced' | 'moved'
     ) => {
       const { data: updated, error } = await supabase
-        .from("journey_items")
+        .from('journey_items')
         .update({
           stage_id: toStageId,
-          status: "active",
+          status: 'active',
           drop_reason: null,
           dropped_at: null,
           // Any stage move consumes the plan — it was for the next
@@ -329,11 +351,11 @@ export function JourneySection({
           planned_stage_id: null,
           planned_at: null,
         })
-        .eq("id", item.id)
-        .select("id");
+        .eq('id', item.id)
+        .select('id');
       if (error || !updated?.length) {
         toast.error(
-          `Failed to move: ${error?.message ?? "that item is no longer there"}`,
+          `Failed to move: ${error?.message ?? 'that item is no longer there'}`
         );
         return false;
       }
@@ -341,7 +363,7 @@ export function JourneySection({
       await refresh();
       return true;
     },
-    [supabase, logEvent, refresh],
+    [supabase, logEvent, refresh]
   );
 
   const handleAdvance = useCallback(
@@ -352,170 +374,193 @@ export function JourneySection({
       const stageName = next.name;
       // Only on a move that actually landed — otherwise the failure
       // toast above is immediately contradicted by a success one.
-      moveItem(item, next.id, "advanced").then((moved) => {
+      moveItem(item, next.id, 'advanced').then((moved) => {
         if (moved) toast.success(`Moved to ${stageName}`);
       });
     },
-    [stages, moveItem],
+    [stages, moveItem]
   );
 
   const handleMoveTo = useCallback(
     (item: JourneyItem, stageId: string) => {
-      moveItem(item, stageId, "moved");
+      moveItem(item, stageId, 'moved');
     },
-    [moveItem],
+    [moveItem]
   );
 
   const handleDrop = useCallback(
     async (item: JourneyItem, reason: string) => {
       const { data: updated, error } = await supabase
-        .from("journey_items")
+        .from('journey_items')
         .update({
-          status: "dropped",
+          status: 'dropped',
           drop_reason: reason,
           dropped_at: new Date().toISOString(),
         })
-        .eq("id", item.id)
-        .select("id");
+        .eq('id', item.id)
+        .select('id');
       if (error || !updated?.length) {
-        toast.error(`Failed to drop: ${error?.message ?? "that item is no longer there"}`);
+        toast.error(
+          `Failed to drop: ${error?.message ?? 'that item is no longer there'}`
+        );
         return;
       }
-      await logEvent(item.id, "dropped", item.stage_id, item.stage_id, reason);
+      await logEvent(item.id, 'dropped', item.stage_id, item.stage_id, reason);
       await refresh();
     },
-    [supabase, logEvent, refresh],
+    [supabase, logEvent, refresh]
   );
 
   const handleReactivate = useCallback(
     async (item: JourneyItem) => {
       const { data: updated, error } = await supabase
-        .from("journey_items")
-        .update({ status: "active", drop_reason: null, dropped_at: null })
-        .eq("id", item.id)
-        .select("id");
+        .from('journey_items')
+        .update({ status: 'active', drop_reason: null, dropped_at: null })
+        .eq('id', item.id)
+        .select('id');
       if (error || !updated?.length) {
-        toast.error(`Failed to reactivate: ${error?.message ?? "that item is no longer there"}`);
+        toast.error(
+          `Failed to reactivate: ${error?.message ?? 'that item is no longer there'}`
+        );
         return;
       }
-      await logEvent(item.id, "reactivated", item.stage_id, item.stage_id);
+      await logEvent(item.id, 'reactivated', item.stage_id, item.stage_id);
       await refresh();
     },
-    [supabase, logEvent, refresh],
+    [supabase, logEvent, refresh]
   );
 
   const handleRemove = useCallback(
     async (item: JourneyItem) => {
       const { data: removed, error } = await supabase
-        .from("journey_items")
+        .from('journey_items')
         .delete()
-        .eq("id", item.id)
-        .select("id");
+        .eq('id', item.id)
+        .select('id');
       if (error) {
         toast.error(`Failed to remove: ${error.message}`);
         return;
       }
       if (!removed?.length) {
-        toast.error("Nothing was removed — reload and try again.");
+        toast.error('Nothing was removed — reload and try again.');
         return;
       }
       setSelectedItem(null);
       await refresh();
     },
-    [supabase, refresh],
+    [supabase, refresh]
   );
 
   const handlePlan = useCallback(
     async (item: JourneyItem, stageId: string, dateISO: string) => {
       const { data: updated, error } = await supabase
-        .from("journey_items")
+        .from('journey_items')
         .update({ planned_stage_id: stageId, planned_at: dateISO })
-        .eq("id", item.id)
-        .select("id");
+        .eq('id', item.id)
+        .select('id');
       if (error || !updated?.length) {
-        toast.error(`Failed to save plan: ${error?.message ?? "that item is no longer there"}`);
+        toast.error(
+          `Failed to save plan: ${error?.message ?? 'that item is no longer there'}`
+        );
         return;
       }
-      await logEvent(item.id, "planned", item.stage_id, stageId, `Expected by ${dateISO}`);
+      await logEvent(
+        item.id,
+        'planned',
+        item.stage_id,
+        stageId,
+        `Expected by ${dateISO}`
+      );
       await refresh();
     },
-    [supabase, logEvent, refresh],
+    [supabase, logEvent, refresh]
   );
 
   const handleClearPlan = useCallback(
     async (item: JourneyItem) => {
       const { data: updated, error } = await supabase
-        .from("journey_items")
+        .from('journey_items')
         .update({ planned_stage_id: null, planned_at: null })
-        .eq("id", item.id)
-        .select("id");
+        .eq('id', item.id)
+        .select('id');
       if (error || !updated?.length) {
-        toast.error(`Failed to clear plan: ${error?.message ?? "that item is no longer there"}`);
+        toast.error(
+          `Failed to clear plan: ${error?.message ?? 'that item is no longer there'}`
+        );
         return;
       }
-      await logEvent(item.id, "plan_cleared", item.stage_id, item.planned_stage_id ?? null);
+      await logEvent(
+        item.id,
+        'plan_cleared',
+        item.stage_id,
+        item.planned_stage_id ?? null
+      );
       await refresh();
     },
-    [supabase, logEvent, refresh],
+    [supabase, logEvent, refresh]
   );
 
   const setHiddenFlag = useCallback(
     async (item: JourneyItem, hidden: boolean) => {
       const { data: updated, error } = await supabase
-        .from("journey_items")
+        .from('journey_items')
         .update({ hidden })
-        .eq("id", item.id)
-        .select("id");
+        .eq('id', item.id)
+        .select('id');
       if (error || !updated?.length) {
-        toast.error(`Failed to update: ${error?.message ?? "that item is no longer there"}`);
+        toast.error(
+          `Failed to update: ${error?.message ?? 'that item is no longer there'}`
+        );
         return false;
       }
       await logEvent(
         item.id,
-        hidden ? "hidden" : "unhidden",
+        hidden ? 'hidden' : 'unhidden',
         item.stage_id,
-        item.stage_id,
+        item.stage_id
       );
       return true;
     },
-    [supabase, logEvent],
+    [supabase, logEvent]
   );
 
   const handleHide = useCallback(
     async (item: JourneyItem) => {
       if (await setHiddenFlag(item, true)) {
         setSelectedItem(null);
-        toast.success("Hidden from the map — find it under Captured.");
+        toast.success('Hidden from the map — find it under Captured.');
         await refresh();
       }
     },
-    [setHiddenFlag, refresh],
+    [setHiddenFlag, refresh]
   );
 
   const handleShow = useCallback(
     async (item: JourneyItem) => {
       if (await setHiddenFlag(item, false)) await refresh();
     },
-    [setHiddenFlag, refresh],
+    [setHiddenFlag, refresh]
   );
 
   const handleShowAll = useCallback(async () => {
     const hiddenItems = items.filter((i) => i.hidden);
     if (hiddenItems.length === 0) return;
     const { data: updated, error } = await supabase
-      .from("journey_items")
+      .from('journey_items')
       .update({ hidden: false })
       .in(
-        "id",
-        hiddenItems.map((i) => i.id),
+        'id',
+        hiddenItems.map((i) => i.id)
       )
-      .select("id");
+      .select('id');
     if (error || !updated?.length) {
-      toast.error(`Failed to show all: ${error?.message ?? "those items are no longer there"}`);
+      toast.error(
+        `Failed to show all: ${error?.message ?? 'those items are no longer there'}`
+      );
       return;
     }
     await Promise.all(
-      hiddenItems.map((i) => logEvent(i.id, "unhidden", i.stage_id, i.stage_id)),
+      hiddenItems.map((i) => logEvent(i.id, 'unhidden', i.stage_id, i.stage_id))
     );
     setTrayOpen(false);
     await refresh();
@@ -525,22 +570,22 @@ export function JourneySection({
   const existingIds = useMemo(
     () =>
       new Set(
-        items.map((i) => (mode === "buyer" ? i.property_id : i.contact_id)),
+        items.map((i) => (mode === 'buyer' ? i.property_id : i.contact_id))
       ),
-    [items, mode],
+    [items, mode]
   );
   const visibleItems = useMemo(() => items.filter((i) => !i.hidden), [items]);
   const capturedItems = useMemo(() => items.filter((i) => i.hidden), [items]);
 
-  const hasToolbar = capturedItems.length > 0 || canEdit || mode === "buyer";
+  const hasToolbar = capturedItems.length > 0 || canEdit || mode === 'buyer';
 
   const subjectTitle =
-    mode === "buyer"
-      ? subjectContact?.name || subjectContact?.phone || "Contact"
-      : subjectProperty?.title || "Property";
+    mode === 'buyer'
+      ? subjectContact?.name || subjectContact?.phone || 'Contact'
+      : subjectProperty?.title || 'Property';
   const subjectSubtitle =
-    mode === "buyer"
-      ? subjectContact?.phone ?? ""
+    mode === 'buyer'
+      ? (subjectContact?.phone ?? '')
       : [
           subjectProperty?.property_code,
           subjectProperty?.location,
@@ -549,7 +594,7 @@ export function JourneySection({
             : null,
         ]
           .filter(Boolean)
-          .join(" · ");
+          .join(' · ');
 
   const toolbarButtons = (
     <div className="flex flex-wrap items-center gap-1.5">
@@ -564,7 +609,7 @@ export function JourneySection({
           Captured ({capturedItems.length})
         </Button>
       )}
-      {mode === "buyer" && (
+      {mode === 'buyer' && (
         <Button
           variant="ghost"
           size="sm"
@@ -572,10 +617,10 @@ export function JourneySection({
           className="h-7 px-2.5 text-xs"
         >
           <NotebookPen className="h-3.5 w-3.5" />
-          Notes{notesCount > 0 ? ` (${notesCount})` : ""}
+          Notes{notesCount > 0 ? ` (${notesCount})` : ''}
         </Button>
       )}
-      {mode === "buyer" && canEdit && (
+      {mode === 'buyer' && canEdit && (
         <Button
           variant="ghost"
           size="sm"
@@ -584,10 +629,10 @@ export function JourneySection({
           className="h-7 px-2.5 text-xs"
         >
           <MessagesSquare className="h-3.5 w-3.5" />
-          {scanningChat ? "Scanning chat…" : "Import from chat"}
+          {scanningChat ? 'Scanning chat…' : 'Import from chat'}
         </Button>
       )}
-      {mode === "buyer" && importableCount > 0 && canEdit && (
+      {mode === 'buyer' && importableCount > 0 && canEdit && (
         <Button
           variant="ghost"
           size="sm"
@@ -595,25 +640,34 @@ export function JourneySection({
           className="h-7 px-2.5 text-xs"
         >
           <Import className="h-3.5 w-3.5" />
-          Import {importableCount} inquir{importableCount === 1 ? "y" : "ies"}
+          Import {importableCount} inquir{importableCount === 1 ? 'y' : 'ies'}
         </Button>
       )}
       {canEdit && (
-        <Button size="sm" className="h-7 px-2.5 text-xs" onClick={() => setAddOpen(true)}>
+        <Button
+          size="sm"
+          className="h-7 px-2.5 text-xs"
+          onClick={() => setAddOpen(true)}
+        >
           <Plus className="h-3.5 w-3.5" />
-          {mode === "buyer" ? "Add properties" : "Add contacts"}
+          {mode === 'buyer' ? 'Add properties' : 'Add contacts'}
         </Button>
       )}
     </div>
   );
 
-  if (itemsLoading && items.length === 0 && !subjectContact && !subjectProperty) {
+  if (
+    itemsLoading &&
+    items.length === 0 &&
+    !subjectContact &&
+    !subjectProperty
+  ) {
     return (
       <div
         className={
-          variant === "full"
-            ? "flex h-[50vh] items-center justify-center rounded-xl border border-slate-800 bg-slate-950"
-            : "flex h-[200px] items-center justify-center rounded-xl border border-slate-800 bg-slate-950"
+          variant === 'embedded'
+            ? 'flex h-[200px] items-center justify-center rounded-xl border border-slate-800 bg-slate-950'
+            : 'flex h-[50vh] items-center justify-center rounded-xl border border-slate-800 bg-slate-950'
         }
       >
         <ConvoRealLoader />
@@ -623,17 +677,17 @@ export function JourneySection({
 
   return (
     <div className="space-y-2">
-      {variant === "full" ? (
+      {variant !== 'embedded' ? (
         // Subject bar — WHOSE journey this is, its live counts, and
         // every action in one row attached to the map (instead of
         // buttons scattered across disconnected header rows).
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-xl border border-slate-800 bg-slate-900/40 px-3.5 py-2.5">
           <div className="flex min-w-0 items-center gap-2.5">
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10">
-              {mode === "buyer" ? (
-                <UserRound className="h-4 w-4 text-primary" />
+            <span className="bg-primary/10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full">
+              {mode === 'buyer' ? (
+                <UserRound className="text-primary h-4 w-4" />
               ) : (
-                <Building2 className="h-4 w-4 text-primary" />
+                <Building2 className="text-primary h-4 w-4" />
               )}
             </span>
             <div className="min-w-0">
@@ -641,15 +695,17 @@ export function JourneySection({
                 <span className="truncate text-sm font-bold text-white">
                   {subjectTitle}
                 </span>
-                {mode === "buyer" && subjectContact?.name && (
+                {mode === 'buyer' && subjectContact?.name && (
                   <NameTagBadge tag={subjectContact.name_tag} />
                 )}
                 <span className="hidden shrink-0 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-300 sm:inline">
-                  {visibleItems.filter((i) => i.status === "active").length} active
+                  {visibleItems.filter((i) => i.status === 'active').length}{' '}
+                  active
                 </span>
-                {visibleItems.some((i) => i.status === "dropped") && (
+                {visibleItems.some((i) => i.status === 'dropped') && (
                   <span className="hidden shrink-0 rounded-full bg-red-500/10 px-2 py-0.5 text-[10px] font-medium text-red-300 sm:inline">
-                    {visibleItems.filter((i) => i.status === "dropped").length} dropped
+                    {visibleItems.filter((i) => i.status === 'dropped').length}{' '}
+                    dropped
                   </span>
                 )}
               </div>
@@ -683,9 +739,11 @@ export function JourneySection({
         capturedCount={capturedItems.length}
         onOpenCaptured={() => setTrayOpen(true)}
         heightClass={
-          variant === "full"
-            ? "h-[calc(100vh-260px)] min-h-[480px]"
-            : "h-[420px]"
+          variant === 'fullscreen'
+            ? 'h-[calc(100vh-150px)] min-h-[480px]'
+            : variant === 'full'
+              ? 'h-[calc(100vh-260px)] min-h-[480px]'
+              : 'h-[420px]'
         }
       />
 
@@ -695,8 +753,12 @@ export function JourneySection({
         stages={stages}
         currency={currency}
         canEdit={canEdit}
-        contact={mode === "buyer" ? subjectContact : selectedItem?.contact ?? null}
-        property={mode === "buyer" ? selectedItem?.property ?? null : subjectProperty}
+        contact={
+          mode === 'buyer' ? subjectContact : (selectedItem?.contact ?? null)
+        }
+        property={
+          mode === 'buyer' ? (selectedItem?.property ?? null) : subjectProperty
+        }
         onClose={() => setSelectedItem(null)}
         onAdvance={handleAdvance}
         onMoveTo={handleMoveTo}
@@ -718,7 +780,7 @@ export function JourneySection({
         onAdd={(ids) => handleAddItems(ids)}
       />
 
-      {mode === "buyer" && (
+      {mode === 'buyer' && (
         <ContactNotesDialog
           open={notesOpen}
           onOpenChange={setNotesOpen}

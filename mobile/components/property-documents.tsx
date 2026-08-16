@@ -76,7 +76,7 @@ export function PropertyDocuments({
     if (bytes.byteLength > DOCUMENT_SIZE_LIMIT) {
       show({
         title: 'File too large',
-        message: 'Documents can be up to 25 MB. Try a smaller scan.',
+        message: `Documents can be up to ${Math.round(DOCUMENT_SIZE_LIMIT / (1024 * 1024))} MB. Try a smaller scan.`,
       });
       return;
     }

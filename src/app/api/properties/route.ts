@@ -13,6 +13,7 @@ import {
 import { geocodeAddress, hasGoogleMapsKey } from "@/lib/maps/google-places";
 import { resolveCoordinatesFromMapLink } from "@/lib/maps/resolve-location";
 import { sanitizeFloorTenancies } from "@/lib/inventory/floor-tenancies";
+import { sanitizeFloorPlans } from "@/lib/inventory/floor-plans";
 import { isoDateOrNull } from "@/lib/inventory/iso-date";
 import { maskPropertyForViewer } from "@/lib/inventory/location-guard";
 import { SQFT_PER_AREA_UNIT } from "@/lib/inventory/property-options";
@@ -518,6 +519,7 @@ export async function POST(request: Request) {
       showcase_visibility,
       rental_income,
       floor_tenancies,
+      floor_plans,
       listing_source,
       // rental fields
       listing_type,
@@ -655,6 +657,7 @@ export async function POST(request: Request) {
         typeof rental_income === "number" ? rental_income : null
       ),
       floor_tenancies: sanitizeFloorTenancies(floor_tenancies),
+      floor_plans: sanitizeFloorPlans(floor_plans),
       listing_source: listing_source === "agent" ? "agent" : "owner",
       listing_type: parsedListingType,
       rent_per_month: typeof rent_per_month === "number" ? rent_per_month : null,

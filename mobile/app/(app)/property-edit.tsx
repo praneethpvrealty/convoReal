@@ -17,6 +17,7 @@ import { ContactPickerSheet } from '@/components/contact-picker-sheet';
 import { InlineDateTimePicker } from '@/components/datetime-field';
 import { ConvoRealLoader } from '@/components/loader';
 import { OptionSheet } from '@/components/option-sheet';
+import { PropertyFloorPlans, type FloorPlanDraft } from '@/components/property-floor-plans';
 import { PropertyPhotoEditor } from '@/components/property-photo-editor';
 import { Banner, FilterChip, PriceHint, PrimaryButton, SectionLabel, TextField } from '@/components/ui';
 import { formatInr } from '@/lib/format';
@@ -63,6 +64,10 @@ interface TenancyDraft {
   lock_in_months: string;
   maintenance: string;
   notes: string;
+  /** Round-tripped, not edited here: mobile pins plans through the
+   *  Floor Plans editor below, and dropping this on save would erase a
+   *  plan attached to a rent-roll row on the web. */
+  floor_plan: string;
 }
 
 const emptyTenancy: TenancyDraft = {
@@ -76,6 +81,7 @@ const emptyTenancy: TenancyDraft = {
   lock_in_months: '',
   maintenance: '',
   notes: '',
+  floor_plan: '',
 };
 
 function toIsoDate(d: Date): string {
@@ -92,7 +98,7 @@ async function fetchProperty(id: string): Promise<Property | null> {
         'bedrooms, bathrooms, area_sqft, area_unit, is_published, type, images, ' +
         'location, sublocality, city, state, land_area, land_area_unit, super_built_area, ' +
         'dimensions, facing_direction, google_map_link, showcase_visibility, features, nearby_highlights, tags, ' +
-        'floor_tenancies, owner_contact_id, owner:contacts!properties_owner_contact_id_fkey(id, name, phone)'
+        'floor_tenancies, floor_plans, owner_contact_id, owner:contacts!properties_owner_contact_id_fkey(id, name, phone)'
     )
     .eq('id', id)
     .maybeSingle();
@@ -182,6 +188,15 @@ function EditForm({ property }: { property: Property }) {
       lock_in_months: ft.lock_in_months != null ? String(ft.lock_in_months) : '',
       maintenance: ft.maintenance ?? '',
       notes: ft.notes ?? '',
+      floor_plan: ft.floor_plan ?? '',
+    }))
+  );
+  const [floorPlans, setFloorPlans] = useState<FloorPlanDraft[]>(
+    (property.floor_plans ?? []).map((fp) => ({
+      floor: fp.floor ?? '',
+      image: fp.image ?? '',
+      area_sqft: fp.area_sqft != null ? String(fp.area_sqft) : '',
+      notes: fp.notes ?? '',
     }))
   );
   const [description, setDescription] = useState(property.description ?? '');
@@ -291,9 +306,19 @@ function EditForm({ property }: { property: Property }) {
         lock_in_months: num(t.lock_in_months),
         maintenance: t.maintenance.trim() || null,
         notes: t.notes.trim() || null,
+        floor_plan: t.floor_plan.trim() || null,
       }));
       body.floor_tenancies = rentRoll;
     }
+    // Floor plans apply to every property type, so they are always
+    // sent. Server-side sanitizeFloorPlans() drops rows carrying
+    // neither a label nor a drawing.
+    body.floor_plans = floorPlans.map((fp) => ({
+      floor: fp.floor.trim(),
+      image: fp.image.trim() || null,
+      area_sqft: num(fp.area_sqft),
+      notes: fp.notes.trim() || null,
+    }));
     try {
       await apiFetch(`/api/properties/${property.id}`, {
         method: 'PUT',
@@ -326,6 +351,8 @@ function EditForm({ property }: { property: Property }) {
         {error ? <Banner kind="error" text={error} /> : null}
 
         <PropertyPhotoEditor images={images} onChange={setImages} />
+
+        <PropertyFloorPlans plans={floorPlans} onChange={setFloorPlans} />
 
         <TextField label="Title" value={title} onChangeText={setTitle} />
 

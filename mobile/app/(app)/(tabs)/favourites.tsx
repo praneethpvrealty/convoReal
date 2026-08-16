@@ -8,5 +8,5 @@ import { Redirect } from 'expo-router';
  * in which case the inbox is a better landing than a blank screen.
  */
 export default function FavouritesRoute() {
-  return <Redirect href="/(app)/(tabs)/" />;
+  return <Redirect href="/(app)/(tabs)" />;
 }

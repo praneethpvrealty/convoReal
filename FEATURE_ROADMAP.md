@@ -130,6 +130,12 @@ _A §2.8 gap, stated rather than silent._
 
 - [ ] **Notify intent in Smart Add (web + mobile)**: Speaking or typing "tell Sharan the visit is off" sends the update only through the WhatsApp owner chatbot. The _receiving_ half is already at full parity — `createNotification` fans out to the in-app bell on web, Expo push on mobile, and the teammate's own WhatsApp, and the new `teammate_update` toggle ships in Settings → Notifications on both surfaces. What is missing is the sending half in Smart Add (`src/components/calendar/smart-add-bar.tsx`, `mobile/components/voice-scheduler.tsx`): both render one confirm card built around a date, a contact and a property, with no recipient field and no send action. `/api/ai/parse-event` therefore downgrades a `notify` draft to a `task`, so the request lands on the speaker's own list rather than vanishing. Closing it means a recipient row on the confirm card and a route that performs the send.
 
+### Deferred: attaching a plan to a rent-roll row on mobile
+
+_A §2.8 gap, stated rather than silent._
+
+- [ ] **Rent-roll floor plan attach (mobile)**: `floor_tenancies` rows carry an optional `floor_plan` image (migration 285), and the web form offers an Attach/Replace control on each tenancy row. Mobile's rent-roll editor round-trips the field but has no attach button, so a plan can only be pinned there from web. The capability itself is at parity: the standalone **Floor Plans** editor — which covers every property type, commercial included — ships on both surfaces, and mobile never wipes a plan set on web. Closing this is one picker call on the tenancy card in `mobile/app/(app)/property-edit.tsx`, reusing `mobile/components/property-floor-plans.tsx`.
+
 ### Deferred: account administration on mobile
 
 _§2.8 gaps, stated rather than silent. They share one root cause: the mobile app has no account-administration surface at all (no Members, Teams, Billing, Routing or Settings shell), so each of these would be the first of its kind rather than a screen added to an existing section._

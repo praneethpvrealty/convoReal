@@ -45,12 +45,15 @@ export function digestPriceLabel(property: Property): string | null {
 function specsLine(property: Property): string {
   const bits: string[] = [];
   const where =
-    [property.sublocality?.trim(), property.city?.trim()].filter(Boolean).join(', ') ||
-    property.location?.trim();
+    [property.sublocality?.trim(), property.city?.trim()]
+      .filter(Boolean)
+      .join(', ') || property.location?.trim();
   if (where) bits.push(where);
   if (property.bedrooms) bits.push(`${property.bedrooms} BHK`);
   if (property.area_sqft) {
-    bits.push(`${Number(property.area_sqft).toLocaleString('en-IN')} ${property.area_unit || 'Sq.Ft.'}`);
+    bits.push(
+      `${Number(property.area_sqft).toLocaleString('en-IN')} ${property.area_unit || 'Sq.Ft.'}`
+    );
   } else if (property.land_area) {
     bits.push(
       `${Number(property.land_area).toLocaleString('en-IN')} ${property.land_area_unit || 'Sq.Ft.'}`
@@ -98,10 +101,13 @@ export function buildMatchDigestMessage(args: DigestMessageArgs): string {
 
   const items = matches.map((match, index) => {
     const price = digestPriceLabel(match.property);
-    const lines = [`${index + 1}. *${match.property.title}*${price ? ` — ${price}` : ''}`];
+    const lines = [
+      `${index + 1}. *${match.property.title}*${price ? ` — ${price}` : ''}`,
+    ];
     const specs = specsLine(match.property);
     if (specs) lines.push(`   ${specs}`);
-    if (match.reasons.length) lines.push(`   ✓ ${match.reasons.slice(0, 3).join(' · ')}`);
+    if (match.reasons.length)
+      lines.push(`   ✓ ${match.reasons.slice(0, 3).join(' · ')}`);
     return lines.join('\n');
   });
 
@@ -139,8 +145,34 @@ export function buildConsentRequestMessage(args: {
   );
 }
 
+/**
+ * The same ask for a lead who has enquired about a listing but never
+ * told us a brief. There are no matches to promise them, so the hook is
+ * the property they came in about — the one thing we know they want.
+ */
+export function buildEnquiryConsentRequestMessage(args: {
+  contactName: string | null | undefined;
+  propertyTitle?: string | null;
+  agencyName?: string | null;
+}): string {
+  const who = args.agencyName?.trim() ? ` from ${args.agencyName.trim()}` : '';
+  const title = args.propertyTitle?.trim();
+  const about = title
+    ? `You asked us about *${title}*.`
+    : `You asked us about one of our listings.`;
+  return (
+    `Hi ${firstName(args.contactName)} 👋\n\n` +
+    `${about} Would you like us${who} to send you similar listings on ` +
+    `WhatsApp as they come up?\n\n` +
+    `Reply *START ALERTS* and we'll send them.\n` +
+    `Reply *STOP ALERTS* and we won't ask again.`
+  );
+}
+
 /** Reply to an on-demand "MATCHES" request when nothing fits yet. */
-export function buildNoMatchesMessage(contactName: string | null | undefined): string {
+export function buildNoMatchesMessage(
+  contactName: string | null | undefined
+): string {
   return (
     `Hi ${firstName(contactName)} — nothing in our inventory fits your brief right now. ` +
     `The moment something does, you'll hear from us here. ` +
@@ -160,7 +192,9 @@ const MATCHES_COMMAND =
  * reply is free-form inside the window they just opened by texting, so
  * it needs no template.
  */
-export function parseBuyerMatchesCommand(text: string | null | undefined): boolean {
+export function parseBuyerMatchesCommand(
+  text: string | null | undefined
+): boolean {
   if (!text) return false;
   const cleaned = text.trim().toLowerCase();
   if (cleaned.length > 40) return false;

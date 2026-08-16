@@ -37,9 +37,10 @@ export function ApproveCelebration({
   // details land in the composer ready to send (web opens the property
   // share dialog here; mobile pre-drafts the same message).
   const reengageHref = reengageId
-    ? property
-      ? `/(app)/conversation/${reengageId}?draftPropertyId=${encodeURIComponent(property.id)}`
-      : `/(app)/conversation/${reengageId}`
+    ? {
+        pathname: '/(app)/conversation/[id]' as const,
+        params: { id: reengageId, draftPropertyId: property?.id },
+      }
     : null;
 
   const message = reengageId

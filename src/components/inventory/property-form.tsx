@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import NextImage from 'next/image';
 import { createClient } from '@/lib/supabase/client';
 import { resolveConversation } from '@/lib/conversations/resolve';
 import { storagePublicUrl } from '@/lib/storage/url';
@@ -106,6 +107,8 @@ import {
   isRawLandType,
   isApartmentType,
 } from '@/lib/inventory/property-options';
+import { DOCUMENT_SIZE_LIMIT } from '@/lib/inventory/documents';
+import { FloorPlansEditor, type FloorPlanDraft } from '@/components/inventory/floor-plans-editor';
 import { isGuardedType, isLocationGuarded } from '@/lib/inventory/location-guard';
 import { rentalYieldPercent, yieldApplies } from '@/lib/inventory/rental-yield';
 import { contactHandle, hasPhone } from '@/lib/contacts/reachability';
@@ -429,6 +432,7 @@ export function PropertyForm({
     lock_in_months: string;
     maintenance: string;
     notes: string;
+    floor_plan: string;
   }
   const emptyFloorTenancy: FloorTenancyDraft = {
     floor: '',
@@ -441,8 +445,11 @@ export function PropertyForm({
     lock_in_months: '',
     maintenance: '',
     notes: '',
+    floor_plan: '',
   };
   const [floorTenancies, setFloorTenancies] = useState<FloorTenancyDraft[]>([]);
+  const [floorPlans, setFloorPlans] = useState<FloorPlanDraft[]>([]);
+  const tenancyPlanInputs = useRef<Record<number, HTMLInputElement | null>>({});
   const updateFloorTenancy = (idx: number, key: keyof FloorTenancyDraft, value: string) => {
     setFloorTenancies((prev) => prev.map((ft, i) => (i === idx ? { ...ft, [key]: value } : ft)));
   };
@@ -1432,6 +1439,15 @@ export function PropertyForm({
             lock_in_months: ft.lock_in_months !== null && ft.lock_in_months !== undefined ? String(ft.lock_in_months) : '',
             maintenance: ft.maintenance || '',
             notes: ft.notes || '',
+            floor_plan: ft.floor_plan || '',
+          }))
+        );
+        setFloorPlans(
+          (property.floor_plans || []).map((fp) => ({
+            floor: fp.floor || '',
+            image: fp.image || '',
+            area_sqft: fp.area_sqft !== null && fp.area_sqft !== undefined ? String(fp.area_sqft) : '',
+            notes: fp.notes || '',
           }))
         );
         setType(property.type);
@@ -1611,6 +1627,7 @@ export function PropertyForm({
         setBtsEscalationPercent('');
         setRentalIncome('');
         setFloorTenancies([]);
+        setFloorPlans([]);
         setType('Flat/ Apartment');
         setStatus('Available');
         setBedrooms('');
@@ -1880,6 +1897,48 @@ export function PropertyForm({
     };
   }, [isLand, hasCommercialFields]);
 
+  // Shared by the floor-plan editor and the rent-roll rows: a plan is
+  // an ordinary property image, stored in the same bucket, so it can be
+  // rendered and shared everywhere a photo can.
+  async function uploadPlanImage(file: File): Promise<string | null> {
+    if (!accountId) {
+      toast.error('Account not loaded, please try again.');
+      return null;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error(`"${file.name}" is too large. Max size is 5MB.`);
+      return null;
+    }
+    try {
+      let uploadFile: File | Blob = file;
+      if (
+        file.type.startsWith('image/') &&
+        file.type !== 'image/svg+xml' &&
+        file.type !== 'image/gif'
+      ) {
+        try {
+          uploadFile = await compressImageOnClient(file);
+        } catch {
+          // Fallback to the original if compression fails.
+        }
+      }
+      const randomStr = Math.random().toString(36).substring(2, 7);
+      const path = `${accountId}/plan-${Date.now()}-${randomStr}.jpg`;
+      const { error } = await supabase.storage
+        .from('property-images')
+        .upload(path, uploadFile, {
+          cacheControl: '3600',
+          upsert: true,
+          contentType: 'image/jpeg',
+        });
+      if (error) throw new Error(error.message);
+      return `property-images/${path}`;
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Floor plan upload failed');
+      return null;
+    }
+  }
+
   async function onUploadImages(e: React.ChangeEvent<HTMLInputElement>) {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -1962,9 +2021,11 @@ export function PropertyForm({
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         
-        // 10MB limit
-        if (file.size > 10 * 1024 * 1024) {
-          toast.error(`File "${file.name}" is too large. Max size is 10MB.`);
+        if (file.size > DOCUMENT_SIZE_LIMIT) {
+          const mb = (file.size / (1024 * 1024)).toFixed(1);
+          toast.error(
+            `File "${file.name}" is ${mb}MB. Max size is ${Math.round(DOCUMENT_SIZE_LIMIT / (1024 * 1024))}MB.`
+          );
           continue;
         }
 
@@ -2415,8 +2476,17 @@ export function PropertyForm({
               lock_in_months: ft.lock_in_months.trim() !== '' && !Number.isNaN(Number(ft.lock_in_months)) ? Number(ft.lock_in_months) : null,
               maintenance: ft.maintenance.trim() || null,
               notes: ft.notes.trim() || null,
+              floor_plan: ft.floor_plan.trim() || null,
             }))
           : [],
+        // Server-side sanitizeFloorPlans() drops rows with neither a
+        // label nor a drawing.
+        floor_plans: floorPlans.map((fp) => ({
+          floor: fp.floor.trim(),
+          image: fp.image.trim() || null,
+          area_sqft: fp.area_sqft.trim() !== '' && !Number.isNaN(Number(fp.area_sqft)) ? Number(fp.area_sqft) : null,
+          notes: fp.notes.trim() || null,
+        })),
         notes: notes.trim() || null,
         tags,
         // Coordinates from the Google Maps pick; nulls tell the server to
@@ -3130,6 +3200,49 @@ export function PropertyForm({
                             </div>
                           )}
                         </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* FLOOR PLANS */}
+                  {floorPlans.some((fp) => fp.image) && (
+                    <div className="space-y-2.5">
+                      <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Floor Plans</h4>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5">
+                        {floorPlans
+                          .filter((fp) => fp.image)
+                          .map((fp, idx) => (
+                            <a
+                              key={idx}
+                              href={storagePublicUrl(fp.image)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="rounded-xl border border-slate-800 bg-slate-950/20 overflow-hidden hover:border-slate-700 transition-colors"
+                            >
+                              <div className="relative aspect-[4/3] bg-white">
+                                <NextImage
+                                  src={storagePublicUrl(fp.image)}
+                                  alt={fp.floor || `Floor plan ${idx + 1}`}
+                                  fill
+                                  sizes="(max-width: 768px) 50vw, 33vw"
+                                  className="object-contain"
+                                />
+                              </div>
+                              <div className="p-2">
+                                <p className="text-xs font-bold text-white truncate">
+                                  {fp.floor || `Floor ${idx + 1}`}
+                                </p>
+                                <p className="text-[10px] text-slate-450 truncate">
+                                  {[
+                                    fp.area_sqft ? `${Number(fp.area_sqft).toLocaleString('en-IN')} Sq.Ft.` : '',
+                                    fp.notes,
+                                  ]
+                                    .filter(Boolean)
+                                    .join(' · ') || 'Plan'}
+                                </p>
+                              </div>
+                            </a>
+                          ))}
                       </div>
                     </div>
                   )}
@@ -4692,6 +4805,58 @@ export function PropertyForm({
                             className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-8 text-xs"
                           />
                         </div>
+
+                        <div className="flex items-center gap-2">
+                          <Label className="text-slate-400 text-[11px] shrink-0">Floor Plan</Label>
+                          {ft.floor_plan ? (
+                            <a
+                              href={storagePublicUrl(ft.floor_plan)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[11px] text-primary hover:underline truncate"
+                            >
+                              View plan
+                            </a>
+                          ) : (
+                            <span className="text-[11px] text-slate-600">None attached</span>
+                          )}
+                          <input
+                            ref={(el) => {
+                              tenancyPlanInputs.current[idx] = el;
+                            }}
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              e.target.value = '';
+                              if (!file) return;
+                              const path = await uploadPlanImage(file);
+                              if (path) updateFloorTenancy(idx, 'floor_plan', path);
+                            }}
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            disabled={!canEdit}
+                            onClick={() => tenancyPlanInputs.current[idx]?.click()}
+                            className="h-7 px-2 text-[11px] text-slate-400 hover:text-white ml-auto"
+                          >
+                            <Upload className="size-3 mr-1" />
+                            {ft.floor_plan ? 'Replace' : 'Attach'}
+                          </Button>
+                          {ft.floor_plan && (
+                            <button
+                              type="button"
+                              onClick={() => updateFloorTenancy(idx, 'floor_plan', '')}
+                              className="text-slate-500 hover:text-rose-400 transition-colors"
+                              aria-label={`Remove floor plan for tenancy ${idx + 1}`}
+                            >
+                              <Trash2 className="size-3.5" />
+                            </button>
+                          )}
+                        </div>
                       </div>
                     ))}
 
@@ -5458,6 +5623,16 @@ export function PropertyForm({
                           ))}
                         </div>
                       )}
+                    </div>
+
+                    {/* Floor Plans */}
+                    <div className="space-y-3 p-4 rounded-lg border border-slate-800 bg-slate-950/20 col-span-2">
+                      <FloorPlansEditor
+                        value={floorPlans}
+                        onChange={setFloorPlans}
+                        onUpload={uploadPlanImage}
+                        disabled={!canEdit}
+                      />
                     </div>
 
                     {/* Property Documents */}

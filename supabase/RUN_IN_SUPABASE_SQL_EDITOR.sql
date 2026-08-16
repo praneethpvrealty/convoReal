@@ -2240,7 +2240,7 @@ VALUES (
   'property-documents',
   'property-documents',
   TRUE,
-  10485760, -- 10 MB limit
+  104857600, -- 100 MB limit, matching WhatsApp's own document ceiling
   ARRAY[
     'application/pdf',
     'application/msword',

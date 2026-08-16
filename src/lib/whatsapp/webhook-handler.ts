@@ -74,6 +74,11 @@ import {
 } from '@/lib/whatsapp/agent-takeover'
 import { claimBuyerConsentAsk } from '@/lib/buyer/consent-ask'
 import {
+  claimOwnerConsentAsk,
+  CONSENT_BUTTONS as OWNER_CONSENT_BUTTONS,
+  type OwnerConsentFields,
+} from '@/lib/owners/consent-ask'
+import {
   answerLeadQuestion,
   looksLikeQuestion,
   mergeLeadAnswers,
@@ -2474,7 +2479,37 @@ async function processMessage(
       text: message.button?.text ?? inboundText,
       listings: ownedListings,
     })
-    if (ownerHandled) return
+    if (ownerHandled) {
+      // The owner's window is open — the one moment their digest consent
+      // can be asked free-form, with buttons and no template. The cron
+      // only reaches owners whose window happens to be open at 04:30 IST,
+      // and skips them entirely when the account has no approved consent
+      // template, so most owners never get asked at all.
+      try {
+        const ownerAsk = await claimOwnerConsentAsk(
+          supabaseAdmin(),
+          accountId,
+          contactRecord as unknown as OwnerConsentFields,
+          ownedListings,
+        )
+        if (ownerAsk) {
+          await sendWhatsAppMessageAndPersist({
+            accountId,
+            userId: configOwnerUserId,
+            contactId: contactRecord.id,
+            conversationId: conversation.id,
+            kind: 'interactive',
+            interactiveType: 'buttons',
+            senderType: 'bot',
+            interactiveBody: ownerAsk,
+            interactiveButtons: OWNER_CONSENT_BUTTONS,
+          })
+        }
+      } catch (err) {
+        console.error('[owner-consent] ask failed (non-fatal):', err)
+      }
+      return
+    }
   }
 
   // A lead's question nothing above claimed. Answer it from the listing
@@ -2595,7 +2630,8 @@ async function processMessage(
     return
   }
 
-  // The buyer just messaged us, so their 24-hour window is open: the
+  // The buyer — or a lead who has only ever enquired about one listing
+  // — just messaged us, so their 24-hour window is open: the
   // one moment the alerts question can be asked free-form, needing no
   // template and no category. Soliciting an opt-in is Marketing by
   // Meta's test, so this is the only compliant place to ask — and it

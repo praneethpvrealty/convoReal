@@ -1,8 +1,26 @@
 import sharp from 'sharp';
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import { DOCUMENT_SIZE_LIMIT } from '@/lib/inventory/documents';
 
 const IMAGE_MAX_WIDTH = 1200;
 const JPEG_QUALITY = 75;
+
+/** Thrown when a document is past the bucket ceiling. Carries the size
+ *  so callers can tell the sender what to shrink, rather than asking
+ *  them to "try again" at a size that can never succeed. */
+export class DocumentTooLargeError extends Error {
+  constructor(
+    readonly bytes: number,
+    readonly filename?: string
+  ) {
+    const mb = (bytes / (1024 * 1024)).toFixed(1);
+    const limitMb = Math.round(DOCUMENT_SIZE_LIMIT / (1024 * 1024));
+    super(
+      `${filename ? `"${filename}" ` : 'Document '}is ${mb} MB, over the ${limitMb} MB limit.`
+    );
+    this.name = 'DocumentTooLargeError';
+  }
+}
 
 async function compressImage(buffer: Buffer, mimeType: string): Promise<{ buffer: Buffer; mimeType: string }> {
   const isImage = mimeType.startsWith('image/') && mimeType !== 'image/svg+xml' && mimeType !== 'image/gif';
@@ -185,6 +203,12 @@ export async function uploadCallRecording(
 /**
  * Uploads a file buffer directly to the 'property-documents' Supabase storage bucket under the account's folder,
  * returning the public URL.
+ *
+ * Oversize buffers are rejected here rather than at the bucket, so the
+ * caller gets a message naming the file and its size. Storage's own
+ * refusal reads as a bare "exceeded the maximum allowed size", which
+ * is what turned a 33 MB brochure into an unexplained "Failed to
+ * upload document" on WhatsApp.
  */
 export async function uploadPropertyDocument(
   accountId: string,
@@ -193,7 +217,11 @@ export async function uploadPropertyDocument(
   originalFilename?: string
 ): Promise<string> {
   const supabase = supabaseAdmin();
-  
+
+  if (buffer.length > DOCUMENT_SIZE_LIMIT) {
+    throw new DocumentTooLargeError(buffer.length, originalFilename);
+  }
+
   // Resolve file extension from mime type
   let ext = 'pdf';
   if (mimeType) {

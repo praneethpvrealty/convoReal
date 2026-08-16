@@ -80,8 +80,7 @@ describe('parsePropertyDocuments', () => {
 });
 
 describe('DOCUMENT_SIZE_LIMIT', () => {
-  it('stays below the WhatsApp attachment ceiling', () => {
-    expect(DOCUMENT_SIZE_LIMIT).toBe(25 * 1024 * 1024);
-    expect(DOCUMENT_SIZE_LIMIT).toBeLessThan(100 * 1024 * 1024);
+  it('matches the WhatsApp document ceiling and the bucket', () => {
+    expect(DOCUMENT_SIZE_LIMIT).toBe(100 * 1024 * 1024);
   });
 });
