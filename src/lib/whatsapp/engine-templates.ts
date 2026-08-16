@@ -48,6 +48,10 @@ import {
   FOLLOWUP_REMINDER_TEMPLATE_NAME,
 } from './timeline-ask-template';
 import {
+  buildPurchaseProgressTemplatePayload,
+  PURCHASE_PROGRESS_TEMPLATE_NAME,
+} from './purchase-progress-template';
+import {
   buildAnnouncementTemplatePayload,
   ANNOUNCEMENT_TEMPLATE_NAME,
 } from './announcement-template';
@@ -143,6 +147,14 @@ export const ENGINE_TEMPLATES: EngineTemplateDef[] = [
     whyItMatters:
       "The Utility-shaped replacement for Enquiry timeline: states the follow-up date already set on the lead's open enquiry and lets them confirm or move it, the same shape the four approved reminder templates use. Preferred over the Marketing row as soon as Meta approves it.",
     build: buildFollowupReminderTemplatePayload,
+  },
+  {
+    name: PURCHASE_PROGRESS_TEMPLATE_NAME,
+    copyKey: 'purchase_progress',
+    label: 'Purchase progress',
+    whyItMatters:
+      'Asks a buyer already at legal or registration where the paperwork stands, when their 24-hour window has closed. The only template addressed to a buyer mid-purchase: every enquiry template asserts an open enquiry awaiting a decision and offers to close it, which is false — and destructive — once a token is paid.',
+    build: buildPurchaseProgressTemplatePayload,
   },
   {
     name: ANNOUNCEMENT_TEMPLATE_NAME,

@@ -21,13 +21,13 @@
 //     close one. The enquiry check-in template does both, which is what
 //     made it the wrong message to send here in the first place.
 //
-// The update request is free-form only, so it reaches the lead when
-// their 24-hour window is open and tells the agent to call when it is
-// not. No approved template says "how is the paperwork going" — the
-// enquiry ones all assert an open enquiry awaiting a decision, which is
-// exactly the false statement this card exists to stop. AGENTS.md §2.7
-// is why a new template is not minted here on a hunch: a category is
-// decided once, unfixable, and a burned name is burned for good.
+// The update request is free-form inside the buyer's 24-hour window
+// and purchase_progress_notice outside it. It is never any of the
+// enquiry templates: those assert an open enquiry awaiting a decision
+// and offer "Close my enquiry", which is false once a token is paid
+// and marks the contact dead when tapped. Until that template is
+// approved on the account the agent is told to call — a wrong message
+// is worse than no message, which is the whole lesson here.
 //
 // closing_deal_nudges (migration 287) is the per-item state that keeps
 // this from becoming spam.
@@ -40,9 +40,20 @@ import { CLOSING_STAGE_KINDS } from '@/components/journey/shared';
 import { leadFirstName } from '@/lib/contacts/lead-placeholder';
 import { resolveConversation } from '@/lib/conversations/resolve';
 import { resolveOwnerWhatsAppContact } from '@/lib/inventory/location-requests';
+import { loadPastEnquiryContacts } from '@/lib/journey/past-enquiry';
+import { createNotification } from '@/lib/notifications/create';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { isWithinCustomerWindow } from '@/lib/whatsapp/customer-window';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
+import {
+  buildPurchaseProgressParams,
+  pickPurchaseProgressTemplate,
+  PURCHASE_PROGRESS_TEMPLATE_NAME,
+} from '@/lib/whatsapp/purchase-progress-template';
+import {
+  narrowToLanguage,
+  resolveSendLanguage,
+} from '@/lib/whatsapp/template-language';
 
 export const CLOSING_ADVANCE_PREFIX = 'cls_next:';
 export const CLOSING_ASK_PREFIX = 'cls_ask:';
@@ -508,22 +519,45 @@ export async function handleClosingReply(
     .limit(1)
     .maybeSingle();
 
-  // Free-form or nothing. The approved templates all frame the reader
-  // as having an open enquiry awaiting a decision, which is the false
-  // statement this card exists to stop sending.
-  if (!isWithinCustomerWindow(lastCustomer?.created_at)) {
-    await confirmToAgent(
-      `📵 ${who}'s 24-hour window is closed, so the bot can't message them about the paperwork — give them a call instead.`
-    );
-    return true;
-  }
-
   const { data: property } = await admin
     .from('properties')
     .select('id, title')
     .eq('id', item.property_id)
     .eq('account_id', accountId)
     .maybeSingle();
+  const propertyTitle =
+    (property as { title?: string | null } | null)?.title ?? null;
+
+  // Outside the window this needs purchase_progress_notice, and NOT
+  // any of the enquiry templates: those assert an open enquiry awaiting
+  // a decision and offer to close it, which is false once a token is
+  // paid and destructive when tapped. Until the account has that
+  // template approved there is no honest send, so the agent is told to
+  // call rather than handed a wrong message.
+  if (!isWithinCustomerWindow(lastCustomer?.created_at)) {
+    const stageName = await currentStageName(admin, accountId, item.stage_id);
+    const sentTemplate = await sendPurchaseProgressTemplate({
+      db: admin,
+      accountId,
+      userId: configOwnerUserId,
+      contactId: lead.id,
+      conversationId: conversation.id,
+      contactName: lead.name,
+      propertyTitle,
+      stageName,
+    });
+    if (!sentTemplate) {
+      await confirmToAgent(
+        `📵 ${who}'s 24-hour window is closed and the *Purchase progress* template isn't approved on this account yet — give them a call instead. Settings → Templates submits it.`
+      );
+      return true;
+    }
+    await stampNudgeState(admin, accountId, action.itemId, {
+      snoozed_until: addDays(new Date(), CLOSING_RENUDGE_DAYS).toISOString(),
+    });
+    await confirmToAgent(`✅ Asked ${who} where the paperwork stands.`);
+    return true;
+  }
 
   const result = await sendWhatsAppMessageAndPersist({
     accountId,
@@ -532,10 +566,7 @@ export async function handleClosingReply(
     conversationId: conversation.id,
     kind: 'text',
     senderType: 'bot',
-    text: buildClosingAskText(
-      lead.name,
-      (property as { title?: string | null } | null)?.title ?? null
-    ),
+    text: buildClosingAskText(lead.name, propertyTitle),
   });
 
   if (result.success) {
@@ -549,4 +580,168 @@ export async function handleClosingReply(
     );
   }
   return true;
+}
+
+/**
+ * A buyer's tap on purchase_progress_notice. Logs what they said
+ * against their closing journey item and tells the agent, rather than
+ * routing them into the enquiry timeline flow the other check-in
+ * buttons feed — this reader is not deciding anything, they are
+ * reporting where the paperwork stands.
+ *
+ * Returns false when the contact has no closing deal, so an old tap
+ * falls through to the normal inbound handling rather than being
+ * silently swallowed.
+ */
+export async function handlePurchaseProgressReply(args: {
+  accountId: string;
+  ownerUserId: string;
+  contact: { id: string; name: string | null };
+  conversationId: string;
+  onTrack: boolean;
+}): Promise<boolean> {
+  const admin = supabaseAdmin();
+  const pastEnquiry = await loadPastEnquiryContacts(admin, args.accountId);
+  const stageName = pastEnquiry.get(args.contact.id);
+  if (!stageName) return false;
+
+  const { data: itemRows } = await admin
+    .from('journey_items')
+    .select('id, property_id')
+    .eq('account_id', args.accountId)
+    .eq('contact_id', args.contact.id)
+    .eq('status', 'active');
+  const item = ((itemRows ?? []) as { id: string }[])[0];
+  if (!item) return false;
+
+  const answer = args.onTrack
+    ? 'Buyer says the paperwork is on track'
+    : 'Buyer says something is pending';
+  const { error: evError } = await admin.from('journey_events').insert({
+    account_id: args.accountId,
+    item_id: item.id,
+    event_type: 'client_response',
+    reason: `${answer} (tapped on the purchase-progress check-in)`,
+  });
+  if (evError)
+    console.error('[closing-nudges] progress event failed:', evError.message);
+
+  const { data: contactRow } = await admin
+    .from('contacts')
+    .select('assigned_agent_id')
+    .eq('id', args.contact.id)
+    .eq('account_id', args.accountId)
+    .maybeSingle();
+  const agentUserId =
+    (contactRow as { assigned_agent_id?: string | null } | null)
+      ?.assigned_agent_id || args.ownerUserId;
+  const who = args.contact.name || 'A buyer';
+  await createNotification({
+    accountId: args.accountId,
+    userId: agentUserId,
+    type: 'new_message',
+    title: args.onTrack
+      ? `🧾 ${who}: paperwork on track`
+      : `🧾 ${who}: something is pending`,
+    body: `${stageName} — ${answer.toLowerCase()}.`,
+    entityType: 'contact',
+    entityId: args.contact.id,
+    link: `/journey?contact=${args.contact.id}`,
+    channels: { inApp: true, push: true, whatsapp: false },
+  });
+
+  await sendWhatsAppMessageAndPersist({
+    accountId: args.accountId,
+    userId: args.ownerUserId,
+    contactId: args.contact.id,
+    conversationId: args.conversationId,
+    kind: 'text',
+    senderType: 'bot',
+    text: args.onTrack
+      ? '👍 Thank you — noted. We will keep an eye on it from our side too.'
+      : "👍 Thank you for telling us. We're on it — someone from the team will call you shortly.",
+  });
+  return true;
+}
+
+async function currentStageName(
+  db: SupabaseClient,
+  accountId: string,
+  stageId: string
+): Promise<string | null> {
+  const { data } = await db
+    .from('journey_stages')
+    .select('name')
+    .eq('id', stageId)
+    .eq('account_id', accountId)
+    .maybeSingle();
+  return (data as { name?: string | null } | null)?.name ?? null;
+}
+
+/** The closed-window path: the approved purchase-progress template.
+ *  False when no approved row exists or the send fails — the caller
+ *  tells the agent to call rather than substituting another template. */
+async function sendPurchaseProgressTemplate(args: {
+  db: SupabaseClient;
+  accountId: string;
+  userId: string;
+  contactId: string;
+  conversationId: string;
+  contactName: string | null;
+  propertyTitle: string | null;
+  stageName: string | null;
+}): Promise<boolean> {
+  const { db, accountId } = args;
+  type Row = {
+    name: string;
+    language?: string | null;
+    status?: string | null;
+    category?: string | null;
+    body_text: string;
+  };
+  const language = await resolveSendLanguage(db, accountId, args.contactId);
+  const { data: rows } = await db
+    .from('message_templates')
+    .select('*')
+    .eq('account_id', accountId)
+    .eq('name', PURCHASE_PROGRESS_TEMPLATE_NAME);
+  const template = pickPurchaseProgressTemplate(
+    narrowToLanguage((rows ?? []) as Row[], language)
+  );
+  if (!template) return false;
+
+  const { data: account } = await db
+    .from('accounts')
+    .select('name')
+    .eq('id', accountId)
+    .maybeSingle();
+
+  const params = buildPurchaseProgressParams(
+    args.contactName,
+    (account as { name?: string | null } | null)?.name ?? null,
+    args.propertyTitle || 'your purchase',
+    args.stageName
+  );
+
+  const result = await sendWhatsAppMessageAndPersist({
+    accountId,
+    userId: args.userId,
+    contactId: args.contactId,
+    conversationId: args.conversationId,
+    kind: 'template',
+    senderType: 'bot',
+    templateName: template.name,
+    templateLanguage: (template as Row).language || 'en_US',
+    templateParams: [...params],
+    messageParams: { body: [...params] },
+    templateRow: template,
+    text: resolveBodyText((template as Row).body_text, [...params]),
+  });
+  return result.success;
+}
+
+function resolveBodyText(body: string, params: string[]): string {
+  return (body || '').replace(/\{\{(\d+)\}\}/g, (_, n) => {
+    return params[Number(n) - 1] ?? '';
+  });
 }

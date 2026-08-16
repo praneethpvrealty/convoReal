@@ -377,17 +377,41 @@ describe('the closing card is wired up', () => {
     expect(tap).toBeLessThan(ownerChatbot);
   });
 
+  // A buyer mid-purchase taps "Paperwork on track"; the enquiry
+  // handlers below would file that as a decision about an open
+  // enquiry, so the closing handler has to see it first.
+  it('the webhook reads a paperwork tap before the enquiry buttons', () => {
+    const source = read('src/lib/whatsapp/webhook-handler.ts');
+    const paperwork = source.indexOf('handlePurchaseProgressReply({');
+    const stillConsidering = source.indexOf("=== 'still_considering'");
+    const closeEnquiry = source.indexOf("=== 'close_enquiry'");
+    expect(paperwork).toBeGreaterThan(-1);
+    expect(stillConsidering).toBeGreaterThan(-1);
+    expect(closeEnquiry).toBeGreaterThan(-1);
+    expect(paperwork).toBeLessThan(stillConsidering);
+    expect(paperwork).toBeLessThan(closeEnquiry);
+  });
+
   it('the radar cron also sends the closing cards', () => {
     const source = read('src/app/api/cron/follow-up-nudges/route.ts');
     expect(source).toContain('sendClosingDealNudges()');
   });
 
-  // No approved template says "how is the paperwork going" — the
-  // enquiry ones all assert an open enquiry awaiting a decision, which
-  // is the false statement this card exists to stop.
-  it('never reaches for a template on the closed-window path', () => {
+  // The closed-window path sends purchase_progress_notice and nothing
+  // else. Every enquiry template asserts an open enquiry awaiting a
+  // decision and offers "Close my enquiry" — false once a token is
+  // paid, and it marks the contact dead when tapped.
+  it('only ever reaches for the purchase-progress template', () => {
     const source = read('src/lib/journey/closing-nudges.ts');
-    expect(source).not.toContain("kind: 'template'");
-    expect(source).not.toContain('templateName');
+    expect(source).toContain('PURCHASE_PROGRESS_TEMPLATE_NAME');
+    for (const enquiryTemplate of [
+      'enquiry_checkin_notice',
+      'enquiry_status_notice',
+      'enquiry_timeline_notice',
+      'property_enquiry_reminder',
+      'listing_status_notice',
+    ]) {
+      expect(source, enquiryTemplate).not.toContain(enquiryTemplate);
+    }
   });
 });

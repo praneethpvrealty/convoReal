@@ -54,6 +54,8 @@ const TEMPLATE_LABELS: Record<EngineTemplateKey, string> = {
   journey_timeline: 'Enquiry timeline — when should we check back with you?',
   journey_followup_reminder:
     'Enquiry follow-up reminder — confirm or move the scheduled follow-up date',
+  purchase_progress:
+    'Purchase progress — where does the paperwork stand on a deal already at legal?',
   audio_announcement:
     'Audio announcement — a voice-note update, delivered as a playable video',
   post_call_options:
@@ -93,6 +95,12 @@ const PLACEHOLDER_MEANINGS: Record<EngineTemplateKey, string[]> = {
     'listing title',
     'scheduled follow-up date',
   ],
+  purchase_progress: [
+    'buyer first name',
+    'brokerage name',
+    'property being bought',
+    'stage the purchase is recorded at',
+  ],
   audio_announcement: ['contact first name', 'brokerage name'],
   post_call_options: [
     'lead first name',
@@ -117,6 +125,7 @@ const REPLY_BUTTONS: Record<EngineTemplateKey, TemplateButtonAction[]> = {
     'timeline_2_days',
     'timeline_unsure',
   ],
+  purchase_progress: ['paperwork_on_track', 'paperwork_pending'],
   audio_announcement: [],
   post_call_options: ['send_options'],
 };
