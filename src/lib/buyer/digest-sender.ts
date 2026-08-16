@@ -261,6 +261,18 @@ async function runAccount(
         // so they are built from it rather than assumed.
         buildParams: (template) =>
           propertyShareParams(template.name, buyer.name, top, brandName),
+        // A URL button with a {{1}} suffix is rejected without one —
+        // same v= attribution param share-property-send.ts and the
+        // Match Radar send route already fill in for this template.
+        buildButtonParams: (template) => {
+          const buttonParams: Record<number, string> = {};
+          (template.buttons ?? []).forEach((btn, idx) => {
+            if (btn.type === 'URL' && btn.url.includes('{{1}}')) {
+              buttonParams[idx] = `?property_id=${top.id}&v=${buyer.id}`;
+            }
+          });
+          return Object.keys(buttonParams).length > 0 ? buttonParams : undefined;
+        },
         headerMediaUrl: headerImage,
       });
 

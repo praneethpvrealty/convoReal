@@ -101,6 +101,10 @@ export async function sendDenNotification(
      *  the caller that knows both builds them after the choice, not
      *  before. Wins over templateParams when both are given. */
     buildParams?: (template: MessageTemplate) => string[];
+    /** Per-button overrides derived from whichever template was picked
+     *  — same reasoning as buildParams. Needed for a URL button whose
+     *  `{{1}}` suffix Meta rejects the send without. */
+    buildButtonParams?: (template: MessageTemplate) => Record<number, string> | undefined;
     /** Media-header image, resolved to a URL Meta can fetch. Ignored by
      *  a template with a text header, so callers can pass it blind. */
     headerMediaUrl?: string | null;
@@ -143,6 +147,7 @@ export async function sendDenNotification(
     const params = args.buildParams
       ? args.buildParams(template)
       : args.templateParams!;
+    const buttonParams = args.buildButtonParams?.(template);
 
     const res = await sendWhatsAppMessageAndPersist({
       accountId: args.accountId,
@@ -154,6 +159,7 @@ export async function sendDenNotification(
       templateParams: params,
       messageParams: {
         body: params,
+        ...(buttonParams ? { buttonParams } : {}),
         ...(args.headerMediaUrl ? { headerMediaUrl: args.headerMediaUrl } : {}),
       },
       templateRow: template,
