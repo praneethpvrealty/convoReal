@@ -335,6 +335,21 @@ describe('parseEventFromInput image branch', () => {
     expect(captured[0].system).toContain('"requests"');
   });
 
+  it('supplies team and contact names so recipient roles can be distinguished', async () => {
+    stubGemini({ requests: [] });
+    await parseEventsFromInput({
+      text: 'Need to inform Supreeth',
+      memberNames: ['Sharan'],
+      contactNames: ['Supreeth Kumar'],
+    });
+
+    expect(captured[0].system).toContain('Team member names for assignee matching: Sharan');
+    expect(captured[0].system).toContain(
+      'Client/contact names for contact matching: Supreeth Kumar'
+    );
+    expect(captured[0].system).toContain('Need to inform a client');
+  });
+
   it('corrects the model’s weekday arithmetic before returning', async () => {
     // Exactly what shipped: model answers Tue 4 Aug for a "Monday" thread.
     stubGemini({

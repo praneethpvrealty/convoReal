@@ -184,6 +184,77 @@ describe('notify intent', () => {
     expect(card()).toContain('Sharath');
   });
 
+  it('files an instruction for a client as a contact-linked task', async () => {
+    tables.contacts = [
+      {
+        id: 'contact-supreeth',
+        name: 'Supreeth Kumar',
+        phone: '+919999999999',
+        last_inquired_property_id: 'property-1194',
+      },
+    ];
+    tables.properties = [
+      {
+        id: 'property-1194',
+        title: '4 BHK Independent Bungalow in HSR Layout',
+        property_code: 'PROP-1194',
+        location: 'HSR Layout',
+        sublocality: '4th Sector',
+      },
+    ];
+    parseEventsFromInput.mockResolvedValue([
+      notify({
+        recipient_name: 'Supreeth',
+        title: 'Inform Supreeth about the owner price floor',
+        notes: 'Owner has not agreed to go below 40k per sqft.',
+      }),
+    ]);
+
+    await tryHandleOwnerScheduling({
+      ...baseParams,
+      contentText:
+        'Need to inform Supreeth that owner has not agreed to come below 40k per sqft.',
+    });
+
+    expect(parseEventsFromInput).toHaveBeenCalledWith(
+      expect.objectContaining({
+        memberNames: ['Praneeth', 'Sharan'],
+        contactNames: ['Supreeth Kumar'],
+      })
+    );
+
+    expect(createNotification).not.toHaveBeenCalled();
+    const todo = inserts.find((i) => i.table === 'todos');
+    expect(todo?.row).toMatchObject({
+      contact_id: 'contact-supreeth',
+      property_id: 'property-1194',
+      assigned_to: 'user-1',
+      title: 'Inform Supreeth about the owner price floor',
+      description: 'Owner has not agreed to go below 40k per sqft.',
+    });
+    expect(card()).toContain('✅ *Task added to your list*');
+    expect(card()).toContain('👤 Supreeth Kumar');
+  });
+
+  it('asks for clarification when a name matches a client and teammate', async () => {
+    tables.contacts = [
+      { id: 'contact-sharan', name: 'Sharan', phone: '+919999999999' },
+    ];
+    parseEventsFromInput.mockResolvedValue([notify()]);
+
+    await tryHandleOwnerScheduling({
+      ...baseParams,
+      contentText: 'Tell Sharan that the owner accepted the offer',
+    });
+
+    expect(createNotification).not.toHaveBeenCalled();
+    expect(
+      inserts.filter((i) => i.table === 'todos' || i.table === 'appointments')
+    ).toEqual([]);
+    expect(card()).toContain('Which person do you mean?');
+    expect(card()).toContain('both a client and a teammate');
+  });
+
   it('refuses to ping the sender back with their own update', async () => {
     parseEventsFromInput.mockResolvedValue([
       notify({ recipient_name: 'Praneeth' }),

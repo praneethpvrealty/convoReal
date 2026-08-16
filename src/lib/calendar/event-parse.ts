@@ -234,7 +234,7 @@ export function alignDraftToNamedWeekday(
   };
 }
 
-function buildSystemPrompt(now: Date, memberNames: string[]): string {
+function buildSystemPrompt(now: Date, memberNames: string[], contactNames: string[]): string {
   return (
     'You are the scheduling assistant inside a sales platform used by Indian real-estate agents. ' +
     `The user logs calendar events and tasks by typing or speaking (${INPUT_LANGUAGE_HINT}). ` +
@@ -264,6 +264,9 @@ function buildSystemPrompt(now: Date, memberNames: string[]): string {
     (memberNames.length > 0
       ? `Team member names for assignee matching: ${memberNames.join(', ')}.\n`
       : '') +
+    (contactNames.length > 0
+      ? `Client/contact names for contact matching: ${contactNames.join(', ')}.\n`
+      : '') +
     'Splitting: one entry per thing the speaker wants done, and NEVER more. One event keeps all of its own ' +
     'detail together — "site visit with Varun tomorrow 4pm at the JP Nagar plot" is ONE request, not one per ' +
     'person, time and place. Split only when the actions are genuinely separate and could be done by different ' +
@@ -275,6 +278,10 @@ function buildSystemPrompt(now: Date, memberNames: string[]): string {
     'A stated calendar date with no time of day ("meet the lawyer on 30th July") IS intent "schedule" — ' +
     'use 10:00 as the hour, the same default as "morning", rather than midnight. ' +
     'A forwarded property listing or a lead\'s contact details is intent "none". ' +
+    'Use intent "notify" only when the named recipient appears in the supplied team member names and not only ' +
+    'in the supplied client/contact names. "Need to inform a client" is a "task" linked through contact_name, ' +
+    'not a notification. When a name appears in both lists, preserve the named person in recipient_name so the ' +
+    'application can ask which person was meant. ' +
     'For intent "notify", "title" is the subject line and "notes" carries everything the recipient needs to ' +
     'know — they see only those two and cannot hear the original message. Telling someone about a meeting is ' +
     '"notify"; being asked to do the work is "task" with assignee_name. ' +
@@ -301,6 +308,7 @@ export interface EventParseInput {
   audio?: { base64: string; mimeType: string };
   image?: { base64: string; mimeType: string };
   memberNames?: string[];
+  contactNames?: string[];
   now?: Date;
 }
 
@@ -353,7 +361,7 @@ async function runEventParse(
   // over, so both stay on the standard tier.
   const raw = await generateJsonFromParts(
     parts,
-    buildSystemPrompt(input.now || new Date(), input.memberNames || []),
+    buildSystemPrompt(input.now || new Date(), input.memberNames || [], input.contactNames || []),
     input.audio
       ? { feature: 'voice_event_parse' }
       : input.image
