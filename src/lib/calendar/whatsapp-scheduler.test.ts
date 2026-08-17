@@ -120,6 +120,11 @@ const DICTATED_LIST =
   '3) Followup with Ashwath Reddy regarding a) Whitefield MNG Business centre proposal status ' +
   "b) Koramangala NW corner Varun's property";
 
+const IMPLICIT_TASK_LIST =
+  '1) Speak with Pavan regarding Koramangala properties tomorrow ' +
+  '2) Golden Anand regarding vartur and Lotus diagnostic building ' +
+  '3) Speak with Shiv and Raghunath regarding Dinakars Narayanapura property.';
+
 describe('looksLikeSchedulingText — a dictated task list', () => {
   it('accepts the list that was filed as a property draft', () => {
     // The reported bug. "followup with" made it a scheduling request,
@@ -143,6 +148,10 @@ describe('looksLikeSchedulingText — a dictated task list', () => {
         'New lead from magicbricks, Rakesh 9845012345, is interested in the Hoodi plot, call him Monday'
       )
     ).toBe(false);
+  });
+
+  it('accepts a numbered action list without a task prefix', () => {
+    expect(looksLikeSchedulingText(IMPLICIT_TASK_LIST)).toBe(true);
   });
 });
 
@@ -199,6 +208,15 @@ describe('isDictatedTaskList', () => {
     expect(splitTaskList(v2)).toHaveLength(3);
   });
 
+  it('recognises a numbered list whose first item starts with an action', () => {
+    expect(isDictatedTaskList(IMPLICIT_TASK_LIST)).toBe(true);
+    expect(splitTaskList(IMPLICIT_TASK_LIST)).toEqual([
+      'Speak with Pavan regarding Koramangala properties tomorrow',
+      'Golden Anand regarding vartur and Lotus diagnostic building',
+      'Speak with Shiv and Raghunath regarding Dinakars Narayanapura property',
+    ]);
+  });
+
   it('is false for anything that could be an intake correction', () => {
     // This predicate is allowed to interrupt a draft session, so it has
     // to be certain. A listing correction must never match.
@@ -206,6 +224,7 @@ describe('isDictatedTaskList', () => {
       'price is 2.5 cr',
       'task: send the brochure',
       '3 BHK 1450 sqft, 2 covered parkings',
+      '1) 3 BHK in JP Nagar 2) 2 BHK in Koramangala',
       'site visit tomorrow 4pm',
       '',
       null,
