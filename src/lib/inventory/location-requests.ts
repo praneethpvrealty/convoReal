@@ -38,6 +38,12 @@ import {
   buildLocationRevealParams,
 } from '@/lib/whatsapp/location-reveal-template';
 import {
+  LOCATION_CONSENT_TEMPLATE_NAME,
+  LOCATION_OWNER_DECISION_TEMPLATE_NAME,
+  buildLocationConsentParams,
+  buildLocationOwnerDecisionParams,
+} from '@/lib/whatsapp/location-request-templates';
+import {
   normalizePhoneWithCountryCode,
   phonesMatch,
 } from '@/lib/whatsapp/phone-utils';
@@ -306,7 +312,7 @@ async function sendRevealToSeeker(
       'location-requests',
       request.account_id,
       revealLanguage,
-      template,
+      template
     );
   }
   if (template?.status !== 'APPROVED') {
@@ -389,25 +395,92 @@ export async function requestConsentFromContact(
     request.property_id
   );
 
+  const consentText = buildConsentMessage({
+    coBrokerName: contact.name || 'there',
+    propertyTitle: title,
+    requesterName: request.requester_name,
+    requesterPhone: request.requester_phone,
+  });
+
   try {
-    await sendWhatsAppMessageAndPersist({
+    const interactive = await sendWhatsAppMessageAndPersist({
       accountId: request.account_id,
       contactId: contact.id,
       kind: 'interactive',
       senderType: 'bot',
       interactiveType: 'buttons',
-      interactiveBody: buildConsentMessage({
-        coBrokerName: contact.name || 'there',
-        propertyTitle: title,
-        requesterName: request.requester_name,
-        requesterPhone: request.requester_phone,
-      }),
+      interactiveBody: consentText,
       interactiveButtons: [
         { id: `${CONSENT_APPROVE_PREFIX}${request.id}`, title: '✅ Approve' },
         { id: `${CONSENT_DECLINE_PREFIX}${request.id}`, title: '❌ Decline' },
       ],
       allowChainOnly: true,
     });
+    if (!interactive.success) {
+      if (!isReengagementError(interactive.error)) {
+        console.error(
+          '[location-requests] Consent send failed:',
+          interactive.error
+        );
+        return false;
+      }
+
+      const { template, language, fellBack } =
+        await loadTemplateForContact<MessageTemplate>(admin, {
+          accountId: request.account_id,
+          contactId: contact.id,
+          names: [LOCATION_CONSENT_TEMPLATE_NAME],
+        });
+      if (fellBack) {
+        warnLanguageFallback(
+          'location-consent',
+          request.account_id,
+          language,
+          template
+        );
+      }
+      if (!template || (template.status ?? '').toUpperCase() !== 'APPROVED') {
+        console.error(
+          '[location-requests] Consent undeliverable: window closed and no approved location_consent_request template'
+        );
+        return false;
+      }
+
+      const params = truncateParametersToBudget(
+        template.body_text,
+        buildLocationConsentParams(
+          contact.name,
+          title,
+          `${maskName(request.requester_name)} (${maskPhone(request.requester_phone)})`
+        )
+      );
+      const templateSend = await sendWhatsAppMessageAndPersist({
+        accountId: request.account_id,
+        contactId: contact.id,
+        kind: 'template',
+        senderType: 'bot',
+        templateName: template.name,
+        templateLanguage: template.language || 'en_US',
+        templateParams: params,
+        messageParams: {
+          body: params,
+          buttonParams: {
+            0: `${CONSENT_APPROVE_PREFIX}${request.id}`,
+            1: `${CONSENT_DECLINE_PREFIX}${request.id}`,
+          },
+        },
+        templateRow: template,
+        text: resolveTemplateBodyText(template.body_text, params),
+        allowChainOnly: true,
+      });
+      if (!templateSend.success) {
+        console.error(
+          '[location-requests] Consent template send failed:',
+          templateSend.error
+        );
+        return false;
+      }
+    }
   } catch (err) {
     console.error('[location-requests] Consent send failed:', err);
     return false;
@@ -573,7 +646,17 @@ export async function notifyOwnerQueue(
     );
     if (!agent) return;
 
-    await sendWhatsAppMessageAndPersist({
+    const interactiveBody =
+      `${listingScope ? '🔓 *New Listing Access Request*' : '📍 *New Location Reveal Request*'}\n` +
+      `Property: ${propertyLine}\n` +
+      `${fromLine}\n\n` +
+      (listingScope
+        ? `Approve to open the full listing page for this requester on WhatsApp — their link expires in 7 days, ` +
+          `is revocable, and every photo they see is watermarked to them. Reject to redirect them `
+        : `Approve to send the exact location to the requester via WhatsApp, or reject to redirect them `) +
+      `to the person who shared them the property. ` +
+      `Also available on your dashboard.`;
+    const interactive = await sendWhatsAppMessageAndPersist({
       accountId: request.account_id,
       userId: targetUserId,
       ...(agent.contactId
@@ -582,21 +665,79 @@ export async function notifyOwnerQueue(
       kind: 'interactive',
       senderType: 'bot',
       interactiveType: 'buttons',
-      interactiveBody:
-        `${listingScope ? '🔓 *New Listing Access Request*' : '📍 *New Location Reveal Request*'}\n` +
-        `Property: ${propertyLine}\n` +
-        `${fromLine}\n\n` +
-        (listingScope
-          ? `Approve to open the full listing page for this requester on WhatsApp — their link expires in 7 days, ` +
-            `is revocable, and every photo they see is watermarked to them. Reject to redirect them `
-          : `Approve to send the exact location to the requester via WhatsApp, or reject to redirect them `) +
-        `to the person who shared them the property. ` +
-        `Also available on your dashboard.`,
+      interactiveBody,
       interactiveButtons: [
         { id: `${OWNER_APPROVE_PREFIX}${request.id}`, title: '✅ Approve' },
         { id: `${OWNER_REJECT_PREFIX}${request.id}`, title: '❌ Reject' },
       ],
     });
+    if (interactive.success) return;
+    if (!isReengagementError(interactive.error)) {
+      console.error(
+        '[location-requests] Owner notify failed:',
+        interactive.error
+      );
+      return;
+    }
+
+    const { template, language, fellBack } =
+      await loadTemplateForContact<MessageTemplate>(admin, {
+        accountId: request.account_id,
+        contactId: agent.contactId,
+        names: [LOCATION_OWNER_DECISION_TEMPLATE_NAME],
+      });
+    if (fellBack) {
+      warnLanguageFallback(
+        'location-owner-decision',
+        request.account_id,
+        language,
+        template
+      );
+    }
+    if (!template || (template.status ?? '').toUpperCase() !== 'APPROVED') {
+      console.error(
+        '[location-requests] Owner notification undeliverable: window closed and no approved location_owner_decision template'
+      );
+      return;
+    }
+
+    const params = truncateParametersToBudget(
+      template.body_text,
+      buildLocationOwnerDecisionParams({
+        scope: request.scope,
+        property: propertyLine,
+        requester: attributed
+          ? `${maskName(request.requester_name)} · ${maskPhone(request.requester_phone)}`
+          : `${request.requester_name} · ${request.requester_phone}`,
+      })
+    );
+    const templateSend = await sendWhatsAppMessageAndPersist({
+      accountId: request.account_id,
+      userId: targetUserId,
+      ...(agent.contactId
+        ? { contactId: agent.contactId }
+        : { toPhone: agent.phone }),
+      kind: 'template',
+      senderType: 'bot',
+      templateName: template.name,
+      templateLanguage: template.language || 'en_US',
+      templateParams: params,
+      messageParams: {
+        body: params,
+        buttonParams: {
+          0: `${OWNER_APPROVE_PREFIX}${request.id}`,
+          1: `${OWNER_REJECT_PREFIX}${request.id}`,
+        },
+      },
+      templateRow: template,
+      text: resolveTemplateBodyText(template.body_text, params),
+    });
+    if (!templateSend.success) {
+      console.error(
+        '[location-requests] Owner decision template send failed:',
+        templateSend.error
+      );
+    }
   } catch (err) {
     console.error('[location-requests] Owner notify failed:', err);
   }
