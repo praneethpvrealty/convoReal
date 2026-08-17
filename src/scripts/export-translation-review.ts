@@ -47,6 +47,10 @@ const TEMPLATE_LABELS: Record<EngineTemplateKey, string> = {
   property_alert: 'Property details — sent when a buyer asks about a listing',
   property_enquiry_photos: 'Property photos — the same, led by a photo',
   location_reveal: 'Location reveal — approved request for an exact address',
+  location_consent_request:
+    'Location consent request — a co-broker decides whether a protected request can advance',
+  location_owner_decision:
+    'Location owner decision — the listing side approves or rejects protected access',
   inventory_update: 'Inventory update — a refreshed catalogue snapshot',
   enquiry_followup: 'Enquiry status — the listing they asked about is gone',
   enquiry_notice: 'Enquiry notice — the same, naming the listing',
@@ -79,6 +83,17 @@ const PLACEHOLDER_MEANINGS: Record<EngineTemplateKey, string[]> = {
     'locality',
   ],
   location_reveal: ['requester first name', 'listing title'],
+  location_consent_request: [
+    'co-broker first name',
+    'listing title',
+    'masked requester identity',
+  ],
+  location_owner_decision: [
+    'request type',
+    'listing title and code',
+    'requester identity or masked identity',
+    'access being requested',
+  ],
   inventory_update: [
     'contact first name',
     'residential summary',
@@ -115,6 +130,8 @@ const REPLY_BUTTONS: Record<EngineTemplateKey, TemplateButtonAction[]> = {
   property_alert: ['send_more_details', 'view_full_details'],
   property_enquiry_photos: ['send_more_details', 'view_full_details'],
   location_reveal: ['view_location'],
+  location_consent_request: ['approve_request', 'decline_request'],
+  location_owner_decision: ['approve_access', 'reject_access'],
   inventory_update: ['inventory_full_list', 'site_visit', 'browse_showcase'],
   enquiry_followup: ['update_preferences', 'close_enquiry'],
   enquiry_notice: ['update_preferences', 'close_enquiry'],
