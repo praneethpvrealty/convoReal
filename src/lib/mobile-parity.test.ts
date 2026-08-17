@@ -33,6 +33,7 @@ import {
   LAND_CONVERSION_TYPES,
   LEGACY_RESIDENTIAL_LAND_PLOT,
   hasBedsBaths,
+  isApartmentType,
   isLandType,
   isRawLandType,
 } from '@/lib/inventory/property-options';
@@ -223,6 +224,7 @@ describe('mobile/lib/property-options.ts mirrors the web option catalog', () => 
     ['BEDS_BATHS_TYPES', hasBedsBaths],
     ['LAND_TYPES', isLandType],
     ['RAW_LAND_TYPES', isRawLandType],
+    ['APARTMENT_TYPES', isApartmentType],
   ])(
     'classifies every property type the same way as %s',
     (name, webPredicate) => {

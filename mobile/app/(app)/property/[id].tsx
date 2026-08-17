@@ -46,6 +46,13 @@ import {
 } from '@/lib/match-chips';
 import { fetchPropertyMatches } from '@/lib/property-matches';
 import { rentalYieldPercent } from '@/lib/rental-yield';
+import {
+  hasBedsBaths,
+  hasCommercialBuildingFields,
+  hasTotalFloors,
+  isApartmentType,
+  isLandType,
+} from '@/lib/property-options';
 import { PropertyDocuments } from '@/components/property-documents';
 import { useAuthStore } from '@/lib/auth-store';
 import { queryClient } from '@/lib/query';
@@ -123,6 +130,11 @@ export default function PropertyDetailScreen() {
   }
 
   const price = listingPrice(property);
+  const propertyType = property.type || '';
+  const isLand = isLandType(propertyType);
+  const isApartment = isApartmentType(propertyType);
+  const showBedsBaths = hasBedsBaths(propertyType);
+  const showCommercialBuildingFields = hasCommercialBuildingFields(propertyType);
   const place = [property.location, property.sublocality, property.city]
     .filter(Boolean)
     .join(', ');
@@ -140,16 +152,18 @@ export default function PropertyDetailScreen() {
   // (e.g. "Coorg") would just open a vague search, so we hide it.
   const hasMapLocation = hasCoords || !!property.google_map_link;
   const ownerPhone = property.owner?.phone;
-  const area = property.area_sqft
-    ? `${property.area_sqft} ${property.area_unit || 'sqft'}`
-    : property.land_area
+  const area = isLand
+    ? property.land_area
       ? `${property.land_area} ${property.land_area_unit || ''}`.trim()
+      : null
+    : property.area_sqft
+      ? `${property.area_sqft} ${property.area_unit || 'sqft'}`
       : null;
   // Web parity: land area is its own spec whenever it isn't already what
   // the Area tile shows — a 2500 Sq.Ft. house on an 8000 Sq.Ft. plot
   // must surface both, not bury the plot in the description.
   const landArea =
-    property.area_sqft && property.land_area
+    !isLand && !isApartment && property.area_sqft && property.land_area
       ? `${property.land_area} ${property.land_area_unit || 'Sq.Ft.'}`
       : null;
   // Web parity (view mode): dimensions "F x D" splits into frontage/depth.
@@ -160,18 +174,25 @@ export default function PropertyDetailScreen() {
   const depth = dimParts.length === 2 ? dimParts[1] : null;
   // Web parity: specs without a value are hidden, not dashed out.
   const specs = [
-    property.bedrooms
+    showBedsBaths && property.bedrooms
       ? {
           icon: 'bed-outline' as const,
           label: 'Bedrooms',
           value: String(property.bedrooms),
         }
       : null,
-    property.bathrooms
+    showBedsBaths && property.bathrooms
       ? {
           icon: 'water-outline' as const,
           label: 'Bathrooms',
           value: String(property.bathrooms),
+        }
+      : null,
+    hasTotalFloors(propertyType) && property.total_floors
+      ? {
+          icon: 'layers-outline' as const,
+          label: 'Total floors',
+          value: String(property.total_floors),
         }
       : null,
     property.sublocality
@@ -194,21 +215,21 @@ export default function PropertyDetailScreen() {
           value: property.facing_direction,
         }
       : null,
-    frontage
+    !isApartment && frontage
       ? {
           icon: 'swap-horizontal-outline' as const,
           label: 'Frontage',
           value: `${frontage} ft`,
         }
       : null,
-    property.ownership_status
+    isLand && property.ownership_status
       ? {
           icon: 'ribbon-outline' as const,
           label: 'Ownership',
           value: property.ownership_status,
         }
       : null,
-    property.conversion_type
+    isLand && property.conversion_type
       ? {
           icon: 'checkmark-circle-outline' as const,
           label: 'Conversion',
@@ -227,30 +248,30 @@ export default function PropertyDetailScreen() {
   );
   // Web parity: "Listing Metadata" key/value rows, all conditional.
   const metadata = [
-    property.super_built_area
+    !isLand && property.super_built_area
       ? {
           label: 'Super Built Area',
           value: `${property.super_built_area.toLocaleString('en-IN')} Sq.Ft.`,
         }
       : null,
-    property.dimensions
+    !isApartment && property.dimensions
       ? { label: 'Dimensions', value: property.dimensions }
       : null,
-    frontage ? { label: 'Frontage', value: `${frontage} Feet` } : null,
-    depth ? { label: 'Depth', value: `${depth} Feet` } : null,
-    property.road_width
+    !isApartment && frontage ? { label: 'Frontage', value: `${frontage} Feet` } : null,
+    !isApartment && depth ? { label: 'Depth', value: `${depth} Feet` } : null,
+    !isApartment && property.road_width
       ? {
           label: 'Road Width',
           value: `${property.road_width} ${property.road_width_unit || 'Feet'}`,
         }
       : null,
-    property.land_zone
+    (isLand || showCommercialBuildingFields) && property.land_zone
       ? { label: 'Land Zone', value: property.land_zone }
       : null,
-    property.ideal_for
+    showCommercialBuildingFields && property.ideal_for
       ? { label: 'Ideal For', value: property.ideal_for }
       : null,
-    rentalIncome
+    showCommercialBuildingFields && rentalIncome
       ? {
           label: 'Rental Income',
           value: `${formatInr(rentalIncome)}/mo${yieldPct ? ` · ${yieldPct}% yield` : ''}`,
@@ -530,7 +551,7 @@ export default function PropertyDetailScreen() {
           ) : null}
 
           {plansWithImages(property.floor_plans).length ? (
-            <Section title="Floor Plans">
+            <Section title={isLand ? 'Land Sketches' : 'Floor Plans'}>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -553,7 +574,7 @@ export default function PropertyDetailScreen() {
                       numberOfLines={1}
                       style={{ fontSize: 12, fontFamily: f.bold, color: colors.text }}
                     >
-                      {fp.floor || `Floor ${i + 1}`}
+                      {fp.floor || `${isLand ? 'Sketch' : 'Floor'} ${i + 1}`}
                     </Text>
                     {fp.area_sqft || fp.notes ? (
                       <Text

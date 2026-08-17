@@ -1,5 +1,5 @@
 /**
- * Mobile bundle boundary for floor-plan galleries.
+ * Mobile bundle boundary for floor-plan and land-sketch galleries.
  *
  * The canonical sanitizers live in src/lib/inventory/floor-plans.ts on
  * the web/server side. Mobile only needs this structural, read-only

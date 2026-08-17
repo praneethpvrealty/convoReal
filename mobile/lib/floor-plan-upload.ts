@@ -1,5 +1,5 @@
 // ------------------------------------------------------------------
-// Picking a floor plan off the phone and storing it.
+// Picking a floor plan or land sketch off the phone and storing it.
 //
 // Shared by the standalone Floor Plans editor and the rent-roll rows,
 // which store the same thing in the same place — the difference is only
@@ -23,9 +23,12 @@ export type FloorPlanPickOutcome =
   | { status: 'error'; title: string; message?: string };
 
 /** Module scope so the timestamp and nonce are never read during render. */
-function planPath(accountId: string): string {
+export type PlanImageKind = 'floor-plan' | 'land-sketch';
+
+function planPath(accountId: string, kind: PlanImageKind): string {
   const rand = Math.random().toString(36).substring(2, 7);
-  return `${accountId}/plan-${Date.now()}-${rand}.jpg`;
+  const prefix = kind === 'land-sketch' ? 'sketch' : 'plan';
+  return `${accountId}/${prefix}-${Date.now()}-${rand}.jpg`;
 }
 
 function decodeBase64(b64: string): Uint8Array {
@@ -36,13 +39,18 @@ function decodeBase64(b64: string): Uint8Array {
 }
 
 /**
- * Prompts for a plan image and uploads it, returning the stored path.
+ * Prompts for a plan/sketch image and uploads it, returning the stored
+ * path.
  *
  * Every failure comes back as a value rather than a throw, so the
  * caller decides how to surface it — the two call sites render dialogs
  * differently and neither should have to wrap this in a try/catch.
  */
-export async function pickAndUploadFloorPlan(): Promise<FloorPlanPickOutcome> {
+export async function pickAndUploadFloorPlan(
+  kind: PlanImageKind = 'floor-plan'
+): Promise<FloorPlanPickOutcome> {
+  const label = kind === 'land-sketch' ? 'land sketch' : 'floor plan';
+  const plural = kind === 'land-sketch' ? 'land sketches' : 'floor plans';
   // Loaded lazily so an older installed build that predates this native
   // module degrades to a prompt instead of crashing at import time.
   let ImagePicker: typeof import('expo-image-picker');
@@ -52,8 +60,7 @@ export async function pickAndUploadFloorPlan(): Promise<FloorPlanPickOutcome> {
     return {
       status: 'error',
       title: 'Update the app',
-      message:
-        'Adding floor plans needs the latest ConvoReal build. Install the newest version, then try again.',
+      message: `Adding ${plural} needs the latest ConvoReal build. Install the newest version, then try again.`,
     };
   }
 
@@ -62,7 +69,7 @@ export async function pickAndUploadFloorPlan(): Promise<FloorPlanPickOutcome> {
     return {
       status: 'error',
       title: 'Permission needed',
-      message: 'Allow photo access to add a floor plan.',
+      message: `Allow photo access to add a ${label}.`,
     };
   }
 
@@ -80,7 +87,7 @@ export async function pickAndUploadFloorPlan(): Promise<FloorPlanPickOutcome> {
 
   try {
     const bytes = decodeBase64(asset.base64);
-    const path = planPath(accountId);
+    const path = planPath(accountId, kind);
     const { error } = await supabase.storage
       .from(BUCKET)
       .upload(path, bytes.buffer as ArrayBuffer, {

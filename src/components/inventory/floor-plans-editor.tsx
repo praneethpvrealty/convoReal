@@ -6,6 +6,7 @@ import { Plus, Trash2, Upload, Loader2, LayoutPanelTop } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { planMediaCopy } from '@/lib/inventory/plan-media-copy';
 import { storagePublicUrl } from '@/lib/storage/url';
 
 export interface FloorPlanDraft {
@@ -28,6 +29,7 @@ interface FloorPlansEditorProps {
   /** Stores the chosen file and resolves to its bucket-relative path. */
   onUpload: (file: File) => Promise<string | null>;
   disabled?: boolean;
+  isLand?: boolean;
 }
 
 export function FloorPlansEditor({
@@ -35,9 +37,12 @@ export function FloorPlansEditor({
   onChange,
   onUpload,
   disabled,
+  isLand = false,
 }: FloorPlansEditorProps) {
   const [busyIdx, setBusyIdx] = useState<number | null>(null);
   const inputRefs = useRef<Record<number, HTMLInputElement | null>>({});
+  const newInputRef = useRef<HTMLInputElement | null>(null);
+  const copy = planMediaCopy(isLand);
 
   const update = (idx: number, key: keyof FloorPlanDraft, v: string) =>
     onChange(value.map((p, i) => (i === idx ? { ...p, [key]: v } : p)));
@@ -55,29 +60,56 @@ export function FloorPlansEditor({
     }
   }
 
+  async function pickNew(file: File | undefined) {
+    if (!file) return;
+    setBusyIdx(-1);
+    try {
+      const path = await onUpload(file);
+      if (path) onChange([...value, { ...emptyFloorPlan, image: path }]);
+    } finally {
+      setBusyIdx(null);
+      if (newInputRef.current) newInputRef.current.value = '';
+    }
+  }
+
   return (
     <div className="space-y-3">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="flex items-center gap-1.5 text-xs font-semibold text-slate-300">
             <LayoutPanelTop className="size-3.5 text-slate-500" />
-            Floor Plans
+            {copy.heading}
           </p>
           <p className="mt-0.5 text-[11px] text-slate-500">
-            One plan per floor. Plans found in an uploaded brochure are pinned
-            here automatically.
+            {isLand
+              ? 'Survey sketches, Tippans, layout plans and site plans.'
+              : 'One plan per floor. Plans found in an uploaded brochure are pinned here automatically.'}
           </p>
         </div>
+        <input
+          ref={newInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(event) => pickNew(event.target.files?.[0])}
+        />
         <Button
           type="button"
           variant="outline"
           size="sm"
-          disabled={disabled}
-          onClick={() => onChange([...value, { ...emptyFloorPlan }])}
+          disabled={disabled || busyIdx !== null}
+          onClick={() => {
+            if (isLand) newInputRef.current?.click();
+            else onChange([...value, { ...emptyFloorPlan }]);
+          }}
           className="h-8 shrink-0 border-slate-700 text-slate-300 hover:bg-slate-800"
         >
-          <Plus className="mr-1 size-3.5" />
-          Add Floor
+          {busyIdx === -1 ? (
+            <Loader2 className="mr-1 size-3.5 animate-spin" />
+          ) : (
+            <Plus className="mr-1 size-3.5" />
+          )}
+          {copy.addAction}
         </Button>
       </div>
 
@@ -88,13 +120,13 @@ export function FloorPlansEditor({
         >
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-bold tracking-wider text-slate-500 uppercase">
-              Floor {idx + 1}
+              {copy.itemLabel} {idx + 1}
             </span>
             <button
               type="button"
               onClick={() => onChange(value.filter((_, i) => i !== idx))}
               className="text-slate-500 transition-colors hover:text-rose-400"
-              aria-label={`Remove floor ${idx + 1}`}
+              aria-label={`Remove ${copy.itemLabel.toLowerCase()} ${idx + 1}`}
             >
               <Trash2 className="size-3.5" />
             </button>
@@ -105,7 +137,7 @@ export function FloorPlansEditor({
               {plan.image ? (
                 <Image
                   src={storagePublicUrl(plan.image)}
-                  alt={plan.floor || `Floor ${idx + 1} plan`}
+                  alt={plan.floor || `${copy.itemLabel} ${idx + 1}`}
                   fill
                   sizes="80px"
                   className="object-contain"
@@ -120,11 +152,13 @@ export function FloorPlansEditor({
             <div className="flex-1 space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <Label className="text-[11px] text-slate-400">Floor</Label>
+                  <Label className="text-[11px] text-slate-400">
+                    {copy.nameLabel}
+                  </Label>
                   <Input
                     value={plan.floor}
                     onChange={(e) => update(idx, 'floor', e.target.value)}
-                    placeholder="e.g. Ground Floor"
+                    placeholder={copy.namePlaceholder}
                     className="h-8 border-slate-700 bg-slate-800 text-xs text-white placeholder:text-slate-500"
                   />
                 </div>
@@ -146,7 +180,7 @@ export function FloorPlansEditor({
                 <Input
                   value={plan.notes}
                   onChange={(e) => update(idx, 'notes', e.target.value)}
-                  placeholder="e.g. 3 BHK + pooja room"
+                  placeholder={copy.notesPlaceholder}
                   className="h-8 border-slate-700 bg-slate-800 text-xs text-white placeholder:text-slate-500"
                 />
                 <input
@@ -172,7 +206,7 @@ export function FloorPlansEditor({
                     <Upload className="size-3.5" />
                   )}
                   <span className="ml-1">
-                    {plan.image ? 'Replace' : 'Plan'}
+                    {plan.image ? 'Replace' : copy.uploadLabel}
                   </span>
                 </Button>
               </div>
@@ -183,7 +217,7 @@ export function FloorPlansEditor({
 
       {value.length === 0 && (
         <p className="rounded-lg border border-dashed border-slate-800 px-3 py-4 text-center text-[11px] text-slate-500">
-          No floor plans yet.
+          {copy.emptyText}
         </p>
       )}
     </div>
