@@ -28,7 +28,7 @@ import { PropertyShareSheet } from '@/components/property-share-sheet';
 import { FilterChip, SectionLabel, Tag, nameTagCap } from '@/components/ui';
 import { nativeMapsAvailable } from '@/lib/maps-support';
 import { openInMaps } from '@/lib/open-maps';
-import { plansWithImages } from '@shared/lib/inventory/floor-plans';
+import { plansWithImages } from '@/lib/floor-plans';
 import { storagePublicUrl } from '@/lib/storage-url';
 import { emptyPhotoLabel, internalPhotoSources } from '@/lib/photo-sources';
 import { usePhotoSources } from '@/lib/use-photo-source';
