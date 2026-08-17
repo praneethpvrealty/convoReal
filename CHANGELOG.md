@@ -65,6 +65,10 @@ and polish.
 
 ### Fixed
 
+- **Android OTA exports resolve the property plan/sketch labels reliably.**
+  The native editor now reads its display copy from the mobile bundle instead
+  of a web-only runtime alias, so Metro can publish land-sketch support.
+
 - **Property editors now ask for fields that fit the selected property type.**
   Land listings use a direct Add Sketch action and Land Sketches gallery on
   web and mobile instead of floor-plan terminology; commercial and industrial
