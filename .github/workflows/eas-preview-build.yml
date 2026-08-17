@@ -1,0 +1,92 @@
+name: EAS Preview Build
+
+# The first merge of this workflow starts an Android preview build.
+# Later builds are launched manually from Actions → EAS Preview Build.
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/eas-preview-build.yml'
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: 'Platform to build with the preview EAS profile'
+        required: true
+        default: android
+        type: choice
+        options:
+          - android
+          - ios
+          - all
+
+concurrency:
+  group: eas-preview-build-${{ inputs.platform || 'android' }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  # Keep this aligned with eas-update.yml so build and OTA behavior use
+  # the same reviewed CLI release.
+  EAS_VERSION: 21.8.0
+
+jobs:
+  build:
+    name: Build ${{ inputs.platform || 'android' }} preview
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    defaults:
+      run:
+        working-directory: mobile
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      BUILD_PLATFORM: ${{ inputs.platform || 'android' }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Require Expo authentication
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error::EXPO_TOKEN repository secret is not set."
+            exit 1
+          fi
+
+      - name: Validate platform
+        run: |
+          case "$BUILD_PLATFORM" in
+            android|ios|all) ;;
+            *)
+              echo "::error::Unsupported platform: $BUILD_PLATFORM"
+              exit 1
+              ;;
+          esac
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install EAS CLI
+        run: npm install --global "eas-cli@${EAS_VERSION}"
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build preview app
+        run: |
+          eas build \
+            --platform "$BUILD_PLATFORM" \
+            --profile preview \
+            --non-interactive
