@@ -85,6 +85,7 @@ export interface DigestMessageArgs {
   matches: CuratedMatch[];
   /** Deep link to the buyer's own matches page. */
   portalUrl: string;
+  enquiredPropertyId?: string | null;
 }
 
 /**
@@ -94,8 +95,15 @@ export interface DigestMessageArgs {
  */
 export function buildMatchDigestMessage(args: DigestMessageArgs): string {
   const { matches } = args;
-  const heading =
-    matches.length === 1
+  const includesEnquiry = Boolean(
+    args.enquiredPropertyId &&
+    matches.some((match) => match.property.id === args.enquiredPropertyId)
+  );
+  const heading = includesEnquiry
+    ? matches.length === 1
+      ? `Hi ${firstName(args.contactName)} 👋\n\nHere's the property you enquired about:`
+      : `Hi ${firstName(args.contactName)} 👋\n\nHere's the property you enquired about, followed by the closest available options:`
+    : matches.length === 1
       ? `Hi ${firstName(args.contactName)} 👋\n\nOne new listing matches what you're looking for:`
       : `Hi ${firstName(args.contactName)} 👋\n\n${matches.length} new listings match what you're looking for:`;
 

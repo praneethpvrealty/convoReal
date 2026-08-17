@@ -30,13 +30,15 @@ import {
   askedQualifiers,
   shortlistAlreadySent,
   buildShortlistStandsReply,
+  mergeKnownPreferences,
+  prefsFromContact,
 } from './buyer-qualification';
 import {
   EMPTY_PREFERENCES,
   type ExtractedPreferences,
 } from './preference-extraction';
 import type { RankedPropertyMatch } from '@/lib/radar/engine';
-import type { Property } from '@/types';
+import type { Contact, Property } from '@/types';
 
 function prefs(
   overrides: Partial<ExtractedPreferences> = {}
@@ -69,6 +71,49 @@ function match(overrides: Partial<Property>): RankedPropertyMatch {
     },
   };
 }
+
+describe('portal enquiry context', () => {
+  it('treats the original property type and explicit CRM fields as answered', () => {
+    const saved = prefsFromContact({
+      id: 'simon',
+      name: 'Simon',
+      phone: '918762861109',
+      property_interests: ['Villa'],
+      max_budget: 30_000_000,
+      areas_of_interest: ['KR Puram'],
+      created_at: '2026-08-17T00:00:00Z',
+      updated_at: '2026-08-17T00:00:00Z',
+    } as Contact);
+
+    expect(saved.property_types).toEqual(['Villa']);
+    expect(saved.budget_max).toBe(30_000_000);
+    expect(saved.areas).toEqual(['KR Puram']);
+    expect(nextQualifier(saved)).toBeNull();
+  });
+
+  it('keeps the known Villa type when the buyer only adds budget and area', () => {
+    const known = prefs({ property_types: ['Villa'] });
+    const extracted = prefs({
+      budget_min: 25_000_000,
+      budget_max: 30_000_000,
+      areas: ['KR Puram'],
+    });
+    const merged = mergeKnownPreferences(extracted, known);
+
+    expect(merged.property_types).toEqual(['Villa']);
+    expect(nextQualifier(merged)).toBeNull();
+    expect(
+      buildQualificationReply(
+        merged,
+        'Simon',
+        [],
+        [],
+        'https://convoreal.com',
+        'simon'
+      ).reply
+    ).not.toContain('What kind of property');
+  });
+});
 
 describe('processBuyerQualificationMessage — a lead asking for a person', () => {
   const contact = { id: 'c1', phone: '919000000000', name: 'Kumar' };
@@ -569,7 +614,9 @@ describe('shortlistAlreadySent', () => {
     // The first three (all that would be sent) are in the thread; the
     // unsent tail must not force a repeat.
     expect(
-      shortlistAlreadySent(many, ['*1. Listing 0*\n*2. Listing 1*\n*3. Listing 2*'])
+      shortlistAlreadySent(many, [
+        '*1. Listing 0*\n*2. Listing 1*\n*3. Listing 2*',
+      ])
     ).toBe(true);
   });
 });

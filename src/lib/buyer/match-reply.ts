@@ -14,7 +14,11 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Contact, Property } from '@/types';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { BRANDING } from '@/config/branding';
-import { curateForBuyer, hasBuyerBrief } from './matches-ranking';
+import {
+  curateForBuyer,
+  hasBuyerBrief,
+  type CuratedMatch,
+} from './matches-ranking';
 import {
   buildMatchDigestMessage,
   buildNoMatchesMessage,
@@ -24,8 +28,44 @@ import {
 
 const POOL_LIMIT = 300;
 
+const ENQUIRY_REASON = 'Property you enquired about';
+
+function pinEnquiredProperty(
+  matches: CuratedMatch[],
+  property: Property
+): CuratedMatch[] {
+  const existing = matches.find((match) => match.property.id === property.id);
+  const pinned: CuratedMatch = existing
+    ? {
+        ...existing,
+        reasons: [
+          ENQUIRY_REASON,
+          ...existing.reasons.filter((reason) => reason !== ENQUIRY_REASON),
+        ],
+      }
+    : {
+        property,
+        score: 100,
+        details: {
+          type: 'unknown',
+          location: 'unknown',
+          budget: 'unknown',
+          bhk: 'unknown',
+          roi: 'unknown',
+        },
+        reasons: [ENQUIRY_REASON],
+      };
+
+  return [
+    pinned,
+    ...matches.filter((match) => match.property.id !== property.id),
+  ].slice(0, MAX_DIGEST_MATCHES);
+}
+
 function portalUrl(): string {
-  const base = (process.env.NEXT_PUBLIC_SITE_URL || BRANDING.websiteUrl).replace(/\/$/, '');
+  const base = (
+    process.env.NEXT_PUBLIC_SITE_URL || BRANDING.websiteUrl
+  ).replace(/\/$/, '');
   return `${base}/buyer/login?next=/buyer/matches`;
 }
 
@@ -50,21 +90,24 @@ export async function buildBuyerMatchReply(args: {
       .maybeSingle();
     const contact = contactRow as Contact | null;
     if (!contact) return null;
-    // No brief on file — this isn't a buyer asking about their matches,
-    // it's someone using a word we happen to watch for. Fall through to
-    // normal handling rather than answering with a listing dump.
-    if (!hasBuyerBrief(contact)) return null;
+    const hasBrief = hasBuyerBrief(contact);
+    if (!hasBrief && !contact.last_inquired_property_id) return null;
 
     let unavailableEnquiryTitle: string | null = null;
+    let availableEnquiry: Property | null = null;
     if (contact.last_inquired_property_id) {
       const { data: enquired } = await db
         .from('properties')
-        .select('title, status')
+        .select('*')
         .eq('id', contact.last_inquired_property_id)
         .eq('account_id', args.accountId)
         .maybeSingle();
-      if (enquired && enquired.status !== 'Available') {
-        unavailableEnquiryTitle = enquired.title;
+      if (enquired) {
+        if (enquired.status === 'Available' && enquired.is_published === true) {
+          availableEnquiry = enquired as Property;
+        } else {
+          unavailableEnquiryTitle = enquired.title;
+        }
       }
     }
 
@@ -77,9 +120,14 @@ export async function buildBuyerMatchReply(args: {
       .order('created_at', { ascending: false })
       .limit(POOL_LIMIT);
 
-    const matches = curateForBuyer((poolRows || []) as Property[], contact, {
-      limit: MAX_DIGEST_MATCHES,
-    });
+    const rankedMatches = hasBrief
+      ? curateForBuyer((poolRows || []) as Property[], contact, {
+          limit: MAX_DIGEST_MATCHES,
+        })
+      : [];
+    const matches = availableEnquiry
+      ? pinEnquiredProperty(rankedMatches, availableEnquiry)
+      : rankedMatches;
     if (matches.length === 0) {
       return unavailableEnquiryTitle
         ? buildUnavailableEnquiryMessage({
@@ -94,6 +142,7 @@ export async function buildBuyerMatchReply(args: {
       contactName: contact.name,
       matches,
       portalUrl: portalUrl(),
+      enquiredPropertyId: availableEnquiry?.id,
     });
     return unavailableEnquiryTitle
       ? `${buildUnavailableEnquiryMessage({

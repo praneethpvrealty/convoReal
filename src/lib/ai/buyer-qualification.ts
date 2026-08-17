@@ -530,22 +530,68 @@ export function nextQualifierForContact(
 export function prefsFromContact(contact: Contact): ExtractedPreferences {
   return {
     ...EMPTY_PREFERENCES,
-    property_types: contact.pref_property_types || [],
+    property_types: contact.property_interests?.length
+      ? contact.property_interests
+      : contact.pref_property_types || [],
     property_categories: (contact.pref_property_categories ||
       []) as ExtractedPreferences['property_categories'],
     bhk_min: contact.pref_bhk_min ?? null,
     bhk_max: contact.pref_bhk_max ?? null,
-    budget_min: contact.pref_budget_min ?? null,
-    budget_max: contact.pref_budget_max ?? null,
+    budget_min: contact.min_budget ?? contact.pref_budget_min ?? null,
+    budget_max: contact.max_budget ?? contact.pref_budget_max ?? null,
     land_area_min_sqft: contact.pref_land_area_min_sqft ?? null,
     land_area_max_sqft: contact.pref_land_area_max_sqft ?? null,
-    areas: contact.pref_areas || [],
+    areas: contact.areas_of_interest?.length
+      ? contact.areas_of_interest
+      : contact.pref_areas || [],
     excluded_areas: contact.pref_excluded_areas || [],
-    projects: contact.pref_projects || [],
-    min_roi: contact.pref_min_roi ?? null,
+    projects: contact.projects_of_interest?.length
+      ? contact.projects_of_interest
+      : contact.pref_projects || [],
+    min_roi: contact.min_roi ?? contact.pref_min_roi ?? null,
     listing_types: (contact.pref_listing_types ||
       []) as ExtractedPreferences['listing_types'],
     suggested_tags: contact.pref_suggested_tags || [],
+  };
+}
+
+export function mergeKnownPreferences(
+  extracted: ExtractedPreferences,
+  known: ExtractedPreferences
+): ExtractedPreferences {
+  const arrayOrKnown = <T>(values: T[], fallback: T[]): T[] =>
+    values.length ? values : fallback;
+
+  return {
+    ...extracted,
+    property_types: arrayOrKnown(
+      extracted.property_types,
+      known.property_types
+    ),
+    property_categories: arrayOrKnown(
+      extracted.property_categories,
+      known.property_categories
+    ),
+    bhk_min: extracted.bhk_min ?? known.bhk_min,
+    bhk_max: extracted.bhk_max ?? known.bhk_max,
+    budget_min: extracted.budget_min ?? known.budget_min,
+    budget_max: extracted.budget_max ?? known.budget_max,
+    land_area_min_sqft:
+      extracted.land_area_min_sqft ?? known.land_area_min_sqft,
+    land_area_max_sqft:
+      extracted.land_area_max_sqft ?? known.land_area_max_sqft,
+    areas: arrayOrKnown(extracted.areas, known.areas),
+    excluded_areas: arrayOrKnown(
+      extracted.excluded_areas,
+      known.excluded_areas
+    ),
+    projects: arrayOrKnown(extracted.projects, known.projects),
+    min_roi: extracted.min_roi ?? known.min_roi,
+    listing_types: arrayOrKnown(extracted.listing_types, known.listing_types),
+    suggested_tags: arrayOrKnown(
+      extracted.suggested_tags,
+      known.suggested_tags
+    ),
   };
 }
 
@@ -811,10 +857,13 @@ export async function processBuyerQualificationMessage(
     let prefs = prefsFromContact(contact);
     if (hash !== contact.pref_source_hash) {
       await softBurn(accountId);
-      const extracted = applySizeAnchor(
-        await extractContactPreferences(sourceText),
-        sizeSignal,
-        sizeAnchorSqft
+      const extracted = mergeKnownPreferences(
+        applySizeAnchor(
+          await extractContactPreferences(sourceText),
+          sizeSignal,
+          sizeAnchorSqft
+        ),
+        prefs
       );
 
       // The message added nothing the contact didn't already say — it's
