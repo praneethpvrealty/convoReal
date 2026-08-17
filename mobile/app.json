@@ -26,6 +26,7 @@
     "android": {
       "package": "com.convoreal.app",
       "allowBackup": false,
+      "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#5B34B8"

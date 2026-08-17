@@ -77,7 +77,7 @@ async function main() {
   if (loginErr) throw new Error(`login check failed: ${loginErr.message}`);
   console.log('login verified');
 
-  await seedInventory(profile.account_id);
+  await seedContactFollowupFixtures(profile.account_id, userId);
 
   writeFileSync(
     '.env.e2e.local',
@@ -85,28 +85,58 @@ async function main() {
   );
   console.log('\ncredentials written to .env.e2e.local');
 }
-async function seedInventory(accountId: string) {
+async function seedContactFollowupFixtures(accountId: string, userId: string) {
   const rows = [
     { title: '3 BHK Apartment in Koramangala 5th Block', type: 'Flat/ Apartment', price: 18_000_000, sublocality: 'Koramangala', bedrooms: 3, area_sqft: 1650 },
     { title: '2400 Sq.Ft. Residential Plot in HSR Layout', type: 'Residential Land/ Plot', price: 19_500_000, sublocality: 'HSR Layout', land_area: 2400 },
     { title: 'Commercial Shop on BTM 100ft Road', type: 'Commercial Shop', price: 32_000_000, sublocality: 'BTM Layout', area_sqft: 900 },
     { title: 'Farm Land near Devanahalli', type: 'Agricultural Land', price: 16_500_000, sublocality: 'Devanahalli', land_area: 43560 },
+    { title: 'Palm Grove', type: 'Flat/ Apartment', price: 30_000_000, sublocality: 'HSR Layout', bedrooms: 3, area_sqft: 1800, status: 'Sold' },
   ];
-  const { error } = await admin.from('properties').insert(
+  const { data: properties, error } = await admin.from('properties').insert(
     rows.map((r) => ({
       account_id: accountId,
       city: 'Bangalore',
       state: 'Karnataka',
       location: `${r.sublocality}, Bangalore, Karnataka`,
-      status: 'Available',
+      status: 'status' in r ? r.status : 'Available',
       listing_type: 'Sale',
       is_published: true,
       description: 'Seeded by the Claude E2E harness.',
       ...r,
     })),
-  );
+  ).select('id, title');
   if (error) throw error;
-  console.log(`seeded ${rows.length} listings`);
+  const palmGrove = properties?.find((property) => property.title === 'Palm Grove');
+  const { error: contactError } = await admin.from('contacts').insert([
+    {
+      account_id: accountId,
+      user_id: userId,
+      name: 'Sandeep Kotecha',
+      phone: '+919000000010',
+      classification: 'Buyer',
+      status: 'active',
+      requirement_active: false,
+    },
+    {
+      account_id: accountId,
+      user_id: userId,
+      name: 'Vinutha',
+      phone: '+919000000011',
+      classification: 'Buyer',
+      status: 'active',
+      requirement_active: true,
+      requirements: '3 BHK in HSR Layout around 3 crore',
+      pref_property_types: ['Flat/ Apartment'],
+      pref_bhk_min: 3,
+      pref_bhk_max: 3,
+      pref_budget_max: 30_000_000,
+      pref_areas: ['HSR Layout'],
+      last_inquired_property_id: palmGrove?.id || null,
+    },
+  ]);
+  if (contactError) throw contactError;
+  console.log(`seeded ${rows.length} listings and contact follow-up fixtures`);
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });

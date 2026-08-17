@@ -657,7 +657,15 @@ export function ContactTags({ contactId }: { contactId: string }) {
 }
 
 /** Web Agents tab: contact_notes for this contact — add + newest-first list. */
-export function AgentNotes({ contactId, title = 'Notes' }: { contactId: string; title?: string }) {
+export function AgentNotes({
+  contactId,
+  title = 'Notes',
+  onComposerFocus,
+}: {
+  contactId: string;
+  title?: string;
+  onComposerFocus?: () => void;
+}) {
   const { colors } = useTheme();
   const session = useAuthStore((s) => s.session);
   const accountId = useAuthStore((s) => s.profile?.account_id);
@@ -704,12 +712,16 @@ export function AgentNotes({ contactId, title = 'Notes' }: { contactId: string; 
       <AppDialog {...dialogProps} />
       <SectionLabel text={title} />
       <TextField
+        testID="contact-notes-input"
         placeholder="Add brief details, todo points, tasks…"
         value={text}
         onChangeText={setText}
         multiline
+        onFocus={onComposerFocus}
       />
-      <PrimaryButton label="Add note" busy={saving} disabled={!text.trim()} onPress={addNote} />
+      <View testID="contact-notes-submit">
+        <PrimaryButton label="Add note" busy={saving} disabled={!text.trim()} onPress={addNote} />
+      </View>
       {(notes ?? []).map((n) => (
         <View
           key={n.id}

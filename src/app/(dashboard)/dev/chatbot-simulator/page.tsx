@@ -13,7 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 // reply with. Gated by the dashboard layout's auth — any signed-in
 // account member can use it (read-only against their own account).
 
-type Mode = 'owner_intake' | 'lead_reply';
+type Mode = 'owner_intake' | 'lead_reply' | 'buyer_matches';
 
 type LeadRoute =
   | 'callback_handover'
@@ -37,6 +37,7 @@ interface SimulateResult {
   previewText: string | null;
   // lead_reply only
   mode?: Mode;
+  contactName?: string;
   route?: LeadRoute;
   routeExplanation?: string;
   ladderStoodDown?: boolean;
@@ -72,6 +73,7 @@ export default function ChatbotSimulatorPage() {
   const [priorRequirements, setPriorRequirements] = useState('');
   const [contactName, setContactName] = useState('');
   const [subjectPropertyCode, setSubjectPropertyCode] = useState('');
+  const [phone, setPhone] = useState('');
   const [image, setImage] = useState<{ file: File; previewUrl: string } | null>(null);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -91,7 +93,7 @@ export default function ChatbotSimulatorPage() {
   }
 
   async function handleRun() {
-    if (running || (!text.trim() && !(image && mode === 'owner_intake'))) return;
+    if (running || (mode === 'buyer_matches' ? !phone.trim() : !text.trim() && !(image && mode === 'owner_intake'))) return;
     setError(null);
     setResult(null);
     setRunning(true);
@@ -104,8 +106,12 @@ export default function ChatbotSimulatorPage() {
         priorRequirements?: string;
         contactName?: string;
         subjectPropertyCode?: string;
+        phone?: string;
       } = { text: text.trim() };
-      if (mode === 'lead_reply') {
+      if (mode === 'buyer_matches') {
+        body.mode = 'buyer_matches';
+        body.phone = phone.trim();
+      } else if (mode === 'lead_reply') {
         body.mode = 'lead_reply';
         body.priorRequirements = priorRequirements.trim();
         body.contactName = contactName.trim();
@@ -151,6 +157,7 @@ export default function ChatbotSimulatorPage() {
               [
                 ['owner_intake', 'Owner intake'],
                 ['lead_reply', 'Lead reply'],
+                ['buyer_matches', 'Buyer matches'],
               ] as [Mode, string][]
             ).map(([value, label]) => (
               <button
@@ -175,8 +182,22 @@ export default function ChatbotSimulatorPage() {
           <p className="text-xs text-slate-500">
             {mode === 'owner_intake'
               ? 'You messaging your own Engine number — classify → parse → draft preview.'
-              : 'A lead replying on WhatsApp — routing → signal gate → preference extraction → qualifier ladder → reply.'}
+              : mode === 'lead_reply'
+                ? 'A lead replying on WhatsApp — routing → signal gate → preference extraction → qualifier ladder → reply.'
+                : 'Preview the exact Show Properties reply for a saved buyer, without sending a message.'}
           </p>
+
+          {mode === 'buyer_matches' && (
+            <>
+              <label className="block text-sm font-semibold text-white">Buyer phone</label>
+              <input
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="e.g. +91 98765 43210"
+                className="w-full rounded-lg bg-slate-950 border border-slate-800 text-white placeholder:text-slate-600 text-sm px-3 py-2"
+              />
+            </>
+          )}
 
           {mode === 'lead_reply' && (
             <>
@@ -219,7 +240,7 @@ export default function ChatbotSimulatorPage() {
             </>
           )}
 
-          <label className="block text-sm font-semibold text-white">
+          <label className={mode === 'buyer_matches' ? 'hidden' : 'block text-sm font-semibold text-white'}>
             {mode === 'lead_reply' ? "The lead's new message" : 'Message text'}
           </label>
           <Textarea
@@ -231,10 +252,10 @@ export default function ChatbotSimulatorPage() {
                 ? 'e.g. "Land , 1.5 to 2cr"'
                 : 'e.g. "3 BHK apartment for sale in HSR Layout, 1450 sqft, ₹1.35 Cr" or "Ravi 9876543210 is interested in SJR Blue Waters"'
             }
-            className="bg-slate-950 border-slate-800 text-white placeholder:text-slate-600 text-sm resize-y"
+            className={`${mode === 'buyer_matches' ? 'hidden ' : ''}bg-slate-950 border-slate-800 text-white placeholder:text-slate-600 text-sm resize-y`}
           />
 
-          <div className={mode === 'lead_reply' ? 'hidden' : undefined}>
+          <div className={mode !== 'owner_intake' ? 'hidden' : undefined}>
             <input
               ref={fileInputRef}
               type="file"
@@ -272,7 +293,7 @@ export default function ChatbotSimulatorPage() {
 
           <Button
             onClick={handleRun}
-            disabled={running || (!text.trim() && !(image && mode === 'owner_intake'))}
+            disabled={running || (mode === 'buyer_matches' ? !phone.trim() : !text.trim() && !(image && mode === 'owner_intake'))}
             className="w-full bg-primary hover:bg-primary-hover text-primary-foreground font-bold"
           >
             {running ? <Loader2 className="size-4 animate-spin mr-2" /> : <Play className="size-4 mr-2" />}
@@ -407,7 +428,22 @@ export default function ChatbotSimulatorPage() {
             </div>
           )}
 
-          {result && result.mode !== 'lead_reply' && (
+          {result && result.mode === 'buyer_matches' && (
+            <div className="space-y-4">
+              <div>
+                <span className="text-xs uppercase tracking-wider text-slate-500">Buyer</span>
+                <p className="text-sm font-bold text-white">{result.contactName || phone}</p>
+              </div>
+              <div>
+                <span className="text-xs uppercase tracking-wider text-slate-500">WhatsApp reply</span>
+                <pre className="mt-1 whitespace-pre-wrap text-xs text-slate-200 bg-slate-950 border border-slate-800 rounded-lg p-3 font-mono">
+                  {result.previewText || 'No buyer brief is active for this contact.'}
+                </pre>
+              </div>
+            </div>
+          )}
+
+          {result && result.mode !== 'lead_reply' && result.mode !== 'buyer_matches' && (
             <div className="space-y-4">
               <div>
                 <span className="text-xs uppercase tracking-wider text-slate-500">Classification</span>

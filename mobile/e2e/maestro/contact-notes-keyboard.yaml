@@ -1,0 +1,19 @@
+appId: com.convoreal.app
+---
+- launchApp
+- tapOn: Contacts
+- tapOn: Search contacts
+- inputText: Sandeep Kotecha
+- tapOn: Sandeep Kotecha
+- scrollUntilVisible:
+    element:
+      id: contact-notes-input
+    direction: DOWN
+- tapOn:
+    id: contact-notes-input
+- inputText: Keyboard regression note
+- assertVisible:
+    id: contact-notes-submit
+- tapOn:
+    id: contact-notes-submit
+- assertVisible: Keyboard regression note

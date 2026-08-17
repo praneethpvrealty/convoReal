@@ -87,3 +87,15 @@ against a live one they will still clean up after themselves, but the
 review-gate suite writes and deletes `message_templates` rows, and a
 concurrent user drafting a translation at the same moment would have it
 deleted by the cleanup.
+
+## Contact follow-up regressions
+
+`contact-followup-regressions.mjs` checks the two user-visible web flows: adding a note to an existing contact and explaining that a buyer's originally enquired property is unavailable. Provisioning seeds Sandeep Kotecha, Vinutha and the unavailable Palm Grove listing.
+
+```bash
+npx tsx --env-file=.env.local e2e/provision.ts
+npm run dev
+npm run test:e2e:contact-followup
+```
+
+For repeatable hosted runs, add `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` once to the GitHub environment named `ui-tests`, then run the Contact follow-up UI workflow. No Vercel token is used.

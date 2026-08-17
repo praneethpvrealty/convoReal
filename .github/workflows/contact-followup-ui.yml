@@ -1,0 +1,32 @@
+name: Contact follow-up UI
+
+on:
+  workflow_dispatch:
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    environment: ui-tests
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npx tsx e2e/provision.ts
+      - run: npm run dev > /tmp/convoreal-dev.log 2>&1 &
+      - run: |
+          for attempt in {1..60}; do
+            curl --fail --silent http://localhost:3000/login >/dev/null && exit 0
+            sleep 2
+          done
+          cat /tmp/convoreal-dev.log
+          exit 1
+      - run: npm run test:e2e:contact-followup
