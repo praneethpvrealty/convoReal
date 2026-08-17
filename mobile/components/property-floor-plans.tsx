@@ -14,9 +14,9 @@ import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { SectionLabel } from '@/components/ui';
 import { pickAndUploadFloorPlan } from '@/lib/floor-plan-upload';
 import { haptic } from '@/lib/haptics';
+import { planMediaCopy } from '@/lib/plan-media-copy';
 import { storagePublicUrl } from '@/lib/storage-url';
 import { radius, spacing, useTheme } from '@/lib/theme';
-import { planMediaCopy } from '@shared/lib/inventory/plan-media-copy';
 
 /** String draft of a lib/inventory/floor-plans row (web parity). */
 export interface FloorPlanDraft {
