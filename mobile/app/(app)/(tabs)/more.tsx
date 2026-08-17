@@ -8,6 +8,7 @@ import {
   StyleSheet,
   Switch,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -44,6 +45,8 @@ const WEB_ONLY = [
 
 export default function MoreScreen() {
   const { colors, fonts: f } = useTheme();
+  const { width } = useWindowDimensions();
+  const wide = width >= 720;
   const insets = useSafeAreaInsets();
   const session = useAuthStore((s) => s.session);
   const profile = useAuthStore((s) => s.profile);
@@ -130,9 +133,33 @@ export default function MoreScreen() {
 
       <SubscriptionCard />
 
-      {MENU_SECTIONS.map((section) => (
-        <View key={section.title} style={styles.section}>
-          <SectionLabel text={section.title} />
+      <View style={[styles.sectionGrid, wide && styles.sectionGridWide]}>
+        {MENU_SECTIONS.map((section) => (
+          <View
+            key={section.title}
+            style={[styles.section, wide && styles.sectionWide]}
+          >
+            <SectionLabel text={section.title} />
+            <View
+              style={[
+                styles.card,
+                {
+                  backgroundColor: colors.glass,
+                  borderColor: colors.glassBorder,
+                },
+              ]}
+            >
+              {section.ids.map((id, i) => (
+                <MenuRow key={id} id={id} divided={i > 0} />
+              ))}
+            </View>
+          </View>
+        ))}
+      </View>
+
+      <View style={[styles.sectionGrid, wide && styles.sectionGridWide]}>
+        <View style={[styles.section, wide && styles.sectionWide]}>
+          <SectionLabel text="Appearance" />
           <View
             style={[
               styles.card,
@@ -142,34 +169,23 @@ export default function MoreScreen() {
               },
             ]}
           >
-            {section.ids.map((id, i) => (
-              <MenuRow key={id} id={id} divided={i > 0} />
-            ))}
+            <AppearancePicker />
           </View>
         </View>
-      ))}
 
-      <View style={styles.section}>
-        <SectionLabel text="Appearance" />
-        <View
-          style={[
-            styles.card,
-            { backgroundColor: colors.glass, borderColor: colors.glassBorder },
-          ]}
-        >
-          <AppearancePicker />
-        </View>
-      </View>
-
-      <View style={styles.section}>
-        <SectionLabel text="Security" />
-        <View
-          style={[
-            styles.card,
-            { backgroundColor: colors.glass, borderColor: colors.glassBorder },
-          ]}
-        >
-          <BiometricLockRow />
+        <View style={[styles.section, wide && styles.sectionWide]}>
+          <SectionLabel text="Security" />
+          <View
+            style={[
+              styles.card,
+              {
+                backgroundColor: colors.glass,
+                borderColor: colors.glassBorder,
+              },
+            ]}
+          >
+            <BiometricLockRow />
+          </View>
         </View>
       </View>
 
@@ -447,9 +463,15 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     gap: spacing.md,
     paddingBottom: TAB_BAR_CLEARANCE + spacing.sm,
+    width: '100%',
+    maxWidth: 960,
+    alignSelf: 'center',
   },
   title: { fontSize: 30, fontFamily: fonts.extrabold, letterSpacing: -0.5 },
   section: { gap: spacing.sm },
+  sectionGrid: { gap: spacing.md },
+  sectionGridWide: { flexDirection: 'row', flexWrap: 'wrap' },
+  sectionWide: { width: '48.8%', flexGrow: 1 },
   card: {
     borderRadius: radius.lg,
     borderWidth: 1,

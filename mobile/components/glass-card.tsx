@@ -1,7 +1,12 @@
 import { BlurView } from 'expo-blur';
 import { StyleSheet, View, type ViewStyle } from 'react-native';
 
-import { radius, useTheme } from '@/lib/theme';
+import {
+  blurredSurfaceColor,
+  glassBlurTint,
+  radius,
+  useTheme,
+} from '@/lib/theme';
 
 interface GlassCardProps {
   children: React.ReactNode;
@@ -38,7 +43,9 @@ export function GlassCard({
         {
           borderColor: colors.glassBorder,
           borderRadius: r,
-          backgroundColor: colors.glass,
+          backgroundColor: blurred
+            ? blurredSurfaceColor(colors.glass)
+            : colors.glass,
         },
         ...(Array.isArray(style) ? style : [style]),
       ]}
@@ -46,7 +53,7 @@ export function GlassCard({
       {blurred ? (
         <BlurView
           intensity={blurIntensity ?? (dark ? 18 : 16)}
-          tint={dark ? 'dark' : 'light'}
+          tint={glassBlurTint(dark)}
           blurMethod="none"
           style={StyleSheet.absoluteFill}
         />

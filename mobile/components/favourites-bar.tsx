@@ -2,7 +2,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { router } from 'expo-router';
 import { useEffect } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   runOnJS,
@@ -15,7 +22,13 @@ import Animated, {
 import { useFavorites } from '@/lib/favorites-store';
 import { haptic } from '@/lib/haptics';
 import { favoriteLinks } from '@/lib/menu';
-import { radius, spacing, useTheme } from '@/lib/theme';
+import {
+  blurredSurfaceColor,
+  glassBlurTint,
+  radius,
+  spacing,
+  useTheme,
+} from '@/lib/theme';
 
 /**
  * The pinned-destinations strip, summoned by the Favourites tab and
@@ -46,7 +59,9 @@ export function FavouritesBar({
   bottomOffset: number;
 }) {
   const { colors, dark, fonts: f, shadows } = useTheme();
+  const { width } = useWindowDimensions();
   const favorites = favoriteLinks(useFavorites((s) => s.ids));
+  const horizontalInset = Math.max(18, (width - 560) / 2);
 
   const progress = useSharedValue(0);
   const drag = useSharedValue(0);
@@ -96,7 +111,9 @@ export function FavouritesBar({
         styles.shell,
         {
           bottom: bottomOffset + spacing.sm,
-          backgroundColor: colors.tabBar,
+          left: horizontalInset,
+          right: horizontalInset,
+          backgroundColor: blurredSurfaceColor(colors.tabBar),
           borderColor: colors.glassBorder,
           shadowColor: shadows.card.shadowColor,
         },
@@ -105,7 +122,7 @@ export function FavouritesBar({
     >
       <BlurView
         intensity={40}
-        tint={dark ? 'dark' : 'light'}
+        tint={glassBlurTint(dark, 'chrome')}
         blurMethod="none"
         style={StyleSheet.absoluteFill}
       />
@@ -193,8 +210,6 @@ export function FavouritesBar({
 const styles = StyleSheet.create({
   shell: {
     position: 'absolute',
-    left: 18,
-    right: 18,
     borderRadius: 26,
     borderWidth: 1,
     overflow: 'hidden',

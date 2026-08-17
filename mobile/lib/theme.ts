@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useColorScheme } from 'react-native';
+import type { BlurTint } from 'expo-blur';
+import { Platform, useColorScheme } from 'react-native';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
@@ -92,7 +93,7 @@ export const lightColors: ThemeColors = {
   border: '#E6E4F0',
   text: '#161327',
   textMuted: '#6B6480',
-  textFaint: '#9A93AD',
+  textFaint: '#8C849F',
   incomingBubble: 'rgba(255,255,255,0.72)',
   incomingText: '#111B21',
   outgoingBubble: '#D9FDD3',
@@ -193,8 +194,39 @@ export const confettiColors = [
   brand.violetDeep,
 ] as const;
 
-export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 } as const;
+export const spacing = {
+  xs: 4,
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 24,
+  xxl: 32,
+} as const;
 export const radius = { sm: 10, md: 14, lg: 20, xl: 26, full: 999 } as const;
+
+export type GlassMaterial = 'thin' | 'chrome';
+
+/**
+ * Apple system materials preserve iOS' native vibrancy and adapt more
+ * naturally to wallpaper/content moving behind a floating surface. Android
+ * keeps explicit light/dark tints because `blurMethod="none"` intentionally
+ * renders the fast translucent fallback until a BlurTargetView is available.
+ */
+export function glassBlurTint(
+  dark: boolean,
+  material: GlassMaterial = 'thin'
+): BlurTint {
+  if (Platform.OS !== 'ios') return dark ? 'dark' : 'light';
+  if (material === 'chrome') {
+    return dark ? 'systemChromeMaterialDark' : 'systemChromeMaterialLight';
+  }
+  return dark ? 'systemThinMaterialDark' : 'systemThinMaterialLight';
+}
+
+/** Let the native iOS material own the fill; Android uses the theme fallback. */
+export function blurredSurfaceColor(fallback: string): string {
+  return Platform.OS === 'ios' ? 'transparent' : fallback;
+}
 
 export interface ThemeShadow {
   shadowColor: string;
@@ -322,31 +354,23 @@ export const useAppearance = create<AppearanceState>()(
 );
 
 /**
- * Brand typefaces. Light theme = Inter (Option 7), dark = Plus
- * Jakarta Sans (Option 4, ExtraBold display). Use the family for the
- * WEIGHT you want; never combine with fontWeight (Android swaps back
- * to the system font).
+ * Brand typefaces. Plus Jakarta Sans carries display hierarchy while
+ * Inter keeps dense CRM copy compact and readable. The pairing stays
+ * identical across light and dark so changing appearance never causes
+ * labels or cards to reflow.
  *
- * The static `fonts` export is the DARK (Jakarta) map, kept so
- * StyleSheet.create blocks compile; theme-correct code reads
- * `useTheme().fonts` instead.
+ * Use the family for the WEIGHT you want; never combine with
+ * fontWeight (Android swaps back to the system font).
  */
 export const fonts = {
-  regular: 'PlusJakartaSans_400Regular',
-  medium: 'PlusJakartaSans_500Medium',
-  semibold: 'PlusJakartaSans_600SemiBold',
+  regular: 'Inter_400Regular',
+  medium: 'Inter_500Medium',
+  semibold: 'Inter_600SemiBold',
   bold: 'PlusJakartaSans_700Bold',
   extrabold: 'PlusJakartaSans_800ExtraBold',
 } as const;
 
-export const fontsLight = {
-  regular: 'Inter_400Regular',
-  medium: 'Inter_500Medium',
-  semibold: 'Inter_600SemiBold',
-  bold: 'Inter_700Bold',
-  // Inter ships 400–700 here; the display slot leans on Bold.
-  extrabold: 'Inter_700Bold',
-} as const;
+export const fontsLight = fonts;
 
 export type FontMap = Record<keyof typeof fonts, string>;
 
@@ -365,18 +389,9 @@ export interface ThemeType {
   caption: TypeStyle;
 }
 
-const lightType: ThemeType = {
-  display: { fontFamily: fontsLight.bold, fontSize: 28, lineHeight: 34 },
-  title: { fontFamily: fontsLight.bold, fontSize: 22, lineHeight: 28 },
-  heading: { fontFamily: fontsLight.semibold, fontSize: 17, lineHeight: 22 },
-  body: { fontFamily: fontsLight.regular, fontSize: 15, lineHeight: 21 },
-  bodySmall: { fontFamily: fontsLight.regular, fontSize: 13, lineHeight: 18 },
-  caption: { fontFamily: fontsLight.medium, fontSize: 11, lineHeight: 14 },
-};
-
-const darkType: ThemeType = {
+const brandType: ThemeType = {
   display: { fontFamily: fonts.extrabold, fontSize: 28, lineHeight: 34 },
-  title: { fontFamily: fonts.extrabold, fontSize: 22, lineHeight: 28 },
+  title: { fontFamily: fonts.bold, fontSize: 22, lineHeight: 28 },
   heading: { fontFamily: fonts.bold, fontSize: 17, lineHeight: 22 },
   body: { fontFamily: fonts.regular, fontSize: 15, lineHeight: 21 },
   bodySmall: { fontFamily: fonts.regular, fontSize: 13, lineHeight: 18 },
@@ -388,7 +403,7 @@ export interface Theme {
   dark: boolean;
   type: ThemeType;
   shadows: { card: ThemeShadow; soft: ThemeShadow; hero: ThemeShadow };
-  /** Theme-resolved family map: Inter in light, Jakarta in dark. */
+  /** Theme-resolved family map: stable across every appearance. */
   fonts: FontMap;
 }
 
@@ -399,14 +414,17 @@ export function useTheme(): Theme {
   return {
     colors: dark ? darkColors : lightColors,
     dark,
-    type: dark ? darkType : lightType,
+    type: brandType,
     shadows: dark ? darkShadows : lightShadows,
-    fonts: dark ? fonts : fontsLight,
+    fonts,
   };
 }
 
 /** Classification → chip hue, consistent across Contacts/Inbox. */
-export const classificationColors: Record<string, { light: string; dark: string }> = {
+export const classificationColors: Record<
+  string,
+  { light: string; dark: string }
+> = {
   Owner: { light: '#0e7490', dark: '#67e8f9' },
   Seller: { light: '#a16207', dark: '#fde047' },
   Buyer: { light: '#15803d', dark: '#86efac' },

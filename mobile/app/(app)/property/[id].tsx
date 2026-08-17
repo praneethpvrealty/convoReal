@@ -51,6 +51,8 @@ import { useAuthStore } from '@/lib/auth-store';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
 import {
+  blurredSurfaceColor,
+  glassBlurTint,
   radius,
   spacing,
   useTheme,
@@ -944,7 +946,7 @@ export default function PropertyDetailScreen() {
         style={[
           styles.bottomBar,
           {
-            backgroundColor: colors.surfaceWell,
+            backgroundColor: blurredSurfaceColor(colors.surfaceWell),
             borderColor: colors.glassBorder,
             paddingBottom: Math.max(insets.bottom, spacing.md) + spacing.sm,
           },
@@ -952,7 +954,7 @@ export default function PropertyDetailScreen() {
       >
         <BlurView
           intensity={16}
-          tint={dark ? 'dark' : 'light'}
+          tint={glassBlurTint(dark)}
           blurMethod="none"
           style={StyleSheet.absoluteFill}
         />

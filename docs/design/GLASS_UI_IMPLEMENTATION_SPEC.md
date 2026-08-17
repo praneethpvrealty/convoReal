@@ -6,10 +6,22 @@
 > mobile matches the web app and `public/brand/`; the chat thread keeps
 > its WhatsApp-native bubbles and blue read ticks because that
 > familiarity is functional. Where this document still prints a green
-> hex for a *chrome* surface, `mobile/lib/theme.ts` is the source of
+> hex for a _chrome_ surface, `mobile/lib/theme.ts` is the source of
 > truth. Rule of thumb: violet for chrome, green only for the thread and
 > for live/delivered states.
 
+> **Typography and responsive update — 2026-08-17.** Appearance now changes
+> colour and surfaces only. Both modes use Plus Jakarta Sans for display
+> hierarchy and Inter for dense CRM copy so labels do not reflow when the mode
+> changes. The floating navigation caps at 560pt; Properties uses two columns
+> from 640pt and three from 960pt. Inbox and Contacts cap their reading column
+> at 760pt; Contacts splits requirement and lifecycle filters below 700pt, and
+> More switches paired setting groups into two columns from 720pt.
+> Floating glass uses Apple system chrome/thin materials on iOS, with an
+> explicit translucent fallback on Android until those surfaces are wired to
+> `BlurTargetView`. `mobile/lib/theme.ts` and the current screen code are
+> authoritative where the older light-Inter/dark-Jakarta examples below
+> differ.
 
 > **Handoff document.** Everything needed to restyle the ConvoReal Expo app
 > with the locked design pairing. Self-contained: no conversation context
@@ -20,10 +32,10 @@
 
 ## 1. The locked decision
 
-| Mode | Direction | Mockup section |
-|------|-----------|----------------|
-| **Light theme** | **Option 7 — "Native on Glass"**: soft daylight aurora, frosted white glass cards, Convo Violet `#7C3AED` primary, `#25D366` reserved for live/delivered, Inter | `.t7` in `docs/design/ui-directions.html` |
-| **Dark theme** | **Option 4 — "Liquid Glass"**: violet aurora over Ink `#0B1020`, frosted dark glass, `#A78BFA` primary, Plus Jakarta Sans ExtraBold display type | `.t4` in same file |
+| Mode            | Direction                                                                                                                                                                                        | Mockup section                            |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------- |
+| **Light theme** | **Option 7 — "Native on Glass"**: soft daylight aurora, frosted white glass cards, Convo Violet `#7C3AED` primary, `#25D366` reserved for live/delivered, shared Jakarta-display/Inter-body type | `.t7` in `docs/design/ui-directions.html` |
+| **Dark theme**  | **Option 4 — "Liquid Glass"**: violet aurora over Ink `#0B1020`, frosted dark glass, `#A78BFA` primary, shared Jakarta-display/Inter-body type                                                   | `.t4` in same file                        |
 
 Theme switching stays exactly as it is today: the existing
 `useAppearance` store (`light | dark | system`, persisted as `appearance`,
@@ -53,9 +65,10 @@ simply the new light/dark skins of the single app theme.
   `useTheme()` — this is why a full reskin is feasible from one file.
 - Fonts load in `mobile/app/_layout.tsx` via `useFonts` (Plus Jakarta 400–800).
 - Tab bar: `mobile/app/(app)/(tabs)/_layout.tsx` — already a floating glass
-  pill with `BlurView`; exports `TAB_BAR_CLEARANCE = 112` (line 12); uses
-  `experimentalBlurMethod: 'dimezisBlurView'` on Android (line 72) — reuse
-  this exact pattern for every `BlurView`.
+  pill with `BlurView`; exports `TAB_BAR_CLEARANCE`. iOS resolves native system
+  materials through `glassBlurTint`; Android intentionally uses
+  `blurMethod="none"` until a `BlurTargetView` is available. Do not switch the
+  Android method without supplying its blur target.
 - Verify commands: `cd mobile && npm run typecheck` (`tsc --noEmit`),
   `cd mobile && npm run lint`.
 
@@ -105,7 +118,7 @@ const [fontsLoaded] = useFonts({
 ## 4. Step 2 — Replace `mobile/lib/theme.ts` (full file below)
 
 Strategy: keep every existing export and token name so current screens keep
-compiling; change the *values*; add three new color tokens (`glass`,
+compiling; change the _values_; add three new color tokens (`glass`,
 `glassBorder`, `backdrop`), a per-theme type scale (`type`), and per-theme
 shadows returned from `useTheme()`.
 
@@ -222,7 +235,14 @@ export const darkColors: ThemeColors = {
   tabBar: 'rgba(20,40,32,0.45)',
 };
 
-export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 } as const;
+export const spacing = {
+  xs: 4,
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 24,
+  xxl: 32,
+} as const;
 export const radius = { sm: 10, md: 14, lg: 20, xl: 26, full: 999 } as const;
 
 export interface ThemeShadow {
@@ -376,7 +396,10 @@ export function useTheme(): Theme {
 }
 
 /** Classification → chip hue, consistent across Contacts/Inbox. */
-export const classificationColors: Record<string, { light: string; dark: string }> = {
+export const classificationColors: Record<
+  string,
+  { light: string; dark: string }
+> = {
   Owner: { light: '#0e7490', dark: '#67e8f9' },
   Seller: { light: '#a16207', dark: '#fde047' },
   Buyer: { light: '#15803d', dark: '#86efac' },
@@ -437,7 +460,7 @@ export function AuroraBackground() {
 ### 5.2 `mobile/components/glass-card.tsx`
 
 The workhorse container. **Important perf rule:** real `BlurView` is only
-worth it where content scrolls *behind* the element (tab bar, sticky bottom
+worth it where content scrolls _behind_ the element (tab bar, sticky bottom
 bars, chat composer). The aurora background is a static image, so list rows
 and cards look identical with just the translucent `glass` fill — use
 `blurred={false}` (the default) for anything in a scroll view, and reserve
@@ -530,7 +553,12 @@ interface BottomSheetProps {
   children: React.ReactNode;
 }
 
-export function BottomSheet({ visible, onClose, title, children }: BottomSheetProps) {
+export function BottomSheet({
+  visible,
+  onClose,
+  title,
+  children,
+}: BottomSheetProps) {
   const { colors, type } = useTheme();
   const insets = useSafeAreaInsets();
   return (
@@ -558,10 +586,14 @@ export function BottomSheet({ visible, onClose, title, children }: BottomSheetPr
             },
           ]}
         >
-          <View style={[styles.handle, { backgroundColor: colors.textFaint }]} />
+          <View
+            style={[styles.handle, { backgroundColor: colors.textFaint }]}
+          />
           {title ? (
             <View style={styles.head}>
-              <Text style={[type.heading, { color: colors.text }]}>{title}</Text>
+              <Text style={[type.heading, { color: colors.text }]}>
+                {title}
+              </Text>
               <Pressable
                 onPress={onClose}
                 hitSlop={8}
@@ -604,7 +636,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: spacing.md,
   },
-  close: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  close: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });
 ```
 
@@ -753,18 +790,18 @@ the mockup wins.
 
 ### Key mockup values quick reference
 
-| Element | Light (Opt 7) | Dark (Opt 4) |
-|---|---|---|
-| Primary / accent | `#7C3AED` / `#F5C044` | `#A78BFA` (on-dark text `#1B1033`) |
+| Element              | Light (Opt 7)                     | Dark (Opt 4)                                |
+| -------------------- | --------------------------------- | ------------------------------------------- |
+| Primary / accent     | `#7C3AED` / `#F5C044`             | `#A78BFA` (on-dark text `#1B1033`)          |
 | Text / muted / faint | `#111B21` / `#5D6E66` / `#8AA39A` | `#F2FBF4` / `rgba(235,250,240,.62)` / `.38` |
-| Glass fill / border | `rgba(255,255,255,.55)` / `.9` | `rgba(255,255,255,.09)` / `.16` |
-| Tab bar | `rgba(255,255,255,.6)` | `rgba(20,40,32,.45)` |
-| Active tab | violet tint pill | white `.92` pill, Ink `#0B1020` icon |
-| List row radius | 18 | 22 (→ use `radius.lg` = 20 for both) |
-| Hot ring | 2.5px `#25D366` | 1.5px lime `.55` + lime glow |
-| Outgoing bubble | `#D9FDD3` | `#1F5B49` |
-| Typeface | Inter 400–700 | Plus Jakarta Sans 400–800 |
-| Hero radius | 20 | 24 (→ `radius.lg` for both) |
+| Glass fill / border  | `rgba(255,255,255,.55)` / `.9`    | `rgba(255,255,255,.09)` / `.16`             |
+| Tab bar              | `rgba(255,255,255,.6)`            | `rgba(20,40,32,.45)`                        |
+| Active tab           | violet tint pill                  | white `.92` pill, Ink `#0B1020` icon        |
+| List row radius      | 18                                | 22 (→ use `radius.lg` = 20 for both)        |
+| Hot ring             | 2.5px `#25D366`                   | 1.5px lime `.55` + lime glow                |
+| Outgoing bubble      | `#D9FDD3`                         | `#1F5B49`                                   |
+| Typeface             | Jakarta display / Inter body      | Jakarta display / Inter body                |
+| Hero radius          | 20                                | 24 (→ `radius.lg` for both)                 |
 
 ### Do / Don't
 

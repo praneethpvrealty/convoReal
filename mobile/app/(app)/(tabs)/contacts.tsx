@@ -10,6 +10,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -493,6 +494,8 @@ async function fetchSegmentCounts(): Promise<Record<SegmentKey, number>> {
 
 export default function ContactsScreen() {
   const { colors, dark, fonts: f } = useTheme();
+  const { width } = useWindowDimensions();
+  const wide = width >= 700;
   const insets = useSafeAreaInsets();
   const [search, setSearch] = useState('');
   const [segment, setSegment] = useState<SegmentKey>('active');
@@ -619,9 +622,32 @@ export default function ContactsScreen() {
     }
   }
 
+  const segmentChips = SEGMENTS.map((seg) => {
+    // Counts are account-wide. Under any narrowing filter they would
+    // contradict the list right below them, so they go.
+    const n =
+      interest || activeFilterCount(filters) > 0
+        ? undefined
+        : counts.data?.[seg.key];
+    return (
+      <FilterChip
+        key={seg.key}
+        label={n === undefined ? seg.label : `${seg.label} (${n})`}
+        active={segment === seg.key}
+        onPress={() => setSegment(seg.key)}
+      />
+    );
+  });
+
   return (
     <View style={{ flex: 1 }}>
-      <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
+      <View
+        style={[
+          styles.header,
+          styles.contentFrame,
+          { paddingTop: insets.top + spacing.sm },
+        ]}
+      >
         <View style={styles.titleRow}>
           <Text
             style={[
@@ -682,70 +708,68 @@ export default function ContactsScreen() {
           onChangeText={setSearch}
           placeholder="Search name, phone, tag, company…"
         />
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator
-          indicatorStyle={dark ? 'white' : 'black'}
-          style={{ flexGrow: 0 }}
-          contentContainerStyle={{
-            gap: spacing.sm,
-            paddingBottom: spacing.xs,
-            alignItems: 'center',
-          }}
-        >
-          {/* A different axis from the segment pills beside them —
+        <View style={styles.filterStack}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={wide}
+            indicatorStyle={dark ? 'white' : 'black'}
+            style={{ flexGrow: 0 }}
+            contentContainerStyle={styles.filterStrip}
+          >
+            {/* A different axis from the segment pills beside them —
               which stage a contact is at, versus what they want — so
               the two narrowing chips lead the row, ruled off from the
               segments. */}
-          <InterestChip
-            filter={interest}
-            onPress={() => {
-              haptic.tap();
-              setInterestOpen(true);
-            }}
-            onClear={() => {
-              haptic.tap();
-              setInterest(null);
-            }}
-          />
-          <AttributeChip
-            count={activeFilterCount(filters)}
-            onPress={() => {
-              haptic.tap();
-              setFiltersOpen(true);
-            }}
-          />
-          <View
-            style={[styles.chipRule, { backgroundColor: colors.glassBorder }]}
-          />
-          {SEGMENTS.map((seg) => {
-            // Counts are account-wide. Under any narrowing filter they
-            // would contradict the list right below them, so they go.
-            const n =
-              interest || activeFilterCount(filters) > 0
-                ? undefined
-                : counts.data?.[seg.key];
-            return (
-              <FilterChip
-                key={seg.key}
-                label={n === undefined ? seg.label : `${seg.label} (${n})`}
-                active={segment === seg.key}
-                onPress={() => setSegment(seg.key)}
+            <InterestChip
+              filter={interest}
+              onPress={() => {
+                haptic.tap();
+                setInterestOpen(true);
+              }}
+              onClear={() => {
+                haptic.tap();
+                setInterest(null);
+              }}
+            />
+            <AttributeChip
+              count={activeFilterCount(filters)}
+              onPress={() => {
+                haptic.tap();
+                setFiltersOpen(true);
+              }}
+            />
+            {wide ? (
+              <View
+                style={[
+                  styles.chipRule,
+                  { backgroundColor: colors.glassBorder },
+                ]}
               />
-            );
-          })}
-        </ScrollView>
+            ) : null}
+            {wide ? segmentChips : null}
+          </ScrollView>
+          {!wide ? (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={{ flexGrow: 0 }}
+              contentContainerStyle={styles.segmentStrip}
+            >
+              {segmentChips}
+            </ScrollView>
+          ) : null}
+        </View>
       </View>
 
       {isLoading ? (
-        <View>
+        <View style={styles.contentFrame}>
           {Array.from({ length: 8 }, (_, i) => (
             <ConversationSkeleton key={i} />
           ))}
         </View>
       ) : (
         <FlatList
-          style={{ flex: 1 }}
+          style={styles.listFrame}
           data={data?.contacts ?? []}
           keyExtractor={(c) => c.id}
           contentContainerStyle={{
@@ -1798,6 +1822,17 @@ function DeviceImportSheet({
 }
 
 const styles = StyleSheet.create({
+  contentFrame: {
+    width: '100%',
+    maxWidth: 760,
+    alignSelf: 'center',
+  },
+  listFrame: {
+    flex: 1,
+    width: '100%',
+    maxWidth: 760,
+    alignSelf: 'center',
+  },
   header: {
     paddingHorizontal: spacing.lg,
     gap: spacing.md,
@@ -1809,6 +1844,17 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   title: { fontSize: 30, fontFamily: fonts.extrabold, letterSpacing: -0.5 },
+  filterStack: { gap: spacing.xs },
+  filterStrip: {
+    gap: spacing.sm,
+    paddingBottom: spacing.xs,
+    alignItems: 'center',
+  },
+  segmentStrip: {
+    gap: spacing.sm,
+    paddingBottom: spacing.xs,
+    alignItems: 'center',
+  },
   agentsButton: {
     minWidth: 36,
     minHeight: 36,
