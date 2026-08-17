@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 
 import { ConvoRealLoader } from '@/components/loader';
+import { ContactPickerSheet } from '@/components/contact-picker-sheet';
 import { EnterRow } from '@/components/motion';
 import {
   Banner,
@@ -28,11 +29,12 @@ import { queryClient } from '@/lib/query';
 import {
   dismissMatchEvent,
   fetchMatchEvents,
+  searchRadarContacts,
   sendMatchAlert,
 } from '@/lib/radar';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import { usePullRefresh } from '@/lib/use-pull-refresh';
-import type { MatchEvent } from '@shared/types';
+import type { Contact, MatchEvent } from '@shared/types';
 
 /**
  * Web parity: the Match Radar tab. New listings matched to buyers and
@@ -42,10 +44,14 @@ import type { MatchEvent } from '@shared/types';
  */
 
 type CheckedState = { [eventId: string]: Set<string> };
+type ManualContactState = { [eventId: string]: Contact[] };
+const NO_CONTACTS: Contact[] = [];
 
 export default function RadarScreen() {
   const { colors } = useTheme();
   const [checked, setChecked] = useState<CheckedState>({});
+  const [manualContacts, setManualContacts] = useState<ManualContactState>({});
+  const [pickerEvent, setPickerEvent] = useState<MatchEvent | null>(null);
   const [sendingId, setSendingId] = useState<string | null>(null);
   const [dismissingId, setDismissingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -65,10 +71,15 @@ export default function RadarScreen() {
   const selectionFor = (evt: MatchEvent) =>
     checked[evt.id] ?? new Set(evt.matches.map((m) => m.id));
 
+  const targetIdsFor = (evt: MatchEvent) => [
+    ...evt.matches.map((match) => match.id),
+    ...(manualContacts[evt.id] ?? []).map((contact) => contact.id),
+  ];
+
   const toggleTarget = (evt: MatchEvent, targetId: string) => {
     haptic.tap();
     setChecked((prev) => {
-      const current = new Set(prev[evt.id] ?? evt.matches.map((m) => m.id));
+      const current = new Set(prev[evt.id] ?? targetIdsFor(evt));
       if (current.has(targetId)) current.delete(targetId);
       else current.add(targetId);
       return { ...prev, [evt.id]: current };
@@ -78,14 +89,31 @@ export default function RadarScreen() {
   const toggleAll = (evt: MatchEvent) => {
     haptic.tap();
     setChecked((prev) => {
-      const current = prev[evt.id] ?? new Set(evt.matches.map((m) => m.id));
-      const allChecked = evt.matches.every((m) => current.has(m.id));
+      const allIds = targetIdsFor(evt);
+      const current = prev[evt.id] ?? new Set(allIds);
+      const allChecked = allIds.every((id) => current.has(id));
       return {
         ...prev,
         [evt.id]: allChecked
           ? new Set<string>()
-          : new Set(evt.matches.map((m) => m.id)),
+          : new Set(allIds),
       };
+    });
+  };
+
+  const saveManualContacts = (evt: MatchEvent, contacts: Contact[]) => {
+    const previous = manualContacts[evt.id] ?? [];
+    setManualContacts((current) => ({ ...current, [evt.id]: contacts }));
+    setChecked((current) => {
+      const next = new Set(
+        current[evt.id] ?? evt.matches.map((match) => match.id)
+      );
+      const keptIds = new Set(contacts.map((contact) => contact.id));
+      for (const contact of previous) {
+        if (!keptIds.has(contact.id)) next.delete(contact.id);
+      }
+      for (const contact of contacts) next.add(contact.id);
+      return { ...current, [evt.id]: next };
     });
   };
 
@@ -111,7 +139,14 @@ export default function RadarScreen() {
     setNotice(null);
     setSendingId(evt.id);
     try {
-      const res = await sendMatchAlert(evt.id, targetIds);
+      const manualIds = new Set(
+        (manualContacts[evt.id] ?? []).map((contact) => contact.id)
+      );
+      const res = await sendMatchAlert(
+        evt.id,
+        targetIds,
+        targetIds.filter((id) => manualIds.has(id))
+      );
       if (res.sent > 0) {
         haptic.success();
         setNotice(
@@ -128,7 +163,13 @@ export default function RadarScreen() {
         const names = res.results
           .filter((r) => r.status === 'templateMissing')
           .map(
-            (r) => evt.matches.find((m) => m.id === r.id)?.name ?? 'Unknown'
+            (r) => {
+              const match = evt.matches.find((item) => item.id === r.id);
+              const manual = (manualContacts[evt.id] ?? []).find(
+                (contact) => contact.id === r.id
+              );
+              return match?.name || manual?.name || manual?.phone || 'Unknown';
+            }
           );
         setTemplateMissingFor((prev) => ({ ...prev, [evt.id]: names }));
       }
@@ -200,14 +241,40 @@ export default function RadarScreen() {
                 sending={sendingId === item.id}
                 dismissing={dismissingId === item.id}
                 templateMissing={templateMissingFor[item.id]}
+                manualContacts={manualContacts[item.id] ?? NO_CONTACTS}
                 onToggleTarget={(targetId) => toggleTarget(item, targetId)}
                 onToggleAll={() => toggleAll(item)}
+                onAddContacts={() => setPickerEvent(item)}
                 onSend={() => send(item)}
                 onDismiss={() => dismiss(item.id)}
               />
             )}
           </EnterRow>
         )}
+      />
+
+      <ContactPickerSheet
+        key={pickerEvent?.id ?? 'radar-closed'}
+        visible={pickerEvent !== null}
+        onClose={() => setPickerEvent(null)}
+        multiSelect
+        title="Add contacts"
+        hint="Search active Buyers or Agents who were not suggested by this match."
+        confirmLabel="Add"
+        initialSelected={
+          pickerEvent ? manualContacts[pickerEvent.id] ?? NO_CONTACTS : NO_CONTACTS
+        }
+        maxSelections={pickerEvent ? Math.max(0, 20 - pickerEvent.matches.length) : 0}
+        searchKey={pickerEvent ? `radar-${pickerEvent.id}` : 'radar'}
+        searchContacts={async (query) => {
+          if (!pickerEvent) return [];
+          return (await searchRadarContacts(pickerEvent.id, query)) as Contact[];
+        }}
+        onSelectMany={(contacts) => {
+          if (!pickerEvent) return;
+          saveManualContacts(pickerEvent, contacts);
+          setPickerEvent(null);
+        }}
       />
     </View>
   );
@@ -219,8 +286,10 @@ function EventCard({
   sending,
   dismissing,
   templateMissing,
+  manualContacts,
   onToggleTarget,
   onToggleAll,
+  onAddContacts,
   onSend,
   onDismiss,
 }: {
@@ -229,13 +298,26 @@ function EventCard({
   sending: boolean;
   dismissing: boolean;
   templateMissing?: string[];
+  manualContacts: Contact[];
   onToggleTarget: (targetId: string) => void;
   onToggleAll: () => void;
+  onAddContacts: () => void;
   onSend: () => void;
   onDismiss: () => void;
 }) {
   const { colors, fonts: f } = useTheme();
-  const allChecked = event.matches.every((m) => selected.has(m.id));
+  const displayTargets = [
+    ...event.matches.map((match) => ({ ...match, manuallyAdded: false as const })),
+    ...manualContacts.map((contact) => ({
+      id: contact.id,
+      name: contact.name || contact.phone || 'Contact',
+      detail: contact.phone,
+      score: null,
+      chips: [] as string[],
+      manuallyAdded: true as const,
+    })),
+  ];
+  const allChecked = displayTargets.every((target) => selected.has(target.id));
 
   return (
     <View
@@ -271,18 +353,34 @@ function EventCard({
       <Subject event={event} />
 
       <View style={styles.targetsHead}>
-        <SectionLabel text={`Matching targets (${event.matches.length})`} />
-        <Pressable onPress={onToggleAll} hitSlop={8} accessibilityRole="button">
-          <Text
-            style={{ fontSize: 12, fontFamily: f.bold, color: colors.primary }}
-          >
-            {allChecked ? 'Deselect all' : 'Select all'}
-          </Text>
-        </Pressable>
+        <SectionLabel text={`Matching targets (${displayTargets.length})`} />
+        <View style={styles.targetActions}>
+          {event.kind === 'new_property' ? (
+            <Pressable
+              onPress={onAddContacts}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Add contacts"
+              style={styles.addContacts}
+            >
+              <Ionicons name="person-add-outline" size={14} color={colors.primary} />
+              <Text style={{ fontSize: 12, fontFamily: f.bold, color: colors.primary }}>
+                Add contacts
+              </Text>
+            </Pressable>
+          ) : null}
+          <Pressable onPress={onToggleAll} hitSlop={8} accessibilityRole="button">
+            <Text
+              style={{ fontSize: 12, fontFamily: f.bold, color: colors.primary }}
+            >
+              {allChecked ? 'Deselect all' : 'Select all'}
+            </Text>
+          </Pressable>
+        </View>
       </View>
 
       <View style={{ gap: spacing.xs }}>
-        {event.matches.map((match) => {
+        {displayTargets.map((match) => {
           const isChecked = selected.has(match.id);
           return (
             <Pressable
@@ -326,12 +424,12 @@ function EventCard({
                   </Text>
                   <Text
                     style={{
-                      fontSize: 12,
+                      fontSize: match.manuallyAdded ? 10.5 : 12,
                       fontFamily: f.bold,
-                      color: colors.success,
+                      color: match.manuallyAdded ? colors.primary : colors.success,
                     }}
                   >
-                    {match.score}%
+                    {match.manuallyAdded ? 'Added manually' : `${match.score}%`}
                   </Text>
                 </View>
                 {match.detail ? (
@@ -572,6 +670,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: spacing.sm,
+  },
+  targetActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  addContacts: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   target: {
     flexDirection: 'row',

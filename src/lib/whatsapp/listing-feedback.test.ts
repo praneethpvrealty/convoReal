@@ -76,6 +76,20 @@ describe('buildListingFeedbackSections', () => {
     expect(withForm[0].rows.some((r) => r.id === 'lfb_form')).toBe(true);
     expect(without[0].rows.some((r) => r.id === 'lfb_form')).toBe(false);
   });
+
+  it('keeps the existing explore actions in the feedback list when requested', () => {
+    const [section] = buildListingFeedbackSections([match(P1, 'A')], {
+      includeExploreRows: true,
+      sourcePropertyId: P1,
+    });
+
+    expect(section.rows.map((row) => row.id)).toEqual([
+      `lfb_y_${P1}`,
+      `lfb_n_${P1}`,
+      `show_more_properties:${P1}`,
+      'browse_all_properties',
+    ]);
+  });
 });
 
 /** Chainable query stub: every method returns itself; awaiting any

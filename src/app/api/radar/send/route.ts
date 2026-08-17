@@ -19,10 +19,13 @@ import {
   accountBrandImage,
   accountBrandName,
 } from '@/lib/showcase/account-showcase-url';
+import { loadEligibleRadarContacts } from '@/lib/radar/manual-contacts';
+import { sendListingFeedbackPrompt } from '@/lib/whatsapp/listing-feedback';
+import { logPropertyShare } from '@/lib/whatsapp/share-property-send';
 import type { MatchEvent, MessageTemplate, Property } from '@/types';
 
 // POST /api/radar/send
-// Body: { eventId: string, targetIds: string[] }
+// Body: { eventId: string, targetIds: string[], manualContactIds?: string[] }
 //
 // One-tap send for a Match Radar event:
 //   - kind 'new_property': targetIds are contact ids → each gets the
@@ -78,18 +81,18 @@ function propertyMessage(p: Property, baseUrl: string, visitorContactId: string)
 }
 
 /** True when the contact messaged us within the 24h service window. */
-async function isSessionOpen(
+async function sessionState(
   db: ReturnType<typeof adminClient>,
   accountId: string,
   contactId: string,
-): Promise<boolean> {
+): Promise<{ conversationId: string | null; open: boolean }> {
   const { data: conv } = await db
     .from('conversations')
     .select('id')
     .eq('account_id', accountId)
     .eq('contact_id', contactId)
     .maybeSingle();
-  if (!conv) return false;
+  if (!conv) return { conversationId: null, open: false };
 
   const since = new Date(Date.now() - SESSION_WINDOW_MS).toISOString();
   const { count } = await db
@@ -98,7 +101,7 @@ async function isSessionOpen(
     .eq('conversation_id', conv.id)
     .eq('sender_type', 'customer')
     .gte('created_at', since);
-  return (count ?? 0) > 0;
+  return { conversationId: conv.id, open: (count ?? 0) > 0 };
 }
 
 export async function POST(request: NextRequest) {
@@ -109,15 +112,32 @@ export async function POST(request: NextRequest) {
     if (!limit.success) return rateLimitResponse(limit);
 
     const body = (await request.json().catch(() => null)) as
-      | { eventId?: string; targetIds?: string[] }
+      | {
+          eventId?: string;
+          targetIds?: string[];
+          manualContactIds?: string[];
+        }
       | null;
     const eventId = body?.eventId;
     const targetIds = Array.isArray(body?.targetIds)
-      ? body!.targetIds!.filter((t) => typeof t === 'string').slice(0, 20)
+      ? [...new Set(body.targetIds.filter((t) => typeof t === 'string'))]
+      : [];
+    const manualContactIds = Array.isArray(body?.manualContactIds)
+      ? [...new Set(body.manualContactIds.filter((t) => typeof t === 'string'))]
       : [];
 
     if (!eventId || targetIds.length === 0) {
       return NextResponse.json({ error: 'eventId and targetIds are required' }, { status: 400 });
+    }
+    if (targetIds.length > 20 || manualContactIds.length > 20) {
+      return NextResponse.json({ error: 'A maximum of 20 contacts can be sent at once' }, { status: 400 });
+    }
+    const selectedIds = new Set(targetIds);
+    if (manualContactIds.some((id) => !selectedIds.has(id))) {
+      return NextResponse.json(
+        { error: 'Every manually added contact must be selected' },
+        { status: 400 },
+      );
     }
 
     // Load event through the RLS-scoped client — proves it belongs to the
@@ -134,13 +154,39 @@ export async function POST(request: NextRequest) {
     }
 
     const typedEvent = event as MatchEvent;
-    // Only send to targets that were actually part of the computed event —
-    // the client can narrow the selection but never widen it.
-    const validTargetIds = new Set(typedEvent.matches.map((m) => m.id));
-    const targets = targetIds.filter((id) => validTargetIds.has(id));
-    if (targets.length === 0) {
-      return NextResponse.json({ error: 'No valid targets for this event' }, { status: 400 });
+    const computedIds = new Set(typedEvent.matches.map((match) => match.id));
+    const manualIds = manualContactIds.filter((id) => !computedIds.has(id));
+    if (manualIds.length > 0) {
+      if (typedEvent.kind !== 'new_property' || typedEvent.source === 'deal_mode') {
+        return NextResponse.json(
+          { error: 'Contacts can only be added to new listing alerts' },
+          { status: 400 },
+        );
+      }
+      const eligible = await loadEligibleRadarContacts(
+        ctx.supabase,
+        ctx.accountId,
+        { ids: manualIds, limit: manualIds.length },
+      );
+      const eligibleIds = new Set(eligible.map((contact) => contact.id));
+      const invalidManual = manualIds.filter((id) => !eligibleIds.has(id));
+      if (invalidManual.length > 0) {
+        return NextResponse.json(
+          { error: 'One or more added contacts are no longer eligible for alerts' },
+          { status: 400 },
+        );
+      }
     }
+
+    const allowedIds = new Set([...computedIds, ...manualIds]);
+    const invalidTargets = targetIds.filter((id) => !allowedIds.has(id));
+    if (invalidTargets.length > 0) {
+      return NextResponse.json(
+        { error: 'One or more selected targets are not part of this alert' },
+        { status: 400 },
+      );
+    }
+    const targets = targetIds;
 
     const db = adminClient();
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
@@ -181,9 +227,9 @@ export async function POST(request: NextRequest) {
       contactName: string | null,
       property: Property,
     ): Promise<{ status: 'sent' | 'templateMissing' | 'failed'; channel?: 'freeform' | 'template'; error?: string }> => {
-      const open = await isSessionOpen(db, ctx.accountId, contactId);
+      const session = await sessionState(db, ctx.accountId, contactId);
 
-      if (open) {
+      if (session.open) {
         const firstImage = (property.images || []).find((img) => img && img.trim());
         if (firstImage) {
           await sendWhatsAppMessageAndPersist({
@@ -205,9 +251,29 @@ export async function POST(request: NextRequest) {
           text: propertyMessage(property, baseUrl, contactId),
           senderType: 'agent',
         });
-        return res.success
-          ? { status: 'sent', channel: 'freeform' }
-          : { status: 'failed', error: res.error };
+        if (!res.success) return { status: 'failed', error: res.error };
+
+        await logPropertyShare(
+          db,
+          ctx.accountId,
+          ctx.userId,
+          property.id,
+          contactId,
+        );
+        if (session.conversationId) {
+          await sendListingFeedbackPrompt({
+            db,
+            accountId: ctx.accountId,
+            userId: ctx.userId,
+            contactId,
+            conversationId: session.conversationId,
+            matches: [{ property }],
+            includeFormRow: true,
+            includeExploreRows: true,
+            sourcePropertyId: property.id,
+          });
+        }
+        return { status: 'sent', channel: 'freeform' };
       }
 
       if (!anyApproved) return { status: 'templateMissing' };
@@ -264,9 +330,15 @@ export async function POST(request: NextRequest) {
         templateRow: alertTemplate,
         text: resolveTemplateBodyText(alertTemplate.body_text, bodyParams),
       });
-      return res.success
-        ? { status: 'sent', channel: 'template' }
-        : { status: 'failed', error: res.error };
+      if (!res.success) return { status: 'failed', error: res.error };
+      await logPropertyShare(
+        db,
+        ctx.accountId,
+        ctx.userId,
+        property.id,
+        contactId,
+      );
+      return { status: 'sent', channel: 'template' };
     };
 
     if (typedEvent.kind === 'new_property') {

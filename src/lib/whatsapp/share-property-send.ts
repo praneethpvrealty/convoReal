@@ -1,4 +1,7 @@
-import { createClient as createServiceClient } from '@supabase/supabase-js';
+import {
+  createClient as createServiceClient,
+  type SupabaseClient,
+} from '@supabase/supabase-js';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { findConversation, resolveConversationId } from '@/lib/conversations/resolve';
 import { truncateParametersToBudget } from '@/lib/whatsapp/template-send-builder';
@@ -42,8 +45,8 @@ const SESSION_WINDOW_MS = 24 * 60 * 60 * 1000;
  *  the Matching Contacts list marks a recipient as already contacted
  *  whichever surface sent it. Best-effort: a ledger failure must never
  *  turn a delivered message into a reported error. */
-async function logShare(
-  db: ReturnType<typeof adminClient>,
+export async function logPropertyShare(
+  db: SupabaseClient,
   accountId: string,
   userId: string,
   propertyId: string,
@@ -175,7 +178,7 @@ export async function sendPropertyToContact(opts: {
       senderType: 'agent',
     });
     if (res.success) {
-      await logShare(db, accountId, userId, property.id, contactId);
+      await logPropertyShare(db, accountId, userId, property.id, contactId);
       return {
         sent: true,
         channel: 'freeform',
@@ -286,6 +289,6 @@ export async function sendPropertyToContact(opts: {
   if (!res.success) {
     return { sent: false, conversationId: existingConvId, error: res.error || 'Failed to send' };
   }
-  await logShare(db, accountId, userId, property.id, contactId);
+  await logPropertyShare(db, accountId, userId, property.id, contactId);
   return { sent: true, channel: 'template', conversationId: await conversationIdAfterSend() };
 }

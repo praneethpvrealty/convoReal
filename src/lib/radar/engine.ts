@@ -121,7 +121,7 @@ export async function generateMatchEventForProperty(
   propertyId: string
 ): Promise<void> {
   try {
-    const [{ data: property }, { data: contacts }] = await Promise.all([
+    const [{ data: property }, { data: contacts }, { data: rejected }] = await Promise.all([
       db
         .from('properties')
         .select('*')
@@ -134,6 +134,12 @@ export async function generateMatchEventForProperty(
         .eq('account_id', accountId)
         .eq('status', 'active')
         .in('classification', ['Buyer', 'Agent']),
+      db
+        .from('listing_feedback')
+        .select('contact_id')
+        .eq('account_id', accountId)
+        .eq('property_id', propertyId)
+        .eq('verdict', 'rejected'),
     ]);
 
     if (!property || !contacts || contacts.length === 0) return;
@@ -142,9 +148,16 @@ export async function generateMatchEventForProperty(
     // one buyer to chase, and listing them twice both inflates the
     // event and wastes two of its capped slots.
     const parties = await loadContactParties(db, accountId);
+    const rejectedContactIds = new Set(
+      ((rejected ?? []) as { contact_id: string }[]).map((row) => row.contact_id)
+    );
+    const eligibleContacts = (contacts as Contact[]).filter(
+      (contact) => !rejectedContactIds.has(contact.id)
+    );
+
     const results = getMatchingContacts(
       property as Property,
-      contacts as Contact[],
+      eligibleContacts,
       parties
     )
       .filter((r) => r.score >= MIN_SCORE)
