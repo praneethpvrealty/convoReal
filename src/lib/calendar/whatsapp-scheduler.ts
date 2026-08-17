@@ -55,6 +55,9 @@ const SCHEDULING_VERB =
  */
 const TASK_PREFIX = /\b(task|todo|to-do)s?\b(\s*(:|-|\d)|\s+list\b)/i;
 
+const ACTION_ITEM =
+  /^(call|meet|visit|send|share|email|message|contact|speak (with|to)|talk (with|to)|discuss( with)?|follow ?up( with)?|check with|connect with|coordinate with|inform)\b/i;
+
 /** Something that happens at a time, which needs a WHEN to be a request. */
 const EVENT_VERB = /\b(call|meet|meeting|visit|appointment)\b/i;
 
@@ -104,17 +107,19 @@ export function looksLikeSchedulingText(text: string): boolean {
   const t = text.toLowerCase().trim();
   if (!t) return false;
 
+  const taskList = isDictatedTaskList(t);
+
   // Verb and WHEN are tested independently rather than as one ordered
   // pattern: "on Monday, meet the lawyer" is the same request as "meet
   // the lawyer on Monday", and a WhatsApp message often wraps the two
   // onto separate lines.
-  const explicit = SCHEDULING_VERB.test(t) || TASK_PREFIX.test(t) || NOTIFY_VERB.test(t);
+  const explicit = SCHEDULING_VERB.test(t) || TASK_PREFIX.test(t) || NOTIFY_VERB.test(t) || taskList;
   const verbWithWhen = EVENT_VERB.test(t) && (TIME_CUE.test(t) || DATE_CUE.test(t));
   if (!explicit && !verbWithWhen) return false;
 
   // "Remind me" / "schedule" / "task:" is the user saying it outright, so
   // it survives the back-offs below.
-  const statedOutright = /\b(remind me|schedule)\b/i.test(t) || TASK_PREFIX.test(t);
+  const statedOutright = /\b(remind me|schedule)\b/i.test(t) || TASK_PREFIX.test(t) || taskList;
   if (statedOutright) return true;
 
   // A long listing-style forward wins even if it mentions "visit".
@@ -216,8 +221,8 @@ function sliceItems(t: string, hits: { at: number; from: number }[]): string[] {
 }
 
 /**
- * Text that is unmistakably a dictated to-do list: it says so, and it
- * carries a numbered run to prove it.
+ * Text that is unmistakably a dictated to-do list: it either says so,
+ * or starts a numbered run with an action.
  *
  * Strong enough to interrupt an intake draft. The ordinary scheduling
  * pre-filter is not — "site visit" inside a correction to a listing is
@@ -233,7 +238,8 @@ function sliceItems(t: string, hits: { at: number; from: number }[]): string[] {
 export function isDictatedTaskList(text?: string | null): boolean {
   const t = (text || '').trim();
   if (!t) return false;
-  return TASK_PREFIX.test(t) && splitTaskList(t).length >= 2;
+  const items = splitTaskList(t);
+  return items.length >= 2 && (TASK_PREFIX.test(t) || ACTION_ITEM.test(items[0]));
 }
 
 interface AgendaEvent {
