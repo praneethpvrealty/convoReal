@@ -13,6 +13,8 @@ Next.js 16 has breaking changes compared with older versions — APIs, file conv
 - Prefer the connected GitHub plugin for all GitHub reads and writes, including branches, commits, pull requests, reviews, merges, Actions, and deployment-status checks.
 - Do not ask the user to install or authenticate the GitHub CLI (`gh`) when the GitHub plugin can perform the operation.
 - Use local `git` or `gh` only when the plugin lacks the required capability, and explain that specific limitation before asking the user.
+- For every requested code change, implementation is not complete after local validation: commit the intended changes on an `agent/*` branch, open a ready-for-review pull request, wait for every required check to pass, and merge it into `main` once the PR is green. Do not stop at a local commit or draft PR unless the user explicitly asks not to publish, or an external permission/safety gate blocks the operation.
+- If a required PR check fails, diagnose and fix the failure, push the correction, and wait for the replacement checks. Never merge a red or pending PR. After merging, verify the resulting `main` deployment and report any platform-specific limitation (for example, an unavailable iOS OTA target) explicitly.
 
 ---
 

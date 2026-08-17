@@ -32,7 +32,6 @@ import { haptic } from '@/lib/haptics';
 import {
   AMENITIES_BY_CATEGORY,
   AREA_UNITS,
-  COMMERCIAL_TYPES,
   FACING_DIRECTIONS,
   LISTING_TYPES,
   NEARBY_HIGHLIGHTS_OPTIONS,
@@ -41,6 +40,9 @@ import {
   LAND_CONVERSION_TYPES,
   LAND_USE_ZONES,
   hasBedsBaths,
+  hasCommercialBuildingFields,
+  hasTotalFloors,
+  isApartmentType,
   isLandType,
   isRawLandType,
   propertyTypeGroupsFor,
@@ -99,7 +101,7 @@ async function fetchProperty(id: string): Promise<Property | null> {
     .from('properties')
     .select(
       'id, title, description, price, rent_per_month, maintenance, status, listing_type, sold_price, ' +
-        'bedrooms, bathrooms, area_sqft, area_unit, is_published, type, images, ' +
+        'bedrooms, bathrooms, area_sqft, area_unit, total_floors, is_published, type, images, ' +
         'location, sublocality, city, state, land_area, land_area_unit, super_built_area, ' +
         'dimensions, facing_direction, google_map_link, showcase_visibility, features, nearby_highlights, tags, ' +
         'floor_tenancies, floor_plans, owner_contact_id, owner:contacts!properties_owner_contact_id_fkey(id, name, phone)'
@@ -164,6 +166,9 @@ function EditForm({ property }: { property: Property }) {
   const [superBuilt, setSuperBuilt] = useState(
     property.super_built_area ? String(property.super_built_area) : ''
   );
+  const [totalFloors, setTotalFloors] = useState(
+    property.total_floors != null ? String(property.total_floors) : ''
+  );
   const [ownershipStatus, setOwnershipStatus] = useState(property.ownership_status ?? '');
   const [landZone, setLandZone] = useState(property.land_zone ?? '');
   const [legalStatus, setLegalStatus] = useState(property.legal_status ?? '');
@@ -219,9 +224,11 @@ function EditForm({ property }: { property: Property }) {
   const [sheet, setSheet] = useState<'type' | 'features' | 'nearby' | 'owner' | null>(null);
 
   const isRent = listingType === 'Rent' || listingType === 'Built to Suit';
-  const isCommercial = COMMERCIAL_TYPES.includes(type);
+  const isCommercial = hasCommercialBuildingFields(type);
   const isLand = isLandType(type);
   const isRawLand = isRawLandType(type);
+  const isApartment = isApartmentType(type);
+  const showTotalFloors = hasTotalFloors(type);
   const showBedsBaths = hasBedsBaths(type);
 
   useEffect(() => {
@@ -278,15 +285,17 @@ function EditForm({ property }: { property: Property }) {
       // leaving them behind, invisible in the editor that hides them.
       bedrooms: showBedsBaths ? num(bedrooms) : null,
       bathrooms: showBedsBaths ? num(bathrooms) : null,
-      area_sqft: showBedsBaths ? num(area) : null,
-      land_area: num(landArea),
-      land_area_unit: landAreaUnit,
+      area_sqft: isLand ? null : num(area),
+      area_unit: isLand ? null : areaUnit,
+      land_area: isApartment ? null : num(landArea),
+      land_area_unit: isApartment ? null : landAreaUnit,
       super_built_area: isLand ? null : num(superBuilt),
+      total_floors: showTotalFloors ? num(totalFloors) : null,
       ownership_status: isLand ? ownershipStatus || null : null,
       land_zone: isRawLand ? landZone || null : property.land_zone ?? null,
       legal_status: isRawLand ? legalStatus || null : null,
       conversion_type: isRawLand ? conversionType || null : null,
-      dimensions: dimensions.trim() || null,
+      dimensions: isApartment ? null : dimensions.trim() || null,
       facing_direction: facing || null,
       location: location.trim() || null,
       sublocality: sublocality.trim() || null,
@@ -310,10 +319,9 @@ function EditForm({ property }: { property: Property }) {
       const p = num(price);
       if (p !== null) body.price = p;
     }
-    // Only sent while the section is visible — switching to a
-    // non-commercial type leaves the stored rent roll untouched.
-    // Server-side sanitizeFloorTenancies() drops empty rows and
-    // re-validates every value.
+    // Only constructed commercial assets can carry a rent roll.
+    // Server-side sanitization drops empty rows and re-validates every
+    // value before storage.
     if (isCommercial) {
       // Typed as the shared FloorTenancy so a column added on the web
       // cannot be quietly dropped here: its keys are required, so an
@@ -333,9 +341,13 @@ function EditForm({ property }: { property: Property }) {
         floor_plan: t.floor_plan.trim() || null,
       }));
       body.floor_tenancies = rentRoll;
+    } else {
+      body.floor_tenancies = [];
     }
-    // Floor plans apply to every property type, so they are always
-    // sent. Server-side sanitizeFloorPlans() drops rows carrying
+    if (isLand) body.floor_number = null;
+    // This shared JSON field stores floor plans for built assets and
+    // sketches for land, so it is always sent. Server-side
+    // sanitizeFloorPlans() drops rows carrying
     // neither a label nor a drawing.
     body.floor_plans = floorPlans.map((fp) => ({
       floor: fp.floor.trim(),
@@ -376,7 +388,7 @@ function EditForm({ property }: { property: Property }) {
 
         <PropertyPhotoEditor images={images} onChange={setImages} />
 
-        <PropertyFloorPlans plans={floorPlans} onChange={setFloorPlans} />
+        <PropertyFloorPlans plans={floorPlans} onChange={setFloorPlans} isLand={isLand} />
 
         <TextField label="Title" value={title} onChangeText={setTitle} />
 
@@ -460,29 +472,57 @@ function EditForm({ property }: { property: Property }) {
             <View style={{ flex: 1 }}>
               <TextField label="Bathrooms" value={bathrooms} onChangeText={setBathrooms} keyboardType="numeric" />
             </View>
-            <View style={{ flex: 1 }}>
-              <TextField label={`Area (${areaUnit})`} value={area} onChangeText={setArea} keyboardType="numeric" />
-            </View>
           </View>
         ) : null}
 
-        <SectionLabel text="Land & dimensions" />
-        <View style={styles.row}>
-          <View style={{ flex: 1 }}>
-            <TextField label="Land area" value={landArea} onChangeText={setLandArea} keyboardType="numeric" />
-          </View>
-          {!isLand ? (
+        <SectionLabel text={isLand ? 'Land & dimensions' : 'Building & area'} />
+        {isLand ? (
+          <>
             <View style={{ flex: 1 }}>
-              <TextField label="Super built (sqft)" value={superBuilt} onChangeText={setSuperBuilt} keyboardType="numeric" />
+              <TextField label="Land area" value={landArea} onChangeText={setLandArea} keyboardType="numeric" />
             </View>
-          ) : null}
-        </View>
-        <View style={styles.chips}>
-          {AREA_UNITS.map((u) => (
-            <FilterChip key={u} label={u} active={landAreaUnit === u} onPress={() => setLandAreaUnit(u)} />
-          ))}
-        </View>
-        <TextField label="Dimensions (e.g. 80x50)" value={dimensions} onChangeText={setDimensions} />
+            <View style={styles.chips}>
+              {AREA_UNITS.map((u) => (
+                <FilterChip key={u} label={u} active={landAreaUnit === u} onPress={() => setLandAreaUnit(u)} />
+              ))}
+            </View>
+            <TextField label="Dimensions (e.g. 80x50)" value={dimensions} onChangeText={setDimensions} />
+          </>
+        ) : (
+          <>
+            <View style={styles.row}>
+              <View style={{ flex: 1 }}>
+                <TextField label={`Built-up area (${areaUnit})`} value={area} onChangeText={setArea} keyboardType="numeric" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <TextField label="Super built (sqft)" value={superBuilt} onChangeText={setSuperBuilt} keyboardType="numeric" />
+              </View>
+            </View>
+            {!isApartment ? (
+              <>
+                <View style={{ flex: 1 }}>
+                  <TextField label="Land area" value={landArea} onChangeText={setLandArea} keyboardType="numeric" />
+                </View>
+                <View style={styles.chips}>
+                  {AREA_UNITS.map((u) => (
+                    <FilterChip key={u} label={u} active={landAreaUnit === u} onPress={() => setLandAreaUnit(u)} />
+                  ))}
+                </View>
+                <TextField label="Dimensions (e.g. 80x50)" value={dimensions} onChangeText={setDimensions} />
+              </>
+            ) : null}
+          </>
+        )}
+
+        {showTotalFloors ? (
+          <TextField
+            label="Total floors"
+            value={totalFloors}
+            onChangeText={setTotalFloors}
+            keyboardType="numeric"
+            placeholder="e.g. 12"
+          />
+        ) : null}
 
         {isLand ? (
           <>

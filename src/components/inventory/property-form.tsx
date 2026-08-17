@@ -103,6 +103,9 @@ import {
   propertyTypeGroupsFor,
   hasBedsBaths as typeHasBedsBaths,
   hasCommercialFields as typeHasCommercialFields,
+  hasCommercialBuildingFields as typeHasCommercialBuildingFields,
+  hasTotalFloors,
+  hasUnitFloor,
   isLandType,
   isRawLandType,
   isApartmentType,
@@ -503,9 +506,12 @@ export function PropertyForm({
   // Helper classifications based on selected type
   const hasBedsBaths = typeHasBedsBaths(type);
   const hasCommercialFields = typeHasCommercialFields(type);
+  const hasCommercialBuildingFields = typeHasCommercialBuildingFields(type);
   const isLand = isLandType(type);
   const isRawLand = isRawLandType(type);
   const isApartment = isApartmentType(type);
+  const showFloorNumber = hasUnitFloor(type);
+  const showTotalFloors = hasTotalFloors(type);
   const propertyTypeGroups = propertyTypeGroupsFor(type);
   const guardedByType = isGuardedType(type);
   const locationGuarded = isLocationGuarded({ type, location_privacy: locationPrivacy || null });
@@ -1934,7 +1940,7 @@ export function PropertyForm({
       if (error) throw new Error(error.message);
       return `property-images/${path}`;
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Floor plan upload failed');
+      toast.error(err instanceof Error ? err.message : 'Plan or sketch upload failed');
       return null;
     }
   }
@@ -2347,12 +2353,12 @@ export function PropertyForm({
       const parsedBtsEscalationPercent = isBTS && btsEscalationPercent.trim() !== '' ? Number(btsEscalationPercent) : null;
       const parsedBedrooms = hasBedsBaths && bedrooms.trim() !== '' ? Number(bedrooms) : null;
       const parsedBathrooms = hasBedsBaths && bathrooms.trim() !== '' ? Number(bathrooms) : null;
-      const parsedFloorNumber = !isLand && floorNumber.trim() !== '' ? Number(floorNumber) : null;
-      const parsedTotalFloors = !isLand && totalFloors.trim() !== '' ? Number(totalFloors) : null;
+      const parsedFloorNumber = showFloorNumber && floorNumber.trim() !== '' ? Number(floorNumber) : null;
+      const parsedTotalFloors = showTotalFloors && totalFloors.trim() !== '' ? Number(totalFloors) : null;
       const parsedBalconies = hasBedsBaths && balconies.trim() !== '' ? Number(balconies) : null;
-      const parsedAreaSqft = areaSqft.trim() !== '' ? Number(areaSqft) : null;
+      const parsedAreaSqft = !isLand && areaSqft.trim() !== '' ? Number(areaSqft) : null;
       const parsedLandArea = (isLand || !isApartment) && landArea.trim() !== '' ? Number(landArea) : null;
-      const parsedSuperBuiltArea = superBuiltArea.trim() !== '' ? Number(superBuiltArea) : null;
+      const parsedSuperBuiltArea = !isLand && superBuiltArea.trim() !== '' ? Number(superBuiltArea) : null;
       const parsedRoadWidth = !isApartment && roadWidth.trim() !== '' ? Number(roadWidth) : null;
 
       const parsedFeatures = features;
@@ -2432,9 +2438,9 @@ export function PropertyForm({
         flooring: !isLand && flooring ? flooring : null,
         power_backup: !isLand && powerBackup ? powerBackup : null,
         area_sqft: parsedAreaSqft,
-        area_unit: areaUnit,
+        area_unit: isLand ? null : areaUnit,
         land_area: parsedLandArea,
-        land_area_unit: landAreaUnit,
+        land_area_unit: isApartment ? null : landAreaUnit,
         super_built_area: parsedSuperBuiltArea,
         sublocality: finalSublocality,
         city: city.trim(),
@@ -2461,10 +2467,10 @@ export function PropertyForm({
         google_map_link: googleMapLink.trim() || null,
         location_privacy: locationPrivacy || null,
         showcase_visibility: showcaseVisibility || null,
-        rental_income: hasCommercialFields && rentalIncome.trim() !== '' ? Number(rentalIncome) : null,
+        rental_income: hasCommercialBuildingFields && rentalIncome.trim() !== '' ? Number(rentalIncome) : null,
         // Server-side sanitizeFloorTenancies() drops empty rows and
         // re-validates every value.
-        floor_tenancies: hasCommercialFields
+        floor_tenancies: hasCommercialBuildingFields
           ? floorTenancies.map((ft) => ({
               floor: ft.floor.trim(),
               tenant_name: ft.tenant_name.trim() || null,
@@ -2937,7 +2943,7 @@ export function PropertyForm({
                       }
                     }
 
-                    const areaVal = hasCommercialFields || type.includes('Land') || type.includes('Plot') ? landArea : areaSqft;
+                    const areaVal = isLand ? landArea : areaSqft;
                     if (areaVal && areaVal.trim() && areaVal !== '--') {
                       specs.push(
                         <div key="area" className="p-3.5 rounded-xl border border-slate-800 bg-slate-950/20 hover:border-slate-700 transition-colors flex flex-col justify-center gap-1">
@@ -2946,7 +2952,7 @@ export function PropertyForm({
                             <span className="text-[10px] font-semibold uppercase tracking-wider">Area</span>
                           </div>
                           <span className="text-sm font-bold text-white truncate">
-                            {hasCommercialFields || type.includes('Land') || type.includes('Plot')
+                            {isLand
                               ? `${Number(landArea).toLocaleString('en-IN')} ${landAreaUnit}`
                               : `${Number(areaSqft).toLocaleString('en-IN')} ${areaUnit}`}
                           </span>
@@ -2966,7 +2972,7 @@ export function PropertyForm({
                       );
                     }
 
-                    if (superBuiltArea && superBuiltArea.trim() && superBuiltArea !== '--') {
+                    if (!isLand && superBuiltArea && superBuiltArea.trim() && superBuiltArea !== '--') {
                       specs.push(
                         <div key="superBuilt" className="p-3.5 rounded-xl border border-slate-800 bg-slate-950/20 hover:border-slate-700 transition-colors flex flex-col justify-center gap-1">
                           <div className="flex items-center gap-1.5 text-slate-400">
@@ -2980,7 +2986,7 @@ export function PropertyForm({
                       );
                     }
 
-                    if (frontage && frontage.trim() && frontage !== '--') {
+                    if (!isApartment && frontage && frontage.trim() && frontage !== '--') {
                       specs.push(
                         <div key="frontage" className="p-3.5 rounded-xl border border-slate-800 bg-slate-950/20 hover:border-slate-700 transition-colors flex flex-col justify-center gap-1">
                           <div className="flex items-center gap-1.5 text-slate-400">
@@ -2994,7 +3000,7 @@ export function PropertyForm({
                       );
                     }
 
-                    if (depth && depth.trim() && depth !== '--') {
+                    if (!isApartment && depth && depth.trim() && depth !== '--') {
                       specs.push(
                         <div key="depth" className="p-3.5 rounded-xl border border-slate-800 bg-slate-950/20 hover:border-slate-700 transition-colors flex flex-col justify-center gap-1">
                           <div className="flex items-center gap-1.5 text-slate-400">
@@ -3008,7 +3014,7 @@ export function PropertyForm({
                       );
                     }
 
-                    if (landZone && landZone.trim() && landZone !== '--') {
+                    if (hasCommercialFields && landZone && landZone.trim() && landZone !== '--') {
                       specs.push(
                         <div key="zoning" className="p-3.5 rounded-xl border border-slate-800 bg-slate-950/20 hover:border-slate-700 transition-colors flex flex-col justify-center gap-1">
                           <div className="flex items-center gap-1.5 text-slate-400">
@@ -3022,7 +3028,7 @@ export function PropertyForm({
                       );
                     }
 
-                    if (ownershipStatus && ownershipStatus.trim() && ownershipStatus !== '--') {
+                    if (isLand && ownershipStatus && ownershipStatus.trim() && ownershipStatus !== '--') {
                       specs.push(
                         <div key="ownership" className="p-3.5 rounded-xl border border-slate-800 bg-slate-950/20 hover:border-slate-700 transition-colors flex flex-col justify-center gap-1">
                           <div className="flex items-center gap-1.5 text-slate-400">
@@ -3134,18 +3140,21 @@ export function PropertyForm({
                   )}
 
                   {/* 6. EXTENDED SPECS AND METADATA */}
-                  {(superBuiltArea || frontage || depth || dimensions || roadWidth || landZone || idealFor || rentalIncome) && (
+                  {((!isLand && superBuiltArea) ||
+                    (!isApartment && (frontage || depth || dimensions || roadWidth)) ||
+                    (hasCommercialFields && (landZone || idealFor)) ||
+                    (hasCommercialBuildingFields && rentalIncome)) && (
                     <div className="space-y-2.5">
                       <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Listing Metadata</h4>
                       <div className="rounded-xl border border-slate-800 bg-slate-950/10 overflow-hidden text-xs">
                         <div className="grid grid-cols-2 divide-x divide-slate-850 border-b border-slate-850 bg-slate-950/20">
-                          {superBuiltArea && (
+                          {!isLand && superBuiltArea && (
                             <div className="p-3 flex justify-between gap-2">
                               <span className="text-slate-450 font-medium">Super Built Area</span>
                               <span className="font-bold text-white">{Number(superBuiltArea).toLocaleString('en-IN')} Sq.Ft.</span>
                             </div>
                           )}
-                          {dimensions && (
+                          {!isApartment && dimensions && (
                             <div className="p-3 flex justify-between gap-2">
                               <span className="text-slate-450 font-medium">Dimensions</span>
                               <span className="font-bold text-white">{dimensions}</span>
@@ -3154,13 +3163,13 @@ export function PropertyForm({
                         </div>
 
                         <div className="grid grid-cols-2 divide-x divide-slate-850 border-b border-slate-850 bg-slate-950/20">
-                          {frontage && (
+                          {!isApartment && frontage && (
                             <div className="p-3 flex justify-between gap-2">
                               <span className="text-slate-450 font-medium">Frontage</span>
                               <span className="font-bold text-white">{frontage} Feet</span>
                             </div>
                           )}
-                          {depth && (
+                          {!isApartment && depth && (
                             <div className="p-3 flex justify-between gap-2">
                               <span className="text-slate-450 font-medium">Depth</span>
                               <span className="font-bold text-white">{depth} Feet</span>
@@ -3169,13 +3178,13 @@ export function PropertyForm({
                         </div>
 
                         <div className="grid grid-cols-2 divide-x divide-slate-850 border-b border-slate-850 bg-slate-950/20">
-                          {roadWidth && (
+                          {!isApartment && roadWidth && (
                             <div className="p-3 flex justify-between gap-2">
                               <span className="text-slate-450 font-medium">Road Width</span>
                               <span className="font-bold text-white">{roadWidth} {roadWidthUnit}</span>
                             </div>
                           )}
-                          {landZone && (
+                          {hasCommercialFields && landZone && (
                             <div className="p-3 flex justify-between gap-2">
                               <span className="text-slate-450 font-medium">Land Zone</span>
                               <span className="font-bold text-white">{landZone}</span>
@@ -3184,13 +3193,13 @@ export function PropertyForm({
                         </div>
 
                         <div className="grid grid-cols-2 divide-x divide-slate-850 bg-slate-950/20">
-                          {idealFor && (
+                          {hasCommercialFields && idealFor && (
                             <div className="p-3 flex justify-between gap-2">
                               <span className="text-slate-450 font-medium">Ideal For</span>
                               <span className="font-bold text-white truncate max-w-[150px]" title={idealFor}>{idealFor}</span>
                             </div>
                           )}
-                          {rentalIncome && (
+                          {hasCommercialBuildingFields && rentalIncome && (
                             <div className="p-3 flex justify-between gap-2">
                               <span className="text-slate-450 font-medium">Rental Income</span>
                               <span className="font-bold text-emerald-400">
@@ -3207,7 +3216,9 @@ export function PropertyForm({
                   {/* FLOOR PLANS */}
                   {floorPlans.some((fp) => fp.image) && (
                     <div className="space-y-2.5">
-                      <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Floor Plans</h4>
+                      <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                        {isLand ? 'Land Sketches' : 'Floor Plans'}
+                      </h4>
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5">
                         {floorPlans
                           .filter((fp) => fp.image)
@@ -3222,7 +3233,7 @@ export function PropertyForm({
                               <div className="relative aspect-[4/3] bg-white">
                                 <NextImage
                                   src={storagePublicUrl(fp.image)}
-                                  alt={fp.floor || `Floor plan ${idx + 1}`}
+                                  alt={fp.floor || `${isLand ? 'Land sketch' : 'Floor plan'} ${idx + 1}`}
                                   fill
                                   sizes="(max-width: 768px) 50vw, 33vw"
                                   className="object-contain"
@@ -3230,7 +3241,7 @@ export function PropertyForm({
                               </div>
                               <div className="p-2">
                                 <p className="text-xs font-bold text-white truncate">
-                                  {fp.floor || `Floor ${idx + 1}`}
+                                  {fp.floor || `${isLand ? 'Sketch' : 'Floor'} ${idx + 1}`}
                                 </p>
                                 <p className="text-[10px] text-slate-450 truncate">
                                   {[
@@ -3238,7 +3249,7 @@ export function PropertyForm({
                                     fp.notes,
                                   ]
                                     .filter(Boolean)
-                                    .join(' · ') || 'Plan'}
+                                    .join(' · ') || (isLand ? 'Sketch' : 'Plan')}
                                 </p>
                               </div>
                             </a>
@@ -3248,7 +3259,7 @@ export function PropertyForm({
                   )}
 
                   {/* FLOOR-WISE RENT ROLL (pre-leased commercial) */}
-                  {floorTenancies.length > 0 && (
+                  {hasCommercialBuildingFields && floorTenancies.length > 0 && (
                     <div className="space-y-2.5">
                       <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Floor-wise Tenancy (Rent Roll)</h4>
                       <div className="rounded-xl border border-slate-800 bg-slate-950/10 overflow-x-auto">
@@ -4632,22 +4643,24 @@ export function PropertyForm({
                           />
                         </div>
 
-                        <div className="space-y-1.5">
-                          <Label htmlFor="prop-rental-income" className="text-slate-300">
-                            Monthly Rental Income (INR)
-                          </Label>
-                          <Input
-                            id="prop-rental-income"
-                            type="number"
-                            value={rentalIncome}
-                            onChange={(e) => setRentalIncome(e.target.value)}
-                            placeholder="e.g. 250000"
-                            className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-9"
-                          />
-                          <PriceHint value={rentalIncome} />
-                        </div>
+                        {hasCommercialBuildingFields && (
+                          <div className="space-y-1.5">
+                            <Label htmlFor="prop-rental-income" className="text-slate-300">
+                              Monthly Rental Income (INR)
+                            </Label>
+                            <Input
+                              id="prop-rental-income"
+                              type="number"
+                              value={rentalIncome}
+                              onChange={(e) => setRentalIncome(e.target.value)}
+                              placeholder="e.g. 250000"
+                              className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-9"
+                            />
+                            <PriceHint value={rentalIncome} />
+                          </div>
+                        )}
 
-                        {yieldApplies(listingType) && (
+                        {hasCommercialBuildingFields && yieldApplies(listingType) && (
                           <div className="space-y-1.5">
                             <Label htmlFor="prop-roi" className="text-slate-300">
                               ROI (Return on Investment)
@@ -4669,7 +4682,7 @@ export function PropertyForm({
                 {/* Floor-wise Tenancy (Rent Roll) — pre-leased commercial
                     buildings under sale: tenant, rent (excl. GST), lease
                     window, lock-in and maintenance per floor. */}
-                {hasCommercialFields && (
+                {hasCommercialBuildingFields && (
                   <div className="space-y-4 p-4 rounded-lg border border-slate-800 bg-slate-950/20">
                     <div className="flex items-start justify-between gap-3">
                       <div>
@@ -5145,7 +5158,9 @@ export function PropertyForm({
                         className="bg-slate-800 border-slate-700 text-white h-9 [color-scheme:dark]"
                       />
                       <p className="text-[10px] text-slate-500">
-                        When the buyer gets the keys. Leave empty if it isn&apos;t committed yet.
+                        {isLand
+                          ? 'When possession transfers to the buyer. Leave empty if it is not committed yet.'
+                          : 'When the buyer gets the keys. Leave empty if it is not committed yet.'}
                       </p>
                     </div>
 
@@ -5203,8 +5218,7 @@ export function PropertyForm({
                       </div>
                     )}
 
-                    {!isLand && (
-                      <>
+                    {showFloorNumber && (
                         <div className="space-y-1.5">
                           <Label htmlFor="prop-floor-number" className="text-slate-300">
                             Floor No.
@@ -5218,6 +5232,8 @@ export function PropertyForm({
                             className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-9"
                           />
                         </div>
+                    )}
+                    {showTotalFloors && (
                         <div className="space-y-1.5">
                           <Label htmlFor="prop-total-floors" className="text-slate-300">
                             Total Floors
@@ -5231,7 +5247,6 @@ export function PropertyForm({
                             className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-9"
                           />
                         </div>
-                      </>
                     )}
 
                     {/* Land/JV Deal Notes — prefills the "Share via Email" draft */}
@@ -5632,6 +5647,7 @@ export function PropertyForm({
                         onChange={setFloorPlans}
                         onUpload={uploadPlanImage}
                         disabled={!canEdit}
+                        isLand={isLand}
                       />
                     </div>
 

@@ -272,15 +272,21 @@ const APARTMENT_TYPES = [
   'Flat/ Apartment',
   'Builder Floor Apartment',
   'Studio Apartment',
+  'Penthouse',
 ];
 
 export function hasBedsBaths(type: string): boolean {
   return BEDS_BATHS_TYPES.includes(type);
 }
 
-/** Gates the commercial-only field groups (rent roll, floor tenancies). */
+/** Gates fields shared by commercial land and commercial buildings. */
 export function hasCommercialFields(type: string): boolean {
   return COMMERCIAL_TYPES.includes(type);
+}
+
+/** Gates income and rent-roll fields that require a constructed asset. */
+export function hasCommercialBuildingFields(type: string): boolean {
+  return COMMERCIAL_TYPES.includes(type) && !isLandType(type);
 }
 
 export function isLandType(type: string): boolean {
@@ -319,4 +325,20 @@ export function propertyTypeGroupsFor(
 
 export function isApartmentType(type: string): boolean {
   return APARTMENT_TYPES.includes(type);
+}
+
+const UNIT_FLOOR_TYPES = [
+  ...APARTMENT_TYPES,
+  'Commercial Office Space',
+  'Office in IT Park/ SEZ',
+  'Commercial Shop',
+  'Commercial Showroom',
+];
+
+export function hasUnitFloor(type: string): boolean {
+  return UNIT_FLOOR_TYPES.includes(type);
+}
+
+export function hasTotalFloors(type: string): boolean {
+  return Boolean(type) && !isLandType(type);
 }

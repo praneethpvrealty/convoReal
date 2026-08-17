@@ -16,6 +16,7 @@ import { pickAndUploadFloorPlan } from '@/lib/floor-plan-upload';
 import { haptic } from '@/lib/haptics';
 import { storagePublicUrl } from '@/lib/storage-url';
 import { radius, spacing, useTheme } from '@/lib/theme';
+import { planMediaCopy } from '@shared/lib/inventory/plan-media-copy';
 
 /** String draft of a lib/inventory/floor-plans row (web parity). */
 export interface FloorPlanDraft {
@@ -33,21 +34,24 @@ export const emptyFloorPlan: FloorPlanDraft = {
 };
 
 /**
- * Floor plans editor: one plan drawing per floor, stored in the same
- * `property-images` bucket as photos so both surfaces render them the
- * same way. Plans the WhatsApp intake pulled out of a brochure arrive
- * here already pinned to their floor.
+ * Plan-media editor: floor drawings for built assets and survey/layout
+ * sketches for land. Both use the same `floor_plans` JSON field and
+ * `property-images` bucket so web and mobile render them identically.
  */
 export function PropertyFloorPlans({
   plans,
   onChange,
+  isLand = false,
 }: {
   plans: FloorPlanDraft[];
   onChange: (next: FloorPlanDraft[]) => void;
+  isLand?: boolean;
 }) {
   const { colors, fonts: f } = useTheme();
   const [busyIdx, setBusyIdx] = useState<number | null>(null);
   const { show, dialogProps } = useAppDialog();
+  const copy = planMediaCopy(isLand);
+  const imageKind = isLand ? 'land-sketch' : 'floor-plan';
 
   const update = (idx: number, key: keyof FloorPlanDraft, value: string) =>
     onChange(plans.map((p, i) => (i === idx ? { ...p, [key]: value } : p)));
@@ -56,10 +60,25 @@ export function PropertyFloorPlans({
     if (busyIdx !== null) return;
     setBusyIdx(idx);
     haptic.tap();
-    const outcome = await pickAndUploadFloorPlan();
+    const outcome = await pickAndUploadFloorPlan(imageKind);
     setBusyIdx(null);
     if (outcome.status === 'uploaded') {
       update(idx, 'image', outcome.path);
+      haptic.success();
+    } else if (outcome.status === 'error') {
+      haptic.warn();
+      show({ title: outcome.title, message: outcome.message });
+    }
+  }
+
+  async function addSketch() {
+    if (busyIdx !== null) return;
+    setBusyIdx(-1);
+    haptic.tap();
+    const outcome = await pickAndUploadFloorPlan('land-sketch');
+    setBusyIdx(null);
+    if (outcome.status === 'uploaded') {
+      onChange([...plans, { ...emptyFloorPlan, image: outcome.path }]);
       haptic.success();
     } else if (outcome.status === 'error') {
       haptic.warn();
@@ -77,21 +96,30 @@ export function PropertyFloorPlans({
   return (
     <View style={{ gap: spacing.sm }}>
       <View style={styles.head}>
-        <SectionLabel text="Floor Plans" />
+        <SectionLabel text={copy.heading} />
         <Pressable
           onPress={() => {
+            if (isLand) {
+              void addSketch();
+              return;
+            }
             haptic.tap();
             onChange([...plans, { ...emptyFloorPlan }]);
           }}
+          disabled={busyIdx !== null}
           accessibilityRole="button"
-          accessibilityLabel="Add floor"
+          accessibilityLabel={copy.addAction}
           style={styles.addBtn}
         >
-          <Ionicons name="add" size={15} color={colors.primary} />
+          {busyIdx === -1 ? (
+            <ActivityIndicator size="small" color={colors.primary} />
+          ) : (
+            <Ionicons name="add" size={15} color={colors.primary} />
+          )}
           <Text
             style={{ fontSize: 12, fontFamily: f.bold, color: colors.primary }}
           >
-            Add Floor
+            {copy.addAction}
           </Text>
         </Pressable>
       </View>
@@ -108,7 +136,7 @@ export function PropertyFloorPlans({
             <Pressable
               onPress={() => attach(i)}
               accessibilityRole="button"
-              accessibilityLabel={`Attach plan for floor ${i + 1}`}
+              accessibilityLabel={`Attach ${copy.uploadLabel.toLowerCase()} for ${copy.itemLabel.toLowerCase()} ${i + 1}`}
               style={[styles.thumb, { borderColor: colors.glassBorder }]}
             >
               {busyIdx === i ? (
@@ -121,7 +149,7 @@ export function PropertyFloorPlans({
                 />
               ) : (
                 <Ionicons
-                  name="grid-outline"
+                  name={isLand ? 'map-outline' : 'grid-outline'}
                   size={22}
                   color={colors.textMuted}
                 />
@@ -132,7 +160,7 @@ export function PropertyFloorPlans({
               <TextInput
                 value={plan.floor}
                 onChangeText={(v) => update(i, 'floor', v)}
-                placeholder="Ground Floor"
+                placeholder={copy.namePlaceholder}
                 placeholderTextColor={colors.textMuted}
                 style={[styles.input, field]}
               />
@@ -154,7 +182,7 @@ export function PropertyFloorPlans({
                 onChange(plans.filter((_, idx) => idx !== i));
               }}
               accessibilityRole="button"
-              accessibilityLabel={`Remove floor ${i + 1}`}
+              accessibilityLabel={`Remove ${copy.itemLabel.toLowerCase()} ${i + 1}`}
               style={{ padding: spacing.xs }}
             >
               <Ionicons
@@ -168,7 +196,7 @@ export function PropertyFloorPlans({
           <TextInput
             value={plan.notes}
             onChangeText={(v) => update(i, 'notes', v)}
-            placeholder="e.g. 3 BHK + pooja room"
+            placeholder={copy.notesPlaceholder}
             placeholderTextColor={colors.textMuted}
             style={[styles.input, field]}
           />
@@ -183,7 +211,7 @@ export function PropertyFloorPlans({
             color: colors.textMuted,
           }}
         >
-          No floor plans yet.
+          {copy.emptyText}
         </Text>
       ) : null}
 

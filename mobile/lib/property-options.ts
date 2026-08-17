@@ -2,8 +2,9 @@
 // (src/components/inventory/property-form.tsx) so the mobile editor
 // offers the same choices.
 
-// Same list as the web form's hasCommercialFields — gates the
-// commercial-only fields (rent roll).
+// Same list as the web form's hasCommercialFields. Some of these are
+// vacant land; rent-roll fields additionally use
+// hasCommercialBuildingFields().
 export const COMMERCIAL_TYPES = [
   'Commercial Office Space',
   'Office in IT Park/ SEZ',
@@ -74,6 +75,13 @@ export const RAW_LAND_TYPES = [
   'Agricultural Land',
 ];
 
+export const APARTMENT_TYPES = [
+  'Flat/ Apartment',
+  'Builder Floor Apartment',
+  'Studio Apartment',
+  'Penthouse',
+];
+
 export const LAND_OWNERSHIP_TYPES = [
   'Single owner',
   'Family owned',
@@ -120,6 +128,18 @@ export function isLandType(type: string): boolean {
 
 export function isRawLandType(type: string): boolean {
   return RAW_LAND_TYPES.includes(type);
+}
+
+export function isApartmentType(type: string): boolean {
+  return APARTMENT_TYPES.includes(type);
+}
+
+export function hasCommercialBuildingFields(type: string): boolean {
+  return COMMERCIAL_TYPES.includes(type) && !isLandType(type);
+}
+
+export function hasTotalFloors(type: string): boolean {
+  return Boolean(type) && !isLandType(type);
 }
 
 /** Adds the pre-split value to the picker only for a property already

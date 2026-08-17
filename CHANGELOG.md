@@ -65,6 +65,15 @@ and polish.
 
 ### Fixed
 
+- **Property editors now ask for fields that fit the selected property type.**
+  Land listings use a direct Add Sketch action and Land Sketches gallery on
+  web and mobile instead of floor-plan terminology; commercial and industrial
+  land no longer show rental-income or rent-roll fields. Penthouses no longer
+  ask for parcel dimensions, Floor No. is limited to units inside a building,
+  and Total Floors is editable on mobile for apartments and other constructed
+  assets. Switching types also clears incompatible hidden area/floor values.
+  No migration is required.
+
 - **“Show Properties” now starts with the property the lead enquired about.**
   An available portal enquiry is pinned ahead of matching alternatives even
   when the buyer has not completed a wider brief, while an unavailable one is

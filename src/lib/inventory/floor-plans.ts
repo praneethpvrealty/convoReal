@@ -1,6 +1,7 @@
 // ============================================================
-// Per-floor plan drawings (migration 285). One JSONB array on the
-// property; each element pins a plan image to a floor.
+// Plan drawings (migration 285). One JSONB array on the property; each
+// element pins an image to a floor, or stores a survey/layout sketch
+// for land without inventing a second media schema.
 //
 // Distinct from floor_tenancies, which is the commercial rent roll:
 // a plan applies to any property type, so a residential house's
@@ -13,11 +14,11 @@
 // ============================================================
 
 export interface FloorPlan {
-  /** Floor / unit label, e.g. "Ground Floor", "Typical Floor". */
+  /** Floor/unit label, or sketch name for land. */
   floor: string;
   /** Stored image path ("property-images/<account>/img-...jpg"), or an
    *  absolute URL. Resolved at the read boundary by storagePublicUrl().
-   *  Null while a floor is listed but its drawing has not arrived. */
+   *  Null while an entry is listed but its drawing has not arrived. */
   image: string | null;
   area_sqft: number | null;
   /** Free text — "3 BHK + pooja room", "column-free retail". */
@@ -76,7 +77,7 @@ export function sanitizeFloorPlans(raw: unknown): FloorPlan[] {
   return rows;
 }
 
-/** Floors that actually carry a drawing — what a gallery renders. */
+/** Entries that actually carry a drawing — what a gallery renders. */
 export function plansWithImages(
   plans: FloorPlan[] | null | undefined
 ): FloorPlan[] {
