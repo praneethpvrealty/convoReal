@@ -261,6 +261,17 @@ async function runAccount(
         // so they are built from it rather than assumed.
         buildParams: (template) =>
           propertyShareParams(template.name, buyer.name, top, brandName),
+        // The URL button carries the listing so a tap opens straight to
+        // it — same v= attribution as every other property-share send.
+        buildButtonParams: (template) => {
+          const buttonParams: Record<number, string> = {};
+          (template.buttons ?? []).forEach((btn, idx) => {
+            if (btn.type === 'URL' && btn.url.includes('{{1}}')) {
+              buttonParams[idx] = `?property_id=${top.id}&v=${buyer.id}`;
+            }
+          });
+          return buttonParams;
+        },
         headerMediaUrl: headerImage,
       });
 
