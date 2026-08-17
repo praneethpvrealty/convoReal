@@ -119,6 +119,63 @@ const AGENDA_TEMPLATE_NAME = 'property_visit_reminder_agenda';
 const GENERIC_TEMPLATE_NAME = 'appointment_reminder';
 const GENERIC_AGENDA_TEMPLATE_NAME = 'appointment_reminder_agenda';
 
+export interface ReminderTemplateContent {
+  templateName: string;
+  templateParams: string[];
+  bodyText: string;
+}
+
+export function buildReminderTemplateContent(args: {
+  clientName: string;
+  accountName: string;
+  title: string;
+  formattedTime: string;
+  locationText: string;
+  agenda?: string | null;
+  isSiteVisit: boolean;
+}): ReminderTemplateContent {
+  const agenda = args.agenda ? sanitizeTemplateParam(args.agenda) : null;
+  const templateName = args.isSiteVisit
+    ? agenda
+      ? AGENDA_TEMPLATE_NAME
+      : BASE_TEMPLATE_NAME
+    : agenda
+      ? GENERIC_AGENDA_TEMPLATE_NAME
+      : GENERIC_TEMPLATE_NAME;
+
+  let bodyText: string;
+  if (args.isSiteVisit && !agenda) {
+    bodyText = `Hi ${args.clientName}, this is a friendly reminder from ${args.accountName} about your scheduled property visit for "${args.title}" on ${args.formattedTime}. Location: ${args.locationText}. Please tap a button below to confirm or request a change.`;
+  } else if (args.isSiteVisit) {
+    bodyText = `Hi ${args.clientName}, this is a friendly reminder from ${args.accountName} that you have a scheduled property visit for "${args.title}" on ${args.formattedTime}. Location: ${args.locationText}. Agenda for the visit: ${agenda}. Please tap a button below to confirm or request a change.`;
+  } else if (!agenda) {
+    bodyText = `Hi ${args.clientName}, this is a friendly reminder from ${args.accountName} that you have a scheduled meeting: "${args.title}" on ${args.formattedTime}. Location: ${args.locationText}. Please tap a button below to confirm or request a change.`;
+  } else {
+    bodyText = `Hi ${args.clientName}, this is a friendly reminder from ${args.accountName} that you have a scheduled meeting: "${args.title}" on ${args.formattedTime}. Location: ${args.locationText}. Agenda for the meeting: ${agenda}. Please tap a button below to confirm or request a change.`;
+  }
+
+  return {
+    templateName,
+    bodyText,
+    templateParams: agenda
+      ? [
+          args.clientName,
+          args.title,
+          args.formattedTime,
+          args.locationText,
+          agenda,
+          args.accountName,
+        ]
+      : [
+          args.clientName,
+          args.title,
+          args.formattedTime,
+          args.locationText,
+          args.accountName,
+        ],
+  };
+}
+
 type ReminderType = 'morning' | '1h';
 
 interface ReminderContact {
@@ -183,7 +240,7 @@ function sanitizeTemplateParam(text: string, max = 300): string {
   return flat.length > max ? `${flat.slice(0, max - 1)}…` : flat;
 }
 
-function formatIstTime(iso: string): string {
+export function formatReminderTime(iso: string): string {
   return new Date(iso).toLocaleString('en-IN', {
     timeZone: 'Asia/Kolkata',
     day: '2-digit',
@@ -225,19 +282,11 @@ async function sendToAllRecipients(
   }
 
   const accountName = appt.account?.name || 'our team';
-  const formattedTime = formatIstTime(appt.start_time);
+  const formattedTime = formatReminderTime(appt.start_time);
   const agendaParam =
     useAgendaTemplate && appt.agenda
       ? sanitizeTemplateParam(appt.agenda)
       : null;
-  const templateName = isSiteVisit
-    ? agendaParam
-      ? AGENDA_TEMPLATE_NAME
-      : BASE_TEMPLATE_NAME
-    : agendaParam
-      ? GENERIC_AGENDA_TEMPLATE_NAME
-      : GENERIC_TEMPLATE_NAME;
-
   // Contacts who asked for audio updates get the reminder spoken and
   // sent as a voice note — a queue-worker TTS job, because Sarvam and
   // ffmpeg only run there. Gated on the account's opt-in (the render
@@ -329,27 +378,16 @@ async function sendToAllRecipients(
     // end of the body even wrapped in punctuation — see
     // supabase/migrations/143_reminder_template_wording_fix.sql and
     // 145_reminder_template_trailing_variable_fix.sql.)
-    let bodyText: string;
-    if (isSiteVisit && !agendaParam) {
-      bodyText = `Hi ${clientName}, this is a friendly reminder from ${accountName} about your scheduled property visit for "${visitTitle}" on ${formattedTime}. Location: ${locationText}. Please tap a button below to confirm or request a change.`;
-    } else if (isSiteVisit) {
-      bodyText = `Hi ${clientName}, this is a friendly reminder from ${accountName} that you have a scheduled property visit for "${visitTitle}" on ${formattedTime}. Location: ${locationText}. Agenda for the visit: ${agendaParam}. Please tap a button below to confirm or request a change.`;
-    } else if (!agendaParam) {
-      bodyText = `Hi ${clientName}, this is a friendly reminder from ${accountName} that you have a scheduled meeting: "${visitTitle}" on ${formattedTime}. Location: ${locationText}. Please tap a button below to confirm or request a change.`;
-    } else {
-      bodyText = `Hi ${clientName}, this is a friendly reminder from ${accountName} that you have a scheduled meeting: "${visitTitle}" on ${formattedTime}. Location: ${locationText}. Agenda for the meeting: ${agendaParam}. Please tap a button below to confirm or request a change.`;
-    }
-
-    const templateParams = agendaParam
-      ? [
-          clientName,
-          visitTitle,
-          formattedTime,
-          locationText,
-          agendaParam,
-          accountName,
-        ]
-      : [clientName, visitTitle, formattedTime, locationText, accountName];
+    const { bodyText, templateName, templateParams } =
+      buildReminderTemplateContent({
+        clientName,
+        accountName,
+        title: visitTitle,
+        formattedTime,
+        locationText,
+        agenda: agendaParam,
+        isSiteVisit,
+      });
 
     if (
       audioEnabled &&
@@ -557,7 +595,7 @@ async function sendLiaisonReminder(
       params: [
         appt.liaison.name || 'Partner',
         visitTitle,
-        formatIstTime(appt.start_time),
+        formatReminderTime(appt.start_time),
         reminderLocationText(appt.location, appt.property),
         appt.account?.name || 'our team',
       ],

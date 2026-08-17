@@ -11,6 +11,7 @@ import {
   FOLLOWUP_COLD_PREFIX,
   FOLLOWUP_SNOOZE_PREFIX,
 } from '@/lib/contacts/follow-up-nudges';
+import { AGENT_MESSAGE_CONTACT_PREFIX } from '@/lib/calendar/agent-reminder-actions';
 
 describe('isEngineControlReplyId', () => {
   // Regression: tapping Approve on an owner-queue ping was relayed into
@@ -40,6 +41,14 @@ describe('isEngineControlReplyId', () => {
         prefix
       ).toBe(true);
     }
+  });
+
+  it('claims appointment contact message actions', () => {
+    expect(
+      isEngineControlReplyId(
+        `${AGENT_MESSAGE_CONTACT_PREFIX}appointment-1:contact-1`
+      )
+    ).toBe(true);
   });
 
   it('leaves a genuine staff reply to the bridge', () => {

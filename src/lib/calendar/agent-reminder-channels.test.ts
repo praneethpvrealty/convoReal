@@ -5,6 +5,7 @@ const createNotification = vi.fn();
 const updates: Record<string, unknown>[] = [];
 let appointments: Record<string, unknown>[] = [];
 let profiles: Record<string, unknown>[] = [];
+let contacts: Record<string, unknown>[] = [];
 
 vi.mock('@/lib/whatsapp/meta-api-dispatcher', () => ({
   sendWhatsAppMessageAndPersist: (...a: unknown[]) => sendWhatsAppMessageAndPersist(...a),
@@ -12,6 +13,10 @@ vi.mock('@/lib/whatsapp/meta-api-dispatcher', () => ({
 
 vi.mock('@/lib/notifications/create', () => ({
   createNotification: (...a: unknown[]) => createNotification(...a),
+}));
+
+vi.mock('@/lib/whatsapp/bot-message-target', () => ({
+  recordBotTarget: vi.fn(async () => undefined),
 }));
 
 vi.mock('@/lib/automations/admin-client', () => ({
@@ -30,7 +35,14 @@ vi.mock('@/lib/automations/admin-client', () => ({
         in: () => builder,
         then: (resolve: (v: { data: unknown[]; error: null }) => unknown) =>
           resolve({
-            data: table === 'appointments' ? appointments : table === 'profiles' ? profiles : [],
+            data:
+              table === 'appointments'
+                ? appointments
+                : table === 'profiles'
+                  ? profiles
+                  : table === 'contacts'
+                    ? contacts
+                    : [],
             error: null,
           }),
       });
@@ -48,6 +60,7 @@ beforeEach(() => {
   sendWhatsAppMessageAndPersist.mockReset();
   createNotification.mockReset().mockResolvedValue(undefined);
   profiles = [{ user_id: 'agent-1', phone: '+919876543210', full_name: 'Pranav' }];
+  contacts = [];
   appointments = [
     {
       id: 'appt-1',
@@ -97,6 +110,44 @@ describe('sendAgentEventReminders channel independence', () => {
     await sendAgentEventReminders(NOW);
     expect(createNotification).toHaveBeenCalledTimes(1);
     expect(updates).toContainEqual({ agent_reminder_sent: true });
+  });
+
+  it('offers a tracked Utility message action for the linked contact', async () => {
+    appointments[0] = {
+      ...appointments[0],
+      contact_ids: ['contact-1', 'contact-self'],
+      contact: {
+        id: 'contact-1',
+        name: 'Nadeem',
+        phone: '+919886140608',
+      },
+    };
+    contacts = [
+      {
+        id: 'contact-self',
+        name: 'Praneeth Kumar Sajepa',
+        phone: '+919876543210',
+      },
+    ];
+    sendWhatsAppMessageAndPersist.mockResolvedValue({
+      success: true,
+      whatsappMessageId: 'wamid.1',
+    });
+
+    await sendAgentEventReminders(NOW);
+
+    expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'interactive',
+        interactiveType: 'buttons',
+        interactiveButtons: [
+          {
+            id: 'arm_msg:appt-1:contact-1',
+            title: 'Message Nadeem',
+          },
+        ],
+      })
+    );
   });
 
   it('marks an assignee with no reachable phone without notifying', async () => {
