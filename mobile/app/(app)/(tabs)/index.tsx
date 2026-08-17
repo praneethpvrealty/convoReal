@@ -9,6 +9,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
@@ -73,6 +74,7 @@ const FILTERS = [
   'Archived',
 ] as const;
 type Filter = (typeof FILTERS)[number];
+const PRIMARY_FILTERS: readonly Filter[] = ['All', 'Needs reply', 'Unread'];
 
 interface ActivityRow {
   conversation_id: string;
@@ -97,10 +99,13 @@ async function fetchConversations(archived: boolean): Promise<Conversation[]> {
 
 export default function InboxScreen() {
   const { colors } = useTheme();
+  const { width } = useWindowDimensions();
+  const wide = width >= 700;
   const accountId = useAuthStore((s) => s.profile?.account_id);
   const userId = useAuthStore((s) => s.session?.user.id);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<Filter>('All');
+  const [showAllFilters, setShowAllFilters] = useState(false);
   const archived = filter === 'Archived';
   const { show, dialogProps } = useAppDialog();
 
@@ -203,6 +208,13 @@ export default function InboxScreen() {
     return list;
   }, [data, filter, search, activityById]);
 
+  const visibleFilters = useMemo(() => {
+    if (wide || showAllFilters) return FILTERS;
+    return FILTERS.filter(
+      (item) => PRIMARY_FILTERS.includes(item) || item === filter
+    );
+  }, [filter, showAllFilters, wide]);
+
   return (
     <View style={{ flex: 1 }}>
       <Stack.Screen options={{ headerShown: false }} />
@@ -210,13 +222,13 @@ export default function InboxScreen() {
 
       <HotLeadsStrip />
 
-      <View style={styles.filtersRow}>
+      <View style={[styles.filtersRow, styles.contentFrame]}>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.filters}
         >
-          {FILTERS.map((f) => (
+          {visibleFilters.map((f) => (
             <FilterChip
               key={f}
               label={f}
@@ -224,18 +236,48 @@ export default function InboxScreen() {
               onPress={() => setFilter(f)}
             />
           ))}
+          {!wide ? (
+            <Pressable
+              onPress={() => setShowAllFilters((current) => !current)}
+              accessibilityRole="button"
+              accessibilityState={{ expanded: showAllFilters }}
+              accessibilityLabel={
+                showAllFilters
+                  ? 'Show fewer inbox filters'
+                  : 'Show all inbox filters'
+              }
+              style={[
+                styles.moreFilters,
+                {
+                  backgroundColor: colors.surfaceWell,
+                  borderColor: colors.glassBorder,
+                },
+              ]}
+            >
+              <Text
+                style={[styles.moreFiltersText, { color: colors.textMuted }]}
+              >
+                {showAllFilters ? 'Less' : 'More'}
+              </Text>
+              <Ionicons
+                name={showAllFilters ? 'chevron-up' : 'chevron-down'}
+                size={14}
+                color={colors.textMuted}
+              />
+            </Pressable>
+          ) : null}
         </ScrollView>
       </View>
 
       {isLoading ? (
-        <View>
+        <View style={styles.contentFrame}>
           {Array.from({ length: 8 }, (_, i) => (
             <ConversationSkeleton key={i} />
           ))}
         </View>
       ) : (
         <FlatList
-          style={{ flex: 1 }}
+          style={styles.listFrame}
           data={filtered}
           keyExtractor={(c) => c.id}
           contentContainerStyle={{
@@ -307,7 +349,7 @@ function HotLeadsStrip() {
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
-      style={{ flexGrow: 0, marginTop: spacing.sm }}
+      style={[styles.contentFrame, { flexGrow: 0, marginTop: spacing.sm }]}
       contentContainerStyle={{ paddingHorizontal: spacing.lg, gap: spacing.md }}
     >
       {data.map((c) => {
@@ -352,7 +394,13 @@ function InboxHeader({
   );
 
   return (
-    <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
+    <View
+      style={[
+        styles.header,
+        styles.contentFrame,
+        { paddingTop: insets.top + spacing.sm },
+      ]}
+    >
       <View style={styles.headerRow}>
         <View
           style={{
@@ -650,7 +698,9 @@ function ConversationRow({
                 </View>
               ) : null}
               {activityCount != null ? (
-                <View style={[styles.pill, { backgroundColor: colors.primarySoft }]}>
+                <View
+                  style={[styles.pill, { backgroundColor: colors.primarySoft }]}
+                >
                   <Ionicons name="flame" size={11} color={colors.primary} />
                   <Text
                     style={[
@@ -671,6 +721,17 @@ function ConversationRow({
 }
 
 const styles = StyleSheet.create({
+  contentFrame: {
+    width: '100%',
+    maxWidth: 760,
+    alignSelf: 'center',
+  },
+  listFrame: {
+    flex: 1,
+    width: '100%',
+    maxWidth: 760,
+    alignSelf: 'center',
+  },
   header: { paddingHorizontal: spacing.lg, gap: spacing.md },
   headerRow: {
     flexDirection: 'row',
@@ -699,6 +760,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     alignItems: 'center',
   },
+  moreFilters: {
+    minHeight: 36,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 12,
+    borderRadius: radius.full,
+    borderWidth: 1,
+  },
+  moreFiltersText: { fontSize: 13, fontFamily: fonts.semibold },
   rowBody: { flex: 1, gap: 4 },
   rowTop: {
     flexDirection: 'row',

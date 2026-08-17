@@ -152,7 +152,9 @@ export function UnreadBadge({ count }: { count: number }) {
         paddingHorizontal: 6,
       }}
     >
-      <Text style={{ color: colors.onSuccess, fontSize: 12, fontFamily: f.bold }}>
+      <Text
+        style={{ color: colors.onSuccess, fontSize: 12, fontFamily: f.bold }}
+      >
         {count > 99 ? '99+' : count}
       </Text>
     </View>
@@ -217,7 +219,10 @@ export function Tag({ label, color }: { label: string; color?: string }) {
         flexShrink: 1,
       }}
     >
-      <Text style={{ fontSize: 11, fontFamily: f.bold, color: fg }} numberOfLines={1}>
+      <Text
+        style={{ fontSize: 11, fontFamily: f.bold, color: fg }}
+        numberOfLines={1}
+      >
         {label}
       </Text>
     </View>
@@ -230,23 +235,36 @@ export function Skeleton({ style }: { style?: ViewStyle }) {
   const sweep = useRef(new Animated.Value(-1)).current;
   useEffect(() => {
     const loop = Animated.loop(
-      Animated.timing(sweep, { toValue: 1, duration: 1100, useNativeDriver: true })
+      Animated.timing(sweep, {
+        toValue: 1,
+        duration: 1100,
+        useNativeDriver: true,
+      })
     );
     loop.start();
     return () => loop.stop();
   }, [sweep]);
 
-  const translateX = sweep.interpolate({ inputRange: [-1, 1], outputRange: [-160, 160] });
+  const translateX = sweep.interpolate({
+    inputRange: [-1, 1],
+    outputRange: [-160, 160],
+  });
   const sheen = dark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.65)';
 
   return (
     <View
       style={[
-        { backgroundColor: colors.surfaceSunken, borderRadius: radius.sm, overflow: 'hidden' },
+        {
+          backgroundColor: colors.surfaceSunken,
+          borderRadius: radius.sm,
+          overflow: 'hidden',
+        },
         style,
       ]}
     >
-      <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ translateX }] }]}>
+      <Animated.View
+        style={[StyleSheet.absoluteFill, { transform: [{ translateX }] }]}
+      >
         <LinearGradient
           colors={['transparent', sheen, 'transparent']}
           start={{ x: 0, y: 0.5 }}
@@ -303,13 +321,17 @@ export function ConversationSkeleton() {
 }
 
 /** Placeholder matching the tall photo-first PropertyCard geometry. */
-export function PropertyCardSkeleton() {
+export function PropertyCardSkeleton({
+  compact = false,
+}: {
+  compact?: boolean;
+}) {
   const { colors } = useTheme();
   return (
     <View
       style={[
         {
-          marginHorizontal: spacing.lg,
+          marginHorizontal: compact ? 0 : spacing.lg,
           marginBottom: spacing.md,
           padding: spacing.sm,
           borderRadius: radius.lg,
@@ -321,7 +343,13 @@ export function PropertyCardSkeleton() {
       ]}
     >
       <Skeleton style={{ height: 168, borderRadius: radius.md }} />
-      <View style={{ paddingHorizontal: spacing.xs, gap: spacing.sm, paddingBottom: spacing.xs }}>
+      <View
+        style={{
+          paddingHorizontal: spacing.xs,
+          gap: spacing.sm,
+          paddingBottom: spacing.xs,
+        }}
+      >
         <Skeleton style={{ height: 15, width: '65%' }} />
         <Skeleton style={{ height: 12, width: '40%' }} />
       </View>
@@ -343,7 +371,14 @@ export function EmptyState({
 }) {
   const { colors, fonts: f } = useTheme();
   return (
-    <View style={{ alignItems: 'center', paddingVertical: 64, paddingHorizontal: 32, gap: spacing.md }}>
+    <View
+      style={{
+        alignItems: 'center',
+        paddingVertical: 64,
+        paddingHorizontal: 32,
+        gap: spacing.md,
+      }}
+    >
       <View
         style={{
           width: 72,
@@ -356,11 +391,25 @@ export function EmptyState({
       >
         <Ionicons name={icon} size={32} color={colors.primary} />
       </View>
-      <Text style={{ fontSize: 17, fontFamily: f.bold, color: colors.text, textAlign: 'center' }}>
+      <Text
+        style={{
+          fontSize: 17,
+          fontFamily: f.bold,
+          color: colors.text,
+          textAlign: 'center',
+        }}
+      >
         {title}
       </Text>
       {subtitle ? (
-        <Text style={{ fontSize: 14, color: colors.textMuted, textAlign: 'center', lineHeight: 20 }}>
+        <Text
+          style={{
+            fontSize: 14,
+            color: colors.textMuted,
+            textAlign: 'center',
+            lineHeight: 20,
+          }}
+        >
           {subtitle}
         </Text>
       ) : null}
@@ -370,7 +419,13 @@ export function EmptyState({
 }
 
 /** Uppercase micro-label above a section of content. */
-export function SectionLabel({ text, style }: { text: string; style?: TextStyle }) {
+export function SectionLabel({
+  text,
+  style,
+}: {
+  text: string;
+  style?: TextStyle;
+}) {
   const { colors, fonts: f } = useTheme();
   return (
     <Text
@@ -404,7 +459,10 @@ export function SearchBar({
   value: string;
   onChangeText: (v: string) => void;
   placeholder: string;
-} & Omit<React.ComponentProps<typeof TextInput>, 'value' | 'onChangeText' | 'placeholder' | 'style'>) {
+} & Omit<
+  React.ComponentProps<typeof TextInput>,
+  'value' | 'onChangeText' | 'placeholder' | 'style'
+>) {
   const { colors, fonts: f } = useTheme();
   return (
     <View
@@ -415,7 +473,10 @@ export function SearchBar({
     >
       <Ionicons name="search" size={16} color={colors.textFaint} />
       <TextInput
-        style={[sharedStyles.searchInput, { color: colors.text, fontFamily: f.medium }]}
+        style={[
+          sharedStyles.searchInput,
+          { color: colors.text, fontFamily: f.medium },
+        ]}
         placeholder={placeholder}
         placeholderTextColor={colors.textFaint}
         value={value}
@@ -449,7 +510,7 @@ export const TextField = forwardRef<
     icon?: keyof typeof Ionicons.glyphMap;
   } & React.ComponentProps<typeof TextInput>
 >(function TextField({ label, icon, ...props }, ref) {
-  const { colors } = useTheme();
+  const { colors, fonts: f } = useTheme();
   const input = (
     <View
       style={[
@@ -457,16 +518,23 @@ export const TextField = forwardRef<
         { backgroundColor: colors.surface, borderColor: colors.border },
       ]}
     >
-      {icon ? <Ionicons name={icon} size={18} color={colors.textFaint} /> : null}
+      {icon ? (
+        <Ionicons name={icon} size={18} color={colors.textFaint} />
+      ) : null}
       <TextInput
         ref={ref}
         style={[
           sharedStyles.fieldInput,
-          { color: colors.text },
+          { color: colors.text, fontFamily: f.regular },
           props.multiline ? { minHeight: 84, textAlignVertical: 'top' } : null,
         ]}
         placeholderTextColor={colors.textFaint}
-        accessibilityLabel={label ?? (typeof props.placeholder === 'string' ? props.placeholder : undefined)}
+        accessibilityLabel={
+          label ??
+          (typeof props.placeholder === 'string'
+            ? props.placeholder
+            : undefined)
+        }
         {...props}
       />
     </View>
@@ -488,12 +556,23 @@ export const TextField = forwardRef<
  *
  * Web parity: `PriceHint` in `src/components/ui/price-hint.tsx`.
  */
-export function PriceHint({ value }: { value: string | number | null | undefined }) {
+export function PriceHint({
+  value,
+}: {
+  value: string | number | null | undefined;
+}) {
   const { colors, fonts: f } = useTheme();
   const label = priceInWords(value);
   if (!label) return null;
   return (
-    <Text style={{ fontSize: 11.5, fontFamily: f.bold, color: colors.primary, marginTop: -spacing.xs }}>
+    <Text
+      style={{
+        fontSize: 11.5,
+        fontFamily: f.bold,
+        color: colors.primary,
+        marginTop: -spacing.xs,
+      }}
+    >
       {label}
     </Text>
   );
@@ -540,8 +619,16 @@ export function PrimaryButton({
         <ActivityIndicator color={colors.onPrimary} />
       ) : (
         <>
-          {icon ? <Ionicons name={icon} size={17} color={colors.onPrimary} /> : null}
-          <Text style={{ color: colors.onPrimary, fontSize: 16, fontFamily: f.semibold }}>
+          {icon ? (
+            <Ionicons name={icon} size={17} color={colors.onPrimary} />
+          ) : null}
+          <Text
+            style={{
+              color: colors.onPrimary,
+              fontSize: 16,
+              fontFamily: f.semibold,
+            }}
+          >
             {label}
           </Text>
         </>
@@ -572,7 +659,13 @@ export function GradientHero({
 }
 
 /** Inline error/info banner. */
-export function Banner({ kind, text }: { kind: 'error' | 'info' | 'success'; text: string }) {
+export function Banner({
+  kind,
+  text,
+}: {
+  kind: 'error' | 'info' | 'success';
+  text: string;
+}) {
   const { colors, fonts: f } = useTheme();
   const map = {
     error: { bg: colors.dangerSoft, fg: colors.danger },
@@ -588,7 +681,14 @@ export function Banner({ kind, text }: { kind: 'error' | 'info' | 'success'; tex
         paddingVertical: spacing.md,
       }}
     >
-      <Text style={{ color: map[kind].fg, fontSize: 13.5, fontFamily: f.semibold, lineHeight: 19 }}>
+      <Text
+        style={{
+          color: map[kind].fg,
+          fontSize: 13.5,
+          fontFamily: f.semibold,
+          lineHeight: 19,
+        }}
+      >
         {text}
       </Text>
     </View>
@@ -604,7 +704,12 @@ const sharedStyles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: spacing.lg,
   },
-  searchInput: { flex: 1, paddingVertical: 11, fontSize: 14.5, fontFamily: fonts.medium },
+  searchInput: {
+    flex: 1,
+    paddingVertical: 11,
+    fontSize: 14.5,
+    fontFamily: fonts.medium,
+  },
   fieldWrap: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -11,6 +11,23 @@ and polish.
 
 ## [Unreleased]
 
+### Changed
+
+- **Mobile visual foundation is consistent across appearances and foldable
+  widths.** Light and dark now share one brand typography pairing — Plus
+  Jakarta Sans for display hierarchy, Inter for dense CRM copy — so changing
+  appearance no longer changes text metrics or card layouts. Low-emphasis
+  controls in light mode have stronger contrast, the floating tab and
+  favourites bars cap their width on unfolded devices, and Properties adapts
+  to two columns from 640pt and three from 960pt with matching loading cards.
+  Inbox and Contacts now cap dense lists at a readable 760pt; narrow Inbox
+  surfaces the three everyday filters first, while narrow Contacts separates
+  requirement filters from lifecycle segments. More uses paired settings
+  columns from 720pt so foldables no longer stretch one long menu across the
+  full display. On iOS, floating navigation, favourites, sticky property
+  actions, chat composition and opt-in blurred cards now use native Apple
+  system materials, and the chat composer clears the home indicator.
+
 ### Added
 
 - **An over-size brochure now yields its contents instead of failing.**

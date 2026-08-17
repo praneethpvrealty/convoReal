@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { Tabs } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -13,7 +13,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { FavouritesBar } from '@/components/favourites-bar';
 import { haptic } from '@/lib/haptics';
-import { fonts, useTheme } from '@/lib/theme';
+import {
+  blurredSurfaceColor,
+  fonts,
+  glassBlurTint,
+  useTheme,
+} from '@/lib/theme';
 
 /** Bottom padding tab screens should give their scroll content so the
  *  floating pill tab bar never covers the last row. */
@@ -74,10 +79,12 @@ function TabIcon({
 export default function TabsLayout() {
   const { colors, dark, shadows } = useTheme();
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   // The favourites bar is summoned by its tab rather than navigated to,
   // so its open state lives here alongside the bar it controls.
   const [favouritesOpen, setFavouritesOpen] = useState(false);
   const tabBarBottom = Math.max(insets.bottom, 12);
+  const tabBarHorizontalInset = Math.max(18, (width - 560) / 2);
 
   return (
     <View style={{ flex: 1 }}>
@@ -96,9 +103,9 @@ export default function TabsLayout() {
           // the brand colour while the pill highlights its icon.
           tabBarShowLabel: true,
           tabBarActiveTintColor: colors.primary,
-          tabBarInactiveTintColor: colors.textFaint,
+          tabBarInactiveTintColor: colors.textMuted,
           tabBarLabelStyle: {
-            fontSize: 10,
+            fontSize: width < 390 ? 9.5 : 10.5,
             fontFamily: fonts.semibold,
             letterSpacing: -0.1,
             marginTop: 3,
@@ -108,8 +115,8 @@ export default function TabsLayout() {
           sceneStyle: { backgroundColor: 'transparent' },
           tabBarStyle: {
             position: 'absolute',
-            left: 18,
-            right: 18,
+            left: tabBarHorizontalInset,
+            right: tabBarHorizontalInset,
             bottom: tabBarBottom,
             height: TAB_BAR_HEIGHT,
             borderRadius: 28,
@@ -119,7 +126,7 @@ export default function TabsLayout() {
             paddingTop: 10,
             paddingBottom: 8,
             overflow: 'hidden',
-            backgroundColor: colors.tabBar,
+            backgroundColor: blurredSurfaceColor(colors.tabBar),
             elevation: 10,
             shadowColor: shadows.card.shadowColor,
             shadowOpacity: 0.18,
@@ -129,7 +136,7 @@ export default function TabsLayout() {
           tabBarBackground: () => (
             <BlurView
               intensity={40}
-              tint={dark ? 'dark' : 'light'}
+              tint={glassBlurTint(dark, 'chrome')}
               blurMethod="none"
               style={StyleSheet.absoluteFill}
             />
@@ -206,7 +213,10 @@ export default function TabsLayout() {
               <Text
                 style={[
                   styles.tabLabel,
-                  { color: favouritesOpen ? colors.primary : colors.textFaint },
+                  {
+                    color: favouritesOpen ? colors.primary : colors.textMuted,
+                    fontSize: width < 390 ? 9.5 : 10.5,
+                  },
                 ]}
               >
                 Favourites

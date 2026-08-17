@@ -19,6 +19,7 @@ import {
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -148,6 +149,12 @@ export async function fetchPropertyPage(
 
 export default function PropertiesScreen() {
   const { colors, fonts: f } = useTheme();
+  const { width } = useWindowDimensions();
+  const columnCount = width >= 960 ? 3 : width >= 640 ? 2 : 1;
+  const compactCardWidth =
+    columnCount > 1
+      ? (width - spacing.lg * (columnCount + 1)) / columnCount
+      : undefined;
   // Confidential-gate rollup for the account: one call for the whole
   // list, same endpoint the web inventory uses.
   const { data: gateStats } = useQuery({
@@ -517,15 +524,23 @@ export default function PropertiesScreen() {
       ) : null}
 
       {isLoading ? (
-        <View>
+        <View style={columnCount > 1 ? styles.loadingGrid : undefined}>
           {Array.from({ length: 4 }, (_, i) => (
-            <PropertyCardSkeleton key={i} />
+            <View
+              key={i}
+              style={compactCardWidth ? { width: compactCardWidth } : undefined}
+            >
+              <PropertyCardSkeleton compact={columnCount > 1} />
+            </View>
           ))}
         </View>
       ) : (
         <FlatList
+          key={`properties-${columnCount}`}
           style={{ flex: 1 }}
           data={properties}
+          numColumns={columnCount}
+          columnWrapperStyle={columnCount > 1 ? styles.gridRow : undefined}
           keyExtractor={(p) => p.id}
           contentContainerStyle={{ paddingBottom: TAB_BAR_CLEARANCE }}
           keyboardDismissMode="on-drag"
@@ -629,19 +644,24 @@ export default function PropertiesScreen() {
             />
           }
           renderItem={({ item, index }) => (
-            <EnterRow index={index}>
-              <PropertyCard
-                property={item}
-                gateStats={gateStats}
-                selecting={selecting}
-                selected={selectedIds.includes(item.id)}
-                onToggle={() => toggleSelected(item.id)}
-                onStartSelecting={() => {
-                  haptic.tap();
-                  setSelectedIds([item.id]);
-                }}
-              />
-            </EnterRow>
+            <View
+              style={compactCardWidth ? { width: compactCardWidth } : undefined}
+            >
+              <EnterRow index={index}>
+                <PropertyCard
+                  property={item}
+                  gateStats={gateStats}
+                  compact={columnCount > 1}
+                  selecting={selecting}
+                  selected={selectedIds.includes(item.id)}
+                  onToggle={() => toggleSelected(item.id)}
+                  onStartSelecting={() => {
+                    haptic.tap();
+                    setSelectedIds([item.id]);
+                  }}
+                />
+              </EnterRow>
+            </View>
           )}
         />
       )}
@@ -911,6 +931,7 @@ function LocalitySearchBox() {
 function PropertyCard({
   property,
   gateStats,
+  compact,
   selecting,
   selected,
   onToggle,
@@ -918,6 +939,7 @@ function PropertyCard({
 }: {
   property: Property;
   gateStats?: GateStatsMap;
+  compact: boolean;
   selecting: boolean;
   selected: boolean;
   onToggle: () => void;
@@ -971,6 +993,7 @@ function PropertyCard({
       accessibilityState={selecting ? { selected } : undefined}
       contentStyle={StyleSheet.flatten([
         styles.card,
+        compact ? styles.cardCompact : null,
         {
           backgroundColor: selected ? colors.primarySoft : colors.glass,
           borderColor: selected ? colors.primary : colors.glassBorder,
@@ -986,7 +1009,9 @@ function PropertyCard({
           />
         </View>
       ) : null}
-      <View style={styles.coverWrap}>
+      <View
+        style={[styles.coverWrap, compact ? styles.coverWrapCompact : null]}
+      >
         {cover ? (
           <Image
             source={cover}
@@ -1006,7 +1031,9 @@ function PropertyCard({
               color={onGradient.faint}
             />
             {withheldPhotos > 0 ? (
-              <Text style={[styles.coverEmptyText, { color: onGradient.faint }]}>
+              <Text
+                style={[styles.coverEmptyText, { color: onGradient.faint }]}
+              >
                 {emptyPhotoLabel(property)}
               </Text>
             ) : null}
@@ -1207,6 +1234,19 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: 10,
   },
+  cardCompact: {
+    marginHorizontal: 0,
+  },
+  gridRow: {
+    gap: spacing.lg,
+    paddingHorizontal: spacing.lg,
+  },
+  loadingGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.lg,
+    paddingHorizontal: spacing.lg,
+  },
   selectTick: {
     position: 'absolute',
     top: 8,
@@ -1216,6 +1256,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.35)',
   },
   coverWrap: { height: 175, borderRadius: radius.lg, overflow: 'hidden' },
+  coverWrapCompact: { height: 160 },
   coverEmpty: { alignItems: 'center', justifyContent: 'center', gap: 6 },
   coverEmptyText: { fontSize: 11, fontWeight: '600' },
   statusChip: {

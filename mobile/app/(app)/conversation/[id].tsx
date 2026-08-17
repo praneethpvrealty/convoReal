@@ -23,6 +23,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { AttachmentSheet, type AttachmentChoice } from '@/components/attachment-sheet';
@@ -92,7 +93,13 @@ import { settlePending } from '@/lib/pending-messages';
 import { queryClient } from '@/lib/query';
 import { useCallLog } from '@/lib/use-call-log';
 import { supabase, uniqueChannel } from '@/lib/supabase';
-import { radius, spacing, useTheme } from '@/lib/theme';
+import {
+  blurredSurfaceColor,
+  glassBlurTint,
+  radius,
+  spacing,
+  useTheme,
+} from '@/lib/theme';
 import { useHeaderHeight } from '@/lib/use-header-height';
 
 const PAGE_SIZE = 60;
@@ -832,6 +839,7 @@ function Composer({
   onPendingSettled: (pendingId: string, patch: Partial<Message> | null) => void;
 }) {
   const { colors, dark } = useTheme();
+  const insets = useSafeAreaInsets();
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1362,7 +1370,11 @@ function Composer({
         <View
           style={[
             styles.composer,
-            { backgroundColor: colors.tabBar, borderTopColor: colors.glassBorder },
+            {
+              backgroundColor: colors.tabBar,
+              borderTopColor: colors.glassBorder,
+              paddingBottom: Math.max(insets.bottom, spacing.md),
+            },
           ]}
         >
           <Pressable
@@ -1398,14 +1410,18 @@ function Composer({
       <View
         style={[
           styles.composer,
-          { backgroundColor: colors.tabBar, borderTopColor: colors.glassBorder },
+          {
+            backgroundColor: blurredSurfaceColor(colors.tabBar),
+            borderTopColor: colors.glassBorder,
+            paddingBottom: Math.max(insets.bottom, spacing.md),
+          },
           recording && styles.hidden,
         ]}
         pointerEvents={recording ? 'none' : 'auto'}
       >
         <BlurView
           intensity={16}
-          tint={dark ? 'dark' : 'light'}
+          tint={glassBlurTint(dark)}
           blurMethod="none"
           style={StyleSheet.absoluteFill}
         />
