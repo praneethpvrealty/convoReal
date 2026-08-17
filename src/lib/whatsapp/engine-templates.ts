@@ -26,6 +26,12 @@ import {
   LOCATION_REVEAL_TEMPLATE_NAME,
 } from './location-reveal-template';
 import {
+  buildLocationConsentTemplatePayload,
+  buildLocationOwnerDecisionTemplatePayload,
+  LOCATION_CONSENT_TEMPLATE_NAME,
+  LOCATION_OWNER_DECISION_TEMPLATE_NAME,
+} from './location-request-templates';
+import {
   buildInventoryUpdateTemplatePayload,
   INVENTORY_UPDATE_TEMPLATE_NAME,
 } from './inventory-update-template';
@@ -99,6 +105,23 @@ export const ENGINE_TEMPLATES: EngineTemplateDef[] = [
     whyItMatters:
       'Delivers an approved exact-location request to a seeker who asked from the public showcase.',
     build: buildLocationRevealTemplatePayload,
+  },
+  {
+    name: LOCATION_CONSENT_TEMPLATE_NAME,
+    copyKey: 'location_consent_request',
+    label: 'Location consent request',
+    whyItMatters:
+      'Lets a co-broker approve or decline a protected location or listing-access request outside the 24-hour window.',
+    build: (_origin, language) => buildLocationConsentTemplatePayload(language),
+  },
+  {
+    name: LOCATION_OWNER_DECISION_TEMPLATE_NAME,
+    copyKey: 'location_owner_decision',
+    label: 'Location owner decision',
+    whyItMatters:
+      'Lets the listing side approve or reject a protected location or listing-access request outside the 24-hour window.',
+    build: (_origin, language) =>
+      buildLocationOwnerDecisionTemplatePayload(language),
   },
   {
     name: INVENTORY_UPDATE_TEMPLATE_NAME,
