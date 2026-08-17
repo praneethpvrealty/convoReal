@@ -226,7 +226,27 @@ export function rankProperties(
   };
 
   const matched: RankedPropertyMatch[] = [];
+  const exactEnquiryId =
+    contact.requirement_active !== false && !contact.is_dead && !contact.is_archived
+      ? contact.last_inquired_property_id
+      : null;
+
   for (const property of properties) {
+    if (property.id === exactEnquiryId) {
+      matched.push({
+        property,
+        score: 100,
+        details: {
+          type: 'unknown',
+          location: 'unknown',
+          budget: 'unknown',
+          bhk: 'unknown',
+          roi: 'unknown',
+        },
+      });
+      continue;
+    }
+
     const [result] = getMatchingContacts(property, [contact]);
     if (result && result.score >= MIN_SCORE) {
       matched.push({ property, score: result.score, details: result.details });
@@ -234,6 +254,10 @@ export function rankProperties(
   }
 
   matched.sort((a, b) => {
+    const exactOrder =
+      Number(b.property.id === exactEnquiryId) -
+      Number(a.property.id === exactEnquiryId);
+    if (exactOrder !== 0) return exactOrder;
     if (b.score !== a.score) return b.score - a.score;
     return Number(inNamedArea(b.property)) - Number(inNamedArea(a.property));
   });

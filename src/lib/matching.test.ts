@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { getMatchingContacts } from './matching';
+import { rankProperties } from './radar/engine';
 import type { Contact, Property } from '@/types';
 
 // Helper to construct a base contact
@@ -1207,5 +1208,70 @@ describe('party collapse', () => {
     const results = getMatchingContacts(office, [buyer('solo')], parties);
     expect(results).toHaveLength(1);
     expect(results[0].party).toBeUndefined();
+  });
+});
+
+
+describe('portal enquiry matching regression', () => {
+  it('returns the exact live listing first before a generic brief exists', () => {
+    const enquired = createTestProperty({
+      id: 'prop-1072',
+      title: 'Bilekahalli Plot',
+      type: 'Residential Land/ Plot',
+    });
+    const unrelated = createTestProperty({
+      id: 'prop-other',
+      title: 'Unrelated Plot',
+      type: 'Residential Land/ Plot',
+    });
+    const contact = createTestContact({
+      last_inquired_property_id: enquired.id,
+    });
+
+    const matches = rankProperties(contact, [unrelated, enquired]);
+
+    expect(matches.map((match) => match.property.id)).toEqual(['prop-1072']);
+    expect(matches[0].score).toBe(100);
+  });
+
+  it('matches Bilekahalli for Vijaya Bank Layout and compares a per-sqft ceiling correctly', () => {
+    const contact = createTestContact({
+      pref_property_categories: ['plot'],
+      pref_budget_max: 25_000,
+      pref_areas: ['Vijaya Bank Layout'],
+      pref_extracted_at: new Date().toISOString(),
+      requirements: 'Residential plot, 2,400 sq.ft near Vijaya Bank Layout. 25k psqft max',
+      strict_area_match: true,
+    });
+    const property = createTestProperty({
+      id: 'prop-1072',
+      title: 'Bilekahalli Residential Plot',
+      type: 'Residential Land/ Plot',
+      location: 'Bilekahalli, Bannerghatta Road',
+      price: 48_000_000,
+      price_per_sqft: 20_000,
+      land_area: 2_400,
+      land_area_unit: 'sqft',
+    });
+
+    const [match] = getMatchingContacts(property, [contact]);
+
+    expect(match?.details.location).toBe('match');
+    expect(match?.details.budget).toBe('match');
+  });
+
+  it('accepts the common Vijay Bank spelling variant', () => {
+    const contact = createTestContact({
+      pref_property_categories: ['plot'],
+      pref_areas: ['Vijay Bank Layout'],
+      pref_extracted_at: new Date().toISOString(),
+      strict_area_match: true,
+    });
+    const property = createTestProperty({
+      type: 'Residential Land/ Plot',
+      location: 'Bilekahalli',
+    });
+
+    expect(getMatchingContacts(property, [contact])).toHaveLength(1);
   });
 });
