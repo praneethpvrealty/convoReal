@@ -11,7 +11,11 @@ import {
 import type { CuratedMatch } from './matches-ranking';
 import type { Property } from '@/types';
 
-function match(overrides: Partial<Property>, score = 80, reasons: string[] = []): CuratedMatch {
+function match(
+  overrides: Partial<Property>,
+  score = 80,
+  reasons: string[] = []
+): CuratedMatch {
   return {
     score,
     reasons,
@@ -36,7 +40,11 @@ function match(overrides: Partial<Property>, score = 80, reasons: string[] = [])
 
 describe('selectUnsentMatches', () => {
   it('drops listings the buyer has already been sent', () => {
-    const matches = [match({ id: 'a' }), match({ id: 'b' }), match({ id: 'c' })];
+    const matches = [
+      match({ id: 'a' }),
+      match({ id: 'b' }),
+      match({ id: 'c' }),
+    ];
     const kept = selectUnsentMatches(matches, ['b']);
     expect(kept.map((m) => m.property.id)).toEqual(['a', 'c']);
   });
@@ -60,7 +68,15 @@ describe('buildMatchDigestMessage', () => {
       contactName: 'Ravi Kumar',
       matches: [
         match({ id: 'a' }, 88, ['In your area', 'Within budget']),
-        match({ id: 'b', title: 'Palm Grove', price: 42_000_000, sublocality: 'Indiranagar' }, 71),
+        match(
+          {
+            id: 'b',
+            title: 'Palm Grove',
+            price: 42_000_000,
+            sublocality: 'Indiranagar',
+          },
+          71
+        ),
       ],
       portalUrl,
     });
@@ -96,11 +112,37 @@ describe('buildMatchDigestMessage', () => {
     const text = buildMatchDigestMessage({
       contactName: 'Ravi',
       matches: [
-        match({ id: 'r', listing_type: 'Rent', rent_per_month: 55_000, price: 0 }),
+        match({
+          id: 'r',
+          listing_type: 'Rent',
+          rent_per_month: 55_000,
+          price: 0,
+        }),
       ],
       portalUrl,
     });
     expect(text).toContain('₹55,000/month');
+  });
+
+  it('identifies the original enquiry before the closest alternatives', () => {
+    const text = buildMatchDigestMessage({
+      contactName: 'Simon',
+      matches: [
+        match({ id: 'hebron', title: '4 BHK Villa in Hebron Enclave' }, 100, [
+          'Property you enquired about',
+        ]),
+        match({ id: 'alternative', title: 'KR Puram Villa' }),
+      ],
+      portalUrl,
+      enquiredPropertyId: 'hebron',
+    });
+
+    expect(text).toContain(
+      "Here's the property you enquired about, followed by the closest available options"
+    );
+    expect(text.indexOf('Hebron Enclave')).toBeLessThan(
+      text.indexOf('KR Puram Villa')
+    );
   });
 });
 
@@ -119,7 +161,10 @@ describe('buildConsentRequestMessage', () => {
   });
 
   it('reads naturally with one match and no agency name', () => {
-    const text = buildConsentRequestMessage({ contactName: null, matchCount: 1 });
+    const text = buildConsentRequestMessage({
+      contactName: null,
+      matchCount: 1,
+    });
     expect(text).toContain('a listing that matches');
     expect(text).not.toContain('from ');
   });
@@ -127,7 +172,9 @@ describe('buildConsentRequestMessage', () => {
 
 describe('buildNoMatchesMessage', () => {
   it('says nothing fits and invites an update', () => {
-    expect(buildNoMatchesMessage('Ravi')).toContain('nothing in our inventory fits');
+    expect(buildNoMatchesMessage('Ravi')).toContain(
+      'nothing in our inventory fits'
+    );
   });
 });
 

@@ -51,7 +51,6 @@ and polish.
   is a fraction of the size. Applies to a PDF that opens a draft and one
   forwarded into an open draft alike, and to non-PDF documents too.
 
-
 - **Floor plans, pinned per floor** (**migration required**: `285`). A new
   `properties.floor_plans` array holds one plan drawing per floor — floor
   label, image, area and notes — for any property type, and
@@ -65,6 +64,14 @@ and polish.
   rather than guessing.
 
 ### Fixed
+
+- **“Show Properties” now starts with the property the lead enquired about.**
+  An available portal enquiry is pinned ahead of matching alternatives even
+  when the buyer has not completed a wider brief, while an unavailable one is
+  named explicitly before alternatives are offered. Qualification also retains
+  the property type, budget, area and project facts already present on the
+  contact, so a reply such as “2.5–3 Cr, KR Puram” no longer triggers a repeat
+  question asking whether the buyer wants a villa. No migration is required.
 
 - **A brochure over 10 MB could not be uploaded at all** (**migration
   required**: `285`). The `property-documents` bucket was capped at 10 MB
@@ -89,7 +96,7 @@ and polish.
   photographs so each can be filed where it belongs.
 
 - **A PDF sent into an open draft was filed but never read.** Only a PDF
-  that *started* a draft had its images extracted; one forwarded into a
+  that _started_ a draft had its images extracted; one forwarded into a
   session already in progress was stored as a document and nothing more.
   Both paths now get the same treatment, and the confirmation says what
   the brochure yielded.
@@ -119,7 +126,7 @@ and polish.
   neither see it nor record what a client told them on a call. Three
   states, each with what it means for sends: Not asked yet, Opted in,
   Opted out. Moving someone to Opted out is always allowed; moving them
-  *off* Opted out undoes a refusal they made themselves, so it takes an
+  _off_ Opted out undoes a refusal they made themselves, so it takes an
   explicit confirmation (`PATCH /api/contacts/[id]/consent` returns
   `CONSENT_OVERRIDE_REQUIRES_ACK` until acknowledged). Every agent-side
   change writes a dated, attributed line to `contact_notes`, because
@@ -418,7 +425,7 @@ and polish.
 - **A follow-up reminder button no longer reads as a property name.**
   The "which property?" completion card offers Today itself / In 2 days
   / Can't say yet reminder buttons — and tapping one was answered with
-  "I couldn't find *Today itself* in your inventory": the tap's label
+  "I couldn't find _Today itself_ in your inventory": the tap's label
   text reached the new property-answer reader before the button's own
   id dispatcher, and the already-answered question was still standing.
   The reader now never claims an interactive reply (a tap's instruction
