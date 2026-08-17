@@ -52,6 +52,7 @@ import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatche
 import { CUSTOMER_WINDOW_EXPIRED_MESSAGE } from '@/lib/whatsapp/customer-window';
 import {
   requestConsentFromContact,
+  notifyOwnerQueue,
   handleLocationConsentReply,
   handleOwnerLocationReply,
   approveRequestAndSendReveal,
@@ -269,6 +270,39 @@ function seedRequest(
   return row as unknown as LocationRequestRow;
 }
 
+function seedApprovalTemplates(tables: Record<string, Row[]>) {
+  tables.message_templates = [
+    {
+      id: 'tpl-consent',
+      account_id: ACCOUNT,
+      name: 'location_consent_request',
+      status: 'APPROVED',
+      language: 'en_US',
+      body_text:
+        'Hi {{1}}, a contact who received {{2}} through your shared link requested protected property access. Requester: {{3}}. Approve to forward this request or decline to close it.',
+      buttons: [
+        { type: 'QUICK_REPLY', text: 'Approve request' },
+        { type: 'QUICK_REPLY', text: 'Decline request' },
+      ],
+      last_submitted_at: new Date().toISOString(),
+    },
+    {
+      id: 'tpl-owner',
+      account_id: ACCOUNT,
+      name: 'location_owner_decision',
+      status: 'APPROVED',
+      language: 'en_US',
+      body_text:
+        'Request: {{1}}. Property: {{2}}. Requester: {{3}}. Approve to release {{4}}, or reject to close the request.',
+      buttons: [
+        { type: 'QUICK_REPLY', text: 'Approve access' },
+        { type: 'QUICK_REPLY', text: 'Reject access' },
+      ],
+      last_submitted_at: new Date().toISOString(),
+    },
+  ];
+}
+
 beforeEach(() => {
   sent.length = 0;
   notified.length = 0;
@@ -475,6 +509,86 @@ describe('multi-hop consent flow, end to end', () => {
     expect(redirect?.text).toContain(
       'speak with the person who shared you the property details'
     );
+  });
+});
+
+describe('approval requests outside the 24-hour window', () => {
+  beforeEach(() => {
+    vi.mocked(sendWhatsAppMessageAndPersist).mockImplementation((async (
+      args: SentMessage
+    ) => {
+      sent.push(args);
+      if (args.kind === 'interactive') {
+        return {
+          success: false,
+          error: CUSTOMER_WINDOW_EXPIRED_MESSAGE,
+        };
+      }
+      return { success: true, messageId: `m-${sent.length}` };
+    }) as typeof sendWhatsAppMessageAndPersist);
+  });
+
+  afterEach(() => {
+    vi.mocked(sendWhatsAppMessageAndPersist).mockImplementation(
+      defaultDispatcherImpl as typeof sendWhatsAppMessageAndPersist
+    );
+  });
+
+  it('uses the approved consent template and stamps awaiting state only after delivery', async () => {
+    const tables = freshTables();
+    seedApprovalTemplates(tables);
+    const admin = fakeAdmin(tables);
+    const request = seedRequest(tables);
+
+    expect(await requestConsentFromContact(admin, request, C)).toBe(true);
+
+    const template = sent.find(
+      (message) => message.templateName === 'location_consent_request'
+    );
+    expect(template?.kind).toBe('template');
+    expect(template?.messageParams?.buttonParams).toEqual({
+      0: `${CONSENT_APPROVE_PREFIX}req-1`,
+      1: `${CONSENT_DECLINE_PREFIX}req-1`,
+    });
+    expect(template?.messageParams?.body?.[2]).toContain('Ra••• Sh•••');
+    expect(tables.property_location_requests[0]).toMatchObject({
+      pending_consent_contact_id: C,
+    });
+    expect(
+      tables.property_location_requests[0].consent_requested_at
+    ).toBeTruthy();
+  });
+
+  it('does not mark a co-broker as awaiting when no approved template can deliver', async () => {
+    const tables = freshTables();
+    const admin = fakeAdmin(tables);
+    const request = seedRequest(tables);
+
+    expect(await requestConsentFromContact(admin, request, C)).toBe(false);
+    expect(tables.property_location_requests[0]).toMatchObject({
+      pending_consent_contact_id: null,
+      consent_requested_at: null,
+    });
+  });
+
+  it('uses the approved owner-decision template with request-scoped quick replies', async () => {
+    const tables = freshTables();
+    seedApprovalTemplates(tables);
+    const admin = fakeAdmin(tables);
+    const request = seedRequest(tables);
+
+    await notifyOwnerQueue(admin, request);
+
+    const template = sent.find(
+      (message) => message.templateName === 'location_owner_decision'
+    );
+    expect(template?.kind).toBe('template');
+    expect(template?.messageParams?.buttonParams).toEqual({
+      0: `${OWNER_APPROVE_PREFIX}req-1`,
+      1: `${OWNER_REJECT_PREFIX}req-1`,
+    });
+    expect(template?.messageParams?.body?.[2]).toContain('Ra••• Sh•••');
+    expect(template?.messageParams?.body?.[2]).not.toContain('Rahul Sharma');
   });
 });
 
