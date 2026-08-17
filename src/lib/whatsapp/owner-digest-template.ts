@@ -22,7 +22,7 @@ export function buildOwnerDigestTemplatePayload(): TemplatePayload {
     body_text: [
       '📊 *Your Property Update*',
       '',
-      'Hi {{1}}, here is the latest buyer activity on {{2}}:',
+      'Hi {{1}}, here is the latest activity on {{2}}:',
       '',
       '📈 Summary: {{3}}',
       '',
@@ -39,7 +39,7 @@ export function buildOwnerDigestTemplatePayload(): TemplatePayload {
       body: [
         'Gopi',
         'your 2 listings (this week)',
-        '4 new enquiries · 2 buyers shortlisted · 1 site visit scheduled · 38 showcase views',
+        '4 new enquiries · 2 shortlists · 1 site visit scheduled · 38 showcase views',
       ],
     },
   };
@@ -61,9 +61,9 @@ export function buildOwnerDigestConsentTemplatePayload(): TemplatePayload {
     category: 'Utility',
     language: 'en_US',
     body_text: [
-      'Hi {{1}}, buyers have been showing interest in {{2}}.',
+      'Hi {{1}}, there has been interest in {{2}}.',
       '',
-      'Would you like to receive a short WhatsApp status update (new enquiries, shortlists and scheduled site visits) whenever there is fresh buyer activity on your property?',
+      'Would you like to receive a short WhatsApp status update whenever there is a new enquiry, shortlist or scheduled site visit for your property?',
       '',
       'You can change your mind anytime by replying STOP UPDATES or START UPDATES.',
     ].join('\n'),
@@ -117,6 +117,6 @@ export function buildOwnerDigestParams(
   return [
     sanitizeTemplateParam(firstName),
     sanitizeTemplateParam(`${buildListingsPhrase(propertyTitles)} (${periodLabel})`),
-    sanitizeTemplateParam(summaryLine || 'New buyer activity'),
+    sanitizeTemplateParam(summaryLine || 'New listing activity'),
   ];
 }
