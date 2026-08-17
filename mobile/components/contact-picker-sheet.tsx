@@ -10,7 +10,7 @@ import { supabase } from '@/lib/supabase';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import type { Contact } from '@/lib/types';
 import { useDebounced } from '@/lib/use-debounced';
-import { contactHandle, hasPhone } from '@/lib/reachability';
+import { contactHandle } from '@/lib/reachability';
 
 /**
  * Pick Engine contacts by name or phone — the same debounced `contacts`
@@ -37,6 +37,10 @@ export function ContactPickerSheet({
   onSkip,
   busy,
   busyLabel,
+  searchContacts,
+  searchKey,
+  initialSelected,
+  maxSelections = Number.POSITIVE_INFINITY,
 }: {
   visible: boolean;
   onClose: () => void;
@@ -54,10 +58,16 @@ export function ContactPickerSheet({
   onSkip?: () => void;
   busy?: boolean;
   busyLabel?: string;
+  /** Optional server-owned search for surfaces with stricter eligibility
+   *  than the general Engine picker (for example Match Radar). */
+  searchContacts?: (query: string) => Promise<Contact[]>;
+  searchKey?: string;
+  initialSelected?: Contact[];
+  maxSelections?: number;
 }) {
   const { colors, fonts: f } = useTheme();
   const [search, setSearch] = useState('');
-  const [picked, setPicked] = useState<Contact[]>([]);
+  const [picked, setPicked] = useState<Contact[]>(initialSelected ?? []);
   const debounced = useDebounced(search.trim());
 
   useEffect(() => {
@@ -69,17 +79,21 @@ export function ContactPickerSheet({
 
   function togglePicked(contact: Contact) {
     haptic.tap();
-    setPicked((prev) =>
-      prev.some((p) => p.id === contact.id)
-        ? prev.filter((p) => p.id !== contact.id)
-        : [...prev, contact]
-    );
+    setPicked((prev) => {
+      if (prev.some((p) => p.id === contact.id)) {
+        return prev.filter((p) => p.id !== contact.id);
+      }
+      return prev.length >= maxSelections ? prev : [...prev, contact];
+    });
   }
 
   const { data, isFetching } = useQuery({
-    queryKey: ['contact-picker', debounced],
+    queryKey: ['contact-picker', searchKey ?? 'all', debounced],
     enabled: visible && debounced.length >= 2,
     queryFn: async () => {
+      if (searchContacts) {
+        return { contacts: await searchContacts(debounced), tags: {} };
+      }
       const term = `%${debounced}%`;
       // Digits-only phone match so "+91 97006 06010" finds "+919700606010".
       const digits = debounced.replace(/\D/g, '');
@@ -204,6 +218,7 @@ export function ContactPickerSheet({
                       return (
                       <Pressable
                         key={c.id}
+                        disabled={multiSelect && !isPicked && picked.length >= maxSelections}
                         onPress={() => {
                           if (multiSelect) {
                             togglePicked(c);
@@ -219,6 +234,7 @@ export function ContactPickerSheet({
                           styles.row,
                           { backgroundColor: colors.glass, borderColor: colors.glassBorder },
                           isPicked && { borderColor: colors.primary, backgroundColor: colors.primarySoft },
+                          multiSelect && !isPicked && picked.length >= maxSelections && { opacity: 0.45 },
                         ]}
                       >
                         {multiSelect ? (

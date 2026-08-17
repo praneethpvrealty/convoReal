@@ -30,6 +30,19 @@ and polish.
 
 ### Added
 
+- **Match Radar can include fresh contacts and learn from confirmed replies.**
+  New-listing cards on web and mobile can search and add existing live Buyers
+  or Agents who were not in the computed match set; manually added rows are
+  labeled and never treated as a match or a learning signal. The send route
+  rechecks account access, lifecycle, requirement status and WhatsApp consent
+  before delivery. Every delivered property is now recorded in the share
+  ledger and followed by one-tap Interested / None fit feedback when the chat
+  window permits it (or after the recipient replies to the alert template).
+  Only those confirmed replies feed learning: rejected listings stay out of
+  both Radar directions, and a mismatch answer asks for the corrected budget,
+  location, type or size so the contact's saved requirements drive later
+  matches. No migration is required.
+
 - **An over-size brochure now yields its contents instead of failing.**
   The listing details, floor plans and photos are extracted and kept; only
   the file itself is dropped, and the WhatsApp reply says so — naming the

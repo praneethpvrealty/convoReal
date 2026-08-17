@@ -20,7 +20,7 @@ import { sendPreferenceFlowToContact } from '@/lib/whatsapp/meta-flow-service';
 import { sendBudgetBandPrompt } from '@/lib/whatsapp/budget-band';
 import { createNotification } from '@/lib/notifications/create';
 import { isPlaceholderLeadName } from '@/lib/contacts/lead-placeholder';
-import type { RankedPropertyMatch } from '@/lib/radar/engine';
+import type { Property } from '@/types';
 
 /** Every id this module owns starts with this. */
 export const LISTING_FEEDBACK_ID_PREFIX = 'lfb';
@@ -63,8 +63,12 @@ function truncate(text: string, max: number): string {
  * message.
  */
 export function buildListingFeedbackSections(
-  matches: RankedPropertyMatch[],
-  opts: { includeFormRow?: boolean } = {}
+  matches: Array<{ property: Pick<Property, 'id' | 'title'> }>,
+  opts: {
+    includeFormRow?: boolean;
+    includeExploreRows?: boolean;
+    sourcePropertyId?: string;
+  } = {}
 ): InteractiveListSection[] {
   const shown = matches.slice(0, 3);
   const ids = shown.map((m) => m.property.id);
@@ -85,6 +89,20 @@ export function buildListingFeedbackSections(
       description: 'Full form — takes under a minute',
     });
   }
+  if (opts.includeExploreRows && opts.sourcePropertyId) {
+    rows.push(
+      {
+        id: `show_more_properties:${opts.sourcePropertyId}`,
+        title: 'Show more properties',
+        description: 'See another shortlist in this chat',
+      },
+      {
+        id: 'browse_all_properties',
+        title: 'Browse all properties',
+        description: 'Open the complete property showcase',
+      }
+    );
+  }
   return [{ rows }];
 }
 
@@ -98,8 +116,10 @@ export async function sendListingFeedbackPrompt(args: {
   userId: string;
   contactId: string;
   conversationId: string;
-  matches: RankedPropertyMatch[];
+  matches: Array<{ property: Pick<Property, 'id' | 'title'> }>;
   includeFormRow?: boolean;
+  includeExploreRows?: boolean;
+  sourcePropertyId?: string;
 }): Promise<boolean> {
   if (args.matches.length === 0) return false;
   try {
@@ -116,6 +136,8 @@ export async function sendListingFeedbackPrompt(args: {
       interactiveButtonLabel: 'Pick one',
       interactiveSections: buildListingFeedbackSections(args.matches, {
         includeFormRow: args.includeFormRow,
+        includeExploreRows: args.includeExploreRows,
+        sourcePropertyId: args.sourcePropertyId,
       }),
       customDbClient: args.db,
     });

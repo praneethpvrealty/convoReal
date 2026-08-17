@@ -270,6 +270,18 @@ export interface MatchEventTarget {
   chips: string[];
 }
 
+/** An existing contact that can be added manually to a new-property
+ * Radar alert. The server applies lifecycle, consent and tenant checks;
+ * clients only render this deliberately small projection. */
+export interface RadarManualContact {
+  id: string;
+  name: string | null;
+  second_name: string | null;
+  name_tag: string | null;
+  phone: string;
+  classification: 'Buyer' | 'Agent';
+}
+
 export interface MatchEvent {
   id: string;
   account_id: string;

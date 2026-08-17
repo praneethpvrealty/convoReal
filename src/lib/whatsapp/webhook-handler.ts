@@ -33,6 +33,7 @@ import { sendPreferenceTapReply } from '@/lib/whatsapp/preference-tap-reply'
 import {
   handleListingFeedbackReply,
   LISTING_FEEDBACK_ID_PREFIX,
+  sendListingFeedbackPrompt,
 } from '@/lib/whatsapp/listing-feedback'
 import {
   handleBudgetBandReply,
@@ -3175,24 +3176,42 @@ export async function handlePropertyShareYesReply(
       senderType: 'bot',
     })
 
-    // Offer browse properties option
-    const followUpText = `Would you like to explore other properties?`
-    await sendWhatsAppMessageAndPersist({
+    // This is the first confirmed reply after an out-of-window template.
+    // Ask for explicit listing feedback now that WhatsApp permits a
+    // free-form interactive message. Explore actions stay in the same
+    // list so the previous browse path remains available.
+    const feedbackSent = await sendListingFeedbackPrompt({
+      db: supabaseAdmin(),
       accountId,
       userId: configOwnerUserId,
       contactId,
       conversationId,
-      toPhone,
-      kind: 'interactive',
-      interactiveType: 'buttons',
-      interactiveBody: followUpText,
-      interactiveButtons: [
-        { id: `show_more_properties:${typedProperty.id}`, title: 'Show More Properties' },
-        { id: 'browse_all_properties', title: 'Browse All' },
-        { id: `share_property_no:${typedProperty.id}`, title: 'No Thanks' }
-      ],
-      senderType: 'bot',
+      matches: [{ property: typedProperty }],
+      includeFormRow: true,
+      includeExploreRows: true,
+      sourcePropertyId: typedProperty.id,
     })
+
+    // Preserve the old browse controls if the richer feedback prompt
+    // cannot be delivered for any reason.
+    if (!feedbackSent) {
+      await sendWhatsAppMessageAndPersist({
+        accountId,
+        userId: configOwnerUserId,
+        contactId,
+        conversationId,
+        toPhone,
+        kind: 'interactive',
+        interactiveType: 'buttons',
+        interactiveBody: 'Would you like to explore other properties?',
+        interactiveButtons: [
+          { id: `show_more_properties:${typedProperty.id}`, title: 'Show More Properties' },
+          { id: 'browse_all_properties', title: 'Browse All' },
+          { id: `share_property_no:${typedProperty.id}`, title: 'No Thanks' }
+        ],
+        senderType: 'bot',
+      })
+    }
 
     console.log(`[webhook] Successfully shared property ${propertyId} with contact ${contactId}`)
   } catch (err) {

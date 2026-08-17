@@ -20,10 +20,11 @@ import {
   buildPropertyAlertTemplatePayload,
   PROPERTY_ALERT_TEMPLATE_NAME,
 } from "@/lib/whatsapp/property-alert-template";
-import type { MatchEvent, Property } from "@/types";
+import type { MatchEvent, Property, RadarManualContact } from "@/types";
 import { InfoHint } from "@/components/ui/info-hint";
 import { NameTagBadge } from "@/components/contacts/name-tag-badge";
 import { DirectOwnerCard } from "@/components/radar/direct-owner-card";
+import { ManualContactPicker } from "@/components/radar/manual-contact-picker";
 import { RadarSweepLoader } from "@/components/ui/radar-sweep-loader";
 import { ConvoRealLoader } from "@/components/ui/convoreal-loader";
 
@@ -41,6 +42,9 @@ export default function RadarPage() {
 
   // Checked state for targets within each event card
   const [checkedTargets, setCheckedTargets] = useState<CheckedState>({});
+  const [manualContacts, setManualContacts] = useState<{
+    [eventId: string]: RadarManualContact[];
+  }>({});
 
   // Recipients that couldn't be reached because they're outside the 24h
   // window AND the property-details template isn't approved yet —
@@ -65,6 +69,7 @@ export default function RadarPage() {
         initialChecked[evt.id] = new Set(evt.matches.map((m) => m.id));
       });
       setCheckedTargets(initialChecked);
+      setManualContacts({});
       setTemplateMissingTargets({});
     } catch (err: unknown) {
       console.error("[radar] fetch failed:", err);
@@ -89,6 +94,22 @@ export default function RadarPage() {
       } else {
         current.add(targetId);
       }
+      return { ...prev, [eventId]: current };
+    });
+  };
+
+  const updateManualContacts = (
+    eventId: string,
+    contacts: RadarManualContact[],
+  ) => {
+    setManualContacts((prev) => ({ ...prev, [eventId]: contacts }));
+    setCheckedTargets((prev) => {
+      const current = new Set(prev[eventId] ?? []);
+      const nextIds = new Set(contacts.map((contact) => contact.id));
+      for (const oldContact of manualContacts[eventId] ?? []) {
+        if (!nextIds.has(oldContact.id)) current.delete(oldContact.id);
+      }
+      for (const contact of contacts) current.add(contact.id);
       return { ...prev, [eventId]: current };
     });
   };
@@ -136,12 +157,16 @@ export default function RadarPage() {
 
     setSendingId(event.id);
     try {
+      const manualIds = new Set(
+        (manualContacts[event.id] ?? []).map((contact) => contact.id),
+      );
       const res = await fetch("/api/radar/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           eventId: event.id,
           targetIds: selectedIds,
+          manualContactIds: selectedIds.filter((id) => manualIds.has(id)),
         }),
       });
 
@@ -171,9 +196,16 @@ export default function RadarPage() {
           .filter((r) => r.status === "templateMissing")
           .map((r) => {
             const matchInfo = event.matches.find((m) => m.id === r.id);
+            const manualInfo = (manualContacts[event.id] ?? []).find(
+              (contact) => contact.id === r.id,
+            );
             return {
               id: r.id,
-              name: matchInfo ? matchInfo.name : "Unknown target",
+              name:
+                matchInfo?.name ||
+                [manualInfo?.name, manualInfo?.second_name].filter(Boolean).join(" ") ||
+                manualInfo?.phone ||
+                "Unknown target",
             };
           });
 
@@ -288,7 +320,21 @@ export default function RadarPage() {
               />
             ))}
           {events.filter((evt) => evt.source !== "deal_mode").map((evt) => {
-            const allTargetIds = evt.matches.map((m) => m.id);
+            const addedContacts = manualContacts[evt.id] ?? [];
+            const displayTargets = [
+              ...evt.matches.map((match) => ({ ...match, manuallyAdded: false as const })),
+              ...addedContacts.map((contact) => ({
+                id: contact.id,
+                name:
+                  [contact.name, contact.second_name].filter(Boolean).join(" ") ||
+                  contact.phone,
+                detail: contact.phone,
+                score: null,
+                chips: [] as string[],
+                manuallyAdded: true as const,
+              })),
+            ];
+            const allTargetIds = displayTargets.map((target) => target.id);
             const selectedIds = checkedTargets[evt.id] || new Set<string>();
             const isAllChecked = allTargetIds.every((id) => selectedIds.has(id));
 
@@ -403,20 +449,30 @@ export default function RadarPage() {
                     <div className="space-y-3">
                       <div className="flex justify-between items-center">
                         <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center">
-                          Matching Targets ({evt.matches.length})
+                          Matching Targets ({displayTargets.length})
                           <InfoHint text="The corresponding items that match the Subject's criteria. For a new property, these are buyers whose budgets and preferred areas match. For a buyer update, these are properties that match their preferences." />
                         </h3>
-                        <button
-                          type="button"
-                          onClick={() => toggleSelectAll(evt.id, allTargetIds)}
-                          className="text-[11px] font-extrabold text-primary hover:underline cursor-pointer"
-                        >
-                          {isAllChecked ? "Deselect All" : "Select All"}
-                        </button>
+                        <div className="flex items-center gap-2">
+                          {evt.kind === "new_property" && (
+                            <ManualContactPicker
+                              eventId={evt.id}
+                              matchedCount={evt.matches.length}
+                              value={addedContacts}
+                              onChange={(contacts) => updateManualContacts(evt.id, contacts)}
+                            />
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => toggleSelectAll(evt.id, allTargetIds)}
+                            className="text-[11px] font-extrabold text-primary hover:underline cursor-pointer"
+                          >
+                            {isAllChecked ? "Deselect All" : "Select All"}
+                          </button>
+                        </div>
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[220px] overflow-y-auto pr-1">
-                        {evt.matches.map((match) => {
+                        {displayTargets.map((match) => {
                           const checked = selectedIds.has(match.id);
                           return (
                             <div
@@ -439,9 +495,15 @@ export default function RadarPage() {
                                   <h5 className="text-xs font-black text-white truncate">
                                     {match.name}
                                   </h5>
-                                  <span className="text-[10px] font-bold text-emerald-400 shrink-0">
-                                    {match.score}%
-                                  </span>
+                                  {match.manuallyAdded ? (
+                                    <span className="shrink-0 rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-bold text-primary">
+                                      Added manually
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] font-bold text-emerald-400 shrink-0">
+                                      {match.score}%
+                                    </span>
+                                  )}
                                 </div>
                                 {match.detail && (
                                   <p className="text-[9px] text-slate-500 font-semibold">{match.detail}</p>

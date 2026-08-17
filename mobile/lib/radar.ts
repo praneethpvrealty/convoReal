@@ -1,6 +1,6 @@
 import { apiFetch } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
-import type { MatchEvent } from '@shared/types';
+import type { MatchEvent, RadarManualContact } from '@shared/types';
 
 /**
  * Web parity: Match Radar (src/lib/radar/queries.ts). Reads go straight
@@ -44,11 +44,11 @@ export async function dismissMatchEvent(eventId: string): Promise<void> {
 }
 
 export interface RadarSendResult {
-  results: Array<{
+  results: {
     id: string;
     status: 'sent' | 'templateMissing' | 'failed';
     error?: string;
-  }>;
+  }[];
   sent: number;
   sentViaTemplate: number;
   templateMissing: number;
@@ -56,9 +56,20 @@ export interface RadarSendResult {
   alertTemplateStatus: string | null;
 }
 
-export function sendMatchAlert(eventId: string, targetIds: string[]) {
+export function searchRadarContacts(eventId: string, query: string) {
+  const params = new URLSearchParams({ eventId, q: query });
+  return apiFetch<{ data: RadarManualContact[] }>(
+    `/api/radar/contacts?${params.toString()}`
+  ).then((result) => result.data);
+}
+
+export function sendMatchAlert(
+  eventId: string,
+  targetIds: string[],
+  manualContactIds: string[] = []
+) {
   return apiFetch<RadarSendResult>('/api/radar/send', {
     method: 'POST',
-    body: JSON.stringify({ eventId, targetIds }),
+    body: JSON.stringify({ eventId, targetIds, manualContactIds }),
   });
 }

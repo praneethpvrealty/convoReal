@@ -50,7 +50,7 @@ Mobile-only extras: device-contact import, "near me" GPS search, Android/iOS hom
 
 ## Closed since the audit
 
-- **Match Radar** — `mobile/app/(app)/radar.tsx` (More → Match Radar): event feed, target selection, one-tap send via `/api/radar/send`, dismiss, masked direct-owner cards. Template setup and the deal-mode unlock stay on the web.
+- **Match Radar** — `mobile/app/(app)/radar.tsx` (More → Match Radar): event feed, target selection, eligible Buyer/Agent search for manually added recipients, one-tap send via `/api/radar/send`, dismiss, masked direct-owner cards, and the same confirmed-reply learning loop as web. Template setup and the deal-mode unlock stay on the web.
 - **Todos** — `mobile/lib/todos.ts` + a To-dos section on the Calendar tab: quick-add with priority and due date/time, complete/delete, linked contact/property display. Contact/property mentions stay a web smart-add feature.
 - **Today** — `mobile/app/(app)/today.tsx` (More → Today): daily numbers, WhatsApp windows about to close, hot leads going quiet, today's appointments and due to-dos with inline complete. Streak flame and custom date ranges stay web-only.
 - **Deal create / edit / delete** — `mobile/app/(app)/deal-edit.tsx`: the + button on Deals opens it empty, tapping a deal card opens it pre-filled. Saves via `POST /api/deals` or `PUT /api/deals/[id]`, deletes via `DELETE /api/deals/[id]` behind a confirm dialog — all three sync the linked property's status server-side. Assignment, brokerage and non-INR currencies stay on the web form.
