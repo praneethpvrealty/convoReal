@@ -14,6 +14,9 @@ const BANGALORE_LOCALITIES_COORDS: Record<string, { lat: number; lng: number }> 
   'whitefield': { lat: 12.9698, lng: 77.7500 },
   'jayanagar': { lat: 12.9308, lng: 77.5838 },
   'btm layout': { lat: 12.9166, lng: 77.6101 },
+  'bilekahalli': { lat: 12.8934, lng: 77.6102 },
+  'vijaya bank layout': { lat: 12.8916, lng: 77.6098 },
+  'vijay bank layout': { lat: 12.8916, lng: 77.6098 },
   'bellandur': { lat: 12.9272, lng: 77.6756 },
   'sarjapur': { lat: 12.8624, lng: 77.7818 },
   'hebbal': { lat: 13.0354, lng: 77.5988 },
@@ -419,6 +422,55 @@ function cleanArea(area: string): string {
   return area.toLowerCase().replace(/\./g, '').trim();
 }
 
+function coordinatesForArea(area: string): { lat: number; lng: number } | null {
+  const clean = cleanArea(area);
+  if (!clean) return null;
+  const direct = BANGALORE_LOCALITIES_COORDS[clean];
+  if (direct) return direct;
+
+  const locality = Object.keys(BANGALORE_LOCALITIES_COORDS)
+    .sort((a, b) => b.length - a.length)
+    .find((name) => clean.includes(name));
+  return locality ? BANGALORE_LOCALITIES_COORDS[locality] : null;
+}
+
+function parsePricePerSqftBudget(text: string): {
+  min: number | null;
+  max: number | null;
+  maxIsCeiling: boolean;
+} | null {
+  const clean = text.toLowerCase();
+  const pattern =
+    /(?:₹|rs\.?\s*)?(\d[\d,]*(?:\.\d+)?)\s*(k|thousand)?\s*(?:psqft|p\s*sqft|per\s+sq(?:uare)?\.?\s*(?:ft|feet)|\/\s*sq\.?\s*(?:ft|feet))/g;
+  let min: number | null = null;
+  let max: number | null = null;
+  let maxIsCeiling = false;
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(clean)) !== null) {
+    const value =
+      Number(match[1].replace(/,/g, '')) *
+      (match[2] === 'k' || match[2] === 'thousand' ? 1000 : 1);
+    const before = clean.slice(Math.max(0, match.index - 24), match.index);
+    const after = clean.slice(pattern.lastIndex, pattern.lastIndex + 24);
+    const isMinimum =
+      /(?:above|at\s*least|min|minimum)\s*$/.test(before) ||
+      /^\s*(?:min|minimum|and\s+above)\b/.test(after);
+    const isMaximum =
+      /(?:under|below|up\s*to|max|maximum)\s*$/.test(before) ||
+      /^\s*(?:max|maximum|or\s+below)\b/.test(after);
+
+    if (isMinimum && !isMaximum) {
+      min = value;
+    } else {
+      max = value;
+      maxIsCeiling = isMaximum;
+    }
+  }
+
+  return min !== null || max !== null ? { min, max, maxIsCeiling } : null;
+}
+
 // ── Main matcher ────────────────────────────────────────────────────
 
 /**
@@ -453,7 +505,7 @@ export function getMatchingContacts(
   // `price`, Rent/Built to Suit against monthly rent, JV/JD against `price`
   // only if one was entered (JV deals are usually matched on land/share
   // terms, not a price band).
-  const budgetComparisonValue =
+  const totalBudgetComparisonValue =
     propertyListingType === 'Rent' || propertyListingType === 'Built to Suit'
       ? Number(property.rent_per_month || 0)
       : price;
@@ -463,6 +515,19 @@ export function getMatchingContacts(
   const propCity = cleanArea(property.city || '');
   const propProject = cleanArea(property.project || '');
   const propBedrooms = property.bedrooms ? Number(property.bedrooms) : null;
+  const landAreaSqft = toSquareFeet(property.land_area, property.land_area_unit);
+  const propertyAreaSqft =
+    landAreaSqft && landAreaSqft > 0
+      ? landAreaSqft
+      : property.area_sqft && Number(property.area_sqft) > 0
+        ? Number(property.area_sqft)
+        : null;
+  const propertyPricePerSqft =
+    property.price_per_sqft && Number(property.price_per_sqft) > 0
+      ? Number(property.price_per_sqft)
+      : price > 0 && propertyAreaSqft
+        ? price / propertyAreaSqft
+        : 0;
 
   const results: MatchingResult[] = [];
 
@@ -680,8 +745,17 @@ export function getMatchingContacts(
     let locationVerdict: MatchVerdict = 'unknown';
     if (wantedAreas.length > 0) {
       // 3.1 Proximity-based matching if coordinates are available
-      const pLat = property.latitude ? Number(property.latitude) : (property.sublocality ? BANGALORE_LOCALITIES_COORDS[cleanArea(property.sublocality)]?.lat : null);
-      const pLng = property.longitude ? Number(property.longitude) : (property.sublocality ? BANGALORE_LOCALITIES_COORDS[cleanArea(property.sublocality)]?.lng : null);
+      const propertyCoords = coordinatesForArea(
+        `${property.sublocality || ''} ${property.location || ''}`
+      );
+      const pLat =
+        property.latitude != null && Number.isFinite(Number(property.latitude))
+          ? Number(property.latitude)
+          : propertyCoords?.lat ?? null;
+      const pLng =
+        property.longitude != null && Number.isFinite(Number(property.longitude))
+          ? Number(property.longitude)
+          : propertyCoords?.lng ?? null;
       
       let checkedProximity = false;
       let hasProximityMatch = false;
@@ -765,6 +839,15 @@ export function getMatchingContacts(
       maxIsCeiling = parsed.maxIsCeiling;
     }
 
+    const perSqftBudget = parsePricePerSqftBudget(combinedText);
+    let budgetComparisonValue = totalBudgetComparisonValue;
+    if (perSqftBudget) {
+      budgetMin = perSqftBudget.min ?? budgetMin;
+      budgetMax = perSqftBudget.max ?? budgetMax;
+      maxIsCeiling = perSqftBudget.maxIsCeiling;
+      budgetComparisonValue = propertyPricePerSqft;
+    }
+
     const BUDGET_TOLERANCE_MIN = 0.2; // Allowing 20% gap/tolerance on lower side
     const BUDGET_TOLERANCE_MAX = 0.1; // Keeping strict 10% gap/tolerance on upper side
     // A max with no min still anchors intent: a ₹20 Cr buyer is not
@@ -820,13 +903,7 @@ export function getMatchingContacts(
         : null;
     let sizeVerdict: MatchVerdict = 'unknown';
     if (sizeMin !== null || sizeMax !== null) {
-      const landSqft = toSquareFeet(property.land_area, property.land_area_unit);
-      const propAreaSqft =
-        landSqft && landSqft > 0
-          ? landSqft
-          : property.area_sqft && Number(property.area_sqft) > 0
-            ? Number(property.area_sqft)
-            : null;
+      const propAreaSqft = propertyAreaSqft;
       if (propAreaSqft !== null) {
         const minOk = sizeMin === null || propAreaSqft >= sizeMin;
         const maxOk = sizeMax === null || propAreaSqft <= sizeMax;
