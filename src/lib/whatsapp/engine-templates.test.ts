@@ -13,6 +13,8 @@ describe('missingEngineTemplates', () => {
     expect(missing.map((t) => t.name)).toEqual([
       'listing_details_notice',
       'listing_photos_notice',
+      'location_consent_request',
+      'location_owner_decision',
       'listing_status_notice',
       'enquiry_checkin_notice',
       'enquiry_timeline_notice',
@@ -27,7 +29,7 @@ describe('missingEngineTemplates', () => {
     // Same rename, same reason: property_enquiry_photos is approved and
     // sending, its URL button just carries the dashboard host.
     expect(
-      missingEngineTemplates(['property_enquiry_gallery']).map((t) => t.name),
+      missingEngineTemplates(['property_enquiry_gallery']).map((t) => t.name)
     ).toContain('listing_photos_notice');
   });
 
@@ -38,18 +40,22 @@ describe('missingEngineTemplates', () => {
     // a new name — which means this list has to keep offering it even
     // though the account already has a working predecessor.
     expect(
-      missingEngineTemplates(['property_enquiry_info']).map((t) => t.name),
+      missingEngineTemplates(['property_enquiry_info']).map((t) => t.name)
     ).toContain('listing_details_notice');
   });
 
   it('ignores case and stray whitespace on existing names', () => {
-    expect(missingEngineTemplates(['  Property_Enquiry_Info '])).not.toContainEqual(
-      expect.objectContaining({ name: 'property_enquiry_info' }),
+    expect(
+      missingEngineTemplates(['  Property_Enquiry_Info '])
+    ).not.toContainEqual(
+      expect.objectContaining({ name: 'property_enquiry_info' })
     );
   });
 
   it('reports nothing once every engine template exists', () => {
-    expect(missingEngineTemplates(ENGINE_TEMPLATES.map((t) => t.name))).toEqual([]);
+    expect(missingEngineTemplates(ENGINE_TEMPLATES.map((t) => t.name))).toEqual(
+      []
+    );
   });
 
   it('reports all of them for a fresh account', () => {
@@ -66,9 +72,9 @@ describe('missingEngineTemplates', () => {
         expect(
           () =>
             validateTemplatePayload(
-              t.build('https://www.convoreal.com', language),
+              t.build('https://www.convoreal.com', language)
             ),
-          `${t.name} / ${language}`,
+          `${t.name} / ${language}`
         ).not.toThrow();
       }
     }
@@ -78,7 +84,7 @@ describe('missingEngineTemplates', () => {
     for (const t of ENGINE_TEMPLATES) {
       for (const language of LANGUAGE_CODES) {
         expect(t.build('https://www.convoreal.com', language).language).toBe(
-          metaLanguageCode(language),
+          metaLanguageCode(language)
         );
       }
     }
@@ -91,7 +97,9 @@ describe('missingEngineTemplates', () => {
   it('keeps one name across every language', () => {
     for (const t of ENGINE_TEMPLATES) {
       for (const language of LANGUAGE_CODES) {
-        expect(t.build('https://www.convoreal.com', language).name).toBe(t.name);
+        expect(t.build('https://www.convoreal.com', language).name).toBe(
+          t.name
+        );
       }
     }
   });
@@ -103,7 +111,7 @@ describe('missingEngineTemplates', () => {
         if (language === 'en') continue;
         expect(
           t.build('https://www.convoreal.com', language).body_text,
-          `${t.name} / ${language}`,
+          `${t.name} / ${language}`
         ).not.toBe(english);
       }
     }
