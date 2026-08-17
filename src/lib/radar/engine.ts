@@ -2,6 +2,10 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { Contact, Property, MatchEventTarget } from '@/types';
 import { getMatchingContacts, type MatchDetails } from '@/lib/matching';
 import { contactHandle } from '@/lib/contacts/reachability';
+import {
+  loadContactParties,
+  partyDisplayName,
+} from '@/lib/contacts/parties';
 
 // Lazy service-role client for callers that only hold an RLS-scoped
 // client (match_events has no member INSERT policy — writes are
@@ -134,9 +138,14 @@ export async function generateMatchEventForProperty(
 
     if (!property || !contacts || contacts.length === 0) return;
 
+    // One target per deal: a husband and wife on one requirement are
+    // one buyer to chase, and listing them twice both inflates the
+    // event and wastes two of its capped slots.
+    const parties = await loadContactParties(db, accountId);
     const results = getMatchingContacts(
       property as Property,
-      contacts as Contact[]
+      contacts as Contact[],
+      parties
     )
       .filter((r) => r.score >= MIN_SCORE)
       .slice(0, MAX_TARGETS);
@@ -145,7 +154,13 @@ export async function generateMatchEventForProperty(
 
     const targets: MatchEventTarget[] = results.map((r) => ({
       id: r.contact.id,
-      name: r.contact.name || contactHandle(r.contact),
+      name:
+        partyDisplayName(r.party ?? null, [
+          r.contact.name ?? '',
+          ...(r.alsoMatched ?? []).map((c) => c.name ?? ''),
+        ]) ||
+        r.contact.name ||
+        contactHandle(r.contact),
       detail: contactHandle(r.contact) || null,
       score: r.score,
       chips: chipsFromDetails(r.details),

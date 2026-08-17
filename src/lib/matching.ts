@@ -1,4 +1,5 @@
 import type { Contact, Property } from '@/types';
+import type { ContactParty } from '@/lib/contacts/parties';
 import { normalizePropertyType } from '@/lib/property-types';
 import { textContainsProject } from '@/lib/project-match';
 import { toSquareFeet } from '@/lib/area-units';
@@ -174,6 +175,13 @@ export interface MatchingResult {
   contact: Contact;
   score: number; // 0 to 100
   details: MatchDetails;
+  /** Set only when the caller passed a party index and this contact
+   *  buys with others — a couple, or colleagues from one firm. The
+   *  result then stands for the whole party. */
+  party?: { id: string; name: string | null } | null;
+  /** The other members this result absorbed. Empty unless `party` is
+   *  set. Surfaces name them so a match list reads as one deal. */
+  alsoMatched?: Contact[];
   /** Legacy boolean view of details, kept for existing consumers. True only for genuine matches. */
   matchedFields: {
     budget: boolean;
@@ -413,9 +421,19 @@ function cleanArea(area: string): string {
 
 // ── Main matcher ────────────────────────────────────────────────────
 
+/**
+ * Contacts matching a property, best first.
+ *
+ * `parties` is optional and changes the unit of the answer: without it
+ * the list is per person, with it one row per deal (see
+ * collapseMatchesToParties). Pass it wherever a duplicate would be
+ * counted or messaged twice — Radar events, buyer digests, match counts
+ * — and leave it off where each person is genuinely a separate target.
+ */
 export function getMatchingContacts(
   property: Partial<Property>,
-  contacts: Contact[]
+  contacts: Contact[],
+  parties?: Map<string, ContactParty>
 ): MatchingResult[] {
   if (!property.price && !property.location && !property.type) {
     return [];
@@ -900,7 +918,72 @@ export function getMatchingContacts(
     });
   }
 
-  return results.sort((a, b) => b.score - a.score);
+  return collapseMatchesToParties(
+    results.sort((a, b) => b.score - a.score),
+    parties
+  );
+}
+
+/**
+ * One result per deal when the caller asked for it.
+ *
+ * Deliberately opt-in rather than automatic, because the right answer
+ * differs by surface: a share dialog should still offer a husband and
+ * wife separately (you may want to send to both), while a match count,
+ * a Radar event and a buyer digest are about deals and must not report
+ * one twice.
+ *
+ * The highest-scoring member wins the row. A party shares a
+ * requirement, but the preferences behind it are often recorded on only
+ * one of the two contacts, so the best score is the party's true score
+ * — taking the primary's would understate a deal whose brief happens to
+ * live on the spouse's record. Results arrive sorted, so the first
+ * member seen is already the best; the primary breaks a tie only when
+ * they scored equally.
+ */
+function collapseMatchesToParties(
+  results: MatchingResult[],
+  parties?: Map<string, ContactParty>
+): MatchingResult[] {
+  if (!parties?.size) return results;
+
+  const byParty = new Map<string, MatchingResult>();
+  const out: MatchingResult[] = [];
+
+  for (const result of results) {
+    const party = parties.get(result.contact.id);
+    if (!party) {
+      out.push(result);
+      continue;
+    }
+    const held = byParty.get(party.id);
+    if (!held) {
+      const row: MatchingResult = {
+        ...result,
+        party: { id: party.id, name: party.name },
+        alsoMatched: [],
+      };
+      byParty.set(party.id, row);
+      out.push(row);
+      continue;
+    }
+    const beatsOnTie =
+      result.score === held.score &&
+      result.contact.id === party.primaryContactId;
+    if (beatsOnTie) {
+      held.alsoMatched = [
+        ...(held.alsoMatched ?? []).filter((c) => c.id !== result.contact.id),
+        held.contact,
+      ];
+      held.contact = result.contact;
+      held.details = result.details;
+      held.matchedFields = result.matchedFields;
+    } else {
+      held.alsoMatched = [...(held.alsoMatched ?? []), result.contact];
+    }
+  }
+
+  return out;
 }
 
 // ── Share audiences ─────────────────────────────────────────────────

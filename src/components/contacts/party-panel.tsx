@@ -20,6 +20,7 @@ import { Loader2, Star, Unlink, UsersRound } from 'lucide-react';
 import { toast } from 'sonner';
 
 import type { Contact, ContactPartySummary, PartyKind } from '@/types';
+import type { PartySuggestion } from '@/lib/contacts/party-suggestions';
 import { contactFullName } from '@/lib/contacts/full-name';
 import { Button } from '@/components/ui/button';
 import { SearchableContactSelect } from '@/components/ui/searchable-contact-select';
@@ -30,6 +31,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+
+/** Why a pair was suggested, in the agent's words. Each names the
+ *  evidence rather than claiming a relationship we cannot know. */
+const SUGGESTION_REASONS: Record<PartySuggestion['reason'], string> = {
+  same_property: 'both on the journey for',
+  same_company: 'same company',
+  email_domain: 'same email domain',
+  shared_surname: 'same surname',
+};
 
 const KIND_LABELS: Record<PartyKind, string> = {
   household: 'Household',
@@ -51,6 +61,7 @@ export function PartyPanel({ contactId, contacts, canEdit }: PartyPanelProps) {
   const [busy, setBusy] = useState(false);
   const [picked, setPicked] = useState<string | null>(null);
   const [kind, setKind] = useState<PartyKind>('household');
+  const [suggestions, setSuggestions] = useState<PartySuggestion[]>([]);
 
   const load = useCallback(async () => {
     try {
@@ -58,13 +69,25 @@ export function PartyPanel({ contactId, contacts, canEdit }: PartyPanelProps) {
       const json = (await res.json()) as { data?: ContactPartySummary | null };
       setParty(json.data ?? null);
       if (json.data?.kind) setKind(json.data.kind);
+
+      // Suggestions are only meaningful for someone not already linked
+      // — a contact belongs to at most one party.
+      if (!json.data && canEdit) {
+        const sres = await fetch(
+          `/api/contacts/${contactId}/party/suggestions`
+        );
+        const sjson = (await sres.json()) as { data?: PartySuggestion[] };
+        setSuggestions(sjson.data ?? []);
+      } else {
+        setSuggestions([]);
+      }
     } catch {
       // A panel that cannot load its own state should stay quiet rather
       // than toast on every contact the agent opens.
     } finally {
       setLoading(false);
     }
-  }, [contactId]);
+  }, [contactId, canEdit]);
 
   useEffect(() => {
     void load();
@@ -140,6 +163,27 @@ export function PartyPanel({ contactId, contacts, canEdit }: PartyPanelProps) {
     run(
       () => fetch(`/api/contacts/${targetId}/party`, { method: 'DELETE' }),
       'Unlinked. Their contact record is untouched.'
+    );
+
+  const acceptSuggestion = (targetId: string) =>
+    run(
+      () =>
+        fetch(`/api/contacts/${contactId}/party`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contact_ids: [targetId], kind }),
+        }),
+      'Linked — they now share one follow-up.'
+    );
+
+  const dismissSuggestion = (targetId: string) =>
+    run(
+      () =>
+        fetch(
+          `/api/contacts/${contactId}/party/suggestions?contact_id=${encodeURIComponent(targetId)}`,
+          { method: 'DELETE' }
+        ),
+      'Noted — we will not suggest that pair again.'
     );
 
   if (loading) {
@@ -218,6 +262,49 @@ export function PartyPanel({ contactId, contacts, canEdit }: PartyPanelProps) {
           requirement and the Engine treats them as one deal — one follow-up
           card instead of one each, and a reply from any of them counts.
         </p>
+      )}
+
+      {canEdit && suggestions.length > 0 && (
+        <div className="space-y-1.5 border-t border-slate-800 pt-2">
+          <p className="text-[10px] font-semibold tracking-wide text-slate-500 uppercase">
+            Might buy together
+          </p>
+          {suggestions.map((s) => (
+            <div
+              key={s.contactId}
+              className="flex items-center justify-between gap-2 rounded-lg border border-slate-800 bg-slate-950/60 px-2.5 py-1.5"
+            >
+              <div className="min-w-0">
+                <span className="block truncate text-xs text-slate-200">
+                  {s.name || 'Unnamed'}
+                </span>
+                <span className="text-[10px] text-slate-500">
+                  {SUGGESTION_REASONS[s.reason]}
+                  {s.detail ? ` · ${s.detail}` : ''}
+                </span>
+              </div>
+              <div className="flex shrink-0 items-center gap-1.5">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={busy}
+                  onClick={() => acceptSuggestion(s.contactId)}
+                  className="h-6 px-2 text-[10px]"
+                >
+                  Link
+                </Button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => dismissSuggestion(s.contactId)}
+                  className="text-[10px] text-slate-500 hover:text-slate-300 disabled:opacity-40"
+                >
+                  not related
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
       )}
 
       {canEdit && (
