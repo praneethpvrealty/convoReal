@@ -152,6 +152,10 @@ import {
 import { processListingVerification } from '@/lib/showcase/listing-verification'
 import { processRequirementReply } from '@/lib/requirements/respond'
 import { tryHandleInboundScheduling } from '@/lib/calendar/whatsapp-scheduler'
+import {
+  AGENT_MESSAGE_CONTACT_PREFIX,
+  handleAgentMessageContactReply,
+} from '@/lib/calendar/agent-reminder-actions'
 import { createNotification } from '@/lib/notifications/create'
 import { processCtwaReferral, type WhatsAppReferral } from '@/lib/whatsapp/ctwa-attribution'
 import { resolveRouting } from '@/lib/whatsapp/routing-engine'
@@ -1326,6 +1330,18 @@ async function processMessage(
       const handled = await handlePostCallOpenReply({
         admin: supabaseAdmin(),
         accountId,
+        replyId: interactiveReplyId,
+        senderPhone,
+      })
+      if (handled) return
+    }
+    if (interactiveReplyId.startsWith(AGENT_MESSAGE_CONTACT_PREFIX)) {
+      const handled = await handleAgentMessageContactReply({
+        admin: supabaseAdmin(),
+        accountId,
+        ownerUserId: configOwnerUserId,
+        agentContactId: contactRecord.id,
+        agentConversationId: conversation.id,
         replyId: interactiveReplyId,
         senderPhone,
       })

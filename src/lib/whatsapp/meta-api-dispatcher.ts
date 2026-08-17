@@ -365,8 +365,9 @@ export async function sendWhatsAppMessageAndPersist(
       phoneNumberId = config.phone_number_id
     }
 
-    // 3b. Meta's 24-hour customer service window. Free-form text is
-    // deliverable only within 24 hours of the contact's last inbound
+    // 3b. Meta's 24-hour customer service window. Free-form text and
+    // interactive cards are deliverable only within 24 hours of the
+    // contact's last inbound
     // message; outside it Meta accepts the send, returns a wamid, then
     // fails it asynchronously with 131047 — the message lands in the
     // thread as a delivery failure minutes later. Every sender in the
@@ -376,7 +377,10 @@ export async function sendWhatsAppMessageAndPersist(
     // message via isReengagementError() and fall back to a template.
     // Sandbox swaps in its own system template upstream, so it is left
     // to that path.
-    if (args.kind === 'text' && config.integration_type !== 'sandbox') {
+    if (
+      (args.kind === 'text' || args.kind === 'interactive') &&
+      config.integration_type !== 'sandbox'
+    ) {
       const { data: lastInbound } = await db
         .from('messages')
         .select('created_at')

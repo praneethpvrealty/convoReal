@@ -368,6 +368,29 @@ describe("sendWhatsAppMessageAndPersist", () => {
       expect(fetch).not.toHaveBeenCalled();
     });
 
+    it("refuses an interactive card when the contact has never messaged in", async () => {
+      const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
+      const db = makeDb({
+        existingConversation: { id: "conv-existing" },
+        lastInboundAt: null,
+      });
+
+      const result = await sendWhatsAppMessageAndPersist({
+        accountId: ACCOUNT_ID,
+        contactId: CONTACT_ID,
+        kind: "interactive",
+        senderType: "bot",
+        interactiveType: "buttons",
+        interactiveBody: "Choose an action",
+        interactiveButtons: [{ id: "send:1", title: "Send" }],
+        customDbClient: db,
+      });
+
+      expect(result.success).toBe(false);
+      expect(isReengagementError(result.error)).toBe(true);
+      expect(fetch).not.toHaveBeenCalled();
+    });
+
     it("sends free-form text while the window is open", async () => {
       const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
       const db = makeDb({

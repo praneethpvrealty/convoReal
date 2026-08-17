@@ -11,7 +11,7 @@
 //  3. Overdue nudge: an event that ended hours ago but was never
 //     marked complete — the Engine asks instead of the manager.
 //
-// Sends are free-form text via the account's own WhatsApp number;
+// Sends are free-form cards via the account's own WhatsApp number;
 // if the 24h service window is closed Meta rejects the send and we
 // simply log it (flags stay unset for pre-event so the next tick
 // can retry).
@@ -19,10 +19,14 @@
 
 import { supabaseAdmin } from '@/lib/automations/admin-client';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
-import { sanitizePhoneForMeta, isValidE164 } from '@/lib/whatsapp/phone-utils';
+import { sanitizePhoneForMeta, isValidE164, phonesMatch } from '@/lib/whatsapp/phone-utils';
 import { formatAgendaMessage, istDayWindow, istHourOf } from '@/lib/calendar/whatsapp-scheduler';
 import { createNotification } from '@/lib/notifications/create';
 import { recordBotTarget } from '@/lib/whatsapp/bot-message-target';
+import {
+  agentMessageButtonTitle,
+  buildAgentMessageContactReplyId,
+} from '@/lib/calendar/agent-reminder-actions';
 
 const EVENT_TYPE_EMOJI: Record<string, string> = {
   site_visit: '📍',
@@ -69,7 +73,7 @@ interface ReminderAppointment {
 function attendeesOf(
   appt: ReminderAppointment,
   contactById: Map<string, { id: string; name: string | null; phone: string | null }>
-): { name: string | null; phone: string | null }[] {
+): { id: string; name: string | null; phone: string | null }[] {
   const ids = new Set<string>(appt.contact_ids || []);
   if (appt.contact?.id) ids.add(appt.contact.id);
   return [...ids]
@@ -145,10 +149,17 @@ export async function sendAgentEventReminders(now: Date = new Date()): Promise<v
     }
 
     const emoji = EVENT_TYPE_EMOJI[appt.event_type || 'other'] || '🗓';
+    const attendees = attendeesOf(appt, contactById);
+    const messageableContacts = attendees.filter(
+      (contact) =>
+        !!contact.phone &&
+        isValidE164(sanitizePhoneForMeta(contact.phone)) &&
+        !phonesMatch(contact.phone, assignee.phone)
+    );
     const lines = [
       `⏰ *Coming up at ${istTime(appt.start_time)}*`,
       `${emoji} ${appt.title}`,
-      ...attendeesOf(appt, contactById).map(
+      ...attendees.map(
         (c) => `👤 ${c.name || 'Contact'}${c.phone ? ` — ${c.phone}` : ''}`
       ),
       appt.liaison
@@ -158,17 +169,54 @@ export async function sendAgentEventReminders(now: Date = new Date()): Promise<v
       appt.location ? `📌 ${appt.location}\n🗺 ${mapsLink(appt.location)}` : null,
       appt.agenda ? `📋 *Agenda:* ${appt.agenda}` : null,
       '',
+      messageableContacts.length > 0
+        ? '_Use the action below to send an approved Utility reminder through ConvoReal. Delivery and replies will be tracked._'
+        : null,
       '_Reply to this message once it is done — or *today* for your full schedule._',
     ].filter((l): l is string => l !== null);
 
-    const result = await sendWhatsAppMessageAndPersist({
+    const body = lines.join('\n');
+    const common = {
       accountId: appt.account_id,
       userId: assigneeId,
       toPhone: assignee.phone,
-      kind: 'text',
-      senderType: 'bot',
-      text: lines.join('\n'),
-    });
+      senderType: 'bot' as const,
+    };
+    const result =
+      messageableContacts.length === 0
+        ? await sendWhatsAppMessageAndPersist({
+            ...common,
+            kind: 'text',
+            text: body,
+          })
+        : messageableContacts.length <= 3
+          ? await sendWhatsAppMessageAndPersist({
+              ...common,
+              kind: 'interactive',
+              interactiveType: 'buttons',
+              interactiveBody: body,
+              interactiveButtons: messageableContacts.map((contact) => ({
+                id: buildAgentMessageContactReplyId(appt.id, contact.id),
+                title: agentMessageButtonTitle(contact.name),
+              })),
+            })
+          : await sendWhatsAppMessageAndPersist({
+              ...common,
+              kind: 'interactive',
+              interactiveType: 'list',
+              interactiveBody: body,
+              interactiveButtonLabel: 'Message a contact',
+              interactiveSections: [
+                {
+                  title: 'Appointment contacts',
+                  rows: messageableContacts.slice(0, 10).map((contact) => ({
+                    id: buildAgentMessageContactReplyId(appt.id, contact.id),
+                    title: agentMessageButtonTitle(contact.name),
+                    description: contact.phone || undefined,
+                  })),
+                },
+              ],
+            });
 
     if (!result.success) {
       // Expected whenever the assignee hasn't messaged the bot in 24h: this
