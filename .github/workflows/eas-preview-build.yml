@@ -86,7 +86,25 @@ jobs:
 
       - name: Build preview app
         run: |
+          # Preserve the normal live EAS output, but retain enough
+          # context to show the authenticated build record when native
+          # compilation fails. This keeps future failures diagnosable
+          # from GitHub without exposing the Expo token.
+          set +e
           eas build \
             --platform "$BUILD_PLATFORM" \
             --profile preview \
-            --non-interactive
+            --non-interactive 2>&1 | tee "$RUNNER_TEMP/eas-build-output.log"
+          status=${PIPESTATUS[0]}
+          set -e
+
+          if [ "$status" -ne 0 ]; then
+            build_id=$(sed -nE 's#.*\/builds\/([0-9a-f-]{36}).*#\1#p' \
+              "$RUNNER_TEMP/eas-build-output.log" | tail -1)
+            if [ -n "$build_id" ]; then
+              echo "::group::Failed EAS build record"
+              eas build:view "$build_id" --json || true
+              echo "::endgroup::"
+            fi
+            exit "$status"
+          fi
