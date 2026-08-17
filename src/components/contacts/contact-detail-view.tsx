@@ -2615,12 +2615,14 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
               <div className="h-full flex flex-col px-4 py-3 min-h-0">
                 <div className="space-y-2 mb-3">
                   <Textarea
+                    data-testid="contact-note-input"
                     value={newNote}
                     onChange={(e) => setNewNote(e.target.value)}
                     placeholder="Write a note..."
                     className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 min-h-[60px] text-sm resize-none"
                   />
                   <Button
+                    data-testid="contact-note-submit"
                     onClick={addNote}
                     disabled={!newNote.trim() || savingNote}
                     className="bg-primary hover:bg-primary/90 text-primary-foreground"

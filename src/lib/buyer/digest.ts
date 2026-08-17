@@ -180,6 +180,17 @@ export function buildNoMatchesMessage(
   );
 }
 
+export function buildUnavailableEnquiryMessage(args: {
+  contactName: string | null | undefined;
+  propertyTitle: string;
+  hasAlternatives: boolean;
+}): string {
+  const opening = `Hi ${firstName(args.contactName)} — *${args.propertyTitle}* is no longer available.`;
+  return args.hasAlternatives
+    ? `${opening} I found these available options that are closest to what you're looking for:`
+    : `${opening} I've kept your requirement active and will share a similar property as soon as one is available. Reply with any change in budget, area or type.`;
+}
+
 // Prefixes repeat ("show my matches"), so the group is starred rather
 // than optional. The length guard above keeps this from swallowing a
 // sentence that merely mentions the word.

@@ -3,6 +3,7 @@ import {
   buildConsentRequestMessage,
   buildMatchDigestMessage,
   buildNoMatchesMessage,
+  buildUnavailableEnquiryMessage,
   parseBuyerMatchesCommand,
   selectUnsentMatches,
   MAX_DIGEST_MATCHES,
@@ -127,6 +128,28 @@ describe('buildConsentRequestMessage', () => {
 describe('buildNoMatchesMessage', () => {
   it('says nothing fits and invites an update', () => {
     expect(buildNoMatchesMessage('Ravi')).toContain('nothing in our inventory fits');
+  });
+});
+
+describe('buildUnavailableEnquiryMessage', () => {
+  it('names the unavailable enquiry and keeps the requirement active', () => {
+    const text = buildUnavailableEnquiryMessage({
+      contactName: 'Vinutha',
+      propertyTitle: 'Palm Grove',
+      hasAlternatives: false,
+    });
+    expect(text).toContain('*Palm Grove* is no longer available');
+    expect(text).toContain('kept your requirement active');
+  });
+
+  it('introduces available alternatives when they exist', () => {
+    expect(
+      buildUnavailableEnquiryMessage({
+        contactName: 'Vinutha',
+        propertyTitle: 'Palm Grove',
+        hasAlternatives: true,
+      })
+    ).toContain('these available options');
   });
 });
 

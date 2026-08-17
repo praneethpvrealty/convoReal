@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   enrichmentFor,
+  matchContactByExactName,
   matchContactByName,
   matchContactByPhone,
   sameDraftSubject,
@@ -53,6 +54,27 @@ describe('matchContactByName', () => {
 
   it('ignores case, punctuation and bracketed annotations', () => {
     expect(matchContactByName('vasundhara (purva)', book)?.id).toBe('vas');
+  });
+});
+
+describe('matchContactByExactName', () => {
+  it('finds one exact full-name contact', () => {
+    expect(
+      matchContactByExactName('Sandeep Kotecha', [
+        c('sandeep', 'Sandeep Kotecha', '+919900001111'),
+        c('other', 'Sandeep Kumar', '+919900002222'),
+      ])?.id
+    ).toBe('sandeep');
+  });
+
+  it('does not guess for a prefix or duplicate exact names', () => {
+    expect(matchContactByExactName('Sandeep', [c('s', 'Sandeep Kotecha')])).toBeNull();
+    expect(
+      matchContactByExactName('Sandeep Kotecha', [
+        c('a', 'Sandeep Kotecha'),
+        c('b', 'Sandeep Kotecha'),
+      ])
+    ).toBeNull();
   });
 });
 

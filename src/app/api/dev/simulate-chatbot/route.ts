@@ -41,6 +41,9 @@ import {
 } from '@/lib/ai/preference-extraction';
 import { rankProperties } from '@/lib/radar/engine';
 import type { Contact, Property } from '@/types';
+import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
+import { buildBuyerMatchReply } from '@/lib/buyer/match-reply';
+import { matchContactByExactName, type BookContact } from '@/lib/contacts/draft-match';
 
 // POST /api/dev/simulate-chatbot
 // Internal dev tool: runs the exact classify -> parse -> validate ->
@@ -68,7 +71,8 @@ export async function POST(request: Request) {
       text?: string;
       imageBase64?: string;
       mimeType?: string;
-      mode?: 'owner_intake' | 'lead_reply';
+      mode?: 'owner_intake' | 'lead_reply' | 'buyer_matches';
+      phone?: string;
       priorRequirements?: string;
       contactName?: string;
       subjectPropertyCode?: string;
@@ -77,6 +81,37 @@ export async function POST(request: Request) {
     const text = (body?.text || '').trim().slice(0, MAX_TEXT_LEN);
     const imageBase64 = body?.imageBase64 || null;
     const mimeType = body?.mimeType || null;
+
+    const phone = (body?.phone || '').trim();
+    if (body?.mode === 'buyer_matches') {
+      if (!phone) {
+        return NextResponse.json({ error: 'Provide the buyer phone number.' }, { status: 400 });
+      }
+      const normalized = normalizePhoneWithCountryCode(phone);
+      const digits = normalized.replace(/\D/g, '');
+      const { data: contacts } = await ctx.supabase
+        .from('contacts')
+        .select('id, name')
+        .eq('account_id', ctx.accountId)
+        .or(`phone.eq."${phone.replace(/[\\"]/g, '\\$&')}",phone.eq.${normalized},phone.eq.${digits}`)
+        .limit(2);
+      if (!contacts || contacts.length !== 1) {
+        return NextResponse.json(
+          { error: contacts?.length ? 'More than one contact has that phone.' : 'No contact has that phone.' },
+          { status: 404 }
+        );
+      }
+      const previewText = await buildBuyerMatchReply({
+        accountId: ctx.accountId,
+        contactId: contacts[0].id,
+        db: ctx.supabase,
+      });
+      return NextResponse.json({
+        mode: 'buyer_matches',
+        contactName: contacts[0].name,
+        previewText,
+      });
+    }
 
     if (!text && !imageBase64) {
       return NextResponse.json({ error: 'Provide message text and/or an image.' }, { status: 400 });
@@ -98,9 +133,24 @@ export async function POST(request: Request) {
     const classification = await classifyImageOrText(text, mediaBuffer, mimeType || undefined);
 
     if (classification === 'contact') {
-      const container = mediaBuffer && mimeType
+      let container = mediaBuffer && mimeType
         ? await parseContactFromImageOrText(text, mediaBuffer, mimeType)
         : await parseContactFromImageOrText(text);
+      if ((container.contacts || []).some((contact) => !(contact.phone || '').trim())) {
+        const { data: bookRows } = await ctx.supabase
+          .from('contacts')
+          .select('id, name, phone')
+          .eq('account_id', ctx.accountId)
+          .eq('is_merged', false);
+        const book = (bookRows || []) as BookContact[];
+        container = {
+          contacts: (container.contacts || []).map((contact) => {
+            if ((contact.phone || '').trim()) return contact;
+            const exact = matchContactByExactName(contact.name, book);
+            return exact?.phone ? { ...contact, phone: exact.phone } : contact;
+          }),
+        };
+      }
       const { isValid, missingFields } = validateContactDraftsContainer(container);
       const status = deriveDraftStatus(isValid);
       const previewText = formatContactDraftsPreview('📝 *Contact Drafts (simulated)*', container, status, missingFields);

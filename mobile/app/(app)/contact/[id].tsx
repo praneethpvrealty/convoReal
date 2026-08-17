@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import * as Linking from 'expo-linking';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -274,6 +274,7 @@ function ContactCard({ contact }: { contact: Contact }) {
   const [detailsRequestOpen, setDetailsRequestOpen] = useState(false);
   const [favoriting, setFavoriting] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const scrollRef = useRef<ScrollView>(null);
   const {
     show: showDialog,
     close: closeDialog,
@@ -396,9 +397,10 @@ function ContactCard({ contact }: { contact: Contact }) {
     <KeyboardAvoidingView
       testID="contact-detail-screen"
       style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView
+        ref={scrollRef}
         contentContainerStyle={styles.container}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
@@ -590,6 +592,9 @@ function ContactCard({ contact }: { contact: Contact }) {
         <AgentNotes
           contactId={contact.id}
           title={contact.classification === 'Agent' ? 'Agent notes' : 'Notes'}
+          onComposerFocus={() => {
+            setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 250);
+          }}
         />
 
         <Text

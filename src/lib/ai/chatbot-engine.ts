@@ -44,6 +44,7 @@ import { notifyManagerLowBalance } from '@/lib/credits/notify';
 import { tryHandleOwnerScheduling, applySchedulingEdit, isDictatedTaskList } from '@/lib/calendar/whatsapp-scheduler';
 import {
   enrichmentFor,
+  matchContactByExactName,
   phoneLinkButtonTitle,
   suggestPhoneLink,
   type BookContact,
@@ -559,6 +560,32 @@ async function suggestContactLink(
   }
 }
 
+async function resolveExactContactLinks(
+  container: ParsedContactDraftsContainer,
+  accountId: string
+): Promise<ParsedContactDraftsContainer> {
+  const drafts = container.contacts || [];
+  if (!drafts.some((contact) => !(contact.phone || '').trim())) return container;
+  try {
+    const { data } = await supabaseAdmin()
+      .from('contacts')
+      .select('id, name, phone')
+      .eq('account_id', accountId)
+      .eq('is_merged', false);
+    const book = (data || []) as BookContact[];
+    return {
+      contacts: drafts.map((draft) => {
+        if ((draft.phone || '').trim()) return draft;
+        const exact = matchContactByExactName(draft.name, book);
+        return exact?.phone ? { ...draft, phone: exact.phone } : draft;
+      }),
+    };
+  } catch (err) {
+    console.error('[chatbot-engine] exact contact link failed:', err);
+    return container;
+  }
+}
+
 async function sendContactDraftPreview(
   phoneNumberId: string,
   accessToken: string,
@@ -570,9 +597,18 @@ async function sendContactDraftPreview(
   conversationId: string,
   accountId: string
 ): Promise<void> {
-  let reply = await formatContactDraftsContainerPreview(header, container, nextStatus, missingFields, accountId);
+  const resolvedContainer = await resolveExactContactLinks(container, accountId);
+  const resolvedValidation = validateContactDraftsContainer(resolvedContainer);
+  const resolvedStatus = resolvedValidation.isValid ? 'awaiting_confirmation' : nextStatus;
+  let reply = await formatContactDraftsContainerPreview(
+    header,
+    resolvedContainer,
+    resolvedStatus,
+    resolvedValidation.isValid ? [] : missingFields,
+    accountId
+  );
 
-  const buttons = nextStatus === 'awaiting_confirmation'
+  const buttons = resolvedStatus === 'awaiting_confirmation'
     ? [
         { id: 'confirm_contact', title: 'Confirm' },
         { id: 'cancel_contact', title: 'Cancel' }
@@ -587,7 +623,7 @@ async function sendContactDraftPreview(
   // filling it in: the match is deterministic and refuses anything
   // ambiguous, but a wrong one files the conversation against a
   // stranger, and nobody catches that by reading the contact later.
-  const suggestion = await suggestContactLink(container, accountId);
+  const suggestion = await suggestContactLink(resolvedContainer, accountId);
   if (suggestion) {
     reply +=
       `\n\n💡 *${suggestion.contact.name}* (${suggestion.contact.phone}) is already ` +
@@ -2057,7 +2093,8 @@ export async function processOwnerChatbotMessage(
 
     // Handle CONFIRM instruction
     if (buttonId === 'confirm_contact' || lowerText === 'confirm') {
-      const { isValid, missingFields } = validateContactDraftsContainer(container);
+      const confirmedContainer = await resolveExactContactLinks(container, accountId);
+      const { isValid, missingFields } = validateContactDraftsContainer(confirmedContainer);
       if (!isValid) {
         const reply = `⚠️ *Cannot confirm yet.* The following fields are missing:\n\n` +
           missingFields.map(f => `• *${f}*`).join('\n') +
@@ -2081,7 +2118,7 @@ export async function processOwnerChatbotMessage(
       const duplicates = [];
       const enriched: { id: string; name: string; changed: string[] }[] = [];
 
-      for (const draft of container.contacts) {
+      for (const draft of confirmedContainer.contacts) {
         const normalized = normalizePhoneWithCountryCode(draft.phone || '');
         const cleanPhone = normalized.replace(/\D/g, '');
         const { data: existingContact } = await supabaseAdmin()

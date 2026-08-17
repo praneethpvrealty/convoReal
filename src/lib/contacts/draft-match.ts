@@ -78,6 +78,17 @@ export function matchContactByName(
   return hits.length === 1 ? hits[0] : null;
 }
 
+/** A unique full-name match, safe to link without asking the agent. */
+export function matchContactByExactName(
+  draftName: string | null | undefined,
+  book: BookContact[]
+): BookContact | null {
+  const wanted = tokens(draftName).join(' ');
+  if (!wanted) return null;
+  const hits = book.filter((contact) => tokens(contact.name).join(' ') === wanted);
+  return hits.length === 1 ? hits[0] : null;
+}
+
 /**
  * Are two parsed drafts about the same person?
  *

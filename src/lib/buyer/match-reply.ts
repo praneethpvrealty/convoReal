@@ -18,6 +18,7 @@ import { curateForBuyer, hasBuyerBrief } from './matches-ranking';
 import {
   buildMatchDigestMessage,
   buildNoMatchesMessage,
+  buildUnavailableEnquiryMessage,
   MAX_DIGEST_MATCHES,
 } from './digest';
 
@@ -54,6 +55,19 @@ export async function buildBuyerMatchReply(args: {
     // normal handling rather than answering with a listing dump.
     if (!hasBuyerBrief(contact)) return null;
 
+    let unavailableEnquiryTitle: string | null = null;
+    if (contact.last_inquired_property_id) {
+      const { data: enquired } = await db
+        .from('properties')
+        .select('title, status')
+        .eq('id', contact.last_inquired_property_id)
+        .eq('account_id', args.accountId)
+        .maybeSingle();
+      if (enquired && enquired.status !== 'Available') {
+        unavailableEnquiryTitle = enquired.title;
+      }
+    }
+
     const { data: poolRows } = await db
       .from('properties')
       .select('*')
@@ -66,13 +80,28 @@ export async function buildBuyerMatchReply(args: {
     const matches = curateForBuyer((poolRows || []) as Property[], contact, {
       limit: MAX_DIGEST_MATCHES,
     });
-    if (matches.length === 0) return buildNoMatchesMessage(contact.name);
+    if (matches.length === 0) {
+      return unavailableEnquiryTitle
+        ? buildUnavailableEnquiryMessage({
+            contactName: contact.name,
+            propertyTitle: unavailableEnquiryTitle,
+            hasAlternatives: false,
+          })
+        : buildNoMatchesMessage(contact.name);
+    }
 
-    return buildMatchDigestMessage({
+    const digest = buildMatchDigestMessage({
       contactName: contact.name,
       matches,
       portalUrl: portalUrl(),
     });
+    return unavailableEnquiryTitle
+      ? `${buildUnavailableEnquiryMessage({
+          contactName: contact.name,
+          propertyTitle: unavailableEnquiryTitle,
+          hasAlternatives: true,
+        })}\n\n${digest}`
+      : digest;
   } catch (err) {
     console.error('[buyer-match-reply] failed:', err);
     return null;
