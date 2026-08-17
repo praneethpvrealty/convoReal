@@ -22,6 +22,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Contact, Property } from '@/types';
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import {
+  collapseToParties,
+  loadContactParties,
+} from '@/lib/contacts/parties';
 import { BRANDING } from '@/config/branding';
 // The session-first / template-fallback ladder is persona-neutral —
 // reused rather than duplicated (it lives under den/ for historical
@@ -127,7 +131,15 @@ async function runAccount(
     .not('phone', 'is', null)
     .limit(MAX_BUYERS_PER_ACCOUNT);
 
-  const buyers = ((contactRows || []) as Contact[]).filter(hasBuyerBrief);
+  // A couple sharing one requirement is one buyer to digest. Both would
+  // otherwise receive the same listings on the same morning, and each
+  // send is a template message the account pays for.
+  const parties = await loadContactParties(db, accountId);
+  const buyers = collapseToParties(
+    ((contactRows || []) as Contact[]).filter(hasBuyerBrief),
+    (c) => c.id,
+    parties
+  ).map(({ row }) => row);
   summary.buyers = buyers.length;
   if (buyers.length === 0) return summary;
 

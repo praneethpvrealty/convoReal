@@ -1129,3 +1129,83 @@ describe('getMatchingContacts', () => {
     });
   });
 });
+
+// Stage 2 of parties: a couple sharing one requirement produced two
+// match sets, two Radar events and two lines in the buyer digest.
+// Passing a party index makes the answer one row per deal.
+describe('party collapse', () => {
+  const parties = new Map([
+    [
+      'ravi',
+      {
+        id: 'party-1',
+        name: null,
+        kind: 'household' as const,
+        primaryContactId: 'ravi',
+        memberIds: ['ravi', 'pruthvi'],
+      },
+    ],
+    [
+      'pruthvi',
+      {
+        id: 'party-1',
+        name: null,
+        kind: 'household' as const,
+        primaryContactId: 'ravi',
+        memberIds: ['ravi', 'pruthvi'],
+      },
+    ],
+  ]);
+
+  const office = createTestProperty({
+    type: 'Commercial Office',
+    price: 10000000,
+  });
+  const buyer = (id: string, over: Partial<Contact> = {}) =>
+    createTestContact({
+      id,
+      name: id,
+      pref_property_types: ['Commercial Office'],
+      pref_extracted_at: new Date().toISOString(),
+      ...over,
+    });
+
+  it('returns one row per deal instead of one per person', () => {
+    const results = getMatchingContacts(
+      office,
+      [buyer('ravi'), buyer('pruthvi')],
+      parties
+    );
+    expect(results).toHaveLength(1);
+    expect(results[0].party?.id).toBe('party-1');
+    expect(results[0].alsoMatched?.map((c) => c.id)).toEqual(['pruthvi']);
+  });
+
+  // The brief often lives on only one of the two records, so the best
+  // score is the party's true score — taking the primary's would
+  // understate a deal whose preferences sit on the spouse.
+  it('keeps the highest-scoring member as the row', () => {
+    const results = getMatchingContacts(
+      office,
+      [
+        buyer('ravi', { pref_property_types: [], pref_extracted_at: null }),
+        buyer('pruthvi', { max_budget: 12000000, min_budget: 8000000 }),
+      ],
+      parties
+    );
+    expect(results).toHaveLength(1);
+    expect(results[0].contact.id).toBe('pruthvi');
+  });
+
+  it('is per person again when no party index is passed', () => {
+    expect(
+      getMatchingContacts(office, [buyer('ravi'), buyer('pruthvi')])
+    ).toHaveLength(2);
+  });
+
+  it('leaves a buyer who buys alone unannotated', () => {
+    const results = getMatchingContacts(office, [buyer('solo')], parties);
+    expect(results).toHaveLength(1);
+    expect(results[0].party).toBeUndefined();
+  });
+});
