@@ -1248,7 +1248,6 @@ describe('portal enquiry matching regression', () => {
       title: 'Bilekahalli Residential Plot',
       type: 'Residential Land/ Plot',
       location: 'Bilekahalli, Bannerghatta Road',
-      sublocality: null,
       price: 48_000_000,
       price_per_sqft: 20_000,
       land_area: 2_400,
@@ -1271,7 +1270,6 @@ describe('portal enquiry matching regression', () => {
     const property = createTestProperty({
       type: 'Residential Land/ Plot',
       location: 'Bilekahalli',
-      sublocality: null,
     });
 
     expect(getMatchingContacts(property, [contact])).toHaveLength(1);
