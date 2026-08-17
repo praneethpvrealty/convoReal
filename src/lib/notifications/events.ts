@@ -54,6 +54,13 @@ export const NOTIFICATION_EVENTS: NotificationEventDef[] = [
     defaults: { app: true, whatsapp: false },
   },
   {
+    key: 'todo_reminder',
+    group: 'Calendar',
+    label: 'Timed task reminder',
+    description: 'A task reaches its specified due time.',
+    defaults: { app: true, whatsapp: true },
+  },
+  {
     key: 'appointment_overdue',
     group: 'Calendar',
     label: 'Appointment follow-up',

@@ -30,6 +30,7 @@ export type NotificationType =
   | 'appointment_booked'
   | 'new_message'
   | 'appointment_reminder'
+  | 'todo_reminder'
   | 'appointment_overdue'
   | 'daily_digest'
   | 'teammate_update'
