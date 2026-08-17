@@ -8,6 +8,14 @@ Next.js 16 has breaking changes compared with older versions — APIs, file conv
 
 ---
 
+## GitHub operations
+
+- Prefer the connected GitHub plugin for all GitHub reads and writes, including branches, commits, pull requests, reviews, merges, Actions, and deployment-status checks.
+- Do not ask the user to install or authenticate the GitHub CLI (\`gh\`) when the GitHub plugin can perform the operation.
+- Use local \`git\` or \`gh\` only when the plugin lacks the required capability, and explain that specific limitation before asking the user.
+
+---
+
 ## 1. What this project is
 
 ConvoReal is a self-hostable **WhatsApp deal engine for real-estate brokerages**. It provides:
