@@ -12,9 +12,13 @@
  * Anything that IS a DB row shape belongs in src/types, not here.
  */
 
-import type { Contact, Property } from '@shared/types';
+import type {
+  Contact,
+  ContactRequirementProfile,
+  Property,
+} from '@shared/types';
 
-export type { Contact, Property };
+export type { Contact, ContactRequirementProfile, Property };
 
 export type ConversationStatus = 'open' | 'pending' | 'closed';
 
@@ -79,12 +83,19 @@ export function conversationTitle(
 ): string {
   if (conversation?.group) return conversation.group.subject;
   return (
-    conversation?.contact?.name || conversation?.contact?.phone || 'Conversation'
+    conversation?.contact?.name ||
+    conversation?.contact?.phone ||
+    'Conversation'
   );
 }
 
 export type SenderType = 'customer' | 'agent' | 'bot';
-export type MessageStatus = 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
+export type MessageStatus =
+  | 'sending'
+  | 'sent'
+  | 'delivered'
+  | 'read'
+  | 'failed';
 
 export interface Message {
   id: string;
@@ -158,7 +169,12 @@ export interface PickedLocality {
 
 export interface PropertiesResponse {
   data: Property[];
-  pagination: { page: number; limit: number; total: number; totalPages: number };
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
 }
 
 // ------------------------------------------------------------------
@@ -233,7 +249,12 @@ export interface Appointment {
 // Broadcasts (user_id-scoped RLS — you see campaigns YOU created)
 // ------------------------------------------------------------------
 
-export type BroadcastStatus = 'draft' | 'scheduled' | 'sending' | 'sent' | 'failed';
+export type BroadcastStatus =
+  | 'draft'
+  | 'scheduled'
+  | 'sending'
+  | 'sent'
+  | 'failed';
 
 export interface Broadcast {
   id: string;
@@ -252,7 +273,14 @@ export interface Broadcast {
 
 export interface BroadcastRecipient {
   id: string;
-  status: 'pending' | 'sent' | 'delivered' | 'read' | 'replied' | 'failed' | 'rate_limited';
+  status:
+    | 'pending'
+    | 'sent'
+    | 'delivered'
+    | 'read'
+    | 'replied'
+    | 'failed'
+    | 'rate_limited';
   error_message?: string | null;
   contact?: Contact | null;
 }
@@ -301,7 +329,11 @@ export interface JourneyItem {
   hidden: boolean;
   updated_at?: string;
   contact?: Contact | null;
-  property?: { id: string; title: string; property_code?: string | null } | null;
+  property?: {
+    id: string;
+    title: string;
+    property_code?: string | null;
+  } | null;
 }
 
 // ------------------------------------------------------------------
@@ -324,7 +356,11 @@ export interface MessageTemplate {
 // Showcase Pulse (showcase_events; read-only on mobile)
 // ------------------------------------------------------------------
 
-export type ShowcaseEventType = 'open' | 'view_property' | 'map_click' | 'gallery';
+export type ShowcaseEventType =
+  | 'open'
+  | 'view_property'
+  | 'map_click'
+  | 'gallery';
 
 export interface ShowcaseEvent {
   id: string;

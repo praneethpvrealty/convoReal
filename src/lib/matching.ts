@@ -3,110 +3,124 @@ import type { ContactParty } from '@/lib/contacts/parties';
 import { normalizePropertyType } from '@/lib/property-types';
 import { textContainsProject } from '@/lib/project-match';
 import { toSquareFeet } from '@/lib/area-units';
+import {
+  activeRequirementProfiles,
+  contactForRequirementProfile,
+} from '@/lib/requirements/profiles';
 
 // Static geocoordinates for major Bangalore sublocalities used for proximity-based matching.
-const BANGALORE_LOCALITIES_COORDS: Record<string, { lat: number; lng: number }> = {
+const BANGALORE_LOCALITIES_COORDS: Record<
+  string,
+  { lat: number; lng: number }
+> = {
   'jp nagar': { lat: 12.9063, lng: 77.5857 },
-  'indiranagar': { lat: 12.9719, lng: 77.6412 },
+  indiranagar: { lat: 12.9719, lng: 77.6412 },
   'kasturi nagar': { lat: 13.0031, lng: 77.6508 },
   'hsr layout': { lat: 12.9141, lng: 77.6411 },
-  'koramangala': { lat: 12.9279, lng: 77.6271 },
-  'whitefield': { lat: 12.9698, lng: 77.7500 },
-  'jayanagar': { lat: 12.9308, lng: 77.5838 },
+  koramangala: { lat: 12.9279, lng: 77.6271 },
+  whitefield: { lat: 12.9698, lng: 77.75 },
+  jayanagar: { lat: 12.9308, lng: 77.5838 },
   'btm layout': { lat: 12.9166, lng: 77.6101 },
-  'bilekahalli': { lat: 12.8934, lng: 77.6102 },
+  bilekahalli: { lat: 12.8934, lng: 77.6102 },
   'vijaya bank layout': { lat: 12.8916, lng: 77.6098 },
   'vijay bank layout': { lat: 12.8916, lng: 77.6098 },
-  'bellandur': { lat: 12.9272, lng: 77.6756 },
-  'sarjapur': { lat: 12.8624, lng: 77.7818 },
-  'hebbal': { lat: 13.0354, lng: 77.5988 },
-  'yelahanka': { lat: 13.1007, lng: 77.5963 },
+  bellandur: { lat: 12.9272, lng: 77.6756 },
+  sarjapur: { lat: 12.8624, lng: 77.7818 },
+  hebbal: { lat: 13.0354, lng: 77.5988 },
+  yelahanka: { lat: 13.1007, lng: 77.5963 },
   'electronic city': { lat: 12.8407, lng: 77.6763 },
-  'marathahalli': { lat: 12.9569, lng: 77.7011 },
-  'malleshwaram': { lat: 13.0031, lng: 77.5701 },
-  'rajajinagar': { lat: 12.9902, lng: 77.5536 },
-  'banashankari': { lat: 12.9255, lng: 77.5468 },
+  marathahalli: { lat: 12.9569, lng: 77.7011 },
+  malleshwaram: { lat: 13.0031, lng: 77.5701 },
+  rajajinagar: { lat: 12.9902, lng: 77.5536 },
+  banashankari: { lat: 12.9255, lng: 77.5468 },
   'kalyan nagar': { lat: 13.0221, lng: 77.6403 },
-  'kammanahalli': { lat: 13.0093, lng: 77.6366 },
-  'hennur': { lat: 13.0336, lng: 77.6288 },
-  'thanisandra': { lat: 13.0547, lng: 77.6326 },
+  kammanahalli: { lat: 13.0093, lng: 77.6366 },
+  hennur: { lat: 13.0336, lng: 77.6288 },
+  thanisandra: { lat: 13.0547, lng: 77.6326 },
   'rt nagar': { lat: 13.0189, lng: 77.5925 },
-  'sadashivanagar': { lat: 13.0068, lng: 77.5802 },
+  sadashivanagar: { lat: 13.0068, lng: 77.5802 },
   'bannerghatta road': { lat: 12.8956, lng: 77.5984 },
   'halasur nagar': { lat: 12.9818, lng: 77.6256 },
-  'halasur': { lat: 12.9818, lng: 77.6256 },
-  'ulsoor': { lat: 12.9818, lng: 77.6256 },
-  'banaswadi': { lat: 13.0084, lng: 77.6465 },
+  halasur: { lat: 12.9818, lng: 77.6256 },
+  ulsoor: { lat: 12.9818, lng: 77.6256 },
+  banaswadi: { lat: 13.0084, lng: 77.6465 },
   'cv raman nagar': { lat: 12.9792, lng: 77.6644 },
-  'kaggadasapura': { lat: 12.9821, lng: 77.6775 },
+  kaggadasapura: { lat: 12.9821, lng: 77.6775 },
   'ramamurthy nagar': { lat: 13.0163, lng: 77.6785 },
   'kr puram': { lat: 13.0104, lng: 77.7025 },
-  'mahadevapura': { lat: 12.9866, lng: 77.6975 },
-  'brookefield': { lat: 12.9649, lng: 77.7180 },
-  'kadugodi': { lat: 13.0044, lng: 77.7550 },
-  'hoodi': { lat: 12.9919, lng: 77.7126 },
-  'nagawara': { lat: 13.0339, lng: 77.6186 },
+  mahadevapura: { lat: 12.9866, lng: 77.6975 },
+  brookefield: { lat: 12.9649, lng: 77.718 },
+  kadugodi: { lat: 13.0044, lng: 77.755 },
+  hoodi: { lat: 12.9919, lng: 77.7126 },
+  nagawara: { lat: 13.0339, lng: 77.6186 },
   'richmond town': { lat: 12.9634, lng: 77.6012 },
   'lavelle road': { lat: 12.9723, lng: 77.5978 },
-  'cunningham road': { lat: 12.9859, lng: 77.5960 },
+  'cunningham road': { lat: 12.9859, lng: 77.596 },
   'mg road': { lat: 12.9756, lng: 77.6068 },
   'brigade road': { lat: 12.9712, lng: 77.6074 },
   'frazer town': { lat: 12.9972, lng: 77.6143 },
   'benson town': { lat: 12.9989, lng: 77.5996 },
   'cox town': { lat: 12.9976, lng: 77.6267 },
   'cooke town': { lat: 12.9996, lng: 77.6214 },
-  'yeswanthpur': { lat: 13.0238, lng: 77.5529 },
-  'peenya': { lat: 13.0285, lng: 77.5197 },
-  'dasarahalli': { lat: 13.0435, lng: 77.5126 },
-  'nagasandra': { lat: 13.0483, lng: 77.5025 },
-  'vijayanagar': { lat: 12.9756, lng: 77.5354 },
+  yeswanthpur: { lat: 13.0238, lng: 77.5529 },
+  peenya: { lat: 13.0285, lng: 77.5197 },
+  dasarahalli: { lat: 13.0435, lng: 77.5126 },
+  nagasandra: { lat: 13.0483, lng: 77.5025 },
+  vijayanagar: { lat: 12.9756, lng: 77.5354 },
   'chandra layout': { lat: 12.9592, lng: 77.5256 },
-  'nayandahalli': { lat: 12.9405, lng: 77.5263 },
+  nayandahalli: { lat: 12.9405, lng: 77.5263 },
   'rajarajeshwari nagar': { lat: 12.9234, lng: 77.5204 },
   'rr nagar': { lat: 12.9234, lng: 77.5204 },
-  'kengeri': { lat: 12.9099, lng: 77.4834 },
-  'uttarahalli': { lat: 12.9069, lng: 77.5521 },
-  'subramanyapura': { lat: 12.8986, lng: 77.5458 },
+  kengeri: { lat: 12.9099, lng: 77.4834 },
+  uttarahalli: { lat: 12.9069, lng: 77.5521 },
+  subramanyapura: { lat: 12.8986, lng: 77.5458 },
   'kumaraswamy layout': { lat: 12.9073, lng: 77.5675 },
-  'padmanabhanagar': { lat: 12.9181, lng: 77.5574 },
-  'girinagar': { lat: 12.9423, lng: 77.5434 },
-  'basavanagudi': { lat: 12.9417, lng: 77.5755 },
+  padmanabhanagar: { lat: 12.9181, lng: 77.5574 },
+  girinagar: { lat: 12.9423, lng: 77.5434 },
+  basavanagudi: { lat: 12.9417, lng: 77.5755 },
   'hanumanth nagar': { lat: 12.9419, lng: 77.5614 },
-  'srinagar': { lat: 12.9442, lng: 77.5528 },
-  'chamarajpet': { lat: 12.9606, lng: 77.5663 },
+  srinagar: { lat: 12.9442, lng: 77.5528 },
+  chamarajpet: { lat: 12.9606, lng: 77.5663 },
   'gandhi nagar': { lat: 12.9767, lng: 77.5772 },
-  'majestic': { lat: 12.9767, lng: 77.5772 },
+  majestic: { lat: 12.9767, lng: 77.5772 },
   'hosur road': { lat: 12.9165, lng: 77.6253 },
-  'bommanahalli': { lat: 12.9030, lng: 77.6244 },
-  'singasandra': { lat: 12.8798, lng: 77.6394 },
+  bommanahalli: { lat: 12.903, lng: 77.6244 },
+  singasandra: { lat: 12.8798, lng: 77.6394 },
   'hosa road': { lat: 12.8722, lng: 77.6433 },
   'konappana agrahara': { lat: 12.8504, lng: 77.6669 },
-  'jigani': { lat: 12.7844, lng: 77.6274 },
-  'anekal': { lat: 12.7107, lng: 77.6980 },
+  jigani: { lat: 12.7844, lng: 77.6274 },
+  anekal: { lat: 12.7107, lng: 77.698 },
   'sarjapur road': { lat: 12.9099, lng: 77.6631 },
-  'kasavanahalli': { lat: 12.9079, lng: 77.6749 },
-  'kaikondrahalli': { lat: 12.9135, lng: 77.6748 },
-  'carmelaram': { lat: 12.9136, lng: 77.6961 },
-  'gunjur': { lat: 12.9234, lng: 77.7289 },
-  'varthur': { lat: 12.9406, lng: 77.7471 },
-  'panathur': { lat: 12.9348, lng: 77.6986 },
-  'kadubeesanahalli': { lat: 12.9388, lng: 77.6914 },
-  'munnekolala': { lat: 12.9515, lng: 77.7029 },
-  'kundalahalli': { lat: 12.9619, lng: 77.7121 },
-  'itpl': { lat: 12.9866, lng: 77.7371 },
-  'doddanekundi': { lat: 12.9715, lng: 77.6953 },
+  kasavanahalli: { lat: 12.9079, lng: 77.6749 },
+  kaikondrahalli: { lat: 12.9135, lng: 77.6748 },
+  carmelaram: { lat: 12.9136, lng: 77.6961 },
+  gunjur: { lat: 12.9234, lng: 77.7289 },
+  varthur: { lat: 12.9406, lng: 77.7471 },
+  panathur: { lat: 12.9348, lng: 77.6986 },
+  kadubeesanahalli: { lat: 12.9388, lng: 77.6914 },
+  munnekolala: { lat: 12.9515, lng: 77.7029 },
+  kundalahalli: { lat: 12.9619, lng: 77.7121 },
+  itpl: { lat: 12.9866, lng: 77.7371 },
+  doddanekundi: { lat: 12.9715, lng: 77.6953 },
   'outer ring road': { lat: 12.9388, lng: 77.6914 },
-  'orr': { lat: 12.9388, lng: 77.6914 },
+  orr: { lat: 12.9388, lng: 77.6914 },
 };
 
-function calculateHaversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+function calculateHaversineDistance(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+): number {
   const R = 6371; // Earth's radius in km
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = 
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 }
@@ -209,15 +223,20 @@ type SubtypeGroup =
   | 'agricultural'
   | 'other';
 
-type Category = 'residential' | 'commercial' | 'industrial' | 'agricultural' | 'plot';
+type Category =
+  | 'residential'
+  | 'commercial'
+  | 'industrial'
+  | 'agricultural'
+  | 'plot';
 
 const TYPE_TO_GROUP: Record<string, SubtypeGroup> = {
   'Flat/ Apartment': 'apartment',
   'Builder Floor Apartment': 'apartment',
-  'Penthouse': 'apartment',
+  Penthouse: 'apartment',
   'Studio Apartment': 'apartment',
   'Residential House': 'house',
-  'Villa': 'house',
+  Villa: 'house',
   'Farm House': 'house',
   'Residential Land/ Plot': 'residential-plot',
   'Residential PG building': 'pg',
@@ -233,26 +252,32 @@ const TYPE_TO_GROUP: Record<string, SubtypeGroup> = {
   'Industrial Building': 'industrial',
   'Industrial Shed': 'industrial',
   'Agricultural Land': 'agricultural',
-  'Others': 'other',
+  Others: 'other',
 };
 
 const GROUP_TO_CATEGORY: Record<SubtypeGroup, Category | null> = {
-  'apartment': 'residential',
-  'house': 'residential',
+  apartment: 'residential',
+  house: 'residential',
   'residential-plot': 'residential',
-  'pg': 'residential',
+  pg: 'residential',
   'commercial-space': 'commercial',
   'commercial-plot': 'commercial',
-  'industrial': 'industrial',
-  'agricultural': 'agricultural',
-  'other': null,
+  industrial: 'industrial',
+  agricultural: 'agricultural',
+  other: null,
 };
 
 /** Groups the broad 'plot' category covers. */
-const PLOT_GROUPS: SubtypeGroup[] = ['residential-plot', 'commercial-plot', 'agricultural'];
+const PLOT_GROUPS: SubtypeGroup[] = [
+  'residential-plot',
+  'commercial-plot',
+  'agricultural',
+];
 
 /** Resolve a property's subtype group from its (possibly free-form) type string. */
-function resolvePropertyGroup(property: Partial<Property>): SubtypeGroup | null {
+function resolvePropertyGroup(
+  property: Partial<Property>
+): SubtypeGroup | null {
   const canonical = normalizePropertyType(property.type);
   if (canonical && TYPE_TO_GROUP[canonical]) return TYPE_TO_GROUP[canonical];
 
@@ -260,11 +285,14 @@ function resolvePropertyGroup(property: Partial<Property>): SubtypeGroup | null 
   const text = `${property.type || ''} ${property.title || ''}`.toLowerCase();
   if (/industrial/.test(text)) return 'industrial';
   if (/agricultural|farm\s*land|farmland/.test(text)) return 'agricultural';
-  if (/commercial/.test(text) && /plot|land|site/.test(text)) return 'commercial-plot';
-  if (/office|shop|showroom|retail|warehouse|godown|commercial/.test(text)) return 'commercial-space';
+  if (/commercial/.test(text) && /plot|land|site/.test(text))
+    return 'commercial-plot';
+  if (/office|shop|showroom|retail|warehouse|godown|commercial/.test(text))
+    return 'commercial-space';
   if (/\bpg\b|hostel|paying guest/.test(text)) return 'pg';
   if (/plot|\bland\b|\bsite\b/.test(text)) return 'residential-plot';
-  if (/villa|independent|row house|bungalow|\bhouse\b|farm\s*house/.test(text)) return 'house';
+  if (/villa|independent|row house|bungalow|\bhouse\b|farm\s*house/.test(text))
+    return 'house';
   if (/apartment|flat|penthouse|studio/.test(text)) return 'apartment';
   return null;
 }
@@ -277,7 +305,9 @@ const NICHE_LISTING_TYPES: ListingType[] = ['JV/JD', 'Built to Suit'];
 
 function resolveListingType(property: Partial<Property>): ListingType {
   const lt = property.listing_type;
-  return lt && (LISTING_TYPES as string[]).includes(lt) ? (lt as ListingType) : 'Sale';
+  return lt && (LISTING_TYPES as string[]).includes(lt)
+    ? (lt as ListingType)
+    : 'Sale';
 }
 
 /** Infers stated listing intent(s) from free text. Fallback for contacts without AI extraction. */
@@ -287,7 +317,10 @@ function inferListingTypesFromText(text: string): Set<ListingType> {
     const m = pattern.exec(text);
     if (m && !isNegated(text, m[0])) wanted.add(type);
   };
-  add('JV/JD', /\bjv\/?jd\b|joint\s*venture|joint\s*development|revenue\s*share|area\s*share/i);
+  add(
+    'JV/JD',
+    /\bjv\/?jd\b|joint\s*venture|joint\s*development|revenue\s*share|area\s*share/i
+  );
   add('Built to Suit', /built[\s-]?to[\s-]?suit|\bbts\b/i);
   add('Rent', /\brent(al)?\b|to\s*let|\btenant\b|\blease\b/i);
   return wanted;
@@ -340,14 +373,16 @@ function parseBudgetFromText(text: string): {
   const unitMultiplier = (unit: string) =>
     unit.startsWith('cr') ? 10000000 : 100000;
 
-  const maxPattern = /(?:(under|below|up\s*to|max|maximum)|budget\s+of|budget\s+around|budget\s+is)\s*(?:of\s+)?(\d+(?:\.\d+)?)\s*(cr|crore|lakh|lakhs|l|cr\.)/g;
+  const maxPattern =
+    /(?:(under|below|up\s*to|max|maximum)|budget\s+of|budget\s+around|budget\s+is)\s*(?:of\s+)?(\d+(?:\.\d+)?)\s*(cr|crore|lakh|lakhs|l|cr\.)/g;
   let match;
   while ((match = maxPattern.exec(clean)) !== null) {
     maxBudgetVal = parseFloat(match[2]) * unitMultiplier(match[3]);
     maxIsCeiling = match[1] !== undefined;
   }
 
-  const minPattern = /(?:above|at\s*least|min|minimum)\s*(?:of\s+)?(\d+(?:\.\d+)?)\s*(cr|crore|lakh|lakhs|l|cr\.)/g;
+  const minPattern =
+    /(?:above|at\s*least|min|minimum)\s*(?:of\s+)?(\d+(?:\.\d+)?)\s*(cr|crore|lakh|lakhs|l|cr\.)/g;
   while ((match = minPattern.exec(clean)) !== null) {
     minBudgetVal = parseFloat(match[1]) * unitMultiplier(match[2]);
   }
@@ -357,7 +392,8 @@ function parseBudgetFromText(text: string): {
 
 /** Extracts a minimum expected ROI/yield percentage from free text. */
 function parseRoiFromText(text: string): number | null {
-  const yieldPattern = /(?:yielding|yield|roi|return)\s*(?:of|is|above|greater\s*than|>)?\s*(\d+(?:\.\d+)?)\s*%/g;
+  const yieldPattern =
+    /(?:yielding|yield|roi|return)\s*(?:of|is|above|greater\s*than|>)?\s*(\d+(?:\.\d+)?)\s*%/g;
   let minRoi: number | null = null;
   let m;
   while ((m = yieldPattern.exec(text)) !== null) {
@@ -370,46 +406,85 @@ function parseRoiFromText(text: string): number | null {
  * Infers wanted subtype groups / categories from free text, respecting
  * negations ("no commercial"). Used only when structured prefs are absent.
  */
-function inferTypePrefsFromText(text: string): { groups: Set<SubtypeGroup>; categories: Set<Category> } {
+function inferTypePrefsFromText(text: string): {
+  groups: Set<SubtypeGroup>;
+  categories: Set<Category>;
+} {
   const groups = new Set<SubtypeGroup>();
   const categories = new Set<Category>();
   const has = (kw: string) => text.includes(kw) && !isNegated(text, kw);
 
-  if (has('apartment') || has('flat') || has('penthouse') || has('studio')) groups.add('apartment');
-  if (has('villa') || has('independent house') || has('row house') || has('bungalow')) groups.add('house');
-  if (has('plot') || has('vacant land') || (has('land') && !text.includes('landmark'))) categories.add('plot');
-  if (has('commercial') || has('office space') || has('shop') || has('showroom') || has('warehouse')) categories.add('commercial');
+  if (has('apartment') || has('flat') || has('penthouse') || has('studio'))
+    groups.add('apartment');
+  if (
+    has('villa') ||
+    has('independent house') ||
+    has('row house') ||
+    has('bungalow')
+  )
+    groups.add('house');
+  if (
+    has('plot') ||
+    has('vacant land') ||
+    (has('land') && !text.includes('landmark'))
+  )
+    categories.add('plot');
+  if (
+    has('commercial') ||
+    has('office space') ||
+    has('shop') ||
+    has('showroom') ||
+    has('warehouse')
+  )
+    categories.add('commercial');
   if (has('residential')) categories.add('residential');
   if (has('industrial')) categories.add('industrial');
-  if (has('agricultural') || has('farmland') || has('farm land')) categories.add('agricultural');
+  if (has('agricultural') || has('farmland') || has('farm land'))
+    categories.add('agricultural');
   return { groups, categories };
 }
 
 /** Maps a legacy property_interests entry to groups/categories. ROI-style interests return nothing (not a type constraint). */
-function mapLegacyInterest(interest: string): { groups: SubtypeGroup[]; categories: Category[] } {
+function mapLegacyInterest(interest: string): {
+  groups: SubtypeGroup[];
+  categories: Category[];
+} {
   const s = interest.toLowerCase().trim();
   if (!s) return { groups: [], categories: [] };
 
-  if (s.includes('roi') || s.includes('rental') || s.includes('yield')) return { groups: [], categories: [] };
-  if (s.includes('site rate') || s.includes('old building') || s.includes('demolish')) {
+  if (s.includes('roi') || s.includes('rental') || s.includes('yield'))
+    return { groups: [], categories: [] };
+  if (
+    s.includes('site rate') ||
+    s.includes('old building') ||
+    s.includes('demolish')
+  ) {
     // Redevelopment buyers: interested in land value — houses and plots
     return { groups: ['house'], categories: ['plot'] };
   }
-  if (s.includes('plot') || s.includes('vacant land') || s === 'land') return { groups: [], categories: ['plot'] };
+  if (s.includes('plot') || s.includes('vacant land') || s === 'land')
+    return { groups: [], categories: ['plot'] };
   if (s.includes('building')) {
     // "Vacant building" style interests span built structures
     return { groups: ['house', 'commercial-space'], categories: [] };
   }
 
   const canonical = normalizePropertyType(interest);
-  if (canonical && TYPE_TO_GROUP[canonical]) return { groups: [TYPE_TO_GROUP[canonical]], categories: [] };
+  if (canonical && TYPE_TO_GROUP[canonical])
+    return { groups: [TYPE_TO_GROUP[canonical]], categories: [] };
 
-  if (s.includes('apartment') || s.includes('flat')) return { groups: ['apartment'], categories: [] };
-  if (s.includes('villa') || s.includes('house')) return { groups: ['house'], categories: [] };
-  if (s.includes('commercial')) return { groups: [], categories: ['commercial'] };
-  if (s.includes('residential')) return { groups: [], categories: ['residential'] };
-  if (s.includes('industrial')) return { groups: [], categories: ['industrial'] };
-  if (s.includes('agricultural') || s.includes('farm')) return { groups: [], categories: ['agricultural'] };
+  if (s.includes('apartment') || s.includes('flat'))
+    return { groups: ['apartment'], categories: [] };
+  if (s.includes('villa') || s.includes('house'))
+    return { groups: ['house'], categories: [] };
+  if (s.includes('commercial'))
+    return { groups: [], categories: ['commercial'] };
+  if (s.includes('residential'))
+    return { groups: [], categories: ['residential'] };
+  if (s.includes('industrial'))
+    return { groups: [], categories: ['industrial'] };
+  if (s.includes('agricultural') || s.includes('farm'))
+    return { groups: [], categories: ['agricultural'] };
   return { groups: [], categories: [] };
 }
 
@@ -419,7 +494,8 @@ function mapLegacyInterest(interest: string): { groups: SubtypeGroup[]; categori
  * state the absence of a location constraint, so they are never matched
  * as a place; see the location gate, where one of them opens it.
  */
-const AREA_PLACEHOLDER_PATTERN = /^(any|anywhere|all|not specific|no preference|flexible)\b/;
+const AREA_PLACEHOLDER_PATTERN =
+  /^(any|anywhere|all|not specific|no preference|flexible)\b/;
 
 function isPlaceholderArea(area: string): boolean {
   return !!area && AREA_PLACEHOLDER_PATTERN.test(area);
@@ -489,20 +565,23 @@ function parsePricePerSqftBudget(text: string): {
  * counted or messaged twice — Radar events, buyer digests, match counts
  * — and leave it off where each person is genuinely a separate target.
  */
-export function getMatchingContacts(
+function matchContactsSingleProfile(
   property: Partial<Property>,
-  contacts: Contact[],
-  parties?: Map<string, ContactParty>
+  contacts: Contact[]
 ): MatchingResult[] {
   if (!property.price && !property.location && !property.type) {
     return [];
   }
 
   const propertyGroup = resolvePropertyGroup(property);
-  const propertyCategory = propertyGroup ? GROUP_TO_CATEGORY[propertyGroup] : null;
+  const propertyCategory = propertyGroup
+    ? GROUP_TO_CATEGORY[propertyGroup]
+    : null;
   const propertyListingType = resolveListingType(property);
   const price = Number(property.price || 0);
-  const rentalIncome = property.rental_income ? Number(property.rental_income) : null;
+  const rentalIncome = property.rental_income
+    ? Number(property.rental_income)
+    : null;
   const propertyRoi = property.roi
     ? Number(property.roi)
     : price > 0 && rentalIncome !== null
@@ -523,7 +602,10 @@ export function getMatchingContacts(
   const propProject = cleanArea(property.project || '');
   const propTags = (property.tags || []).map(cleanArea).filter(Boolean);
   const propBedrooms = property.bedrooms ? Number(property.bedrooms) : null;
-  const landAreaSqft = toSquareFeet(property.land_area, property.land_area_unit);
+  const landAreaSqft = toSquareFeet(
+    property.land_area,
+    property.land_area_unit
+  );
   const propertyAreaSqft =
     landAreaSqft && landAreaSqft > 0
       ? landAreaSqft
@@ -553,8 +635,11 @@ export function getMatchingContacts(
     // contacts marked dead in bulk without touching their brief.
     if (contact.is_dead || contact.is_archived) continue;
 
-    const notesText = (contact.contact_notes || []).map((n) => n.note_text).join(' ');
-    const combinedText = `${contact.requirements || ''} ${notesText}`.toLowerCase();
+    const notesText = (contact.contact_notes || [])
+      .map((n) => n.note_text)
+      .join(' ');
+    const combinedText =
+      `${contact.requirements || ''} ${notesText}`.toLowerCase();
     const hasExtraction = !!contact.pref_extracted_at;
 
     // ── Named-project match ───────────────────────────────────────
@@ -567,7 +652,10 @@ export function getMatchingContacts(
     // and forces a location match regardless of the type/locality gates.
     const wantedProjects = [
       ...new Set(
-        [...(contact.projects_of_interest || []), ...(contact.pref_projects || [])]
+        [
+          ...(contact.projects_of_interest || []),
+          ...(contact.pref_projects || []),
+        ]
           .map((p) => p.trim())
           .filter(Boolean)
       ),
@@ -585,7 +673,12 @@ export function getMatchingContacts(
     // else, so the list stops being a boost and becomes the first
     // gate — a listing outside it cannot reach them on type, area or
     // budget fit.
-    if (contact.strict_project_match && wantedProjects.length > 0 && !projectMatch) continue;
+    if (
+      contact.strict_project_match &&
+      wantedProjects.length > 0 &&
+      !projectMatch
+    )
+      continue;
 
     // ── 0. Listing intent gate (Sale / Rent / JV/JD / Built to Suit) ──
     // JV/JD and Built to Suit are niche deals: they only ever surface for
@@ -599,7 +692,9 @@ export function getMatchingContacts(
       )
     );
     if (wantedListingTypes.size === 0 && !hasExtraction) {
-      inferListingTypesFromText(combinedText).forEach((t) => wantedListingTypes.add(t));
+      inferListingTypesFromText(combinedText).forEach((t) =>
+        wantedListingTypes.add(t)
+      );
     }
     const isNicheListing = NICHE_LISTING_TYPES.includes(propertyListingType);
     if (wantedListingTypes.size > 0) {
@@ -613,11 +708,23 @@ export function getMatchingContacts(
     const wantedCategories = new Set<Category>();
 
     for (const t of contact.pref_property_types || []) {
-      const g = TYPE_TO_GROUP[t] || (normalizePropertyType(t) ? TYPE_TO_GROUP[normalizePropertyType(t)!] : undefined);
+      const g =
+        TYPE_TO_GROUP[t] ||
+        (normalizePropertyType(t)
+          ? TYPE_TO_GROUP[normalizePropertyType(t)!]
+          : undefined);
       if (g) wantedGroups.add(g);
     }
     for (const c of contact.pref_property_categories || []) {
-      if (['residential', 'commercial', 'industrial', 'agricultural', 'plot'].includes(c)) {
+      if (
+        [
+          'residential',
+          'commercial',
+          'industrial',
+          'agricultural',
+          'plot',
+        ].includes(c)
+      ) {
         wantedCategories.add(c as Category);
       }
     }
@@ -627,7 +734,11 @@ export function getMatchingContacts(
       mapped.categories.forEach((c) => wantedCategories.add(c));
     }
     // Text fallback only for contacts that haven't been AI-extracted yet
-    if (!hasExtraction && wantedGroups.size === 0 && wantedCategories.size === 0) {
+    if (
+      !hasExtraction &&
+      wantedGroups.size === 0 &&
+      wantedCategories.size === 0
+    ) {
       const inferred = inferTypePrefsFromText(combinedText);
       inferred.groups.forEach((g) => wantedGroups.add(g));
       inferred.categories.forEach((c) => wantedCategories.add(c));
@@ -656,7 +767,9 @@ export function getMatchingContacts(
         // A stated subtype in the same category keeps the gate strict:
         // an apartment seeker with no other residential interests must
         // not match a house just because both are "residential".
-        ![...wantedGroups].some((g) => GROUP_TO_CATEGORY[g] === propertyCategory)
+        ![...wantedGroups].some(
+          (g) => GROUP_TO_CATEGORY[g] === propertyCategory
+        )
       ) {
         typeVerdict = 'partial';
       } else if (
@@ -680,7 +793,12 @@ export function getMatchingContacts(
     }
 
     // Explicit category negation in text overrides ("no commercial please")
-    if (typeVerdict !== 'mismatch' && propertyCategory && combinedText && isNegated(combinedText, propertyCategory)) {
+    if (
+      typeVerdict !== 'mismatch' &&
+      propertyCategory &&
+      combinedText &&
+      isNegated(combinedText, propertyCategory)
+    ) {
       typeVerdict = 'mismatch';
     }
 
@@ -705,7 +823,10 @@ export function getMatchingContacts(
       if (isLand) {
         roiVerdict = 'unknown';
       } else {
-        roiVerdict = propertyRoi !== null && propertyRoi >= minExpectedRoi ? 'match' : 'mismatch';
+        roiVerdict =
+          propertyRoi !== null && propertyRoi >= minExpectedRoi
+            ? 'match'
+            : 'mismatch';
       }
     }
     if (roiVerdict === 'mismatch') continue;
@@ -737,7 +858,9 @@ export function getMatchingContacts(
     const wantedAreas = [...new Set([...explicitAreas, ...aiAreas])].filter(
       (a) => !isNegated(combinedText, a)
     );
-    const excludedAreas = (contact.pref_excluded_areas || []).map(cleanArea).filter(Boolean);
+    const excludedAreas = (contact.pref_excluded_areas || [])
+      .map(cleanArea)
+      .filter(Boolean);
 
     const areaHitsProperty = (area: string) =>
       !!area &&
@@ -764,24 +887,31 @@ export function getMatchingContacts(
       const pLat =
         property.latitude != null && Number.isFinite(Number(property.latitude))
           ? Number(property.latitude)
-          : propertyCoords?.lat ?? null;
+          : (propertyCoords?.lat ?? null);
       const pLng =
-        property.longitude != null && Number.isFinite(Number(property.longitude))
+        property.longitude != null &&
+        Number.isFinite(Number(property.longitude))
           ? Number(property.longitude)
-          : propertyCoords?.lng ?? null;
-      
+          : (propertyCoords?.lng ?? null);
+
       let checkedProximity = false;
       let hasProximityMatch = false;
       let hasProximityMismatch = false;
 
       if (pLat !== null && pLng !== null) {
         const maxAllowedDistance = contact.strict_area_match ? 5 : 20;
-        
+
         for (const area of wantedAreas) {
-          const areaCoords = contactAreaCoords[area] ?? BANGALORE_LOCALITIES_COORDS[area];
+          const areaCoords =
+            contactAreaCoords[area] ?? BANGALORE_LOCALITIES_COORDS[area];
           if (areaCoords) {
             checkedProximity = true;
-            const dist = calculateHaversineDistance(pLat, pLng, areaCoords.lat, areaCoords.lng);
+            const dist = calculateHaversineDistance(
+              pLat,
+              pLng,
+              areaCoords.lat,
+              areaCoords.lng
+            );
             if (dist <= maxAllowedDistance) {
               hasProximityMatch = true;
               break;
@@ -815,7 +945,9 @@ export function getMatchingContacts(
     if (locationVerdict !== 'match' && combinedText) {
       if (
         (propSub && propSub.length > 2 && combinedText.includes(propSub)) ||
-        (propProject && propProject.length > 2 && combinedText.includes(propProject)) ||
+        (propProject &&
+          propProject.length > 2 &&
+          combinedText.includes(propProject)) ||
         propTags.some((tag) => tag.length > 2 && combinedText.includes(tag))
       ) {
         locationVerdict = 'match';
@@ -828,7 +960,9 @@ export function getMatchingContacts(
     if (locationVerdict === 'mismatch') {
       // Yield-focused commercial purchases are location-agnostic
       const yieldBypass =
-        minExpectedRoi !== null && propertyCategory === 'commercial' && roiVerdict === 'match';
+        minExpectedRoi !== null &&
+        propertyCategory === 'commercial' &&
+        roiVerdict === 'match';
       const textBypass =
         combinedText.includes('any location') ||
         combinedText.includes('no location preference') ||
@@ -843,10 +977,24 @@ export function getMatchingContacts(
     }
 
     // ── 4. Budget (applied last) ──────────────────────────────────
-    const explicitMin = contact.min_budget != null && Number(contact.min_budget) > 0 ? Number(contact.min_budget) : null;
-    const explicitMax = contact.max_budget != null && Number(contact.max_budget) > 0 ? Number(contact.max_budget) : null;
-    let budgetMin = explicitMin ?? (contact.pref_budget_min != null ? Number(contact.pref_budget_min) : null);
-    let budgetMax = explicitMax ?? (contact.pref_budget_max != null ? Number(contact.pref_budget_max) : null);
+    const explicitMin =
+      contact.min_budget != null && Number(contact.min_budget) > 0
+        ? Number(contact.min_budget)
+        : null;
+    const explicitMax =
+      contact.max_budget != null && Number(contact.max_budget) > 0
+        ? Number(contact.max_budget)
+        : null;
+    let budgetMin =
+      explicitMin ??
+      (contact.pref_budget_min != null
+        ? Number(contact.pref_budget_min)
+        : null);
+    let budgetMax =
+      explicitMax ??
+      (contact.pref_budget_max != null
+        ? Number(contact.pref_budget_max)
+        : null);
     let maxIsCeiling = false;
     if (budgetMin === null && budgetMax === null && !hasExtraction) {
       const parsed = parseBudgetFromText(combinedText);
@@ -883,7 +1031,10 @@ export function getMatchingContacts(
     let budgetVerdict: MatchVerdict = 'unknown';
     if (contact.no_budget) {
       budgetVerdict = 'partial'; // flexible — no constraint stated on purpose
-    } else if ((budgetMin !== null || budgetMax !== null) && budgetComparisonValue > 0) {
+    } else if (
+      (budgetMin !== null || budgetMax !== null) &&
+      budgetComparisonValue > 0
+    ) {
       const impliedFloor =
         budgetMax !== null &&
         !maxIsCeiling &&
@@ -897,8 +1048,12 @@ export function getMatchingContacts(
       if (minOk && maxOk) {
         budgetVerdict = 'match';
       } else {
-        const nearMin = floor === null || budgetComparisonValue >= floor * (1 - BUDGET_TOLERANCE_MIN);
-        const nearMax = budgetMax === null || budgetComparisonValue <= budgetMax * (1 + BUDGET_TOLERANCE_MAX);
+        const nearMin =
+          floor === null ||
+          budgetComparisonValue >= floor * (1 - BUDGET_TOLERANCE_MIN);
+        const nearMax =
+          budgetMax === null ||
+          budgetComparisonValue <= budgetMax * (1 + BUDGET_TOLERANCE_MAX);
         budgetVerdict = nearMin && nearMax ? 'partial' : 'mismatch';
       }
     }
@@ -910,11 +1065,13 @@ export function getMatchingContacts(
     // the intake derives prices with. Built-up area stands in for
     // properties that have no land figure (apartments).
     const sizeMin =
-      contact.pref_land_area_min_sqft != null && Number(contact.pref_land_area_min_sqft) > 0
+      contact.pref_land_area_min_sqft != null &&
+      Number(contact.pref_land_area_min_sqft) > 0
         ? Number(contact.pref_land_area_min_sqft)
         : null;
     const sizeMax =
-      contact.pref_land_area_max_sqft != null && Number(contact.pref_land_area_max_sqft) > 0
+      contact.pref_land_area_max_sqft != null &&
+      Number(contact.pref_land_area_max_sqft) > 0
         ? Number(contact.pref_land_area_max_sqft)
         : null;
     let sizeVerdict: MatchVerdict = 'unknown';
@@ -939,8 +1096,10 @@ export function getMatchingContacts(
     if (sizeVerdict === 'mismatch') continue;
 
     // ── 6. BHK fit ────────────────────────────────────────────────
-    const bhkMin = contact.pref_bhk_min != null ? Number(contact.pref_bhk_min) : null;
-    const bhkMax = contact.pref_bhk_max != null ? Number(contact.pref_bhk_max) : null;
+    const bhkMin =
+      contact.pref_bhk_min != null ? Number(contact.pref_bhk_min) : null;
+    const bhkMax =
+      contact.pref_bhk_max != null ? Number(contact.pref_bhk_max) : null;
     let bhkVerdict: MatchVerdict = 'unknown';
     let bhkDistance = 0;
     if (propBedrooms !== null && (bhkMin !== null || bhkMax !== null)) {
@@ -961,7 +1120,8 @@ export function getMatchingContacts(
       projectMatch ||
       typeVerdict === 'match' ||
       typeVerdict === 'partial' ||
-      (!hasTypePrefs && (locationVerdict === 'match' || roiVerdict === 'match'));
+      (!hasTypePrefs &&
+        (locationVerdict === 'match' || roiVerdict === 'match'));
     if (!qualifies) continue;
 
     // ── Scoring ───────────────────────────────────────────────────
@@ -1009,6 +1169,34 @@ export function getMatchingContacts(
         project: projectMatch,
       },
     });
+  }
+
+  return results.sort((a, b) => b.score - a.score);
+}
+
+/**
+ * Match each independent requirement as its own brief and keep the best
+ * result for the contact. A buyer looking for a 1-acre commercial plot in
+ * Akshayanagar and, separately, a 2–3 acre warehouse site in Dabaspete must
+ * match either lane; merging those fields would require one impossible
+ * property to satisfy both.
+ */
+export function getMatchingContacts(
+  property: Partial<Property>,
+  contacts: Contact[],
+  parties?: Map<string, ContactParty>
+): MatchingResult[] {
+  const results: MatchingResult[] = [];
+
+  for (const contact of contacts) {
+    const candidates = [
+      contact,
+      ...activeRequirementProfiles(contact).map((profile) =>
+        contactForRequirementProfile(contact, profile)
+      ),
+    ];
+    const best = matchContactsSingleProfile(property, candidates)[0];
+    if (best) results.push({ ...best, contact });
   }
 
   return collapseMatchesToParties(

@@ -28,6 +28,7 @@ import { ContactFiltersSheet } from '@/components/contact-filters-sheet';
 import { InterestFilterSheet } from '@/components/interest-filter-sheet';
 import { OwnerDetailsRequestSheet } from '@/components/owner-details-request-sheet';
 import { BuyerPreferenceRequestSheet } from '@/components/buyer-preference-request-sheet';
+import { AdditionalRequirementSheet } from '@/components/additional-requirement-sheet';
 import { BottomSheet, sheetScrollArea } from '@/components/sheet';
 import { TourTarget } from '@/components/copilot-tour';
 import {
@@ -56,10 +57,7 @@ import {
   sortColumn,
   type ContactFilters,
 } from '@/lib/contact-filters';
-import {
-  interestChipLabel,
-  type InterestFilter,
-} from '@/lib/contact-interest';
+import { interestChipLabel, type InterestFilter } from '@/lib/contact-interest';
 import { friendlyError } from '@/lib/errors';
 import { chatListTime, cleanPhoneInput, formatBudgetRange } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
@@ -212,7 +210,10 @@ async function resolveInterest(interest: InterestFilter): Promise<{
   }
   for (const id of stated) ids.add(id);
 
-  return { contactIds: Array.from(ids).slice(0, INTEREST_CONTACT_CAP), matches };
+  return {
+    contactIds: Array.from(ids).slice(0, INTEREST_CONTACT_CAP),
+    matches,
+  };
 }
 
 /**
@@ -517,6 +518,8 @@ export default function ContactsScreen() {
   // table's row menu, so the list is workable without opening each
   // contact.
   const [detailsRequestContact, setDetailsRequestContact] =
+    useState<Contact | null>(null);
+  const [additionalRequirementContact, setAdditionalRequirementContact] =
     useState<Contact | null>(null);
   // Approving flips the contact, drafts the details and sends them over
   // WhatsApp — several round-trips. The row confirms the tap straight
@@ -908,11 +911,24 @@ export default function ContactsScreen() {
                     : 'Ask for property details',
                   onPress: () => setDetailsRequestContact(waMenu.contact),
                 },
+                ...(['Buyer', 'Owner & Buyer'].includes(
+                  waMenu.contact.classification ?? ''
+                )
+                  ? [
+                      {
+                        icon: 'add-circle-outline' as const,
+                        label: 'Add requirement from message',
+                        onPress: () =>
+                          setAdditionalRequirementContact(waMenu.contact),
+                      },
+                    ]
+                  : []),
               ]
             : []
         }
       />
-      {detailsRequestContact && ['Buyer', 'Owner & Buyer'].includes(
+      {detailsRequestContact &&
+      ['Buyer', 'Owner & Buyer'].includes(
         detailsRequestContact.classification ?? ''
       ) ? (
         <BuyerPreferenceRequestSheet
@@ -925,6 +941,16 @@ export default function ContactsScreen() {
           visible
           onClose={() => setDetailsRequestContact(null)}
           contact={detailsRequestContact}
+        />
+      ) : null}
+      {additionalRequirementContact ? (
+        <AdditionalRequirementSheet
+          visible
+          onClose={() => setAdditionalRequirementContact(null)}
+          contact={additionalRequirementContact}
+          onSaved={() => {
+            void queryClient.invalidateQueries({ queryKey: ['contacts'] });
+          }}
         />
       ) : null}
       <AppDialog {...dialogProps} />

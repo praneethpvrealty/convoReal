@@ -20,117 +20,125 @@
 // so trimming a response can never quietly change a score.
 // ============================================================
 
-import type { Contact, Property } from "@/types";
+import type { Contact, Property } from '@/types';
 
 export const PROPERTY_COLUMNS = [
-  "id",
-  "title",
-  "price",
-  "price_per_sqft",
-  "location",
-  "sublocality",
-  "city",
-  "state",
-  "type",
-  "listing_type",
-  "status",
-  "project",
-  "bedrooms",
-  "bathrooms",
-  "area_sqft",
-  "area_unit",
-  "land_area",
-  "land_area_unit",
-  "rent_per_month",
-  "rental_income",
-  "roi",
-  "possession_date",
-  "is_published",
-  "created_at",
-  "updated_at",
-].join(", ");
+  'id',
+  'title',
+  'price',
+  'price_per_sqft',
+  'location',
+  'sublocality',
+  'city',
+  'state',
+  'type',
+  'listing_type',
+  'status',
+  'project',
+  'bedrooms',
+  'bathrooms',
+  'area_sqft',
+  'area_unit',
+  'land_area',
+  'land_area_unit',
+  'rent_per_month',
+  'rental_income',
+  'roi',
+  'possession_date',
+  'is_published',
+  'created_at',
+  'updated_at',
+].join(', ');
 
 /** Every property field src/lib/matching.ts consults, plus `id` to key
  *  the result. Superset of what the engine reads today so a new lookup
  *  in the engine does not silently start scoring against nulls. */
 export const MATCHING_PROPERTY_COLUMNS = [
-  "id",
-  "title",
-  "price",
-  "location",
-  "sublocality",
-  "city",
-  "type",
-  "listing_type",
-  "project",
-  "bedrooms",
-  "rent_per_month",
-  "rental_income",
-  "roi",
-  "latitude",
-  "longitude",
-].join(", ");
+  'id',
+  'title',
+  'price',
+  'location',
+  'sublocality',
+  'city',
+  'type',
+  'listing_type',
+  'project',
+  'bedrooms',
+  'area_sqft',
+  'land_area',
+  'land_area_unit',
+  'price_per_sqft',
+  'rent_per_month',
+  'rental_income',
+  'roi',
+  'latitude',
+  'longitude',
+].join(', ');
 
 export const CONTACT_COLUMNS = [
-  "id",
-  "name",
-  "second_name",
-  "phone",
-  "email",
-  "company",
-  "classification",
-  "lead_temp",
-  "status",
-  "min_budget",
-  "max_budget",
-  "no_budget",
-  "areas_of_interest",
-  "projects_of_interest",
-  "property_interests",
-  "requirements",
-  "requirement_active",
-  "last_contacted_at",
-  "created_at",
-  "updated_at",
-].join(", ");
+  'id',
+  'name',
+  'second_name',
+  'phone',
+  'email',
+  'company',
+  'classification',
+  'lead_temp',
+  'status',
+  'min_budget',
+  'max_budget',
+  'no_budget',
+  'areas_of_interest',
+  'projects_of_interest',
+  'property_interests',
+  'requirements',
+  'requirement_profiles',
+  'requirement_active',
+  'last_contacted_at',
+  'created_at',
+  'updated_at',
+].join(', ');
 
 /** Every contact field the matching engine consults. `contact_notes`
  *  is a join, not a column — the engine reads note text when a
  *  contact has no structured preferences. */
 export const MATCHING_CONTACT_COLUMNS = [
-  "id",
-  "name",
-  "phone",
-  "classification",
-  "lead_temp",
-  "min_budget",
-  "max_budget",
-  "no_budget",
-  "min_roi",
-  "areas_of_interest",
-  "areas_of_interest_geo",
-  "projects_of_interest",
-  "property_interests",
-  "requirements",
-  "requirement_active",
-  "strict_area_match",
-  "strict_project_match",
-  "is_archived",
-  "is_dead",
-  "pref_areas",
-  "pref_excluded_areas",
-  "pref_bhk_min",
-  "pref_bhk_max",
-  "pref_budget_min",
-  "pref_budget_max",
-  "pref_listing_types",
-  "pref_projects",
-  "pref_property_categories",
-  "pref_property_types",
-  "pref_min_roi",
-  "pref_extracted_at",
-  "contact_notes(note_text)",
-].join(", ");
+  'id',
+  'name',
+  'phone',
+  'classification',
+  'lead_temp',
+  'min_budget',
+  'max_budget',
+  'no_budget',
+  'min_roi',
+  'areas_of_interest',
+  'areas_of_interest_geo',
+  'projects_of_interest',
+  'property_interests',
+  'requirements',
+  'requirement_profiles',
+  'requirement_active',
+  'strict_area_match',
+  'strict_project_match',
+  'is_archived',
+  'is_dead',
+  'pref_areas',
+  'pref_excluded_areas',
+  'pref_bhk_min',
+  'pref_bhk_max',
+  'pref_budget_min',
+  'pref_budget_max',
+  'pref_land_area_min_sqft',
+  'pref_land_area_max_sqft',
+  'pref_listing_types',
+  'pref_projects',
+  'pref_property_categories',
+  'pref_property_types',
+  'pref_min_roi',
+  'pref_extracted_at',
+  'contact_notes(note_text)',
+].join(', ');
 
 export interface V1Property {
   id: string;
@@ -186,17 +194,19 @@ export function asRow(data: unknown): Row {
 }
 
 function str(v: unknown): string | null {
-  return typeof v === "string" && v.length > 0 ? v : null;
+  return typeof v === 'string' && v.length > 0 ? v : null;
 }
 
 function num(v: unknown): number | null {
-  if (v === null || v === undefined || v === "") return null;
+  if (v === null || v === undefined || v === '') return null;
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
 }
 
 function list(v: unknown): string[] {
-  return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+  return Array.isArray(v)
+    ? v.filter((x): x is string => typeof x === 'string')
+    : [];
 }
 
 /**
@@ -219,7 +229,10 @@ function list(v: unknown): string[] {
  * So: dedupe repeated comma segments, then add `sublocality` only when
  * the result genuinely does not already say it.
  */
-function composeLocation(sublocality: string | null, location: string | null): string | null {
+function composeLocation(
+  sublocality: string | null,
+  location: string | null
+): string | null {
   const cleaned = location ? dedupeSegments(location) : null;
   if (!cleaned) return sublocality;
   if (!sublocality) return cleaned;
@@ -233,7 +246,7 @@ function composeLocation(sublocality: string | null, location: string | null): s
 function dedupeSegments(value: string): string | null {
   const seen = new Set<string>();
   const kept: string[] = [];
-  for (const raw of value.split(",")) {
+  for (const raw of value.split(',')) {
     const segment = raw.trim();
     if (!segment) continue;
     const key = segment.toLowerCase();
@@ -241,7 +254,7 @@ function dedupeSegments(value: string): string | null {
     seen.add(key);
     kept.push(segment);
   }
-  return kept.length > 0 ? kept.join(", ") : null;
+  return kept.length > 0 ? kept.join(', ') : null;
 }
 
 /** Full-fidelity row → the compact wire shape. */
@@ -249,7 +262,7 @@ export function toV1Property(row: Row | Property): V1Property {
   const r = row as Row;
   return {
     id: String(r.id),
-    title: str(r.title) ?? "(untitled)",
+    title: str(r.title) ?? '(untitled)',
     price: num(r.price),
     location: composeLocation(str(r.sublocality), str(r.location)),
     city: str(r.city),
@@ -287,7 +300,7 @@ export function toV1PropertyDetail(row: Row | Property) {
 
 export function toV1Contact(row: Row | Contact): V1Contact {
   const r = row as Row;
-  const name = [str(r.name), str(r.second_name)].filter(Boolean).join(" ");
+  const name = [str(r.name), str(r.second_name)].filter(Boolean).join(' ');
   return {
     id: String(r.id),
     name: name || null,
