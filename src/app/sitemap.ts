@@ -9,6 +9,7 @@ import { isTeaserGated } from '@/lib/inventory/showcase-visibility';
 import { propertySlug } from '@/lib/showcase/property-slug';
 import { fallbackSiteUrl } from '@/lib/showcase/site-url';
 import type { Property } from '@/types';
+import { AUTHORITY_SERVICES, publishedLocalities } from '@/lib/seo/authority';
 
 // Listings churn daily — rendering per-request (with the hour-long
 // unstable_cache on the underlying queries) keeps the sitemap current
@@ -66,6 +67,19 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         changeFrequency: 'weekly' as const,
         priority: 0.8,
       }))
+  );
+
+  entries.push(
+    ...AUTHORITY_SERVICES.map((service) => ({
+      url: `${siteUrl}/services/${service.slug}`,
+      changeFrequency: 'monthly' as const,
+      priority: 0.7,
+    })),
+    ...Array.from(publishedLocalities(properties).keys()).map((slug) => ({
+      url: `${siteUrl}/property-consultants/${slug}`,
+      changeFrequency: 'weekly' as const,
+      priority: 0.7,
+    }))
   );
 
   return entries;
