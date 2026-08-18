@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { unstable_cache } from 'next/cache';
 import { supabaseAdmin } from '@/lib/automations/admin-client';
 import { ShowcaseView } from '@/components/showcase/showcase-view';
+import { AuthorityLinks } from '@/components/showcase/authority-links';
 import { MarketingLanding } from '@/components/landing/marketing-landing';
 import {
   cachedFetchFallbackAccount,
@@ -526,6 +527,10 @@ export default async function RootPage({ searchParams }: PageProps) {
         visitorRef={resolvedParams.v}
         shareId={resolvedParams.s}
         shareGrantToken={shareGrant?.token}
+      />
+      <AuthorityLinks
+        businessName={siteName}
+        properties={publishedProperties}
       />
     </>
   );

@@ -152,6 +152,51 @@ export function breadcrumbJsonLd(
   };
 }
 
+export function serviceJsonLd({
+  name,
+  description,
+  url,
+  providerId,
+  areasServed,
+}: {
+  name: string;
+  description: string;
+  url: string;
+  providerId: string;
+  areasServed: string[];
+}): JsonLd {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'Service',
+    name,
+    description,
+    url,
+    provider: { '@id': providerId },
+    ...(areasServed.length > 0
+      ? {
+          areaServed: areasServed.map((area) => ({
+            '@type': 'Place',
+            name: area,
+          })),
+        }
+      : {}),
+  };
+}
+
+export function faqJsonLd(
+  entries: Array<{ question: string; answer: string }>
+): JsonLd {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: entries.map((entry) => ({
+      '@type': 'Question',
+      name: entry.question,
+      acceptedAnswer: { '@type': 'Answer', text: entry.answer },
+    })),
+  };
+}
+
 // </script> inside a JSON string would terminate the tag early — escape
 // the one character sequence that can break out of the script context.
 export function jsonLdScript(data: JsonLd): string {
