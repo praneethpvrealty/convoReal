@@ -10,6 +10,7 @@ import {
   cachedFetchShowcaseData,
   cachedResolveAccountFromSubdomain,
   cachedResolvePropertyById,
+  cachedResolveShowcaseRef,
   resolveSubdomainFromHost,
   toPublicProperties,
 } from '@/lib/showcase/public-data';
@@ -109,7 +110,7 @@ export async function generateMetadata({
       ? await cachedResolveAccountFromSubdomain(subdomain)
       : null;
     if (!accountId && ref) {
-      accountId = (await cachedResolveRef(ref))?.accountId ?? null;
+      accountId = (await cachedResolveShowcaseRef(ref))?.accountId ?? null;
     }
     if (!accountId)
       accountId = process.env.NEXT_PUBLIC_DEFAULT_ACCOUNT_ID || null;
@@ -210,53 +211,6 @@ export async function generateMetadata({
 // dynamically.  ISR `revalidate` has no effect on dynamic pages.
 // Instead we cache the expensive Supabase queries with unstable_cache
 // so repeat visits with the same parameters are instant.
-
-const cachedResolveRef = unstable_cache(
-  async (ref: string) => {
-    const admin = supabaseAdmin();
-    const [accountResult, contactResult, profileResult] = await Promise.all([
-      admin.from('accounts').select('id').eq('id', ref).maybeSingle(),
-      admin
-        .from('contacts')
-        .select('account_id, id')
-        .eq('id', ref)
-        .maybeSingle(),
-      admin
-        .from('profiles')
-        .select('account_id, user_id')
-        .eq('user_id', ref)
-        .maybeSingle(),
-    ]);
-
-    if (accountResult.data) {
-      return {
-        type: 'account' as const,
-        accountId: accountResult.data.id,
-        filterContactId: null,
-        filterUserId: null,
-      };
-    }
-    if (contactResult.data) {
-      return {
-        type: 'contact' as const,
-        accountId: contactResult.data.account_id,
-        filterContactId: contactResult.data.id,
-        filterUserId: null,
-      };
-    }
-    if (profileResult.data) {
-      return {
-        type: 'profile' as const,
-        accountId: profileResult.data.account_id,
-        filterContactId: null,
-        filterUserId: profileResult.data.user_id,
-      };
-    }
-    return null;
-  },
-  ['showcase-ref'],
-  { revalidate: 3600 }
-);
 
 const cachedResolveReferrerPhone = unstable_cache(
   async (
@@ -390,7 +344,7 @@ export default async function RootPage({ searchParams }: PageProps) {
   let filterUserId: string | null = null;
 
   if (!isAgentMode && ref) {
-    const resolved = await cachedResolveRef(ref);
+    const resolved = await cachedResolveShowcaseRef(ref);
     if (resolved) {
       if (!accountId) accountId = resolved.accountId;
       if (accountId === resolved.accountId) {

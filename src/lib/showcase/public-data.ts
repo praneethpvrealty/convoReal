@@ -112,6 +112,53 @@ export const cachedResolveAccountFromSubdomain = unstable_cache(
   { revalidate: 3600 }
 );
 
+export const cachedResolveShowcaseRef = unstable_cache(
+  async (ref: string) => {
+    const admin = supabaseAdmin();
+    const [accountResult, contactResult, profileResult] = await Promise.all([
+      admin.from('accounts').select('id').eq('id', ref).maybeSingle(),
+      admin
+        .from('contacts')
+        .select('account_id, id')
+        .eq('id', ref)
+        .maybeSingle(),
+      admin
+        .from('profiles')
+        .select('account_id, user_id')
+        .eq('user_id', ref)
+        .maybeSingle(),
+    ]);
+
+    if (accountResult.data) {
+      return {
+        type: 'account' as const,
+        accountId: accountResult.data.id,
+        filterContactId: null,
+        filterUserId: null,
+      };
+    }
+    if (contactResult.data) {
+      return {
+        type: 'contact' as const,
+        accountId: contactResult.data.account_id,
+        filterContactId: contactResult.data.id,
+        filterUserId: null,
+      };
+    }
+    if (profileResult.data) {
+      return {
+        type: 'profile' as const,
+        accountId: profileResult.data.account_id,
+        filterContactId: null,
+        filterUserId: profileResult.data.user_id,
+      };
+    }
+    return null;
+  },
+  ['showcase-ref'],
+  { revalidate: 3600 }
+);
+
 export const cachedFetchFallbackAccount = unstable_cache(
   async () => {
     const admin = supabaseAdmin();

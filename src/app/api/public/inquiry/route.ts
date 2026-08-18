@@ -13,12 +13,24 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const { phone, email, propertyId, propertyTitle, propertyCode, accountId, referrerContactId, sessionKey } = body;
+    const isAiAgent = body.source === "ai_agent";
+    const channelLabel = isAiAgent ? "AI Agent" : "Website";
     const name = typeof body.name === "string" ? body.name.slice(0, MAX_NAME_LEN) : body.name;
     const message = typeof body.message === "string" ? body.message.slice(0, MAX_MESSAGE_LEN) : body.message;
 
     if (!accountId) {
       return NextResponse.json(
         { error: "Missing required 'accountId' field" },
+        { status: 400 }
+      );
+    }
+
+    if (isAiAgent && body.consentToContact !== true) {
+      return NextResponse.json(
+        {
+          error:
+            "Explicit consent is required before an AI agent can create an enquiry.",
+        },
         { status: 400 }
       );
     }
@@ -110,10 +122,10 @@ export async function POST(request: Request) {
         accountId,
         userId: targetAgentUserId,
         phone: normalizedPhone,
-        name: name || "Website Lead",
+        name: name || `${channelLabel} Lead`,
         email: email || null,
         classification: "Buyer",
-        referrer: "Website Showcase",
+        referrer: isAiAgent ? "AI Agent" : "Website Showcase",
         referrerContactId: resolvedReferrerContactId,
         lastInquiredPropertyId: propertyId || null,
       });
@@ -143,7 +155,7 @@ export async function POST(request: Request) {
     }
 
     // 3. Add inquiry details as a contact note
-    let noteText = `Website Inquiry received:\n`;
+    let noteText = `${channelLabel} Inquiry received:\n`;
     if (propertyTitle) {
       noteText += `• Interested in Property: ${propertyTitle}\n`;
     }
@@ -182,7 +194,7 @@ export async function POST(request: Request) {
         {
           account_id: accountId,
           user_id: targetAgentUserId,
-          title: `New Website Inquiry - @${name || phone}`,
+          title: `New ${channelLabel} Inquiry - @${name || phone}`,
           description: `Visitor ${name || ""} (${phone}) inquired about property: "${propertyTitle || "Unknown"}"${propertyCode ? ` (${propertyCode})` : ""}. Review contact and follow up.`,
           due_date: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // due in 1 day
           priority: "high",
@@ -232,7 +244,7 @@ export async function POST(request: Request) {
 
       if (conversationId) {
         // Formulate inbox message text
-        let inboxText = `📩 *Website Inquiry Received*\n\n`;
+        let inboxText = `📩 *${channelLabel} Inquiry Received*\n\n`;
         if (propertyTitle) {
           inboxText += `🏡 *Property*: ${propertyTitle}${propertyCode ? ` (${propertyCode})` : ""}\n`;
         }
@@ -242,7 +254,7 @@ export async function POST(request: Request) {
         if (email) {
           inboxText += `📧 *Email*: ${email.trim().toLowerCase()}\n`;
         }
-        inboxText += `👤 *Name*: ${name || "Website Lead"}\n📞 *Phone*: ${normalizedPhone}`;
+        inboxText += `👤 *Name*: ${name || `${channelLabel} Lead`}\n📞 *Phone*: ${normalizedPhone}`;
 
         // Insert message in messages table
         const { error: msgInsertError } = await admin.from("messages").insert({
@@ -250,7 +262,7 @@ export async function POST(request: Request) {
           sender_type: "customer",
           content_type: "text",
           content_text: inboxText,
-          message_id: `web-inquiry-${Date.now()}`,
+          message_id: `${isAiAgent ? "ai-agent" : "web"}-inquiry-${Date.now()}`,
           status: "delivered",
           created_at: new Date().toISOString(),
         });

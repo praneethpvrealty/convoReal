@@ -32,7 +32,7 @@ vi.mock('@supabase/supabase-js', () => ({
 process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://test.supabase.co';
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-key';
 
-const { GET } = await import('./route');
+const { GET, getPublicProperties } = await import('./route');
 const { RATE_LIMITS, __resetRateLimitForTests } = await import(
   '@/lib/rate-limit'
 );
@@ -67,6 +67,10 @@ describe('GET /api/public/properties rate limiting', () => {
   it('serves a request under both budgets', async () => {
     const res = await GET(req());
     expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({
+      meta: { source: 'brokerage_published_inventory' },
+    });
+    expect(res.headers.get('Link')).toContain('/llms.txt');
   });
 
   it('429s one IP past its budget, and says when to retry', async () => {
@@ -128,5 +132,13 @@ describe('GET /api/public/properties rate limiting', () => {
       expect((await GET(req({ ip, apiKey: 'the-real-key' }))).status).toBe(200);
     }
     expect((await GET(req({ ip, apiKey: 'the-real-key' }))).status).toBe(429);
+  });
+
+  it('allows the separately rate-limited public agent feed without exposing the legacy key', async () => {
+    process.env.PUBLIC_API_KEY = 'the-real-key';
+    const response = await getPublicProperties(req(), {
+      requireConfiguredApiKey: false,
+    });
+    expect(response.status).toBe(200);
   });
 });

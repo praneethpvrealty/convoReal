@@ -8,6 +8,9 @@ import {
 } from "@/lib/rate-limit";
 import { storagePublicUrl } from "@/lib/storage/url";
 import { toPublicListingView } from "@/lib/inventory/showcase-visibility";
+import { isLocationGuarded } from "@/lib/inventory/location-guard";
+import { propertySlug } from "@/lib/showcase/property-slug";
+import { publicRequestOrigin } from "@/lib/agent/publicInterface";
 import type { Property } from "@/types";
 
 const MAX_LIMIT = 50;
@@ -23,7 +26,10 @@ function getClientIp(request: Request): string {
 
 // GET /api/public/properties
 // Public endpoint to fetch published and available properties for showcase with pagination
-export async function GET(request: Request) {
+export async function getPublicProperties(
+  request: Request,
+  options: { requireConfiguredApiKey?: boolean } = {}
+) {
   try {
     // 1. Per-IP budget. Runs before the API-key check so an unauthenticated
     //    flood is rejected cheaply and key guessing is bounded.
@@ -35,7 +41,7 @@ export async function GET(request: Request) {
 
     // 2. Optional API Key security check
     const expectedApiKey = process.env.PUBLIC_API_KEY;
-    if (expectedApiKey) {
+    if (expectedApiKey && options.requireConfiguredApiKey !== false) {
       const apiKey = request.headers.get("x-api-key");
       if (apiKey !== expectedApiKey) {
         return NextResponse.json(
@@ -154,6 +160,7 @@ export async function GET(request: Request) {
       );
     }
 
+    const origin = publicRequestOrigin(request);
     const resolved = ((data ?? []) as unknown as Property[]).map((row) => {
       const view = toPublicListingView(row, { revealExact: true });
       return {
@@ -161,8 +168,23 @@ export async function GET(request: Request) {
         images: Array.isArray(view.images)
           ? view.images.map(storagePublicUrl)
           : view.images,
+        canonical_url: isLocationGuarded(row)
+          ? `${origin}/?property_id=${encodeURIComponent(row.id)}&ref=${encodeURIComponent(accountId)}`
+          : `${origin}/property/${propertySlug(row)}`,
+        provenance: {
+          source: "brokerage_published_inventory",
+          publication_status: "published",
+          availability_status: "available",
+          last_updated: view.updated_at || view.created_at,
+        },
       };
     });
+
+    const latestResultUpdate = resolved
+      .map((property) => property.updated_at || property.created_at)
+      .filter((value): value is string => Boolean(value))
+      .sort()
+      .at(-1) ?? null;
 
     return NextResponse.json({
       data: resolved,
@@ -172,10 +194,19 @@ export async function GET(request: Request) {
         total: count ?? 0,
         totalPages: Math.ceil((count ?? 0) / limit),
       },
+      meta: {
+        source: "brokerage_published_inventory",
+        generated_at: new Date().toISOString(),
+        latest_result_update: latestResultUpdate,
+        privacy:
+          "Exact locations, private media, documents and confidential listing details may be withheld.",
+        openapi_url: `${origin}/api/public/agent/openapi.json?account_id=${encodeURIComponent(accountId)}`,
+      },
     }, {
       headers: {
         // Cache for 60s, serve stale for 5min while revalidating
         "Cache-Control": "public, max-age=60, stale-while-revalidate=300",
+        "Link": `<${origin}/llms.txt?account_id=${encodeURIComponent(accountId)}>; rel="describedby", <${origin}/api/public/agent/openapi.json?account_id=${encodeURIComponent(accountId)}>; rel="service-desc"`,
       },
     });
   } catch (err) {
@@ -185,4 +216,8 @@ export async function GET(request: Request) {
       { status: 500 }
     );
   }
+}
+
+export async function GET(request: Request) {
+  return getPublicProperties(request);
 }
