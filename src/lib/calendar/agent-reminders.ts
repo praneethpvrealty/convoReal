@@ -27,6 +27,8 @@ import {
   agentMessageButtonTitle,
   buildAgentMessageContactReplyId,
 } from '@/lib/calendar/agent-reminder-actions';
+import { resolveChannels } from '@/lib/notifications/preferences';
+import { resolveQuietPeriod } from '@/lib/notifications/quiet-hours';
 
 const EVENT_TYPE_EMOJI: Record<string, string> = {
   site_visit: '📍',
@@ -176,14 +178,16 @@ export async function sendAgentEventReminders(now: Date = new Date()): Promise<v
     ].filter((l): l is string => l !== null);
 
     const body = lines.join('\n');
+    const quiet = await resolveQuietPeriod(appt.account_id, 'agent', now);
     const common = {
       accountId: appt.account_id,
       userId: assigneeId,
       toPhone: assignee.phone,
       senderType: 'bot' as const,
     };
-    const result =
-      messageableContacts.length === 0
+    const result = quiet.isQuiet
+      ? null
+      : messageableContacts.length === 0
         ? await sendWhatsAppMessageAndPersist({
             ...common,
             kind: 'text',
@@ -218,13 +222,13 @@ export async function sendAgentEventReminders(now: Date = new Date()): Promise<v
               ],
             });
 
-    if (!result.success) {
+    if (result && !result.success) {
       // Expected whenever the assignee hasn't messaged the bot in 24h: this
       // is free-form text, so Meta rejects it outside the service window.
       // An event booked days ahead reaches its reminder with the window
       // long closed, which is the common case rather than the edge one.
       console.warn(`[Agent Reminder] WhatsApp send failed for appt ${appt.id}:`, result.error);
-    } else {
+    } else if (result?.success) {
       // Makes the card answerable. Without this a quote-reply on it
       // resolved to no target at all, so "This is already done" fell
       // through to the intake classifier and came back "I couldn't tell
@@ -244,6 +248,9 @@ export async function sendAgentEventReminders(now: Date = new Date()): Promise<v
     // fail again for the same reason. One attempt, then marked, exactly as
     // sendOverdueNudges does.
     await admin.from('appointments').update({ agent_reminder_sent: true }).eq('id', appt.id);
+    const quietChannels = quiet.isQuiet
+      ? { ...(await resolveChannels(appt.account_id, 'appointment_reminder')), whatsapp: true }
+      : undefined;
     await createNotification({
       accountId: appt.account_id,
       userId: assigneeId as string,
@@ -254,6 +261,9 @@ export async function sendAgentEventReminders(now: Date = new Date()): Promise<v
       entityType: 'appointment',
       entityId: appt.id,
       link: '/calendar',
+      whatsappText: body,
+      channels: quietChannels,
+      quietAudience: 'agent',
     });
   }
 }
@@ -353,20 +363,26 @@ export async function sendDailyScheduleDigests(now: Date = new Date()): Promise<
         }))
       );
 
-    const result = await sendWhatsAppMessageAndPersist({
-      accountId: entry.accountId,
-      userId: entry.userId,
-      toPhone: assignee.phone,
-      kind: 'text',
-      senderType: 'bot',
-      text,
-    });
-    if (!result.success) {
+    const quiet = await resolveQuietPeriod(entry.accountId, 'agent', now);
+    const result = quiet.isQuiet
+      ? null
+      : await sendWhatsAppMessageAndPersist({
+          accountId: entry.accountId,
+          userId: entry.userId,
+          toPhone: assignee.phone,
+          kind: 'text',
+          senderType: 'bot',
+          text,
+        });
+    if (result && !result.success) {
       console.warn(`[Daily Digest] send failed for user ${entry.userId}:`, result.error);
     }
 
     const apptCount = entry.events.length;
     const todoCount = entry.todos.length;
+    const quietChannels = quiet.isQuiet
+      ? { ...(await resolveChannels(entry.accountId, 'daily_digest')), whatsapp: true }
+      : undefined;
     await createNotification({
       accountId: entry.accountId,
       userId: entry.userId,
@@ -375,6 +391,9 @@ export async function sendDailyScheduleDigests(now: Date = new Date()): Promise<
       title: `☀️ Your schedule for ${label}`,
       body: `${apptCount} appointment${apptCount === 1 ? '' : 's'}${todoCount > 0 ? ` · ${todoCount} task${todoCount === 1 ? '' : 's'} due` : ''}`,
       link: '/calendar',
+      whatsappText: text,
+      channels: quietChannels,
+      quietAudience: 'agent',
     });
   }
 }
@@ -421,17 +440,20 @@ export async function sendOverdueNudges(now: Date = new Date()): Promise<void> {
       '_Reply to this message and tell me how it went — I\'ll close it off. Or say when to move it to._',
     ].join('\n');
 
-    const result = await sendWhatsAppMessageAndPersist({
-      accountId: appt.account_id,
-      userId: assigneeId,
-      toPhone: assignee.phone,
-      kind: 'text',
-      senderType: 'bot',
-      text,
-    });
-    if (!result.success) {
+    const quiet = await resolveQuietPeriod(appt.account_id, 'agent', now);
+    const result = quiet.isQuiet
+      ? null
+      : await sendWhatsAppMessageAndPersist({
+          accountId: appt.account_id,
+          userId: assigneeId,
+          toPhone: assignee.phone,
+          kind: 'text',
+          senderType: 'bot',
+          text,
+        });
+    if (result && !result.success) {
       console.warn(`[Overdue Nudge] send failed for appt ${appt.id}:`, result.error);
-    } else {
+    } else if (result?.success) {
       // The card that asks "how did it go?" was the one card a reply
       // could not reach: without a target row a quote-reply on it
       // resolved to nothing, so "he visited the property yesterday"
@@ -447,6 +469,9 @@ export async function sendOverdueNudges(now: Date = new Date()): Promise<void> {
       });
     }
 
+    const quietChannels = quiet.isQuiet
+      ? { ...(await resolveChannels(appt.account_id, 'appointment_overdue')), whatsapp: true }
+      : undefined;
     await createNotification({
       accountId: appt.account_id,
       userId: assigneeId as string,
@@ -457,6 +482,9 @@ export async function sendOverdueNudges(now: Date = new Date()): Promise<void> {
       entityType: 'appointment',
       entityId: appt.id,
       link: '/calendar',
+      whatsappText: text,
+      channels: quietChannels,
+      quietAudience: 'agent',
     });
   }
 }

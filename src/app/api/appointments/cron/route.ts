@@ -8,6 +8,7 @@ import {
 } from '@/lib/calendar/agent-reminders'
 import { sendPortalExpiryReminders } from '@/lib/portals/expiry-reminders'
 import { sendDueTodoReminders } from '@/lib/calendar/todo-reminders'
+import { deliverDeferredNotifications } from '@/lib/notifications/create'
 
 /**
  * Auth: constant-time check of the shared cron secret, supplied via the
@@ -42,6 +43,7 @@ export async function GET(request: Request) {
     await sendDailyScheduleDigests()
     await sendOverdueNudges()
     await sendDueTodoReminders()
+    await deliverDeferredNotifications()
     await sendPortalExpiryReminders()
     return NextResponse.json({ success: true })
   } catch (error) {

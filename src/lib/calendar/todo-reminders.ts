@@ -106,6 +106,7 @@ export async function sendDueTodoReminders(
       entityType: 'todo',
       entityId: todo.id,
       link: '/calendar',
+      quietAudience: 'agent',
     });
 
     if (!result.inAppId && !result.whatsapp?.success && result.pushCount === 0) {

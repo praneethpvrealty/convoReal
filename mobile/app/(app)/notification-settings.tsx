@@ -2,7 +2,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { Stack } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import {
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 
 import { ConvoRealLoader } from '@/components/loader';
 import { Banner, PrimaryButton, SectionLabel } from '@/components/ui';
@@ -13,6 +20,23 @@ import { supabase } from '@/lib/supabase';
 import { radius, spacing, useTheme } from '@/lib/theme';
 
 type Prefs = Record<string, { app: boolean; whatsapp: boolean }>;
+type QuietSettings = {
+  clientEnabled: boolean;
+  clientStart: string;
+  clientEnd: string;
+  agentEnabled: boolean;
+  agentStart: string;
+  agentEnd: string;
+};
+
+const DEFAULT_QUIET_SETTINGS: QuietSettings = {
+  clientEnabled: true,
+  clientStart: '21:00',
+  clientEnd: '08:00',
+  agentEnabled: true,
+  agentStart: '22:00',
+  agentEnd: '07:00',
+};
 
 function catalogDefaults(): Prefs {
   const out: Prefs = {};
@@ -20,19 +44,45 @@ function catalogDefaults(): Prefs {
   return out;
 }
 
-async function fetchPrefs(accountId: string): Promise<Prefs> {
+async function fetchPrefs(
+  accountId: string
+): Promise<{ prefs: Prefs; quiet: QuietSettings }> {
   const next = catalogDefaults();
-  const { data, error } = await supabase
-    .from('notification_preferences')
-    .select('event_key, app_enabled, whatsapp_enabled')
-    .eq('account_id', accountId);
-  if (error) throw error;
-  for (const row of data ?? []) {
+  const [prefsResult, quietResult] = await Promise.all([
+    supabase
+      .from('notification_preferences')
+      .select('event_key, app_enabled, whatsapp_enabled')
+      .eq('account_id', accountId),
+    supabase
+      .from('accounts')
+      .select(
+        'client_quiet_hours_enabled, client_quiet_hours_start, client_quiet_hours_end, agent_quiet_hours_enabled, agent_quiet_hours_start, agent_quiet_hours_end'
+      )
+      .eq('id', accountId)
+      .single(),
+  ]);
+  if (prefsResult.error || quietResult.error)
+    throw prefsResult.error || quietResult.error;
+  for (const row of prefsResult.data ?? []) {
     if (next[row.event_key]) {
-      next[row.event_key] = { app: row.app_enabled, whatsapp: row.whatsapp_enabled };
+      next[row.event_key] = {
+        app: row.app_enabled,
+        whatsapp: row.whatsapp_enabled,
+      };
     }
   }
-  return next;
+  const quietRow = quietResult.data;
+  return {
+    prefs: next,
+    quiet: {
+      clientEnabled: quietRow.client_quiet_hours_enabled,
+      clientStart: quietRow.client_quiet_hours_start.slice(0, 5),
+      clientEnd: quietRow.client_quiet_hours_end.slice(0, 5),
+      agentEnabled: quietRow.agent_quiet_hours_enabled,
+      agentStart: quietRow.agent_quiet_hours_start.slice(0, 5),
+      agentEnd: quietRow.agent_quiet_hours_end.slice(0, 5),
+    },
+  };
 }
 
 export default function NotificationSettingsScreen() {
@@ -48,11 +98,13 @@ export default function NotificationSettingsScreen() {
   // Local edits overlaid on the loaded prefs, so nothing is synced from
   // the query into state via an effect. `val()` reads edit-or-loaded.
   const [edits, setEdits] = useState<Prefs>({});
+  const [quietEdits, setQuietEdits] = useState<Partial<QuietSettings>>({});
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const base = data ?? catalogDefaults();
+  const base = data?.prefs ?? catalogDefaults();
+  const quiet = { ...(data?.quiet ?? DEFAULT_QUIET_SETTINGS), ...quietEdits };
   function val(key: string) {
     return edits[key] ?? base[key];
   }
@@ -74,6 +126,18 @@ export default function NotificationSettingsScreen() {
 
   async function save() {
     if (!accountId) return;
+    if (
+      ![
+        quiet.clientStart,
+        quiet.clientEnd,
+        quiet.agentStart,
+        quiet.agentEnd,
+      ].every((value) => /^([01]\d|2[0-3]):[0-5]\d$/.test(value))
+    ) {
+      haptic.warn();
+      setError('Use 24-hour HH:MM times, for example 21:00.');
+      return;
+    }
     setSaving(true);
     setError(null);
     const rows = NOTIFICATION_EVENTS.map((e) => ({
@@ -83,11 +147,26 @@ export default function NotificationSettingsScreen() {
       whatsapp_enabled: val(e.key).whatsapp,
       updated_at: new Date().toISOString(),
     }));
-    const { error: upsertError } = await supabase
-      .from('notification_preferences')
-      .upsert(rows, { onConflict: 'account_id,event_key' });
+    const [prefsResult, quietResult] = await Promise.all([
+      supabase
+        .from('notification_preferences')
+        .upsert(rows, { onConflict: 'account_id,event_key' }),
+      supabase
+        .from('accounts')
+        .update({
+          client_quiet_hours_enabled: quiet.clientEnabled,
+          client_quiet_hours_start: quiet.clientStart,
+          client_quiet_hours_end: quiet.clientEnd,
+          agent_quiet_hours_enabled: quiet.agentEnabled,
+          agent_quiet_hours_start: quiet.agentStart,
+          agent_quiet_hours_end: quiet.agentEnd,
+        })
+        .eq('id', accountId)
+        .select('id')
+        .single(),
+    ]);
     setSaving(false);
-    if (upsertError) {
+    if (prefsResult.error || quietResult.error) {
       haptic.warn();
       setError('Could not save. Please try again.');
       return;
@@ -100,27 +179,164 @@ export default function NotificationSettingsScreen() {
     <View style={{ flex: 1 }}>
       <Stack.Screen options={{ headerShown: true, title: 'Notifications' }} />
       {isLoading ? (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+        <View
+          style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}
+        >
           <ConvoRealLoader />
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.container}>
-          <Text style={{ fontSize: 13, lineHeight: 19, color: colors.textMuted }}>
-            Choose how each alert reaches you. App covers the in-app bell and phone push; WhatsApp
-            pings your WhatsApp number.
+          <Text
+            style={{ fontSize: 13, lineHeight: 19, color: colors.textMuted }}
+          >
+            Choose how each alert reaches you. App covers the in-app bell and
+            phone push; WhatsApp pings your WhatsApp number.
           </Text>
 
-          {saved ? <Banner kind="success" text="Notification settings saved" /> : null}
+          {saved ? (
+            <Banner kind="success" text="Notification settings saved" />
+          ) : null}
           {error ? <Banner kind="error" text={error} /> : null}
+
+          <View style={{ gap: spacing.sm }}>
+            <SectionLabel text="QUIET HOURS (IST)" />
+            <Text
+              style={{ fontSize: 12, lineHeight: 17, color: colors.textMuted }}
+            >
+              WhatsApp and push reminders wait until quiet hours end. In-app
+              reminders still appear on time.
+            </Text>
+            {(
+              [
+                ['client', 'Clients', 'Appointment reminders sent to clients'],
+                [
+                  'agent',
+                  'You & agents',
+                  'Your own task and calendar reminders',
+                ],
+              ] as const
+            ).map(([audience, label, description]) => {
+              const enabledKey = `${audience}Enabled` as const;
+              const startKey = `${audience}Start` as const;
+              const endKey = `${audience}End` as const;
+              return (
+                <View
+                  key={audience}
+                  style={[
+                    styles.quietCard,
+                    {
+                      backgroundColor: colors.glass,
+                      borderColor: colors.glassBorder,
+                    },
+                  ]}
+                >
+                  <View style={styles.quietHeader}>
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        style={{
+                          fontSize: 14.5,
+                          fontFamily: f.bold,
+                          color: colors.text,
+                        }}
+                      >
+                        {label}
+                      </Text>
+                      <Text style={{ fontSize: 12, color: colors.textMuted }}>
+                        {description}
+                      </Text>
+                    </View>
+                    <Switch
+                      value={quiet[enabledKey]}
+                      onValueChange={(value) => {
+                        setSaved(false);
+                        setQuietEdits((current) => ({
+                          ...current,
+                          [enabledKey]: value,
+                        }));
+                      }}
+                      trackColor={{
+                        true: colors.primary,
+                        false: colors.border,
+                      }}
+                      thumbColor="#fff"
+                    />
+                  </View>
+                  <View style={styles.timeRow}>
+                    <TextInput
+                      value={quiet[startKey]}
+                      onChangeText={(value) => {
+                        setSaved(false);
+                        setQuietEdits((current) => ({
+                          ...current,
+                          [startKey]: value,
+                        }));
+                      }}
+                      editable={quiet[enabledKey]}
+                      maxLength={5}
+                      placeholder="HH:MM"
+                      placeholderTextColor={colors.textMuted}
+                      style={[
+                        styles.timeInput,
+                        { color: colors.text, borderColor: colors.border },
+                      ]}
+                      accessibilityLabel={`${label} quiet hours start`}
+                    />
+                    <Text style={{ color: colors.textMuted }}>to</Text>
+                    <TextInput
+                      value={quiet[endKey]}
+                      onChangeText={(value) => {
+                        setSaved(false);
+                        setQuietEdits((current) => ({
+                          ...current,
+                          [endKey]: value,
+                        }));
+                      }}
+                      editable={quiet[enabledKey]}
+                      maxLength={5}
+                      placeholder="HH:MM"
+                      placeholderTextColor={colors.textMuted}
+                      style={[
+                        styles.timeInput,
+                        { color: colors.text, borderColor: colors.border },
+                      ]}
+                      accessibilityLabel={`${label} quiet hours end`}
+                    />
+                  </View>
+                </View>
+              );
+            })}
+          </View>
 
           <View style={styles.legend}>
             <View style={styles.legendItem}>
-              <Ionicons name="phone-portrait-outline" size={15} color={colors.textMuted} />
-              <Text style={{ fontSize: 12, color: colors.textMuted, fontFamily: f.semibold }}>App</Text>
+              <Ionicons
+                name="phone-portrait-outline"
+                size={15}
+                color={colors.textMuted}
+              />
+              <Text
+                style={{
+                  fontSize: 12,
+                  color: colors.textMuted,
+                  fontFamily: f.semibold,
+                }}
+              >
+                App
+              </Text>
             </View>
             <View style={styles.legendItem}>
-              <Ionicons name="logo-whatsapp" size={15} color={colors.textMuted} />
-              <Text style={{ fontSize: 12, color: colors.textMuted, fontFamily: f.semibold }}>
+              <Ionicons
+                name="logo-whatsapp"
+                size={15}
+                color={colors.textMuted}
+              />
+              <Text
+                style={{
+                  fontSize: 12,
+                  color: colors.textMuted,
+                  fontFamily: f.semibold,
+                }}
+              >
                 WhatsApp
               </Text>
             </View>
@@ -129,33 +345,64 @@ export default function NotificationSettingsScreen() {
           {groups.map(([group, events]) => (
             <View key={group} style={{ gap: spacing.sm }}>
               <SectionLabel text={group} />
-              <View style={[styles.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
+              <View
+                style={[
+                  styles.card,
+                  {
+                    backgroundColor: colors.glass,
+                    borderColor: colors.glassBorder,
+                  },
+                ]}
+              >
                 {events.map((e, i) => (
                   <View
                     key={e.key}
                     style={[
                       styles.row,
-                      i > 0 ? { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border } : null,
+                      i > 0
+                        ? {
+                            borderTopWidth: StyleSheet.hairlineWidth,
+                            borderTopColor: colors.border,
+                          }
+                        : null,
                     ]}
                   >
                     <View style={{ flex: 1, gap: 2, paddingRight: spacing.sm }}>
-                      <Text style={{ fontSize: 14.5, fontFamily: f.bold, color: colors.text }}>
+                      <Text
+                        style={{
+                          fontSize: 14.5,
+                          fontFamily: f.bold,
+                          color: colors.text,
+                        }}
+                      >
                         {e.label}
                       </Text>
-                      <Text style={{ fontSize: 12, lineHeight: 16, color: colors.textMuted }}>
+                      <Text
+                        style={{
+                          fontSize: 12,
+                          lineHeight: 16,
+                          color: colors.textMuted,
+                        }}
+                      >
                         {e.description}
                       </Text>
                     </View>
                     <Switch
                       value={val(e.key).app}
                       onValueChange={(v) => set(e.key, 'app', v)}
-                      trackColor={{ true: colors.primary, false: colors.border }}
+                      trackColor={{
+                        true: colors.primary,
+                        false: colors.border,
+                      }}
                       thumbColor="#fff"
                     />
                     <Switch
                       value={val(e.key).whatsapp}
                       onValueChange={(v) => set(e.key, 'whatsapp', v)}
-                      trackColor={{ true: colors.primary, false: colors.border }}
+                      trackColor={{
+                        true: colors.primary,
+                        false: colors.border,
+                      }}
                       thumbColor="#fff"
                     />
                   </View>
@@ -172,15 +419,41 @@ export default function NotificationSettingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xl },
+  container: {
+    padding: spacing.lg,
+    gap: spacing.md,
+    paddingBottom: spacing.xl,
+  },
   legend: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
     gap: spacing.lg,
     paddingRight: 4,
   },
-  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 4, width: 52, justifyContent: 'center' },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    width: 52,
+    justifyContent: 'center',
+  },
   card: { borderRadius: radius.lg, borderWidth: 1, overflow: 'hidden' },
+  quietCard: {
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    padding: spacing.lg,
+    gap: spacing.md,
+  },
+  quietHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  timeRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  timeInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 10,
+    textAlign: 'center',
+  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',

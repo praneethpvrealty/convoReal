@@ -17,6 +17,10 @@ import { decrypt } from '@/lib/whatsapp/encryption';
 import { istDayWindow, istHourOf } from '@/lib/calendar/whatsapp-scheduler';
 import { localityLabel } from '@/lib/inventory/location-guard';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import {
+  DEFAULT_QUIET_PERIODS,
+  quietPeriodStatus,
+} from '@/lib/notifications/quiet-hours';
 
 // ============================================================
 // Client-facing appointment reminders. Every appointment can now
@@ -202,7 +206,12 @@ interface ReminderAppointment {
   liaison_id: string | null;
   liaison: { id: string; name: string | null; phone: string | null } | null;
   property: (ReminderProperty & { id: string }) | null;
-  account: { name: string } | null;
+  account: {
+    name: string;
+    client_quiet_hours_enabled: boolean | null;
+    client_quiet_hours_start: string | null;
+    client_quiet_hours_end: string | null;
+  } | null;
 }
 
 /** Union of the multi-contact array and the legacy single column. */
@@ -627,6 +636,7 @@ export async function checkAndSendAppointmentReminders(
   const { endIso: dayEndIso } = istDayWindow(now);
   const dayEndMs = new Date(dayEndIso).getTime();
   const morningWindowOpen = istHourOf(now) >= 7;
+  const quietLookback = new Date(now.getTime() - 24 * HOUR_MS);
 
   // One fetch covers both passes: everything left today (IST) plus
   // anything inside the 1h window that spills past IST midnight.
@@ -637,11 +647,11 @@ export async function checkAndSendAppointmentReminders(
   const { data: appointments, error } = await admin
     .from('appointments')
     .select(
-      'id, account_id, user_id, title, start_time, location, agenda, event_type, contact_id, contact_ids, reminder_morning_sent, reminder_1h_sent, remind_liaison, liaison_id, liaison:liaisons(id, name, phone), property:properties(id, title, type, location_privacy, location, sublocality, city, state), account:accounts(name)'
+      'id, account_id, user_id, title, start_time, location, agenda, event_type, contact_id, contact_ids, reminder_morning_sent, reminder_1h_sent, remind_liaison, liaison_id, liaison:liaisons(id, name, phone), property:properties(id, title, type, location_privacy, location, sublocality, city, state), account:accounts(name, client_quiet_hours_enabled, client_quiet_hours_start, client_quiet_hours_end)'
     )
     .eq('status', 'scheduled')
     .neq('event_type', 'call')
-    .gt('start_time', now.toISOString())
+    .gt('start_time', quietLookback.toISOString())
     .lte('start_time', horizonIso)
     .or('reminder_morning_sent.eq.false,reminder_1h_sent.eq.false');
 
@@ -690,6 +700,14 @@ export async function checkAndSendAppointmentReminders(
   }
 
   for (const appt of rows) {
+    const defaults = DEFAULT_QUIET_PERIODS.client;
+    const quiet = quietPeriodStatus(now, {
+      enabled: appt.account?.client_quiet_hours_enabled ?? defaults.enabled,
+      start: appt.account?.client_quiet_hours_start ?? defaults.start,
+      end: appt.account?.client_quiet_hours_end ?? defaults.end,
+    });
+    if (quiet.isQuiet) continue;
+
     const msUntilStart = new Date(appt.start_time).getTime() - now.getTime();
     const isDue1h = !appt.reminder_1h_sent && msUntilStart <= HOUR_MS;
     // Morning-of brief: fires once the 7 AM IST window opens, for
