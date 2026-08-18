@@ -27,7 +27,7 @@ export type LearnedFactSource =
   | 'owner_reply'
   | 'portal_sync';
 
-export type ValueKind = 'currency' | 'rate' | 'count' | 'percent' | 'list';
+export type ValueKind = 'currency' | 'rate' | 'count' | 'percent' | 'boolean' | 'list';
 
 /**
  * How an approved fact reaches the record. Most are a column write.
@@ -105,6 +105,14 @@ const POLICIES: FieldPolicy[] = [
     kind: 'currency',
     min: 1_000,
     max: 100_000_000_000,
+  },
+  {
+    entity: 'contact',
+    field: 'no_budget',
+    column: 'no_budget',
+    label: 'No fixed budget',
+    disposition: 'auto',
+    kind: 'boolean',
   },
   {
     entity: 'contact',
@@ -265,6 +273,10 @@ export function normalizeValue(
   policy: FieldPolicy,
   raw: unknown
 ): unknown | null {
+  if (policy.kind === 'boolean') {
+    return typeof raw === 'boolean' ? raw : null;
+  }
+
   if (policy.kind === 'list') {
     if (!Array.isArray(raw)) return null;
     const cleaned = raw
@@ -360,6 +372,7 @@ export function valuesDiffer(a: unknown, b: unknown): boolean {
 /** Human rendering for a review card or an audit line. */
 export function formatValue(policy: FieldPolicy, value: unknown): string {
   if (value === null || value === undefined) return '—';
+  if (policy.kind === 'boolean') return value ? 'Yes' : 'No';
   if (policy.kind === 'list') {
     const list = Array.isArray(value) ? value : [];
     return list.length ? list.join(', ') : '—';

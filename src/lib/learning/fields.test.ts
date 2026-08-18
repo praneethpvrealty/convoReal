@@ -41,6 +41,7 @@ describe('field policy registry', () => {
 describe('normalizeValue', () => {
   const rate = fieldPolicy('property', 'seller_final_price_per_sqft')!;
   const budget = fieldPolicy('contact', 'pref_budget_max')!;
+  const noBudget = fieldPolicy('contact', 'no_budget')!;
   const areas = fieldPolicy('contact', 'pref_areas')!;
 
   it('rejects a rate the model failed to scale', () => {
@@ -52,6 +53,12 @@ describe('normalizeValue', () => {
   it('rejects a budget below what any property costs', () => {
     expect(normalizeValue(budget, 2)).toBeNull();
     expect(normalizeValue(budget, 20_000_000)).toBe(20_000_000);
+  });
+
+  it('keeps booleans as booleans for preference invariants', () => {
+    expect(normalizeValue(noBudget, false)).toBe(false);
+    expect(normalizeValue(noBudget, true)).toBe(true);
+    expect(normalizeValue(noBudget, 'false')).toBeNull();
   });
 
   it('coerces numeric strings and rounds', () => {
@@ -113,6 +120,7 @@ describe('formatValue', () => {
       'HSR, BTM'
     );
     expect(formatValue(fieldPolicy('contact', 'pref_bhk_min')!, 3)).toBe('3');
+    expect(formatValue(fieldPolicy('contact', 'no_budget')!, false)).toBe('No');
   });
 
   it('shows an empty value as a dash rather than blank', () => {

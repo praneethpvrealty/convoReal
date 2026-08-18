@@ -13,6 +13,7 @@ import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatche
 import { sendPropertyTypePrompt } from '@/lib/whatsapp/property-type-prompt';
 import { sendBudgetBandPrompt } from '@/lib/whatsapp/budget-band';
 import { isPlaceholderLeadName } from '@/lib/contacts/lead-placeholder';
+import { accountShowcaseBrowseUrl } from '@/lib/showcase/account-showcase-url';
 import type { Contact } from '@/types';
 
 /** Every id this module owns starts with this. */
@@ -113,6 +114,11 @@ export async function sendRequirementReview(args: {
   if (!summary) return false;
 
   try {
+    const showcaseUrl = await accountShowcaseBrowseUrl(
+      args.db,
+      args.accountId,
+      args.contactId,
+    );
     const result = await sendWhatsAppMessageAndPersist({
       accountId: args.accountId,
       userId: args.userId,
@@ -127,6 +133,9 @@ export async function sendRequirementReview(args: {
         `📌 ${summary}`,
         '',
         "You'll hear from us the moment a matching listing arrives. Spot something off? Tweak it below.",
+        '',
+        '🔎 Meanwhile, explore all our live properties yourself:',
+        showcaseUrl,
       ].join('\n'),
       interactiveButtonLabel: 'Review / tweak',
       interactiveSections: [
