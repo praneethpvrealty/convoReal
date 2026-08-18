@@ -1,0 +1,12 @@
+appId: com.convoreal.app
+---
+- launchApp
+- tapOn: Contacts
+- tapOn: Search contacts
+- inputText: Aditya U B
+- tapOn: Aditya U B
+- tapOn: Ask Requirements
+- assertVisible: Ask for buyer requirements
+- assertVisible: This will not open your personal WhatsApp.
+- assertVisible:
+    id: buyer-requirement-send

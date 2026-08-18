@@ -3,10 +3,12 @@ import { useState } from 'react';
 import { Text, View } from 'react-native';
 
 import { BottomSheet } from '@/components/sheet';
+import { SuccessSheet } from '@/components/success-sheet';
 import { Banner, PrimaryButton } from '@/components/ui';
 import { apiFetch } from '@/lib/api';
 import { friendlyError } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
+import { openContactChat } from '@/lib/open-chat';
 import { spacing, useTheme } from '@/lib/theme';
 import type { Contact } from '@/lib/types';
 
@@ -21,10 +23,19 @@ export function BuyerPreferenceRequestSheet({
 }) {
   const { colors, fonts: f } = useTheme();
   const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const name = contact.name?.trim() || 'the buyer';
 
+  function closeSheet() {
+    setSending(false);
+    setSent(false);
+    setError(null);
+    onClose();
+  }
+
   async function sendRequest() {
+    if (sending) return;
     setSending(true);
     setError(null);
     try {
@@ -32,8 +43,7 @@ export function BuyerPreferenceRequestSheet({
         method: 'POST',
         body: JSON.stringify({ contact_id: contact.id }),
       });
-      haptic.success();
-      onClose();
+      setSent(true);
     } catch (reason) {
       haptic.warn();
       setError(
@@ -44,12 +54,45 @@ export function BuyerPreferenceRequestSheet({
     }
   }
 
+  function openInbox() {
+    closeSheet();
+    void openContactChat(contact);
+  }
+
+  if (sent) {
+    return (
+      <SuccessSheet
+        visible={visible}
+        onClose={closeSheet}
+        title="Requirement form sent"
+        message={`Sent to ${name} from your connected ConvoReal WhatsApp number and recorded in Inbox. Their submitted response will update the requirement and Match Radar.`}
+        confetti={false}
+        actions={[
+          {
+            icon: 'chatbubble-ellipses-outline',
+            label: 'Open in Inbox',
+            onPress: openInbox,
+          },
+          { icon: 'checkmark-outline', label: 'Done', onPress: closeSheet },
+        ]}
+      />
+    );
+  }
+
   return (
-    <BottomSheet visible={visible} onClose={onClose} title="Ask for buyer requirements">
+    <BottomSheet visible={visible} onClose={closeSheet} title="Ask for buyer requirements">
       <View style={{ paddingHorizontal: spacing.lg, gap: spacing.lg }}>
         <Text style={{ color: colors.textMuted, fontSize: 14, lineHeight: 20 }}>
           Send {name} a WhatsApp form pre-filled with the preferences already on record.
         </Text>
+
+        <View style={{ flexDirection: 'row', gap: spacing.sm, alignItems: 'flex-start' }}>
+          <Ionicons name="logo-whatsapp" size={19} color={colors.success} />
+          <Text style={{ flex: 1, color: colors.textMuted, fontSize: 13, lineHeight: 19 }}>
+            Sent directly from your connected ConvoReal WhatsApp number and tracked in
+            Inbox. This will not open your personal WhatsApp.
+          </Text>
+        </View>
 
         <View
           style={{
@@ -74,11 +117,20 @@ export function BuyerPreferenceRequestSheet({
         </View>
 
         {error ? <Banner kind="error" text={error} /> : null}
+        {sending ? (
+          <Text
+            accessibilityLiveRegion="polite"
+            style={{ color: colors.textMuted, fontSize: 13, textAlign: 'center' }}
+          >
+            Sending through your ConvoReal WhatsApp number…
+          </Text>
+        ) : null}
         <PrimaryButton
-          label="Send on WhatsApp"
+          label="Send from Engine"
           icon="send"
           busy={sending}
           onPress={sendRequest}
+          testID="buyer-requirement-send"
         />
       </View>
     </BottomSheet>

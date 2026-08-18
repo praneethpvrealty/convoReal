@@ -63,6 +63,10 @@ export function BuyerPreferenceRequestDialog({
         </DialogHeader>
 
         <div className="space-y-3 rounded-xl border border-slate-800 bg-slate-950/40 p-4 text-sm text-slate-300">
+          <p className="text-xs text-slate-400">
+            Sent directly from your connected ConvoReal WhatsApp number and tracked in
+            Inbox. This will not open your personal WhatsApp.
+          </p>
           <p>They can confirm or update budget, localities and property types.</p>
           <div className="flex gap-2 text-xs text-slate-400">
             <Radar className="text-primary mt-0.5 size-4 shrink-0" />
@@ -80,7 +84,7 @@ export function BuyerPreferenceRequestDialog({
           </Button>
           <Button onClick={sendRequest} disabled={sending}>
             {sending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
-            Send on WhatsApp
+            {sending ? 'Sending from Engine…' : 'Send from Engine'}
           </Button>
         </DialogFooter>
       </DialogContent>
