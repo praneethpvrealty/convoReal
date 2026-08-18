@@ -150,6 +150,34 @@ describe('checkAndSendAppointmentReminders', () => {
       templateName: 'property_visit_reminder',
     });
   });
+
+  it('holds client reminders during quiet hours', async () => {
+    const quietNow = new Date('2026-08-01T17:00:00Z');
+    tables.appointments = [
+      {
+        ...appointment('a-visit', 'site_visit', 'c-visit'),
+        start_time: '2026-08-01T17:30:00Z',
+      },
+    ];
+
+    await checkAndSendAppointmentReminders(quietNow);
+
+    expect(sendWhatsAppMessageAndPersist).not.toHaveBeenCalled();
+  });
+
+  it('releases a held client reminder when quiet hours end', async () => {
+    const quietEnd = new Date('2026-08-02T02:30:00Z');
+    tables.appointments = [
+      {
+        ...appointment('a-visit', 'site_visit', 'c-visit'),
+        start_time: '2026-08-01T17:30:00Z',
+      },
+    ];
+
+    await checkAndSendAppointmentReminders(quietEnd);
+
+    expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('reminderLocationText', () => {

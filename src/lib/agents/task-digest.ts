@@ -349,6 +349,7 @@ export async function sendAgentTaskDigests(
       title: message.title,
       body: message.body,
       link: '/today',
+      quietAudience: 'agent',
     });
 
     await db
