@@ -420,13 +420,16 @@ describe('the radar is wired up', () => {
     expect(tap).toBeLessThan(ownerChatbot);
   });
 
-  it('the webhook heats a lead before the enquiry branch can consume the message', () => {
+  it('the webhook records a reply before the enquiry branch can consume it', () => {
     const source = read('src/lib/whatsapp/webhook-handler.ts');
     const heat = source.indexOf('maybeAutoHeatContact({');
     const enquiryBranch = source.indexOf('enquiryByCode &&\n');
+    const heatBlock = source.slice(heat, enquiryBranch);
     expect(heat).toBeGreaterThan(-1);
     expect(enquiryBranch).toBeGreaterThan(-1);
     expect(heat).toBeLessThan(enquiryBranch);
+    expect(heatBlock).not.toContain('explicitEnquiry');
+    expect(heatBlock).not.toContain("message.type === 'text'");
   });
 
   // A card is a button that survives in the agent's chat, so the tap
