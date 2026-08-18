@@ -12,6 +12,29 @@ export function propertyJsonLd(
     ? (property.rent_per_month ?? property.price)
     : property.price;
 
+  const propertyEntityId = `${url}#property`;
+  const additionalProperty = [
+    ...(property.area_sqft
+      ? [
+          {
+            '@type': 'PropertyValue',
+            name: 'Area',
+            value: property.area_sqft,
+            unitText: 'sq ft',
+          },
+        ]
+      : []),
+    ...(property.bedrooms
+      ? [
+          {
+            '@type': 'PropertyValue',
+            name: 'Bedrooms',
+            value: property.bedrooms,
+          },
+        ]
+      : []),
+  ];
+
   return {
     '@context': 'https://schema.org',
     '@type': 'RealEstateListing',
@@ -20,29 +43,36 @@ export function propertyJsonLd(
     url,
     image: imageUrl,
     datePosted: property.created_at,
-    address: {
-      '@type': 'PostalAddress',
-      ...(property.sublocality ? { streetAddress: property.sublocality } : {}),
-      ...(property.city ? { addressLocality: property.city } : {}),
-      ...(property.state ? { addressRegion: property.state } : {}),
-      addressCountry: 'IN',
+    ...(property.updated_at ? { dateModified: property.updated_at } : {}),
+    inLanguage: 'en-IN',
+    contentLocation: {
+      '@type': 'Place',
+      address: {
+        '@type': 'PostalAddress',
+        ...((property.sublocality || property.city) && {
+          addressLocality: [property.sublocality, property.city]
+            .filter(Boolean)
+            .join(', '),
+        }),
+        ...(property.state ? { addressRegion: property.state } : {}),
+        addressCountry: 'IN',
+      },
     },
-    ...(property.area_sqft
-      ? {
-          floorSize: {
-            '@type': 'QuantitativeValue',
-            value: property.area_sqft,
-            unitText: 'sq ft',
-          },
-        }
-      : {}),
-    ...(property.bedrooms ? { numberOfRooms: property.bedrooms } : {}),
+    mainEntity: {
+      '@type': 'Product',
+      '@id': propertyEntityId,
+      name: property.title,
+      category: property.type,
+      ...(additionalProperty.length > 0 ? { additionalProperty } : {}),
+    },
     ...(price
       ? {
           offers: {
             '@type': 'Offer',
+            url,
             price,
             priceCurrency: 'INR',
+            itemOffered: { '@id': propertyEntityId },
             availability:
               property.status === 'Available'
                 ? 'https://schema.org/InStock'
