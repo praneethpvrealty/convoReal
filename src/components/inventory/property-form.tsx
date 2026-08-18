@@ -651,6 +651,7 @@ export function PropertyForm({
   // Who the matched list offers: buyers by default, agents only for a
   // co-broker blast, or both together.
   const [matchAudience, setMatchAudience] = useState<MatchAudience>('buyers');
+  const [matchSearch, setMatchSearch] = useState('');
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
   const [loadingTemplates, setLoadingTemplates] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<MessageTemplate | null>(null);
@@ -887,6 +888,21 @@ export function PropertyForm({
       inMatchAudience(c.classification, matchAudience)
     );
   }, [matchedContacts, matchAudience]);
+
+  const filteredDisplayedMatches = useMemo(() => {
+    const query = matchSearch.trim().toLocaleLowerCase();
+    if (!query) return displayedMatches;
+    return displayedMatches.filter(({ contact }) =>
+      [contact.name, contact.phone, contact.classification, contact.name_tag].some((value) =>
+        value?.toLocaleLowerCase().includes(query)
+      )
+    );
+  }, [displayedMatches, matchSearch]);
+
+  const buyerMatchCount = matchedContacts.filter(
+    ({ contact }) => contact.classification !== 'Agent'
+  ).length;
+  const agentMatchCount = matchedContacts.length - buyerMatchCount;
 
   // Switching audience drops selections outside it, so "Select All"
   // then send never carries hidden picks from the previous tab.
@@ -1186,7 +1202,7 @@ export function PropertyForm({
   }
 
   function toggleSelectAllContacts() {
-    const displayedIds = displayedMatches.map((m) => m.contact.id);
+    const displayedIds = filteredDisplayedMatches.map((m) => m.contact.id);
     const allSelected = displayedIds.every((id) => selectedContactIds.includes(id));
     if (allSelected) {
       setSelectedContactIds((prev) => prev.filter((id) => !displayedIds.includes(id)));
@@ -6096,33 +6112,62 @@ export function PropertyForm({
                       {/* Only the true first load (no contacts fetched yet) blocks the
                           view — a background refetch must never hide an
                           already-rendered list behind a spinner again. */}
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-950/20 border border-slate-850 p-3 rounded-lg">
-                        <div className="flex flex-wrap items-center gap-3">
-                          <div className="text-xs font-semibold text-slate-400">
+                      <div className="rounded-xl border border-primary/25 bg-primary/5 p-3.5 space-y-3">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="size-9 rounded-full bg-primary text-primary-foreground flex items-center justify-center shrink-0">
+                              <Users className="size-4" />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-sm font-bold text-white">
+                                {loadingContacts && contacts.length === 0
+                                  ? 'Finding the best contacts…'
+                                  : `${displayedMatches.length} ${matchAudience === 'agents' ? 'agent' : matchAudience === 'buyers' ? 'buyer' : 'contact'}${displayedMatches.length === 1 ? '' : 's'} ranked`}
+                              </div>
+                              <div className="text-xs font-medium text-slate-400">
                             {loadingContacts && contacts.length === 0 ? (
                               'Searching matching profiles...'
                             ) : displayedMatches.length === 0 ? (
                               '0 matching contacts found'
                             ) : (
-                              `Found ${displayedMatches.length} matching contact${displayedMatches.length === 1 ? '' : 's'}${
-                                sharedMatchCount > 0 ? ` · ${sharedMatchCount} already shared` : ''
-                              }`
+                              `${sharedMatchCount} already shared · Select contacts to share together`
                             )}
+                              </div>
+                            </div>
                           </div>
-                          {contacts.length > 0 && (
-                            <div className="inline-flex items-center bg-slate-900 border border-slate-700 rounded p-0.5">
+                          <button
+                            type="button"
+                            onClick={toggleSelectAllContacts}
+                            disabled={filteredDisplayedMatches.length === 0}
+                            className="text-xs font-bold text-primary hover:text-primary/80 flex items-center gap-1 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            {filteredDisplayedMatches.length > 0 && filteredDisplayedMatches.every((m) => selectedContactIds.includes(m.contact.id)) ? (
+                              <>
+                                <CheckSquare className="size-3.5" /> Deselect shown
+                              </>
+                            ) : (
+                              <>
+                                <Square className="size-3.5" /> Select shown ({filteredDisplayedMatches.length})
+                              </>
+                            )}
+                          </button>
+                        </div>
+
+                        {contacts.length > 0 && (
+                          <div className="flex flex-col sm:flex-row gap-2">
+                            <div className="inline-flex items-center self-start bg-slate-900 border border-slate-700 rounded-lg p-0.5">
                               {(
                                 [
-                                  { key: 'buyers', label: 'Buyers' },
-                                  { key: 'agents', label: 'Agents' },
-                                  { key: 'all', label: 'All' },
+                                  { key: 'buyers', label: `Buyers ${buyerMatchCount}` },
+                                  { key: 'agents', label: `Agents ${agentMatchCount}` },
+                                  { key: 'all', label: `All ${matchedContacts.length}` },
                                 ] as const
                               ).map(({ key, label }) => (
                                 <button
                                   key={key}
                                   type="button"
                                   onClick={() => handleAudienceChange(key)}
-                                  className={`px-2 py-0.5 rounded text-xs cursor-pointer transition-all ${
+                                  className={`px-2.5 py-1 rounded-md text-xs cursor-pointer transition-all ${
                                     matchAudience === key
                                       ? 'bg-primary/15 text-primary font-bold'
                                       : 'text-slate-400 hover:text-white'
@@ -6132,24 +6177,29 @@ export function PropertyForm({
                                 </button>
                               ))}
                             </div>
-                          )}
-                        </div>
-                        {displayedMatches.length > 0 && (
-                          <button
-                            type="button"
-                            onClick={toggleSelectAllContacts}
-                            className="text-xs font-bold text-primary hover:text-primary/80 flex items-center gap-1 cursor-pointer"
-                          >
-                            {displayedMatches.every((m) => selectedContactIds.includes(m.contact.id)) ? (
-                              <>
-                                <CheckSquare className="size-3.5" /> Deselect All
-                              </>
-                            ) : (
-                              <>
-                                <Square className="size-3.5" /> Select All ({displayedMatches.length})
-                              </>
+                            {(displayedMatches.length > 5 || matchSearch) && (
+                              <div className="relative flex-1">
+                                <Search className="size-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                                <Input
+                                  value={matchSearch}
+                                  onChange={(event) => setMatchSearch(event.target.value)}
+                                  placeholder="Search name or phone"
+                                  aria-label="Search matching contacts"
+                                  className="h-8 rounded-lg bg-slate-900 border-slate-700 pl-8 pr-8 text-xs"
+                                />
+                                {matchSearch && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setMatchSearch('')}
+                                    aria-label="Clear contact search"
+                                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white"
+                                  >
+                                    <X className="size-3.5" />
+                                  </button>
+                                )}
+                              </div>
                             )}
-                          </button>
+                          </div>
                         )}
                       </div>
 
@@ -6159,14 +6209,18 @@ export function PropertyForm({
                             <Loader2 className="size-6 animate-spin text-primary mr-2" />
                             Scanning database...
                           </div>
-                        ) : displayedMatches.length === 0 ? (
+                        ) : filteredDisplayedMatches.length === 0 ? (
                           <div className="text-center py-12 border border-dashed border-slate-800 rounded-xl bg-slate-900/30">
-                            <Users className="size-8 mx-auto text-slate-600 mb-2" />
-                            <p className="text-sm text-slate-400 font-medium">No matching contacts found</p>
-                            <p className="text-xs text-slate-550 mt-1">Adjust preferences or add budget tags to contacts.</p>
+                            <Search className="size-8 mx-auto text-slate-600 mb-2" />
+                            <p className="text-sm text-slate-400 font-medium">
+                              {matchSearch ? 'No contacts match this search' : 'No matching contacts found'}
+                            </p>
+                            <p className="text-xs text-slate-550 mt-1">
+                              {matchSearch ? 'Try a different name or phone number.' : 'Adjust preferences or add budget tags to contacts.'}
+                            </p>
                           </div>
                         ) : (
-                          displayedMatches.map(({ contact: c, score, details }) => {
+                          filteredDisplayedMatches.map(({ contact: c, score, details }) => {
                             const isSelected = selectedContactIds.includes(c.id);
                             // Already shared: the row recedes and says
                             // so, so an agent working down the list sees
@@ -6174,11 +6228,18 @@ export function PropertyForm({
                             // again stays possible — this is a reminder,
                             // not a lockout.
                             const sharedAt = sharedAtByContact[c.id];
+                            const displayName = c.name || c.phone || 'Unnamed contact';
+                            const initials = displayName
+                              .split(/\s+/)
+                              .slice(0, 2)
+                              .map((part) => part[0])
+                              .join('')
+                              .toLocaleUpperCase();
                             return (
                               <div
                                 key={c.id}
                                 onClick={() => toggleContactSelection(c.id)}
-                                className={`flex items-start gap-3 p-3.5 rounded-xl border cursor-pointer transition-all ${
+                                className={`rounded-xl border cursor-pointer transition-all ${
                                   isSelected
                                     ? 'bg-primary/5 border-primary/45 ring-1 ring-primary/10'
                                     : sharedAt
@@ -6186,51 +6247,83 @@ export function PropertyForm({
                                       : 'bg-slate-900 border-slate-800 hover:border-slate-750'
                                 }`}
                               >
-                                <button
-                                  type="button"
-                                  className={`shrink-0 mt-0.5 ${isSelected ? 'text-primary' : 'text-slate-650'}`}
-                                >
-                                  {isSelected ? <CheckSquare className="size-4" /> : <Square className="size-4" />}
-                                </button>
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center justify-between gap-2">
-                                    <div className="flex items-center gap-2 min-w-0">
-                                      <h4 className="text-sm font-bold text-white truncate">{c.name || 'Unnamed Contact'}</h4>
-                                      <NameTagBadge tag={c.name_tag} />
-                                      <span className={`inline-flex items-center rounded px-1.5 py-0.2 text-[9px] font-bold shrink-0 ${
-                                        c.classification === 'Buyer'
-                                          ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                                          : 'bg-sky-500/10 text-sky-400 border border-sky-500/20'
-                                      }`}>
-                                        {c.classification}
-                                      </span>
+                                <div className="flex items-start gap-3 p-3.5">
+                                  <button
+                                    type="button"
+                                    aria-label={`${isSelected ? 'Deselect' : 'Select'} ${displayName}`}
+                                    className={`size-10 rounded-full border flex items-center justify-center shrink-0 text-xs font-extrabold transition-colors ${
+                                      isSelected
+                                        ? 'bg-primary text-primary-foreground border-primary'
+                                        : 'bg-primary/10 text-primary border-primary/25'
+                                    }`}
+                                  >
+                                    {isSelected ? <Check className="size-4" /> : initials}
+                                  </button>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <div className="flex items-center gap-2 min-w-0">
+                                        <h4 className="text-sm font-bold text-white truncate">{displayName}</h4>
+                                        <NameTagBadge tag={c.name_tag} />
+                                        <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold shrink-0 ${
+                                          c.classification === 'Buyer'
+                                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                            : 'bg-sky-500/10 text-sky-400 border border-sky-500/20'
+                                        }`}>
+                                          {c.classification}
+                                        </span>
+                                      </div>
+                                      <Badge
+                                        className={`rounded-full px-2 py-0.5 text-[10px] font-bold shrink-0 ${
+                                          score >= 70
+                                            ? 'bg-green-500/10 text-green-400 border border-green-500/20'
+                                            : score >= 30
+                                              ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                              : 'bg-slate-850 text-slate-400'
+                                        }`}
+                                      >
+                                        {score}% match
+                                      </Badge>
                                     </div>
-                                    <Badge
-                                      className={`rounded px-1.5 py-0.5 text-[9px] font-bold shrink-0 ${
-                                        score >= 70
-                                          ? 'bg-green-500/10 text-green-400 border border-green-500/20'
-                                          : score >= 30
-                                            ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                                            : 'bg-slate-850 text-slate-400'
-                                      }`}
-                                    >
-                                      {score}% Match
-                                    </Badge>
+                                    <p className="text-xs text-slate-450 font-mono mt-0.5">{c.phone}</p>
+
+                                    {sharedAt && (
+                                      <div className="mt-1.5 inline-flex items-center gap-1 rounded bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 text-[9px] font-bold text-emerald-400 uppercase tracking-wide">
+                                        <CheckCheck className="size-3" />
+                                        Shared ·{' '}
+                                        {new Date(sharedAt).toLocaleDateString(undefined, {
+                                          day: 'numeric',
+                                          month: 'short',
+                                        })}
+                                      </div>
+                                    )}
+
+                                    <MatchDetailChips details={details} />
                                   </div>
-                                  <p className="text-xs text-slate-450 font-mono mt-0.5">{c.phone}</p>
+                                </div>
 
-                                  {sharedAt && (
-                                    <div className="mt-1.5 inline-flex items-center gap-1 rounded bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 text-[9px] font-bold text-emerald-400 uppercase tracking-wide">
-                                      <CheckCheck className="size-3" />
-                                      Already shared ·{' '}
-                                      {new Date(sharedAt).toLocaleDateString(undefined, {
-                                        day: 'numeric',
-                                        month: 'short',
-                                      })}
-                                    </div>
-                                  )}
-
-                                  <MatchDetailChips details={details} />
+                                <div className="border-t border-slate-800 px-3.5 py-2 flex items-center justify-between gap-2">
+                                  <a
+                                    href={`/contacts?contactId=${encodeURIComponent(c.id)}`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    onClick={(event) => event.stopPropagation()}
+                                    className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-semibold text-slate-400 hover:bg-slate-800 hover:text-white"
+                                  >
+                                    <Eye className="size-3.5" />
+                                    View contact
+                                  </a>
+                                  <button
+                                    type="button"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      setSelectedContactIds([c.id]);
+                                      setBroadcastStep('configure');
+                                    }}
+                                    className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary hover:bg-primary/20"
+                                  >
+                                    {sharedAt ? <Clock className="size-3.5" /> : <Send className="size-3.5" />}
+                                    {sharedAt ? 'Share again' : 'Share property'}
+                                  </button>
                                 </div>
                               </div>
                             );

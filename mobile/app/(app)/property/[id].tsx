@@ -12,6 +12,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
   useWindowDimensions,
   type ImageSourcePropType,
@@ -1247,6 +1248,7 @@ function MatchesSection({ property }: { property: Property }) {
   const { colors, fonts: f } = useTheme();
   const queryClient = useQueryClient();
   const [audience, setAudience] = useState<MatchAudience>('buyers');
+  const [searchQuery, setSearchQuery] = useState('');
   const [shareTo, setShareTo] = useState<Contact[] | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
@@ -1260,13 +1262,24 @@ function MatchesSection({ property }: { property: Property }) {
   const agentCount = all.filter(
     (m) => m.contact.classification === 'Agent'
   ).length;
-  const rows = all.filter((m) =>
+  const buyerCount = all.length - agentCount;
+  const audienceRows = all.filter((m) =>
     inMatchAudience(m.contact.classification, audience)
   );
-  const sharedCount = rows.filter((m) => m.sharedAt).length;
+  const normalizedQuery = searchQuery.trim().toLocaleLowerCase();
+  const rows = audienceRows.filter((m) => {
+    if (!normalizedQuery) return true;
+    return [
+      m.contact.name,
+      m.contact.phone,
+      m.contact.classification,
+      m.contact.name_tag,
+    ].some((value) => value?.toLocaleLowerCase().includes(normalizedQuery));
+  });
+  const sharedCount = audienceRows.filter((m) => m.sharedAt).length;
   const allSelected =
     rows.length > 0 && rows.every((m) => selectedIds.includes(m.contact.id));
-  const selected = rows
+  const selected = all
     .filter((m) => selectedIds.includes(m.contact.id))
     .map((m) => m.contact);
 
@@ -1294,30 +1307,115 @@ function MatchesSection({ property }: { property: Property }) {
   return (
     <Section title="Matching Contacts">
       <View
-        style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}
+        style={[
+          styles.matchSummary,
+          { backgroundColor: colors.primarySoft, borderColor: colors.primary },
+        ]}
       >
-        <Text style={{ flex: 1, fontSize: 12.5, color: colors.textMuted }}>
-          {matches.isLoading
-            ? 'Scoring your contacts…'
-            : matches.isError
+        <View
+          style={[styles.matchSummaryIcon, { backgroundColor: colors.primary }]}
+        >
+          <Ionicons name="people" size={18} color={colors.onPrimary} />
+        </View>
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text
+            style={{ fontSize: 14, fontFamily: f.bold, color: colors.text }}
+          >
+            {matches.isLoading
+              ? 'Finding the best contacts…'
+              : `${audienceRows.length} ${audience === 'agents' ? 'agent' : audience === 'buyers' ? 'buyer' : 'contact'}${audienceRows.length === 1 ? '' : 's'} ranked`}
+          </Text>
+          <Text style={{ fontSize: 11.5, color: colors.textMuted }}>
+            {matches.isError
               ? 'Could not load matches — pull to refresh.'
-              : rows.length === 0
-                ? 'No matching contacts'
-                : `Found ${rows.length} matching contact${rows.length === 1 ? '' : 's'}` +
-                  (sharedCount > 0 ? ` · ${sharedCount} already shared` : '')}
-        </Text>
-        {rows.length > 0 ? (
+              : `${sharedCount} already shared · Select contacts to share together`}
+          </Text>
+        </View>
+      </View>
+
+      {/* Also shown while a non-default audience is active with no
+        agents left, so a refetch can never strand the section on an
+        empty tab with no way back. */}
+      {agentCount > 0 || audience !== 'buyers' ? (
+        <View
+          style={{ flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' }}
+        >
+          <FilterChip
+            label={`Buyers ${buyerCount}`}
+            active={audience === 'buyers'}
+            onPress={() => switchAudience('buyers')}
+          />
+          <FilterChip
+            label={`Agents ${agentCount}`}
+            active={audience === 'agents'}
+            onPress={() => switchAudience('agents')}
+          />
+          <FilterChip
+            label={`All ${all.length}`}
+            active={audience === 'all'}
+            onPress={() => switchAudience('all')}
+          />
+        </View>
+      ) : null}
+
+      {audienceRows.length > 5 || searchQuery ? (
+        <View
+          style={[
+            styles.matchSearch,
+            { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+          ]}
+        >
+          <Ionicons name="search" size={17} color={colors.textFaint} />
+          <TextInput
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholder="Search name or phone"
+            placeholderTextColor={colors.textFaint}
+            autoCorrect={false}
+            returnKeyType="search"
+            accessibilityLabel="Search matching contacts"
+            style={{ flex: 1, fontSize: 13.5, color: colors.text }}
+          />
+          {searchQuery ? (
+            <Pressable
+              onPress={() => setSearchQuery('')}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Clear contact search"
+            >
+              <Ionicons
+                name="close-circle"
+                size={18}
+                color={colors.textFaint}
+              />
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
+
+      {rows.length > 0 ? (
+        <View style={styles.matchSelectionBar}>
+          <Text style={{ flex: 1, fontSize: 12, color: colors.textMuted }}>
+            {selected.length > 0
+              ? `${selected.length} selected`
+              : `${rows.length} shown${normalizedQuery ? ` for “${searchQuery.trim()}”` : ''}`}
+          </Text>
           <Pressable
             onPress={() => {
               haptic.tap();
-              setSelectedIds(allSelected ? [] : rows.map((m) => m.contact.id));
+              setSelectedIds((current) => {
+                const visibleIds = rows.map((m) => m.contact.id);
+                return allSelected
+                  ? current.filter((id) => !visibleIds.includes(id))
+                  : [...new Set([...current, ...visibleIds])];
+              });
             }}
             hitSlop={8}
             accessibilityRole="button"
             accessibilityLabel={
               allSelected
-                ? 'Clear selection'
-                : `Select all ${rows.length} matching contacts`
+                ? 'Clear visible selection'
+                : `Select all ${rows.length} visible contacts`
             }
           >
             <Text
@@ -1327,37 +1425,43 @@ function MatchesSection({ property }: { property: Property }) {
                 color: colors.primary,
               }}
             >
-              {allSelected ? 'Clear' : `Select all (${rows.length})`}
+              {allSelected ? 'Deselect shown' : `Select shown (${rows.length})`}
             </Text>
           </Pressable>
-        ) : null}
-      </View>
-
-      {/* Also shown while a non-default audience is active with no
-        agents left, so a refetch can never strand the section on an
-        empty tab with no way back. */}
-      {agentCount > 0 || audience !== 'buyers' ? (
-        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-          <FilterChip
-            label="Buyers"
-            active={audience === 'buyers'}
-            onPress={() => switchAudience('buyers')}
-          />
-          <FilterChip
-            label={`Agents (${agentCount})`}
-            active={audience === 'agents'}
-            onPress={() => switchAudience('agents')}
-          />
-          <FilterChip
-            label="All"
-            active={audience === 'all'}
-            onPress={() => switchAudience('all')}
-          />
         </View>
       ) : null}
 
       {matches.isLoading ? (
         <ActivityIndicator size="small" color={colors.primary} />
+      ) : null}
+
+      {!matches.isLoading && rows.length === 0 ? (
+        <View
+          style={[
+            styles.matchEmpty,
+            { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+          ]}
+        >
+          <Ionicons name="search-outline" size={22} color={colors.textFaint} />
+          <Text
+            style={{ fontSize: 13, fontFamily: f.semibold, color: colors.text }}
+          >
+            {normalizedQuery
+              ? 'No contacts match this search'
+              : 'No matching contacts yet'}
+          </Text>
+          <Text
+            style={{
+              fontSize: 11.5,
+              color: colors.textMuted,
+              textAlign: 'center',
+            }}
+          >
+            {normalizedQuery
+              ? 'Try a different name or phone number.'
+              : 'Add budget, location and property preferences to improve matching.'}
+          </Text>
+        </View>
       ) : null}
 
       {rows.map((m) => {
@@ -1380,15 +1484,17 @@ function MatchesSection({ property }: { property: Property }) {
         // again stays available — it is a reminder, not a lockout.
         const shared = Boolean(m.sharedAt);
         const picked = selectedIds.includes(m.contact.id);
+        const displayName =
+          m.contact.name || m.contact.phone || 'Unnamed contact';
+        const initials = displayName
+          .split(/\s+/)
+          .slice(0, 2)
+          .map((part) => part[0])
+          .join('')
+          .toLocaleUpperCase();
         return (
-          <Pressable
+          <View
             key={m.contact.id}
-            onPress={() => router.push(`/(app)/contact/${m.contact.id}`)}
-            accessibilityRole="button"
-            accessibilityLabel={
-              `${m.contact.name || m.contact.phone}, ${m.score} percent match` +
-              (shared ? ', already shared' : '')
-            }
             style={[
               styles.matchRow,
               {
@@ -1398,22 +1504,33 @@ function MatchesSection({ property }: { property: Property }) {
               shared && !picked && { opacity: 0.6 },
             ]}
           >
-            {/* Its own tap target: the row still opens the contact, so
-              selecting several to send in one go never costs a
-              navigation. */}
             <Pressable
               onPress={() => toggle(m.contact.id)}
               hitSlop={10}
               accessibilityRole="checkbox"
               accessibilityState={{ checked: picked }}
-              accessibilityLabel={`Select ${m.contact.name || m.contact.phone}`}
-              style={{ paddingTop: 1 }}
+              accessibilityLabel={`Select ${displayName}`}
+              style={[
+                styles.matchAvatar,
+                {
+                  backgroundColor: picked ? colors.primary : colors.primarySoft,
+                  borderColor: picked ? colors.primary : colors.glassBorder,
+                },
+              ]}
             >
-              <Ionicons
-                name={picked ? 'checkbox' : 'square-outline'}
-                size={20}
-                color={picked ? colors.primary : colors.textFaint}
-              />
+              {picked ? (
+                <Ionicons name="checkmark" size={18} color={colors.onPrimary} />
+              ) : (
+                <Text
+                  style={{
+                    fontSize: 12,
+                    fontFamily: f.extrabold,
+                    color: colors.primary,
+                  }}
+                >
+                  {initials}
+                </Text>
+              )}
             </Pressable>
 
             <View style={{ flex: 1, gap: 4 }}>
@@ -1429,7 +1546,7 @@ function MatchesSection({ property }: { property: Property }) {
                     flexShrink: 1,
                   }}
                 >
-                  {m.contact.name || m.contact.phone}
+                  {displayName}
                 </Text>
                 {m.contact.name_tag ? (
                   <View style={nameTagCap}>
@@ -1467,7 +1584,7 @@ function MatchesSection({ property }: { property: Property }) {
               </View>
             </View>
 
-            <View style={{ alignItems: 'flex-end', gap: spacing.sm }}>
+            <View style={{ alignItems: 'flex-end', gap: 4 }}>
               <View
                 style={[
                   styles.scoreBadge,
@@ -1484,29 +1601,72 @@ function MatchesSection({ property }: { property: Property }) {
                   {m.score}%
                 </Text>
               </View>
+              <Text style={{ fontSize: 10, color: colors.textFaint }}>
+                match
+              </Text>
+            </View>
+
+            <View
+              style={[
+                styles.matchActions,
+                { borderTopColor: colors.glassBorder },
+              ]}
+            >
+              <Pressable
+                onPress={() => router.push(`/(app)/contact/${m.contact.id}`)}
+                accessibilityRole="button"
+                accessibilityLabel={`View ${displayName} contact`}
+                style={styles.matchAction}
+              >
+                <Ionicons
+                  name="person-outline"
+                  size={15}
+                  color={colors.textMuted}
+                />
+                <Text
+                  style={{
+                    fontSize: 11.5,
+                    fontFamily: f.semibold,
+                    color: colors.textMuted,
+                  }}
+                >
+                  View contact
+                </Text>
+              </Pressable>
               <Pressable
                 onPress={() => {
                   haptic.tap();
                   setShareTo([m.contact]);
                 }}
-                hitSlop={10}
                 accessibilityRole="button"
                 accessibilityLabel={
                   shared
-                    ? `Already shared with ${m.contact.name || m.contact.phone}. Share again`
-                    : `Share this property with ${m.contact.name || m.contact.phone}`
+                    ? `Share again with ${displayName}`
+                    : `Share property with ${displayName}`
                 }
+                style={[
+                  styles.matchAction,
+                  styles.matchShareAction,
+                  { backgroundColor: colors.primarySoft },
+                ]}
               >
                 <Ionicons
-                  name={
-                    shared ? 'checkmark-done-outline' : 'paper-plane-outline'
-                  }
-                  size={18}
-                  color={shared ? colors.textFaint : colors.primary}
+                  name={shared ? 'refresh-outline' : 'paper-plane-outline'}
+                  size={15}
+                  color={colors.primary}
                 />
+                <Text
+                  style={{
+                    fontSize: 11.5,
+                    fontFamily: f.bold,
+                    color: colors.primary,
+                  }}
+                >
+                  {shared ? 'Share again' : 'Share property'}
+                </Text>
               </Pressable>
             </View>
-          </Pressable>
+          </View>
         );
       })}
 
@@ -1834,10 +1994,77 @@ const styles = StyleSheet.create({
   },
   matchRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    padding: spacing.md,
+  },
+  matchSummary: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: spacing.md,
     borderRadius: radius.md,
     borderWidth: StyleSheet.hairlineWidth,
     padding: spacing.md,
+  },
+  matchSummaryIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  matchSearch: {
+    minHeight: 42,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    borderRadius: radius.full,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: spacing.md,
+  },
+  matchSelectionBar: {
+    minHeight: 28,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: 2,
+  },
+  matchEmpty: {
+    alignItems: 'center',
+    gap: spacing.xs,
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: spacing.xl,
+  },
+  matchAvatar: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  matchActions: {
+    width: '100%',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingTop: spacing.sm,
+  },
+  matchAction: {
+    minHeight: 34,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radius.full,
+  },
+  matchShareAction: {
+    paddingHorizontal: spacing.md,
   },
   bulkShare: {
     flexDirection: 'row',
