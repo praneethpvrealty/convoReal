@@ -27,6 +27,7 @@ import { ContextMenu } from '@/components/context-menu';
 import { ContactFiltersSheet } from '@/components/contact-filters-sheet';
 import { InterestFilterSheet } from '@/components/interest-filter-sheet';
 import { OwnerDetailsRequestSheet } from '@/components/owner-details-request-sheet';
+import { BuyerPreferenceRequestSheet } from '@/components/buyer-preference-request-sheet';
 import { BottomSheet, sheetScrollArea } from '@/components/sheet';
 import { TourTarget } from '@/components/copilot-tour';
 import {
@@ -900,20 +901,32 @@ export default function ContactsScreen() {
                 },
                 {
                   icon: 'clipboard-outline',
-                  label: 'Ask for property details',
+                  label: ['Buyer', 'Owner & Buyer'].includes(
+                    waMenu.contact.classification ?? ''
+                  )
+                    ? 'Ask for requirements'
+                    : 'Ask for property details',
                   onPress: () => setDetailsRequestContact(waMenu.contact),
                 },
               ]
             : []
         }
       />
-      {detailsRequestContact && (
+      {detailsRequestContact && ['Buyer', 'Owner & Buyer'].includes(
+        detailsRequestContact.classification ?? ''
+      ) ? (
+        <BuyerPreferenceRequestSheet
+          visible
+          onClose={() => setDetailsRequestContact(null)}
+          contact={detailsRequestContact}
+        />
+      ) : detailsRequestContact ? (
         <OwnerDetailsRequestSheet
           visible
           onClose={() => setDetailsRequestContact(null)}
           contact={detailsRequestContact}
         />
-      )}
+      ) : null}
       <AppDialog {...dialogProps} />
       <AppDialog {...callLogProps} />
     </View>

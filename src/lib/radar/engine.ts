@@ -42,6 +42,11 @@ export function radarAdminClient(): SupabaseClient {
 
 const MIN_SCORE = 60;
 const MAX_TARGETS = 12;
+export function isRadarContactClassification(
+  classification: string | null | undefined
+): boolean {
+  return ['Buyer', 'Owner & Buyer', 'Agent'].includes(classification || '');
+}
 /** One event per subject per day — a burst of edits to the same property
  *  shouldn't spam the feed. Refreshing the snapshot of an existing NEW
  *  event is fine; creating a second row is not. */
@@ -133,7 +138,7 @@ export async function generateMatchEventForProperty(
         .select('*, contact_notes(note_text)')
         .eq('account_id', accountId)
         .eq('status', 'active')
-        .in('classification', ['Buyer', 'Agent']),
+        .in('classification', ['Buyer', 'Owner & Buyer', 'Agent']),
       db
         .from('listing_feedback')
         .select('contact_id')
@@ -306,8 +311,7 @@ export async function rankPropertiesForContact(
     ]);
 
   if (!contact || !properties || properties.length === 0) return [];
-  if (!['Buyer', 'Agent'].includes((contact as Contact).classification || ''))
-    return [];
+  if (!isRadarContactClassification((contact as Contact).classification)) return [];
 
   const rejectedIds = new Set(
     ((rejected ?? []) as { property_id: string }[]).map((r) => r.property_id)
@@ -323,7 +327,7 @@ export async function rankPropertiesForContact(
 
 /**
  * Buyer preferences changed → find matching inventory and record an event.
- * Only fires for Buyer/Agent contacts with at least one real match.
+ * Only fires for buyer-side/agent contacts with at least one real match.
  */
 export async function generateMatchEventForContact(
   db: SupabaseClient,

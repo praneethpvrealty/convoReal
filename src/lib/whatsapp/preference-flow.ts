@@ -252,6 +252,7 @@ export interface ContactPreferenceUpdate {
   areas_of_interest?: string[]
   property_interests?: string[]
   min_roi?: number | null
+  requirement_active?: boolean
 }
 
 /** Parse a numeric form value; strips commas/currency noise. Returns
@@ -275,6 +276,10 @@ export function preferenceFormToContactUpdate(
   existingInterests: string[] = []
 ): ContactPreferenceUpdate {
   const update: ContactPreferenceUpdate = {}
+
+  // A confirmed form submission makes this a live requirement again.
+  // Opening or sending the form alone never changes the contact record.
+  if (Object.keys(values).length > 0) update.requirement_active = true
 
   const minBudget = parseNumericField(values.min_budget)
   if (minBudget !== undefined) update.min_budget = minBudget
