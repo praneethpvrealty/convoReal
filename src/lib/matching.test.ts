@@ -286,6 +286,33 @@ describe('getMatchingContacts', () => {
       expect(getMatchingContacts(hsrProp, [contact]).length).toBe(1);
     });
 
+    it('does not carry a generic no-preference answer into the next locality line', () => {
+      const contact = createTestContact({
+        pref_property_types: ['Residential Land/ Plot'],
+        pref_areas: ['HSR Layout'],
+        pref_extracted_at: new Date().toISOString(),
+        no_budget: true,
+        requirements:
+          'Looking for investing about 25 cr by November 2026.\nNo such preference\nHSR Layout',
+        strict_area_match: true,
+      });
+      const hsrPlot = createTestProperty({
+        type: 'Residential Plot',
+        title: 'Residential Plot in Sector 6 HSR Layout',
+        sublocality: 'HSR Layout',
+        location: 'Sector 6 HSR Layout, Bangalore',
+        latitude: 12.9157736,
+        longitude: 77.6280642,
+        price: 135_000_000,
+      });
+
+      const [match] = getMatchingContacts(hsrPlot, [contact]);
+
+      expect(match?.details.type).toBe('match');
+      expect(match?.details.location).toBe('match');
+      expect(match?.score).toBeGreaterThanOrEqual(60);
+    });
+
     it('respects AI-extracted excluded areas', () => {
       const contact = createTestContact({
         pref_property_types: ['Flat/ Apartment'],

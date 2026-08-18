@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   accountShowcaseBase,
+  accountShowcaseBrowseUrl,
   accountPropertyShowcaseUrl,
 } from './account-showcase-url';
 
@@ -79,5 +80,33 @@ describe('accountPropertyShowcaseUrl', () => {
     });
     expect(url).toContain('property_id=prop-uuid');
     expect(url).not.toContain('v=');
+  });
+});
+
+describe('accountShowcaseBrowseUrl', () => {
+  beforeEach(() => {
+    vi.stubEnv('NEXT_PUBLIC_SITE_URL', 'https://www.convoreal.com');
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('opens the full branded catalog and attributes the visitor', async () => {
+    const url = await accountShowcaseBrowseUrl(
+      db('aryavartaventures'),
+      'acct-1',
+      'contact-9',
+    );
+    expect(url).toBe(
+      'https://aryavartaventures.convoreal.com/?v=contact-9',
+    );
+    expect(url).not.toContain('category=');
+    expect(url).not.toContain('search=');
+  });
+
+  it('preserves the account ref on the shared showcase', async () => {
+    const url = await accountShowcaseBrowseUrl(db(null), 'acct-1', 'contact-9');
+    expect(url).toContain('ref=acct-1');
+    expect(url).toContain('v=contact-9');
   });
 });

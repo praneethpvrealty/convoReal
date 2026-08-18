@@ -490,6 +490,10 @@ export function preferenceFacts(
     { field: 'pref_suggested_tags', value: prefs.suggested_tags },
   ];
 
+  if (prefs.budget_min != null || prefs.budget_max != null) {
+    facts.push({ field: 'no_budget', value: false });
+  }
+
   // Tags the buyer's own words earned but nobody has attached. Only
   // the unattached ones travel: proposing a tag the contact already
   // carries is a queue item that resolves to nothing.

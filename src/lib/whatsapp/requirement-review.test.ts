@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const sendWhatsAppMessageAndPersist = vi.fn();
 const sendPropertyTypePrompt = vi.fn();
 const sendBudgetBandPrompt = vi.fn();
+const accountShowcaseBrowseUrl = vi.fn();
 
 vi.mock('@/lib/whatsapp/meta-api-dispatcher', () => ({
   sendWhatsAppMessageAndPersist: (...args: unknown[]) =>
@@ -16,6 +17,11 @@ vi.mock('@/lib/whatsapp/property-type-prompt', () => ({
 
 vi.mock('@/lib/whatsapp/budget-band', () => ({
   sendBudgetBandPrompt: (...args: unknown[]) => sendBudgetBandPrompt(...args),
+}));
+
+vi.mock('@/lib/showcase/account-showcase-url', () => ({
+  accountShowcaseBrowseUrl: (...args: unknown[]) =>
+    accountShowcaseBrowseUrl(...args),
 }));
 
 const {
@@ -46,6 +52,9 @@ const aryan = {
 beforeEach(() => {
   vi.clearAllMocks();
   sendWhatsAppMessageAndPersist.mockResolvedValue({ success: true });
+  accountShowcaseBrowseUrl.mockResolvedValue(
+    'https://aryavarta.convoreal.com/?v=c1',
+  );
 });
 
 describe('buildRequirementSummary', () => {
@@ -128,6 +137,17 @@ describe('sendRequirementReview', () => {
     };
     expect(call.interactiveBody).toContain('Commercial Land');
     expect(call.interactiveBody).toContain('Aryan');
+    expect(call.interactiveBody).toContain(
+      'Meanwhile, explore all our live properties yourself:',
+    );
+    expect(call.interactiveBody).toContain(
+      'https://aryavarta.convoreal.com/?v=c1',
+    );
+    expect(accountShowcaseBrowseUrl).toHaveBeenCalledWith(
+      expect.anything(),
+      'acct-1',
+      'c1',
+    );
     const ids = call.interactiveSections[0].rows.map((r) => r.id);
     expect(ids).toEqual([
       'tw_ok',

@@ -134,6 +134,21 @@ export async function accountShowcaseBase(
 }
 
 /**
+ * The account's full showcase, attributed to the contact opening it.
+ * Unlike a property link this deliberately leaves the catalog unfiltered,
+ * so a buyer with no exact match can still explore every live listing.
+ */
+export async function accountShowcaseBrowseUrl(
+  db: SupabaseClient,
+  accountId: string,
+  visitorContactId?: string | null,
+): Promise<string> {
+  const url = new URL(await accountShowcaseBase(db, accountId));
+  if (visitorContactId) url.searchParams.set('v', visitorContactId);
+  return url.toString();
+}
+
+/**
  * The account's showcase ORIGIN — subdomain when it has one, otherwise
  * the plain site. Never carries a query string, which is what separates
  * it from accountShowcaseBase.

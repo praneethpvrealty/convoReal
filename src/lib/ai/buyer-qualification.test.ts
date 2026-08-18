@@ -904,4 +904,13 @@ describe('preferenceFacts', () => {
     );
     expect(fields).not.toContain('tags');
   });
+
+  it('clears a stale no-budget flag when a numeric budget is extracted', () => {
+    expect(preferenceFacts(prefs({ budget_max: 25_000_000 }), [])).toContainEqual(
+      { field: 'no_budget', value: false }
+    );
+    expect(preferenceFacts(prefs(), [])).not.toContainEqual(
+      expect.objectContaining({ field: 'no_budget' })
+    );
+  });
 });

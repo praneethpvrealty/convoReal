@@ -305,9 +305,16 @@ function isNegated(text: string, keyword: string): boolean {
   let index = text.indexOf(cleanKeyword);
 
   while (index !== -1) {
-    const precedingText = text.substring(Math.max(0, index - 35), index).trim();
-    const negationWords = ['not', 'no', 'except', 'excluding', 'exclude', 'avoid', 'dont', "don't", 'never', 'outside', 'but'];
-    const negated = negationWords.some((neg) => new RegExp(`\\b${neg}\\b`, 'i').test(precedingText));
+    const precedingText = text
+      .substring(Math.max(0, index - 35), index)
+      .split(/[\n.;]/)
+      .at(-1)
+      ?.trim();
+    const negated = precedingText
+      ? /(?:\b(?:not|except|excluding|exclude|avoid|never|outside)\s*(?:in\s*)?|\bno\s*|\b(?:dont|don't)\s*(?:want\s*)?)$/i.test(
+          precedingText
+        )
+      : false;
     if (negated) return true;
     index = text.indexOf(cleanKeyword, index + 1);
   }
