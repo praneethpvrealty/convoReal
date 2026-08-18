@@ -85,6 +85,7 @@ import { LogExternalShareDialog } from '@/components/contacts/log-external-share
 import { CallRecordingAnalyzer, CallAnalysisSection } from '@/components/contacts/call-analysis';
 import { GreetingsGeneratorDialog } from '@/components/contacts/greetings-generator-dialog';
 import { OwnerDetailsRequestDialog } from '@/components/contacts/owner-details-request-dialog';
+import { BuyerPreferenceRequestDialog } from '@/components/contacts/buyer-preference-request-dialog';
 import { MoveToEngineDialog } from '@/components/contacts/move-to-engine-dialog';
 import { SearchablePropertySelect } from '@/components/ui/searchable-property-select';
 import { isLocationGuarded } from '@/lib/inventory/location-guard';
@@ -140,6 +141,8 @@ export function ContactDetailView({
   const [greetingsOpen, setGreetingsOpen] = useState(false);
   const [moveToEngineOpen, setMoveToEngineOpen] = useState(false);
   const [detailsRequestOpen, setDetailsRequestOpen] = useState(false);
+  const collectsBuyerRequirements =
+    contact?.classification === 'Buyer' || contact?.classification === 'Owner & Buyer';
 
   // Details tab
   const [editName, setEditName] = useState('');
@@ -1465,10 +1468,12 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                     <button
                       onClick={() => setDetailsRequestOpen(true)}
                       className="flex items-center gap-1.5 text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 border border-amber-500/20 rounded-md px-2 py-0.5 transition-all cursor-pointer font-medium"
-                      title="Ask this owner for the full property details, and tell them what updates this number will send back"
+                      title={collectsBuyerRequirements
+                        ? 'Ask this buyer to confirm requirements for future matching'
+                        : 'Ask this owner for the full property details, and tell them what updates this number will send back'}
                     >
                       <ClipboardList className="size-3 text-amber-400" />
-                      Ask for Details
+                      {collectsBuyerRequirements ? 'Ask Requirements' : 'Ask for Details'}
                     </button>
                     <button
                       onClick={() => router.push(`/journey?contact=${contact.id}`)}
@@ -3042,8 +3047,16 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                 contactPhone={contact.phone}
               />
             )}
-            {/* Owner Property Details Request Dialog */}
-            {contactId && contact && hasPhone(contact) && (
+            {/* Buyer requirement / owner property details request */}
+            {contactId && contact && hasPhone(contact) && collectsBuyerRequirements && (
+              <BuyerPreferenceRequestDialog
+                open={detailsRequestOpen}
+                onOpenChange={setDetailsRequestOpen}
+                contactId={contactId}
+                contactName={contact.name || ''}
+              />
+            )}
+            {contactId && contact && hasPhone(contact) && !collectsBuyerRequirements && (
               <OwnerDetailsRequestDialog
                 open={detailsRequestOpen}
                 onOpenChange={setDetailsRequestOpen}

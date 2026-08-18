@@ -184,6 +184,7 @@ describe("preferenceFormToContactUpdate", () => {
       min_roi: "4.5%",
     });
     expect(update).toEqual({
+      requirement_active: true,
       min_budget: 5000000,
       max_budget: 20000000,
       areas_of_interest: ["JP Nagar", "Jayanagar"],
@@ -201,9 +202,15 @@ describe("preferenceFormToContactUpdate", () => {
     expect(update.min_budget).toBeNull();
     expect(update.areas_of_interest).toEqual([]);
     expect(update.property_interests).toEqual([]);
+    expect(update.requirement_active).toBe(true);
     // Missing keys are left untouched.
     expect("max_budget" in update).toBe(false);
     expect("min_roi" in update).toBe(false);
+    expect(update.requirement_active).toBe(true);
+  });
+
+  it("does not reactivate a requirement when no form values were submitted", () => {
+    expect(preferenceFormToContactUpdate({})).toEqual({});
   });
 
   it("skips unparseable or negative numeric junk instead of writing it", () => {

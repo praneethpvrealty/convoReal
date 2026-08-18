@@ -90,6 +90,7 @@ import {
 } from '@/components/contacts/log-call-prompt';
 import { ScheduleDialog } from '@/components/calendar/schedule-dialog';
 import { OwnerDetailsRequestDialog } from '@/components/contacts/owner-details-request-dialog';
+import { BuyerPreferenceRequestDialog } from '@/components/contacts/buyer-preference-request-dialog';
 import { CalendarDays } from 'lucide-react';
 import { DuplicatesPanel } from '@/components/contacts/duplicates-panel';
 import { InfoHint } from '@/components/ui/info-hint';
@@ -2844,7 +2845,9 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                               className="text-slate-300 focus:bg-slate-800 focus:text-white"
                             >
                               <ClipboardList className="size-4" />
-                              Ask for property details
+                              {['Buyer', 'Owner & Buyer'].includes(contact.classification ?? '')
+                                ? 'Ask for requirements'
+                                : 'Ask for property details'}
                             </DropdownMenuItem>
                           )}
                           <DropdownMenuSeparator className="bg-slate-700" />
@@ -3017,7 +3020,18 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
       {/* The first ask, straight off the row — the same message the
           contact page sends, so an agent working the list does not have
           to open each contact to send it. */}
-      {detailsRequestContact && (
+      {detailsRequestContact && ['Buyer', 'Owner & Buyer'].includes(
+        detailsRequestContact.classification ?? ''
+      ) ? (
+        <BuyerPreferenceRequestDialog
+          open
+          onOpenChange={(next) => {
+            if (!next) setDetailsRequestContact(null);
+          }}
+          contactId={detailsRequestContact.id}
+          contactName={detailsRequestContact.name ?? ''}
+        />
+      ) : detailsRequestContact ? (
         <OwnerDetailsRequestDialog
           open
           onOpenChange={(next) => {
@@ -3027,7 +3041,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
           contactName={detailsRequestContact.name ?? ''}
           contactPhone={detailsRequestContact.phone ?? ''}
         />
-      )}
+      ) : null}
     </div>
   );
 }

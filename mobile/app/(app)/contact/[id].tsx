@@ -32,6 +32,7 @@ import { AreasOfInterestInput } from '@/components/areas-of-interest-input';
 import { ConvoRealLoader } from '@/components/loader';
 import { MoveToEngineSheet } from '@/components/move-to-engine-sheet';
 import { OwnerDetailsRequestSheet } from '@/components/owner-details-request-sheet';
+import { BuyerPreferenceRequestSheet } from '@/components/buyer-preference-request-sheet';
 import { PulseRing } from '@/components/motion';
 import {
   Avatar,
@@ -489,7 +490,11 @@ function ContactCard({ contact }: { contact: Contact }) {
               />
               <ActionButton
                 icon="clipboard-outline"
-                label="Ask Details"
+                label={
+                  BUYER_PREF_CLASSIFICATIONS.includes(contact.classification ?? 'Others')
+                    ? 'Ask Requirements'
+                    : 'Ask Details'
+                }
                 onPress={() => setDetailsRequestOpen(true)}
               />
             </>
@@ -647,11 +652,19 @@ function ContactCard({ contact }: { contact: Contact }) {
         onClose={() => setMoveToEngineOpen(false)}
         contact={contact}
       />
-      <OwnerDetailsRequestSheet
-        visible={detailsRequestOpen}
-        onClose={() => setDetailsRequestOpen(false)}
-        contact={contact}
-      />
+      {BUYER_PREF_CLASSIFICATIONS.includes(contact.classification ?? 'Others') ? (
+        <BuyerPreferenceRequestSheet
+          visible={detailsRequestOpen}
+          onClose={() => setDetailsRequestOpen(false)}
+          contact={contact}
+        />
+      ) : (
+        <OwnerDetailsRequestSheet
+          visible={detailsRequestOpen}
+          onClose={() => setDetailsRequestOpen(false)}
+          contact={contact}
+        />
+      )}
       <AppDialog {...screenDialogProps} />
       <AppDialog {...callLogProps} />
     </KeyboardAvoidingView>
