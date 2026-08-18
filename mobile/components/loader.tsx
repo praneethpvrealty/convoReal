@@ -25,10 +25,12 @@ const AnimatedGradient = Animated.createAnimatedComponent(LinearGradient);
 export function ConvoRealLoader({
   size = 22,
   label = 'Loading',
+  shimmer = true,
   style,
 }: {
   size?: number;
   label?: string;
+  shimmer?: boolean;
   style?: ViewStyle;
 }) {
   const { colors, fonts: f } = useTheme();
@@ -67,7 +69,7 @@ export function ConvoRealLoader({
   // fonts are still loading) and the wordmark read "ConvoRe".
   // The measurement now only paces the shimmer: while it is stale the
   // band drifts, it never clips a letter.
-  const masked = !reduced && w > 0;
+  const masked = shimmer && !reduced && w > 0;
 
   return (
     <View accessibilityLabel={label} style={style}>

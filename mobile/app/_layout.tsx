@@ -60,7 +60,7 @@ export default function RootLayout() {
           backgroundColor: colors.background,
         }}
       >
-        <ConvoRealLoader size={26} />
+        <ConvoRealLoader size={26} shimmer={false} />
       </View>
     );
   }

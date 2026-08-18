@@ -65,6 +65,12 @@ and polish.
 
 ### Fixed
 
+- **Mobile loading and Property Edit inputs stay fully visible.** The startup
+  loader renders the complete ConvoReal wordmark without the font-timing mask
+  that could clip its final letter. On Android, the Property Edit form now
+  reduces its scroll viewport when the keypad opens so the focused property
+  field remains above it. No migration is required.
+
 - **HOT now means the buyer replied.** Portal imports, property matching,
   enquiry linkage and outbound messages no longer qualify a contact as HOT.
   Any inbound buyer reply can upgrade an unset temperature, while an agent's
