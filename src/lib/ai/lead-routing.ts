@@ -25,10 +25,12 @@ import { requestsHumanContact } from '@/lib/ai/lead-question';
 import { requestsPropertyPhotos } from '@/lib/ai/photo-request';
 import { parseOrdinalReferences } from '@/lib/ai/shortlist-reference';
 import { carriesRequirementSignal } from '@/lib/ai/buyer-qualification';
+import { isDirectPropertyInterest } from '@/lib/whatsapp/property-interest';
 
 export type LeadRoute =
   | 'callback_handover'
   | 'property_enquiry'
+  | 'property_interest'
   | 'photo_request'
   | 'shortlist_reference'
   | 'qualification';
@@ -78,6 +80,7 @@ export function routeLeadMessage(text?: string | null): LeadRoute {
   // answered a buyer who tapped Enquire with "what budget range are you
   // working with?" instead of an acknowledgement and an approval card.
   if (isExplicitPropertyEnquiry(value)) return 'property_enquiry';
+  if (isDirectPropertyInterest(value)) return 'property_interest';
 
   const hasRequirement = carriesRequirementSignal(value);
   if (requestsPropertyPhotos(value) && !hasRequirement) return 'photo_request';
@@ -99,6 +102,8 @@ export const LEAD_ROUTE_EXPLANATIONS: Record<LeadRoute, string> = {
     'Asks for a person. The bot promises a callback and notifies the assigned agent — the ladder never sees it.',
   property_enquiry:
     'Names a listing by its property code — the showcase Enquire button. The buyer gets an acknowledgement and the agent gets the Approve/Reject card; approving sends the complete details.',
+  property_interest:
+    'Refers to a specific listing the buyer saw. The bot resolves the locality and size, shares that listing immediately, asks for property-specific questions, and hands the conversation to the assigned agent.',
   photo_request:
     "Asks for a listing's photos. The bot sends the photos of whichever listing the thread is pinned to, then a link to the full gallery.",
   shortlist_reference:

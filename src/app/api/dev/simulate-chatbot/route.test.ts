@@ -111,6 +111,23 @@ describe('simulate-chatbot — lead routing', () => {
     expect(result.previewText).not.toMatch(/budget range/i);
   });
 
+  it('previews immediate sharing and agent handoff for a natural property reference', async () => {
+    const result = await run(
+      '1acre in Akshaynagar i saw I was interested in that',
+      'PROP-1031'
+    );
+
+    expect(result.route).toBe('property_interest');
+    expect(result.ladderStoodDown).toBe(true);
+    expect(result.sharesPropertyImmediately).toBe(true);
+    expect(result.notifiesAgent).toBe(true);
+    expect(result.previewText).toContain(
+      '*6 BHK Villa in Swiss Town, Devanahalli*'
+    );
+    expect(result.previewText).toMatch(/specific questions/i);
+    expect(result.previewText).not.toMatch(/start alerts|budget range/i);
+  });
+
   it('marks a numbered listing as answered from the listing itself', async () => {
     const result = await run('option 2');
 

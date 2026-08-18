@@ -33,6 +33,11 @@ import {
 } from '@/lib/ai/photo-request';
 import { CALLBACK_HANDOVER_TEXT } from '@/lib/ai/lead-question';
 import { buildEnquiryAckText } from '@/lib/whatsapp/enquiry-card';
+import {
+  buildPropertyInterestAck,
+  buildPropertyInterestQuestion,
+  buildUnresolvedPropertyInterestAck,
+} from '@/lib/whatsapp/property-interest';
 import { propertyShowcaseUrl } from '@/lib/share-message-builder';
 import { accountShowcaseOrigin } from '@/lib/showcase/account-showcase-url';
 import {
@@ -272,6 +277,7 @@ async function simulateLeadReply(args: {
       supabase,
       route,
       text,
+      contactName,
       subjectPropertyCode,
     });
   }
@@ -351,7 +357,7 @@ async function simulateLeadReply(args: {
 }
 
 /**
- * The three routes the ladder stands down for.
+ * The routes the ladder stands down for.
  *
  * Which listing the lead is looking at comes off the share ledger in
  * production, and there is no contact here to have a ledger — so the
@@ -364,9 +370,10 @@ async function simulateCarveOut(args: {
   supabase: Awaited<ReturnType<typeof requireRole>>['supabase'];
   route: Exclude<LeadRoute, 'qualification'>;
   text: string;
+  contactName: string | null;
   subjectPropertyCode: string | null;
 }): Promise<NextResponse> {
-  const { accountId, supabase, route, text, subjectPropertyCode } = args;
+  const { accountId, supabase, route, text, contactName, subjectPropertyCode } = args;
 
   const base = {
     mode: 'lead_reply' as const,
@@ -407,6 +414,17 @@ async function simulateCarveOut(args: {
       ...base,
       previewText: buildEnquiryAckText(null, subject?.title ?? null),
       notifiesAgent: true,
+    });
+  }
+
+  if (route === 'property_interest') {
+    return NextResponse.json({
+      ...base,
+      previewText: subject
+        ? `${buildPropertyInterestAck(contactName, subject.title)}\n\n${buildPropertyInterestQuestion()}`
+        : buildUnresolvedPropertyInterestAck(contactName),
+      notifiesAgent: true,
+      sharesPropertyImmediately: Boolean(subject),
     });
   }
 

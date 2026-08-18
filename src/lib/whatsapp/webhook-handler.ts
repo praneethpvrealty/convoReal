@@ -181,6 +181,17 @@ import {
   SOLD_PRICE_BUTTON_PREFIX,
   SOLD_SIMILAR_BUTTON_PREFIX,
 } from '@/lib/whatsapp/sold-notification'
+import {
+  buildCatalogOrderMessage,
+  buildPropertyInterestAck,
+  buildPropertyInterestQuestion,
+  buildUnresolvedPropertyInterestAck,
+  isDirectPropertyInterest,
+  resolvePropertyReference,
+  type PropertyInterestCandidate,
+  type WhatsAppCatalogOrder,
+} from '@/lib/whatsapp/property-interest'
+import { logPropertyShare } from '@/lib/whatsapp/share-property-send'
 
 export interface WhatsAppMessage {
   id: string
@@ -206,6 +217,9 @@ export interface WhatsAppMessage {
     emails?: Array<{ email: string; type?: string }>
     vcard: string
   }>
+  /** A property selected from the WhatsApp Commerce catalog. Meta calls
+   *  this an order even when the customer is only sharing one listing. */
+  order?: WhatsAppCatalogOrder & { catalog_id?: string }
   interactive?: {
     type: 'button_reply' | 'list_reply' | 'nfm_reply'
     button_reply?: { id: string; title: string }
@@ -1024,7 +1038,12 @@ async function processMessage(
     await supabaseAdmin().from('messages').insert({
       conversation_id: thread.conversationId,
       sender_type: 'customer',
-      content_type: message.type === 'sticker' ? 'image' : message.type,
+      content_type:
+        message.type === 'sticker'
+          ? 'image'
+          : message.type === 'order'
+            ? 'text'
+            : message.type,
       content_text: parsed.contentText,
       media_url: parsed.mediaUrl,
       message_id: message.id,
@@ -1138,24 +1157,33 @@ async function processMessage(
   // weaker: any chat about a listing contains its title.
   let enquiryByCode = false
   let enquiryPropertyTitle: string | null = null
+  const specificPropertyInterest =
+    message.type === 'order' || isDirectPropertyInterest(contentText)
+  let propertyReferenceNeedsAgent = false
   if (contentText && !ctwaLinkedPropertyId) {
     try {
-      const { data: properties } = await supabaseAdmin()
+      const { data: properties, error: propertiesError } = await supabaseAdmin()
         .from('properties')
-        .select('id, title, property_code')
+        .select(
+          'id, title, property_code, status, is_published, land_area, land_area_unit, area_sqft, area_unit, sublocality, locality_canonical, location, project, tags'
+        )
         .eq('account_id', accountId)
-        .eq('is_published', true);
+        .eq('is_published', true)
+      if (propertiesError) throw propertiesError
 
       if (properties) {
-        const textLower = contentText.toLowerCase();
-        const matchedProperty = properties.find((p: { id: string; title: string; property_code?: string }) => {
-          const titleMatches = textLower.includes(p.title.toLowerCase());
-          const codeMatches = p.property_code ? textLower.includes(p.property_code.toLowerCase()) : false;
-          if (codeMatches) enquiryByCode = true
-          return titleMatches || codeMatches;
-        });
+        const catalogItemCount = message.order?.product_items?.length ?? 0
+        const resolution =
+          message.type === 'order' && catalogItemCount !== 1
+            ? { kind: 'ambiguous' as const, candidates: [] }
+            : resolvePropertyReference(
+                contentText,
+                properties as PropertyInterestCandidate[]
+              )
 
-        if (matchedProperty) {
+        if (resolution.kind === 'match') {
+          const matchedProperty = resolution.property
+          enquiryByCode = resolution.matchedBy === 'code'
           enquiryPropertyId = matchedProperty.id
           enquiryPropertyTitle = matchedProperty.title
           await supabaseAdmin()
@@ -1166,12 +1194,15 @@ async function processMessage(
               classification: contactRecord.classification === 'Others' ? 'Buyer' : contactRecord.classification,
               updated_at: new Date().toISOString()
             })
-            .eq('id', contactRecord.id);
-          console.log(`[webhook] Linked contact ${contactRecord.id} to property ${matchedProperty.id} and set to pending_review`);
+            .eq('id', contactRecord.id)
+          console.log(`[webhook] Linked contact ${contactRecord.id} to property ${matchedProperty.id} and set to pending_review`)
+        } else if (specificPropertyInterest) {
+          propertyReferenceNeedsAgent = true
         }
       }
     } catch (err) {
-      console.error('[webhook] Failed to match property from text:', err);
+      propertyReferenceNeedsAgent = specificPropertyInterest
+      console.error('[webhook] Failed to match property from text:', err)
     }
   }
 
@@ -1415,6 +1446,136 @@ async function processMessage(
       accountId,
       contact: contactRecord,
     })
+  }
+
+  // A buyer referring to one listing they already saw is not giving us
+  // a new requirement. Resolve the locality + size (or Meta catalog
+  // retailer id), acknowledge that exact property, send its complete
+  // details immediately, and put the assigned agent on the thread. The
+  // property-code showcase CTA keeps its approval-card flow below.
+  if (
+    !ownerCheck.isOwner &&
+    specificPropertyInterest &&
+    (message.type === 'order' || !enquiryByCode)
+  ) {
+    const admin = supabaseAdmin()
+
+    if (enquiryPropertyId && enquiryPropertyTitle) {
+      await sendWhatsAppMessageAndPersist({
+        accountId,
+        userId: configOwnerUserId,
+        contactId: contactRecord.id,
+        conversationId: conversation.id,
+        toPhone: senderPhone,
+        kind: 'text',
+        senderType: 'bot',
+        text: buildPropertyInterestAck(contactRecord.name, enquiryPropertyTitle),
+      })
+
+      const [shareSent] = await Promise.all([
+        handlePropertyShareYesReply(
+          enquiryPropertyId,
+          accountId,
+          configOwnerUserId,
+          contactRecord.id,
+          conversation.id,
+          senderPhone,
+          { followUp: 'questions' },
+        ),
+        admin.from('contact_property_inquiries').upsert(
+          {
+            account_id: accountId,
+            contact_id: contactRecord.id,
+            property_id: enquiryPropertyId,
+            inquiry_source:
+              message.type === 'order' ? 'WhatsApp Catalog' : 'WhatsApp',
+            inquiry_date: new Date().toISOString(),
+            notes: (contentText || '').slice(0, 500),
+          },
+          { onConflict: 'contact_id,property_id' },
+        ),
+        admin.from('listing_feedback').upsert(
+          {
+            account_id: accountId,
+            contact_id: contactRecord.id,
+            property_id: enquiryPropertyId,
+            verdict: 'interested',
+            reason: null,
+          },
+          { onConflict: 'contact_id,property_id' },
+        ),
+      ])
+
+      await admin
+        .from('conversations')
+        .update({ status: 'pending', updated_at: new Date().toISOString() })
+        .eq('id', conversation.id)
+        .eq('account_id', accountId)
+
+      await createNotification({
+        accountId,
+        userId: assignedAgentUserId,
+        type: 'listing_interest',
+        title: `${contactRecord.name || senderPhone} wants ${enquiryPropertyTitle}`,
+        body: shareSent
+          ? 'The exact property details were sent. Reply to answer any property-specific questions.'
+          : 'The listing was matched, but the automatic details send failed. Please share it and follow up now.',
+        entityType: 'conversation',
+        entityId: conversation.id,
+        link: `/inbox?conversation=${conversation.id}`,
+        whatsappText: [
+          '🔥 *Specific property interest*',
+          `👤 ${contactRecord.name || senderPhone}`,
+          `🏠 ${enquiryPropertyTitle}`,
+          '',
+          (contentText || '').slice(0, 300),
+          '',
+          shareSent
+            ? 'The listing details have already been sent.'
+            : '⚠️ The automatic details send failed — please share them now.',
+          BRIDGE_REPLY_HINT,
+        ].join('\n'),
+      })
+      return
+    }
+
+    if (propertyReferenceNeedsAgent) {
+      await sendWhatsAppMessageAndPersist({
+        accountId,
+        userId: configOwnerUserId,
+        contactId: contactRecord.id,
+        conversationId: conversation.id,
+        toPhone: senderPhone,
+        kind: 'text',
+        senderType: 'bot',
+        text: buildUnresolvedPropertyInterestAck(contactRecord.name),
+      })
+      await admin
+        .from('conversations')
+        .update({ status: 'pending', updated_at: new Date().toISOString() })
+        .eq('id', conversation.id)
+        .eq('account_id', accountId)
+      await createNotification({
+        accountId,
+        userId: assignedAgentUserId,
+        type: 'listing_interest',
+        title: `Property reference needs matching: ${contactRecord.name || senderPhone}`,
+        body: (contentText || '').slice(0, 300),
+        entityType: 'conversation',
+        entityId: conversation.id,
+        link: `/inbox?conversation=${conversation.id}`,
+        whatsappText: [
+          '⚠️ *Property reference needs matching*',
+          `👤 ${contactRecord.name || senderPhone}`,
+          '',
+          (contentText || '').slice(0, 300),
+          '',
+          'ConvoReal did not guess. Please confirm the listing and share its details.',
+          BRIDGE_REPLY_HINT,
+        ].join('\n'),
+      })
+      return
+    }
   }
 
   // A deliberate enquiry — the property CODE is in the message, which
@@ -2882,6 +3043,12 @@ async function parseMessageContent(
       return { ...empty, contentText: '📥 Shared Contact Card' };
     }
 
+    case 'order':
+      return {
+        ...empty,
+        contentText: buildCatalogOrderMessage(message.order),
+      }
+
     default:
       return {
         ...empty,
@@ -3051,8 +3218,9 @@ export async function handlePropertyShareYesReply(
   configOwnerUserId: string,
   contactId: string,
   conversationId: string,
-  toPhone: string
-) {
+  toPhone: string,
+  options: { followUp?: 'feedback' | 'questions' | 'none' } = {},
+): Promise<boolean> {
   try {
     const { data: property, error } = await supabaseAdmin()
       .from('properties')
@@ -3065,7 +3233,7 @@ export async function handlePropertyShareYesReply(
 
     if (error || !typedProperty) {
       console.error('[webhook] Property not found for share yes reply:', propertyId, error)
-      return
+      return false
     }
 
     let currency = 'INR'
@@ -3159,7 +3327,7 @@ export async function handlePropertyShareYesReply(
     }
 
     // Send property details
-    await sendWhatsAppMessageAndPersist({
+    const detailsResult = await sendWhatsAppMessageAndPersist({
       accountId,
       userId: configOwnerUserId,
       contactId,
@@ -3169,6 +3337,36 @@ export async function handlePropertyShareYesReply(
       text: detailsText,
       senderType: 'bot',
     })
+    if (!detailsResult.success) {
+      console.error('[webhook] Property details send failed:', propertyId, detailsResult.error)
+      return false
+    }
+
+    await logPropertyShare(
+      supabaseAdmin(),
+      accountId,
+      configOwnerUserId,
+      propertyId,
+      contactId,
+    )
+
+    const followUp = options.followUp ?? 'feedback'
+    if (followUp === 'questions') {
+      await sendWhatsAppMessageAndPersist({
+        accountId,
+        userId: configOwnerUserId,
+        contactId,
+        conversationId,
+        toPhone,
+        kind: 'text',
+        text: buildPropertyInterestQuestion(),
+        senderType: 'bot',
+      })
+      console.log(`[webhook] Successfully shared property ${propertyId} with contact ${contactId}`)
+      return true
+    }
+
+    if (followUp === 'none') return true
 
     // This is the first confirmed reply after an out-of-window template.
     // Ask for explicit listing feedback now that WhatsApp permits a
@@ -3208,8 +3406,10 @@ export async function handlePropertyShareYesReply(
     }
 
     console.log(`[webhook] Successfully shared property ${propertyId} with contact ${contactId}`)
+    return true
   } catch (err) {
     console.error('[webhook] Failed in handlePropertyShareYesReply:', err)
+    return false
   }
 }
 
