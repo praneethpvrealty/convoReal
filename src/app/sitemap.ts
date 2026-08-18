@@ -20,7 +20,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const entries: MetadataRoute.Sitemap = [
     { url: siteUrl, changeFrequency: 'daily', priority: 1 },
-    { url: `${siteUrl}/list`, changeFrequency: 'monthly', priority: 0.5 },
     ...FARMLAND_DESTINATIONS.map((destination) => ({
       url: `${siteUrl}/farmland/${destination.slug}`,
       changeFrequency: 'weekly' as const,
@@ -60,6 +59,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       .filter((property) => !isTeaserGated(property))
       .map((property) => ({
         url: `${siteUrl}/property/${propertySlug(property)}`,
+        images: [`${siteUrl}/api/properties/${property.id}/og-image`],
         lastModified: property.updated_at
           ? new Date(property.updated_at)
           : undefined,
