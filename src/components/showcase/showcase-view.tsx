@@ -51,6 +51,7 @@ import {
   HIGH_INTEREST_RATING,
 } from '@/components/showcase/property-rating-bar';
 import { readStored, removeStored, writeStored } from '@/lib/safe-storage';
+import { buildPublicBusinessProfile } from '@/lib/seo/business-profile';
 
 // Dwell-time cap for Pulse view_property events — a tab left open in the
 // background must not report hours of "viewing".
@@ -809,6 +810,10 @@ export function ShowcaseView({
   // Fallback defaults if settings don't exist yet
   const siteName = siteNameProp || BRANDING.name;
   const displayPhone = referrerPhone || settings?.contact_phone || '';
+  const businessProfile = useMemo(
+    () => buildPublicBusinessProfile(siteName, properties),
+    [siteName, properties]
+  );
 
   /**
    * Where an enquiry tap goes — deliberately NOT displayPhone.
@@ -1372,6 +1377,75 @@ export function ShowcaseView({
             </div>
           )}
         </div>
+
+        <section
+          aria-labelledby="business-profile-heading"
+          className="mb-12 rounded-3xl border border-slate-900/70 bg-slate-900/30 p-6 text-left shadow-xl backdrop-blur-xl sm:p-8"
+        >
+          <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr] lg:items-start">
+            <div>
+              <p className="text-primary text-[10px] font-extrabold tracking-[0.2em] uppercase">
+                Real estate consultancy
+              </p>
+              <h2
+                id="business-profile-heading"
+                className="mt-2 text-xl font-black tracking-tight text-white sm:text-2xl"
+              >
+                About {siteName}
+              </h2>
+              <p className="mt-3 max-w-3xl text-sm leading-relaxed text-slate-400">
+                {businessProfile.description}
+              </p>
+              {businessProfile.inventoryLastUpdated && (
+                <p className="mt-3 text-xs text-slate-500">
+                  Public inventory last updated{' '}
+                  <time dateTime={businessProfile.inventoryLastUpdated}>
+                    {new Intl.DateTimeFormat('en-IN', {
+                      dateStyle: 'medium',
+                      timeZone: 'Asia/Kolkata',
+                    }).format(new Date(businessProfile.inventoryLastUpdated))}
+                  </time>
+                </p>
+              )}
+            </div>
+            <div className="space-y-4">
+              {businessProfile.areasServed.length > 0 && (
+                <div>
+                  <h3 className="text-xs font-bold text-slate-300">
+                    Areas served
+                  </h3>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {businessProfile.areasServed.slice(0, 6).map((area) => (
+                      <span
+                        key={area}
+                        className="rounded-full border border-slate-800 bg-slate-950/70 px-3 py-1 text-[11px] text-slate-400"
+                      >
+                        {area}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {businessProfile.propertyTypes.length > 0 && (
+                <div>
+                  <h3 className="text-xs font-bold text-slate-300">
+                    Property expertise
+                  </h3>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {businessProfile.propertyTypes.slice(0, 6).map((type) => (
+                      <span
+                        key={type}
+                        className="border-primary/15 bg-primary/5 text-primary rounded-full border px-3 py-1 text-[11px]"
+                      >
+                        {type}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
 
         {/* Project facts — builder, gallery, amenities. Only set on
             /projects/[slug] pages, where every listing below shares one

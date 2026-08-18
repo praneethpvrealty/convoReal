@@ -25,7 +25,12 @@ import {
 } from '@/lib/inventory/showcase-visibility';
 import { propertySlug } from '@/lib/showcase/property-slug';
 import { resolveRequestOrigin } from '@/lib/showcase/site-url';
-import { jsonLdScript, propertyJsonLd } from '@/lib/seo/jsonld';
+import {
+  jsonLdScript,
+  propertyJsonLd,
+  realEstateAgentJsonLd,
+} from '@/lib/seo/jsonld';
+import { buildPublicBusinessProfile } from '@/lib/seo/business-profile';
 import { BRANDING } from '@/config/branding';
 
 const DEFAULT_METADATA: Metadata = {
@@ -83,7 +88,57 @@ export async function generateMetadata({
 }: PageProps): Promise<Metadata> {
   const resolvedParams = await searchParams;
   const propertyId = resolvedParams.property_id;
-  if (!propertyId) return DEFAULT_METADATA;
+  if (!propertyId) {
+    const reqHeaders = await headers();
+    const host = reqHeaders.get('host') || '';
+    const subdomain =
+      resolveSubdomainFromHost(host) ||
+      (resolvedParams.__tenant
+        ? resolveSubdomainFromHost(
+            `${resolvedParams.__tenant.toLowerCase()}.${BRANDING.baseDomain}`
+          )
+        : null);
+    const ref =
+      resolvedParams.ref ||
+      resolvedParams.account_id ||
+      resolvedParams.agent_id;
+
+    if (!subdomain && !ref) return DEFAULT_METADATA;
+
+    let accountId = subdomain
+      ? await cachedResolveAccountFromSubdomain(subdomain)
+      : null;
+    if (!accountId && ref) {
+      accountId = (await cachedResolveRef(ref))?.accountId ?? null;
+    }
+    if (!accountId)
+      accountId = process.env.NEXT_PUBLIC_DEFAULT_ACCOUNT_ID || null;
+    if (!accountId) return DEFAULT_METADATA;
+
+    const data = await cachedFetchShowcaseData(accountId, false);
+    const siteName = data.accountName || BRANDING.name;
+    const profile = buildPublicBusinessProfile(siteName, data.properties);
+    const origin = await resolveRequestOrigin();
+    const title = `${siteName} — Properties & Real Estate Consultancy`;
+
+    return {
+      title: { absolute: title },
+      description: profile.description,
+      alternates: { canonical: origin },
+      robots: { index: true, follow: true },
+      openGraph: {
+        title,
+        description: profile.description,
+        type: 'website',
+        url: origin,
+      },
+      twitter: {
+        card: 'summary',
+        title,
+        description: profile.description,
+      },
+    };
+  }
 
   const accountId = process.env.NEXT_PUBLIC_DEFAULT_ACCOUNT_ID || null;
   const property = await cachedResolvePropertyById(propertyId, accountId);
@@ -125,13 +180,16 @@ export async function generateMetadata({
   // spawn unbounded duplicate URLs — the canonical collapses them all onto
   // the clean crawlable /property/ route.
   const canonicalUrl = `${origin}/property/${propertySlug(property)}`;
+  const data = await cachedFetchShowcaseData(property.account_id, false);
+  const siteName = data.accountName || BRANDING.name;
+  const title = `${property.title} | ${siteName}`;
 
   return {
-    title: property.title,
+    title: { absolute: title },
     description,
     alternates: { canonical: canonicalUrl },
     openGraph: {
-      title: property.title,
+      title,
       description,
       type: 'website',
       url: canonicalUrl,
@@ -139,7 +197,7 @@ export async function generateMetadata({
     },
     twitter: {
       card: 'summary_large_image',
-      title: property.title,
+      title,
       description,
       images: [heroImage],
     },
@@ -455,9 +513,29 @@ export default async function RootPage({ searchParams }: PageProps) {
         ''
       );
 
+  const siteName = accountName || BRANDING.name;
+  const businessId = `${origin}#business`;
+  const businessProfile = buildPublicBusinessProfile(
+    siteName,
+    publishedProperties
+  );
+
   // Render
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: jsonLdScript(
+            realEstateAgentJsonLd({
+              name: siteName,
+              url: origin,
+              telephone: settings?.contact_phone,
+              profile: businessProfile,
+            })
+          ),
+        }}
+      />
       {targetProperty && !isTeaserGated(targetProperty) && (
         <script
           type="application/ld+json"
@@ -466,7 +544,8 @@ export default async function RootPage({ searchParams }: PageProps) {
               propertyJsonLd(
                 targetProperty,
                 `${origin}/property/${propertySlug(targetProperty)}`,
-                `${origin}/api/properties/${targetProperty.id}/og-image`
+                `${origin}/api/properties/${targetProperty.id}/og-image`,
+                businessId
               )
             ),
           }}

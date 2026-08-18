@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Property } from '@/types';
-import { jsonLdScript, propertyJsonLd } from './jsonld';
+import { buildPublicBusinessProfile } from './business-profile';
+import { jsonLdScript, propertyJsonLd, realEstateAgentJsonLd } from './jsonld';
 
 const property = {
   id: 'property-1',
@@ -23,13 +24,15 @@ describe('propertyJsonLd', () => {
     const result = propertyJsonLd(
       property,
       'https://example.com/property/jp-nagar-apartment',
-      'https://example.com/property.jpg'
+      'https://example.com/property.jpg',
+      'https://example.com#business'
     );
 
     expect(result).toMatchObject({
       '@type': 'RealEstateListing',
       dateModified: property.updated_at,
       inLanguage: 'en-IN',
+      publisher: { '@id': 'https://example.com#business' },
       contentLocation: {
         '@type': 'Place',
         address: {
@@ -64,6 +67,7 @@ describe('propertyJsonLd', () => {
         itemOffered: {
           '@id': 'https://example.com/property/jp-nagar-apartment#property',
         },
+        offeredBy: { '@id': 'https://example.com#business' },
       },
     });
     expect(result).not.toHaveProperty('address');
@@ -75,5 +79,30 @@ describe('propertyJsonLd', () => {
     expect(jsonLdScript({ name: '</script><script>' })).not.toContain(
       '</script>'
     );
+  });
+});
+
+describe('realEstateAgentJsonLd', () => {
+  it('publishes the brokerage identity and inventory-derived expertise', () => {
+    const profile = buildPublicBusinessProfile('Aryavarta Realty', [property]);
+
+    expect(
+      realEstateAgentJsonLd({
+        name: 'Aryavarta Realty',
+        url: 'https://aryavarta.example',
+        telephone: '+91 98765 43210',
+        profile,
+      })
+    ).toMatchObject({
+      '@type': 'RealEstateAgent',
+      '@id': 'https://aryavarta.example#business',
+      name: 'Aryavarta Realty',
+      telephone: '+91 98765 43210',
+      areaServed: [
+        { '@type': 'Place', name: 'JP Nagar' },
+        { '@type': 'Place', name: 'Bengaluru' },
+      ],
+      knowsAbout: ['Apartment'],
+    });
   });
 });

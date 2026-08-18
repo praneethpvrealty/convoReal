@@ -15,7 +15,12 @@ import {
 } from '@/lib/data/farmland-destinations';
 import { propertySlug } from '@/lib/showcase/property-slug';
 import { resolveRequestOrigin } from '@/lib/showcase/site-url';
-import { itemListJsonLd, jsonLdScript } from '@/lib/seo/jsonld';
+import {
+  itemListJsonLd,
+  jsonLdScript,
+  realEstateAgentJsonLd,
+} from '@/lib/seo/jsonld';
+import { buildPublicBusinessProfile } from '@/lib/seo/business-profile';
 import { BRANDING } from '@/config/branding';
 
 interface PageProps {
@@ -26,18 +31,40 @@ interface PageProps {
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+async function resolveAccountId(
+  searchParams: PageProps['searchParams']
+): Promise<string | null> {
+  const resolvedParams = await searchParams;
+  const reqHeaders = await headers();
+  const subdomain = resolveSubdomainFromHost(reqHeaders.get('host') || '');
+  const ref = resolvedParams.account_id || resolvedParams.ref;
+
+  let accountId = ref && UUID_RE.test(ref) ? ref : null;
+  if (!accountId && subdomain)
+    accountId = await cachedResolveAccountFromSubdomain(subdomain);
+  if (!accountId)
+    accountId = process.env.NEXT_PUBLIC_DEFAULT_ACCOUNT_ID || null;
+  if (!accountId) accountId = await cachedFetchFallbackAccount();
+  return accountId;
+}
+
 export async function generateMetadata({
   params,
+  searchParams,
 }: PageProps): Promise<Metadata> {
   const { destination: slug } = await params;
   const destination = getFarmlandDestination(slug);
   if (!destination) return { title: `Farm Lands | ${BRANDING.name}` };
 
   const origin = await resolveRequestOrigin();
-  const title = `Farm Lands in ${destination.name} (${destination.region}) | ${BRANDING.name}`;
+  const accountId = await resolveAccountId(searchParams);
+  const accountName = accountId
+    ? (await cachedFetchShowcaseData(accountId, false)).accountName
+    : null;
+  const title = `Farm Lands in ${destination.name} (${destination.region}) | ${accountName || BRANDING.name}`;
 
   return {
-    title,
+    title: { absolute: title },
     description: destination.metaDescription,
     alternates: { canonical: `${origin}/farmland/${destination.slug}` },
     robots: { index: true, follow: true },
@@ -66,17 +93,7 @@ export default async function FarmlandDestinationPage({
   const destination = getFarmlandDestination(slug);
   if (!destination) notFound();
 
-  const reqHeaders = await headers();
-  const subdomain = resolveSubdomainFromHost(reqHeaders.get('host') || '');
-
-  let accountId: string | null = null;
-  const ref = resolvedParams.account_id || resolvedParams.ref;
-  if (ref && UUID_RE.test(ref)) accountId = ref;
-  if (!accountId && subdomain)
-    accountId = await cachedResolveAccountFromSubdomain(subdomain);
-  if (!accountId)
-    accountId = process.env.NEXT_PUBLIC_DEFAULT_ACCOUNT_ID || null;
-  if (!accountId) accountId = await cachedFetchFallbackAccount();
+  const accountId = await resolveAccountId(Promise.resolve(resolvedParams));
   if (!accountId) notFound();
 
   const { settings, accountName, properties, agents, profiles } =
@@ -90,9 +107,24 @@ export default async function FarmlandDestinationPage({
   );
 
   const origin = await resolveRequestOrigin();
+  const siteName = accountName || BRANDING.name;
+  const businessProfile = buildPublicBusinessProfile(siteName, properties);
 
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: jsonLdScript(
+            realEstateAgentJsonLd({
+              name: siteName,
+              url: origin,
+              telephone: settings?.contact_phone,
+              profile: businessProfile,
+            })
+          ),
+        }}
+      />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
