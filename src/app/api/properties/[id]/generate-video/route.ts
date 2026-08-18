@@ -4,6 +4,7 @@ import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import { burnCredits } from '@/lib/credits/burn';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import { storageObjectPath } from '@/lib/storage/url';
 import { isNarrationLanguage } from '@/lib/video/listing-video';
 
 /**
@@ -133,7 +134,7 @@ export async function DELETE(
 
     const { data: property } = await ctx.supabase
       .from('properties')
-      .select('id, video_url, video_status')
+      .select('id, video_url, video_status, youtube_status')
       .eq('id', id)
       .eq('account_id', ctx.accountId)
       .maybeSingle();
@@ -146,21 +147,24 @@ export async function DELETE(
         { status: 409 },
       );
     }
+    if (property.youtube_status === 'queued' || property.youtube_status === 'uploading') {
+      return NextResponse.json(
+        { error: 'This video is being uploaded to YouTube — wait for it to finish first.' },
+        { status: 409 },
+      );
+    }
     if (!property.video_url && !property.video_status) {
       return NextResponse.json({ error: 'This property has no video.' }, { status: 404 });
     }
 
     // Storage deletes need the service role; the path's account prefix
     // (set by the render worker) must match the caller's tenant.
-    const marker = '/object/public/property-videos/';
-    const markerIdx = (property.video_url ?? '').indexOf(marker);
-    if (markerIdx !== -1) {
-      const storagePath = decodeURIComponent(
-        property.video_url.slice(markerIdx + marker.length).split('?')[0],
-      );
-      if (storagePath.startsWith(`${ctx.accountId}/`)) {
-        await supabaseAdmin().storage.from('property-videos').remove([storagePath]);
-      }
+    const objectPath = storageObjectPath(property.video_url);
+    const prefix = `property-videos/${ctx.accountId}/`;
+    if (objectPath?.startsWith(prefix)) {
+      await supabaseAdmin()
+        .storage.from('property-videos')
+        .remove([objectPath.slice('property-videos/'.length)]);
     }
 
     const { data: cleared, error: updateErr } = await ctx.supabase

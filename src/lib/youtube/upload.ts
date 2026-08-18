@@ -6,6 +6,7 @@ import {
   refreshAccessToken,
   uploadVideo,
 } from '@/lib/youtube/client';
+import { storagePublicUrl } from '@/lib/storage/url';
 
 /** Queued on the 'listing-videos' Redis list alongside ListingVideoJob;
  *  the queue worker branches on `kind`. */
@@ -188,7 +189,7 @@ export async function syncPropertyVideoToYouTube(opts: {
 
     let bytes = opts.videoBytes;
     if (!bytes) {
-      const res = await fetch(property.video_url);
+      const res = await fetch(storagePublicUrl(property.video_url));
       if (!res.ok) {
         await markFailed(`Video download failed (HTTP ${res.status}).`);
         return;

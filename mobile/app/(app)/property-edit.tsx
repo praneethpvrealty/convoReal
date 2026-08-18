@@ -21,6 +21,7 @@ import { ConvoRealLoader } from '@/components/loader';
 import { OptionSheet } from '@/components/option-sheet';
 import { PropertyFloorPlans, type FloorPlanDraft } from '@/components/property-floor-plans';
 import { PropertyPhotoEditor } from '@/components/property-photo-editor';
+import { PropertyVideoEditor } from '@/components/property-video-editor';
 import { Banner, FilterChip, PriceHint, PrimaryButton, SectionLabel, TextField } from '@/components/ui';
 import { pickAndUploadFloorPlan } from '@/lib/floor-plan-upload';
 import { storagePublicUrl } from '@/lib/storage-url';
@@ -102,6 +103,7 @@ async function fetchProperty(id: string): Promise<Property | null> {
     .select(
       'id, title, description, price, rent_per_month, maintenance, status, listing_type, sold_price, ' +
         'bedrooms, bathrooms, area_sqft, area_unit, total_floors, is_published, type, images, ' +
+        'video_url, video_status, video_generated_at, youtube_video_id, youtube_status, youtube_error, ' +
         'location, sublocality, city, state, land_area, land_area_unit, super_built_area, ' +
         'dimensions, facing_direction, google_map_link, showcase_visibility, features, nearby_highlights, tags, ' +
         'floor_tenancies, floor_plans, owner_contact_id, owner:contacts!properties_owner_contact_id_fkey(id, name, phone)'
@@ -387,6 +389,18 @@ function EditForm({ property }: { property: Property }) {
         {error ? <Banner kind="error" text={error} /> : null}
 
         <PropertyPhotoEditor images={images} onChange={setImages} />
+
+        <PropertyVideoEditor
+          propertyId={property.id}
+          initialState={{
+            video_url: property.video_url,
+            video_status: property.video_status,
+            video_generated_at: property.video_generated_at,
+            youtube_video_id: property.youtube_video_id,
+            youtube_status: property.youtube_status,
+            youtube_error: property.youtube_error,
+          }}
+        />
 
         <PropertyFloorPlans plans={floorPlans} onChange={setFloorPlans} isLand={isLand} />
 

@@ -2,10 +2,12 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { CirclePlay, Clapperboard, ExternalLink, Loader2, RefreshCw, Sparkles } from 'lucide-react';
+import { CirclePlay, Clapperboard, ExternalLink, Loader2, RefreshCw, Sparkles, Upload } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { rejectPropertyVideo } from '@/lib/inventory/property-video';
+import { storagePublicUrl } from '@/lib/storage/url';
 import { NARRATION_LANGUAGES, type NarrationLanguage } from '@/lib/video/listing-video';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 
@@ -32,9 +34,11 @@ export function ListingVideoCard({ propertyId }: { propertyId: string }) {
   const [state, setState] = useState<VideoState | null>(null);
   const [language, setLanguage] = useState<NarrationLanguage>('en-IN');
   const [submitting, setSubmitting] = useState(false);
+  const [uploadingVideo, setUploadingVideo] = useState(false);
   const [uploadingYt, setUploadingYt] = useState(false);
   const [ytConnected, setYtConnected] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const refresh = async () => {
     const supabase = createClient();
@@ -118,11 +122,43 @@ export function ListingVideoCard({ propertyId }: { propertyId: string }) {
     }
   };
 
+  const uploadWalkthrough = async (file: File | undefined) => {
+    if (!file) return;
+    const rejection = rejectPropertyVideo(file.type, file.size);
+    if (rejection) {
+      toast.error(rejection.error);
+      return;
+    }
+
+    setUploadingVideo(true);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const res = await fetch(`/api/properties/${propertyId}/video-upload`, {
+        method: 'POST',
+        body: form,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || `Failed (HTTP ${res.status})`);
+      setState(data.data as VideoState);
+      toast.success(
+        data.data?.youtube_status === 'queued'
+          ? 'Walkthrough uploaded — YouTube upload queued.'
+          : 'Walkthrough uploaded to the property.',
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to upload walkthrough video');
+    } finally {
+      setUploadingVideo(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   const busy = state?.video_status === 'queued' || state?.video_status === 'processing';
   const ytBusy = state?.youtube_status === 'queued' || state?.youtube_status === 'uploading';
   const videoReady = state?.video_status === 'ready' && Boolean(state.video_url);
   // Only worker renders stamp video_generated_at — its absence means the
-  // agent supplied this video themselves (WhatsApp walkthrough), so the
+  // agent supplied this video themselves (WhatsApp or an editor), so the
   // generator controls would overwrite real footage.
   const isUploadedVideo = videoReady && !state?.video_generated_at;
 
@@ -135,14 +171,43 @@ export function ListingVideoCard({ propertyId }: { propertyId: string }) {
       </div>
       <p className="text-xs text-slate-500">
         {isUploadedVideo
-          ? 'Walkthrough video uploaded via WhatsApp — shown on your public Showcase alongside the photos.'
+          ? 'Uploaded walkthrough video — shown on your public Showcase alongside the photos.'
           : `Auto-builds a WhatsApp-ready teaser from this listing's photos — motion, captions, narration in your chosen language, and music. Costs ${AI_FEATURE_COSTS.listing_video} cr per render.`}
       </p>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={busy || ytBusy || uploadingVideo}
+        >
+          {uploadingVideo ? (
+            <Loader2 className="size-3.5 animate-spin" />
+          ) : (
+            <Upload className="size-3.5" />
+          )}
+          {uploadingVideo
+            ? 'Uploading…'
+            : videoReady
+              ? 'Replace with walkthrough'
+              : 'Upload walkthrough'}
+        </Button>
+        <span className="text-[11px] text-slate-500">MP4, up to 16 MB</span>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="video/mp4,.mp4"
+          className="hidden"
+          onChange={(event) => void uploadWalkthrough(event.target.files?.[0])}
+        />
+      </div>
 
       {videoReady && (
         <div className="space-y-2">
           <video
-            src={state!.video_url!}
+            src={storagePublicUrl(state!.video_url!)}
             controls
             playsInline
             className="w-full max-w-[240px] rounded-lg border border-slate-800"

@@ -164,7 +164,8 @@ export async function uploadGreetingImage(
 
 /**
  * Uploads a video buffer directly to the 'property-videos' Supabase storage bucket under the account's folder,
- * returning the public URL. The bucket only accepts video/mp4 (20MB cap — WhatsApp's own limit is 16MB).
+ * returning its bucket-relative object path. The bucket only accepts video/mp4
+ * (20MB cap — the product/WhatsApp limit is 16MB).
  */
 export async function uploadPropertyVideo(
   accountId: string,
