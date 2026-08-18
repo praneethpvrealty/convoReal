@@ -218,7 +218,7 @@ export function rankProperties(
   // breaks the tie without changing which listings qualify.
   const inNamedArea = (p: Property): boolean => {
     if (wanted.length === 0) return false;
-    const haystack = [p.sublocality, p.location, p.project]
+    const haystack = [p.sublocality, p.location, p.project, ...(p.tags ?? [])]
       .filter(Boolean)
       .join(' ')
       .toLowerCase();

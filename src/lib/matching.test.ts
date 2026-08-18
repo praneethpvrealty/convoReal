@@ -203,6 +203,41 @@ describe('getMatchingContacts', () => {
   });
 
   describe('Location refinement', () => {
+    it('matches an area of interest against an internal property tag', () => {
+      const contact = createTestContact({
+        pref_property_types: ['Commercial Building'],
+        areas_of_interest: ['Lotus'],
+        pref_extracted_at: new Date().toISOString(),
+        strict_area_match: true,
+      });
+      const property = createTestProperty({
+        type: 'Commercial Building',
+        location: 'Koramangala, Bangalore',
+        sublocality: 'Koramangala',
+        tags: ['LOTUS'],
+      });
+
+      const results = getMatchingContacts(property, [contact]);
+      expect(results).toHaveLength(1);
+      expect(results[0].details.location).toBe('match');
+    });
+
+    it('matches a property tag mentioned in requirements text', () => {
+      const contact = createTestContact({
+        pref_property_types: ['Commercial Building'],
+        requirements: 'Looking for the Lotus opportunity',
+      });
+      const property = createTestProperty({
+        type: 'Commercial Building',
+        location: 'Koramangala, Bangalore',
+        tags: ['LOTUS'],
+      });
+
+      const results = getMatchingContacts(property, [contact]);
+      expect(results).toHaveLength(1);
+      expect(results[0].details.location).toBe('match');
+    });
+
     it('excludes contacts whose stated areas do not cover the property', () => {
       const contact = createTestContact({
         pref_property_types: ['Flat/ Apartment'],
@@ -708,6 +743,23 @@ describe('getMatchingContacts', () => {
   });
 
   describe('Named-project signal (pref_projects)', () => {
+    it('finds a named project stored only as an internal property tag', () => {
+      const contact = createTestContact({
+        pref_projects: ['Lotus'],
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const prop = createTestProperty({
+        title: 'Commercial opportunity',
+        project: undefined,
+        tags: ['LOTUS'],
+      });
+
+      const results = getMatchingContacts(prop, [contact]);
+      expect(results).toHaveLength(1);
+      expect(results[0].details.project).toBe('match');
+      expect(results[0].score).toBeGreaterThanOrEqual(60);
+    });
+
     it('matches a property in a named project via the project field', () => {
       const contact = createTestContact({
         pref_projects: ['Purva Vantage'],

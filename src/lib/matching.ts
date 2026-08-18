@@ -114,7 +114,7 @@ function calculateHaversineDistance(lat1: number, lon1: number, lat2: number, lo
 /**
  * Property → contact matching engine.
  *
- * A named-project match (the property's project/title is one the contact
+ * A named-project match (the property's project/title/tag is one the contact
  * listed in projects_of_interest or pref_projects) short-circuits the
  * hierarchy: it qualifies the contact, satisfies location, survives a
  * type/excluded-area mismatch, and scores above a generic locality hit —
@@ -168,7 +168,7 @@ export interface MatchDetails {
    *  like budget — "lesser dimensions" must actually drop the plot the
    *  lead just declined. */
   size?: MatchVerdict;
-  /** 'match' = the property's project/title is one the contact named
+  /** 'match' = the property's project/title/tag is one the contact named
    *  in projects_of_interest/pref_projects — a decisive, high-intent
    *  signal. */
   project?: MatchVerdict;
@@ -514,6 +514,7 @@ export function getMatchingContacts(
   const propSub = cleanArea(property.sublocality || '');
   const propCity = cleanArea(property.city || '');
   const propProject = cleanArea(property.project || '');
+  const propTags = (property.tags || []).map(cleanArea).filter(Boolean);
   const propBedrooms = property.bedrooms ? Number(property.bedrooms) : null;
   const landAreaSqft = toSquareFeet(property.land_area, property.land_area_unit);
   const propertyAreaSqft =
@@ -552,10 +553,11 @@ export function getMatchingContacts(
     // ── Named-project match ───────────────────────────────────────
     // The buyer named specific projects/societies — agent-entered
     // (projects_of_interest) or AI-extracted (pref_projects), the same
-    // explicit/AI split areas use. A property in one of them is the
-    // strongest intent signal we have: it qualifies the contact and
-    // forces a location match regardless of the type/locality gates
-    // below.
+    // explicit/AI split areas use. Internal property tags also carry
+    // builder/campaign/deal names that structured listing fields may not,
+    // so they participate in the same lookup. A property in one of them
+    // is the strongest intent signal we have: it qualifies the contact
+    // and forces a location match regardless of the type/locality gates.
     const wantedProjects = [
       ...new Set(
         [...(contact.projects_of_interest || []), ...(contact.pref_projects || [])]
@@ -568,7 +570,8 @@ export function getMatchingContacts(
       wantedProjects.some(
         (p) =>
           textContainsProject(property.project || '', p) ||
-          textContainsProject(property.title || '', p)
+          textContainsProject(property.title || '', p) ||
+          propTags.some((tag) => textContainsProject(tag, p))
       );
 
     // Strict watchlist: the buyer wants these projects and nothing
@@ -731,7 +734,10 @@ export function getMatchingContacts(
 
     const areaHitsProperty = (area: string) =>
       !!area &&
-      (propLoc.includes(area) || propSub.includes(area) || propProject.includes(area));
+      (propLoc.includes(area) ||
+        propSub.includes(area) ||
+        propProject.includes(area) ||
+        propTags.some((tag) => tag.includes(area)));
 
     // A negated/excluded locality covering this property disqualifies the
     // contact — unless they explicitly named this project, which wins over
@@ -796,11 +802,14 @@ export function getMatchingContacts(
         }
       }
     }
-    // Direct mention of the property's locality/project in notes counts as a match
+    // Direct mention of the property's locality/project/internal tag in
+    // requirements or notes counts as a match. Tags are Engine-only, but
+    // this lets an agent's own builder/campaign shorthand find inventory.
     if (locationVerdict !== 'match' && combinedText) {
       if (
         (propSub && propSub.length > 2 && combinedText.includes(propSub)) ||
-        (propProject && propProject.length > 2 && combinedText.includes(propProject))
+        (propProject && propProject.length > 2 && combinedText.includes(propProject)) ||
+        propTags.some((tag) => tag.length > 2 && combinedText.includes(tag))
       ) {
         locationVerdict = 'match';
       }
