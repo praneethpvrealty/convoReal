@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 35617)
-Total output lines: 2424
-
 # Changelog
 
 User-visible changes in `convoreal`. Self-hosters: when pulling an update,
@@ -986,7 +983,413 @@ UPDATES` pre-filled: the owner's tap opens the window, creates the thread
 
 ### Fixed
 
-- **A booking with a real d…5617 tokens truncated…nt branch's prompt; (2) free text the flow
+- **A booking with a real date now reaches the calendar.** "Meet lawyer
+  Kusuma regarding the Whitefield property on 30th July 2026" was filed
+  as a _contact draft_ instead of an appointment: the scheduling gate
+  recognised only relative days ("tomorrow", "next Friday") and clock
+  times ("at 4pm"), so a stated calendar date counted as no time at all
+  and the message fell through to contact ingestion. Written-out dates
+  ("30th July", "Jul 30"), numeric dates ("30/07/2026") and named
+  weekdays ("on Friday") are now cues, the WHEN may come before the verb
+  or on its own line, and a date with no time of day books at 10:00 IST
+  rather than midnight. Forwarded portal leads that mention a day
+  ("...is interested in the HSR plot, call him on Monday") still go to
+  contact intake, and property figures — "2-3 crore", "3.50 acres" — are
+  not mistaken for a date or a time. Applies to both the agent's own
+  bookings and a lead asking for a visit.
+
+### Changed
+
+- **Agent inventory digests now send through the owner digest's
+  template.** They no longer have a template of their own. Four
+  agent-specific submissions were each approved by Meta as MARKETING —
+  billed at the marketing rate and requiring marketing opt-in — even
+  after the wording was stripped down to a near word-for-word copy of
+  `owner_property_digest`, which Meta had approved as UTILITY three
+  weeks earlier. A template's category is fixed at first review and can
+  never be edited, and deleting one reserves its name for four weeks,
+  so each attempt burned a name permanently. Both digests declare the
+  same three body params, so the agent digest reuses the approved
+  template and inherits its UTILITY category. Accounts still holding an
+  approved agent-specific template keep sending from it as a fallback.
+  The trade-off is coupling: the two digests now share one Meta
+  template, so a re-categorisation, quality pause, or deletion affects
+  both at once. Background and the rules that make this permanent are
+  documented in the header of
+  `src/lib/whatsapp/agent-inventory-digest-template.ts` and in
+  `AGENTS.md` §2.7.
+
+- **The WhatsApp assistant's help card now says what it can actually
+  do.** Texting your own Engine number used to answer with a four-line
+  "AI Ingestion Chatbot" card that only described draft-session
+  commands — and showed `*Cancel*` literally, because it used Markdown
+  bold instead of WhatsApp's. Send _help_ (or hi / menu / start) and
+  you now get the real capability guide with worked examples: add a
+  listing from text, an ad screenshot or a brochure PDF; add a contact
+  or portal lead; the _today_ agenda, event and to-do commands and
+  voice notes; answering a lead alert directly; and the photo /
+  plain-language-correction / Confirm / Cancel / 15-minute-expiry rules
+  for an open draft. A message that classifies as neither a listing nor
+  a contact now gets a short "couldn't tell what that was" with the
+  three likely intents instead of the whole menu.
+
+### Added
+
+- **Reply to a lead straight from the WhatsApp ping.** The
+  "💬 New lead just messaged you" alert that lands in your own
+  WhatsApp is now answerable: reply to it (quote it) and the text is
+  delivered to the lead as a normal agent message, visible in the
+  shared Inbox like any other reply. ConvoReal answers with
+  "✅ Sent to <lead>" — quote that to keep talking — and mirrors the
+  lead's later messages to your WhatsApp so the whole exchange can
+  happen from your phone without opening the app. Text only; media and
+  templates still go through the Inbox. Outside Meta's 24-hour reply
+  window you get a "couldn't send" note with a link to re-engage by
+  template instead. Only the staff member the ping was addressed to
+  can reply through it, and read-only members can't.
+  **Migration required:** `171_whatsapp_reply_bridges.sql`.
+
+- **Mobile: property quick-edit + showcase sharing.** The property
+  screen's action rail gains **Edit** — a mobile-scale form for the
+  fields agents change in the field (title, price or rent +
+  maintenance, status, bedrooms/bathrooms/area, description,
+  published toggle), saving through the same `PUT /api/properties`
+  route; photos, locality and deal terms stay in the web's full
+  form. The Properties tab header gains a **share showcase** button
+  that opens the native share sheet with the account's public
+  showcase link (subdomain-aware). Showcase links already deep-link
+  into the app for users who have it installed (`+native-intent`
+  maps `?property_id=…` to the property screen) — App Links verify
+  once an EAS build ships with the site's cert env set.
+
+### Added
+
+- **Mobile: release scaffolding.** `mobile/eas.json` with
+  development / preview (internal APK) / production (Play .aab,
+  auto-increment) profiles; a brand launcher icon, adaptive icon,
+  splash and favicon in the aurora-glass palette (lime chat bubble
+  with a house cutout on the deep aurora green — generator in
+  `scratch/gen_app_icons.py`); and `mobile/RELEASE.md` documenting
+  the path to stores: EAS env setup, build/submit commands, App-Link
+  cert envs, store checklists, and OTA updates via `eas update`.
+
+- **Mobile: Connection check (More → Workspace).** A support screen
+  that runs the probes separating the "Unauthorized" failure modes —
+  which Supabase project the app points at, session and refresh-token
+  validity at that project, and live API probes with a fresh token
+  against both the configured and `www` hosts — color-coded, made to
+  be screenshotted into a bug report.
+
+### Fixed
+
+- **Mobile: dead sessions now recover instead of endless
+  "Unauthorized".** When the API keeps rejecting the token AND the
+  refresh token is also dead (a sign-out on another surface — e.g.
+  Den ↔ staff switching — revokes the whole session), the app now
+  signs out cleanly so the next sign-in mints a working session.
+  Previously direct reads kept working off the cached token, hiding
+  the breakage while every API action failed. Also: the hold-to-peek
+  expansion animates smoothly — rows below glide down/up (layout
+  transitions) instead of jumping, and the capsule fades in and out.
+
+- **Mobile: sends failing "Unauthorized" even after the redirect
+  fix.** Some RN fetch stacks don't report the final URL after a
+  redirect, so the apex→www detection could miss. `apiFetch` now has
+  a deterministic fallback: still-401 on an apex base → retry the
+  `www.` variant directly and pin it on success.
+
+- **Mobile "Import from Phone" crash on SDK 57.** `expo-contacts`
+  moved its function API (`getContactsAsync` & co.) behind the
+  `expo-contacts/legacy` entry point; the import now targets it.
+
+### Changed
+
+- **Mobile: swipe-back navigation.** Screens slide in from the right
+  and swipe back out: full-screen swipe-back on iOS, and Android's
+  predictive back gesture is enabled (`predictiveBackGestureEnabled`,
+  applies to EAS builds) so the system edge swipe animates through
+  app screens. The header up-arrow stays — it's Material convention
+  too, and the only reachable affordance on tablets.
+
+### Fixed
+
+- **Mobile "Unauthorized" on every API send — apex-domain redirect.**
+  `convoreal.com/api/*` 308-redirects to `www.convoreal.com`, and
+  fetch strips the `Authorization` header on cross-origin redirects —
+  so every authenticated call from the app arrived anonymous and
+  401'd while direct Supabase reads kept working. `apiFetch` now
+  detects the redirect's final origin, pins it for the session, and
+  re-issues the request there with the header (media URLs use the
+  pinned origin too). Setting `EXPO_PUBLIC_API_BASE_URL` to the
+  canonical `https://www.convoreal.com` avoids the extra hop
+  entirely.
+
+### Changed
+
+- **Mobile: the desktop ConvoReal loader, ported.** Loading states
+  across the app (boot gate, thread, contact, property, broadcasts,
+  automations, calendar, credits, template picker) now show the
+  web's wordmark loader — "ConvoReal" with a bright band sweeping
+  through the letters (same 1.6s loop, primary→white→primary),
+  rebuilt natively with a text mask + animated gradient, static
+  under reduced motion. New dependency:
+  `@react-native-masked-view/masked-view` — run `npm install` in
+  `mobile/`. Inline button/row spinners stay as-is.
+
+- **Agent replies clear the chatbot handoff flag.** When the bot
+  hands a customer to staff ("Talk to an Agent"), the conversation
+  goes `pending`; it now flips back to `open` automatically as soon
+  as a human sends any message (web or mobile), and the mobile
+  thread header spells the state out ("Needs your reply") instead
+  of a bare "Pending" that read like the contact's review status.
+  Mobile API calls also retry once with a refreshed token on 401 —
+  a sign-out on another surface could revoke the token and surface
+  as "Unauthorized" on send while the rest of the app kept working.
+
+- **Mobile: long-press menus are launcher-style popovers.** The
+  WhatsApp button's long-press options opened as a giant centered
+  system dialog; they now appear in a compact floating menu anchored
+  right at the pressed button (icon + label rows, themed, opaque),
+  like the Android home-screen context menu.
+
+- **Mobile Contacts: compact rows, one WhatsApp button.** Contact
+  rows slim down to the essentials — avatar, name with a small
+  inline call button, classification + phone, last-contacted time —
+  and a single WhatsApp button on the right. Tapping it opens
+  WhatsApp with the prefilled welcome message; long-pressing offers
+  the two other sends: a blank WhatsApp chat, or an internal message
+  in the Engine inbox (creating the conversation first if none exists,
+  like the web). Long-pressing the row opens a quick preview sheet
+  with the details the row no longer carries — budget, tags,
+  interested-in properties, areas, email, company, last contacted —
+  and an "Open full contact" button; a plain tap still goes straight
+  to the contact screen. Refined to hold-to-peek: a row-sized capsule
+  expands inline right below the pressed row while the finger stays
+  down — flashlight accent, real shadow, two crisp lines (budget /
+  company, then areas · tags · ★ interests · last contacted) — and
+  collapses the moment it lifts. Budgets with only one bound now read
+  "Up to ₹4.4 Cr" / "₹2 Cr+" instead of "— – ₹4.4 Cr" (also fixed on
+  the contact card).
+
+- **Mobile Contacts: the Agents entry is a tie-person glyph with an
+  "Ag" caption.** The briefcase icon didn't say "Agents" (user
+  feedback); after comparing candidates, the entry is now the
+  person-with-tie icon over a tiny "Ag" monogram — same footprint
+  and color as its icon neighbours.
+
+- **Mobile bottom sheets are opaque again.** The shared sheet used a
+  translucent glass fill, so the screen underneath read straight
+  through "Import from phone", "New contact", the share sheet and
+  every other sheet. Sheets now use a near-opaque surface (the same
+  rule as dropdowns and sticky bars: glass belongs on surfaces over
+  the aurora, not on overlays above content).
+
+- **Inventory mobile search no longer hides the results.** On phones,
+  the search overlay dropped a full-screen dim scrim over the list —
+  results updated live behind it but were blacked out until "Show
+  results" closed the panel. The panel is now an in-flow sticky card
+  that pushes the list down instead of covering it: results stay
+  visible and filter live as you type; the button became "Done".
+
+### Added
+
+- **Mobile: desktop-parity approve + connected properties; staff
+  numbers excluded.** Approving a Needs-Review contact no longer
+  asks through a system dialog — one tap flips them active and,
+  like desktop, auto-sends the inquired property's details
+  (address + map link) through the Engine WhatsApp number; outside
+  Meta's 24-hour window it opens the thread for a template send
+  instead. Contact screens now show connected properties like the
+  web card: Managed properties for Owner/Seller/Developer (and
+  agents' showcase list), and Interested properties for buyers
+  (inquired + marked interests, tap-through). Team members' own
+  WhatsApp numbers no longer appear as leads — contacts matching a
+  staff profile phone are filtered from the list and the segment
+  counts.
+
+- **Mobile Agents: two-pane layout, Requirements and Schedule.** On
+  wide screens (tablets/foldables ≥700dp) the Agents screen becomes
+  the desktop two-pane directory: agent list on the left, full
+  detail on the right with the action row (Call / WhatsApp / Inbox /
+  Journey) — no more bouncing back to the list. The agent detail
+  (both panes and the contact screen) gains the desktop tabs that
+  were missing: a **Requirements & brief** editor (saves to the
+  contact like the web tab) and a **Schedule** section listing every
+  appointment involving the agent — primary or multi-attendee —
+  upcoming first with history below, plus a Schedule shortcut that
+  opens the new-appointment form with the contact prefilled.
+
+- **Mobile: prefilled WhatsApp welcome message.** The desktop
+  contacts page's "Send pre-filled welcome message" button now
+  exists on the app. Contact rows gain a WhatsApp button and the
+  contact card's WhatsApp action opens WhatsApp with the same
+  drafted message desktop builds: a personalized greeting, the
+  qualification questions (location/budget/type/stage), and
+  showcase links — the exact enquired property plus similar
+  matches when the lead has one, otherwise links filtered by their
+  areas/property interests (subdomain-aware, `ref` fallback). The
+  row's chat bubble still jumps into an existing thread; when no
+  thread exists it now falls back to the prefilled message instead
+  of an empty WhatsApp compose.
+
+- **Mobile: Agents directory + contact review actions.** A briefcase
+  button on the Contacts tab opens the web Agents tab's mobile
+  counterpart: every "Agent"-classified contact with company, phone
+  and linked-property counts, searchable by name/company/phone. An
+  agent's contact screen now shows their showcase properties (tap
+  to open, unlink with confirmation — `owner_contact_id` cleared,
+  same as the web) and agent notes (`contact_notes`, add + newest
+  first). Review actions arrive too: contacts in Needs Review get an
+  amber approve button right on the list row, and their contact
+  screen shows a "Needs review — From {source}" banner with Approve
+  (`status` → active), matching the web's approve flow. Sending
+  property details after approval stays in the conversation thread.
+
+- **Mobile Contacts: web-parity list features.** The Contacts tab
+  gains the web page's marked features: quick-filter segments —
+  All / Needs Review / Transacted / Active Buyers — with live counts
+  and the exact same definitions as the web tabs (`status`
+  active/pending_review, won-deal contacts, HOT-or-inquired);
+  richer rows with a colored classification badge, up to three tag
+  chips, starred "Interested in PROP-xxxx" chips (resolved from
+  `property_interests` + last inquiry), and last-contacted time; a
+  chat shortcut per row that jumps straight into the contact's
+  latest conversation (falls back to WhatsApp when no thread
+  exists); and **Import from Phone** — pick device contacts
+  (expo-contacts) and create them through the same gated
+  `POST /api/contacts` route, with duplicate/limit failures counted
+  in the result. New dependency: `expo-contacts` — run `npm install`
+  in `mobile/`. The Requirements tab stays web-only for now.
+
+- **Mobile: the web's rich share dialog, on the property screen.**
+  Tapping Share now opens a full share sheet instead of the bare OS
+  sheet: To Client / To Co-Broker audience cards (client links open
+  the showcase with the inquiry form; co-brokers get the clean
+  `mode=view` page), tone (Professional/Casual/Friendly) and detail
+  (Quick/Standard/Complete) pickers, an editable auto-drafted
+  message — generated by a 1:1 port of the web's
+  `share-message-builder`, so drafts match the web exactly — a
+  copy-link row, and channel buttons: WhatsApp, Telegram, Email, SMS,
+  Copy message, and "More apps…" (native share sheet). New
+  dependency: `expo-clipboard` — run `npm install` in `mobile/`.
+  Engine-tracked template sends stay in the conversation thread and the
+  web dialog.
+
+- **Auto-generated listing videos.** A "Listing Video" card on the
+  property form builds a WhatsApp-ready vertical teaser (≤16MB,
+  ~35s) from the listing's photos: Ken Burns motion, caption
+  overlays, branded end card, background music, and narration via
+  Sarvam AI in 11 Indian languages (English scripts are translated
+  automatically; espeak fallback without a key). Renders run on the
+  Redis queue worker (Dockerfile.worker now installs
+  ffmpeg/fonts/espeak-ng), cost 50 credits — disclosed on the button,
+  charged up front, auto-refunded on failure — and the finished video
+  plays on the Showcase page next to the photos. **Migration
+  required:** `151_listing_videos.sql`. Env: `SARVAM_API_KEY` on the
+  worker (and Vercel for future use); credit policy documented in
+  docs/credits-policy-listing-video.md.
+
+### Fixed
+
+- **Contacts page: slow networks get a Retry card, not an eternal
+  spinner or fake counts.** The contacts load now races a 20s
+  timeout; a stalled connection surfaces an inline "Couldn't load
+  contacts / Retry" card instead of "Loading contacts..." forever.
+  While loading, the tab counters show "…" instead of a false
+  "All Contacts (0)". Navigation was never blocked during loads and
+  stays that way — the sidebar remains fully tappable mid-load.
+
+- **Slow networks no longer produce a "zombie" session.** When the
+  post-login profile fetch stalled (flaky mobile connection), the app
+  stayed stuck in a profile-pending state indefinitely: the header
+  showed a generic "User", role gates treated the caller as
+  least-privileged ("Read-only view — templates are managed by your
+  Organization Manager"), and account-scoped lists rendered empty
+  ("No templates yet") — misreporting both permissions and data. The
+  profile fetch now times out per attempt (10s, one retry), a hang
+  surfaces the existing "We couldn't load your profile / Retry"
+  screen instead, and the Templates panel keeps its loader up until
+  the profile actually resolves.
+
+- **Page can no longer pan sideways on phones.** `overflow-x: clip`
+  on `html`/`body` guarantees the page itself never scrolls
+  horizontally — every intended horizontal scroller (tables, tab
+  bars, chip rows) lives in its own container and is unaffected.
+  Layout was verified to reflow cleanly down to a 260px effective
+  viewport (high zoom / large text scaling) with no overflowing
+  elements.
+
+### Added
+
+- **AI tag suggestions with tap-to-confirm.** The preference
+  extraction now also proposes up to 3 short buyer-profile labels
+  from the requirements text ("Investor", "Rental Income", "NRI"),
+  shown on Requirements cards as dashed ✨ suggestion chips. Tapping
+  one reuses an existing account tag with that name or creates it,
+  then attaches it — suggestions are never applied automatically, so
+  the tag vocabulary stays curated by humans. Chips disappear once a
+  matching tag is attached. **Migration required:**
+  `150_tag_suggestions.sql` (adds `contacts.pref_suggested_tags`).
+  Existing contacts pick up suggestions the next time their
+  requirements change (extraction skips unchanged text by hash).
+
+- **AI-extracted preferences now visible everywhere, in sync.** The
+  Gemini extraction that parses budgets, areas, and property
+  interests out of a contact's requirements text (migration 092)
+  previously fed only the matching engine — the Requirements cards
+  and Contacts table showed just the manually-entered fields, so
+  "Budget within 3 cr" typed into a demands statement still read
+  "Not specified". A shared merge (`src/lib/contact-preferences.ts`,
+  explicit fields always win, AI fills the gaps — the same rule the
+  matching engine uses) now drives the Requirements card's Estimated
+  Budget and new preference chips, plus the Contacts table's Areas
+  of Interest / Property Category Interests / Max Budget columns.
+  AI-derived values carry a ✨ marker so provenance stays visible;
+  editing the contact's explicit fields overrides them.
+
+### Changed
+
+- **Settings navigation: "More" menu + edge fades on phones.** The
+  Billing and Workspace tab clusters (Billing, Credits, Showcase, AI
+  Config, Other, Members/Teams/Routing) collapse into a single
+  "More" dropdown on phones, halving the tab bar's width; when the
+  active tab lives inside it, the trigger adopts that tab's icon,
+  label, and highlight so your location stays visible. Both tab bars
+  also gained gradient edge fades that appear only while more tabs
+  continue past that edge. Desktop shows every tab inline, unchanged.
+  Also hardened the Credits tab's Referral card, which crashed the
+  whole Settings page ("Something went wrong") whenever its API call
+  failed — it now shape-checks the response and degrades to a toast.
+
+- **Settings tab bars scroll instead of wrapping on phones.** The
+  main Settings navigation (Profile … Other) and the WhatsApp
+  sub-tabs (Connection / Templates / Flows / Owner Digest) wrapped
+  into ragged multi-line rows on narrow screens, with orphaned group
+  dividers stranded at row starts. Both are now single-row,
+  horizontally scrollable bars with hidden scrollbars; the active
+  pill auto-scrolls into view on load and on tab change, so deep
+  links like `?tab=showcase` never land with the selection
+  off-screen. Desktop layout is unchanged.
+
+### Fixed
+
+- **Table loaders center on screen, not off it.** The Contacts table's
+  loading and empty states (and the admin page's empty states) lived
+  inside a `colSpan` cell of a horizontally-scrolling table, so on
+  mobile they centered against the full multi-viewport-wide table and
+  rendered mostly off the right edge of the screen. They now render
+  outside the scroll surface (the pattern the Broadcasts and Ads
+  pages already used) and center within the visible viewport at any
+  width.
+
+### Changed
+
+- **Flows recover when customers go off-script.** Three fixes to the
+  conversation-flow engine, found watching a real seller lead derail:
+  (1) tapping a button on an _earlier_ message (e.g. "List My
+  Property" on the welcome bubble after already tapping "Buy
+  Property") now switches to that button's branch instead of
+  re-sending the current branch's prompt; (2) free text the flow
   can't parse ("80000 rented house three floor building near
   devanahalli") is saved onto the contact's Requirements note so the
   agent who picks up the handoff sees it instead of losing it; (3)
