@@ -16,6 +16,17 @@ Next.js 16 has breaking changes compared with older versions — APIs, file conv
 - For every requested code change, implementation is not complete after local validation: commit the intended changes on an `agent/*` branch, open a ready-for-review pull request, wait for every required check to pass, and merge it into `main` once the PR is green. Do not stop at a local commit or draft PR unless the user explicitly asks not to publish, or an external permission/safety gate blocks the operation.
 - If a required PR check fails, diagnose and fix the failure, push the correction, and wait for the replacement checks. Never merge a red or pending PR. After merging, verify the resulting `main` deployment and report any platform-specific limitation (for example, an unavailable iOS OTA target) explicitly.
 
+### Batched PR validation trains
+
+- Manage compatible changes as validation trains of **three PRs by default**. Use up to four only when every PR is small, low-risk, independently reviewable, and unlikely to overlap.
+- Every PR must still contain its own focused regression coverage and pass its own required PR checks and Vercel preview. Batching never permits skipping, weakening, or sharing away per-PR CI.
+- Review the combined diff and affected workflows before merging the first PR. If cross-PR interactions are plausible, validate the combined heads on a temporary integration branch or consolidate the dependent changes into one PR.
+- Keep database migrations with ordering dependencies, authentication or authorization, billing or credit burn/refund, WhatsApp ingress/queue/template delivery, deployment configuration, and mobile OTA or store-release changes out of routine batches. Validate and ship these as standalone changes.
+- Merge a train sequentially only after every member is green. Update or rebase the remaining PRs when earlier merges cause conflicts or materially change shared code, and wait for replacement checks.
+- Stop the train at the first failure. Diagnose the responsible PR or interaction before merging anything else; do not let unrelated green status hide an ambiguous failure.
+- After the final merge, verify the deployed batch tip once as the source of truth: confirm the final `main` CI result, Vercel production, every affected Railway service, migrations, and mobile OTA target as applicable, then smoke-test every user flow changed by the train. Do not call the batch live while any required target is pending, failed, or unverified.
+- The agent owns train selection and end-to-end management. State which PRs belong to the train, manage checks and merge order without asking the user to repeat this policy, and report one combined validation and deployment result.
+
 ---
 
 ## 1. What this project is
@@ -796,3 +807,4 @@ All cron routes require `AUTOMATION_CRON_SECRET` or `CRON_SECRET`.
 - [ ] New tables have `account_id`, RLS, triggers, and policies.
 - [ ] The feature exists on both web and mobile (§2.8), or the gap is stated in my summary and recorded in `FEATURE_ROADMAP.md`.
 - [ ] If I touched `mobile/**`, I ran `cd mobile && npm run typecheck && npm run lint && npm test`.
+- [ ] If this PR is in a validation train, every member is independently green and the final deployed batch tip is verified after the last merge.
