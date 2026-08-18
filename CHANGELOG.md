@@ -65,6 +65,12 @@ and polish.
 
 ### Fixed
 
+- **Property tags now participate in buyer search and matching.** Areas of
+  interest, named projects, and requirement text can find an internal listing
+  tag such as `LOTUS`, including in Match Radar and mobile property matches.
+  Tags remain internal and are never exposed on the public showcase. No
+  migration is required.
+
 - **Mobile loading and Property Edit inputs stay fully visible.** The startup
   loader renders the complete ConvoReal wordmark without the font-timing mask
   that could clip its final letter. On Android, the Property Edit form now

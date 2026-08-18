@@ -1182,7 +1182,7 @@ export interface Property {
   notes?: string | null;
   /** Internal free-text search tags (migration 192) — Engine-only, never
    *  shown on the public showcase. Searchable via the generated tags_text
-   *  column in GET /api/properties. */
+   *  column in GET /api/properties and by the shared buyer matcher. */
   tags?: string[];
   owner_contact_id?: string | null;
   owner?: Contact | null;
