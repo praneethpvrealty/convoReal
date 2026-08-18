@@ -91,6 +91,7 @@ import {
 import { ScheduleDialog } from '@/components/calendar/schedule-dialog';
 import { OwnerDetailsRequestDialog } from '@/components/contacts/owner-details-request-dialog';
 import { BuyerPreferenceRequestDialog } from '@/components/contacts/buyer-preference-request-dialog';
+import { AdditionalRequirementDialog } from '@/components/contacts/additional-requirement-dialog';
 import { CalendarDays } from 'lucide-react';
 import { DuplicatesPanel } from '@/components/contacts/duplicates-panel';
 import { InfoHint } from '@/components/ui/info-hint';
@@ -808,6 +809,8 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
   );
   const [detailsRequestContact, setDetailsRequestContact] =
     useState<Contact | null>(null);
+  const [additionalRequirementContact, setAdditionalRequirementContact] =
+    useState<Contact | null>(null);
 
   // Bulk Device Import state
   const [bulkImportOpen, setBulkImportOpen] = useState(false);
@@ -1001,7 +1004,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
               // row, and a consent control fed an absent value would show
               // every contact as "Not asked yet" — a wrong answer to a
               // compliance question, which is worse than a slightly larger page.
-              'id, user_id, name, name_tag, phone, email, company, classification, lead_temp, last_contacted_at, last_inquired_property_id, referrer, referrer_contact_id, min_budget, max_budget, no_budget, areas_of_interest, property_interests, is_favorite, min_roi, source, status, is_dead, dead_reason, is_archived, created_at, updated_at, pref_budget_max, pref_areas, pref_property_categories, pref_property_types, buyer_alerts_consent, buyer_alerts_consent_requested_at',
+              'id, user_id, name, name_tag, phone, email, company, classification, lead_temp, last_contacted_at, last_inquired_property_id, referrer, referrer_contact_id, min_budget, max_budget, no_budget, areas_of_interest, property_interests, requirement_profiles, is_favorite, min_roi, source, status, is_dead, dead_reason, is_archived, created_at, updated_at, pref_budget_max, pref_areas, pref_property_categories, pref_property_types, buyer_alerts_consent, buyer_alerts_consent_requested_at',
               { count: 'exact' }
             )
             .eq('account_id', accountId)
@@ -2845,9 +2848,25 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                               className="text-slate-300 focus:bg-slate-800 focus:text-white"
                             >
                               <ClipboardList className="size-4" />
-                              {['Buyer', 'Owner & Buyer'].includes(contact.classification ?? '')
+                              {['Buyer', 'Owner & Buyer'].includes(
+                                contact.classification ?? ''
+                              )
                                 ? 'Ask for requirements'
                                 : 'Ask for property details'}
+                            </DropdownMenuItem>
+                          )}
+                          {['Buyer', 'Owner & Buyer'].includes(
+                            contact.classification ?? ''
+                          ) && (
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setAdditionalRequirementContact(contact);
+                              }}
+                              className="text-slate-300 focus:bg-slate-800 focus:text-white"
+                            >
+                              <MessageSquarePlus className="size-4" />
+                              Add requirement from message
                             </DropdownMenuItem>
                           )}
                           <DropdownMenuSeparator className="bg-slate-700" />
@@ -3020,7 +3039,8 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
       {/* The first ask, straight off the row — the same message the
           contact page sends, so an agent working the list does not have
           to open each contact to send it. */}
-      {detailsRequestContact && ['Buyer', 'Owner & Buyer'].includes(
+      {detailsRequestContact &&
+      ['Buyer', 'Owner & Buyer'].includes(
         detailsRequestContact.classification ?? ''
       ) ? (
         <BuyerPreferenceRequestDialog
@@ -3040,6 +3060,23 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
           contactId={detailsRequestContact.id}
           contactName={detailsRequestContact.name ?? ''}
           contactPhone={detailsRequestContact.phone ?? ''}
+        />
+      ) : null}
+      {additionalRequirementContact ? (
+        <AdditionalRequirementDialog
+          open
+          onOpenChange={(next) => {
+            if (!next) setAdditionalRequirementContact(null);
+          }}
+          contactId={additionalRequirementContact.id}
+          contactName={additionalRequirementContact.name ?? ''}
+          existingCount={
+            additionalRequirementContact.requirement_profiles?.length ?? 0
+          }
+          onSaved={() => {
+            setAdditionalRequirementContact(null);
+            void fetchContacts();
+          }}
         />
       ) : null}
     </div>

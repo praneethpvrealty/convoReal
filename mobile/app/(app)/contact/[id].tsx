@@ -33,6 +33,7 @@ import { ConvoRealLoader } from '@/components/loader';
 import { MoveToEngineSheet } from '@/components/move-to-engine-sheet';
 import { OwnerDetailsRequestSheet } from '@/components/owner-details-request-sheet';
 import { BuyerPreferenceRequestSheet } from '@/components/buyer-preference-request-sheet';
+import { AdditionalRequirementSheet } from '@/components/additional-requirement-sheet';
 import { PulseRing } from '@/components/motion';
 import {
   Avatar,
@@ -137,6 +138,7 @@ async function fetchContact(id: string): Promise<Contact | null> {
       'id, phone, secondary_phones, name, name_tag, email, company, classification, ' +
         'avatar_url, min_budget, max_budget, no_budget, areas_of_interest, areas_of_interest_geo, ' +
         'strict_area_match, min_roi, requirements, lead_temp, status, referrer, source, ' +
+        'requirement_profiles, ' +
         'preferred_update_channel, buyer_alerts_consent, buyer_alerts_consent_requested_at, ' +
         'property_interests, last_inquired_property_id, lead_portal, lead_portal_listing_id, ' +
         'is_favorite, user_id'
@@ -273,6 +275,8 @@ function ContactCard({ contact }: { contact: Contact }) {
     useState<ApproveCelebrationState | null>(null);
   const [moveToEngineOpen, setMoveToEngineOpen] = useState(false);
   const [detailsRequestOpen, setDetailsRequestOpen] = useState(false);
+  const [additionalRequirementOpen, setAdditionalRequirementOpen] =
+    useState(false);
   const [favoriting, setFavoriting] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
@@ -491,12 +495,23 @@ function ContactCard({ contact }: { contact: Contact }) {
               <ActionButton
                 icon="clipboard-outline"
                 label={
-                  BUYER_PREF_CLASSIFICATIONS.includes(contact.classification ?? 'Others')
+                  BUYER_PREF_CLASSIFICATIONS.includes(
+                    contact.classification ?? 'Others'
+                  )
                     ? 'Ask Requirements'
                     : 'Ask Details'
                 }
                 onPress={() => setDetailsRequestOpen(true)}
               />
+              {BUYER_PREF_CLASSIFICATIONS.includes(
+                contact.classification ?? 'Others'
+              ) ? (
+                <ActionButton
+                  icon="add-circle-outline"
+                  label="Add Requirement"
+                  onPress={() => setAdditionalRequirementOpen(true)}
+                />
+              ) : null}
             </>
           ) : null}
           {contact.classification === 'Agent' ? (
@@ -598,7 +613,10 @@ function ContactCard({ contact }: { contact: Contact }) {
           contactId={contact.id}
           title={contact.classification === 'Agent' ? 'Agent notes' : 'Notes'}
           onComposerFocus={() => {
-            setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 250);
+            setTimeout(
+              () => scrollRef.current?.scrollToEnd({ animated: true }),
+              250
+            );
           }}
         />
 
@@ -652,7 +670,9 @@ function ContactCard({ contact }: { contact: Contact }) {
         onClose={() => setMoveToEngineOpen(false)}
         contact={contact}
       />
-      {BUYER_PREF_CLASSIFICATIONS.includes(contact.classification ?? 'Others') ? (
+      {BUYER_PREF_CLASSIFICATIONS.includes(
+        contact.classification ?? 'Others'
+      ) ? (
         <BuyerPreferenceRequestSheet
           visible={detailsRequestOpen}
           onClose={() => setDetailsRequestOpen(false)}
@@ -665,6 +685,20 @@ function ContactCard({ contact }: { contact: Contact }) {
           contact={contact}
         />
       )}
+      {BUYER_PREF_CLASSIFICATIONS.includes(
+        contact.classification ?? 'Others'
+      ) ? (
+        <AdditionalRequirementSheet
+          visible={additionalRequirementOpen}
+          onClose={() => setAdditionalRequirementOpen(false)}
+          contact={contact}
+          onSaved={() => {
+            void queryClient.invalidateQueries({
+              queryKey: ['contact', contact.id],
+            });
+          }}
+        />
+      ) : null}
       <AppDialog {...screenDialogProps} />
       <AppDialog {...callLogProps} />
     </KeyboardAvoidingView>
@@ -1723,8 +1757,8 @@ function AlertsConsentField({
         {CONSENT_HINTS[value]}
       </Text>
       <Text style={[styles.hint, { color: colors.textFaint }]}>
-        Their own STOP ALERTS reply updates this too, and is the stronger
-        record — set it here only for what they told you directly.
+        Their own STOP ALERTS reply updates this too, and is the stronger record
+        — set it here only for what they told you directly.
       </Text>
       <AppDialog {...dialogProps} />
     </View>
@@ -1816,7 +1850,11 @@ function BuysWithRow({ contactId }: { contactId: string }) {
     queryFn: () =>
       apiFetch<{
         data: {
-          members: { contact_id: string; name: string | null; is_primary: boolean }[];
+          members: {
+            contact_id: string;
+            name: string | null;
+            is_primary: boolean;
+          }[];
         } | null;
       }>(`/api/contacts/${contactId}/party`),
   });

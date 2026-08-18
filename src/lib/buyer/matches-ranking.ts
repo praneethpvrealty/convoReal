@@ -21,12 +21,13 @@ import { getMatchingContacts, type MatchDetails } from '@/lib/matching';
 export function hasBuyerBrief(contact: Contact): boolean {
   return Boolean(
     contact.min_budget ||
-      contact.max_budget ||
-      contact.areas_of_interest?.length ||
-      contact.projects_of_interest?.length ||
-      contact.property_interests?.length ||
-      contact.min_roi ||
-      contact.requirements?.trim()
+    contact.max_budget ||
+    contact.areas_of_interest?.length ||
+    contact.projects_of_interest?.length ||
+    contact.property_interests?.length ||
+    contact.requirement_profiles?.some((profile) => profile.active !== false) ||
+    contact.min_roi ||
+    contact.requirements?.trim()
   );
 }
 
@@ -98,7 +99,8 @@ export function curateForBuyer(
 }
 
 function priceOf(property: Property): number {
-  if (property.listing_type === 'Rent') return Number(property.rent_per_month || 0);
+  if (property.listing_type === 'Rent')
+    return Number(property.rent_per_month || 0);
   return Number(property.price || 0);
 }
 
@@ -107,12 +109,16 @@ function priceOf(property: Property): number {
  * registered with two brokerages that both list the same property
  * should see it once, at its best score.
  */
-export function mergeCuratedFeeds(feeds: CuratedMatch[][], limit: number): CuratedMatch[] {
+export function mergeCuratedFeeds(
+  feeds: CuratedMatch[][],
+  limit: number
+): CuratedMatch[] {
   const best = new Map<string, CuratedMatch>();
   for (const feed of feeds) {
     for (const match of feed) {
       const existing = best.get(match.property.id);
-      if (!existing || match.score > existing.score) best.set(match.property.id, match);
+      if (!existing || match.score > existing.score)
+        best.set(match.property.id, match);
     }
   }
   return [...best.values()]

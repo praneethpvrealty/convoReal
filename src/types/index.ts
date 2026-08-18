@@ -119,6 +119,29 @@ export interface AreaOfInterestGeo {
   lng: number;
 }
 
+export interface ContactRequirementProfile {
+  id: string;
+  title: string;
+  raw_text: string;
+  source: 'personal_whatsapp' | 'manual';
+  active: boolean;
+  property_types: string[];
+  property_categories: string[];
+  bhk_min: number | null;
+  bhk_max: number | null;
+  budget_min: number | null;
+  budget_max: number | null;
+  land_area_min_sqft: number | null;
+  land_area_max_sqft: number | null;
+  areas: string[];
+  excluded_areas: string[];
+  projects: string[];
+  min_roi: number | null;
+  listing_types: string[];
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Contact {
   id: string;
   user_id: string;
@@ -179,7 +202,11 @@ export interface Contact {
   lead_temp?: 'HOT' | 'COLD' | 'Not Responding' | 'Dead' | null;
   /** How announcements/reminders reach this contact; null = no stated
    *  preference, the sender's default applies. */
-  preferred_update_channel?: 'whatsapp_text' | 'whatsapp_audio' | 'voice_call' | null;
+  preferred_update_channel?:
+    | 'whatsapp_text'
+    | 'whatsapp_audio'
+    | 'voice_call'
+    | null;
   dob?: string | null;
   feedback_status?: 'not_requested' | 'requested' | 'collected';
   last_contacted_at?: string | null;
@@ -187,6 +214,10 @@ export interface Contact {
   referrer?: string;
   referrer_contact_id?: string | null;
   requirements?: string | null;
+  /** Independent buyer briefs captured outside the Engine. Matching
+   * evaluates each active profile separately, preventing unrelated
+   * areas, sizes and property types from becoming one impossible AND. */
+  requirement_profiles?: ContactRequirementProfile[] | null;
   /** False parks the requirement (migrations 194/197): src/lib/matching.ts
    *  skips the contact entirely, so they reach no match, Radar event,
    *  digest or co-broker share. The text is kept as the record. */

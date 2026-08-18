@@ -45,7 +45,12 @@ describe('curateForBuyer', () => {
   });
 
   it('surfaces a listing that fits the brief', () => {
-    const fits = property({ id: 'fits', sublocality: 'Whitefield', price: 9_500_000, bedrooms: 3 });
+    const fits = property({
+      id: 'fits',
+      sublocality: 'Whitefield',
+      price: 9_500_000,
+      bedrooms: 3,
+    });
     const matches = curateForBuyer([fits], contact);
     expect(matches).toHaveLength(1);
     expect(matches[0].property.id).toBe('fits');
@@ -103,9 +108,30 @@ describe('mergeCuratedFeeds', () => {
   it('orders the combined feed by score and caps it', () => {
     const merged = mergeCuratedFeeds(
       [
-        [{ property: property({ id: 'a' }), score: 65, details: {} as never, reasons: [] }],
-        [{ property: property({ id: 'b' }), score: 90, details: {} as never, reasons: [] }],
-        [{ property: property({ id: 'c' }), score: 80, details: {} as never, reasons: [] }],
+        [
+          {
+            property: property({ id: 'a' }),
+            score: 65,
+            details: {} as never,
+            reasons: [],
+          },
+        ],
+        [
+          {
+            property: property({ id: 'b' }),
+            score: 90,
+            details: {} as never,
+            reasons: [],
+          },
+        ],
+        [
+          {
+            property: property({ id: 'c' }),
+            score: 80,
+            details: {} as never,
+            reasons: [],
+          },
+        ],
       ],
       2
     );
@@ -122,7 +148,12 @@ describe('matchReasons', () => {
       bhk: 'match',
       roi: 'unknown',
     } as never);
-    expect(reasons).toEqual(['Type you asked for', 'Same city', 'Within budget', 'BHK fits']);
+    expect(reasons).toEqual([
+      'Type you asked for',
+      'Same city',
+      'Within budget',
+      'BHK fits',
+    ]);
   });
 
   it('leads with the named project when the buyer asked for one', () => {
@@ -153,15 +184,51 @@ describe('matchReasons', () => {
 describe('hasBuyerBrief', () => {
   it('recognises any real preference signal', () => {
     expect(hasBuyerBrief(buyer({ max_budget: 12_000_000 }))).toBe(true);
-    expect(hasBuyerBrief(buyer({ areas_of_interest: ['Whitefield'] }))).toBe(true);
+    expect(hasBuyerBrief(buyer({ areas_of_interest: ['Whitefield'] }))).toBe(
+      true
+    );
     expect(hasBuyerBrief(buyer({ property_interests: ['Villa'] }))).toBe(true);
     expect(hasBuyerBrief(buyer({ min_roi: 6 }))).toBe(true);
     expect(hasBuyerBrief(buyer({ requirements: 'corner plot' }))).toBe(true);
-    expect(hasBuyerBrief(buyer({ projects_of_interest: ['Purva Westend'] }))).toBe(true);
+    expect(
+      hasBuyerBrief(buyer({ projects_of_interest: ['Purva Westend'] }))
+    ).toBe(true);
+    expect(
+      hasBuyerBrief(
+        buyer({
+          requirement_profiles: [
+            {
+              id: 'brief',
+              title: 'Dabaspete warehouse land',
+              raw_text: '2–3 acres near STRR',
+              source: 'manual',
+              active: true,
+              property_types: ['Industrial Land'],
+              property_categories: ['industrial'],
+              bhk_min: null,
+              bhk_max: null,
+              budget_min: null,
+              budget_max: null,
+              land_area_min_sqft: 87_120,
+              land_area_max_sqft: 130_680,
+              areas: ['Dabaspete'],
+              excluded_areas: [],
+              projects: [],
+              min_roi: null,
+              listing_types: [],
+              created_at: '2026-08-18T00:00:00Z',
+              updated_at: '2026-08-18T00:00:00Z',
+            },
+          ],
+        })
+      )
+    ).toBe(true);
   });
 
   it('rejects a contact with nothing on file, so nothing buyer-facing runs on noise', () => {
     expect(hasBuyerBrief(buyer({}))).toBe(false);
-    expect(hasBuyerBrief(buyer({ requirements: '   ', areas_of_interest: [] }))).toBe(false);
+    expect(
+      hasBuyerBrief(buyer({ requirements: '   ', areas_of_interest: [] }))
+    ).toBe(false);
   });
 });

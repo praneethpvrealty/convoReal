@@ -685,7 +685,7 @@ export default function InventoryPage() {
       const { data, error } = await supabaseClient
         .from('contacts')
         .select(
-          'id, classification, requirements, requirement_active, min_budget, max_budget, no_budget, min_roi, property_interests, areas_of_interest, areas_of_interest_geo, projects_of_interest, strict_project_match, strict_area_match, pref_property_types, pref_property_categories, pref_bhk_min, pref_bhk_max, pref_budget_min, pref_budget_max, pref_areas, pref_excluded_areas, pref_projects, pref_min_roi, pref_listing_types, pref_extracted_at, contact_notes(note_text)'
+          'id, classification, requirements, requirement_profiles, requirement_active, min_budget, max_budget, no_budget, min_roi, property_interests, areas_of_interest, areas_of_interest_geo, projects_of_interest, strict_project_match, strict_area_match, pref_property_types, pref_property_categories, pref_bhk_min, pref_bhk_max, pref_budget_min, pref_budget_max, pref_land_area_min_sqft, pref_land_area_max_sqft, pref_areas, pref_excluded_areas, pref_projects, pref_min_roi, pref_listing_types, pref_extracted_at, contact_notes(note_text)'
         )
         .eq('classification', 'Buyer');
       if (error) throw error;

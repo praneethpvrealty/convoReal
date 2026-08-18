@@ -64,7 +64,9 @@ describe('getMatchingContacts', () => {
         pref_property_categories: ['residential'],
         pref_extracted_at: new Date().toISOString(),
       });
-      const commercial = createTestProperty({ type: 'Commercial Office Space' });
+      const commercial = createTestProperty({
+        type: 'Commercial Office Space',
+      });
       const industrial = createTestProperty({ type: 'Industrial Shed' });
       const apartment = createTestProperty({ type: 'Flat/ Apartment' });
 
@@ -91,8 +93,14 @@ describe('getMatchingContacts', () => {
         requirements: 'need a luxury apartment in South Bangalore',
       });
 
-      const luxuryApt = createTestProperty({ type: 'Apartment', title: 'Luxury Penthouse' });
-      const commercialOffice = createTestProperty({ type: 'Commercial Office', title: 'Office Space' });
+      const luxuryApt = createTestProperty({
+        type: 'Apartment',
+        title: 'Luxury Penthouse',
+      });
+      const commercialOffice = createTestProperty({
+        type: 'Commercial Office',
+        title: 'Office Space',
+      });
 
       expect(getMatchingContacts(luxuryApt, [contact]).length).toBe(1);
       expect(getMatchingContacts(commercialOffice, [contact]).length).toBe(0);
@@ -104,8 +112,14 @@ describe('getMatchingContacts', () => {
         requirements: 'looking for vacant plots, but no commercial please',
       });
 
-      const commercialProp = createTestProperty({ type: 'Commercial Land', title: 'Commercial Plot' });
-      const residentialProp = createTestProperty({ type: 'Residential Land', title: 'Residential Plot' });
+      const commercialProp = createTestProperty({
+        type: 'Commercial Land',
+        title: 'Commercial Plot',
+      });
+      const residentialProp = createTestProperty({
+        type: 'Residential Land',
+        title: 'Residential Plot',
+      });
 
       expect(getMatchingContacts(commercialProp, [contact]).length).toBe(0);
       expect(getMatchingContacts(residentialProp, [contact]).length).toBe(1);
@@ -168,7 +182,10 @@ describe('getMatchingContacts', () => {
         pref_listing_types: ['Rent'],
         pref_extracted_at: new Date().toISOString(),
       });
-      const saleFlat = createTestProperty({ type: 'Flat/ Apartment', listing_type: 'Sale' });
+      const saleFlat = createTestProperty({
+        type: 'Flat/ Apartment',
+        listing_type: 'Sale',
+      });
       expect(getMatchingContacts(saleFlat, [contact]).length).toBe(0);
     });
 
@@ -177,8 +194,14 @@ describe('getMatchingContacts', () => {
         pref_property_types: ['Flat/ Apartment'],
         pref_extracted_at: new Date().toISOString(),
       });
-      const saleFlat = createTestProperty({ type: 'Flat/ Apartment', listing_type: 'Sale' });
-      const rentFlat = createTestProperty({ type: 'Flat/ Apartment', listing_type: 'Rent' });
+      const saleFlat = createTestProperty({
+        type: 'Flat/ Apartment',
+        listing_type: 'Sale',
+      });
+      const rentFlat = createTestProperty({
+        type: 'Flat/ Apartment',
+        listing_type: 'Rent',
+      });
       expect(getMatchingContacts(saleFlat, [contact]).length).toBe(1);
       expect(getMatchingContacts(rentFlat, [contact]).length).toBe(1);
     });
@@ -265,7 +288,10 @@ describe('getMatchingContacts', () => {
         pref_property_types: ['Flat/ Apartment'],
         pref_extracted_at: new Date().toISOString(),
       });
-      const property = createTestProperty({ type: 'Flat/ Apartment', sublocality: 'HSR Layout' });
+      const property = createTestProperty({
+        type: 'Flat/ Apartment',
+        sublocality: 'HSR Layout',
+      });
 
       const results = getMatchingContacts(property, [withArea, noArea]);
       expect(results.length).toBe(2);
@@ -276,7 +302,8 @@ describe('getMatchingContacts', () => {
     it('respects negated location constraints in text (e.g. "not Jayanagar")', () => {
       const contact = createTestContact({
         areas_of_interest: ['Jayanagar', 'HSR Layout'],
-        requirements: 'Interested in Jayanagar or HSR, but not Jayanagar due to high price',
+        requirements:
+          'Interested in Jayanagar or HSR, but not Jayanagar due to high price',
       });
 
       const jayanagarProp = createTestProperty({ sublocality: 'Jayanagar' });
@@ -320,7 +347,11 @@ describe('getMatchingContacts', () => {
         pref_excluded_areas: ['Whitefield'],
         pref_extracted_at: new Date().toISOString(),
       });
-      const excluded = createTestProperty({ type: 'Flat/ Apartment', sublocality: 'Whitefield', location: 'Whitefield' });
+      const excluded = createTestProperty({
+        type: 'Flat/ Apartment',
+        sublocality: 'Whitefield',
+        location: 'Whitefield',
+      });
       expect(getMatchingContacts(excluded, [contact]).length).toBe(0);
     });
 
@@ -343,7 +374,11 @@ describe('getMatchingContacts', () => {
     it('treats an "any …" entry among the stated areas as no location constraint', () => {
       const contact = createTestContact({
         property_interests: ['Vacant plot'],
-        areas_of_interest: ['JP Nagar', 'Indiranagar', 'any commercial location'],
+        areas_of_interest: [
+          'JP Nagar',
+          'Indiranagar',
+          'any commercial location',
+        ],
       });
       const faraway = createTestProperty({
         type: 'Commercial Land',
@@ -365,7 +400,10 @@ describe('getMatchingContacts', () => {
         areas_of_interest: ['HSR Layout', 'Anywhere'],
         pref_extracted_at: new Date().toISOString(),
       });
-      const property = createTestProperty({ type: 'Flat/ Apartment', sublocality: 'HSR Layout' });
+      const property = createTestProperty({
+        type: 'Flat/ Apartment',
+        sublocality: 'HSR Layout',
+      });
 
       const results = getMatchingContacts(property, [contact]);
       expect(results.length).toBe(1);
@@ -403,7 +441,10 @@ describe('getMatchingContacts', () => {
         max_budget: 8000000, // 80L
         pref_extracted_at: new Date().toISOString(),
       });
-      const property = createTestProperty({ type: 'Flat/ Apartment', price: 15000000 }); // 1.5 Cr
+      const property = createTestProperty({
+        type: 'Flat/ Apartment',
+        price: 15000000,
+      }); // 1.5 Cr
       expect(getMatchingContacts(property, [contact]).length).toBe(0);
     });
 
@@ -420,12 +461,17 @@ describe('getMatchingContacts', () => {
         max_budget: 9500000, // price is ~5% over
         pref_extracted_at: new Date().toISOString(),
       });
-      const property = createTestProperty({ type: 'Flat/ Apartment', price: 10000000 });
+      const property = createTestProperty({
+        type: 'Flat/ Apartment',
+        price: 10000000,
+      });
 
       const results = getMatchingContacts(property, [within, nearMiss]);
       expect(results.length).toBe(2);
       expect(results[0].contact.id).toBe('c-within');
-      expect(results.find((r) => r.contact.id === 'c-near')?.details.budget).toBe('partial');
+      expect(
+        results.find((r) => r.contact.id === 'c-near')?.details.budget
+      ).toBe('partial');
     });
 
     it('excludes a type match whose stated max budget is far above the price', () => {
@@ -434,7 +480,10 @@ describe('getMatchingContacts', () => {
         max_budget: 200000000, // 20 Cr
         pref_extracted_at: new Date().toISOString(),
       });
-      const property = createTestProperty({ type: 'Residential House', price: 43200000 }); // 4.32 Cr
+      const property = createTestProperty({
+        type: 'Residential House',
+        price: 43200000,
+      }); // 4.32 Cr
       expect(getMatchingContacts(property, [contact]).length).toBe(0);
     });
 
@@ -444,7 +493,10 @@ describe('getMatchingContacts', () => {
         max_budget: 200000000, // 20 Cr → implied floor 10 Cr, partial down to 8 Cr
         pref_extracted_at: new Date().toISOString(),
       });
-      const property = createTestProperty({ type: 'Residential House', price: 85000000 }); // 8.5 Cr
+      const property = createTestProperty({
+        type: 'Residential House',
+        price: 85000000,
+      }); // 8.5 Cr
       const results = getMatchingContacts(property, [contact]);
       expect(results.length).toBe(1);
       expect(results[0].details.budget).toBe('partial');
@@ -457,7 +509,10 @@ describe('getMatchingContacts', () => {
         max_budget: 200000000, // 20 Cr
         pref_extracted_at: new Date().toISOString(),
       });
-      const property = createTestProperty({ type: 'Residential House', price: 43200000 }); // 4.32 Cr
+      const property = createTestProperty({
+        type: 'Residential House',
+        price: 43200000,
+      }); // 4.32 Cr
       const results = getMatchingContacts(property, [contact]);
       expect(results.length).toBe(1);
       expect(results[0].details.budget).toBe('match');
@@ -468,8 +523,14 @@ describe('getMatchingContacts', () => {
         requirements: 'looking for office spaces under 1.5 Cr',
       });
 
-      const cheapProp = createTestProperty({ type: 'Commercial Office', price: 12000000 }); // 1.2 Cr
-      const expensiveProp = createTestProperty({ type: 'Commercial Office', price: 18000000 }); // 1.8 Cr
+      const cheapProp = createTestProperty({
+        type: 'Commercial Office',
+        price: 12000000,
+      }); // 1.2 Cr
+      const expensiveProp = createTestProperty({
+        type: 'Commercial Office',
+        price: 18000000,
+      }); // 1.8 Cr
 
       expect(getMatchingContacts(cheapProp, [contact]).length).toBe(1);
       expect(getMatchingContacts(expensiveProp, [contact]).length).toBe(0);
@@ -479,7 +540,10 @@ describe('getMatchingContacts', () => {
       const contact = createTestContact({
         requirements: 'looking for office spaces under 1.5 Cr',
       });
-      const farBelow = createTestProperty({ type: 'Commercial Office', price: 5000000 }); // 50L, under half of 1.5 Cr
+      const farBelow = createTestProperty({
+        type: 'Commercial Office',
+        price: 5000000,
+      }); // 50L, under half of 1.5 Cr
       const results = getMatchingContacts(farBelow, [contact]);
       expect(results.length).toBe(1);
       expect(results[0].details.budget).toBe('match');
@@ -491,7 +555,10 @@ describe('getMatchingContacts', () => {
         pref_budget_max: 5000000, // the bottom sale band
         pref_extracted_at: new Date().toISOString(),
       });
-      const plot = createTestProperty({ type: 'Residential Land/ Plot', price: 1500000 }); // 15L
+      const plot = createTestProperty({
+        type: 'Residential Land/ Plot',
+        price: 1500000,
+      }); // 15L
       const results = getMatchingContacts(plot, [contact]);
       expect(results.length).toBe(1);
       expect(results[0].details.budget).toBe('match');
@@ -545,12 +612,17 @@ describe('getMatchingContacts', () => {
         pref_bhk_max: 1,
         pref_extracted_at: new Date().toISOString(),
       });
-      const property = createTestProperty({ type: 'Flat/ Apartment', bedrooms: 3 });
+      const property = createTestProperty({
+        type: 'Flat/ Apartment',
+        bedrooms: 3,
+      });
 
       const results = getMatchingContacts(property, [wants1, wants3]);
       expect(results[0].contact.id).toBe('c-3bhk');
       expect(results[0].details.bhk).toBe('match');
-      expect(results.find((r) => r.contact.id === 'c-1bhk')?.details.bhk).toBe('mismatch');
+      expect(results.find((r) => r.contact.id === 'c-1bhk')?.details.bhk).toBe(
+        'mismatch'
+      );
     });
   });
 
@@ -577,7 +649,9 @@ describe('getMatchingContacts', () => {
     it('parses yield requirements from notes when no structured ROI exists', () => {
       const contact = createTestContact({
         min_roi: null,
-        contact_notes: [{ note_text: 'looking for yield > 5% on commercial spaces' }],
+        contact_notes: [
+          { note_text: 'looking for yield > 5% on commercial spaces' },
+        ],
       });
       const lowYieldProp = createTestProperty({ roi: 4 });
       const highYieldProp = createTestProperty({ roi: 6 });
@@ -644,8 +718,16 @@ describe('getMatchingContacts', () => {
         price: 10000000,
       });
 
-      const results = getMatchingContacts(property, [typeOnly, typeBudget, full]);
-      expect(results.map((r) => r.contact.id)).toEqual(['c-full', 'c-type-budget', 'c-type']);
+      const results = getMatchingContacts(property, [
+        typeOnly,
+        typeBudget,
+        full,
+      ]);
+      expect(results.map((r) => r.contact.id)).toEqual([
+        'c-full',
+        'c-type-budget',
+        'c-type',
+      ]);
     });
   });
 
@@ -678,16 +760,19 @@ describe('getMatchingContacts', () => {
         areas_of_interest: ['Indiranagar'],
         strict_area_match: true,
       });
-      
+
       const kasturiNagarProp = createTestProperty({
         sublocality: 'Kasturi Nagar',
         type: 'Flat/ Apartment',
       });
 
-      const results = getMatchingContacts(kasturiNagarProp, [contactNonStrict, contactStrict]);
+      const results = getMatchingContacts(kasturiNagarProp, [
+        contactNonStrict,
+        contactStrict,
+      ]);
       // Both match since 3.6 km is <= 5 km and <= 20 km
-      expect(results.map(r => r.contact.id)).toContain('c-non-strict');
-      expect(results.map(r => r.contact.id)).toContain('c-strict');
+      expect(results.map((r) => r.contact.id)).toContain('c-non-strict');
+      expect(results.map((r) => r.contact.id)).toContain('c-strict');
 
       // Whitefield to Indiranagar is ~11.8 kms
       const whitefieldProp = createTestProperty({
@@ -695,10 +780,17 @@ describe('getMatchingContacts', () => {
         type: 'Flat/ Apartment',
       });
 
-      const resultsWhitefield = getMatchingContacts(whitefieldProp, [contactNonStrict, contactStrict]);
+      const resultsWhitefield = getMatchingContacts(whitefieldProp, [
+        contactNonStrict,
+        contactStrict,
+      ]);
       // Only non-strict matches since 11.8 km is <= 20 km but > 5 km
-      expect(resultsWhitefield.map(r => r.contact.id)).toContain('c-non-strict');
-      expect(resultsWhitefield.map(r => r.contact.id)).not.toContain('c-strict');
+      expect(resultsWhitefield.map((r) => r.contact.id)).toContain(
+        'c-non-strict'
+      );
+      expect(resultsWhitefield.map((r) => r.contact.id)).not.toContain(
+        'c-strict'
+      );
     });
 
     it('radius-matches areas outside the static locality table via stored Google coordinates', () => {
@@ -708,13 +800,17 @@ describe('getMatchingContacts', () => {
       const contactNear = createTestContact({
         id: 'c-geo-near',
         areas_of_interest: ['Surya City Phase 2'],
-        areas_of_interest_geo: [{ name: 'Surya City Phase 2', lat: 12.98, lng: 77.76 }],
+        areas_of_interest_geo: [
+          { name: 'Surya City Phase 2', lat: 12.98, lng: 77.76 },
+        ],
         strict_area_match: true,
       });
       const contactFar = createTestContact({
         id: 'c-geo-far',
         areas_of_interest: ['Surya City Phase 2'],
-        areas_of_interest_geo: [{ name: 'Surya City Phase 2', lat: 13.5, lng: 78.3 }], // ~85 km away
+        areas_of_interest_geo: [
+          { name: 'Surya City Phase 2', lat: 13.5, lng: 78.3 },
+        ], // ~85 km away
         strict_area_match: false,
       });
 
@@ -727,9 +823,9 @@ describe('getMatchingContacts', () => {
 
       const results = getMatchingContacts(property, [contactNear, contactFar]);
       // ~1.6 km away → matches even with strict (5 km) radius
-      expect(results.map(r => r.contact.id)).toContain('c-geo-near');
+      expect(results.map((r) => r.contact.id)).toContain('c-geo-near');
       // ~85 km away → outside even the relaxed 20 km radius
-      expect(results.map(r => r.contact.id)).not.toContain('c-geo-far');
+      expect(results.map((r) => r.contact.id)).not.toContain('c-geo-far');
     });
 
     it('prefers contact-stored coordinates over the static locality table', () => {
@@ -749,7 +845,7 @@ describe('getMatchingContacts', () => {
       });
 
       const results = getMatchingContacts(kasturiNagarProp, [contact]);
-      expect(results.map(r => r.contact.id)).not.toContain('c-geo-override');
+      expect(results.map((r) => r.contact.id)).not.toContain('c-geo-override');
     });
 
     it('allows a 20% budget gap tolerance on the minimum budget side', () => {
@@ -792,7 +888,10 @@ describe('getMatchingContacts', () => {
         pref_projects: ['Purva Vantage'],
         pref_extracted_at: new Date().toISOString(),
       });
-      const prop = createTestProperty({ project: 'Purva Vantage', type: 'Flat/ Apartment' });
+      const prop = createTestProperty({
+        project: 'Purva Vantage',
+        type: 'Flat/ Apartment',
+      });
       const results = getMatchingContacts(prop, [contact]);
       expect(results.length).toBe(1);
       expect(results[0].details.project).toBe('match');
@@ -805,7 +904,10 @@ describe('getMatchingContacts', () => {
         pref_projects: ['DSR Rainbow Heights'],
         pref_extracted_at: new Date().toISOString(),
       });
-      const prop = createTestProperty({ title: '2 BHK in DSR Rainbow Heights, HSR', project: undefined });
+      const prop = createTestProperty({
+        title: '2 BHK in DSR Rainbow Heights, HSR',
+        project: undefined,
+      });
       const results = getMatchingContacts(prop, [contact]);
       expect(results.length).toBe(1);
       expect(results[0].details.project).toBe('match');
@@ -830,7 +932,10 @@ describe('getMatchingContacts', () => {
         pref_projects: ['Meenakshi Classic'],
         pref_extracted_at: new Date().toISOString(),
       });
-      const prop = createTestProperty({ type: 'Residential Plot', project: 'Meenakshi Classic Sector 1' });
+      const prop = createTestProperty({
+        type: 'Residential Plot',
+        project: 'Meenakshi Classic Sector 1',
+      });
       const results = getMatchingContacts(prop, [contact]);
       expect(results.length).toBe(1);
       expect(results[0].details.project).toBe('match');
@@ -873,20 +978,29 @@ describe('getMatchingContacts', () => {
     });
 
     it('reads the agent-entered watchlist as well as the AI-extracted one', () => {
-      const contact = createTestContact({ projects_of_interest: ['Purva Westend'] });
-      const prop = createTestProperty({ project: 'Purva Westend', type: 'Flat/ Apartment' });
+      const contact = createTestContact({
+        projects_of_interest: ['Purva Westend'],
+      });
+      const prop = createTestProperty({
+        project: 'Purva Westend',
+        type: 'Flat/ Apartment',
+      });
       const results = getMatchingContacts(prop, [contact]);
       expect(results.length).toBe(1);
       expect(results[0].details.project).toBe('match');
     });
 
     it('matches a builder shorthand against the registered project name', () => {
-      const contact = createTestContact({ projects_of_interest: ['Purva Westend'] });
+      const contact = createTestContact({
+        projects_of_interest: ['Purva Westend'],
+      });
       const prop = createTestProperty({
         project: 'Puravankara Westend',
         type: 'Flat/ Apartment',
       });
-      expect(getMatchingContacts(prop, [contact])[0].details.project).toBe('match');
+      expect(getMatchingContacts(prop, [contact])[0].details.project).toBe(
+        'match'
+      );
     });
   });
 
@@ -943,7 +1057,9 @@ describe('getMatchingContacts', () => {
     });
 
     it('treats absent flags as live, so rows predating the columns still match', () => {
-      const contact = createTestContact({ property_interests: ['Flat/ Apartment'] });
+      const contact = createTestContact({
+        property_interests: ['Flat/ Apartment'],
+      });
       const prop = createTestProperty({ type: 'Flat/ Apartment' });
       expect(getMatchingContacts(prop, [contact]).length).toBe(1);
     });
@@ -970,7 +1086,10 @@ describe('getMatchingContacts', () => {
         requirement_active: false,
         projects_of_interest: ['Purva Westend'],
       });
-      const prop = createTestProperty({ project: 'Purva Westend', type: 'Flat/ Apartment' });
+      const prop = createTestProperty({
+        project: 'Purva Westend',
+        type: 'Flat/ Apartment',
+      });
       expect(getMatchingContacts(prop, [contact]).length).toBe(0);
     });
 
@@ -984,7 +1103,9 @@ describe('getMatchingContacts', () => {
     });
 
     it('treats an absent flag as live, so rows predating the column still match', () => {
-      const contact = createTestContact({ property_interests: ['Flat/ Apartment'] });
+      const contact = createTestContact({
+        property_interests: ['Flat/ Apartment'],
+      });
       const prop = createTestProperty({ type: 'Flat/ Apartment' });
       expect(getMatchingContacts(prop, [contact]).length).toBe(1);
     });
@@ -1007,7 +1128,9 @@ describe('getMatchingContacts', () => {
 
   describe('Residential property interests', () => {
     it('matches a flat buyer to an apartment', () => {
-      const contact = createTestContact({ property_interests: ['Flat/ Apartment'] });
+      const contact = createTestContact({
+        property_interests: ['Flat/ Apartment'],
+      });
       const prop = createTestProperty({ type: 'Flat/ Apartment' });
       const results = getMatchingContacts(prop, [contact]);
       expect(results.length).toBe(1);
@@ -1015,7 +1138,9 @@ describe('getMatchingContacts', () => {
     });
 
     it('keeps a flat buyer away from plots', () => {
-      const contact = createTestContact({ property_interests: ['Flat/ Apartment'] });
+      const contact = createTestContact({
+        property_interests: ['Flat/ Apartment'],
+      });
       const prop = createTestProperty({ type: 'Residential Land/ Plot' });
       expect(getMatchingContacts(prop, [contact]).length).toBe(0);
     });
@@ -1023,13 +1148,19 @@ describe('getMatchingContacts', () => {
     it('matches a villa buyer to a villa', () => {
       const contact = createTestContact({ property_interests: ['Villa'] });
       const prop = createTestProperty({ type: 'Villa' });
-      expect(getMatchingContacts(prop, [contact])[0].details.type).toBe('match');
+      expect(getMatchingContacts(prop, [contact])[0].details.type).toBe(
+        'match'
+      );
     });
 
     it('matches a commercial office seeker to office stock', () => {
-      const contact = createTestContact({ property_interests: ['Commercial Office Space'] });
+      const contact = createTestContact({
+        property_interests: ['Commercial Office Space'],
+      });
       const prop = createTestProperty({ type: 'Commercial Office Space' });
-      expect(getMatchingContacts(prop, [contact])[0].details.type).toBe('match');
+      expect(getMatchingContacts(prop, [contact])[0].details.type).toBe(
+        'match'
+      );
     });
 
     // The lead answered "Land", then "Commercial or Semi commercial",
@@ -1044,7 +1175,10 @@ describe('getMatchingContacts', () => {
         pref_extracted_at: new Date().toISOString(),
       });
       for (const type of ['Residential Land/ Plot', 'Agricultural Land']) {
-        expect(getMatchingContacts(createTestProperty({ type }), [contact]).length, type).toBe(0);
+        expect(
+          getMatchingContacts(createTestProperty({ type }), [contact]).length,
+          type
+        ).toBe(0);
       }
     });
 
@@ -1055,7 +1189,9 @@ describe('getMatchingContacts', () => {
         pref_extracted_at: new Date().toISOString(),
       });
       const prop = createTestProperty({ type: 'Commercial Land' });
-      expect(getMatchingContacts(prop, [contact])[0].details.type).toBe('match');
+      expect(getMatchingContacts(prop, [contact])[0].details.type).toBe(
+        'match'
+      );
     });
 
     it('mirrors it: a residential plot buyer is not shown commercial land', () => {
@@ -1065,8 +1201,12 @@ describe('getMatchingContacts', () => {
       });
       const commercial = createTestProperty({ type: 'Commercial Land' });
       expect(getMatchingContacts(commercial, [contact]).length).toBe(0);
-      const residential = createTestProperty({ type: 'Residential Land/ Plot' });
-      expect(getMatchingContacts(residential, [contact])[0].details.type).toBe('partial');
+      const residential = createTestProperty({
+        type: 'Residential Land/ Plot',
+      });
+      expect(getMatchingContacts(residential, [contact])[0].details.type).toBe(
+        'partial'
+      );
     });
 
     it('leaves a buyer who only said "land" open to every plot', () => {
@@ -1074,9 +1214,15 @@ describe('getMatchingContacts', () => {
         pref_property_categories: ['plot'],
         pref_extracted_at: new Date().toISOString(),
       });
-      for (const type of ['Residential Land/ Plot', 'Commercial Land', 'Agricultural Land']) {
+      for (const type of [
+        'Residential Land/ Plot',
+        'Commercial Land',
+        'Agricultural Land',
+      ]) {
         const prop = createTestProperty({ type });
-        expect(getMatchingContacts(prop, [contact])[0].details.type, type).toBe('partial');
+        expect(getMatchingContacts(prop, [contact])[0].details.type, type).toBe(
+          'partial'
+        );
       }
     });
   });
@@ -1124,7 +1270,10 @@ describe('getMatchingContacts', () => {
         pref_property_types: ['Flat/ Apartment'],
         pref_extracted_at: new Date().toISOString(),
       });
-      const prop = createTestProperty({ type: 'Flat/ Apartment', project: 'SJR Blue Waters' });
+      const prop = createTestProperty({
+        type: 'Flat/ Apartment',
+        project: 'SJR Blue Waters',
+      });
       expect(getMatchingContacts(prop, [contact]).length).toBe(1);
     });
 
@@ -1134,7 +1283,10 @@ describe('getMatchingContacts', () => {
         pref_property_types: ['Flat/ Apartment'],
         pref_extracted_at: new Date().toISOString(),
       });
-      const prop = createTestProperty({ type: 'Flat/ Apartment', project: 'SJR Blue Waters' });
+      const prop = createTestProperty({
+        type: 'Flat/ Apartment',
+        project: 'SJR Blue Waters',
+      });
       expect(getMatchingContacts(prop, [contact]).length).toBe(1);
     });
   });
@@ -1163,12 +1315,12 @@ describe('getMatchingContacts', () => {
 
     it('matches inside the band and grades a near-miss partial', () => {
       const contact = seeker({ pref_land_area_max_sqft: 3780 });
-      expect(
-        getMatchingContacts(plot(2400), [contact])[0]?.details.size
-      ).toBe('match');
-      expect(
-        getMatchingContacts(plot(4000), [contact])[0]?.details.size
-      ).toBe('partial');
+      expect(getMatchingContacts(plot(2400), [contact])[0]?.details.size).toBe(
+        'match'
+      );
+      expect(getMatchingContacts(plot(4000), [contact])[0]?.details.size).toBe(
+        'partial'
+      );
     });
 
     it('converts the property unit before comparing', () => {
@@ -1182,9 +1334,9 @@ describe('getMatchingContacts', () => {
     it('enforces a floor the same way', () => {
       const contact = seeker({ pref_land_area_min_sqft: 4000 });
       expect(getMatchingContacts(plot(1200), [contact]).length).toBe(0);
-      expect(
-        getMatchingContacts(plot(4200), [contact])[0]?.details.size
-      ).toBe('match');
+      expect(getMatchingContacts(plot(4200), [contact])[0]?.details.size).toBe(
+        'match'
+      );
     });
 
     it('falls back to built-up area when there is no land figure', () => {
@@ -1203,9 +1355,9 @@ describe('getMatchingContacts', () => {
     it('stays unknown for a property with no size on file', () => {
       const contact = seeker({ pref_land_area_max_sqft: 3780 });
       const sizeless = createTestProperty({ type: 'Commercial Land' });
-      expect(
-        getMatchingContacts(sizeless, [contact])[0]?.details.size
-      ).toBe('unknown');
+      expect(getMatchingContacts(sizeless, [contact])[0]?.details.size).toBe(
+        'unknown'
+      );
     });
   });
 });
@@ -1290,7 +1442,6 @@ describe('party collapse', () => {
   });
 });
 
-
 describe('portal enquiry matching regression', () => {
   it('returns the exact live listing first before a generic brief exists', () => {
     const enquired = createTestProperty({
@@ -1319,7 +1470,8 @@ describe('portal enquiry matching regression', () => {
       pref_budget_max: 25_000,
       pref_areas: ['Vijaya Bank Layout'],
       pref_extracted_at: new Date().toISOString(),
-      requirements: 'Residential plot, 2,400 sq.ft near Vijaya Bank Layout. 25k psqft max',
+      requirements:
+        'Residential plot, 2,400 sq.ft near Vijaya Bank Layout. 25k psqft max',
       strict_area_match: true,
     });
     const property = createTestProperty({
@@ -1352,5 +1504,77 @@ describe('portal enquiry matching regression', () => {
     });
 
     expect(getMatchingContacts(property, [contact])).toHaveLength(1);
+  });
+});
+
+describe('independent additional requirement profiles', () => {
+  const sidharth = createTestContact({
+    id: 'sidharth',
+    name: 'Sidharth',
+    pref_property_types: ['Commercial Land'],
+    pref_areas: ['Akshayanagar'],
+    pref_land_area_min_sqft: 43_560,
+    pref_land_area_max_sqft: 43_560,
+    pref_extracted_at: '2026-08-01T00:00:00Z',
+    requirement_profiles: [
+      {
+        id: 'dabaspete-warehouse',
+        title: 'Dabaspete · 2 acres–3 acres · Industrial Land',
+        raw_text:
+          'For Dabaspete, 2/3 acre, for cold storage/warehouse on or close to STRR',
+        source: 'personal_whatsapp',
+        active: true,
+        property_types: ['Industrial Land'],
+        property_categories: ['industrial'],
+        bhk_min: null,
+        bhk_max: null,
+        budget_min: null,
+        budget_max: null,
+        land_area_min_sqft: 87_120,
+        land_area_max_sqft: 130_680,
+        areas: ['Dabaspete', 'STRR'],
+        excluded_areas: [],
+        projects: [],
+        min_roi: null,
+        listing_types: [],
+        created_at: '2026-08-18T00:00:00Z',
+        updated_at: '2026-08-18T00:00:00Z',
+      },
+    ],
+  });
+
+  it('matches either saved brief and returns the real contact', () => {
+    const originalBrief = createTestProperty({
+      id: 'akshayanagar-acre',
+      type: 'Commercial Land',
+      location: 'Akshayanagar',
+      land_area: 1,
+      land_area_unit: 'acres',
+    });
+    const additionalBrief = createTestProperty({
+      id: 'dabaspete-warehouse-site',
+      type: 'Industrial Land',
+      location: 'Dabaspete, close to STRR',
+      land_area: 2.5,
+      land_area_unit: 'acres',
+    });
+
+    expect(getMatchingContacts(originalBrief, [sidharth])[0]?.contact).toBe(
+      sidharth
+    );
+    expect(getMatchingContacts(additionalBrief, [sidharth])[0]?.contact).toBe(
+      sidharth
+    );
+  });
+
+  it('does not cross-mix the area from one brief with the size from another', () => {
+    const mixed = createTestProperty({
+      type: 'Industrial Land',
+      location: 'Dabaspete, close to STRR',
+      land_area: 1,
+      land_area_unit: 'acres',
+    });
+
+    expect(getMatchingContacts(mixed, [sidharth])).toHaveLength(0);
   });
 });

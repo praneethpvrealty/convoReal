@@ -1,13 +1,31 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo, createElement, useRef } from 'react';
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  createElement,
+  useRef,
+} from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { resolveConversation } from '@/lib/conversations/resolve';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
-import type { Contact, Tag, ContactNote, Deal, Property, CallLog, CallDirection, CallOutcome, ShowcaseSettings, AreaOfInterestGeo } from '@/types';
+import type {
+  Contact,
+  Tag,
+  ContactNote,
+  Deal,
+  Property,
+  CallLog,
+  CallDirection,
+  CallOutcome,
+  ShowcaseSettings,
+  AreaOfInterestGeo,
+} from '@/types';
 import { PropertyForm } from '@/components/inventory/property-form';
 import { AreasOfInterestInput } from '@/components/contacts/areas-of-interest-input';
 import { PROPERTY_INTEREST_OPTIONS } from '@/lib/property-interests';
@@ -15,10 +33,17 @@ import { ProjectsOfInterestInput } from '@/components/contacts/projects-of-inter
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import { PartyPanel } from '@/components/contacts/party-panel';
 import { useCan } from '@/hooks/use-can';
-import { LogCallPrompt, type PendingDial } from '@/components/contacts/log-call-prompt';
+import {
+  LogCallPrompt,
+  type PendingDial,
+} from '@/components/contacts/log-call-prompt';
 import { contactFullName } from '@/lib/contacts/full-name';
 import { hasPhone } from '@/lib/contacts/reachability';
-import { LANGUAGE_CODES, languageDisplay, type LanguageCode } from '@/lib/languages';
+import {
+  LANGUAGE_CODES,
+  languageDisplay,
+  type LanguageCode,
+} from '@/lib/languages';
 import { pruneAreasGeo } from '@/lib/contacts/area-geo';
 import {
   Sheet,
@@ -71,7 +96,10 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { getCurrencyIcon } from '@/lib/currency-utils';
-import { buildInquiryDetailsMessage, propertyShowcaseUrl } from '@/lib/share-message-builder';
+import {
+  buildInquiryDetailsMessage,
+  propertyShowcaseUrl,
+} from '@/lib/share-message-builder';
 import {
   CUSTOMER_WINDOW_EXPIRED_MESSAGE,
   isReengagementError,
@@ -82,15 +110,17 @@ import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
 import { ScheduleDialog } from '@/components/calendar/schedule-dialog';
 import { PropertyShareDialog } from '@/components/inventory/property-share-dialog';
 import { LogExternalShareDialog } from '@/components/contacts/log-external-share-dialog';
-import { CallRecordingAnalyzer, CallAnalysisSection } from '@/components/contacts/call-analysis';
+import {
+  CallRecordingAnalyzer,
+  CallAnalysisSection,
+} from '@/components/contacts/call-analysis';
 import { GreetingsGeneratorDialog } from '@/components/contacts/greetings-generator-dialog';
 import { OwnerDetailsRequestDialog } from '@/components/contacts/owner-details-request-dialog';
 import { BuyerPreferenceRequestDialog } from '@/components/contacts/buyer-preference-request-dialog';
+import { AdditionalRequirementDialog } from '@/components/contacts/additional-requirement-dialog';
 import { MoveToEngineDialog } from '@/components/contacts/move-to-engine-dialog';
 import { SearchablePropertySelect } from '@/components/ui/searchable-property-select';
 import { isLocationGuarded } from '@/lib/inventory/location-guard';
-
-
 
 interface ContactDetailViewProps {
   open: boolean;
@@ -141,8 +171,11 @@ export function ContactDetailView({
   const [greetingsOpen, setGreetingsOpen] = useState(false);
   const [moveToEngineOpen, setMoveToEngineOpen] = useState(false);
   const [detailsRequestOpen, setDetailsRequestOpen] = useState(false);
+  const [additionalRequirementOpen, setAdditionalRequirementOpen] =
+    useState(false);
   const collectsBuyerRequirements =
-    contact?.classification === 'Buyer' || contact?.classification === 'Owner & Buyer';
+    contact?.classification === 'Buyer' ||
+    contact?.classification === 'Owner & Buyer';
 
   // Details tab
   const [editName, setEditName] = useState('');
@@ -154,7 +187,8 @@ export function ContactDetailView({
   const [editCompany, setEditCompany] = useState('');
   const [editSource, setEditSource] = useState('');
 
-  const [showcaseSettings, setShowcaseSettings] = useState<ShowcaseSettings | null>(null);
+  const [showcaseSettings, setShowcaseSettings] =
+    useState<ShowcaseSettings | null>(null);
 
   const fetchShowcaseSettings = useCallback(async () => {
     try {
@@ -172,7 +206,15 @@ export function ContactDetailView({
       console.error('Failed to load showcase settings:', err);
     }
   }, [supabase]);
-  const [editClassification, setEditClassification] = useState<'Owner' | 'Seller' | 'Buyer' | 'Agent' | 'Developer' | 'Owner & Buyer' | 'Others'>('Others');
+  const [editClassification, setEditClassification] = useState<
+    | 'Owner'
+    | 'Seller'
+    | 'Buyer'
+    | 'Agent'
+    | 'Developer'
+    | 'Owner & Buyer'
+    | 'Others'
+  >('Others');
 
   // A classification change can hide the active tab's trigger — fall back
   useEffect(() => {
@@ -181,45 +223,79 @@ export function ContactDetailView({
     }
     if (
       activeTab === 'properties' &&
-      !['Owner', 'Seller', 'Agent', 'Developer', 'Buyer', 'Owner & Buyer'].includes(editClassification)
+      ![
+        'Owner',
+        'Seller',
+        'Agent',
+        'Developer',
+        'Buyer',
+        'Owner & Buyer',
+      ].includes(editClassification)
     ) {
       setActiveTab('details');
     }
   }, [activeTab, editClassification]);
-  const [editLeadTemp, setEditLeadTemp] = useState<'HOT' | 'COLD' | 'Not Responding' | 'Dead' | ''>('');
-  const [editPreferredLanguage, setEditPreferredLanguage] = useState<LanguageCode | ''>('');
-  const [editLastInquiredPropertyId, setEditLastInquiredPropertyId] = useState<string | null>(null);
+  const [editLeadTemp, setEditLeadTemp] = useState<
+    'HOT' | 'COLD' | 'Not Responding' | 'Dead' | ''
+  >('');
+  const [editPreferredLanguage, setEditPreferredLanguage] = useState<
+    LanguageCode | ''
+  >('');
+  const [editLastInquiredPropertyId, setEditLastInquiredPropertyId] = useState<
+    string | null
+  >(null);
   const [allProperties, setAllProperties] = useState<Property[]>([]);
   const [editReferrer, setEditReferrer] = useState('');
-  const [editReferrerContactId, setEditReferrerContactId] = useState<string | null>(null);
+  const [editReferrerContactId, setEditReferrerContactId] = useState<
+    string | null
+  >(null);
   const [showReferrerSuggestions, setShowReferrerSuggestions] = useState(false);
   const [contactsList, setContactsList] = useState<Contact[]>([]);
   const [savingDetails, setSavingDetails] = useState(false);
   const [approving, setApproving] = useState(false);
-  const [inquiredProperty, setInquiredProperty] = useState<Property | null>(null);
-  const [portalAdLink, setPortalAdLink] = useState<{ property_id: string } | null>(null);
+  const [inquiredProperty, setInquiredProperty] = useState<Property | null>(
+    null
+  );
+  const [portalAdLink, setPortalAdLink] = useState<{
+    property_id: string;
+  } | null>(null);
   const [mapAdOpen, setMapAdOpen] = useState(false);
   const [mappingAd, setMappingAd] = useState(false);
   const [inquiredProperties, setInquiredProperties] = useState<Property[]>([]);
   const [sendDetailsOnApprove, setSendDetailsOnApprove] = useState(true);
-  const [propertyMessageStatus, setPropertyMessageStatus] = useState<Record<string, { sent: boolean; responded: boolean; lastSentAt: string | null }>>({});
+  const [propertyMessageStatus, setPropertyMessageStatus] = useState<
+    Record<
+      string,
+      { sent: boolean; responded: boolean; lastSentAt: string | null }
+    >
+  >({});
 
   // Requirements for Agent/Owner/Seller/etc
   const [editRequirements, setEditRequirements] = useState('');
   const [editDob, setEditDob] = useState('');
-  const [editFeedbackStatus, setEditFeedbackStatus] = useState<'not_requested' | 'requested' | 'collected'>('not_requested');
+  const [editFeedbackStatus, setEditFeedbackStatus] = useState<
+    'not_requested' | 'requested' | 'collected'
+  >('not_requested');
 
   // Associated Properties for Owner/Seller/Agent
-  const [associatedProperties, setAssociatedProperties] = useState<Property[]>([]);
+  const [associatedProperties, setAssociatedProperties] = useState<Property[]>(
+    []
+  );
   const [loadingProperties, setLoadingProperties] = useState(false);
   const [propertyFormOpen, setPropertyFormOpen] = useState(false);
-  const [selectedPropertyForEdit, setSelectedPropertyForEdit] = useState<Property | null>(null);
+  const [selectedPropertyForEdit, setSelectedPropertyForEdit] =
+    useState<Property | null>(null);
   const [linkExistingOpen, setLinkExistingOpen] = useState(false);
   const [hoveredPropId, setHoveredPropId] = useState<string | null>(null);
-  const [hoverPos, setHoverPos] = useState<{ top: number; left: number } | null>(null);
+  const [hoverPos, setHoverPos] = useState<{
+    top: number;
+    left: number;
+  } | null>(null);
 
   // Shared properties via WhatsApp
-  const [sharedProperties, setSharedProperties] = useState<Array<Property & { sharedAt: string }>>([]);
+  const [sharedProperties, setSharedProperties] = useState<
+    Array<Property & { sharedAt: string }>
+  >([]);
   const [loadingSharedProperties, setLoadingSharedProperties] = useState(false);
 
   // Real estate preferences
@@ -230,10 +306,14 @@ export function ContactDetailView({
   const [editAreasOfInterest, setEditAreasOfInterest] = useState<string[]>([]);
   const [editAreasText, setEditAreasText] = useState('');
   const [editAreasGeo, setEditAreasGeo] = useState<AreaOfInterestGeo[]>([]);
-  const [editProjectsOfInterest, setEditProjectsOfInterest] = useState<string[]>([]);
+  const [editProjectsOfInterest, setEditProjectsOfInterest] = useState<
+    string[]
+  >([]);
   const [editProjectsText, setEditProjectsText] = useState('');
   const [editStrictProjectMatch, setEditStrictProjectMatch] = useState(false);
-  const [editPropertyInterests, setEditPropertyInterests] = useState<string[]>([]);
+  const [editPropertyInterests, setEditPropertyInterests] = useState<string[]>(
+    []
+  );
   const [editMinRoi, setEditMinRoi] = useState('');
   const [savingPreferences, setSavingPreferences] = useState(false);
 
@@ -283,12 +363,11 @@ export function ContactDetailView({
     if (data) setAllProperties(data);
   }, [supabase]);
 
-
   const fetchContact = useCallback(async () => {
     if (!contactId) return;
     // Show the spinner only when switching to a different contact; refetches
     // of the current contact keep the tree mounted (and the active tab).
-    setContact(prev => (prev && prev.id !== contactId ? null : prev));
+    setContact((prev) => (prev && prev.id !== contactId ? null : prev));
 
     const { data } = await supabase
       .from('contacts')
@@ -325,16 +404,22 @@ export function ContactDetailView({
         setEditStrictAreaMatch(!!data.strict_area_match);
         const initialProjects = data.projects_of_interest ?? [];
         setEditProjectsOfInterest(initialProjects);
-        setEditProjectsText(initialProjects.join(', ') + (initialProjects.length > 0 ? ', ' : ''));
+        setEditProjectsText(
+          initialProjects.join(', ') + (initialProjects.length > 0 ? ', ' : '')
+        );
         setEditStrictProjectMatch(!!data.strict_project_match);
         const initialAreas = data.areas_of_interest ?? [];
         setEditAreasOfInterest(initialAreas);
-        setEditAreasText(initialAreas.join(', ') + (initialAreas.length > 0 ? ', ' : ''));
+        setEditAreasText(
+          initialAreas.join(', ') + (initialAreas.length > 0 ? ', ' : '')
+        );
         setEditAreasGeo((data as Contact).areas_of_interest_geo ?? []);
         setEditPropertyInterests(data.property_interests ?? []);
         setEditMinRoi(data.min_roi ? String(data.min_roi) : '');
         setEditDob(data.dob ?? '');
-        setEditFeedbackStatus((data as Contact).feedback_status ?? 'not_requested');
+        setEditFeedbackStatus(
+          (data as Contact).feedback_status ?? 'not_requested'
+        );
       }
 
       // Fetch last inquired property details (for backward compatibility)
@@ -371,7 +456,7 @@ export function ContactDetailView({
         .eq('contact_id', contactId);
 
       if (inquiries && inquiries.length > 0) {
-        const propertyIds = inquiries.map(i => i.property_id);
+        const propertyIds = inquiries.map((i) => i.property_id);
         const { data: props } = await supabase
           .from('properties')
           .select('*')
@@ -414,7 +499,7 @@ export function ContactDetailView({
       return;
     }
 
-    const conversationIds = conversations.map(c => c.id);
+    const conversationIds = conversations.map((c) => c.id);
     const { data: messages } = await supabase
       .from('messages')
       .select('content_text, sender_type, created_at')
@@ -427,13 +512,16 @@ export function ContactDetailView({
     }
 
     // Build status map for each property
-    const statusMap: Record<string, { sent: boolean; responded: boolean; lastSentAt: string | null }> = {};
+    const statusMap: Record<
+      string,
+      { sent: boolean; responded: boolean; lastSentAt: string | null }
+    > = {};
 
-    inquiredProperties.forEach(prop => {
+    inquiredProperties.forEach((prop) => {
       const searchTerms = [
         prop.title?.toLowerCase(),
         prop.property_code?.toLowerCase(),
-        prop.location?.toLowerCase()
+        prop.location?.toLowerCase(),
       ].filter(Boolean);
 
       let lastSentAt: string | null = null;
@@ -441,20 +529,22 @@ export function ContactDetailView({
 
       messages.forEach((msg, idx) => {
         const content = (msg.content_text || '').toLowerCase();
-        const isPropertyMentioned = searchTerms.some(term => term && content.includes(term));
+        const isPropertyMentioned = searchTerms.some(
+          (term) => term && content.includes(term)
+        );
 
         if (isPropertyMentioned && msg.sender_type === 'agent') {
           lastSentAt = msg.created_at;
           // Check if there's any inbound message after this outbound message
           const laterMessages = messages.slice(idx + 1);
-          hasResponse = laterMessages.some(m => m.sender_type === 'customer');
+          hasResponse = laterMessages.some((m) => m.sender_type === 'customer');
         }
       });
 
       statusMap[prop.id] = {
         sent: lastSentAt !== null,
         responded: hasResponse,
-        lastSentAt
+        lastSentAt,
       };
     });
 
@@ -549,109 +639,139 @@ export function ContactDetailView({
     }
   }
 
-  const handleLinkInterestProperty = useCallback(async (propertyId: string | null) => {
-    try {
-      const { data, error } = await supabase
-        .from('contacts')
-        .update({ last_inquired_property_id: propertyId })
-        .eq('id', contactId)
-        .select('id');
+  const handleLinkInterestProperty = useCallback(
+    async (propertyId: string | null) => {
+      try {
+        const { data, error } = await supabase
+          .from('contacts')
+          .update({ last_inquired_property_id: propertyId })
+          .eq('id', contactId)
+          .select('id');
 
-      if (error) throw error;
-      if (!data?.length) throw new Error('That contact is no longer there.');
+        if (error) throw error;
+        if (!data?.length) throw new Error('That contact is no longer there.');
 
-      // Also add to junction table if linking a property
-      if (propertyId) {
-        await supabase
-          .from('contact_property_inquiries')
-          .upsert({
-            account_id: accountId,
-            contact_id: contactId,
-            property_id: propertyId,
-            inquiry_source: 'Manual'
-          }, { onConflict: 'contact_id,property_id' });
-      }
-      
-      toast.success(propertyId ? 'Interest property linked successfully' : 'Interest property cleared');
-      setEditLastInquiredPropertyId(propertyId);
-      
-      if (propertyId) {
-        const { data: propData } = await supabase
-          .from('properties')
-          .select('*')
-          .eq('id', propertyId)
-          .maybeSingle();
-        setInquiredProperty(propData || null);
-
-        // Update inquired properties list
-        if (propData && !inquiredProperties.find(p => p.id === propertyId)) {
-          setInquiredProperties(prev => [...prev, propData]);
+        // Also add to junction table if linking a property
+        if (propertyId) {
+          await supabase.from('contact_property_inquiries').upsert(
+            {
+              account_id: accountId,
+              contact_id: contactId,
+              property_id: propertyId,
+              inquiry_source: 'Manual',
+            },
+            { onConflict: 'contact_id,property_id' }
+          );
         }
-      } else {
-        setInquiredProperty(null);
+
+        toast.success(
+          propertyId
+            ? 'Interest property linked successfully'
+            : 'Interest property cleared'
+        );
+        setEditLastInquiredPropertyId(propertyId);
+
+        if (propertyId) {
+          const { data: propData } = await supabase
+            .from('properties')
+            .select('*')
+            .eq('id', propertyId)
+            .maybeSingle();
+          setInquiredProperty(propData || null);
+
+          // Update inquired properties list
+          if (
+            propData &&
+            !inquiredProperties.find((p) => p.id === propertyId)
+          ) {
+            setInquiredProperties((prev) => [...prev, propData]);
+          }
+        } else {
+          setInquiredProperty(null);
+        }
+        onUpdated();
+      } catch (err) {
+        console.error('Failed to update interest property:', err);
+        toast.error('Failed to update interest property');
       }
-      onUpdated();
-    } catch (err) {
-      console.error('Failed to update interest property:', err);
-      toast.error('Failed to update interest property');
-    }
-  }, [supabase, contactId, accountId, onUpdated, inquiredProperties]);
+    },
+    [supabase, contactId, accountId, onUpdated, inquiredProperties]
+  );
 
   // Dropping the junction row and clearing the headline pointer are one
   // correction, not two writes a client can half-apply — the route owns
   // the pair so mobile cannot diverge from it.
-  const handleRemoveInquiredProperty = useCallback(async (propertyId: string) => {
-    try {
-      const res = await fetch(`/api/contacts/${contactId}/inquiries/${propertyId}`, {
-        method: 'DELETE',
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(body?.error || 'Failed to remove property interest');
+  const handleRemoveInquiredProperty = useCallback(
+    async (propertyId: string) => {
+      try {
+        const res = await fetch(
+          `/api/contacts/${contactId}/inquiries/${propertyId}`,
+          {
+            method: 'DELETE',
+          }
+        );
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok)
+          throw new Error(body?.error || 'Failed to remove property interest');
 
-      setInquiredProperties(prev => prev.filter(p => p.id !== propertyId));
-      if (body?.data?.pointerCleared) {
-        setEditLastInquiredPropertyId(null);
-        setInquiredProperty(null);
+        setInquiredProperties((prev) =>
+          prev.filter((p) => p.id !== propertyId)
+        );
+        if (body?.data?.pointerCleared) {
+          setEditLastInquiredPropertyId(null);
+          setInquiredProperty(null);
+        }
+
+        toast.success('Property removed from interests');
+        onUpdated();
+      } catch (err) {
+        console.error('Failed to remove property interest:', err);
+        toast.error(
+          err instanceof Error
+            ? err.message
+            : 'Failed to remove property interest'
+        );
       }
-
-      toast.success('Property removed from interests');
-      onUpdated();
-    } catch (err) {
-      console.error('Failed to remove property interest:', err);
-      toast.error(err instanceof Error ? err.message : 'Failed to remove property interest');
-    }
-  }, [contactId, onUpdated]);
+    },
+    [contactId, onUpdated]
+  );
 
   // The agent's one-time assertion that a portal ad IS a listing. From
   // then on the lead webhook resolves every enquiry quoting that ad
   // exactly, and the leads already waiting on it move across now.
-  const handleMapPortalAd = useCallback(async (propertyId: string) => {
-    setMappingAd(true);
-    try {
-      const res = await fetch(`/api/contacts/${contactId}/portal-link`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ propertyId }),
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(body?.error || 'Could not map the ad');
+  const handleMapPortalAd = useCallback(
+    async (propertyId: string) => {
+      setMappingAd(true);
+      try {
+        const res = await fetch(`/api/contacts/${contactId}/portal-link`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ propertyId }),
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(body?.error || 'Could not map the ad');
 
-      const others = (body.data?.taggedContacts ?? 1) - 1;
-      toast.success(
-        `Ad mapped to "${body.data?.propertyTitle}".` +
-          (others > 0 ? ` ${others} waiting lead${others === 1 ? '' : 's'} moved across.` : '')
-      );
-      setMapAdOpen(false);
-      await fetchContact();
-      onUpdated();
-    } catch (err) {
-      console.error('Failed to map portal ad:', err);
-      toast.error(err instanceof Error ? err.message : 'Could not map the ad');
-    } finally {
-      setMappingAd(false);
-    }
-  }, [contactId, fetchContact, onUpdated]);
-
+        const others = (body.data?.taggedContacts ?? 1) - 1;
+        toast.success(
+          `Ad mapped to "${body.data?.propertyTitle}".` +
+            (others > 0
+              ? ` ${others} waiting lead${others === 1 ? '' : 's'} moved across.`
+              : '')
+        );
+        setMapAdOpen(false);
+        await fetchContact();
+        onUpdated();
+      } catch (err) {
+        console.error('Failed to map portal ad:', err);
+        toast.error(
+          err instanceof Error ? err.message : 'Could not map the ad'
+        );
+      } finally {
+        setMappingAd(false);
+      }
+    },
+    [contactId, fetchContact, onUpdated]
+  );
 
   useEffect(() => {
     async function loadContacts() {
@@ -672,12 +792,16 @@ export function ContactDetailView({
 
   const filteredReferrerContacts = useMemo(() => {
     if (!editReferrer.trim()) return [];
-    return contactsList.filter(
-      (c) =>
-        c.id !== contactId &&
-        (contactFullName(c).toLowerCase().includes(editReferrer.toLowerCase()) ||
-         (c.phone && c.phone.includes(editReferrer)))
-    ).slice(0, 5);
+    return contactsList
+      .filter(
+        (c) =>
+          c.id !== contactId &&
+          (contactFullName(c)
+            .toLowerCase()
+            .includes(editReferrer.toLowerCase()) ||
+            (c.phone && c.phone.includes(editReferrer)))
+      )
+      .slice(0, 5);
   }, [contactsList, editReferrer, contactId]);
 
   // Applied tags lead; the rest keep their alphabetical order behind
@@ -694,7 +818,10 @@ export function ContactDetailView({
 
     const [tagsRes, contactTagsRes] = await Promise.all([
       supabase.from('tags').select('*').order('name'),
-      supabase.from('contact_tags').select('tag_id').eq('contact_id', contactId),
+      supabase
+        .from('contact_tags')
+        .select('tag_id')
+        .eq('contact_id', contactId),
     ]);
 
     if (tagsRes.data) setAllTags(tagsRes.data);
@@ -756,7 +883,18 @@ export function ContactDetailView({
       fetchAssociatedProperties();
       fetchAllProperties();
     }
-  }, [open, contactId, fetchShowcaseSettings, fetchContact, fetchTags, fetchNotes, fetchDeals, fetchCalls, fetchAssociatedProperties, fetchAllProperties]);
+  }, [
+    open,
+    contactId,
+    fetchShowcaseSettings,
+    fetchContact,
+    fetchTags,
+    fetchNotes,
+    fetchDeals,
+    fetchCalls,
+    fetchAssociatedProperties,
+    fetchAllProperties,
+  ]);
 
   useEffect(() => {
     if (open && contactId && allProperties.length > 0) {
@@ -778,7 +916,7 @@ export function ContactDetailView({
       autoMapAttemptedRef.current[contactId] = true;
       // Find matching property in notes
       let matchedProperty: Property | null = null;
-      
+
       for (const note of notes) {
         const text = note.note_text || '';
         if (!text) continue;
@@ -786,9 +924,12 @@ export function ContactDetailView({
         // Try to match one of the properties
         const match = allProperties.find((prop) => {
           const textLower = text.toLowerCase();
-          
+
           // 1. Property code match (e.g. PROP-1002) - strongest match
-          if (prop.property_code && textLower.includes(prop.property_code.toLowerCase())) {
+          if (
+            prop.property_code &&
+            textLower.includes(prop.property_code.toLowerCase())
+          ) {
             return true;
           }
 
@@ -808,21 +949,48 @@ export function ContactDetailView({
             const projectWords = prop.project.trim().toLowerCase().split(/\s+/);
             if (projectWords.length >= 2) {
               const firstTwoWords = projectWords.slice(0, 2).join(' ');
-              if (firstTwoWords.length >= 5 && textLower.includes(firstTwoWords)) {
+              if (
+                firstTwoWords.length >= 5 &&
+                textLower.includes(firstTwoWords)
+              ) {
                 return true;
               }
             }
           }
 
           // 5. Cleaned title keywords match (ignores prepositions and common specifiers)
-          const stopWords = new Set(['in', 'at', 'to', 'on', 'of', 'a', 'an', 'the', 'with', 'by', 'for', 'and', 'or', 'is', 'are', 'am', 'was', 'were']);
+          const stopWords = new Set([
+            'in',
+            'at',
+            'to',
+            'on',
+            'of',
+            'a',
+            'an',
+            'the',
+            'with',
+            'by',
+            'for',
+            'and',
+            'or',
+            'is',
+            'are',
+            'am',
+            'was',
+            'were',
+          ]);
           const cleanTitle = prop.title
             .toLowerCase()
-            .replace(/(?:\d+\s*(?:bhk|bedroom|bath|bathroom)|apartment|villa|plot|house|for\s+sale|for\s+rent|luxurious|luxury|beautiful|spacious|rent|sale)/gi, ' ')
+            .replace(
+              /(?:\d+\s*(?:bhk|bedroom|bath|bathroom)|apartment|villa|plot|house|for\s+sale|for\s+rent|luxurious|luxury|beautiful|spacious|rent|sale)/gi,
+              ' '
+            )
             .replace(/[^\w\s]/g, ' ')
             .trim();
-          
-          const cleanWords = cleanTitle.split(/\s+/).filter(w => w.length > 1 && !stopWords.has(w));
+
+          const cleanWords = cleanTitle
+            .split(/\s+/)
+            .filter((w) => w.length > 1 && !stopWords.has(w));
           if (cleanWords.length >= 2) {
             const phrase2 = cleanWords.slice(0, 2).join(' ');
             if (phrase2.length >= 6 && textLower.includes(phrase2)) {
@@ -837,8 +1005,16 @@ export function ContactDetailView({
           }
 
           // 6. Fallback project keywords from title
-          const projectKeywords = prop.title.replace(/(?:\d+\s*(?:BHK|bhk)|apartment|villa|plot|house|for\s+sale|for\s+rent)/gi, '').trim();
-          if (projectKeywords.length > 5 && textLower.includes(projectKeywords.toLowerCase())) {
+          const projectKeywords = prop.title
+            .replace(
+              /(?:\d+\s*(?:BHK|bhk)|apartment|villa|plot|house|for\s+sale|for\s+rent)/gi,
+              ''
+            )
+            .trim();
+          if (
+            projectKeywords.length > 5 &&
+            textLower.includes(projectKeywords.toLowerCase())
+          ) {
             return true;
           }
 
@@ -852,11 +1028,20 @@ export function ContactDetailView({
       }
 
       if (matchedProperty) {
-        toast.info(`Auto-mapping "${matchedProperty.title}" as inquired property from notes...`);
+        toast.info(
+          `Auto-mapping "${matchedProperty.title}" as inquired property from notes...`
+        );
         handleLinkInterestProperty(matchedProperty.id);
       }
     }
-  }, [open, contactId, editLastInquiredPropertyId, notes, allProperties, handleLinkInterestProperty]);
+  }, [
+    open,
+    contactId,
+    editLastInquiredPropertyId,
+    notes,
+    allProperties,
+    handleLinkInterestProperty,
+  ]);
 
   async function copyPhone() {
     if (!contact) return;
@@ -887,7 +1072,9 @@ export function ContactDetailView({
       onUpdated();
     } catch (err) {
       setContact((prev) => (prev ? { ...prev, is_favorite: !next } : prev));
-      toast.error(err instanceof Error ? err.message : 'Failed to update favourite');
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to update favourite'
+      );
     } finally {
       setFavoriting(false);
     }
@@ -918,7 +1105,9 @@ export function ContactDetailView({
       window.removeEventListener('blur', handleBlur);
       if (!appOpened) {
         try {
-          const { conversation, error } = await resolveConversation<{ id: string }>(supabase, {
+          const { conversation, error } = await resolveConversation<{
+            id: string;
+          }>(supabase, {
             accountId,
             contactId: contact.id,
             userId: user?.id ?? null,
@@ -948,7 +1137,11 @@ export function ContactDetailView({
     const baseDomain = window.location.host;
     const parts = baseDomain.split('.');
     let hostDomain = baseDomain;
-    if (parts.length > 2 && !baseDomain.includes('localhost') && !/^\d+\.\d+\.\d+\.\d+$/.test(baseDomain)) {
+    if (
+      parts.length > 2 &&
+      !baseDomain.includes('localhost') &&
+      !/^\d+\.\d+\.\d+\.\d+$/.test(baseDomain)
+    ) {
       hostDomain = parts.slice(1).join('.');
     }
     const targetDomain = showcaseSettings?.subdomain
@@ -970,49 +1163,75 @@ export function ContactDetailView({
     const displayName = contact.name || 'there';
 
     const finalShowcaseUrl = getShowcaseBaseUrl();
-    const showcaseUrlObj: URL | null = finalShowcaseUrl ? new URL(finalShowcaseUrl) : null;
+    const showcaseUrlObj: URL | null = finalShowcaseUrl
+      ? new URL(finalShowcaseUrl)
+      : null;
 
     let linkSection = '';
     if (showcaseUrlObj) {
       if (inquiredProperty) {
         const singlePropUrl = new URL(showcaseUrlObj.toString());
-        singlePropUrl.searchParams.set('property_id', inquiredProperty.property_code || inquiredProperty.id);
-        
+        singlePropUrl.searchParams.set(
+          'property_id',
+          inquiredProperty.property_code || inquiredProperty.id
+        );
+
         const matchingUrl = new URL(showcaseUrlObj.toString());
         if (inquiredProperty.listing_type) {
-          matchingUrl.searchParams.set('listing_type', inquiredProperty.listing_type);
+          matchingUrl.searchParams.set(
+            'listing_type',
+            inquiredProperty.listing_type
+          );
         }
         if (inquiredProperty.type) {
           matchingUrl.searchParams.set('category', inquiredProperty.type);
         }
-        const searchLocation = inquiredProperty.sublocality || inquiredProperty.city || '';
+        const searchLocation =
+          inquiredProperty.sublocality || inquiredProperty.city || '';
         if (searchLocation) {
           matchingUrl.searchParams.set('search', searchLocation);
         }
-        
+
         linkSection = `Meanwhile, you can view details for the property you enquired about here:
 ${singlePropUrl.toString()}
 
 Or browse other matching verified properties here:
 ${matchingUrl.toString()}`;
       } else {
-        const hasInterestFilters = (contact.areas_of_interest && contact.areas_of_interest.length > 0) || 
-                                   (contact.property_interests && contact.property_interests.length > 0);
-        
+        const hasInterestFilters =
+          (contact.areas_of_interest && contact.areas_of_interest.length > 0) ||
+          (contact.property_interests && contact.property_interests.length > 0);
+
         if (hasInterestFilters) {
           const matchingUrl = new URL(showcaseUrlObj.toString());
-          if (contact.areas_of_interest && contact.areas_of_interest.length > 0) {
-            matchingUrl.searchParams.set('search', contact.areas_of_interest[0]);
+          if (
+            contact.areas_of_interest &&
+            contact.areas_of_interest.length > 0
+          ) {
+            matchingUrl.searchParams.set(
+              'search',
+              contact.areas_of_interest[0]
+            );
           }
-          if (contact.property_interests && contact.property_interests.length > 0) {
-            matchingUrl.searchParams.set('category', contact.property_interests[0]);
+          if (
+            contact.property_interests &&
+            contact.property_interests.length > 0
+          ) {
+            matchingUrl.searchParams.set(
+              'category',
+              contact.property_interests[0]
+            );
           }
-          
+
           const filterDesc = [
             contact.property_interests?.[0],
-            contact.areas_of_interest?.[0] ? `in ${contact.areas_of_interest[0]}` : ''
-          ].filter(Boolean).join(' ');
-          
+            contact.areas_of_interest?.[0]
+              ? `in ${contact.areas_of_interest[0]}`
+              : '',
+          ]
+            .filter(Boolean)
+            .join(' ');
+
           linkSection = `Meanwhile, you can browse verified ${filterDesc || 'matching'} properties here:
 ${matchingUrl.toString()}`;
         } else {
@@ -1058,8 +1277,14 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
 
     setSavingDetails(true);
 
-    const defaultCc = showcaseSettings?.default_country_code || BRANDING.defaultCountryCode || '91';
-    const normalizedPrimary = normalizePhoneWithCountryCode(editPhone.trim(), defaultCc);
+    const defaultCc =
+      showcaseSettings?.default_country_code ||
+      BRANDING.defaultCountryCode ||
+      '91';
+    const normalizedPrimary = normalizePhoneWithCountryCode(
+      editPhone.trim(),
+      defaultCc
+    );
     if (!normalizedPrimary) {
       toast.error('Invalid primary phone number format');
       setSavingDetails(false);
@@ -1137,7 +1362,9 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     const showcaseBase = getShowcaseBaseUrl();
     const messageText = buildInquiryDetailsMessage({
       property: inquiredProperty,
-      url: showcaseBase ? propertyShowcaseUrl(showcaseBase, inquiredProperty) : '',
+      url: showcaseBase
+        ? propertyShowcaseUrl(showcaseBase, inquiredProperty)
+        : '',
       currency: showcaseSettings?.currency,
     });
 
@@ -1173,10 +1400,14 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     } catch (err) {
       console.error(err);
       if (isReengagementError(err)) {
-        toast.warning('WhatsApp session has expired (over 24 hours). Redirecting to template selection...');
+        toast.warning(
+          'WhatsApp session has expired (over 24 hours). Redirecting to template selection...'
+        );
         setShareProperty(inquiredProperty);
       } else {
-        toast.error(err instanceof Error ? err.message : 'Failed to send property details');
+        toast.error(
+          err instanceof Error ? err.message : 'Failed to send property details'
+        );
       }
     } finally {
       setApproving(false);
@@ -1191,7 +1422,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
         .from('contacts')
         .update({
           status: 'active',
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         })
         .eq('id', contactId)
         .select('id');
@@ -1208,10 +1439,14 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
         } catch (waErr) {
           console.error('Failed to auto-send WhatsApp details:', waErr);
           if (isReengagementError(waErr)) {
-            toast.warning('Contact approved, but WhatsApp free-text failed (session >24 hrs). Redirecting to templates...');
+            toast.warning(
+              'Contact approved, but WhatsApp free-text failed (session >24 hrs). Redirecting to templates...'
+            );
             setShareProperty(inquiredProperty);
           } else {
-            toast.warning('Contact approved, but failed to send WhatsApp details (check WhatsApp configuration).');
+            toast.warning(
+              'Contact approved, but failed to send WhatsApp details (check WhatsApp configuration).'
+            );
           }
         }
       } else {
@@ -1243,7 +1478,8 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
         no_budget: editNoBudget,
         strict_area_match: editStrictAreaMatch,
         projects_of_interest: editProjectsOfInterest,
-        strict_project_match: editProjectsOfInterest.length > 0 && editStrictProjectMatch,
+        strict_project_match:
+          editProjectsOfInterest.length > 0 && editStrictProjectMatch,
         areas_of_interest: editAreasOfInterest,
         areas_of_interest_geo: prunedAreasGeo,
         property_interests: editPropertyInterests,
@@ -1351,28 +1587,28 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="bg-slate-900 border-slate-700 text-slate-200 sm:max-w-lg w-full p-0"
+        className="w-full border-slate-700 bg-slate-900 p-0 text-slate-200 sm:max-w-lg"
       >
         {!contact ? (
-          <div className="flex items-center justify-center h-full">
-            <Loader2 className="size-6 animate-spin text-primary" />
+          <div className="flex h-full items-center justify-center">
+            <Loader2 className="text-primary size-6 animate-spin" />
           </div>
         ) : (
-          <div className="flex flex-col h-full">
+          <div className="flex h-full flex-col">
             {/* Header */}
-            <SheetHeader className="p-4 border-b border-slate-700/50">
+            <SheetHeader className="border-b border-slate-700/50 p-4">
               <div className="flex items-center gap-3">
-                <Avatar className="size-12 bg-slate-800 border border-slate-700">
+                <Avatar className="size-12 border border-slate-700 bg-slate-800">
                   <AvatarFallback className="bg-primary/10 text-primary text-sm font-medium">
                     {getInitials(contact.name)}
                   </AvatarFallback>
                 </Avatar>
-                <div className="flex-1 min-w-0">
-                  <SheetTitle className="text-white truncate flex items-center gap-2">
+                <div className="min-w-0 flex-1">
+                  <SheetTitle className="flex items-center gap-2 truncate text-white">
                     <button
                       onClick={toggleFavorite}
                       disabled={favoriting}
-                      className={`shrink-0 transition-colors cursor-pointer disabled:opacity-50 ${
+                      className={`shrink-0 cursor-pointer transition-colors disabled:opacity-50 ${
                         contact.is_favorite
                           ? 'text-amber-400 hover:text-amber-300'
                           : 'text-slate-500 hover:text-amber-400'
@@ -1392,20 +1628,20 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                     </span>
                     {contact.name_tag && (
                       <span
-                        className="ml-2 inline-flex items-center align-middle bg-slate-700/40 border border-slate-600/50 text-slate-300 font-medium px-1.5 py-0.5 rounded text-[10px] select-none"
+                        className="ml-2 inline-flex items-center rounded border border-slate-600/50 bg-slate-700/40 px-1.5 py-0.5 align-middle text-[10px] font-medium text-slate-300 select-none"
                         title="Name Tag — internal label, not sent in messages"
                       >
                         {contact.name_tag}
                       </span>
                     )}
                   </SheetTitle>
-                  <SheetDescription className="text-slate-400 text-xs mt-0.5">
+                  <SheetDescription className="mt-0.5 text-xs text-slate-400">
                     Contact details
                   </SheetDescription>
-                  <div className="flex flex-wrap items-center gap-3 mt-1.5 text-xs text-slate-400">
+                  <div className="mt-1.5 flex flex-wrap items-center gap-3 text-xs text-slate-400">
                     <a
                       href={`tel:${contact.phone}`}
-                      className="flex items-center gap-1 hover:text-primary transition-colors cursor-pointer text-slate-300"
+                      className="hover:text-primary flex cursor-pointer items-center gap-1 text-slate-300 transition-colors"
                       onClick={() =>
                         setPendingDial({
                           contactId: contact.id,
@@ -1420,32 +1656,32 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                     </a>
                     <button
                       onClick={copyPhone}
-                      className="flex items-center gap-1 hover:text-primary transition-colors cursor-pointer"
+                      className="hover:text-primary flex cursor-pointer items-center gap-1 transition-colors"
                       title="Copy phone number"
                     >
                       {copiedPhone ? (
-                        <Check className="size-3 text-primary" />
+                        <Check className="text-primary size-3" />
                       ) : (
                         <Copy className="size-3" />
                       )}
                     </button>
                     <button
                       onClick={handleWhatsAppClick}
-                      className="flex items-center gap-1.5 text-emerald-400 hover:text-emerald-350 hover:bg-emerald-500/10 border border-emerald-500/20 rounded-md px-2 py-0.5 transition-all cursor-pointer font-medium"
+                      className="hover:text-emerald-350 flex cursor-pointer items-center gap-1.5 rounded-md border border-emerald-500/20 px-2 py-0.5 font-medium text-emerald-400 transition-all hover:bg-emerald-500/10"
                     >
-                      <MessageSquare className="size-3 text-emerald-400 fill-current" />
+                      <MessageSquare className="size-3 fill-current text-emerald-400" />
                       WhatsApp Chat
                     </button>
                     <button
                       onClick={handlePrefilledWhatsAppClick}
-                      className="flex items-center gap-1.5 text-emerald-400 hover:text-emerald-350 hover:bg-emerald-500/10 border border-emerald-500/20 rounded-md px-2 py-0.5 transition-all cursor-pointer font-medium"
+                      className="hover:text-emerald-350 flex cursor-pointer items-center gap-1.5 rounded-md border border-emerald-500/20 px-2 py-0.5 font-medium text-emerald-400 transition-all hover:bg-emerald-500/10"
                     >
-                      <MessageSquarePlus className="size-3 text-emerald-400 fill-current stroke-slate-950" />
+                      <MessageSquarePlus className="size-3 fill-current stroke-slate-950 text-emerald-400" />
                       Send Welcome
                     </button>
                     <button
                       onClick={() => setMoveToEngineOpen(true)}
-                      className="flex items-center gap-1.5 text-emerald-400 hover:text-emerald-350 hover:bg-emerald-500/10 border border-emerald-500/20 rounded-md px-2 py-0.5 transition-all cursor-pointer font-medium"
+                      className="hover:text-emerald-350 flex cursor-pointer items-center gap-1.5 rounded-md border border-emerald-500/20 px-2 py-0.5 font-medium text-emerald-400 transition-all hover:bg-emerald-500/10"
                       title="Invite them to message the Engine number, so their replies land in the inbox"
                     >
                       <ArrowRightLeft className="size-3 text-emerald-400" />
@@ -1453,40 +1689,58 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                     </button>
                     <button
                       onClick={() => setScheduleOpen(true)}
-                      className="flex items-center gap-1.5 text-primary hover:text-primary-foreground hover:bg-primary/10 border border-primary/20 rounded-md px-2 py-0.5 transition-all cursor-pointer font-medium"
+                      className="text-primary hover:text-primary-foreground hover:bg-primary/10 border-primary/20 flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-0.5 font-medium transition-all"
                     >
-                      <CalendarDays className="size-3 text-primary" />
+                      <CalendarDays className="text-primary size-3" />
                       Schedule
                     </button>
                     <button
                       onClick={() => setLogShareOpen(true)}
-                      className="flex items-center gap-1.5 text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 border border-amber-500/20 rounded-md px-2 py-0.5 transition-all cursor-pointer font-medium"
+                      className="flex cursor-pointer items-center gap-1.5 rounded-md border border-amber-500/20 px-2 py-0.5 font-medium text-amber-400 transition-all hover:bg-amber-500/10 hover:text-amber-300"
                     >
                       <Share2 className="size-3 text-amber-400" />
                       Share Listing
                     </button>
                     <button
                       onClick={() => setDetailsRequestOpen(true)}
-                      className="flex items-center gap-1.5 text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 border border-amber-500/20 rounded-md px-2 py-0.5 transition-all cursor-pointer font-medium"
-                      title={collectsBuyerRequirements
-                        ? 'Ask this buyer to confirm requirements for future matching'
-                        : 'Ask this owner for the full property details, and tell them what updates this number will send back'}
+                      className="flex cursor-pointer items-center gap-1.5 rounded-md border border-amber-500/20 px-2 py-0.5 font-medium text-amber-400 transition-all hover:bg-amber-500/10 hover:text-amber-300"
+                      title={
+                        collectsBuyerRequirements
+                          ? 'Ask this buyer to confirm requirements for future matching'
+                          : 'Ask this owner for the full property details, and tell them what updates this number will send back'
+                      }
                     >
                       <ClipboardList className="size-3 text-amber-400" />
-                      {collectsBuyerRequirements ? 'Ask Requirements' : 'Ask for Details'}
+                      {collectsBuyerRequirements
+                        ? 'Ask Requirements'
+                        : 'Ask for Details'}
                     </button>
+                    {collectsBuyerRequirements && (
+                      <button
+                        onClick={() => setAdditionalRequirementOpen(true)}
+                        className="flex items-center gap-1.5 rounded-md border border-sky-500/20 px-2 py-0.5 font-medium text-sky-400 transition-all hover:bg-sky-500/10 hover:text-sky-300"
+                        title="Paste a requirement received on personal WhatsApp without replacing this buyer's existing brief"
+                      >
+                        <Plus className="size-3 text-sky-400" />
+                        Add Requirement
+                      </button>
+                    )}
                     <button
-                      onClick={() => router.push(`/journey?contact=${contact.id}`)}
-                      className="flex items-center gap-1.5 text-sky-400 hover:text-sky-300 hover:bg-sky-500/10 border border-sky-500/20 rounded-md px-2 py-0.5 transition-all cursor-pointer font-medium"
+                      onClick={() =>
+                        router.push(`/journey?contact=${contact.id}`)
+                      }
+                      className="flex cursor-pointer items-center gap-1.5 rounded-md border border-sky-500/20 px-2 py-0.5 font-medium text-sky-400 transition-all hover:bg-sky-500/10 hover:text-sky-300"
                     >
                       <Waypoints className="size-3 text-sky-400" />
                       Journey Map
                     </button>
                     <button
                       onClick={() => setGreetingsOpen(true)}
-                      className="flex items-center gap-1.5 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 border border-rose-500/20 rounded-md px-2 py-0.5 transition-all cursor-pointer font-medium"
+                      className="flex cursor-pointer items-center gap-1.5 rounded-md border border-rose-500/20 px-2 py-0.5 font-medium text-rose-400 transition-all hover:bg-rose-500/10 hover:text-rose-300"
                     >
-                      <span className="size-3 flex items-center justify-center text-[10px]">🎉</span>
+                      <span className="flex size-3 items-center justify-center text-[10px]">
+                        🎉
+                      </span>
                       Send Greeting
                     </button>
                     {contact.email && (
@@ -1508,7 +1762,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                       </span>
                     )}
                     {contact.source && (
-                      <span className="inline-flex items-center rounded bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary border border-primary/20">
+                      <span className="bg-primary/10 text-primary border-primary/20 inline-flex items-center rounded border px-2 py-0.5 text-[10px] font-semibold">
                         {contact.source}
                       </span>
                     )}
@@ -1519,24 +1773,26 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
 
             {/* Review Status Banner */}
             {contact.status === 'pending_review' && (
-              <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-2">
+              <div className="border-b border-amber-500/20 bg-amber-500/10 px-4 py-2">
                 <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="inline-flex items-center rounded-full bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold text-amber-400 border border-amber-500/20 animate-pulse shrink-0">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="inline-flex shrink-0 animate-pulse items-center rounded-full border border-amber-500/20 bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold text-amber-400">
                       Needs Review
                     </span>
-                    <span className="text-[11px] text-amber-300 truncate">
+                    <span className="truncate text-[11px] text-amber-300">
                       From {contact.referrer || 'External Source'}
                     </span>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex shrink-0 items-center gap-2">
                     {inquiredProperty && (
-                      <label className="flex items-center gap-1 text-[11px] text-slate-400 cursor-pointer select-none whitespace-nowrap">
+                      <label className="flex cursor-pointer items-center gap-1 text-[11px] whitespace-nowrap text-slate-400 select-none">
                         <input
                           type="checkbox"
                           checked={sendDetailsOnApprove}
-                          onChange={(e) => setSendDetailsOnApprove(e.target.checked)}
-                          className="rounded border-slate-700 bg-slate-800 text-primary focus:ring-0 focus:ring-offset-0 size-3"
+                          onChange={(e) =>
+                            setSendDetailsOnApprove(e.target.checked)
+                          }
+                          className="text-primary size-3 rounded border-slate-700 bg-slate-800 focus:ring-0 focus:ring-offset-0"
                         />
                         Send details
                       </label>
@@ -1545,7 +1801,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                       size="sm"
                       onClick={approveContact}
                       disabled={approving}
-                      className="bg-amber-500 hover:bg-amber-600 disabled:bg-amber-500/50 text-slate-950 font-bold text-xs py-1 h-6 rounded px-2.5 cursor-pointer flex items-center gap-1"
+                      className="flex h-6 cursor-pointer items-center gap-1 rounded bg-amber-500 px-2.5 py-1 text-xs font-bold text-slate-950 hover:bg-amber-600 disabled:bg-amber-500/50"
                     >
                       {approving && <Loader2 className="size-3 animate-spin" />}
                       Approve
@@ -1558,13 +1814,19 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                     its details: un-tag a wrong guess, and map the portal
                     ad once so no later lead on it has to be guessed. */}
                 {inquiredProperty && (
-                  <div className="flex items-center gap-2 pt-1.5 mt-1.5 border-t border-amber-500/15 text-[11px] min-w-0">
-                    <span className="text-slate-500 shrink-0">Contacted about</span>
-                    <span className="text-slate-300 font-semibold truncate">{inquiredProperty.title}</span>
+                  <div className="mt-1.5 flex min-w-0 items-center gap-2 border-t border-amber-500/15 pt-1.5 text-[11px]">
+                    <span className="shrink-0 text-slate-500">
+                      Contacted about
+                    </span>
+                    <span className="truncate font-semibold text-slate-300">
+                      {inquiredProperty.title}
+                    </span>
                     <button
                       type="button"
-                      onClick={() => handleRemoveInquiredProperty(inquiredProperty.id)}
-                      className="text-red-400 hover:text-red-300 font-bold shrink-0 cursor-pointer"
+                      onClick={() =>
+                        handleRemoveInquiredProperty(inquiredProperty.id)
+                      }
+                      className="shrink-0 cursor-pointer font-bold text-red-400 hover:text-red-300"
                     >
                       Wrong listing?
                     </button>
@@ -1572,22 +1834,27 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                 )}
 
                 {contact.lead_portal_listing_id && (
-                  <div className="flex items-center gap-2 pt-1.5 mt-1.5 border-t border-amber-500/15 text-[11px] min-w-0">
-                    <LinkIcon className={`size-3 shrink-0 ${portalAdLink ? 'text-emerald-400' : 'text-amber-400'}`} />
-                    <span className="text-slate-300 font-semibold shrink-0">
-                      {contact.source || contact.lead_portal} ad {contact.lead_portal_listing_id}
+                  <div className="mt-1.5 flex min-w-0 items-center gap-2 border-t border-amber-500/15 pt-1.5 text-[11px]">
+                    <LinkIcon
+                      className={`size-3 shrink-0 ${portalAdLink ? 'text-emerald-400' : 'text-amber-400'}`}
+                    />
+                    <span className="shrink-0 font-semibold text-slate-300">
+                      {contact.source || contact.lead_portal} ad{' '}
+                      {contact.lead_portal_listing_id}
                     </span>
                     {portalAdLink ? (
-                      <span className="text-slate-500 truncate">
+                      <span className="truncate text-slate-500">
                         mapped — enquiries on it match automatically
                       </span>
                     ) : (
                       <>
-                        <span className="text-slate-500 truncate">not mapped yet</span>
+                        <span className="truncate text-slate-500">
+                          not mapped yet
+                        </span>
                         <button
                           type="button"
                           onClick={() => setMapAdOpen((v) => !v)}
-                          className="text-primary hover:text-primary/80 font-bold shrink-0 cursor-pointer"
+                          className="text-primary hover:text-primary/80 shrink-0 cursor-pointer font-bold"
                         >
                           {mapAdOpen ? 'Cancel' : 'Map to a listing'}
                         </button>
@@ -1597,16 +1864,21 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                 )}
 
                 {mapAdOpen && !portalAdLink && (
-                  <div className="pt-2 space-y-1.5">
+                  <div className="space-y-1.5 pt-2">
                     <SearchablePropertySelect
                       properties={allProperties}
                       value={null}
-                      onChange={(propertyId) => propertyId && handleMapPortalAd(propertyId)}
-                      placeholder={mappingAd ? 'Mapping…' : 'Which listing is this ad?'}
+                      onChange={(propertyId) =>
+                        propertyId && handleMapPortalAd(propertyId)
+                      }
+                      placeholder={
+                        mappingAd ? 'Mapping…' : 'Which listing is this ad?'
+                      }
                     />
-                    <p className="text-[10px] text-slate-500 leading-relaxed">
-                      Asserted once. Every future enquiry quoting this ad id resolves to that listing
-                      exactly, and the leads already waiting on it are tagged now.
+                    <p className="text-[10px] leading-relaxed text-slate-500">
+                      Asserted once. Every future enquiry quoting this ad id
+                      resolves to that listing exactly, and the leads already
+                      waiting on it are tagged now.
                     </p>
                   </div>
                 )}
@@ -1616,504 +1888,648 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
             <Tabs
               value={activeTab}
               onValueChange={(v) => setActiveTab(String(v))}
-              className="flex-1 flex flex-col min-h-0"
+              className="flex min-h-0 flex-1 flex-col"
             >
-              <TabsList className="bg-slate-800/50 border-b border-slate-700 mx-0 px-4 mt-3 overflow-x-auto flex-nowrap scrollbar-none justify-start w-full rounded-none">
+              <TabsList className="mx-0 mt-3 w-full scrollbar-none flex-nowrap justify-start overflow-x-auto rounded-none border-b border-slate-700 bg-slate-800/50 px-4">
                 <TabsTrigger
                   value="details"
-                  className="data-active:bg-slate-800 data-active:text-primary text-slate-400 shrink-0"
+                  className="data-active:text-primary shrink-0 text-slate-400 data-active:bg-slate-800"
                 >
                   Details
                 </TabsTrigger>
                 {editClassification === 'Buyer' && (
                   <TabsTrigger
                     value="preferences"
-                    className="data-active:bg-slate-800 data-active:text-primary text-slate-400 shrink-0"
+                    className="data-active:text-primary shrink-0 text-slate-400 data-active:bg-slate-800"
                   >
                     Preferences
                   </TabsTrigger>
                 )}
-                {['Owner', 'Seller', 'Agent', 'Developer', 'Buyer', 'Owner & Buyer'].includes(editClassification) && (
+                {[
+                  'Owner',
+                  'Seller',
+                  'Agent',
+                  'Developer',
+                  'Buyer',
+                  'Owner & Buyer',
+                ].includes(editClassification) && (
                   <TabsTrigger
                     value="properties"
-                    className="data-active:bg-slate-800 data-active:text-primary text-slate-400 shrink-0"
+                    className="data-active:text-primary shrink-0 text-slate-400 data-active:bg-slate-800"
                   >
                     Properties
                   </TabsTrigger>
                 )}
                 <TabsTrigger
                   value="tags"
-                  className="data-active:bg-slate-800 data-active:text-primary text-slate-400 shrink-0"
+                  className="data-active:text-primary shrink-0 text-slate-400 data-active:bg-slate-800"
                 >
                   Tags
                 </TabsTrigger>
                 <TabsTrigger
                   value="notes"
-                  className="data-active:bg-slate-800 data-active:text-primary text-slate-400 shrink-0"
+                  className="data-active:text-primary shrink-0 text-slate-400 data-active:bg-slate-800"
                 >
                   Notes
                 </TabsTrigger>
                 <TabsTrigger
                   value="deals"
-                  className="data-active:bg-slate-800 data-active:text-primary text-slate-400 shrink-0"
+                  className="data-active:text-primary shrink-0 text-slate-400 data-active:bg-slate-800"
                 >
                   Deals
                 </TabsTrigger>
                 <TabsTrigger
                   value="calls"
-                  className="data-active:bg-slate-800 data-active:text-primary text-slate-400 shrink-0"
+                  className="data-active:text-primary shrink-0 text-slate-400 data-active:bg-slate-800"
                 >
                   Calls
                 </TabsTrigger>
               </TabsList>
 
               {/* Details Tab */}
-              <TabsContent value="details" className="flex-1 min-h-0 flex flex-col">
+              <TabsContent
+                value="details"
+                className="flex min-h-0 flex-1 flex-col"
+              >
                 <div className="flex-1 overflow-y-auto px-4 py-3">
-                <div className="space-y-3">
-                  <div className="grid grid-cols-6 gap-2">
-                    <div className="space-y-1.5 col-span-2">
-                      <Label className="text-slate-400 text-xs">Name</Label>
-                      <Input
-                        value={editName}
-                        onChange={(e) => setEditName(e.target.value)}
-                        className="bg-slate-800 border-slate-700 text-white h-8 text-sm"
-                      />
-                    </div>
-                    <div className="space-y-1.5 col-span-2">
-                      <Label className="text-slate-400 text-xs">Second Name</Label>
-                      <Input
-                        value={editSecondName}
-                        onChange={(e) => setEditSecondName(e.target.value)}
-                        placeholder="Doe"
-                        className="bg-slate-800 border-slate-700 text-white h-8 text-sm placeholder:text-slate-600"
-                      />
-                    </div>
-                    <div className="space-y-1.5 col-span-2">
-                      <Label className="text-slate-400 text-xs">Name Tag</Label>
-                      <Input
-                        value={editNameTag}
-                        onChange={(e) => setEditNameTag(e.target.value)}
-                        placeholder="Bank DSA"
-                        className="bg-slate-800 border-slate-700 text-white h-8 text-sm placeholder:text-slate-600"
-                      />
-                    </div>
-                    <p className="col-span-6 -mt-0.5 text-[10px] text-slate-500">
-                      Messages always use the Name alone — Second Name and Name Tag
-                      show only inside the Engine. Name + Second Name must be unique.
-                    </p>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-slate-400 text-xs">
-                      Phone <span className="text-red-400">*</span>
-                    </Label>
-                    <Input
-                      value={editPhone}
-                      onChange={(e) => setEditPhone(e.target.value)}
-                      className="bg-slate-800 border-slate-700 text-white h-8 text-sm"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-slate-400 text-xs">Secondary Phone Numbers</Label>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setEditSecondaryPhones([...editSecondaryPhones, ''])}
-                        className="h-5 px-1.5 text-[10px] text-primary hover:text-primary-hover hover:bg-slate-800 flex items-center gap-1 border border-slate-700/50"
-                      >
-                        <Plus className="h-2.5 w-2.5" />
-                        Add Number
-                      </Button>
-                    </div>
-
-                    {editSecondaryPhones.length > 0 && (
-                      <div className="space-y-1.5 mt-1">
-                        {editSecondaryPhones.map((secPhone, idx) => (
-                          <div key={idx} className="flex items-center gap-1.5">
-                            <Input
-                              value={secPhone}
-                              onChange={(e) => {
-                                const updated = [...editSecondaryPhones];
-                                updated[idx] = e.target.value;
-                                setEditSecondaryPhones(updated);
-                              }}
-                              placeholder="+91 98765 43210"
-                              className="bg-slate-800 border-slate-700 text-white h-8 text-sm flex-1"
-                            />
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger
-                                  render={
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="icon"
-                                      onClick={() => handleSwapSecondaryToPrimary(idx)}
-                                      className="text-slate-400 hover:text-primary hover:bg-slate-800 h-8 w-8 shrink-0 animate-none"
-                                    />
-                                  }
-                                >
-                                  <ArrowUp className="h-3.5 w-3.5" />
-                                </TooltipTrigger>
-                                <TooltipContent side="top">
-                                  Make primary (swap with current primary)
-                                </TooltipContent>
-                              </Tooltip>
-
-                              <Tooltip>
-                                <TooltipTrigger
-                                  render={
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="icon"
-                                      onClick={() => {
-                                        setEditSecondaryPhones(editSecondaryPhones.filter((_, i) => i !== idx));
-                                      }}
-                                      className="text-slate-400 hover:text-red-400 hover:bg-slate-800 h-8 w-8 shrink-0 animate-none"
-                                    />
-                                  }
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </TooltipTrigger>
-                                <TooltipContent side="top">
-                                  Delete secondary number
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          </div>
-                        ))}
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-6 gap-2">
+                      <div className="col-span-2 space-y-1.5">
+                        <Label className="text-xs text-slate-400">Name</Label>
+                        <Input
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                          className="h-8 border-slate-700 bg-slate-800 text-sm text-white"
+                        />
                       </div>
-                    )}
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-slate-400 text-xs">Email</Label>
-                    <Input
-                      value={editEmail}
-                      onChange={(e) => setEditEmail(e.target.value)}
-                      className="bg-slate-800 border-slate-700 text-white h-8 text-sm"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-slate-400 text-xs">Company</Label>
-                    <Input
-                      value={editCompany}
-                      onChange={(e) => setEditCompany(e.target.value)}
-                      className="bg-slate-800 border-slate-700 text-white h-8 text-sm"
-                    />
-                  </div>
-                  <div className="space-y-1.5 relative">
-                    <Label className="text-slate-400 text-xs">Referer</Label>
-                    <div className="relative">
-                      <Input
-                        value={editReferrer}
-                        onChange={(e) => {
-                          setEditReferrer(e.target.value);
-                          setEditReferrerContactId(null);
-                          setShowReferrerSuggestions(true);
-                        }}
-                        onFocus={() => setShowReferrerSuggestions(true)}
-                        onBlur={() => {
-                          setTimeout(() => setShowReferrerSuggestions(false), 200);
-                        }}
-                        className="bg-slate-800 border-slate-700 text-white h-8 text-sm w-full pr-16 animate-none"
-                        placeholder="Search existing contact or type a name..."
-                      />
-                      {editReferrerContactId && (
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] bg-primary/20 text-primary border border-primary/30 px-1.5 py-0.5 rounded font-medium">
-                          Linked
-                        </span>
-            )}
-
-            {/* Hover property preview — rendered via portal so it escapes the Sheet overflow */}
-            {hoveredPropId && hoverPos && typeof document !== 'undefined' && (() => {
-              const prop = inquiredProperties.find(p => p.id === hoveredPropId);
-              if (!prop) return null;
-              const el = (
-                <div
-                  className="fixed z-[200] w-64 rounded-lg border border-slate-700 bg-slate-850 p-3 shadow-xl shadow-black/40 pointer-events-none"
-                  style={{ top: hoverPos.top, left: hoverPos.left }}
-                >
-                  <div className="flex items-center gap-1.5 mb-2">
-                    {prop.property_code && (
-                      <span className="font-mono text-[9px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded border border-slate-700 font-bold">
-                        {prop.property_code}
-                      </span>
-                    )}
-                    <span className="text-[10px] px-1 py-0 rounded bg-slate-800 text-slate-400 font-semibold uppercase border border-slate-700">
-                      {prop.type}
-                    </span>
-                    {prop.listing_type && (
-                      <span className="text-[9px] px-1 py-0 rounded bg-primary/10 text-primary font-semibold uppercase border border-primary/20">
-                        {prop.listing_type}
-                      </span>
-                    )}
-                  </div>
-                  <h6 className="text-xs font-bold text-white mb-1 leading-snug">{prop.title}</h6>
-                  <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[10px]">
-                    {prop.area_sqft && (
-                      <div className="text-slate-400"><span className="text-slate-500">Area:</span> {prop.area_sqft} {prop.area_unit || 'sqft'}</div>
-                    )}
-                    {prop.bedrooms != null && (
-                      <div className="text-slate-400"><span className="text-slate-500">Beds:</span> {prop.bedrooms}</div>
-                    )}
-                    {prop.bathrooms != null && (
-                      <div className="text-slate-400"><span className="text-slate-500">Baths:</span> {prop.bathrooms}</div>
-                    )}
-                    {prop.facing_direction && (
-                      <div className="text-slate-400"><span className="text-slate-500">Facing:</span> {prop.facing_direction}</div>
-                    )}
-                  </div>
-                  <p className="text-[10px] text-slate-400 mt-1.5 truncate">📍 {prop.location}{prop.sublocality ? `, ${prop.sublocality}` : ''}</p>
-                  <div className="flex items-center gap-2 mt-1.5 pt-1.5 border-t border-slate-800">
-                    <span className="text-xs font-bold text-primary">
-                      {prop.price >= 10000000 
-                        ? `₹${(prop.price / 10000000).toFixed(2).replace(/\.00$/, '')} Cr` 
-                        : prop.price >= 100000 
-                          ? `₹${(prop.price / 100000).toFixed(2).replace(/\.00$/, '')} Lakhs` 
-                          : `₹${prop.price.toLocaleString('en-IN')}`}
-                    </span>
-                    <span className="text-[9px] px-1 py-0 bg-slate-800 border border-slate-700 text-slate-300 rounded uppercase">{prop.status}</span>
-                  </div>
-                </div>
-              );
-              return createPortal(el, document.body);
-            })()}
-
-          </div>
-                    {showReferrerSuggestions && filteredReferrerContacts.length > 0 && (
-                      <div className="absolute z-50 w-full mt-1 bg-slate-900 border border-slate-700 rounded-md shadow-lg max-h-48 overflow-y-auto p-1 space-y-0.5">
-                        <div className="text-[10px] text-slate-500 font-semibold px-2 py-1 border-b border-slate-800 mb-1">
-                          Link to existing contact:
-                        </div>
-                        {filteredReferrerContacts.map((c) => (
-                          <button
-                            key={c.id}
-                            type="button"
-                            onMouseDown={() => {
-                              setEditReferrer(c.name || 'Unnamed');
-                              setEditReferrerContactId(c.id);
-                              setShowReferrerSuggestions(false);
-                            }}
-                            className="w-full text-left flex items-center justify-between px-2 py-1.5 hover:bg-slate-800 rounded text-xs text-slate-200"
-                          >
-                            <div className="flex items-center gap-1.5">
-                              <span className="font-semibold">{contactFullName(c) || 'Unnamed'}</span>
-                              <NameTagBadge tag={c.name_tag} />
-                              <span className="text-slate-400 ml-1.5 text-[10px]">({c.phone})</span>
-                            </div>
-                            <span className="text-[10px] bg-slate-800 px-1 py-0.5 rounded text-slate-400 font-bold">
-                              {c.classification}
-                            </span>
-                          </button>
-                        ))}
+                      <div className="col-span-2 space-y-1.5">
+                        <Label className="text-xs text-slate-400">
+                          Second Name
+                        </Label>
+                        <Input
+                          value={editSecondName}
+                          onChange={(e) => setEditSecondName(e.target.value)}
+                          placeholder="Doe"
+                          className="h-8 border-slate-700 bg-slate-800 text-sm text-white placeholder:text-slate-600"
+                        />
                       </div>
-                    )}
-                  </div>
-                  {contactId && (
-                    <PartyPanel
-                      contactId={contactId}
-                      contacts={contactsList}
-                      canEdit={canEditContacts}
-                    />
-                  )}
-
-                  <div className="space-y-1.5">
-                    <Label className="text-slate-400 text-xs">Classification</Label>
-                    <select
-                      value={editClassification}
-                      onChange={(e) => setEditClassification(e.target.value as 'Owner' | 'Seller' | 'Buyer' | 'Agent' | 'Developer' | 'Owner & Buyer' | 'Others')}
-                      className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm text-white focus:border-primary focus:outline-none"
-                    >
-                      <option value="Others">Others</option>
-                      <option value="Owner">Owner</option>
-                      <option value="Seller">Seller</option>
-                      <option value="Buyer">Buyer</option>
-                      <option value="Agent">Agent</option>
-                      <option value="Developer">Developer</option>
-                      <option value="Owner & Buyer">Owner & Buyer</option>
-                    </select>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label className="text-slate-400 text-xs">Source</Label>
-                    <select
-                      value={editSource}
-                      onChange={(e) => setEditSource(e.target.value)}
-                      className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm text-white focus:border-primary focus:outline-none"
-                    >
-                      <option value="">Select Source</option>
-                      <option value="Magic Bricks">Magic Bricks</option>
-                      <option value="Housing">Housing</option>
-                      <option value="99acres">99acres</option>
-                      <option value="Facebook">Facebook</option>
-                      <option value="Instagram">Instagram</option>
-                      <option value="Reference">Reference</option>
-                      <option value="WhatsApp">WhatsApp</option>
-                      <option value="Others">Others</option>
-                    </select>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label className="text-slate-400 text-xs">Lead Temperature / Status</Label>
-                    <select
-                      value={editLeadTemp}
-                      onChange={(e) => setEditLeadTemp(e.target.value as 'HOT' | 'COLD' | 'Not Responding' | 'Dead' | '')}
-                      className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm text-white focus:border-primary focus:outline-none"
-                    >
-                      <option value="">None</option>
-                      <option value="HOT">🔥 HOT</option>
-                      <option value="COLD">❄️ COLD</option>
-                      <option value="Not Responding">⏳ Not Responding</option>
-                      <option value="Dead">💀 Dead</option>
-                    </select>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label className="text-slate-400 text-xs">Preferred Language</Label>
-                    <select
-                      value={editPreferredLanguage}
-                      onChange={(e) => setEditPreferredLanguage(e.target.value as LanguageCode | '')}
-                      className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm text-white focus:border-primary focus:outline-none"
-                    >
-                      <option value="">Use account default</option>
-                      {LANGUAGE_CODES.map((code) => (
-                        <option key={code} value={code}>
-                          {languageDisplay(code)}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label className="text-slate-400 text-xs">Date of Birth</Label>
-                    <div className="space-y-1">
-                      <Input
-                        type="date"
-                        value={editDob}
-                        onChange={(e) => setEditDob(e.target.value)}
-                        className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm text-white focus:border-primary focus:outline-none h-9"
-                      />
-                      {editDob && (() => {
-                        const today = new Date();
-                        const dobDate = new Date(editDob);
-                        const isBirthdayToday = today.getDate() === dobDate.getDate() && today.getMonth() === dobDate.getMonth();
-                        if (isBirthdayToday) {
-                          return (
-                            <p className="text-[10px] text-amber-400 font-semibold flex items-center gap-1 mt-1">
-                              🎂 Today is their birthday!
-                            </p>
-                          );
-                        }
-                        return null;
-                      })()}
-                    </div>
-                  </div>
-
-                  {deals.some((d) => d.status === 'won') && (
-                    <div className="space-y-1.5 bg-slate-950/40 border border-slate-800 rounded-lg p-2.5">
-                      <Label className="text-slate-400 text-xs font-semibold">Feedback &amp; Review</Label>
-                      <select
-                        value={editFeedbackStatus}
-                        onChange={(e) => setEditFeedbackStatus(e.target.value as 'not_requested' | 'requested' | 'collected')}
-                        className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs text-white focus:border-primary focus:outline-none h-8 mt-1"
-                      >
-                        <option value="not_requested">Not Requested</option>
-                        <option value="requested">Requested</option>
-                        <option value="collected">Collected</option>
-                      </select>
-                      <p className="text-[9px] text-slate-500 mt-1 leading-relaxed">
-                        This contact has transacted successfully. Collect feedback or review to post on your showcase page.
+                      <div className="col-span-2 space-y-1.5">
+                        <Label className="text-xs text-slate-400">
+                          Name Tag
+                        </Label>
+                        <Input
+                          value={editNameTag}
+                          onChange={(e) => setEditNameTag(e.target.value)}
+                          placeholder="Bank DSA"
+                          className="h-8 border-slate-700 bg-slate-800 text-sm text-white placeholder:text-slate-600"
+                        />
+                      </div>
+                      <p className="col-span-6 -mt-0.5 text-[10px] text-slate-500">
+                        Messages always use the Name alone — Second Name and
+                        Name Tag show only inside the Engine. Name + Second Name
+                        must be unique.
                       </p>
                     </div>
-                  )}
-
-                  {editClassification !== 'Owner' && (
                     <div className="space-y-1.5">
-                      <Label className="text-slate-400 text-xs">Shown Interest / Inquired Property</Label>
-                      <SearchablePropertySelect
-                        properties={allProperties}
-                        value={editLastInquiredPropertyId}
-                        onChange={setEditLastInquiredPropertyId}
-                        placeholder="Select inquired property..."
+                      <Label className="text-xs text-slate-400">
+                        Phone <span className="text-red-400">*</span>
+                      </Label>
+                      <Input
+                        value={editPhone}
+                        onChange={(e) => setEditPhone(e.target.value)}
+                        className="h-8 border-slate-700 bg-slate-800 text-sm text-white"
                       />
                     </div>
-                  )}
-                  {editClassification === 'Agent' && (
                     <div className="space-y-1.5">
-                      <Label className="text-slate-400 text-xs">Agent Requirements</Label>
-                      <Textarea
-                        value={editRequirements}
-                        onChange={(e) => setEditRequirements(e.target.value)}
-                        placeholder="Enter agent requirements, focus areas, or client requests..."
-                        className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 min-h-[100px] text-sm resize-y"
-                      />
-                    </div>
-                  )}
-                  {inquiredProperty && contact?.status !== 'pending_review' && (
-                    <div className="bg-slate-950/20 border border-slate-850/60 rounded-lg p-3 space-y-2 text-xs mb-4">
-                      <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider block">Inquired Property</span>
-                          <span className="text-xs font-bold text-white">{inquiredProperty.title}</span>
-                        </div>
-                        <div className="flex gap-1.5">
-                          <Button
-                            size="xs"
-                            variant="outline"
-                            onClick={handleSendPropertyDetails}
-                            disabled={approving}
-                            className="bg-slate-900 border-slate-800 text-slate-350 text-[10px] h-6 py-0 px-2 flex items-center gap-1 cursor-pointer"
-                          >
-                            <MessageSquare className="size-3 text-green-500 fill-green-500" />
-                            Send Free-text
-                          </Button>
-                          <Button
-                            size="xs"
-                            variant="outline"
-                            onClick={() => setShareProperty(inquiredProperty)}
-                            disabled={approving}
-                            className="bg-slate-900 border-slate-800 text-slate-350 text-[10px] h-6 py-0 px-2 flex items-center gap-1 cursor-pointer"
-                          >
-                            <Share2 className="size-3 text-primary" />
-                            Send Template
-                          </Button>
-                        </div>
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs text-slate-400">
+                          Secondary Phone Numbers
+                        </Label>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() =>
+                            setEditSecondaryPhones([...editSecondaryPhones, ''])
+                          }
+                          className="text-primary hover:text-primary-hover flex h-5 items-center gap-1 border border-slate-700/50 px-1.5 text-[10px] hover:bg-slate-800"
+                        >
+                          <Plus className="h-2.5 w-2.5" />
+                          Add Number
+                        </Button>
                       </div>
-                      {!isLocationGuarded(inquiredProperty) ||
-                      canViewGuardedLocations ||
-                      inquiredProperty.user_id === user?.id ? (
-                        <div className="grid grid-cols-1 gap-1.5 text-[10px] text-slate-400 border-t border-slate-800/40 pt-1.5">
-                          <div>
-                            <span className="text-slate-500">Exact Location: </span>
-                            <span className="text-slate-300">{inquiredProperty.location}</span>
-                          </div>
-                          <div>
-                            <span className="text-slate-500">Google Map Link: </span>
-                            {inquiredProperty.google_map_link ? (
-                              <a href={inquiredProperty.google_map_link} target="_blank" rel="noreferrer" className="text-primary hover:underline block truncate max-w-xs">
-                                {inquiredProperty.google_map_link}
-                              </a>
-                            ) : (
-                              <span className="text-slate-500 italic">No link configured</span>
-                            )}
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="text-[10px] text-amber-400/90 border-t border-slate-800/40 pt-1.5">
-                          Exact location restricted — visible to admins and the listing agent only.
+
+                      {editSecondaryPhones.length > 0 && (
+                        <div className="mt-1 space-y-1.5">
+                          {editSecondaryPhones.map((secPhone, idx) => (
+                            <div
+                              key={idx}
+                              className="flex items-center gap-1.5"
+                            >
+                              <Input
+                                value={secPhone}
+                                onChange={(e) => {
+                                  const updated = [...editSecondaryPhones];
+                                  updated[idx] = e.target.value;
+                                  setEditSecondaryPhones(updated);
+                                }}
+                                placeholder="+91 98765 43210"
+                                className="h-8 flex-1 border-slate-700 bg-slate-800 text-sm text-white"
+                              />
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger
+                                    render={
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() =>
+                                          handleSwapSecondaryToPrimary(idx)
+                                        }
+                                        className="hover:text-primary h-8 w-8 shrink-0 animate-none text-slate-400 hover:bg-slate-800"
+                                      />
+                                    }
+                                  >
+                                    <ArrowUp className="h-3.5 w-3.5" />
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top">
+                                    Make primary (swap with current primary)
+                                  </TooltipContent>
+                                </Tooltip>
+
+                                <Tooltip>
+                                  <TooltipTrigger
+                                    render={
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => {
+                                          setEditSecondaryPhones(
+                                            editSecondaryPhones.filter(
+                                              (_, i) => i !== idx
+                                            )
+                                          );
+                                        }}
+                                        className="h-8 w-8 shrink-0 animate-none text-slate-400 hover:bg-slate-800 hover:text-red-400"
+                                      />
+                                    }
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top">
+                                    Delete secondary number
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            </div>
+                          ))}
                         </div>
                       )}
                     </div>
-                  )}
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-slate-400">Email</Label>
+                      <Input
+                        value={editEmail}
+                        onChange={(e) => setEditEmail(e.target.value)}
+                        className="h-8 border-slate-700 bg-slate-800 text-sm text-white"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-slate-400">Company</Label>
+                      <Input
+                        value={editCompany}
+                        onChange={(e) => setEditCompany(e.target.value)}
+                        className="h-8 border-slate-700 bg-slate-800 text-sm text-white"
+                      />
+                    </div>
+                    <div className="relative space-y-1.5">
+                      <Label className="text-xs text-slate-400">Referer</Label>
+                      <div className="relative">
+                        <Input
+                          value={editReferrer}
+                          onChange={(e) => {
+                            setEditReferrer(e.target.value);
+                            setEditReferrerContactId(null);
+                            setShowReferrerSuggestions(true);
+                          }}
+                          onFocus={() => setShowReferrerSuggestions(true)}
+                          onBlur={() => {
+                            setTimeout(
+                              () => setShowReferrerSuggestions(false),
+                              200
+                            );
+                          }}
+                          className="h-8 w-full animate-none border-slate-700 bg-slate-800 pr-16 text-sm text-white"
+                          placeholder="Search existing contact or type a name..."
+                        />
+                        {editReferrerContactId && (
+                          <span className="bg-primary/20 text-primary border-primary/30 absolute top-1/2 right-3 -translate-y-1/2 rounded border px-1.5 py-0.5 text-[10px] font-medium">
+                            Linked
+                          </span>
+                        )}
 
-                </div>
+                        {/* Hover property preview — rendered via portal so it escapes the Sheet overflow */}
+                        {hoveredPropId &&
+                          hoverPos &&
+                          typeof document !== 'undefined' &&
+                          (() => {
+                            const prop = inquiredProperties.find(
+                              (p) => p.id === hoveredPropId
+                            );
+                            if (!prop) return null;
+                            const el = (
+                              <div
+                                className="bg-slate-850 pointer-events-none fixed z-[200] w-64 rounded-lg border border-slate-700 p-3 shadow-xl shadow-black/40"
+                                style={{
+                                  top: hoverPos.top,
+                                  left: hoverPos.left,
+                                }}
+                              >
+                                <div className="mb-2 flex items-center gap-1.5">
+                                  {prop.property_code && (
+                                    <span className="rounded border border-slate-700 bg-slate-800 px-1.5 py-0.5 font-mono text-[9px] font-bold text-slate-400">
+                                      {prop.property_code}
+                                    </span>
+                                  )}
+                                  <span className="rounded border border-slate-700 bg-slate-800 px-1 py-0 text-[10px] font-semibold text-slate-400 uppercase">
+                                    {prop.type}
+                                  </span>
+                                  {prop.listing_type && (
+                                    <span className="bg-primary/10 text-primary border-primary/20 rounded border px-1 py-0 text-[9px] font-semibold uppercase">
+                                      {prop.listing_type}
+                                    </span>
+                                  )}
+                                </div>
+                                <h6 className="mb-1 text-xs leading-snug font-bold text-white">
+                                  {prop.title}
+                                </h6>
+                                <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[10px]">
+                                  {prop.area_sqft && (
+                                    <div className="text-slate-400">
+                                      <span className="text-slate-500">
+                                        Area:
+                                      </span>{' '}
+                                      {prop.area_sqft}{' '}
+                                      {prop.area_unit || 'sqft'}
+                                    </div>
+                                  )}
+                                  {prop.bedrooms != null && (
+                                    <div className="text-slate-400">
+                                      <span className="text-slate-500">
+                                        Beds:
+                                      </span>{' '}
+                                      {prop.bedrooms}
+                                    </div>
+                                  )}
+                                  {prop.bathrooms != null && (
+                                    <div className="text-slate-400">
+                                      <span className="text-slate-500">
+                                        Baths:
+                                      </span>{' '}
+                                      {prop.bathrooms}
+                                    </div>
+                                  )}
+                                  {prop.facing_direction && (
+                                    <div className="text-slate-400">
+                                      <span className="text-slate-500">
+                                        Facing:
+                                      </span>{' '}
+                                      {prop.facing_direction}
+                                    </div>
+                                  )}
+                                </div>
+                                <p className="mt-1.5 truncate text-[10px] text-slate-400">
+                                  📍 {prop.location}
+                                  {prop.sublocality
+                                    ? `, ${prop.sublocality}`
+                                    : ''}
+                                </p>
+                                <div className="mt-1.5 flex items-center gap-2 border-t border-slate-800 pt-1.5">
+                                  <span className="text-primary text-xs font-bold">
+                                    {prop.price >= 10000000
+                                      ? `₹${(prop.price / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`
+                                      : prop.price >= 100000
+                                        ? `₹${(prop.price / 100000).toFixed(2).replace(/\.00$/, '')} Lakhs`
+                                        : `₹${prop.price.toLocaleString('en-IN')}`}
+                                  </span>
+                                  <span className="rounded border border-slate-700 bg-slate-800 px-1 py-0 text-[9px] text-slate-300 uppercase">
+                                    {prop.status}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                            return createPortal(el, document.body);
+                          })()}
+                      </div>
+                      {showReferrerSuggestions &&
+                        filteredReferrerContacts.length > 0 && (
+                          <div className="absolute z-50 mt-1 max-h-48 w-full space-y-0.5 overflow-y-auto rounded-md border border-slate-700 bg-slate-900 p-1 shadow-lg">
+                            <div className="mb-1 border-b border-slate-800 px-2 py-1 text-[10px] font-semibold text-slate-500">
+                              Link to existing contact:
+                            </div>
+                            {filteredReferrerContacts.map((c) => (
+                              <button
+                                key={c.id}
+                                type="button"
+                                onMouseDown={() => {
+                                  setEditReferrer(c.name || 'Unnamed');
+                                  setEditReferrerContactId(c.id);
+                                  setShowReferrerSuggestions(false);
+                                }}
+                                className="flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-xs text-slate-200 hover:bg-slate-800"
+                              >
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-semibold">
+                                    {contactFullName(c) || 'Unnamed'}
+                                  </span>
+                                  <NameTagBadge tag={c.name_tag} />
+                                  <span className="ml-1.5 text-[10px] text-slate-400">
+                                    ({c.phone})
+                                  </span>
+                                </div>
+                                <span className="rounded bg-slate-800 px-1 py-0.5 text-[10px] font-bold text-slate-400">
+                                  {c.classification}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                    </div>
+                    {contactId && (
+                      <PartyPanel
+                        contactId={contactId}
+                        contacts={contactsList}
+                        canEdit={canEditContacts}
+                      />
+                    )}
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-slate-400">
+                        Classification
+                      </Label>
+                      <select
+                        value={editClassification}
+                        onChange={(e) =>
+                          setEditClassification(
+                            e.target.value as
+                              | 'Owner'
+                              | 'Seller'
+                              | 'Buyer'
+                              | 'Agent'
+                              | 'Developer'
+                              | 'Owner & Buyer'
+                              | 'Others'
+                          )
+                        }
+                        className="focus:border-primary w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm text-white focus:outline-none"
+                      >
+                        <option value="Others">Others</option>
+                        <option value="Owner">Owner</option>
+                        <option value="Seller">Seller</option>
+                        <option value="Buyer">Buyer</option>
+                        <option value="Agent">Agent</option>
+                        <option value="Developer">Developer</option>
+                        <option value="Owner & Buyer">Owner & Buyer</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-slate-400">Source</Label>
+                      <select
+                        value={editSource}
+                        onChange={(e) => setEditSource(e.target.value)}
+                        className="focus:border-primary w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm text-white focus:outline-none"
+                      >
+                        <option value="">Select Source</option>
+                        <option value="Magic Bricks">Magic Bricks</option>
+                        <option value="Housing">Housing</option>
+                        <option value="99acres">99acres</option>
+                        <option value="Facebook">Facebook</option>
+                        <option value="Instagram">Instagram</option>
+                        <option value="Reference">Reference</option>
+                        <option value="WhatsApp">WhatsApp</option>
+                        <option value="Others">Others</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-slate-400">
+                        Lead Temperature / Status
+                      </Label>
+                      <select
+                        value={editLeadTemp}
+                        onChange={(e) =>
+                          setEditLeadTemp(
+                            e.target.value as
+                              | 'HOT'
+                              | 'COLD'
+                              | 'Not Responding'
+                              | 'Dead'
+                              | ''
+                          )
+                        }
+                        className="focus:border-primary w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm text-white focus:outline-none"
+                      >
+                        <option value="">None</option>
+                        <option value="HOT">🔥 HOT</option>
+                        <option value="COLD">❄️ COLD</option>
+                        <option value="Not Responding">
+                          ⏳ Not Responding
+                        </option>
+                        <option value="Dead">💀 Dead</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-slate-400">
+                        Preferred Language
+                      </Label>
+                      <select
+                        value={editPreferredLanguage}
+                        onChange={(e) =>
+                          setEditPreferredLanguage(
+                            e.target.value as LanguageCode | ''
+                          )
+                        }
+                        className="focus:border-primary w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm text-white focus:outline-none"
+                      >
+                        <option value="">Use account default</option>
+                        {LANGUAGE_CODES.map((code) => (
+                          <option key={code} value={code}>
+                            {languageDisplay(code)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-slate-400">
+                        Date of Birth
+                      </Label>
+                      <div className="space-y-1">
+                        <Input
+                          type="date"
+                          value={editDob}
+                          onChange={(e) => setEditDob(e.target.value)}
+                          className="focus:border-primary h-9 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm text-white focus:outline-none"
+                        />
+                        {editDob &&
+                          (() => {
+                            const today = new Date();
+                            const dobDate = new Date(editDob);
+                            const isBirthdayToday =
+                              today.getDate() === dobDate.getDate() &&
+                              today.getMonth() === dobDate.getMonth();
+                            if (isBirthdayToday) {
+                              return (
+                                <p className="mt-1 flex items-center gap-1 text-[10px] font-semibold text-amber-400">
+                                  🎂 Today is their birthday!
+                                </p>
+                              );
+                            }
+                            return null;
+                          })()}
+                      </div>
+                    </div>
+
+                    {deals.some((d) => d.status === 'won') && (
+                      <div className="space-y-1.5 rounded-lg border border-slate-800 bg-slate-950/40 p-2.5">
+                        <Label className="text-xs font-semibold text-slate-400">
+                          Feedback &amp; Review
+                        </Label>
+                        <select
+                          value={editFeedbackStatus}
+                          onChange={(e) =>
+                            setEditFeedbackStatus(
+                              e.target.value as
+                                | 'not_requested'
+                                | 'requested'
+                                | 'collected'
+                            )
+                          }
+                          className="focus:border-primary mt-1 h-8 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs text-white focus:outline-none"
+                        >
+                          <option value="not_requested">Not Requested</option>
+                          <option value="requested">Requested</option>
+                          <option value="collected">Collected</option>
+                        </select>
+                        <p className="mt-1 text-[9px] leading-relaxed text-slate-500">
+                          This contact has transacted successfully. Collect
+                          feedback or review to post on your showcase page.
+                        </p>
+                      </div>
+                    )}
+
+                    {editClassification !== 'Owner' && (
+                      <div className="space-y-1.5">
+                        <Label className="text-xs text-slate-400">
+                          Shown Interest / Inquired Property
+                        </Label>
+                        <SearchablePropertySelect
+                          properties={allProperties}
+                          value={editLastInquiredPropertyId}
+                          onChange={setEditLastInquiredPropertyId}
+                          placeholder="Select inquired property..."
+                        />
+                      </div>
+                    )}
+                    {editClassification === 'Agent' && (
+                      <div className="space-y-1.5">
+                        <Label className="text-xs text-slate-400">
+                          Agent Requirements
+                        </Label>
+                        <Textarea
+                          value={editRequirements}
+                          onChange={(e) => setEditRequirements(e.target.value)}
+                          placeholder="Enter agent requirements, focus areas, or client requests..."
+                          className="min-h-[100px] resize-y border-slate-700 bg-slate-800 text-sm text-white placeholder:text-slate-500"
+                        />
+                      </div>
+                    )}
+                    {inquiredProperty &&
+                      contact?.status !== 'pending_review' && (
+                        <div className="border-slate-850/60 mb-4 space-y-2 rounded-lg border bg-slate-950/20 p-3 text-xs">
+                          <div className="flex items-start justify-between gap-4">
+                            <div>
+                              <span className="block text-[9px] font-bold tracking-wider text-slate-500 uppercase">
+                                Inquired Property
+                              </span>
+                              <span className="text-xs font-bold text-white">
+                                {inquiredProperty.title}
+                              </span>
+                            </div>
+                            <div className="flex gap-1.5">
+                              <Button
+                                size="xs"
+                                variant="outline"
+                                onClick={handleSendPropertyDetails}
+                                disabled={approving}
+                                className="text-slate-350 flex h-6 cursor-pointer items-center gap-1 border-slate-800 bg-slate-900 px-2 py-0 text-[10px]"
+                              >
+                                <MessageSquare className="size-3 fill-green-500 text-green-500" />
+                                Send Free-text
+                              </Button>
+                              <Button
+                                size="xs"
+                                variant="outline"
+                                onClick={() =>
+                                  setShareProperty(inquiredProperty)
+                                }
+                                disabled={approving}
+                                className="text-slate-350 flex h-6 cursor-pointer items-center gap-1 border-slate-800 bg-slate-900 px-2 py-0 text-[10px]"
+                              >
+                                <Share2 className="text-primary size-3" />
+                                Send Template
+                              </Button>
+                            </div>
+                          </div>
+                          {!isLocationGuarded(inquiredProperty) ||
+                          canViewGuardedLocations ||
+                          inquiredProperty.user_id === user?.id ? (
+                            <div className="grid grid-cols-1 gap-1.5 border-t border-slate-800/40 pt-1.5 text-[10px] text-slate-400">
+                              <div>
+                                <span className="text-slate-500">
+                                  Exact Location:{' '}
+                                </span>
+                                <span className="text-slate-300">
+                                  {inquiredProperty.location}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-slate-500">
+                                  Google Map Link:{' '}
+                                </span>
+                                {inquiredProperty.google_map_link ? (
+                                  <a
+                                    href={inquiredProperty.google_map_link}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-primary block max-w-xs truncate hover:underline"
+                                  >
+                                    {inquiredProperty.google_map_link}
+                                  </a>
+                                ) : (
+                                  <span className="text-slate-500 italic">
+                                    No link configured
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="border-t border-slate-800/40 pt-1.5 text-[10px] text-amber-400/90">
+                              Exact location restricted — visible to admins and
+                              the listing agent only.
+                            </div>
+                          )}
+                        </div>
+                      )}
+                  </div>
                 </div>
 
                 {/* Sticky save footer — always visible while editing */}
-                <div className="shrink-0 px-4 py-2.5 border-t border-slate-800 bg-slate-900">
+                <div className="shrink-0 border-t border-slate-800 bg-slate-900 px-4 py-2.5">
                   <Button
                     onClick={saveDetails}
                     disabled={savingDetails}
@@ -2132,153 +2548,196 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
 
               {/* Preferences Tab */}
               {editClassification === 'Buyer' && (
-                <TabsContent value="preferences" className="flex-1 min-h-0 flex flex-col">
+                <TabsContent
+                  value="preferences"
+                  className="flex min-h-0 flex-1 flex-col"
+                >
                   <div className="flex-1 overflow-y-auto px-4 py-3">
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <Label className="text-slate-400 text-xs font-semibold">Budget Range (INR)</Label>
-                        <label className="flex items-center gap-1.5 text-xs text-slate-400 cursor-pointer select-none">
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs font-semibold text-slate-400">
+                            Budget Range (INR)
+                          </Label>
+                          <label className="flex cursor-pointer items-center gap-1.5 text-xs text-slate-400 select-none">
+                            <input
+                              type="checkbox"
+                              checked={editNoBudget}
+                              onChange={(e) => {
+                                setEditNoBudget(e.target.checked);
+                                if (e.target.checked) {
+                                  setEditMinBudget('');
+                                  setEditMaxBudget('');
+                                }
+                              }}
+                              className="border-slate-750 text-primary focus:ring-primary/40 h-3.5 w-3.5 rounded bg-slate-800"
+                            />
+                            No Budget Limit
+                          </label>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <Label className="text-[10px] text-slate-500">
+                              Min Budget
+                            </Label>
+                            <Input
+                              type="number"
+                              disabled={editNoBudget}
+                              value={editMinBudget}
+                              onChange={(e) => setEditMinBudget(e.target.value)}
+                              placeholder="Min Budget"
+                              className="h-8 border-slate-700 bg-slate-800 text-xs text-white disabled:opacity-40"
+                            />
+                            <PriceHint
+                              value={editMinBudget}
+                              compact
+                              className="block text-[10px]"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-[10px] text-slate-500">
+                              Max Budget
+                            </Label>
+                            <Input
+                              type="number"
+                              disabled={editNoBudget}
+                              value={editMaxBudget}
+                              onChange={(e) => setEditMaxBudget(e.target.value)}
+                              placeholder="Max Budget"
+                              className="h-8 border-slate-700 bg-slate-800 text-xs text-white disabled:opacity-40"
+                            />
+                            <PriceHint
+                              value={editMaxBudget}
+                              compact
+                              className="block text-[10px]"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* ROI Preference Field */}
+                      <div className="space-y-2">
+                        <Label className="text-xs font-semibold text-slate-400">
+                          Expected Min ROI (%)
+                        </Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={editMinRoi}
+                          onChange={(e) => setEditMinRoi(e.target.value)}
+                          placeholder="e.g. 4.5"
+                          className="focus-visible:ring-primary h-8 border-slate-700 bg-slate-800 text-xs text-white focus-visible:ring-1 focus-visible:ring-offset-0"
+                        />
+                      </div>
+
+                      {/* Areas of Interest */}
+                      <div className="space-y-2">
+                        <Label className="text-xs font-semibold text-slate-400">
+                          Areas of Interest
+                        </Label>
+
+                        <AreasOfInterestInput
+                          areasText={editAreasText}
+                          areasOfInterest={editAreasOfInterest}
+                          onChange={(text, areas) => {
+                            setEditAreasText(text);
+                            setEditAreasOfInterest(areas);
+                          }}
+                          onPickGeo={(geo) =>
+                            setEditAreasGeo((prev) => [
+                              ...prev.filter(
+                                (g) =>
+                                  g.name.toLowerCase() !==
+                                  geo.name.toLowerCase()
+                              ),
+                              geo,
+                            ])
+                          }
+                        />
+
+                        {/* Strict Area Match Checkbox */}
+                        <div className="flex items-center space-x-2 pt-2">
                           <input
                             type="checkbox"
-                            checked={editNoBudget}
-                            onChange={(e) => {
-                              setEditNoBudget(e.target.checked);
-                              if (e.target.checked) {
-                                setEditMinBudget('');
-                                setEditMaxBudget('');
-                              }
-                            }}
-                            className="rounded border-slate-750 bg-slate-800 text-primary focus:ring-primary/40 h-3.5 w-3.5"
+                            id="edit-cf-strict-area-match"
+                            checked={editStrictAreaMatch}
+                            onChange={(e) =>
+                              setEditStrictAreaMatch(e.target.checked)
+                            }
+                            className="text-primary size-3.5 rounded border-slate-700 bg-slate-800 focus:ring-0 focus:ring-offset-0"
                           />
-                          No Budget Limit
-                        </label>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1">
-                          <Label className="text-[10px] text-slate-500">Min Budget</Label>
-                          <Input
-                            type="number"
-                            disabled={editNoBudget}
-                            value={editMinBudget}
-                            onChange={(e) => setEditMinBudget(e.target.value)}
-                            placeholder="Min Budget"
-                            className="bg-slate-800 border-slate-700 text-white h-8 text-xs disabled:opacity-40"
-                          />
-                          <PriceHint value={editMinBudget} compact className="text-[10px] block" />
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-[10px] text-slate-500">Max Budget</Label>
-                          <Input
-                            type="number"
-                            disabled={editNoBudget}
-                            value={editMaxBudget}
-                            onChange={(e) => setEditMaxBudget(e.target.value)}
-                            placeholder="Max Budget"
-                            className="bg-slate-800 border-slate-700 text-white h-8 text-xs disabled:opacity-40"
-                          />
-                          <PriceHint value={editMaxBudget} compact className="text-[10px] block" />
+                          <label
+                            htmlFor="edit-cf-strict-area-match"
+                            className="cursor-pointer text-[11px] font-medium text-slate-400 select-none"
+                          >
+                            Strict Area Match (Matches within 5 kms instead of
+                            20 kms)
+                          </label>
                         </div>
                       </div>
-                    </div>
 
-                    {/* ROI Preference Field */}
-                    <div className="space-y-2">
-                      <Label className="text-slate-400 text-xs font-semibold">Expected Min ROI (%)</Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={editMinRoi}
-                        onChange={(e) => setEditMinRoi(e.target.value)}
-                        placeholder="e.g. 4.5"
-                        className="bg-slate-800 border-slate-700 text-white h-8 text-xs focus-visible:ring-1 focus-visible:ring-primary focus-visible:ring-offset-0"
-                      />
-                    </div>
+                      {/* Named Projects */}
+                      <div className="space-y-2">
+                        <Label className="text-xs font-semibold text-slate-400">
+                          Projects of Interest
+                        </Label>
 
-                    {/* Areas of Interest */}
-                    <div className="space-y-2">
-                      <Label className="text-slate-400 text-xs font-semibold">Areas of Interest</Label>
-
-                      <AreasOfInterestInput
-                        areasText={editAreasText}
-                        areasOfInterest={editAreasOfInterest}
-                        onChange={(text, areas) => {
-                          setEditAreasText(text);
-                          setEditAreasOfInterest(areas);
-                        }}
-                        onPickGeo={(geo) =>
-                          setEditAreasGeo((prev) => [
-                            ...prev.filter((g) => g.name.toLowerCase() !== geo.name.toLowerCase()),
-                            geo,
-                          ])
-                        }
-                      />
-
-                      {/* Strict Area Match Checkbox */}
-                      <div className="flex items-center space-x-2 pt-2">
-                        <input
-                          type="checkbox"
-                          id="edit-cf-strict-area-match"
-                          checked={editStrictAreaMatch}
-                          onChange={(e) => setEditStrictAreaMatch(e.target.checked)}
-                          className="rounded border-slate-700 bg-slate-800 text-primary focus:ring-0 focus:ring-offset-0 size-3.5"
+                        <ProjectsOfInterestInput
+                          projectsText={editProjectsText}
+                          projects={editProjectsOfInterest}
+                          strict={editStrictProjectMatch}
+                          onChange={(text, projects) => {
+                            setEditProjectsText(text);
+                            setEditProjectsOfInterest(projects);
+                          }}
+                          onStrictChange={setEditStrictProjectMatch}
+                          idPrefix="edit-cf"
                         />
-                        <label htmlFor="edit-cf-strict-area-match" className="text-[11px] text-slate-400 font-medium cursor-pointer select-none">
-                          Strict Area Match (Matches within 5 kms instead of 20 kms)
-                        </label>
+                      </div>
+
+                      {/* Property Category Interests */}
+                      <div className="space-y-2">
+                        <Label className="text-xs font-semibold text-slate-400">
+                          Property Category Interests
+                        </Label>
+                        <div className="grid grid-cols-1 gap-2 rounded-lg border border-slate-800/80 bg-slate-950/20 p-3">
+                          {PROPERTY_INTEREST_OPTIONS.map((option) => {
+                            const checked =
+                              editPropertyInterests.includes(option);
+                            return (
+                              <label
+                                key={option}
+                                className="text-slate-350 flex cursor-pointer items-start gap-2.5 text-xs select-none hover:text-white"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setEditPropertyInterests((prev) => [
+                                        ...prev,
+                                        option,
+                                      ]);
+                                    } else {
+                                      setEditPropertyInterests((prev) =>
+                                        prev.filter((o) => o !== option)
+                                      );
+                                    }
+                                  }}
+                                  className="text-primary focus:ring-primary/40 mt-0.5 h-3.5 w-3.5 cursor-pointer rounded border-slate-700 bg-slate-800"
+                                />
+                                <span>{option}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
                       </div>
                     </div>
-
-                    {/* Named Projects */}
-                    <div className="space-y-2">
-                      <Label className="text-slate-400 text-xs font-semibold">Projects of Interest</Label>
-
-                      <ProjectsOfInterestInput
-                        projectsText={editProjectsText}
-                        projects={editProjectsOfInterest}
-                        strict={editStrictProjectMatch}
-                        onChange={(text, projects) => {
-                          setEditProjectsText(text);
-                          setEditProjectsOfInterest(projects);
-                        }}
-                        onStrictChange={setEditStrictProjectMatch}
-                        idPrefix="edit-cf"
-                      />
-                    </div>
-
-                    {/* Property Category Interests */}
-                    <div className="space-y-2">
-                      <Label className="text-slate-400 text-xs font-semibold">Property Category Interests</Label>
-                      <div className="grid grid-cols-1 gap-2 bg-slate-950/20 border border-slate-800/80 rounded-lg p-3">
-                        {PROPERTY_INTEREST_OPTIONS.map(option => {
-                          const checked = editPropertyInterests.includes(option);
-                          return (
-                            <label key={option} className="flex items-start gap-2.5 text-xs text-slate-350 cursor-pointer select-none hover:text-white">
-                              <input
-                                type="checkbox"
-                                checked={checked}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    setEditPropertyInterests(prev => [...prev, option]);
-                                  } else {
-                                    setEditPropertyInterests(prev => prev.filter(o => o !== option));
-                                  }
-                                }}
-                                className="rounded border-slate-700 bg-slate-800 text-primary focus:ring-primary/40 mt-0.5 h-3.5 w-3.5 cursor-pointer"
-                              />
-                              <span>{option}</span>
-                            </label>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                  </div>
                   </div>
 
                   {/* Sticky save footer — always visible while editing */}
-                  <div className="shrink-0 px-4 py-2.5 border-t border-slate-800 bg-slate-900">
+                  <div className="shrink-0 border-t border-slate-800 bg-slate-900 px-4 py-2.5">
                     <Button
                       onClick={savePreferences}
                       disabled={savingPreferences}
@@ -2297,287 +2756,356 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
               )}
 
               {/* Properties Tab (Owner / Seller / Agent / Buyer / Owner & Buyer) */}
-              {['Owner', 'Seller', 'Agent', 'Developer', 'Buyer', 'Owner & Buyer'].includes(editClassification) && (
-                <TabsContent value="properties" className="flex-1 min-h-0 h-full">
-                <div className="h-full flex flex-col px-4 py-3 min-h-0">
-                  {['Buyer', 'Agent', 'Owner & Buyer'].includes(editClassification) ? (
-                    // Shown Interest Properties Layout (also shown for Owner & Buyer)
-                    <div className="flex flex-col flex-1 min-h-0">
-                      <div className="flex flex-col gap-1.5 shrink-0 mb-4 bg-slate-900/40 border border-slate-800 rounded-lg p-3">
-                        <Label htmlFor="detail-interest-property" className="text-xs font-semibold text-slate-350">
-                          Assign Shown Interest / Inquired Property
-                        </Label>
-                        <SearchablePropertySelect
-                          properties={allProperties}
-                          value={editLastInquiredPropertyId}
-                          onChange={handleLinkInterestProperty}
-                          placeholder="No Property Selected"
-                        />
-                        <p className="text-[10px] text-slate-500 mt-0.5">
-                          Linking a property associates this contact as an Interested Lead for that listing.
-                        </p>
-                      </div>
+              {[
+                'Owner',
+                'Seller',
+                'Agent',
+                'Developer',
+                'Buyer',
+                'Owner & Buyer',
+              ].includes(editClassification) && (
+                <TabsContent
+                  value="properties"
+                  className="h-full min-h-0 flex-1"
+                >
+                  <div className="flex h-full min-h-0 flex-col px-4 py-3">
+                    {['Buyer', 'Agent', 'Owner & Buyer'].includes(
+                      editClassification
+                    ) ? (
+                      // Shown Interest Properties Layout (also shown for Owner & Buyer)
+                      <div className="flex min-h-0 flex-1 flex-col">
+                        <div className="mb-4 flex shrink-0 flex-col gap-1.5 rounded-lg border border-slate-800 bg-slate-900/40 p-3">
+                          <Label
+                            htmlFor="detail-interest-property"
+                            className="text-slate-350 text-xs font-semibold"
+                          >
+                            Assign Shown Interest / Inquired Property
+                          </Label>
+                          <SearchablePropertySelect
+                            properties={allProperties}
+                            value={editLastInquiredPropertyId}
+                            onChange={handleLinkInterestProperty}
+                            placeholder="No Property Selected"
+                          />
+                          <p className="mt-0.5 text-[10px] text-slate-500">
+                            Linking a property associates this contact as an
+                            Interested Lead for that listing.
+                          </p>
+                        </div>
 
-                      <div className="flex-1 overflow-y-auto space-y-2 min-h-0">
-                        <h4 className="text-xs font-semibold text-slate-400 mb-2">
-                          Interested Properties ({inquiredProperties.length})
-                        </h4>
-                        {inquiredProperties.length === 0 ? (
-                          <div className="text-center py-8 border border-dashed border-slate-800 rounded-lg bg-slate-900/20">
-                            <Building className="size-8 mx-auto text-slate-700 mb-2 opacity-50" />
-                            <p className="text-xs text-slate-500 max-w-[240px] mx-auto">
-                              No inquiry or interest property is currently assigned. Select a property above to assign interest.
-                            </p>
-                          </div>
-                        ) : (
-                           <div className="space-y-2">
-                             {inquiredProperties.map((prop) => (
-                               <div
-                                 key={prop.id}
-                                 className="rounded-lg bg-slate-850/60 border border-slate-800 p-3 hover:border-slate-700/80 transition-all duration-200"
-                                 onMouseEnter={(e) => {
-                                   const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                                   setHoveredPropId(prop.id);
-                                   setHoverPos({ top: rect.bottom + 4, left: rect.left });
-                                 }}
-                                 onMouseLeave={() => { setHoveredPropId(null); setHoverPos(null); }}
-                               >
-                                 <div className="flex items-start justify-between gap-3">
-                                  <div className="min-w-0">
-                                    <span className="text-[9px] px-1.5 py-0.2 bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 rounded uppercase font-bold tracking-wider inline-block mb-1.5">
-                                      SHOWN INTEREST
-                                    </span>
-                                    <h5 className="text-xs font-semibold text-white truncate">
-                                      {prop.property_code ? `[${prop.property_code}] ` : ''}
-                                      {prop.title}
-                                    </h5>
-                                    <p className="text-[10px] text-slate-400 mt-0.5 truncate">{prop.location}</p>
-                                    <div className="flex items-center gap-2 mt-1.5">
-                                      <span className="text-[10px] text-primary font-bold">
-                                        {prop.price >= 10000000 
-                                          ? `₹${(prop.price / 10000000).toFixed(2).replace(/\.00$/, '')} Cr` 
-                                          : prop.price >= 100000 
-                                            ? `₹${(prop.price / 100000).toFixed(2).replace(/\.00$/, '')} Lakhs` 
-                                            : `₹${prop.price.toLocaleString('en-IN')}`}
-                                      </span>
-                                      <span className="text-[9px] px-1.5 py-0.2 bg-slate-800 border border-slate-700 text-slate-300 rounded uppercase font-semibold">
-                                        {prop.status}
-                                      </span>
-                                      {propertyMessageStatus[prop.id]?.sent && (
-                                        <span className="text-[9px] px-1.5 py-0.2 bg-blue-500/10 border border-blue-500/25 text-blue-400 rounded font-semibold">
-                                          Sent {propertyMessageStatus[prop.id].lastSentAt && new Date(propertyMessageStatus[prop.id].lastSentAt!).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
-                                        </span>
-                                      )}
-                                      {propertyMessageStatus[prop.id]?.responded && (
-                                        <span className="text-[9px] px-1.5 py-0.2 bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 rounded font-semibold">
-                                          Responded
-                                        </span>
-                                      )}
-                                    </div>
-                                  </div>
-                                  <div className="flex items-center gap-1 shrink-0">
-                                    <Button
-                                      size="sm"
-                                      variant="ghost"
-                                      onClick={() => setShareProperty(prop)}
-                                      className="h-7 w-7 p-0 text-slate-400 hover:text-primary hover:bg-slate-800"
-                                      title={`Send these details to ${contact?.name || contact?.phone || 'this contact'}`}
-                                    >
-                                      <Share2 className="size-3" />
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      variant="ghost"
-                                      onClick={() => handleRemoveInquiredProperty(prop.id)}
-                                      className="h-7 w-7 p-0 text-slate-400 hover:text-red-400 hover:bg-slate-800"
-                                      title="Remove interest link"
-                                    >
-                                      <Unlink className="size-3" />
-                                    </Button>
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-
-                        {/* Shared Properties Section */}
-                        <div className="pt-4 border-t border-slate-800/60 mt-4">
-                          <h4 className="text-xs font-semibold text-slate-400 mb-2 flex items-center gap-1.5">
-                            <Share2 className="size-3.5 text-primary" />
-                            Shared Properties
+                        <div className="min-h-0 flex-1 space-y-2 overflow-y-auto">
+                          <h4 className="mb-2 text-xs font-semibold text-slate-400">
+                            Interested Properties ({inquiredProperties.length})
                           </h4>
-                          {loadingSharedProperties ? (
-                            <div className="flex items-center justify-center py-6">
-                              <Loader2 className="size-4 animate-spin text-slate-500" />
-                            </div>
-                          ) : sharedProperties.length === 0 ? (
-                            <div className="text-center py-6 border border-dashed border-slate-800 rounded-lg bg-slate-900/10">
-                              <p className="text-[10px] text-slate-500 max-w-[220px] mx-auto">
-                                No properties have been shared with this contact via WhatsApp yet.
+                          {inquiredProperties.length === 0 ? (
+                            <div className="rounded-lg border border-dashed border-slate-800 bg-slate-900/20 py-8 text-center">
+                              <Building className="mx-auto mb-2 size-8 text-slate-700 opacity-50" />
+                              <p className="mx-auto max-w-[240px] text-xs text-slate-500">
+                                No inquiry or interest property is currently
+                                assigned. Select a property above to assign
+                                interest.
                               </p>
                             </div>
                           ) : (
                             <div className="space-y-2">
-                              {sharedProperties.map((prop) => (
+                              {inquiredProperties.map((prop) => (
                                 <div
                                   key={prop.id}
-                                  className="rounded-lg bg-slate-850/40 border border-slate-850 p-3 hover:border-slate-700/60 transition-all duration-205"
+                                  className="bg-slate-850/60 rounded-lg border border-slate-800 p-3 transition-all duration-200 hover:border-slate-700/80"
+                                  onMouseEnter={(e) => {
+                                    const rect = (
+                                      e.currentTarget as HTMLElement
+                                    ).getBoundingClientRect();
+                                    setHoveredPropId(prop.id);
+                                    setHoverPos({
+                                      top: rect.bottom + 4,
+                                      left: rect.left,
+                                    });
+                                  }}
+                                  onMouseLeave={() => {
+                                    setHoveredPropId(null);
+                                    setHoverPos(null);
+                                  }}
                                 >
                                   <div className="flex items-start justify-between gap-3">
-                                    <div className="min-w-0 flex-1">
-                                      <h5 className="text-xs font-semibold text-white truncate">
-                                        {prop.property_code ? `[${prop.property_code}] ` : ''}
+                                    <div className="min-w-0">
+                                      <span className="py-0.2 mb-1.5 inline-block rounded border border-emerald-500/25 bg-emerald-500/10 px-1.5 text-[9px] font-bold tracking-wider text-emerald-400 uppercase">
+                                        SHOWN INTEREST
+                                      </span>
+                                      <h5 className="truncate text-xs font-semibold text-white">
+                                        {prop.property_code
+                                          ? `[${prop.property_code}] `
+                                          : ''}
                                         {prop.title}
                                       </h5>
-                                      <p className="text-[10px] text-slate-450 mt-0.5 truncate">{prop.location}</p>
-                                      <div className="flex items-center justify-between gap-2 mt-1.5">
-                                        <div className="flex items-center gap-2">
-                                          <span className="text-[10px] text-primary font-bold">
-                                            {prop.price >= 10000000 
-                                              ? `₹${(prop.price / 10000000).toFixed(2).replace(/\.00$/, '')} Cr` 
-                                              : prop.price >= 100000 
-                                                ? `₹${(prop.price / 100000).toFixed(2).replace(/\.00$/, '')} Lakhs` 
-                                                : `₹${prop.price.toLocaleString('en-IN')}`}
-                                          </span>
-                                          <span className="text-[9px] px-1.5 py-0.2 bg-slate-800 border border-slate-700 text-slate-350 rounded uppercase font-semibold">
-                                            {prop.status}
-                                          </span>
-                                        </div>
-                                        <span className="text-[9px] text-slate-500">
-                                          Shared: {new Date(prop.sharedAt).toLocaleDateString('en-IN', {
-                                            day: '2-digit',
-                                            month: 'short',
-                                            year: '2-digit'
-                                          })}
+                                      <p className="mt-0.5 truncate text-[10px] text-slate-400">
+                                        {prop.location}
+                                      </p>
+                                      <div className="mt-1.5 flex items-center gap-2">
+                                        <span className="text-primary text-[10px] font-bold">
+                                          {prop.price >= 10000000
+                                            ? `₹${(prop.price / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`
+                                            : prop.price >= 100000
+                                              ? `₹${(prop.price / 100000).toFixed(2).replace(/\.00$/, '')} Lakhs`
+                                              : `₹${prop.price.toLocaleString('en-IN')}`}
                                         </span>
+                                        <span className="py-0.2 rounded border border-slate-700 bg-slate-800 px-1.5 text-[9px] font-semibold text-slate-300 uppercase">
+                                          {prop.status}
+                                        </span>
+                                        {propertyMessageStatus[prop.id]
+                                          ?.sent && (
+                                          <span className="py-0.2 rounded border border-blue-500/25 bg-blue-500/10 px-1.5 text-[9px] font-semibold text-blue-400">
+                                            Sent{' '}
+                                            {propertyMessageStatus[prop.id]
+                                              .lastSentAt &&
+                                              new Date(
+                                                propertyMessageStatus[prop.id]
+                                                  .lastSentAt!
+                                              ).toLocaleDateString('en-IN', {
+                                                day: '2-digit',
+                                                month: 'short',
+                                              })}
+                                          </span>
+                                        )}
+                                        {propertyMessageStatus[prop.id]
+                                          ?.responded && (
+                                          <span className="py-0.2 rounded border border-emerald-500/25 bg-emerald-500/10 px-1.5 text-[9px] font-semibold text-emerald-400">
+                                            Responded
+                                          </span>
+                                        )}
                                       </div>
+                                    </div>
+                                    <div className="flex shrink-0 items-center gap-1">
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() => setShareProperty(prop)}
+                                        className="hover:text-primary h-7 w-7 p-0 text-slate-400 hover:bg-slate-800"
+                                        title={`Send these details to ${contact?.name || contact?.phone || 'this contact'}`}
+                                      >
+                                        <Share2 className="size-3" />
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() =>
+                                          handleRemoveInquiredProperty(prop.id)
+                                        }
+                                        className="h-7 w-7 p-0 text-slate-400 hover:bg-slate-800 hover:text-red-400"
+                                        title="Remove interest link"
+                                      >
+                                        <Unlink className="size-3" />
+                                      </Button>
                                     </div>
                                   </div>
                                 </div>
                               ))}
                             </div>
                           )}
-                        </div>
-                      </div>
-                    </div>
-                  ) : null}
-                  {['Owner', 'Seller', 'Developer', 'Owner & Buyer'].includes(editClassification) && (
-                    // Managed Properties Layout (for Owner / Seller / Developer / Owner & Buyer)
-                    <div className="flex flex-col flex-1 min-h-0">
-                      <div className="flex items-center justify-between mb-3 shrink-0">
-                        <h4 className="text-xs font-semibold text-slate-300">Managed Properties</h4>
-                        <div className="flex items-center gap-1.5">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => setLinkExistingOpen(!linkExistingOpen)}
-                            className="border-slate-700 text-slate-300 hover:bg-slate-800 h-7 text-xs font-bold flex items-center gap-1 cursor-pointer"
-                          >
-                            <Link className="size-3" />
-                            Link Existing
-                          </Button>
-                          <Button
-                            size="sm"
-                            onClick={() => {
-                              setSelectedPropertyForEdit(null);
-                              setPropertyFormOpen(true);
-                            }}
-                            className="bg-primary hover:bg-primary/90 text-primary-foreground h-7 text-xs font-bold flex items-center gap-1 cursor-pointer"
-                          >
-                            <Plus className="size-3" />
-                            Add Property
-                          </Button>
-                        </div>
-                      </div>
 
-                      {linkExistingOpen && (
-                        <div className="mb-3 bg-slate-900/40 border border-slate-800 rounded-lg p-3 space-y-1.5 shrink-0">
-                          <Label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-                            Link an existing property to this contact
-                          </Label>
-                          <SearchablePropertySelect
-                            properties={allProperties.filter(
-                              (p) => !associatedProperties.some((ap) => ap.id === p.id)
+                          {/* Shared Properties Section */}
+                          <div className="mt-4 border-t border-slate-800/60 pt-4">
+                            <h4 className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-slate-400">
+                              <Share2 className="text-primary size-3.5" />
+                              Shared Properties
+                            </h4>
+                            {loadingSharedProperties ? (
+                              <div className="flex items-center justify-center py-6">
+                                <Loader2 className="size-4 animate-spin text-slate-500" />
+                              </div>
+                            ) : sharedProperties.length === 0 ? (
+                              <div className="rounded-lg border border-dashed border-slate-800 bg-slate-900/10 py-6 text-center">
+                                <p className="mx-auto max-w-[220px] text-[10px] text-slate-500">
+                                  No properties have been shared with this
+                                  contact via WhatsApp yet.
+                                </p>
+                              </div>
+                            ) : (
+                              <div className="space-y-2">
+                                {sharedProperties.map((prop) => (
+                                  <div
+                                    key={prop.id}
+                                    className="bg-slate-850/40 border-slate-850 rounded-lg border p-3 transition-all duration-205 hover:border-slate-700/60"
+                                  >
+                                    <div className="flex items-start justify-between gap-3">
+                                      <div className="min-w-0 flex-1">
+                                        <h5 className="truncate text-xs font-semibold text-white">
+                                          {prop.property_code
+                                            ? `[${prop.property_code}] `
+                                            : ''}
+                                          {prop.title}
+                                        </h5>
+                                        <p className="text-slate-450 mt-0.5 truncate text-[10px]">
+                                          {prop.location}
+                                        </p>
+                                        <div className="mt-1.5 flex items-center justify-between gap-2">
+                                          <div className="flex items-center gap-2">
+                                            <span className="text-primary text-[10px] font-bold">
+                                              {prop.price >= 10000000
+                                                ? `₹${(prop.price / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`
+                                                : prop.price >= 100000
+                                                  ? `₹${(prop.price / 100000).toFixed(2).replace(/\.00$/, '')} Lakhs`
+                                                  : `₹${prop.price.toLocaleString('en-IN')}`}
+                                            </span>
+                                            <span className="py-0.2 text-slate-350 rounded border border-slate-700 bg-slate-800 px-1.5 text-[9px] font-semibold uppercase">
+                                              {prop.status}
+                                            </span>
+                                          </div>
+                                          <span className="text-[9px] text-slate-500">
+                                            Shared:{' '}
+                                            {new Date(
+                                              prop.sharedAt
+                                            ).toLocaleDateString('en-IN', {
+                                              day: '2-digit',
+                                              month: 'short',
+                                              year: '2-digit',
+                                            })}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
                             )}
-                            value={null}
-                            onChange={handleLinkExistingProperty}
-                            placeholder="Search properties to link..."
-                          />
+                          </div>
                         </div>
-                      )}
-
-                      <div className="flex-1 overflow-y-auto space-y-2 min-h-0">
-                        {loadingProperties ? (
-                          <div className="flex items-center justify-center py-8">
-                            <Loader2 className="size-5 animate-spin text-slate-500" />
-                          </div>
-                        ) : associatedProperties.length === 0 ? (
-                          <div className="text-center py-8 border border-dashed border-slate-800 rounded-lg bg-slate-900/40">
-                            <Building className="size-8 mx-auto text-slate-600 mb-2 opacity-55" />
-                            <p className="text-xs text-slate-400 max-w-[240px] mx-auto">
-                              No properties associated with this contact. Add one to display it here.
-                            </p>
-                          </div>
-                        ) : (
-                          associatedProperties.map((prop) => (
-                            <div
-                              key={prop.id}
-                              className="rounded-lg bg-slate-850/60 border border-slate-800 p-3 hover:border-slate-700/80 transition-all duration-200"
+                      </div>
+                    ) : null}
+                    {['Owner', 'Seller', 'Developer', 'Owner & Buyer'].includes(
+                      editClassification
+                    ) && (
+                      // Managed Properties Layout (for Owner / Seller / Developer / Owner & Buyer)
+                      <div className="flex min-h-0 flex-1 flex-col">
+                        <div className="mb-3 flex shrink-0 items-center justify-between">
+                          <h4 className="text-xs font-semibold text-slate-300">
+                            Managed Properties
+                          </h4>
+                          <div className="flex items-center gap-1.5">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() =>
+                                setLinkExistingOpen(!linkExistingOpen)
+                              }
+                              className="flex h-7 cursor-pointer items-center gap-1 border-slate-700 text-xs font-bold text-slate-300 hover:bg-slate-800"
                             >
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="min-w-0">
-                                  <h5 className="text-xs font-semibold text-white truncate">{prop.title}</h5>
-                                  <p className="text-[10px] text-slate-400 mt-0.5 truncate">{prop.location}</p>
-                                  <div className="flex items-center gap-2 mt-1.5">
-                                    <span className="text-[10px] text-primary font-bold">
-                                      {prop.price >= 10000000 
-                                        ? `₹${(prop.price / 10000000).toFixed(2).replace(/\.00$/, '')} Cr` 
-                                        : prop.price >= 100000 
-                                          ? `₹${(prop.price / 100000).toFixed(2).replace(/\.00$/, '')} Lakhs` 
-                                          : `₹${prop.price.toLocaleString('en-IN')}`}
-                                    </span>
-                                    <span className="text-[9px] px-1.5 py-0.2 bg-slate-800 border border-slate-700 text-slate-300 rounded uppercase font-semibold">
-                                      {prop.status}
-                                    </span>
+                              <Link className="size-3" />
+                              Link Existing
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={() => {
+                                setSelectedPropertyForEdit(null);
+                                setPropertyFormOpen(true);
+                              }}
+                              className="bg-primary hover:bg-primary/90 text-primary-foreground flex h-7 cursor-pointer items-center gap-1 text-xs font-bold"
+                            >
+                              <Plus className="size-3" />
+                              Add Property
+                            </Button>
+                          </div>
+                        </div>
+
+                        {linkExistingOpen && (
+                          <div className="mb-3 shrink-0 space-y-1.5 rounded-lg border border-slate-800 bg-slate-900/40 p-3">
+                            <Label className="text-[10px] font-semibold tracking-wider text-slate-400 uppercase">
+                              Link an existing property to this contact
+                            </Label>
+                            <SearchablePropertySelect
+                              properties={allProperties.filter(
+                                (p) =>
+                                  !associatedProperties.some(
+                                    (ap) => ap.id === p.id
+                                  )
+                              )}
+                              value={null}
+                              onChange={handleLinkExistingProperty}
+                              placeholder="Search properties to link..."
+                            />
+                          </div>
+                        )}
+
+                        <div className="min-h-0 flex-1 space-y-2 overflow-y-auto">
+                          {loadingProperties ? (
+                            <div className="flex items-center justify-center py-8">
+                              <Loader2 className="size-5 animate-spin text-slate-500" />
+                            </div>
+                          ) : associatedProperties.length === 0 ? (
+                            <div className="rounded-lg border border-dashed border-slate-800 bg-slate-900/40 py-8 text-center">
+                              <Building className="mx-auto mb-2 size-8 text-slate-600 opacity-55" />
+                              <p className="mx-auto max-w-[240px] text-xs text-slate-400">
+                                No properties associated with this contact. Add
+                                one to display it here.
+                              </p>
+                            </div>
+                          ) : (
+                            associatedProperties.map((prop) => (
+                              <div
+                                key={prop.id}
+                                className="bg-slate-850/60 rounded-lg border border-slate-800 p-3 transition-all duration-200 hover:border-slate-700/80"
+                              >
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="min-w-0">
+                                    <h5 className="truncate text-xs font-semibold text-white">
+                                      {prop.title}
+                                    </h5>
+                                    <p className="mt-0.5 truncate text-[10px] text-slate-400">
+                                      {prop.location}
+                                    </p>
+                                    <div className="mt-1.5 flex items-center gap-2">
+                                      <span className="text-primary text-[10px] font-bold">
+                                        {prop.price >= 10000000
+                                          ? `₹${(prop.price / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`
+                                          : prop.price >= 100000
+                                            ? `₹${(prop.price / 100000).toFixed(2).replace(/\.00$/, '')} Lakhs`
+                                            : `₹${prop.price.toLocaleString('en-IN')}`}
+                                      </span>
+                                      <span className="py-0.2 rounded border border-slate-700 bg-slate-800 px-1.5 text-[9px] font-semibold text-slate-300 uppercase">
+                                        {prop.status}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <div className="flex shrink-0 items-center gap-1">
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => {
+                                        setSelectedPropertyForEdit(prop);
+                                        setPropertyFormOpen(true);
+                                      }}
+                                      className="h-7 w-7 p-0 text-slate-400 hover:bg-slate-800 hover:text-white"
+                                    >
+                                      <Edit className="size-3" />
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() =>
+                                        handleUnlinkProperty(prop.id)
+                                      }
+                                      className="h-7 w-7 p-0 text-slate-400 hover:bg-slate-800 hover:text-red-400"
+                                      title="Unlink from contact"
+                                    >
+                                      <Unlink className="size-3" />
+                                    </Button>
                                   </div>
                                 </div>
-                                <div className="flex items-center gap-1 shrink-0">
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => {
-                                      setSelectedPropertyForEdit(prop);
-                                      setPropertyFormOpen(true);
-                                    }}
-                                    className="h-7 w-7 p-0 text-slate-400 hover:text-white hover:bg-slate-800"
-                                  >
-                                    <Edit className="size-3" />
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => handleUnlinkProperty(prop.id)}
-                                    className="h-7 w-7 p-0 text-slate-400 hover:text-red-400 hover:bg-slate-800"
-                                    title="Unlink from contact"
-                                  >
-                                    <Unlink className="size-3" />
-                                  </Button>
-                                </div>
                               </div>
-                            </div>
-                          ))
-                        )}
+                            ))
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  )}
-                </div>
+                    )}
+                  </div>
                 </TabsContent>
               )}
 
-
               {/* Tags Tab */}
-              <TabsContent value="tags" className="flex-1 overflow-y-auto px-4 py-3">
+              <TabsContent
+                value="tags"
+                className="flex-1 overflow-y-auto px-4 py-3"
+              >
                 <div className="space-y-3">
                   <p className="text-xs text-slate-400">
                     Click a tag to add or remove it from this contact.
@@ -2595,9 +3123,9 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                             key={tag.id}
                             onClick={() => toggleTag(tag.id)}
                             disabled={savingTags}
-                            className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium transition-all cursor-pointer ${
+                            className={`inline-flex cursor-pointer items-center rounded-full px-3 py-1 text-xs font-medium transition-all ${
                               selected
-                                ? 'ring-2 ring-primary ring-offset-1 ring-offset-slate-900'
+                                ? 'ring-primary ring-2 ring-offset-1 ring-offset-slate-900'
                                 : 'opacity-50 hover:opacity-80'
                             }`}
                             style={{
@@ -2605,7 +3133,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                               color: tag.color,
                             }}
                           >
-                            {selected && <Check className="size-3 mr-1" />}
+                            {selected && <Check className="mr-1 size-3" />}
                             {tag.name}
                           </button>
                         );
@@ -2616,79 +3144,85 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
               </TabsContent>
 
               {/* Notes Tab */}
-              <TabsContent value="notes" className="flex-1 min-h-0 h-full">
-              <div className="h-full flex flex-col px-4 py-3 min-h-0">
-                <div className="space-y-2 mb-3">
-                  <Textarea
-                    data-testid="contact-note-input"
-                    value={newNote}
-                    onChange={(e) => setNewNote(e.target.value)}
-                    placeholder="Write a note..."
-                    className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 min-h-[60px] text-sm resize-none"
-                  />
-                  <Button
-                    data-testid="contact-note-submit"
-                    onClick={addNote}
-                    disabled={!newNote.trim() || savingNote}
-                    className="bg-primary hover:bg-primary/90 text-primary-foreground"
-                    size="sm"
-                  >
-                    {savingNote ? (
-                      <Loader2 className="size-3.5 animate-spin" />
-                    ) : (
-                      <Plus className="size-3.5" />
-                    )}
-                    Add Note
-                  </Button>
-                </div>
+              <TabsContent value="notes" className="h-full min-h-0 flex-1">
+                <div className="flex h-full min-h-0 flex-col px-4 py-3">
+                  <div className="mb-3 space-y-2">
+                    <Textarea
+                      data-testid="contact-note-input"
+                      value={newNote}
+                      onChange={(e) => setNewNote(e.target.value)}
+                      placeholder="Write a note..."
+                      className="min-h-[60px] resize-none border-slate-700 bg-slate-800 text-sm text-white placeholder:text-slate-500"
+                    />
+                    <Button
+                      data-testid="contact-note-submit"
+                      onClick={addNote}
+                      disabled={!newNote.trim() || savingNote}
+                      className="bg-primary hover:bg-primary/90 text-primary-foreground"
+                      size="sm"
+                    >
+                      {savingNote ? (
+                        <Loader2 className="size-3.5 animate-spin" />
+                      ) : (
+                        <Plus className="size-3.5" />
+                      )}
+                      Add Note
+                    </Button>
+                  </div>
 
-                <div className="flex-1 overflow-y-auto space-y-2">
-                  {loadingNotes ? (
-                    <div className="flex items-center justify-center py-8">
-                      <Loader2 className="size-5 animate-spin text-slate-500" />
-                    </div>
-                  ) : notes.length === 0 ? (
-                    <p className="text-sm text-slate-500 text-center py-8">
-                      No notes yet.
-                    </p>
-                  ) : (
-                    notes.map((note) => (
-                      <div
-                        key={note.id}
-                        className="rounded-lg bg-slate-800/50 border border-slate-700/50 p-3 group"
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <p className="text-sm text-slate-300 whitespace-pre-wrap flex-1">
-                            {note.note_text}
-                          </p>
-                          <button
-                            onClick={() => deleteNote(note.id)}
-                            className="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-red-400 transition-all cursor-pointer shrink-0"
-                          >
-                            <Trash2 className="size-3.5" />
-                          </button>
-                        </div>
-                        <p className="text-xs text-slate-500 mt-1.5">
-                          {new Date(note.created_at).toLocaleDateString('en-US', {
-                            month: 'short',
-                            day: 'numeric',
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                        </p>
+                  <div className="flex-1 space-y-2 overflow-y-auto">
+                    {loadingNotes ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="size-5 animate-spin text-slate-500" />
                       </div>
-                    ))
-                  )}
+                    ) : notes.length === 0 ? (
+                      <p className="py-8 text-center text-sm text-slate-500">
+                        No notes yet.
+                      </p>
+                    ) : (
+                      notes.map((note) => (
+                        <div
+                          key={note.id}
+                          className="group rounded-lg border border-slate-700/50 bg-slate-800/50 p-3"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="flex-1 text-sm whitespace-pre-wrap text-slate-300">
+                              {note.note_text}
+                            </p>
+                            <button
+                              onClick={() => deleteNote(note.id)}
+                              className="shrink-0 cursor-pointer text-slate-500 opacity-0 transition-all group-hover:opacity-100 hover:text-red-400"
+                            >
+                              <Trash2 className="size-3.5" />
+                            </button>
+                          </div>
+                          <p className="mt-1.5 text-xs text-slate-500">
+                            {new Date(note.created_at).toLocaleDateString(
+                              'en-US',
+                              {
+                                month: 'short',
+                                day: 'numeric',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              }
+                            )}
+                          </p>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
-              </div>
               </TabsContent>
 
               {/* Deals Tab */}
-              <TabsContent value="deals" className="flex-1 overflow-y-auto px-4 py-3">
+              <TabsContent
+                value="deals"
+                className="flex-1 overflow-y-auto px-4 py-3"
+              >
                 {loadingDeals ? (
                   <div className="flex items-center justify-center py-8">
-                    <Loader2 className="size-5 animate-spin text-primary" />
+                    <Loader2 className="text-primary size-5 animate-spin" />
                   </div>
                 ) : deals.length === 0 ? (
                   <p className="text-xs text-slate-500">No deals yet</p>
@@ -2717,7 +3251,10 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                         </div>
                         <div className="mt-1.5 flex items-center justify-between text-xs text-slate-400">
                           <span className="flex items-center gap-1">
-                            {createElement(getCurrencyIcon(deal.currency || currency), { className: "size-3" })}
+                            {createElement(
+                              getCurrencyIcon(deal.currency || currency),
+                              { className: 'size-3' }
+                            )}
                             {(() => {
                               const activeCurrency = deal.currency || currency;
                               if (activeCurrency === 'INR') {
@@ -2759,223 +3296,304 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
               </TabsContent>
 
               {/* Calls Tab */}
-              <TabsContent value="calls" className="flex-1 min-h-0 h-full">
-              {/* The whole tab scrolls: on small screens the two form
+              <TabsContent value="calls" className="h-full min-h-0 flex-1">
+                {/* The whole tab scrolls: on small screens the two form
                   panels fill the viewport, so a nested-scroll history
                   list would end up with zero height and the AI update
                   draft below them would be unreachable. */}
-              <div className="h-full overflow-y-auto px-4 py-3">
-                {/* AI call analysis */}
-                {contactId && (
-                  <CallRecordingAnalyzer
-                    contactId={contactId}
-                    contactName={contact?.name || ''}
-                    onAnalyzed={() => {
-                      void fetchCalls().then(() => {
-                        callHistoryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                      });
-                    }}
-                  />
-                )}
+                <div className="h-full overflow-y-auto px-4 py-3">
+                  {/* AI call analysis */}
+                  {contactId && (
+                    <CallRecordingAnalyzer
+                      contactId={contactId}
+                      contactName={contact?.name || ''}
+                      onAnalyzed={() => {
+                        void fetchCalls().then(() => {
+                          callHistoryRef.current?.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'start',
+                          });
+                        });
+                      }}
+                    />
+                  )}
 
-                {/* Log a call form */}
-                <div className="rounded-xl border border-slate-700/60 bg-slate-800/30 p-3 mb-3 space-y-3">
-                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Log a call</p>
+                  {/* Log a call form */}
+                  <div className="mb-3 space-y-3 rounded-xl border border-slate-700/60 bg-slate-800/30 p-3">
+                    <p className="text-xs font-semibold tracking-wide text-slate-400 uppercase">
+                      Log a call
+                    </p>
 
-                  <div className="grid grid-cols-2 gap-2">
-                    {/* Direction */}
-                    <div className="space-y-1">
-                      <label className="text-xs text-slate-400">Direction</label>
-                      <select
-                        value={callForm.direction}
-                        onChange={(e) => setCallForm((f) => ({ ...f, direction: e.target.value as CallDirection }))}
-                        className="w-full rounded-md border border-slate-700 bg-slate-800 text-white text-sm px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
-                      >
-                        <option value="outbound">Outbound</option>
-                        <option value="inbound">Inbound</option>
-                      </select>
+                    <div className="grid grid-cols-2 gap-2">
+                      {/* Direction */}
+                      <div className="space-y-1">
+                        <label className="text-xs text-slate-400">
+                          Direction
+                        </label>
+                        <select
+                          value={callForm.direction}
+                          onChange={(e) =>
+                            setCallForm((f) => ({
+                              ...f,
+                              direction: e.target.value as CallDirection,
+                            }))
+                          }
+                          className="focus:ring-primary w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1.5 text-sm text-white focus:ring-1 focus:outline-none"
+                        >
+                          <option value="outbound">Outbound</option>
+                          <option value="inbound">Inbound</option>
+                        </select>
+                      </div>
+
+                      {/* Outcome */}
+                      <div className="space-y-1">
+                        <label className="text-xs text-slate-400">
+                          Outcome
+                        </label>
+                        <select
+                          value={callForm.outcome}
+                          onChange={(e) =>
+                            setCallForm((f) => ({
+                              ...f,
+                              outcome: e.target.value as CallOutcome,
+                            }))
+                          }
+                          className="focus:ring-primary w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1.5 text-sm text-white focus:ring-1 focus:outline-none"
+                        >
+                          <option value="connected">Connected</option>
+                          <option value="no_answer">No Answer</option>
+                          <option value="busy">Busy</option>
+                          <option value="voicemail">Voicemail</option>
+                          <option value="wrong_number">Wrong Number</option>
+                          <option value="callback_requested">
+                            Callback Requested
+                          </option>
+                        </select>
+                      </div>
+
+                      {/* Date/time */}
+                      <div className="space-y-1">
+                        <label className="text-xs text-slate-400">
+                          Date & time
+                        </label>
+                        <input
+                          type="datetime-local"
+                          value={callForm.called_at}
+                          onChange={(e) =>
+                            setCallForm((f) => ({
+                              ...f,
+                              called_at: e.target.value,
+                            }))
+                          }
+                          className="focus:ring-primary w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1.5 text-sm text-white focus:ring-1 focus:outline-none"
+                        />
+                      </div>
+
+                      {/* Duration */}
+                      <div className="space-y-1">
+                        <label className="text-xs text-slate-400">
+                          Duration (mins)
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          placeholder="e.g. 5"
+                          value={callForm.duration_seconds}
+                          onChange={(e) =>
+                            setCallForm((f) => ({
+                              ...f,
+                              duration_seconds: e.target.value,
+                            }))
+                          }
+                          className="focus:ring-primary w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1.5 text-sm text-white placeholder:text-slate-600 focus:ring-1 focus:outline-none"
+                        />
+                      </div>
                     </div>
 
-                    {/* Outcome */}
-                    <div className="space-y-1">
-                      <label className="text-xs text-slate-400">Outcome</label>
-                      <select
-                        value={callForm.outcome}
-                        onChange={(e) => setCallForm((f) => ({ ...f, outcome: e.target.value as CallOutcome }))}
-                        className="w-full rounded-md border border-slate-700 bg-slate-800 text-white text-sm px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
-                      >
-                        <option value="connected">Connected</option>
-                        <option value="no_answer">No Answer</option>
-                        <option value="busy">Busy</option>
-                        <option value="voicemail">Voicemail</option>
-                        <option value="wrong_number">Wrong Number</option>
-                        <option value="callback_requested">Callback Requested</option>
-                      </select>
-                    </div>
+                    {/* Notes */}
+                    <Textarea
+                      value={callForm.notes}
+                      onChange={(e) =>
+                        setCallForm((f) => ({ ...f, notes: e.target.value }))
+                      }
+                      placeholder="Call notes (what was discussed, next steps…)"
+                      className="min-h-[50px] resize-none border-slate-700 bg-slate-800 text-sm text-white placeholder:text-slate-500"
+                    />
 
-                    {/* Date/time */}
-                    <div className="space-y-1">
-                      <label className="text-xs text-slate-400">Date & time</label>
-                      <input
-                        type="datetime-local"
-                        value={callForm.called_at}
-                        onChange={(e) => setCallForm((f) => ({ ...f, called_at: e.target.value }))}
-                        className="w-full rounded-md border border-slate-700 bg-slate-800 text-white text-sm px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
-                      />
-                    </div>
-
-                    {/* Duration */}
-                    <div className="space-y-1">
-                      <label className="text-xs text-slate-400">Duration (mins)</label>
-                      <input
-                        type="number"
-                        min="0"
-                        placeholder="e.g. 5"
-                        value={callForm.duration_seconds}
-                        onChange={(e) => setCallForm((f) => ({ ...f, duration_seconds: e.target.value }))}
-                        className="w-full rounded-md border border-slate-700 bg-slate-800 text-white text-sm px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-slate-600"
-                      />
-                    </div>
+                    <Button
+                      size="sm"
+                      disabled={savingCall}
+                      onClick={async () => {
+                        if (!contactId) return;
+                        setSavingCall(true);
+                        try {
+                          const durationMins = callForm.duration_seconds
+                            ? parseFloat(callForm.duration_seconds)
+                            : null;
+                          const res = await fetch(
+                            `/api/contacts/${contactId}/calls`,
+                            {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                direction: callForm.direction,
+                                outcome: callForm.outcome,
+                                called_at: callForm.called_at
+                                  ? new Date(callForm.called_at).toISOString()
+                                  : new Date().toISOString(),
+                                duration_seconds:
+                                  durationMins != null
+                                    ? Math.round(durationMins * 60)
+                                    : null,
+                                notes: callForm.notes || null,
+                              }),
+                            }
+                          );
+                          if (!res.ok) {
+                            const err = await res.json();
+                            throw new Error(err.error || 'Failed to save');
+                          }
+                          toast.success('Call logged');
+                          setCallForm({
+                            direction: 'outbound',
+                            outcome: 'connected',
+                            duration_seconds: '',
+                            notes: '',
+                            called_at: new Date().toISOString().slice(0, 16),
+                          });
+                          fetchCalls();
+                        } catch (err) {
+                          toast.error(
+                            err instanceof Error
+                              ? err.message
+                              : 'Failed to log call'
+                          );
+                        } finally {
+                          setSavingCall(false);
+                        }
+                      }}
+                      className="bg-primary hover:bg-primary/90 text-primary-foreground"
+                    >
+                      {savingCall ? (
+                        <Loader2 className="size-3.5 animate-spin" />
+                      ) : (
+                        <PhoneCall className="size-3.5" />
+                      )}
+                      Log Call
+                    </Button>
                   </div>
 
-                  {/* Notes */}
-                  <Textarea
-                    value={callForm.notes}
-                    onChange={(e) => setCallForm((f) => ({ ...f, notes: e.target.value }))}
-                    placeholder="Call notes (what was discussed, next steps…)"
-                    className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 min-h-[50px] text-sm resize-none"
-                  />
+                  {/* Call history list */}
+                  <div ref={callHistoryRef} className="scroll-mt-3 space-y-2">
+                    {loadingCalls ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="size-5 animate-spin text-slate-500" />
+                      </div>
+                    ) : calls.length === 0 ? (
+                      <p className="py-8 text-center text-sm text-slate-500">
+                        No calls logged yet.
+                      </p>
+                    ) : (
+                      calls.map((call) => {
+                        const isConnected = call.outcome === 'connected';
+                        const isMissed = [
+                          'no_answer',
+                          'busy',
+                          'voicemail',
+                        ].includes(call.outcome);
+                        const OutcomeIcon =
+                          call.direction === 'inbound'
+                            ? PhoneIncoming
+                            : isMissed
+                              ? PhoneMissed
+                              : PhoneCall;
+                        const iconColor = isConnected
+                          ? 'text-emerald-400'
+                          : isMissed
+                            ? 'text-red-400'
+                            : 'text-amber-400';
+                        const outcomeLabel: Record<string, string> = {
+                          connected: 'Connected',
+                          no_answer: 'No Answer',
+                          busy: 'Busy',
+                          voicemail: 'Voicemail',
+                          wrong_number: 'Wrong Number',
+                          callback_requested: 'Callback Requested',
+                        };
 
-                  <Button
-                    size="sm"
-                    disabled={savingCall}
-                    onClick={async () => {
-                      if (!contactId) return;
-                      setSavingCall(true);
-                      try {
-                        const durationMins = callForm.duration_seconds
-                          ? parseFloat(callForm.duration_seconds)
-                          : null;
-                        const res = await fetch(`/api/contacts/${contactId}/calls`, {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({
-                            direction: callForm.direction,
-                            outcome: callForm.outcome,
-                            called_at: callForm.called_at
-                              ? new Date(callForm.called_at).toISOString()
-                              : new Date().toISOString(),
-                            duration_seconds: durationMins != null ? Math.round(durationMins * 60) : null,
-                            notes: callForm.notes || null,
-                          }),
-                        });
-                        if (!res.ok) {
-                          const err = await res.json();
-                          throw new Error(err.error || 'Failed to save');
-                        }
-                        toast.success('Call logged');
-                        setCallForm({
-                          direction: 'outbound',
-                          outcome: 'connected',
-                          duration_seconds: '',
-                          notes: '',
-                          called_at: new Date().toISOString().slice(0, 16),
-                        });
-                        fetchCalls();
-                      } catch (err) {
-                        toast.error(err instanceof Error ? err.message : 'Failed to log call');
-                      } finally {
-                        setSavingCall(false);
-                      }
-                    }}
-                    className="bg-primary hover:bg-primary/90 text-primary-foreground"
-                  >
-                    {savingCall ? <Loader2 className="size-3.5 animate-spin" /> : <PhoneCall className="size-3.5" />}
-                    Log Call
-                  </Button>
-                </div>
-
-                {/* Call history list */}
-                <div ref={callHistoryRef} className="space-y-2 scroll-mt-3">
-                  {loadingCalls ? (
-                    <div className="flex items-center justify-center py-8">
-                      <Loader2 className="size-5 animate-spin text-slate-500" />
-                    </div>
-                  ) : calls.length === 0 ? (
-                    <p className="text-sm text-slate-500 text-center py-8">No calls logged yet.</p>
-                  ) : (
-                    calls.map((call) => {
-                      const isConnected = call.outcome === 'connected';
-                      const isMissed = ['no_answer', 'busy', 'voicemail'].includes(call.outcome);
-                      const OutcomeIcon = call.direction === 'inbound' ? PhoneIncoming : isMissed ? PhoneMissed : PhoneCall;
-                      const iconColor = isConnected ? 'text-emerald-400' : isMissed ? 'text-red-400' : 'text-amber-400';
-                      const outcomeLabel: Record<string, string> = {
-                        connected: 'Connected',
-                        no_answer: 'No Answer',
-                        busy: 'Busy',
-                        voicemail: 'Voicemail',
-                        wrong_number: 'Wrong Number',
-                        callback_requested: 'Callback Requested',
-                      };
-
-                      return (
-                        <div key={call.id} className="rounded-lg bg-slate-800/50 border border-slate-700/50 p-3 group">
-                          <div className="flex items-start gap-2.5">
-                            <div className={`mt-0.5 shrink-0 ${iconColor}`}>
-                              <OutcomeIcon className="size-3.5" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="text-sm font-medium text-white capitalize">
-                                  {call.direction} · {outcomeLabel[call.outcome]}
-                                </span>
-                                {call.duration_seconds != null && (
-                                  <span className="flex items-center gap-1 text-xs text-slate-400">
-                                    <Clock className="size-3" />
-                                    {call.duration_seconds < 60
-                                      ? `${call.duration_seconds}s`
-                                      : `${Math.floor(call.duration_seconds / 60)}m ${call.duration_seconds % 60}s`}
+                        return (
+                          <div
+                            key={call.id}
+                            className="group rounded-lg border border-slate-700/50 bg-slate-800/50 p-3"
+                          >
+                            <div className="flex items-start gap-2.5">
+                              <div className={`mt-0.5 shrink-0 ${iconColor}`}>
+                                <OutcomeIcon className="size-3.5" />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="text-sm font-medium text-white capitalize">
+                                    {call.direction} ·{' '}
+                                    {outcomeLabel[call.outcome]}
                                   </span>
+                                  {call.duration_seconds != null && (
+                                    <span className="flex items-center gap-1 text-xs text-slate-400">
+                                      <Clock className="size-3" />
+                                      {call.duration_seconds < 60
+                                        ? `${call.duration_seconds}s`
+                                        : `${Math.floor(call.duration_seconds / 60)}m ${call.duration_seconds % 60}s`}
+                                    </span>
+                                  )}
+                                </div>
+                                {call.notes && (
+                                  <p className="mt-1 text-xs whitespace-pre-wrap text-slate-400">
+                                    {call.notes}
+                                  </p>
+                                )}
+                                <p className="mt-1 text-xs text-slate-500">
+                                  {new Date(call.called_at).toLocaleDateString(
+                                    'en-IN',
+                                    {
+                                      day: 'numeric',
+                                      month: 'short',
+                                      year: 'numeric',
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                    }
+                                  )}
+                                </p>
+                                {contactId && (
+                                  <CallAnalysisSection
+                                    key={`${call.id}-${call.update_draft ?? ''}`}
+                                    contactId={contactId}
+                                    call={call}
+                                    contactName={contact?.name || ''}
+                                    contactPhone={contact?.phone || ''}
+                                    onUpdated={fetchCalls}
+                                  />
                                 )}
                               </div>
-                              {call.notes && (
-                                <p className="text-xs text-slate-400 mt-1 whitespace-pre-wrap">{call.notes}</p>
-                              )}
-                              <p className="text-xs text-slate-500 mt-1">
-                                {new Date(call.called_at).toLocaleDateString('en-IN', {
-                                  day: 'numeric', month: 'short', year: 'numeric',
-                                  hour: '2-digit', minute: '2-digit',
-                                })}
-                              </p>
-                              {contactId && (
-                                <CallAnalysisSection
-                                  key={`${call.id}-${call.update_draft ?? ''}`}
-                                  contactId={contactId}
-                                  call={call}
-                                  contactName={contact?.name || ''}
-                                  contactPhone={contact?.phone || ''}
-                                  onUpdated={fetchCalls}
-                                />
-                              )}
+                              <button
+                                onClick={async () => {
+                                  if (!contactId) return;
+                                  await fetch(
+                                    `/api/contacts/${contactId}/calls/${call.id}`,
+                                    { method: 'DELETE' }
+                                  );
+                                  fetchCalls();
+                                }}
+                                className="mt-0.5 shrink-0 cursor-pointer text-slate-500 opacity-0 transition-all group-hover:opacity-100 hover:text-red-400"
+                                aria-label="Delete call log"
+                              >
+                                <Trash2 className="size-3.5" />
+                              </button>
                             </div>
-                            <button
-                              onClick={async () => {
-                                if (!contactId) return;
-                                await fetch(`/api/contacts/${contactId}/calls/${call.id}`, { method: 'DELETE' });
-                                fetchCalls();
-                              }}
-                              className="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-red-400 transition-all cursor-pointer shrink-0 mt-0.5"
-                              aria-label="Delete call log"
-                            >
-                              <Trash2 className="size-3.5" />
-                            </button>
                           </div>
-                        </div>
-                      );
-                    })
-                  )}
+                        );
+                      })
+                    )}
+                  </div>
                 </div>
-              </div>
               </TabsContent>
             </Tabs>
 
@@ -3048,22 +3666,41 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
               />
             )}
             {/* Buyer requirement / owner property details request */}
-            {contactId && contact && hasPhone(contact) && collectsBuyerRequirements && (
-              <BuyerPreferenceRequestDialog
-                open={detailsRequestOpen}
-                onOpenChange={setDetailsRequestOpen}
+            {contactId &&
+              contact &&
+              hasPhone(contact) &&
+              collectsBuyerRequirements && (
+                <BuyerPreferenceRequestDialog
+                  open={detailsRequestOpen}
+                  onOpenChange={setDetailsRequestOpen}
+                  contactId={contactId}
+                  contactName={contact.name || ''}
+                />
+              )}
+            {contactId &&
+              contact &&
+              hasPhone(contact) &&
+              !collectsBuyerRequirements && (
+                <OwnerDetailsRequestDialog
+                  open={detailsRequestOpen}
+                  onOpenChange={setDetailsRequestOpen}
+                  contactId={contactId}
+                  contactName={contact.name || ''}
+                  contactPhone={contact.phone}
+                  properties={associatedProperties}
+                />
+              )}
+            {contactId && contact && collectsBuyerRequirements && (
+              <AdditionalRequirementDialog
+                open={additionalRequirementOpen}
+                onOpenChange={setAdditionalRequirementOpen}
                 contactId={contactId}
                 contactName={contact.name || ''}
-              />
-            )}
-            {contactId && contact && hasPhone(contact) && !collectsBuyerRequirements && (
-              <OwnerDetailsRequestDialog
-                open={detailsRequestOpen}
-                onOpenChange={setDetailsRequestOpen}
-                contactId={contactId}
-                contactName={contact.name || ''}
-                contactPhone={contact.phone}
-                properties={associatedProperties}
+                existingCount={contact.requirement_profiles?.length ?? 0}
+                onSaved={() => {
+                  fetchContact();
+                  onUpdated();
+                }}
               />
             )}
             {/* Greetings Generator Dialog */}
