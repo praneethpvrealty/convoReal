@@ -75,6 +75,7 @@ import {
   validateDraft,
   validateContactDraftsContainer,
   reconcileContactDrafts,
+  applyExplicitContactDraftUpdate,
   formatDraftPreviewMessage,
   formatContactDraftsPreview,
   backfillLocationFromMapLink,
@@ -2562,10 +2563,16 @@ export async function processOwnerChatbotMessage(
 
     // Handle conversational updates to contact drafts
     if (cleanedText) {
-      if (!(await gatedBurn(accountId, 'chatbot_classify'))) {
-        return await sendCreditsLockedReply(phoneNumberId, accessToken, contactRecord.phone, conversation.id);
+      let updatedContainer = applyExplicitContactDraftUpdate(
+        container,
+        cleanedText
+      );
+      if (!updatedContainer) {
+        if (!(await gatedBurn(accountId, 'chatbot_classify'))) {
+          return await sendCreditsLockedReply(phoneNumberId, accessToken, contactRecord.phone, conversation.id);
+        }
+        updatedContainer = await updateContactDraft(container, cleanedText);
       }
-      const updatedContainer = await updateContactDraft(container, cleanedText);
       const { isValid, missingFields } = validateContactDraftsContainer(updatedContainer);
       const nextStatus = isValid ? 'awaiting_confirmation' : 'collecting';
 

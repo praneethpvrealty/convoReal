@@ -34,6 +34,15 @@ describe('suggestNameTagSplit', () => {
     });
   });
 
+  it('keeps a title-cased locality prefix with the internal tag', () => {
+    expect(
+      suggestNameTagSplit('Lokendranath Jp Nagar 100 Feet Road Owner')
+    ).toEqual({
+      name: 'Lokendranath',
+      nameTag: 'Jp Nagar 100 Feet Road Owner',
+    });
+  });
+
   it('is case-insensitive on lexicon words', () => {
     expect(suggestNameTagSplit('Lakshmi tiles')).toEqual({
       name: 'Lakshmi',

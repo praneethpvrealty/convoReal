@@ -118,6 +118,18 @@ describe('contactDraftsFromCards', () => {
     ]);
   });
 
+  it('separates a title-cased JP Nagar qualifier in the draft preview data', () => {
+    const container = contactDraftsFromCards(
+      `${SHARED_CARDS_HEADER}\nLokendranath Jp Nagar 100 Feet Road Owner (+91 98450 33568)`
+    );
+
+    expect(container?.contacts[0]).toMatchObject({
+      name: 'Lokendranath',
+      name_tag: 'Jp Nagar 100 Feet Road Owner',
+      classification: 'Owner',
+    });
+  });
+
   it('reads the role the phonebook name states', () => {
     const roleOf = (name: string) =>
       contactDraftsFromCards(`${SHARED_CARDS_HEADER}\n${name} (+91 90000 00001)`)?.contacts[0]

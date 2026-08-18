@@ -36,6 +36,36 @@ function isDescriptorToken(token: string): boolean {
   return bare.length >= 2 && bare === bare.toUpperCase() && /^[A-Z]+$/.test(bare);
 }
 
+const LOCALITY_SUFFIXES = new Set([
+  'block',
+  'cross',
+  'layout',
+  'main',
+  'nagar',
+  'phase',
+  'road',
+  'sector',
+  'stage',
+]);
+
+function localityQualifierStart(tokens: string[]): number | null {
+  for (let index = 1; index < tokens.length - 1; index++) {
+    const prefix = tokens[index].replace(/[^\p{L}]/gu, '');
+    const suffix = tokens[index + 1]
+      .replace(/[^\p{L}]/gu, '')
+      .toLowerCase();
+    if (
+      prefix.length >= 2 &&
+      prefix.length <= 4 &&
+      /^[A-Z][a-z]*$/.test(prefix) &&
+      LOCALITY_SUFFIXES.has(suffix)
+    ) {
+      return index;
+    }
+  }
+  return null;
+}
+
 export interface NameTagSplit {
   name: string;
   nameTag: string;
@@ -49,7 +79,12 @@ export function suggestNameTagSplit(fullName: string): NameTagSplit | null {
   const tokens = fullName.trim().split(/\s+/).filter(Boolean);
   if (tokens.length < 2) return null;
 
-  const firstDescriptor = tokens.findIndex(isDescriptorToken);
+  const descriptorAt = tokens.findIndex(isDescriptorToken);
+  const localityAt = localityQualifierStart(tokens);
+  const firstDescriptor =
+    localityAt !== null && (descriptorAt === -1 || localityAt < descriptorAt)
+      ? localityAt
+      : descriptorAt;
   // No qualifier found, or the name would be empty ("Bank Manager Ravi").
   if (firstDescriptor <= 0) return null;
 

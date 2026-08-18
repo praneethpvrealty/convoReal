@@ -16,6 +16,7 @@ import {
 } from '../lib/voice/announcement-worker';
 import { processReminderAudioJob } from '../lib/voice/reminder-audio-worker';
 import type { ReminderAudioJob } from '../lib/voice/reminder-audio';
+import { createShutdownGate } from '../lib/queue/graceful-shutdown';
 
 // Helper to manually load Next.js environment files
 function loadEnv() {
@@ -58,11 +59,12 @@ if (!redisUrl) {
 const redis = new Redis(redisUrl, {
   maxRetriesPerRequest: null,
 });
+const shutdownGate = createShutdownGate(() => redis.disconnect());
 
 console.log('[Worker] Connected to Redis. Starting queue consumption...');
 
 async function startWorker() {
-  while (true) {
+  while (shutdownGate.shouldContinue()) {
     try {
       // BLPOP blocks until a payload lands on either queue: WhatsApp
       // webhook events (high frequency) or listing-video render jobs
@@ -74,6 +76,7 @@ async function startWorker() {
         0
       );
       if (result) {
+        shutdownGate.beginWork();
         const [queueName, payloadStr] = result;
 
         if (queueName === 'listing-videos') {
@@ -123,6 +126,7 @@ async function startWorker() {
           } catch (videoErr) {
             console.error('[Worker] Listing-video job crashed:', videoErr);
           }
+          shutdownGate.finishWork();
           continue;
         }
 
@@ -142,6 +146,7 @@ async function startWorker() {
             failedAt: new Date().toISOString(),
           };
           await redis.rpush('whatsapp-webhooks-dlq', JSON.stringify(dlqItem));
+          shutdownGate.finishWork();
           continue;
         }
 
@@ -188,8 +193,11 @@ async function startWorker() {
           };
           await redis.rpush('whatsapp-webhooks-dlq', JSON.stringify(dlqItem));
         }
+        shutdownGate.finishWork();
       }
     } catch (err) {
+      shutdownGate.finishWork();
+      if (!shutdownGate.shouldContinue()) break;
       console.error('[Worker] Loop error:', err);
       // Wait 1 second before retrying to prevent hot loops
       await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -199,15 +207,13 @@ async function startWorker() {
 
 // Handle termination gracefully
 process.on('SIGTERM', () => {
-  console.log('[Worker] SIGTERM received. Closing Redis connection...');
-  redis.disconnect();
-  process.exit(0);
+  console.log('[Worker] SIGTERM received. Finishing active work...');
+  shutdownGate.requestShutdown();
 });
 
 process.on('SIGINT', () => {
-  console.log('[Worker] SIGINT received. Closing Redis connection...');
-  redis.disconnect();
-  process.exit(0);
+  console.log('[Worker] SIGINT received. Finishing active work...');
+  shutdownGate.requestShutdown();
 });
 
 startWorker();
