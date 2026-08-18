@@ -1,11 +1,13 @@
 import type { Property } from '@/types';
+import type { PublicBusinessProfile } from './business-profile';
 
 type JsonLd = Record<string, unknown>;
 
 export function propertyJsonLd(
   property: Property,
   url: string,
-  imageUrl: string
+  imageUrl: string,
+  businessId?: string
 ): JsonLd {
   const isRent = property.listing_type === 'Rent';
   const price = isRent
@@ -45,6 +47,7 @@ export function propertyJsonLd(
     datePosted: property.created_at,
     ...(property.updated_at ? { dateModified: property.updated_at } : {}),
     inLanguage: 'en-IN',
+    ...(businessId ? { publisher: { '@id': businessId } } : {}),
     contentLocation: {
       '@type': 'Place',
       address: {
@@ -73,12 +76,46 @@ export function propertyJsonLd(
             price,
             priceCurrency: 'INR',
             itemOffered: { '@id': propertyEntityId },
+            ...(businessId ? { offeredBy: { '@id': businessId } } : {}),
             availability:
               property.status === 'Available'
                 ? 'https://schema.org/InStock'
                 : 'https://schema.org/SoldOut',
           },
         }
+      : {}),
+  };
+}
+
+export function realEstateAgentJsonLd({
+  name,
+  url,
+  telephone,
+  profile,
+}: {
+  name: string;
+  url: string;
+  telephone?: string | null;
+  profile: PublicBusinessProfile;
+}): JsonLd {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'RealEstateAgent',
+    '@id': `${url}#business`,
+    name,
+    url,
+    description: profile.description,
+    ...(telephone ? { telephone } : {}),
+    ...(profile.areasServed.length > 0
+      ? {
+          areaServed: profile.areasServed.map((area) => ({
+            '@type': 'Place',
+            name: area,
+          })),
+        }
+      : {}),
+    ...(profile.propertyTypes.length > 0
+      ? { knowsAbout: profile.propertyTypes }
       : {}),
   };
 }

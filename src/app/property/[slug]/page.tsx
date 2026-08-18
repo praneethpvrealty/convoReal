@@ -15,7 +15,9 @@ import {
   jsonLdScript,
   breadcrumbJsonLd,
   propertyJsonLd,
+  realEstateAgentJsonLd,
 } from '@/lib/seo/jsonld';
+import { buildPublicBusinessProfile } from '@/lib/seo/business-profile';
 import {
   isLocationGuarded,
   localityLabel,
@@ -89,14 +91,17 @@ export async function generateMetadata({
   const origin = await resolveRequestOrigin();
   const canonicalUrl = `${origin}/property/${propertySlug(property)}`;
   const heroImage = `${origin}/api/properties/${property.id}/og-image`;
+  const data = await cachedFetchShowcaseData(property.account_id, false);
+  const siteName = data.accountName || BRANDING.name;
+  const title = `${property.title} | ${siteName}`;
 
   return {
-    title: property.title,
+    title: { absolute: title },
     description,
     alternates: { canonical: canonicalUrl },
     robots: { index: property.is_published, follow: true },
     openGraph: {
-      title: property.title,
+      title,
       description,
       type: 'website',
       url: canonicalUrl,
@@ -104,7 +109,7 @@ export async function generateMetadata({
     },
     twitter: {
       card: 'summary_large_image',
-      title: property.title,
+      title,
       description,
       images: [heroImage],
     },
@@ -174,6 +179,8 @@ export default async function PropertyPage({
   const origin = await resolveRequestOrigin();
   const canonicalUrl = `${origin}/property/${canonicalSlug}`;
   const siteName = accountName || BRANDING.name;
+  const businessId = `${origin}#business`;
+  const businessProfile = buildPublicBusinessProfile(siteName, propertiesList);
 
   // Structured data describes the listing to crawlers in the clear, so
   // a teaser emits none of it — the page is noindex anyway.
@@ -181,6 +188,19 @@ export default async function PropertyPage({
 
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: jsonLdScript(
+            realEstateAgentJsonLd({
+              name: siteName,
+              url: origin,
+              telephone: settings?.contact_phone,
+              profile: businessProfile,
+            })
+          ),
+        }}
+      />
       {emitJsonLd && (
         <>
           <script
@@ -190,7 +210,8 @@ export default async function PropertyPage({
                 propertyJsonLd(
                   property,
                   canonicalUrl,
-                  `${origin}/api/properties/${property.id}/og-image`
+                  `${origin}/api/properties/${property.id}/og-image`,
+                  businessId
                 )
               ),
             }}

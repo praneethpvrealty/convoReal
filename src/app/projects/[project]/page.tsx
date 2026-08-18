@@ -24,7 +24,12 @@ import {
 } from '@/lib/inventory/project-pricing';
 import { propertySlug } from '@/lib/showcase/property-slug';
 import { resolveRequestOrigin } from '@/lib/showcase/site-url';
-import { itemListJsonLd, jsonLdScript } from '@/lib/seo/jsonld';
+import {
+  itemListJsonLd,
+  jsonLdScript,
+  realEstateAgentJsonLd,
+} from '@/lib/seo/jsonld';
+import { buildPublicBusinessProfile } from '@/lib/seo/business-profile';
 import { BRANDING } from '@/config/branding';
 import type { Property } from '@/types';
 
@@ -142,7 +147,7 @@ export async function generateMetadata({
   const { project: slug } = await params;
 
   return {
-    title,
+    title: { absolute: title },
     description,
     alternates: { canonical: `${origin}/projects/${slug}` },
     robots: { index: true, follow: true },
@@ -173,9 +178,24 @@ export default async function ProjectPage({ params, searchParams }: PageProps) {
   );
 
   const origin = await resolveRequestOrigin();
+  const siteName = data.accountName || BRANDING.name;
+  const businessProfile = buildPublicBusinessProfile(siteName, data.properties);
 
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: jsonLdScript(
+            realEstateAgentJsonLd({
+              name: siteName,
+              url: origin,
+              telephone: data.settings?.contact_phone,
+              profile: businessProfile,
+            })
+          ),
+        }}
+      />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
