@@ -364,6 +364,23 @@ export function mergeContactDraftsContainer(
   return { contacts: merged };
 }
 
+export function applyExplicitContactDraftUpdate(
+  current: ParsedContactDraftsContainer,
+  instruction: string
+): ParsedContactDraftsContainer | null {
+  if (current.contacts.length !== 1) return null;
+
+  const match = instruction
+    .trim()
+    .match(/^(?:contact\s+)?name\s*(?:-|:|is)\s*(.+)$/i);
+  const name = match?.[1]?.trim();
+  if (!name) return null;
+
+  return {
+    contacts: [{ ...current.contacts[0], name }],
+  };
+}
+
 export interface ContactDraftReconciliation {
   container: ParsedContactDraftsContainer;
   /** True when the incoming card was about someone else and the draft

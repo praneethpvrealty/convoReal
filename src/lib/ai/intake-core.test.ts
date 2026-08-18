@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
+  applyExplicitContactDraftUpdate,
   deriveDraftStatus,
   validateDraft,
   validateContactDraftsContainer,
@@ -541,6 +542,47 @@ describe('mergeContactDraftsContainer', () => {
     const merged = mergeContactDraftsContainer(makeContainer([]), makeContainer([makeContact({ name: 'A', phone: '1' })]));
     expect(merged.contacts).toHaveLength(1);
     expect(merged.contacts[0].name).toBe('A');
+  });
+});
+
+describe('applyExplicitContactDraftUpdate', () => {
+  it('applies the exact single-contact name correction without AI', () => {
+    const current = makeContainer([
+      makeContact({
+        name: 'Lokendranath Jp Nagar',
+        name_tag: '100 Feet Road Owner',
+        phone: '+91 98450 33568',
+        classification: 'Owner',
+      }),
+    ]);
+
+    expect(
+      applyExplicitContactDraftUpdate(current, 'Name - Lokendranath M')
+    ).toEqual({
+      contacts: [
+        expect.objectContaining({
+          name: 'Lokendranath M',
+          name_tag: '100 Feet Road Owner',
+          phone: '+91 98450 33568',
+          classification: 'Owner',
+        }),
+      ],
+    });
+  });
+
+  it('leaves ambiguous and multi-contact instructions for the AI updater', () => {
+    expect(
+      applyExplicitContactDraftUpdate(
+        makeContainer([makeContact({ name: 'A' }), makeContact({ name: 'B' })]),
+        'Name - C'
+      )
+    ).toBeNull();
+    expect(
+      applyExplicitContactDraftUpdate(
+        makeContainer([makeContact({ name: 'A' })]),
+        'change the second name to C'
+      )
+    ).toBeNull();
   });
 });
 
