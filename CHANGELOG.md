@@ -65,6 +65,11 @@ and polish.
 
 ### Fixed
 
+- **HOT now means the buyer replied.** Portal imports, property matching,
+  enquiry linkage and outbound messages no longer qualify a contact as HOT.
+  Any inbound buyer reply can upgrade an unset temperature, while an agent's
+  explicit HOT, COLD, Not Responding or Dead judgement remains untouched.
+
 - **Android OTA exports resolve the property plan/sketch labels reliably.**
   The native editor now reads its display copy from the mobile bundle instead
   of a web-only runtime alias, so Metro can publish land-sketch support.
@@ -282,10 +287,10 @@ and polish.
   whenever" — and went six days unanswered, because the HOT-going-quiet
   panel on /today only watches leads someone remembered to mark HOT,
   and only on the days someone opens /today. Two changes close that.
-  The webhook now sets `lead_temp = HOT` itself when a lead's own words
-  show heat — a deliberate enquiry (property code in the message), a
-  price/negotiation question, or site-visit intent — never overwriting
-  a temperature an agent set by hand. And a daily cron
+  The webhook now sets `lead_temp = HOT` after the buyer replies on
+  WhatsApp — never from a portal import, property match or outbound
+  message, and never overwriting a temperature an agent set by hand.
+  And a daily cron
   (`/api/cron/follow-up-nudges`, 04:15 UTC) cards the routed agent on
   WhatsApp about each HOT lead silent for 48h+: lead, listing, days
   quiet, with **💬 Check in** (the bot nudges the lead — free-form

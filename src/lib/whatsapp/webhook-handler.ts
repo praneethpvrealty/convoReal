@@ -1407,19 +1407,13 @@ async function processMessage(
     (conversation as { assigned_agent_id?: string | null }).assigned_agent_id ||
     configOwnerUserId
 
-  // A lead whose own words show heat — a deliberate enquiry, a price
-  // question, site-visit intent — becomes HOT without waiting for an
-  // agent to remember the flag. The HOT-going-quiet watchdog and the
-  // follow-up cron both key on it, and a hot lead they cannot see is a
-  // lead nobody follows up (never overwrites a temperature an agent
-  // set by hand — see auto-heat.ts).
-  if (!ownerCheck.isOwner && message.type === 'text') {
+  // An inbound reply makes an unset buyer HOT. Portal imports, property
+  // matching and outbound messages never reach this branch.
+  if (!ownerCheck.isOwner) {
     await maybeAutoHeatContact({
       db: supabaseAdmin(),
       accountId,
       contact: contactRecord,
-      text: contentText,
-      explicitEnquiry: enquiryByCode,
     })
   }
 
