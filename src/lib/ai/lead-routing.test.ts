@@ -37,6 +37,12 @@ describe('routeLeadMessage', () => {
     ).toBe('qualification');
   });
 
+  it('sends a natural reference to the specific-property flow', () => {
+    expect(
+      routeLeadMessage('1acre in Akshaynagar i saw I was interested in that')
+    ).toBe('property_interest');
+  });
+
   it('sends a showcase enquiry to the approval card, not the ladder', () => {
     // Verbatim from the Enquire button. "Commercial Land" in the title
     // makes the requirement signal true by construction, and the ladder
@@ -89,6 +95,7 @@ describe('standsDownFromQualification', () => {
     ['Sir can I get images  images', true],
     ['please call me', true],
     ['option 2', true],
+    ['1acre in Akshaynagar i saw I was interested in that', true],
     ['Land , 1.5 to 2cr', false],
     ['Devanahalli', false],
   ])('%s → %s', (text, expected) => {
@@ -100,6 +107,7 @@ describe('every route is explained for the simulator', () => {
   it.each([
     'callback_handover',
     'property_enquiry',
+    'property_interest',
     'photo_request',
     'shortlist_reference',
     'qualification',

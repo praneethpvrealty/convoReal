@@ -17,12 +17,16 @@ type Mode = 'owner_intake' | 'lead_reply' | 'buyer_matches';
 
 type LeadRoute =
   | 'callback_handover'
+  | 'property_enquiry'
+  | 'property_interest'
   | 'photo_request'
   | 'shortlist_reference'
   | 'qualification';
 
 const ROUTE_LABELS: Record<LeadRoute, string> = {
   callback_handover: 'Callback handover',
+  property_enquiry: 'Showcase enquiry',
+  property_interest: 'Specific property interest',
   photo_request: 'Photo request',
   shortlist_reference: 'Listing by number',
   qualification: 'Qualification ladder',
