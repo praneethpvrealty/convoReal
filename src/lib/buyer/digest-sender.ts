@@ -30,7 +30,7 @@ import { BRANDING } from '@/config/branding';
 // The session-first / template-fallback ladder is persona-neutral —
 // reused rather than duplicated (it lives under den/ for historical
 // reasons; the Den was the first surface that needed it).
-import { isSessionOpen, sendDenNotification } from '@/lib/den/notify';
+import { SESSION_WINDOW_MS, sendDenNotification } from '@/lib/den/notify';
 import {
   PROPERTY_SHARE_TEMPLATE_NAMES,
   pickPropertyShareTemplate,
@@ -85,22 +85,64 @@ function istDateString(now: Date): string {
   return ist.toISOString().slice(0, 10);
 }
 
-async function alreadySentPropertyIds(
+// Both prefetches below replace what used to be two per-buyer round
+// trips (already-sent lookup, session-open check) with one bulk query
+// each for the whole account. A 100+ buyer account was previously
+// paying 100+ sequential queries just to find out who to skip.
+
+async function bulkAlreadySentPropertyIds(
   db: SupabaseClient,
-  contactId: string,
+  contactIds: string[],
   now: Date
-): Promise<Set<string>> {
+): Promise<Map<string, Set<string>>> {
+  const byContact = new Map<string, Set<string>>();
+  if (contactIds.length === 0) return byContact;
   const since = new Date(now.getTime() - REPEAT_SUPPRESSION_DAYS * 24 * 60 * 60 * 1000);
   const { data } = await db
     .from('buyer_match_digest_log')
-    .select('property_ids')
-    .eq('buyer_contact_id', contactId)
+    .select('buyer_contact_id, property_ids')
+    .in('buyer_contact_id', contactIds)
     .gte('digest_date', since.toISOString().slice(0, 10));
-  const sent = new Set<string>();
   for (const row of data || []) {
+    const contactId = row.buyer_contact_id as string;
+    const sent = byContact.get(contactId) ?? new Set<string>();
     for (const id of (row.property_ids as string[] | null) || []) sent.add(id);
+    byContact.set(contactId, sent);
   }
-  return sent;
+  return byContact;
+}
+
+async function bulkSessionOpen(
+  db: SupabaseClient,
+  accountId: string,
+  contactIds: string[]
+): Promise<Map<string, boolean>> {
+  const openByContact = new Map<string, boolean>();
+  if (contactIds.length === 0) return openByContact;
+  const { data: convRows } = await db
+    .from('conversations')
+    .select('id, contact_id')
+    .eq('account_id', accountId)
+    .in('contact_id', contactIds);
+  const convIdByContact = new Map<string, string>();
+  for (const row of convRows || []) {
+    convIdByContact.set(row.contact_id as string, row.id as string);
+  }
+  const convIds = [...convIdByContact.values()];
+  if (convIds.length === 0) return openByContact;
+
+  const since = new Date(Date.now() - SESSION_WINDOW_MS).toISOString();
+  const { data: msgRows } = await db
+    .from('messages')
+    .select('conversation_id')
+    .in('conversation_id', convIds)
+    .eq('sender_type', 'customer')
+    .gte('created_at', since);
+  const openConvIds = new Set((msgRows || []).map((row) => row.conversation_id as string));
+  for (const [contactId, convId] of convIdByContact) {
+    openByContact.set(contactId, openConvIds.has(convId));
+  }
+  return openByContact;
 }
 
 async function runAccount(
@@ -165,6 +207,14 @@ async function runAccount(
     .maybeSingle();
   const agencyName = (accountRow?.name as string | undefined) ?? null;
 
+  const consideredIds = buyers
+    .filter((b) => ((b.buyer_alerts_consent as string | undefined) ?? 'pending') !== 'declined')
+    .map((b) => b.id);
+  const [sentIdsByBuyer, sessionOpenByBuyer] = await Promise.all([
+    bulkAlreadySentPropertyIds(db, consideredIds, now),
+    bulkSessionOpen(db, accountId, consideredIds),
+  ]);
+
   for (const buyer of buyers) {
     if (summary.sent + summary.consentRequested >= MAX_SENDS_PER_ACCOUNT) break;
 
@@ -180,14 +230,14 @@ async function runAccount(
         summary.skippedNoMatches++;
         continue;
       }
-      const sentIds = await alreadySentPropertyIds(db, buyer.id, now);
+      const sentIds = sentIdsByBuyer.get(buyer.id) ?? new Set<string>();
       const matches = selectUnsentMatches(ranked, sentIds);
       if (matches.length === 0) {
         summary.skippedNoMatches++;
         continue;
       }
 
-      const sessionOpen = await isSessionOpen(db, accountId, buyer.id);
+      const sessionOpen = sessionOpenByBuyer.get(buyer.id) ?? false;
 
       // Consent-first, and free-form only. There is no template path:
       // soliciting an opt-in is MARKETING by Meta's test however it is

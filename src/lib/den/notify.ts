@@ -21,7 +21,7 @@ import {
 } from "@/lib/whatsapp/template-language";
 import type { LanguageCode } from "@/lib/languages";
 
-const SESSION_WINDOW_MS = 24 * 60 * 60 * 1000;
+export const SESSION_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 export async function isSessionOpen(
   db: SupabaseClient,
