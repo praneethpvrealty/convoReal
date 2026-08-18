@@ -30,6 +30,15 @@ Property form ── "Generate video" ──▶ Redis 'listing-videos' ──▶
                         Showcase embeds https://www.youtube-nocookie.com/embed/<id>
 ```
 
+An agent-supplied walkthrough skips rendering but joins the same path:
+
+```text
+WhatsApp intake / web editor / mobile editor ── MP4 ≤16MB ──▶ property-videos
+                                                                  │
+                                                                  ├─▶ properties.video_url
+                                                                  └─▶ same YouTube auto-upload queue
+```
+
 - The OAuth **refresh token** is stored AES-256-GCM encrypted in
   `youtube_config.refresh_token` (migration 153), exactly like the
   WhatsApp and Meta Ads tokens. Access tokens are minted per upload
@@ -42,10 +51,12 @@ Property form ── "Generate video" ──▶ Redis 'listing-videos' ──▶
 - A manual **Upload to YouTube** button on the property form covers
   videos generated before the channel was connected (or with
   auto-upload switched off).
-- **WhatsApp intake**: a walkthrough video (MP4, ≤16MB) forwarded to
-  the owner chatbot alongside the listing photos/details is attached
-  to the draft, becomes `properties.video_url` on confirm, and is
-  queued for the same unlisted YouTube upload automatically.
+- **Walkthrough uploads**: an MP4 (≤16MB) forwarded to the owner chatbot
+  alongside the listing photos/details is attached to the draft and becomes
+  `properties.video_url` on confirm. The same upload is available from the
+  web and mobile property editors. All three sources use the
+  `property-videos` bucket and queue the same unlisted YouTube upload when
+  auto-upload is enabled.
 
 ## 1. Create the Google Cloud OAuth app
 
@@ -149,6 +160,7 @@ stay there and remain embedded until regenerated.
 | Status / auto-upload toggle | `src/app/api/youtube/config/route.ts`                                  |
 | Disconnect                  | `src/app/api/youtube/disconnect/route.ts`                              |
 | Manual upload               | `src/app/api/properties/[id]/youtube-upload/route.ts`                  |
+| Walkthrough upload          | `src/app/api/properties/[id]/video-upload/route.ts`                    |
 | Worker hook                 | `src/lib/video/listing-video-worker.ts`, `src/scripts/queue-worker.ts` |
 | Settings UI                 | `src/components/settings/youtube-connect-card.tsx`                     |
 | Showcase embed              | `src/components/showcase/showcase-view.tsx`                            |
