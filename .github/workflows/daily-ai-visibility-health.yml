@@ -1,0 +1,40 @@
+name: Daily production AI visibility health
+
+on:
+  schedule:
+    # 07:00 IST (01:30 UTC)
+    - cron: '30 1 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: daily-production-ai-visibility-health
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  health:
+    name: Production AI visibility health
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Verify recommendation-critical public surfaces
+        run: node e2e/ai-visibility-health.mjs
+        env:
+          E2E_BASE_URL: ${{ vars.E2E_BASE_URL || 'https://www.convoreal.com' }}
+
+      - name: Upload visibility evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-visibility-health-${{ github.run_id }}
+          path: test-results/ai-visibility-health/
+          retention-days: 30
