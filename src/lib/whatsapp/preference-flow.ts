@@ -172,8 +172,8 @@ export function buildPreferenceFlowJson(): Record<string, unknown> {
       },
     ],
   }
-
 }
+
 // ── Prefill (INIT) ────────────────────────────────────────────────
 
 /** The subset of a contacts row this flow reads and writes. */

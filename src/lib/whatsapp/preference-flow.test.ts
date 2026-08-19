@@ -115,6 +115,7 @@ describe("buildPreferenceFlowJson", () => {
     }
   });
 });
+
 describe("buildPreferencePrefillData", () => {
   it("passes through current contact preferences as numbers", () => {
     const data = buildPreferencePrefillData({

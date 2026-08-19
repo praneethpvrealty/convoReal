@@ -233,9 +233,9 @@ export interface WhatsAppMessage {
   // Present only on the FIRST inbound message of a thread the buyer
   // started from a Click-to-WhatsApp ad (Instagram/Facebook). See
   // ctwa-attribution.ts.
-
   referral?: WhatsAppReferral
 }
+
 export interface WhatsAppWebhookEntry {
   id: string
   changes: Array<{
