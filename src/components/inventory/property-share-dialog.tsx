@@ -628,7 +628,7 @@ export function PropertyShareDialog({
       const href = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
       if (pending) pending.location.href = href;
       else window.open(href, '_blank', 'noopener');
-      captureSharesToJourney([contact.id]);
+      captureSharesToJourney([contact.id], true);
     })();
   };
 
@@ -1108,12 +1108,13 @@ export function PropertyShareDialog({
   // the send flow the agent is watching. Rows arrive hidden — they
   // queue in /journey's "Captured" tray instead of crowding the
   // canvas — and re-shares are no-ops (idempotent upsert).
-  function captureSharesToJourney(sentContactIds: string[]) {
+  function captureSharesToJourney(sentContactIds: string[], journeyVisible = false) {
     if (!accountId || !property || sentContactIds.length === 0) return;
     // recordPropertyShares captures the journey item too — see its
     // header for why that is not left to each caller.
     recordPropertyShares({
       accountId,
+      journeyVisible,
       propertyId: property.id,
       userId: user?.id,
       recipients: sentContactIds.map((contactId) => ({
