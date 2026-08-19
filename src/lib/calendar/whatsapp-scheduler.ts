@@ -902,6 +902,7 @@ export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): P
     properties: (properties || []) as SchedulerProperty[],
     liaisons: (liaisons || []) as SchedulerLiaison[],
     members: (members || []) as SchedulerMember[],
+    memberRefs: (members || []).map((m) => ({ id: m.user_id, full_name: m.full_name })),
     source: isAudio ? 'voice' : 'whatsapp',
     // `text` is the transcript when the words were spoken and the message
     // itself when typed — either way it is what the event was read from,
@@ -972,6 +973,17 @@ interface SchedulerMember {
   full_name: string | null;
 }
 
+interface SchedulerMemberRef {
+  id: string;
+  full_name: string | null;
+}
+
+type NotifyResolution =
+  | { kind: 'ambiguous'; member: SchedulerMemberRef; contact: SchedulerContact }
+  | { kind: 'member'; member: SchedulerMemberRef }
+  | { kind: 'contact'; contact: SchedulerContact }
+  | { kind: 'none' };
+
 interface DraftFilingContext {
   admin: ReturnType<typeof supabaseAdmin>;
   accountId: string;
@@ -980,6 +992,7 @@ interface DraftFilingContext {
   properties: SchedulerProperty[];
   liaisons: SchedulerLiaison[];
   members: SchedulerMember[];
+  memberRefs: SchedulerMemberRef[];
   source: 'voice' | 'whatsapp';
   fallbackTranscript: string | null;
 }
@@ -1111,6 +1124,20 @@ function appointmentCardLines(
   ].filter((l): l is string => l !== null);
 }
 
+function resolveNotifyRecipient(
+  recipientName: string | null,
+  memberRefs: SchedulerMemberRef[],
+  contacts: SchedulerContact[]
+): NotifyResolution {
+  const member = resolveByName(recipientName, memberRefs, (m) => m.full_name || '');
+  const contact = resolveByName(recipientName, contacts, (c) => c.name || '');
+
+  if (member && contact) return { kind: 'ambiguous', member, contact };
+  if (member) return { kind: 'member', member };
+  if (contact) return { kind: 'contact', contact };
+  return { kind: 'none' };
+}
+
 /**
  * Files ONE parsed request and describes what happened.
  *
@@ -1120,39 +1147,43 @@ function appointmentCardLines(
  */
 async function fileDraft(draft: ParsedEventDraft, ctx: DraftFilingContext): Promise<FiledDraft> {
   if (draft.intent === 'notify') {
-    const member = resolveByName(
-      draft.recipient_name,
-      ctx.members.map((m) => ({ id: m.user_id, full_name: m.full_name })),
-      (m) => m.full_name || ''
-    );
-    const contact = resolveByName(
-      draft.recipient_name,
-      ctx.contacts,
-      (c) => c.name || ''
-    );
-
-    if (member && contact) {
+    const notification = resolveNotifyRecipient(draft.recipient_name, ctx.memberRefs, ctx.contacts);
+    if (notification.kind === 'ambiguous') {
       return {
         lines: [
           '🤔 *Which person do you mean?*',
-          `*${draft.recipient_name}* matches both a client and a teammate. Say “client ${contact.name}” or “teammate ${member.full_name}”.`,
+          `*${draft.recipient_name}* matches both a client and a teammate. Say “client ${notification.contact.name}” or “teammate ${notification.member.full_name}”.`,
         ],
         row: null,
       };
     }
-    if (member || !contact) {
-      return sendTeammateUpdate(draft, ctx);
+    if (notification.kind === 'member') {
+      return sendTeammateUpdate(draft, ctx, notification.member);
     }
-    draft = {
-      ...draft,
-      intent: 'task',
-      contact_name: contact.name,
-      recipient_name: null,
-      assignee_name: null,
-    };
+    if (notification.kind === 'contact' && notification.contact.name) {
+      draft = {
+        ...draft,
+        intent: 'task',
+        contact_name: notification.contact.name,
+        recipient_name: null,
+        assignee_name: null,
+      };
+    }
+    if (notification.kind === 'none' || (notification.kind === 'contact' && !notification.contact.name)) {
+      return {
+        lines: [
+          '⚠️ *Couldn\'t send that update*',
+          draft.recipient_name
+            ? `👤 No teammate called *${draft.recipient_name}* — check the spelling, or add them under *Agents*.`
+            : '👤 Say who should get it, e.g. "send Sharan the update on the site visit".',
+          `💬 ${draft.title}`,
+        ],
+        row: null,
+      };
+    }
   }
 
-  const memberRefs = ctx.members.map((m) => ({ id: m.user_id, full_name: m.full_name }));
+  const memberRefs = ctx.memberRefs;
   const { contact, property } = autoLinkContactProperty(
     resolveByName(draft.contact_name, ctx.contacts, (c) => c.name || ''),
     resolveByName(
@@ -1378,17 +1409,12 @@ async function fileDraft(draft: ParsedEventDraft, ctx: DraftFilingContext): Prom
  */
 async function sendTeammateUpdate(
   draft: ParsedEventDraft,
-  ctx: DraftFilingContext
+  ctx: DraftFilingContext,
+  recipient: SchedulerMemberRef
 ): Promise<FiledDraft> {
-  const recipient = resolveByName(
-    draft.recipient_name,
-    ctx.members.map((m) => ({ id: m.user_id, full_name: m.full_name })),
-    (m) => m.full_name || ''
-  );
-
   // Resolving to the speaker means the name matched nobody useful — an
   // update pinged back to its own author tells them nothing.
-  if (!recipient || recipient.id === ctx.userId) {
+  if (recipient.id === ctx.userId) {
     return {
       lines: [
         '⚠️ *Couldn\'t send that update*',

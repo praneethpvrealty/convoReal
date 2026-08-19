@@ -805,7 +805,8 @@ export type JourneyEventType =
   | 'unhidden'
   | 'planned'
   | 'plan_cleared'
-  | 'client_response';
+  | 'client_response'
+  | 'outbound_whatsapp';
 
 export interface JourneyEvent {
   id: string;
@@ -815,7 +816,9 @@ export interface JourneyEvent {
   from_stage_id?: string | null;
   to_stage_id?: string | null;
   reason?: string | null;
+  metadata?: Record<string, unknown> | null;
   created_by?: string | null;
+  dedupe_key?: string | null;
   created_at: string;
 }
 

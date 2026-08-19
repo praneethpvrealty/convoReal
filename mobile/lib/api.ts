@@ -320,6 +320,29 @@ export function sendTextMessage(
   });
 }
 
+/** Persist a personal WhatsApp hand-off to a journey item for timeline traceability. */
+export function logPersonalWhatsAppJourneySend(args: {
+  itemId: string;
+  message: string;
+  source: 'web' | 'mobile';
+}) {
+  return apiFetch<{
+    ok: boolean;
+    duplicate: boolean;
+    eventId: string | null;
+  }>(
+    '/api/journey/events',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        item_id: args.itemId,
+        message: args.message,
+        source: args.source,
+      }),
+    }
+  );
+}
+
 /**
  * Send into a WhatsApp group — POST /api/whatsapp/groups/{id}/send.
  *

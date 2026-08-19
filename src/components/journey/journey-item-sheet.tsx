@@ -95,6 +95,7 @@ const EVENT_LABELS: Record<JourneyEvent["event_type"], string> = {
   planned: "Next step planned",
   plan_cleared: "Plan cleared",
   client_response: "Client responded",
+  outbound_whatsapp: "Sent via personal WhatsApp",
 };
 
 export interface JourneyItemSheetProps {
@@ -268,6 +269,21 @@ export function JourneyItemSheet({
       : {}),
   });
 
+  const logPersonalWhatsAppOpen = () => {
+    if (!item || !contact || !checkInMessage.trim()) return;
+    void fetch('/api/journey/events', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        item_id: item.id,
+        message: checkInMessage,
+        source: 'web',
+      }),
+    }).catch(() => undefined);
+  };
+
   const openInInbox = async () => {
     if (!item || !contact || openingInbox) return;
     setOpeningInbox(true);
@@ -404,13 +420,14 @@ export function JourneyItemSheet({
                     size="sm"
                     variant="secondary"
                     className="flex-1"
-                    onClick={() =>
+                    onClick={() => {
+                      logPersonalWhatsAppOpen();
                       window.open(
                         `https://wa.me/${(contact.phone ?? "").replace(/\D/g, "")}?text=${encodeURIComponent(checkInMessage)}`,
                         "_blank",
                         "noopener,noreferrer",
-                      )
-                    }
+                      );
+                    }}
                   >
                     <ExternalLink className="h-3.5 w-3.5" />
                     WhatsApp
