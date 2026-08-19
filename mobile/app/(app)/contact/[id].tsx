@@ -279,6 +279,7 @@ function ContactCard({ contact }: { contact: Contact }) {
   const [favoriting, setFavoriting] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
+  const source = resolveRequirementSource(contact);
   const {
     show: showDialog,
     close: closeDialog,
