@@ -15,8 +15,12 @@ import {
   type FlowActionPayload,
 } from '@/lib/whatsapp/meta-api'
 import { decrypt } from '@/lib/whatsapp/encryption'
-import { createHash } from 'node:crypto'
 import { resolveConversation } from '@/lib/conversations/resolve'
+import {
+  cleanJourneyMessage,
+  buildPersonalWhatsAppJourneyMetadata,
+  personalJourneyDedupeKey,
+} from '@/lib/journey/personal-whatsapp-events'
 import {
   sanitizePhoneForMeta,
   isValidE164,
@@ -47,21 +51,6 @@ interface JourneyItemForPersonalLog {
   id: string
   contact_id: string
   property_id: string | null
-}
-
-function cleanJourneyMessage(value: string): string {
-  return value.replace(/\s+/g, ' ').trim()
-}
-
-function personalJourneyDedupeKey(args: {
-  itemId: string
-  message: string
-  source: 'web'
-  senderId: string | null
-}): string {
-  return createHash('sha256')
-    .update(`${args.itemId}|${args.source}|${args.senderId ?? ''}|${args.message}`)
-    .digest('hex')
 }
 
 async function logPersonalWhatsAppJourneyEvents(args: {
@@ -107,18 +96,16 @@ async function logPersonalWhatsAppJourneyEvents(args: {
           senderId: args.senderId,
           message,
         }),
-        metadata: {
-          channel: 'personal_whatsapp',
+        metadata: buildPersonalWhatsAppJourneyMetadata({
           source: normalizedSource,
-          sender_type: args.senderType,
-          sender_id: args.senderId,
-          item_id: item.id,
-          contact_id: args.contactId,
-          property_id: item.property_id,
-          conversation_id: args.conversationId,
+          senderType: args.senderType,
+          senderId: args.senderId,
+          itemId: item.id,
+          contactId: args.contactId,
+          propertyId: item.property_id,
+          conversationId: args.conversationId,
           message,
-          message_length: message.length,
-        },
+        }),
       }),
     ),
   )
