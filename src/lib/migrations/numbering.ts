@@ -44,3 +44,22 @@ export function findNewDuplicatePrefixes(filenames: string[]): Map<string, strin
   }
   return fresh;
 }
+
+
+/**
+ * Sequential prefixes through 293 are frozen legacy history. New migrations
+ * must use the 14-digit UTC timestamp produced by `supabase migration new`.
+ */
+export const LEGACY_SEQUENCE_CEILING = 293;
+
+export function findPostLegacySequentialMigrations(
+  filenames: string[]
+): string[] {
+  return filenames
+    .filter((filename) => {
+      const prefix = migrationPrefix(filename);
+      if (!prefix || !/^\d{1,3}$/.test(prefix)) return false;
+      return Number(prefix) > LEGACY_SEQUENCE_CEILING;
+    })
+    .sort();
+}
