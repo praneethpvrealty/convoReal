@@ -187,6 +187,12 @@ export default function InventoryPage() {
   // checkboxes are not rendered at all.
   const [selectedForTagging, setSelectedForTagging] = useState<string[]>([]);
 
+  function clearSearchQuery() {
+    setSearch('');
+    setDebouncedSearch('');
+    setPage(0);
+  }
+
   const refreshInventory = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: ['inventory'] });
   }, [queryClient]);
@@ -1079,8 +1085,18 @@ export default function InventoryPage() {
                 setSearch(e.target.value);
               }}
               placeholder="e.g. residential properties > 10 Cr, 3 BHK villa"
-              className="h-9 border-slate-700 bg-slate-800 pl-9 text-white placeholder:text-slate-500"
+              className="h-9 border-slate-700 bg-slate-800 pl-9 pr-9 text-white placeholder:text-slate-500"
             />
+            {search && (
+              <button
+                type="button"
+                onClick={clearSearchQuery}
+                aria-label="Clear inventory search query"
+                className="text-slate-400 hover:text-white absolute right-2.5 top-1/2 -translate-y-1/2"
+              >
+                <X className="size-3.5" />
+              </button>
+            )}
           </div>
           <div className="w-full md:w-80">
             <LocalityAutocomplete
@@ -1271,8 +1287,18 @@ export default function InventoryPage() {
                   setSearch(e.target.value);
                 }}
                 placeholder="e.g. residential properties > 10 Cr"
-                className="h-10 border-slate-700 bg-slate-800 pl-9 text-white placeholder:text-slate-500"
+                className="h-10 border-slate-700 bg-slate-800 pl-9 pr-9 text-white placeholder:text-slate-500"
               />
+              {search && (
+                <button
+                  type="button"
+                  onClick={clearSearchQuery}
+                  aria-label="Clear mobile inventory search query"
+                  className="text-slate-400 hover:text-white absolute right-2.5 top-1/2 -translate-y-1/2"
+                >
+                  <X className="size-3.5" />
+                </button>
+              )}
             </div>
             <div className="flex items-center gap-2">
               <div className="flex-1">
