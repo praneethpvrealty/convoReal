@@ -175,17 +175,20 @@ export async function POST(request: NextRequest) {
 
   const rzSubId: string = String(sub.id);
 
-  // Deduplicate using the unique Razorpay event ID if present
-  const eventId = event.id;
-  if (eventId) {
+  // Prefer Razorpay's event id; id-less redeliveries still have a stable
+  // per-charge payment id. Never deduplicate on the subscription id because
+  // it repeats across renewals and would drop a legitimate later charge.
+  const paymentId = payment?.id ? String(payment.id) : null;
+  const dedupRef = event.id || paymentId;
+  if (dedupRef) {
     const { data: existingEvent } = await admin
       .from('subscription_events')
       .select('id')
-      .eq('razorpay_event_id', eventId)
+      .eq('razorpay_event_id', dedupRef)
       .maybeSingle();
 
     if (existingEvent) {
-      console.log(`[razorpay-webhook] Subscription event ${eventId} already processed.`);
+      console.log(`[razorpay-webhook] Subscription event ${dedupRef} already processed.`);
       return NextResponse.json({ received: true });
     }
   }
@@ -222,7 +225,7 @@ export async function POST(request: NextRequest) {
         event_type: 'payment_succeeded',
         from_plan: currentPlan,
         to_plan: newPlan,
-        razorpay_event_id: event.id || rzSubId,
+        razorpay_event_id: dedupRef || rzSubId,
         metadata: { razorpay_event: eventType },
       });
 
@@ -258,7 +261,7 @@ export async function POST(request: NextRequest) {
         event_type: 'payment_succeeded',
         from_plan: currentPlan,
         to_plan: currentPlan,
-        razorpay_event_id: event.id || String(chargeEntity.id ?? rzSubId),
+        razorpay_event_id: dedupRef || rzSubId,
         metadata: { amount: chargeEntity.amount, razorpay_event: eventType },
       });
 
@@ -281,7 +284,7 @@ export async function POST(request: NextRequest) {
         event_type: 'payment_failed',
         from_plan: currentPlan,
         to_plan: currentPlan,
-        razorpay_event_id: event.id || rzSubId,
+        razorpay_event_id: dedupRef || rzSubId,
         metadata: { razorpay_event: eventType },
       });
       break;
@@ -299,7 +302,7 @@ export async function POST(request: NextRequest) {
         event_type: 'canceled',
         from_plan: currentPlan,
         to_plan: 'starter',
-        razorpay_event_id: event.id || rzSubId,
+        razorpay_event_id: dedupRef || rzSubId,
         metadata: { razorpay_event: eventType },
       });
       break;
