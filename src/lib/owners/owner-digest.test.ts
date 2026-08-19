@@ -10,6 +10,7 @@ import {
   parseOwnerDigestCommand,
   CONSENT_BUTTONS,
   istHour,
+  resolveOwnerActivityAudience,
   type OwnerDigest,
 } from './owner-digest';
 
@@ -90,6 +91,21 @@ describe('istHour', () => {
   });
 });
 
+describe('resolveOwnerActivityAudience', () => {
+  it('uses tenant language for rental-only portfolios', () => {
+    expect(resolveOwnerActivityAudience(['Rent', 'rent'])).toBe('tenant');
+  });
+
+  it('uses neutral prospect language for mixed portfolios', () => {
+    expect(resolveOwnerActivityAudience(['Sale', 'Rent'])).toBe('mixed');
+  });
+
+  it('keeps buyer language for sale and legacy listings', () => {
+    expect(resolveOwnerActivityAudience(['Sale'])).toBe('buyer');
+    expect(resolveOwnerActivityAudience([null])).toBe('buyer');
+  });
+});
+
 describe('hasUpdates', () => {
   it('is true when any property has any activity', () => {
     expect(hasUpdates(digest())).toBe(true);
@@ -115,6 +131,22 @@ describe('buildOwnerDigestSummaryLine', () => {
     expect(line).toBe(
       '3 new enquiries · 2 buyers shortlisted · 1 site visit scheduled · 24 showcase views'
     );
+  });
+
+  it('uses tenant wording for rental listings', () => {
+    const line = buildOwnerDigestSummaryLine(
+      digest({
+        properties: [
+          {
+            ...digest().properties[0],
+            listing_type: 'Rent',
+            shortlisted: 2,
+          },
+        ],
+      })
+    );
+    expect(line).toContain('2 tenants shortlisted');
+    expect(line).not.toContain('buyers shortlisted');
   });
 
   it('uses singular forms', () => {
@@ -184,6 +216,19 @@ describe('buildConsentRequestMessage', () => {
     );
     expect(msg).toContain('Would you like to receive');
     expect(msg).toContain('STOP UPDATES');
+  });
+
+  it('uses tenant wording for rental listings', () => {
+    const rental = digest({
+      properties: digest().properties.map((property) => ({
+        ...property,
+        listing_type: 'Rent',
+      })),
+    });
+    const msg = buildConsentRequestMessage(rental);
+    expect(msg).toContain('prospective tenants have been showing interest');
+    expect(msg).toContain('fresh tenant activity');
+    expect(msg).not.toContain('fresh buyer activity');
   });
 
   it('names the property for one listing', () => {
