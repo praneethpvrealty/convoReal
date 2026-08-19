@@ -35,6 +35,7 @@ interface ShowcaseLeadBotProps {
   properties: Property[];
   /** Account-level WhatsApp handoff for questions the bot can't answer. */
   whatsappLink?: string;
+  showcaseUrl?: string;
   referrerContactId?: string;
   onSelectProperty: (property: Property) => void;
   onWhatsAppClick?: () => void;
@@ -73,6 +74,7 @@ export function ShowcaseLeadBot({
   accountId,
   properties,
   whatsappLink,
+  showcaseUrl,
   referrerContactId,
   onSelectProperty,
   onWhatsAppClick,
@@ -148,6 +150,24 @@ export function ShowcaseLeadBot({
         </a>
       ) : null,
     [onWhatsAppClick, whatsappLink]
+  );
+
+  const showcaseUrlCard = useMemo(
+    () =>
+      showcaseUrl ? (
+        <div className="text-[10px] text-slate-400">
+          <p>Your buyer showcase is here:</p>
+          <a
+            href={showcaseUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="text-primary hover:text-primary-hover block max-w-[16rem] break-all underline"
+          >
+            {showcaseUrl}
+          </a>
+        </div>
+      ) : null,
+    [showcaseUrl]
   );
 
   // The buyer's own free account: the existing buyer portal, signed
@@ -303,7 +323,7 @@ export function ShowcaseLeadBot({
               isEngine
                 ? "Perfect — the ConvoReal team will reach out on WhatsApp shortly. Want to see it running on your own inventory? They'll set up a walkthrough."
                 : 'Done — the agent has your requirement and will send matching listings on WhatsApp, including the ones that never go public.',
-              isEngine ? (whatsappCard ?? undefined) : undefined
+              isEngine ? (whatsappCard ?? undefined) : showcaseUrlCard ?? undefined
             );
             if (!isEngine) {
               api.pushBot(
@@ -313,7 +333,7 @@ export function ShowcaseLeadBot({
           } catch {
             api.pushBot(
               'I could not save that just now. Please reach the team on WhatsApp and they will pick it up.',
-              whatsappCard ?? undefined
+              isEngine ? (whatsappCard ?? undefined) : showcaseUrlCard ?? undefined
             );
           } finally {
             api.setLoading(false);
