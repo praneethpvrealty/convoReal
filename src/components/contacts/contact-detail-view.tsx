@@ -116,8 +116,7 @@ import {
 } from '@/components/contacts/call-analysis';
 import { GreetingsGeneratorDialog } from '@/components/contacts/greetings-generator-dialog';
 import { OwnerDetailsRequestDialog } from '@/components/contacts/owner-details-request-dialog';
-import { BuyerPreferenceRequestDialog } from '@/components/contacts/buyer-preference-request-dialog';
-import { AdditionalRequirementDialog } from '@/components/contacts/additional-requirement-dialog';
+import { ContactRequirementsDialog } from '@/components/contacts/contact-requirements-dialog';
 import { MoveToEngineDialog } from '@/components/contacts/move-to-engine-dialog';
 import { SearchablePropertySelect } from '@/components/ui/searchable-property-select';
 import { isLocationGuarded } from '@/lib/inventory/location-guard';
@@ -171,8 +170,7 @@ export function ContactDetailView({
   const [greetingsOpen, setGreetingsOpen] = useState(false);
   const [moveToEngineOpen, setMoveToEngineOpen] = useState(false);
   const [detailsRequestOpen, setDetailsRequestOpen] = useState(false);
-  const [additionalRequirementOpen, setAdditionalRequirementOpen] =
-    useState(false);
+  const [requirementsOpen, setRequirementsOpen] = useState(false);
   const collectsBuyerRequirements =
     contact?.classification === 'Buyer' ||
     contact?.classification === 'Owner & Buyer';
@@ -1701,28 +1699,23 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                       <Share2 className="size-3 text-amber-400" />
                       Share Listing
                     </button>
-                    <button
-                      onClick={() => setDetailsRequestOpen(true)}
-                      className="flex cursor-pointer items-center gap-1.5 rounded-md border border-amber-500/20 px-2 py-0.5 font-medium text-amber-400 transition-all hover:bg-amber-500/10 hover:text-amber-300"
-                      title={
-                        collectsBuyerRequirements
-                          ? 'Ask this buyer to confirm requirements for future matching'
-                          : 'Ask this owner for the full property details, and tell them what updates this number will send back'
-                      }
-                    >
-                      <ClipboardList className="size-3 text-amber-400" />
-                      {collectsBuyerRequirements
-                        ? 'Ask Requirements'
-                        : 'Ask for Details'}
-                    </button>
-                    {collectsBuyerRequirements && (
+                    {collectsBuyerRequirements ? (
                       <button
-                        onClick={() => setAdditionalRequirementOpen(true)}
+                        onClick={() => setRequirementsOpen(true)}
                         className="flex items-center gap-1.5 rounded-md border border-sky-500/20 px-2 py-0.5 font-medium text-sky-400 transition-all hover:bg-sky-500/10 hover:text-sky-300"
-                        title="Paste a requirement received on personal WhatsApp without replacing this buyer's existing brief"
+                        title="Review, edit, add or request this buyer's requirements"
                       >
-                        <Plus className="size-3 text-sky-400" />
-                        Add Requirement
+                        <ClipboardList className="size-3 text-sky-400" />
+                        Requirements
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setDetailsRequestOpen(true)}
+                        className="flex cursor-pointer items-center gap-1.5 rounded-md border border-amber-500/20 px-2 py-0.5 font-medium text-amber-400 transition-all hover:bg-amber-500/10 hover:text-amber-300"
+                        title="Ask this owner for the full property details, and tell them what updates this number will send back"
+                      >
+                        <ClipboardList className="size-3 text-amber-400" />
+                        Ask for Details
                       </button>
                     )}
                     <button
@@ -3665,18 +3658,6 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                 contactPhone={contact.phone}
               />
             )}
-            {/* Buyer requirement / owner property details request */}
-            {contactId &&
-              contact &&
-              hasPhone(contact) &&
-              collectsBuyerRequirements && (
-                <BuyerPreferenceRequestDialog
-                  open={detailsRequestOpen}
-                  onOpenChange={setDetailsRequestOpen}
-                  contactId={contactId}
-                  contactName={contact.name || ''}
-                />
-              )}
             {contactId &&
               contact &&
               hasPhone(contact) &&
@@ -3691,13 +3672,12 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                 />
               )}
             {contactId && contact && collectsBuyerRequirements && (
-              <AdditionalRequirementDialog
-                open={additionalRequirementOpen}
-                onOpenChange={setAdditionalRequirementOpen}
-                contactId={contactId}
-                contactName={contact.name || ''}
-                existingCount={contact.requirement_profiles?.length ?? 0}
-                onSaved={() => {
+              <ContactRequirementsDialog
+                key={`${contact.id}-${requirementsOpen}`}
+                open={requirementsOpen}
+                onOpenChange={setRequirementsOpen}
+                contact={contact}
+                onChanged={() => {
                   fetchContact();
                   onUpdated();
                 }}
