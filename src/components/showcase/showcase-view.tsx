@@ -874,6 +874,13 @@ export function ShowcaseView({
     return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
   }, [referrerPhone, engineWhatsAppPhone, displayPhone]);
 
+  const showcaseUrl = useMemo(() => {
+    if (typeof window === 'undefined') return undefined;
+    const url = new URL(window.location.href);
+    url.hash = '';
+    return url.toString();
+  }, []);
+
   // Check if selected property is land/plot type
   const isSelectedPropertyLand = useMemo(() => {
     if (!selectedProperty) return false;
@@ -1903,6 +1910,7 @@ export function ShowcaseView({
                 accountId={accountId}
                 properties={properties}
                 whatsappLink={catalogWhatsAppLink}
+                showcaseUrl={showcaseUrl}
                 referrerContactId={referrerContactId}
                 onSelectProperty={openPropertyModal}
                 onWhatsAppClick={() => trackPixelEvent('Contact', { contact_method: 'whatsapp_assistant' })}
@@ -3073,6 +3081,7 @@ export function ShowcaseView({
           accountId={accountId}
           properties={properties}
           whatsappLink={catalogWhatsAppLink}
+          showcaseUrl={showcaseUrl}
           referrerContactId={referrerContactId}
           onSelectProperty={openPropertyModal}
           onWhatsAppClick={() => trackPixelEvent('Contact', { contact_method: 'whatsapp_assistant' })}

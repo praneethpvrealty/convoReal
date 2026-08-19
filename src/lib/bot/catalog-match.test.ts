@@ -214,6 +214,62 @@ describe('matchProperties', () => {
     expect(relaxed).toBe(false);
   });
 
+  it('matches agricultural synonyms such as farming land', () => {
+    const agri = property({
+      id: 'agri',
+      type: 'Agricultural Land',
+      title: '3 acre farmland, ready to build',
+      listing_type: 'Sale',
+      price: 5_000_000,
+    });
+    const comm = property({
+      id: 'comm',
+      type: 'Commercial Land',
+      title: 'Prime commercial plot',
+      listing_type: 'Sale',
+      price: 6_000_000,
+    });
+
+    const { matches, relaxed } = matchProperties(
+      [agri, comm],
+      { intent: 'Buying', category: 'farming land for investment purpose' },
+      10
+    );
+
+    expect(matches.map((m) => m.id)).toEqual(['agri']);
+    expect(relaxed).toBe(false);
+  });
+
+  it('matches plotted investment requests against plot-like inventory', () => {
+    const agri = property({
+      id: 'agri',
+      type: 'Agricultural Land',
+      listing_type: 'Sale',
+      price: 5_000_000,
+    });
+    const plot = property({
+      id: 'plot',
+      type: 'Residential Land/ Plot',
+      listing_type: 'Sale',
+      price: 4_500_000,
+    });
+    const comm = property({
+      id: 'comm',
+      type: 'Commercial Land',
+      listing_type: 'Sale',
+      price: 6_000_000,
+    });
+
+    const { matches, relaxed } = matchProperties(
+      [agri, plot, comm],
+      { intent: 'Buying', category: 'plotted investment' },
+      10
+    );
+
+    expect(matches.map((m) => m.id)).toContain('agri');
+    expect(relaxed).toBe(false);
+  });
+
   it('lets an all-generic category match on the qualifier', () => {
     const shop = property({ id: 'shop', type: 'Commercial', price: 5_000_000 });
     const villa = property({ id: 'villa', type: 'Villa', price: 5_000_000 });
