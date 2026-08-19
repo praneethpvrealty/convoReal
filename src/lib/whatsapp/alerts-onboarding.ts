@@ -34,6 +34,7 @@ export async function sendAlertsOnboarding(args: {
   userId: string;
   contactId: string;
   conversationId: string;
+  acknowledgement?: string | null;
 }): Promise<void> {
   const { db, accountId, userId, contactId, conversationId } = args;
 
@@ -56,6 +57,9 @@ export async function sendAlertsOnboarding(args: {
         contactId,
         conversationId,
         includeFormRow: true,
+        bodyText: args.acknowledgement
+          ? `${args.acknowledgement}\n\nWhat kind of property should I look for?`
+          : undefined,
       });
       return;
     }
@@ -68,6 +72,9 @@ export async function sendAlertsOnboarding(args: {
         contactId,
         conversationId,
         includeFormRow: true,
+        bodyText: args.acknowledgement
+          ? `${args.acknowledgement}\n\nWhat budget should I work with?`
+          : undefined,
       });
       return;
     }
@@ -82,7 +89,9 @@ export async function sendAlertsOnboarding(args: {
         conversationId,
         kind: 'text',
         senderType: 'bot',
-        text: buildFollowUpQuestion('location'),
+        text: args.acknowledgement
+          ? `${args.acknowledgement}\n\nWhich areas should I focus on?`
+          : buildFollowUpQuestion('location'),
         customDbClient: db,
       });
       return;
@@ -96,6 +105,8 @@ export async function sendAlertsOnboarding(args: {
       userId,
       contactId,
       conversationId,
+      acknowledgement: args.acknowledgement,
+      reviewNoMatch: !args.acknowledgement,
     });
   } catch (err) {
     console.error('[alerts-onboarding] failed:', err);

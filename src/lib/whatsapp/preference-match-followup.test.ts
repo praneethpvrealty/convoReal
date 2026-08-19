@@ -4,6 +4,7 @@ const rankPropertiesForContact = vi.fn();
 const generateMatchEventForContact = vi.fn();
 const sendWhatsAppMessageAndPersist = vi.fn();
 const buildMatchesReply = vi.fn();
+const accountShowcaseBrowseUrl = vi.fn();
 
 vi.mock('@/lib/radar/engine', () => ({
   rankPropertiesForContact: (...args: unknown[]) =>
@@ -19,6 +20,11 @@ vi.mock('@/lib/ai/buyer-qualification', () => ({
 vi.mock('@/lib/whatsapp/meta-api-dispatcher', () => ({
   sendWhatsAppMessageAndPersist: (...args: unknown[]) =>
     sendWhatsAppMessageAndPersist(...args),
+}));
+
+vi.mock('@/lib/showcase/account-showcase-url', () => ({
+  accountShowcaseBrowseUrl: (...args: unknown[]) =>
+    accountShowcaseBrowseUrl(...args),
 }));
 
 const sendListingFeedbackPrompt = vi.fn();
@@ -69,6 +75,9 @@ beforeEach(() => {
   generateMatchEventForContact.mockResolvedValue(undefined);
   sendWhatsAppMessageAndPersist.mockResolvedValue({ success: true });
   buildMatchesReply.mockReturnValue('here are 3 that fit');
+  accountShowcaseBrowseUrl.mockResolvedValue(
+    'https://aryavarta.convoreal.com/?v=contact-1'
+  );
 });
 
 describe('sendPreferenceMatchFollowUp', () => {
@@ -141,7 +150,52 @@ describe('sendPreferenceMatchFollowUp', () => {
 
     expect(result.matchCount).toBe(0);
     expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledWith(
-      expect.objectContaining({ text: buildNoLiveMatchReply('Asha Kumar') })
+      expect.objectContaining({
+        text: buildNoLiveMatchReply(
+          'Asha Kumar',
+          null,
+          'https://aryavarta.convoreal.com/?v=contact-1'
+        ),
+      })
+    );
+  });
+
+  it('uses one concise human reply after an update instead of replaying the full brief', async () => {
+    rankPropertiesForContact.mockResolvedValue([]);
+    const acknowledgement =
+      "Got it — I've changed your budget to above ₹5 Cr and kept the rest of your search unchanged.";
+
+    await sendPreferenceMatchFollowUp({
+      ...args(),
+      acknowledgement,
+      reviewNoMatch: false,
+    });
+
+    expect(sendRequirementReview).not.toHaveBeenCalled();
+    expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledTimes(1);
+    expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: expect.stringContaining(acknowledgement),
+      })
+    );
+    expect(sendWhatsAppMessageAndPersist.mock.calls[0][0].text).toContain(
+      'https://aryavarta.convoreal.com/?v=contact-1'
+    );
+  });
+
+  it('folds an update acknowledgement into a live-match reply', async () => {
+    rankPropertiesForContact.mockResolvedValue([aMatch]);
+    const acknowledgement = "Got it — I've updated your search.";
+
+    await sendPreferenceMatchFollowUp({ ...args(), acknowledgement });
+
+    expect(buildMatchesReply).toHaveBeenCalledWith(
+      'Asha Kumar',
+      [aMatch],
+      expect.any(String),
+      'contact-1',
+      null,
+      `${acknowledgement}\n\nI found one live option that fits 👇`
     );
   });
 
@@ -203,19 +257,29 @@ describe('sendPreferenceMatchFollowUp', () => {
 
 describe('buildNoLiveMatchReply', () => {
   it('greets by first name', () => {
-    expect(buildNoLiveMatchReply('Asha Kumar')).toContain('Thanks Asha —');
+    expect(buildNoLiveMatchReply('Asha Kumar')).toContain('Got it, Asha —');
   });
 
   it('does not greet a lead by their portal placeholder name', () => {
     // Imported leads are filed as "Housing Lead" / "MagicBricks Lead".
     const reply = buildNoLiveMatchReply('Housing Lead');
-    expect(reply).toContain('Thanks there —');
+    expect(reply).toContain('Got it, there —');
     expect(reply).not.toContain('Housing');
   });
 
   it('keeps the thread open instead of closing it', () => {
     const reply = buildNoLiveMatchReply('Asha');
     expect(reply).toContain('saved');
-    expect(reply).toContain('reply here');
+    expect(reply).toContain('message you');
+  });
+
+  it('ends with the showcase link when one is available', () => {
+    const reply = buildNoLiveMatchReply(
+      'Asha',
+      null,
+      'https://aryavarta.convoreal.com/?v=c1'
+    );
+    expect(reply).toMatch(/browse every live property/);
+    expect(reply.endsWith('https://aryavarta.convoreal.com/?v=c1')).toBe(true);
   });
 });

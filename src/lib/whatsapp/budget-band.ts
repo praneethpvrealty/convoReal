@@ -47,6 +47,16 @@ const BAND_BY_ID = new Map(
 
 const NO_BUDGET_ID = 'bb_none';
 
+export function budgetBandAcknowledgement(replyId: string): string | null {
+  if (replyId === NO_BUDGET_ID) {
+    return "Got it — I've noted that you don't have a fixed budget and kept the rest of your search unchanged.";
+  }
+  const band = BAND_BY_ID.get(replyId);
+  if (!band) return null;
+  const label = band.title.charAt(0).toLowerCase() + band.title.slice(1);
+  return `Got it — I've changed your budget to ${label} and kept the rest of your search unchanged.`;
+}
+
 export function isRentOnlyIntent(
   listingTypes: string[] | null | undefined
 ): boolean {

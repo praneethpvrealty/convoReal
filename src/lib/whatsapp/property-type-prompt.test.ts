@@ -9,6 +9,7 @@ vi.mock('@/lib/whatsapp/meta-api-dispatcher', () => ({
 
 const {
   buildPropertyTypeSections,
+  propertyTypeAcknowledgement,
   sendPropertyTypePrompt,
   handlePropertyTypeReply,
 } = await import('./property-type-prompt');
@@ -103,6 +104,15 @@ describe('handlePropertyTypeReply', () => {
     });
     expect(handled).toBe(false);
     expect(updates).toHaveLength(0);
+  });
+});
+
+describe('propertyTypeAcknowledgement', () => {
+  it('confirms only the field the buyer changed', () => {
+    expect(propertyTypeAcknowledgement('pt_plot')).toBe(
+      "Got it — I've changed the property type to residential plot and kept the rest of your search unchanged."
+    );
+    expect(propertyTypeAcknowledgement('pt_forged')).toBeNull();
   });
 });
 

@@ -115,7 +115,6 @@ describe("buildPreferenceFlowJson", () => {
     }
   });
 });
-
 describe("buildPreferencePrefillData", () => {
   it("passes through current contact preferences as numbers", () => {
     const data = buildPreferencePrefillData({
@@ -250,15 +249,23 @@ describe("summarizePreferenceUpdate", () => {
       property_interests: ["Vacant plot"],
       min_roi: 4.5,
     });
-    expect(text).toContain("₹50,00,000");
-    expect(text).toContain("₹2,00,00,000");
+    expect(text).toContain("₹50 Lakh");
+    expect(text).toContain("₹2 Cr");
     expect(text).toContain("JP Nagar");
     expect(text).toContain("Vacant plot");
     expect(text).toContain("4.5%");
   });
 
   it("falls back to a generic confirmation for an empty update", () => {
-    expect(summarizePreferenceUpdate({})).toMatch(/preferences have been updated/i);
+    expect(summarizePreferenceUpdate({})).toMatch(/saved your updated property search/i);
+  });
+
+  it("keeps a long area selection readable without dropping the saved detail", () => {
+    const text = summarizePreferenceUpdate({
+      areas_of_interest: ["HSR Layout", "JP Nagar", "Hoskote", "Malur", "Harohalli"],
+    });
+    expect(text).toContain("HSR Layout, JP Nagar, Hoskote and 2 more areas");
+    expect(text).not.toContain("\\n");
   });
 });
 

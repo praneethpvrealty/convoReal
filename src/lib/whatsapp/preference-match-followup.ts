@@ -23,6 +23,7 @@ import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatche
 import { sendListingFeedbackPrompt } from '@/lib/whatsapp/listing-feedback';
 import { sendRequirementReview } from '@/lib/whatsapp/requirement-review';
 import { isPlaceholderLeadName } from '@/lib/contacts/lead-placeholder';
+import { accountShowcaseBrowseUrl } from '@/lib/showcase/account-showcase-url';
 import type { Contact } from '@/types';
 
 export interface PreferenceMatchFollowUpResult {
@@ -36,15 +37,20 @@ export interface PreferenceMatchFollowUpResult {
  * promise of hearing about what suits them.
  */
 export function buildNoLiveMatchReply(
-  contactName: string | null | undefined
+  contactName: string | null | undefined,
+  acknowledgement?: string | null,
+  showcaseUrl?: string | null
 ): string {
   const name = isPlaceholderLeadName(contactName)
     ? 'there'
     : contactName!.trim().split(/\s+/)[0];
   return [
-    `Thanks ${name} — nothing in our current inventory fits that yet.`,
+    acknowledgement ?? `Got it, ${name} — I've saved your property search.`,
     '',
-    "Your requirement is saved, and you'll hear from us as soon as something matching comes in. If anything changes, just reply here.",
+    "I don't have an exact live match right now, but I'll keep watching and message you as soon as one comes in.",
+    ...(showcaseUrl
+      ? ['', 'You can also browse every live property here:', showcaseUrl]
+      : []),
   ].join('\n');
 }
 
@@ -61,6 +67,8 @@ export async function sendPreferenceMatchFollowUp(args: {
   userId: string;
   contactId: string;
   conversationId: string;
+  acknowledgement?: string | null;
+  reviewNoMatch?: boolean;
 }): Promise<PreferenceMatchFollowUpResult> {
   const { db, accountId, userId, contactId, conversationId } = args;
 
@@ -83,7 +91,7 @@ export async function sendPreferenceMatchFollowUp(args: {
     const contactName = (contact?.name as string | null) ?? null;
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 
-    if (matches.length === 0 && contact) {
+    if (matches.length === 0 && contact && args.reviewNoMatch !== false) {
       // "Nothing fits that yet" is a dead end when the lead cannot see
       // what *that* is. Play the saved brief back with one-tap
       // corrections; the plain text below stays as the fallback for a
@@ -99,10 +107,30 @@ export async function sendPreferenceMatchFollowUp(args: {
       if (reviewed) return { matchCount: 0, replySent: true };
     }
 
+    const opening = args.acknowledgement
+      ? [
+          args.acknowledgement,
+          '',
+          matches.length === 1
+            ? 'I found one live option that fits 👇'
+            : `I found ${matches.length} live options that fit 👇`,
+        ].join('\n')
+      : null;
+    const showcaseUrl =
+      matches.length === 0
+        ? await accountShowcaseBrowseUrl(db, accountId, contactId)
+        : null;
     const text =
       matches.length > 0
-        ? buildMatchesReply(contactName, matches, baseUrl, contactId)
-        : buildNoLiveMatchReply(contactName);
+        ? buildMatchesReply(
+            contactName,
+            matches,
+            baseUrl,
+            contactId,
+            null,
+            opening
+          )
+        : buildNoLiveMatchReply(contactName, args.acknowledgement, showcaseUrl);
 
     const result = await sendWhatsAppMessageAndPersist({
       accountId,
@@ -139,6 +167,23 @@ export async function sendPreferenceMatchFollowUp(args: {
     return { matchCount: matches.length, replySent: result.success };
   } catch (err) {
     console.error('[preference-followup] failed:', err);
+    if (args.acknowledgement) {
+      try {
+        const result = await sendWhatsAppMessageAndPersist({
+          accountId: args.accountId,
+          userId: args.userId,
+          contactId: args.contactId,
+          conversationId: args.conversationId,
+          kind: 'text',
+          senderType: 'bot',
+          text: args.acknowledgement,
+          customDbClient: args.db,
+        });
+        return { matchCount: 0, replySent: result.success };
+      } catch {
+        return { matchCount: 0, replySent: false };
+      }
+    }
     return { matchCount: 0, replySent: false };
   }
 }
