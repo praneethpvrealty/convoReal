@@ -1,7 +1,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { encrypt } from "./encryption";
-import { validatePreferenceFlowJson } from "./meta-flow-service";
+import {
+  sendPreferenceFlowToContact,
+  validatePreferenceFlowJson,
+} from "./meta-flow-service";
 import { PREFERENCE_FLOW_KEY } from "./preference-flow";
+import { CUSTOMER_WINDOW_EXPIRED_MESSAGE } from "./customer-window";
+import * as dispatcher from "./meta-api-dispatcher";
+import * as templateLanguage from "./template-language";
+import type { MessageTemplate } from "@/types";
 
 /**
  * Exercises validatePreferenceFlowJson against a stubbed Graph API so
@@ -148,6 +155,114 @@ describe("validatePreferenceFlowJson", () => {
     expect(db._upsertCalls[0]).toMatchObject({
       flow_key: PREFERENCE_FLOW_KEY,
       meta_flow_id: "flow-new",
+    });
+  });
+});
+
+function makeSendDb() {
+  const table = (name: string) => {
+    if (name === "whatsapp_meta_flows") {
+      return {
+        select: () => ({
+          eq: () => ({
+            eq: () => ({
+              eq: () => ({
+                maybeSingle: () =>
+                  Promise.resolve({
+                    data: {
+                      meta_flow_id: "flow-1",
+                      status: "published",
+                    },
+                  }),
+              }),
+            }),
+          }),
+        }),
+      };
+    }
+    if (name === "contacts") {
+      return {
+        select: () => ({
+          eq: () => ({
+            eq: () => ({
+              maybeSingle: () =>
+                Promise.resolve({ data: { id: "contact-1", name: "Sajjen" } }),
+            }),
+          }),
+        }),
+      };
+    }
+    if (name === "whatsapp_meta_flow_sessions") {
+      return {
+        update: () => ({
+          eq: () => ({
+            eq: () => ({
+              eq: () => ({ in: () => Promise.resolve({ error: null }) }),
+            }),
+          }),
+        }),
+        insert: () => Promise.resolve({ error: null }),
+      };
+    }
+    if (name === "accounts") {
+      return {
+        select: () => ({
+          eq: () => ({
+            maybeSingle: () =>
+              Promise.resolve({ data: { name: "Aryavarta Ventures" } }),
+          }),
+        }),
+      };
+    }
+    throw new Error(`Unexpected table in send test: ${name}`);
+  };
+  return { from: vi.fn(table) } as unknown as NonNullable<
+    Parameters<typeof sendPreferenceFlowToContact>[0]["db"]
+  >;
+}
+
+describe("sendPreferenceFlowToContact", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("falls back to the approved requirement template when the 24-hour window is closed", async () => {
+    const template = {
+      id: "template-1",
+      user_id: "user-1",
+      name: "property_requirement_review",
+      category: "Utility",
+      language: "en_US",
+      body_text:
+        "Hi {{1}}, this is a request from {{2}} to verify your requirement.",
+      status: "APPROVED",
+      created_at: "2026-08-19T00:00:00.000Z",
+    } satisfies MessageTemplate;
+    vi.spyOn(templateLanguage, "loadTemplateForContact").mockResolvedValue({
+      template,
+      language: "en",
+      fellBack: false,
+    });
+    const send = vi
+      .spyOn(dispatcher, "sendWhatsAppMessageAndPersist")
+      .mockResolvedValueOnce({
+        success: false,
+        error: CUSTOMER_WINDOW_EXPIRED_MESSAGE,
+      })
+      .mockResolvedValueOnce({ success: true, messageId: "message-1" });
+
+    const result = await sendPreferenceFlowToContact({
+      accountId: "account-1",
+      contactId: "contact-1",
+      senderType: "agent",
+      db: makeSendDb(),
+    });
+
+    expect(result).toEqual({ success: true, delivery: "template" });
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(send.mock.calls[1][0]).toMatchObject({
+      kind: "template",
+      templateName: "property_requirement_review",
+      templateParams: ["Sajjen", "Aryavarta Ventures"],
+      senderType: "agent",
     });
   });
 });
