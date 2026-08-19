@@ -3,10 +3,12 @@ import { useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 
 import { BottomSheet, sheetScrollArea } from '@/components/sheet';
+import { SuccessSheet } from '@/components/success-sheet';
 import { Banner, PrimaryButton, TextField } from '@/components/ui';
 import { apiFetch } from '@/lib/api';
 import { friendlyError } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
+import { openContactChat } from '@/lib/open-chat';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import type { Contact, ContactRequirementProfile } from '@/lib/types';
 
@@ -127,6 +129,7 @@ export function ContactRequirementsSheet({
   const [addText, setAddText] = useState('');
   const [saving, setSaving] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [delivery, setDelivery] = useState<'flow' | 'template' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const name = contact.name?.trim() || 'this buyer';
 
@@ -210,12 +213,15 @@ export function ContactRequirementsSheet({
     setSending(true);
     setError(null);
     try {
-      await apiFetch('/api/whatsapp/flows/send', {
+      const result = await apiFetch<{
+        success: boolean;
+        delivery: 'flow' | 'template';
+      }>('/api/whatsapp/flows/send', {
         method: 'POST',
         body: JSON.stringify({ contact_id: contact.id }),
       });
       haptic.success();
-      onClose();
+      setDelivery(result.delivery);
     } catch (reason) {
       haptic.warn();
       setError(
@@ -234,6 +240,46 @@ export function ContactRequirementsSheet({
       : view === 'add'
         ? 'Add another requirement'
         : 'Ask for requirements and budget';
+
+  function finishDelivery() {
+    setDelivery(null);
+    onClose();
+  }
+
+  if (delivery) {
+    return (
+      <SuccessSheet
+        visible={visible}
+        onClose={finishDelivery}
+        title={
+          delivery === 'flow'
+            ? 'Requirement form sent'
+            : 'Requirement request sent'
+        }
+        message={
+          delivery === 'flow'
+            ? `The pre-filled form was sent to ${name} and recorded in Inbox. Their submitted response will update the requirement and Match Radar.`
+            : `A WhatsApp template was sent to ${name} because the 24-hour window was closed. Their tap opens the pre-filled form, and the submitted response updates Match Radar.`
+        }
+        confetti={false}
+        actions={[
+          {
+            icon: 'chatbubble-ellipses-outline',
+            label: 'Open in Inbox',
+            onPress: () => {
+              finishDelivery();
+              void openContactChat(contact);
+            },
+          },
+          {
+            icon: 'checkmark-outline',
+            label: 'Done',
+            onPress: finishDelivery,
+          },
+        ]}
+      />
+    );
+  }
 
   return (
     <BottomSheet visible={visible} onClose={closeSheet} title={title}>

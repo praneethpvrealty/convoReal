@@ -231,10 +231,15 @@ export function ContactRequirementsDialog({
       });
       const body = (await response.json().catch(() => ({}))) as {
         error?: string;
+        delivery?: 'flow' | 'template';
       };
       if (!response.ok)
         throw new Error(body.error || 'Could not send the form');
-      toast.success(`Requirement form sent to ${name} from the Engine`);
+      toast.success(
+        body.delivery === 'template'
+          ? `Requirement request sent to ${name} by approved WhatsApp template`
+          : `Requirement form sent to ${name} from the Engine`
+      );
       onOpenChange(false);
     } catch (error) {
       toast.error(

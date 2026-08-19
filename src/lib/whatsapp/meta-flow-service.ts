@@ -2,6 +2,8 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import crypto from 'node:crypto'
 import { encrypt, decrypt } from '@/lib/whatsapp/encryption'
 import { generateFlowKeyPair } from '@/lib/whatsapp/flow-crypto'
+import { isReengagementError } from '@/lib/whatsapp/customer-window'
+import { submitMessageTemplate } from '@/lib/whatsapp/meta-api'
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher'
 import {
   PREFERENCE_FLOW_KEY,
@@ -14,7 +16,19 @@ import {
   type ContactPreferenceUpdate,
   type PreferenceFormValues,
 } from '@/lib/whatsapp/preference-flow'
+import {
+  buildRequirementReviewParams,
+  buildRequirementReviewTemplatePayload,
+  REQUIREMENT_REVIEW_TEMPLATE_NAMES,
+} from '@/lib/whatsapp/requirement-review-template'
+import { buildMetaTemplatePayload } from '@/lib/whatsapp/template-components'
+import { loadTemplateForContact } from '@/lib/whatsapp/template-language'
+import {
+  normalizeCategory,
+  normalizeStatus,
+} from '@/lib/whatsapp/template-status-normalize'
 import { supabaseAdmin } from '@/lib/supabase/admin'
+import type { MessageTemplate } from '@/types'
 
 const META_API_VERSION = 'v21.0'
 const META_API_BASE = `https://graph.facebook.com/${META_API_VERSION}`
@@ -471,6 +485,91 @@ export interface FlowSessionRow {
   completed_at: string | null
 }
 
+export type PreferenceFlowDelivery = 'flow' | 'template'
+
+function resolveTemplateBodyText(body: string, params: string[]): string {
+  return body.replace(/\{\{(\d+)\}\}/g, (match, rawIndex) => {
+    const index = Number(rawIndex) - 1
+    return index >= 0 && index < params.length ? params[index] : match
+  })
+}
+
+async function loadOrSubmitRequirementReviewTemplate(args: {
+  accountId: string
+  contactId: string
+  db: SupabaseClient
+}): Promise<{
+  template: MessageTemplate | null
+  state: 'approved' | 'pending' | 'unavailable'
+}> {
+  const loaded = await loadTemplateForContact<MessageTemplate>(args.db, {
+    accountId: args.accountId,
+    contactId: args.contactId,
+    names: REQUIREMENT_REVIEW_TEMPLATE_NAMES,
+  })
+  if (loaded.template?.status?.toUpperCase() === 'APPROVED') {
+    return { template: loaded.template, state: 'approved' }
+  }
+  if (loaded.template) {
+    return { template: null, state: 'pending' }
+  }
+
+  try {
+    const [{ data: config }, { data: account }] = await Promise.all([
+      args.db
+        .from('whatsapp_config')
+        .select('waba_id, access_token, integration_type')
+        .eq('account_id', args.accountId)
+        .maybeSingle(),
+      args.db.from('accounts').select('owner_user_id').eq('id', args.accountId).maybeSingle(),
+    ])
+    if (
+      !config?.waba_id ||
+      !config.access_token ||
+      config.integration_type === 'sandbox' ||
+      !account?.owner_user_id
+    ) {
+      return { template: null, state: 'unavailable' }
+    }
+
+    const payload = buildRequirementReviewTemplatePayload()
+    const meta = await submitMessageTemplate({
+      wabaId: config.waba_id,
+      accessToken: decrypt(config.access_token),
+      payload: buildMetaTemplatePayload(payload),
+    })
+    const status = normalizeStatus(meta.status)
+    const { data: inserted } = await args.db
+      .from('message_templates')
+      .insert({
+        account_id: args.accountId,
+        user_id: account.owner_user_id,
+        name: payload.name,
+        category: meta.category
+          ? normalizeCategory(meta.category)
+          : payload.category,
+        language: payload.language,
+        body_text: payload.body_text,
+        footer_text: payload.footer_text ?? null,
+        buttons: payload.buttons ?? null,
+        sample_values: payload.sample_values ?? null,
+        status,
+        meta_template_id: meta.id,
+        submission_error: null,
+        last_submitted_at: new Date().toISOString(),
+      })
+      .select()
+      .single()
+
+    return status === 'APPROVED' && inserted
+      ? { template: inserted as MessageTemplate, state: 'approved' }
+      : { template: null, state: 'pending' }
+  } catch (error) {
+    console.error('[preference-flow] requirement template submit failed:', error)
+    return { template: null, state: 'unavailable' }
+  }
+}
+
 /**
  * Look up the published preference flow for an account, or null if the
  * account hasn't set one up yet.
@@ -505,7 +604,11 @@ export async function sendPreferenceFlowToContact(args: {
    *  shortcut, not the whole turn. */
   bodyText?: string
   db?: SupabaseClient
-}): Promise<{ success: boolean; error?: string }> {
+}): Promise<{
+  success: boolean
+  delivery?: PreferenceFlowDelivery
+  error?: string
+}> {
   const db = args.db || supabaseAdmin()
   const { accountId, contactId } = args
 
@@ -577,9 +680,52 @@ export async function sendPreferenceFlowToContact(args: {
       .from('whatsapp_meta_flow_sessions')
       .update({ status: 'cancelled' })
       .eq('flow_token', flowToken)
-    return { success: false, error: result.error }
+    if (!isReengagementError(result.error)) {
+      return { success: false, error: result.error }
+    }
+
+    const fallback = await loadOrSubmitRequirementReviewTemplate({
+      accountId,
+      contactId,
+      db,
+    })
+    if (!fallback.template) {
+      return {
+        success: false,
+        error:
+          fallback.state === 'pending'
+            ? 'The 24-hour WhatsApp window is closed. The Requirement review template is awaiting Meta approval; retry after it is approved.'
+            : 'The 24-hour WhatsApp window is closed and the Requirement review template is not available. Open Settings → WhatsApp → Templates to submit it.',
+      }
+    }
+
+    const { data: account } = await db
+      .from('accounts')
+      .select('name')
+      .eq('id', accountId)
+      .maybeSingle()
+    const params = buildRequirementReviewParams(
+      contact.name as string | null | undefined,
+      (account as { name?: string | null } | null)?.name
+    )
+    const templateResult = await sendWhatsAppMessageAndPersist({
+      accountId,
+      contactId,
+      kind: 'template',
+      senderType: args.senderType || 'bot',
+      templateName: fallback.template.name,
+      templateLanguage: fallback.template.language || 'en_US',
+      templateParams: [...params],
+      messageParams: { body: [...params] },
+      templateRow: fallback.template,
+      text: resolveTemplateBodyText(fallback.template.body_text, [...params]),
+      customDbClient: db,
+    })
+    return templateResult.success
+      ? { success: true, delivery: 'template' }
+      : { success: false, error: templateResult.error }
   }
-  return { success: true }
+  return { success: true, delivery: 'flow' }
 }
 
 // ── Applying responses ────────────────────────────────────────────
