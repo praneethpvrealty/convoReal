@@ -104,6 +104,20 @@ export function activeRequirementProfiles(
   );
 }
 
+/**
+ * Pick the requirement source that best represents what this contact is
+ * actively asking for: explicit primary requirement text first, then the
+ * first active brief profile, then legacy columns.
+ */
+export function resolveRequirementSource(contact: Contact): Contact {
+  if ((contact.requirements || '').trim()) return contact;
+
+  const active = activeRequirementProfiles(contact)[0];
+  if (!active) return contact;
+
+  return contactForRequirementProfile(contact, active);
+}
+
 export function contactForRequirementProfile(
   contact: Contact,
   profile: ContactRequirementProfile

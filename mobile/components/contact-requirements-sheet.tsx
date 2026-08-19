@@ -11,6 +11,7 @@ import { haptic } from '@/lib/haptics';
 import { openContactChat } from '@/lib/open-chat';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import type { Contact, ContactRequirementProfile } from '@/lib/types';
+import { resolveRequirementSource } from '@shared/lib/requirements/profiles';
 
 interface RequirementResult {
   data: {
@@ -34,18 +35,19 @@ function inr(value: number): string {
 }
 
 function primarySummary(contact: Contact): string {
-  const types = contact.pref_property_types?.length
-    ? contact.pref_property_types
-    : contact.property_interests || [];
+  const source = resolveRequirementSource(contact);
+  const types = source.pref_property_types?.length
+    ? source.pref_property_types
+    : source.pref_property_categories || source.property_interests || [];
   const areas = [
     ...new Set([
-      ...(contact.areas_of_interest || []),
-      ...(contact.pref_areas || []),
+      ...(source.areas_of_interest || []),
+      ...(source.pref_areas || []),
     ]),
   ];
-  const min = contact.pref_budget_min ?? contact.min_budget ?? null;
-  const max = contact.pref_budget_max ?? contact.max_budget ?? null;
-  const budget = contact.no_budget
+  const min = source.pref_budget_min ?? source.min_budget ?? null;
+  const max = source.pref_budget_max ?? source.max_budget ?? null;
+  const budget = source.no_budget
     ? 'No fixed budget'
     : min && max
       ? `${inr(min)}–${inr(max)}`
@@ -238,8 +240,8 @@ export function ContactRequirementsSheet({
     view === 'overview'
       ? 'Requirements'
       : view === 'add'
-        ? 'Add another requirement'
-        : 'Ask for requirements and budget';
+        ? 'Create a brief'
+        : 'Ask buyer requirements';
 
   function finishDelivery() {
     setDelivery(null);

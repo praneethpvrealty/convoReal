@@ -43,6 +43,7 @@ import {
 import { daysAgoStart, startOfLocalDay } from '@/lib/dashboard/date-utils'
 import { hasPhone } from '@/lib/contacts/reachability'
 import type { Contact } from '@/types'
+import { resolveRequirementSource } from '@/lib/requirements/profiles'
 
 const HOUR_MS = 3_600_000
 
@@ -633,7 +634,13 @@ export default function TodayPage({ embedded = false }: TodayPageProps = {}) {
             <EmptyState />
           ) : (
             <div className="flex flex-col gap-3">
-              {hotLeads.map(({ contact, daysSilent }) => (
+              {hotLeads.map(({ contact, daysSilent }) => {
+                const source = resolveRequirementSource(contact)
+                const areaHints = Array.from(
+                  new Set([...(source.areas_of_interest ?? []), ...(source.pref_areas ?? [])]),
+                )
+                const budgetMax = source.pref_budget_max ?? source.max_budget
+                return (
                 <div
                   key={contact.id}
                   className="rounded-xl border border-slate-800 bg-slate-900 p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
@@ -655,15 +662,15 @@ export default function TodayPage({ embedded = false }: TodayPageProps = {}) {
                         </span>
                       </div>
                       <p className="mt-0.5 text-xs text-slate-400 font-medium">
-                        {contact.no_budget
+                        {source.no_budget
                           ? 'Budget: no limit'
-                          : contact.max_budget
-                            ? `Budget: ${formatBudget(contact.max_budget)}`
+                          : budgetMax
+                            ? `Budget: ${formatBudget(budgetMax)}`
                             : 'Budget: not specified'}
                       </p>
-                      {contact.areas_of_interest && contact.areas_of_interest.length > 0 && (
+                      {areaHints.length > 0 && (
                         <div className="mt-1.5 flex flex-wrap gap-1.5">
-                          {contact.areas_of_interest.slice(0, 3).map((area) => (
+                          {areaHints.slice(0, 3).map((area) => (
                             <span
                               key={area}
                               className="inline-flex items-center rounded-lg bg-slate-950/40 border border-slate-800 px-2 py-0.5 text-[9px] font-bold text-slate-400"
@@ -671,9 +678,9 @@ export default function TodayPage({ embedded = false }: TodayPageProps = {}) {
                               {area}
                             </span>
                           ))}
-                          {contact.areas_of_interest.length > 3 && (
+                          {areaHints.length > 3 && (
                             <span className="text-[9px] font-bold text-slate-500 self-center">
-                              +{contact.areas_of_interest.length - 3}
+                              +{areaHints.length - 3}
                             </span>
                           )}
                         </div>
@@ -708,7 +715,8 @@ export default function TodayPage({ embedded = false }: TodayPageProps = {}) {
                     </Button>
                   </div>
                 </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </Section>

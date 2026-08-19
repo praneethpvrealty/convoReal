@@ -13,6 +13,7 @@ import { showcaseBaseUrl } from '@/lib/share-message';
 import { fetchShowcaseSubdomain } from '@/lib/showcase-settings';
 import { supabase } from '@/lib/supabase';
 import type { Contact, Property } from '@/lib/types';
+import { resolveRequirementSource } from '@shared/lib/requirements/profiles';
 
 interface WelcomeLinkInput {
   contact: Contact;
@@ -42,6 +43,22 @@ export function buildWelcomeLink({
   const showcaseUrlObj = showcaseBase(subdomain, accountId);
   const finalShowcaseUrl = showcaseUrlObj.toString();
 
+  const source = resolveRequirementSource(contact);
+  const areaHints = [...(source.areas_of_interest || []), ...(source.pref_areas || [])];
+  const preferenceHint =
+    source.property_interests?.length ||
+    (source.pref_property_types?.length || 0) > 0 ||
+    (source.pref_property_categories?.length || 0) > 0
+      ? [
+          ...(source.property_interests || []),
+          ...(source.pref_property_types || []),
+          ...((source.pref_property_categories || []).map(
+            (category) =>
+              category.charAt(0).toUpperCase() + category.slice(1).toLowerCase()
+          )),
+        ].find((entry) => Boolean(entry))
+      : '';
+
   let linkSection = '';
   if (propDetails) {
     const singlePropUrl = new URL(showcaseUrlObj.toString());
@@ -69,23 +86,20 @@ Or browse other matching verified properties here:
 ${matchingUrl.toString()}`;
   } else {
     const hasInterestFilters =
-      (contact.areas_of_interest && contact.areas_of_interest.length > 0) ||
-      (contact.property_interests && contact.property_interests.length > 0);
+      areaHints.length > 0 || Boolean(preferenceHint);
 
     if (hasInterestFilters) {
       const matchingUrl = new URL(showcaseUrlObj.toString());
-      if (contact.areas_of_interest && contact.areas_of_interest.length > 0) {
-        matchingUrl.searchParams.set('search', contact.areas_of_interest[0]);
+      if (areaHints.length > 0) {
+        matchingUrl.searchParams.set('search', areaHints[0]);
       }
-      if (contact.property_interests && contact.property_interests.length > 0) {
-        matchingUrl.searchParams.set('category', contact.property_interests[0]);
+      if (preferenceHint) {
+        matchingUrl.searchParams.set('category', preferenceHint);
       }
 
       const filterDesc = [
-        contact.property_interests?.[0],
-        contact.areas_of_interest?.[0]
-          ? `in ${contact.areas_of_interest[0]}`
-          : '',
+        preferenceHint,
+        areaHints[0] ? `in ${areaHints[0]}` : '',
       ]
         .filter(Boolean)
         .join(' ');

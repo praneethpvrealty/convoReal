@@ -102,7 +102,7 @@ export function AdditionalRequirementSheet({
     <BottomSheet
       visible={visible}
       onClose={closeSheet}
-      title="Add another requirement"
+      title="Add a brief"
     >
       <View style={{ paddingHorizontal: spacing.lg, gap: spacing.lg }}>
         <Text style={{ color: colors.textMuted, fontSize: 14, lineHeight: 20 }}>

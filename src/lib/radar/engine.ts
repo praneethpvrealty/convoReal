@@ -6,6 +6,7 @@ import {
   loadContactParties,
   partyDisplayName,
 } from '@/lib/contacts/parties';
+import { resolveRequirementSource } from '@/lib/requirements/profiles';
 
 // Lazy service-role client for callers that only hold an RLS-scoped
 // client (match_events has no member INSERT policy — writes are
@@ -210,9 +211,10 @@ export function rankProperties(
   contact: Contact,
   properties: Property[]
 ): RankedPropertyMatch[] {
+  const sourceContact = resolveRequirementSource(contact);
   const wanted = [
-    ...(contact.areas_of_interest || []),
-    ...(contact.pref_areas || []),
+    ...(sourceContact.areas_of_interest || []),
+    ...(sourceContact.pref_areas || []),
   ]
     .map((a) => a.trim().toLowerCase())
     .filter(Boolean);

@@ -61,6 +61,7 @@ import { cn } from "@/lib/utils";
 import { useTheme } from "@/hooks/use-theme";
 import { formatCurrencyShort } from "@/lib/currency-utils";
 import type { Contact, JourneyItem, JourneyStage, Property } from "@/types";
+import { resolveRequirementSource } from "@/lib/requirements/profiles";
 import {
   planEtaLabel,
   plannedIndexOf,
@@ -162,6 +163,11 @@ function SubjectNode({ data }: NodeProps) {
   const { mode, contact, property, activeCount, droppedCount, currency } =
     data as SubjectData;
   const isBuyer = mode === "buyer";
+  const source =
+    isBuyer && contact ? resolveRequirementSource(contact) : null;
+  const areaHints = source
+    ? [...(source.pref_areas || []), ...(source.areas_of_interest || [])]
+    : [];
   const title = isBuyer
     ? contact?.name || contact?.phone || "Contact"
     : property?.title || "Property";
@@ -197,11 +203,11 @@ function SubjectNode({ data }: NodeProps) {
           </div>
         </div>
       </div>
-      {isBuyer && (contact?.areas_of_interest?.length ?? 0) > 0 && (
+      {isBuyer && areaHints.length > 0 && (
         <div className="mt-1.5 flex items-start gap-1 text-[10px] text-slate-500">
           <MapPin className="mt-0.5 h-3 w-3 shrink-0" />
           <span className="line-clamp-1">
-            {contact!.areas_of_interest!.slice(0, 4).join(", ")}
+            {areaHints.slice(0, 4).join(", ")}
           </span>
         </div>
       )}

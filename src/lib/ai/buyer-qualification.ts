@@ -44,6 +44,7 @@ import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 import { recordLearnedFacts } from '@/lib/learning/record';
 import { sendRequirementReview } from '@/lib/whatsapp/requirement-review';
 import { visibleTagSuggestions } from '@/lib/contact-preferences';
+import { resolveRequirementSource } from '@/lib/requirements/profiles';
 import type { Contact } from '@/types';
 
 export type QualifierField = 'type' | 'budget' | 'location';
@@ -520,43 +521,45 @@ export function preferenceFacts(
 export function nextQualifierForContact(
   contact: Contact
 ): QualifierField | null {
-  const prefs = prefsFromContact(contact);
+  const source = resolveRequirementSource(contact);
+  const prefs = prefsFromContact(source);
   if (
     prefs.areas.length === 0 &&
-    (contact.areas_of_interest?.length ?? 0) > 0
+    (source.areas_of_interest?.length ?? 0) > 0
   ) {
-    prefs.areas = contact.areas_of_interest as string[];
+    prefs.areas = source.areas_of_interest as string[];
   }
   const missing = nextQualifier(prefs);
-  if (missing !== 'budget' || !contact.no_budget) return missing;
+  if (missing !== 'budget' || !source.no_budget) return missing;
   return hasLocation(prefs) ? null : 'location';
 }
 
 export function prefsFromContact(contact: Contact): ExtractedPreferences {
+  const source = resolveRequirementSource(contact);
   return {
     ...EMPTY_PREFERENCES,
-    property_types: contact.property_interests?.length
-      ? contact.property_interests
-      : contact.pref_property_types || [],
-    property_categories: (contact.pref_property_categories ||
+    property_types: source.property_interests?.length
+      ? source.property_interests
+      : source.pref_property_types || [],
+    property_categories: (source.pref_property_categories ||
       []) as ExtractedPreferences['property_categories'],
-    bhk_min: contact.pref_bhk_min ?? null,
-    bhk_max: contact.pref_bhk_max ?? null,
-    budget_min: contact.min_budget ?? contact.pref_budget_min ?? null,
-    budget_max: contact.max_budget ?? contact.pref_budget_max ?? null,
-    land_area_min_sqft: contact.pref_land_area_min_sqft ?? null,
-    land_area_max_sqft: contact.pref_land_area_max_sqft ?? null,
-    areas: contact.areas_of_interest?.length
-      ? contact.areas_of_interest
-      : contact.pref_areas || [],
-    excluded_areas: contact.pref_excluded_areas || [],
-    projects: contact.projects_of_interest?.length
-      ? contact.projects_of_interest
-      : contact.pref_projects || [],
-    min_roi: contact.min_roi ?? contact.pref_min_roi ?? null,
-    listing_types: (contact.pref_listing_types ||
+    bhk_min: source.pref_bhk_min ?? null,
+    bhk_max: source.pref_bhk_max ?? null,
+    budget_min: source.pref_budget_min ?? source.min_budget ?? null,
+    budget_max: source.pref_budget_max ?? source.max_budget ?? null,
+    land_area_min_sqft: source.pref_land_area_min_sqft ?? null,
+    land_area_max_sqft: source.pref_land_area_max_sqft ?? null,
+    areas: source.areas_of_interest?.length
+      ? source.areas_of_interest
+      : source.pref_areas || [],
+    excluded_areas: source.pref_excluded_areas || [],
+    projects: source.projects_of_interest?.length
+      ? source.projects_of_interest
+      : source.pref_projects || [],
+    min_roi: source.min_roi ?? source.pref_min_roi ?? null,
+    listing_types: (source.pref_listing_types ||
       []) as ExtractedPreferences['listing_types'],
-    suggested_tags: contact.pref_suggested_tags || [],
+    suggested_tags: source.pref_suggested_tags || [],
   };
 }
 

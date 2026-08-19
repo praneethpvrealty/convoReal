@@ -6,6 +6,7 @@ import { toSquareFeet } from '@/lib/area-units';
 import {
   activeRequirementProfiles,
   contactForRequirementProfile,
+  resolveRequirementSource,
 } from '@/lib/requirements/profiles';
 
 // Static geocoordinates for major Bangalore sublocalities used for proximity-based matching.
@@ -635,12 +636,13 @@ function matchContactsSingleProfile(
     // contacts marked dead in bulk without touching their brief.
     if (contact.is_dead || contact.is_archived) continue;
 
+    const sourceContact = resolveRequirementSource(contact);
     const notesText = (contact.contact_notes || [])
       .map((n) => n.note_text)
       .join(' ');
     const combinedText =
-      `${contact.requirements || ''} ${notesText}`.toLowerCase();
-    const hasExtraction = !!contact.pref_extracted_at;
+      `${sourceContact.requirements || ''} ${notesText}`.toLowerCase();
+    const hasExtraction = !!sourceContact.pref_extracted_at;
 
     // ── Named-project match ───────────────────────────────────────
     // The buyer named specific projects/societies — agent-entered
@@ -653,8 +655,8 @@ function matchContactsSingleProfile(
     const wantedProjects = [
       ...new Set(
         [
-          ...(contact.projects_of_interest || []),
-          ...(contact.pref_projects || []),
+          ...(sourceContact.projects_of_interest || []),
+          ...(sourceContact.pref_projects || []),
         ]
           .map((p) => p.trim())
           .filter(Boolean)
@@ -674,7 +676,7 @@ function matchContactsSingleProfile(
     // gate — a listing outside it cannot reach them on type, area or
     // budget fit.
     if (
-      contact.strict_project_match &&
+      sourceContact.strict_project_match &&
       wantedProjects.length > 0 &&
       !projectMatch
     )
@@ -687,7 +689,7 @@ function matchContactsSingleProfile(
     // exclude anyone (preserves pre-existing matching behavior), but a
     // stated contrary intent (e.g. "looking to rent") does.
     const wantedListingTypes = new Set<ListingType>(
-      (contact.pref_listing_types || []).filter((t): t is ListingType =>
+      (sourceContact.pref_listing_types || []).filter((t): t is ListingType =>
         (LISTING_TYPES as string[]).includes(t)
       )
     );
@@ -707,7 +709,7 @@ function matchContactsSingleProfile(
     const wantedGroups = new Set<SubtypeGroup>();
     const wantedCategories = new Set<Category>();
 
-    for (const t of contact.pref_property_types || []) {
+    for (const t of sourceContact.pref_property_types || []) {
       const g =
         TYPE_TO_GROUP[t] ||
         (normalizePropertyType(t)
@@ -715,7 +717,7 @@ function matchContactsSingleProfile(
           : undefined);
       if (g) wantedGroups.add(g);
     }
-    for (const c of contact.pref_property_categories || []) {
+    for (const c of sourceContact.pref_property_categories || []) {
       if (
         [
           'residential',
@@ -728,7 +730,7 @@ function matchContactsSingleProfile(
         wantedCategories.add(c as Category);
       }
     }
-    for (const interest of contact.property_interests || []) {
+    for (const interest of sourceContact.property_interests || []) {
       const mapped = mapLegacyInterest(interest);
       mapped.groups.forEach((g) => wantedGroups.add(g));
       mapped.categories.forEach((c) => wantedCategories.add(c));
@@ -808,10 +810,11 @@ function matchContactsSingleProfile(
 
     // ── 2. ROI expectation ────────────────────────────────────────
     const minExpectedRoi =
-      contact.min_roi != null && Number(contact.min_roi) > 0
-        ? Number(contact.min_roi)
-        : contact.pref_min_roi != null && Number(contact.pref_min_roi) > 0
-          ? Number(contact.pref_min_roi)
+      sourceContact.min_roi != null && Number(sourceContact.min_roi) > 0
+        ? Number(sourceContact.min_roi)
+        : sourceContact.pref_min_roi != null &&
+            Number(sourceContact.pref_min_roi) > 0
+          ? Number(sourceContact.pref_min_roi)
           : !hasExtraction
             ? parseRoiFromText(combinedText)
             : null;
@@ -836,29 +839,29 @@ function matchContactsSingleProfile(
     // is the agent saying location is open. The real localities beside it
     // still rank a hit; they just stop excluding everything else.
     const anyAreaAccepted = [
-      ...(contact.areas_of_interest || []),
-      ...(contact.pref_areas || []),
+      ...(sourceContact.areas_of_interest || []),
+      ...(sourceContact.pref_areas || []),
     ].some((a) => isPlaceholderArea(cleanArea(a)));
 
-    const explicitAreas = (contact.areas_of_interest || [])
+    const explicitAreas = (sourceContact.areas_of_interest || [])
       .map(cleanArea)
       .filter((a) => a && !isPlaceholderArea(a));
 
     // Google-resolved coordinates saved with the contact take precedence over
     // the static locality table, so areas outside it still radius-match.
     const contactAreaCoords: Record<string, { lat: number; lng: number }> = {};
-    for (const g of contact.areas_of_interest_geo || []) {
+    for (const g of sourceContact.areas_of_interest_geo || []) {
       if (g?.name && Number.isFinite(g.lat) && Number.isFinite(g.lng)) {
         contactAreaCoords[cleanArea(g.name)] = { lat: g.lat, lng: g.lng };
       }
     }
-    const aiAreas = (contact.pref_areas || [])
+    const aiAreas = (sourceContact.pref_areas || [])
       .map(cleanArea)
       .filter((a) => a && !isPlaceholderArea(a));
     const wantedAreas = [...new Set([...explicitAreas, ...aiAreas])].filter(
       (a) => !isNegated(combinedText, a)
     );
-    const excludedAreas = (contact.pref_excluded_areas || [])
+    const excludedAreas = (sourceContact.pref_excluded_areas || [])
       .map(cleanArea)
       .filter(Boolean);
 
@@ -899,7 +902,7 @@ function matchContactsSingleProfile(
       let hasProximityMismatch = false;
 
       if (pLat !== null && pLng !== null) {
-        const maxAllowedDistance = contact.strict_area_match ? 5 : 20;
+        const maxAllowedDistance = sourceContact.strict_area_match ? 5 : 20;
 
         for (const area of wantedAreas) {
           const areaCoords =
@@ -978,22 +981,22 @@ function matchContactsSingleProfile(
 
     // ── 4. Budget (applied last) ──────────────────────────────────
     const explicitMin =
-      contact.min_budget != null && Number(contact.min_budget) > 0
-        ? Number(contact.min_budget)
+      sourceContact.min_budget != null && Number(sourceContact.min_budget) > 0
+        ? Number(sourceContact.min_budget)
         : null;
     const explicitMax =
-      contact.max_budget != null && Number(contact.max_budget) > 0
-        ? Number(contact.max_budget)
+      sourceContact.max_budget != null && Number(sourceContact.max_budget) > 0
+        ? Number(sourceContact.max_budget)
         : null;
     let budgetMin =
       explicitMin ??
-      (contact.pref_budget_min != null
-        ? Number(contact.pref_budget_min)
+      (sourceContact.pref_budget_min != null
+        ? Number(sourceContact.pref_budget_min)
         : null);
     let budgetMax =
       explicitMax ??
-      (contact.pref_budget_max != null
-        ? Number(contact.pref_budget_max)
+      (sourceContact.pref_budget_max != null
+        ? Number(sourceContact.pref_budget_max)
         : null);
     let maxIsCeiling = false;
     if (budgetMin === null && budgetMax === null && !hasExtraction) {
@@ -1029,7 +1032,7 @@ function matchContactsSingleProfile(
       propertyListingType === 'Rent' || propertyListingType === 'Built to Suit';
     const ENTRY_BAND_MAX = isRentComparison ? 25_000 : 5_000_000;
     let budgetVerdict: MatchVerdict = 'unknown';
-    if (contact.no_budget) {
+    if (sourceContact.no_budget) {
       budgetVerdict = 'partial'; // flexible — no constraint stated on purpose
     } else if (
       (budgetMin !== null || budgetMax !== null) &&
@@ -1065,14 +1068,14 @@ function matchContactsSingleProfile(
     // the intake derives prices with. Built-up area stands in for
     // properties that have no land figure (apartments).
     const sizeMin =
-      contact.pref_land_area_min_sqft != null &&
-      Number(contact.pref_land_area_min_sqft) > 0
-        ? Number(contact.pref_land_area_min_sqft)
+      sourceContact.pref_land_area_min_sqft != null &&
+      Number(sourceContact.pref_land_area_min_sqft) > 0
+        ? Number(sourceContact.pref_land_area_min_sqft)
         : null;
     const sizeMax =
-      contact.pref_land_area_max_sqft != null &&
-      Number(contact.pref_land_area_max_sqft) > 0
-        ? Number(contact.pref_land_area_max_sqft)
+      sourceContact.pref_land_area_max_sqft != null &&
+      Number(sourceContact.pref_land_area_max_sqft) > 0
+        ? Number(sourceContact.pref_land_area_max_sqft)
         : null;
     let sizeVerdict: MatchVerdict = 'unknown';
     if (sizeMin !== null || sizeMax !== null) {
@@ -1097,9 +1100,9 @@ function matchContactsSingleProfile(
 
     // ── 6. BHK fit ────────────────────────────────────────────────
     const bhkMin =
-      contact.pref_bhk_min != null ? Number(contact.pref_bhk_min) : null;
+      sourceContact.pref_bhk_min != null ? Number(sourceContact.pref_bhk_min) : null;
     const bhkMax =
-      contact.pref_bhk_max != null ? Number(contact.pref_bhk_max) : null;
+      sourceContact.pref_bhk_max != null ? Number(sourceContact.pref_bhk_max) : null;
     let bhkVerdict: MatchVerdict = 'unknown';
     let bhkDistance = 0;
     if (propBedrooms !== null && (bhkMin !== null || bhkMax !== null)) {
@@ -1189,9 +1192,18 @@ export function getMatchingContacts(
   const results: MatchingResult[] = [];
 
   for (const contact of contacts) {
+    const activeProfiles = activeRequirementProfiles(contact);
+    const hasLegacySource = hasLegacyRequirementSignals(contact);
+    const shouldUseLegacyFallback =
+      hasLegacySource &&
+      !(contact.requirements || '').trim() &&
+      activeProfiles.length > 0;
+
     const candidates = [
-      contact,
-      ...activeRequirementProfiles(contact).map((profile) =>
+      ...(shouldUseLegacyFallback
+        ? [{ ...contact, requirement_profiles: [] }]
+        : [contact]),
+      ...activeProfiles.map((profile) =>
         contactForRequirementProfile(contact, profile)
       ),
     ];
@@ -1265,6 +1277,46 @@ function collapseMatchesToParties(
   }
 
   return out;
+}
+
+function hasLegacyRequirementSignals(contact: Contact): boolean {
+  const hasNumeric = (value: unknown): boolean =>
+    typeof value === 'number'
+      ? Number.isFinite(value) && value > 0
+      : typeof value === 'string'
+        ? Number.isFinite(Number(value)) && Number(value) > 0
+        : false;
+
+  const hasText = (value: unknown): boolean =>
+    typeof value === 'string' && value.trim().length > 0;
+
+  const hasArray = (value: unknown): boolean =>
+    Array.isArray(value) && value.some((entry) => hasText(entry));
+
+  return (
+    hasText(contact.requirements) ||
+    hasNumeric(contact.min_budget) ||
+    hasNumeric(contact.max_budget) ||
+    contact.no_budget === true ||
+    hasNumeric(contact.min_roi) ||
+    hasText(contact.property_interests?.join('')) ||
+    hasArray(contact.areas_of_interest) ||
+    hasArray(contact.projects_of_interest) ||
+    hasArray(contact.pref_property_types) ||
+    hasArray(contact.pref_property_categories) ||
+    hasArray(contact.pref_areas) ||
+    hasArray(contact.pref_excluded_areas) ||
+    hasArray(contact.pref_projects) ||
+    hasNumeric(contact.pref_bhk_min) ||
+    hasNumeric(contact.pref_bhk_max) ||
+    hasNumeric(contact.pref_budget_min) ||
+    hasNumeric(contact.pref_budget_max) ||
+    hasNumeric(contact.pref_land_area_min_sqft) ||
+    hasNumeric(contact.pref_land_area_max_sqft) ||
+    hasNumeric(contact.pref_min_roi) ||
+    hasArray(contact.pref_listing_types) ||
+    hasText(contact.pref_extracted_at || '')
+  );
 }
 
 // ── Share audiences ─────────────────────────────────────────────────

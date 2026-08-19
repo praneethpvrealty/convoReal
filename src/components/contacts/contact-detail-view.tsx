@@ -26,6 +26,7 @@ import type {
   ShowcaseSettings,
   AreaOfInterestGeo,
 } from '@/types';
+import { resolveRequirementSource } from '@/lib/requirements/profiles';
 import { PropertyForm } from '@/components/inventory/property-form';
 import { AreasOfInterestInput } from '@/components/contacts/areas-of-interest-input';
 import { PROPERTY_INTEREST_OPTIONS } from '@/lib/property-interests';
@@ -39,12 +40,12 @@ import {
 } from '@/components/contacts/log-call-prompt';
 import { contactFullName } from '@/lib/contacts/full-name';
 import { hasPhone } from '@/lib/contacts/reachability';
+import { pruneAreasGeo } from '@/lib/contacts/area-geo';
 import {
   LANGUAGE_CODES,
   languageDisplay,
   type LanguageCode,
 } from '@/lib/languages';
-import { pruneAreasGeo } from '@/lib/contacts/area-geo';
 import {
   Sheet,
   SheetContent,
@@ -170,7 +171,6 @@ export function ContactDetailView({
   const [greetingsOpen, setGreetingsOpen] = useState(false);
   const [moveToEngineOpen, setMoveToEngineOpen] = useState(false);
   const [detailsRequestOpen, setDetailsRequestOpen] = useState(false);
-  const [requirementsOpen, setRequirementsOpen] = useState(false);
   const collectsBuyerRequirements =
     contact?.classification === 'Buyer' ||
     contact?.classification === 'Owner & Buyer';
@@ -216,9 +216,6 @@ export function ContactDetailView({
 
   // A classification change can hide the active tab's trigger — fall back
   useEffect(() => {
-    if (activeTab === 'preferences' && editClassification !== 'Buyer') {
-      setActiveTab('details');
-    }
     if (
       activeTab === 'properties' &&
       ![
@@ -270,6 +267,19 @@ export function ContactDetailView({
 
   // Requirements for Agent/Owner/Seller/etc
   const [editRequirements, setEditRequirements] = useState('');
+  const [editMinBudget, setEditMinBudget] = useState('');
+  const [editMaxBudget, setEditMaxBudget] = useState('');
+  const [editNoBudget, setEditNoBudget] = useState(false);
+  const [editStrictAreaMatch, setEditStrictAreaMatch] = useState(false);
+  const [editAreasOfInterest, setEditAreasOfInterest] = useState<string[]>([]);
+  const [editAreasText, setEditAreasText] = useState('');
+  const [editAreasGeo, setEditAreasGeo] = useState<AreaOfInterestGeo[]>([]);
+  const [editProjectsOfInterest, setEditProjectsOfInterest] = useState<string[]>([]);
+  const [editProjectsText, setEditProjectsText] = useState('');
+  const [editStrictProjectMatch, setEditStrictProjectMatch] = useState(false);
+  const [editPropertyInterests, setEditPropertyInterests] = useState<string[]>([]);
+  const [editMinRoi, setEditMinRoi] = useState('');
+  const [savingPreferences, setSavingPreferences] = useState(false);
   const [editDob, setEditDob] = useState('');
   const [editFeedbackStatus, setEditFeedbackStatus] = useState<
     'not_requested' | 'requested' | 'collected'
@@ -295,25 +305,6 @@ export function ContactDetailView({
     Array<Property & { sharedAt: string }>
   >([]);
   const [loadingSharedProperties, setLoadingSharedProperties] = useState(false);
-
-  // Real estate preferences
-  const [editMinBudget, setEditMinBudget] = useState('');
-  const [editMaxBudget, setEditMaxBudget] = useState('');
-  const [editNoBudget, setEditNoBudget] = useState(false);
-  const [editStrictAreaMatch, setEditStrictAreaMatch] = useState(false);
-  const [editAreasOfInterest, setEditAreasOfInterest] = useState<string[]>([]);
-  const [editAreasText, setEditAreasText] = useState('');
-  const [editAreasGeo, setEditAreasGeo] = useState<AreaOfInterestGeo[]>([]);
-  const [editProjectsOfInterest, setEditProjectsOfInterest] = useState<
-    string[]
-  >([]);
-  const [editProjectsText, setEditProjectsText] = useState('');
-  const [editStrictProjectMatch, setEditStrictProjectMatch] = useState(false);
-  const [editPropertyInterests, setEditPropertyInterests] = useState<string[]>(
-    []
-  );
-  const [editMinRoi, setEditMinRoi] = useState('');
-  const [savingPreferences, setSavingPreferences] = useState(false);
 
   // Tags tab
   const [allTags, setAllTags] = useState<Tag[]>([]);
@@ -395,24 +386,54 @@ export function ContactDetailView({
         setEditLastInquiredPropertyId(data.last_inquired_property_id ?? null);
         setEditReferrer(data.referrer ?? '');
         setEditReferrerContactId(data.referrer_contact_id ?? null);
-        setEditRequirements(data.requirements ?? '');
-        setEditMinBudget(data.min_budget ? String(data.min_budget) : '');
-        setEditMaxBudget(data.max_budget ? String(data.max_budget) : '');
-        setEditNoBudget(!!data.no_budget);
+        const sourceContact = resolveRequirementSource(data);
+        setEditRequirements(sourceContact.requirements ?? '');
+        setEditMinBudget(
+          sourceContact.pref_budget_min != null
+            ? String(sourceContact.pref_budget_min)
+            : sourceContact.min_budget != null
+              ? String(sourceContact.min_budget)
+              : ''
+        );
+        setEditMaxBudget(
+          sourceContact.pref_budget_max != null
+            ? String(sourceContact.pref_budget_max)
+            : sourceContact.max_budget != null
+              ? String(sourceContact.max_budget)
+              : ''
+        );
+        setEditNoBudget(Boolean(sourceContact.no_budget));
         setEditStrictAreaMatch(!!data.strict_area_match);
-        const initialProjects = data.projects_of_interest ?? [];
+        const initialProjects = Array.from(
+          new Set([
+            ...(sourceContact.projects_of_interest ?? []),
+            ...(sourceContact.pref_projects ?? []),
+          ])
+        );
         setEditProjectsOfInterest(initialProjects);
         setEditProjectsText(
           initialProjects.join(', ') + (initialProjects.length > 0 ? ', ' : '')
         );
         setEditStrictProjectMatch(!!data.strict_project_match);
-        const initialAreas = data.areas_of_interest ?? [];
+        const initialAreas = Array.from(
+          new Set([
+            ...(sourceContact.areas_of_interest ?? []),
+            ...(sourceContact.pref_areas ?? []),
+          ])
+        );
         setEditAreasOfInterest(initialAreas);
         setEditAreasText(
           initialAreas.join(', ') + (initialAreas.length > 0 ? ', ' : '')
         );
         setEditAreasGeo((data as Contact).areas_of_interest_geo ?? []);
-        setEditPropertyInterests(data.property_interests ?? []);
+        const initialPropertyInterests = Array.from(
+          new Set([
+            ...(sourceContact.property_interests ?? []),
+            ...(sourceContact.pref_property_types ?? []),
+            ...(sourceContact.pref_property_categories ?? []),
+          ])
+        );
+        setEditPropertyInterests(initialPropertyInterests);
         setEditMinRoi(data.min_roi ? String(data.min_roi) : '');
         setEditDob(data.dob ?? '');
         setEditFeedbackStatus(
@@ -1196,36 +1217,34 @@ ${singlePropUrl.toString()}
 Or browse other matching verified properties here:
 ${matchingUrl.toString()}`;
       } else {
+        const source = resolveRequirementSource(contact);
+        const areaHints = [
+          ...(source.areas_of_interest || []),
+          ...(source.pref_areas || []),
+        ];
+        const preferenceHints = [
+          ...(source.property_interests || []),
+          ...(source.pref_property_types || []),
+          ...((source.pref_property_categories || []).map(
+            (category) =>
+              `${category[0]?.toUpperCase()}${category.slice(1).toLowerCase()}`
+          )),
+        ].filter(Boolean);
         const hasInterestFilters =
-          (contact.areas_of_interest && contact.areas_of_interest.length > 0) ||
-          (contact.property_interests && contact.property_interests.length > 0);
+          areaHints.length > 0 || preferenceHints.length > 0;
 
         if (hasInterestFilters) {
           const matchingUrl = new URL(showcaseUrlObj.toString());
-          if (
-            contact.areas_of_interest &&
-            contact.areas_of_interest.length > 0
-          ) {
-            matchingUrl.searchParams.set(
-              'search',
-              contact.areas_of_interest[0]
-            );
+          if (areaHints.length > 0) {
+            matchingUrl.searchParams.set('search', areaHints[0]);
           }
-          if (
-            contact.property_interests &&
-            contact.property_interests.length > 0
-          ) {
-            matchingUrl.searchParams.set(
-              'category',
-              contact.property_interests[0]
-            );
+          if (preferenceHints.length > 0) {
+            matchingUrl.searchParams.set('category', preferenceHints[0]);
           }
 
           const filterDesc = [
-            contact.property_interests?.[0],
-            contact.areas_of_interest?.[0]
-              ? `in ${contact.areas_of_interest[0]}`
-              : '',
+            preferenceHints[0],
+            areaHints[0] ? `in ${areaHints[0]}` : '',
           ]
             .filter(Boolean)
             .join(' ');
@@ -1465,9 +1484,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     if (!contactId) return;
     setSavingPreferences(true);
 
-    // Coordinates for areas removed from the list are dropped with them
     const prunedAreasGeo = pruneAreasGeo(editAreasGeo, editAreasOfInterest);
-
     const { data: saved, error } = await supabase
       .from('contacts')
       .update({
@@ -1488,9 +1505,9 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
       .select('id');
 
     if (error || !saved?.length) {
-      toast.error('Failed to update preferences');
+      toast.error('Failed to update advanced matching options');
     } else {
-      toast.success('Real estate preferences updated');
+      toast.success('Advanced matching options updated');
       setEditAreasGeo(prunedAreasGeo);
       fetchContact();
       onUpdated();
@@ -1701,8 +1718,8 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                     </button>
                     {collectsBuyerRequirements ? (
                       <button
-                        onClick={() => setRequirementsOpen(true)}
-                        className="flex items-center gap-1.5 rounded-md border border-sky-500/20 px-2 py-0.5 font-medium text-sky-400 transition-all hover:bg-sky-500/10 hover:text-sky-300"
+                        onClick={() => setActiveTab('requirements')}
+                        className="flex cursor-pointer items-center gap-1.5 rounded-md border border-sky-500/20 px-2 py-0.5 font-medium text-sky-400 transition-all hover:bg-sky-500/10 hover:text-sky-300"
                         title="Review, edit, add or request this buyer's requirements"
                       >
                         <ClipboardList className="size-3 text-sky-400" />
@@ -1888,14 +1905,14 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                   value="details"
                   className="data-active:text-primary shrink-0 text-slate-400 data-active:bg-slate-800"
                 >
-                  Details
-                </TabsTrigger>
-                {editClassification === 'Buyer' && (
+                Details
+              </TabsTrigger>
+                {collectsBuyerRequirements && (
                   <TabsTrigger
-                    value="preferences"
+                    value="requirements"
                     className="data-active:text-primary shrink-0 text-slate-400 data-active:bg-slate-800"
                   >
-                    Preferences
+                    Requirements
                   </TabsTrigger>
                 )}
                 {[
@@ -2539,47 +2556,61 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                 </div>
               </TabsContent>
 
-              {/* Preferences Tab */}
-              {editClassification === 'Buyer' && (
+              {/* Requirements Tab */}
+              {collectsBuyerRequirements && contact && (
                 <TabsContent
-                  value="preferences"
+                  value="requirements"
                   className="flex min-h-0 flex-1 flex-col"
                 >
-                  <div className="flex-1 overflow-y-auto px-4 py-3">
-                    <div className="space-y-4">
+                  <ContactRequirementsDialog
+                    embedded
+                    open
+                    onOpenChange={() => setActiveTab('details')}
+                    contact={contact}
+                    onChanged={() => {
+                      fetchContact();
+                      onUpdated();
+                    }}
+                  />
+                  <details className="group shrink-0 border-t border-slate-800 bg-slate-900/80">
+                    <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-semibold text-slate-200 [&::-webkit-details-marker]:hidden">
+                      <span>Advanced matching options</span>
+                      <span className="text-[10px] font-normal text-slate-500 group-open:hidden">
+                        Budget, ROI, areas and property type
+                      </span>
+                    </summary>
+                    <div className="max-h-72 space-y-3 overflow-y-auto px-4 pb-4">
                       <div className="space-y-2">
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-center justify-between gap-3">
                           <Label className="text-xs font-semibold text-slate-400">
                             Budget Range (INR)
                           </Label>
-                          <label className="flex cursor-pointer items-center gap-1.5 text-xs text-slate-400 select-none">
+                          <label className="flex cursor-pointer items-center gap-1.5 text-[11px] text-slate-400 select-none">
                             <input
                               type="checkbox"
                               checked={editNoBudget}
-                              onChange={(e) => {
-                                setEditNoBudget(e.target.checked);
-                                if (e.target.checked) {
+                              onChange={(event) => {
+                                setEditNoBudget(event.target.checked);
+                                if (event.target.checked) {
                                   setEditMinBudget('');
                                   setEditMaxBudget('');
                                 }
                               }}
-                              className="border-slate-750 text-primary focus:ring-primary/40 h-3.5 w-3.5 rounded bg-slate-800"
+                              className="text-primary size-3.5 rounded border-slate-700 bg-slate-800"
                             />
-                            No Budget Limit
+                            No budget limit
                           </label>
                         </div>
-
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-1">
-                            <Label className="text-[10px] text-slate-500">
-                              Min Budget
-                            </Label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
                             <Input
                               type="number"
                               disabled={editNoBudget}
                               value={editMinBudget}
-                              onChange={(e) => setEditMinBudget(e.target.value)}
-                              placeholder="Min Budget"
+                              onChange={(event) =>
+                                setEditMinBudget(event.target.value)
+                              }
+                              placeholder="Min budget"
                               className="h-8 border-slate-700 bg-slate-800 text-xs text-white disabled:opacity-40"
                             />
                             <PriceHint
@@ -2588,16 +2619,15 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                               className="block text-[10px]"
                             />
                           </div>
-                          <div className="space-y-1">
-                            <Label className="text-[10px] text-slate-500">
-                              Max Budget
-                            </Label>
+                          <div>
                             <Input
                               type="number"
                               disabled={editNoBudget}
                               value={editMaxBudget}
-                              onChange={(e) => setEditMaxBudget(e.target.value)}
-                              placeholder="Max Budget"
+                              onChange={(event) =>
+                                setEditMaxBudget(event.target.value)
+                              }
+                              placeholder="Max budget"
                               className="h-8 border-slate-700 bg-slate-800 text-xs text-white disabled:opacity-40"
                             />
                             <PriceHint
@@ -2609,27 +2639,24 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                         </div>
                       </div>
 
-                      {/* ROI Preference Field */}
-                      <div className="space-y-2">
+                      <div className="space-y-1.5">
                         <Label className="text-xs font-semibold text-slate-400">
-                          Expected Min ROI (%)
+                          Expected minimum ROI (%)
                         </Label>
                         <Input
                           type="number"
                           step="0.01"
                           value={editMinRoi}
-                          onChange={(e) => setEditMinRoi(e.target.value)}
+                          onChange={(event) => setEditMinRoi(event.target.value)}
                           placeholder="e.g. 4.5"
-                          className="focus-visible:ring-primary h-8 border-slate-700 bg-slate-800 text-xs text-white focus-visible:ring-1 focus-visible:ring-offset-0"
+                          className="h-8 border-slate-700 bg-slate-800 text-xs text-white"
                         />
                       </div>
 
-                      {/* Areas of Interest */}
-                      <div className="space-y-2">
+                      <div className="space-y-1.5">
                         <Label className="text-xs font-semibold text-slate-400">
-                          Areas of Interest
+                          Areas of interest
                         </Label>
-
                         <AreasOfInterestInput
                           areasText={editAreasText}
                           areasOfInterest={editAreasOfInterest}
@@ -2638,44 +2665,33 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                             setEditAreasOfInterest(areas);
                           }}
                           onPickGeo={(geo) =>
-                            setEditAreasGeo((prev) => [
-                              ...prev.filter(
-                                (g) =>
-                                  g.name.toLowerCase() !==
+                            setEditAreasGeo((current) => [
+                              ...current.filter(
+                                (item) =>
+                                  item.name.toLowerCase() !==
                                   geo.name.toLowerCase()
                               ),
                               geo,
                             ])
                           }
                         />
-
-                        {/* Strict Area Match Checkbox */}
-                        <div className="flex items-center space-x-2 pt-2">
+                        <label className="flex cursor-pointer items-center gap-2 text-[11px] text-slate-400 select-none">
                           <input
                             type="checkbox"
-                            id="edit-cf-strict-area-match"
                             checked={editStrictAreaMatch}
-                            onChange={(e) =>
-                              setEditStrictAreaMatch(e.target.checked)
+                            onChange={(event) =>
+                              setEditStrictAreaMatch(event.target.checked)
                             }
-                            className="text-primary size-3.5 rounded border-slate-700 bg-slate-800 focus:ring-0 focus:ring-offset-0"
+                            className="text-primary size-3.5 rounded border-slate-700 bg-slate-800"
                           />
-                          <label
-                            htmlFor="edit-cf-strict-area-match"
-                            className="cursor-pointer text-[11px] font-medium text-slate-400 select-none"
-                          >
-                            Strict Area Match (Matches within 5 kms instead of
-                            20 kms)
-                          </label>
-                        </div>
+                          Strict area match (5 km instead of 20 km)
+                        </label>
                       </div>
 
-                      {/* Named Projects */}
-                      <div className="space-y-2">
+                      <div className="space-y-1.5">
                         <Label className="text-xs font-semibold text-slate-400">
-                          Projects of Interest
+                          Projects of interest
                         </Label>
-
                         <ProjectsOfInterestInput
                           projectsText={editProjectsText}
                           projects={editProjectsOfInterest}
@@ -2685,66 +2701,53 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                             setEditProjectsOfInterest(projects);
                           }}
                           onStrictChange={setEditStrictProjectMatch}
-                          idPrefix="edit-cf"
+                          idPrefix="contact-requirements"
                         />
                       </div>
 
-                      {/* Property Category Interests */}
-                      <div className="space-y-2">
+                      <div className="space-y-1.5">
                         <Label className="text-xs font-semibold text-slate-400">
-                          Property Category Interests
+                          Property categories
                         </Label>
-                        <div className="grid grid-cols-1 gap-2 rounded-lg border border-slate-800/80 bg-slate-950/20 p-3">
-                          {PROPERTY_INTEREST_OPTIONS.map((option) => {
-                            const checked =
-                              editPropertyInterests.includes(option);
-                            return (
-                              <label
-                                key={option}
-                                className="text-slate-350 flex cursor-pointer items-start gap-2.5 text-xs select-none hover:text-white"
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={checked}
-                                  onChange={(e) => {
-                                    if (e.target.checked) {
-                                      setEditPropertyInterests((prev) => [
-                                        ...prev,
-                                        option,
-                                      ]);
-                                    } else {
-                                      setEditPropertyInterests((prev) =>
-                                        prev.filter((o) => o !== option)
-                                      );
-                                    }
-                                  }}
-                                  className="text-primary focus:ring-primary/40 mt-0.5 h-3.5 w-3.5 cursor-pointer rounded border-slate-700 bg-slate-800"
-                                />
-                                <span>{option}</span>
-                              </label>
-                            );
-                          })}
+                        <div className="grid gap-1.5 rounded-lg border border-slate-800 bg-slate-950/30 p-2">
+                          {PROPERTY_INTEREST_OPTIONS.map((option) => (
+                            <label
+                              key={option}
+                              className="flex cursor-pointer items-start gap-2 text-xs text-slate-300 select-none"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={editPropertyInterests.includes(option)}
+                                onChange={(event) =>
+                                  setEditPropertyInterests((current) =>
+                                    event.target.checked
+                                      ? [...current, option]
+                                      : current.filter((item) => item !== option)
+                                  )
+                                }
+                                className="text-primary mt-0.5 size-3.5 rounded border-slate-700 bg-slate-800"
+                              />
+                              {option}
+                            </label>
+                          ))}
                         </div>
                       </div>
-                    </div>
-                  </div>
 
-                  {/* Sticky save footer — always visible while editing */}
-                  <div className="shrink-0 border-t border-slate-800 bg-slate-900 px-4 py-2.5">
-                    <Button
-                      onClick={savePreferences}
-                      disabled={savingPreferences}
-                      className="bg-primary hover:bg-primary/90 text-primary-foreground w-full"
-                      size="sm"
-                    >
-                      {savingPreferences ? (
-                        <Loader2 className="size-3.5 animate-spin" />
-                      ) : (
-                        <Save className="size-3.5" />
-                      )}
-                      Save Preferences
-                    </Button>
-                  </div>
+                      <Button
+                        size="sm"
+                        onClick={savePreferences}
+                        disabled={savingPreferences}
+                        className="w-full"
+                      >
+                        {savingPreferences ? (
+                          <Loader2 className="size-3.5 animate-spin" />
+                        ) : (
+                          <Save className="size-3.5" />
+                        )}
+                        Save advanced options
+                      </Button>
+                    </div>
+                  </details>
                 </TabsContent>
               )}
 
@@ -3671,18 +3674,6 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                   properties={associatedProperties}
                 />
               )}
-            {contactId && contact && collectsBuyerRequirements && (
-              <ContactRequirementsDialog
-                key={`${contact.id}-${requirementsOpen}`}
-                open={requirementsOpen}
-                onOpenChange={setRequirementsOpen}
-                contact={contact}
-                onChanged={() => {
-                  fetchContact();
-                  onUpdated();
-                }}
-              />
-            )}
             {/* Greetings Generator Dialog */}
             {contactId && contact && hasPhone(contact) && (
               <GreetingsGeneratorDialog

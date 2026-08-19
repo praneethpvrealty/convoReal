@@ -65,7 +65,7 @@ export function BuyerPreferenceRequestDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl font-bold">
             <ClipboardCheck className="text-primary size-5" />
-            Ask for buyer requirements
+            Ask buyer requirements
           </DialogTitle>
           <DialogDescription className="text-sm text-slate-400">
             Send {name} a WhatsApp form pre-filled with the preferences already

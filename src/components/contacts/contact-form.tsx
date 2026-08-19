@@ -46,6 +46,7 @@ import {
 } from '@/components/ui/tooltip';
 import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
 import { AlertsConsentControl } from '@/components/contacts/alerts-consent-control';
+import { resolveRequirementSource } from '@/lib/requirements/profiles';
 
 interface ContactFormProps {
   open: boolean;
@@ -194,6 +195,7 @@ export function ContactForm({
 
   useEffect(() => {
     if (open) {
+      const sourceContact = contact ? resolveRequirementSource(contact) : null;
       setName(contact?.name ?? '');
       setSecondName(contact?.second_name ?? '');
       setNameTag(contact?.name_tag ?? '');
@@ -208,23 +210,52 @@ export function ContactForm({
       setLastInquiredPropertyId(contact?.last_inquired_property_id ?? null);
       setReferrer(contact?.referrer ?? '');
       setReferrerContactId(contact?.referrer_contact_id ?? null);
-      setMinBudget(contact?.min_budget ? String(contact.min_budget) : '');
-      setMaxBudget(contact?.max_budget ? String(contact.max_budget) : '');
-      setNoBudget(!!contact?.no_budget);
+      setMinBudget(
+        sourceContact?.pref_budget_min != null
+          ? String(sourceContact.pref_budget_min)
+          : sourceContact?.min_budget != null
+            ? String(sourceContact.min_budget)
+            : ''
+      );
+      setMaxBudget(
+        sourceContact?.pref_budget_max != null
+          ? String(sourceContact.pref_budget_max)
+          : sourceContact?.max_budget != null
+            ? String(sourceContact.max_budget)
+            : ''
+      );
+      setNoBudget(Boolean(sourceContact?.no_budget));
       setStrictAreaMatch(!!contact?.strict_area_match);
-      const initialAreas = contact?.areas_of_interest ?? [];
+      const initialAreas = Array.from(
+        new Set([
+          ...(sourceContact?.areas_of_interest ?? []),
+          ...(sourceContact?.pref_areas ?? []),
+        ])
+      );
       setAreasOfInterest(initialAreas);
       setAreasText(
         initialAreas.join(', ') + (initialAreas.length > 0 ? ', ' : '')
       );
       setAreasGeo(contact?.areas_of_interest_geo ?? []);
-      const initialProjects = contact?.projects_of_interest ?? [];
+      const initialProjects = Array.from(
+        new Set([
+          ...(sourceContact?.projects_of_interest ?? []),
+          ...(sourceContact?.pref_projects ?? []),
+        ])
+      );
       setProjectsOfInterest(initialProjects);
       setProjectsText(
         initialProjects.join(', ') + (initialProjects.length > 0 ? ', ' : '')
       );
       setStrictProjectMatch(!!contact?.strict_project_match);
-      setPropertyInterests(contact?.property_interests ?? []);
+      const initialPropertyInterests = Array.from(
+        new Set([
+          ...(sourceContact?.property_interests ?? []),
+          ...(sourceContact?.pref_property_types ?? []),
+          ...(sourceContact?.pref_property_categories ?? []),
+        ])
+      );
+      setPropertyInterests(initialPropertyInterests);
       setMinRoi(contact?.min_roi ? String(contact.min_roi) : '');
       setSource(contact?.source ?? '');
       setDob(contact?.dob ?? '');

@@ -14,6 +14,7 @@ import { sendPropertyTypePrompt } from '@/lib/whatsapp/property-type-prompt';
 import { sendBudgetBandPrompt } from '@/lib/whatsapp/budget-band';
 import { isPlaceholderLeadName } from '@/lib/contacts/lead-placeholder';
 import { accountShowcaseBrowseUrl } from '@/lib/showcase/account-showcase-url';
+import { resolveRequirementSource } from '@/lib/requirements/profiles';
 import type { Contact } from '@/types';
 
 /** Every id this module owns starts with this. */
@@ -28,6 +29,8 @@ function inr(n: number): string {
 }
 
 function budgetLabel(contact: Contact): string | null {
+  contact = resolveRequirementSource(contact);
+
   if (contact.no_budget) return 'no fixed budget';
   const min = contact.pref_budget_min ?? contact.min_budget ?? null;
   const max = contact.pref_budget_max ?? contact.max_budget ?? null;
@@ -42,22 +45,23 @@ function budgetLabel(contact: Contact): string | null {
  * is nothing on file worth playing back.
  */
 export function buildRequirementSummary(contact: Contact): string | null {
+  const source = resolveRequirementSource(contact);
   const parts: string[] = [];
 
-  const types = contact.pref_property_types?.length
-    ? contact.pref_property_types
-    : (contact.pref_property_categories ?? []);
+  const types = source.pref_property_types?.length
+    ? source.pref_property_types
+    : (source.pref_property_categories ?? []);
   if (types.length) parts.push(types.slice(0, 2).join(' / '));
 
-  if (contact.pref_bhk_min != null || contact.pref_bhk_max != null) {
-    const lo = contact.pref_bhk_min ?? contact.pref_bhk_max;
-    const hi = contact.pref_bhk_max ?? contact.pref_bhk_min;
+  if (source.pref_bhk_min != null || source.pref_bhk_max != null) {
+    const lo = source.pref_bhk_min ?? source.pref_bhk_max;
+    const hi = source.pref_bhk_max ?? source.pref_bhk_min;
     parts.push(lo === hi ? `${lo} BHK` : `${lo}–${hi} BHK`);
   }
 
   const sqft = (n: number) => `${Math.round(n).toLocaleString('en-IN')} sq.ft`;
-  const sizeMin = contact.pref_land_area_min_sqft ?? null;
-  const sizeMax = contact.pref_land_area_max_sqft ?? null;
+  const sizeMin = source.pref_land_area_min_sqft ?? null;
+  const sizeMax = source.pref_land_area_max_sqft ?? null;
   if (sizeMin != null && sizeMax != null) {
     parts.push(
       sizeMin === sizeMax ? sqft(sizeMin) : `${sqft(sizeMin)}–${sqft(sizeMax)}`
@@ -70,8 +74,8 @@ export function buildRequirementSummary(contact: Contact): string | null {
 
   const seen = new Set<string>();
   const areas = [
-    ...(contact.areas_of_interest ?? []),
-    ...(contact.pref_areas ?? []),
+    ...(source.areas_of_interest ?? []),
+    ...(source.pref_areas ?? []),
   ].filter((a) => {
     const key = a.trim().toLowerCase();
     if (!key || key === 'bangalore' || seen.has(key)) return false;
@@ -80,12 +84,12 @@ export function buildRequirementSummary(contact: Contact): string | null {
   });
   if (areas.length) parts.push(`near ${areas.slice(0, 3).join(', ')}`);
 
-  const budget = budgetLabel(contact);
+  const budget = budgetLabel(source);
   if (budget) parts.push(budget);
 
   if (
-    contact.pref_listing_types?.includes('Rent') &&
-    !contact.pref_listing_types.includes('Sale')
+    source.pref_listing_types?.includes('Rent') &&
+    !source.pref_listing_types.includes('Sale')
   ) {
     parts.push('to rent');
   }

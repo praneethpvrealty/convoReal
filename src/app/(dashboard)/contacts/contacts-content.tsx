@@ -80,6 +80,7 @@ import { GatedButton } from '@/components/ui/gated-button';
 import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
 import { suggestNameTagSplit } from '@/lib/contacts/name-tag-split';
 import { contactFullName } from '@/lib/contacts/full-name';
+import { resolveRequirementSource } from '@/lib/requirements/profiles';
 import {
   BulkImportModal,
   type BulkImportContact,
@@ -262,7 +263,7 @@ export default function ContactsPage() {
   // merge the matching engine and the Requirements tab use, so a
   // budget typed only into the demands statement still shows here.
   const formatBudget = (contact: Contact) => {
-    if (contact.no_budget) return 'No Limit';
+    if (resolveRequirementSource(contact).no_budget) return 'No Limit';
     const budget = effectiveMaxBudget(contact);
     if (!budget) return '-';
     return (
@@ -408,35 +409,35 @@ ${singlePropUrl.toString()}
 Or browse other matching verified properties here:
 ${matchingUrl.toString()}`;
       } else {
+        const source = resolveRequirementSource(contact);
+        const areaHints = [
+          ...(source.areas_of_interest || []),
+          ...(source.pref_areas || []),
+        ];
+        const preferenceHints = [
+          ...(source.property_interests || []),
+          ...(source.pref_property_types || []),
+          ...((source.pref_property_categories || []).map(
+            (category) =>
+              `${category[0]?.toUpperCase()}${category.slice(1).toLowerCase()}`
+          )),
+        ].filter(Boolean);
         const hasInterestFilters =
-          (contact.areas_of_interest && contact.areas_of_interest.length > 0) ||
-          (contact.property_interests && contact.property_interests.length > 0);
+          areaHints.length > 0 || preferenceHints.length > 0;
 
         if (hasInterestFilters) {
           const matchingUrl = new URL(showcaseUrlObj.toString());
-          if (
-            contact.areas_of_interest &&
-            contact.areas_of_interest.length > 0
-          ) {
-            matchingUrl.searchParams.set(
-              'search',
-              contact.areas_of_interest[0]
-            );
+          if (areaHints.length > 0) {
+            matchingUrl.searchParams.set('search', areaHints[0]);
           }
-          if (
-            contact.property_interests &&
-            contact.property_interests.length > 0
-          ) {
-            matchingUrl.searchParams.set(
-              'category',
-              contact.property_interests[0]
-            );
+          if (preferenceHints.length > 0) {
+            matchingUrl.searchParams.set('category', preferenceHints[0]);
           }
 
           const filterDesc = [
-            contact.property_interests?.[0],
-            contact.areas_of_interest?.[0]
-              ? `in ${contact.areas_of_interest[0]}`
+            preferenceHints[0],
+            areaHints[0]
+              ? `in ${areaHints[0]}`
               : '',
           ]
             .filter(Boolean)
@@ -838,7 +839,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
   }, []);
 
   // Populates the "Area" filter dropdown. This has to scan every contact's
-  // areas_of_interest column (no cheap indexed DISTINCT-unnest available),
+  // area columns (no cheap indexed DISTINCT-unnest available),
   // so it's cached for 5 minutes and — unlike fetchTags/fetchContacts — only
   // triggered lazily when the user actually opens the Filters panel, instead
   // of unconditionally on every Contacts page mount.
@@ -853,14 +854,17 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     const supabaseClient = createClient();
     const { data } = await supabaseClient
       .from('contacts')
-      .select('areas_of_interest')
+      .select('areas_of_interest, pref_areas')
       .eq('account_id', accountId)
-      .not('areas_of_interest', 'is', null);
+      .or('areas_of_interest.not.is.null,pref_areas.not.is.null');
     if (data) {
       const unique = Array.from(
         new Set(
           data
-            .flatMap((c) => (c.areas_of_interest as string[] | null) ?? [])
+            .flatMap((c) => [
+              ...((c.areas_of_interest as string[] | null) ?? []),
+              ...((c.pref_areas as string[] | null) ?? []),
+            ])
             .filter(Boolean)
             .map((a: string) => a.trim())
         )
@@ -1211,8 +1215,11 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
           }
 
           if (filterArea !== 'All') {
-            // areas_of_interest is a text[] column — filter contacts whose array contains the selected area
-            query = query.contains('areas_of_interest', [filterArea]);
+            // Match both explicit (areas_of_interest) and profile-extracted
+            // (pref_areas) preferences for the selected area.
+            query = query.or(
+              `areas_of_interest.cs.{"${filterArea}"},pref_areas.cs.{"${filterArea}"}`
+            );
           }
 
           if (debouncedSearch.trim()) {
@@ -1325,7 +1332,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                 let locOrs = parsed.locations
                   .map(
                     (loc) =>
-                      `requirements.ilike.%${loc}%,areas_of_interest.cs.{"${loc}"}`
+                      `requirements.ilike.%${loc}%,areas_of_interest.cs.{"${loc}"},pref_areas.cs.{"${loc}"}`
                   )
                   .join(',');
                 if (safeLocIds.length > 0) {
