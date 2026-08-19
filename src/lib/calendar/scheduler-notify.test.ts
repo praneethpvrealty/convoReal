@@ -1,10 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { buildCallUpdateTemplatePayload } from '@/lib/whatsapp/call-update-template';
 
 const parseEventsFromInput = vi.fn();
 const burnCredits = vi.fn();
 const sendTextMessage = vi.fn();
 const createNotification = vi.fn();
 const recordBotTarget = vi.fn();
+const sendWhatsAppMessageAndPersist = vi.fn();
+const loadTemplateForContact = vi.fn();
+const warnLanguageFallback = vi.fn();
+const canSendToEveryLead = vi.fn();
 const inserts: { table: string; row: Record<string, unknown> }[] = [];
 let tables: Record<string, Record<string, unknown>[]> = {};
 /** Tables whose insert should come back as a write error. */
@@ -27,6 +32,22 @@ vi.mock('@/lib/whatsapp/bot-message-target', () => ({
 }));
 vi.mock('@/lib/notifications/create', () => ({
   createNotification: (...a: unknown[]) => createNotification(...a),
+}));
+vi.mock('@/lib/whatsapp/meta-api-dispatcher', () => ({
+  sendWhatsAppMessageAndPersist: (...a: unknown[]) => sendWhatsAppMessageAndPersist(...a),
+}));
+vi.mock('@/lib/whatsapp/template-language', async () => {
+  const actual = await vi.importActual<
+    typeof import('@/lib/whatsapp/template-language')
+  >('@/lib/whatsapp/template-language');
+  return {
+    ...actual,
+    loadTemplateForContact: (...a: unknown[]) => loadTemplateForContact(...a),
+    warnLanguageFallback: (...a: unknown[]) => warnLanguageFallback(...a),
+  };
+});
+vi.mock('@/lib/reengagement/template-gate', () => ({
+  canSendToEveryLead: (...a: unknown[]) => canSendToEveryLead(...a),
 }));
 vi.mock('@/lib/whatsapp/meta-api', () => ({
   sendTextMessage: (...a: unknown[]) => sendTextMessage(...a),
@@ -116,6 +137,14 @@ beforeEach(() => {
   parseEventsFromInput.mockReset();
   burnCredits.mockReset().mockResolvedValue({ success: true });
   sendTextMessage.mockReset().mockResolvedValue({ messageId: 'wamid.card' });
+  sendWhatsAppMessageAndPersist.mockReset().mockResolvedValue({ success: true });
+  loadTemplateForContact.mockReset().mockResolvedValue({
+    template: null,
+    language: 'en_US',
+    fellBack: false,
+  });
+  warnLanguageFallback.mockReset();
+  canSendToEveryLead.mockReset().mockReturnValue(true);
   recordBotTarget.mockReset().mockResolvedValue(undefined);
   createNotification
     .mockReset()
@@ -184,22 +213,47 @@ describe('notify intent', () => {
     expect(card()).toContain('Sharath');
   });
 
-  it('files an instruction for a client as a contact-linked task', async () => {
+  it.each([
+    'Can you update C Kumar about this?',
+    'Can you inform C Kumar about this update?',
+    'Can you inform C Kumar about this update to the client?',
+  ])('sends a contact update for phrase "%s"', async (contentText) => {
+    tables.contacts = [{ id: 'contact-c-kumar', name: 'C Kumar', phone: '+919999999999' }];
+    parseEventsFromInput.mockResolvedValue([
+      notify({
+        recipient_name: 'C Kumar',
+        title: 'Update for C Kumar',
+        notes: 'Suleiman client has approved the 9,600 sqft Jayanagar plot',
+      }),
+    ]);
+
+    await tryHandleOwnerScheduling({
+      ...baseParams,
+      contentText,
+    });
+
+    expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledTimes(1);
+    expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accountId: 'acc',
+        userId: 'user-1',
+        contactId: 'contact-c-kumar',
+        conversationId: 'conv-1',
+        kind: 'text',
+        senderType: 'agent',
+      })
+    );
+    expect(card()).toContain('📨 *Update sent to C Kumar*');
+    expect(card()).toContain('Update for C Kumar');
+  });
+
+  it('sends a client notify through WhatsApp instead of filing a task', async () => {
     tables.contacts = [
       {
         id: 'contact-supreeth',
         name: 'Supreeth Kumar',
         phone: '+919999999999',
         last_inquired_property_id: 'property-1194',
-      },
-    ];
-    tables.properties = [
-      {
-        id: 'property-1194',
-        title: '4 BHK Independent Bungalow in HSR Layout',
-        property_code: 'PROP-1194',
-        location: 'HSR Layout',
-        sublocality: '4th Sector',
       },
     ];
     parseEventsFromInput.mockResolvedValue([
@@ -223,17 +277,56 @@ describe('notify intent', () => {
       })
     );
 
+    expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledTimes(1);
     expect(createNotification).not.toHaveBeenCalled();
-    const todo = inserts.find((i) => i.table === 'todos');
-    expect(todo?.row).toMatchObject({
-      contact_id: 'contact-supreeth',
-      property_id: 'property-1194',
-      assigned_to: 'user-1',
-      title: 'Inform Supreeth about the owner price floor',
-      description: 'Owner has not agreed to go below 40k per sqft.',
+    expect(inserts.filter((i) => i.table === 'todos' || i.table === 'appointments')).toEqual([]);
+    expect(card()).toContain('📨 *Update sent to Supreeth Kumar*');
+    expect(card()).toContain('Inform Supreeth about the owner price floor');
+  });
+
+  it('falls back to a Utility template when free-form is blocked', async () => {
+    tables.contacts = [{ id: 'contact-supreeth', name: 'Supreeth Kumar', phone: '+919999999999' }];
+    const template = buildCallUpdateTemplatePayload();
+    loadTemplateForContact.mockResolvedValue({
+      template,
+      language: 'en_US',
+      fellBack: false,
     });
-    expect(card()).toContain('✅ *Task added to your list*');
-    expect(card()).toContain('👤 Supreeth Kumar');
+    sendWhatsAppMessageAndPersist
+      .mockResolvedValueOnce({
+        success: false,
+        error: new Error('Re-Engagement message required'),
+      })
+      .mockResolvedValueOnce({ success: true });
+    parseEventsFromInput.mockResolvedValue([
+      notify({
+        recipient_name: 'Supreeth',
+        title: 'Inform Supreeth about the owner price floor',
+        notes: 'Owner has not agreed to go below 40k per sqft.',
+      }),
+    ]);
+
+    await tryHandleOwnerScheduling({
+      ...baseParams,
+      contentText:
+        'Need to inform Supreeth that owner has not agreed to come below 40k per sqft.',
+    });
+
+    expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledTimes(2);
+    expect(sendWhatsAppMessageAndPersist.mock.calls[0][0]).toMatchObject({
+      kind: 'text',
+      contactId: 'contact-supreeth',
+      senderType: 'agent',
+      conversationId: 'conv-1',
+    });
+    expect(sendWhatsAppMessageAndPersist.mock.calls[1][0]).toMatchObject({
+      kind: 'template',
+      templateName: template.name,
+      senderType: 'agent',
+      conversationId: 'conv-1',
+    });
+    expect(card()).toContain('✅ *Update sent to Supreeth Kumar*');
+    expect(card()).toContain('📱 Sent as a WhatsApp business message and tracked in Inbox.');
   });
 
   it('asks for clarification when a name matches a client and teammate', async () => {
@@ -302,29 +395,56 @@ describe('notify intent', () => {
 
 describe('multiple requests from one message', () => {
   it('files every request and reports them in one card', async () => {
+    tables.contacts = [{ id: 'contact-c-kumar', name: 'C Kumar', phone: '+919999999999' }];
     parseEventsFromInput.mockResolvedValue([
-      notify(),
+      notify({ recipient_name: 'C Kumar' }),
       task({ start_time: '2026-08-20T10:00' }),
     ]);
 
     const handled = await tryHandleOwnerScheduling({
       ...baseParams,
       contentText:
-        "Send Sharan the update on the Kusumaraju meeting. The advocate isn't available for a week, so remind me to follow up after that",
+        "Inform C Kumar about the latest update. The advocate isn't available for a week, so remind me to follow up after that",
     });
 
     expect(handled).toBe(true);
-    expect(createNotification).toHaveBeenCalledTimes(1);
+    expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledTimes(1);
+    expect(createNotification).not.toHaveBeenCalled();
 
     const todos = inserts.filter((i) => i.table === 'todos');
     expect(todos).toHaveLength(1);
     expect(todos[0].row.title).toBe("Follow up with Kusumaraju's advocate");
 
-    expect(card()).toContain('📨 *Update sent to Sharan*');
+    expect(card()).toContain('📨 *Update sent to C Kumar*');
     expect(card()).toContain('✅ *Task added to your list*');
     // One footer, at the end, however many requests the message carried.
     expect(card().match(/Reply \*today\*/g)).toHaveLength(1);
     expect(card().trimEnd().endsWith("day's schedule._")).toBe(true);
+  });
+
+  it('creates a September 24 reminder as a separate task', async () => {
+    tables.contacts = [{ id: 'contact-c-kumar', name: 'C Kumar', phone: '+919999999999' }];
+    parseEventsFromInput.mockResolvedValue([
+      notify({ recipient_name: 'C Kumar' }),
+      task({
+        start_time: '2026-09-24T10:00',
+        title: 'Follow up with C Kumar',
+      }),
+    ]);
+
+    await tryHandleOwnerScheduling({
+      ...baseParams,
+      contentText:
+        'Can you update C Kumar about this and remind me to follow up on September 24?',
+    });
+
+    const todos = inserts.filter((i) => i.table === 'todos');
+    expect(todos).toHaveLength(1);
+    expect(todos[0].row.due_date).toBe('2026-09-24T04:30:00.000Z');
+    expect(todos[0].row.title).toBe('Follow up with C Kumar');
+    expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledTimes(1);
+    expect(card()).toContain('📨 *Update sent to C Kumar*');
+    expect(card()).toContain('✅ *Task added to your list*');
   });
 
   it('leaves a single request card exactly as it was', async () => {

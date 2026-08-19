@@ -28,6 +28,14 @@ import { parseEventOutcome } from '@/lib/calendar/event-outcome';
 import { autoLinkContactProperty } from '@/lib/calendar/auto-link';
 import { findDuplicate, type ExistingRow } from '@/lib/calendar/event-dedupe';
 import { createNotification } from '@/lib/notifications/create';
+import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
+import { buildCallUpdateParams } from '@/lib/whatsapp/call-update-template';
+import { CALL_UPDATE_TEMPLATE_NAME } from '@/lib/whatsapp/call-update-template';
+import { loadTemplateForContact, warnLanguageFallback } from '@/lib/whatsapp/template-language';
+import { isReengagementError } from '@/lib/whatsapp/customer-window';
+import { canSendToEveryLead } from '@/lib/reengagement/template-gate';
+import { sanitizeParamText, truncateParametersToBudget } from '@/lib/whatsapp/template-send-builder';
+import { type MessageTemplate } from '@/types';
 
 const EVENT_TYPE_EMOJI: Record<string, string> = {
   site_visit: '📍',
@@ -72,7 +80,7 @@ const EVENT_VERB = /\b(call|meet|meeting|visit|appointment)\b/i;
  * colleague, and they are far and away the most common phrasings.
  */
 const NOTIFY_VERB =
-  /\b(tell|inform)\s+(?!me\b|us\b|you\b)\w+\s+(that|about|the)\b|\blet\s+(?!me\b|us\b)\w+\s+know\b|\b(send|share|pass on)\b[^.!?]{0,40}\bupdate\b|\bloop\s+\w+\s+in\b|\bkeep\s+(?!me\b|us\b)\w+\s+(posted|updated|informed)\b/i;
+  /\b(tell|inform|update)\s+(?!me\b|us\b|you\b)[^.!?]{0,45}\s+(that|about|the)\b|\blet\s+(?!me\b|us\b)\w+\s+know\b|\b(send|share|pass on)\b[^.!?]{0,40}\bupdate\b|\bloop\s+\w+\s+in\b|\bkeep\s+(?!me\b|us\b)\w+\s+(posted|updated|informed)\b/i;
 
 /**
  * Relative days and clock times: "tomorrow", "next fri", "at 4pm", "18:30".
@@ -898,11 +906,11 @@ export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): P
     admin,
     accountId,
     userId,
+    conversationId: conversation.id,
     contacts: (contacts || []) as SchedulerContact[],
     properties: (properties || []) as SchedulerProperty[],
     liaisons: (liaisons || []) as SchedulerLiaison[],
     members: (members || []) as SchedulerMember[],
-    memberRefs: (members || []).map((m) => ({ id: m.user_id, full_name: m.full_name })),
     source: isAudio ? 'voice' : 'whatsapp',
     // `text` is the transcript when the words were spoken and the message
     // itself when typed — either way it is what the event was read from,
@@ -973,26 +981,15 @@ interface SchedulerMember {
   full_name: string | null;
 }
 
-interface SchedulerMemberRef {
-  id: string;
-  full_name: string | null;
-}
-
-type NotifyResolution =
-  | { kind: 'ambiguous'; member: SchedulerMemberRef; contact: SchedulerContact }
-  | { kind: 'member'; member: SchedulerMemberRef }
-  | { kind: 'contact'; contact: SchedulerContact }
-  | { kind: 'none' };
-
 interface DraftFilingContext {
   admin: ReturnType<typeof supabaseAdmin>;
   accountId: string;
   userId: string;
+  conversationId: string;
   contacts: SchedulerContact[];
   properties: SchedulerProperty[];
   liaisons: SchedulerLiaison[];
   members: SchedulerMember[];
-  memberRefs: SchedulerMemberRef[];
   source: 'voice' | 'whatsapp';
   fallbackTranscript: string | null;
 }
@@ -1005,6 +1002,29 @@ interface FiledDraft {
   /** The row this block announced, created or updated — the target a
    *  quote-reply on the card should edit. */
   row: CreatedRow | null;
+}
+
+function normalizeNotifyName(raw: string | null): string | null {
+  if (!raw || !raw.trim()) return null;
+
+  const trimmed = raw.trim();
+  return trimmed
+    .replace(/^client\s+/i, '')
+    .replace(/^customer\s+/i, '')
+    .replace(/^lead\s+/i, '')
+    .trim();
+}
+
+function contactUpdateMessage(draft: ParsedEventDraft): string {
+  const body = [draft.title, draft.notes].filter((l): l is string => !!l).join('\n');
+  return body || draft.title || 'Update from your account manager.';
+}
+
+function resolveTemplateBodyText(bodyTemplateText: string, params: string[]): string {
+  return bodyTemplateText.replace(/\{\{(\d+)\}\}/g, (_match, numberStr) => {
+    const index = Number(numberStr) - 1;
+    return index >= 0 && index < params.length ? params[index] : '';
+  });
 }
 
 /**
@@ -1124,20 +1144,6 @@ function appointmentCardLines(
   ].filter((l): l is string => l !== null);
 }
 
-function resolveNotifyRecipient(
-  recipientName: string | null,
-  memberRefs: SchedulerMemberRef[],
-  contacts: SchedulerContact[]
-): NotifyResolution {
-  const member = resolveByName(recipientName, memberRefs, (m) => m.full_name || '');
-  const contact = resolveByName(recipientName, contacts, (c) => c.name || '');
-
-  if (member && contact) return { kind: 'ambiguous', member, contact };
-  if (member) return { kind: 'member', member };
-  if (contact) return { kind: 'contact', contact };
-  return { kind: 'none' };
-}
-
 /**
  * Files ONE parsed request and describes what happened.
  *
@@ -1147,43 +1153,49 @@ function resolveNotifyRecipient(
  */
 async function fileDraft(draft: ParsedEventDraft, ctx: DraftFilingContext): Promise<FiledDraft> {
   if (draft.intent === 'notify') {
-    const notification = resolveNotifyRecipient(draft.recipient_name, ctx.memberRefs, ctx.contacts);
-    if (notification.kind === 'ambiguous') {
+    const notifyName = normalizeNotifyName(draft.recipient_name || draft.contact_name);
+    const member = resolveByName(
+      notifyName,
+      ctx.members.map((m) => ({ id: m.user_id, full_name: m.full_name })),
+      (m) => m.full_name || ''
+    );
+    const contact = resolveByName(
+      notifyName,
+      ctx.contacts,
+      (c) => c.name || ''
+    );
+
+    if (member && contact) {
       return {
         lines: [
           '🤔 *Which person do you mean?*',
-          `*${draft.recipient_name}* matches both a client and a teammate. Say “client ${notification.contact.name}” or “teammate ${notification.member.full_name}”.`,
+          `*${notifyName}* matches both a client and a teammate. Say “client ${contact.name}” or “teammate ${member.full_name}”.`,
         ],
         row: null,
       };
     }
-    if (notification.kind === 'member') {
-      return sendTeammateUpdate(draft, ctx, notification.member);
-    }
-    if (notification.kind === 'contact' && notification.contact.name) {
-      draft = {
-        ...draft,
-        intent: 'task',
-        contact_name: notification.contact.name,
-        recipient_name: null,
-        assignee_name: null,
-      };
-    }
-    if (notification.kind === 'none' || (notification.kind === 'contact' && !notification.contact.name)) {
+    if (!member && !contact) {
       return {
         lines: [
           '⚠️ *Couldn\'t send that update*',
-          draft.recipient_name
-            ? `👤 No teammate called *${draft.recipient_name}* — check the spelling, or add them under *Agents*.`
-            : '👤 Say who should get it, e.g. "send Sharan the update on the site visit".',
+          notifyName
+            ? `👤 No teammate or client called *${notifyName}* — check the spelling, or add them under *Agents* / *Contacts*.`
+            : '👤 Say who should get it, e.g. "inform C Kumar about this update".',
           `💬 ${draft.title}`,
         ],
         row: null,
       };
     }
+
+    const resolvedDraft =
+      notifyName === draft.recipient_name ? draft : { ...draft, recipient_name: notifyName };
+    if (member) {
+      return sendTeammateUpdate(resolvedDraft, ctx);
+    }
+    return sendContactUpdate(resolvedDraft, ctx);
   }
 
-  const memberRefs = ctx.memberRefs;
+  const memberRefs = ctx.members.map((m) => ({ id: m.user_id, full_name: m.full_name }));
   const { contact, property } = autoLinkContactProperty(
     resolveByName(draft.contact_name, ctx.contacts, (c) => c.name || ''),
     resolveByName(
@@ -1409,12 +1421,17 @@ async function fileDraft(draft: ParsedEventDraft, ctx: DraftFilingContext): Prom
  */
 async function sendTeammateUpdate(
   draft: ParsedEventDraft,
-  ctx: DraftFilingContext,
-  recipient: SchedulerMemberRef
+  ctx: DraftFilingContext
 ): Promise<FiledDraft> {
+  const recipient = resolveByName(
+    draft.recipient_name,
+    ctx.members.map((m) => ({ id: m.user_id, full_name: m.full_name })),
+    (m) => m.full_name || ''
+  );
+
   // Resolving to the speaker means the name matched nobody useful — an
   // update pinged back to its own author tells them nothing.
-  if (recipient.id === ctx.userId) {
+  if (!recipient || recipient.id === ctx.userId) {
     return {
       lines: [
         '⚠️ *Couldn\'t send that update*',
@@ -1468,6 +1485,127 @@ async function sendTeammateUpdate(
         ? '📵 WhatsApp couldn\'t reach them — they\'ll see it in the app.'
         : null,
     ].filter((l): l is string => l !== null),
+    row: null,
+  };
+}
+
+async function sendContactUpdate(
+  draft: ParsedEventDraft,
+  ctx: DraftFilingContext
+): Promise<FiledDraft> {
+  const notifyName = normalizeNotifyName(draft.recipient_name || draft.contact_name);
+  const contact = resolveByName(
+    notifyName,
+    ctx.contacts,
+    (c) => c.name || ''
+  );
+  if (!contact) {
+    return {
+      lines: [
+        '⚠️ *Couldn\'t send that update*',
+        notifyName
+          ? `👤 No contact called *${notifyName}* — check the spelling, or add them under *Contacts*.`
+          : '👤 Say who should get it, e.g. "inform C Kumar about this update".',
+        `💬 ${draft.title}`,
+      ],
+      row: null,
+    };
+  }
+
+  const senderName = ctx.members.find((m) => m.user_id === ctx.userId)?.full_name || null;
+  const text = contactUpdateMessage(draft);
+
+  const sentText = await sendWhatsAppMessageAndPersist({
+    accountId: ctx.accountId,
+    userId: ctx.userId,
+    contactId: contact.id,
+    conversationId: ctx.conversationId,
+    kind: 'text',
+    senderType: 'agent',
+    text,
+    customDbClient: ctx.admin,
+  });
+  if (sentText.success) {
+    return {
+      lines: [
+        `📨 *Update sent to ${contact.name}*`,
+        `💬 ${draft.title}`,
+      ],
+      row: null,
+    };
+  }
+
+  if (!isReengagementError(sentText.error)) {
+    return {
+      lines: [
+        `⚠️ *Couldn't send update to ${contact.name}*`,
+        `💬 ${draft.title}`,
+        'Tell them directly for now.',
+      ],
+      row: null,
+    };
+  }
+
+  const { template, language, fellBack } = await loadTemplateForContact<MessageTemplate>(
+    ctx.admin,
+    {
+      accountId: ctx.accountId,
+      contactId: contact.id,
+      names: [CALL_UPDATE_TEMPLATE_NAME],
+    }
+  );
+  if (fellBack) {
+    warnLanguageFallback('update message', ctx.accountId, language, template);
+  }
+
+  if (!template || !canSendToEveryLead(template)) {
+    return {
+      lines: [
+        template && !canSendToEveryLead(template)
+          ? `⚠️ *I couldn't send the update to ${contact.name}*`
+          : `⚠️ *The update template for ${contact.name} is unavailable*`,
+        template && !canSendToEveryLead(template)
+          ? 'Approve a Utility template for updates in WhatsApp Templates, then I can send this outside the chat window.'
+          : 'I can send only a one-off WhatsApp message inside the 24-hour window.',
+      ],
+      row: null,
+    };
+  }
+
+  const templateParams = truncateParametersToBudget(
+    template.body_text,
+    [...buildCallUpdateParams(contact.name, senderName, text)].map((value) => sanitizeParamText(value))
+  );
+  const templateResult = await sendWhatsAppMessageAndPersist({
+    accountId: ctx.accountId,
+    userId: ctx.userId,
+    contactId: contact.id,
+    conversationId: ctx.conversationId,
+    kind: 'template',
+    senderType: 'agent',
+    templateName: template.name,
+    templateLanguage: template.language || 'en_US',
+    templateParams,
+    templateRow: template,
+    text: resolveTemplateBodyText(template.body_text, templateParams),
+    customDbClient: ctx.admin,
+  });
+  if (!templateResult.success) {
+    return {
+      lines: [
+        `⚠️ *Couldn't send update to ${contact.name}*`,
+        `💬 ${draft.title}`,
+      ],
+      row: null,
+    };
+  }
+
+  return {
+    lines: [
+      `✅ *Update sent to ${contact.name}*`,
+      `💬 ${draft.title}`,
+      '📱 Sent as a WhatsApp business message and tracked in Inbox.',
+    ],
     row: null,
   };
 }
