@@ -21,6 +21,7 @@ const CHROME =
   process.env.E2E_CHROMIUM ?? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
 
 export async function launch() {
+  const accountId = process.env.E2E_ACCOUNT_ID?.trim();
   const browser = await chromium.launch({
     executablePath: CHROME,
     args: ['--no-proxy-server'],
@@ -29,6 +30,15 @@ export async function launch() {
     viewport: { width: 1440, height: 900 },
     ignoreHTTPSErrors: true,
   });
+  if (accountId) {
+    await ctx.addInitScript((storedAccountId) => {
+      try {
+        localStorage.setItem(`onboarding_dismissed_${storedAccountId}`, 'true');
+      } catch {
+        // localStorage might be unavailable in some startup contexts; ignore.
+      }
+    }, accountId);
+  }
   const page = await ctx.newPage();
   return { browser, ctx, page };
 }
