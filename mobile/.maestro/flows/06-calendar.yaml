@@ -8,5 +8,6 @@ name: calendar
     visible:
       id: "calendar-screen"
     timeout: 20000
-- assertVisible: "Today"
+# Match the Pressable accessibility label; iOS does not expose its child text separately.
+- assertVisible: "Jump to today"
 - takeScreenshot: .maestro/shots/06-calendar
