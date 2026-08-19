@@ -1,0 +1,71 @@
+name: Release gate E2E
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 2 * * *'
+
+concurrency:
+  group: release-gate-e2e
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  contact-and-requirements:
+    name: Contact and requirements flow
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: ui-tests
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npx tsx e2e/provision.ts
+      - run: npm run dev > /tmp/convoreal-dev.log 2>&1 &
+      - run: |
+          for attempt in {1..60}; do
+            curl --fail --silent http://localhost:3000/login >/dev/null && exit 0
+            sleep 2
+          done
+          cat /tmp/convoreal-dev.log
+          exit 1
+      - run: npm run test:e2e:contact-followup
+
+  production-ai-billing:
+    name: Production AI credits and errors
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production-smoke
+    env:
+      E2E_BASE_URL: ${{ secrets.E2E_BASE_URL }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      AI_SMOKE_EMAIL: ${{ secrets.AI_SMOKE_EMAIL }}
+      AI_SMOKE_PHONE: ${{ secrets.AI_SMOKE_PHONE }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run smoke:ai-billing
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-gate-evidence-${{ github.run_id }}
+          path: test-results/
+          retention-days: 14
