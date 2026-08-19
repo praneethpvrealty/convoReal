@@ -2,6 +2,13 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { encrypt } from "./encryption";
 import { isReengagementError } from "./customer-window";
 import { isChainOnlyBlockedError } from "@/lib/contacts/chain-only";
+import { createHash } from "node:crypto";
+
+const writeJourneyEventMock = vi.fn();
+
+vi.mock("@/lib/journey/events", () => ({
+  writeJourneyEvent: writeJourneyEventMock,
+}));
 
 /**
  * Regression test for a real production incident: system-initiated
@@ -29,15 +36,21 @@ function makeDb(
      *  24-hour window is open — the ordinary case for a bot reply. Pass
      *  null to model a contact who has never messaged. */
     lastInboundAt?: string | null;
-    integrationType?: string;
+  integrationType?: string;
     /** Marks the contact as a re-share chain intermediary (migration
      *  215) rather than a lead of this account. */
     chainOnly?: boolean;
     isDead?: boolean;
     isArchived?: boolean;
+    journeyItems?: Row[];
+    journeyEventInsertError?: { code?: string; message?: string };
   } = {},
 ) {
-  const inserts: Record<string, Row[]> = { conversations: [], messages: [] };
+  const inserts: Record<string, Row[]> = {
+    conversations: [],
+    messages: [],
+    journey_events: [],
+  };
   const lastInboundAt =
     overrides.lastInboundAt === undefined
       ? new Date().toISOString()
@@ -107,6 +120,15 @@ function makeDb(
         }
         return Promise.resolve({ data: null, error: null });
       },
+      then: (resolve: (v: { data: unknown; error: unknown }) => unknown) => {
+        if (table === "journey_items") {
+          return Promise.resolve({
+            data: overrides.journeyItems ?? [],
+            error: null,
+          }).then(resolve);
+        }
+        return Promise.resolve({ data: null, error: null }).then(resolve);
+      },
       single: () => {
         if (table === "whatsapp_config") {
           return Promise.resolve({
@@ -133,11 +155,24 @@ function makeDb(
             error: null,
           });
         }
+        if (table === "journey_events") {
+          const inserted = inserts.journey_events.at(-1);
+          if (overrides.journeyEventInsertError) {
+            return Promise.resolve({
+              data: null,
+              error: overrides.journeyEventInsertError,
+            });
+          }
+
+          return Promise.resolve({
+            data: inserted
+              ? { id: `je-${(inserted as { id?: string } | undefined)?.id ?? '1'}` }
+              : { id: "je-1" },
+            error: null,
+          });
+        }
         return Promise.resolve({ data: null, error: null });
       },
-      // conversations.update(...).eq(...) is awaited directly, no further chain.
-      then: (resolve: (v: { data: null; error: null }) => unknown) =>
-        Promise.resolve({ data: null, error: null }).then(resolve),
     };
     return b;
   }
@@ -150,6 +185,7 @@ function makeDb(
 
 describe("sendWhatsAppMessageAndPersist", () => {
   beforeEach(() => {
+    writeJourneyEventMock.mockReset();
     vi.stubGlobal(
       "fetch",
       vi.fn(async () =>
@@ -162,6 +198,112 @@ describe("sendWhatsAppMessageAndPersist", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+  });
+
+  it("logs personal WhatsApp journey events for agent-sent outbound messages", async () => {
+    writeJourneyEventMock.mockResolvedValueOnce({
+      ok: true,
+      duplicate: false,
+      eventId: "je-1",
+      error: null,
+    });
+    const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
+    const message = "Hi there";
+    const db = makeDb({
+      existingConversation: { id: "conv-existing" },
+      journeyItems: [
+        { id: "journey-item-1", contact_id: CONTACT_ID, property_id: "property-1" },
+      ],
+    });
+
+    const result = await sendWhatsAppMessageAndPersist({
+      accountId: ACCOUNT_ID,
+      userId: "agent-1",
+      contactId: CONTACT_ID,
+      kind: "text",
+      senderType: "agent",
+      text: message,
+      customDbClient: db,
+    });
+
+    expect(result.success).toBe(true);
+    expect(writeJourneyEventMock).toHaveBeenCalledTimes(1);
+    expect(writeJourneyEventMock).toHaveBeenCalledWith({
+      db,
+      accountId: ACCOUNT_ID,
+      itemId: "journey-item-1",
+      eventType: "outbound_whatsapp",
+      createdBy: "agent-1",
+      dedupeKey: createHash("sha256")
+        .update(`journey-item-1|web|agent-1|${message}`)
+        .digest("hex"),
+      metadata: {
+        channel: "personal_whatsapp",
+        source: "web",
+        sender_type: "agent",
+        sender_id: "agent-1",
+        item_id: "journey-item-1",
+        contact_id: CONTACT_ID,
+        property_id: "property-1",
+        conversation_id: "conv-existing",
+        message,
+        message_length: message.length,
+      },
+    });
+  });
+
+  it("does not log journey events for non-agent sender types", async () => {
+    const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
+    const db = makeDb({
+      existingConversation: { id: "conv-existing" },
+      journeyItems: [{ id: "journey-item-1", contact_id: CONTACT_ID, property_id: "property-1" }],
+    });
+
+    const result = await sendWhatsAppMessageAndPersist({
+      accountId: ACCOUNT_ID,
+      userId: "bot-user",
+      contactId: CONTACT_ID,
+      kind: "text",
+      senderType: "bot",
+      text: "Hi there",
+      customDbClient: db,
+    });
+
+    expect(result.success).toBe(true);
+    expect(writeJourneyEventMock).not.toHaveBeenCalled();
+  });
+
+  it("treats duplicate personal journey events as non-fatal duplicates", async () => {
+    writeJourneyEventMock.mockResolvedValueOnce({
+      ok: true,
+      duplicate: true,
+      eventId: null,
+      error: null,
+    });
+    const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
+    const message = "Hi there";
+    const db = makeDb({
+      existingConversation: { id: "conv-existing" },
+      journeyItems: [{ id: "journey-item-1", contact_id: CONTACT_ID, property_id: null }],
+    });
+
+    const result = await sendWhatsAppMessageAndPersist({
+      accountId: ACCOUNT_ID,
+      userId: "agent-1",
+      contactId: CONTACT_ID,
+      kind: "text",
+      senderType: "agent",
+      text: message,
+      customDbClient: db,
+    });
+
+    expect(result.success).toBe(true);
+    expect(writeJourneyEventMock).toHaveBeenCalledTimes(1);
+    expect(writeJourneyEventMock.mock.calls[0]?.[0].dedupeKey).toBe(
+      createHash("sha256")
+        .update("journey-item-1|web|agent-1|Hi there")
+        .digest("hex"),
+    );
   });
 
   it("falls back to the account owner's user_id when no userId is given (system-initiated send)", async () => {

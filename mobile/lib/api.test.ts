@@ -178,4 +178,20 @@ describe('apiFetch redirect handling', () => {
       'application/json'
     );
   });
+
+  it('propagates duplicate response from journey event logging', async () => {
+    const fetchMock = vi.fn(async () =>
+      response({ body: { ok: true, duplicate: true, eventId: null } })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const { logPersonalWhatsAppJourneySend } = await freshClient();
+
+    const payload = await logPersonalWhatsAppJourneySend({
+      itemId: 'journey-item-1',
+      message: 'Hi from journey',
+      source: 'mobile',
+    });
+
+    expect(payload).toEqual({ ok: true, duplicate: true, eventId: null });
+  });
 });

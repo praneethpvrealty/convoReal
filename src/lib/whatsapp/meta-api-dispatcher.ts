@@ -15,6 +15,7 @@ import {
   type FlowActionPayload,
 } from '@/lib/whatsapp/meta-api'
 import { decrypt } from '@/lib/whatsapp/encryption'
+import { createHash } from 'node:crypto'
 import { resolveConversation } from '@/lib/conversations/resolve'
 import {
   sanitizePhoneForMeta,
@@ -24,6 +25,7 @@ import {
   phonesMatch,
 } from '@/lib/whatsapp/phone-utils'
 import { getSandboxSystemConfig } from '@/lib/system-settings'
+import { writeJourneyEvent } from '@/lib/journey/events'
 import {
   CUSTOMER_WINDOW_EXPIRED_MESSAGE,
   isWithinCustomerWindow,
@@ -40,6 +42,87 @@ const DUPLICATE_TEMPLATE_WINDOW_MS = 20_000
  *  replies ("ok", "hi") that a user may legitimately repeat are never
  *  collapsed. The property-details blast is well over this. */
 const DUPLICATE_TEXT_MIN_LENGTH = 120
+
+interface JourneyItemForPersonalLog {
+  id: string
+  contact_id: string
+  property_id: string | null
+}
+
+function cleanJourneyMessage(value: string): string {
+  return value.replace(/\s+/g, ' ').trim()
+}
+
+function personalJourneyDedupeKey(args: {
+  itemId: string
+  message: string
+  source: 'web'
+  senderId: string | null
+}): string {
+  return createHash('sha256')
+    .update(`${args.itemId}|${args.source}|${args.senderId ?? ''}|${args.message}`)
+    .digest('hex')
+}
+
+async function logPersonalWhatsAppJourneyEvents(args: {
+  db: ReturnType<typeof createClient>
+  accountId: string
+  conversationId: string | null
+  contactId: string
+  senderType: 'user' | 'bot' | 'agent'
+  senderId: string | null
+  message: string
+}) {
+  if (!args.message || args.senderType !== 'agent') return
+
+  const { data, error } = await args.db
+    .from('journey_items')
+    .select('id, contact_id, property_id')
+    .eq('account_id', args.accountId)
+    .eq('contact_id', args.contactId)
+
+  if (error) {
+    console.error('[meta-api-dispatcher] failed to load journey items:', error.message)
+    return
+  }
+
+  const items = (data ?? []) as JourneyItemForPersonalLog[]
+  if (!items.length) return
+
+  const message = cleanJourneyMessage(args.message)
+  if (!message) return
+
+  const normalizedSource = 'web'
+  await Promise.all(
+    items.map((item) =>
+      writeJourneyEvent({
+        db: args.db,
+        accountId: args.accountId,
+        itemId: item.id,
+        eventType: 'outbound_whatsapp',
+        createdBy: args.senderId,
+        dedupeKey: personalJourneyDedupeKey({
+          itemId: item.id,
+          source: normalizedSource,
+          senderId: args.senderId,
+          message,
+        }),
+        metadata: {
+          channel: 'personal_whatsapp',
+          source: normalizedSource,
+          sender_type: args.senderType,
+          sender_id: args.senderId,
+          item_id: item.id,
+          contact_id: args.contactId,
+          property_id: item.property_id,
+          conversation_id: args.conversationId,
+          message,
+          message_length: message.length,
+        },
+      }),
+    ),
+  )
+}
 
 // Lazy initialize admin client fallback
 let _adminClient: ReturnType<typeof createClient> | null = null
@@ -593,6 +676,25 @@ export async function sendWhatsAppMessageAndPersist(
         : args.kind === 'product'
         ? args.text || '[Product Listing]'
         : args.text || ''
+
+    if (!resolvedConversationId || !resolvedContactId) {
+      throw new Error('Failed to resolve conversation or contact after send')
+    }
+
+    void logPersonalWhatsAppJourneyEvents({
+      db,
+      accountId,
+      conversationId: resolvedConversationId,
+      contactId: resolvedContactId,
+      senderType: args.senderType,
+      senderId: userId ?? null,
+      message: previewText,
+    }).catch((err) => {
+      console.error(
+        '[meta-api-dispatcher] failed to persist personal WhatsApp journey event:',
+        err instanceof Error ? err.message : 'Unknown error',
+      )
+    })
 
     await db
       .from('conversations')
