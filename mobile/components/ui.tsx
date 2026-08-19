@@ -114,7 +114,6 @@ export function IconButton({
   const { colors } = useTheme();
   return (
     <Pressable
-      testID={testID}
       onPress={onPress}
       disabled={disabled}
       hitSlop={8}
@@ -177,6 +176,7 @@ export function FilterChip({
   const { colors, fonts: f } = useTheme();
   return (
     <Pressable
+      testID={testID}
       onPress={onPress}
       hitSlop={6}
       accessibilityRole="button"
