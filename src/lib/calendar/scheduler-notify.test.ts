@@ -451,6 +451,7 @@ describe('multiple requests from one message', () => {
     'Can you update C Kumar about this and remind me to follow up on September 24?',
     'Inform C Kumar about this update and set a follow-up reminder for Sept 24.',
     'Please notify C Kumar about Suleiman client / 9,600 sqft Jayanagar plot and add a follow-up reminder on Sept 24',
+    'Can you update C Kumar about Suleiman\'s client / 9,600 sqft Jayanagar plot and set a reminder for September 24?',
   ])(
     'supports follow-up phrasing variant: %s',
     async (contentText) => {
