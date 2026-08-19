@@ -2,11 +2,26 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
-import { AlertTriangle, ExternalLink } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { AlertTriangle, ExternalLink, X } from 'lucide-react';
 
 import { formatCurrencyShort } from '@/lib/currency-utils';
 import { PORTALS, type PortalKey } from '@/lib/portals/post-kit';
 import type { PortalDriftFinding } from '@/app/api/portals/drift/route';
+import { useAuth } from '@/hooks/use-auth';
+import { readStored, removeStored, writeStored } from '@/lib/safe-storage';
+
+const DISMISS_KEY_PREFIX = 'convoreal.portalDrift.dismissed:v1';
+
+function findingSignature(findings: PortalDriftFinding[]): string {
+  return [...findings]
+    .map(
+      (f) =>
+        `${f.portal}|${f.portalListingId}|${f.propertyId}|${f.driftKind}|${f.propertyStatus ?? ''}`
+    )
+    .sort()
+    .join('::');
+}
 
 /**
  * Mapped portal ads whose recorded state has diverged from reality —
@@ -14,9 +29,6 @@ import type { PortalDriftFinding } from '@/app/api/portals/drift/route';
  * details edited on one side only. Computed server-side by
  * portal_listing_drift (migration 267) from leads and sync logs already
  * in the database, so it needs nothing from the portals themselves.
- *
- * Stateless: fixing the condition (relist, update the expiry, mark the
- * ad removed in the Post to Portals dialog) is what clears a row.
  */
 
 function portalLabel(portal: string): string {
@@ -70,7 +82,9 @@ function findingDetail(f: PortalDriftFinding): string {
 }
 
 export function PortalDriftPanel() {
-  const { data: findings } = useQuery({
+  const { accountId } = useAuth();
+  const [isDismissed, setIsDismissed] = useState(false);
+  const { data: findings, isLoading } = useQuery({
     queryKey: ['portal-drift'],
     queryFn: async () => {
       const res = await fetch('/api/portals/drift');
@@ -83,24 +97,73 @@ export function PortalDriftPanel() {
     staleTime: 5 * 60_000,
   });
 
-  if (!findings || findings.length === 0) return null;
+  const active = useMemo(() => findings ?? [], [findings]);
+  const signature = useMemo(() => findingSignature(active), [active]);
+  const storageKey = accountId
+    ? `${DISMISS_KEY_PREFIX}:${accountId}`
+    : null;
+
+  useEffect(() => {
+    if (!storageKey) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setIsDismissed(false);
+      return;
+    }
+
+    if (isLoading) {
+      return;
+    }
+
+    if (!active.length) {
+      if (storageKey) {
+        removeStored(storageKey);
+      }
+      setIsDismissed(false);
+      return;
+    }
+
+    const dismissedSignature = readStored(storageKey);
+    if (dismissedSignature !== signature) {
+      removeStored(storageKey);
+      setIsDismissed(false);
+      return;
+    }
+
+    setIsDismissed(true);
+  }, [isLoading, active.length, storageKey, signature]);
+
+  function hideBanner() {
+    if (!storageKey || !signature) return;
+    writeStored(storageKey, signature);
+    setIsDismissed(true);
+  }
+
+  if (!active || active.length === 0 || isDismissed) return null;
 
   return (
     <div className="rounded-lg border border-rose-500/25 bg-rose-500/5 p-3">
       <div className="mb-2 flex items-center gap-2">
         <AlertTriangle className="size-3.5 shrink-0 text-rose-400" />
         <span className="text-xs font-bold text-rose-300">
-          {findings.length} portal ad{findings.length === 1 ? '' : 's'} out of
+          {active.length} portal ad{active.length === 1 ? '' : 's'} out of
           step with your inventory
         </span>
         <span className="truncate text-[11px] text-slate-500">
           Spotted from the leads and emails already in the Engine — the row
           clears itself once the ad and the listing agree again.
         </span>
+        <button
+          type="button"
+          onClick={hideBanner}
+          aria-label="Dismiss portal discrepancy banner"
+          className="ml-auto inline-flex h-6 w-6 items-center justify-center rounded-md border border-rose-400/30 text-rose-300 transition hover:border-rose-300 hover:bg-rose-500/10"
+        >
+          <X className="size-3.5" />
+        </button>
       </div>
 
       <div className="space-y-2">
-        {findings.map((f) => (
+        {active.map((f) => (
           <div
             key={`${f.portal}:${f.portalListingId}:${f.driftKind}`}
             className="rounded-md border border-slate-800 bg-slate-900/60 p-2.5"
