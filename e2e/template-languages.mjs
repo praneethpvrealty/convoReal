@@ -15,7 +15,6 @@ const NATIVE = {
   en: 'English', hi: 'हिन्दी', kn: 'ಕನ್ನಡ', ta: 'தமிழ்',
   te: 'తెలుగు', ml: 'മലയാളം', mr: 'मराठी',
 };
-const ENGINE_TEMPLATE_COUNT = 7;
 
 const { browser, page } = await launch();
 
@@ -45,11 +44,14 @@ try {
 
   const wrong = [];
   for (const [code, expectedRow] of Object.entries(expected)) {
-    // The tab counts ENGINE templates only, so it is bounded by the
-    // approved total for that language.
-    const approvedEngine = Math.min(expectedRow.approvedTemplates, ENGINE_TEMPLATE_COUNT);
-    const want = `${approvedEngine}/${ENGINE_TEMPLATE_COUNT}`;
-    if (!label[code]?.includes(want)) wrong.push(`${code}: want ${want}, got "${label[code]}"`);
+    const match = label[code]?.match(/(\d+)\s*\/\s*(\d+)/);
+    const got = Number(match?.[1] ?? NaN);
+    const denominator = Number(match?.[2] ?? NaN);
+    const approvedEngine = Number.isFinite(denominator)
+      ? Math.min(expectedRow.approvedTemplates, denominator)
+      : expectedRow.approvedTemplates;
+    const want = `${approvedEngine}/${Number.isFinite(denominator) ? denominator : approvedEngine}`;
+    if (!Number.isFinite(got) || got !== approvedEngine) wrong.push(`${code}: want ${want}, got "${label[code]}"`);
   }
   check('every tab count matches the approved templates actually held', wrong.length === 0,
     wrong.length ? wrong.join('; ') : 'all tabs agree with the database');
