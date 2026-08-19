@@ -46,6 +46,7 @@
     "export:translation-review": "tsx src/scripts/export-translation-review.ts",
     "reconcile-pins": "tsx src/scripts/reconcile-property-pins.ts",
     "copilot:index": "tsx src/scripts/build-copilot-index.ts",
+    "backfill:journey-whatsapp-events": "tsx src/scripts/backfill-personal-whatsapp-journey-events.ts",
     "ext:zip": "cd extension/portal-autofill && rm -f ../portal-autofill.zip && zip -qr ../portal-autofill.zip . -x '*.DS_Store' && echo 'extension/portal-autofill.zip'",
     "submit-location-template": "tsx src/scripts/submit-location-reveal-template.ts",
     "e2e:share-grant": "tsx src/scripts/e2e-share-grant.ts",
