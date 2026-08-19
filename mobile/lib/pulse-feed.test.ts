@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { dedupeConsecutiveEvents, formatDwellTime, type PulseEvent } from './pulse-feed';
+import {
+  dedupeConsecutiveEvents,
+  formatDwellTime,
+  groupEventsByVisitor,
+  type PulseEvent,
+} from './pulse-feed';
 
 function evt(
   overrides: Partial<PulseEvent> & { id: string; created_at: string }
@@ -31,8 +36,16 @@ describe('dedupeConsecutiveEvents', () => {
 
   it('does not merge across different sessions', () => {
     const feed = [
-      evt({ id: '2', created_at: '2026-01-01T00:01:00Z', session_key: 'sess-2' }),
-      evt({ id: '1', created_at: '2026-01-01T00:00:00Z', session_key: 'sess-1' }),
+      evt({
+        id: '2',
+        created_at: '2026-01-01T00:01:00Z',
+        session_key: 'sess-2',
+      }),
+      evt({
+        id: '1',
+        created_at: '2026-01-01T00:00:00Z',
+        session_key: 'sess-1',
+      }),
     ];
     const result = dedupeConsecutiveEvents(feed);
     expect(result).toHaveLength(2);
@@ -86,7 +99,10 @@ describe('dedupeConsecutiveEvents', () => {
 
   it('does not mutate the events it was given', () => {
     const source = evt({ id: '1', created_at: '2026-01-01T00:00:00Z' });
-    dedupeConsecutiveEvents([source, evt({ id: '2', created_at: '2026-01-01T00:01:00Z' })]);
+    dedupeConsecutiveEvents([
+      source,
+      evt({ id: '2', created_at: '2026-01-01T00:01:00Z' }),
+    ]);
     expect('repeatCount' in source).toBe(false);
   });
 
@@ -112,5 +128,63 @@ describe('formatDwellTime', () => {
     expect(formatDwellTime()).toBe('');
     expect(formatDwellTime(0)).toBe('');
     expect(formatDwellTime(Number.NaN)).toBe('');
+  });
+});
+
+describe('groupEventsByVisitor', () => {
+  it('groups every session belonging to the same identified contact', () => {
+    const contact = {
+      id: 'contact-1',
+      name: 'Suleman',
+      phone: '9999999999',
+      name_tag: 'Btm',
+    };
+    const events = dedupeConsecutiveEvents([
+      evt({
+        id: '3',
+        created_at: '2026-01-01T00:03:00Z',
+        session_key: 'sess-2',
+        contact,
+      }),
+      evt({
+        id: '2',
+        created_at: '2026-01-01T00:02:00Z',
+        session_key: 'sess-1',
+        contact,
+      }),
+    ]);
+
+    const result = groupEventsByVisitor(events);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe('contact:contact-1');
+    expect(result[0].latestEvent.id).toBe('3');
+    expect(result[0].events).toHaveLength(2);
+  });
+
+  it('keeps unrelated anonymous sessions in separate visitor cards', () => {
+    const events = dedupeConsecutiveEvents([
+      evt({
+        id: '2',
+        created_at: '2026-01-01T00:02:00Z',
+        session_key: 'sess-2',
+      }),
+      evt({
+        id: '1',
+        created_at: '2026-01-01T00:01:00Z',
+        session_key: 'sess-1',
+      }),
+    ]);
+
+    expect(groupEventsByVisitor(events)).toHaveLength(2);
+  });
+
+  it('includes collapsed repeats in the activity count', () => {
+    const events = dedupeConsecutiveEvents([
+      evt({ id: '2', created_at: '2026-01-01T00:02:00Z' }),
+      evt({ id: '1', created_at: '2026-01-01T00:01:00Z' }),
+    ]);
+
+    expect(groupEventsByVisitor(events)[0].activityCount).toBe(2);
   });
 });
