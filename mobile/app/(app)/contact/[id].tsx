@@ -1,6 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
-import * as Linking from 'expo-linking';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useRef, useState } from 'react';
 import {
@@ -32,8 +31,7 @@ import { AreasOfInterestInput } from '@/components/areas-of-interest-input';
 import { ConvoRealLoader } from '@/components/loader';
 import { MoveToEngineSheet } from '@/components/move-to-engine-sheet';
 import { OwnerDetailsRequestSheet } from '@/components/owner-details-request-sheet';
-import { BuyerPreferenceRequestSheet } from '@/components/buyer-preference-request-sheet';
-import { AdditionalRequirementSheet } from '@/components/additional-requirement-sheet';
+import { ContactRequirementsSheet } from '@/components/contact-requirements-sheet';
 import { PulseRing } from '@/components/motion';
 import {
   Avatar,
@@ -275,8 +273,7 @@ function ContactCard({ contact }: { contact: Contact }) {
     useState<ApproveCelebrationState | null>(null);
   const [moveToEngineOpen, setMoveToEngineOpen] = useState(false);
   const [detailsRequestOpen, setDetailsRequestOpen] = useState(false);
-  const [additionalRequirementOpen, setAdditionalRequirementOpen] =
-    useState(false);
+  const [requirementsOpen, setRequirementsOpen] = useState(false);
   const [favoriting, setFavoriting] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
@@ -492,27 +489,25 @@ function ContactCard({ contact }: { contact: Contact }) {
                 label="To Engine"
                 onPress={() => setMoveToEngineOpen(true)}
               />
-              <ActionButton
-                icon="clipboard-outline"
-                label={
-                  BUYER_PREF_CLASSIFICATIONS.includes(
-                    contact.classification ?? 'Others'
-                  )
-                    ? 'Ask Requirements'
-                    : 'Ask Details'
-                }
-                onPress={() => setDetailsRequestOpen(true)}
-              />
-              {BUYER_PREF_CLASSIFICATIONS.includes(
+              {!BUYER_PREF_CLASSIFICATIONS.includes(
                 contact.classification ?? 'Others'
               ) ? (
                 <ActionButton
-                  icon="add-circle-outline"
-                  label="Add Requirement"
-                  onPress={() => setAdditionalRequirementOpen(true)}
+                  icon="clipboard-outline"
+                  label="Ask Details"
+                  onPress={() => setDetailsRequestOpen(true)}
                 />
               ) : null}
             </>
+          ) : null}
+          {BUYER_PREF_CLASSIFICATIONS.includes(
+            contact.classification ?? 'Others'
+          ) ? (
+            <ActionButton
+              icon="clipboard-outline"
+              label="Requirements"
+              onPress={() => setRequirementsOpen(true)}
+            />
           ) : null}
           {contact.classification === 'Agent' ? (
             <ActionButton
@@ -670,29 +665,24 @@ function ContactCard({ contact }: { contact: Contact }) {
         onClose={() => setMoveToEngineOpen(false)}
         contact={contact}
       />
-      {BUYER_PREF_CLASSIFICATIONS.includes(
+      {!BUYER_PREF_CLASSIFICATIONS.includes(
         contact.classification ?? 'Others'
       ) ? (
-        <BuyerPreferenceRequestSheet
-          visible={detailsRequestOpen}
-          onClose={() => setDetailsRequestOpen(false)}
-          contact={contact}
-        />
-      ) : (
         <OwnerDetailsRequestSheet
           visible={detailsRequestOpen}
           onClose={() => setDetailsRequestOpen(false)}
           contact={contact}
         />
-      )}
+      ) : null}
       {BUYER_PREF_CLASSIFICATIONS.includes(
         contact.classification ?? 'Others'
       ) ? (
-        <AdditionalRequirementSheet
-          visible={additionalRequirementOpen}
-          onClose={() => setAdditionalRequirementOpen(false)}
+        <ContactRequirementsSheet
+          key={`${contact.id}-${requirementsOpen}`}
+          visible={requirementsOpen}
+          onClose={() => setRequirementsOpen(false)}
           contact={contact}
-          onSaved={() => {
+          onChanged={() => {
             void queryClient.invalidateQueries({
               queryKey: ['contact', contact.id],
             });
