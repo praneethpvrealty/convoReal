@@ -88,6 +88,7 @@ export async function POST(request: Request) {
         .from("properties")
         .select("user_id")
         .eq("id", propertyId)
+        .eq("account_id", accountId)
         .maybeSingle();
 
       if (propData?.user_id) {
