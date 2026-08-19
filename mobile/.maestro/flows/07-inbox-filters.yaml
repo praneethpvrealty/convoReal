@@ -8,16 +8,20 @@ name: inbox-filters
     timeout: 20000
 # Each chip re-filters the same list in place; the search bar staying put
 # is what says the screen survived the switch rather than erroring out.
-- tapOn: "Needs reply"
+- tapOn:
+    id: "inbox-filter-needs-reply"
 - assertVisible:
     id: "inbox-search"
-- tapOn: "Unanswered"
+- tapOn:
+    id: "inbox-filter-unanswered"
 - assertVisible:
     id: "inbox-search"
-- tapOn: "Unread"
+- tapOn:
+    id: "inbox-filter-unread"
 - assertVisible:
     id: "inbox-search"
 - takeScreenshot: .maestro/shots/07-inbox-filters
-- tapOn: "All"
+- tapOn:
+    id: "inbox-filter-all"
 - assertVisible:
     id: "inbox-search"
