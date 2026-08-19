@@ -27,8 +27,7 @@ import { ContextMenu } from '@/components/context-menu';
 import { ContactFiltersSheet } from '@/components/contact-filters-sheet';
 import { InterestFilterSheet } from '@/components/interest-filter-sheet';
 import { OwnerDetailsRequestSheet } from '@/components/owner-details-request-sheet';
-import { BuyerPreferenceRequestSheet } from '@/components/buyer-preference-request-sheet';
-import { AdditionalRequirementSheet } from '@/components/additional-requirement-sheet';
+import { ContactRequirementsSheet } from '@/components/contact-requirements-sheet';
 import { BottomSheet, sheetScrollArea } from '@/components/sheet';
 import { TourTarget } from '@/components/copilot-tour';
 import {
@@ -519,7 +518,7 @@ export default function ContactsScreen() {
   // contact.
   const [detailsRequestContact, setDetailsRequestContact] =
     useState<Contact | null>(null);
-  const [additionalRequirementContact, setAdditionalRequirementContact] =
+  const [requirementsContact, setRequirementsContact] =
     useState<Contact | null>(null);
   // Approving flips the contact, drafts the details and sends them over
   // WhatsApp — several round-trips. The row confirms the tap straight
@@ -907,48 +906,32 @@ export default function ContactsScreen() {
                   label: ['Buyer', 'Owner & Buyer'].includes(
                     waMenu.contact.classification ?? ''
                   )
-                    ? 'Ask for requirements'
+                    ? 'Requirements'
                     : 'Ask for property details',
-                  onPress: () => setDetailsRequestContact(waMenu.contact),
+                  onPress: () =>
+                    ['Buyer', 'Owner & Buyer'].includes(
+                      waMenu.contact.classification ?? ''
+                    )
+                      ? setRequirementsContact(waMenu.contact)
+                      : setDetailsRequestContact(waMenu.contact),
                 },
-                ...(['Buyer', 'Owner & Buyer'].includes(
-                  waMenu.contact.classification ?? ''
-                )
-                  ? [
-                      {
-                        icon: 'add-circle-outline' as const,
-                        label: 'Add requirement from message',
-                        onPress: () =>
-                          setAdditionalRequirementContact(waMenu.contact),
-                      },
-                    ]
-                  : []),
               ]
             : []
         }
       />
-      {detailsRequestContact &&
-      ['Buyer', 'Owner & Buyer'].includes(
-        detailsRequestContact.classification ?? ''
-      ) ? (
-        <BuyerPreferenceRequestSheet
-          visible
-          onClose={() => setDetailsRequestContact(null)}
-          contact={detailsRequestContact}
-        />
-      ) : detailsRequestContact ? (
+      {detailsRequestContact ? (
         <OwnerDetailsRequestSheet
           visible
           onClose={() => setDetailsRequestContact(null)}
           contact={detailsRequestContact}
         />
       ) : null}
-      {additionalRequirementContact ? (
-        <AdditionalRequirementSheet
+      {requirementsContact ? (
+        <ContactRequirementsSheet
           visible
-          onClose={() => setAdditionalRequirementContact(null)}
-          contact={additionalRequirementContact}
-          onSaved={() => {
+          onClose={() => setRequirementsContact(null)}
+          contact={requirementsContact}
+          onChanged={() => {
             void queryClient.invalidateQueries({ queryKey: ['contacts'] });
           }}
         />
