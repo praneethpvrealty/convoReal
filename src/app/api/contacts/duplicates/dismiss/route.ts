@@ -2,6 +2,42 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import { pairsWithin } from '@/lib/contacts/duplicate-dismissal';
 
+type SupabaseError = {
+  code?: string;
+  message?: string;
+  details?: string;
+  hint?: string;
+};
+
+type FriendlySupabaseError = {
+  message: string;
+  status: number;
+};
+
+function toFriendlyError(err: unknown): FriendlySupabaseError | null {
+  if (typeof err !== 'object' || err === null) return null;
+  const typed = err as SupabaseError;
+  if (!typed.code) return null;
+
+  if (typed.code === '23505') {
+    return {
+      message: 'This pair was already marked as not duplicates.',
+      status: 200,
+    };
+  }
+
+  if (typed.code === '23514') {
+    return {
+      message: 'Could not save the duplicate decision. Please retry.',
+      status: 400,
+    };
+  }
+
+  return null;
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 // POST   /api/contacts/duplicates/dismiss  — "these are different people"
 // DELETE /api/contacts/duplicates/dismiss  — undo that
 // Body: { contactIds: string[] }
@@ -13,8 +49,14 @@ async function readIds(request: NextRequest): Promise<string[] | null> {
   const body = (await request.json().catch(() => null)) as { contactIds?: unknown } | null;
   const ids = body?.contactIds;
   if (!Array.isArray(ids) || ids.length < 2) return null;
-  if (!ids.every((id) => typeof id === 'string' && id.length > 0)) return null;
-  return [...new Set(ids as string[])];
+  const normalised = [];
+  for (const id of ids) {
+    if (typeof id !== 'string') return null;
+    const trimmed = id.trim();
+    if (!UUID_RE.test(trimmed)) return null;
+    normalised.push(trimmed);
+  }
+  return [...new Set(normalised)];
 }
 
 export async function POST(request: NextRequest) {
@@ -50,7 +92,16 @@ export async function POST(request: NextRequest) {
     const { error } = await ctx.supabase
       .from('contact_duplicate_dismissals')
       .upsert(rows, { onConflict: 'account_id,contact_a_id,contact_b_id' });
-    if (error) throw error;
+    if (error) {
+      const friendly = toFriendlyError(error);
+      if (friendly) {
+        if (friendly.status === 200) {
+          return NextResponse.json({ data: { dismissed: rows.length } });
+        }
+        return NextResponse.json({ error: friendly.message }, { status: friendly.status });
+      }
+      throw error;
+    }
 
     return NextResponse.json({ data: { dismissed: rows.length } });
   } catch (err) {
@@ -83,7 +134,16 @@ export async function DELETE(request: NextRequest) {
         .eq('account_id', ctx.accountId)
         .eq('contact_a_id', a)
         .eq('contact_b_id', b);
-      if (error) throw error;
+      if (error) {
+        const friendly = toFriendlyError(error);
+        if (friendly) {
+          if (friendly.status === 200) {
+            continue;
+          }
+          return NextResponse.json({ error: friendly.message }, { status: friendly.status });
+        }
+        throw error;
+      }
     }
 
     return NextResponse.json({ data: { restored: true } });

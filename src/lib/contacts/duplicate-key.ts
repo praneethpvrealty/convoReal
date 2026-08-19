@@ -37,6 +37,10 @@ const HONORIFICS = new Set([
 const MIN_NAME_TOKENS = 2;
 // Below this, one edit is too large a share of the word to call a typo.
 const MIN_FUZZY_LENGTH = 8;
+// One-character edits on short first/last names often create false positives
+// ("Arun Kumar" vs "Arjun Kumar"), so require a materially substantive token
+// before treating one-token variance as a typo.
+const MIN_FUZZY_TOKEN_LENGTH = 5;
 const SIMILARITY_FLOOR = 0.88;
 
 export function nameMatchKey(name: string | null): string | null {
@@ -79,5 +83,33 @@ export function namesAreSimilar(a: string, b: string): boolean {
   if (a === b) return true;
   const longest = Math.max(a.length, b.length);
   if (longest < MIN_FUZZY_LENGTH) return false;
-  return 1 - editDistance(a, b) / longest >= SIMILARITY_FLOOR;
+  const [left, right] = [a, b].map((name) =>
+    name
+      .toLowerCase()
+      .split(/\s+/)
+      .filter((token) => token.length > 0)
+      .sort(),
+  );
+  if (left.length !== right.length || left.length === 0) return false;
+
+  const divergentTokens: Array<[string, string]> = [];
+  for (let i = 0; i < left.length; i++) {
+    if (left[i] !== right[i]) {
+      divergentTokens.push([left[i], right[i]]);
+    }
+  }
+
+  if (divergentTokens.length === 0) return true;
+  if (divergentTokens.length !== 1) return false;
+
+  const [first, second] = divergentTokens[0];
+  if (
+    first.length < MIN_FUZZY_TOKEN_LENGTH ||
+    second.length < MIN_FUZZY_TOKEN_LENGTH
+  ) {
+    return false;
+  }
+
+  const distance = editDistance(a, b);
+  return 1 - distance / longest >= SIMILARITY_FLOOR;
 }
