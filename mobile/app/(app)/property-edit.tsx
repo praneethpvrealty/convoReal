@@ -26,6 +26,7 @@ import { Banner, FilterChip, PriceHint, PrimaryButton, SectionLabel, TextField }
 import { pickAndUploadFloorPlan } from '@/lib/floor-plan-upload';
 import { storagePublicUrl } from '@/lib/storage-url';
 import { formatInr } from '@/lib/format';
+import { propertyEditKeyboardBehavior } from '@/lib/property-edit-keyboard';
 import { TagsField } from '@/components/tags-field';
 import { apiFetch, ApiError } from '@/lib/api';
 import { friendlyError } from '@/lib/errors';
@@ -379,7 +380,8 @@ function EditForm({ property }: { property: Property }) {
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      behavior={propertyEditKeyboardBehavior(Platform.OS)}
+      contentContainerStyle={styles.keyboardContent}
     >
       <ScrollView
         contentContainerStyle={styles.container}
@@ -1076,6 +1078,7 @@ function SelectField({
 }
 
 const styles = StyleSheet.create({
+  keyboardContent: { flex: 1 },
   container: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xl },
   row: { flexDirection: 'row', gap: spacing.sm },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
