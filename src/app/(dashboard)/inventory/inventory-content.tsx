@@ -118,6 +118,8 @@ export default function InventoryPage() {
   // scrolled into the list). Desktop keeps the inline bars.
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
 
+  const clearSearch = () => setSearch('');
+
   // Debounce search to avoid per-keystroke NLP parse + Supabase round-trip.
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -1081,6 +1083,16 @@ export default function InventoryPage() {
               placeholder="e.g. residential properties > 10 Cr, 3 BHK villa"
               className="h-9 border-slate-700 bg-slate-800 pl-9 text-white placeholder:text-slate-500"
             />
+            {search.trim() && (
+              <button
+                type="button"
+                onClick={clearSearch}
+                aria-label="Clear search"
+                className="text-slate-400 absolute top-1/2 right-3 -translate-y-1/2 rounded-full p-1 transition hover:bg-rose-500/15 hover:text-rose-300"
+              >
+                <X className="size-3.5" />
+              </button>
+            )}
           </div>
           <div className="w-full md:w-80">
             <LocalityAutocomplete
@@ -1273,6 +1285,16 @@ export default function InventoryPage() {
                 placeholder="e.g. residential properties > 10 Cr"
                 className="h-10 border-slate-700 bg-slate-800 pl-9 text-white placeholder:text-slate-500"
               />
+              {search.trim() && (
+                <button
+                  type="button"
+                  onClick={clearSearch}
+                  aria-label="Clear mobile search"
+                  className="text-slate-400 absolute top-1/2 right-3 -translate-y-1/2 rounded-full p-1 transition hover:bg-rose-500/15 hover:text-rose-300"
+                >
+                  <X className="size-3.5" />
+                </button>
+              )}
             </div>
             <div className="flex items-center gap-2">
               <div className="flex-1">

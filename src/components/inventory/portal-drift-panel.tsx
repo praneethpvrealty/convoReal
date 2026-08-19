@@ -1,10 +1,12 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
+import { useMemo, useState } from 'react';
 import { format } from 'date-fns';
-import { AlertTriangle, ExternalLink } from 'lucide-react';
+import { AlertTriangle, ExternalLink, X } from 'lucide-react';
 
 import { formatCurrencyShort } from '@/lib/currency-utils';
+import { readStoredJson, writeStored } from '@/lib/safe-storage';
 import { PORTALS, type PortalKey } from '@/lib/portals/post-kit';
 import type { PortalDriftFinding } from '@/app/api/portals/drift/route';
 
@@ -69,7 +71,32 @@ function findingDetail(f: PortalDriftFinding): string {
   }
 }
 
+const PORTAL_DRIFT_DISMISS_KEY = 'convoreal_portal_drift_dismissed_v1';
+type DismissedSignatures = Record<string, string>;
+
+function signatureFor(finding: PortalDriftFinding): string {
+  return JSON.stringify({
+    portal: finding.portal,
+    portalListingId: finding.portalListingId,
+    propertyId: finding.propertyId,
+    driftKind: finding.driftKind,
+    propertyStatus: finding.propertyStatus,
+    expiresOn: finding.expiresOn,
+    parsedPropertyType: finding.parsedPropertyType,
+    parsedPrice: finding.parsedPrice,
+    parsedAreaSqft: finding.parsedAreaSqft,
+    listingType: finding.listingType,
+    listingPrice: finding.listingPrice,
+    listingAreaSqft: finding.listingAreaSqft,
+    leadCount: finding.leadCount,
+  });
+}
+
 export function PortalDriftPanel() {
+  const [dismissedSignatures, setDismissedSignatures] = useState(
+    () => readStoredJson<DismissedSignatures>(PORTAL_DRIFT_DISMISS_KEY, {})
+  );
+
   const { data: findings } = useQuery({
     queryKey: ['portal-drift'],
     queryFn: async () => {
@@ -83,16 +110,42 @@ export function PortalDriftPanel() {
     staleTime: 5 * 60_000,
   });
 
-  if (!findings || findings.length === 0) return null;
+  const visibleFindings = useMemo(() => {
+    const list = findings ?? [];
+    return list.filter(
+      (finding) => dismissedSignatures[signatureFor(finding)] !== signatureFor(finding)
+    );
+  }, [findings, dismissedSignatures]);
+
+  const dismissPanel = () => {
+    const next: DismissedSignatures = { ...dismissedSignatures };
+    for (const finding of findings ?? []) {
+      const key = signatureFor(finding);
+      next[key] = key;
+    }
+    setDismissedSignatures(next);
+    writeStored(PORTAL_DRIFT_DISMISS_KEY, JSON.stringify(next));
+  };
+
+  if (visibleFindings.length === 0) return null;
 
   return (
     <div className="rounded-lg border border-rose-500/25 bg-rose-500/5 p-3">
       <div className="mb-2 flex items-center gap-2">
         <AlertTriangle className="size-3.5 shrink-0 text-rose-400" />
         <span className="text-xs font-bold text-rose-300">
-          {findings.length} portal ad{findings.length === 1 ? '' : 's'} out of
+          {visibleFindings.length} portal ad{visibleFindings.length === 1 ? '' : 's'} out of
           step with your inventory
         </span>
+        <button
+          type="button"
+          onClick={dismissPanel}
+          aria-label="Dismiss portal drift alert"
+          title="Dismiss alert"
+          className="ml-auto inline-flex items-center justify-center rounded-md border border-rose-500/40 p-1 text-rose-200/75 transition-colors hover:bg-rose-500/10 hover:text-rose-100"
+        >
+          <X className="size-3.5" />
+        </button>
         <span className="truncate text-[11px] text-slate-500">
           Spotted from the leads and emails already in the Engine — the row
           clears itself once the ad and the listing agree again.
@@ -100,7 +153,7 @@ export function PortalDriftPanel() {
       </div>
 
       <div className="space-y-2">
-        {findings.map((f) => (
+        {visibleFindings.map((f) => (
           <div
             key={`${f.portal}:${f.portalListingId}:${f.driftKind}`}
             className="rounded-md border border-slate-800 bg-slate-900/60 p-2.5"
