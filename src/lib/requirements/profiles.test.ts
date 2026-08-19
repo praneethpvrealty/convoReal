@@ -6,6 +6,7 @@ import {
   createRequirementProfile,
   hasStructuredRequirement,
   requirementProfileTitle,
+  reviseRequirementProfile,
 } from './profiles';
 
 const dabaspetePreferences = {
@@ -52,5 +53,35 @@ describe('requirement profiles', () => {
   it('rejects extraction output with no usable matching signal', () => {
     expect(hasStructuredRequirement(EMPTY_PREFERENCES)).toBe(false);
     expect(hasStructuredRequirement(dabaspetePreferences)).toBe(true);
+  });
+
+  it('revises a brief without changing its identity or active state', () => {
+    const existing = createRequirementProfile({
+      id: 'dabaspete-brief',
+      rawText: '2 acres near Dabaspete',
+      source: 'personal_whatsapp',
+      preferences: dabaspetePreferences,
+      now: new Date('2026-08-18T00:00:00Z'),
+    });
+    existing.active = false;
+
+    const revised = reviseRequirementProfile({
+      profile: existing,
+      rawText: '3 acres near STRR for a warehouse',
+      preferences: {
+        ...dabaspetePreferences,
+        areas: ['STRR'],
+        land_area_min_sqft: 3 * 43_560,
+        land_area_max_sqft: 3 * 43_560,
+      },
+      now: new Date('2026-08-19T00:00:00Z'),
+    });
+
+    expect(revised.id).toBe(existing.id);
+    expect(revised.created_at).toBe(existing.created_at);
+    expect(revised.active).toBe(false);
+    expect(revised.updated_at).toBe('2026-08-19T00:00:00.000Z');
+    expect(revised.areas).toEqual(['STRR']);
+    expect(revised.land_area_min_sqft).toBe(130_680);
   });
 });
