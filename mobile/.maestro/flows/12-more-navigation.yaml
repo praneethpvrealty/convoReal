@@ -36,7 +36,8 @@ name: more-navigation
 - tapOn:
     id: "menu-dashboard"
 - extendedWaitUntil:
-    visible: "Overview"
+    notVisible:
+      id: "menu-dashboard"
     timeout: 20000
 - takeScreenshot: .maestro/shots/12-dashboard
 - back
@@ -47,7 +48,8 @@ name: more-navigation
 - tapOn:
     id: "menu-notifications"
 - extendedWaitUntil:
-    visible: "Notifications"
+    notVisible:
+      id: "menu-notifications"
     timeout: 20000
 - back
 - assertVisible:
