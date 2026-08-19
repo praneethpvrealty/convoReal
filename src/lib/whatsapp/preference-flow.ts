@@ -20,6 +20,8 @@ import {
   PROPERTY_INTEREST_FLOW_IDS,
   PROPERTY_INTEREST_SHORT_TITLES,
 } from '@/lib/property-interests'
+import { resolveRequirementSource } from '@/lib/requirements/profiles';
+import type { Contact } from '@/types';
 
 export const PREFERENCE_FLOW_KEY = 'preference_intake'
 export const PREFERENCE_FLOW_NAME = 'Buyer Preference Intake'
@@ -180,9 +182,17 @@ export function buildPreferenceFlowJson(): Record<string, unknown> {
 export interface ContactPreferenceSource {
   min_budget?: number | null
   max_budget?: number | null
+  pref_budget_min?: number | string | null
+  pref_budget_max?: number | string | null
+  pref_areas?: string[] | null
+  pref_property_types?: string[] | null
+  pref_property_categories?: string[] | null
   areas_of_interest?: string[] | null
   property_interests?: string[] | null
   min_roi?: number | null
+  requirements?: string | null
+  no_budget?: boolean | null
+  requirement_profiles?: Contact['requirement_profiles']
 }
 
 /**
@@ -192,19 +202,34 @@ export interface ContactPreferenceSource {
 export function buildPreferencePrefillData(
   contact: ContactPreferenceSource
 ): Record<string, unknown> {
+  const source = resolveRequirementSource(contact as Contact)
   const knownIds = new Set(PROPERTY_INTEREST_FLOW_OPTIONS.map((o) => o.id))
+  const selectedPropertyTypes = Array.from(
+    new Set([
+      ...(source.property_interests || []),
+      ...(source.pref_property_types || []),
+      ...(source.pref_property_categories || []),
+    ])
+  ).filter((p) => knownIds.has(p))
+
   return {
     // 0 means "not set yet" — the screen's data schema declares these
     // as type 'number' (Meta rejects a string here), so an empty
     // string isn't a valid "no value" sentinel the way it is for the
     // TextArea-backed `areas` field below.
-    min_budget: contact.min_budget ?? 0,
-    max_budget: contact.max_budget ?? 0,
-    areas: (contact.areas_of_interest || []).join(', '),
-    min_roi: contact.min_roi ?? 0,
-    selected_property_types: (contact.property_interests || []).filter((p) =>
-      knownIds.has(p)
+    min_budget:
+      source.pref_budget_min != null
+        ? Number(source.pref_budget_min)
+        : source.min_budget ?? 0,
+    max_budget:
+      source.pref_budget_max != null
+        ? Number(source.pref_budget_max)
+        : source.max_budget ?? 0,
+    areas: [...(source.areas_of_interest || []), ...(source.pref_areas || [])].join(
+      ', '
     ),
+    min_roi: source.min_roi ?? 0,
+    selected_property_types: selectedPropertyTypes,
     property_type_options: PROPERTY_INTEREST_FLOW_OPTIONS,
   }
 }

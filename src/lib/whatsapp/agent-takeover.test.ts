@@ -74,9 +74,9 @@ function flowRunsDb(
         update(payload: Record<string, unknown>) {
           if (capture) capture.payload = payload;
           return {
-            eq(_c: string, _v: unknown) {
+            eq() {
               return {
-                eq(_c2: string, _v2: unknown) {
+                eq() {
                   return {
                     eq(col: string, value: unknown) {
                       if (capture) capture.statusFilter = `${col}=${value}`;

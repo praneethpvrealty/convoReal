@@ -109,7 +109,7 @@ export function AdditionalRequirementDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl font-bold">
             <FilePlus2 className="text-primary size-5" />
-            Add another requirement
+            Add a brief
           </DialogTitle>
           <DialogDescription className="text-sm text-slate-400">
             Paste what {name} sent on your personal WhatsApp. ConvoReal saves it

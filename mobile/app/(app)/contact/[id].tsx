@@ -53,6 +53,7 @@ import { storagePublicUrl } from '@/lib/storage-url';
 import { cleanPhoneInput, formatBudgetRange, formatInr } from '@/lib/format';
 import { friendlyError } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
+import { resolveRequirementSource } from '@/lib/requirements/profiles';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
 import {
@@ -162,6 +163,7 @@ export default function ContactDetailScreen() {
     // the switcher swaps the route param.
     placeholderData: (prev: Contact | null | undefined) => prev,
   });
+  const source = contact ? resolveRequirementSource(contact) : null;
 
   // Agent switcher strip: from one agent's screen, hop straight to
   // another agent without going back through the contacts list.
@@ -277,6 +279,7 @@ function ContactCard({ contact }: { contact: Contact }) {
   const [favoriting, setFavoriting] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
+  const source = resolveRequirementSource(contact);
   const {
     show: showDialog,
     close: closeDialog,
@@ -390,10 +393,24 @@ function ContactCard({ contact }: { contact: Contact }) {
     : undefined;
 
   const budget = formatBudgetRange(
-    contact.min_budget,
-    contact.max_budget,
-    contact.no_budget
+    source?.pref_budget_min ?? source?.min_budget,
+    source?.pref_budget_max ?? source?.max_budget,
+    source?.no_budget
   );
+  const areaHints = source
+    ? Array.from(
+        new Set([...(source.pref_areas ?? []), ...(source.areas_of_interest ?? [])]),
+      )
+    : [];
+  const propertyHints = source
+    ? Array.from(
+        new Set([
+          ...(source.property_interests ?? []),
+          ...(source.pref_property_types ?? []),
+          ...(source.pref_property_categories ?? []),
+        ]),
+      )
+    : [];
 
   return (
     <KeyboardAvoidingView
@@ -549,21 +566,21 @@ function ContactCard({ contact }: { contact: Contact }) {
           {budget ? (
             <InfoRow icon="cash-outline" label="Budget" value={budget} />
           ) : null}
-          {contact.areas_of_interest?.length ? (
+          {areaHints.length ? (
             <InfoRow
               icon="location-outline"
               label="Areas of interest"
               value={
-                contact.areas_of_interest.join(', ') +
+                areaHints.join(', ') +
                 (contact.strict_area_match ? ' · strict match' : '')
               }
             />
           ) : null}
-          {contact.property_interests?.length ? (
+          {propertyHints.length ? (
             <InfoRow
               icon="pricetags-outline"
               label="Property interests"
-              value={contact.property_interests.join(', ')}
+              value={propertyHints.join(', ')}
             />
           ) : null}
           {contact.min_roi ? (
@@ -573,11 +590,11 @@ function ContactCard({ contact }: { contact: Contact }) {
               value={`${contact.min_roi}%`}
             />
           ) : null}
-          {contact.requirements ? (
+          {source?.requirements ? (
             <InfoRow
               icon="list-outline"
               label="Requirements"
-              value={contact.requirements}
+              value={source.requirements}
             />
           ) : null}
           <BuysWithRow contactId={contact.id} />
@@ -1137,6 +1154,7 @@ function ContactEditor({
   onDone: () => void;
 }) {
   const { colors, dark, fonts: f } = useTheme();
+  const source = resolveRequirementSource(contact);
   const [name, setName] = useState(contact.name ?? '');
   const [secondName, setSecondName] = useState(contact.second_name ?? '');
   const [nameTag, setNameTag] = useState(contact.name_tag ?? '');
@@ -1145,18 +1163,18 @@ function ContactEditor({
   );
   const [email, setEmail] = useState(contact.email ?? '');
   const [company, setCompany] = useState(contact.company ?? '');
-  const [requirements, setRequirements] = useState(contact.requirements ?? '');
+  const [requirements, setRequirements] = useState(source.requirements ?? '');
   const [classification, setClassification] = useState<
     Classification | undefined
   >(contact.classification);
   const [minBudget, setMinBudget] = useState(
-    contact.min_budget != null ? String(contact.min_budget) : ''
+    source.pref_budget_min != null ? String(source.pref_budget_min) : ''
   );
   const [maxBudget, setMaxBudget] = useState(
-    contact.max_budget != null ? String(contact.max_budget) : ''
+    source.pref_budget_max != null ? String(source.pref_budget_max) : ''
   );
-  const [noBudget, setNoBudget] = useState(Boolean(contact.no_budget));
-  const [areas, setAreas] = useState<string[]>(contact.areas_of_interest ?? []);
+  const [noBudget, setNoBudget] = useState(Boolean(source.no_budget));
+  const [areas, setAreas] = useState<string[]>(source.pref_areas ?? []);
   const [areasGeo, setAreasGeo] = useState<AreaOfInterestGeo[]>(
     contact.areas_of_interest_geo ?? []
   );
@@ -1164,7 +1182,11 @@ function ContactEditor({
     Boolean(contact.strict_area_match)
   );
   const [propertyInterests, setPropertyInterests] = useState<string[]>(
-    contact.property_interests ?? []
+    [
+      ...(source.property_interests ?? []),
+      ...(source.pref_property_types ?? []),
+      ...(source.pref_property_categories ?? []),
+    ]
   );
   const [minRoi, setMinRoi] = useState(
     contact.min_roi != null ? String(contact.min_roi) : ''

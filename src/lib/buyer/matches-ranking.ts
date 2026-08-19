@@ -12,6 +12,7 @@
 
 import type { Contact, Property } from '@/types';
 import { getMatchingContacts, type MatchDetails } from '@/lib/matching';
+import { resolveRequirementSource } from '@/lib/requirements/profiles';
 
 /**
  * Whether this contact has told anyone what they're looking for.
@@ -19,15 +20,24 @@ import { getMatchingContacts, type MatchDetails } from '@/lib/matching';
  * an empty brief produces noise, not matches.
  */
 export function hasBuyerBrief(contact: Contact): boolean {
+  const source = resolveRequirementSource(contact);
+
   return Boolean(
-    contact.min_budget ||
-    contact.max_budget ||
-    contact.areas_of_interest?.length ||
-    contact.projects_of_interest?.length ||
-    contact.property_interests?.length ||
-    contact.requirement_profiles?.some((profile) => profile.active !== false) ||
-    contact.min_roi ||
-    contact.requirements?.trim()
+    source.min_budget ||
+    source.max_budget ||
+    source.pref_budget_min ||
+    source.pref_budget_max ||
+    source.no_budget ||
+    source.areas_of_interest?.length ||
+    source.pref_areas?.length ||
+    source.projects_of_interest?.length ||
+    source.property_interests?.length ||
+    source.pref_property_types?.length ||
+    source.pref_property_categories?.length ||
+    source.pref_bhk_min ||
+    source.pref_bhk_max ||
+    source.min_roi ||
+    source.requirements?.trim()
   );
 }
 

@@ -21,6 +21,7 @@ import {
   PROPERTY_ALERT_TEMPLATE_NAME,
 } from "@/lib/whatsapp/property-alert-template";
 import type { MatchEvent, Property, RadarManualContact } from "@/types";
+import { resolveRequirementSource } from "@/lib/requirements/profiles";
 import { InfoHint } from "@/components/ui/info-hint";
 import { NameTagBadge } from "@/components/contacts/name-tag-badge";
 import { DirectOwnerCard } from "@/components/radar/direct-owner-card";
@@ -408,37 +409,49 @@ export default function RadarPage() {
                         </div>
                       </div>
                     ) : evt.kind === "buyer_updated" && evt.contact ? (
-                      <div className="space-y-2">
-                        <div className="flex items-start gap-2">
-                          <User className="size-4.5 text-primary shrink-0 mt-0.5" />
-                          <div className="min-w-0">
-                            <h4 className="text-sm font-black text-white leading-tight flex items-center gap-1.5">
-                              {evt.contact.name || evt.contact.phone}
-                              <NameTagBadge tag={evt.contact.name_tag} />
-                            </h4>
-                            <p className="text-[10px] font-bold text-slate-500 mt-0.5">
-                              {evt.contact.phone}
-                            </p>
+                      (() => {
+                        const source = resolveRequirementSource(evt.contact)
+                        const budgetSource = source.pref_budget_max ?? source.max_budget
+                        const areaHints = Array.from(
+                          new Set([
+                            ...(source.areas_of_interest ?? []),
+                            ...(source.pref_areas ?? []),
+                          ]),
+                        )
+                        return (
+                          <div className="space-y-2">
+                            <div className="flex items-start gap-2">
+                              <User className="size-4.5 text-primary shrink-0 mt-0.5" />
+                              <div className="min-w-0">
+                                <h4 className="text-sm font-black text-white leading-tight flex items-center gap-1.5">
+                                  {source.name || source.phone}
+                                  <NameTagBadge tag={source.name_tag} />
+                                </h4>
+                                <p className="text-[10px] font-bold text-slate-500 mt-0.5">
+                                  {source.phone}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="bg-slate-950/20 rounded-lg p-2.5 space-y-1 text-xs border border-slate-850">
+                              <p className="text-slate-300 font-semibold">
+                                Budget:{" "}
+                                <span className="text-slate-200">
+                                  {source.no_budget
+                                    ? "No limit"
+                                    : budgetSource
+                                      ? formatPrice({ price: budgetSource } as Property)
+                                      : "Not specified"}
+                                </span>
+                              </p>
+                              {areaHints.length > 0 && (
+                                <p className="text-slate-350">
+                                  Areas: {areaHints.slice(0, 3).join(", ")}
+                                </p>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                        <div className="bg-slate-950/20 rounded-lg p-2.5 space-y-1 text-xs border border-slate-850">
-                          <p className="text-slate-300 font-semibold">
-                            Budget:{" "}
-                            <span className="text-slate-200">
-                              {evt.contact.no_budget
-                                ? "No limit"
-                                : evt.contact.max_budget
-                                  ? formatPrice({ price: evt.contact.max_budget } as Property)
-                                  : "Not specified"}
-                            </span>
-                          </p>
-                          {evt.contact.areas_of_interest && evt.contact.areas_of_interest.length > 0 && (
-                            <p className="text-slate-350">
-                              Areas: {evt.contact.areas_of_interest.slice(0, 3).join(", ")}
-                            </p>
-                          )}
-                        </div>
-                      </div>
+                        )
+                      })()
                     ) : (
                       <p className="text-xs text-slate-500 italic">Subject details no longer available</p>
                     )}

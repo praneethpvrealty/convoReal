@@ -61,6 +61,7 @@ import { friendlyError } from '@/lib/errors';
 import { chatListTime, cleanPhoneInput, formatBudgetRange } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
 import { openContactChat } from '@/lib/open-chat';
+import { resolveRequirementSource } from '@/lib/requirements/profiles';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
 import {
@@ -269,7 +270,7 @@ async function fetchContacts(
     .select(
       'id, phone, name, name_tag, email, company, classification, avatar_url, lead_temp, ' +
         'status, last_contacted_at, last_inquired_property_id, property_interests, ' +
-        'areas_of_interest, min_budget, max_budget, no_budget, is_favorite' +
+        'areas_of_interest, min_budget, max_budget, no_budget, is_favorite, requirement_profiles' +
         // An inner join rather than a fetch-then-`.in()`: a popular tag
         // holds more contacts than an id list can travel in a URL.
         (filters.tagId ? ', contact_tags!inner(tag_id)' : '')
@@ -1479,23 +1480,32 @@ function ContactPeekCard({
   propertyCodes: Record<string, string>;
 }) {
   const { colors, fonts: f } = useTheme();
+  const source = resolveRequirementSource(contact)
   // property_interests are category labels, not ids — they read as-is;
   // only last_inquired_property_id resolves to a property code.
-  const inquiredCode = contact.last_inquired_property_id
-    ? propertyCodes[contact.last_inquired_property_id]
+  const inquiredCode = source.last_inquired_property_id
+    ? propertyCodes[source.last_inquired_property_id]
     : undefined;
   const interests = Array.from(
     new Set(
-      [...(contact.property_interests ?? []), inquiredCode].filter(
+      [
+        ...(source.property_interests ?? []),
+        ...(source.pref_property_types ?? []),
+        ...(source.pref_property_categories ?? []),
+        inquiredCode,
+      ].filter(
         (v): v is string => Boolean(v)
       )
     )
   ).slice(0, 2);
   const budget = formatBudgetRange(
-    contact.min_budget,
-    contact.max_budget,
-    contact.no_budget
+    source.min_budget ?? source.pref_budget_min,
+    source.max_budget ?? source.pref_budget_max,
+    source.no_budget
   );
+  const areaHints = Array.from(
+    new Set([...(source.areas_of_interest ?? []), ...(source.pref_areas ?? [])]),
+  )
 
   const headline =
     [budget ? `Budget ${budget}` : null, contact.company, contact.email]
@@ -1503,8 +1513,8 @@ function ContactPeekCard({
       .slice(0, 2)
       .join(' · ') || 'No preferences captured yet';
   const detail = [
-    contact.areas_of_interest?.length
-      ? contact.areas_of_interest.slice(0, 2).join(', ')
+    areaHints.length
+      ? areaHints.slice(0, 2).join(', ')
       : null,
     ...tags.slice(0, 2),
     ...interests.map((code) => `★ ${code}`),

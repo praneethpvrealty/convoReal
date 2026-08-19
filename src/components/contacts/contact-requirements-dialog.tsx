@@ -24,12 +24,14 @@ import {
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import type { Contact, ContactRequirementProfile } from '@/types';
+import { resolveRequirementSource } from '@/lib/requirements/profiles';
 
 interface ContactRequirementsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   contact: Contact;
   onChanged: () => void;
+  embedded?: boolean;
 }
 
 interface RequirementResult {
@@ -54,18 +56,19 @@ function inr(value: number): string {
 }
 
 function primarySummary(contact: Contact): string {
-  const types = contact.pref_property_types?.length
-    ? contact.pref_property_types
-    : contact.property_interests || [];
+  const source = resolveRequirementSource(contact);
+  const types = source.pref_property_types?.length
+    ? source.pref_property_types
+    : source.pref_property_categories || source.property_interests || [];
   const areas = [
     ...new Set([
-      ...(contact.areas_of_interest || []),
-      ...(contact.pref_areas || []),
+      ...(source.areas_of_interest || []),
+      ...(source.pref_areas || []),
     ]),
   ];
-  const min = contact.pref_budget_min ?? contact.min_budget ?? null;
-  const max = contact.pref_budget_max ?? contact.max_budget ?? null;
-  const budget = contact.no_budget
+  const min = source.pref_budget_min ?? source.min_budget ?? null;
+  const max = source.pref_budget_max ?? source.max_budget ?? null;
+  const budget = source.no_budget
     ? 'No fixed budget'
     : min && max
       ? `${inr(min)}–${inr(max)}`
@@ -109,6 +112,7 @@ export function ContactRequirementsDialog({
   onOpenChange,
   contact,
   onChanged,
+  embedded = false,
 }: ContactRequirementsDialogProps) {
   const [view, setView] = useState<View>('overview');
   const profiles = contact.requirement_profiles || [];
@@ -250,13 +254,9 @@ export function ContactRequirementsDialog({
     }
   }
 
-  return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => (next ? onOpenChange(true) : close())}
-    >
-      <DialogContent className="max-h-[88vh] max-w-2xl overflow-y-auto rounded-2xl border border-slate-800 bg-slate-900 p-6 text-white shadow-2xl">
-        <DialogHeader>
+  const content = (
+    <>
+      <DialogHeader className="min-w-0">
           <DialogTitle className="flex items-center gap-2 text-xl font-bold">
             {view !== 'overview' ? (
               <button
@@ -273,37 +273,51 @@ export function ContactRequirementsDialog({
             {view === 'overview'
               ? 'Requirements'
               : view === 'add'
-                ? 'Add another requirement'
-                : 'Ask for requirements and budget'}
+                ? 'Create a brief'
+                : 'Request requirements and budget'}
           </DialogTitle>
-          <DialogDescription className="text-sm text-slate-400">
+          <DialogDescription className="break-words text-sm text-slate-400">
             {view === 'overview'
               ? `Review every active brief for ${name} from one place.`
               : view === 'add'
                 ? 'Paste a personal WhatsApp message. It becomes a separate structured brief.'
                 : `Send ${name} the pre-filled WhatsApp form from your connected business number.`}
           </DialogDescription>
-        </DialogHeader>
+      </DialogHeader>
 
         {view === 'overview' ? (
-          <div className="space-y-4">
-            <div className="grid gap-2 sm:grid-cols-2">
+          <div className="min-w-0 space-y-4">
+            <div className="grid min-w-0 gap-3 md:grid-cols-2">
               <Button
                 variant="outline"
                 onClick={() => setView('add')}
-                className="h-auto justify-start border-sky-500/20 bg-sky-500/5 px-4 py-3 text-sky-300"
+                className="h-auto w-full min-w-0 justify-start whitespace-normal border-sky-500/20 bg-sky-500/5 px-4 py-3 text-sky-300"
               >
-                <FilePlus2 className="size-4" />
-                Add another requirement
+                <FilePlus2 className="mt-0.5 size-4 shrink-0" />
+                <span className="min-w-0 text-left">
+                  <span className="block text-sm font-semibold leading-5">
+                    Add a brief
+                  </span>
+                  <span className="mt-0.5 block break-words text-xs font-normal leading-5 text-slate-300/80">
+                    Paste a message to create another matching requirement.
+                  </span>
+                </span>
               </Button>
               <Button
                 variant="outline"
                 onClick={() => setView('ask')}
                 disabled={!contact.phone}
-                className="h-auto justify-start border-emerald-500/20 bg-emerald-500/5 px-4 py-3 text-emerald-300"
+                className="h-auto w-full min-w-0 justify-start whitespace-normal border-emerald-500/20 bg-emerald-500/5 px-4 py-3 text-emerald-300"
               >
-                <Send className="size-4" />
-                Ask buyer for requirements
+                <Send className="mt-0.5 size-4 shrink-0" />
+                <span className="min-w-0 text-left">
+                  <span className="block text-sm font-semibold leading-5">
+                    Ask buyer
+                  </span>
+                  <span className="mt-0.5 block break-words text-xs font-normal leading-5 text-slate-300/80">
+                    Send a WhatsApp form so the buyer confirms latest needs.
+                  </span>
+                </span>
               </Button>
             </div>
 
@@ -513,6 +527,20 @@ export function ContactRequirementsDialog({
             </DialogFooter>
           </div>
         )}
+    </>
+  );
+
+  if (embedded) {
+    return <div className="min-h-0 flex-1 overflow-y-auto">{content}</div>;
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => (next ? onOpenChange(true) : close())}
+    >
+      <DialogContent className="w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] overflow-x-hidden overflow-y-auto rounded-2xl border border-slate-800 bg-slate-900 p-4 text-white shadow-2xl sm:max-h-[88vh] sm:max-w-2xl sm:p-6">
+        {content}
       </DialogContent>
     </Dialog>
   );

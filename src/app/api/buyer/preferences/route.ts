@@ -29,7 +29,7 @@ export const GET = withBuyerAuth(async (ctx) => {
   const { data, error } = await buyerAdmin()
     .from('contacts')
     .select(
-      'id, min_budget, max_budget, areas_of_interest, property_interests, min_roi, updated_at'
+      'id, min_budget, max_budget, pref_budget_min, pref_budget_max, areas_of_interest, pref_areas, property_interests, min_roi, updated_at'
     )
     .in(
       'id',
@@ -50,9 +50,12 @@ export const GET = withBuyerAuth(async (ctx) => {
   return NextResponse.json({
     preferences: contact
       ? {
-          min_budget: contact.min_budget ?? null,
-          max_budget: contact.max_budget ?? null,
-          areas_of_interest: contact.areas_of_interest ?? [],
+          min_budget: contact.min_budget ?? contact.pref_budget_min ?? null,
+          max_budget: contact.max_budget ?? contact.pref_budget_max ?? null,
+          areas_of_interest:
+            (contact.areas_of_interest && contact.areas_of_interest.length > 0)
+              ? contact.areas_of_interest
+              : contact.pref_areas ?? [],
           property_interests: contact.property_interests ?? [],
           min_roi: contact.min_roi ?? null,
         }

@@ -34,6 +34,7 @@ import {
 } from '@/lib/radar';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import { usePullRefresh } from '@/lib/use-pull-refresh';
+import { resolveRequirementSource } from '@/lib/requirements/profiles';
 import type { Contact, MatchEvent } from '@shared/types';
 
 /**
@@ -528,12 +529,18 @@ function Subject({ event }: { event: MatchEvent }) {
 
   if (event.kind === 'buyer_updated' && event.contact) {
     const c = event.contact;
-    const budget = c.no_budget
+    const source = resolveRequirementSource(c);
+    const budget = source.no_budget
       ? 'No budget limit'
-      : c.max_budget
-        ? `Up to ${formatInr(c.max_budget)}`
+      : source.pref_budget_max || source.max_budget
+        ? `Up to ${formatInr(source.pref_budget_max ?? source.max_budget)}`
         : null;
-    const areas = (c.areas_of_interest ?? []).slice(0, 3).join(', ');
+    const areas = [
+      ...(source.areas_of_interest || []),
+      ...(source.pref_areas || []),
+    ]
+      .slice(0, 3)
+      .join(', ');
     return (
       <View style={[styles.subject, { borderColor: colors.border }]}>
         <Ionicons name="person-outline" size={17} color={colors.primary} />

@@ -10,6 +10,7 @@ import {
   effectiveMaxBudget,
   visibleTagSuggestions,
 } from "@/lib/contact-preferences"
+import { resolveRequirementSource } from "@/lib/requirements/profiles"
 import { toast } from "sonner"
 import {
   ClipboardList,
@@ -89,6 +90,7 @@ interface ConsolidatedContact {
   min_budget?: number
   max_budget?: number
   no_budget?: boolean
+  pref_budget_min?: number | string | null
   requirements?: string
   requirement_active?: boolean | null
   areas_of_interest?: string[]
@@ -179,24 +181,39 @@ export default function RequirementsPage() {
     return { total, hot, buyers, agents }
   }, [data])
 
+  const resolveForSource = useCallback(
+    (contact: ConsolidatedContact) =>
+      resolveRequirementSource(contact as Parameters<typeof resolveRequirementSource>[0]),
+    []
+  )
+
   // Card row → the shape src/lib/requirements/share.ts formats. Tags
   // and the latest note are handed over but only survive in full mode.
   const toShareable = useCallback(
-    (c: ConsolidatedContact): ShareableRequirement => ({
-      id: c.id,
-      name: c.name,
-      classification: c.classification,
-      no_budget: c.no_budget,
-      min_budget: c.min_budget,
-      max_budget: c.max_budget,
-      requirements: c.requirements,
-      areas_of_interest: c.areas_of_interest,
-      projects_of_interest: c.projects_of_interest,
-      tags: (c.contact_tags ?? []).map((t) => t.tags?.name),
-      latestNote: c.contact_notes?.[0]?.note_text,
-      requirement_active: c.requirement_active,
-    }),
-    []
+    (c: ConsolidatedContact): ShareableRequirement => {
+      const source = resolveForSource(c)
+      return {
+        id: c.id,
+        name: c.name,
+        classification: c.classification,
+        no_budget: source.no_budget,
+        min_budget: source.min_budget ?? source.pref_budget_min ?? null,
+        max_budget: source.max_budget ?? source.pref_budget_max ?? null,
+        requirements: source.requirements,
+        areas_of_interest: [
+          ...(source.areas_of_interest || []),
+          ...(source.pref_areas || []),
+        ].filter((area) => Boolean(area)),
+        projects_of_interest: [
+          ...(source.projects_of_interest || []),
+          ...(source.pref_projects || []),
+        ].filter((project) => Boolean(project)),
+        tags: (c.contact_tags ?? []).map((t) => t.tags?.name),
+        latestNote: c.contact_notes?.[0]?.note_text,
+        requirement_active: c.requirement_active,
+      }
+    },
+    [resolveForSource]
   )
 
   // Mint any missing links for the open share. The cache key carries
@@ -355,11 +372,12 @@ export default function RequirementsPage() {
   }
 
   const loadEditorFields = (c: ConsolidatedContact | null) => {
+    const sourceContact = c ? resolveForSource(c) : null
     setReqText(c?.requirements ?? "")
-    const projects = c?.projects_of_interest ?? []
+    const projects = sourceContact?.projects_of_interest ?? sourceContact?.pref_projects ?? []
     setReqProjects(projects)
     setReqProjectsText(projects.join(", ") + (projects.length > 0 ? ", " : ""))
-    setReqStrictProjects(!!c?.strict_project_match)
+    setReqStrictProjects(!!sourceContact?.strict_project_match)
   }
 
   const openEditRequirements = (c: ConsolidatedContact) => {
@@ -780,17 +798,18 @@ export default function RequirementsPage() {
                         the demands statement shows here instead of
                         "Not specified". */}
                     {(() => {
-                      const budget = effectiveMaxBudget(c)
+                      const sourceContact = resolveForSource(c)
+                      const budget = effectiveMaxBudget(sourceContact)
                       return (
                         <div className="flex items-center justify-between text-xs border-b border-slate-900/60 pb-2">
                           <span className="font-bold text-slate-450">Estimated Budget</span>
                           <span className="font-black text-white inline-flex items-center gap-1">
-                            {c.no_budget
+                            {sourceContact.no_budget
                               ? "No limit"
                               : budget
                               ? formatCurrency(budget.value)
                               : "Not specified"}
-                            {!c.no_budget && budget?.source === "ai" && (
+                            {!sourceContact.no_budget && budget?.source === "ai" && (
                               <span title="Extracted by AI from the demands statement">
                                 <Sparkles className="size-3 text-primary" />
                               </span>
@@ -826,8 +845,9 @@ export default function RequirementsPage() {
                         came from the demands statement rather than the
                         contact form. */}
                     {(() => {
-                      const areas = effectiveAreas(c)
-                      const cats = effectiveCategories(c)
+                      const sourceContact = resolveForSource(c)
+                      const areas = effectiveAreas(sourceContact)
+                      const cats = effectiveCategories(sourceContact)
                       if (!areas && !cats) return null
                       const chip = (label: string, ai: boolean, key: string) => (
                         <span
@@ -859,10 +879,11 @@ export default function RequirementsPage() {
                         specific projects. Tap to save one as a tag for
                         segmentation/broadcasts. Hidden once tagged. */}
                     {(() => {
+                      const sourceContact = resolveForSource(c)
                       const projects = visibleTagSuggestions(
                         [
-                          ...(c.projects_of_interest ?? []),
-                          ...(c.pref_projects ?? []),
+                          ...(sourceContact.projects_of_interest || []),
+                          ...(sourceContact.pref_projects || []),
                         ],
                         (c.contact_tags ?? []).map((t) => t.tags?.name),
                       )
