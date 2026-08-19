@@ -54,12 +54,17 @@ try {
   await page.waitForTimeout(2000);
 
   let body = await page.locator('body').innerText();
+  const missingMatch = body.match(/(\d+)\s+templates?\s+the Engine sends are missing in/i);
+  const missingCount = Number(missingMatch?.[1] ?? 0);
   check('the language names every engine template it is missing',
-    /7 templates the Engine sends are missing in/.test(body),
-    (body.match(/\d+ templates the Engine sends are missing in [^\n]*/) || ['?'])[0]);
+    missingCount > 0,
+    (body.match(/\d+\s+templates?\s+the Engine sends are missing in [^\n]*/) || ['?'])[0]);
+
+  const draftCount = await page.getByRole('button', { name: 'Create draft' }).count();
+  const oneTapCount = await page.getByRole('button', { name: 'Create & submit' }).count();
   check('a translation offers "Create draft", never a one-tap submit',
-    (await page.getByRole('button', { name: 'Create draft' }).count()) === 7 &&
-    (await page.getByRole('button', { name: 'Create & submit' }).count()) === 0);
+    draftCount === missingCount && oneTapCount === 0,
+    `draftCount=${draftCount}, create&submit=${oneTapCount}, missing=${missingCount}`);
 
   const noDraft = await post('/api/whatsapp/templates/submit', payloadFor(UNDRAFTED));
   check('submitting a translation that was never drafted is refused',

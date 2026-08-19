@@ -447,6 +447,43 @@ describe('multiple requests from one message', () => {
     expect(card()).toContain('✅ *Task added to your list*');
   });
 
+  it.each([
+    'Can you update C Kumar about this and remind me to follow up on September 24?',
+    'Inform C Kumar about this update and set a follow-up reminder for Sept 24.',
+    'Please notify C Kumar about Suleiman client / 9,600 sqft Jayanagar plot and add a follow-up reminder on Sept 24',
+  ])(
+    'supports follow-up phrasing variant: %s',
+    async (contentText) => {
+      tables.contacts = [{ id: 'contact-c-kumar', name: 'C Kumar', phone: '+919999999999' }];
+      parseEventsFromInput.mockResolvedValue([
+        notify({
+          recipient_name: 'C Kumar',
+          title: 'Client update',
+          notes: "Suleiman client's 9,600 sqft Jayanagar plot is approved",
+        }),
+        task({
+          start_time: '2026-09-24T10:00',
+          title: 'Follow up with C Kumar',
+          notes: 'Reminder about 9,600 sqft Jayanagar plot update',
+        }),
+      ]);
+
+      await tryHandleOwnerScheduling({
+        ...baseParams,
+        contentText,
+      });
+
+      const todos = inserts.filter((i) => i.table === 'todos');
+      expect(todos).toHaveLength(1);
+      expect(todos[0].row.due_date).toBe('2026-09-24T04:30:00.000Z');
+      expect(todos[0].row.title).toBe('Follow up with C Kumar');
+      expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledTimes(1);
+      expect(card()).toContain('📨 *Update sent to C Kumar*');
+      expect(card()).toContain('✅ *Task added to your list*');
+      expect(card()).not.toContain('Task updated');
+    }
+  );
+
   it('leaves a single request card exactly as it was', async () => {
     parseEventsFromInput.mockResolvedValue([task({ start_time: null })]);
     await tryHandleOwnerScheduling({
