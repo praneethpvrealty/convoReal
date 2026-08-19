@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { readdirSync } from "node:fs";
 import {
   KNOWN_DUPLICATE_PREFIXES,
+  LEGACY_SEQUENCE_CEILING,
+  findPostLegacySequentialMigrations,
   findDuplicatePrefixes,
   findNewDuplicatePrefixes,
   migrationPrefix,
@@ -55,6 +57,21 @@ describe("supabase/migrations", () => {
       .map(([prefix, names]) => `${prefix}: ${names.join(", ")}`)
       .join("\n");
     expect(detail).toBe("");
+  });
+
+
+  it("rejects sequential numbering after the frozen legacy ceiling", () => {
+    expect(
+      findPostLegacySequentialMigrations([
+        `${LEGACY_SEQUENCE_CEILING}_legacy.sql`,
+        `${LEGACY_SEQUENCE_CEILING + 1}_new.sql`,
+        "20260819042000_timestamped.sql",
+      ])
+    ).toEqual([`${LEGACY_SEQUENCE_CEILING + 1}_new.sql`]);
+  });
+
+  it("requires every new repository migration to use a timestamp", () => {
+    expect(findPostLegacySequentialMigrations(filenames)).toEqual([]);
   });
 
   it("keeps the frozen list honest — every entry is still a real duplicate", () => {
