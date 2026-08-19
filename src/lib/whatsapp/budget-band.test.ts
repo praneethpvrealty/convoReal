@@ -9,6 +9,7 @@ vi.mock('@/lib/whatsapp/meta-api-dispatcher', () => ({
 
 const {
   buildBudgetBandSections,
+  budgetBandAcknowledgement,
   sendBudgetBandPrompt,
   handleBudgetBandReply,
   isRentOnlyIntent,
@@ -129,6 +130,16 @@ describe('handleBudgetBandReply', () => {
     });
     expect(handled).toBe(false);
     expect(updates).toHaveLength(0);
+  });
+});
+
+describe('budgetBandAcknowledgement', () => {
+  it('confirms only the field the buyer changed', () => {
+    expect(budgetBandAcknowledgement('bb_s4')).toBe(
+      "Got it — I've changed your budget to above ₹5 Cr and kept the rest of your search unchanged."
+    );
+    expect(budgetBandAcknowledgement('bb_none')).toMatch(/fixed budget/);
+    expect(budgetBandAcknowledgement('bb_forged')).toBeNull();
   });
 });
 

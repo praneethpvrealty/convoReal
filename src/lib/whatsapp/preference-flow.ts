@@ -311,7 +311,20 @@ export function preferenceFormToContactUpdate(
 
 // ── Chat helpers ──────────────────────────────────────────────────
 
-const formatInr = (n: number) => `₹${n.toLocaleString('en-IN')}`
+const formatInr = (n: number) =>
+  n >= 10_000_000
+    ? `₹${(n / 10_000_000).toFixed(2).replace(/\.?0+$/, '')} Cr`
+    : n >= 100_000
+      ? `₹${(n / 100_000).toFixed(2).replace(/\.?0+$/, '')} Lakh`
+      : `₹${n.toLocaleString('en-IN')}`
+
+function compactList(values: string[]): string {
+  const shown = values.slice(0, 3)
+  const remaining = values.length - shown.length
+  return remaining > 0
+    ? `${shown.join(', ')} and ${remaining} more ${remaining === 1 ? 'area' : 'areas'}`
+    : shown.join(', ')
+}
 
 /** Human-readable confirmation sent back in the chat after saving. */
 export function summarizePreferenceUpdate(update: ContactPreferenceUpdate): string {
@@ -319,28 +332,26 @@ export function summarizePreferenceUpdate(update: ContactPreferenceUpdate): stri
   if (update.min_budget !== undefined || update.max_budget !== undefined) {
     const min = update.min_budget != null ? formatInr(update.min_budget) : null
     const max = update.max_budget != null ? formatInr(update.max_budget) : null
-    if (min && max) lines.push(`• Budget: ${min} – ${max}`)
-    else if (min) lines.push(`• Budget: from ${min}`)
-    else if (max) lines.push(`• Budget: up to ${max}`)
+    if (min && max) lines.push(`${min}–${max} budget`)
+    else if (min) lines.push(`budget from ${min}`)
+    else if (max) lines.push(`budget up to ${max}`)
   }
   if (update.areas_of_interest !== undefined) {
-    lines.push(
-      update.areas_of_interest.length > 0
-        ? `• Localities: ${update.areas_of_interest.join(', ')}`
-        : '• Localities: no preference'
-    )
+    if (update.areas_of_interest.length > 0) {
+      lines.push(compactList(update.areas_of_interest))
+    }
   }
   if (update.property_interests !== undefined && update.property_interests.length > 0) {
-    lines.push(`• Property types: ${update.property_interests.join(', ')}`)
+    lines.push(update.property_interests.join(' / '))
   }
   if (update.min_roi != null) {
-    lines.push(`• Expected min ROI: ${update.min_roi}%`)
+    lines.push(`minimum ${update.min_roi}% ROI`)
   }
 
   if (lines.length === 0) {
-    return '✅ Thanks! Your preferences have been updated.'
+    return "Got it — I've saved your updated property search and will use it for future matches."
   }
-  return `✅ Thanks! Your preferences have been updated:\n\n${lines.join('\n')}\n\nWe'll use these to match you with the right properties.`
+  return `Got it — I've updated your search: ${lines.join('; ')}. I'll use these details for future matches.`
 }
 
 /**

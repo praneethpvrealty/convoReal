@@ -131,6 +131,45 @@ describe('sendAlertsOnboarding', () => {
     expect(sendBudgetBandPrompt).not.toHaveBeenCalled();
   });
 
+  it('acknowledges only the changed field before asking the next question', async () => {
+    await sendAlertsOnboarding({
+      ...args({
+        id: 'c1',
+        pref_property_types: ['Commercial Land'],
+        pref_budget_min: 50_000_000,
+      }),
+      acknowledgement:
+        "Got it — I've changed your budget to above ₹5 Cr and kept the rest of your search unchanged.",
+    });
+
+    expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: expect.stringContaining('Which areas should I focus on?'),
+      })
+    );
+  });
+
+  it('uses the concise no-match outcome after a one-field change', async () => {
+    const acknowledgement =
+      "Got it — I've changed your budget to above ₹5 Cr and kept the rest of your search unchanged.";
+    await sendAlertsOnboarding({
+      ...args({
+        id: 'c1',
+        pref_property_types: ['Commercial Land'],
+        pref_budget_min: 50_000_000,
+        pref_areas: ['HSR Layout'],
+      }),
+      acknowledgement,
+    });
+
+    expect(sendPreferenceMatchFollowUp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        acknowledgement,
+        reviewNoMatch: false,
+      })
+    );
+  });
+
   it('stands down without a contact row', async () => {
     await sendAlertsOnboarding(args(null));
     expect(sendPropertyTypePrompt).not.toHaveBeenCalled();

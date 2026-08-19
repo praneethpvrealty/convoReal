@@ -54,6 +54,12 @@ const OPTIONS: PropertyTypeOption[] = [
 
 const OPTION_BY_ID = new Map(OPTIONS.map((o) => [o.id, o]));
 
+export function propertyTypeAcknowledgement(replyId: string): string | null {
+  const option = OPTION_BY_ID.get(replyId);
+  if (!option) return null;
+  return `Got it — I've changed the property type to ${option.title.toLowerCase()} and kept the rest of your search unchanged.`;
+}
+
 /** The type list. The form row reuses the lfb_form id so the existing
  *  webhook route to the preference form serves this list too. */
 export function buildPropertyTypeSections(

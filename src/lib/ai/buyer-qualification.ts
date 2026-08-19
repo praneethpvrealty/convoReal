@@ -290,15 +290,17 @@ export function buildMatchesReply(
   baseUrl: string,
   contactId: string,
   /** Appended when listings went out before the ladder was finished. */
-  followUp?: string | null
+  followUp?: string | null,
+  opening?: string | null
 ): string {
   const shown = matches.slice(0, MAX_MATCHES_SENT);
   const listings = buildListingLines(contactName, matches, baseUrl, contactId);
 
   const lead =
-    shown.length === 1
+    opening ??
+    (shown.length === 1
       ? `Thanks ${firstName(contactName)} — here's one that fits 👇`
-      : `Thanks ${firstName(contactName)} — here ${shown.length === 2 ? 'are 2' : `are ${shown.length}`} that fit 👇`;
+      : `Thanks ${firstName(contactName)} — here ${shown.length === 2 ? 'are 2' : `are ${shown.length}`} that fit 👇`);
 
   return [
     lead,

@@ -36,10 +36,12 @@ import {
   sendListingFeedbackPrompt,
 } from '@/lib/whatsapp/listing-feedback'
 import {
+  budgetBandAcknowledgement,
   handleBudgetBandReply,
   BUDGET_BAND_ID_PREFIX,
 } from '@/lib/whatsapp/budget-band'
 import {
+  propertyTypeAcknowledgement,
   handlePropertyTypeReply,
   PROPERTY_TYPE_ID_PREFIX,
 } from '@/lib/whatsapp/property-type-prompt'
@@ -2460,12 +2462,18 @@ async function processMessage(
           replyId: interactiveReplyId,
         })
     if (handledRung) {
+      const acknowledgement = interactiveReplyId.startsWith(
+        PROPERTY_TYPE_ID_PREFIX
+      )
+        ? propertyTypeAcknowledgement(interactiveReplyId)
+        : budgetBandAcknowledgement(interactiveReplyId)
       await sendAlertsOnboarding({
         db: supabaseAdmin(),
         accountId,
         userId: configOwnerUserId,
         contactId: contactRecord.id,
         conversationId: conversation.id,
+        acknowledgement,
       })
       return
     }
@@ -3804,26 +3812,14 @@ async function handlePreferenceFlowNfmReply(
   const update =
     result.update ?? preferenceFormToContactUpdate(parsePreferenceFormValues(parsed))
 
-  await sendWhatsAppMessageAndPersist({
-    accountId,
-    userId: configOwnerUserId,
-    contactId,
-    conversationId,
-    kind: 'text',
-    senderType: 'bot',
-    text: summarizePreferenceUpdate(update),
-  })
-
-  // The summary above promises a match. Deliver it now, while the
-  // window this submission just opened is still open — a re-engaged
-  // lead who filled the form is the highest intent this funnel sees,
-  // and it used to end here.
   await sendPreferenceMatchFollowUp({
     db: supabaseAdmin(),
     accountId,
     userId: configOwnerUserId,
     contactId,
     conversationId,
+    acknowledgement: summarizePreferenceUpdate(update),
+    reviewNoMatch: false,
   })
 }
 
