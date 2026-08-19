@@ -47,10 +47,10 @@ export function findNewDuplicatePrefixes(filenames: string[]): Map<string, strin
 
 
 /**
- * Sequential prefixes through 289 are frozen legacy history. New migrations
+ * Sequential prefixes through 293 are frozen legacy history. New migrations
  * must use the 14-digit UTC timestamp produced by `supabase migration new`.
  */
-export const LEGACY_SEQUENCE_CEILING = 289;
+export const LEGACY_SEQUENCE_CEILING = 293;
 
 export function findPostLegacySequentialMigrations(
   filenames: string[]
