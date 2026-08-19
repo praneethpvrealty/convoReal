@@ -231,6 +231,7 @@ export default function InboxScreen() {
           {visibleFilters.map((f) => (
             <FilterChip
               key={f}
+              testID={`inbox-filter-${f.toLowerCase().replace(/ /g, '-')}`}
               label={f}
               active={filter === f}
               onPress={() => setFilter(f)}
