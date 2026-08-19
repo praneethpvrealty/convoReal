@@ -166,14 +166,17 @@ export function FilterChip({
   label,
   active,
   onPress,
+  testID,
 }: {
   label: string;
   active: boolean;
   onPress: () => void;
+  testID?: string;
 }) {
   const { colors, fonts: f } = useTheme();
   return (
     <Pressable
+      testID={testID}
       onPress={onPress}
       hitSlop={6}
       accessibilityRole="button"
