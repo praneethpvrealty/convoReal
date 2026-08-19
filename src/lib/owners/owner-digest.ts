@@ -48,6 +48,7 @@ export type DigestFrequency = 'off' | 'daily' | 'weekly'
 export interface PropertyDigestStats {
   property_id: string
   title: string
+  listing_type?: string | null
   inquiries: number
   shortlisted: number
   visits: number
@@ -131,6 +132,46 @@ export function hasUpdates(digest: OwnerDigest): boolean {
 const plural = (n: number, singular: string, pluralWord?: string) =>
   `${n} ${n === 1 ? singular : pluralWord || `${singular}s`}`
 
+export type OwnerActivityAudience = 'buyer' | 'tenant' | 'mixed'
+
+export function resolveOwnerActivityAudience(
+  listingTypes: Array<string | null | undefined>
+): OwnerActivityAudience {
+  const normalized = listingTypes
+    .map((type) => type?.trim().toLowerCase())
+    .filter((type): type is string => Boolean(type))
+  const hasRental = normalized.includes('rent')
+  const hasNonRental = normalized.some((type) => type !== 'rent')
+  if (hasRental && !hasNonRental) return 'tenant'
+  if (hasRental && hasNonRental) return 'mixed'
+  return 'buyer'
+}
+
+function ownerActivityWords(audience: OwnerActivityAudience) {
+  if (audience === 'tenant') {
+    return {
+      interestSubject: 'prospective tenants',
+      activity: 'tenant',
+      singular: 'tenant',
+      plural: 'tenants',
+    }
+  }
+  if (audience === 'mixed') {
+    return {
+      interestSubject: 'prospective buyers and tenants',
+      activity: 'prospect',
+      singular: 'prospect',
+      plural: 'prospects',
+    }
+  }
+  return {
+    interestSubject: 'buyers',
+    activity: 'buyer',
+    singular: 'buyer',
+    plural: 'buyers',
+  }
+}
+
 /** Compact one-line totals for the template's {{3}} param. */
 export function buildOwnerDigestSummaryLine(digest: OwnerDigest): string {
   const totals = digest.properties.reduce(
@@ -142,9 +183,20 @@ export function buildOwnerDigestSummaryLine(digest: OwnerDigest): string {
     }),
     { inquiries: 0, shortlisted: 0, visits: 0, views: 0 }
   )
+  const words = ownerActivityWords(
+    resolveOwnerActivityAudience(digest.properties.map((p) => p.listing_type))
+  )
   const bits: string[] = []
   if (totals.inquiries > 0) bits.push(plural(totals.inquiries, 'new enquiry', 'new enquiries'))
-  if (totals.shortlisted > 0) bits.push(plural(totals.shortlisted, 'buyer shortlisted', 'buyers shortlisted'))
+  if (totals.shortlisted > 0) {
+    bits.push(
+      plural(
+        totals.shortlisted,
+        `${words.singular} shortlisted`,
+        `${words.plural} shortlisted`
+      )
+    )
+  }
   if (totals.visits > 0) bits.push(plural(totals.visits, 'site visit scheduled', 'site visits scheduled'))
   if (totals.views > 0) bits.push(plural(totals.views, 'showcase view'))
   return bits.join(' · ')
@@ -153,10 +205,13 @@ export function buildOwnerDigestSummaryLine(digest: OwnerDigest): string {
 /** Rich free-form message for owners with an open 24h window. */
 export function buildOwnerDigestMessage(digest: OwnerDigest, periodLabel: string): string {
   const firstName = digest.name?.trim().split(/\s+/)[0] || 'there'
+  const words = ownerActivityWords(
+    resolveOwnerActivityAudience(digest.properties.map((p) => p.listing_type))
+  )
   const lines: string[] = [
     `📊 *Your Property Update — ${periodLabel}*`,
     '',
-    `Hi ${firstName}, here's the buyer activity on your ${
+    `Hi ${firstName}, here's the ${words.activity} activity on your ${
       digest.properties.length === 1 ? 'listing' : 'listings'
     }:`,
   ]
@@ -164,7 +219,18 @@ export function buildOwnerDigestMessage(digest: OwnerDigest, periodLabel: string
     if (p.inquiries === 0 && p.shortlisted === 0 && p.visits === 0 && p.views === 0) continue
     lines.push('', `*${p.title}*`)
     if (p.inquiries > 0) lines.push(`• ${plural(p.inquiries, 'new enquiry', 'new enquiries')}`)
-    if (p.shortlisted > 0) lines.push(`• ${plural(p.shortlisted, 'buyer shortlisted', 'buyers shortlisted')}`)
+    if (p.shortlisted > 0) {
+      const propertyWords = ownerActivityWords(
+        resolveOwnerActivityAudience([p.listing_type])
+      )
+      lines.push(
+        `• ${plural(
+          p.shortlisted,
+          `${propertyWords.singular} shortlisted`,
+          `${propertyWords.plural} shortlisted`
+        )}`
+      )
+    }
     if (p.visits > 0) lines.push(`• ${plural(p.visits, 'site visit scheduled', 'site visits scheduled')}`)
     if (p.views > 0) lines.push(`• ${plural(p.views, 'showcase view')}`)
   }
@@ -248,9 +314,12 @@ interface AccountRunSummary {
  *  owner's listings without gathering a full activity digest. */
 export function buildConsentRequestMessage(digest: {
   name: string | null
-  properties: { title: string }[]
+  properties: { title: string; listing_type?: string | null }[]
 }): string {
   const firstName = digest.name?.trim().split(/\s+/)[0] || 'there'
+  const words = ownerActivityWords(
+    resolveOwnerActivityAudience(digest.properties.map((p) => p.listing_type))
+  )
   const titles = digest.properties.map((p) => p.title?.trim()).filter(Boolean)
   const listingPhrase =
     titles.length === 1
@@ -259,9 +328,9 @@ export function buildConsentRequestMessage(digest: {
         ? `your listings *${titles[0]}* and *${titles[1]}*`
         : `your ${digest.properties.length} listings`
   return [
-    `Hi ${firstName}, buyers have been showing interest in ${listingPhrase}. 👀`,
+    `Hi ${firstName}, ${words.interestSubject} have been showing interest in ${listingPhrase}. 👀`,
     '',
-    'Would you like to receive a short WhatsApp status update (new enquiries, shortlists and scheduled site visits) whenever there is fresh buyer activity on your property?',
+    `Would you like to receive a short WhatsApp status update (new enquiries, shortlists and scheduled site visits) whenever there is fresh ${words.activity} activity on your property?`,
     '',
     '_You can change your mind anytime by replying STOP UPDATES or START UPDATES._',
   ].join('\n')
@@ -387,7 +456,7 @@ export async function gatherOwnerDigests(
   // Every listing with a known owner contact.
   let propertiesQuery = db
     .from('properties')
-    .select('id, title, owner_contact_id')
+    .select('id, title, owner_contact_id, listing_type')
     .eq('account_id', accountId)
     // Sold/withdrawn listings keep their enquiry and view rows, so
     // without this they go on generating digests — and consent
@@ -447,6 +516,7 @@ export async function gatherOwnerDigests(
     statsByProperty.set(p.id as string, {
       property_id: p.id as string,
       title: (p.title as string) || 'Your property',
+      listing_type: (p.listing_type as string | null) ?? null,
       inquiries: 0,
       shortlisted: 0,
       visits: 0,
@@ -767,7 +837,21 @@ export async function applyOwnerDigestCommand(args: {
     console.error('[owner-digest] consent update failed:', error.message)
     return null
   }
-  return args.command === 'stop'
-    ? "Understood — you won't receive property status updates. Reply START UPDATES anytime if you change your mind."
-    : "✅ Great! You'll receive a short status update whenever there's new buyer activity on your property. Reply STOP UPDATES anytime to pause."
+  if (args.command === 'stop') {
+    return "Understood — you won't receive property status updates. Reply START UPDATES anytime if you change your mind."
+  }
+
+  const { data: listings } = await db
+    .from('properties')
+    .select('listing_type')
+    .eq('account_id', args.accountId)
+    .eq('owner_contact_id', args.contactId)
+    .not('status', 'in', CLOSED_LISTING_STATUS_FILTER)
+    .neq('listing_source', 'agent')
+  const words = ownerActivityWords(
+    resolveOwnerActivityAudience(
+      (listings || []).map((listing) => listing.listing_type as string | null)
+    )
+  )
+  return `✅ Great! You'll receive a short status update whenever there's new ${words.activity} activity on your property. Reply STOP UPDATES anytime to pause.`
 }

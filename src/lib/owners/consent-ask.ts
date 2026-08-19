@@ -96,6 +96,9 @@ export async function claimOwnerConsentAsk(
 
   return buildConsentRequestMessage({
     name: contact.name ?? null,
-    properties: listings.map((listing) => ({ title: listing.title })),
+    properties: listings.map((listing) => ({
+      title: listing.title,
+      listing_type: listing.listing_type,
+    })),
   });
 }

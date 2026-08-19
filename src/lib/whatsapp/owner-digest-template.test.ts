@@ -21,6 +21,7 @@ describe('buildOwnerDigestTemplatePayload', () => {
   it('is a Utility template with the pause quick reply', () => {
     const payload = buildOwnerDigestTemplatePayload();
     expect(payload.category).toBe('Utility');
+    expect(payload.body_text).not.toMatch(/\bbuyer\b/i);
     const quickReplies = (payload.buttons ?? []).filter((b) => b.type === 'QUICK_REPLY');
     expect(quickReplies.map((b) => ('text' in b ? b.text : ''))).toContain('Pause updates');
   });
@@ -73,6 +74,7 @@ describe('buildOwnerDigestConsentTemplatePayload', () => {
     expect(() => validateTemplatePayload(payload)).not.toThrow();
     expect(payload.name).toBe(OWNER_DIGEST_CONSENT_TEMPLATE_NAME);
     expect(payload.category).toBe('Utility');
+    expect(payload.body_text).not.toMatch(/\bbuyer\b/i);
   });
 
   it('offers exactly the Yes/No quick replies the webhook parser understands', () => {

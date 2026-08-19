@@ -120,7 +120,7 @@ describe('buildOwnerReplyPrompt', () => {
       '"2400 Sq.Ft. Commercial Plot in HSR Sector 2" (code PROP-1006)'
     );
     expect(prompt).toContain(
-      '2 new enquiries, 1 buyers shortlisted, 14 showcase views'
+      '2 new enquiries, 1 prospects shortlisted, 14 showcase views'
     );
     expect(prompt).toContain('subscription: pending');
     expect(prompt).toContain('Which land are you talking about');
