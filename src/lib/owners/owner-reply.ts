@@ -21,7 +21,7 @@ import {
  * property!"), which reads as tone-deaf spam to someone who LISTED a
  * property. The webhook now suppresses buyer-flow entry for owner
  * contacts and routes their free text here instead: a short AI reply
- * grounded ONLY in their own listings and tracked buyer activity, with a
+ * grounded ONLY in their own listings and tracked listing activity, with a
  * deterministic fallback when Gemini is unavailable.
  */
 
@@ -61,6 +61,7 @@ export interface OwnedListing {
   property_code: string | null;
   type: string | null;
   status: string | null;
+  listing_type?: string | null;
   location: string | null;
   sublocality: string | null;
   city: string | null;
@@ -74,7 +75,7 @@ export async function findOwnedListings(
   const { data } = await supabaseAdmin()
     .from('properties')
     .select(
-      'id, title, property_code, type, status, location, sublocality, city, is_published'
+      'id, title, property_code, type, status, listing_type, location, sublocality, city, is_published'
     )
     .eq('account_id', accountId)
     .eq('owner_contact_id', contactId)
@@ -119,7 +120,7 @@ export function buildOwnerFallbackReply(
   }
   lines.push(
     '',
-    'Your agent will follow up personally on your message. Reply START UPDATES to get buyer-activity alerts here anytime.'
+    'Your agent will follow up personally on your message. Reply START UPDATES to get enquiry and site-visit updates here anytime.'
   );
   return lines.join('\n');
 }
@@ -163,7 +164,7 @@ export function buildOwnerReplyPrompt(
         continue;
       const bits: string[] = [];
       if (p.inquiries > 0) bits.push(`${p.inquiries} new enquiries`);
-      if (p.shortlisted > 0) bits.push(`${p.shortlisted} buyers shortlisted`);
+      if (p.shortlisted > 0) bits.push(`${p.shortlisted} prospects shortlisted`);
       if (p.visits > 0) bits.push(`${p.visits} site visits scheduled`);
       if (p.views > 0) bits.push(`${p.views} showcase views`);
       activityLines.push(`- "${p.title}": ${bits.join(', ')}`);
@@ -175,7 +176,7 @@ export function buildOwnerReplyPrompt(
     `Owner name: ${contactName?.trim() || 'unknown'}`,
     'Their listings with our agency:',
     ...listingLines,
-    'Tracked buyer activity in the last 7 days:',
+    'Tracked listing activity in the last 7 days:',
     ...(activityLines.length > 0
       ? activityLines
       : ['- No fresh tracked activity this week.']),
