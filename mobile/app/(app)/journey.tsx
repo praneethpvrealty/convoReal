@@ -15,6 +15,7 @@ import {
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { Avatar, EmptyState } from '@/components/ui';
 import { useAuthStore } from '@/lib/auth-store';
+import { logPersonalWhatsAppJourneySend } from '@/lib/api';
 import { buildCheckInMessage } from '@/lib/checkin-message';
 import { haptic } from '@/lib/haptics';
 import { openContactChat } from '@/lib/open-chat';
@@ -137,11 +138,16 @@ export default function JourneyScreen() {
         },
         ...(contact.phone
           ? [
-              {
+                {
                 label: 'WhatsApp',
                 variant: 'primary' as const,
                 onPress: () => {
                   close();
+                  void logPersonalWhatsAppJourneySend({
+                    itemId: item.id,
+                    message,
+                    source: 'mobile',
+                  }).catch(() => undefined);
                   Linking.openURL(
                     `https://wa.me/${(contact.phone ?? '').replace(/\D/g, '')}?text=${encodeURIComponent(message)}`
                   );

@@ -149,3 +149,33 @@ describe('apiFetch redirect handling', () => {
     expect(apiBase()).toBe('https://www.api.test');
   });
 });
+
+  describe('journey event logging', () => {
+  it('logs a personal WhatsApp journey event', async () => {
+    const fetchMock = vi.fn(async () =>
+      response({ body: { ok: true, duplicate: false, eventId: 'je-1' } })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const { logPersonalWhatsAppJourneySend } = await freshClient();
+
+    await logPersonalWhatsAppJourneySend({
+      itemId: 'journey-item-1',
+      message: 'Hi from journey',
+      source: 'mobile',
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const firstCall = (fetchMock.mock.calls[0] ?? null) as unknown as [string, RequestInit] | undefined;
+    const init = (firstCall?.[1] ?? ({} as RequestInit)) as RequestInit;
+    expect(init.body).toBe(
+      JSON.stringify({
+        item_id: 'journey-item-1',
+        message: 'Hi from journey',
+        source: 'mobile',
+      })
+    );
+    expect((init.headers as Record<string, string>)['Content-Type']).toBe(
+      'application/json'
+    );
+  });
+});
