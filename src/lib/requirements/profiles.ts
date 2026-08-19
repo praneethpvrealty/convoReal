@@ -58,6 +58,25 @@ export function createRequirementProfile(args: {
   };
 }
 
+export function reviseRequirementProfile(args: {
+  profile: ContactRequirementProfile;
+  rawText: string;
+  preferences: ExtractedPreferences;
+  now?: Date;
+}): ContactRequirementProfile {
+  return {
+    ...createRequirementProfile({
+      id: args.profile.id,
+      rawText: args.rawText,
+      source: args.profile.source,
+      preferences: args.preferences,
+      now: args.now,
+    }),
+    active: args.profile.active,
+    created_at: args.profile.created_at,
+  };
+}
+
 export function hasStructuredRequirement(
   preferences: ExtractedPreferences
 ): boolean {
