@@ -17,7 +17,6 @@
 
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { sendTextMessage } from '@/lib/whatsapp/meta-api';
-import { saveBotMessage } from '@/lib/ai/chatbot-engine';
 import {
   buildPreferenceSourceText,
   extractContactPreferences,
@@ -681,6 +680,11 @@ async function reply(
     to: contactRecord.phone,
     text,
   });
+  // Dynamic import: chatbot-engine also pulls in sharp (image upload),
+  // which callers outside the WhatsApp webhook path (e.g. the outreach
+  // follow-up cron) have no use for and no guarantee of a working
+  // native binary for. Keep it out of their static bundle.
+  const { saveBotMessage } = await import('@/lib/ai/chatbot-engine');
   await saveBotMessage(conversation.id, text, sendRes.messageId);
 }
 
