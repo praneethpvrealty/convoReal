@@ -6,6 +6,13 @@ export interface DedupedShowcaseEvent extends HydratedShowcaseEvent {
   repeatCount: number;
 }
 
+export interface VisitorActivityGroup {
+  id: string;
+  latestEvent: DedupedShowcaseEvent;
+  events: DedupedShowcaseEvent[];
+  activityCount: number;
+}
+
 /** Repeats within this window of each other collapse into one entry —
  *  wide enough to catch double page-loads and bfcache restores, narrow
  *  enough that a visitor genuinely returning hours later still gets its
@@ -25,7 +32,8 @@ export function dedupeConsecutiveEvents(
 
   for (const evt of feed) {
     const prev = result[result.length - 1];
-    const samePropertyId = (prev?.property_id ?? null) === (evt.property_id ?? null);
+    const samePropertyId =
+      (prev?.property_id ?? null) === (evt.property_id ?? null);
     const withinWindow =
       !!prev &&
       Math.abs(
@@ -47,4 +55,32 @@ export function dedupeConsecutiveEvents(
   }
 
   return result;
+}
+
+export function groupEventsByVisitor(
+  events: DedupedShowcaseEvent[]
+): VisitorActivityGroup[] {
+  const groups = new Map<string, VisitorActivityGroup>();
+
+  for (const event of events) {
+    const id = event.contact
+      ? `contact:${event.contact.id}`
+      : `session:${event.session_key}`;
+    const existing = groups.get(id);
+
+    if (existing) {
+      existing.events.push(event);
+      existing.activityCount += event.repeatCount;
+      continue;
+    }
+
+    groups.set(id, {
+      id,
+      latestEvent: event,
+      events: [event],
+      activityCount: event.repeatCount,
+    });
+  }
+
+  return Array.from(groups.values());
 }

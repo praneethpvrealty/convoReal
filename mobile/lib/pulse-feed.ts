@@ -17,6 +17,13 @@ export interface DedupedPulseEvent extends PulseEvent {
   repeatCount: number;
 }
 
+export interface VisitorActivityGroup {
+  id: string;
+  latestEvent: DedupedPulseEvent;
+  events: DedupedPulseEvent[];
+  activityCount: number;
+}
+
 /** Repeats within this window of each other collapse into one entry —
  *  wide enough to catch double page-loads and bfcache restores, narrow
  *  enough that a visitor genuinely returning hours later still gets its
@@ -29,12 +36,15 @@ const DEDUPE_WINDOW_MS = 5 * 60 * 1000;
  * newest-first (as fetchPulseFeed returns it) — the first event in a run
  * is the most recent, so its timestamp is what the merged row keeps.
  */
-export function dedupeConsecutiveEvents(feed: PulseEvent[]): DedupedPulseEvent[] {
+export function dedupeConsecutiveEvents(
+  feed: PulseEvent[]
+): DedupedPulseEvent[] {
   const result: DedupedPulseEvent[] = [];
 
   for (const evt of feed) {
     const prev = result[result.length - 1];
-    const samePropertyId = (prev?.property_id ?? null) === (evt.property_id ?? null);
+    const samePropertyId =
+      (prev?.property_id ?? null) === (evt.property_id ?? null);
     const withinWindow =
       !!prev &&
       Math.abs(
@@ -58,6 +68,34 @@ export function dedupeConsecutiveEvents(feed: PulseEvent[]): DedupedPulseEvent[]
   return result;
 }
 
+export function groupEventsByVisitor(
+  events: DedupedPulseEvent[]
+): VisitorActivityGroup[] {
+  const groups = new Map<string, VisitorActivityGroup>();
+
+  for (const event of events) {
+    const id = event.contact
+      ? `contact:${event.contact.id}`
+      : `session:${event.session_key}`;
+    const existing = groups.get(id);
+
+    if (existing) {
+      existing.events.push(event);
+      existing.activityCount += event.repeatCount;
+      continue;
+    }
+
+    groups.set(id, {
+      id,
+      latestEvent: event,
+      events: [event],
+      activityCount: event.repeatCount,
+    });
+  }
+
+  return Array.from(groups.values());
+}
+
 /** "45s dwell" / "2m 10s dwell"; empty when the beacon carried no duration. */
 export function formatDwellTime(ms?: number): string {
   if (!ms || Number.isNaN(ms)) return '';
@@ -75,5 +113,8 @@ export function formatTimeAgo(iso: string): string {
   if (mins < 60) return `${mins}m ago`;
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `${hrs}h ago`;
-  return new Date(iso).toLocaleDateString([], { month: 'short', day: 'numeric' });
+  return new Date(iso).toLocaleDateString([], {
+    month: 'short',
+    day: 'numeric',
+  });
 }

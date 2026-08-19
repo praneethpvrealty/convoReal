@@ -34,7 +34,9 @@ import {
   dedupeConsecutiveEvents,
   formatDwellTime,
   formatTimeAgo,
+  groupEventsByVisitor,
   type DedupedPulseEvent,
+  type VisitorActivityGroup,
 } from '@/lib/pulse-feed';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import { usePullRefresh } from '@/lib/use-pull-refresh';
@@ -64,6 +66,9 @@ export default function PulseScreen() {
   const { colors, fonts: f } = useTheme();
   const accountId = useAuthStore((s) => s.profile?.account_id);
   const [filter, setFilter] = useState<FeedFilter>('all');
+  const [expandedVisitors, setExpandedVisitors] = useState<Set<string>>(
+    new Set()
+  );
   const [viewersFor, setViewersFor] = useState<{
     id: string;
     title: string;
@@ -91,7 +96,7 @@ export default function PulseScreen() {
       if (filter === 'property_views') return evt.event_type !== 'open';
       return true;
     });
-    return dedupeConsecutiveEvents(rows);
+    return groupEventsByVisitor(dedupeConsecutiveEvents(rows));
   }, [feed.data, filter]);
 
   const total = feed.data?.length ?? 0;
@@ -110,7 +115,7 @@ export default function PulseScreen() {
 
       <FlatList
         data={events}
-        keyExtractor={(evt) => evt.id}
+        keyExtractor={(visitor) => visitor.id}
         contentContainerStyle={styles.container}
         refreshControl={
           <RefreshControl
@@ -173,7 +178,7 @@ export default function PulseScreen() {
             )}
 
             <SectionLabel
-              text="Live event timeline"
+              text="Visitor activity"
               style={{ marginTop: spacing.sm }}
             />
             <View style={styles.filters}>
@@ -247,7 +252,18 @@ export default function PulseScreen() {
         }
         renderItem={({ item, index }) => (
           <EnterRow index={index}>
-            <EventRow event={item} />
+            <VisitorActivityCard
+              visitor={item}
+              expanded={expandedVisitors.has(item.id)}
+              onToggle={() =>
+                setExpandedVisitors((current) => {
+                  const next = new Set(current);
+                  if (next.has(item.id)) next.delete(item.id);
+                  else next.add(item.id);
+                  return next;
+                })
+              }
+            />
           </EnterRow>
         )}
       />
@@ -341,21 +357,24 @@ function TopListingCard({
   );
 }
 
-function EventRow({ event }: { event: DedupedPulseEvent }) {
+function VisitorActivityCard({
+  visitor,
+  expanded,
+  onToggle,
+}: {
+  visitor: VisitorActivityGroup;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
   const { colors, fonts: f } = useTheme();
+  const event = visitor.latestEvent;
   const who =
     event.contact?.name ||
     event.contact?.phone ||
     (event.share
-      ? `Guest · via link shared ${formatTimeAgo(event.share.created_at)}`
-      : 'Anonymous guest');
-  const what = event.property?.title ?? 'a property';
-  const dwell =
-    event.event_type === 'view_property'
-      ? formatDwellTime(event.metadata.duration_ms)
-      : '';
-
-  const { icon, tint, action } = describe(event.event_type, colors);
+      ? `Guest · link shared ${formatTimeAgo(event.share.created_at)} · ${event.session_key.slice(0, 8)}`
+      : `Anonymous guest · ${event.session_key.slice(0, 8)}`);
+  const hasEarlierActivity = visitor.events.length > 1;
 
   return (
     <View
@@ -364,46 +383,123 @@ function EventRow({ event }: { event: DedupedPulseEvent }) {
         { backgroundColor: colors.glass, borderColor: colors.glassBorder },
       ]}
     >
-      <Avatar name={who} size={38} />
-      <View style={{ flex: 1, gap: 3 }}>
-        <View style={styles.eventHead}>
-          <Text
-            style={{
-              fontSize: 14,
-              fontFamily: f.semibold,
-              color: colors.text,
-              flexShrink: 1,
-            }}
-            numberOfLines={1}
-          >
-            {who}
-          </Text>
-          {event.contact?.name_tag ? (
-            <View style={nameTagCap}>
-              <Tag label={event.contact.name_tag} />
+      <View style={styles.visitorSummary}>
+        <Avatar name={who} size={38} />
+        <View style={{ flex: 1, gap: 4 }}>
+          <View style={styles.eventHead}>
+            <Text
+              style={{
+                fontSize: 14,
+                fontFamily: f.semibold,
+                color: colors.text,
+                flex: 1,
+              }}
+              numberOfLines={1}
+            >
+              {who}
+            </Text>
+            {event.contact?.name_tag ? (
+              <View style={nameTagCap}>
+                <Tag label={event.contact.name_tag} />
+              </View>
+            ) : null}
+            <View
+              style={[
+                styles.activityCount,
+                { backgroundColor: colors.primarySoft },
+              ]}
+            >
+              <Text
+                style={{
+                  fontSize: 10.5,
+                  fontFamily: f.bold,
+                  color: colors.primary,
+                }}
+              >
+                {visitor.activityCount} activit
+                {visitor.activityCount === 1 ? 'y' : 'ies'}
+              </Text>
             </View>
+          </View>
+          <ActivityLine event={event} />
+          <Text style={{ fontSize: 11, color: colors.textFaint }}>
+            Last seen {formatTimeAgo(event.created_at)}
+            {event.repeatCount > 1 ? ` · ×${event.repeatCount}` : ''}
+          </Text>
+          {hasEarlierActivity ? (
+            <Pressable
+              onPress={onToggle}
+              accessibilityRole="button"
+              accessibilityState={{ expanded }}
+              accessibilityLabel={`${expanded ? 'Hide' : 'View'} all ${visitor.activityCount} activities for ${who}`}
+              style={styles.expandButton}
+            >
+              <Text
+                style={{
+                  fontSize: 11.5,
+                  fontFamily: f.bold,
+                  color: colors.primary,
+                }}
+              >
+                {expanded
+                  ? 'Hide earlier activity'
+                  : `View all ${visitor.activityCount} activities`}
+              </Text>
+              <Ionicons
+                name={expanded ? 'chevron-up' : 'chevron-down'}
+                size={14}
+                color={colors.primary}
+              />
+            </Pressable>
           ) : null}
         </View>
-        <View style={styles.eventLine}>
-          <Ionicons name={icon} size={13} color={tint} />
-          <Text
-            style={{
-              flex: 1,
-              fontSize: 12.5,
-              lineHeight: 17,
-              color: colors.textMuted,
-            }}
-          >
-            {action}
-            {event.event_type === 'open' ? '' : ` ${what}`}
-            {dwell ? ` · ${dwell}` : ''}
-          </Text>
-        </View>
-        <Text style={{ fontSize: 11, color: colors.textFaint }}>
-          {formatTimeAgo(event.created_at)} · {event.session_key.slice(0, 8)}
-          {event.repeatCount > 1 ? ` · ×${event.repeatCount}` : ''}
-        </Text>
       </View>
+      {expanded && hasEarlierActivity ? (
+        <View
+          style={[styles.earlierActivity, { borderTopColor: colors.border }]}
+        >
+          {visitor.events.slice(1).map((earlierEvent) => (
+            <View key={earlierEvent.id} style={styles.earlierRow}>
+              <ActivityLine event={earlierEvent} />
+              <Text style={{ fontSize: 10.5, color: colors.textFaint }}>
+                {formatTimeAgo(earlierEvent.created_at)} ·{' '}
+                {earlierEvent.session_key.slice(0, 8)}
+                {earlierEvent.repeatCount > 1
+                  ? ` · ×${earlierEvent.repeatCount}`
+                  : ''}
+              </Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function ActivityLine({ event }: { event: DedupedPulseEvent }) {
+  const { colors } = useTheme();
+  const what = event.property?.title ?? 'a property';
+  const dwell =
+    event.event_type === 'view_property'
+      ? formatDwellTime(event.metadata.duration_ms)
+      : '';
+  const { icon, tint, action } = describe(event.event_type, colors);
+
+  return (
+    <View style={styles.eventLine}>
+      <Ionicons name={icon} size={13} color={tint} />
+      <Text
+        style={{
+          flex: 1,
+          fontSize: 12.5,
+          lineHeight: 17,
+          color: colors.textMuted,
+        }}
+      >
+        {action}
+        {event.event_type === 'open' ? '' : ` ${what}`}
+        {dwell ? ` · ${dwell}` : ''}
+      </Text>
     </View>
   );
 }
@@ -499,14 +595,37 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
   },
   event: {
+    borderWidth: 1,
+    borderRadius: radius.lg,
+    marginBottom: spacing.sm,
+    overflow: 'hidden',
+  },
+  visitorSummary: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: spacing.md,
-    borderWidth: 1,
-    borderRadius: radius.lg,
     padding: spacing.md,
-    marginBottom: spacing.sm,
   },
   eventHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   eventLine: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
+  activityCount: {
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+  },
+  expandButton: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingTop: 2,
+  },
+  earlierActivity: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    paddingLeft: 66,
+    gap: spacing.md,
+  },
+  earlierRow: { gap: 3 },
 });
