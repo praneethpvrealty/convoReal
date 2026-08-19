@@ -90,6 +90,10 @@ describe('namesAreSimilar', () => {
     expect(namesAreSimilar('kumar praneeth', 'kumar praneth')).toBe(true);
   });
 
+  it('does not treat Arun vs Arjun as a typo match', () => {
+    expect(namesAreSimilar('arun kumar', 'arjun kumar')).toBe(false);
+  });
+
   it('keeps two different people with the same surname apart', () => {
     expect(namesAreSimilar('kumar ravi', 'sharma ravi')).toBe(false);
   });
