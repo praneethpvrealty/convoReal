@@ -1,6 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQuery } from '@tanstack/react-query';
 import * as Linking from 'expo-linking';
+import { useEffect, useState } from 'react';
 import {
   Pressable,
   StyleSheet,
@@ -10,6 +12,7 @@ import {
 } from 'react-native';
 
 import { apiFetch } from '@/lib/api';
+import { useAuthStore } from '@/lib/auth-store';
 import { formatInr } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
 import { radius, spacing, useTheme } from '@/lib/theme';
@@ -45,6 +48,18 @@ const PORTAL_LABELS: Record<string, string> = {
   magicbricks: 'MagicBricks',
   housing: 'Housing.com',
 };
+
+const DISMISS_KEY_PREFIX = 'convoreal.portalDrift.dismissed:v1';
+
+function findingSignature(findings: PortalDriftFinding[]): string {
+  return [...findings]
+    .map(
+      (f) =>
+        `${f.portal}|${f.portalListingId}|${f.propertyId}|${f.driftKind}|${f.propertyStatus ?? ''}`
+    )
+    .sort()
+    .join('::');
+}
 
 function expiryLabel(expiresOn: string | null): string {
   if (!expiresOn) return 'its expiry';
@@ -104,8 +119,11 @@ function findingDetail(f: PortalDriftFinding): string {
  */
 export function PortalDriftPanel({ style }: { style?: ViewStyle }) {
   const { colors, fonts: f } = useTheme();
+  const accountId = useAuthStore((s) => s.profile?.account_id);
+  const storageKey = accountId ? `${DISMISS_KEY_PREFIX}:${accountId}` : null;
+  const [isDismissed, setIsDismissed] = useState(false);
 
-  const { data: findings } = useQuery({
+  const { data: findings, isLoading } = useQuery({
     queryKey: ['portal-drift'],
     queryFn: async () => {
       const { data } = await apiFetch<{ data: PortalDriftFinding[] }>(
@@ -116,7 +134,49 @@ export function PortalDriftPanel({ style }: { style?: ViewStyle }) {
     staleTime: 5 * 60_000,
   });
 
-  if (!findings || findings.length === 0) return null;
+  const active = findings ?? [];
+  const signature = findingSignature(active);
+
+  useEffect(() => {
+    if (!storageKey) {
+      setIsDismissed(false);
+      return;
+    }
+
+    if (isLoading) return;
+
+    if (active.length === 0) {
+      void AsyncStorage.removeItem(storageKey).then(() => {
+        if (!storageKey) return;
+        setIsDismissed(false);
+      });
+      return;
+    }
+
+    let cancelled = false;
+    void AsyncStorage.getItem(storageKey).then((dismissedSignature) => {
+      if (cancelled) return;
+      if (dismissedSignature !== signature) {
+        void AsyncStorage.removeItem(storageKey).then(() => {
+          if (!cancelled) setIsDismissed(false);
+        });
+        return;
+      }
+      setIsDismissed(true);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [active.length, isLoading, signature, storageKey]);
+
+  async function hidePanel() {
+    if (!storageKey) return;
+    await AsyncStorage.setItem(storageKey, signature);
+    setIsDismissed(true);
+  }
+
+  if (!active || active.length === 0 || isDismissed) return null;
 
   return (
     <View
@@ -131,16 +191,34 @@ export function PortalDriftPanel({ style }: { style?: ViewStyle }) {
         <Text
           style={{ fontSize: 12.5, fontFamily: f.bold, color: colors.danger }}
         >
-          {findings.length} portal ad{findings.length === 1 ? '' : 's'} out of
+          {active.length} portal ad{active.length === 1 ? '' : 's'} out of
           step with your inventory
         </Text>
+        <Pressable
+          onPress={hidePanel}
+          accessibilityRole="button"
+          accessibilityLabel="Dismiss portal discrepancy banner"
+          hitSlop={8}
+          style={{
+            marginLeft: 'auto',
+            width: 26,
+            height: 26,
+            borderRadius: 13,
+            borderWidth: StyleSheet.hairlineWidth,
+            borderColor: colors.danger,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Ionicons name="close" size={14} color={colors.danger} />
+        </Pressable>
       </View>
       <Text style={{ fontSize: 11.5, color: colors.textMuted }}>
         Spotted from the leads and emails already in the Engine — the row clears
         itself once the ad and the listing agree again.
       </Text>
 
-      {findings.map((item) => (
+      {active.map((item) => (
         <View
           key={`${item.portal}:${item.portalListingId}:${item.driftKind}`}
           style={[
