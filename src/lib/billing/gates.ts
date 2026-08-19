@@ -38,8 +38,8 @@ export async function getPlanLimits(ctx: AccountContext): Promise<PlanLimits> {
       pending_plan: null,
       pending_plan_effective_at: null,
       max_users: 1,
-      max_contacts: 50,
-      max_properties: 10,
+      max_contacts: 150,
+      max_properties: 50,
       max_broadcasts_per_month: 0,
       has_ai: false,
       has_teams: false,
@@ -264,7 +264,7 @@ export async function checkAccountPropertyLimit(
     .eq('account_id', accountId)
     .maybeSingle();
 
-  const limit = (limits as { max_properties: number } | null)?.max_properties ?? 10;
+  const limit = (limits as { max_properties: number } | null)?.max_properties ?? 50;
   if (limit >= 999999) return { limitReached: false, limit, currentCount: 0 };
 
   const { count } = await supabase
