@@ -61,6 +61,10 @@ Screenshots land in `mobile/.maestro/shots/` (git-ignored). `01-login`
 clears app state and signs in; the later flows reuse that session, so run
 the suite in order — or run `01-login` first when running one flow alone.
 
+## Why the selectors are ids
+
+iOS can fold a Pressable's child text into its accessibility label, and Maestro text matching can match substrings in unrelated rows. Prefer a `testID`; when text is unavoidable, match the accessibility label and choose a unique string.
+
 ## Simulator setup tip
 
 iOS pops a "Save Password?" sheet after the login form submits, which
