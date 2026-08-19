@@ -48,6 +48,7 @@ jobs:
     outputs:
       web: ${{ steps.filter.outputs.web != 'false' }}
       mobile: ${{ steps.filter.outputs.mobile != 'false' }}
+      go: ${{ steps.filter.outputs.go != 'false' }}
       newRoutes: ${{ steps.filter.outputs.newRoutes != 'false' }}
     steps:
       - uses: actions/checkout@v6
@@ -71,6 +72,9 @@ jobs:
               - '.github/workflows/ci.yml'
             mobile:
               - 'mobile/**'
+              - '.github/workflows/ci.yml'
+            go:
+              - 'go-ingress/**'
               - '.github/workflows/ci.yml'
             # Adding or moving a file here changes the route SURFACE, which
             # is the one class of breakage typecheck cannot see: a route only
@@ -201,6 +205,23 @@ jobs:
       - name: Test
         run: npm test
 
+
+  go-ingress:
+    name: Go ingress test
+    needs: changes
+    if: needs.changes.outputs.go == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: go-ingress
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go-ingress/go.mod
+          cache-dependency-path: go-ingress/go.sum
+      - run: go test ./...
+
   # The single required status check. It always reports, so a PR that skips
   # every job (docs-only, say) still goes green instead of hanging.
   #
@@ -214,7 +235,7 @@ jobs:
   ci:
     name: CI
     if: always()
-    needs: [changes, lint, typecheck, test, build, mobile]
+    needs: [changes, lint, typecheck, test, build, mobile, go-ingress]
     runs-on: ubuntu-latest
     steps:
       - name: Fail if change detection did not run
