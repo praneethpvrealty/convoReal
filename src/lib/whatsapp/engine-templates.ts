@@ -65,6 +65,10 @@ import {
   buildPostCallOpenerTemplatePayload,
   POST_CALL_OPENER_TEMPLATE_NAME,
 } from './post-call-template';
+import {
+  buildRequirementReviewTemplatePayload,
+  REQUIREMENT_REVIEW_TEMPLATE_NAME,
+} from './requirement-review-template';
 
 export interface EngineTemplateDef {
   name: string;
@@ -82,6 +86,15 @@ export interface EngineTemplateDef {
 }
 
 export const ENGINE_TEMPLATES: EngineTemplateDef[] = [
+  {
+    name: REQUIREMENT_REVIEW_TEMPLATE_NAME,
+    copyKey: 'requirement_review',
+    label: 'Requirement review',
+    whyItMatters:
+      'Asks a buyer to verify property types, locations and budget when the 24-hour window is closed. Their reply opens the pre-filled requirements form.',
+    build: (_origin, language) =>
+      buildRequirementReviewTemplatePayload(language),
+  },
   {
     name: PROPERTY_ALERT_TEMPLATE_NAME,
     copyKey: 'property_alert',

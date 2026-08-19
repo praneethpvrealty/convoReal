@@ -44,6 +44,8 @@ const MAX_BUTTON_CHARS = 25;
  * have to load to print some strings.
  */
 const TEMPLATE_LABELS: Record<EngineTemplateKey, string> = {
+  requirement_review:
+    'Requirement review — verify the property search recorded for an enquiry',
   property_alert: 'Property details — sent when a buyer asks about a listing',
   property_enquiry_photos: 'Property photos — the same, led by a photo',
   location_reveal: 'Location reveal — approved request for an exact address',
@@ -68,6 +70,7 @@ const TEMPLATE_LABELS: Record<EngineTemplateKey, string> = {
 
 /** What each numbered placeholder gets filled with at send time. */
 const PLACEHOLDER_MEANINGS: Record<EngineTemplateKey, string[]> = {
+  requirement_review: ['buyer first name', 'brokerage name'],
   property_alert: [
     'buyer first name',
     'brokerage name',
@@ -127,6 +130,7 @@ const PLACEHOLDER_MEANINGS: Record<EngineTemplateKey, string[]> = {
 /** The buttons each template actually carries, so a bubble shows the
  *  real row rather than a generic one. Mirrors the builders. */
 const REPLY_BUTTONS: Record<EngineTemplateKey, TemplateButtonAction[]> = {
+  requirement_review: ['update_preferences'],
   property_alert: ['send_more_details', 'view_full_details'],
   property_enquiry_photos: ['send_more_details', 'view_full_details'],
   location_reveal: ['view_location'],

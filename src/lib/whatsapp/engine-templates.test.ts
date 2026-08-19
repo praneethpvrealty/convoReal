@@ -11,6 +11,7 @@ describe('missingEngineTemplates', () => {
       'enquiry_status_notice',
     ]);
     expect(missing.map((t) => t.name)).toEqual([
+      'property_requirement_review',
       'listing_details_notice',
       'listing_photos_notice',
       'location_consent_request',

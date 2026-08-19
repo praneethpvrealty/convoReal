@@ -23,13 +23,13 @@ export function BuyerPreferenceRequestSheet({
 }) {
   const { colors, fonts: f } = useTheme();
   const [sending, setSending] = useState(false);
-  const [sent, setSent] = useState(false);
+  const [delivery, setDelivery] = useState<'flow' | 'template' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const name = contact.name?.trim() || 'the buyer';
 
   function closeSheet() {
     setSending(false);
-    setSent(false);
+    setDelivery(null);
     setError(null);
     onClose();
   }
@@ -39,15 +39,20 @@ export function BuyerPreferenceRequestSheet({
     setSending(true);
     setError(null);
     try {
-      await apiFetch('/api/whatsapp/flows/send', {
+      const result = await apiFetch<{
+        success: boolean;
+        delivery: 'flow' | 'template';
+      }>('/api/whatsapp/flows/send', {
         method: 'POST',
         body: JSON.stringify({ contact_id: contact.id }),
       });
-      setSent(true);
+      setDelivery(result.delivery);
     } catch (reason) {
       haptic.warn();
       setError(
-        friendlyError(reason instanceof Error ? reason.message : 'Could not send the form')
+        friendlyError(
+          reason instanceof Error ? reason.message : 'Could not send the form'
+        )
       );
     } finally {
       setSending(false);
@@ -59,13 +64,21 @@ export function BuyerPreferenceRequestSheet({
     void openContactChat(contact);
   }
 
-  if (sent) {
+  if (delivery) {
     return (
       <SuccessSheet
         visible={visible}
         onClose={closeSheet}
-        title="Requirement form sent"
-        message={`Sent to ${name} from your connected ConvoReal WhatsApp number and recorded in Inbox. Their submitted response will update the requirement and Match Radar.`}
+        title={
+          delivery === 'flow'
+            ? 'Requirement form sent'
+            : 'Requirement request sent'
+        }
+        message={
+          delivery === 'flow'
+            ? `The pre-filled form was sent to ${name} and recorded in Inbox. Their submitted response will update the requirement and Match Radar.`
+            : `A WhatsApp template was sent to ${name} because the 24-hour window was closed. When they tap Update my preferences, the pre-filled form opens and their response updates Match Radar.`
+        }
         confetti={false}
         actions={[
           {
@@ -80,17 +93,35 @@ export function BuyerPreferenceRequestSheet({
   }
 
   return (
-    <BottomSheet visible={visible} onClose={closeSheet} title="Ask for buyer requirements">
+    <BottomSheet
+      visible={visible}
+      onClose={closeSheet}
+      title="Ask for buyer requirements"
+    >
       <View style={{ paddingHorizontal: spacing.lg, gap: spacing.lg }}>
         <Text style={{ color: colors.textMuted, fontSize: 14, lineHeight: 20 }}>
-          Send {name} a WhatsApp form pre-filled with the preferences already on record.
+          Send {name} a WhatsApp form pre-filled with the preferences already on
+          record.
         </Text>
 
-        <View style={{ flexDirection: 'row', gap: spacing.sm, alignItems: 'flex-start' }}>
+        <View
+          style={{
+            flexDirection: 'row',
+            gap: spacing.sm,
+            alignItems: 'flex-start',
+          }}
+        >
           <Ionicons name="logo-whatsapp" size={19} color={colors.success} />
-          <Text style={{ flex: 1, color: colors.textMuted, fontSize: 13, lineHeight: 19 }}>
-            Sent directly from your connected ConvoReal WhatsApp number and tracked in
-            Inbox. This will not open your personal WhatsApp.
+          <Text
+            style={{
+              flex: 1,
+              color: colors.textMuted,
+              fontSize: 13,
+              lineHeight: 19,
+            }}
+          >
+            Sent directly from your connected ConvoReal WhatsApp number and
+            tracked in Inbox. This will not open your personal WhatsApp.
           </Text>
         </View>
 
@@ -108,10 +139,12 @@ export function BuyerPreferenceRequestSheet({
             <Text style={{ color: colors.text, fontFamily: f.semibold }}>
               Built for future matching
             </Text>
-            <Text style={{ color: colors.textMuted, fontSize: 13, lineHeight: 19 }}>
-              Only their submitted response changes the record. ConvoReal then re-runs
-              matching, sends suitable listings and keeps the active requirement available
-              to Match Radar for future properties.
+            <Text
+              style={{ color: colors.textMuted, fontSize: 13, lineHeight: 19 }}
+            >
+              Only their submitted response changes the record. ConvoReal then
+              re-runs matching, sends suitable listings and keeps the active
+              requirement available to Match Radar for future properties.
             </Text>
           </View>
         </View>
@@ -120,7 +153,11 @@ export function BuyerPreferenceRequestSheet({
         {sending ? (
           <Text
             accessibilityLiveRegion="polite"
-            style={{ color: colors.textMuted, fontSize: 13, textAlign: 'center' }}
+            style={{
+              color: colors.textMuted,
+              fontSize: 13,
+              textAlign: 'center',
+            }}
           >
             Sending through your ConvoReal WhatsApp number…
           </Text>

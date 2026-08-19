@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
     if (!result.success) {
       return NextResponse.json({ error: result.error }, { status: 400 })
     }
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ success: true, delivery: result.delivery })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to send flow'
     console.error('[flows/send] error:', message)
