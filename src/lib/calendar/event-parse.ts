@@ -17,9 +17,9 @@ import { INPUT_LANGUAGE_HINT } from '@/lib/languages';
 export type EventTypeKey = 'site_visit' | 'call' | 'follow_up' | 'document' | 'meeting' | 'other';
 
 export interface ParsedEventDraft {
-  /** "notify" is the odd one out: it writes no calendar row at all, it
-   *  sends what the speaker said to a teammate. Only the WhatsApp owner
-   *  path acts on it — see the note on parseEventsFromInput. */
+  /** "notify" is the odd one out: it writes no calendar row at all. It sends what
+   *  the speaker said either to a teammate or to a client/contact. Only the
+   *  WhatsApp owner path acts on it — see the note on parseEventsFromInput. */
   intent: 'schedule' | 'task' | 'notify' | 'none';
   title: string;
   event_type: EventTypeKey;
@@ -37,9 +37,11 @@ export interface ParsedEventDraft {
   service_provider_role: string | null;
   property_hint: string | null;
   assignee_name: string | null;
-  /** The teammate to be told, for intent "notify". Distinct from
-   *  assignee_name: assigning gives someone the work, notifying tells
-   *  them what happened and leaves the work where it was. */
+  /** The person to be told, for intent "notify". This can be either a
+   *  teammate (an internal update) or a client/contact (a message to be
+   *  sent through WhatsApp). It is distinct from assignee_name: assigning
+   *  gives someone the work, notifying tells them what happened and
+   *  leaves the work where it was. */
   recipient_name: string | null;
   location: string | null;
   priority: 'low' | 'medium' | 'high';
@@ -256,7 +258,7 @@ function buildSystemPrompt(now: Date, memberNames: string[], contactNames: strin
     '  "service_provider_role": the professional role named alongside contact_name when there is one — "lawyer", "advocate", "surveyor", "architect", "CA", "khata agent", "registrar", "engineer", "contractor", "valuer" ("meeting with Kusuma lawyer" -> "lawyer"). Null when contact_name is a buyer, seller, owner or plain client,\n' +
     '  "property_hint": any property/project/locality identifying words, e.g. "18k sqft JP Nagar commercial", or null,\n' +
     '  "assignee_name": a TEAM member the speaker assigns this to ("ask Surya to...", "Surya should call..."), or null when the speaker will do it themselves,\n' +
-    '  "recipient_name": for intent "notify" ONLY — the TEAM member to be told. Null for every other intent,\n' +
+    '  "recipient_name": for intent "notify" ONLY — the teammate or client/contact to be told. Null for every other intent,\n' +
     '  "location": meeting place or address if stated, or null,\n' +
     '  "priority": "low" | "medium" | "high" (urgent words like "pakka", "important", "urgent", "asap" mean high),\n' +
     '  "notes": any remaining useful detail, or null\n' +
@@ -278,10 +280,11 @@ function buildSystemPrompt(now: Date, memberNames: string[], contactNames: strin
     'A stated calendar date with no time of day ("meet the lawyer on 30th July") IS intent "schedule" — ' +
     'use 10:00 as the hour, the same default as "morning", rather than midnight. ' +
     'A forwarded property listing or a lead\'s contact details is intent "none". ' +
-    'Use intent "notify" only when the named recipient appears in the supplied team member names and not only ' +
-    'in the supplied client/contact names. "Need to inform a client" is a "task" linked through contact_name, ' +
-    'not a notification. When a name appears in both lists, preserve the named person in recipient_name so the ' +
-    'application can ask which person was meant. ' +
+    'Use intent "notify" when the named recipient appears in the supplied team member names and/or the ' +
+    'supplied client/contact names. Use "task" for work to be done internally when no recipient is stated. ' +
+    'When a name appears in both lists, preserve it in recipient_name so the application can ask which person was meant.' +
+    ' "Need to inform a client" is a notify when the recipient is that client (not a "task"), and the same wording about ' +
+    'teammates sends a teammate ping. ' +
     'For intent "notify", "title" is the subject line and "notes" carries everything the recipient needs to ' +
     'know — they see only those two and cannot hear the original message. Telling someone about a meeting is ' +
     '"notify"; being asked to do the work is "task" with assignee_name. ' +
