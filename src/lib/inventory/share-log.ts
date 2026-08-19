@@ -51,6 +51,8 @@ export interface RecordPropertySharesInput {
    * the email composer used.
    */
   channel?: ShareChannel;
+  /** Show a deliberate one-to-one share on the journey map immediately. */
+  journeyVisible?: boolean;
 }
 
 export async function recordPropertyShares({
@@ -59,6 +61,7 @@ export async function recordPropertyShares({
   userId,
   recipients,
   channel = 'whatsapp',
+  journeyVisible = false,
 }: RecordPropertySharesInput): Promise<{ created: number; error: string | null }> {
   if (recipients.length === 0) return { created: 0, error: null };
   const supabase = createClient();
@@ -101,7 +104,7 @@ export async function recordPropertyShares({
     userId,
     pairs: [...seen].map((contactId) => ({ contactId, propertyId })),
     source: 'whatsapp_share',
-    hidden: true,
+    hidden: !journeyVisible,
   });
   if (capture.error) {
     console.error('Journey share capture failed:', capture.error);
