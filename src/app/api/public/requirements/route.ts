@@ -103,6 +103,7 @@ export async function POST(request: Request) {
         .from("contacts")
         .select("email")
         .eq("id", referrerContactId)
+        .eq("account_id", accountId)
         .maybeSingle();
 
       if (refContact?.email) {
