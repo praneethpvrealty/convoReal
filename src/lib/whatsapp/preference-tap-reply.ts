@@ -28,6 +28,7 @@ import { accountShowcaseOrigin } from '@/lib/showcase/account-showcase-url';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { sendListingFeedbackPrompt } from '@/lib/whatsapp/listing-feedback';
 import { sendBudgetBandPrompt } from '@/lib/whatsapp/budget-band';
+import { sendListingIntentPrompt } from '@/lib/whatsapp/listing-intent-prompt';
 import { isPlaceholderLeadName } from '@/lib/contacts/lead-placeholder';
 import type { Contact } from '@/types';
 
@@ -128,17 +129,22 @@ export async function sendPreferenceTapReply(args: {
     const baseUrl = await accountShowcaseOrigin(db, accountId);
     const contactName = (contact as Contact).name ?? null;
 
-    // With no matches and budget missing, the question becomes a tap:
-    // the band list follows instead of a typed answer, and it carries
+    // With no matches and a tappable rung missing, the question becomes
+    // a tap: the list follows instead of a typed answer, and it carries
     // the form row, so the closing line points down rather than asking.
-    const askBudgetByTap = matches.length === 0 && missing === 'budget';
+    const tapRung =
+      matches.length === 0 && (missing === 'budget' || missing === 'intent')
+        ? missing
+        : null;
 
     const text = buildPreferenceTapReply({
       contactName,
       enquiry: notes[0] ?? null,
       listings: buildListingLines(contactName, matches, baseUrl, contactId),
-      question: askBudgetByTap
-        ? "Let's fine-tune it — pick your budget range below 👇"
+      question: tapRung
+        ? tapRung === 'budget'
+          ? "Let's fine-tune it — pick your budget range below 👇"
+          : "Let's fine-tune it — buying or renting? Pick below 👇"
         : missing
           ? buildFollowUpQuestion(missing)
           : null,
@@ -178,8 +184,10 @@ export async function sendPreferenceTapReply(args: {
           console.error('[preference-tap] radar event failed:', err);
         }
       );
-    } else if (askBudgetByTap && result.success) {
-      formOffered = await sendBudgetBandPrompt({
+    } else if (tapRung && result.success) {
+      const sendRung =
+        tapRung === 'budget' ? sendBudgetBandPrompt : sendListingIntentPrompt;
+      formOffered = await sendRung({
         db,
         accountId,
         userId,

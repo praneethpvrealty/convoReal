@@ -342,6 +342,14 @@ function inferListingTypesFromText(text: string): Set<ListingType> {
  * niche stock, and must not become one that also excludes ordinary sale
  * listings.
  */
+/** Shopping rent and nothing else — the only case whose stated budget
+ *  is a monthly figure. Mirrors isRentOnlyIntent in
+ *  src/lib/whatsapp/budget-band.ts, which decides which bands the lead
+ *  was asked for in the first place. */
+function isRentOnly(wanted: Set<ListingType>): boolean {
+  return wanted.has('Rent') && !wanted.has('Sale');
+}
+
 function inferListingTypesFromInquiries(
   inquired: string[] | null | undefined
 ): Set<ListingType> {
@@ -1059,9 +1067,11 @@ function matchContactsSingleProfile(
     // text; a max at the entry band of its market (the bottom rung of
     // SALE_BANDS/RENT_BANDS in src/lib/whatsapp/budget-band.ts — "Under
     // ₹50 Lakh" is the whole bottom of the market, there is no floor to
-    // imply); and a rent comparison for a contact who never stated Rent
-    // intent, whose max is a sale-scale number that would exclude every
-    // rental if halved.
+    // imply); and a rent comparison for a contact who is not shopping
+    // rent-only, whose max is a sale-scale number that would exclude
+    // every rental if halved. "Either" is that case too: the ladder
+    // asks such a lead for a SALE budget, so imposing half of it as a
+    // monthly-rent floor would turn "show me both" into sale-only.
     const IMPLIED_FLOOR_OF_MAX = 0.5;
     const isRentComparison =
       propertyListingType === 'Rent' || propertyListingType === 'Built to Suit';
@@ -1077,7 +1087,7 @@ function matchContactsSingleProfile(
         budgetMax !== null &&
         !maxIsCeiling &&
         budgetMax > ENTRY_BAND_MAX &&
-        (!isRentComparison || wantedListingTypes.has('Rent'))
+        (!isRentComparison || isRentOnly(wantedListingTypes))
           ? budgetMax * IMPLIED_FLOOR_OF_MAX
           : null;
       const floor = budgetMin ?? impliedFloor;

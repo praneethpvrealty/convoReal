@@ -20,6 +20,24 @@ export const RENT_INTENT = 'Renting';
 /** Where the showcase funnel resumes once matches have been shown. */
 export const SHOWCASE_AFTER_MATCH = 'name';
 
+/**
+ * The first chip a visitor taps is a stated intent, and the matching
+ * engine has a column for it. Mapped here rather than left to the AI
+ * pass over the note: extraction is told never to assume 'Sale' from
+ * silence, so a "Buying" tap would otherwise reach the engine as no
+ * intent at all.
+ *
+ * The agent chip routes into the Engine funnel and never reaches a
+ * buyer requirement, so it maps to nothing.
+ */
+export function listingTypeForShowcaseIntent(
+  intent: string | null | undefined
+): 'Sale' | 'Rent' | null {
+  if (intent === RENT_INTENT) return 'Rent';
+  if (intent === 'Buying' || intent === 'Investing') return 'Sale';
+  return null;
+}
+
 export const SALE_BUDGET_CHIPS = [
   'Under ₹50L',
   '₹50L – ₹1Cr',

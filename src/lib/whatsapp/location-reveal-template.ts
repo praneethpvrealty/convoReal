@@ -36,22 +36,37 @@ export function buildLocationRevealTemplatePayload(
       },
     ],
     sample_values: {
-      body: ['Rahul', 'Villa in Whitefield'],
+      body: [
+        'Rahul',
+        'Villa in Whitefield',
+        'Villa · 3 BHK · 2400 sqft · East facing · ₹2.4 Cr',
+        '12, 5th Main, HSR Layout, Bengaluru',
+      ],
     },
   };
 }
 
 /**
- * Body params {{1}}..{{2}}: first name, property title. Every param is
- * guaranteed non-empty (Meta rejects empty values).
+ * Body params {{1}}..{{4}}: first name, property title, the one-line
+ * specs, the address. Every param is guaranteed non-empty (Meta rejects
+ * empty values) and single-line (Meta rejects a newline inside one —
+ * `sanitizeTemplateParam` collapses whitespace to enforce it).
+ *
+ * The specs and address arrive already flattened from
+ * `buildRevealTemplateFacts`; the fallbacks here are the last line of
+ * defence for a caller that has no property row to read.
  */
 export function buildLocationRevealParams(
   requesterName: string | null | undefined,
-  propertyTitle: string
-): [name: string, title: string] {
+  propertyTitle: string,
+  specs?: string | null,
+  address?: string | null
+): [name: string, title: string, specs: string, address: string] {
   const firstName = requesterName?.trim().split(/\s+/)[0] || 'there';
   return [
     sanitizeTemplateParam(firstName),
     sanitizeTemplateParam(propertyTitle.trim() || 'the property'),
+    sanitizeTemplateParam(specs?.trim() || 'Full details on the link below'),
+    sanitizeTemplateParam(address?.trim() || 'Address on the link below'),
   ];
 }

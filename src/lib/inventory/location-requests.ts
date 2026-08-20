@@ -59,7 +59,10 @@ import {
 import { createNotification } from '@/lib/notifications/create';
 import { resolveChannels } from '@/lib/notifications/preferences';
 import type { MessageTemplate, Property } from '@/types';
-import { buildRevealDetails } from '@/lib/share-message-builder';
+import {
+  buildRevealDetails,
+  buildRevealTemplateFacts,
+} from '@/lib/share-message-builder';
 
 export const CONSENT_TIMEOUT_MS = 2 * 60 * 60 * 1000;
 export const REVEAL_TOKEN_TTL_MS = 48 * 60 * 60 * 1000;
@@ -314,6 +317,13 @@ function resolveTemplateBodyText(bodyTemplateText: string, params: string[]) {
  * Returns whether Meta accepted a send at all — the caller must not
  * mark the reveal as sent otherwise.
  */
+/** How many distinct `{{n}}` placeholders a template body declares. */
+export function templateParamCount(bodyText: string | null | undefined): number {
+  return new Set(
+    [...(bodyText ?? '').matchAll(/\{\{(\d+)\}\}/g)].map((m) => m[1])
+  ).size;
+}
+
 async function sendRevealToSeeker(
   admin: SupabaseClient,
   request: Pick<
@@ -327,7 +337,7 @@ async function sendRevealToSeeker(
   propertyTitle: string,
   shareLink: string,
   token: string,
-  details: { body: string; mapUrl: string | null } | null
+  details: RevealDetails | null
 ): Promise<boolean> {
   const freeform = await sendToSeeker(
     request.account_id,
@@ -375,10 +385,19 @@ async function sendRevealToSeeker(
 
   const phone = normalizePhoneWithCountryCode(request.requester_phone);
   if (!phone) return false;
+  // The approved template on Meta's side decides how many params a
+  // send may carry — a count mismatch is rejected outright. The stored
+  // body_text mirrors that template, so the arity is read from it
+  // rather than assumed: this code ships knowing four facts, while an
+  // account whose template has not been edited yet still declares two,
+  // and both must keep working.
+  const declaredParams = templateParamCount(template.body_text);
   const params = buildLocationRevealParams(
     request.requester_name,
-    propertyTitle
-  );
+    propertyTitle,
+    details?.specs,
+    details?.address
+  ).slice(0, declaredParams);
   const bodyParams = truncateParametersToBudget(template.body_text, [
     ...params,
   ]);
@@ -939,6 +958,18 @@ async function mintListingGrant(
 }
 
 /**
+ * What an approved reveal carries about the property: the multi-line
+ * block for the free-form message, and the same facts flattened onto
+ * single lines for the template path, which cannot take a newline.
+ */
+interface RevealDetails {
+  body: string;
+  mapUrl: string | null;
+  specs: string;
+  address: string;
+}
+
+/**
  * The property block that travels with an approved reveal. Approval is
  * what lifts the guard, so this is read straight from the row and is
  * deliberately unmasked — and it goes out on the account's own WhatsApp
@@ -949,7 +980,7 @@ async function loadRevealDetails(
   admin: SupabaseClient,
   accountId: string,
   propertyId: string
-): Promise<{ body: string; mapUrl: string | null } | null> {
+): Promise<RevealDetails | null> {
   const { data, error } = await admin
     .from('properties')
     .select('*')
@@ -962,10 +993,10 @@ async function loadRevealDetails(
     }
     return null;
   }
-  const { body, mapUrl } = buildRevealDetails({
-    property: data as unknown as Property,
-  });
-  return { body, mapUrl };
+  const property = data as unknown as Property;
+  const { body, mapUrl } = buildRevealDetails({ property });
+  const { specs, address } = buildRevealTemplateFacts({ property });
+  return { body, mapUrl, specs, address };
 }
 
 /**

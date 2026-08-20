@@ -2,7 +2,9 @@ import { NextResponse, after } from "next/server";
 import {
   buildPreferenceSourceText,
   extractContactPreferences,
+  LISTING_TYPE_VALUES,
   preferenceSourceHash,
+  type ListingType,
 } from "@/lib/ai/preference-extraction";
 import { supabaseAdmin } from "@/lib/automations/admin-client";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
@@ -35,6 +37,7 @@ export async function POST(request: Request) {
       minBudget, // number | null
       maxBudget, // number | null
       minRoi, // number | null
+      listingTypes, // string[] — 'Sale' | 'Rent', tapped in the assistant
       accountId,
       referrerContactId,
       // The assistant's number step states plainly that matching
@@ -142,6 +145,16 @@ export async function POST(request: Request) {
 
     const grantsAlerts = alertsConsent === true;
 
+    // The visitor tapped this; it does not need inferring. Kept
+    // separate from contactFields so the AI pass below can fill the gap
+    // when the plain form (which asks no intent question) posts none.
+    const statedListingTypes = Array.isArray(listingTypes)
+      ? (listingTypes as unknown[]).filter(
+          (t): t is ListingType =>
+            typeof t === "string" && (LISTING_TYPE_VALUES as readonly string[]).includes(t)
+        )
+      : [];
+
     const contactFields = {
       name: (name || "Website Lead").trim(),
       email: email ? email.trim().toLowerCase() : null,
@@ -154,6 +167,9 @@ export async function POST(request: Request) {
       min_roi: minRoi || null,
       requirements: notes || null,
       referrer_contact_id: referrerContactId || null,
+      ...(statedListingTypes.length > 0
+        ? { pref_listing_types: statedListingTypes }
+        : {}),
       updated_at: new Date().toISOString(),
     };
 
@@ -377,7 +393,16 @@ export async function POST(request: Request) {
               pref_projects: prefs.projects,
               pref_suggested_tags: prefs.suggested_tags,
               pref_min_roi: prefs.min_roi,
-              pref_listing_types: prefs.listing_types,
+              // A tapped intent outranks the model's reading of a
+              // note: extraction returns [] for a plain buyer by
+              // design, and writing that back would erase the answer
+              // the visitor actually gave.
+              pref_listing_types:
+                prefs.listing_types.length > 0
+                  ? prefs.listing_types
+                  : statedListingTypes.length > 0
+                    ? statedListingTypes
+                    : prefs.listing_types,
               pref_source_hash: preferenceSourceHash(sourceText),
               pref_extracted_at: new Date().toISOString(),
             })
