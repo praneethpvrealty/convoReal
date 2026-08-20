@@ -44,7 +44,7 @@ describe('gapDedupeKey', () => {
     // A random key could never match again, so the caller drops it
     // rather than raising the same thing every morning forever.
     expect(
-      gapDedupeKey('missing_next_step', {
+      gapDedupeKey('untracked_conversation', {
         conversationId: null,
         contactId: null,
       })

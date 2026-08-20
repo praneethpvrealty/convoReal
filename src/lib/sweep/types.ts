@@ -66,8 +66,9 @@ export interface ThreadContext {
 export type GapKind =
   | 'unanswered_question'
   | 'unkept_promise'
-  | 'missing_next_step'
-  | 'no_deal'
+  /** Was `missing_next_step` + `no_deal`, which asked one question
+   *  twice and produced two cards per contact. See detectors.ts. */
+  | 'untracked_conversation'
   | 'bot_handoff'
   | 'unmatched_requirement';
 

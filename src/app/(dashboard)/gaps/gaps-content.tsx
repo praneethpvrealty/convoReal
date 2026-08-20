@@ -8,7 +8,6 @@ import {
   Bot,
   CalendarClock,
   Check,
-  CircleSlash,
   Clock,
   MessageCircleQuestion,
   Send,
@@ -24,8 +23,7 @@ import { InfoHint } from '@/components/ui/info-hint';
 type GapKind =
   | 'unanswered_question'
   | 'unkept_promise'
-  | 'missing_next_step'
-  | 'no_deal'
+  | 'untracked_conversation'
   | 'bot_handoff'
   | 'unmatched_requirement';
 
@@ -60,15 +58,10 @@ const KIND_META: Record<
     icon: Send,
     blurb: 'We said we would, and nothing shows that we did.',
   },
-  missing_next_step: {
-    label: 'No next step',
+  untracked_conversation: {
+    label: 'Nothing next',
     icon: CalendarClock,
-    blurb: 'An active thread with nothing scheduled.',
-  },
-  no_deal: {
-    label: 'Not on a pipeline',
-    icon: CircleSlash,
-    blurb: 'Being worked, but tracked nowhere.',
+    blurb: 'A live thread nothing is carrying forward.',
   },
   bot_handoff: {
     label: 'Bot overridden',

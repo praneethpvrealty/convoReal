@@ -143,16 +143,38 @@ export function detectUnansweredQuestion(
  * state of most threads on most days and a looser test would fill the
  * digest with conversations that are fine.
  */
-export function detectMissingNextStep(
+/**
+ * A live conversation that nothing is carrying forward.
+ *
+ * This was two detectors — `no_deal` ("being worked, on no pipeline")
+ * and `missing_next_step` ("nothing scheduled") — and on the first
+ * production run they fired on the same four contacts and produced
+ * eight of ten gaps between them. They were never really two
+ * questions: both ask whether anything at all is going to move this
+ * conversation, and a reviewer reading two cards about one contact
+ * learns nothing the first card did not already say.
+ *
+ * So it is one gap, and the distinction that was worth keeping — HOW
+ * exposed the thread is — became the severity and the sentence rather
+ * than a second row.
+ *
+ * One case is deliberately no longer raised: a contact on no pipeline
+ * who nevertheless has a site visit booked. The old `no_deal` flagged
+ * them, because it only looked at deals. A booked visit is somebody
+ * carrying the thread forward, pipeline row or not, and that is the
+ * question being asked here.
+ */
+export function detectUntrackedConversation(
   thread: SweepThread,
   ctx: ThreadContext
 ): DetectedGap | null {
+  // Something already holds the next action.
   if (ctx.hasFutureAppointment || ctx.hasOpenTodo) return null;
 
   const spoken = thread.messages.filter((m) => (m.text || '').trim());
   if (spoken.length < MIN_THREAD_FOR_NEXT_STEP) return null;
   // Somebody has to have been talking back. A run of outbound
-  // broadcasts is not a conversation missing a next step.
+  // broadcasts is not a conversation anyone dropped.
   if (
     thread.channel === 'client' &&
     !spoken.some((m) => m.speaker === 'customer')
@@ -164,37 +186,30 @@ export function detectMissingNextStep(
   if (!last) return null;
 
   const who = thread.contactName || 'This client';
+
+  // Worst first: a buyer who has said what they want, is on no
+  // pipeline and has nothing booked is invisible to everyone. An open
+  // deal is at least somebody's job already.
+  const exposed = !ctx.hasOpenDeal && ctx.hasStatedRequirement;
+
+  const summary = ctx.hasOpenDeal
+    ? `${who} has an open deal with nothing scheduled next`
+    : exposed
+      ? `${who} is being worked, on no pipeline and with nothing scheduled`
+      : `${who} has an active thread with nothing scheduled next`;
+
+  const suggestedAction = ctx.hasOpenDeal
+    ? 'Book the next step on the deal, or set a follow-up task.'
+    : exposed
+      ? 'Add them to a pipeline and book a call or site visit.'
+      : 'Book a call or a site visit, or set a follow-up task.';
+
   return {
-    kind: 'missing_next_step',
-    severity: ctx.hasOpenDeal ? 'medium' : 'low',
-    summary: `${who} has an active thread with nothing scheduled next`,
+    kind: 'untracked_conversation',
+    severity: exposed ? 'medium' : ctx.hasOpenDeal ? 'medium' : 'low',
+    summary,
     evidence: quote(last),
-    suggestedAction: 'Book a call or a site visit, or set a follow-up task.',
-    occurredAt: last.createdAt,
-    propertyId: thread.propertyId,
-  };
-}
-
-/** Someone being actively worked who exists on no pipeline. */
-export function detectNoDeal(
-  thread: SweepThread,
-  ctx: ThreadContext
-): DetectedGap | null {
-  if (ctx.hasOpenDeal) return null;
-  const spoken = thread.messages.filter((m) => (m.text || '').trim());
-  if (spoken.length < MIN_THREAD_FOR_NEXT_STEP) return null;
-  if (!ctx.hasStatedRequirement) return null;
-
-  const last = evidenceFor(thread);
-  if (!last) return null;
-
-  const who = thread.contactName || 'This client';
-  return {
-    kind: 'no_deal',
-    severity: 'medium',
-    summary: `${who} is being worked but has no deal on any pipeline`,
-    evidence: quote(last),
-    suggestedAction: 'Add them to a pipeline so the follow-up is tracked.',
+    suggestedAction,
     occurredAt: last.createdAt,
     propertyId: thread.propertyId,
   };
@@ -273,8 +288,7 @@ export function detectGaps(
   const found = [
     detectUnansweredQuestion(thread, ctx, windowEnd),
     detectUnmatchedRequirement(thread, ctx),
-    detectNoDeal(thread, ctx),
-    detectMissingNextStep(thread, ctx),
+    detectUntrackedConversation(thread, ctx),
     detectBotHandoff(thread),
   ].filter((g): g is DetectedGap => g !== null);
 
