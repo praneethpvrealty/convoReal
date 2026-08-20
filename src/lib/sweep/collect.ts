@@ -16,6 +16,7 @@
 // ============================================================
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { CLOSED_LISTING_STATUS_FILTER } from '@/lib/inventory/listing-status';
 import type { SweepThread, ThreadContext } from './types';
 
 /**
@@ -398,4 +399,61 @@ export async function collectContexts(
  *  otherwise — the same subject rule the dedupe key uses. */
 export function threadKey(thread: SweepThread): string {
   return `${thread.channel}:${thread.conversationId || thread.contactId || 'unknown'}`;
+}
+
+/**
+ * Drops the threads belonging to owner-side contacts.
+ *
+ * Every gap this sweep raises is framed around a BUYER — has anyone
+ * shortlisted for them, are they on a pipeline, has a next step been
+ * booked. Point that at a seller and the readings invert. On the first
+ * production run an owner receiving her own listing's activity digest
+ * was raised high-severity as "has told us what they want and has been
+ * sent nothing", which is both false and unactionable: she is not
+ * waiting for a shortlist, she is waiting for buyers.
+ *
+ * `properties.owner_contact_id` is the same marker the owner digest
+ * routes on, so a contact counted as an owner here is exactly the one
+ * that gets owner mail — including agent referrals, which land in the
+ * same column (migration 191). Closed listings do not count: once the
+ * flat is sold its former owner is an ordinary contact again, and the
+ * same CLOSED_LISTING_STATUS_FILTER keeps that consistent with every
+ * other scanning sender.
+ *
+ * The `.in()` list is bounded by MAX_THREADS_PER_ACCOUNT, which is what
+ * makes it safe to put in a filter at all (§2.6).
+ */
+export async function excludeOwnerSideThreads(
+  db: SupabaseClient,
+  accountId: string,
+  threads: SweepThread[]
+): Promise<SweepThread[]> {
+  const contactIds = [
+    ...new Set(threads.map((t) => t.contactId).filter(Boolean)),
+  ] as string[];
+  if (!contactIds.length) return threads;
+
+  const { data, error } = await db
+    .from('properties')
+    .select('owner_contact_id')
+    .eq('account_id', accountId)
+    .in('owner_contact_id', contactIds)
+    .not('status', 'in', CLOSED_LISTING_STATUS_FILTER);
+
+  if (error) {
+    // Failing open keeps the sweep running on a bad day. The cost is a
+    // false owner-side gap, which a reader dismisses; failing closed
+    // would silently sweep nothing at all.
+    console.error('[sweep] owner-side lookup failed:', error);
+    return threads;
+  }
+
+  const owners = new Set(
+    ((data as { owner_contact_id: string | null }[] | null) ?? [])
+      .map((row) => row.owner_contact_id)
+      .filter(Boolean) as string[]
+  );
+  if (!owners.size) return threads;
+
+  return threads.filter((t) => !t.contactId || !owners.has(t.contactId));
 }

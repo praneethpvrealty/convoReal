@@ -31,6 +31,7 @@ import {
   collectClientThreads,
   collectContexts,
   collectPersonalThreads,
+  excludeOwnerSideThreads,
   threadKey,
 } from './collect';
 import { detectGaps } from './detectors';
@@ -283,9 +284,14 @@ export async function sweepAccount(
       collectClientThreads(db, accountId, window),
       collectPersonalThreads(db, accountId, window),
     ]);
-    const threads = [...clientThreads, ...personalThreads].slice(
-      0,
-      MAX_THREADS_PER_ACCOUNT
+    // Owner-side contacts are dropped BEFORE anything counts or costs:
+    // every gap here is framed around a buyer, and pointing that at a
+    // seller inverts the reading. threadsSeen is what was actually
+    // swept, not what was fetched.
+    const threads = await excludeOwnerSideThreads(
+      db,
+      accountId,
+      [...clientThreads, ...personalThreads].slice(0, MAX_THREADS_PER_ACCOUNT)
     );
     base.threadsSeen = threads.length;
 
