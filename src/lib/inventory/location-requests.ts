@@ -317,6 +317,13 @@ function resolveTemplateBodyText(bodyTemplateText: string, params: string[]) {
  * Returns whether Meta accepted a send at all — the caller must not
  * mark the reveal as sent otherwise.
  */
+/** How many distinct `{{n}}` placeholders a template body declares. */
+export function templateParamCount(bodyText: string | null | undefined): number {
+  return new Set(
+    [...(bodyText ?? '').matchAll(/\{\{(\d+)\}\}/g)].map((m) => m[1])
+  ).size;
+}
+
 async function sendRevealToSeeker(
   admin: SupabaseClient,
   request: Pick<
@@ -378,12 +385,19 @@ async function sendRevealToSeeker(
 
   const phone = normalizePhoneWithCountryCode(request.requester_phone);
   if (!phone) return false;
+  // The approved template on Meta's side decides how many params a
+  // send may carry — a count mismatch is rejected outright. The stored
+  // body_text mirrors that template, so the arity is read from it
+  // rather than assumed: this code ships knowing four facts, while an
+  // account whose template has not been edited yet still declares two,
+  // and both must keep working.
+  const declaredParams = templateParamCount(template.body_text);
   const params = buildLocationRevealParams(
     request.requester_name,
     propertyTitle,
     details?.specs,
     details?.address
-  );
+  ).slice(0, declaredParams);
   const bodyParams = truncateParametersToBudget(template.body_text, [
     ...params,
   ]);
