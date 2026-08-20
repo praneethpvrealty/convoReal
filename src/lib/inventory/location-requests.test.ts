@@ -61,6 +61,33 @@ describe('buildRevealMessage', () => {
     expect(msg).toContain('https://app.convoreal.com/reveal/abc123');
     expect(msg).toContain('48 hours');
   });
+
+  it('carries the property details and the map pin below the link', () => {
+    const msg = buildRevealMessage({
+      requesterName: 'Rahul',
+      propertyTitle: 'Villa in Whitefield',
+      revealLink: 'https://app.convoreal.com/reveal/abc123',
+      details: '🏡 *Villa in Whitefield*\n💰 *₹2.4 Cr*',
+      mapUrl: 'https://www.google.com/maps/search/?api=1&query=12.9348,77.6189',
+    });
+    expect(msg).toContain('💰 *₹2.4 Cr*');
+    expect(msg).toContain('🗺 Map pin: https://www.google.com/maps/search/');
+    expect(msg.indexOf('/reveal/abc123')).toBeLessThan(
+      msg.indexOf('🗺 Map pin:')
+    );
+  });
+
+  it('omits the details and map lines when there are none', () => {
+    const msg = buildRevealMessage({
+      requesterName: 'Rahul',
+      propertyTitle: 'Villa in Whitefield',
+      revealLink: 'https://app.convoreal.com/reveal/abc123',
+      details: null,
+      mapUrl: null,
+    });
+    expect(msg).not.toContain('Map pin:');
+    expect(msg).not.toContain('\n\n\n');
+  });
 });
 
 describe('buildCoBrokerRevealNotice', () => {
@@ -111,7 +138,9 @@ describe('buildReshareLinkMessage', () => {
     });
     expect(msg).toContain('Hi Suresh');
     expect(msg).toContain('*Villa in Whitefield*');
-    expect(msg).toContain('https://app.convoreal.com/?property_id=X&mode=view&v=c-1');
+    expect(msg).toContain(
+      'https://app.convoreal.com/?property_id=X&mode=view&v=c-1'
+    );
     expect(msg).toContain('will reach you first');
     expect(msg).toContain('stay private to you');
   });

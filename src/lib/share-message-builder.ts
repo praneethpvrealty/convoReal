@@ -13,6 +13,7 @@
 
 import type { Property } from '@/types';
 import { isLocationGuarded } from '@/lib/inventory/location-guard';
+import { propertyMapPin } from '@/lib/maps/map-links';
 import {
   isTeaserGated,
   priceBand,
@@ -383,6 +384,35 @@ export function buildInquiryDetailsMessage(input: {
   ]
     .filter(Boolean)
     .join('\n\n');
+}
+
+/**
+ * The property block that rides along with an approved location reveal.
+ * The approval is the moment the seeker is allowed the whole file, so
+ * the message carries the specs, the exact address and the same map pin
+ * the reveal page shows — resolved through `propertyMapPin`, not the
+ * raw stored link, so WhatsApp and the page never disagree about where
+ * the property is. The map URL is returned separately because it must
+ * be placed BELOW the reveal link: WhatsApp previews the first URL in a
+ * message.
+ */
+export function buildRevealDetails(input: {
+  property: Property;
+  currency?: string;
+}): { body: string; mapUrl: string | null; exactAddress: string | null } {
+  const { property } = input;
+  const currency = input.currency || 'INR';
+  const lines = [completeBody(property, currency, { withMap: false })];
+  const exactAddress =
+    property.location && locationLine(property) !== property.location
+      ? property.location
+      : null;
+  if (exactAddress) lines.push(`📍 *Exact Address:* ${exactAddress}`);
+  return {
+    body: lines.join('\n'),
+    mapUrl: propertyMapPin(property)?.mapUrl ?? null,
+    exactAddress,
+  };
 }
 
 // ── External share targets ──────────────────────────────────────

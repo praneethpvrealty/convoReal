@@ -58,7 +58,8 @@ import {
 } from '@/lib/inventory/showcase-visibility';
 import { createNotification } from '@/lib/notifications/create';
 import { resolveChannels } from '@/lib/notifications/preferences';
-import type { MessageTemplate } from '@/types';
+import type { MessageTemplate, Property } from '@/types';
+import { buildRevealDetails } from '@/lib/share-message-builder';
 
 export const CONSENT_TIMEOUT_MS = 2 * 60 * 60 * 1000;
 export const REVEAL_TOKEN_TTL_MS = 48 * 60 * 60 * 1000;
@@ -140,23 +141,40 @@ export function buildRevealMessage(args: {
   propertyTitle: string;
   revealLink: string;
   scope?: 'location' | 'listing';
+  /** The property block from `buildRevealDetails` — the specs and the
+   *  exact address, so the seeker has the property in WhatsApp itself
+   *  and not only behind the link. */
+  details?: string | null;
+  /** Placed last: WhatsApp previews the FIRST url in a message, and the
+   *  preview belongs to the reveal link. */
+  mapUrl?: string | null;
 }): string {
+  const detailsBlock = args.details?.trim() || null;
+  const mapLine = args.mapUrl ? `🗺 Map pin: ${args.mapUrl}` : null;
   if (args.scope === 'listing') {
-    return (
+    return [
       `🔓 *Access Approved — ${args.propertyTitle}*\n\n` +
-      `Hi ${args.requesterName}, the owner has approved your request to view this listing.\n\n` +
-      `🏡 Full details, photos, address & map pin: ${args.revealLink}\n\n` +
+        `Hi ${args.requesterName}, the owner has approved your request to view this listing.`,
+      detailsBlock,
+      `🏡 Full details, photos, address & map pin: ${args.revealLink}`,
+      mapLine,
       `🔒 The owner has asked that these details stay between us — please don't forward the link or the photos. ` +
-      `Every photo carries your reference so we can honour that.\n\n` +
-      `⏳ This link is valid for 7 days.`
-    );
+        `Every photo carries your reference so we can honour that.\n\n` +
+        `⏳ This link is valid for 7 days.`,
+    ]
+      .filter(Boolean)
+      .join('\n\n');
   }
-  return (
+  return [
     `📍 *Exact Location — ${args.propertyTitle}*\n\n` +
-    `Hi ${args.requesterName}, your location request was approved.\n\n` +
-    `🗺 Address, map pin & full photos: ${args.revealLink}\n\n` +
-    `⏳ This link is valid for 48 hours.`
-  );
+      `Hi ${args.requesterName}, your location request was approved.`,
+    detailsBlock,
+    `🗺 Address, map pin & full photos: ${args.revealLink}`,
+    mapLine,
+    `⏳ This link is valid for 48 hours.`,
+  ]
+    .filter(Boolean)
+    .join('\n\n');
 }
 
 /** Heads-up to the intermediary when their client received the reveal. */
@@ -278,7 +296,8 @@ async function sendRevealToSeeker(
   >,
   propertyTitle: string,
   shareLink: string,
-  token: string
+  token: string,
+  details: { body: string; mapUrl: string | null } | null
 ): Promise<boolean> {
   const freeform = await sendToSeeker(
     request.account_id,
@@ -288,6 +307,8 @@ async function sendRevealToSeeker(
       propertyTitle,
       revealLink: shareLink,
       scope: request.scope,
+      details: details?.body ?? null,
+      mapUrl: details?.mapUrl ?? null,
     })
   );
   if (freeform.success) return true;
@@ -888,6 +909,36 @@ async function mintListingGrant(
 }
 
 /**
+ * The property block that travels with an approved reveal. Approval is
+ * what lifts the guard, so this is read straight from the row and is
+ * deliberately unmasked — and it goes out on the account's own WhatsApp
+ * number like every other Engine send, never from the approver's
+ * personal phone.
+ */
+async function loadRevealDetails(
+  admin: SupabaseClient,
+  accountId: string,
+  propertyId: string
+): Promise<{ body: string; mapUrl: string | null } | null> {
+  const { data, error } = await admin
+    .from('properties')
+    .select('*')
+    .eq('id', propertyId)
+    .eq('account_id', accountId)
+    .maybeSingle();
+  if (error || !data) {
+    if (error) {
+      console.error('[location-requests] Reveal details load failed:', error);
+    }
+    return null;
+  }
+  const { body, mapUrl } = buildRevealDetails({
+    property: data as unknown as Property,
+  });
+  return { body, mapUrl };
+}
+
+/**
  * Mints the token, stamps the row approved, sends the reveal link to
  * the seeker and — for attributed requests — the private heads-up to
  * the intermediary. Used by both the owner PATCH route and (through
@@ -944,12 +995,18 @@ export async function approveRequestAndSendReveal(
     request.account_id,
     request.property_id
   );
+  const details = await loadRevealDetails(
+    admin,
+    request.account_id,
+    request.property_id
+  );
   const revealDelivered = await sendRevealToSeeker(
     admin,
     request,
     title,
     shareLink,
-    token
+    token,
+    details
   );
   if (revealDelivered) {
     await admin

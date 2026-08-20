@@ -10,6 +10,7 @@ import {
 } from '@/lib/inventory/documents';
 import { createShowcaseTracker } from '@/lib/pulse/tracker';
 import { getShowcaseSessionKey } from '@/lib/pulse/session-key';
+import { propertyMapPin } from '@/lib/maps/map-links';
 import { toast } from 'sonner';
 import { CATEGORY_SUBTYPES, parsePropertyQuery } from '@/lib/search-parser';
 import {
@@ -2254,7 +2255,10 @@ export function ShowcaseView({
 
                 {/* Location on Map — agent mode, or a share grant that
                     unmasked this link (?g=) */}
-                {(isAgentMode || selectedProperty.location_revealed) && selectedProperty.google_map_link && (
+                {(isAgentMode || selectedProperty.location_revealed) && selectedProperty.google_map_link && (() => {
+                  const pin = propertyMapPin(selectedProperty);
+                  if (!pin) return null;
+                  return (
                   <div className="bg-slate-950/50 border border-slate-850 p-3.5 rounded-xl space-y-2">
                     <div className="flex items-start gap-2.5">
                       <div className="h-7 w-7 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center shrink-0">
@@ -2263,35 +2267,36 @@ export function ShowcaseView({
                       <div className="flex-1 min-w-0">
                         <h5 className="text-[11px] font-extrabold text-amber-500 uppercase tracking-wider">Location on Map</h5>
                         <a
-                          href={selectedProperty.google_map_link}
+                          href={pin.mapUrl}
                           target="_blank"
                           rel="noopener noreferrer"
                           onClick={() => trackerRef.current?.track('map_click', selectedProperty.id)}
                           className="inline-flex items-center gap-1.5 mt-1.5 text-xs text-blue-400 hover:text-blue-300 underline underline-offset-2 break-all"
                         >
                           <MapPin className="size-3.5 shrink-0" />
-                          {selectedProperty.google_map_link.length > 60
-                            ? selectedProperty.google_map_link.substring(0, 60) + '...'
-                            : selectedProperty.google_map_link}
+                          {pin.mapUrl.length > 60
+                            ? pin.mapUrl.substring(0, 60) + '...'
+                            : pin.mapUrl}
                         </a>
                       </div>
                     </div>
-                    <div className="rounded-lg overflow-hidden border border-slate-800 h-40 bg-slate-900">
-                      <iframe
-                        title="Property Location"
-                        src={selectedProperty.google_map_link.includes('q=')
-                          ? selectedProperty.google_map_link.replace(/\/+$/, '') + '&output=embed'
-                          : `https://maps.google.com/maps?q=${encodeURIComponent(selectedProperty.sublocality || selectedProperty.location || '')}&output=embed`}
-                        width="100%"
-                        height="100%"
-                        style={{ border: 0 }}
-                        allowFullScreen
-                        loading="lazy"
-                        referrerPolicy="no-referrer-when-downgrade"
-                      />
-                    </div>
+                    {pin.embedUrl && (
+                      <div className="rounded-lg overflow-hidden border border-slate-800 h-40 bg-slate-900">
+                        <iframe
+                          title="Property Location"
+                          src={pin.embedUrl}
+                          width="100%"
+                          height="100%"
+                          style={{ border: 0 }}
+                          allowFullScreen
+                          loading="lazy"
+                          referrerPolicy="no-referrer-when-downgrade"
+                        />
+                      </div>
+                    )}
                   </div>
-                )}
+                  );
+                })()}
 
                 {/* Masked Exact Location Block — shown to buyers, and to
                     co-broker (agent-mode) viewers when the listing's
