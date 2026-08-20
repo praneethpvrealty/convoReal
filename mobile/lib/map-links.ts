@@ -84,8 +84,18 @@ export function extractCoordinatesFromMapUrl(url: string): Coordinates | null {
     if (coords) return coords;
   }
 
-  const pathPair = decodeURIComponent(parsed?.pathname || url)
-    .replace(/\+/g, " ")
+  // A malformed percent escape ("/maps/%") parses as a URL but throws
+  // here, and this runs while rendering the showcase modal and the
+  // reveal page — an undecodable path is an unparseable pin, not a
+  // crashed page.
+  let decodedPath: string | null = null;
+  try {
+    decodedPath = decodeURIComponent(parsed?.pathname || url);
+  } catch {
+    decodedPath = null;
+  }
+  const pathPair = decodedPath
+    ?.replace(/\+/g, " ")
     .match(/\/(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)(?:\/|$)/);
   if (pathPair) {
     const coords = toCoordinates(pathPair[1], pathPair[2]);
@@ -135,15 +145,23 @@ function addressQuery(source: PropertyMapPinSource): string {
  */
 export function propertyMapPin(source: PropertyMapPinSource): PropertyMapPin | null {
   const link = (source.google_map_link || "").trim();
+  const linkCoordinates = link ? extractCoordinatesFromMapUrl(link) : null;
   const coordinates =
-    (link ? extractCoordinatesFromMapUrl(link) : null) ??
-    toCoordinates(source.latitude ?? NaN, source.longitude ?? NaN);
+    linkCoordinates ?? toCoordinates(source.latitude ?? NaN, source.longitude ?? NaN);
 
   if (coordinates) {
     const pair = `${coordinates.latitude},${coordinates.longitude}`;
+    const embedUrl = `https://maps.google.com/maps?q=${pair}&z=16&output=embed`;
+    // A short link the parser cannot read is still the pin somebody
+    // deliberately saved, and the columns beside it may only hold a
+    // geocode of the address. It stays the link that opens; the
+    // coordinates are used for the embed, which cannot render it.
+    if (!linkCoordinates && link) {
+      return { mapUrl: link, embedUrl, coordinates };
+    }
     return {
       mapUrl: googleMapsUrlForCoordinates(coordinates.latitude, coordinates.longitude),
-      embedUrl: `https://maps.google.com/maps?q=${pair}&z=16&output=embed`,
+      embedUrl,
       coordinates,
     };
   }

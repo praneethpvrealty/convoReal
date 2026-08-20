@@ -136,7 +136,35 @@ export function buildSeekerRedirectMessage(propertyTitle: string): string {
   );
 }
 
-export function buildRevealMessage(args: {
+/** Meta's free-form text limit. A reveal that overruns it is rejected
+ *  with an error the template fallback does not recognise as a closed
+ *  window, so the seeker would get nothing at all — and the request is
+ *  already stamped approved by then. The link is what must survive, so
+ *  the details block is what gives way. */
+const WHATSAPP_TEXT_LIMIT = 4096;
+
+/** The details block trimmed to whatever the rest of the message leaves
+ *  free, dropped entirely when that is too little to be worth reading.
+ *  Trimming happens at a line boundary so the block never ends mid-fact. */
+function fitRevealDetails(args: RevealMessageArgs): string | null {
+  const details = args.details?.trim();
+  if (!details) return null;
+  const withoutDetails = buildRevealMessage({ ...args, details: null });
+  const budget = WHATSAPP_TEXT_LIMIT - withoutDetails.length - '\n\n'.length;
+  if (details.length <= budget) return details;
+  const lines = details.split('\n');
+  const kept: string[] = [];
+  let used = 0;
+  for (const line of lines) {
+    const cost = kept.length === 0 ? line.length : line.length + 1;
+    if (used + cost > budget) break;
+    kept.push(line);
+    used += cost;
+  }
+  return kept.length > 1 ? kept.join('\n') : null;
+}
+
+export interface RevealMessageArgs {
   requesterName: string;
   propertyTitle: string;
   revealLink: string;
@@ -148,9 +176,11 @@ export function buildRevealMessage(args: {
   /** Placed last: WhatsApp previews the FIRST url in a message, and the
    *  preview belongs to the reveal link. */
   mapUrl?: string | null;
-}): string {
-  const detailsBlock = args.details?.trim() || null;
+}
+
+export function buildRevealMessage(args: RevealMessageArgs): string {
   const mapLine = args.mapUrl ? `🗺 Map pin: ${args.mapUrl}` : null;
+  const detailsBlock = fitRevealDetails(args);
   if (args.scope === 'listing') {
     return [
       `🔓 *Access Approved — ${args.propertyTitle}*\n\n` +

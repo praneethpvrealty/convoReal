@@ -77,6 +77,23 @@ describe('buildRevealMessage', () => {
     );
   });
 
+  it('never overruns the WhatsApp text limit, keeping the link', () => {
+    const msg = buildRevealMessage({
+      requesterName: 'Rahul',
+      propertyTitle: 'Villa in Whitefield',
+      revealLink: 'https://app.convoreal.com/reveal/abc123',
+      details: Array.from(
+        { length: 400 },
+        (_, i) => `\u2728 Feature line ${i}`
+      ).join('\n'),
+      mapUrl: 'https://www.google.com/maps/search/?api=1&query=12.9348,77.6189',
+    });
+    expect(msg.length).toBeLessThanOrEqual(4096);
+    expect(msg).toContain('/reveal/abc123');
+    expect(msg).toContain('\u{1F5FA} Map pin:');
+    expect(msg).toContain('\u2728 Feature line 0');
+  });
+
   it('omits the details and map lines when there are none', () => {
     const msg = buildRevealMessage({
       requesterName: 'Rahul',
