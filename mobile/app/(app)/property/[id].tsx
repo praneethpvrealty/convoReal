@@ -27,6 +27,7 @@ import { FlyerSheet } from '@/components/flyer-sheet';
 import { ConvoRealLoader } from '@/components/loader';
 import { PropertyShareSheet } from '@/components/property-share-sheet';
 import { FilterChip, SectionLabel, Tag, nameTagCap } from '@/components/ui';
+import { propertyMapPin } from '@/lib/map-links';
 import { nativeMapsAvailable } from '@/lib/maps-support';
 import { openInMaps } from '@/lib/open-maps';
 import { plansWithImages } from '@/lib/floor-plans';
@@ -139,9 +140,13 @@ export default function PropertyDetailScreen() {
   const place = [property.location, property.sublocality, property.city]
     .filter(Boolean)
     .join(', ');
-  const hasCoords =
-    typeof property.latitude === 'number' &&
-    typeof property.longitude === 'number';
+  // Resolved through the shared resolver so the marker, the maps hand-off
+  // and every web surface land on one place. Reading `latitude`/`longitude`
+  // directly put the app on a different pin from the showcase and the
+  // WhatsApp reveal whenever those columns held a geocode of the address
+  // rather than the saved link's own coordinates.
+  const pin = propertyMapPin(property);
+  const coords = pin?.coordinates ?? null;
   // Address-based search so a listing without coordinates still lands on
   // the right place (the title is a description and won't geocode).
   const mapQuery =
@@ -151,7 +156,7 @@ export default function PropertyDetailScreen() {
   // Only offer maps when the property has an actual pinned location —
   // coordinates or a saved Google Maps link. A text-only address/city
   // (e.g. "Coorg") would just open a vague search, so we hide it.
-  const hasMapLocation = hasCoords || !!property.google_map_link;
+  const hasMapLocation = Boolean(coords) || !!property.google_map_link;
   const ownerPhone = property.owner?.phone;
   const area = isLand
     ? property.land_area
@@ -832,17 +837,16 @@ export default function PropertyDetailScreen() {
 
           <MatchesSection property={property} />
 
-          {typeof property.latitude === 'number' &&
-          typeof property.longitude === 'number' ? (
+          {coords ? (
             <Section title="Location">
               {!nativeMapsAvailable ? (
                 <Pressable
                   onPress={() =>
                     openInMaps({
-                      latitude: property.latitude,
-                      longitude: property.longitude,
+                      latitude: coords.latitude,
+                      longitude: coords.longitude,
                       label: mapQuery,
-                      fallbackUrl: property.google_map_link,
+                      fallbackUrl: pin?.mapUrl,
                     })
                   }
                   accessibilityRole="button"
@@ -877,8 +881,8 @@ export default function PropertyDetailScreen() {
                   <MapView
                     style={StyleSheet.absoluteFill}
                     initialRegion={{
-                      latitude: property.latitude,
-                      longitude: property.longitude,
+                      latitude: coords.latitude,
+                      longitude: coords.longitude,
                       latitudeDelta: 0.02,
                       longitudeDelta: 0.02,
                     }}
@@ -889,17 +893,17 @@ export default function PropertyDetailScreen() {
                     toolbarEnabled={false}
                     onPress={() =>
                       openInMaps({
-                        latitude: property.latitude,
-                        longitude: property.longitude,
+                        latitude: coords.latitude,
+                        longitude: coords.longitude,
                         label: mapQuery,
-                        fallbackUrl: property.google_map_link,
+                        fallbackUrl: pin?.mapUrl,
                       })
                     }
                   >
                     <Marker
                       coordinate={{
-                        latitude: property.latitude,
-                        longitude: property.longitude,
+                        latitude: coords.latitude,
+                        longitude: coords.longitude,
                       }}
                       pinColor={colors.primary}
                     />
@@ -911,19 +915,16 @@ export default function PropertyDetailScreen() {
 
           {/* Only when the owner CTA isn't already the maps button and there's
             no inline map above — keeps a single "open maps" entry point. */}
-          {ownerPhone && !hasCoords && property.google_map_link ? (
+          {ownerPhone && !coords && property.google_map_link ? (
             <Pressable
               style={[
                 styles.mapButton,
                 { borderColor: colors.border, backgroundColor: colors.surface },
               ]}
               onPress={() =>
-                openInMaps({
-                  latitude: property.latitude,
-                  longitude: property.longitude,
-                  label: mapQuery,
-                  fallbackUrl: property.google_map_link,
-                })
+                // This branch only renders when there are no coordinates
+                // at all, so the saved link is the whole pin.
+                openInMaps({ label: mapQuery, fallbackUrl: pin?.mapUrl })
               }
             >
               <Ionicons name="map-outline" size={17} color={colors.primary} />
@@ -1014,10 +1015,10 @@ export default function PropertyDetailScreen() {
                     `https://wa.me/${ownerPhone.replace(/\D/g, '')}`
                   )
                 : openInMaps({
-                    latitude: property.latitude,
-                    longitude: property.longitude,
+                    latitude: coords?.latitude,
+                    longitude: coords?.longitude,
                     label: mapQuery,
-                    fallbackUrl: property.google_map_link,
+                    fallbackUrl: pin?.mapUrl,
                   })
             }
           >

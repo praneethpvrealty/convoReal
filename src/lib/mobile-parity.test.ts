@@ -559,6 +559,45 @@ describe('mobile/lib/owner-details-request.ts mirrors details-request', () => {
   });
 });
 
+describe('mobile/lib/map-links.ts mirrors the pin resolver', () => {
+  // The marker the app drops, the showcase iframe and the pin in the
+  // WhatsApp reveal are all the same claim about where a property is.
+  // Mobile ports this rather than importing it — `@shared/` is a
+  // types-only alias, so a value import does not survive Metro — which
+  // makes drift between the two copies the thing to guard.
+  const source = mobileSource('lib/map-links.ts');
+  const web = readFileSync(
+    join(process.cwd(), 'src/lib/maps/map-links.ts'),
+    'utf8'
+  );
+
+  it('resolves pins in the same order of truth', () => {
+    for (const line of [
+      'const linkCoordinates = link ? extractCoordinatesFromMapUrl(link) : null;',
+      'linkCoordinates ?? toCoordinates(source.latitude ?? NaN, source.longitude ?? NaN);',
+      'if (!linkCoordinates && link) {',
+    ]) {
+      expect(source).toContain(line);
+      expect(web).toContain(line);
+    }
+  });
+
+  it('builds the same link and embed URLs', () => {
+    for (const literal of [
+      '`https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`',
+      '`https://maps.google.com/maps?q=${pair}&z=16&output=embed`',
+    ]) {
+      expect(source).toContain(literal);
+      expect(web).toContain(literal);
+    }
+  });
+
+  it('contains the decode that would otherwise throw on a bad escape', () => {
+    expect(source).toContain('decodedPath = decodeURIComponent(');
+    expect(source).toContain('decodedPath = null;');
+  });
+});
+
 describe('mobile/lib/photo-sources.ts mirrors photo-sources', () => {
   // Both galleries have to find a gated listing's photos in the guarded
   // bucket, in the same order, at the same proxy index — the index IS
