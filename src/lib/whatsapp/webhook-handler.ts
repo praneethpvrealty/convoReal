@@ -65,6 +65,11 @@ import {
   handlePropertyTypeReply,
   PROPERTY_TYPE_ID_PREFIX,
 } from '@/lib/whatsapp/property-type-prompt';
+import {
+  listingIntentAcknowledgement,
+  handleListingIntentReply,
+  LISTING_INTENT_ID_PREFIX,
+} from '@/lib/whatsapp/listing-intent-prompt';
 import { sendAlertsOnboarding } from '@/lib/whatsapp/alerts-onboarding';
 import {
   handleRequirementTweakReply,
@@ -2692,27 +2697,28 @@ async function processMessage(
   // answer that makes tapping worth it.
   if (
     interactiveReplyId?.startsWith(PROPERTY_TYPE_ID_PREFIX) ||
+    interactiveReplyId?.startsWith(LISTING_INTENT_ID_PREFIX) ||
     interactiveReplyId?.startsWith(BUDGET_BAND_ID_PREFIX)
   ) {
+    const rungArgs = {
+      db: supabaseAdmin(),
+      accountId,
+      contactId: contactRecord.id,
+      replyId: interactiveReplyId,
+    };
     const handledRung = interactiveReplyId.startsWith(PROPERTY_TYPE_ID_PREFIX)
-      ? await handlePropertyTypeReply({
-          db: supabaseAdmin(),
-          accountId,
-          contactId: contactRecord.id,
-          replyId: interactiveReplyId,
-        })
-      : await handleBudgetBandReply({
-          db: supabaseAdmin(),
-          accountId,
-          contactId: contactRecord.id,
-          replyId: interactiveReplyId,
-        });
+      ? await handlePropertyTypeReply(rungArgs)
+      : interactiveReplyId.startsWith(LISTING_INTENT_ID_PREFIX)
+        ? await handleListingIntentReply(rungArgs)
+        : await handleBudgetBandReply(rungArgs);
     if (handledRung) {
       const acknowledgement = interactiveReplyId.startsWith(
         PROPERTY_TYPE_ID_PREFIX
       )
         ? propertyTypeAcknowledgement(interactiveReplyId)
-        : budgetBandAcknowledgement(interactiveReplyId);
+        : interactiveReplyId.startsWith(LISTING_INTENT_ID_PREFIX)
+          ? listingIntentAcknowledgement(interactiveReplyId)
+          : budgetBandAcknowledgement(interactiveReplyId);
       await sendAlertsOnboarding({
         db: supabaseAdmin(),
         accountId,

@@ -47,7 +47,7 @@ import { visibleTagSuggestions } from '@/lib/contact-preferences';
 import { resolveRequirementSource } from '@/lib/requirements/profiles';
 import type { Contact, Property } from '@/types';
 
-export type QualifierField = 'type' | 'budget' | 'location';
+export type QualifierField = 'type' | 'intent' | 'budget' | 'location';
 
 /** Classifications the buyer ladder is allowed to run for. A Seller or
  *  Owner answering this number is not stating a buying requirement. */
@@ -83,6 +83,10 @@ function hasBudget(prefs: ExtractedPreferences): boolean {
   return prefs.budget_min != null || prefs.budget_max != null;
 }
 
+function hasIntent(prefs: ExtractedPreferences): boolean {
+  return prefs.listing_types.length > 0;
+}
+
 function hasProject(prefs: ExtractedPreferences): boolean {
   return prefs.projects.length > 0;
 }
@@ -91,20 +95,29 @@ function hasLocation(prefs: ExtractedPreferences): boolean {
   return prefs.areas.length > 0 || hasProject(prefs);
 }
 
-const QUALIFIER_ORDER: QualifierField[] = ['type', 'budget', 'location'];
+// Intent before budget: the band list asks a rent-only lead for a
+// monthly figure and everyone else for a sale figure, so asking budget
+// first puts the wrong ladder in front of a tenant.
+const QUALIFIER_ORDER: QualifierField[] = [
+  'type',
+  'intent',
+  'budget',
+  'location',
+];
 
 function isAnswered(
   field: QualifierField,
   prefs: ExtractedPreferences
 ): boolean {
   if (field === 'type') return hasType(prefs);
+  if (field === 'intent') return hasIntent(prefs);
   if (field === 'budget') return hasBudget(prefs);
   return hasLocation(prefs);
 }
 
 /**
  * The first rung of the ladder the contact has not answered, or null
- * when type, budget and location are all known.
+ * when type, intent, budget and location are all known.
  *
  * `asked` are the rungs this thread has already put to the lead. They
  * are skipped rather than repeated: a lead who answers "which area are
@@ -135,6 +148,7 @@ export function nextQualifier(
  */
 const QUALIFIER_FINGERPRINTS: Record<QualifierField, RegExp> = {
   type: /what kind of property are you looking for|land\/plot, apartment, villa/i,
+  intent: /looking to buy or to rent/i,
   budget: /what budget(?: range)? are you working with/i,
   location: /which area (?:are you looking at|suits you best)/i,
 };
@@ -313,6 +327,10 @@ export function buildQualifierQuestion(
     return 'Got it 👍 What kind of property are you looking for — land/plot, apartment, villa, or commercial?';
   }
 
+  if (field === 'intent') {
+    return `Got it — ${typeLabel(prefs)}. Are you looking to buy or to rent?`;
+  }
+
   if (field === 'budget') {
     return `Noted — ${typeLabel(prefs)}. What budget range are you working with?`;
   }
@@ -337,6 +355,9 @@ export function buildQualifierQuestion(
 export function buildFollowUpQuestion(field: QualifierField): string {
   if (field === 'type') {
     return "One thing — land/plot, apartment, villa or commercial? I'll narrow these down.";
+  }
+  if (field === 'intent') {
+    return "One thing — are you looking to buy or to rent? I'll only send that half.";
   }
   if (field === 'budget') {
     return "One thing — what budget are you working with? I'll narrow these down.";
