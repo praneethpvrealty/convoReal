@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   buildConsentMessage,
+  templateParamCount,
   buildSeekerRedirectMessage,
   buildRevealMessage,
   buildCoBrokerRevealNotice,
@@ -170,5 +171,30 @@ describe('mintRevealToken', () => {
     expect(token).toMatch(/^[a-f0-9]+$/);
     expect(new Date(expiresAt).getTime()).toBeGreaterThan(Date.now());
     expect(mintRevealToken().token).not.toBe(token);
+  });
+});
+
+describe('templateParamCount', () => {
+  // A send whose param count disagrees with the approved template is
+  // rejected by Meta. An account whose `location_reveal` has not been
+  // edited to the four-param body yet still declares two, so the arity
+  // is read from the stored body rather than assumed.
+  it('counts the distinct placeholders the body declares', () => {
+    expect(
+      templateParamCount('Hi {{1}}, your request for {{2}} was approved.')
+    ).toBe(2);
+    expect(
+      templateParamCount('Hi {{1}}, {{2}}\n\u{1F4D0} {{3}}\n\u{1F4CD} {{4}}')
+    ).toBe(4);
+  });
+
+  it('does not double-count a placeholder used twice', () => {
+    expect(templateParamCount('{{1}} and {{1}} again, plus {{2}}')).toBe(2);
+  });
+
+  it('is zero for a body with no placeholders at all', () => {
+    expect(templateParamCount('Your request was approved.')).toBe(0);
+    expect(templateParamCount(null)).toBe(0);
+    expect(templateParamCount(undefined)).toBe(0);
   });
 });
