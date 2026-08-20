@@ -10,15 +10,25 @@
 -- reading the second card about a contact learns nothing the first did
 -- not already say — which is how a review queue stops being opened.
 --
--- Order matters here and the migration will fail loudly if it is
--- changed. `idx_conversation_gaps_open_key` is UNIQUE on
--- (account_id, dedupe_key) WHERE status = 'open', and the dedupe key is
--- built from the kind. The moment two open rows for one contact both
--- become 'untracked_conversation' they collide, so the duplicates have
--- to be stood down BEFORE the survivors are renamed.
+-- Order matters here, in TWO ways, and getting either wrong aborts the
+-- whole migration:
+--
+--   1. The CHECK constraint has to come DOWN before the new value goes
+--      IN. 'untracked_conversation' is not in the old list, so the
+--      rename fails against it — and the new list cannot simply be
+--      added first either, because ADD CONSTRAINT validates the rows
+--      that are still holding 'no_deal'. Drop, rewrite, re-add.
+--   2. `idx_conversation_gaps_open_key` is UNIQUE on
+--      (account_id, dedupe_key) WHERE status = 'open', and the dedupe
+--      key is built from the kind. The moment two open rows for one
+--      contact both become 'untracked_conversation' they collide, so
+--      the duplicates have to be stood down BEFORE the rename.
 -- ============================================================
 
--- ── 1. Stand down the duplicates ─────────────────────────────
+-- ── 1. Take the constraint down ──────────────────────────────
+ALTER TABLE conversation_gaps DROP CONSTRAINT IF EXISTS conversation_gaps_kind_check;
+
+-- ── 2. Stand down the duplicates ─────────────────────────────
 -- Per (account, subject), keep the row a reader would have acted on
 -- first — highest severity, then most recent — and dismiss the rest.
 -- Dismissed rather than deleted: these rows are the evidence that the
@@ -45,7 +55,7 @@ SET status = 'dismissed',
 FROM ranked r
 WHERE g.id = r.id AND r.rank > 1;
 
--- ── 2. Rename the survivors ──────────────────────────────────
+-- ── 3. Rename the survivors ──────────────────────────────────
 -- The dedupe key has to move with the kind, or tomorrow's sweep builds
 -- 'untracked_conversation:<subject>', matches nothing, and opens a
 -- second row for a gap that is already sitting there.
@@ -55,8 +65,7 @@ SET kind = 'untracked_conversation',
       split_part(dedupe_key, ':', 2)
 WHERE kind IN ('no_deal', 'missing_next_step');
 
--- ── 3. Swap the constraint ───────────────────────────────────
-ALTER TABLE conversation_gaps DROP CONSTRAINT IF EXISTS conversation_gaps_kind_check;
+-- ── 4. Put it back, narrowed to the surviving kinds ──────────
 ALTER TABLE conversation_gaps ADD CONSTRAINT conversation_gaps_kind_check
   CHECK (kind IN (
     'unanswered_question',
