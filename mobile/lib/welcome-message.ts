@@ -13,7 +13,7 @@ import { showcaseBaseUrl } from '@/lib/share-message';
 import { fetchShowcaseSubdomain } from '@/lib/showcase-settings';
 import { supabase } from '@/lib/supabase';
 import type { Contact, Property } from '@/lib/types';
-import { resolveRequirementSource } from '@shared/lib/requirements/profiles';
+import { resolveRequirementSource } from '@/lib/requirements-profile';
 
 interface WelcomeLinkInput {
   contact: Contact;

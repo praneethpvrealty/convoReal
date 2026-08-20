@@ -53,7 +53,7 @@ import { storagePublicUrl } from '@/lib/storage-url';
 import { cleanPhoneInput, formatBudgetRange, formatInr } from '@/lib/format';
 import { friendlyError } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
-import { resolveRequirementSource } from '@/lib/requirements/profiles';
+import { resolveRequirementSource } from '@/lib/requirements-profile';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
 import {

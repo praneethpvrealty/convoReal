@@ -61,7 +61,7 @@ import { friendlyError } from '@/lib/errors';
 import { chatListTime, cleanPhoneInput, formatBudgetRange } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
 import { openContactChat } from '@/lib/open-chat';
-import { resolveRequirementSource } from '@/lib/requirements/profiles';
+import { resolveRequirementSource } from '@/lib/requirements-profile';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
 import {

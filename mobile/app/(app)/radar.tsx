@@ -34,7 +34,7 @@ import {
 } from '@/lib/radar';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import { usePullRefresh } from '@/lib/use-pull-refresh';
-import { resolveRequirementSource } from '@/lib/requirements/profiles';
+import { resolveRequirementSource } from '@/lib/requirements-profile';
 import type { Contact, MatchEvent } from '@shared/types';
 
 /**
