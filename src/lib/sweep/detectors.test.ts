@@ -302,3 +302,55 @@ describe('detectGaps', () => {
     expect(gaps).toEqual([]);
   });
 });
+
+describe('evidence provenance', () => {
+  // The first production run evidenced "X has been sent nothing" with
+  // our OWN property-update digest — a quote that says nothing about the
+  // client and argues against the gap.
+  const outboundLast = [
+    msg('customer', 'looking for a 3bhk in hebbal', 8),
+    msg(
+      'agent',
+      '📊 Your Property Update — here is the latest buyer activity',
+      2
+    ),
+  ];
+
+  it('quotes the client, not our own outbound blast', () => {
+    const gap = detectUnmatchedRequirement(thread(outboundLast), {
+      ...QUIET,
+      hasStatedRequirement: true,
+    });
+    expect(gap?.evidence).toBe('looking for a 3bhk in hebbal');
+  });
+
+  it('quotes the client for no_deal too', () => {
+    const gap = detectNoDeal(
+      thread([
+        msg('customer', 'budget is around 2 cr', 8),
+        msg('agent', 'sure', 7),
+        msg('customer', 'send me options in hebbal', 6),
+        msg('agent', '📊 Your Property Update — latest buyer activity', 2),
+      ]),
+      { ...QUIET, hasStatedRequirement: true }
+    );
+    expect(gap?.evidence).toBe('send me options in hebbal');
+  });
+
+  it('falls back to our own line when the client has said nothing', () => {
+    // Outbound-only threads still deserve evidence rather than silence.
+    const gap = detectMissingNextStep(
+      thread(
+        [
+          msg('agent', 'sending the plan over', 8),
+          msg('agent', 'call you at 4', 7),
+          msg('agent', 'following up on this', 6),
+          msg('agent', 'let me know your thoughts', 5),
+        ],
+        { channel: 'personal_whatsapp' }
+      ),
+      QUIET
+    );
+    expect(gap?.evidence).toBe('let me know your thoughts');
+  });
+});

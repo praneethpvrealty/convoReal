@@ -121,3 +121,49 @@ describe('worthAnalyzing', () => {
     ).toBe(true);
   });
 });
+
+describe('outbound listing labelling', () => {
+  it('marks a listing we sent so it cannot read as the buyer asking for it', () => {
+    // The exact shape that gave a contact a 65 Cr budget, a 9 BHK
+    // minimum and an 8,000 sq.ft floor on the first production run.
+    const out = renderTranscript(
+      thread([
+        msg('customer', 'looking for something in south bangalore', 0),
+        msg(
+          'agent',
+          'Property: 9 BHK Residential House | 80x100 Plot Details: ₹65 Cr · 8,000 Sq.Ft',
+          1
+        ),
+      ])
+    );
+    expect(out).toContain("listing we sent — NOT the client's requirement");
+    // The client's own line stays a plain CLIENT line.
+    expect(out).toContain('CLIENT: looking for something in south bangalore');
+    expect(out.split('\n')[0]).not.toContain('listing we sent');
+  });
+
+  it('leaves an ordinary agent reply unmarked', () => {
+    const out = renderTranscript(
+      thread([
+        msg('customer', 'is it available?', 0),
+        msg('agent', 'yes, when would you like to visit?', 1),
+      ])
+    );
+    expect(out).not.toContain('listing we sent');
+  });
+
+  it('never marks a client line, however it reads', () => {
+    // A buyer quoting specs back at us is still the buyer talking.
+    const out = renderTranscript(
+      thread([
+        msg(
+          'customer',
+          'I need a 4 BHK around ₹3 Cr with 2,400 Sq.Ft carpet area please',
+          0
+        ),
+        msg('customer', 'anything in that range?', 1),
+      ])
+    );
+    expect(out).not.toContain('listing we sent');
+  });
+});

@@ -14,6 +14,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
+  dispositionForSource,
   fieldPolicy,
   guardedListValue,
   normalizeValue,
@@ -80,7 +81,11 @@ export function prepareFacts(
   facts: FactCandidate[],
   /** The sentence these were read out of. Removals from an
    *  auto-applied list need it; without one, none are allowed. */
-  evidence = ''
+  evidence = '',
+  /** Which learner produced these. Decides apply-vs-propose together
+   *  with the field policy — see `dispositionForSource`. Defaults to the
+   *  in-the-moment agent path, which is the historical behaviour. */
+  source: LearnedFactSource = 'agent_reply'
 ): PreparedFact[] {
   const seen = new Set<string>();
   const out: PreparedFact[] = [];
@@ -90,11 +95,13 @@ export function prepareFacts(
     const policy = fieldPolicy(entity, fact.field);
     if (!policy) continue;
 
+    const disposition = dispositionForSource(policy, source);
+
     // A fact whose apply is not a column write can never be 'auto':
     // the auto path issues one UPDATE, and silently dropping such a
     // field from it would audit a change that never happened.
     const applyAs = policy.applyAs ?? 'column';
-    if (applyAs !== 'column' && policy.disposition === 'auto') continue;
+    if (applyAs !== 'column' && disposition === 'auto') continue;
 
     const normalized = normalizeValue(policy, fact.value);
     if (normalized === null) continue;
@@ -109,7 +116,7 @@ export function prepareFacts(
     // those before they land, so a wrong deletion is caught.
     const value =
       policy.kind === 'list' &&
-      policy.disposition === 'auto' &&
+      disposition === 'auto' &&
       Array.isArray(normalized)
         ? guardedListValue(previous, normalized as string[], evidence)
         : normalized;
@@ -122,7 +129,7 @@ export function prepareFacts(
       column: policy.column,
       value,
       previous,
-      disposition: policy.disposition,
+      disposition,
     });
   }
 
@@ -140,7 +147,13 @@ export async function recordLearnedFacts(
   const empty: RecordFactsResult = { applied: [], proposed: [] };
 
   try {
-    const prepared = prepareFacts(args.entity, args.current, args.facts, args.evidence);
+    const prepared = prepareFacts(
+      args.entity,
+      args.current,
+      args.facts,
+      args.evidence,
+      args.source
+    );
     if (!prepared.length) return empty;
 
     const auto = prepared.filter((f) => f.disposition === 'auto');

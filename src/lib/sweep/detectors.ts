@@ -68,6 +68,26 @@ function quote(message: SweepMessage): string {
 }
 
 /**
+ * The line to show a reviewer, preferring something the CLIENT said.
+ *
+ * "The last message with text" is almost always our own outbound
+ * template, because that is how these threads end. The first production
+ * run proved how useless that is: a gap reading "Jyoti has told us what
+ * they want and has been sent nothing" was evidenced by our own
+ * property-update digest, which says nothing about Jyoti and argues
+ * against the gap. A gap is judged on its quote, so the quote has to be
+ * the other person.
+ *
+ * Falls back to the newest line of any kind when the client has said
+ * nothing — an outbound-only thread still deserves its evidence.
+ */
+function evidenceFor(thread: SweepThread): SweepMessage | undefined {
+  const spoken = thread.messages.filter((m) => (m.text || '').trim());
+  const fromClient = spoken.filter((m) => m.speaker === 'customer');
+  return lastOf(fromClient) ?? lastOf(spoken);
+}
+
+/**
  * A client question with no outbound message after it.
  *
  * Scans back from the end for the newest client line rather than
@@ -140,7 +160,7 @@ export function detectMissingNextStep(
     return null;
   }
 
-  const last = lastOf(spoken);
+  const last = evidenceFor(thread);
   if (!last) return null;
 
   const who = thread.contactName || 'This client';
@@ -165,7 +185,7 @@ export function detectNoDeal(
   if (spoken.length < MIN_THREAD_FOR_NEXT_STEP) return null;
   if (!ctx.hasStatedRequirement) return null;
 
-  const last = lastOf(spoken);
+  const last = evidenceFor(thread);
   if (!last) return null;
 
   const who = thread.contactName || 'This client';
@@ -221,7 +241,7 @@ export function detectUnmatchedRequirement(
 ): DetectedGap | null {
   if (!ctx.hasStatedRequirement || ctx.hasSharedAnyProperty) return null;
 
-  const last = lastOf(thread.messages.filter((m) => (m.text || '').trim()));
+  const last = evidenceFor(thread);
   if (!last) return null;
 
   const who = thread.contactName || 'This client';

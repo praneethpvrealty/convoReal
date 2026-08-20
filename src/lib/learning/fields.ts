@@ -33,7 +33,13 @@ export type LearnedFactSource =
    *  the sentence that had just been typed. */
   | 'daily_sweep';
 
-export type ValueKind = 'currency' | 'rate' | 'count' | 'percent' | 'boolean' | 'list';
+export type ValueKind =
+  | 'currency'
+  | 'rate'
+  | 'count'
+  | 'percent'
+  | 'boolean'
+  | 'list';
 
 /**
  * How an approved fact reaches the record. Most are a column write.
@@ -261,6 +267,53 @@ export function dispositionFor(
   return fieldPolicy(entity, field)?.disposition ?? null;
 }
 
+/**
+ * Numeric kinds carry a number that silently rewrites who a contact
+ * matches. A wrong list member over-matches and someone sees a bad
+ * suggestion; a wrong budget UNDER-matches and nobody sees anything.
+ */
+const NUMERIC_KINDS: ReadonlySet<ValueKind> = new Set([
+  'currency',
+  'rate',
+  'count',
+  'percent',
+]);
+
+/**
+ * The disposition a field gets when the fact came from a particular
+ * learner.
+ *
+ * The registry's own disposition is the rule, with exactly one
+ * exception: numbers read by the daily sweep are always proposed, never
+ * applied. The four in-the-moment learners read the sentence that was
+ * just typed, so "my budget is 2cr" is unambiguous and the qualification
+ * ladder needs it back immediately. The sweep reads a whole thread the
+ * next morning, and a thread contains BOTH what the buyer said and the
+ * listings we sent them — which look identical once they are lines of
+ * text.
+ *
+ * That is not hypothetical. On the sweep's first production run a
+ * contact was given a 65 Cr budget, a 9 BHK minimum and an 8,000 sq.ft
+ * floor read straight off a listing that had been shared with him, and
+ * another had a real 10 Cr budget overwritten with 1 Cr. Both applied
+ * silently, because the field policy said `auto` and the only thing
+ * standing between the model and the column was a prompt telling it not
+ * to. A prompt is not an enforcement mechanism; this is.
+ *
+ * Lists keep their own disposition. A list re-extraction is guarded by
+ * `guardedListValue`, which needs the evidence to NAME what it drops, so
+ * the failure mode there is an extra area rather than a lost one.
+ */
+export function dispositionForSource(
+  policy: FieldPolicy,
+  source: LearnedFactSource
+): Disposition {
+  if (source === 'daily_sweep' && NUMERIC_KINDS.has(policy.kind)) {
+    return 'propose';
+  }
+  return policy.disposition;
+}
+
 /** Every field a learner may target for this entity. */
 export function learnableFields(entity: LearnedEntity): string[] {
   return POLICIES.filter((p) => p.entity === entity).map((p) => p.field);
@@ -386,7 +439,8 @@ export function formatValue(policy: FieldPolicy, value: unknown): string {
   const num = Number(value);
   if (!Number.isFinite(num)) return String(value);
   if (policy.kind === 'currency') return '₹' + num.toLocaleString('en-IN');
-  if (policy.kind === 'rate') return '₹' + num.toLocaleString('en-IN') + '/sq.ft.';
+  if (policy.kind === 'rate')
+    return '₹' + num.toLocaleString('en-IN') + '/sq.ft.';
   if (policy.kind === 'percent') return `${num}%`;
   return String(num);
 }

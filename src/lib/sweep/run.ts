@@ -34,6 +34,7 @@ import {
   threadKey,
 } from './collect';
 import { detectGaps } from './detectors';
+import { worthAnalyzing } from './transcript';
 import { persistGaps } from './gaps';
 import { sendSweepDigest, type DigestGap } from './digest';
 import { boundaryHasPassed, sweepWindow } from './window';
@@ -314,6 +315,14 @@ export async function sweepAccount(
 
     for (const thread of threads) {
       if (analyzed >= MAX_ANALYZED_PER_ACCOUNT || outOfCredits) break;
+
+      // The free gate, BEFORE the burn. A thread with nothing said in
+      // it — a run of outbound listing blasts, a single template
+      // nobody answered — has no language to read, and paying to read
+      // it is how the first production run spent 42 credits on 14
+      // threads and came back with a buyer's budget copied off a
+      // listing we had sent him.
+      if (!worthAnalyzing(thread)) continue;
 
       const burn = await burnCredits(
         accountId,

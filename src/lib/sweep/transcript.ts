@@ -29,6 +29,32 @@ const SPEAKER_LABEL: Record<SweepMessage['speaker'], string> = {
   bot: 'BOT',
 };
 
+/**
+ * Our own outbound listing material, which must not be read as
+ * something the buyer asked for.
+ *
+ * A shared listing arrives in the thread as a block of specs — "9 BHK
+ * Residential House · ₹65 Cr · 8,000 Sq.Ft" — and once it is a line of
+ * text it looks exactly like a buyer stating a requirement. On the
+ * sweep's first production run a contact was given all three of those
+ * as his own preferences. The prompt already said not to; labelling the
+ * line is the difference between telling the model and showing it.
+ *
+ * The real guarantee is that sweep numerics no longer auto-apply
+ * (`dispositionForSource`). This is the cheap half that stops the
+ * mistake being made, rather than only stopping it being written.
+ */
+const OUTBOUND_LISTING_MARKERS =
+  /(Details:|Sq\.?Ft|sq\.?ft|BHK|₹|Your Property Update|buyer activity|I wanted to share|here are the complete details|check-in on your)/i;
+
+function isOutboundListing(message: SweepMessage): boolean {
+  if (message.speaker === 'customer') return false;
+  if (message.contentType === 'template') return true;
+  const text = message.text || '';
+  if (text.length < 60) return false;
+  return OUTBOUND_LISTING_MARKERS.test(text);
+}
+
 /** Media with no caption says nothing a language model can read, but
  *  its PRESENCE is evidence — "sent the floor plan" is answered by an
  *  image at 4:02pm. So it becomes a marker rather than disappearing. */
@@ -67,7 +93,10 @@ export function renderTranscript(
     const message = thread.messages[i];
     const body = renderText(message);
     if (!body) continue;
-    const line = `[${stampFor(message.createdAt)}] ${SPEAKER_LABEL[message.speaker]}: ${body}`;
+    const label = isOutboundListing(message)
+      ? `${SPEAKER_LABEL[message.speaker]} (listing we sent — NOT the client's requirement)`
+      : SPEAKER_LABEL[message.speaker];
+    const line = `[${stampFor(message.createdAt)}] ${label}: ${body}`;
     if (used + line.length > budget) break;
     used += line.length + 1;
     lines.push(line);
