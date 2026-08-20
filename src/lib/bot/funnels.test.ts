@@ -8,6 +8,7 @@ import {
 } from './funnel';
 import {
   AGENT_INTENT,
+  listingTypeForShowcaseIntent,
   RENT_INTENT,
   SHOWCASE_AFTER_MATCH,
   SHOWCASE_FUNNEL,
@@ -107,6 +108,30 @@ describe('every funnel', () => {
           expect(known, `${funnel.id}.${s.id} → ${target}`).toBe(true);
         }
       }
+    }
+  });
+});
+
+describe('listingTypeForShowcaseIntent', () => {
+  it('maps the buyer-side chips onto the matching engine vocabulary', () => {
+    expect(listingTypeForShowcaseIntent('Buying')).toBe('Sale');
+    expect(listingTypeForShowcaseIntent('Investing')).toBe('Sale');
+    expect(listingTypeForShowcaseIntent(RENT_INTENT)).toBe('Rent');
+  });
+
+  it('maps the agent chip and an unanswered step to nothing', () => {
+    expect(listingTypeForShowcaseIntent(AGENT_INTENT)).toBeNull();
+    expect(listingTypeForShowcaseIntent(null)).toBeNull();
+    expect(listingTypeForShowcaseIntent('')).toBeNull();
+  });
+
+  // Every buyer-side chip must resolve, or the funnel grows an option
+  // that silently reaches the matcher as no intent at all.
+  it('covers every chip on the intent step', () => {
+    const step = funnelStep(SHOWCASE_FUNNEL, 'intent');
+    for (const chip of step?.chips ?? []) {
+      if (chip === AGENT_INTENT) continue;
+      expect(listingTypeForShowcaseIntent(chip), chip).not.toBeNull();
     }
   });
 });
