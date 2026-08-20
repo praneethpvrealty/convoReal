@@ -1315,8 +1315,8 @@ function ContactEditor({
                   }}
                   style={{
                     borderWidth: 1,
-                    borderColor: selected ? colors.accent : colors.border,
-                    backgroundColor: selected ? colors.accentSoft : colors.surface,
+                    borderColor: selected ? colors.primary : colors.border,
+                    backgroundColor: selected ? colors.primarySoft : colors.surface,
                     borderRadius: 10,
                     paddingHorizontal: spacing.lg,
                     paddingVertical: spacing.sm,
@@ -1324,7 +1324,7 @@ function ContactEditor({
                 >
                   <Text
                     style={{
-                      color: selected ? colors.accent : colors.text,
+                      color: selected ? colors.primary : colors.text,
                       fontWeight: '700',
                     }}
                   >
