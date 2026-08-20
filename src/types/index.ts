@@ -151,6 +151,8 @@ export interface Contact {
   phone: string | null;
   secondary_phones?: string[];
   name?: string;
+  /** Client-facing honorific. Explicitly selected; never inferred from a name. */
+  salutation?: 'Mr.' | 'Mrs.' | null;
   /** Second name (surname) — with `name` forms the per-account unique
    *  full name (migration 166). Never included in outbound messages,
    *  which address the contact by `name` alone. */
