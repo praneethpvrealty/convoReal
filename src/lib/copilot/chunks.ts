@@ -212,6 +212,22 @@ export const CHUNKS: KnowledgeChunk[] = [
     keywords: ['matches', 'suggestions', 'buyer match'],
   },
   {
+    id: 'gaps.overview',
+    route: '/gaps',
+    title: 'Conversation gaps',
+    kind: 'page',
+    body: 'What yesterday’s WhatsApp dropped. Every morning at 6am the Engine reads back over the last day of conversations — your team’s and your own — and lists client questions nobody answered, things you promised and did not send, and buyers being worked with no deal or next step. It never messages anyone; you mark each one done or dismiss it.',
+    keywords: [
+      'gaps',
+      'missed',
+      'dropped',
+      'unanswered',
+      'follow up',
+      'sweep',
+      'chhoot gaya',
+    ],
+  },
+  {
     id: 'pulse.overview',
     route: '/pulse',
     title: 'Pulse',

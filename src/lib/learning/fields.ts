@@ -25,7 +25,13 @@ export type LearnedFactSource =
   | 'agent_reply'
   | 'lead_message'
   | 'owner_reply'
-  | 'portal_sync';
+  | 'portal_sync'
+  /** The next-morning read-back over a whole thread (src/lib/sweep/),
+   *  as opposed to the four above, which all fire behind a single
+   *  message. Worth telling apart in a review queue: a fact inferred
+   *  from a conversation deserves more scepticism than one read out of
+   *  the sentence that had just been typed. */
+  | 'daily_sweep';
 
 export type ValueKind = 'currency' | 'rate' | 'count' | 'percent' | 'boolean' | 'list';
 

@@ -50,6 +50,11 @@ export const MENU_LINKS = {
     icon: 'analytics-outline',
     label: 'Showcase Pulse',
   },
+  gaps: {
+    href: '/(app)/gaps',
+    icon: 'alert-circle-outline',
+    label: 'Conversation gaps',
+  },
   automations: {
     href: '/(app)/automations',
     icon: 'git-branch-outline',
@@ -92,7 +97,7 @@ export const MENU_ROUTE_IDS = Object.keys(MENU_LINKS) as MenuRouteId[];
 export const MENU_SECTIONS: { title: string; ids: readonly MenuRouteId[] }[] = [
   {
     title: 'Daily work',
-    ids: ['focus', 'deals', 'radar', 'journey', 'dashboard'],
+    ids: ['focus', 'gaps', 'deals', 'radar', 'journey', 'dashboard'],
   },
   {
     title: 'Marketing',

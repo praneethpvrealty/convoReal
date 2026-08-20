@@ -43,6 +43,10 @@
       "schedule": "*/30 * * * *"
     },
     {
+      "path": "/api/cron/conversation-sweep",
+      "schedule": "*/30 * * * *"
+    },
+    {
       "path": "/api/cron/lead-sync-reconcile",
       "schedule": "10 * * * *"
     },
