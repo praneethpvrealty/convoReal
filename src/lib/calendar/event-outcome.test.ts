@@ -26,6 +26,11 @@ describe('parseEventOutcome', () => {
       'Met him this morning',
       'Went well, they liked the layout',
       'Call done, will revert',
+      'Called',
+      'Called Naveen',
+      'Called him, he was busy',
+      'Spoke to advocate',
+      'Talked with client',
     ]) {
       expect(parseEventOutcome(text)?.status, text).toBe('completed');
     }

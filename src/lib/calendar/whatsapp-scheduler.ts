@@ -22,6 +22,8 @@ import {
   resolveByName,
   istLocalToUtcIso,
   type ParsedEventDraft,
+  type CandidateScheduleItem,
+  type ParsedSchedulingResult,
 } from '@/lib/calendar/event-parse';
 import { recordBotTarget } from '@/lib/whatsapp/bot-message-target';
 import { parseEventOutcome } from '@/lib/calendar/event-outcome';
@@ -667,6 +669,7 @@ export interface OwnerSchedulingParams {
     id: string;
     type: string;
     audio?: { id: string; mime_type: string };
+    context?: { id: string };
   };
   /** Set only by the classifier route in chatbot-engine, which has
    *  already decided this image is a scheduling request and downloaded
@@ -684,8 +687,8 @@ export interface OwnerSchedulingParams {
 
 /**
  * Returns true when the message was fully handled as a scheduling
- * interaction (event created, agenda sent, or a scheduling-specific
- * error reply sent). Returns false to let the intake flows proceed.
+ * interaction (event created, outcome recorded, agenda sent, or a
+ * scheduling-specific error reply sent). Returns false to let the intake flows proceed.
  */
 export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): Promise<boolean> {
   const { message, image, contentText, contactRecord, conversation, accountId, userId, accessToken, phoneNumberId } = params;
@@ -806,7 +809,26 @@ export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): P
     return false;
   }
 
-  if (!isAudio && !isImage && (!text || !looksLikeSchedulingText(text))) {
+  // If quoting a message (e.g. morning digest or reminder card), fetch the quoted text
+  let quotedContext: string | undefined;
+  if (message.context?.id) {
+    const { data: qMsg } = await admin
+      .from('messages')
+      .select('content_text')
+      .eq('conversation_id', conversation.id)
+      .eq('message_id', message.context.id)
+      .maybeSingle();
+    if (qMsg?.content_text) {
+      quotedContext = qMsg.content_text;
+    }
+  }
+
+  const isSchedulingOrOutcome =
+    looksLikeSchedulingText(text) ||
+    !!quotedContext ||
+    /\b(called(?!\s+off)|spoke\s+(to|with)|talked\s+(to|with)|visited|met\s+(him|her|them|the|[a-z]+)|done|completed|cancel|postpone|reschedule)\b/i.test(text);
+
+  if (!isAudio && !isImage && (!text || !isSchedulingOrOutcome)) {
     return false;
   }
 
@@ -826,15 +848,50 @@ export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): P
     return true;
   }
 
-  const [{ data: members }, { data: contacts }] = await Promise.all([
+  const assignmentFilterId = String(userId).replace(/[\\"]/g, '\\$&');
+  const [{ data: members }, { data: contacts }, { data: openAppts }, { data: openTodos }] = await Promise.all([
     admin.from('profiles').select('user_id, full_name').eq('account_id', accountId),
     admin
       .from('contacts')
       .select('id, name, phone, last_inquired_property_id')
       .eq('account_id', accountId),
+    admin
+      .from('appointments')
+      .select('id, title, event_type, start_time, location, contact:contacts(name)')
+      .eq('account_id', accountId)
+      .eq('status', 'scheduled')
+      .or(`assigned_to.eq."${assignmentFilterId}",and(assigned_to.is.null,user_id.eq."${assignmentFilterId}")`)
+      .gte('start_time', new Date(Date.now() - 48 * 3600_000).toISOString())
+      .lt('start_time', new Date(Date.now() + 48 * 3600_000).toISOString())
+      .order('start_time', { ascending: true }),
+    admin
+      .from('todos')
+      .select('id, title, priority, due_date')
+      .eq('account_id', accountId)
+      .eq('completed', false)
+      .or(`assigned_to.eq."${assignmentFilterId}",and(assigned_to.is.null,user_id.eq."${assignmentFilterId}")`)
+      .order('due_date', { ascending: true, nullsFirst: false }),
   ]);
   const memberNames = (members || []).map((m) => m.full_name).filter(Boolean) as string[];
   const contactNames = (contacts || []).map((contact) => contact.name).filter(Boolean) as string[];
+
+  const candidateItems: CandidateScheduleItem[] = [
+    ...(openAppts || []).map((a) => ({
+      id: a.id as string,
+      type: 'appointment' as const,
+      title: a.title as string,
+      event_type: (a.event_type as string) || null,
+      start_time: a.start_time as string,
+      contact_name: (a.contact as unknown as { name: string | null } | null)?.name || null,
+      location: (a.location as string) || null,
+    })),
+    ...(openTodos || []).map((t) => ({
+      id: t.id as string,
+      type: 'todo' as const,
+      title: t.title as string,
+      due_date: (t.due_date as string) || null,
+    })),
+  ];
 
   let drafts: ParsedEventDraft[];
   try {
@@ -845,6 +902,8 @@ export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): P
         audio: { base64: buffer.toString('base64'), mimeType: mimeType || message.audio!.mime_type || 'audio/ogg' },
         memberNames,
         contactNames,
+        quotedContext,
+        candidateItems,
       });
     } else if (isImage) {
       drafts = await parseEventsFromInput({
@@ -852,12 +911,16 @@ export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): P
         text: text || undefined,
         memberNames,
         contactNames,
+        quotedContext,
+        candidateItems,
       });
     } else {
       drafts = await parseEventsFromInput({
         text,
         memberNames,
         contactNames,
+        quotedContext,
+        candidateItems,
       });
     }
   } catch (err) {
@@ -875,10 +938,137 @@ export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): P
     return false;
   }
 
-  // Not an event. When the words are already in hand this falls through
-  // to listing and contact intake — a spoken listing is still a listing —
-  // and only a caller that gave us raw audio gets the dead end.
-  if (drafts.length === 0) {
+  const fullResult = (drafts as unknown as { _fullResult?: ParsedSchedulingResult })?._fullResult;
+  const completedItems = fullResult?.completedItems || [];
+  const updatedItems = fullResult?.updatedItems || [];
+
+  const completedBlocks: string[][] = [];
+  const updatedBlocks: string[][] = [];
+  const affectedRows: CreatedRow[] = [];
+
+  // 1. Process completed/cancelled items
+  for (const comp of completedItems) {
+    if (comp.type === 'appointment') {
+      const targetAppt = (openAppts || []).find((a) => a.id === comp.id);
+      const { error: compErr } = await admin
+        .from('appointments')
+        .update({
+          status: comp.status,
+          ...(comp.status === 'completed' ? { outcome: comp.outcome || text } : {}),
+        })
+        .eq('id', comp.id)
+        .eq('account_id', accountId);
+      if (!compErr) {
+        affectedRows.push({ type: 'appointment', id: comp.id });
+        const emoji = EVENT_TYPE_EMOJI[targetAppt?.event_type || 'other'] || '🗓';
+        const headline =
+          comp.status === 'completed' ? '✅ *Marked done on your calendar*' : '🚫 *Cancelled on your calendar*';
+        completedBlocks.push(
+          [
+            headline,
+            `${emoji} ${targetAppt?.title || comp.title || 'Appointment'}`,
+            comp.status === 'completed' && (comp.outcome || text) ? `📝 ${comp.outcome || text}` : null,
+          ].filter((l): l is string => l !== null)
+        );
+      }
+    } else if (comp.type === 'todo') {
+      const targetTodo = (openTodos || []).find((t) => t.id === comp.id);
+      const { error: todoErr } = await admin
+        .from('todos')
+        .update({ completed: true })
+        .eq('id', comp.id)
+        .eq('account_id', accountId);
+      if (!todoErr) {
+        affectedRows.push({ type: 'todo', id: comp.id });
+        completedBlocks.push(
+          [
+            '✅ *Task marked done*',
+            `📝 ${targetTodo?.title || comp.title || 'Task'}`,
+            comp.outcome && comp.outcome !== 'Done' ? `💬 ${comp.outcome}` : null,
+          ].filter((l): l is string => l !== null)
+        );
+      }
+    }
+  }
+
+  // 2. Process updated/rescheduled items
+  for (const upd of updatedItems) {
+    if (upd.type === 'appointment' && upd.start_time) {
+      const startIso = istLocalToUtcIso(upd.start_time);
+      if (startIso) {
+        const targetAppt = (openAppts || []).find((a) => a.id === upd.id);
+        const { error: updErr } = await admin
+          .from('appointments')
+          .update({
+            start_time: startIso,
+            end_time: startIso,
+            reminder_morning_sent: false,
+            reminder_1h_sent: false,
+            agent_reminder_sent: false,
+            reschedule_requested_at: null,
+            client_confirmed_at: null,
+          })
+          .eq('id', upd.id)
+          .eq('account_id', accountId);
+        if (!updErr) {
+          affectedRows.push({ type: 'appointment', id: upd.id });
+          const emoji = EVENT_TYPE_EMOJI[targetAppt?.event_type || 'other'] || '🗓';
+          updatedBlocks.push([
+            '✏️ *Updated on your calendar*',
+            `${emoji} ${targetAppt?.title || upd.title || 'Appointment'}`,
+            `🕐 ${whenLabel(startIso)}`,
+          ]);
+        }
+      }
+    } else if (upd.type === 'todo' && (upd.due_date || upd.start_time)) {
+      const dueIso = istLocalToUtcIso((upd.due_date || upd.start_time) ?? null);
+      if (dueIso) {
+        const targetTodo = (openTodos || []).find((t) => t.id === upd.id);
+        const { error: todoErr } = await admin
+          .from('todos')
+          .update({ due_date: dueIso })
+          .eq('id', upd.id)
+          .eq('account_id', accountId);
+        if (!todoErr) {
+          affectedRows.push({ type: 'todo', id: upd.id });
+          updatedBlocks.push([
+            '✏️ *Task updated*',
+            `📝 ${targetTodo?.title || upd.title || 'Task'}`,
+            `🕐 Due ${whenLabel(dueIso)}`,
+          ]);
+        }
+      }
+    }
+  }
+  const filed: FiledDraft[] = [];
+  if (drafts.length > 0) {
+    const [{ data: properties }, { data: liaisons }] = await Promise.all([
+      admin.from('properties').select('id, title, property_code, location, sublocality').eq('account_id', accountId),
+      drafts.some((d) => d.service_provider_role)
+        ? admin.from('liaisons').select('id, name, phone').eq('account_id', accountId).eq('is_active', true)
+        : Promise.resolve({ data: [] as { id: string; name: string; phone: string | null }[] }),
+    ]);
+
+    const ctx: DraftFilingContext = {
+      admin,
+      accountId,
+      userId,
+      conversationId: conversation.id,
+      contacts: (contacts || []) as SchedulerContact[],
+      properties: (properties || []) as SchedulerProperty[],
+      liaisons: (liaisons || []) as SchedulerLiaison[],
+      members: (members || []) as SchedulerMember[],
+      source: isAudio ? 'voice' : 'whatsapp',
+      fallbackTranscript: text || null,
+    };
+
+    for (const draft of drafts) {
+      filed.push(await fileDraft(draft, ctx));
+    }
+  }
+
+  // If nothing was created, completed, or updated:
+  if (completedBlocks.length === 0 && updatedBlocks.length === 0 && filed.length === 0) {
     if (needsAudioParse) {
       await replyAndLog({
         phoneNumberId,
@@ -892,43 +1082,9 @@ export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): P
     return false;
   }
 
-  // Resolve references against tenant data. Liaisons are fetched only
-  // when the model flagged a professional role — a meeting with a buyer
-  // never needs the directory.
-  const [{ data: properties }, { data: liaisons }] = await Promise.all([
-    admin.from('properties').select('id, title, property_code, location, sublocality').eq('account_id', accountId),
-    drafts.some((d) => d.service_provider_role)
-      ? admin.from('liaisons').select('id, name, phone').eq('account_id', accountId).eq('is_active', true)
-      : Promise.resolve({ data: [] as { id: string; name: string; phone: string | null }[] }),
-  ]);
-
-  const ctx: DraftFilingContext = {
-    admin,
-    accountId,
-    userId,
-    conversationId: conversation.id,
-    contacts: (contacts || []) as SchedulerContact[],
-    properties: (properties || []) as SchedulerProperty[],
-    liaisons: (liaisons || []) as SchedulerLiaison[],
-    members: (members || []) as SchedulerMember[],
-    source: isAudio ? 'voice' : 'whatsapp',
-    // `text` is the transcript when the words were spoken and the message
-    // itself when typed — either way it is what the event was read from,
-    // and dropping it left voice-created events with no record of what
-    // was actually said.
-    fallbackTranscript: text || null,
-  };
-
-  // One block per request, filed in the order they were spoken. A failure
-  // on one is reported in its own block instead of aborting the rest —
-  // losing the second job because the first one's insert failed is how a
-  // dictated pair of instructions half-disappears.
-  const filed: FiledDraft[] = [];
-  for (const draft of drafts) {
-    filed.push(await fileDraft(draft, ctx));
-  }
-
   const confirmation = [
+    ...completedBlocks.flatMap((b) => [...b, '']),
+    ...updatedBlocks.flatMap((b) => [...b, '']),
     ...filed.flatMap((f) => [...f.lines, '']),
     '_Reply *today* anytime to see your day\'s schedule._',
   ].join('\n');
@@ -940,12 +1096,11 @@ export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): P
     conversationId: conversation.id,
     text: confirmation,
   });
-  // Lets a quote-reply on this card edit the row instead of creating a
-  // second one (migration 185). Only when the card announced exactly one
-  // row — against a card carrying three, "move it to Monday" names no
-  // particular one, so a correction is better off becoming a fresh event
-  // than silently rewriting whichever we happened to register.
-  const createdRows = filed.map((f) => f.row).filter((c): c is CreatedRow => c !== null);
+
+  const createdRows = [
+    ...affectedRows,
+    ...filed.map((f) => f.row).filter((c): c is CreatedRow => c !== null),
+  ];
   if (createdRows.length === 1) {
     await recordBotTarget({
       accountId,

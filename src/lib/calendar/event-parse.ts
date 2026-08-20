@@ -236,14 +236,140 @@ export function alignDraftToNamedWeekday(
   };
 }
 
-function buildSystemPrompt(now: Date, memberNames: string[], contactNames: string[]): string {
+export interface CandidateScheduleItem {
+  id: string;
+  type: 'appointment' | 'todo';
+  title: string;
+  event_type?: string | null;
+  start_time?: string | null;
+  due_date?: string | null;
+  contact_name?: string | null;
+  counterparty_name?: string | null;
+  location?: string | null;
+}
+
+export interface ParsedCompletedItem {
+  id: string;
+  type: 'appointment' | 'todo';
+  title?: string;
+  status: 'completed' | 'cancelled';
+  outcome: string;
+}
+
+export interface ParsedUpdatedItem {
+  id: string;
+  type: 'appointment' | 'todo';
+  start_time?: string | null;
+  due_date?: string | null;
+  day_of_week?: string | null;
+  title?: string;
+}
+
+export interface ParsedSchedulingResult {
+  drafts: ParsedEventDraft[];
+  completedItems: ParsedCompletedItem[];
+  updatedItems: ParsedUpdatedItem[];
+  transcript: string | null;
+}
+
+export function coerceCompletedItems(raw: unknown): ParsedCompletedItem[] {
+  const envelope = (raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {}) as Record<string, unknown>;
+  const list = Array.isArray(envelope.completed_items) ? envelope.completed_items : [];
+  const result: ParsedCompletedItem[] = [];
+  for (const item of list) {
+    const obj = (item && typeof item === 'object' ? item : {}) as Record<string, unknown>;
+    const id = typeof obj.id === 'string' ? obj.id.trim() : '';
+    if (!id) continue;
+    const type: 'appointment' | 'todo' = obj.type === 'todo' ? 'todo' : 'appointment';
+    const status: 'completed' | 'cancelled' = obj.status === 'cancelled' ? 'cancelled' : 'completed';
+    const outcome = typeof obj.outcome === 'string' ? obj.outcome.trim() : '';
+    const title = typeof obj.title === 'string' ? obj.title.trim() : undefined;
+    result.push({ id, type, status, outcome, ...(title ? { title } : {}) });
+  }
+  return result;
+}
+
+export function coerceUpdatedItems(raw: unknown, now: Date = new Date()): ParsedUpdatedItem[] {
+  const envelope = (raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {}) as Record<string, unknown>;
+  const list = Array.isArray(envelope.updated_items) ? envelope.updated_items : [];
+  const result: ParsedUpdatedItem[] = [];
+  for (const item of list) {
+    const obj = (item && typeof item === 'object' ? item : {}) as Record<string, unknown>;
+    const id = typeof obj.id === 'string' ? obj.id.trim() : '';
+    if (!id) continue;
+    const type: 'appointment' | 'todo' = obj.type === 'todo' ? 'todo' : 'appointment';
+    const start_time = typeof obj.start_time === 'string' ? obj.start_time.trim() : null;
+    const due_date = typeof obj.due_date === 'string' ? obj.due_date.trim() : null;
+    const day_of_week_str = typeof obj.day_of_week === 'string' ? obj.day_of_week.trim() : null;
+    const day_of_week = day_of_week_str ? normalizeWeekday(day_of_week_str) : null;
+    const title = typeof obj.title === 'string' ? obj.title.trim() : undefined;
+
+    const res: ParsedUpdatedItem = {
+      id,
+      type,
+      start_time,
+      due_date,
+      day_of_week: day_of_week_str,
+      ...(title ? { title } : {}),
+    };
+
+    if (day_of_week !== null && (start_time || due_date)) {
+      const timeField = start_time || due_date;
+      const fakeDraft = alignDraftToNamedWeekday(
+        { ...coerceEventDraft({}), start_time: timeField, day_of_week: day_of_week_str },
+        now
+      );
+      if (start_time) res.start_time = fakeDraft.start_time;
+      if (due_date) res.due_date = fakeDraft.start_time;
+    }
+    result.push(res);
+  }
+  return result;
+}
+
+function buildSystemPrompt(
+  now: Date,
+  memberNames: string[],
+  contactNames: string[],
+  quotedContext?: string,
+  candidateItems?: CandidateScheduleItem[]
+): string {
+  let contextBlock = '';
+  if (quotedContext || (candidateItems && candidateItems.length > 0)) {
+    contextBlock = '\n\nCONTEXT (Schedule / Reminder / Quoted Message):\n';
+    if (quotedContext) {
+      contextBlock += `Quoted Message from WhatsApp:\n"""\n${quotedContext.trim()}\n"""\n\n`;
+    }
+    if (candidateItems && candidateItems.length > 0) {
+      contextBlock += 'Candidate schedule items for this agent:\n';
+      for (const item of candidateItems) {
+        const timeOrDue = item.start_time || item.due_date || '';
+        const who = [item.contact_name, item.counterparty_name].filter(Boolean).join(' · ');
+        contextBlock += `- [ID: ${item.id}] Type: ${item.type} | Title: "${item.title}"${who ? ` | Person: ${who}` : ''}${timeOrDue ? ` | Time: ${timeOrDue}` : ''}\n`;
+      }
+      contextBlock += '\n';
+    }
+    contextBlock +=
+      'Contextual Reply Rules:\n' +
+      '1. If the user reports an outcome, status, or completion on an item listed in the candidate items / quoted message (e.g. "Called", "Call done", "Spoke to him/her/advocate", "Done", "Met client", "Site visit completed", "Advocate task done", "Cancel call"):\n' +
+      '   Include it in "completed_items": [{ "id": "<candidate item id>", "type": "appointment"|"todo", "status": "completed"|"cancelled", "outcome": "<user\'s outcome sentence/notes>" }].\n' +
+      '2. If the user also schedules a follow-up action or new event/task (e.g. "now scheduled to meet him tomorrow morning", "need to meet on Friday 4pm", "collect documents on Monday"):\n' +
+      '   Include it in "requests". CRITICALLY: Resolve pronouns ("him", "her", "them", "the advocate", "the client") from the candidate item being referenced. For example, if "Call Naveen Bandary" is referenced and user says "meet him tomorrow morning", set contact_name to "Naveen Bandary" (and counterparty_name if applicable).\n' +
+      '3. If the user is rescheduling or changing the time of an existing candidate item without closing it (e.g. "move Naveen call to 4pm", "postpone to tomorrow 3pm"):\n' +
+      '   Include it in "updated_items": [{ "id": "<candidate item id>", "type": "appointment"|"todo", "start_time": "YYYY-MM-DDTHH:mm", "day_of_week": "<weekday or null>" }].\n\n';
+  }
+
   return (
     'You are the scheduling assistant inside a sales platform used by Indian real-estate agents. ' +
     `The user logs calendar events and tasks by typing or speaking (${INPUT_LANGUAGE_HINT}). ` +
     `Current date/time in India (IST): ${nowInIst(now)}.\n\n` +
     'From the given text or audio, extract EVERY separate thing the speaker wants done, as JSON:\n' +
-    '{ "transcript": when the input is audio, the verbatim transcript translated to English; null for text input,\n' +
-    '  "requests": [ ...one object per thing asked for, in the order spoken... ] }\n\n' +
+    '{\n' +
+    '  "transcript": when the input is audio, the verbatim transcript translated to English; null for text input,\n' +
+    '  "completed_items": [ ...array of completed/cancelled candidate items as specified in contextual rules... ],\n' +
+    '  "updated_items": [ ...array of rescheduled candidate items as specified in contextual rules... ],\n' +
+    '  "requests": [ ...one object per new thing asked for, in the order spoken... ]\n' +
+    '}\n\n' +
     'Each object in "requests" has exactly these keys:\n' +
     '{\n' +
     '  "intent": "schedule" (has a specific date/time to be on a calendar) | "task" (a to-do, possibly with just a due date) | "notify" (the speaker wants a TEAM MEMBER TOLD something — "send Sharan the update on the Kusumaraju meeting", "let Priya know the site visit is off") | "none" (not a request at all),\n' +
@@ -269,6 +395,7 @@ function buildSystemPrompt(now: Date, memberNames: string[], contactNames: strin
     (contactNames.length > 0
       ? `Client/contact names for contact matching: ${contactNames.join(', ')}.\n`
       : '') +
+    contextBlock +
     'Splitting: one entry per thing the speaker wants done, and NEVER more. One event keeps all of its own ' +
     'detail together — "site visit with Varun tomorrow 4pm at the JP Nagar plot" is ONE request, not one per ' +
     'person, time and place. Split only when the actions are genuinely separate and could be done by different ' +
@@ -313,19 +440,33 @@ export interface EventParseInput {
   memberNames?: string[];
   contactNames?: string[];
   now?: Date;
+  quotedContext?: string;
+  candidateItems?: CandidateScheduleItem[];
 }
 
 /**
- * Every request the input carries, in the order they were spoken.
- *
- * One voice note is routinely two jobs — "tell Sharan what happened, and
- * remind me to chase it next week" — and returning the first one silently
- * dropped the rest. Only the WhatsApp owner path consumes the full array
- * today; parseEventFromInput below keeps the single-draft contract for the
- * callers whose UI shows exactly one card.
+ * Parses full scheduling interaction including outcome reports on candidate items,
+ * reschedules, and newly created drafts.
  */
 export async function parseEventsFromInput(input: EventParseInput): Promise<ParsedEventDraft[]> {
-  return (await runEventParse(input)).drafts;
+  const res = await runEventParse(input);
+  const drafts = res.drafts;
+  Object.defineProperty(drafts, '_fullResult', { value: res, enumerable: false, configurable: true });
+  return drafts;
+}
+
+export async function parseSchedulingInteraction(
+  input: EventParseInput
+): Promise<ParsedSchedulingResult> {
+  const drafts = await parseEventsFromInput(input);
+  const full = (drafts as unknown as { _fullResult?: ParsedSchedulingResult })?._fullResult;
+  if (full) return full;
+  return {
+    drafts: drafts || [],
+    completedItems: (drafts as unknown as { completedItems?: ParsedCompletedItem[] })?.completedItems || [],
+    updatedItems: (drafts as unknown as { updatedItems?: ParsedUpdatedItem[] })?.updatedItems || [],
+    transcript: drafts?.[0]?.transcript || null,
+  };
 }
 
 /**
@@ -340,7 +481,12 @@ export async function parseEventFromInput(input: EventParseInput): Promise<Parse
 
 async function runEventParse(
   input: EventParseInput
-): Promise<{ drafts: ParsedEventDraft[]; transcript: string | null }> {
+): Promise<{
+  drafts: ParsedEventDraft[];
+  completedItems: ParsedCompletedItem[];
+  updatedItems: ParsedUpdatedItem[];
+  transcript: string | null;
+}> {
   const parts: GeminiPart[] = [];
   if (input.audio) {
     const mimeType = input.audio.mimeType.split(';')[0].trim() || 'audio/ogg';
@@ -364,7 +510,13 @@ async function runEventParse(
   // over, so both stay on the standard tier.
   const raw = await generateJsonFromParts(
     parts,
-    buildSystemPrompt(input.now || new Date(), input.memberNames || [], input.contactNames || []),
+    buildSystemPrompt(
+      input.now || new Date(),
+      input.memberNames || [],
+      input.contactNames || [],
+      input.quotedContext,
+      input.candidateItems
+    ),
     input.audio
       ? { feature: 'voice_event_parse' }
       : input.image
@@ -381,11 +533,16 @@ async function runEventParse(
   }
   const now = input.now || new Date();
   const drafts = coerceEventDrafts(parsed);
+  const completedItems = coerceCompletedItems(parsed);
+  const updatedItems = coerceUpdatedItems(parsed, now);
+
   return {
     // Weekday arithmetic is the one part of the extraction the model gets
     // wrong often enough to matter, so it is redone here deterministically
     // for every input path — typed, spoken and screenshotted alike.
     drafts: drafts.map((draft) => alignDraftToNamedWeekday(draft, now)),
+    completedItems,
+    updatedItems,
     transcript: drafts[0]?.transcript || readTranscript(parsed),
   };
 }
