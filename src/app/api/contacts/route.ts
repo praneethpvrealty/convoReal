@@ -26,7 +26,7 @@ export async function POST(request: Request) {
     }
 
     const {
-      name, second_name, name_tag, preferred_language, phone, secondary_phones, email, company, classification, lead_temp,
+      name, salutation, second_name, name_tag, preferred_language, phone, secondary_phones, email, company, classification, lead_temp,
       last_inquired_property_id, referrer, referrer_contact_id,
       min_budget, max_budget, no_budget, areas_of_interest, areas_of_interest_geo,
       property_interests, min_roi, source, dob, feedback_status,
@@ -53,6 +53,7 @@ export async function POST(request: Request) {
       user_id: ctx.userId,
       account_id: ctx.accountId,
       name: typeof name === 'string' ? name.trim() || null : null,
+      salutation: salutation === 'Mr.' || salutation === 'Mrs.' ? salutation : null,
       second_name: typeof second_name === 'string' ? second_name.trim() || null : null,
       name_tag: typeof name_tag === 'string' ? name_tag.trim() || null : null,
       // Null rather than 'en' when unset — the send path reads that as
