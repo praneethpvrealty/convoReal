@@ -176,7 +176,7 @@ jobs:
       - run: npm run build
 
   mobile:
-    name: Mobile lint, typecheck, test
+    name: Mobile lint, typecheck, test, bundle
     needs: changes
     if: needs.changes.outputs.mobile == 'true'
     runs-on: ubuntu-latest
@@ -204,6 +204,29 @@ jobs:
       # Pure logic only (lib/**/*.test.ts) — see mobile/vitest.config.ts.
       - name: Test
         run: npm test
+
+      # The resolver gate. Everything above resolves `@/*` and `@shared/*`
+      # through tsconfig `paths`, which map into the web `src/` tree —
+      # Metro does not. So a runtime import of a web value type-checks,
+      # lints and unit-tests clean, then dies here with "Unable to resolve
+      # module". Only `import type` survives the boundary; it is erased.
+      #
+      # That gap is not hypothetical: #658 shipped exactly this and broke
+      # the OTA on every push to main until #664, because `expo export`
+      # ran only in the EAS workflow — after merge, and not a required
+      # check. This is that command, moved in front of the merge.
+      #
+      # Android alone: the app has no platform-specific modules
+      # (no *.ios.*, *.android.* or *.native.* files), so a second
+      # platform would re-resolve the same graph for twice the minutes.
+      # Add ios here the day that stops being true.
+      #
+      # No EXPO_PUBLIC_* values are set on purpose. Metro inlines them as
+      # literals and never executes module code, so bundling succeeds
+      # without them (verified) — and this step is asking whether the
+      # graph RESOLVES, not whether the app is configured.
+      - name: Bundle
+        run: npx expo export --output-dir "$RUNNER_TEMP/expo-bundle" --platform android
 
 
   go-ingress:
