@@ -18,18 +18,19 @@ const {
 import { getMatchingContacts } from '@/lib/matching';
 import type { Contact, Property } from '@/types';
 
-function stubDb() {
+function stubDb(row: Record<string, unknown> | null = null) {
   const updates: { table: string; patch: unknown }[] = [];
   const db = {
     from: (table: string) => {
       const chain: Record<string, unknown> = {};
       for (const m of ['select', 'eq']) chain[m] = () => chain;
+      chain.maybeSingle = async () => ({ data: row, error: null });
       chain.update = (patch: unknown) => {
         updates.push({ table, patch });
         return chain;
       };
       (chain as { then?: unknown }).then = (r: (v: unknown) => unknown) =>
-        Promise.resolve(r({ data: null }));
+        Promise.resolve(r({ data: null, error: null }));
       return chain;
     },
   } as never;
@@ -89,6 +90,47 @@ describe('handleListingIntentReply', () => {
       replyId: 'li_both',
     });
     expect(updates[0].patch).toEqual({ pref_listing_types: ['Sale', 'Rent'] });
+  });
+
+  // The ladder reads the active brief, so a contact whose requirement
+  // lives in a profile would be asked forever if only the column moved.
+  it('answers the active requirement profile, not just the column', async () => {
+    const { db, updates } = stubDb({
+      requirements: '',
+      requirement_profiles: [
+        { id: 'p1', raw_text: '3 BHK in HSR', active: true, listing_types: [] },
+        { id: 'p2', raw_text: 'Old brief', active: false, listing_types: [] },
+      ],
+    });
+    await handleListingIntentReply({
+      db,
+      accountId: 'acc',
+      contactId: 'c1',
+      replyId: 'li_rent',
+    });
+    const patch = updates[0].patch as {
+      pref_listing_types: string[];
+      requirement_profiles: { id: string; listing_types: string[] }[];
+    };
+    expect(patch.pref_listing_types).toEqual(['Rent']);
+    expect(patch.requirement_profiles[0].listing_types).toEqual(['Rent']);
+    expect(patch.requirement_profiles[1].listing_types).toEqual([]);
+  });
+
+  it('touches no profile when the contact answers out of its own text', async () => {
+    const { db, updates } = stubDb({
+      requirements: '3 BHK in HSR Layout',
+      requirement_profiles: [
+        { id: 'p1', raw_text: 'Old brief', active: true, listing_types: [] },
+      ],
+    });
+    await handleListingIntentReply({
+      db,
+      accountId: 'acc',
+      contactId: 'c1',
+      replyId: 'li_sale',
+    });
+    expect(updates[0].patch).toEqual({ pref_listing_types: ['Sale'] });
   });
 
   it('leaves an id it does not own to the other handlers', async () => {

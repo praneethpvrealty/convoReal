@@ -14,6 +14,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import type { InteractiveListSection } from '@/lib/whatsapp/meta-api';
+import { activeRequirementProfiles } from '@/lib/requirements/profiles';
+import type { Contact, ContactRequirementProfile } from '@/types';
 
 /** Every id this module owns starts with this. */
 export const LISTING_INTENT_ID_PREFIX = 'li_';
@@ -126,16 +128,47 @@ export async function handleListingIntentReply(args: {
   if (!option) return false;
 
   try {
-    await args.db
+    // The ladder reads the ACTIVE BRIEF, not the row: a contact whose
+    // requirements text is empty answers out of requirement_profiles
+    // (resolveRequirementSource). Writing only the column would leave
+    // the rung unanswered for those contacts and ask again forever.
+    const { data: contact } = await args.db
       .from('contacts')
-      .update({ pref_listing_types: option.types })
+      .select('requirements, requirement_profiles')
+      .eq('id', args.contactId)
+      .eq('account_id', args.accountId)
+      .maybeSingle();
+
+    const patch: Record<string, unknown> = {
+      pref_listing_types: option.types,
+    };
+    const profiles = (contact?.requirement_profiles ??
+      []) as ContactRequirementProfile[];
+    if (!(contact?.requirements ?? '').trim() && profiles.length > 0) {
+      const active = activeRequirementProfiles({
+        requirement_profiles: profiles,
+      } as Contact)[0];
+      if (active) {
+        patch.requirement_profiles = profiles.map((profile) =>
+          profile.id === active.id
+            ? { ...profile, listing_types: option.types }
+            : profile
+        );
+      }
+    }
+
+    const { error } = await args.db
+      .from('contacts')
+      .update(patch)
       .eq('id', args.contactId)
       .eq('account_id', args.accountId);
-    return true;
+    if (error) throw error;
   } catch (err) {
+    // The tap stays ours either way — falling through would hand an
+    // intent id to handlers that cannot make sense of it. The ladder
+    // re-asks on the next turn, which is the honest outcome of a write
+    // that did not land.
     console.error('[listing-intent] contact update failed:', err);
-    // The tap was ours; falling through would hand an intent id to
-    // handlers that cannot make sense of it.
-    return true;
   }
+  return true;
 }
