@@ -4,26 +4,23 @@ import type { Contact } from '@/types';
 
 import { attachInquiredListingTypes } from './inquired-intent';
 
-interface StubRow {
+interface IntentRow {
   contact_id: string;
-  property: { listing_type: string | null } | null;
+  listing_types: string[] | null;
 }
 
-const stubDb = (rows: StubRow[], error: { message: string } | null = null) => {
-  const calls: { filtered: boolean; ids?: string[] } = { filtered: false };
-  const result = Promise.resolve({ data: rows, error });
-  const query = {
-    select: () => query,
-    eq: () => query,
-    in: (_column: string, ids: string[]) => {
-      calls.filtered = true;
-      calls.ids = ids;
-      return query;
-    },
-    then: (...args: Parameters<typeof result.then>) => result.then(...args),
-  };
+const stubDb = (
+  rows: IntentRow[],
+  error: { message: string } | null = null
+) => {
+  const calls: { args?: Record<string, unknown> } = {};
   return {
-    db: { from: () => query } as unknown as SupabaseClient,
+    db: {
+      rpc: (_fn: string, args: Record<string, unknown>) => {
+        calls.args = args;
+        return Promise.resolve({ data: rows, error });
+      },
+    } as unknown as SupabaseClient,
     calls,
   };
 };
@@ -37,18 +34,22 @@ const contact = (id: string): Contact => ({
 });
 
 describe('attachInquiredListingTypes', () => {
-  it('collects the distinct listing types a contact enquired about', async () => {
-    const { db } = stubDb([
-      { contact_id: 'c-1', property: { listing_type: 'Sale' } },
-      { contact_id: 'c-1', property: { listing_type: 'Sale' } },
-      { contact_id: 'c-2', property: { listing_type: 'Rent' } },
+  it('collects the listing types the RPC reports per contact', async () => {
+    const { db, calls } = stubDb([
+      { contact_id: 'c-1', listing_types: ['Sale'] },
+      { contact_id: 'c-2', listing_types: ['Rent', 'Sale'] },
     ]);
     const [first, second] = await attachInquiredListingTypes(db, 'a-1', [
       contact('c-1'),
       contact('c-2'),
     ]);
     expect(first.inquired_listing_types).toEqual(['Sale']);
-    expect(second.inquired_listing_types).toEqual(['Rent']);
+    expect(second.inquired_listing_types).toEqual(['Rent', 'Sale']);
+    // The ids travel in the RPC body, so a large batch is never a long URL.
+    expect(calls.args).toEqual({
+      p_account_id: 'a-1',
+      p_contact_ids: ['c-1', 'c-2'],
+    });
   });
 
   it('leaves a contact without enquiries untouched', async () => {
@@ -69,19 +70,5 @@ describe('attachInquiredListingTypes', () => {
     ]);
     expect(only.inquired_listing_types).toBeUndefined();
     spy.mockRestore();
-  });
-
-  it('filters by contact id for a small batch and by account alone for a large one', async () => {
-    const small = stubDb([]);
-    await attachInquiredListingTypes(small.db, 'a-1', [contact('c-1')]);
-    expect(small.calls.filtered).toBe(true);
-
-    const large = stubDb([]);
-    await attachInquiredListingTypes(
-      large.db,
-      'a-1',
-      Array.from({ length: 101 }, (_, i) => contact(`c-${i}`))
-    );
-    expect(large.calls.filtered).toBe(false);
   });
 });

@@ -712,16 +712,21 @@ export function PropertyShareDialog({
               .eq('status', 'active')
               .order('name');
             if (refreshed) {
+              const hydrated = await attachInquiredListingTypes(
+                supabase,
+                accountId,
+                refreshed as unknown as Contact[]
+              );
               // Re-add pre-selected contact if it was filtered out
-              if (preSelectedContactId && !refreshed.some((c) => c.id === preSelectedContactId)) {
+              if (preSelectedContactId && !hydrated.some((c) => c.id === preSelectedContactId)) {
                 const preSelected = contactsList.find((c) => c.id === preSelectedContactId);
                 if (preSelected) {
-                  setContacts([preSelected, ...refreshed]);
+                  setContacts([preSelected, ...hydrated]);
                 } else {
-                  setContacts(refreshed);
+                  setContacts(hydrated);
                 }
               } else {
-                setContacts(refreshed);
+                setContacts(hydrated);
               }
             }
           }

@@ -16,6 +16,7 @@ import { NextResponse } from "next/server";
 
 import { withApiKeyAuth } from "@/lib/auth/api-keys";
 import { curateForBuyer, hasBuyerBrief } from "@/lib/buyer/matches-ranking";
+import { attachInquiredListingTypes } from "@/lib/contacts/inquired-intent";
 import { pageArray, parsePageParams } from "@/lib/v1/pagination";
 import {
   MATCHING_CONTACT_COLUMNS,
@@ -87,9 +88,13 @@ export const GET = withApiKeyAuth("read", async (ctx, req, routeCtx) => {
     return NextResponse.json({ error: "Failed to load properties" }, { status: 500 });
   }
 
+  const [subject] = await attachInquiredListingTypes(ctx.db, ctx.accountId, [
+    contact as unknown as Contact,
+  ]);
+
   const ranked = curateForBuyer(
     (properties ?? []) as unknown as Property[],
-    contact as unknown as Contact,
+    subject,
     minScore === null ? {} : { minScore },
   ).map((match) => ({
     property: toV1Property(match.property),

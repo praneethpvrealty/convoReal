@@ -19,6 +19,7 @@ import {
   hasBuyerBrief,
   type CuratedMatch,
 } from './matches-ranking';
+import { attachInquiredListingTypes } from '@/lib/contacts/inquired-intent';
 import {
   buildMatchDigestMessage,
   buildNoMatchesMessage,
@@ -88,7 +89,11 @@ export async function buildBuyerMatchReply(args: {
       .eq('id', args.contactId)
       .eq('account_id', args.accountId)
       .maybeSingle();
-    const contact = contactRow as Contact | null;
+    const [contact] = await attachInquiredListingTypes(
+      db,
+      args.accountId,
+      contactRow ? [contactRow as Contact] : []
+    );
     if (!contact) return null;
     const hasBrief = hasBuyerBrief(contact);
     if (!hasBrief && !contact.last_inquired_property_id) return null;

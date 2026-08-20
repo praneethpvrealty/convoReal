@@ -24,6 +24,7 @@ function dbForUnavailableEnquiry() {
   };
 
   return {
+    rpc: async () => ({ data: [], error: null }),
     from(table: keyof typeof rows) {
       const filters: Record<string, unknown> = {};
       const query = {
@@ -107,6 +108,7 @@ function dbForAvailableEnquiry(withBrief = true) {
   };
 
   return {
+    rpc: async () => ({ data: [], error: null }),
     from(table: keyof typeof rows) {
       const filters: Record<string, unknown> = {};
       const query = {

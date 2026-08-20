@@ -14,22 +14,25 @@ import type { Contact } from '@/types';
 // This module answers that one question — which listing types has this
 // contact actually enquired about — and hands the answer to
 // src/lib/matching.ts on Contact.inquired_listing_types.
+//
+// The aggregation itself runs in SQL (migration 20260820152500) so neither the
+// payload nor the work grows with the tenant's enquiry history.
 // ============================================================
 
-const CONTACT_FILTER_LIMIT = 100;
-
-interface InquiryRow {
+interface IntentRow {
   contact_id: string;
-  property: { listing_type: string | null } | null;
+  listing_types: string[] | null;
 }
 
 /**
  * Hydrate `inquired_listing_types` on contacts in place of a column.
  *
- * One query for the whole batch: the callers are per-property fan-outs
- * that would otherwise hit the table once per lead. Best-effort — a
- * failure leaves the field undefined, which matches exactly the
- * behaviour before enquiry history was consulted at all.
+ * One round trip for the whole batch: the callers are per-property
+ * fan-outs that would otherwise hit the table once per lead. The
+ * contact ids travel in the RPC body, so the batch size is not bounded
+ * by URL length. Best-effort — a failure leaves the field undefined,
+ * which matches exactly the behaviour before enquiry history was
+ * consulted at all.
  */
 export async function attachInquiredListingTypes<T extends Contact>(
   db: SupabaseClient,
@@ -38,40 +41,23 @@ export async function attachInquiredListingTypes<T extends Contact>(
 ): Promise<T[]> {
   if (contacts.length === 0) return contacts;
 
-  // A contact-id filter travels in the URL, so it is only worth applying
-  // for the narrow calls (one contact, one share dialog). A whole-account
-  // fan-out reads the account's rows instead and indexes them in memory.
-  let query = db
-    .from('contact_property_inquiries')
-    .select('contact_id, property:properties(listing_type)')
-    .eq('account_id', accountId);
-  if (contacts.length <= CONTACT_FILTER_LIMIT) {
-    query = query.in(
-      'contact_id',
-      contacts.map((c) => c.id)
-    );
-  }
-
-  const { data, error } = await query;
+  const { data, error } = await db.rpc('contacts_inquired_listing_types', {
+    p_account_id: accountId,
+    p_contact_ids: contacts.map((c) => c.id),
+  });
   if (error) {
     console.error('[inquired-intent] lookup failed:', error.message);
     return contacts;
   }
 
-  const byContact = new Map<string, Set<string>>();
-  for (const row of (data ?? []) as unknown as InquiryRow[]) {
-    const property = Array.isArray(row.property)
-      ? row.property[0]
-      : row.property;
-    const listingType = property?.listing_type;
-    if (!listingType) continue;
-    const held = byContact.get(row.contact_id);
-    if (held) held.add(listingType);
-    else byContact.set(row.contact_id, new Set([listingType]));
+  const byContact = new Map<string, string[]>();
+  for (const row of (data ?? []) as IntentRow[]) {
+    const types = (row.listing_types ?? []).filter(Boolean);
+    if (types.length > 0) byContact.set(row.contact_id, types);
   }
 
   return contacts.map((contact) => {
     const types = byContact.get(contact.id);
-    return types ? { ...contact, inquired_listing_types: [...types] } : contact;
+    return types ? { ...contact, inquired_listing_types: types } : contact;
   });
 }

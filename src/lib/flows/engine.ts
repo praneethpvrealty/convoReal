@@ -511,6 +511,7 @@ async function recordListingInterest(
       {
         contact_id: run.contact_id,
         property_id: pick.id,
+        account_id: run.account_id,
         inquiry_source: "WhatsApp Flow",
         notes: `Replied "${pick.n}" to the listings sent in chat.`,
       },
