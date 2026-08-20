@@ -9,6 +9,7 @@ import FocusContent from "./focus-content";
 import TodayPage from "../today/today-content";
 import MatchRadarPage from "../radar/radar-content";
 import PulsePage from "../pulse/pulse-content";
+import GapsContent from "../gaps/gaps-content";
 import ReengagementContent from "../reengagement/reengagement-content";
 import TeamAnalyticsContent from "./team-analytics-content";
 import MarketContent from "./market-content";
@@ -19,6 +20,7 @@ type TabId =
   | "overview"
   | "radar"
   | "pulse"
+  | "gaps"
   | "reengagement"
   | "market"
   | "team";
@@ -33,6 +35,7 @@ const BASE_TABS: { id: TabId; label: string }[] = [
   { id: "overview", label: "Overview" },
   { id: "radar", label: "Match Radar" },
   { id: "pulse", label: "Pulse" },
+  { id: "gaps", label: "Gaps" },
   { id: "reengagement", label: "Re-engagement" },
   { id: "market", label: "Market" },
 ];
@@ -67,6 +70,8 @@ export default function DashboardPage() {
         return { label: "Match Radar", href: "/dashboard?tab=radar", icon: "Radar" };
       case "pulse":
         return { label: "Pulse", href: "/dashboard?tab=pulse", icon: "Activity" };
+      case "gaps":
+        return { label: "Gaps", href: "/dashboard?tab=gaps", icon: "AlertTriangle" };
       case "reengagement":
         return {
           label: "Re-engagement",
@@ -132,6 +137,7 @@ export default function DashboardPage() {
         {activeTab === "overview" && <DashboardContent />}
         {activeTab === "radar" && <MatchRadarPage />}
         {activeTab === "pulse" && <PulsePage />}
+        {activeTab === "gaps" && <GapsContent />}
         {activeTab === "reengagement" && <ReengagementContent />}
         {activeTab === "market" && <MarketContent />}
         {activeTab === "team" && <TeamAnalyticsContent />}

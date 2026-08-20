@@ -68,6 +68,7 @@ const APP_HREF: Record<string, string> = {
   '/focus': '/(app)/focus',
   '/radar': '/(app)/radar',
   '/pulse': '/(app)/pulse',
+  '/gaps': '/(app)/gaps',
   '/agents': '/(app)/agents',
   '/automations': '/(app)/automations',
 };

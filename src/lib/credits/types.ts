@@ -167,6 +167,12 @@ export const AI_FEATURE_COSTS = {
    *  note never reaches the contact — the WhatsApp-template fallback
    *  that lands instead is free, like every other reminder. */
   reminder_audio: 2,
+  /** One thread read end-to-end by the daily conversation sweep
+   *  (src/lib/sweep/). Priced above `chatbot_classify` because the
+   *  input is a whole transcript rather than one message, and below
+   *  `contact_parse` because it runs at most once per thread per day
+   *  and only on threads with something in them. */
+  conversation_sweep_thread: 3,
 } as const;
 
 export type AiFeatureKey = keyof typeof AI_FEATURE_COSTS;
