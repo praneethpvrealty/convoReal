@@ -68,6 +68,7 @@ export function ContactForm({
   const isEdit = !!contact;
 
   const [name, setName] = useState('');
+  const [salutation, setSalutation] = useState<'Mr.' | 'Mrs.' | ''>('');
   const [secondName, setSecondName] = useState('');
   const [nameTag, setNameTag] = useState('');
   const [phone, setPhone] = useState('');
@@ -197,6 +198,7 @@ export function ContactForm({
     if (open) {
       const sourceContact = contact ? resolveRequirementSource(contact) : null;
       setName(contact?.name ?? '');
+      setSalutation(contact?.salutation ?? '');
       setSecondName(contact?.second_name ?? '');
       setNameTag(contact?.name_tag ?? '');
       setPreferredLanguage(contact?.preferred_language ?? '');
@@ -380,6 +382,7 @@ export function ContactForm({
 
       const payload = {
         name: name.trim() || null,
+        salutation: salutation || null,
         second_name: secondName.trim() || null,
         name_tag: nameTag.trim() || null,
         preferred_language: preferredLanguage || null,
@@ -462,6 +465,25 @@ export function ContactForm({
         >
           <div className="flex-1 space-y-4 overflow-y-auto p-6 pt-4">
             <div className="grid grid-cols-6 gap-3">
+              <div className="col-span-6 space-y-2">
+                <Label className="text-slate-300">Title</Label>
+                <div className="flex gap-2">
+                  {(['Mr.', 'Mrs.'] as const).map((option) => (
+                    <Button
+                      key={option}
+                      type="button"
+                      variant={salutation === option ? 'default' : 'outline'}
+                      size="sm"
+                      aria-pressed={salutation === option}
+                      onClick={() =>
+                        setSalutation(salutation === option ? '' : option)
+                      }
+                    >
+                      {option}
+                    </Button>
+                  ))}
+                </div>
+              </div>
               <div className="col-span-2 space-y-2">
                 <Label htmlFor="cf-name" className="text-slate-300">
                   Name
@@ -499,9 +521,9 @@ export function ContactForm({
                 />
               </div>
               <p className="col-span-6 -mt-1 text-xs text-slate-500">
-                Messages always address the contact by Name alone — Second Name
-                and Name Tag show only inside the Engine. Name + Second Name
-                must be unique across your contacts.
+                Mr./Mrs. is used in client-facing messages. Second Name and
+                Name Tag stay inside the Engine. Name + Second Name must be
+                unique across your contacts.
               </p>
             </div>
 
