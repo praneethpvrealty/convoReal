@@ -36,6 +36,11 @@ import {
 } from '@/lib/whatsapp/customer-window'
 import { CHAIN_ONLY_BLOCKED_MESSAGE } from '@/lib/contacts/chain-only'
 import { DEAD_CONTACT_BLOCKED_MESSAGE } from '@/lib/contacts/lifecycle'
+import {
+  applyContactSalutation,
+  applySalutationToTemplateParams,
+  type ContactSalutation,
+} from '@/lib/contacts/salutation'
 
 /** Window within which an identical template to the same conversation is
  *  treated as a duplicate and skipped (double-submit / overlapping-trigger
@@ -284,6 +289,41 @@ export async function sendWhatsAppMessageAndPersist(
         targetPhone = contact.phone
       }
     }
+
+    // Apply the explicitly selected client honorific at the final outbound
+    // boundary so broadcasts, automations, inbox sends, media captions,
+    // interactive messages and templates all behave consistently.
+    const { data: addressedContact, error: addressedContactError } = await db
+      .from('contacts')
+      .select('name, salutation')
+      .eq('id', resolvedContactId)
+      .eq('account_id', accountId)
+      .maybeSingle()
+    if (addressedContactError || !addressedContact) {
+      throw new Error('Contact not found for this account')
+    }
+    const contactName =
+      typeof addressedContact.name === 'string' ? addressedContact.name : null
+    const contactSalutation =
+      addressedContact.salutation === 'Mr.' || addressedContact.salutation === 'Mrs.'
+        ? (addressedContact.salutation as ContactSalutation)
+        : null
+    args.text = applyContactSalutation(args.text, contactName, contactSalutation)
+    args.interactiveBody = applyContactSalutation(
+      args.interactiveBody,
+      contactName,
+      contactSalutation
+    )
+    args.mediaCaption = applyContactSalutation(
+      args.mediaCaption,
+      contactName,
+      contactSalutation
+    )
+    args.templateParams = applySalutationToTemplateParams(
+      args.templateParams,
+      contactName,
+      contactSalutation
+    )
 
     // 1b. Chain-only contacts belong to a re-share attribution chain,
     // not to this account's pipeline. Refused here rather than at each
