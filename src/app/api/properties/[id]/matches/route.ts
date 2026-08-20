@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import { getMatchingContacts } from '@/lib/matching';
+import { attachInquiredListingTypes } from '@/lib/contacts/inquired-intent';
 import type { Contact, Property } from '@/types';
 
 // Only the columns src/lib/matching.ts reads, plus what the caller needs
@@ -81,7 +82,11 @@ export async function GET(
 
     const results = getMatchingContacts(
       property as Property,
-      (contacts ?? []) as unknown as Contact[]
+      await attachInquiredListingTypes(
+        ctx.supabase,
+        ctx.accountId,
+        (contacts ?? []) as unknown as Contact[]
+      )
     );
 
     return NextResponse.json({

@@ -206,6 +206,77 @@ describe('getMatchingContacts', () => {
       expect(getMatchingContacts(rentFlat, [contact]).length).toBe(1);
     });
 
+    it('excludes a Rent property for a contact who has only enquired about Sale listings', () => {
+      const contact = createTestContact({
+        pref_property_types: ['Flat/ Apartment'],
+        pref_extracted_at: new Date().toISOString(),
+        inquired_listing_types: ['Sale'],
+      });
+      const rentFlat = createTestProperty({
+        type: 'Flat/ Apartment',
+        listing_type: 'Rent',
+      });
+      const saleFlat = createTestProperty({
+        type: 'Flat/ Apartment',
+        listing_type: 'Sale',
+      });
+      expect(getMatchingContacts(rentFlat, [contact]).length).toBe(0);
+      expect(getMatchingContacts(saleFlat, [contact]).length).toBe(1);
+    });
+
+    it('keeps both intents open for a contact who has enquired about Sale and Rent', () => {
+      const contact = createTestContact({
+        pref_property_types: ['Flat/ Apartment'],
+        pref_extracted_at: new Date().toISOString(),
+        inquired_listing_types: ['Sale', 'Rent'],
+      });
+      expect(
+        getMatchingContacts(
+          createTestProperty({ type: 'Flat/ Apartment', listing_type: 'Rent' }),
+          [contact]
+        ).length
+      ).toBe(1);
+      expect(
+        getMatchingContacts(
+          createTestProperty({ type: 'Flat/ Apartment', listing_type: 'Sale' }),
+          [contact]
+        ).length
+      ).toBe(1);
+    });
+
+    it('lets stated intent override enquiry history', () => {
+      const contact = createTestContact({
+        pref_property_types: ['Flat/ Apartment'],
+        pref_listing_types: ['Rent'],
+        pref_extracted_at: new Date().toISOString(),
+        inquired_listing_types: ['Sale'],
+      });
+      expect(
+        getMatchingContacts(
+          createTestProperty({ type: 'Flat/ Apartment', listing_type: 'Rent' }),
+          [contact]
+        ).length
+      ).toBe(1);
+    });
+
+    it('never derives a niche intent from enquiry history', () => {
+      const contact = createTestContact({
+        pref_property_types: ['Commercial Office Space'],
+        pref_extracted_at: new Date().toISOString(),
+        inquired_listing_types: ['JV/JD', 'Sale'],
+      });
+      const jvOffice = createTestProperty({
+        type: 'Commercial Office Space',
+        listing_type: 'JV/JD',
+      });
+      const saleOffice = createTestProperty({
+        type: 'Commercial Office Space',
+        listing_type: 'Sale',
+      });
+      expect(getMatchingContacts(jvOffice, [contact]).length).toBe(0);
+      expect(getMatchingContacts(saleOffice, [contact]).length).toBe(1);
+    });
+
     it('matches Rent budget against rent_per_month rather than price', () => {
       const contact = createTestContact({
         pref_property_types: ['Flat/ Apartment'],

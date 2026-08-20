@@ -12,6 +12,7 @@ import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import type { Contact, Property, ShowcaseSettings } from '@/types';
 import { getMatchingContacts } from '@/lib/matching';
+import { attachInquiredListingTypes } from '@/lib/contacts/inquired-intent';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -695,7 +696,11 @@ export default function InventoryPage() {
         )
         .eq('classification', 'Buyer');
       if (error) throw error;
-      return (data ?? []) as unknown as Contact[];
+      return attachInquiredListingTypes(
+        supabaseClient,
+        accountId!,
+        (data ?? []) as unknown as Contact[]
+      );
     },
     enabled: Boolean(accountId),
     staleTime: 60_000,

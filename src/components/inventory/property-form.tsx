@@ -74,6 +74,7 @@ import {
 import { haversineKm } from '@/lib/geo';
 import { extractCoordinatesFromMapUrl } from '@/lib/maps/map-links';
 import { getMatchingContacts, inMatchAudience, type MatchAudience } from '@/lib/matching';
+import { attachInquiredListingTypes } from '@/lib/contacts/inquired-intent';
 import { fetchPropertyShareLog, recordPropertyShares } from '@/lib/inventory/share-log';
 import { MatchDetailChips } from '@/components/inventory/match-detail-chips';
 import { ListingVideoCard } from '@/components/inventory/listing-video-card';
@@ -667,6 +668,7 @@ export function PropertyForm({
 
   // Fetch contacts and templates
   const fetchContacts = useCallback(async () => {
+    if (!accountId) return;
     setLoadingContacts(true);
     try {
       const { data, error } = await supabase
@@ -674,13 +676,19 @@ export function PropertyForm({
         .select('*, contact_notes(note_text)')
         .order('name');
       if (error) throw error;
-      setContacts(data || []);
+      setContacts(
+        await attachInquiredListingTypes(
+          supabase,
+          accountId,
+          (data || []) as unknown as Contact[]
+        )
+      );
     } catch (err) {
       console.error('Failed to load contacts for matching:', err);
     } finally {
       setLoadingContacts(false);
     }
-  }, [supabase]);
+  }, [supabase, accountId]);
 
   const fetchTemplates = useCallback(async () => {
     setLoadingTemplates(true);

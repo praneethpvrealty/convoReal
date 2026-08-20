@@ -22,6 +22,7 @@ import { storagePublicUrl } from '@/lib/storage/url';
 import { isLocationGuarded, localityLabel } from '@/lib/inventory/location-guard';
 import type { MaskedPropertySnapshot } from '@/lib/den/masking';
 import { buyerAdmin, type BuyerContactLink, type BuyerContext } from './auth';
+import { attachInquiredListingTypes } from '@/lib/contacts/inquired-intent';
 import {
   curateForBuyer,
   hasBuyerBrief,
@@ -97,6 +98,23 @@ async function loadLinkedContacts(
     return byId;
   }
   for (const row of (data || []) as Contact[]) byId.set(row.id, row);
+
+  // Enquiry history is per agency, so hydrate it one account at a time
+  // — a buyer linked to two brokerages holds one contact row in each.
+  const linksByAccount = new Map<string, BuyerContactLink[]>();
+  for (const link of links) {
+    const held = linksByAccount.get(link.accountId);
+    if (held) held.push(link);
+    else linksByAccount.set(link.accountId, [link]);
+  }
+  for (const [accountId, accountLinks] of linksByAccount) {
+    const rows = accountLinks
+      .map((l) => byId.get(l.contactId))
+      .filter((c): c is Contact => Boolean(c));
+    for (const row of await attachInquiredListingTypes(db, accountId, rows)) {
+      byId.set(row.id, row);
+    }
+  }
   return byId;
 }
 

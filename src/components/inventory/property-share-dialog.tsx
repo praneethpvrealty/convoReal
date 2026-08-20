@@ -43,6 +43,7 @@ import {
   Ban,
 } from 'lucide-react';
 import { getMatchingContacts, inMatchAudience, type MatchAudience, type MatchDetails } from '@/lib/matching';
+import { attachInquiredListingTypes } from '@/lib/contacts/inquired-intent';
 import { recordPropertyShares } from '@/lib/inventory/share-log';
 import { isLocationGuarded, localityLabel } from '@/lib/inventory/location-guard';
 import {
@@ -660,8 +661,12 @@ export function PropertyShareDialog({
         .eq('status', 'active')
         .order('name');
       if (error) throw error;
-      
-      let contactsList = data || [];
+
+      let contactsList = await attachInquiredListingTypes(
+        supabase,
+        accountId,
+        (data || []) as unknown as Contact[]
+      );
 
       // If a contact was pre-selected but not in the active list (e.g., pending_review),
       // fetch it separately and add it to the list

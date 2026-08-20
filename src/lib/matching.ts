@@ -165,6 +165,10 @@ function calculateHaversineDistance(
  *     /api/contacts/extract-preferences from requirements + notes).
  *  3. Light text heuristics over requirements/notes as a fallback for
  *     contacts that haven't been through extraction yet.
+ *  4. For listing intent only: the Sale/Rent mix of the listings the
+ *     contact enquired about (contact.inquired_listing_types), so a
+ *     lead who has only ever asked about sale stock is not alerted
+ *     about leases.
  */
 
 export type MatchVerdict = 'match' | 'partial' | 'unknown' | 'mismatch';
@@ -324,6 +328,27 @@ function inferListingTypesFromText(text: string): Set<ListingType> {
   );
   add('Built to Suit', /built[\s-]?to[\s-]?suit|\bbts\b/i);
   add('Rent', /\brent(al)?\b|to\s*let|\btenant\b|\blease\b/i);
+  return wanted;
+}
+
+/**
+ * Intent read from what the contact actually enquired about. A lead who
+ * has only ever asked about listings for sale is shopping to buy, and a
+ * lease landing in their alerts is noise — so their enquiry history
+ * stands in for an intent they never stated in words.
+ *
+ * Only Sale and Rent are derived. JV/JD and Built to Suit keep their
+ * hard gate: enquiring about one niche deal is not a standing brief for
+ * niche stock, and must not become one that also excludes ordinary sale
+ * listings.
+ */
+function inferListingTypesFromInquiries(
+  inquired: string[] | null | undefined
+): Set<ListingType> {
+  const wanted = new Set<ListingType>();
+  for (const type of inquired || []) {
+    if (type === 'Sale' || type === 'Rent') wanted.add(type);
+  }
   return wanted;
 }
 
@@ -688,6 +713,11 @@ function matchContactsSingleProfile(
     // location/budget fit. Sale/Rent stay soft — an unstated intent doesn't
     // exclude anyone (preserves pre-existing matching behavior), but a
     // stated contrary intent (e.g. "looking to rent") does.
+    //
+    // Stated intent wins, then the text heuristic, then the listings the
+    // contact enquired about. Enquiry history belongs to the person
+    // rather than to one brief, so it is read off the contact and not
+    // off the requirement profile.
     const wantedListingTypes = new Set<ListingType>(
       (sourceContact.pref_listing_types || []).filter((t): t is ListingType =>
         (LISTING_TYPES as string[]).includes(t)
@@ -696,6 +726,11 @@ function matchContactsSingleProfile(
     if (wantedListingTypes.size === 0 && !hasExtraction) {
       inferListingTypesFromText(combinedText).forEach((t) =>
         wantedListingTypes.add(t)
+      );
+    }
+    if (wantedListingTypes.size === 0) {
+      inferListingTypesFromInquiries(contact.inquired_listing_types).forEach(
+        (t) => wantedListingTypes.add(t)
       );
     }
     const isNicheListing = NICHE_LISTING_TYPES.includes(propertyListingType);

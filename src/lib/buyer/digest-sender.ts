@@ -42,6 +42,7 @@ import {
   accountBrandName,
 } from '@/lib/showcase/account-showcase-url';
 import { curateForBuyer, hasBuyerBrief } from './matches-ranking';
+import { attachInquiredListingTypes } from '@/lib/contacts/inquired-intent';
 import {
   buildConsentRequestMessage,
   buildMatchDigestMessage,
@@ -177,11 +178,15 @@ async function runAccount(
   // otherwise receive the same listings on the same morning, and each
   // send is a template message the account pays for.
   const parties = await loadContactParties(db, accountId);
-  const buyers = collapseToParties(
-    ((contactRows || []) as Contact[]).filter(hasBuyerBrief),
-    (c) => c.id,
-    parties
-  ).map(({ row }) => row);
+  const buyers = await attachInquiredListingTypes(
+    db,
+    accountId,
+    collapseToParties(
+      ((contactRows || []) as Contact[]).filter(hasBuyerBrief),
+      (c) => c.id,
+      parties
+    ).map(({ row }) => row)
+  );
   summary.buyers = buyers.length;
   if (buyers.length === 0) return summary;
 
