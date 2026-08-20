@@ -388,6 +388,8 @@ export default async function RootPage({ searchParams }: PageProps) {
     properties: publishedProperties,
     agents: agentContacts,
     profiles,
+    services,
+    articles,
   } = await cachedFetchShowcaseData(accountId, isAgentMode);
 
   let filteredProperties = [...publishedProperties];
@@ -527,6 +529,8 @@ export default async function RootPage({ searchParams }: PageProps) {
         visitorRef={resolvedParams.v}
         shareId={resolvedParams.s}
         shareGrantToken={shareGrant?.token}
+        services={services}
+        articles={articles}
       />
       <AuthorityLinks
         businessName={siteName}

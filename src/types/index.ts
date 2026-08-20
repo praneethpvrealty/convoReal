@@ -1498,3 +1498,28 @@ export interface ProjectUnitStats {
   min_bedrooms: number | null;
   max_bedrooms: number | null;
 }
+
+export interface AgencyService {
+  id: string;
+  account_id: string;
+  title: string;
+  description: string | null;
+  icon: string | null;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AgencyArticle {
+  id: string;
+  account_id: string;
+  title: string;
+  excerpt: string | null;
+  content: string | null;
+  image_url: string | null;
+  published_at: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}

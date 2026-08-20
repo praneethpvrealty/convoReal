@@ -344,7 +344,7 @@ export function ShowcaseLeadBot({
 
       return null;
     },
-    [showMatches, submitBuyer, submitEngineProspect, whatsappCard]
+    [showMatches, submitBuyer, submitEngineProspect, whatsappCard, showcaseUrlCard]
   );
 
   const handleQuestion = useCallback(

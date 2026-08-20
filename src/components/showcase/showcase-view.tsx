@@ -37,7 +37,7 @@ import {
   Play,
   Download,
 } from 'lucide-react';
-import type { Property, ShowcaseSettings } from '@/types';
+import type { Property, ShowcaseSettings, AgencyService, AgencyArticle } from '@/types';
 import { BRANDING } from '@/config/branding';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -51,6 +51,8 @@ import {
   PropertyRatingBar,
   HIGH_INTEREST_RATING,
 } from '@/components/showcase/property-rating-bar';
+import { ServicesSection } from '@/components/showcase/services-section';
+import { ArticlesSection } from '@/components/showcase/articles-section';
 import { readStored, removeStored, writeStored } from '@/lib/safe-storage';
 import { buildPublicBusinessProfile } from '@/lib/seo/business-profile';
 
@@ -116,6 +118,8 @@ interface ShowcaseViewProps {
    *  from the main showcase must not leak in (a stale search would zero
    *  the results), nor destination browsing leak back out. */
   disableSavedState?: boolean;
+  services?: AgencyService[];
+  articles?: AgencyArticle[];
 }
 
 /** Resolve the share-link target so the detail modal is part of the server render. */
@@ -147,7 +151,9 @@ export function ShowcaseView({
   hero,
   projectInfo,
   initialTheme,
-  disableSavedState = false
+  disableSavedState = false,
+  services = [],
+  articles = [],
 }: ShowcaseViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -1920,6 +1926,20 @@ export function ShowcaseView({
             )}
           </div>
         </div>
+
+        {/* Agency Services & Articles (only visible on main showcase, not in agent mode or destinations) */}
+        {!isAgentMode && !projectInfo && !initialCategory && (
+          <>
+            <ServicesSection 
+              services={services} 
+              engineWhatsAppPhone={engineWhatsAppPhone}
+              brandName={siteName}
+            />
+            <ArticlesSection 
+              articles={articles} 
+            />
+          </>
+        )}
       </main>
 
       {/* Footer */}
