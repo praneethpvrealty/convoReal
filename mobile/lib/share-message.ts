@@ -447,6 +447,36 @@ export function buildRevealDetails(input: {
 }
 
 /**
+ * The two single-line facts the `location_reveal` template carries.
+ * Meta rejects a parameter containing a newline, so the multi-line
+ * block `buildRevealDetails` builds cannot be sent through a template —
+ * the same facts are flattened onto two lines instead. Both are
+ * guaranteed non-empty, because Meta rejects an empty parameter.
+ */
+export function buildRevealTemplateFacts(input: {
+  property: Property;
+  currency?: string;
+}): { specs: string; address: string } {
+  const { property } = input;
+  const currency = input.currency || 'INR';
+  const specs = [
+    property.type || '',
+    property.bedrooms ? `${property.bedrooms} BHK` : '',
+    areaLine(property),
+    property.dimensions || '',
+    property.facing_direction ? `${property.facing_direction} facing` : '',
+    priceLine(property, currency),
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  const address = property.location?.trim() || locationLine(property);
+  return {
+    specs: specs || 'Full details on the link below',
+    address: address || 'Address on the link below',
+  };
+}
+
+/**
  * Multi-property "shortlist" message an agent sends into an existing
  * WhatsApp chat — a greeting, each option as a numbered compact block
  * (title · specs · price · showcase link), and a sign-off. Reuses the

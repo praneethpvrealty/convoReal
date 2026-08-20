@@ -415,6 +415,43 @@ export function buildRevealDetails(input: {
   };
 }
 
+/**
+ * The two single-line facts the `location_reveal` template carries.
+ *
+ * The template path is what delivers an approved reveal once the
+ * seeker's 24-hour window has closed, and it used to send nothing but
+ * the link. It cannot send the multi-line block `buildRevealDetails`
+ * builds: Meta rejects a parameter containing a newline, which is why
+ * `sanitizeTemplateParam` collapses whitespace. So the same facts are
+ * flattened onto two lines the template renders behind emoji labels.
+ *
+ * Both are guaranteed non-empty — Meta rejects an empty parameter —
+ * and the fallbacks are honest rather than decorative: a listing with
+ * no specs says so, and an address falls back to the locality.
+ */
+export function buildRevealTemplateFacts(input: {
+  property: Property;
+  currency?: string;
+}): { specs: string; address: string } {
+  const { property } = input;
+  const currency = input.currency || 'INR';
+  const specs = [
+    property.type || '',
+    property.bedrooms ? `${property.bedrooms} BHK` : '',
+    areaLine(property),
+    property.dimensions || '',
+    property.facing_direction ? `${property.facing_direction} facing` : '',
+    priceLine(property, currency),
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  const address = property.location?.trim() || locationLine(property);
+  return {
+    specs: specs || 'Full details on the link below',
+    address: address || 'Address on the link below',
+  };
+}
+
 // ── External share targets ──────────────────────────────────────
 // Deep links that open the target app with the message pre-filled.
 // The message already contains the property URL, so WhatsApp/SMS
