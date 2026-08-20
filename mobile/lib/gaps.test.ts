@@ -35,7 +35,7 @@ describe('sortGaps', () => {
     const sorted = sortGaps([
       gap({ id: 'low', kind: 'bot_handoff', severity: 'low' }),
       gap({ id: 'high', kind: 'unanswered_question', severity: 'high' }),
-      gap({ id: 'med', kind: 'no_deal', severity: 'medium' }),
+      gap({ id: 'med', kind: 'untracked_conversation', severity: 'medium' }),
     ]);
     expect(sorted.map((g) => g.id)).toEqual(['high', 'med', 'low']);
   });
@@ -44,13 +44,13 @@ describe('sortGaps', () => {
     const sorted = sortGaps([
       gap({
         id: 'fresh',
-        kind: 'no_deal',
+        kind: 'untracked_conversation',
         severity: 'high',
         occurrence_count: 1,
       }),
       gap({
         id: 'stale',
-        kind: 'no_deal',
+        kind: 'untracked_conversation',
         severity: 'high',
         occurrence_count: 5,
       }),
@@ -73,11 +73,11 @@ describe('countByKind', () => {
     const counts = countByKind([
       gap({ id: '1', kind: 'unanswered_question', severity: 'high' }),
       gap({ id: '2', kind: 'unanswered_question', severity: 'low' }),
-      gap({ id: '3', kind: 'no_deal', severity: 'medium' }),
+      gap({ id: '3', kind: 'untracked_conversation', severity: 'medium' }),
     ]);
     expect(counts).toEqual([
       { kind: 'unanswered_question', count: 2 },
-      { kind: 'no_deal', count: 1 },
+      { kind: 'untracked_conversation', count: 1 },
     ]);
   });
 

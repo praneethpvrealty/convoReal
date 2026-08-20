@@ -39,8 +39,7 @@ export interface DigestInput {
 const KIND_LABEL: Record<GapKind, string> = {
   unanswered_question: 'Unanswered',
   unkept_promise: 'Promised',
-  missing_next_step: 'No next step',
-  no_deal: 'Not on a pipeline',
+  untracked_conversation: 'Nothing next',
   bot_handoff: 'Bot overridden',
   unmatched_requirement: 'Nothing sent',
 };

@@ -2,8 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   detectBotHandoff,
   detectGaps,
-  detectMissingNextStep,
-  detectNoDeal,
+  detectUntrackedConversation,
   detectUnansweredQuestion,
   detectUnmatchedRequirement,
   looksLikeQuestion,
@@ -152,7 +151,7 @@ describe('detectUnansweredQuestion', () => {
   });
 });
 
-describe('detectMissingNextStep', () => {
+describe('detectUntrackedConversation', () => {
   const worked = [
     msg('customer', 'looking for a 3bhk', 8),
     msg('agent', 'sure, which area?', 7),
@@ -160,27 +159,54 @@ describe('detectMissingNextStep', () => {
     msg('agent', 'noted', 5),
   ];
 
-  it('raises a worked thread with nothing scheduled', () => {
-    expect(detectMissingNextStep(thread(worked), QUIET)?.kind).toBe(
-      'missing_next_step'
-    );
+  it('raises one gap for a live thread nothing is carrying forward', () => {
+    const gap = detectUntrackedConversation(thread(worked), QUIET);
+    expect(gap?.kind).toBe('untracked_conversation');
   });
 
-  it('stays quiet when something is already on the calendar', () => {
+  it('stays quiet when something already holds the next action', () => {
     expect(
-      detectMissingNextStep(thread(worked), {
+      detectUntrackedConversation(thread(worked), {
         ...QUIET,
         hasFutureAppointment: true,
       })
     ).toBeNull();
     expect(
-      detectMissingNextStep(thread(worked), { ...QUIET, hasOpenTodo: true })
+      detectUntrackedConversation(thread(worked), {
+        ...QUIET,
+        hasOpenTodo: true,
+      })
     ).toBeNull();
+  });
+
+  it('calls out the exposed case: stated requirement, no pipeline, nothing booked', () => {
+    const gap = detectUntrackedConversation(thread(worked), {
+      ...QUIET,
+      hasStatedRequirement: true,
+    });
+    expect(gap?.severity).toBe('medium');
+    expect(gap?.summary).toContain('on no pipeline');
+    expect(gap?.suggestedAction).toContain('pipeline');
+  });
+
+  it('says something different when a deal is already open', () => {
+    const gap = detectUntrackedConversation(thread(worked), {
+      ...QUIET,
+      hasOpenDeal: true,
+    });
+    expect(gap?.severity).toBe('medium');
+    expect(gap?.summary).toContain('open deal');
+    expect(gap?.summary).not.toContain('no pipeline');
+  });
+
+  it('is only low when there is nothing much at stake', () => {
+    const gap = detectUntrackedConversation(thread(worked), QUIET);
+    expect(gap?.severity).toBe('low');
   });
 
   it('does not treat a run of outbound blasts as a conversation', () => {
     expect(
-      detectMissingNextStep(
+      detectUntrackedConversation(
         thread([
           msg('agent', 'new listing 1', 8),
           msg('agent', 'new listing 2', 7),
@@ -191,35 +217,18 @@ describe('detectMissingNextStep', () => {
       )
     ).toBeNull();
   });
-});
 
-describe('detectNoDeal', () => {
-  const worked = [
-    msg('customer', 'looking for a plot', 8),
-    msg('agent', 'budget?', 7),
-    msg('customer', '2 cr', 6),
-    msg('agent', 'noted', 5),
-  ];
-
-  it('raises someone being worked with a stated requirement and no deal', () => {
+  it('leaves alone a contact with no deal but a visit booked', () => {
+    // The deliberate behaviour change: the old no_deal flagged this,
+    // because it only looked at pipelines. A booked visit is somebody
+    // carrying the thread forward.
     expect(
-      detectNoDeal(thread(worked), { ...QUIET, hasStatedRequirement: true })
-        ?.kind
-    ).toBe('no_deal');
-  });
-
-  it('stays quiet once they are on a pipeline', () => {
-    expect(
-      detectNoDeal(thread(worked), {
+      detectUntrackedConversation(thread(worked), {
         ...QUIET,
         hasStatedRequirement: true,
-        hasOpenDeal: true,
+        hasFutureAppointment: true,
       })
     ).toBeNull();
-  });
-
-  it('stays quiet when they have not said what they want', () => {
-    expect(detectNoDeal(thread(worked), QUIET)).toBeNull();
   });
 });
 
@@ -324,8 +333,8 @@ describe('evidence provenance', () => {
     expect(gap?.evidence).toBe('looking for a 3bhk in hebbal');
   });
 
-  it('quotes the client for no_deal too', () => {
-    const gap = detectNoDeal(
+  it('quotes the client for the untracked gap too', () => {
+    const gap = detectUntrackedConversation(
       thread([
         msg('customer', 'budget is around 2 cr', 8),
         msg('agent', 'sure', 7),
@@ -339,7 +348,7 @@ describe('evidence provenance', () => {
 
   it('falls back to our own line when the client has said nothing', () => {
     // Outbound-only threads still deserve evidence rather than silence.
-    const gap = detectMissingNextStep(
+    const gap = detectUntrackedConversation(
       thread(
         [
           msg('agent', 'sending the plan over', 8),

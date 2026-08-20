@@ -15,8 +15,7 @@
 export type GapKind =
   | 'unanswered_question'
   | 'unkept_promise'
-  | 'missing_next_step'
-  | 'no_deal'
+  | 'untracked_conversation'
   | 'bot_handoff'
   | 'unmatched_requirement';
 
@@ -40,8 +39,7 @@ export interface ConversationGap {
 export const GAP_LABEL: Record<GapKind, string> = {
   unanswered_question: 'Unanswered',
   unkept_promise: 'Promised',
-  missing_next_step: 'No next step',
-  no_deal: 'Not on a pipeline',
+  untracked_conversation: 'Nothing next',
   bot_handoff: 'Bot overridden',
   unmatched_requirement: 'Nothing sent',
 };
@@ -49,8 +47,7 @@ export const GAP_LABEL: Record<GapKind, string> = {
 export const GAP_ICON: Record<GapKind, string> = {
   unanswered_question: 'help-circle-outline',
   unkept_promise: 'send-outline',
-  missing_next_step: 'calendar-outline',
-  no_deal: 'git-branch-outline',
+  untracked_conversation: 'calendar-outline',
   bot_handoff: 'chatbubbles-outline',
   unmatched_requirement: 'sparkles-outline',
 };
