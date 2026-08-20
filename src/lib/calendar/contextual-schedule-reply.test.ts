@@ -6,26 +6,26 @@ import {
 } from './event-parse';
 import { tryHandleOwnerScheduling } from './whatsapp-scheduler';
 
-const sendTextMessage = vi.fn(async () => ({ messageId: 'wamid.sent-1' }));
-const burnCredits = vi.fn(async () => ({ success: true }));
-const recordBotTarget = vi.fn(async () => {});
+const sendTextMessage = vi.fn().mockImplementation(async () => ({ messageId: 'wamid.sent-1' }));
+const burnCredits = vi.fn().mockImplementation(async () => ({ success: true }));
+const recordBotTarget = vi.fn().mockImplementation(async () => {});
 
 let appointmentsTable: Record<string, unknown>[] = [];
 let todosTable: Record<string, unknown>[] = [];
 let messagesTable: Record<string, unknown>[] = [];
 
 vi.mock('@/lib/credits/burn', () => ({
-  burnCredits: () => burnCredits(),
+  burnCredits: (...args: unknown[]) => burnCredits(...args),
 }));
 
 vi.mock('@/lib/whatsapp/meta-api', () => ({
-  sendTextMessage: (params: { text: string }) => sendTextMessage(params),
+  sendTextMessage: (...args: unknown[]) => sendTextMessage(...args),
   getMediaUrl: vi.fn(),
   downloadMedia: vi.fn(),
 }));
 
 vi.mock('@/lib/whatsapp/bot-message-target', () => ({
-  recordBotTarget: () => recordBotTarget(),
+  recordBotTarget: (...args: unknown[]) => recordBotTarget(...args),
 }));
 
 vi.mock('@/lib/automations/admin-client', () => ({
