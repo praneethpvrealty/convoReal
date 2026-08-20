@@ -3,6 +3,7 @@ import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import {
   buildPreferenceSourceText,
   extractContactPreferences,
+  mergedListingTypes,
   preferenceSourceHash,
   EMPTY_PREFERENCES,
 } from '@/lib/ai/preference-extraction';
@@ -38,7 +39,9 @@ export async function POST(request: NextRequest) {
 
     const { data: contacts, error } = await ctx.supabase
       .from('contacts')
-      .select('id, requirements, pref_source_hash, contact_notes (note_text)')
+      .select(
+        'id, requirements, pref_source_hash, pref_listing_types, contact_notes (note_text)'
+      )
       .eq('account_id', ctx.accountId)
       .in('id', contactIds);
 
@@ -82,7 +85,10 @@ export async function POST(request: NextRequest) {
               pref_projects: prefs.projects,
               pref_suggested_tags: prefs.suggested_tags,
               pref_min_roi: prefs.min_roi,
-              pref_listing_types: prefs.listing_types,
+              pref_listing_types: mergedListingTypes(
+                prefs.listing_types,
+                contact.pref_listing_types as string[] | null
+              ),
               pref_source_hash: hash,
               pref_extracted_at: new Date().toISOString(),
             })

@@ -22,6 +22,35 @@ export const LISTING_TYPE_VALUES = ['Sale', 'Rent', 'JV/JD', 'Built to Suit'] as
 
 export type ListingType = (typeof LISTING_TYPE_VALUES)[number];
 
+/** Keeps only values the matcher's listing-intent gate understands.
+ *  Anything a client sends outside the vocabulary is dropped rather
+ *  than stored, where it would read as an intent nothing can satisfy. */
+export function sanitizeListingTypes(value: unknown): ListingType[] {
+  return Array.isArray(value)
+    ? value.filter((t): t is ListingType =>
+        (LISTING_TYPE_VALUES as readonly string[]).includes(t as string)
+      )
+    : [];
+}
+
+/**
+ * Buy-or-rent survives a re-extraction that has nothing to say about it.
+ *
+ * Every other pref_ column is a reading of the brief text, but intent is
+ * also answered deliberately — an agent picking it on the contact form,
+ * a lead tapping the WhatsApp ladder, a visitor tapping the showcase
+ * assistant — and the prompt returns [] for a brief that never mentions
+ * a deal type. Writing that empty result back would erase the answer on
+ * the next inbound message. An extraction that DOES read an intent still
+ * wins: the text is the newer statement.
+ */
+export function mergedListingTypes(
+  extracted: readonly string[],
+  stored: readonly string[] | null | undefined
+): string[] {
+  return extracted.length > 0 ? [...extracted] : [...(stored ?? [])];
+}
+
 export interface ExtractedPreferences {
   property_types: string[];
   property_categories: PropertyCategory[];

@@ -17,6 +17,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   buildPreferenceSourceText,
   extractContactPreferences,
+  mergedListingTypes,
   preferenceSourceHash,
 } from '@/lib/ai/preference-extraction';
 import { burnCredits } from '@/lib/credits/burn';
@@ -39,7 +40,9 @@ export async function syncContactPreferences(
   try {
     const { data: contact } = await db
       .from('contacts')
-      .select('id, requirements, pref_source_hash, contact_notes (note_text)')
+      .select(
+        'id, requirements, pref_source_hash, pref_listing_types, contact_notes (note_text)',
+      )
       .eq('id', contactId)
       .eq('account_id', accountId)
       .maybeSingle();
@@ -77,7 +80,10 @@ export async function syncContactPreferences(
         pref_projects: prefs.projects,
         pref_suggested_tags: prefs.suggested_tags,
         pref_min_roi: prefs.min_roi,
-        pref_listing_types: prefs.listing_types,
+        pref_listing_types: mergedListingTypes(
+          prefs.listing_types,
+          contact.pref_listing_types as string[] | null,
+        ),
         pref_source_hash: hash,
         pref_extracted_at: new Date().toISOString(),
       })
