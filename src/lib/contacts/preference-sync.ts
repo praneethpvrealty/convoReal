@@ -17,6 +17,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   buildPreferenceSourceText,
   extractContactPreferences,
+  mergedListingTypes,
   preferenceSourceHash,
 } from '@/lib/ai/preference-extraction';
 import { burnCredits } from '@/lib/credits/burn';
@@ -79,15 +80,10 @@ export async function syncContactPreferences(
         pref_projects: prefs.projects,
         pref_suggested_tags: prefs.suggested_tags,
         pref_min_roi: prefs.min_roi,
-        // Buy-or-rent is answered deliberately — an agent picking it
-        // on the contact form, or a lead tapping the ladder's list —
-        // and extraction returns [] for a brief that simply does not
-        // mention it. Writing that back would erase a stated intent
-        // every time the lead sends another message.
-        pref_listing_types:
-          prefs.listing_types.length > 0
-            ? prefs.listing_types
-            : ((contact.pref_listing_types as string[] | null) ?? []),
+        pref_listing_types: mergedListingTypes(
+          prefs.listing_types,
+          contact.pref_listing_types as string[] | null,
+        ),
         pref_source_hash: hash,
         pref_extracted_at: new Date().toISOString(),
       })
