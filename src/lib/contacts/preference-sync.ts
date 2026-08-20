@@ -39,7 +39,9 @@ export async function syncContactPreferences(
   try {
     const { data: contact } = await db
       .from('contacts')
-      .select('id, requirements, pref_source_hash, contact_notes (note_text)')
+      .select(
+        'id, requirements, pref_source_hash, pref_listing_types, contact_notes (note_text)',
+      )
       .eq('id', contactId)
       .eq('account_id', accountId)
       .maybeSingle();
@@ -77,7 +79,15 @@ export async function syncContactPreferences(
         pref_projects: prefs.projects,
         pref_suggested_tags: prefs.suggested_tags,
         pref_min_roi: prefs.min_roi,
-        pref_listing_types: prefs.listing_types,
+        // Buy-or-rent is answered deliberately — an agent picking it
+        // on the contact form, or a lead tapping the ladder's list —
+        // and extraction returns [] for a brief that simply does not
+        // mention it. Writing that back would erase a stated intent
+        // every time the lead sends another message.
+        pref_listing_types:
+          prefs.listing_types.length > 0
+            ? prefs.listing_types
+            : ((contact.pref_listing_types as string[] | null) ?? []),
         pref_source_hash: hash,
         pref_extracted_at: new Date().toISOString(),
       })

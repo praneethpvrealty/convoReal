@@ -920,3 +920,45 @@ describe("mobile/lib/i18n.ts mirrors the web catalogue's copilot slice", () => {
     }
   });
 });
+
+describe('the contact form offers the same buy-or-rent choices on both surfaces', () => {
+  // The matcher gates hard on contacts.pref_listing_types, so a value
+  // one surface can write and the other cannot read back — or a label
+  // that means something different — silently hides half the inventory
+  // from the contact.
+  const mobile = mobileSource('app/(app)/contact/[id].tsx');
+  const web = readFileSync(
+    join(process.cwd(), 'src/components/contacts/contact-form.tsx'),
+    'utf8'
+  );
+
+  it('writes the same vocabulary from both editors', () => {
+    const mobileBlock = mobile.slice(
+      mobile.indexOf('const LISTING_INTENT_OPTIONS'),
+      mobile.indexOf('type UpdateChannelValue')
+    );
+    const mobileValues = Array.from(
+      mobileBlock.matchAll(/value: \[([^\]]*)\]/g)
+    ).map((m) => stringLiterals(m[1]).join(','));
+
+    const webBlock = web.slice(
+      web.indexOf('id="cf-listing-intent"'),
+      web.indexOf('{/* Budget Fields */}')
+    );
+    const webValues = Array.from(
+      webBlock.matchAll(/<option value="([^"]*)"/g)
+    )
+      .map((m) => m[1])
+      .filter(Boolean);
+
+    expect(mobileValues).toEqual(['Sale', 'Rent', 'Sale,Rent']);
+    expect(webValues).toEqual(mobileValues);
+  });
+
+  it('lets both surfaces clear the answer back to unstated', () => {
+    // Unset must stay reachable: it is the honest value for a contact
+    // nobody has asked, and the matcher treats it as "no gate".
+    expect(web).toContain('<option value="">Not stated</option>');
+    expect(mobile).toContain('setListingTypes(active ? [] : opt.value)');
+  });
+});

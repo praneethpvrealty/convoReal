@@ -39,6 +39,41 @@ describe('syncContactPreferences', () => {
     expect(db.update).toHaveBeenCalled();
   });
 
+  it('keeps a stated buy-or-rent intent the extraction has nothing to say about', async () => {
+    // The agent picked it on the contact form, or the lead tapped the
+    // ladder's list. A later message that never mentions renting must
+    // not blank it.
+    const db = dbReturning({
+      id: 'c1',
+      requirements: 'Budget 35 to 45k, Rt Nagar',
+      pref_source_hash: null,
+      pref_listing_types: ['Rent'],
+      contact_notes: [],
+    });
+    await syncContactPreferences(db as never, 'acc', 'c1');
+    expect(db.update.mock.calls[0][0]).toMatchObject({
+      pref_listing_types: ['Rent'],
+    });
+  });
+
+  it('lets the extraction correct a stated intent when the text does say so', async () => {
+    extractContactPreferences.mockResolvedValue({
+      ...EMPTY_PREFERENCES,
+      listing_types: ['Sale'],
+    });
+    const db = dbReturning({
+      id: 'c1',
+      requirements: 'Actually we want to purchase now',
+      pref_source_hash: null,
+      pref_listing_types: ['Rent'],
+      contact_notes: [],
+    });
+    await syncContactPreferences(db as never, 'acc', 'c1');
+    expect(db.update.mock.calls[0][0]).toMatchObject({
+      pref_listing_types: ['Sale'],
+    });
+  });
+
   it('skips the AI call when the source text has not changed', async () => {
     const { buildPreferenceSourceText, preferenceSourceHash } = await import('@/lib/ai/preference-extraction');
     const requirements = 'Budget 35 to 45k, Rt Nagar';
