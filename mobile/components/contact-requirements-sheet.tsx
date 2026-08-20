@@ -11,7 +11,7 @@ import { haptic } from '@/lib/haptics';
 import { openContactChat } from '@/lib/open-chat';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import type { Contact, ContactRequirementProfile } from '@/lib/types';
-import { resolveRequirementSource } from '@shared/lib/requirements/profiles';
+import { resolveRequirementSource } from '@/lib/requirements-profile';
 
 interface RequirementResult {
   data: {
