@@ -277,6 +277,39 @@ describe('getMatchingContacts', () => {
       expect(getMatchingContacts(saleOffice, [contact]).length).toBe(1);
     });
 
+    it('does not impose a sale-scale floor on rent for an Either lead', () => {
+      // The ladder asks a "show me both" lead for a SALE budget, so
+      // halving it into a monthly-rent floor would exclude every
+      // rental and turn Either into sale-only.
+      const contact = createTestContact({
+        pref_property_types: ['Flat/ Apartment'],
+        pref_listing_types: ['Sale', 'Rent'],
+        pref_budget_max: 10_000_000,
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const rentFlat = createTestProperty({
+        type: 'Flat/ Apartment',
+        listing_type: 'Rent',
+        rent_per_month: 45_000,
+      });
+      expect(getMatchingContacts(rentFlat, [contact]).length).toBe(1);
+    });
+
+    it('keeps the implied floor for a rent-only lead, whose budget is monthly', () => {
+      const contact = createTestContact({
+        pref_property_types: ['Flat/ Apartment'],
+        pref_listing_types: ['Rent'],
+        pref_budget_max: 100_000,
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const cheapRental = createTestProperty({
+        type: 'Flat/ Apartment',
+        listing_type: 'Rent',
+        rent_per_month: 20_000,
+      });
+      expect(getMatchingContacts(cheapRental, [contact]).length).toBe(0);
+    });
+
     it('matches Rent budget against rent_per_month rather than price', () => {
       const contact = createTestContact({
         pref_property_types: ['Flat/ Apartment'],

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const sendPropertyTypePrompt = vi.fn();
+const sendListingIntentPrompt = vi.fn();
 const sendBudgetBandPrompt = vi.fn();
 const sendPreferenceMatchFollowUp = vi.fn();
 const sendWhatsAppMessageAndPersist = vi.fn();
@@ -8,6 +9,11 @@ const sendWhatsAppMessageAndPersist = vi.fn();
 vi.mock('@/lib/whatsapp/property-type-prompt', () => ({
   sendPropertyTypePrompt: (...args: unknown[]) =>
     sendPropertyTypePrompt(...args),
+}));
+
+vi.mock('@/lib/whatsapp/listing-intent-prompt', () => ({
+  sendListingIntentPrompt: (...args: unknown[]) =>
+    sendListingIntentPrompt(...args),
 }));
 
 vi.mock('@/lib/whatsapp/budget-band', () => ({
@@ -71,14 +77,32 @@ describe('sendAlertsOnboarding', () => {
     expect(sendBudgetBandPrompt).not.toHaveBeenCalled();
   });
 
-  it('moves to budget bands once the type is known', async () => {
+  it('asks buy-or-rent once the type is known', async () => {
     await sendAlertsOnboarding(
       args({ id: 'c1', pref_property_types: ['Residential Land/ Plot'] })
+    );
+
+    expect(sendListingIntentPrompt).toHaveBeenCalledWith(
+      expect.objectContaining({ contactId: 'c1', includeFormRow: true })
+    );
+    expect(sendBudgetBandPrompt).not.toHaveBeenCalled();
+  });
+
+  // Intent leads the budget rung because the band list asks a renter
+  // for a monthly figure and everyone else for a sale figure.
+  it('moves to budget bands once the intent is known', async () => {
+    await sendAlertsOnboarding(
+      args({
+        id: 'c1',
+        pref_property_types: ['Residential Land/ Plot'],
+        pref_listing_types: ['Sale'],
+      })
     );
 
     expect(sendBudgetBandPrompt).toHaveBeenCalledWith(
       expect.objectContaining({ contactId: 'c1', includeFormRow: true })
     );
+    expect(sendListingIntentPrompt).not.toHaveBeenCalled();
     expect(sendPropertyTypePrompt).not.toHaveBeenCalled();
   });
 
@@ -89,6 +113,7 @@ describe('sendAlertsOnboarding', () => {
       args({
         id: 'c1',
         pref_property_types: ['Residential Land/ Plot'],
+        pref_listing_types: ['Sale'],
         no_budget: true,
       })
     );
@@ -105,6 +130,7 @@ describe('sendAlertsOnboarding', () => {
       args({
         id: 'c1',
         pref_property_types: ['Residential Land/ Plot'],
+        pref_listing_types: ['Sale'],
         no_budget: true,
         areas_of_interest: ['Koramangala'],
       })
@@ -119,6 +145,7 @@ describe('sendAlertsOnboarding', () => {
       args({
         id: 'c1',
         pref_property_types: ['Commercial Land'],
+        pref_listing_types: ['Sale'],
         pref_budget_max: 67000000,
         pref_areas: ['Koramangala'],
       })
@@ -136,6 +163,7 @@ describe('sendAlertsOnboarding', () => {
       ...args({
         id: 'c1',
         pref_property_types: ['Commercial Land'],
+        pref_listing_types: ['Sale'],
         pref_budget_min: 50_000_000,
       }),
       acknowledgement:
@@ -156,6 +184,7 @@ describe('sendAlertsOnboarding', () => {
       ...args({
         id: 'c1',
         pref_property_types: ['Commercial Land'],
+        pref_listing_types: ['Sale'],
         pref_budget_min: 50_000_000,
         pref_areas: ['HSR Layout'],
       }),
@@ -183,6 +212,7 @@ describe('sendAlertsOnboarding', () => {
         args({
           id: 'c1',
           pref_property_types: ['Commercial Land'],
+          pref_listing_types: ['Sale'],
           pref_budget_max: 1,
           pref_areas: ['HSR'],
         })

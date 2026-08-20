@@ -24,9 +24,15 @@ vi.mock('@/lib/whatsapp/listing-feedback', () => ({
 }));
 
 const sendBudgetBandPrompt = vi.fn();
+const sendListingIntentPrompt = vi.fn();
 
 vi.mock('@/lib/whatsapp/budget-band', () => ({
   sendBudgetBandPrompt: (...args: unknown[]) => sendBudgetBandPrompt(...args),
+}));
+
+vi.mock('@/lib/whatsapp/listing-intent-prompt', () => ({
+  sendListingIntentPrompt: (...args: unknown[]) =>
+    sendListingIntentPrompt(...args),
 }));
 
 const { sendPreferenceTapReply, buildPreferenceTapReply } =
@@ -124,6 +130,7 @@ const contactRow = {
   id: 'c1',
   name: 'Sanjuali',
   pref_property_types: ['Commercial Land'],
+  pref_listing_types: ['Sale'],
   pref_areas: ['Koramangala'],
   contact_notes: [
     {
@@ -253,6 +260,27 @@ describe('sendPreferenceTapReply', () => {
     expect(sendBudgetBandPrompt).toHaveBeenCalledWith(
       expect.objectContaining({ contactId: 'c1', includeFormRow: true })
     );
+  });
+
+  it('offers the buy-or-rent list when intent is the missing rung', async () => {
+    // Same treatment as the band list one rung below: a lead with
+    // nothing to judge answers with a tap, not by typing.
+    rankPropertiesForContact.mockResolvedValue([]);
+    sendListingIntentPrompt.mockResolvedValue(true);
+
+    const result = await sendPreferenceTapReply(
+      args({ ...contactRow, pref_listing_types: [] })
+    );
+
+    expect(result.formOffered).toBe(true);
+    const { text } = sendWhatsAppMessageAndPersist.mock.calls[0][0] as {
+      text: string;
+    };
+    expect(text).toContain('buying or renting? Pick below');
+    expect(sendListingIntentPrompt).toHaveBeenCalledWith(
+      expect.objectContaining({ contactId: 'c1', includeFormRow: true })
+    );
+    expect(sendBudgetBandPrompt).not.toHaveBeenCalled();
   });
 
   it('keeps the typed budget question when listings occupy the interactive slot', async () => {
