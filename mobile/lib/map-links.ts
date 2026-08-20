@@ -1,9 +1,7 @@
 /**
- * Pure parsing of Google Maps links and coordinate pairs — no network,
- * no API key, no server-only imports, so the property form can read a
- * pasted pin in the browser exactly the way the intake pipeline reads
- * one on the server (see `resolve-location.ts`, which builds the
- * geocoding on top of these).
+ * Mirror of the pin half of `src/lib/maps/map-links.ts` — the same
+ * pure resolution, so a property's map pin is the same place on the
+ * app, on the showcase, and in the WhatsApp message the Engine sends.
  */
 
 export interface Coordinates {
@@ -105,34 +103,6 @@ export function extractCoordinatesFromMapUrl(url: string): Coordinates | null {
   }
 
   return null;
-}
-
-const MAP_LINK_RE =
-  /https?:\/\/(?:maps\.app\.goo\.gl\/\S+|goo\.gl\/maps\/\S+|maps\.google\.[a-z.]{2,6}\/\S*|(?:[a-z0-9-]+\.)*google\.[a-z.]{2,6}\/maps\S*)/i;
-
-/**
- * Pulls the shared map pin out of a WhatsApp message — the link in any
- * of the forms Maps hands out, or a message that is nothing but a
- * coordinate pair. Returns null when the text carries no pin at all.
- */
-export function extractMapLinkFromText(text: string | null | undefined): string | null {
-  if (!text) return null;
-  const match = text.match(MAP_LINK_RE);
-  if (match) return match[0].replace(/[.,;:!?)\]]+$/, "");
-  const coords = parseCoordinatePair(text);
-  return coords ? googleMapsUrlForCoordinates(coords.latitude, coords.longitude) : null;
-}
-
-/** Reads the place name embedded in a canonical `/maps/place/<name>` URL. */
-export function extractPlaceNameFromMapUrl(url: string): string | null {
-  const placeMatch = url.match(/\/maps\/place\/([^/@?]+)/);
-  if (!placeMatch) return null;
-  const placeName = decodeURIComponent(placeMatch[1].replace(/\+/g, " ")).trim();
-  // Guard against a bare coordinate pair, a plus code, or an empty
-  // segment slipping through as a "place name".
-  if (!placeName || parseCoordinatePair(placeName)) return null;
-  if (/^[23456789CFGHJMPQRVWX]{4,}\+[23456789CFGHJMPQRVWX]{2,}/.test(placeName)) return null;
-  return placeName;
 }
 
 export interface PropertyMapPinSource {

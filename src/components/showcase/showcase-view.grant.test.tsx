@@ -167,7 +167,14 @@ describe('showcase detail — granted link', () => {
     const iframe = container.querySelector('iframe[title="Property Location"]');
     expect(iframe).toBeTruthy();
     expect(iframe?.getAttribute('src')).toContain('output=embed');
-    expect(container.querySelector(`a[href="${MAP_LINK}"]`)).toBeTruthy();
+    // The embed and the link resolve from the same pin, so the iframe
+    // can never sit on a different place from the link above it.
+    expect(iframe?.getAttribute('src')).toContain('12.9348,77.6189');
+    expect(
+      container.querySelector(
+        'a[href="https://www.google.com/maps/search/?api=1&query=12.9348,77.6189"]'
+      )
+    ).toBeTruthy();
   });
 
   it('stands the masked block and its request prompt down', () => {

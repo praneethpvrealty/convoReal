@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation';
 import { supabaseAdmin } from '@/lib/automations/admin-client';
 import { propertySlug } from '@/lib/showcase/property-slug';
 import { storagePublicUrl } from '@/lib/storage/url';
-import { googleMapsUrlForCoordinates } from '@/lib/maps/map-links';
+import { propertyMapPin } from '@/lib/maps/map-links';
 import { AlertTriangle, Clock, MapPin, ExternalLink } from 'lucide-react';
 
 export const metadata: Metadata = {
@@ -97,21 +97,9 @@ export default async function RevealPage({ params }: PageProps) {
     })
     .eq('id', locRequest.id);
 
-  const mapLink =
-    property.google_map_link ||
-    (property.latitude != null && property.longitude != null
-      ? googleMapsUrlForCoordinates(
-          Number(property.latitude),
-          Number(property.longitude)
-        )
-      : null);
-  const embedSrc = mapLink
-    ? mapLink.includes('q=')
-      ? mapLink.replace(/\/+$/, '') + '&output=embed'
-      : `https://maps.google.com/maps?q=${encodeURIComponent(property.location || '')}&output=embed`
-    : property.location
-      ? `https://maps.google.com/maps?q=${encodeURIComponent(property.location)}&output=embed`
-      : null;
+  const pin = propertyMapPin(property);
+  const mapLink = pin?.mapUrl ?? null;
+  const embedSrc = pin?.embedUrl ?? null;
 
   const publicImages: string[] = Array.isArray(property.images)
     ? property.images.filter((v: string) => v?.trim()).map(storagePublicUrl)
