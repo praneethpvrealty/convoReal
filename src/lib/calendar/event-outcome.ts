@@ -26,7 +26,7 @@ export interface ParsedEventOutcome {
 
 /** It happened. */
 const COMPLETED_SIGNAL =
-  /\b(already (done|over|happened|visited|completed)|(is|was|has been|got) (done|completed|finished)|has visited|have visited|visited (the|him|her|them|it)|went (well|ahead|through|fine|ok|okay)|wrapped up|finished|completed it|met (him|her|them|the)|call (is )?done|site visit done|closed this)\b/i;
+  /\b(already (done|over|happened|visited|completed)|(is|was|has been|got) (done|completed|finished)|has visited|have visited|visited (the|him|her|them|it)|went (well|ahead|through|fine|ok|okay)|wrapped up|finished|completed it|met (him|her|them|the)|call (is )?done|site visit done|closed this|called(?!\s+off)(\s+(him|her|them|the|[a-z]+))?|spoke\s+(to|with)|talked\s+(to|with))\b/i;
 
 /**
  * The whole reply is the word. On a quote-reply to one event card a
