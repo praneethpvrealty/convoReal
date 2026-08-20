@@ -137,6 +137,21 @@ describe('simulate-chatbot — lead routing', () => {
     expect(result.previewText).toBeNull();
   });
 
+  it('previews factor prompt and records rejection for a disinterest message', async () => {
+    const result = await run('I am not interested', 'PROP-1031');
+
+    expect(result.route).toBe('property_disinterest');
+    expect(result.ladderStoodDown).toBe(true);
+    expect(result.recordsRejectionFeedback).toBe(true);
+    expect(result.promptsRejectionFactors).toBe(true);
+    expect(result.previewText).toContain(
+      '6 BHK Villa in Swiss Town, Devanahalli'
+    );
+    expect(result.previewText).toContain('Property Type');
+    expect(result.previewText).toContain('Budget / Price');
+    expect(result.previewText).toContain('reply by typing');
+  });
+
   it('charges no extraction on a carve-out', async () => {
     // Live, these routes return before the ladder pays for Gemini.
     const result = await run('please call me');

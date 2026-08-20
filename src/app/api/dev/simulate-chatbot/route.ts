@@ -14,7 +14,10 @@ import {
   backfillLocationFromMapLink,
   deriveDraftStatus,
 } from '@/lib/ai/intake-core';
-import { parseEventFromInput, istLocalToUtcIso } from '@/lib/calendar/event-parse';
+import {
+  parseEventFromInput,
+  istLocalToUtcIso,
+} from '@/lib/calendar/event-parse';
 import {
   buildQualificationReply,
   carriesRequirementSignal,
@@ -38,6 +41,7 @@ import {
   buildPropertyInterestQuestion,
   buildUnresolvedPropertyInterestAck,
 } from '@/lib/whatsapp/property-interest';
+import { buildPropertyDisinterestBody } from '@/lib/whatsapp/property-disinterest';
 import { propertyShowcaseUrl } from '@/lib/share-message-builder';
 import { accountShowcaseOrigin } from '@/lib/showcase/account-showcase-url';
 import {
@@ -48,7 +52,10 @@ import { rankProperties } from '@/lib/radar/engine';
 import type { Contact, Property } from '@/types';
 import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
 import { buildBuyerMatchReply } from '@/lib/buyer/match-reply';
-import { matchContactByExactName, type BookContact } from '@/lib/contacts/draft-match';
+import {
+  matchContactByExactName,
+  type BookContact,
+} from '@/lib/contacts/draft-match';
 
 // POST /api/dev/simulate-chatbot
 // Internal dev tool: runs the exact classify -> parse -> validate ->
@@ -90,7 +97,10 @@ export async function POST(request: Request) {
     const phone = (body?.phone || '').trim();
     if (body?.mode === 'buyer_matches') {
       if (!phone) {
-        return NextResponse.json({ error: 'Provide the buyer phone number.' }, { status: 400 });
+        return NextResponse.json(
+          { error: 'Provide the buyer phone number.' },
+          { status: 400 }
+        );
       }
       const normalized = normalizePhoneWithCountryCode(phone);
       const digits = normalized.replace(/\D/g, '');
@@ -98,11 +108,17 @@ export async function POST(request: Request) {
         .from('contacts')
         .select('id, name')
         .eq('account_id', ctx.accountId)
-        .or(`phone.eq."${phone.replace(/[\\"]/g, '\\$&')}",phone.eq.${normalized},phone.eq.${digits}`)
+        .or(
+          `phone.eq."${phone.replace(/[\\"]/g, '\\$&')}",phone.eq.${normalized},phone.eq.${digits}`
+        )
         .limit(2);
       if (!contacts || contacts.length !== 1) {
         return NextResponse.json(
-          { error: contacts?.length ? 'More than one contact has that phone.' : 'No contact has that phone.' },
+          {
+            error: contacts?.length
+              ? 'More than one contact has that phone.'
+              : 'No contact has that phone.',
+          },
           { status: 404 }
         );
       }
@@ -119,7 +135,10 @@ export async function POST(request: Request) {
     }
 
     if (!text && !imageBase64) {
-      return NextResponse.json({ error: 'Provide message text and/or an image.' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Provide message text and/or an image.' },
+        { status: 400 }
+      );
     }
 
     if (body?.mode === 'lead_reply') {
@@ -127,21 +146,34 @@ export async function POST(request: Request) {
         accountId: ctx.accountId,
         supabase: ctx.supabase,
         text,
-        priorRequirements: (body.priorRequirements || '').trim().slice(0, MAX_TEXT_LEN),
+        priorRequirements: (body.priorRequirements || '')
+          .trim()
+          .slice(0, MAX_TEXT_LEN),
         contactName: (body.contactName || '').trim() || null,
         subjectPropertyCode: (body.subjectPropertyCode || '').trim() || null,
       });
     }
 
-    const mediaBuffer = imageBase64 ? Buffer.from(imageBase64, 'base64') : undefined;
+    const mediaBuffer = imageBase64
+      ? Buffer.from(imageBase64, 'base64')
+      : undefined;
 
-    const classification = await classifyImageOrText(text, mediaBuffer, mimeType || undefined);
+    const classification = await classifyImageOrText(
+      text,
+      mediaBuffer,
+      mimeType || undefined
+    );
 
     if (classification === 'contact') {
-      let container = mediaBuffer && mimeType
-        ? await parseContactFromImageOrText(text, mediaBuffer, mimeType)
-        : await parseContactFromImageOrText(text);
-      if ((container.contacts || []).some((contact) => !(contact.phone || '').trim())) {
+      let container =
+        mediaBuffer && mimeType
+          ? await parseContactFromImageOrText(text, mediaBuffer, mimeType)
+          : await parseContactFromImageOrText(text);
+      if (
+        (container.contacts || []).some(
+          (contact) => !(contact.phone || '').trim()
+        )
+      ) {
         const { data: bookRows } = await ctx.supabase
           .from('contacts')
           .select('id, name, phone')
@@ -156,16 +188,32 @@ export async function POST(request: Request) {
           }),
         };
       }
-      const { isValid, missingFields } = validateContactDraftsContainer(container);
+      const { isValid, missingFields } =
+        validateContactDraftsContainer(container);
       const status = deriveDraftStatus(isValid);
-      const previewText = formatContactDraftsPreview('📝 *Contact Drafts (simulated)*', container, status, missingFields);
+      const previewText = formatContactDraftsPreview(
+        '📝 *Contact Drafts (simulated)*',
+        container,
+        status,
+        missingFields
+      );
 
-      return NextResponse.json({ classification, draft: container, isValid, missingFields, status, previewText });
+      return NextResponse.json({
+        classification,
+        draft: container,
+        isValid,
+        missingFields,
+        status,
+        previewText,
+      });
     }
 
     if (classification === 'schedule') {
       const draft = await parseEventFromInput({
-        image: imageBase64 && mimeType ? { base64: imageBase64, mimeType } : undefined,
+        image:
+          imageBase64 && mimeType
+            ? { base64: imageBase64, mimeType }
+            : undefined,
         text: text || undefined,
       });
       const startIso = istLocalToUtcIso(draft.start_time);
@@ -173,7 +221,9 @@ export async function POST(request: Request) {
         '🗓 *Event Draft (simulated)*',
         `Intent: ${draft.intent}`,
         `${draft.title} — ${draft.event_type}`,
-        startIso ? `When: ${new Date(startIso).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}` : 'When: unresolved',
+        startIso
+          ? `When: ${new Date(startIso).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}`
+          : 'When: unresolved',
         draft.contact_name ? `With: ${draft.contact_name}` : null,
         draft.location ? `Where: ${draft.location}` : null,
       ]
@@ -191,21 +241,35 @@ export async function POST(request: Request) {
     }
 
     if (classification === 'property') {
-      let draft = mediaBuffer && mimeType
-        ? await parseListingFromImageOrText(text, mediaBuffer, mimeType)
-        : await parseListingFromImageOrText(text);
+      let draft =
+        mediaBuffer && mimeType
+          ? await parseListingFromImageOrText(text, mediaBuffer, mimeType)
+          : await parseListingFromImageOrText(text);
       draft = await backfillLocationFromMapLink(draft);
       const { isValid, missingFields } = validateDraft(draft);
       const status = deriveDraftStatus(isValid);
-      const previewText = formatDraftPreviewMessage('📝 *Listing Draft (simulated)*', draft, status, missingFields);
+      const previewText = formatDraftPreviewMessage(
+        '📝 *Listing Draft (simulated)*',
+        draft,
+        status,
+        missingFields
+      );
 
-      return NextResponse.json({ classification, draft, isValid, missingFields, status, previewText });
+      return NextResponse.json({
+        classification,
+        draft,
+        isValid,
+        missingFields,
+        status,
+        previewText,
+      });
     }
 
     if (classification === 'client_reply') {
-      const draft = mediaBuffer && mimeType
-        ? await parseClientReplyFromImageOrText(text, mediaBuffer, mimeType)
-        : await parseClientReplyFromImageOrText(text);
+      const draft =
+        mediaBuffer && mimeType
+          ? await parseClientReplyFromImageOrText(text, mediaBuffer, mimeType)
+          : await parseClientReplyFromImageOrText(text);
       const previewText = [
         '💬 *Client Reply (simulated)*',
         draft.client_name ? `Client: ${draft.client_name}` : null,
@@ -231,7 +295,14 @@ export async function POST(request: Request) {
 
     // Neither property nor contact — the real bot would not start a
     // draft session; surface the raw classification for visibility.
-    return NextResponse.json({ classification, draft: null, isValid: null, missingFields: [], status: null, previewText: null });
+    return NextResponse.json({
+      classification,
+      draft: null,
+      isValid: null,
+      missingFields: [],
+      status: null,
+      previewText: null,
+    });
   } catch (err) {
     return toErrorResponse(err);
   }
@@ -323,7 +394,9 @@ async function simulateLeadReply(args: {
     (properties || []) as Property[]
   );
 
-  const areaSuggestions = tallyAreaSuggestions((properties || []) as Property[]);
+  const areaSuggestions = tallyAreaSuggestions(
+    (properties || []) as Property[]
+  );
 
   const origin = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
   const outcome = buildQualificationReply(
@@ -349,7 +422,9 @@ async function simulateLeadReply(args: {
     matches: matches.slice(0, 3).map((m) => ({
       title: m.property.title,
       score: m.score,
-      location: [m.property.sublocality, m.property.city].filter(Boolean).join(', '),
+      location: [m.property.sublocality, m.property.city]
+        .filter(Boolean)
+        .join(', '),
     })),
     inventorySize: (properties || []).length,
     previewText: outcome.reply,
@@ -373,7 +448,8 @@ async function simulateCarveOut(args: {
   contactName: string | null;
   subjectPropertyCode: string | null;
 }): Promise<NextResponse> {
-  const { accountId, supabase, route, text, contactName, subjectPropertyCode } = args;
+  const { accountId, supabase, route, text, contactName, subjectPropertyCode } =
+    args;
 
   const base = {
     mode: 'lead_reply' as const,
@@ -428,6 +504,18 @@ async function simulateCarveOut(args: {
     });
   }
 
+  if (route === 'property_disinterest') {
+    return NextResponse.json({
+      ...base,
+      previewText: buildPropertyDisinterestBody(
+        contactName,
+        subject?.title ?? null
+      ),
+      recordsRejectionFeedback: true,
+      promptsRejectionFactors: true,
+    });
+  }
+
   if (!subject) {
     return NextResponse.json({
       ...base,
@@ -476,8 +564,10 @@ async function loadSubjectByCode(
     .eq('account_id', accountId)
     .ilike('property_code', code)
     .maybeSingle();
-  return (data as Pick<
-    Property,
-    'id' | 'title' | 'images' | 'property_code'
-  > | null) ?? null;
+  return (
+    (data as Pick<
+      Property,
+      'id' | 'title' | 'images' | 'property_code'
+    > | null) ?? null
+  );
 }

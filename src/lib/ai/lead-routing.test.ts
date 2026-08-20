@@ -43,6 +43,24 @@ describe('routeLeadMessage', () => {
     ).toBe('property_interest');
   });
 
+  it('sends a disinterest message to property_disinterest, not the ladder', () => {
+    expect(routeLeadMessage('I am not interested')).toBe(
+      'property_disinterest'
+    );
+    expect(routeLeadMessage('not for me')).toBe('property_disinterest');
+    expect(routeLeadMessage("don't like this property")).toBe(
+      'property_disinterest'
+    );
+  });
+
+  it('keeps a stated requirement with the ladder even with disinterest phrasing', () => {
+    expect(
+      routeLeadMessage(
+        'not interested in flat, looking for 30x40 plot in HSR under 1.5cr'
+      )
+    ).toBe('qualification');
+  });
+
   it('sends a showcase enquiry to the approval card, not the ladder', () => {
     // Verbatim from the Enquire button. "Commercial Land" in the title
     // makes the requirement signal true by construction, and the ladder
@@ -96,6 +114,8 @@ describe('standsDownFromQualification', () => {
     ['please call me', true],
     ['option 2', true],
     ['1acre in Akshaynagar i saw I was interested in that', true],
+    ['I am not interested', true],
+    ['not for me', true],
     ['Land , 1.5 to 2cr', false],
     ['Devanahalli', false],
   ])('%s → %s', (text, expected) => {
@@ -108,6 +128,7 @@ describe('every route is explained for the simulator', () => {
     'callback_handover',
     'property_enquiry',
     'property_interest',
+    'property_disinterest',
     'photo_request',
     'shortlist_reference',
     'qualification',
