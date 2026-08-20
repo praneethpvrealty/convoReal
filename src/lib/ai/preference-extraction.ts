@@ -22,6 +22,17 @@ export const LISTING_TYPE_VALUES = ['Sale', 'Rent', 'JV/JD', 'Built to Suit'] as
 
 export type ListingType = (typeof LISTING_TYPE_VALUES)[number];
 
+/** Keeps only values the matcher's listing-intent gate understands.
+ *  Anything a client sends outside the vocabulary is dropped rather
+ *  than stored, where it would read as an intent nothing can satisfy. */
+export function sanitizeListingTypes(value: unknown): ListingType[] {
+  return Array.isArray(value)
+    ? value.filter((t): t is ListingType =>
+        (LISTING_TYPE_VALUES as readonly string[]).includes(t as string)
+      )
+    : [];
+}
+
 /**
  * Buy-or-rent survives a re-extraction that has nothing to say about it.
  *

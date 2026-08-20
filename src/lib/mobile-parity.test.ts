@@ -955,6 +955,28 @@ describe('the contact form offers the same buy-or-rent choices on both surfaces'
     expect(webValues).toEqual(mobileValues);
   });
 
+  it('is persisted by the API both editors save through', () => {
+    // The web form posts to these handlers, which destructure an
+    // explicit field list — a field missing from it is dropped in
+    // silence, and the selector becomes decoration.
+    for (const route of [
+      'src/app/api/contacts/route.ts',
+      'src/app/api/contacts/[id]/route.ts',
+    ]) {
+      const handler = readFileSync(join(process.cwd(), route), 'utf8');
+      expect(handler, route).toContain(
+        'pref_listing_types: sanitizeListingTypes(pref_listing_types)'
+      );
+    }
+  });
+
+  it('is read back before the mobile editor can overwrite it', () => {
+    // The mobile screen seeds its state from this projection and writes
+    // the state back on save, so a column missing here is cleared by
+    // any unrelated edit.
+    expect(mobile).toMatch(/select\([\s\S]*?pref_listing_types/);
+  });
+
   it('lets both surfaces clear the answer back to unstated', () => {
     // Unset must stay reachable: it is the honest value for a contact
     // nobody has asked, and the matcher treats it as "no gate".

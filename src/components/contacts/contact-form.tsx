@@ -925,8 +925,11 @@ export function ContactForm({
               </select>
             </div>
 
-            {/* Real Estate Preferences */}
-            {classification === 'Buyer' && (
+            {/* Real Estate Preferences. Mobile shows this block to
+                'Owner & Buyer' too — an owner who is also shopping has
+                a brief like any other buyer. */}
+            {(classification === 'Buyer' ||
+              classification === 'Owner & Buyer') && (
               <div className="mt-2 space-y-4 border-t border-slate-800 pt-4">
                 <h4 className="text-sm font-bold tracking-wide text-white uppercase">
                   Real Estate Preferences
