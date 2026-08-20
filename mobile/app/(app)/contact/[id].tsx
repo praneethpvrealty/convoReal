@@ -134,7 +134,7 @@ async function fetchContact(id: string): Promise<Contact | null> {
   const { data, error } = await supabase
     .from('contacts')
     .select(
-      'id, phone, secondary_phones, name, name_tag, email, company, classification, ' +
+      'id, phone, secondary_phones, name, salutation, name_tag, email, company, classification, ' +
         'avatar_url, min_budget, max_budget, no_budget, areas_of_interest, areas_of_interest_geo, ' +
         'strict_area_match, min_roi, requirements, lead_temp, status, referrer, source, ' +
         'requirement_profiles, ' +
@@ -1156,6 +1156,9 @@ function ContactEditor({
   const { colors, dark, fonts: f } = useTheme();
   const source = resolveRequirementSource(contact);
   const [name, setName] = useState(contact.name ?? '');
+  const [salutation, setSalutation] = useState<'Mr.' | 'Mrs.' | ''>(
+    contact.salutation ?? ''
+  );
   const [secondName, setSecondName] = useState(contact.second_name ?? '');
   const [nameTag, setNameTag] = useState(contact.name_tag ?? '');
   const [secondaryPhones, setSecondaryPhones] = useState<string[]>(
@@ -1241,6 +1244,7 @@ function ContactEditor({
       .from('contacts')
       .update({
         name: name.trim() || null,
+        salutation: salutation || null,
         second_name: secondName.trim() || null,
         name_tag: nameTag.trim() || null,
         secondary_phones: normalizedPhones,
@@ -1295,6 +1299,42 @@ function ContactEditor({
       >
         {error ? <Banner kind="error" text={error} /> : null}
 
+        <View style={{ gap: spacing.sm }}>
+          <SectionLabel text="Title" style={{ color: colors.textMuted }} />
+          <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+            {(['Mr.', 'Mrs.'] as const).map((option) => {
+              const selected = salutation === option;
+              return (
+                <Pressable
+                  key={option}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  onPress={() => {
+                    haptic.tap();
+                    setSalutation(selected ? '' : option);
+                  }}
+                  style={{
+                    borderWidth: 1,
+                    borderColor: selected ? colors.accent : colors.border,
+                    backgroundColor: selected ? colors.accentSoft : colors.surface,
+                    borderRadius: 10,
+                    paddingHorizontal: spacing.lg,
+                    paddingVertical: spacing.sm,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: selected ? colors.accent : colors.text,
+                      fontWeight: '700',
+                    }}
+                  >
+                    {option}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
         <TextField
           label="Name"
           value={name}
