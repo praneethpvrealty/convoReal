@@ -115,3 +115,20 @@ describe('POST /api/public/requirements — budget magnitude inference', () => {
     expect(inserts.contacts?.[0].max_budget).toBe(25_000_000);
   });
 });
+
+describe('POST /api/public/requirements — tapped listing intent', () => {
+  it('stores the intent the visitor tapped in the assistant', async () => {
+    await post({ accountId: VICTIM, phone: '9900277111', listingTypes: ['Rent'] });
+    expect(inserts.contacts?.[0].pref_listing_types).toEqual(['Rent']);
+  });
+
+  it('leaves intent unset for the plain form, which asks no such question', async () => {
+    await post({ accountId: VICTIM, phone: '9900277111' });
+    expect(inserts.contacts?.[0].pref_listing_types).toBeUndefined();
+  });
+
+  it('drops a value outside the listing-type vocabulary', async () => {
+    await post({ accountId: VICTIM, phone: '9900277111', listingTypes: ['Renting', 42] });
+    expect(inserts.contacts?.[0].pref_listing_types).toBeUndefined();
+  });
+});
