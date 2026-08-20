@@ -45,7 +45,7 @@ import { recordLearnedFacts } from '@/lib/learning/record';
 import { sendRequirementReview } from '@/lib/whatsapp/requirement-review';
 import { visibleTagSuggestions } from '@/lib/contact-preferences';
 import { resolveRequirementSource } from '@/lib/requirements/profiles';
-import type { Contact } from '@/types';
+import type { Contact, Property } from '@/types';
 
 export type QualifierField = 'type' | 'budget' | 'location';
 
@@ -188,6 +188,104 @@ function formatBudget(prefs: ExtractedPreferences): string {
   if (max != null) return `up to ${asWords(max)}`;
   if (min != null) return `above ${asWords(min)}`;
   return '';
+}
+
+function formatDirectBudget(prefs: ExtractedPreferences): string {
+  const asWords = (n: number): string =>
+    n >= 10000000
+      ? `₹${(n / 10000000).toFixed(2).replace(/\.?0+$/, '')} Cr`
+      : n >= 100000
+        ? `₹${(n / 100000).toFixed(2).replace(/\.?0+$/, '')} L`
+        : `₹${n.toLocaleString('en-IN')}`;
+  const { budget_min: min, budget_max: max } = prefs;
+  if (min != null && max != null) return `${asWords(min)}–${asWords(max)}`;
+  if (max != null) return `${asWords(max)}`;
+  if (min != null) return `${asWords(min)}+`;
+  return 'stated';
+}
+
+export interface EnquiryBudgetDisparityOpts {
+  contactName: string | null | undefined;
+  prefs: ExtractedPreferences;
+  enquiredProperty: Property;
+  leadPortal?: string | null;
+  /** True when the thread's recent bot messages already referenced the listing */
+  hasPriorListingDetails?: boolean;
+}
+
+export function buildEnquiryBudgetDisparityReply(
+  opts: EnquiryBudgetDisparityOpts
+): string {
+  const name = firstName(opts.contactName);
+  const prop = opts.enquiredProperty;
+  let portal = 'Housing.com';
+  if (opts.leadPortal) {
+    const lp = opts.leadPortal.toLowerCase();
+    if (lp.includes('housing')) portal = 'Housing.com';
+    else if (lp.includes('magicbricks')) portal = 'MagicBricks';
+    else if (lp.includes('99acres')) portal = '99acres';
+    else portal = opts.leadPortal;
+  }
+
+  const propLoc = (prop.location || prop.sublocality || '').trim() || 'the area';
+  const rawLand = prop.land_area ? Number(prop.land_area) : null;
+  const landUnit = (prop.land_area_unit || 'sqft').toLowerCase().includes('sq')
+    ? 'sq.ft'
+    : prop.land_area_unit || 'sq.ft';
+  const propArea =
+    rawLand && rawLand > 0
+      ? `${rawLand.toLocaleString('en-IN')} ${landUnit}`
+      : prop.area_sqft && Number(prop.area_sqft) > 0
+        ? `${Number(prop.area_sqft).toLocaleString('en-IN')} sq.ft`
+        : '';
+
+  const propPriceNum = Number(prop.price || 0);
+  const priceBracket =
+    propPriceNum >= 10_000_000
+      ? `₹${Math.floor(propPriceNum / 10_000_000)}+ Cr`
+      : propPriceNum >= 100_000
+        ? `₹${Math.floor(propPriceNum / 100_000)}+ L`
+        : '';
+
+  const budgetFormatted = formatDirectBudget(opts.prefs);
+
+  const propLocLower = propLoc.toLowerCase();
+  const otherAreas = (opts.prefs.areas || []).filter(
+    (a) =>
+      !propLocLower.includes(a.toLowerCase()) &&
+      !a.toLowerCase().includes(propLocLower)
+  );
+
+  const intro = opts.hasPriorListingDetails
+    ? `Hi ${name}, the details above are for the specific ${propLoc} property you inquired about on ${portal}.`
+    : `Hi ${name}, your initial inquiry was for the specific ${propLoc} property on ${portal}.`;
+
+  const specSummary = [
+    propArea ? `${propArea} plot` : 'property',
+    `in ${propLoc}`,
+    priceBracket ? `is in the ${priceBracket} bracket` : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  let middle = '';
+  let closing = '';
+
+  if (otherAreas.length > 0) {
+    const areaList =
+      otherAreas.length === 1
+        ? otherAreas[0]
+        : otherAreas.length === 2
+          ? `${otherAreas[0]} and ${otherAreas[1]}`
+          : `${otherAreas.slice(0, -1).join(', ')}, and ${otherAreas[otherAreas.length - 1]}`;
+    middle = `As a ${specSummary}, for your ${budgetFormatted} budget, we MAY have great residential options (2/3 BHK apartments and independent floors) in ${areaList}.`;
+    closing = `Are you looking for an independent house/plot or an apartment in those areas? Let me know and I'll share the options within ${budgetFormatted}.`;
+  } else {
+    middle = `As a ${specSummary}, for your ${budgetFormatted} budget in ${propLoc}, options are typically 2/3 BHK apartments rather than large independent plots.`;
+    closing = `Are you looking for an independent house/plot or an apartment? Let me know and I'll share the options within ${budgetFormatted}.`;
+  }
+
+  return [intro, '', middle, '', closing].join('\n');
 }
 
 /** Human label for what the contact said they want. */
@@ -383,7 +481,11 @@ export function buildQualificationReply(
   asked: QualifierField[] = [],
   /** The thread's recent bot messages, so a shortlist that already went
    *  out is acknowledged rather than re-sent verbatim. */
-  recentBotTexts: (string | null)[] = []
+  recentBotTexts: (string | null)[] = [],
+  enquiredContext?: {
+    property: Property;
+    leadPortal?: string | null;
+  } | null
 ): QualificationOutcome {
   const laddered = nextQualifier(prefs, asked);
   const shortCircuit = shouldSendMatchesNow(prefs, matches.length);
@@ -404,19 +506,56 @@ export function buildQualificationReply(
       ),
     };
   }
+  if (matches.length) {
+    return {
+      missing: null,
+      reply: buildMatchesReply(
+        contactName,
+        matches,
+        baseUrl,
+        contactId,
+        // Only when the listings jumped the queue: a ladder that
+        // finished on its own has nothing left to ask.
+        shortCircuit && laddered ? buildFollowUpQuestion(laddered) : null
+      ),
+    };
+  }
+
+  const isBudgetDisparity = Boolean(
+    enquiredContext?.property &&
+      enquiredContext.property.price &&
+      prefs.budget_max &&
+      Number(enquiredContext.property.price) >= Number(prefs.budget_max) * 1.25
+  );
+
+  if (isBudgetDisparity && enquiredContext?.property) {
+    const propTitle = (enquiredContext.property.title || '').trim();
+    const propCode = (enquiredContext.property.property_code || '').trim();
+    const hasPriorListingDetails = recentBotTexts.some(
+      (t) =>
+        !!t &&
+        ((propTitle && t.includes(propTitle.slice(0, 25))) ||
+          (propCode && t.includes(propCode)) ||
+          t.includes('👇') ||
+          t.toLowerCase().includes('housing') ||
+          t.toLowerCase().includes('listed'))
+    );
+
+    return {
+      missing: null,
+      reply: buildEnquiryBudgetDisparityReply({
+        contactName,
+        prefs,
+        enquiredProperty: enquiredContext.property,
+        leadPortal: enquiredContext.leadPortal,
+        hasPriorListingDetails,
+      }),
+    };
+  }
+
   return {
     missing: null,
-    reply: matches.length
-      ? buildMatchesReply(
-          contactName,
-          matches,
-          baseUrl,
-          contactId,
-          // Only when the listings jumped the queue: a ladder that
-          // finished on its own has nothing left to ask.
-          shortCircuit && laddered ? buildFollowUpQuestion(laddered) : null
-        )
-      : buildNoMatchReply(contactName, prefs),
+    reply: buildNoMatchReply(contactName, prefs),
   };
 }
 
@@ -970,11 +1109,29 @@ export async function processBuyerQualificationMessage(
       ? null
       : laddered;
 
+    let enquiredProperty: Property | null = null;
+    if (contact.last_inquired_property_id) {
+      const { data } = await db
+        .from('properties')
+        .select('*')
+        .eq('id', contact.last_inquired_property_id)
+        .eq('account_id', accountId)
+        .maybeSingle();
+      enquiredProperty = data as Property | null;
+    }
+
+    const isBudgetDisparity = Boolean(
+      enquiredProperty &&
+        enquiredProperty.price &&
+        prefs.budget_max &&
+        Number(enquiredProperty.price) >= Number(prefs.budget_max) * 1.25
+    );
+
     // Fully qualified, nothing fits: play the updated brief back with
-    // one-tap corrections instead of "our team will call you". The
-    // free text just changed the requirement — showing what it now
-    // says is both the acknowledgement and the next capture step.
-    if (!missing && matches.length === 0 && configOwnerUserId) {
+    // one-tap corrections instead of "our team will call you", UNLESS
+    // there is an enquiry-vs-budget disparity that warrants a direct
+    // contextual bridge reply.
+    if (!missing && matches.length === 0 && configOwnerUserId && !isBudgetDisparity) {
       const reviewed = await sendRequirementReview({
         db,
         accountId,
@@ -1008,7 +1165,13 @@ export async function processBuyerQualificationMessage(
       baseUrl,
       contact.id,
       asked,
-      recentBotTexts
+      recentBotTexts,
+      enquiredProperty
+        ? {
+            property: enquiredProperty,
+            leadPortal: contact.lead_portal || contact.source,
+          }
+        : null
     );
 
     await reply(

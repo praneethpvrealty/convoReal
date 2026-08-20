@@ -32,6 +32,7 @@ import {
   buildShortlistStandsReply,
   mergeKnownPreferences,
   prefsFromContact,
+  buildEnquiryBudgetDisparityReply,
 } from './buyer-qualification';
 import {
   EMPTY_PREFERENCES,
@@ -912,5 +913,123 @@ describe('preferenceFacts', () => {
     expect(preferenceFacts(prefs(), [])).not.toContainEqual(
       expect.objectContaining({ field: 'no_budget' })
     );
+  });
+});
+
+describe('buildEnquiryBudgetDisparityReply', () => {
+  const enquiredProperty: Property = {
+    id: 'prop-1095',
+    account_id: 'acc',
+    title: 'Old residential house in 4200 sqft plot is available for sale in Koramangala 1st block',
+    price: 147_000_000,
+    location: 'Koramangala 1st block',
+    sublocality: 'Koramangala 1st block',
+    city: 'Bangalore',
+    type: 'Independent House/ Villa',
+    status: 'Available',
+    listing_type: 'Sale',
+    land_area: 4200,
+    land_area_unit: 'sqft',
+  } as Property;
+
+  it('formats disparity bridge when lead states multiple other areas within budget', () => {
+    const text = buildEnquiryBudgetDisparityReply({
+      contactName: 'Santhosh Santhosh Otageri',
+      prefs: prefs({
+        budget_max: 20_000_000,
+        areas: ['Koramangala', 'Wilson Garden', 'Lakkasandra', 'Chamarajpet'],
+      }),
+      enquiredProperty,
+      leadPortal: 'Housing',
+      hasPriorListingDetails: true,
+    });
+
+    expect(text).toContain('Hi Santhosh, the details above are for the specific Koramangala 1st block property you inquired about on Housing.com.');
+    expect(text).toContain('4,200 sq.ft plot in Koramangala 1st block is in the ₹14+ Cr bracket');
+    expect(text).toContain('for your ₹2 Cr budget, we MAY have great residential options (2/3 BHK apartments and independent floors) in Wilson Garden, Lakkasandra, and Chamarajpet.');
+    expect(text).toContain('Are you looking for an independent house/plot or an apartment in those areas? Let me know and I\'ll share the options within ₹2 Cr.');
+  });
+
+  it('formats disparity bridge when lead only named the enquired locality', () => {
+    const text = buildEnquiryBudgetDisparityReply({
+      contactName: 'Santhosh',
+      prefs: prefs({
+        budget_max: 20_000_000,
+        areas: ['Koramangala 1st block'],
+      }),
+      enquiredProperty,
+      leadPortal: 'MagicBricks',
+      hasPriorListingDetails: false,
+    });
+
+    expect(text).toContain('Hi Santhosh, your initial inquiry was for the specific Koramangala 1st block property on MagicBricks.');
+    expect(text).toContain('for your ₹2 Cr budget in Koramangala 1st block, options are typically 2/3 BHK apartments rather than large independent plots.');
+    expect(text).toContain('Are you looking for an independent house/plot or an apartment? Let me know and I\'ll share the options within ₹2 Cr.');
+  });
+});
+
+describe('buildQualificationReply — enquiry budget disparity handling', () => {
+  const enquiredProperty: Property = {
+    id: 'prop-1095',
+    account_id: 'acc',
+    title: 'Old residential house in 4200 sqft plot in Koramangala 1st block',
+    price: 147_000_000,
+    location: 'Koramangala 1st block',
+    sublocality: 'Koramangala 1st block',
+    city: 'Bangalore',
+    type: 'Independent House/ Villa',
+    status: 'Available',
+    listing_type: 'Sale',
+    land_area: 4200,
+    land_area_unit: 'sqft',
+  } as Property;
+
+  it('returns enquiry budget disparity reply when 0 matches and enquired property price far exceeds stated budget', () => {
+    const outcome = buildQualificationReply(
+      prefs({
+        property_types: ['Independent House/ Villa'],
+        budget_max: 20_000_000,
+        areas: ['Koramangala', 'Wilson Garden', 'Lakkasandra'],
+      }),
+      'Santhosh',
+      [],
+      [],
+      'https://convoreal.com',
+      'contact-1',
+      ['budget', 'location'],
+      ['*1. Old residential house in 4200 sqft plot...*'],
+      { property: enquiredProperty, leadPortal: 'Housing' }
+    );
+
+    expect(outcome.missing).toBeNull();
+    expect(outcome.reply).toContain('Hi Santhosh, the details above are for the specific Koramangala 1st block property you inquired about on Housing.com.');
+    expect(outcome.reply).toContain('₹14+ Cr bracket');
+    expect(outcome.reply).toContain('for your ₹2 Cr budget');
+  });
+
+  it('returns standard no-match reply when there is no budget disparity on enquired property', () => {
+    const affordableProperty: Property = {
+      ...enquiredProperty,
+      price: 18_000_000,
+    };
+
+    const outcome = buildQualificationReply(
+      prefs({
+        property_types: ['Independent House/ Villa'],
+        budget_max: 20_000_000,
+        areas: ['Koramangala'],
+      }),
+      'Santhosh',
+      [],
+      [],
+      'https://convoreal.com',
+      'contact-1',
+      ['budget', 'location'],
+      [],
+      { property: affordableProperty, leadPortal: 'Housing' }
+    );
+
+    expect(outcome.missing).toBeNull();
+    expect(outcome.reply).toContain('Nothing in our live inventory matches that exactly right now');
   });
 });

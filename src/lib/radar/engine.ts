@@ -240,17 +240,31 @@ export function rankProperties(
 
   for (const property of properties) {
     if (property.id === exactEnquiryId) {
-      matched.push({
-        property,
-        score: 100,
-        details: {
-          type: 'unknown',
-          location: 'unknown',
-          budget: 'unknown',
-          bhk: 'unknown',
-          roi: 'unknown',
-        },
-      });
+      const [result] = getMatchingContacts(property, [contact]);
+      if (result) {
+        matched.push({ property, score: 100, details: result.details });
+        continue;
+      }
+
+      const hasBudgetPreference =
+        (sourceContact.min_budget != null && Number(sourceContact.min_budget) > 0) ||
+        (sourceContact.max_budget != null && Number(sourceContact.max_budget) > 0) ||
+        (sourceContact.pref_budget_min != null && Number(sourceContact.pref_budget_min) > 0) ||
+        (sourceContact.pref_budget_max != null && Number(sourceContact.pref_budget_max) > 0);
+
+      if (!hasBudgetPreference) {
+        matched.push({
+          property,
+          score: 100,
+          details: {
+            type: 'unknown',
+            location: 'unknown',
+            budget: 'unknown',
+            bhk: 'unknown',
+            roi: 'unknown',
+          },
+        });
+      }
       continue;
     }
 
