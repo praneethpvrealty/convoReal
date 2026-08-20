@@ -27,6 +27,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Contact, MatchEventTarget, Property } from "@/types";
 import { getMatchingContacts, type MatchDetails } from "@/lib/matching";
+import { attachInquiredListingTypes } from "@/lib/contacts/inquired-intent";
 import { CLOSED_LISTING_STATUS_FILTER } from "@/lib/inventory/listing-status";
 import { buildMaskedPropertySnapshot, type MaskedPropertySnapshot } from "./masking";
 import { sendDenNotification } from "./notify";
@@ -108,6 +109,15 @@ export async function runDealModeSweep(
     contactsByAccount.set(contact.account_id, list);
   }
   if (contactsByAccount.size === 0) return summary;
+
+  // Enquiry-derived intent, once per buyer account rather than per
+  // property in the loop below.
+  for (const [buyerAccountId, buyerContacts] of contactsByAccount) {
+    contactsByAccount.set(
+      buyerAccountId,
+      await attachInquiredListingTypes(db, buyerAccountId, buyerContacts)
+    );
+  }
 
   let notifyBudget = MAX_NOTIFICATIONS_PER_RUN;
 

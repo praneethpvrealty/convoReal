@@ -17,6 +17,7 @@ import { NextResponse } from "next/server";
 
 import { withApiKeyAuth } from "@/lib/auth/api-keys";
 import { getMatchingContacts } from "@/lib/matching";
+import { attachInquiredListingTypes } from "@/lib/contacts/inquired-intent";
 import { matchReasons } from "@/lib/buyer/matches-ranking";
 import { pageArray, parsePageParams } from "@/lib/v1/pagination";
 import {
@@ -66,7 +67,7 @@ export const GET = withApiKeyAuth("read", async (ctx, req, routeCtx) => {
 
   const ranked = getMatchingContacts(
     property as unknown as Property,
-    (contacts ?? []) as unknown as Contact[],
+    await attachInquiredListingTypes(ctx.db, ctx.accountId, (contacts ?? []) as unknown as Contact[]),
   )
     .filter((result) => result.score >= minScore)
     .map((result) => ({

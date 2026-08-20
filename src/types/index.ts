@@ -265,6 +265,11 @@ export interface Contact {
   pref_source_hash?: string | null;
   pref_extracted_at?: string | null;
   contact_notes?: { note_text: string }[] | null;
+  /** Listing types of the properties this contact actually enquired
+   *  about, hydrated by attachInquiredListingTypes (not a column).
+   *  Stands in for pref_listing_types in matching when the contact
+   *  never stated an intent. */
+  inquired_listing_types?: string[] | null;
   last_inquired_property_id?: string | null;
   /** The portal ad this lead enquired about (migration 260). Once an
    *  agent maps the pair into property_portal_listings, every later lead

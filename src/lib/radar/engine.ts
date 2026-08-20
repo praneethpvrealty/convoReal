@@ -2,6 +2,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { Contact, Property, MatchEventTarget } from '@/types';
 import { getMatchingContacts, type MatchDetails } from '@/lib/matching';
 import { contactHandle } from '@/lib/contacts/reachability';
+import { attachInquiredListingTypes } from '@/lib/contacts/inquired-intent';
 import {
   loadContactParties,
   partyDisplayName,
@@ -157,8 +158,12 @@ export async function generateMatchEventForProperty(
     const rejectedContactIds = new Set(
       ((rejected ?? []) as { contact_id: string }[]).map((row) => row.contact_id)
     );
-    const eligibleContacts = (contacts as Contact[]).filter(
-      (contact) => !rejectedContactIds.has(contact.id)
+    const eligibleContacts = await attachInquiredListingTypes(
+      db,
+      accountId,
+      (contacts as Contact[]).filter(
+        (contact) => !rejectedContactIds.has(contact.id)
+      )
     );
 
     const results = getMatchingContacts(
@@ -334,9 +339,10 @@ export async function rankPropertiesForContact(
   );
   const pool = (properties as Property[]).filter((p) => !rejectedIds.has(p.id));
 
-  const subject = opts.strictArea
+  const base = opts.strictArea
     ? ({ ...(contact as Contact), strict_area_match: true } as Contact)
     : (contact as Contact);
+  const [subject] = await attachInquiredListingTypes(db, accountId, [base]);
 
   return rankProperties(subject, pool);
 }
