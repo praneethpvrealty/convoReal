@@ -1,86 +1,106 @@
-import { decrypt } from '@/lib/whatsapp/encryption'
-import { resolveConversation, type ConversationRow } from '@/lib/conversations/resolve'
-import { markContactDead } from '@/lib/contacts/lifecycle'
-import { DELIVERY_FAILURE_MARKER } from '@/lib/whatsapp/delivery-failure'
-import { sendTextMessage } from '@/lib/whatsapp/meta-api'
-import { normalizePhone, phonesMatch, normalizePhoneWithCountryCode, sanitizePhoneForMeta, isValidE164 } from '@/lib/whatsapp/phone-utils'
-import { BRANDING } from '@/config/branding'
-import { suggestNameTagSplit } from '@/lib/contacts/name-tag-split'
-import { runAutomationsForTrigger } from '@/lib/automations/engine'
-import { dispatchInboundToFlows } from '@/lib/flows/engine'
+import { decrypt } from '@/lib/whatsapp/encryption';
+import {
+  resolveConversation,
+  type ConversationRow,
+} from '@/lib/conversations/resolve';
+import { markContactDead } from '@/lib/contacts/lifecycle';
+import { DELIVERY_FAILURE_MARKER } from '@/lib/whatsapp/delivery-failure';
+import { sendTextMessage } from '@/lib/whatsapp/meta-api';
+import {
+  normalizePhone,
+  phonesMatch,
+  normalizePhoneWithCountryCode,
+  sanitizePhoneForMeta,
+  isValidE164,
+} from '@/lib/whatsapp/phone-utils';
+import { BRANDING } from '@/config/branding';
+import { suggestNameTagSplit } from '@/lib/contacts/name-tag-split';
+import { runAutomationsForTrigger } from '@/lib/automations/engine';
+import { dispatchInboundToFlows } from '@/lib/flows/engine';
 import {
   handleTemplateWebhookChange,
   isTemplateWebhookField,
-} from '@/lib/whatsapp/template-webhook'
+} from '@/lib/whatsapp/template-webhook';
 import {
   isGroupWebhookField,
   processGroupWebhook,
-} from '@/lib/whatsapp/group-webhooks'
+} from '@/lib/whatsapp/group-webhooks';
 import {
   groupIdFromInbound,
   resolveGroupSender,
   resolveGroupThread,
-} from '@/lib/whatsapp/group-inbound'
-import { checkIsAccountOwner, processOwnerChatbotMessage, processExternalListingMessage } from '@/lib/ai/chatbot-engine'
-import { processBuyerQualificationMessage } from '@/lib/ai/buyer-qualification'
+} from '@/lib/whatsapp/group-inbound';
+import {
+  checkIsAccountOwner,
+  processOwnerChatbotMessage,
+  processExternalListingMessage,
+} from '@/lib/ai/chatbot-engine';
+import {
+  processBuyerQualificationMessage,
+  carriesRequirementSignal,
+} from '@/lib/ai/buyer-qualification';
+import {
+  isPropertyDisinterest,
+  handlePropertyDisinterestMessage,
+} from '@/lib/whatsapp/property-disinterest';
 import {
   applyPreferenceFlowResponse,
   sendPreferenceFlowToContact,
   getPublishedPreferenceFlow,
-} from '@/lib/whatsapp/meta-flow-service'
-import { sendPreferenceMatchFollowUp } from '@/lib/whatsapp/preference-match-followup'
-import { sendPreferenceTapReply } from '@/lib/whatsapp/preference-tap-reply'
+} from '@/lib/whatsapp/meta-flow-service';
+import { sendPreferenceMatchFollowUp } from '@/lib/whatsapp/preference-match-followup';
+import { sendPreferenceTapReply } from '@/lib/whatsapp/preference-tap-reply';
 import {
   handleListingFeedbackReply,
   LISTING_FEEDBACK_ID_PREFIX,
   sendListingFeedbackPrompt,
-} from '@/lib/whatsapp/listing-feedback'
+} from '@/lib/whatsapp/listing-feedback';
 import {
   budgetBandAcknowledgement,
   handleBudgetBandReply,
   BUDGET_BAND_ID_PREFIX,
-} from '@/lib/whatsapp/budget-band'
+} from '@/lib/whatsapp/budget-band';
 import {
   propertyTypeAcknowledgement,
   handlePropertyTypeReply,
   PROPERTY_TYPE_ID_PREFIX,
-} from '@/lib/whatsapp/property-type-prompt'
-import { sendAlertsOnboarding } from '@/lib/whatsapp/alerts-onboarding'
+} from '@/lib/whatsapp/property-type-prompt';
+import { sendAlertsOnboarding } from '@/lib/whatsapp/alerts-onboarding';
 import {
   handleRequirementTweakReply,
   REQUIREMENT_TWEAK_ID_PREFIX,
-} from '@/lib/whatsapp/requirement-review'
+} from '@/lib/whatsapp/requirement-review';
 import {
   isPreferenceFlowRequestText,
   parsePreferenceFormValues,
   preferenceFormToContactUpdate,
   summarizePreferenceUpdate,
   PREFERENCE_FLOW_BUTTON_ID,
-} from '@/lib/whatsapp/preference-flow'
-import { JOURNEY_CHECKIN_KEEP_BUTTON } from '@/lib/whatsapp/journey-checkin-template'
+} from '@/lib/whatsapp/preference-flow';
+import { JOURNEY_CHECKIN_KEEP_BUTTON } from '@/lib/whatsapp/journey-checkin-template';
 import {
   CLIENT_FOLLOWUP_PREFIX,
   handleClientFollowupReply,
   handleInboxCheckinReply,
   handleTimelineTemplateTap,
-} from '@/lib/journey/client-response'
+} from '@/lib/journey/client-response';
 // The per-template CLOSE_BUTTON constants are gone from here on
 // purpose: matchTemplateButton resolves a tap to its action in any
 // language we send, and comparing against one English string again
 // would silently stop working for every translated template.
-import { matchTemplateButton } from '@/lib/whatsapp/template-copy'
-import { accountPropertyShowcaseUrl } from '@/lib/showcase/account-showcase-url'
-import type { Contact } from '@/types'
+import { matchTemplateButton } from '@/lib/whatsapp/template-copy';
+import { accountPropertyShowcaseUrl } from '@/lib/showcase/account-showcase-url';
+import type { Contact } from '@/types';
 import {
   hasRecentAgentReply,
   standDownActiveFlowRuns,
-} from '@/lib/whatsapp/agent-takeover'
-import { claimBuyerConsentAsk } from '@/lib/buyer/consent-ask'
+} from '@/lib/whatsapp/agent-takeover';
+import { claimBuyerConsentAsk } from '@/lib/buyer/consent-ask';
 import {
   claimOwnerConsentAsk,
   CONSENT_BUTTONS as OWNER_CONSENT_BUTTONS,
   type OwnerConsentFields,
-} from '@/lib/owners/consent-ask'
+} from '@/lib/owners/consent-ask';
 import {
   answerLeadQuestion,
   looksLikeQuestion,
@@ -89,46 +109,46 @@ import {
   requestsHumanContact,
   subjectPortalListings,
   type LeadAnswer,
-} from '@/lib/ai/lead-question'
+} from '@/lib/ai/lead-question';
 import {
   photoHandoverText,
   requestsPropertyPhotos,
   sendSubjectPhotos,
-} from '@/lib/ai/photo-request'
-import { parseOrdinalReferences } from '@/lib/ai/shortlist-reference'
+} from '@/lib/ai/photo-request';
+import { parseOrdinalReferences } from '@/lib/ai/shortlist-reference';
 import {
   buildEnquiryAckText,
   buildEnquiryRejectText,
   parseEnquiryReply,
   resolveEnquiryTeamPhone,
   sendPropertyEnquiryCard,
-} from '@/lib/whatsapp/enquiry-card'
-import { maybeAutoHeatContact } from '@/lib/contacts/auto-heat'
+} from '@/lib/whatsapp/enquiry-card';
+import { maybeAutoHeatContact } from '@/lib/contacts/auto-heat';
 import {
   handleFollowUpReply,
   parseFollowUpReply,
-} from '@/lib/contacts/follow-up-nudges'
+} from '@/lib/contacts/follow-up-nudges';
 import {
   handleClosingReply,
   handlePurchaseProgressReply,
   parseClosingReply,
-} from '@/lib/journey/closing-nudges'
+} from '@/lib/journey/closing-nudges';
 import {
   parseTemplateQuickReply,
   lastSharedPropertyId,
   buildFullListMessage,
   DETAILS_FALLBACK_TEXT,
   SITE_VISIT_ACK_TEXT,
-} from '@/lib/whatsapp/template-quick-replies'
+} from '@/lib/whatsapp/template-quick-replies';
 import {
   parseOwnerDigestCommand,
   applyOwnerDigestCommand,
-} from '@/lib/owners/owner-digest'
+} from '@/lib/owners/owner-digest';
 import {
   parseBuyerAlertsCommand,
   applyBuyerAlertsCommand,
-} from '@/lib/buyer/alerts'
-import { isLocationGuarded } from '@/lib/inventory/location-guard'
+} from '@/lib/buyer/alerts';
+import { isLocationGuarded } from '@/lib/inventory/location-guard';
 import {
   CONSENT_APPROVE_PREFIX,
   CONSENT_DECLINE_PREFIX,
@@ -136,53 +156,56 @@ import {
   OWNER_REJECT_PREFIX,
   handleLocationConsentReply,
   handleOwnerLocationReply,
-} from '@/lib/inventory/location-requests'
-import { isEngineControlReplyId } from '@/lib/whatsapp/control-reply-ids'
-import { UPDATE_CHANNEL_REPLY_PREFIX } from '@/lib/voice/announcements'
-import { handleUpdateChannelReply } from '@/lib/voice/update-channel-reply'
+} from '@/lib/inventory/location-requests';
+import { isEngineControlReplyId } from '@/lib/whatsapp/control-reply-ids';
+import { UPDATE_CHANNEL_REPLY_PREFIX } from '@/lib/voice/announcements';
+import { handleUpdateChannelReply } from '@/lib/voice/update-channel-reply';
 import {
   POST_CALL_OPEN_PREFIX,
   handlePostCallOpenReply,
-} from '@/lib/outreach/dispatcher'
-import { parseBuyerMatchesCommand } from '@/lib/buyer/digest'
-import { buildBuyerMatchReply } from '@/lib/buyer/match-reply'
+} from '@/lib/outreach/dispatcher';
+import { parseBuyerMatchesCommand } from '@/lib/buyer/digest';
+import { buildBuyerMatchReply } from '@/lib/buyer/match-reply';
 import {
   isOwnerContact,
   findOwnedListings,
   handleOwnerInboundMessage,
   type OwnedListing,
-} from '@/lib/owners/owner-reply'
-import { processListingVerification } from '@/lib/showcase/listing-verification'
-import { processRequirementReply } from '@/lib/requirements/respond'
-import { tryHandleInboundScheduling } from '@/lib/calendar/whatsapp-scheduler'
+} from '@/lib/owners/owner-reply';
+import { processListingVerification } from '@/lib/showcase/listing-verification';
+import { processRequirementReply } from '@/lib/requirements/respond';
+import { tryHandleInboundScheduling } from '@/lib/calendar/whatsapp-scheduler';
 import {
   AGENT_MESSAGE_CONTACT_PREFIX,
   handleAgentMessageContactReply,
-} from '@/lib/calendar/agent-reminder-actions'
-import { createNotification } from '@/lib/notifications/create'
-import { processCtwaReferral, type WhatsAppReferral } from '@/lib/whatsapp/ctwa-attribution'
-import { resolveRouting } from '@/lib/whatsapp/routing-engine'
+} from '@/lib/calendar/agent-reminder-actions';
+import { createNotification } from '@/lib/notifications/create';
+import {
+  processCtwaReferral,
+  type WhatsAppReferral,
+} from '@/lib/whatsapp/ctwa-attribution';
+import { resolveRouting } from '@/lib/whatsapp/routing-engine';
 import {
   handleBridgedAgentReply,
   relayLeadMessageToBridgedAgent,
   BRIDGE_REPLY_HINT,
-} from '@/lib/whatsapp/reply-bridge'
-import { SHARED_CARDS_HEADER } from '@/lib/contacts/shared-cards'
-import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher'
-import { googleMapsUrlForCoordinates } from '@/lib/maps/resolve-location'
-import { getSandboxSystemConfig } from '@/lib/system-settings'
+} from '@/lib/whatsapp/reply-bridge';
+import { SHARED_CARDS_HEADER } from '@/lib/contacts/shared-cards';
+import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
+import { googleMapsUrlForCoordinates } from '@/lib/maps/resolve-location';
+import { getSandboxSystemConfig } from '@/lib/system-settings';
 import {
   isSandboxTrialExpired,
   releaseSandboxSender,
   type SandboxTenantConfig,
-} from '@/lib/whatsapp/sandbox-trial'
-import type { SandboxSenderMapping } from '@/types'
-import { supabaseAdmin } from '@/lib/supabase/admin'
+} from '@/lib/whatsapp/sandbox-trial';
+import type { SandboxSenderMapping } from '@/types';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import {
   buildSoldPriceReply,
   SOLD_PRICE_BUTTON_PREFIX,
   SOLD_SIMILAR_BUTTON_PREFIX,
-} from '@/lib/whatsapp/sold-notification'
+} from '@/lib/whatsapp/sold-notification';
 import {
   buildCatalogOrderMessage,
   buildPropertyInterestAck,
@@ -192,113 +215,123 @@ import {
   resolvePropertyReference,
   type PropertyInterestCandidate,
   type WhatsAppCatalogOrder,
-} from '@/lib/whatsapp/property-interest'
-import { logPropertyShare } from '@/lib/whatsapp/share-property-send'
+} from '@/lib/whatsapp/property-interest';
+import { logPropertyShare } from '@/lib/whatsapp/share-property-send';
 
 export interface WhatsAppMessage {
-  id: string
+  id: string;
   /** The PARTICIPANT's phone on a group message, not the group. */
-  from: string
+  from: string;
   /** Present only on group messages. Its absence is what marks an
    *  inbound as an ordinary one-to-one. */
-  group_id?: string | null
-  timestamp: string
-  type: string
-  text?: { body: string }
-  image?: { id: string; mime_type: string; caption?: string }
-  video?: { id: string; mime_type: string; caption?: string }
-  document?: { id: string; mime_type: string; filename?: string; caption?: string }
-  audio?: { id: string; mime_type: string }
-  sticker?: { id: string; mime_type: string }
-  location?: { latitude: number; longitude: number; name?: string; address?: string }
-  reaction?: { message_id: string; emoji: string }
-  button?: { text: string; payload: string }
+  group_id?: string | null;
+  timestamp: string;
+  type: string;
+  text?: { body: string };
+  image?: { id: string; mime_type: string; caption?: string };
+  video?: { id: string; mime_type: string; caption?: string };
+  document?: {
+    id: string;
+    mime_type: string;
+    filename?: string;
+    caption?: string;
+  };
+  audio?: { id: string; mime_type: string };
+  sticker?: { id: string; mime_type: string };
+  location?: {
+    latitude: number;
+    longitude: number;
+    name?: string;
+    address?: string;
+  };
+  reaction?: { message_id: string; emoji: string };
+  button?: { text: string; payload: string };
   contacts?: Array<{
-    name: { formatted_name: string; first_name?: string; last_name?: string }
-    phones?: Array<{ phone: string; type?: string; wa_id?: string }>
-    emails?: Array<{ email: string; type?: string }>
-    vcard: string
-  }>
+    name: { formatted_name: string; first_name?: string; last_name?: string };
+    phones?: Array<{ phone: string; type?: string; wa_id?: string }>;
+    emails?: Array<{ email: string; type?: string }>;
+    vcard: string;
+  }>;
   /** A property selected from the WhatsApp Commerce catalog. Meta calls
    *  this an order even when the customer is only sharing one listing. */
-  order?: WhatsAppCatalogOrder & { catalog_id?: string }
+  order?: WhatsAppCatalogOrder & { catalog_id?: string };
   interactive?: {
-    type: 'button_reply' | 'list_reply' | 'nfm_reply'
-    button_reply?: { id: string; title: string }
-    list_reply?: { id: string; title: string; description?: string }
+    type: 'button_reply' | 'list_reply' | 'nfm_reply';
+    button_reply?: { id: string; title: string };
+    list_reply?: { id: string; title: string; description?: string };
     /** Completed native Meta Flow (form-screen) submission. */
-    nfm_reply?: { name?: string; body?: string; response_json: string }
-  }
-  context?: { id: string }
+    nfm_reply?: { name?: string; body?: string; response_json: string };
+  };
+  context?: { id: string };
   // Present only on the FIRST inbound message of a thread the buyer
   // started from a Click-to-WhatsApp ad (Instagram/Facebook). See
   // ctwa-attribution.ts.
-  referral?: WhatsAppReferral
+  referral?: WhatsAppReferral;
 }
 
 export interface WhatsAppWebhookEntry {
-  id: string
+  id: string;
   changes: Array<{
     value: {
-      messaging_product: string
+      messaging_product: string;
       metadata: {
-        display_phone_number: string
-        phone_number_id: string
-      }
+        display_phone_number: string;
+        phone_number_id: string;
+      };
       contacts?: Array<{
-        profile: { name: string }
-        wa_id: string
-      }>
-      messages?: WhatsAppMessage[]
+        profile: { name: string };
+        wa_id: string;
+      }>;
+      messages?: WhatsAppMessage[];
       statuses?: Array<{
-        id: string
-        status: string
-        timestamp: string
-        recipient_id: string
+        id: string;
+        status: string;
+        timestamp: string;
+        recipient_id: string;
         errors?: Array<{
-          code: number
-          title: string
-          message: string
+          code: number;
+          title: string;
+          message: string;
           error_data?: {
-            details?: string
-          }
-        }>
-      }>
-    }
-    field: string
-  }>
+            details?: string;
+          };
+        }>;
+      }>;
+    };
+    field: string;
+  }>;
 }
 
 // ── Sandbox Routing ───────────────────────────────────────────────
 
-const HASHTAG_REGEX = /^#([a-zA-Z0-9]+)\s*/
+const HASHTAG_REGEX = /^#([a-zA-Z0-9]+)\s*/;
 
 interface SandboxRouteResult {
-  accountId: string
-  userId: string
-  sandboxCode: string
-  isNewMapping: boolean
+  accountId: string;
+  userId: string;
+  sandboxCode: string;
+  isNewMapping: boolean;
 }
 
 async function resolveSandboxAccount(
   message: WhatsAppMessage,
   senderPhone: string
 ): Promise<SandboxRouteResult | null> {
-  const textBody = message.text?.body?.trim() || ''
-  const hashtagMatch = textBody.match(HASHTAG_REGEX)
+  const textBody = message.text?.body?.trim() || '';
+  const hashtagMatch = textBody.match(HASHTAG_REGEX);
 
   // 1. Try hashtag prefix match
   if (hashtagMatch) {
-    const code = hashtagMatch[1].toLowerCase()
+    const code = hashtagMatch[1].toLowerCase();
     const { data: configRows } = await supabaseAdmin()
       .from('whatsapp_config')
       .select('account_id, user_id, sandbox_code')
       .eq('integration_type', 'sandbox')
       .ilike('sandbox_code', code)
-      .limit(1)
+      .limit(1);
 
     if (configRows && configRows.length > 0) {
-      const cfg = configRows[0]
+      const cfg = configRows[0];
       // Create or update mapping
       await supabaseAdmin()
         .from('sandbox_sender_mappings')
@@ -311,14 +344,14 @@ async function resolveSandboxAccount(
             last_message_at: new Date().toISOString(),
           } as unknown as never[],
           { onConflict: 'sender_phone' }
-        )
+        );
 
       return {
         accountId: cfg.account_id,
         userId: cfg.user_id,
         sandboxCode: cfg.sandbox_code,
         isNewMapping: true,
-      }
+      };
     }
   }
 
@@ -327,24 +360,24 @@ async function resolveSandboxAccount(
     .from('sandbox_sender_mappings')
     .select('*')
     .eq('sender_phone', senderPhone)
-    .maybeSingle()
+    .maybeSingle();
 
   if (mapping) {
     // Update last_message_at
     await supabaseAdmin()
       .from('sandbox_sender_mappings')
       .update({ last_message_at: new Date().toISOString() })
-      .eq('sender_phone', senderPhone)
+      .eq('sender_phone', senderPhone);
 
     return {
       accountId: (mapping as unknown as SandboxSenderMapping).account_id,
       userId: '', // Will be resolved below
       sandboxCode: (mapping as unknown as SandboxSenderMapping).sandbox_code,
       isNewMapping: false,
-    }
+    };
   }
 
-  return null
+  return null;
 }
 
 async function resolveSandboxOwnerUserId(accountId: string): Promise<string> {
@@ -354,9 +387,9 @@ async function resolveSandboxOwnerUserId(accountId: string): Promise<string> {
     .eq('account_id', accountId)
     .order('created_at', { ascending: true })
     .limit(1)
-    .maybeSingle()
+    .maybeSingle();
 
-  return (profile?.user_id as string) || ''
+  return (profile?.user_id as string) || '';
 }
 
 /**
@@ -377,39 +410,39 @@ async function resolveLiveSandboxRoute(
   message: WhatsAppMessage,
   senderPhone: string
 ): Promise<{
-  route: SandboxRouteResult
-  tenantConfig: SandboxTenantConfig | null
+  route: SandboxRouteResult;
+  tenantConfig: SandboxTenantConfig | null;
 } | null> {
-  const route = await resolveSandboxAccount(message, senderPhone)
-  if (!route) return null
+  const route = await resolveSandboxAccount(message, senderPhone);
+  if (!route) return null;
 
   const { data } = await supabaseAdmin()
     .from('whatsapp_config')
     .select('trial_ends_at, sandbox_message_count, sandbox_message_limit')
     .eq('account_id', route.accountId)
-    .maybeSingle()
-  const tenantConfig = (data as SandboxTenantConfig | null) ?? null
+    .maybeSingle();
+  const tenantConfig = (data as SandboxTenantConfig | null) ?? null;
 
-  if (!isSandboxTrialExpired(tenantConfig)) return { route, tenantConfig }
+  if (!isSandboxTrialExpired(tenantConfig)) return { route, tenantConfig };
 
   console.warn(
     `[webhook] Sandbox trial expired for account ${route.accountId} — releasing mapping for ${senderPhone} so this message can fall through instead of being dropped.`
-  )
-  await releaseSandboxSender(supabaseAdmin(), senderPhone)
-  return null
+  );
+  await releaseSandboxSender(supabaseAdmin(), senderPhone);
+  return null;
 }
 
 export async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
-  if (!body.entry) return
+  if (!body.entry) return;
 
   for (const entry of body.entry) {
     for (const change of entry.changes) {
       if (isTemplateWebhookField(change.field)) {
         await handleTemplateWebhookChange(
           { field: change.field, value: change.value as unknown },
-          supabaseAdmin(),
-        )
-        continue
+          supabaseAdmin()
+        );
+        continue;
       }
 
       // Group lifecycle/participants/settings/status. These carry no
@@ -418,12 +451,12 @@ export async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
       if (isGroupWebhookField(change.field)) {
         const groupPhoneNumberId = (
           change.value as { metadata?: { phone_number_id?: string } }
-        )?.metadata?.phone_number_id
+        )?.metadata?.phone_number_id;
         if (groupPhoneNumberId) {
           const { data: groupConfigs } = await supabaseAdmin()
             .from('whatsapp_config')
             .select('account_id')
-            .eq('phone_number_id', groupPhoneNumberId)
+            .eq('phone_number_id', groupPhoneNumberId);
 
           // Same rule as the message path: an ambiguous number is
           // dropped rather than written to an arbitrary account.
@@ -431,87 +464,108 @@ export async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
             await processGroupWebhook(
               groupConfigs[0].account_id as string,
               change.field,
-              change.value as unknown,
-            )
+              change.value as unknown
+            );
           } else {
             console.error(
-              `[webhook] group event for phone_number_id ${groupPhoneNumberId} matched ${groupConfigs?.length ?? 0} configs. Dropping.`,
-            )
+              `[webhook] group event for phone_number_id ${groupPhoneNumberId} matched ${groupConfigs?.length ?? 0} configs. Dropping.`
+            );
           }
         }
-        continue
+        continue;
       }
 
-      const value = change.value
+      const value = change.value;
 
       // Handle status updates
       if (value.statuses) {
         for (const status of value.statuses) {
-          await handleStatusUpdate(status)
+          await handleStatusUpdate(status);
         }
       }
 
       // Handle incoming messages
-      if (!value.messages || !value.contacts) continue
+      if (!value.messages || !value.contacts) continue;
 
-      const phoneNumberId = value.metadata.phone_number_id
-      console.log(`[webhook] Incoming messages for phone_number_id: ${phoneNumberId}, messages: ${value.messages.length}`)
+      const phoneNumberId = value.metadata.phone_number_id;
+      console.log(
+        `[webhook] Incoming messages for phone_number_id: ${phoneNumberId}, messages: ${value.messages.length}`
+      );
 
-      const sandboxSystem = await getSandboxSystemConfig()
-      const isSystemSandboxNumber = sandboxSystem.enabled && sandboxSystem.phone_number_id === phoneNumberId
+      const sandboxSystem = await getSandboxSystemConfig();
+      const isSystemSandboxNumber =
+        sandboxSystem.enabled &&
+        sandboxSystem.phone_number_id === phoneNumberId;
 
       // ── 1. If this is the shared sandbox number, try tenant routing per-message ──
       if (isSystemSandboxNumber) {
-        console.log(`[webhook] phone_number_id ${phoneNumberId} matches system sandbox config. Trying hashtag/sender routing per message...`)
+        console.log(
+          `[webhook] phone_number_id ${phoneNumberId} matches system sandbox config. Trying hashtag/sender routing per message...`
+        );
 
         for (let i = 0; i < value.messages.length; i++) {
-          const message = value.messages[i]
-          const contact = value.contacts[i] || value.contacts[0]
-          const senderPhone = normalizePhone(message.from)
+          const message = value.messages[i];
+          const contact = value.contacts[i] || value.contacts[0];
+          const senderPhone = normalizePhone(message.from);
 
-          console.log(`[webhook] Attempting sandbox routing for sender: ${senderPhone}, body: "${message.text?.body?.substring(0, 50) || '[non-text]'}"`)
+          console.log(
+            `[webhook] Attempting sandbox routing for sender: ${senderPhone}, body: "${message.text?.body?.substring(0, 50) || '[non-text]'}"`
+          );
 
           // Null here means "no live sandbox tenant owns this sender" —
           // never mapped, or mapped to a lapsed trial, which releases
           // itself. Either way the Official API fallback below answers.
-          const live = await resolveLiveSandboxRoute(message, senderPhone)
+          const live = await resolveLiveSandboxRoute(message, senderPhone);
           if (live) {
-            const { route, tenantConfig } = live
-            console.log(`[webhook] Resolved sandbox route: account=${route.accountId}, code=${route.sandboxCode}, newMapping=${route.isNewMapping}`)
+            const { route, tenantConfig } = live;
+            console.log(
+              `[webhook] Resolved sandbox route: account=${route.accountId}, code=${route.sandboxCode}, newMapping=${route.isNewMapping}`
+            );
 
             // Resolve owner user_id if not cached in mapping
-            const ownerUserId = route.userId || await resolveSandboxOwnerUserId(route.accountId)
+            const ownerUserId =
+              route.userId ||
+              (await resolveSandboxOwnerUserId(route.accountId));
 
             // Rate limit check & atomic increment
-            const msgLimit = tenantConfig?.sandbox_message_limit ?? 50
-            const { data: allowed, error: rpcErr } = await supabaseAdmin()
-              .rpc('increment_sandbox_message_count', {
+            const msgLimit = tenantConfig?.sandbox_message_limit ?? 50;
+            const { data: allowed, error: rpcErr } = await supabaseAdmin().rpc(
+              'increment_sandbox_message_count',
+              {
                 p_account_id: route.accountId,
                 p_limit: msgLimit,
-              });
+              }
+            );
 
             if (rpcErr || !allowed) {
-              console.warn(`[webhook] Sandbox message limit reached or error for account ${route.accountId} (limit: ${msgLimit}). Dropping.`);
+              console.warn(
+                `[webhook] Sandbox message limit reached or error for account ${route.accountId} (limit: ${msgLimit}). Dropping.`
+              );
               continue;
             }
 
             // Strip the sandbox hashtag from the message text before storing
             // so the UI shows "hi" instead of "#convo870 hi"
-            const cleanedMessage = { ...message }
+            const cleanedMessage = { ...message };
             if (cleanedMessage.text?.body) {
               cleanedMessage.text = {
                 ...cleanedMessage.text,
-                body: cleanedMessage.text.body.replace(HASHTAG_REGEX, '').trim(),
-              }
+                body: cleanedMessage.text.body
+                  .replace(HASHTAG_REGEX, '')
+                  .trim(),
+              };
             }
 
             // Use system sandbox credentials if available
-            let decryptedSystemToken = ''
+            let decryptedSystemToken = '';
             if (sandboxSystem.access_token) {
               try {
-                decryptedSystemToken = decrypt(sandboxSystem.access_token)
+                decryptedSystemToken = decrypt(sandboxSystem.access_token);
               } catch (err) {
-                console.warn('[webhook] Failed to decrypt sandbox system token:', err)
+                console.warn(
+                  '[webhook] Failed to decrypt sandbox system token:',
+                  err
+                );
               }
             }
 
@@ -522,77 +576,104 @@ export async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
               ownerUserId,
               decryptedSystemToken,
               phoneNumberId
-            )
-            continue
+            );
+            continue;
           }
 
           // No LIVE sandbox route for this message — fall back to Official API config (if same number is also an official number)
-          console.warn(`[webhook] No live sandbox route for sender ${senderPhone}. Checking Official API fallback...`)
+          console.warn(
+            `[webhook] No live sandbox route for sender ${senderPhone}. Checking Official API fallback...`
+          );
 
           const { data: fallbackConfigs } = await supabaseAdmin()
             .from('whatsapp_config')
             .select('*')
-            .eq('phone_number_id', phoneNumberId)
+            .eq('phone_number_id', phoneNumberId);
 
           if (fallbackConfigs && fallbackConfigs.length === 1) {
-            const fb = fallbackConfigs[0]
-            console.log(`[webhook] Falling back to Official API account: ${fb.account_id}`)
-            let fbToken: string
+            const fb = fallbackConfigs[0];
+            console.log(
+              `[webhook] Falling back to Official API account: ${fb.account_id}`
+            );
+            let fbToken: string;
             try {
-              fbToken = decrypt(fb.access_token)
+              fbToken = decrypt(fb.access_token);
             } catch (err) {
-              console.error('[webhook] Failed to decrypt fallback access_token:', err)
-              continue
+              console.error(
+                '[webhook] Failed to decrypt fallback access_token:',
+                err
+              );
+              continue;
             }
-            await processMessage(message, contact, fb.account_id, fb.user_id, fbToken, fb.phone_number_id)
-            continue
+            await processMessage(
+              message,
+              contact,
+              fb.account_id,
+              fb.user_id,
+              fbToken,
+              fb.phone_number_id
+            );
+            continue;
           }
 
-          console.warn(`[webhook] No sandbox route and no Official API fallback for sender ${senderPhone}. Dropping. Body: "${message.text?.body || ''}"`)
+          console.warn(
+            `[webhook] No sandbox route and no Official API fallback for sender ${senderPhone}. Dropping. Body: "${message.text?.body || ''}"`
+          );
         }
-        continue
+        continue;
       }
 
       // ── 2. Normal Official API flow (phone_number_id is NOT the sandbox number) ──
-      const { data: officialConfigs, error: officialError } = await supabaseAdmin()
-        .from('whatsapp_config')
-        .select('*')
-        .eq('phone_number_id', phoneNumberId)
+      const { data: officialConfigs, error: officialError } =
+        await supabaseAdmin()
+          .from('whatsapp_config')
+          .select('*')
+          .eq('phone_number_id', phoneNumberId);
 
       if (officialError) {
-        console.error('[webhook] Error fetching Official API configs:', officialError)
+        console.error(
+          '[webhook] Error fetching Official API configs:',
+          officialError
+        );
       }
 
       if (officialConfigs && officialConfigs.length > 0) {
         if (officialConfigs.length > 1) {
           console.error(
             `[webhook] Multiple configs (${officialConfigs.length}) for phone_number_id ${phoneNumberId}. Dropping.`
-          )
-          continue
+          );
+          continue;
         }
 
-        const config = officialConfigs[0]
-        console.log(`[webhook] Matched Official API account: ${config.account_id}`)
+        const config = officialConfigs[0];
+        console.log(
+          `[webhook] Matched Official API account: ${config.account_id}`
+        );
 
         // Trial expiration check (for official_api, trial_ends_at is usually null)
-        if (config.integration_type !== 'official_api' && config.trial_ends_at) {
+        if (
+          config.integration_type !== 'official_api' &&
+          config.trial_ends_at
+        ) {
           if (new Date() > new Date(config.trial_ends_at)) {
-            console.warn(`[webhook] Trial expired for account ${config.account_id}. Dropping message.`)
-            continue
+            console.warn(
+              `[webhook] Trial expired for account ${config.account_id}. Dropping message.`
+            );
+            continue;
           }
         }
 
-        let decryptedAccessToken: string
+        let decryptedAccessToken: string;
         try {
-          decryptedAccessToken = decrypt(config.access_token)
+          decryptedAccessToken = decrypt(config.access_token);
         } catch (err) {
-          console.error('[webhook] Failed to decrypt access_token:', err)
-          continue
+          console.error('[webhook] Failed to decrypt access_token:', err);
+          continue;
         }
 
         for (let i = 0; i < value.messages.length; i++) {
-          const message = value.messages[i]
-          const contact = value.contacts[i] || value.contacts[0]
+          const message = value.messages[i];
+          const contact = value.contacts[i] || value.contacts[0];
           await processMessage(
             message,
             contact,
@@ -600,63 +681,84 @@ export async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
             config.user_id,
             decryptedAccessToken,
             config.phone_number_id
-          )
+          );
         }
-        continue
+        continue;
       }
 
       // ── 2. No Official API match — try Sandbox routing ─────────
-      console.log(`[webhook] No Official API config for ${phoneNumberId}. Trying sandbox hashtag/sender routing...`)
+      console.log(
+        `[webhook] No Official API config for ${phoneNumberId}. Trying sandbox hashtag/sender routing...`
+      );
 
-      const fallbackSandboxSystem = await getSandboxSystemConfig()
+      const fallbackSandboxSystem = await getSandboxSystemConfig();
 
       for (let i = 0; i < value.messages.length; i++) {
-        const message = value.messages[i]
-        const contact = value.contacts[i] || value.contacts[0]
-        const senderPhone = normalizePhone(message.from)
+        const message = value.messages[i];
+        const contact = value.contacts[i] || value.contacts[0];
+        const senderPhone = normalizePhone(message.from);
 
-        console.log(`[webhook] Attempting sandbox routing for sender: ${senderPhone}, body: "${message.text?.body?.substring(0, 50) || '[non-text]'}"`)
+        console.log(
+          `[webhook] Attempting sandbox routing for sender: ${senderPhone}, body: "${message.text?.body?.substring(0, 50) || '[non-text]'}"`
+        );
 
         // This number has no Official API config at all, so there is
         // nothing to fall through to — the message is genuinely
         // unroutable. An expired trial still releases its mapping on
         // the way past, so the sender is no longer pinned to a dead
         // tenant the day an official config does exist.
-        const live = await resolveLiveSandboxRoute(message, senderPhone)
+        const live = await resolveLiveSandboxRoute(message, senderPhone);
         if (!live) {
-          console.warn(`[webhook] No live sandbox route for sender ${senderPhone}, and no Official API config for ${phoneNumberId}. Dropping. Body: "${message.text?.body || ''}"`)
-          continue
+          console.warn(
+            `[webhook] No live sandbox route for sender ${senderPhone}, and no Official API config for ${phoneNumberId}. Dropping. Body: "${message.text?.body || ''}"`
+          );
+          continue;
         }
 
-        const { route, tenantConfig } = live
-        console.log(`[webhook] Resolved sandbox route: account=${route.accountId}, code=${route.sandboxCode}, newMapping=${route.isNewMapping}`)
+        const { route, tenantConfig } = live;
+        console.log(
+          `[webhook] Resolved sandbox route: account=${route.accountId}, code=${route.sandboxCode}, newMapping=${route.isNewMapping}`
+        );
 
         // Resolve owner user_id if not cached in mapping
-        const ownerUserId = route.userId || await resolveSandboxOwnerUserId(route.accountId)
+        const ownerUserId =
+          route.userId || (await resolveSandboxOwnerUserId(route.accountId));
 
         // Rate limit check & atomic increment
-        const msgLimit = tenantConfig?.sandbox_message_limit ?? 50
-        const { data: allowed, error: rpcErr } = await supabaseAdmin()
-          .rpc('increment_sandbox_message_count', {
+        const msgLimit = tenantConfig?.sandbox_message_limit ?? 50;
+        const { data: allowed, error: rpcErr } = await supabaseAdmin().rpc(
+          'increment_sandbox_message_count',
+          {
             p_account_id: route.accountId,
             p_limit: msgLimit,
-          });
+          }
+        );
 
         if (rpcErr || !allowed) {
-          console.warn(`[webhook] Sandbox message limit reached or error for account ${route.accountId} (limit: ${msgLimit}). Dropping.`);
+          console.warn(
+            `[webhook] Sandbox message limit reached or error for account ${route.accountId} (limit: ${msgLimit}). Dropping.`
+          );
           continue;
         }
 
         // Use system sandbox credentials if available; otherwise empty (text-only processing)
-        let decryptedSystemToken = ''
-        if (fallbackSandboxSystem.enabled && fallbackSandboxSystem.access_token) {
+        let decryptedSystemToken = '';
+        if (
+          fallbackSandboxSystem.enabled &&
+          fallbackSandboxSystem.access_token
+        ) {
           try {
-            decryptedSystemToken = decrypt(fallbackSandboxSystem.access_token)
+            decryptedSystemToken = decrypt(fallbackSandboxSystem.access_token);
           } catch (err) {
-            console.warn('[webhook] Failed to decrypt sandbox system token:', err)
+            console.warn(
+              '[webhook] Failed to decrypt sandbox system token:',
+              err
+            );
           }
         } else {
-          console.warn('[webhook] Sandbox system credentials not configured. Media downloads may fail, but text processing will continue.')
+          console.warn(
+            '[webhook] Sandbox system credentials not configured. Media downloads may fail, but text processing will continue.'
+          );
         }
 
         await processMessage(
@@ -666,10 +768,9 @@ export async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
           ownerUserId,
           decryptedSystemToken,
           phoneNumberId
-        )
+        );
       }
-      continue
-
+      continue;
     }
   }
 }
@@ -680,69 +781,77 @@ const RECIPIENT_STATUS_LADDER = [
   'delivered',
   'read',
   'replied',
-] as const
+] as const;
 
 function ladderLevel(s: string): number {
-  const idx = (RECIPIENT_STATUS_LADDER as readonly string[]).indexOf(s)
-  return idx < 0 ? -1 : idx
+  const idx = (RECIPIENT_STATUS_LADDER as readonly string[]).indexOf(s);
+  return idx < 0 ? -1 : idx;
 }
 
 function isValidStatusTransition(current: string, incoming: string): boolean {
   if (incoming === 'failed') {
-    return current === 'pending' || current === 'sent'
+    return current === 'pending' || current === 'sent';
   }
   if (current === 'failed') {
-    return false
+    return false;
   }
-  const ci = ladderLevel(current)
-  const ii = ladderLevel(incoming)
-  if (ii < 0) return false
-  if (ci < 0) return true
-  return ii > ci
+  const ci = ladderLevel(current);
+  const ii = ladderLevel(incoming);
+  if (ii < 0) return false;
+  if (ci < 0) return true;
+  return ii > ci;
 }
 
 async function handleStatusUpdate(status: {
-  id: string
-  status: string
-  timestamp: string
-  recipient_id: string
+  id: string;
+  status: string;
+  timestamp: string;
+  recipient_id: string;
   errors?: Array<{
-    code: number
-    title: string
-    message: string
+    code: number;
+    title: string;
+    message: string;
     error_data?: {
-      details?: string
-    }
-  }>
+      details?: string;
+    };
+  }>;
 }) {
-  console.log(`[webhook] Received status update: ${status.id} -> ${status.status}`)
+  console.log(
+    `[webhook] Received status update: ${status.id} -> ${status.status}`
+  );
   if (status.status === 'failed' || status.errors) {
-    console.error(`[webhook] Status FAILED for message ${status.id} to recipient ${status.recipient_id}. Errors:`, JSON.stringify(status.errors, null, 2))
+    console.error(
+      `[webhook] Status FAILED for message ${status.id} to recipient ${status.recipient_id}. Errors:`,
+      JSON.stringify(status.errors, null, 2)
+    );
   }
 
-  const updatePayload: Record<string, unknown> = { status: status.status }
+  const updatePayload: Record<string, unknown> = { status: status.status };
 
   if (status.status === 'failed' && status.errors && status.errors.length > 0) {
     const errorDetails = status.errors
-      .map((e) => `[Error ${e.code}] ${e.message}${e.error_data?.details ? `: ${e.error_data.details}` : ''}`)
-      .join('\n')
-    
+      .map(
+        (e) =>
+          `[Error ${e.code}] ${e.message}${e.error_data?.details ? `: ${e.error_data.details}` : ''}`
+      )
+      .join('\n');
+
     try {
       const { data: existingMsg } = await supabaseAdmin()
         .from('messages')
         .select('content_text')
         .eq('message_id', status.id)
-        .maybeSingle()
+        .maybeSingle();
 
       if (existingMsg) {
-        const originalText = existingMsg.content_text || ''
+        const originalText = existingMsg.content_text || '';
         if (!originalText.includes(DELIVERY_FAILURE_MARKER)) {
           updatePayload.content_text =
-            `${originalText}\n\n${DELIVERY_FAILURE_MARKER}\n${errorDetails}`.trim()
+            `${originalText}\n\n${DELIVERY_FAILURE_MARKER}\n${errorDetails}`.trim();
         }
       }
     } catch (err) {
-      console.error('Failed to append error message to content_text:', err)
+      console.error('Failed to append error message to content_text:', err);
     }
   }
 
@@ -750,44 +859,49 @@ async function handleStatusUpdate(status: {
     .from('messages')
     .update(updatePayload)
     .eq('message_id', status.id)
-    .select('id')
+    .select('id');
 
   if (msgErr) {
-    console.error('Error updating message status:', msgErr)
+    console.error('Error updating message status:', msgErr);
   } else if (!updatedMsg || updatedMsg.length === 0) {
-    console.warn(`[webhook] Message with message_id ${status.id} not found in DB messages table.`)
+    console.warn(
+      `[webhook] Message with message_id ${status.id} not found in DB messages table.`
+    );
   } else {
-    console.log(`[webhook] Updated message status in DB for message_id ${status.id} to ${status.status}`)
+    console.log(
+      `[webhook] Updated message status in DB for message_id ${status.id} to ${status.status}`
+    );
   }
 
-  const tsIso = new Date(parseInt(status.timestamp) * 1000).toISOString()
+  const tsIso = new Date(parseInt(status.timestamp) * 1000).toISOString();
 
   const { data: recipient, error: recFetchErr } = await supabaseAdmin()
     .from('broadcast_recipients')
     .select('id, status')
     .eq('whatsapp_message_id', status.id)
-    .maybeSingle()
+    .maybeSingle();
 
   if (recFetchErr) {
-    console.error('Error fetching broadcast recipient:', recFetchErr)
-    return
+    console.error('Error fetching broadcast recipient:', recFetchErr);
+    return;
   }
-  if (!recipient) return
+  if (!recipient) return;
 
-  if (!isValidStatusTransition(recipient.status, status.status)) return
+  if (!isValidStatusTransition(recipient.status, status.status)) return;
 
-  const update: Record<string, unknown> = { status: status.status }
-  if (status.status === 'sent' && !('sent_at' in update)) update.sent_at = tsIso
-  if (status.status === 'delivered') update.delivered_at = tsIso
-  if (status.status === 'read') update.read_at = tsIso
+  const update: Record<string, unknown> = { status: status.status };
+  if (status.status === 'sent' && !('sent_at' in update))
+    update.sent_at = tsIso;
+  if (status.status === 'delivered') update.delivered_at = tsIso;
+  if (status.status === 'read') update.read_at = tsIso;
 
   const { error: recUpdateErr } = await supabaseAdmin()
     .from('broadcast_recipients')
     .update(update)
-    .eq('id', recipient.id)
+    .eq('id', recipient.id);
 
   if (recUpdateErr) {
-    console.error('Error updating broadcast recipient status:', recUpdateErr)
+    console.error('Error updating broadcast recipient status:', recUpdateErr);
   }
 }
 
@@ -800,26 +914,26 @@ async function flagBroadcastReplyIfAny(accountId: string, contactId: string) {
       .eq('broadcasts.account_id', accountId)
       .in('status', ['sent', 'delivered', 'read'])
       .order('created_at', { ascending: false })
-      .limit(1)
+      .limit(1);
 
-    if (error || !recs || recs.length === 0) return
+    if (error || !recs || recs.length === 0) return;
 
-    const row = recs[0]
+    const row = recs[0];
     const { error: updErr } = await supabaseAdmin()
       .from('broadcast_recipients')
       .update({ status: 'replied', replied_at: new Date().toISOString() })
-      .eq('id', row.id)
+      .eq('id', row.id);
 
     if (updErr) {
-      console.error('Error marking broadcast recipient replied:', updErr)
+      console.error('Error marking broadcast recipient replied:', updErr);
     }
   } catch (err) {
-    console.error('flagBroadcastReplyIfAny failed:', err)
+    console.error('flagBroadcastReplyIfAny failed:', err);
   }
 }
 
-const REMINDER_RESCHEDULE_BUTTON_TEXT = 'Requesting reschedule'
-const REMINDER_CONFIRM_BUTTON_TEXT = 'Fine'
+const REMINDER_RESCHEDULE_BUTTON_TEXT = 'Requesting reschedule';
+const REMINDER_CONFIRM_BUTTON_TEXT = 'Fine';
 
 /**
  * A tap on either of the reminder's quick-reply buttons
@@ -843,34 +957,40 @@ async function handleReminderButtonReply(
   conversationId: string,
   ownerUserId: string
 ): Promise<boolean> {
-  const buttonText = message.button?.text
-  const isReschedule = buttonText === REMINDER_RESCHEDULE_BUTTON_TEXT
-  const isConfirm = buttonText === REMINDER_CONFIRM_BUTTON_TEXT
-  if ((!isReschedule && !isConfirm) || !message.context?.id) return false
+  const buttonText = message.button?.text;
+  const isReschedule = buttonText === REMINDER_RESCHEDULE_BUTTON_TEXT;
+  const isConfirm = buttonText === REMINDER_CONFIRM_BUTTON_TEXT;
+  if ((!isReschedule && !isConfirm) || !message.context?.id) return false;
 
   try {
-    const admin = supabaseAdmin()
+    const admin = supabaseAdmin();
     const { data: log } = await admin
       .from('appointment_reminder_log')
       .select('appointment_id')
       .eq('wa_message_id', message.context.id)
       .eq('account_id', accountId)
-      .maybeSingle()
-    if (!log?.appointment_id) return false
+      .maybeSingle();
+    if (!log?.appointment_id) return false;
 
     // Each tap resolves the other flag — the latest client signal wins.
     const stamp = isReschedule
-      ? { reschedule_requested_at: new Date().toISOString(), client_confirmed_at: null }
-      : { client_confirmed_at: new Date().toISOString(), reschedule_requested_at: null }
+      ? {
+          reschedule_requested_at: new Date().toISOString(),
+          client_confirmed_at: null,
+        }
+      : {
+          client_confirmed_at: new Date().toISOString(),
+          reschedule_requested_at: null,
+        };
 
     const { data: appt } = await admin
       .from('appointments')
       .update(stamp)
       .eq('id', log.appointment_id)
       .select('id, title, start_time, user_id, assigned_to')
-      .maybeSingle()
+      .maybeSingle();
     // Reminder tap on a since-deleted appointment: still consumed.
-    if (!appt) return true
+    if (!appt) return true;
 
     const formattedTime = new Date(appt.start_time).toLocaleString('en-IN', {
       timeZone: 'Asia/Kolkata',
@@ -880,7 +1000,7 @@ async function handleReminderButtonReply(
       hour: '2-digit',
       minute: '2-digit',
       hour12: true,
-    })
+    });
 
     if (isConfirm) {
       // Ack in-thread — the client just messaged, so the 24h session
@@ -893,20 +1013,20 @@ async function handleReminderButtonReply(
         kind: 'text',
         senderType: 'bot',
         text: `✅ Thank you! Your meeting "${appt.title}" on ${formattedTime} is confirmed. See you there!`,
-      })
+      });
     }
 
-    const agentUserId = appt.assigned_to || appt.user_id
-    if (!agentUserId) return true
+    const agentUserId = appt.assigned_to || appt.user_id;
+    if (!agentUserId) return true;
 
     const { data: agentProfile } = await admin
       .from('profiles')
       .select('phone')
       .eq('user_id', agentUserId)
-      .maybeSingle()
-    if (!agentProfile?.phone) return true
-    const agentPhone = sanitizePhoneForMeta(agentProfile.phone)
-    if (!isValidE164(agentPhone)) return true
+      .maybeSingle();
+    if (!agentProfile?.phone) return true;
+    const agentPhone = sanitizePhoneForMeta(agentProfile.phone);
+    if (!isValidE164(agentPhone)) return true;
 
     await sendWhatsAppMessageAndPersist({
       accountId,
@@ -917,13 +1037,13 @@ async function handleReminderButtonReply(
       text: isReschedule
         ? `🔄 Reschedule requested for "${appt.title}" on ${formattedTime}. The client tapped "Requesting reschedule" on their reminder — reach out to find a new time.`
         : `✅ Meeting confirmed: "${appt.title}" on ${formattedTime}. The client tapped "Fine" on their reminder.`,
-    })
-    return true
+    });
+    return true;
   } catch (err) {
-    console.error('[webhook] handleReminderButtonReply failed:', err)
+    console.error('[webhook] handleReminderButtonReply failed:', err);
     // The text matched a reminder button — swallow rather than letting
     // a partial failure leak the tap into the chatbot flows.
-    return true
+    return true;
   }
 }
 
@@ -936,12 +1056,12 @@ async function lookupInternalIdByMetaId(
     .select('id')
     .eq('message_id', metaId)
     .eq('conversation_id', conversationId)
-    .maybeSingle()
+    .maybeSingle();
   if (error) {
-    console.error('[webhook] lookupInternalIdByMetaId failed:', error.message)
-    return null
+    console.error('[webhook] lookupInternalIdByMetaId failed:', error.message);
+    return null;
   }
-  return data?.id ?? null
+  return data?.id ?? null;
 }
 
 async function handleReaction(
@@ -949,19 +1069,19 @@ async function handleReaction(
   conversationId: string,
   contactId: string
 ) {
-  const reaction = message.reaction
-  if (!reaction?.message_id) return
+  const reaction = message.reaction;
+  if (!reaction?.message_id) return;
 
   const targetInternalId = await lookupInternalIdByMetaId(
     reaction.message_id,
     conversationId
-  )
+  );
   if (!targetInternalId) {
     console.warn(
       '[webhook] reaction target message not found; skipping',
       reaction.message_id
-    )
-    return
+    );
+    return;
   }
 
   if (!reaction.emoji) {
@@ -970,11 +1090,11 @@ async function handleReaction(
       .delete()
       .eq('message_id', targetInternalId)
       .eq('actor_type', 'customer')
-      .eq('actor_id', contactId)
+      .eq('actor_id', contactId);
     if (delError) {
-      console.error('[webhook] reaction delete failed:', delError.message)
+      console.error('[webhook] reaction delete failed:', delError.message);
     }
-    return
+    return;
   }
 
   const { error: upsertError } = await supabaseAdmin()
@@ -988,9 +1108,9 @@ async function handleReaction(
         emoji: reaction.emoji,
       },
       { onConflict: 'message_id,actor_type,actor_id' }
-    )
+    );
   if (upsertError) {
-    console.error('[webhook] reaction upsert failed:', upsertError.message)
+    console.error('[webhook] reaction upsert failed:', upsertError.message);
   }
 }
 
@@ -1012,48 +1132,52 @@ async function processMessage(
     .from('accounts')
     .select('status')
     .eq('id', accountId)
-    .maybeSingle()
+    .maybeSingle();
   if ((accountRow as { status?: string } | null)?.status === 'archived') {
-    console.warn(`[webhook] Account ${accountId} is archived. Dropping message.`)
-    return
+    console.warn(
+      `[webhook] Account ${accountId} is archived. Dropping message.`
+    );
+    return;
   }
 
-  const senderPhone = normalizePhone(message.from)
-  const contactName = contact.profile.name
+  const senderPhone = normalizePhone(message.from);
+  const contactName = contact.profile.name;
 
   // A group message reaches us on this same `messages` field, and `from`
   // is the PARTICIPANT. Everything below would therefore file it in that
   // person's private thread and let the bot answer them directly — so
   // groups are split off before any contact or conversation is touched.
-  const waGroupId = groupIdFromInbound(message)
+  const waGroupId = groupIdFromInbound(message);
   if (waGroupId) {
-    const thread = await resolveGroupThread(accountId, waGroupId)
+    const thread = await resolveGroupThread(accountId, waGroupId);
     if (!thread) {
       console.warn(
         `[webhook] group message for unknown group ${waGroupId} on account ${accountId}. Dropping.`
-      )
-      return
+      );
+      return;
     }
-    const parsed = await parseMessageContent(message, accessToken)
-    const senderContactId = await resolveGroupSender(accountId, senderPhone)
+    const parsed = await parseMessageContent(message, accessToken);
+    const senderContactId = await resolveGroupSender(accountId, senderPhone);
 
-    await supabaseAdmin().from('messages').insert({
-      conversation_id: thread.conversationId,
-      sender_type: 'customer',
-      content_type:
-        message.type === 'sticker'
-          ? 'image'
-          : message.type === 'order'
-            ? 'text'
-            : message.type,
-      content_text: parsed.contentText,
-      media_url: parsed.mediaUrl,
-      message_id: message.id,
-      status: 'delivered',
-      // In a group the conversation no longer says who wrote this.
-      sender_wa_id: senderPhone,
-      sender_contact_id: senderContactId,
-    })
+    await supabaseAdmin()
+      .from('messages')
+      .insert({
+        conversation_id: thread.conversationId,
+        sender_type: 'customer',
+        content_type:
+          message.type === 'sticker'
+            ? 'image'
+            : message.type === 'order'
+              ? 'text'
+              : message.type,
+        content_text: parsed.contentText,
+        media_url: parsed.mediaUrl,
+        message_id: message.id,
+        status: 'delivered',
+        // In a group the conversation no longer says who wrote this.
+        sender_wa_id: senderPhone,
+        sender_contact_id: senderContactId,
+      });
 
     await supabaseAdmin()
       .from('conversations')
@@ -1061,13 +1185,13 @@ async function processMessage(
         last_message_text: parsed.contentText || `[${message.type}]`,
         last_message_at: new Date().toISOString(),
       })
-      .eq('id', thread.conversationId)
+      .eq('id', thread.conversationId);
 
     // No bot, no automations, no flows. Every automated reply path the
     // Engine has answers with buttons or lists, which groups reject
     // outright (130501) — the members would see nothing, and a
     // plain-text fallback would go to all eight of them.
-    return
+    return;
   }
 
   const contactOutcome = await findOrCreateContact(
@@ -1075,24 +1199,29 @@ async function processMessage(
     configOwnerUserId,
     senderPhone,
     contactName
-  )
-  if (!contactOutcome) return
-  const contactRecord = contactOutcome.contact
+  );
+  if (!contactOutcome) return;
+  const contactRecord = contactOutcome.contact;
 
   const conversation = await findOrCreateConversation(
     accountId,
     configOwnerUserId,
     contactRecord.id
-  )
-  if (!conversation) return
+  );
+  if (!conversation) return;
 
   if (message.type === 'reaction') {
-    await handleReaction(message, conversation.id, contactRecord.id)
-    return
+    await handleReaction(message, conversation.id, contactRecord.id);
+    return;
   }
 
-  const { contentText, mediaUrl, mediaType, interactiveReplyId, nfmResponseJson } =
-    await parseMessageContent(message, accessToken)
+  const {
+    contentText,
+    mediaUrl,
+    mediaType,
+    interactiveReplyId,
+    nfmResponseJson,
+  } = await parseMessageContent(message, accessToken);
 
   // Org hierarchy routing (migration 082/083) — only for conversations
   // that aren't already assigned, and only for accounts past Solo Mode
@@ -1100,31 +1229,33 @@ async function processMessage(
   // behavior change, conversation stays unassigned and every message
   // continues to land in the sole user's inbox exactly as before.
   let routingUpdate: {
-    assigned_agent_id?: string | null
-    assigned_team_id?: string | null
-    routing_rule_used?: string | null
-    assigned_at?: string | null
-  } = {}
+    assigned_agent_id?: string | null;
+    assigned_team_id?: string | null;
+    routing_rule_used?: string | null;
+    assigned_at?: string | null;
+  } = {};
   if (!conversation.assigned_agent_id && !conversation.assigned_team_id) {
     const { count: memberCount } = await supabaseAdmin()
       .from('profiles')
       .select('user_id', { count: 'exact', head: true })
-      .eq('account_id', accountId)
+      .eq('account_id', accountId);
     if ((memberCount ?? 0) >= 2) {
       const routingResult = await resolveRouting({
         accountId,
         phone: senderPhone,
         messageText: contentText || '',
         contactId: contactRecord.id,
-        contactAssignedAgentId: (contactRecord as { assigned_agent_id?: string | null }).assigned_agent_id,
+        contactAssignedAgentId: (
+          contactRecord as { assigned_agent_id?: string | null }
+        ).assigned_agent_id,
         source: (contactRecord as { source?: string | null }).source,
-      })
+      });
       routingUpdate = {
         assigned_agent_id: routingResult.agentId,
         assigned_team_id: routingResult.teamId,
         routing_rule_used: routingResult.ruleUsed,
         assigned_at: new Date().toISOString(),
-      }
+      };
     }
   }
 
@@ -1134,7 +1265,7 @@ async function processMessage(
   // and before the text matcher below — a property linked from the
   // actual ad we created is authoritative, so we skip text matching
   // when it succeeds. No-op for every non-ad message.
-  let ctwaLinkedPropertyId: string | null = null
+  let ctwaLinkedPropertyId: string | null = null;
   if (message.referral) {
     const ctwaResult = await processCtwaReferral({
       admin: supabaseAdmin(),
@@ -1144,24 +1275,24 @@ async function processMessage(
       messageId: message.id,
       referral: message.referral,
       contact: contactRecord,
-    })
-    ctwaLinkedPropertyId = ctwaResult.linkedPropertyId
+    });
+    ctwaLinkedPropertyId = ctwaResult.linkedPropertyId;
   }
 
   // The listing this message is about, when its code or title names one
   // — the showcase's enquiry button always does. Hoisted so the
   // new-lead alert below can send the enquiry card instead of a generic
   // "someone messaged you".
-  let enquiryPropertyId: string | null = null
+  let enquiryPropertyId: string | null = null;
   // The property CODE appearing in the message is a deliberate enquiry
   // — nothing puts "PROP-1030" in a buyer's message except the showcase
   // CTA or the buyer copying it on purpose. A TITLE appearing is much
   // weaker: any chat about a listing contains its title.
-  let enquiryByCode = false
-  let enquiryPropertyTitle: string | null = null
+  let enquiryByCode = false;
+  let enquiryPropertyTitle: string | null = null;
   const specificPropertyInterest =
-    message.type === 'order' || isDirectPropertyInterest(contentText)
-  let propertyReferenceNeedsAgent = false
+    message.type === 'order' || isDirectPropertyInterest(contentText);
+  let propertyReferenceNeedsAgent = false;
   if (contentText && !ctwaLinkedPropertyId) {
     try {
       const { data: properties, error: propertiesError } = await supabaseAdmin()
@@ -1170,96 +1301,111 @@ async function processMessage(
           'id, title, property_code, status, is_published, land_area, land_area_unit, area_sqft, area_unit, sublocality, locality_canonical, location, project, tags'
         )
         .eq('account_id', accountId)
-        .eq('is_published', true)
-      if (propertiesError) throw propertiesError
+        .eq('is_published', true);
+      if (propertiesError) throw propertiesError;
 
       if (properties) {
-        const catalogItemCount = message.order?.product_items?.length ?? 0
+        const catalogItemCount = message.order?.product_items?.length ?? 0;
         const resolution =
           message.type === 'order' && catalogItemCount !== 1
             ? { kind: 'ambiguous' as const, candidates: [] }
             : resolvePropertyReference(
                 contentText,
                 properties as PropertyInterestCandidate[]
-              )
+              );
 
         if (resolution.kind === 'match') {
-          const matchedProperty = resolution.property
-          enquiryByCode = resolution.matchedBy === 'code'
-          enquiryPropertyId = matchedProperty.id
-          enquiryPropertyTitle = matchedProperty.title
+          const matchedProperty = resolution.property;
+          enquiryByCode = resolution.matchedBy === 'code';
+          enquiryPropertyId = matchedProperty.id;
+          enquiryPropertyTitle = matchedProperty.title;
           await supabaseAdmin()
             .from('contacts')
             .update({
               last_inquired_property_id: matchedProperty.id,
               status: 'pending_review',
-              classification: contactRecord.classification === 'Others' ? 'Buyer' : contactRecord.classification,
-              updated_at: new Date().toISOString()
+              classification:
+                contactRecord.classification === 'Others'
+                  ? 'Buyer'
+                  : contactRecord.classification,
+              updated_at: new Date().toISOString(),
             })
-            .eq('id', contactRecord.id)
-          console.log(`[webhook] Linked contact ${contactRecord.id} to property ${matchedProperty.id} and set to pending_review`)
+            .eq('id', contactRecord.id);
+          console.log(
+            `[webhook] Linked contact ${contactRecord.id} to property ${matchedProperty.id} and set to pending_review`
+          );
         } else if (specificPropertyInterest) {
-          propertyReferenceNeedsAgent = true
+          propertyReferenceNeedsAgent = true;
         }
       }
     } catch (err) {
-      propertyReferenceNeedsAgent = specificPropertyInterest
-      console.error('[webhook] Failed to match property from text:', err)
+      propertyReferenceNeedsAgent = specificPropertyInterest;
+      console.error('[webhook] Failed to match property from text:', err);
     }
   }
 
-  let replyToInternalId: string | null = null
+  let replyToInternalId: string | null = null;
   if (message.context?.id) {
     replyToInternalId = await lookupInternalIdByMetaId(
       message.context.id,
       conversation.id
-    )
+    );
     if (!replyToInternalId) {
       console.warn(
         '[webhook] reply context parent not found:',
         message.context.id
-      )
+      );
     }
   }
 
-  void mediaType
+  void mediaType;
 
   const ALLOWED_CONTENT_TYPES = new Set([
-    'text', 'image', 'document', 'audio', 'video',
-    'location', 'template', 'interactive',
-  ])
+    'text',
+    'image',
+    'document',
+    'audio',
+    'video',
+    'location',
+    'template',
+    'interactive',
+  ]);
   const contentType = ALLOWED_CONTENT_TYPES.has(message.type)
     ? message.type
     : message.type === 'sticker'
       ? 'image'
-      : 'text'
+      : 'text';
 
   const { count: priorCustomerMsgCount } = await supabaseAdmin()
     .from('messages')
     .select('id', { count: 'exact', head: true })
     .eq('conversation_id', conversation.id)
-    .eq('sender_type', 'customer')
-  const isFirstInboundMessage = (priorCustomerMsgCount ?? 0) === 0
+    .eq('sender_type', 'customer');
+  const isFirstInboundMessage = (priorCustomerMsgCount ?? 0) === 0;
 
-  const { error: msgError } = await supabaseAdmin().from('messages').insert({
-    conversation_id: conversation.id,
-    sender_type: 'customer',
-    content_type: contentType,
-    content_text: contentText,
-    media_url: mediaUrl,
-    message_id: message.id,
-    status: 'delivered',
-    created_at: new Date(parseInt(message.timestamp) * 1000).toISOString(),
-    reply_to_message_id: replyToInternalId,
-    interactive_reply_id: interactiveReplyId,
-  })
+  const { error: msgError } = await supabaseAdmin()
+    .from('messages')
+    .insert({
+      conversation_id: conversation.id,
+      sender_type: 'customer',
+      content_type: contentType,
+      content_text: contentText,
+      media_url: mediaUrl,
+      message_id: message.id,
+      status: 'delivered',
+      created_at: new Date(parseInt(message.timestamp) * 1000).toISOString(),
+      reply_to_message_id: replyToInternalId,
+      interactive_reply_id: interactiveReplyId,
+    });
 
   if (msgError) {
     if (msgError.code === '23505') {
-      console.log(`[webhook] Message with ID ${message.id} has already been processed (deduplicated).`);
+      console.log(
+        `[webhook] Message with ID ${message.id} has already been processed (deduplicated).`
+      );
       return;
     }
-    console.error('Error inserting message:', msgError)
+    console.error('Error inserting message:', msgError);
     return;
   }
 
@@ -1268,7 +1414,7 @@ async function processMessage(
   // unread-free so it never surfaces in the shared inbox. Checked
   // here (before the conversation update) and reused below for the
   // owner chatbot routing.
-  const ownerCheck = await checkIsAccountOwner(senderPhone, accountId)
+  const ownerCheck = await checkIsAccountOwner(senderPhone, accountId);
 
   const { error: convError } = await supabaseAdmin()
     .from('conversations')
@@ -1287,10 +1433,10 @@ async function processMessage(
           }),
       ...routingUpdate,
     })
-    .eq('id', conversation.id)
+    .eq('id', conversation.id);
 
   if (convError) {
-    console.error('Error updating conversation:', convError)
+    console.error('Error updating conversation:', convError);
   }
 
   // A staff member quote-replying one of our agent pings is answering
@@ -1308,7 +1454,7 @@ async function processMessage(
   // a lead, so the bridge has to stand down for it.
   const isControlReply = Boolean(
     interactiveReplyId && isEngineControlReplyId(interactiveReplyId)
-  )
+  );
 
   // Run the control payload HERE, before any natural-language path can
   // claim it. Two of them sit between this point and the dispatch that
@@ -1333,8 +1479,8 @@ async function processMessage(
         accountId,
         replyId: interactiveReplyId,
         senderPhone,
-      })
-      if (handled) return
+      });
+      if (handled) return;
     }
     if (
       interactiveReplyId.startsWith(OWNER_APPROVE_PREFIX) ||
@@ -1345,8 +1491,8 @@ async function processMessage(
         accountId,
         replyId: interactiveReplyId,
         senderPhone,
-      })
-      if (handled) return
+      });
+      if (handled) return;
     }
     if (interactiveReplyId.startsWith(UPDATE_CHANNEL_REPLY_PREFIX)) {
       const handled = await handleUpdateChannelReply({
@@ -1354,8 +1500,8 @@ async function processMessage(
         accountId,
         replyId: interactiveReplyId,
         senderPhone,
-      })
-      if (handled) return
+      });
+      if (handled) return;
     }
     // The post-call opener's quick reply — the lead asking for the
     // matched-listing follow-up. Their own tap just opened the window,
@@ -1366,8 +1512,8 @@ async function processMessage(
         accountId,
         replyId: interactiveReplyId,
         senderPhone,
-      })
-      if (handled) return
+      });
+      if (handled) return;
     }
     if (interactiveReplyId.startsWith(AGENT_MESSAGE_CONTACT_PREFIX)) {
       const handled = await handleAgentMessageContactReply({
@@ -1378,45 +1524,45 @@ async function processMessage(
         agentConversationId: conversation.id,
         replyId: interactiveReplyId,
         senderPhone,
-      })
-      if (handled) return
+      });
+      if (handled) return;
     }
     // A tap on the enquiry card. It arrives in the AGENT's thread but
     // every action operates on the BUYER's, which is why both ids ride
     // in the button — see enquiry-card.ts.
-    const enquiryAction = parseEnquiryReply(interactiveReplyId)
+    const enquiryAction = parseEnquiryReply(interactiveReplyId);
     if (enquiryAction) {
       const handled = await handleEnquiryCardReply(
         enquiryAction,
         accountId,
         configOwnerUserId,
-        { contactId: contactRecord.id, conversationId: conversation.id },
-      )
-      if (handled) return
+        { contactId: contactRecord.id, conversationId: conversation.id }
+      );
+      if (handled) return;
     }
     // A tap on the follow-up radar card — same shape as the enquiry
     // card: delivered to the agent, acting on the lead.
-    const followUpAction = parseFollowUpReply(interactiveReplyId)
+    const followUpAction = parseFollowUpReply(interactiveReplyId);
     if (followUpAction) {
       const handled = await handleFollowUpReply(
         followUpAction,
         accountId,
         configOwnerUserId,
-        { contactId: contactRecord.id, conversationId: conversation.id },
-      )
-      if (handled) return
+        { contactId: contactRecord.id, conversationId: conversation.id }
+      );
+      if (handled) return;
     }
     // A tap on the closing card — the radar's sibling for deals already
     // at legal, acting on the journey item rather than the contact.
-    const closingAction = parseClosingReply(interactiveReplyId)
+    const closingAction = parseClosingReply(interactiveReplyId);
     if (closingAction) {
       const handled = await handleClosingReply(
         closingAction,
         accountId,
         configOwnerUserId,
-        { contactId: contactRecord.id, conversationId: conversation.id },
-      )
-      if (handled) return
+        { contactId: contactRecord.id, conversationId: conversation.id }
+      );
+      if (handled) return;
     }
   }
 
@@ -1429,8 +1575,8 @@ async function processMessage(
         senderPhone,
         agentContactId: contactRecord.id,
         agentConversationId: conversation.id,
-      })
-  if (bridged) return
+      });
+  if (bridged) return;
 
   // The agent this lead is routed to (freshly resolved above, or a prior
   // assignment), falling back to the account owner. Used to target
@@ -1438,7 +1584,7 @@ async function processMessage(
   const assignedAgentUserId =
     routingUpdate.assigned_agent_id ||
     (conversation as { assigned_agent_id?: string | null }).assigned_agent_id ||
-    configOwnerUserId
+    configOwnerUserId;
 
   // An inbound reply makes an unset buyer HOT. Portal imports, property
   // matching and outbound messages never reach this branch.
@@ -1447,7 +1593,7 @@ async function processMessage(
       db: supabaseAdmin(),
       accountId,
       contact: contactRecord,
-    })
+    });
   }
 
   // A buyer referring to one listing they already saw is not giving us
@@ -1460,7 +1606,7 @@ async function processMessage(
     specificPropertyInterest &&
     (message.type === 'order' || !enquiryByCode)
   ) {
-    const admin = supabaseAdmin()
+    const admin = supabaseAdmin();
 
     if (enquiryPropertyId && enquiryPropertyTitle) {
       await sendWhatsAppMessageAndPersist({
@@ -1471,8 +1617,11 @@ async function processMessage(
         toPhone: senderPhone,
         kind: 'text',
         senderType: 'bot',
-        text: buildPropertyInterestAck(contactRecord.name, enquiryPropertyTitle),
-      })
+        text: buildPropertyInterestAck(
+          contactRecord.name,
+          enquiryPropertyTitle
+        ),
+      });
 
       const [shareSent] = await Promise.all([
         handlePropertyShareYesReply(
@@ -1482,7 +1631,7 @@ async function processMessage(
           contactRecord.id,
           conversation.id,
           senderPhone,
-          { followUp: 'questions' },
+          { followUp: 'questions' }
         ),
         admin.from('contact_property_inquiries').upsert(
           {
@@ -1494,7 +1643,7 @@ async function processMessage(
             inquiry_date: new Date().toISOString(),
             notes: (contentText || '').slice(0, 500),
           },
-          { onConflict: 'contact_id,property_id' },
+          { onConflict: 'contact_id,property_id' }
         ),
         admin.from('listing_feedback').upsert(
           {
@@ -1504,15 +1653,15 @@ async function processMessage(
             verdict: 'interested',
             reason: null,
           },
-          { onConflict: 'contact_id,property_id' },
+          { onConflict: 'contact_id,property_id' }
         ),
-      ])
+      ]);
 
       await admin
         .from('conversations')
         .update({ status: 'pending', updated_at: new Date().toISOString() })
         .eq('id', conversation.id)
-        .eq('account_id', accountId)
+        .eq('account_id', accountId);
 
       await createNotification({
         accountId,
@@ -1537,8 +1686,8 @@ async function processMessage(
             : '⚠️ The automatic details send failed — please share them now.',
           BRIDGE_REPLY_HINT,
         ].join('\n'),
-      })
-      return
+      });
+      return;
     }
 
     if (propertyReferenceNeedsAgent) {
@@ -1551,12 +1700,12 @@ async function processMessage(
         kind: 'text',
         senderType: 'bot',
         text: buildUnresolvedPropertyInterestAck(contactRecord.name),
-      })
+      });
       await admin
         .from('conversations')
         .update({ status: 'pending', updated_at: new Date().toISOString() })
         .eq('id', conversation.id)
-        .eq('account_id', accountId)
+        .eq('account_id', accountId);
       await createNotification({
         accountId,
         userId: assignedAgentUserId,
@@ -1575,8 +1724,8 @@ async function processMessage(
           'ConvoReal did not guess. Please confirm the listing and share its details.',
           BRIDGE_REPLY_HINT,
         ].join('\n'),
-      })
-      return
+      });
+      return;
     }
   }
 
@@ -1597,7 +1746,7 @@ async function processMessage(
     enquiryByCode &&
     message.type === 'text'
   ) {
-    const preview = (contentText || '').slice(0, 140)
+    const preview = (contentText || '').slice(0, 140);
     const cardSent = await sendPropertyEnquiryCard({
       db: supabaseAdmin(),
       accountId,
@@ -1607,7 +1756,7 @@ async function processMessage(
       leadName: contactRecord.name || senderPhone,
       leadPhone: senderPhone,
       enquiryText: preview,
-    })
+    });
 
     await createNotification({
       accountId,
@@ -1637,7 +1786,7 @@ async function processMessage(
               BRIDGE_REPLY_HINT,
             ].join('\n'),
           }),
-    })
+    });
 
     await sendWhatsAppMessageAndPersist({
       accountId,
@@ -1647,15 +1796,15 @@ async function processMessage(
       kind: 'text',
       senderType: 'bot',
       text: buildEnquiryAckText(contactRecord.name, enquiryPropertyTitle),
-    })
-    return
+    });
+    return;
   }
 
   // First message on a brand-new lead thread — alert the assigned agent
   // once (in-app + push + WhatsApp).
-  let pingedOnWhatsApp = false
+  let pingedOnWhatsApp = false;
   if (!ownerCheck.isOwner && isFirstInboundMessage) {
-    const preview = (contentText || `[${message.type}]`).slice(0, 140)
+    const preview = (contentText || `[${message.type}]`).slice(0, 140);
 
     // A first message that names a listing is an enquiry, and an
     // enquiry deserves the card — property, buyer, and the two sends
@@ -1673,7 +1822,7 @@ async function processMessage(
           leadPhone: senderPhone,
           enquiryText: preview,
         })
-      : false
+      : false;
 
     const notified = await createNotification({
       accountId,
@@ -1702,15 +1851,15 @@ async function processMessage(
               BRIDGE_REPLY_HINT,
             ].join('\n'),
           }),
-    })
-    pingedOnWhatsApp = cardSent || notified.whatsapp?.success === true
+    });
+    pingedOnWhatsApp = cardSent || notified.whatsapp?.success === true;
   } else if (!ownerCheck.isOwner && (conversation.unread_count || 0) === 0) {
     // A reply on an existing thread the agent had already caught up on
     // (unread was 0 before this message). Alert them with an in-app +
     // push notification — but not a WhatsApp ping, to avoid messaging
     // the agent for every back-and-forth. Threads that already had
     // unseen messages don't re-notify, so a burst of replies is one ping.
-    const preview = (contentText || `[${message.type}]`).slice(0, 140)
+    const preview = (contentText || `[${message.type}]`).slice(0, 140);
     const notified = await createNotification({
       accountId,
       userId: assignedAgentUserId,
@@ -1721,8 +1870,8 @@ async function processMessage(
       entityType: 'conversation',
       entityId: conversation.id,
       link: `/inbox?conversation=${conversation.id}`,
-    })
-    pingedOnWhatsApp = notified.whatsapp?.success === true
+    });
+    pingedOnWhatsApp = notified.whatsapp?.success === true;
   }
 
   // An agent who answered this lead from their own WhatsApp keeps the
@@ -1736,10 +1885,10 @@ async function processMessage(
       conversationId: conversation.id,
       leadName: contactRecord.name || senderPhone,
       body: contentText || `[${message.type}]`,
-    })
+    });
   }
 
-  await flagBroadcastReplyIfAny(accountId, contactRecord.id)
+  await flagBroadcastReplyIfAny(accountId, contactRecord.id);
 
   if (message.type === 'button') {
     const consumed = await handleReminderButtonReply(
@@ -1748,10 +1897,10 @@ async function processMessage(
       contactRecord.id,
       conversation.id,
       configOwnerUserId
-    )
+    );
     // A reminder tap is fully handled (stamp + ack + agent ping) —
     // don't let it fall through to digest parsing or the chatbots.
-    if (consumed) return
+    if (consumed) return;
   }
 
   // Completed native Meta Flow (form-screen) submission — e.g. the
@@ -1765,21 +1914,23 @@ async function processMessage(
       configOwnerUserId,
       contactRecord.id,
       conversation.id
-    )
-    return
+    );
+    return;
   }
 
   // Owner digest subscription control — "STOP UPDATES" / "START UPDATES"
   // free text, or the digest template's "Pause updates" quick-reply
   // button (which arrives as message.button.text). The chat itself is
   // the owner's control panel: no login needed, works anytime.
-  const digestCommand = parseOwnerDigestCommand(message.button?.text ?? contentText)
+  const digestCommand = parseOwnerDigestCommand(
+    message.button?.text ?? contentText
+  );
   if (digestCommand) {
     const confirmation = await applyOwnerDigestCommand({
       command: digestCommand,
       accountId,
       contactId: contactRecord.id,
-    })
+    });
     if (confirmation) {
       await sendWhatsAppMessageAndPersist({
         accountId,
@@ -1789,8 +1940,8 @@ async function processMessage(
         kind: 'text',
         senderType: 'bot',
         text: confirmation,
-      })
-      return
+      });
+      return;
     }
   }
 
@@ -1824,14 +1975,14 @@ async function processMessage(
       },
       conversationId: conversation.id,
       buttonText: message.button.text,
-    })
-    if (handledTimeline) return
+    });
+    if (handledTimeline) return;
   }
 
   // Ahead of the enquiry buttons below: these come from a buyer who is
   // mid-purchase, and the enquiry handlers would file their answer as a
   // decision about an open enquiry.
-  const progressAction = matchTemplateButton(message.button?.text)
+  const progressAction = matchTemplateButton(message.button?.text);
   if (
     progressAction === 'paperwork_on_track' ||
     progressAction === 'paperwork_pending'
@@ -1842,8 +1993,8 @@ async function processMessage(
       contact: { id: contactRecord.id, name: contactRecord.name },
       conversationId: conversation.id,
       onTrack: progressAction === 'paperwork_on_track',
-    })
-    if (handledProgress) return
+    });
+    if (handledProgress) return;
   }
 
   if (matchTemplateButton(message.button?.text) === 'still_considering') {
@@ -1861,7 +2012,7 @@ async function processMessage(
       accessToken,
       phoneNumberId,
       fromButton: true,
-    })
+    });
     if (keepOutcome !== 'logged_and_asked') {
       await sendWhatsAppMessageAndPersist({
         accountId,
@@ -1871,9 +2022,9 @@ async function processMessage(
         kind: 'text',
         senderType: 'bot',
         text: "👍 Great — noted! We'll keep you posted.",
-      })
+      });
     }
-    return
+    return;
   }
 
   // All three enquiry templates share one close action, and each one
@@ -1885,13 +2036,13 @@ async function processMessage(
   const alertsCommand =
     matchTemplateButton(message.button?.text) === 'close_enquiry'
       ? 'close'
-      : parseBuyerAlertsCommand(message.button?.text ?? contentText)
+      : parseBuyerAlertsCommand(message.button?.text ?? contentText);
   if (alertsCommand) {
     const confirmation = await applyBuyerAlertsCommand({
       command: alertsCommand,
       accountId,
       contactId: contactRecord.id,
-    })
+    });
     // 'close' is the lead saying the enquiry is over, not a preference
     // about alerts: it also marks the contact dead (migration 230),
     // which parks the requirement, stops every automated send and drops
@@ -1904,7 +2055,7 @@ async function processMessage(
         contactId: contactRecord.id,
         reason: 'closed_enquiry',
         note: 'Lead closed their enquiry from WhatsApp ("Close my enquiry")',
-      })
+      });
     }
     if (confirmation) {
       await sendWhatsAppMessageAndPersist({
@@ -1919,7 +2070,7 @@ async function processMessage(
         // refuses sends to. This one is the goodbye they asked for
         // rather than outreach, so it is the exception.
         allowDeadContact: alertsCommand === 'close',
-      })
+      });
       // START ALERTS opened a free-form window at the lead's moment of
       // highest intent. Consent alone would waste it: run the first
       // missing rung of the tap ladder, or prove the saved profile
@@ -1931,9 +2082,9 @@ async function processMessage(
           userId: configOwnerUserId,
           contactId: contactRecord.id,
           conversationId: conversation.id,
-        })
+        });
       }
-      return
+      return;
     }
   }
 
@@ -1948,7 +2099,7 @@ async function processMessage(
     const matchReply = await buildBuyerMatchReply({
       accountId,
       contactId: contactRecord.id,
-    })
+    });
     if (matchReply) {
       await sendWhatsAppMessageAndPersist({
         accountId,
@@ -1958,8 +2109,8 @@ async function processMessage(
         kind: 'text',
         senderType: 'bot',
         text: matchReply,
-      })
-      return
+      });
+      return;
     }
   }
 
@@ -1968,16 +2119,16 @@ async function processMessage(
   // free-form. Without these the buttons were dead ends: a lead who
   // tapped "Send more details" got silence.
   const templateQuickReply = parseTemplateQuickReply(
-    message.button?.text ?? contentText,
-  )
+    message.button?.text ?? contentText
+  );
   if (templateQuickReply) {
-    const admin = supabaseAdmin()
+    const admin = supabaseAdmin();
     if (templateQuickReply === 'property_details') {
       const propertyId = await lastSharedPropertyId(
         admin,
         accountId,
-        contactRecord.id,
-      )
+        contactRecord.id
+      );
       if (propertyId) {
         // Same photo + full-details message the interactive "Yes"
         // reply sends, so the lead sees one consistent answer.
@@ -1987,9 +2138,9 @@ async function processMessage(
           configOwnerUserId,
           contactRecord.id,
           conversation.id,
-          senderPhone,
-        )
-        return
+          senderPhone
+        );
+        return;
       }
       await sendWhatsAppMessageAndPersist({
         accountId,
@@ -1999,12 +2150,12 @@ async function processMessage(
         kind: 'text',
         senderType: 'bot',
         text: DETAILS_FALLBACK_TEXT,
-      })
-      return
+      });
+      return;
     }
 
     if (templateQuickReply === 'inventory_full_list') {
-      const fullList = await buildFullListMessage(admin, accountId)
+      const fullList = await buildFullListMessage(admin, accountId);
       await sendWhatsAppMessageAndPersist({
         accountId,
         userId: configOwnerUserId,
@@ -2013,8 +2164,8 @@ async function processMessage(
         kind: 'text',
         senderType: 'bot',
         text: fullList ?? DETAILS_FALLBACK_TEXT,
-      })
-      return
+      });
+      return;
     }
 
     // site_visit — a scheduling request is a person's job, so the lead
@@ -2027,20 +2178,20 @@ async function processMessage(
       kind: 'text',
       senderType: 'bot',
       text: SITE_VISIT_ACK_TEXT,
-    })
+    });
     await createNotification({
       accountId,
       userId:
-        (conversation as { assigned_agent_id?: string | null }).assigned_agent_id ||
-        configOwnerUserId,
+        (conversation as { assigned_agent_id?: string | null })
+          .assigned_agent_id || configOwnerUserId,
       type: 'new_message',
       title: `Site visit requested: ${contactRecord.name || senderPhone}`,
       body: 'Tapped "Book a site visit" on a WhatsApp template.',
       entityType: 'conversation',
       entityId: conversation.id,
       link: `/inbox?conversation=${conversation.id}`,
-    })
-    return
+    });
+    return;
   }
 
   // Seller listing funnel: a message carrying a web-submission code is
@@ -2052,10 +2203,13 @@ async function processMessage(
       accountId,
       contentText,
       senderPhone,
-      contactRecord: { id: contactRecord.id, classification: contactRecord.classification },
+      contactRecord: {
+        id: contactRecord.id,
+        classification: contactRecord.classification,
+      },
       conversationId: conversation.id,
-    })
-    if (handledListingVerification) return
+    });
+    if (handledListingVerification) return;
   }
 
   // Co-broker requirement replies: a message quoting REQ-XXXX from a
@@ -2067,14 +2221,19 @@ async function processMessage(
       accountId,
       contentText,
       senderPhone,
-      contactRecord: { id: contactRecord.id, classification: contactRecord.classification },
+      contactRecord: {
+        id: contactRecord.id,
+        classification: contactRecord.classification,
+      },
       conversationId: conversation.id,
-    })
-    if (handledRequirementReply) return
+    });
+    if (handledRequirementReply) return;
   }
 
   if (ownerCheck.isOwner) {
-    console.log(`[webhook] Intercepted message from Engine owner: ${senderPhone}`)
+    console.log(
+      `[webhook] Intercepted message from Engine owner: ${senderPhone}`
+    );
     const handled = await processOwnerChatbotMessage(
       message,
       contentText,
@@ -2084,9 +2243,9 @@ async function processMessage(
       ownerCheck.userId || configOwnerUserId,
       accessToken,
       phoneNumberId
-    )
+    );
     if (handled) {
-      return
+      return;
     }
   }
 
@@ -2096,10 +2255,12 @@ async function processMessage(
       .select('id')
       .eq('contact_id', contactRecord.id)
       .eq('session_mode', 'external')
-      .maybeSingle()
+      .maybeSingle();
 
     if (externalListingSession) {
-      console.log(`[webhook] Intercepted message for active external listing session: ${senderPhone}`)
+      console.log(
+        `[webhook] Intercepted message for active external listing session: ${senderPhone}`
+      );
       const handled = await processExternalListingMessage(
         message,
         contentText,
@@ -2108,9 +2269,9 @@ async function processMessage(
         accountId,
         accessToken,
         phoneNumberId
-      )
+      );
       if (handled) {
-        return
+        return;
       }
     }
 
@@ -2133,8 +2294,45 @@ async function processMessage(
         responseText: contentText,
         accessToken,
         phoneNumberId,
-      })
-      if (checkinOutcome === 'logged_and_asked') return
+      });
+      if (checkinOutcome === 'logged_and_asked') return;
+    }
+
+    // A lead rejecting a property ("not interested", "not for me", "don't like this").
+    // If the message does not carry a new requirement brief, resolve the property,
+    // record the rejection on listing_feedback, and send the interactive factor
+    // prompt with one-tap options (type / budget / location / size / other) + typing invitation.
+    if (
+      !ownerCheck.isOwner &&
+      message.type === 'text' &&
+      contentText &&
+      isPropertyDisinterest(contentText)
+    ) {
+      const hasRequirement = carriesRequirementSignal(contentText);
+      if (!hasRequirement) {
+        let quotedPropertyId: string | null = null;
+        if (message.context?.id) {
+          const { data: quotedMsg } = await supabaseAdmin()
+            .from('messages')
+            .select('property_id, content_text')
+            .eq('message_id', message.context.id)
+            .maybeSingle();
+          if (quotedMsg?.property_id) {
+            quotedPropertyId = quotedMsg.property_id;
+          }
+        }
+
+        const handledDisinterest = await handlePropertyDisinterestMessage({
+          db: supabaseAdmin(),
+          accountId,
+          configOwnerUserId,
+          contact: contactRecord,
+          conversationId: conversation.id,
+          inboundText: contentText,
+          quotedPropertyId,
+        });
+        if (handledDisinterest) return;
+      }
     }
 
     // A lead answering "what are your requirements and budget?" — the
@@ -2152,16 +2350,22 @@ async function processMessage(
         phoneNumberId,
         configOwnerUserId,
         message.id
-      )
-      if (qualified) return
+      );
+      if (qualified) return;
     }
   }
 
-  if (message.type === 'contacts' && message.contacts && message.contacts.length > 0) {
-    console.log(`[webhook] Shared contacts message detected from: ${senderPhone}`)
-    
-    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
-    const importedNames: string[] = []
+  if (
+    message.type === 'contacts' &&
+    message.contacts &&
+    message.contacts.length > 0
+  ) {
+    console.log(
+      `[webhook] Shared contacts message detected from: ${senderPhone}`
+    );
+
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+    const importedNames: string[] = [];
 
     for (const c of message.contacts) {
       let name = c.name?.formatted_name || '';
@@ -2209,7 +2413,8 @@ async function processMessage(
           .insert({
             account_id: accountId,
             user_id: configOwnerUserId || null,
-            name: nameSplit?.name ?? (name || `Contact ${normalizedImportPhone}`),
+            name:
+              nameSplit?.name ?? (name || `Contact ${normalizedImportPhone}`),
             name_tag: nameSplit?.nameTag ?? null,
             phone: normalizedImportPhone,
             email: email || null,
@@ -2220,24 +2425,29 @@ async function processMessage(
           });
 
         if (insertErr) {
-          console.error('[webhook] Failed to auto-insert shared contact:', insertErr);
+          console.error(
+            '[webhook] Failed to auto-insert shared contact:',
+            insertErr
+          );
         } else if (nameSplit) {
           importedNames.push(`${nameSplit.name} — 🏷️ ${nameSplit.nameTag}`);
         } else {
           importedNames.push(name || normalizedImportPhone);
         }
       } else {
-        importedNames.push(`${existingContact.name} (already in ${BRANDING.name})`);
+        importedNames.push(
+          `${existingContact.name} (already in ${BRANDING.name})`
+        );
       }
     }
 
     if (importedNames.length > 0) {
-      let replyText = `📥 *Contact Import Status:*\n\n`
+      let replyText = `📥 *Contact Import Status:*\n\n`;
       importedNames.forEach((n, idx) => {
-        replyText += `✅ ${idx + 1}. *${n}*\n`
-      })
-      
-      replyText += `\nClick here to complete classification and details:\n${baseUrl}/contacts`
+        replyText += `✅ ${idx + 1}. *${n}*\n`;
+      });
+
+      replyText += `\nClick here to complete classification and details:\n${baseUrl}/contacts`;
 
       try {
         const sendRes = await sendTextMessage({
@@ -2247,26 +2457,36 @@ async function processMessage(
           text: replyText,
         });
 
-        const { data: botMsg } = await supabaseAdmin().from('messages').insert({
-          conversation_id: conversation.id,
-          sender_type: 'bot',
-          content_type: 'text',
-          content_text: replyText,
-          message_id: sendRes.messageId,
-          status: 'sent',
-          created_at: new Date().toISOString(),
-        }).select('id').single();
+        const { data: botMsg } = await supabaseAdmin()
+          .from('messages')
+          .insert({
+            conversation_id: conversation.id,
+            sender_type: 'bot',
+            content_type: 'text',
+            content_text: replyText,
+            message_id: sendRes.messageId,
+            status: 'sent',
+            created_at: new Date().toISOString(),
+          })
+          .select('id')
+          .single();
 
         if (botMsg) {
-          await supabaseAdmin().from('conversations').update({
-            last_message_text: replyText,
-            last_message_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            awaiting_reply: false,
-          }).eq('id', conversation.id);
+          await supabaseAdmin()
+            .from('conversations')
+            .update({
+              last_message_text: replyText,
+              last_message_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+              awaiting_reply: false,
+            })
+            .eq('id', conversation.id);
         }
       } catch (err) {
-        console.error('[webhook] Failed to send contact import confirmation auto-reply:', err);
+        console.error(
+          '[webhook] Failed to send contact import confirmation auto-reply:',
+          err
+        );
       }
     }
   }
@@ -2298,56 +2518,72 @@ async function processMessage(
       assignedAgentUserId,
       accessToken,
       phoneNumberId,
-    })
-    if (booked) return
+    });
+    if (booked) return;
   }
 
-  const cleanedText = contentText?.trim()?.toLowerCase() || ''
-  const isCalendarQuery = /\b(schedule|visit|appointment|appointments|booking|bookings|my visits|my appointments)\b/i.test(cleanedText)
-  
+  const cleanedText = contentText?.trim()?.toLowerCase() || '';
+  const isCalendarQuery = /\b(schedule|visit|appointment|appointments|booking|bookings|my visits|my appointments)\b/i.test(cleanedText);
+
   if (isCalendarQuery) {
-    console.log(`[webhook] Calendar schedule query detected from contact: ${contactRecord.id} (${senderPhone})`)
-    
-    const nowIso = new Date().toISOString()
+    console.log(
+      `[webhook] Calendar schedule query detected from contact: ${contactRecord.id} (${senderPhone})`
+    );
+
+    const nowIso = new Date().toISOString();
     const { data: appointments, error: apptError } = await supabaseAdmin()
       .from('appointments')
       .select('*, property:properties(title, location, sublocality)')
       .eq('contact_id', contactRecord.id)
       .eq('status', 'scheduled')
       .gte('start_time', nowIso)
-      .order('start_time', { ascending: true })
+      .order('start_time', { ascending: true });
 
-    let replyText = ''
+    let replyText = '';
     if (apptError) {
-      console.error('[webhook] Error fetching appointments for auto-reply:', apptError)
-      replyText = `Sorry, I encountered an error checking your schedule. Please try again later or contact your agent.`
+      console.error(
+        '[webhook] Error fetching appointments for auto-reply:',
+        apptError
+      );
+      replyText = `Sorry, I encountered an error checking your schedule. Please try again later or contact your agent.`;
     } else if (!appointments || appointments.length === 0) {
-      replyText = `Hi ${contactRecord.name || 'there'},\n\nYou have no upcoming property visits or appointments scheduled at the moment.`
+      replyText = `Hi ${contactRecord.name || 'there'},\n\nYou have no upcoming property visits or appointments scheduled at the moment.`;
     } else {
-      replyText = `Hi ${contactRecord.name || 'there'},\n\nHere are your upcoming scheduled visits:\n\n`
-      
-      appointments.forEach((appt: {
-        start_time: string;
-        title: string;
-        location?: string | null;
-        property?: {
-          title?: string | null;
-          location?: string | null;
-          sublocality?: string | null;
-        } | null;
-      }, idx: number) => {
-        const dateStr = new Date(appt.start_time).toLocaleString('en-IN', {
-          timeZone: 'Asia/Kolkata',
-          dateStyle: 'medium',
-          timeStyle: 'short',
-        })
-        const propTitle = appt.property?.title ? `🏡 *${appt.property.title}*` : '🏡 *Property Details*'
-        const locationStr = appt.location || appt.property?.location || appt.property?.sublocality || 'Not specified'
-        
-        replyText += `${idx + 1}. 📅 *${appt.title}*\n${propTitle}\n📍 Location: ${locationStr}\n⏰ Time: ${dateStr}\n\n`
-      })
-      
-      replyText += `Please contact us if you need to reschedule any of these visits!`
+      replyText = `Hi ${contactRecord.name || 'there'},\n\nHere are your upcoming scheduled visits:\n\n`;
+
+      appointments.forEach(
+        (
+          appt: {
+            start_time: string;
+            title: string;
+            location?: string | null;
+            property?: {
+              title?: string | null;
+              location?: string | null;
+              sublocality?: string | null;
+            } | null;
+          },
+          idx: number
+        ) => {
+          const dateStr = new Date(appt.start_time).toLocaleString('en-IN', {
+            timeZone: 'Asia/Kolkata',
+            dateStyle: 'medium',
+            timeStyle: 'short',
+          });
+          const propTitle = appt.property?.title
+            ? `🏡 *${appt.property.title}*`
+            : '🏡 *Property Details*';
+          const locationStr =
+            appt.location ||
+            appt.property?.location ||
+            appt.property?.sublocality ||
+            'Not specified';
+
+          replyText += `${idx + 1}. 📅 *${appt.title}*\n${propTitle}\n📍 Location: ${locationStr}\n⏰ Time: ${dateStr}\n\n`;
+        }
+      );
+
+      replyText += `Please contact us if you need to reschedule any of these visits!`;
     }
 
     try {
@@ -2356,7 +2592,7 @@ async function processMessage(
         accessToken,
         to: senderPhone,
         text: replyText,
-      })
+      });
 
       await supabaseAdmin().from('messages').insert({
         conversation_id: conversation.id,
@@ -2366,7 +2602,7 @@ async function processMessage(
         message_id: sendRes.messageId,
         status: 'sent',
         created_at: new Date().toISOString(),
-      })
+      });
 
       await supabaseAdmin()
         .from('conversations')
@@ -2376,14 +2612,19 @@ async function processMessage(
           updated_at: new Date().toISOString(),
           awaiting_reply: false,
         })
-        .eq('id', conversation.id)
+        .eq('id', conversation.id);
 
-      console.log(`[webhook] Automated calendar reply successfully sent to ${senderPhone}`)
+      console.log(
+        `[webhook] Automated calendar reply successfully sent to ${senderPhone}`
+      );
     } catch (sendErr) {
-      console.error('[webhook] Failed to send automated calendar reply:', sendErr)
+      console.error(
+        '[webhook] Failed to send automated calendar reply:',
+        sendErr
+      );
     }
 
-    return
+    return;
   }
 
   // Check for active update session
@@ -2392,11 +2633,16 @@ async function processMessage(
     .select('*')
     .eq('contact_id', contactRecord.id)
     .eq('status', 'collecting')
-    .maybeSingle()
+    .maybeSingle();
 
   if (
     activeUpdateSession &&
-    (await isAuthorizedForUpdateSession(activeUpdateSession, contactRecord, senderPhone, accountId))
+    (await isAuthorizedForUpdateSession(
+      activeUpdateSession,
+      contactRecord,
+      senderPhone,
+      accountId
+    ))
   ) {
     const handled = await handleUpdateSessionInput(
       activeUpdateSession.id,
@@ -2406,8 +2652,8 @@ async function processMessage(
       contactRecord,
       conversation,
       senderPhone
-    )
-    if (handled) return
+    );
+    if (handled) return;
   }
 
   // A tap on the listing-feedback list. Handled before the preference
@@ -2422,8 +2668,8 @@ async function processMessage(
       contact: contactRecord,
       conversationId: conversation.id,
       replyId: interactiveReplyId,
-    })
-    if (handledFeedback) return
+    });
+    if (handledFeedback) return;
   }
 
   // A tap on the requirement playback card — confirm the brief, or
@@ -2436,8 +2682,8 @@ async function processMessage(
       contactId: contactRecord.id,
       conversationId: conversation.id,
       replyId: interactiveReplyId,
-    })
-    if (handledTweak) return
+    });
+    if (handledTweak) return;
   }
 
   // A tapped property type or budget band. The tap saves the answer;
@@ -2460,13 +2706,13 @@ async function processMessage(
           accountId,
           contactId: contactRecord.id,
           replyId: interactiveReplyId,
-        })
+        });
     if (handledRung) {
       const acknowledgement = interactiveReplyId.startsWith(
         PROPERTY_TYPE_ID_PREFIX
       )
         ? propertyTypeAcknowledgement(interactiveReplyId)
-        : budgetBandAcknowledgement(interactiveReplyId)
+        : budgetBandAcknowledgement(interactiveReplyId);
       await sendAlertsOnboarding({
         db: supabaseAdmin(),
         accountId,
@@ -2474,8 +2720,8 @@ async function processMessage(
         contactId: contactRecord.id,
         conversationId: conversation.id,
         acknowledgement,
-      })
-      return
+      });
+      return;
     }
   }
 
@@ -2495,8 +2741,8 @@ async function processMessage(
       contactRecord.id,
       configOwnerUserId,
       conversation.id
-    )
-    if (handledPreferenceFlow) return
+    );
+    if (handledPreferenceFlow) return;
   }
 
   // Check for update intent. Allowed for account staff (owner/admin/agent,
@@ -2504,7 +2750,7 @@ async function processMessage(
   // record (their own contact, or a property they listed). Unauthorized
   // senders fall through to normal handling so they cannot mutate records
   // and never learn the feature exists.
-  const updateIntent = parseUpdateIntent(contentText || '')
+  const updateIntent = parseUpdateIntent(contentText || '');
   if (updateIntent && updateIntent.type) {
     const handledUpdate = await handleUpdateIntent(
       updateIntent as { type: 'property' | 'contact'; identifier?: string },
@@ -2513,8 +2759,8 @@ async function processMessage(
       contactRecord,
       conversation,
       senderPhone
-    )
-    if (handledUpdate) return
+    );
+    if (handledUpdate) return;
   }
 
   if (interactiveReplyId) {
@@ -2530,13 +2776,13 @@ async function processMessage(
         },
         conversationId: conversation.id,
         replyId: interactiveReplyId,
-      })
-      if (handledFollowup) return
+      });
+      if (handledFollowup) return;
     }
     // Consent and owner decisions are dispatched far earlier, before
     // the reply bridge and the owner chatbot can interpret them.
     if (interactiveReplyId.startsWith('share_property_yes:')) {
-      const propertyId = interactiveReplyId.split(':')[1]
+      const propertyId = interactiveReplyId.split(':')[1];
       await handlePropertyShareYesReply(
         propertyId,
         accountId,
@@ -2544,10 +2790,10 @@ async function processMessage(
         contactRecord.id,
         conversation.id,
         senderPhone
-      )
-      return
+      );
+      return;
     } else if (interactiveReplyId.startsWith('share_property_no:')) {
-      const propertyId = interactiveReplyId.split(':')[1]
+      const propertyId = interactiveReplyId.split(':')[1];
       await handlePropertyShareNoReply(
         propertyId,
         accountId,
@@ -2555,10 +2801,10 @@ async function processMessage(
         contactRecord.id,
         conversation.id,
         senderPhone
-      )
-      return
+      );
+      return;
     } else if (interactiveReplyId.startsWith('show_more_properties:')) {
-      const propertyId = interactiveReplyId.split(':')[1]
+      const propertyId = interactiveReplyId.split(':')[1];
       await handleShowMoreProperties(
         propertyId,
         accountId,
@@ -2566,8 +2812,8 @@ async function processMessage(
         contactRecord.id,
         conversation.id,
         senderPhone
-      )
-      return
+      );
+      return;
     } else if (interactiveReplyId === 'browse_all_properties') {
       await handleBrowseAllProperties(
         accountId,
@@ -2575,10 +2821,12 @@ async function processMessage(
         contactRecord.id,
         conversation.id,
         senderPhone
-      )
-      return
+      );
+      return;
     } else if (interactiveReplyId.startsWith(SOLD_PRICE_BUTTON_PREFIX)) {
-      const propertyId = interactiveReplyId.slice(SOLD_PRICE_BUTTON_PREFIX.length)
+      const propertyId = interactiveReplyId.slice(
+        SOLD_PRICE_BUTTON_PREFIX.length
+      );
       await handleSoldPriceReply(
         propertyId,
         accountId,
@@ -2586,10 +2834,12 @@ async function processMessage(
         contactRecord.id,
         conversation.id,
         senderPhone
-      )
-      return
+      );
+      return;
     } else if (interactiveReplyId.startsWith(SOLD_SIMILAR_BUTTON_PREFIX)) {
-      const propertyId = interactiveReplyId.slice(SOLD_SIMILAR_BUTTON_PREFIX.length)
+      const propertyId = interactiveReplyId.slice(
+        SOLD_SIMILAR_BUTTON_PREFIX.length
+      );
       await handleShowMoreProperties(
         propertyId,
         accountId,
@@ -2597,8 +2847,8 @@ async function processMessage(
         contactRecord.id,
         conversation.id,
         senderPhone
-      )
-      return
+      );
+      return;
     }
   }
 
@@ -2608,17 +2858,20 @@ async function processMessage(
   // Suppress flow ENTRY for them — active runs still advance — and
   // answer their free text below with a reply grounded in their own
   // listings instead.
-  let ownedListings: OwnedListing[] = []
+  let ownedListings: OwnedListing[] = [];
   if (isOwnerContact(contactRecord)) {
-    ownedListings = await findOwnedListings(accountId, contactRecord.id)
+    ownedListings = await findOwnedListings(accountId, contactRecord.id);
   }
-  const isPropertyOwnerSender = ownedListings.length > 0
+  const isPropertyOwnerSender = ownedListings.length > 0;
 
   // A human agent already talking to this lead owns the conversation:
   // suppress flow ENTRY so a stray keyword cannot restart the welcome
   // funnel underneath them. Active runs still advance — the lead is
   // mid-answer and expects the next question.
-  const agentHandling = await hasRecentAgentReply(supabaseAdmin(), conversation.id)
+  const agentHandling = await hasRecentAgentReply(
+    supabaseAdmin(),
+    conversation.id
+  );
   if (agentHandling) {
     // A run that outlived the send-time pause would keep answering the
     // lead "Sorry, I didn't quite catch that" through a live
@@ -2627,41 +2880,44 @@ async function processMessage(
     const stoodDown = await standDownActiveFlowRuns(
       supabaseAdmin(),
       accountId,
-      contactRecord.id,
-    )
+      contactRecord.id
+    );
     if (stoodDown > 0) {
       console.log(
-        `[webhook] Stood down ${stoodDown} flow run(s) — an agent is handling this thread`,
-      )
+        `[webhook] Stood down ${stoodDown} flow run(s) — an agent is handling this thread`
+      );
     }
   }
 
-  console.log(`[webhook] Dispatching to flows. accountId=${accountId}, contact=${contactRecord.id}, text="${contentText ?? message.text?.body ?? ''}"`);
+  console.log(
+    `[webhook] Dispatching to flows. accountId=${accountId}, contact=${contactRecord.id}, text="${contentText ?? message.text?.body ?? ''}"`
+  );
   const flowResult = await dispatchInboundToFlows({
     accountId,
     userId: configOwnerUserId,
     contactId: contactRecord.id,
     conversationId: conversation.id,
     allowEntry: !isPropertyOwnerSender && !agentHandling,
-    message:
-      interactiveReplyId
-        ? {
-            kind: 'interactive_reply',
-            reply_id: interactiveReplyId,
-            reply_title: contentText ?? '',
-            meta_message_id: message.id,
-          }
-        : {
-            kind: 'text',
-            text: contentText ?? message.text?.body ?? '',
-            meta_message_id: message.id,
-          },
+    message: interactiveReplyId
+      ? {
+          kind: 'interactive_reply',
+          reply_id: interactiveReplyId,
+          reply_title: contentText ?? '',
+          meta_message_id: message.id,
+        }
+      : {
+          kind: 'text',
+          text: contentText ?? message.text?.body ?? '',
+          meta_message_id: message.id,
+        },
     isFirstInboundMessage,
-  })
-  console.log(`[webhook] Flow result: consumed=${flowResult.consumed}, outcome=${flowResult.outcome || 'n/a'}, flow_run_id=${flowResult.flow_run_id || 'n/a'}`);
-  const flowConsumed = flowResult.consumed
+  });
+  console.log(
+    `[webhook] Flow result: consumed=${flowResult.consumed}, outcome=${flowResult.outcome || 'n/a'}, flow_run_id=${flowResult.flow_run_id || 'n/a'}`
+  );
+  const flowConsumed = flowResult.consumed;
 
-  const inboundText = contentText ?? message.text?.body ?? ''
+  const inboundText = contentText ?? message.text?.body ?? '';
 
   if (
     !flowConsumed &&
@@ -2677,7 +2933,7 @@ async function processMessage(
       digestConsent: contactRecord.owner_digest_consent,
       text: message.button?.text ?? inboundText,
       listings: ownedListings,
-    })
+    });
     if (ownerHandled) {
       // The owner's window is open — the one moment their digest consent
       // can be asked free-form, with buttons and no template. The cron
@@ -2689,8 +2945,8 @@ async function processMessage(
           supabaseAdmin(),
           accountId,
           contactRecord as unknown as OwnerConsentFields,
-          ownedListings,
-        )
+          ownedListings
+        );
         if (ownerAsk) {
           await sendWhatsAppMessageAndPersist({
             accountId,
@@ -2702,12 +2958,12 @@ async function processMessage(
             senderType: 'bot',
             interactiveBody: ownerAsk,
             interactiveButtons: OWNER_CONSENT_BUTTONS,
-          })
+          });
         }
       } catch (err) {
-        console.error('[owner-consent] ask failed (non-fatal):', err)
+        console.error('[owner-consent] ask failed (non-fatal):', err);
       }
-      return
+      return;
     }
   }
 
@@ -2730,7 +2986,7 @@ async function processMessage(
       // answer to us and it is about one listing.
       parseOrdinalReferences(inboundText).length > 0)
   ) {
-    const admin = supabaseAdmin()
+    const admin = supabaseAdmin();
     // Plural: a buyer who asks about "options 1 & 2" asked two
     // questions, and answering only the first leaves the second
     // hanging on a listing they had already numbered for us.
@@ -2739,8 +2995,8 @@ async function processMessage(
       accountId,
       contactRecord.id,
       conversation.id,
-      inboundText,
-    )
+      inboundText
+    );
 
     // A photo request is answered with the photos themselves, not with
     // prose about them. When they cannot be sent — no listing pinned to
@@ -2750,8 +3006,8 @@ async function processMessage(
     // when photos are mentioned: a person was requested, so a person
     // answers.
     const photoRequest =
-      requestsPropertyPhotos(inboundText) && !requestsHumanContact(inboundText)
-    let answer: LeadAnswer
+      requestsPropertyPhotos(inboundText) && !requestsHumanContact(inboundText);
+    let answer: LeadAnswer;
     if (photoRequest) {
       const sentPhotos = await sendSubjectPhotos({
         db: admin,
@@ -2761,18 +3017,18 @@ async function processMessage(
         conversationId: conversation.id,
         propertyIds: subjects.map((s) => s.id),
         requestText: inboundText,
-      })
-      if (sentPhotos) return
+      });
+      if (sentPhotos) return;
       answer = {
         text: photoHandoverText(subjects[0]?.title),
         source: 'handover',
-      }
+      };
     } else {
       const { data: qaConfig } = await admin
         .from('whatsapp_config')
         .select('share_seller_final_price')
         .eq('account_id', accountId)
-        .maybeSingle()
+        .maybeSingle();
       const answers = await Promise.all(
         (subjects.length > 0 ? subjects : [null]).map(async (subject) =>
           answerLeadQuestion({
@@ -2783,10 +3039,10 @@ async function processMessage(
             portalListings: subject
               ? await subjectPortalListings(admin, accountId, subject.id)
               : [],
-          }),
-        ),
-      )
-      answer = mergeLeadAnswers(answers, subjects)
+          })
+        )
+      );
+      answer = mergeLeadAnswers(answers, subjects);
     }
 
     await sendWhatsAppMessageAndPersist({
@@ -2797,7 +3053,7 @@ async function processMessage(
       kind: 'text',
       senderType: 'bot',
       text: answer.text,
-    })
+    });
 
     if (answer.source === 'handover') {
       // The lead has been promised a person, so make sure one hears
@@ -2812,21 +3068,21 @@ async function processMessage(
         entityType: 'conversation',
         entityId: conversation.id,
         link: `/inbox?conversation=${conversation.id}`,
-      })
+      });
       await relayLeadMessageToBridgedAgent({
         accountId,
         conversationId: conversation.id,
         leadName: contactRecord.name || senderPhone,
         body: inboundText,
-      })
+      });
       await admin
         .from('conversations')
         .update({ status: 'pending', updated_at: new Date().toISOString() })
         .eq('id', conversation.id)
         .eq('account_id', accountId)
-        .select('id')
+        .select('id');
     }
-    return
+    return;
   }
 
   // The buyer — or a lead who has only ever enquired about one listing
@@ -2848,8 +3104,8 @@ async function processMessage(
         accountId,
         contactRecord as unknown as Contact,
         null,
-        1,
-      )
+        1
+      );
       if (consentAsk) {
         await sendWhatsAppMessageAndPersist({
           accountId,
@@ -2859,10 +3115,10 @@ async function processMessage(
           kind: 'text',
           senderType: 'bot',
           text: consentAsk,
-        })
+        });
       }
     } catch (err) {
-      console.error('[buyer-consent] ask failed (non-fatal):', err)
+      console.error('[buyer-consent] ask failed (non-fatal):', err);
     }
   }
 
@@ -2871,12 +3127,14 @@ async function processMessage(
     | 'first_inbound_message'
     | 'new_message_received'
     | 'keyword_match'
-  )[] = []
+  )[] = [];
   if (!flowConsumed) {
-    automationTriggers.push('new_message_received', 'keyword_match')
+    automationTriggers.push('new_message_received', 'keyword_match');
   }
-  if (contactOutcome.wasCreated) automationTriggers.unshift('new_contact_created')
-  if (isFirstInboundMessage) automationTriggers.unshift('first_inbound_message')
+  if (contactOutcome.wasCreated)
+    automationTriggers.unshift('new_contact_created');
+  if (isFirstInboundMessage)
+    automationTriggers.unshift('first_inbound_message');
   for (const triggerType of automationTriggers) {
     try {
       await runAutomationsForTrigger({
@@ -2887,9 +3145,9 @@ async function processMessage(
           message_text: inboundText,
           conversation_id: conversation.id,
         },
-      })
+      });
     } catch (err) {
-      console.error('[automations] dispatch failed:', err)
+      console.error('[automations] dispatch failed:', err);
     }
   }
 }
@@ -2900,19 +3158,19 @@ async function parseMessageContent(
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _accessToken: string
 ): Promise<{
-  contentText: string | null
-  mediaUrl: string | null
-  mediaType: string | null
-  interactiveReplyId: string | null
+  contentText: string | null;
+  mediaUrl: string | null;
+  mediaType: string | null;
+  interactiveReplyId: string | null;
   /** Raw response_json of a completed native Meta Flow (nfm_reply). */
-  nfmResponseJson: string | null
+  nfmResponseJson: string | null;
 }> {
   const buildMediaUrl = (mediaId: string): string => {
     // Build the proxy URL without pre-verifying with Meta.
     // The /api/whatsapp/media/[mediaId] proxy already handles
     // unavailable or expired media IDs gracefully with a 404.
-    return `/api/whatsapp/media/${mediaId}`
-  }
+    return `/api/whatsapp/media/${mediaId}`;
+  };
 
   const empty = {
     contentText: null,
@@ -2920,11 +3178,11 @@ async function parseMessageContent(
     mediaType: null,
     interactiveReplyId: null,
     nfmResponseJson: null,
-  }
+  };
 
   switch (message.type) {
     case 'text':
-      return { ...empty, contentText: message.text?.body || null }
+      return { ...empty, contentText: message.text?.body || null };
 
     case 'image':
       if (message.image?.id) {
@@ -2933,9 +3191,9 @@ async function parseMessageContent(
           contentText: message.image.caption || null,
           mediaUrl: buildMediaUrl(message.image.id),
           mediaType: message.image.mime_type,
-        }
+        };
       }
-      return empty
+      return empty;
 
     case 'video':
       if (message.video?.id) {
@@ -2944,9 +3202,9 @@ async function parseMessageContent(
           contentText: message.video.caption || null,
           mediaUrl: buildMediaUrl(message.video.id),
           mediaType: message.video.mime_type,
-        }
+        };
       }
-      return empty
+      return empty;
 
     case 'document':
       if (message.document?.id) {
@@ -2956,9 +3214,9 @@ async function parseMessageContent(
             message.document.caption || message.document.filename || null,
           mediaUrl: buildMediaUrl(message.document.id),
           mediaType: message.document.mime_type,
-        }
+        };
       }
-      return empty
+      return empty;
 
     case 'audio':
       if (message.audio?.id) {
@@ -2966,9 +3224,9 @@ async function parseMessageContent(
           ...empty,
           mediaUrl: buildMediaUrl(message.audio.id),
           mediaType: message.audio.mime_type,
-        }
+        };
       }
-      return empty
+      return empty;
 
     case 'sticker':
       if (message.sticker?.id) {
@@ -2976,13 +3234,13 @@ async function parseMessageContent(
           ...empty,
           mediaUrl: buildMediaUrl(message.sticker.id),
           mediaType: message.sticker.mime_type,
-        }
+        };
       }
-      return empty
+      return empty;
 
     case 'location':
       if (message.location) {
-        const loc = message.location
+        const loc = message.location;
         // Emit the canonical Maps URL rather than a bare coordinate pair:
         // it renders as a tappable link in the inbox, and the listing
         // intake resolves it into the pin's locality/city/coordinates.
@@ -2992,13 +3250,13 @@ async function parseMessageContent(
           googleMapsUrlForCoordinates(loc.latitude, loc.longitude),
         ]
           .filter(Boolean)
-          .join(' - ')
-        return { ...empty, contentText: locationText }
+          .join(' - ');
+        return { ...empty, contentText: locationText };
       }
-      return empty
+      return empty;
 
     case 'reaction':
-      return { ...empty, contentText: message.reaction?.emoji || null }
+      return { ...empty, contentText: message.reaction?.emoji || null };
 
     case 'button':
       if (message.button) {
@@ -3011,29 +3269,32 @@ async function parseMessageContent(
           // without a registered prefix (Meta defaults them to the button
           // text) simply fall through unchanged.
           interactiveReplyId: message.button.payload || null,
-        }
+        };
       }
-      return { ...empty, contentText: '[Button message]' }
+      return { ...empty, contentText: '[Button message]' };
 
     case 'interactive': {
-      if (message.interactive?.type === 'nfm_reply' && message.interactive.nfm_reply) {
+      if (
+        message.interactive?.type === 'nfm_reply' &&
+        message.interactive.nfm_reply
+      ) {
         return {
           ...empty,
           contentText:
             message.interactive.nfm_reply.body || '📋 Form submitted',
           nfmResponseJson: message.interactive.nfm_reply.response_json,
-        }
+        };
       }
       const reply =
-        message.interactive?.button_reply ?? message.interactive?.list_reply
+        message.interactive?.button_reply ?? message.interactive?.list_reply;
       if (reply?.id) {
         return {
           ...empty,
           contentText: reply.title || reply.id,
           interactiveReplyId: reply.id,
-        }
+        };
       }
-      return { ...empty, contentText: '[Interactive reply]' }
+      return { ...empty, contentText: '[Interactive reply]' };
     }
 
     case 'contacts': {
@@ -3055,51 +3316,51 @@ async function parseMessageContent(
       return {
         ...empty,
         contentText: buildCatalogOrderMessage(message.order),
-      }
+      };
 
     default:
       return {
         ...empty,
         contentText: `[Unsupported message type: ${message.type}]`,
-      }
+      };
   }
 }
 
 interface ContactRow {
-  id: string
-  account_id: string
-  user_id: string | null
-  phone: string
-  name: string
-  classification?: string
-  owner_digest_consent?: string | null
-  owner_digest_consent_requested_at?: string | null
+  id: string;
+  account_id: string;
+  user_id: string | null;
+  phone: string;
+  name: string;
+  classification?: string;
+  owner_digest_consent?: string | null;
+  owner_digest_consent_requested_at?: string | null;
 }
 
 interface PropertyRow {
-  id: string
-  title: string
-  price: number | string | null
-  area_sqft: number | null
-  area_unit: string | null
-  bedrooms: number | null
-  type?: string | null
-  land_area?: number | null
-  land_area_unit?: string | null
-  sublocality?: string | null
-  city?: string | null
-  state?: string | null
-  location?: string | null
-  location_privacy?: string | null
-  description?: string | null
-  google_map_link?: string | null
-  images?: string[] | null
-  bathrooms?: number | null
+  id: string;
+  title: string;
+  price: number | string | null;
+  area_sqft: number | null;
+  area_unit: string | null;
+  bedrooms: number | null;
+  type?: string | null;
+  land_area?: number | null;
+  land_area_unit?: string | null;
+  sublocality?: string | null;
+  city?: string | null;
+  state?: string | null;
+  location?: string | null;
+  location_privacy?: string | null;
+  description?: string | null;
+  google_map_link?: string | null;
+  images?: string[] | null;
+  bathrooms?: number | null;
 }
 
 interface ContactOutcome {
-  contact: ContactRow
-  wasCreated: boolean
+  contact: ContactRow;
+  wasCreated: boolean;
 }
 
 async function findOrCreateContact(
@@ -3108,11 +3369,11 @@ async function findOrCreateContact(
   phone: string,
   name: string
 ): Promise<ContactOutcome | null> {
-  const normalizedSender = phone.replace(/\D/g, '')
+  const normalizedSender = phone.replace(/\D/g, '');
   const phoneSuffix =
     normalizedSender.length >= 8
       ? normalizedSender.slice(-8)
-      : normalizedSender
+      : normalizedSender;
 
   // is_merged excluded so a merge winner always claims the thread — the
   // arbitrary pick among duplicates here is what let two contacts on one
@@ -3122,14 +3383,16 @@ async function findOrCreateContact(
     .select('*')
     .eq('account_id', accountId)
     .eq('is_merged', false)
-    .like('phone', `%${phoneSuffix}`)
+    .like('phone', `%${phoneSuffix}`);
 
   if (contactsError) {
-    console.error('Error fetching contacts:', contactsError)
-    return null
+    console.error('Error fetching contacts:', contactsError);
+    return null;
   }
 
-  const existingContact = contacts?.find((c: ContactRow) => phonesMatch(c.phone, phone))
+  const existingContact = contacts?.find((c: ContactRow) =>
+    phonesMatch(c.phone, phone)
+  );
 
   if (existingContact) {
     // Only adopt the sender's WhatsApp profile name when the contact has
@@ -3137,22 +3400,28 @@ async function findOrCreateContact(
     // user saved by hand must never be clobbered by the sender's own
     // WhatsApp display name — instead record that display name as a note
     // (once) so the information isn't lost.
-    const storedName = (existingContact.name || '').trim()
-    const phoneDigits = phone.replace(/\D/g, '')
-    const isPlaceholderName = !storedName || storedName.replace(/\D/g, '') === phoneDigits
+    const storedName = (existingContact.name || '').trim();
+    const phoneDigits = phone.replace(/\D/g, '');
+    const isPlaceholderName =
+      !storedName || storedName.replace(/\D/g, '') === phoneDigits;
 
     if (name && name !== existingContact.name) {
       if (isPlaceholderName) {
         await supabaseAdmin()
           .from('contacts')
           .update({ name, updated_at: new Date().toISOString() })
-          .eq('id', existingContact.id)
-        existingContact.name = name
+          .eq('id', existingContact.id);
+        existingContact.name = name;
       } else if (name.replace(/\D/g, '') !== phoneDigits) {
-        await recordWhatsAppProfileName(accountId, configOwnerUserId, existingContact.id, name)
+        await recordWhatsAppProfileName(
+          accountId,
+          configOwnerUserId,
+          existingContact.id,
+          name
+        );
       }
     }
-    return { contact: existingContact, wasCreated: false }
+    return { contact: existingContact, wasCreated: false };
   }
 
   const { data: newContact, error: createError } = await supabaseAdmin()
@@ -3165,14 +3434,14 @@ async function findOrCreateContact(
       source: 'WhatsApp',
     })
     .select()
-    .single()
+    .single();
 
   if (createError) {
-    console.error('Error creating contact:', createError)
-    return null
+    console.error('Error creating contact:', createError);
+    return null;
   }
 
-  return { contact: newContact, wasCreated: true }
+  return { contact: newContact, wasCreated: true };
 }
 
 /** Log the sender's current WhatsApp profile name against a contact whose
@@ -3185,39 +3454,42 @@ async function recordWhatsAppProfileName(
   contactId: string,
   profileName: string
 ): Promise<void> {
-  const noteText = `WhatsApp profile name: ${profileName}`
+  const noteText = `WhatsApp profile name: ${profileName}`;
   const { data: existing } = await supabaseAdmin()
     .from('contact_notes')
     .select('id')
     .eq('contact_id', contactId)
     .eq('note_text', noteText)
-    .limit(1)
-  if (existing && existing.length > 0) return
+    .limit(1);
+  if (existing && existing.length > 0) return;
   await supabaseAdmin().from('contact_notes').insert({
     contact_id: contactId,
     account_id: accountId,
     user_id: userId,
     note_text: noteText,
-  })
+  });
 }
 
 async function findOrCreateConversation(
   accountId: string,
   configOwnerUserId: string,
-  contactId: string,
+  contactId: string
 ) {
-  const { conversation, error } = await resolveConversation<ConversationRow>(supabaseAdmin(), {
-    accountId,
-    contactId,
-    userId: configOwnerUserId,
-  })
+  const { conversation, error } = await resolveConversation<ConversationRow>(
+    supabaseAdmin(),
+    {
+      accountId,
+      contactId,
+      userId: configOwnerUserId,
+    }
+  );
 
   if (error) {
-    console.error('Error creating conversation:', error)
-    return null
+    console.error('Error creating conversation:', error);
+    return null;
   }
 
-  return conversation
+  return conversation;
 }
 
 export async function handlePropertyShareYesReply(
@@ -3227,7 +3499,7 @@ export async function handlePropertyShareYesReply(
   contactId: string,
   conversationId: string,
   toPhone: string,
-  options: { followUp?: 'feedback' | 'questions' | 'none' } = {},
+  options: { followUp?: 'feedback' | 'questions' | 'none' } = {}
 ): Promise<boolean> {
   try {
     const { data: property, error } = await supabaseAdmin()
@@ -3235,64 +3507,70 @@ export async function handlePropertyShareYesReply(
       .select('*')
       .eq('id', propertyId)
       .eq('account_id', accountId)
-      .maybeSingle()
+      .maybeSingle();
 
-    const typedProperty = property as PropertyRow | null
+    const typedProperty = property as PropertyRow | null;
 
     if (error || !typedProperty) {
-      console.error('[webhook] Property not found for share yes reply:', propertyId, error)
-      return false
+      console.error(
+        '[webhook] Property not found for share yes reply:',
+        propertyId,
+        error
+      );
+      return false;
     }
 
-    let currency = 'INR'
+    let currency = 'INR';
     const { data: settings } = await supabaseAdmin()
       .from('showcase_settings')
       .select('currency')
       .eq('account_id', accountId)
-      .maybeSingle()
+      .maybeSingle();
     if (settings?.currency) {
-      currency = settings.currency
+      currency = settings.currency;
     }
 
-    const amount = Number(typedProperty.price)
-    let formattedPrice = ''
+    const amount = Number(typedProperty.price);
+    let formattedPrice = '';
     if (!isNaN(amount) && amount > 0) {
       if (currency === 'INR') {
         if (amount >= 10000000) {
-          formattedPrice = `₹${(amount / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`
+          formattedPrice = `₹${(amount / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`;
         } else if (amount >= 100000) {
-          formattedPrice = `₹${(amount / 100000).toFixed(2).replace(/\.00$/, '')} Lakhs`
+          formattedPrice = `₹${(amount / 100000).toFixed(2).replace(/\.00$/, '')} Lakhs`;
         } else {
           formattedPrice = new Intl.NumberFormat('en-IN', {
             style: 'currency',
             currency: 'INR',
             maximumFractionDigits: 0,
-          }).format(amount)
+          }).format(amount);
         }
       } else {
         formattedPrice = new Intl.NumberFormat(undefined, {
           style: 'currency',
           currency: currency,
           maximumFractionDigits: 0,
-        }).format(amount)
+        }).format(amount);
       }
     }
 
-    const isLand = typedProperty.type?.includes('Land') || typedProperty.type?.includes('Plot')
-    const areaVal = isLand ? typedProperty.land_area : typedProperty.area_sqft
-    const unitVal = isLand ? typedProperty.land_area_unit : typedProperty.area_unit
-    const areaStr = areaVal ? `${areaVal} ${unitVal || 'Sq.Ft.'}` : ''
+    const isLand =
+      typedProperty.type?.includes('Land') ||
+      typedProperty.type?.includes('Plot');
+    const areaVal = isLand ? typedProperty.land_area : typedProperty.area_sqft;
+    const unitVal = isLand
+      ? typedProperty.land_area_unit
+      : typedProperty.area_unit;
+    const areaStr = areaVal ? `${areaVal} ${unitVal || 'Sq.Ft.'}` : '';
 
     const propertyGuarded = isLocationGuarded({
       type: typedProperty.type || '',
       location_privacy: typedProperty.location_privacy,
-    })
+    });
     const locationParts =
-      [
-        typedProperty.sublocality?.trim(),
-        typedProperty.city?.trim()
-      ].filter(Boolean).join(', ') ||
-      (propertyGuarded ? '' : typedProperty.location)
+      [typedProperty.sublocality?.trim(), typedProperty.city?.trim()]
+        .filter(Boolean)
+        .join(', ') || (propertyGuarded ? '' : typedProperty.location);
 
     // The account's own showcase (its subdomain when it has one) and
     // the listing's property code — same link the manual share builds,
@@ -3302,23 +3580,28 @@ export async function handlePropertyShareYesReply(
       supabaseAdmin(),
       accountId,
       typedProperty,
-      contactId,
-    )
+      contactId
+    );
 
-    let detailsText = `🏠 *${typedProperty.title}*\n`
-    if (formattedPrice) detailsText += `💰 *Price:* ${formattedPrice}\n`
-    if (locationParts) detailsText += `📍 *Location:* ${locationParts}\n`
-    if (areaStr) detailsText += `📐 *Area:* ${areaStr}\n`
-    if (typedProperty.bedrooms) detailsText += `🛏️ *BHK:* ${typedProperty.bedrooms} BHK\n`
-    if (typedProperty.bathrooms) detailsText += `🛁 *Bathrooms:* ${typedProperty.bathrooms}\n`
-    if (typedProperty.description) detailsText += `\n📝 *Description:*\n${typedProperty.description}\n`
+    let detailsText = `🏠 *${typedProperty.title}*\n`;
+    if (formattedPrice) detailsText += `💰 *Price:* ${formattedPrice}\n`;
+    if (locationParts) detailsText += `📍 *Location:* ${locationParts}\n`;
+    if (areaStr) detailsText += `📐 *Area:* ${areaStr}\n`;
+    if (typedProperty.bedrooms)
+      detailsText += `🛏️ *BHK:* ${typedProperty.bedrooms} BHK\n`;
+    if (typedProperty.bathrooms)
+      detailsText += `🛁 *Bathrooms:* ${typedProperty.bathrooms}\n`;
+    if (typedProperty.description)
+      detailsText += `\n📝 *Description:*\n${typedProperty.description}\n`;
 
     if (typedProperty.google_map_link && !propertyGuarded) {
-      detailsText += `\n🗺️ *Google Maps:* ${typedProperty.google_map_link}\n`
+      detailsText += `\n🗺️ *Google Maps:* ${typedProperty.google_map_link}\n`;
     }
-    detailsText += `\n👇 *Click the link below to view photos, location map, and full details:*\n${showcaseUrl}`
+    detailsText += `\n👇 *Click the link below to view photos, location map, and full details:*\n${showcaseUrl}`;
 
-    const firstImage = typedProperty.images?.find((img: string) => img.trim().length > 0)
+    const firstImage = typedProperty.images?.find(
+      (img: string) => img.trim().length > 0
+    );
     if (firstImage) {
       await sendWhatsAppMessageAndPersist({
         accountId,
@@ -3331,7 +3614,7 @@ export async function handlePropertyShareYesReply(
         mediaLink: firstImage,
         mediaCaption: `Showcase image for ${typedProperty.title}`,
         senderType: 'bot',
-      })
+      });
     }
 
     // Send property details
@@ -3344,10 +3627,14 @@ export async function handlePropertyShareYesReply(
       kind: 'text',
       text: detailsText,
       senderType: 'bot',
-    })
+    });
     if (!detailsResult.success) {
-      console.error('[webhook] Property details send failed:', propertyId, detailsResult.error)
-      return false
+      console.error(
+        '[webhook] Property details send failed:',
+        propertyId,
+        detailsResult.error
+      );
+      return false;
     }
 
     await logPropertyShare(
@@ -3355,10 +3642,10 @@ export async function handlePropertyShareYesReply(
       accountId,
       configOwnerUserId,
       propertyId,
-      contactId,
-    )
+      contactId
+    );
 
-    const followUp = options.followUp ?? 'feedback'
+    const followUp = options.followUp ?? 'feedback';
     if (followUp === 'questions') {
       await sendWhatsAppMessageAndPersist({
         accountId,
@@ -3369,12 +3656,14 @@ export async function handlePropertyShareYesReply(
         kind: 'text',
         text: buildPropertyInterestQuestion(),
         senderType: 'bot',
-      })
-      console.log(`[webhook] Successfully shared property ${propertyId} with contact ${contactId}`)
-      return true
+      });
+      console.log(
+        `[webhook] Successfully shared property ${propertyId} with contact ${contactId}`
+      );
+      return true;
     }
 
-    if (followUp === 'none') return true
+    if (followUp === 'none') return true;
 
     // This is the first confirmed reply after an out-of-window template.
     // Ask for explicit listing feedback now that WhatsApp permits a
@@ -3390,7 +3679,7 @@ export async function handlePropertyShareYesReply(
       includeFormRow: true,
       includeExploreRows: true,
       sourcePropertyId: typedProperty.id,
-    })
+    });
 
     // Preserve the old browse controls if the richer feedback prompt
     // cannot be delivered for any reason.
@@ -3405,19 +3694,24 @@ export async function handlePropertyShareYesReply(
         interactiveType: 'buttons',
         interactiveBody: 'Would you like to explore other properties?',
         interactiveButtons: [
-          { id: `show_more_properties:${typedProperty.id}`, title: 'Show More Properties' },
+          {
+            id: `show_more_properties:${typedProperty.id}`,
+            title: 'Show More Properties',
+          },
           { id: 'browse_all_properties', title: 'Browse All' },
-          { id: `share_property_no:${typedProperty.id}`, title: 'No Thanks' }
+          { id: `share_property_no:${typedProperty.id}`, title: 'No Thanks' },
         ],
         senderType: 'bot',
-      })
+      });
     }
 
-    console.log(`[webhook] Successfully shared property ${propertyId} with contact ${contactId}`)
-    return true
+    console.log(
+      `[webhook] Successfully shared property ${propertyId} with contact ${contactId}`
+    );
+    return true;
   } catch (err) {
-    console.error('[webhook] Failed in handlePropertyShareYesReply:', err)
-    return false
+    console.error('[webhook] Failed in handlePropertyShareYesReply:', err);
+    return false;
   }
 }
 
@@ -3437,17 +3731,17 @@ async function handleEnquiryCardReply(
   /** The AGENT's own thread — where the tap arrived, and where the
    *  outcome is confirmed, the same way the location card answers
    *  "Approved — ConvoReal has sent the exact location...". */
-  agentThread: { contactId: string; conversationId: string },
+  agentThread: { contactId: string; conversationId: string }
 ): Promise<boolean> {
-  const admin = supabaseAdmin()
+  const admin = supabaseAdmin();
 
   const { data: lead } = await admin
     .from('contacts')
     .select('id, name, phone')
     .eq('id', action.contactId)
     .eq('account_id', accountId)
-    .maybeSingle()
-  if (!lead?.phone) return false
+    .maybeSingle();
+  if (!lead?.phone) return false;
 
   const confirmToAgent = async (text: string) => {
     await sendWhatsAppMessageAndPersist({
@@ -3458,18 +3752,18 @@ async function handleEnquiryCardReply(
       kind: 'text',
       senderType: 'bot',
       text,
-    })
-  }
+    });
+  };
 
   const { data: propertyRow } = await admin
     .from('properties')
     .select('title')
     .eq('id', action.propertyId)
     .eq('account_id', accountId)
-    .maybeSingle()
+    .maybeSingle();
   const propertyLabel = propertyRow?.title
     ? `*${propertyRow.title}*`
-    : 'the listing'
+    : 'the listing';
 
   // Reject and "I'll reply" are the agent taking the thread: the
   // conversation is flagged pending so it sits at the top of the inbox
@@ -3482,21 +3776,21 @@ async function handleEnquiryCardReply(
       .from('conversations')
       .update({ status: 'pending', updated_at: new Date().toISOString() })
       .eq('contact_id', action.contactId)
-      .eq('account_id', accountId)
+      .eq('account_id', accountId);
     if (action.action === 'reject') {
       const teamPhone = await resolveEnquiryTeamPhone(
         admin,
         accountId,
-        configOwnerUserId,
-      )
+        configOwnerUserId
+      );
       const { conversation: leadConversation } = await resolveConversation<{
-        id: string
+        id: string;
       }>(admin, {
         accountId,
         contactId: action.contactId,
         userId: configOwnerUserId,
         columns: 'id',
-      })
+      });
       await sendWhatsAppMessageAndPersist({
         accountId,
         userId: configOwnerUserId,
@@ -3506,16 +3800,16 @@ async function handleEnquiryCardReply(
         kind: 'text',
         senderType: 'bot',
         text: buildEnquiryRejectText(lead.name, propertyRow?.title, teamPhone),
-      })
+      });
       await confirmToAgent(
-        `❌ Rejected — ${lead.name || lead.phone} was asked to reach your team directly${teamPhone ? ` on ${teamPhone}` : ''}. The thread is flagged for you in the inbox.`,
-      )
+        `❌ Rejected — ${lead.name || lead.phone} was asked to reach your team directly${teamPhone ? ` on ${teamPhone}` : ''}. The thread is flagged for you in the inbox.`
+      );
     } else {
       await confirmToAgent(
-        `❌ Rejected — nothing was sent to ${lead.name || lead.phone}. The thread is flagged for you in the inbox.`,
-      )
+        `❌ Rejected — nothing was sent to ${lead.name || lead.phone}. The thread is flagged for you in the inbox.`
+      );
     }
-    return true
+    return true;
   }
 
   const { conversation } = await resolveConversation<{ id: string }>(admin, {
@@ -3523,8 +3817,8 @@ async function handleEnquiryCardReply(
     contactId: action.contactId,
     userId: configOwnerUserId,
     columns: 'id',
-  })
-  if (!conversation) return false
+  });
+  if (!conversation) return false;
 
   if (action.action === 'photos') {
     const sent = await sendSubjectPhotos({
@@ -3535,12 +3829,12 @@ async function handleEnquiryCardReply(
       conversationId: conversation.id,
       propertyIds: [action.propertyId],
       requestText: 'photos',
-    })
+    });
     if (sent) {
       await confirmToAgent(
-        `✅ Photos of ${propertyLabel} sent to ${lead.name || lead.phone} on WhatsApp.`,
-      )
-      return true
+        `✅ Photos of ${propertyLabel} sent to ${lead.name || lead.phone} on WhatsApp.`
+      );
+      return true;
     }
     // No public photos to send — fall through to the details, which is
     // the closest thing to what the buyer asked for.
@@ -3555,12 +3849,12 @@ async function handleEnquiryCardReply(
     configOwnerUserId,
     action.contactId,
     conversation.id,
-    lead.phone as string,
-  )
+    lead.phone as string
+  );
   await confirmToAgent(
-    `✅ Approved — complete details for ${propertyLabel} sent to ${lead.name || lead.phone} on WhatsApp.`,
-  )
-  return true
+    `✅ Approved — complete details for ${propertyLabel} sent to ${lead.name || lead.phone} on WhatsApp.`
+  );
+  return true;
 }
 
 export async function handlePropertyShareNoReply(
@@ -3572,7 +3866,7 @@ export async function handlePropertyShareNoReply(
   toPhone: string
 ) {
   try {
-    const politeMessage = `No problem! If you would like to explore our other listings anytime, tap the button below.`
+    const politeMessage = `No problem! If you would like to explore our other listings anytime, tap the button below.`;
     await sendWhatsAppMessageAndPersist({
       accountId,
       userId: configOwnerUserId,
@@ -3583,13 +3877,13 @@ export async function handlePropertyShareNoReply(
       interactiveType: 'buttons',
       interactiveBody: politeMessage,
       interactiveButtons: [
-        { id: 'browse_all_properties', title: 'Browse Properties' }
+        { id: 'browse_all_properties', title: 'Browse Properties' },
       ],
       senderType: 'bot',
-    })
-    console.log(`[webhook] Handled share no reply for contact ${contactId}`)
+    });
+    console.log(`[webhook] Handled share no reply for contact ${contactId}`);
   } catch (err) {
-    console.error('[webhook] Failed in handlePropertyShareNoReply:', err)
+    console.error('[webhook] Failed in handlePropertyShareNoReply:', err);
   }
 }
 
@@ -3607,9 +3901,9 @@ export async function handleBrowseAllProperties(
       .eq('account_id', accountId)
       .eq('is_published', true)
       .order('created_at', { ascending: false })
-      .limit(10)
+      .limit(10);
 
-    const typedProperties = properties as PropertyRow[] | null
+    const typedProperties = properties as PropertyRow[] | null;
 
     if (error || !typedProperties || typedProperties.length === 0) {
       await sendWhatsAppMessageAndPersist({
@@ -3621,32 +3915,40 @@ export async function handleBrowseAllProperties(
         kind: 'text',
         text: `We don't have any other active listings at the moment. Please check back later!`,
         senderType: 'bot',
-      })
-      return
+      });
+      return;
     }
 
     const rows = typedProperties.map((prop) => {
-      let priceStr = ''
-      const amount = Number(prop.price)
+      let priceStr = '';
+      const amount = Number(prop.price);
       if (!isNaN(amount) && amount > 0) {
         if (amount >= 10000000) {
-          priceStr = `₹${(amount / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`
+          priceStr = `₹${(amount / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`;
         } else if (amount >= 100000) {
-          priceStr = `₹${(amount / 100000).toFixed(2).replace(/\.00$/, '')} L`
+          priceStr = `₹${(amount / 100000).toFixed(2).replace(/\.00$/, '')} L`;
         } else {
-          priceStr = `₹${amount}`
+          priceStr = `₹${amount}`;
         }
       }
 
-      const areaStr = prop.area_sqft ? `${prop.area_sqft} ${prop.area_unit || 'Sq.Ft.'}` : ''
-      const details = [priceStr, areaStr, prop.bedrooms ? `${prop.bedrooms} BHK` : ''].filter(Boolean).join(' | ')
+      const areaStr = prop.area_sqft
+        ? `${prop.area_sqft} ${prop.area_unit || 'Sq.Ft.'}`
+        : '';
+      const details = [
+        priceStr,
+        areaStr,
+        prop.bedrooms ? `${prop.bedrooms} BHK` : '',
+      ]
+        .filter(Boolean)
+        .join(' | ');
 
       return {
         id: `share_property_yes:${prop.id}`,
         title: prop.title.substring(0, 24),
         description: details.substring(0, 72),
-      }
-    })
+      };
+    });
 
     await sendWhatsAppMessageAndPersist({
       accountId,
@@ -3665,11 +3967,13 @@ export async function handleBrowseAllProperties(
         },
       ],
       senderType: 'bot',
-    })
+    });
 
-    console.log(`[webhook] Sent interactive browse list to contact ${contactId}`)
+    console.log(
+      `[webhook] Sent interactive browse list to contact ${contactId}`
+    );
   } catch (err) {
-    console.error('[webhook] Failed to handle browse all properties:', err)
+    console.error('[webhook] Failed to handle browse all properties:', err);
   }
 }
 
@@ -3678,32 +3982,50 @@ export async function handleBrowseAllProperties(
 // ============================================================
 
 interface UpdateField {
-  name: string
-  label: string
-  type: 'text' | 'number' | 'select'
-  options?: string[]
-  current_value?: string
+  name: string;
+  label: string;
+  type: 'text' | 'number' | 'select';
+  options?: string[];
+  current_value?: string;
 }
 
 const PROPERTY_UPDATABLE_FIELDS: UpdateField[] = [
   { name: 'title', label: 'Title', type: 'text' },
   { name: 'price', label: 'Price (INR)', type: 'number' },
-  { name: 'status', label: 'Status', type: 'select', options: ['Available', 'Sold', 'Rented', 'Under Contract', 'Withdrawn'] },
+  {
+    name: 'status',
+    label: 'Status',
+    type: 'select',
+    options: ['Available', 'Sold', 'Rented', 'Under Contract', 'Withdrawn'],
+  },
   { name: 'bedrooms', label: 'Bedrooms', type: 'number' },
   { name: 'bathrooms', label: 'Bathrooms', type: 'number' },
   { name: 'area_sqft', label: 'Area (Sq.Ft.)', type: 'number' },
   { name: 'location', label: 'Location', type: 'text' },
   { name: 'description', label: 'Description', type: 'text' },
-]
+];
 
 const CONTACT_UPDATABLE_FIELDS: UpdateField[] = [
   { name: 'name', label: 'Name', type: 'text' },
   { name: 'email', label: 'Email', type: 'text' },
-  { name: 'classification', label: 'Classification', type: 'select', options: ['Buyer', 'Seller', 'Agent', 'Owner', 'Owner & Buyer', 'Developer', 'Others'] },
+  {
+    name: 'classification',
+    label: 'Classification',
+    type: 'select',
+    options: [
+      'Buyer',
+      'Seller',
+      'Agent',
+      'Owner',
+      'Owner & Buyer',
+      'Developer',
+      'Others',
+    ],
+  },
   { name: 'budget_min', label: 'Budget Min (INR)', type: 'number' },
   { name: 'budget_max', label: 'Budget Max (INR)', type: 'number' },
   { name: 'preferred_location', label: 'Preferred Location', type: 'text' },
-]
+];
 
 // Parse update intent from message text
 /**
@@ -3720,8 +4042,8 @@ async function handlePreferenceFlowTrigger(
   conversationId: string
 ): Promise<boolean> {
   try {
-    const flow = await getPublishedPreferenceFlow(accountId)
-    if (!flow) return false
+    const flow = await getPublishedPreferenceFlow(accountId);
+    if (!flow) return false;
 
     const tap = await sendPreferenceTapReply({
       db: supabaseAdmin(),
@@ -3729,7 +4051,7 @@ async function handlePreferenceFlowTrigger(
       userId: configOwnerUserId,
       contactId,
       conversationId,
-    })
+    });
 
     // When a follow-on list (feedback or budget bands) already carries
     // an "Update preferences" row, a third bubble repeating the form
@@ -3737,8 +4059,8 @@ async function handlePreferenceFlowTrigger(
     if (tap.replySent && tap.formOffered) {
       console.log(
         `[webhook] Sent preference tap reply (${tap.matchCount} matches) + tap list to contact ${contactId}`
-      )
-      return true
+      );
+      return true;
     }
 
     const result = await sendPreferenceFlowToContact({
@@ -3750,18 +4072,18 @@ async function handlePreferenceFlowTrigger(
       bodyText: tap.replySent
         ? 'Prefer to update everything at once instead? The full form takes under a minute.'
         : undefined,
-    })
+    });
     if (!result.success) {
-      console.error(`[webhook] Preference flow send failed: ${result.error}`)
-      return tap.replySent
+      console.error(`[webhook] Preference flow send failed: ${result.error}`);
+      return tap.replySent;
     }
     console.log(
       `[webhook] Sent preference tap reply (${tap.matchCount} matches) + flow to contact ${contactId}`
-    )
-    return true
+    );
+    return true;
   } catch (err) {
-    console.error('[webhook] Preference flow trigger error:', err)
-    return false
+    console.error('[webhook] Preference flow trigger error:', err);
+    return false;
   }
 }
 
@@ -3777,40 +4099,44 @@ async function handlePreferenceFlowNfmReply(
   contactId: string,
   conversationId: string
 ) {
-  let parsed: Record<string, unknown>
+  let parsed: Record<string, unknown>;
   try {
-    parsed = JSON.parse(responseJson)
+    parsed = JSON.parse(responseJson);
   } catch {
-    console.error('[webhook] nfm_reply response_json is not valid JSON')
-    return
+    console.error('[webhook] nfm_reply response_json is not valid JSON');
+    return;
   }
 
-  const flowToken = typeof parsed.flow_token === 'string' ? parsed.flow_token : null
+  const flowToken =
+    typeof parsed.flow_token === 'string' ? parsed.flow_token : null;
   if (!flowToken) {
-    console.warn('[webhook] nfm_reply without flow_token — ignoring')
-    return
+    console.warn('[webhook] nfm_reply without flow_token — ignoring');
+    return;
   }
 
   const result = await applyPreferenceFlowResponse({
     flowToken,
     values: parsed,
     expectedAccountId: accountId,
-  })
+  });
 
   if (!result.applied && !result.alreadyCompleted) {
-    console.error(`[webhook] Preference flow reply rejected: ${result.error}`)
-    return
+    console.error(`[webhook] Preference flow reply rejected: ${result.error}`);
+    return;
   }
   if (result.session && result.session.contact_id !== contactId) {
-    console.error('[webhook] Preference flow token belongs to a different contact — ignoring')
-    return
+    console.error(
+      '[webhook] Preference flow token belongs to a different contact — ignoring'
+    );
+    return;
   }
 
   // The endpoint's data_exchange response usually saved the values
   // already (alreadyCompleted); recompute the summary from the reply
   // payload so the confirmation always reflects what was submitted.
   const update =
-    result.update ?? preferenceFormToContactUpdate(parsePreferenceFormValues(parsed))
+    result.update ??
+    preferenceFormToContactUpdate(parsePreferenceFormValues(parsed));
 
   await sendPreferenceMatchFollowUp({
     db: supabaseAdmin(),
@@ -3820,38 +4146,40 @@ async function handlePreferenceFlowNfmReply(
     conversationId,
     acknowledgement: summarizePreferenceUpdate(update),
     reviewNoMatch: false,
-  })
+  });
 }
 
 function parseUpdateIntent(text: string): {
-  type: 'property' | 'contact' | null
-  identifier?: string
+  type: 'property' | 'contact' | null;
+  identifier?: string;
 } | null {
-  const cleaned = text.trim().toLowerCase()
-  
+  const cleaned = text.trim().toLowerCase();
+
   // Match patterns like "update property PROP-1018", "update contact", "update PROP-1018"
-  const propertyWithCode = /\bupdate\s+(?:property\s+)?(prop-?\d+)\b/i.exec(cleaned)
+  const propertyWithCode = /\bupdate\s+(?:property\s+)?(prop-?\d+)\b/i.exec(
+    cleaned
+  );
   if (propertyWithCode) {
-    return { type: 'property', identifier: propertyWithCode[1].toUpperCase() }
+    return { type: 'property', identifier: propertyWithCode[1].toUpperCase() };
   }
-  
-  const propertyGeneric = /\bupdate\s+property\b/i.test(cleaned)
+
+  const propertyGeneric = /\bupdate\s+property\b/i.test(cleaned);
   if (propertyGeneric) {
-    return { type: 'property' }
+    return { type: 'property' };
   }
-  
-  const contactUpdate = /\bupdate\s+contact\b/i.test(cleaned)
+
+  const contactUpdate = /\bupdate\s+contact\b/i.test(cleaned);
   if (contactUpdate) {
-    return { type: 'contact' }
+    return { type: 'contact' };
   }
-  
+
   // Generic "update" might default to contact update for the current conversation
-  const genericUpdate = /^update$/i.test(cleaned)
+  const genericUpdate = /^update$/i.test(cleaned);
   if (genericUpdate) {
-    return { type: 'contact' }
+    return { type: 'contact' };
   }
-  
-  return null
+
+  return null;
 }
 
 // Org roles (org_manager > org_leader > org_coordinator > org_agent) are the
@@ -3865,8 +4193,8 @@ function parseUpdateIntent(text: string): {
 // 'org_agent' to the org-role set — it would let viewers mutate records.
 // (Coordinator is safe on the account_role side: it's a distinct value and is
 // never read-only.)
-const UPDATE_STAFF_ACCOUNT_ROLES = ['owner', 'admin', 'coordinator', 'agent']
-const UPDATE_STAFF_ORG_ROLES = ['org_manager', 'org_leader']
+const UPDATE_STAFF_ACCOUNT_ROLES = ['owner', 'admin', 'coordinator', 'agent'];
+const UPDATE_STAFF_ORG_ROLES = ['org_manager', 'org_leader'];
 
 /**
  * Account staff who may update ANY property or contact over WhatsApp:
@@ -3886,21 +4214,25 @@ async function isUpdateStaffSender(
       .eq('account_id', accountId)
       .or(
         `account_role.in.(${UPDATE_STAFF_ACCOUNT_ROLES.join(',')}),org_role.in.(${UPDATE_STAFF_ORG_ROLES.join(',')})`
-      )
+      );
 
     if (error || !staffProfiles || staffProfiles.length === 0) {
       if (error) {
-        console.error('[webhook] Error querying staff profiles for update authorization:', error)
+        console.error(
+          '[webhook] Error querying staff profiles for update authorization:',
+          error
+        );
       }
-      return false
+      return false;
     }
 
     return staffProfiles.some(
-      (p: { phone: string | null }) => p.phone && phonesMatch(p.phone, senderPhone)
-    )
+      (p: { phone: string | null }) =>
+        p.phone && phonesMatch(p.phone, senderPhone)
+    );
   } catch (err) {
-    console.error('[webhook] Exception in isUpdateStaffSender:', err)
-    return false
+    console.error('[webhook] Exception in isUpdateStaffSender:', err);
+    return false;
   }
 }
 
@@ -3918,19 +4250,23 @@ async function isAuthorizedForUpdateSession(
   accountId: string
 ): Promise<boolean> {
   if (session.update_type === 'contact') {
-    if (session.target_id === contactRecord.id) return true
+    if (session.target_id === contactRecord.id) return true;
   } else if (session.update_type === 'property') {
     const { data: prop } = await supabaseAdmin()
       .from('properties')
       .select('owner_contact_id')
       .eq('id', session.target_id)
       .eq('account_id', accountId)
-      .maybeSingle()
-    if (prop && prop.owner_contact_id && prop.owner_contact_id === contactRecord.id) {
-      return true
+      .maybeSingle();
+    if (
+      prop &&
+      prop.owner_contact_id &&
+      prop.owner_contact_id === contactRecord.id
+    ) {
+      return true;
     }
   }
-  return isUpdateStaffSender(senderPhone, accountId)
+  return isUpdateStaffSender(senderPhone, accountId);
 }
 
 // Handle incoming update intent
@@ -3949,7 +4285,7 @@ export async function handleUpdateIntent(
       .select('*')
       .eq('contact_id', contactRecord.id)
       .eq('status', 'collecting')
-      .maybeSingle()
+      .maybeSingle();
 
     if (existingSession) {
       await sendWhatsAppMessageAndPersist({
@@ -3961,16 +4297,29 @@ export async function handleUpdateIntent(
         kind: 'text',
         text: `You have an ongoing update session. Please complete or cancel it first by sending "cancel".`,
         senderType: 'bot',
-      })
-      return true
+      });
+      return true;
     }
 
     if (intent.type === 'property') {
-      return await handlePropertyUpdateIntent(intent.identifier, accountId, configOwnerUserId, contactRecord, conversation, senderPhone)
+      return await handlePropertyUpdateIntent(
+        intent.identifier,
+        accountId,
+        configOwnerUserId,
+        contactRecord,
+        conversation,
+        senderPhone
+      );
     }
-    return await handleContactUpdateIntent(accountId, configOwnerUserId, contactRecord, conversation, senderPhone)
+    return await handleContactUpdateIntent(
+      accountId,
+      configOwnerUserId,
+      contactRecord,
+      conversation,
+      senderPhone
+    );
   } catch (err) {
-    console.error('[webhook] Failed to handle update intent:', err)
+    console.error('[webhook] Failed to handle update intent:', err);
     await sendWhatsAppMessageAndPersist({
       accountId,
       userId: configOwnerUserId,
@@ -3980,8 +4329,8 @@ export async function handleUpdateIntent(
       kind: 'text',
       text: 'Sorry, something went wrong. Please try again.',
       senderType: 'bot',
-    })
-    return true
+    });
+    return true;
   }
 }
 
@@ -3994,7 +4343,7 @@ async function handlePropertyUpdateIntent(
   conversation: { id: string },
   senderPhone: string
 ): Promise<boolean> {
-  let property = null
+  let property = null;
 
   if (identifier) {
     // Find property by code
@@ -4003,26 +4352,31 @@ async function handlePropertyUpdateIntent(
       .select('*')
       .eq('account_id', accountId)
       .ilike('property_code', identifier)
-      .maybeSingle()
-    property = data
+      .maybeSingle();
+    property = data;
   } else {
     // Find the last property this contact inquired about
-    const contactWithProp = contactRecord as { id: string; name?: string; phone: string; last_inquired_property_id?: string }
+    const contactWithProp = contactRecord as {
+      id: string;
+      name?: string;
+      phone: string;
+      last_inquired_property_id?: string;
+    };
     if (contactWithProp.last_inquired_property_id) {
       const { data } = await supabaseAdmin()
         .from('properties')
         .select('*')
         .eq('account_id', accountId)
         .eq('id', contactWithProp.last_inquired_property_id)
-        .maybeSingle()
-      property = data
+        .maybeSingle();
+      property = data;
     }
   }
 
   if (!property) {
     // Only reveal that a property does or doesn't exist to account staff;
     // for everyone else fall through silently so the feature stays hidden.
-    if (!(await isUpdateStaffSender(senderPhone, accountId))) return false
+    if (!(await isUpdateStaffSender(senderPhone, accountId))) return false;
     await sendWhatsAppMessageAndPersist({
       accountId,
       userId: configOwnerUserId,
@@ -4034,31 +4388,35 @@ async function handlePropertyUpdateIntent(
         ? `I couldn't find a property with code "${identifier}". Please check the property code and try again.`
         : `I couldn't find a property associated with your account. Please specify the property code (e.g., "Update Property PROP-1018").`,
       senderType: 'bot',
-    })
-    return true
+    });
+    return true;
   }
 
   // Authorize: account staff may update any property; a non-staff sender
   // may only update a property they listed over WhatsApp
   // (properties.owner_contact_id). Unauthorized senders fall through.
-  const isOwner = property.owner_contact_id != null && property.owner_contact_id === contactRecord.id
+  const isOwner =
+    property.owner_contact_id != null &&
+    property.owner_contact_id === contactRecord.id;
   if (!isOwner && !(await isUpdateStaffSender(senderPhone, accountId))) {
-    return false
+    return false;
   }
 
   // Create update session
-  const pendingFields = PROPERTY_UPDATABLE_FIELDS.map(f => f.name)
-  
-  await supabaseAdmin().from('update_sessions').insert({
-    account_id: accountId,
-    contact_id: contactRecord.id,
-    update_type: 'property',
-    target_id: property.id,
-    target_identifier: property.property_code || property.id,
-    collected_fields: {},
-    pending_fields: pendingFields,
-    status: 'collecting',
-  })
+  const pendingFields = PROPERTY_UPDATABLE_FIELDS.map((f) => f.name);
+
+  await supabaseAdmin()
+    .from('update_sessions')
+    .insert({
+      account_id: accountId,
+      contact_id: contactRecord.id,
+      update_type: 'property',
+      target_id: property.id,
+      target_identifier: property.property_code || property.id,
+      collected_fields: {},
+      pending_fields: pendingFields,
+      status: 'collecting',
+    });
 
   // Ask for first field
   await sendWhatsAppMessageAndPersist({
@@ -4068,10 +4426,10 @@ async function handlePropertyUpdateIntent(
     conversationId: conversation.id,
     toPhone: senderPhone,
     kind: 'text',
-    text: `Let's update *${property.title || property.property_code}*\n\nCurrent values:\n${PROPERTY_UPDATABLE_FIELDS.map(f => `• ${f.label}: ${property[f.name] || 'not set'}`).join('\n')}\n\nWhat would you like to update?\n\nSend the field name (e.g., "price", "status", "title") or send "all" to update fields one by one.`,
+    text: `Let's update *${property.title || property.property_code}*\n\nCurrent values:\n${PROPERTY_UPDATABLE_FIELDS.map((f) => `• ${f.label}: ${property[f.name] || 'not set'}`).join('\n')}\n\nWhat would you like to update?\n\nSend the field name (e.g., "price", "status", "title") or send "all" to update fields one by one.`,
     senderType: 'bot',
-  })
-  return true
+  });
+  return true;
 }
 
 // Handle contact update intent
@@ -4085,8 +4443,8 @@ async function handleContactUpdateIntent(
   // The contact update always targets the sender's own contact record, so
   // the sender is by definition the owner of what they're editing.
   // Create update session for contact
-  const pendingFields = CONTACT_UPDATABLE_FIELDS.map(f => f.name)
-  
+  const pendingFields = CONTACT_UPDATABLE_FIELDS.map((f) => f.name);
+
   await supabaseAdmin().from('update_sessions').insert({
     account_id: accountId,
     contact_id: contactRecord.id,
@@ -4096,7 +4454,7 @@ async function handleContactUpdateIntent(
     collected_fields: {},
     pending_fields: pendingFields,
     status: 'collecting',
-  })
+  });
 
   // Ask for first field
   await sendWhatsAppMessageAndPersist({
@@ -4106,10 +4464,10 @@ async function handleContactUpdateIntent(
     conversationId: conversation.id,
     toPhone: senderPhone,
     kind: 'text',
-    text: `Let's update your contact details\n\nCurrent values:\n${CONTACT_UPDATABLE_FIELDS.map(f => `• ${f.label}: ${(contactRecord as Record<string, unknown>)[f.name] || 'not set'}`).join('\n')}\n\nWhat would you like to update?\n\nSend the field name (e.g., "name", "email", "classification") or send "all" to update fields one by one.`,
+    text: `Let's update your contact details\n\nCurrent values:\n${CONTACT_UPDATABLE_FIELDS.map((f) => `• ${f.label}: ${(contactRecord as Record<string, unknown>)[f.name] || 'not set'}`).join('\n')}\n\nWhat would you like to update?\n\nSend the field name (e.g., "name", "email", "classification") or send "all" to update fields one by one.`,
     senderType: 'bot',
-  })
-  return true
+  });
+  return true;
 }
 
 // Handle update session input
@@ -4126,18 +4484,18 @@ export async function handleUpdateSessionInput(
     .from('update_sessions')
     .select('*')
     .eq('id', sessionId)
-    .maybeSingle()
+    .maybeSingle();
 
-  if (!session) return false
+  if (!session) return false;
 
-  const cleanedText = text.trim().toLowerCase()
+  const cleanedText = text.trim().toLowerCase();
 
   // Handle cancel
   if (cleanedText === 'cancel') {
     await supabaseAdmin()
       .from('update_sessions')
       .update({ status: 'cancelled' })
-      .eq('id', sessionId)
+      .eq('id', sessionId);
 
     await sendWhatsAppMessageAndPersist({
       accountId,
@@ -4148,22 +4506,25 @@ export async function handleUpdateSessionInput(
       kind: 'text',
       text: 'Update cancelled.',
       senderType: 'bot',
-    })
-    return true
+    });
+    return true;
   }
 
   // Handle "all" to start field-by-field update
   if (cleanedText === 'all') {
-    const fields = session.update_type === 'property' ? PROPERTY_UPDATABLE_FIELDS : CONTACT_UPDATABLE_FIELDS
-    const firstField = fields[0]
-    
+    const fields =
+      session.update_type === 'property'
+        ? PROPERTY_UPDATABLE_FIELDS
+        : CONTACT_UPDATABLE_FIELDS;
+    const firstField = fields[0];
+
     await supabaseAdmin()
       .from('update_sessions')
-      .update({ 
-        pending_fields: fields.map(f => f.name),
-        status: 'collecting' 
+      .update({
+        pending_fields: fields.map((f) => f.name),
+        status: 'collecting',
       })
-      .eq('id', sessionId)
+      .eq('id', sessionId);
 
     await sendWhatsAppMessageAndPersist({
       accountId,
@@ -4174,17 +4535,22 @@ export async function handleUpdateSessionInput(
       kind: 'text',
       text: `Let's update fields one by one.\n\nEnter new value for *${firstField.label}*:\n(current: ${firstField.current_value || 'not set'})\n\nSend "skip" to skip this field.`,
       senderType: 'bot',
-    })
-    return true
+    });
+    return true;
   }
 
   // Handle field-specific update (e.g., "price 1.5cr", "status sold")
-  const fieldMatch = /^(\w+)\s+(.+)$/m.exec(text.trim())
+  const fieldMatch = /^(\w+)\s+(.+)$/m.exec(text.trim());
   if (fieldMatch) {
-    const [, fieldName, value] = fieldMatch
-    const fields = session.update_type === 'property' ? PROPERTY_UPDATABLE_FIELDS : CONTACT_UPDATABLE_FIELDS
-    const field = fields.find(f => f.name.toLowerCase() === fieldName.toLowerCase())
-    
+    const [, fieldName, value] = fieldMatch;
+    const fields =
+      session.update_type === 'property'
+        ? PROPERTY_UPDATABLE_FIELDS
+        : CONTACT_UPDATABLE_FIELDS;
+    const field = fields.find(
+      (f) => f.name.toLowerCase() === fieldName.toLowerCase()
+    );
+
     if (!field) {
       await sendWhatsAppMessageAndPersist({
         accountId,
@@ -4193,15 +4559,17 @@ export async function handleUpdateSessionInput(
         conversationId: conversation.id,
         toPhone: senderPhone,
         kind: 'text',
-        text: `Invalid field "${fieldName}". Available fields: ${fields.map(f => f.name).join(', ')}`,
+        text: `Invalid field "${fieldName}". Available fields: ${fields.map((f) => f.name).join(', ')}`,
         senderType: 'bot',
-      })
-      return true
+      });
+      return true;
     }
 
     // Validate select fields
     if (field.type === 'select' && field.options) {
-      const validOption = field.options.find(o => o.toLowerCase() === value.toLowerCase())
+      const validOption = field.options.find(
+        (o) => o.toLowerCase() === value.toLowerCase()
+      );
       if (!validOption) {
         await sendWhatsAppMessageAndPersist({
           accountId,
@@ -4212,36 +4580,47 @@ export async function handleUpdateSessionInput(
           kind: 'text',
           text: `Invalid value "${value}". Choose from: ${field.options.join(', ')}`,
           senderType: 'bot',
-        })
-        return true
+        });
+        return true;
       }
     }
 
     // Update the field
-    const updateData: Record<string, unknown> = {}
+    const updateData: Record<string, unknown> = {};
     if (session.update_type === 'property') {
-      updateData[field.name] = field.type === 'number' ? Number(value) || value : value
+      updateData[field.name] =
+        field.type === 'number' ? Number(value) || value : value;
       await supabaseAdmin()
         .from('properties')
         .update(updateData)
-        .eq('id', session.target_id)
+        .eq('id', session.target_id);
     } else {
-      updateData[field.name] = field.type === 'number' ? Number(value) || value : value
+      updateData[field.name] =
+        field.type === 'number' ? Number(value) || value : value;
       await supabaseAdmin()
         .from('contacts')
         .update(updateData)
-        .eq('id', session.target_id)
+        .eq('id', session.target_id);
     }
 
     // Remove field from pending
-    const remainingFields = (session.pending_fields as string[]).filter(f => f !== field.name)
-    
+    const remainingFields = (session.pending_fields as string[]).filter(
+      (f) => f !== field.name
+    );
+
     if (remainingFields.length === 0) {
       // All fields updated
       await supabaseAdmin()
         .from('update_sessions')
-        .update({ status: 'completed', pending_fields: [], collected_fields: { ...session.collected_fields, [field.name]: value } })
-        .eq('id', sessionId)
+        .update({
+          status: 'completed',
+          pending_fields: [],
+          collected_fields: {
+            ...session.collected_fields,
+            [field.name]: value,
+          },
+        })
+        .eq('id', sessionId);
 
       await sendWhatsAppMessageAndPersist({
         accountId,
@@ -4252,18 +4631,21 @@ export async function handleUpdateSessionInput(
         kind: 'text',
         text: `✅ Updated *${field.label}* to "${value}"\n\nAll done! Your ${session.update_type} has been updated.`,
         senderType: 'bot',
-      })
+      });
     } else {
       // More fields to update
       await supabaseAdmin()
         .from('update_sessions')
-        .update({ 
+        .update({
           pending_fields: remainingFields,
-          collected_fields: { ...session.collected_fields, [field.name]: value }
+          collected_fields: {
+            ...session.collected_fields,
+            [field.name]: value,
+          },
         })
-        .eq('id', sessionId)
+        .eq('id', sessionId);
 
-      const nextField = fields.find(f => f.name === remainingFields[0])
+      const nextField = fields.find((f) => f.name === remainingFields[0]);
       await sendWhatsAppMessageAndPersist({
         accountId,
         userId: configOwnerUserId,
@@ -4273,13 +4655,16 @@ export async function handleUpdateSessionInput(
         kind: 'text',
         text: `✅ Updated *${field.label}* to "${value}"\n\nEnter new value for *${nextField?.label || remainingFields[0]}*:\nSend "skip" to skip, or "done" to finish.`,
         senderType: 'bot',
-      })
+      });
     }
-    return true
+    return true;
   }
 
   // If we're in collecting mode and no field specified, show available fields
-  const fields = session.update_type === 'property' ? PROPERTY_UPDATABLE_FIELDS : CONTACT_UPDATABLE_FIELDS
+  const fields =
+    session.update_type === 'property'
+      ? PROPERTY_UPDATABLE_FIELDS
+      : CONTACT_UPDATABLE_FIELDS;
   await sendWhatsAppMessageAndPersist({
     accountId,
     userId: configOwnerUserId,
@@ -4287,10 +4672,10 @@ export async function handleUpdateSessionInput(
     conversationId: conversation.id,
     toPhone: senderPhone,
     kind: 'text',
-    text: `Please specify the field and value.\n\nExamples:\n• "price 1.5cr"\n• "status sold"\n• "title New Title"\n\nAvailable fields: ${fields.map(f => f.name).join(', ')}\n\nOr send "all" to update fields one by one.`,
+    text: `Please specify the field and value.\n\nExamples:\n• "price 1.5cr"\n• "status sold"\n• "title New Title"\n\nAvailable fields: ${fields.map((f) => f.name).join(', ')}\n\nOr send "all" to update fields one by one.`,
     senderType: 'bot',
-  })
-  return true
+  });
+  return true;
 }
 
 // ============================================================
@@ -4311,21 +4696,24 @@ export async function handleSoldPriceReply(
       .select('title, sold_price')
       .eq('id', propertyId)
       .eq('account_id', accountId)
-      .maybeSingle()
+      .maybeSingle();
 
     if (!property) {
-      console.error('[webhook] Property not found for sold price reply:', propertyId)
-      return
+      console.error(
+        '[webhook] Property not found for sold price reply:',
+        propertyId
+      );
+      return;
     }
 
-    let currency = 'INR'
+    let currency = 'INR';
     const { data: settings } = await supabaseAdmin()
       .from('showcase_settings')
       .select('currency')
       .eq('account_id', accountId)
-      .maybeSingle()
+      .maybeSingle();
     if (settings?.currency) {
-      currency = settings.currency
+      currency = settings.currency;
     }
 
     await sendWhatsAppMessageAndPersist({
@@ -4341,9 +4729,9 @@ export async function handleSoldPriceReply(
         currency
       ),
       senderType: 'bot',
-    })
+    });
   } catch (err) {
-    console.error('[webhook] Failed in handleSoldPriceReply:', err)
+    console.error('[webhook] Failed in handleSoldPriceReply:', err);
   }
 }
 
@@ -4366,17 +4754,20 @@ export async function handleShowMoreProperties(
       .select('*')
       .eq('id', currentPropertyId)
       .eq('account_id', accountId)
-      .maybeSingle()
+      .maybeSingle();
 
     if (!currentProperty) {
-      console.error('[webhook] Current property not found for show more:', currentPropertyId)
-      return
+      console.error(
+        '[webhook] Current property not found for show more:',
+        currentPropertyId
+      );
+      return;
     }
 
     // Find similar properties based on type, location, or price range
-    const price = Number(currentProperty.price) || 0
-    const minPrice = price * 0.7 // 30% below
-    const maxPrice = price * 1.3 // 30% above
+    const price = Number(currentProperty.price) || 0;
+    const minPrice = price * 0.7; // 30% below
+    const maxPrice = price * 1.3; // 30% above
 
     const { data: similarProperties, error } = await supabaseAdmin()
       .from('properties')
@@ -4384,9 +4775,11 @@ export async function handleShowMoreProperties(
       .eq('account_id', accountId)
       .eq('is_published', true)
       .neq('id', currentPropertyId) // Exclude current property
-      .or(`type.eq.${currentProperty.type},and(price.gte.${minPrice},price.lte.${maxPrice})`)
+      .or(
+        `type.eq.${currentProperty.type},and(price.gte.${minPrice},price.lte.${maxPrice})`
+      )
       .order('created_at', { ascending: false })
-      .limit(5)
+      .limit(5);
 
     if (error || !similarProperties || similarProperties.length === 0) {
       // No similar properties, fall back to browse all
@@ -4396,19 +4789,19 @@ export async function handleShowMoreProperties(
         contactId,
         conversationId,
         toPhone
-      )
-      return
+      );
+      return;
     }
 
     // Send properties one by one
-    let currency = 'INR'
+    let currency = 'INR';
     const { data: settings } = await supabaseAdmin()
       .from('showcase_settings')
       .select('currency')
       .eq('account_id', accountId)
-      .maybeSingle()
+      .maybeSingle();
     if (settings?.currency) {
-      currency = settings.currency
+      currency = settings.currency;
     }
 
     // Send intro message
@@ -4421,52 +4814,52 @@ export async function handleShowMoreProperties(
       kind: 'text',
       text: `Here are ${similarProperties.length} similar properties you might like:`,
       senderType: 'bot',
-    })
+    });
 
     // Send each property
     for (const prop of similarProperties) {
-      const typedProp = prop as PropertyRow
-      
-      const amount = Number(typedProp.price)
-      let formattedPrice = ''
+      const typedProp = prop as PropertyRow;
+
+      const amount = Number(typedProp.price);
+      let formattedPrice = '';
       if (!isNaN(amount) && amount > 0) {
         if (currency === 'INR') {
           if (amount >= 10000000) {
-            formattedPrice = `₹${(amount / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`
+            formattedPrice = `₹${(amount / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`;
           } else if (amount >= 100000) {
-            formattedPrice = `₹${(amount / 100000).toFixed(2).replace(/\.00$/, '')} Lakhs`
+            formattedPrice = `₹${(amount / 100000).toFixed(2).replace(/\.00$/, '')} Lakhs`;
           } else {
             formattedPrice = new Intl.NumberFormat('en-IN', {
               style: 'currency',
               currency: 'INR',
               maximumFractionDigits: 0,
-            }).format(amount)
+            }).format(amount);
           }
         } else {
           formattedPrice = new Intl.NumberFormat(undefined, {
             style: 'currency',
             currency: currency,
             maximumFractionDigits: 0,
-          }).format(amount)
+          }).format(amount);
         }
       }
 
-      const isLand = typedProp.type?.includes('Land') || typedProp.type?.includes('Plot')
-      const areaVal = isLand ? typedProp.land_area : typedProp.area_sqft
-      const unitVal = isLand ? typedProp.land_area_unit : typedProp.area_unit
-      const areaStr = areaVal ? `${areaVal} ${unitVal || 'Sq.Ft.'}` : ''
+      const isLand =
+        typedProp.type?.includes('Land') || typedProp.type?.includes('Plot');
+      const areaVal = isLand ? typedProp.land_area : typedProp.area_sqft;
+      const unitVal = isLand ? typedProp.land_area_unit : typedProp.area_unit;
+      const areaStr = areaVal ? `${areaVal} ${unitVal || 'Sq.Ft.'}` : '';
 
       const locationParts =
-        [
-          typedProp.sublocality?.trim(),
-          typedProp.city?.trim()
-        ].filter(Boolean).join(', ') ||
+        [typedProp.sublocality?.trim(), typedProp.city?.trim()]
+          .filter(Boolean)
+          .join(', ') ||
         (isLocationGuarded({
           type: typedProp.type || '',
           location_privacy: typedProp.location_privacy,
         })
           ? ''
-          : typedProp.location)
+          : typedProp.location);
 
       // Account showcase + property code, as the manual share builds.
       // v= attributes Showcase Pulse engagement to this contact (never filters)
@@ -4474,11 +4867,13 @@ export async function handleShowMoreProperties(
         supabaseAdmin(),
         accountId,
         typedProp,
-        contactId,
-      )
+        contactId
+      );
 
       // Send image first
-      const firstImage = typedProp.images?.find((img: string) => img.trim().length > 0)
+      const firstImage = typedProp.images?.find(
+        (img: string) => img.trim().length > 0
+      );
       if (firstImage) {
         await sendWhatsAppMessageAndPersist({
           accountId,
@@ -4491,16 +4886,17 @@ export async function handleShowMoreProperties(
           mediaLink: firstImage,
           mediaCaption: typedProp.title,
           senderType: 'bot',
-        })
+        });
       }
 
       // Send details
-      let detailsText = `🏠 *${typedProp.title}*\n`
-      if (formattedPrice) detailsText += `💰 *Price:* ${formattedPrice}\n`
-      if (locationParts) detailsText += `📍 *Location:* ${locationParts}\n`
-      if (areaStr) detailsText += `📐 *Area:* ${areaStr}\n`
-      if (typedProp.bedrooms) detailsText += `🛏️ *BHK:* ${typedProp.bedrooms} BHK\n`
-      detailsText += `\n👇 *Click the link below to view photos, location map, and full details:*\n${showcaseUrl}`
+      let detailsText = `🏠 *${typedProp.title}*\n`;
+      if (formattedPrice) detailsText += `💰 *Price:* ${formattedPrice}\n`;
+      if (locationParts) detailsText += `📍 *Location:* ${locationParts}\n`;
+      if (areaStr) detailsText += `📐 *Area:* ${areaStr}\n`;
+      if (typedProp.bedrooms)
+        detailsText += `🛏️ *BHK:* ${typedProp.bedrooms} BHK\n`;
+      detailsText += `\n👇 *Click the link below to view photos, location map, and full details:*\n${showcaseUrl}`;
 
       await sendWhatsAppMessageAndPersist({
         accountId,
@@ -4511,7 +4907,7 @@ export async function handleShowMoreProperties(
         kind: 'text',
         text: detailsText,
         senderType: 'bot',
-      })
+      });
     }
 
     // Final follow-up with options
@@ -4525,14 +4921,19 @@ export async function handleShowMoreProperties(
       interactiveType: 'buttons',
       interactiveBody: `Would you like to see more properties or get in touch?`,
       interactiveButtons: [
-        { id: `show_more_properties:${similarProperties[similarProperties.length - 1].id}`, title: 'Show More' },
+        {
+          id: `show_more_properties:${similarProperties[similarProperties.length - 1].id}`,
+          title: 'Show More',
+        },
         { id: 'browse_all_properties', title: 'Browse All' },
       ],
       senderType: 'bot',
-    })
+    });
 
-    console.log(`[webhook] Sent ${similarProperties.length} similar properties to contact ${contactId}`)
+    console.log(
+      `[webhook] Sent ${similarProperties.length} similar properties to contact ${contactId}`
+    );
   } catch (err) {
-    console.error('[webhook] Failed in handleShowMoreProperties:', err)
+    console.error('[webhook] Failed in handleShowMoreProperties:', err);
   }
 }

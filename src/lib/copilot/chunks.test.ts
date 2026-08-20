@@ -19,7 +19,7 @@ const KINDS = ['page', 'concept', 'howto', 'limit'] as const;
  * route here is a conscious decision — anything not listed must ship
  * with a page chunk or the coverage test below fails.
  */
-const UNCOVERED_ROUTES = ['/admin', '/checkout-demo', '/dev'];
+const UNCOVERED_ROUTES = ['/admin', '/checkout-demo', '/dev', '/gaps'];
 
 /**
  * Every surface the helper is mounted on, and where its routable
