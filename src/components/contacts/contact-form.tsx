@@ -122,6 +122,7 @@ export function ContactForm({
   const [minBudget, setMinBudget] = useState('');
   const [maxBudget, setMaxBudget] = useState('');
   const [noBudget, setNoBudget] = useState(false);
+  const [listingIntent, setListingIntent] = useState('');
   const [strictAreaMatch, setStrictAreaMatch] = useState(false);
   const [areasOfInterest, setAreasOfInterest] = useState<string[]>([]);
   const [areasText, setAreasText] = useState('');
@@ -227,6 +228,7 @@ export function ContactForm({
             : ''
       );
       setNoBudget(Boolean(sourceContact?.no_budget));
+      setListingIntent((sourceContact?.pref_listing_types ?? []).join(','));
       setStrictAreaMatch(!!contact?.strict_area_match);
       const initialAreas = Array.from(
         new Set([
@@ -399,6 +401,7 @@ export function ContactForm({
         min_budget: minBudget ? Number(minBudget) : null,
         max_budget: maxBudget ? Number(maxBudget) : null,
         no_budget: noBudget,
+        pref_listing_types: listingIntent ? listingIntent.split(',') : [],
         strict_area_match: strictAreaMatch,
         areas_of_interest: areasOfInterest,
         areas_of_interest_geo: pruneAreasGeo(areasGeo, areasOfInterest),
@@ -922,12 +925,36 @@ export function ContactForm({
               </select>
             </div>
 
-            {/* Real Estate Preferences */}
-            {classification === 'Buyer' && (
+            {/* Real Estate Preferences. Mobile shows this block to
+                'Owner & Buyer' too — an owner who is also shopping has
+                a brief like any other buyer. */}
+            {(classification === 'Buyer' ||
+              classification === 'Owner & Buyer') && (
               <div className="mt-2 space-y-4 border-t border-slate-800 pt-4">
                 <h4 className="text-sm font-bold tracking-wide text-white uppercase">
                   Real Estate Preferences
                 </h4>
+
+                {/* Buy or rent. Read by the matcher as a hard gate, so
+                    an unset value stays unset rather than defaulting to
+                    Sale — a guess here silently hides half the
+                    inventory from the contact. */}
+                <div className="space-y-2">
+                  <Label htmlFor="cf-listing-intent" className="text-slate-300">
+                    Looking to
+                  </Label>
+                  <select
+                    id="cf-listing-intent"
+                    value={listingIntent}
+                    onChange={(e) => setListingIntent(e.target.value)}
+                    className="focus:border-primary w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:outline-none"
+                  >
+                    <option value="">Not stated</option>
+                    <option value="Sale">Buy</option>
+                    <option value="Rent">Rent</option>
+                    <option value="Sale,Rent">Either</option>
+                  </select>
+                </div>
 
                 {/* Budget Fields */}
                 <div className="space-y-2">

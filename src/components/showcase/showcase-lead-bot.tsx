@@ -14,6 +14,7 @@ import {
 } from '@/lib/bot/funnel';
 import {
   engineFunnel,
+  listingTypeForShowcaseIntent,
   RENT_INTENT,
   SHOWCASE_AFTER_MATCH,
   SHOWCASE_FUNNEL,
@@ -255,6 +256,7 @@ export function ShowcaseLeadBot({
           locations: localities,
           minBudget: isRent ? null : budget.min,
           maxBudget: isRent ? null : budget.max,
+          listingTypes: [listingTypeForShowcaseIntent(intent)].filter(Boolean),
           notes,
           accountId,
           referrerContactId,
@@ -344,7 +346,7 @@ export function ShowcaseLeadBot({
 
       return null;
     },
-    [showMatches, submitBuyer, submitEngineProspect, whatsappCard, showcaseUrlCard]
+    [showMatches, showcaseUrlCard, submitBuyer, submitEngineProspect, whatsappCard]
   );
 
   const handleQuestion = useCallback(

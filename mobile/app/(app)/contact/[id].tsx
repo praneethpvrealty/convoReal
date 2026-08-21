@@ -118,6 +118,16 @@ const PROPERTY_INTEREST_OPTIONS = [
  *  free text in Requirements — they aren't shopping to a budget. */
 const BUYER_PREF_CLASSIFICATIONS: Classification[] = ['Buyer', 'Owner & Buyer'];
 
+/** Buy or rent, as the matcher reads it (contacts.pref_listing_types).
+ *  Web parity: the "Looking to" select in src/components/contacts/
+ *  contact-form.tsx. Left unset rather than defaulted — the matcher
+ *  gates on it, so a guess hides half the inventory from the contact. */
+const LISTING_INTENT_OPTIONS: { value: string[]; label: string }[] = [
+  { value: ['Sale'], label: 'Buy' },
+  { value: ['Rent'], label: 'Rent' },
+  { value: ['Sale', 'Rent'], label: 'Either' },
+];
+
 type UpdateChannelValue = 'whatsapp_text' | 'whatsapp_audio' | 'voice_call';
 const UPDATE_CHANNEL_OPTIONS: { value: UpdateChannelValue; label: string }[] = [
   { value: 'whatsapp_text', label: '💬 Text' },
@@ -135,7 +145,7 @@ async function fetchContact(id: string): Promise<Contact | null> {
     .from('contacts')
     .select(
       'id, phone, secondary_phones, name, salutation, name_tag, email, company, classification, ' +
-        'avatar_url, min_budget, max_budget, no_budget, areas_of_interest, areas_of_interest_geo, ' +
+        'avatar_url, min_budget, max_budget, no_budget, pref_listing_types, areas_of_interest, areas_of_interest_geo, ' +
         'strict_area_match, min_roi, requirements, lead_temp, status, referrer, source, ' +
         'requirement_profiles, ' +
         'preferred_update_channel, buyer_alerts_consent, buyer_alerts_consent_requested_at, ' +
@@ -1177,6 +1187,9 @@ function ContactEditor({
     source.pref_budget_max != null ? String(source.pref_budget_max) : ''
   );
   const [noBudget, setNoBudget] = useState(Boolean(source.no_budget));
+  const [listingTypes, setListingTypes] = useState<string[]>(
+    source.pref_listing_types ?? []
+  );
   const [areas, setAreas] = useState<string[]>(source.pref_areas ?? []);
   const [areasGeo, setAreasGeo] = useState<AreaOfInterestGeo[]>(
     contact.areas_of_interest_geo ?? []
@@ -1255,6 +1268,7 @@ function ContactEditor({
         min_budget: noBudget ? null : parseAmount(minBudget),
         max_budget: noBudget ? null : parseAmount(maxBudget),
         no_budget: noBudget,
+        pref_listing_types: listingTypes,
         areas_of_interest: areas,
         // Drop coordinates for any area no longer in the list (web parity).
         areas_of_interest_geo: areasGeo.filter((g) =>
@@ -1589,6 +1603,51 @@ function ContactEditor({
             <Text style={[styles.fieldLabel, { color: colors.textMuted }]}>
               Buyer preferences
             </Text>
+
+            <View style={{ gap: spacing.sm }}>
+              <Text style={[styles.fieldLabel, { color: colors.textMuted }]}>
+                Looking to
+              </Text>
+              <View
+                style={{
+                  flexDirection: 'row',
+                  flexWrap: 'wrap',
+                  gap: spacing.sm,
+                }}
+              >
+                {LISTING_INTENT_OPTIONS.map((opt) => {
+                  const active =
+                    listingTypes.length === opt.value.length &&
+                    opt.value.every((v) => listingTypes.includes(v));
+                  return (
+                    <Pressable
+                      key={opt.label}
+                      onPress={() => setListingTypes(active ? [] : opt.value)}
+                      style={{
+                        paddingHorizontal: 12,
+                        paddingVertical: 7,
+                        borderRadius: radius.full,
+                        backgroundColor: active
+                          ? colors.primarySoft
+                          : colors.surface,
+                        borderWidth: active ? 1.5 : StyleSheet.hairlineWidth,
+                        borderColor: active ? colors.primary : colors.border,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 13,
+                          fontFamily: f.semibold,
+                          color: active ? colors.primary : colors.textMuted,
+                        }}
+                      >
+                        {opt.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
 
             <CheckRow
               label="No budget limit"

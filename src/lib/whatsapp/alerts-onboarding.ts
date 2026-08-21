@@ -5,9 +5,9 @@
 // Consent used to be the whole transaction — one confirmation line,
 // window closed, profile still empty. Now the same moment runs the
 // first missing rung of the qualification ladder, one tap at a time:
-// type list, then budget bands, then a typed area question. A lead
-// whose profile is already complete skips the questions and gets the
-// proof instead — their current matches.
+// type list, then buy-or-rent, then budget bands, then a typed area
+// question. A lead whose profile is already complete skips the
+// questions and gets the proof instead — their current matches.
 //
 // Re-entrant by design: every tapped answer routes back here, and the
 // next missing rung (or the shortlist) is the acknowledgement.
@@ -19,6 +19,7 @@ import {
 } from '@/lib/ai/buyer-qualification';
 import { sendPropertyTypePrompt } from '@/lib/whatsapp/property-type-prompt';
 import { sendBudgetBandPrompt } from '@/lib/whatsapp/budget-band';
+import { sendListingIntentPrompt } from '@/lib/whatsapp/listing-intent-prompt';
 import { sendPreferenceMatchFollowUp } from '@/lib/whatsapp/preference-match-followup';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import type { Contact } from '@/types';
@@ -60,6 +61,18 @@ export async function sendAlertsOnboarding(args: {
         bodyText: args.acknowledgement
           ? `${args.acknowledgement}\n\nWhat kind of property should I look for?`
           : undefined,
+      });
+      return;
+    }
+
+    if (missing === 'intent') {
+      await sendListingIntentPrompt({
+        db,
+        accountId,
+        userId,
+        contactId,
+        conversationId,
+        includeFormRow: true,
       });
       return;
     }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit';
 import { sanitizeAreasGeo } from '@/lib/contacts/area-geo';
+import { sanitizeListingTypes } from '@/lib/ai/preference-extraction';
 import { isUpdateChannel } from '@/lib/voice/announcements';
 
 // PUT /api/contacts/[id] — update a contact with tags, notes, and property links
@@ -28,7 +29,7 @@ export async function PUT(
     const {
       name, salutation, second_name, name_tag, phone, secondary_phones, email, company, classification, lead_temp,
       last_inquired_property_id, referrer, referrer_contact_id,
-      min_budget, max_budget, no_budget, areas_of_interest, areas_of_interest_geo,
+      min_budget, max_budget, no_budget, pref_listing_types, areas_of_interest, areas_of_interest_geo,
       property_interests, min_roi, source, dob, feedback_status,
       strict_area_match, projects_of_interest, strict_project_match,
       preferred_update_channel,
@@ -70,6 +71,7 @@ export async function PUT(
       min_budget: typeof min_budget === 'number' ? min_budget : null,
       max_budget: typeof max_budget === 'number' ? max_budget : null,
       no_budget: typeof no_budget === 'boolean' ? no_budget : false,
+      pref_listing_types: sanitizeListingTypes(pref_listing_types),
       areas_of_interest: Array.isArray(areas_of_interest) ? areas_of_interest : [],
       areas_of_interest_geo: sanitizeAreasGeo(areas_of_interest_geo),
       property_interests: Array.isArray(property_interests) ? property_interests : [],

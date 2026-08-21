@@ -89,11 +89,17 @@ describe('portal enquiry context', () => {
     expect(saved.property_types).toEqual(['Villa']);
     expect(saved.budget_max).toBe(30_000_000);
     expect(saved.areas).toEqual(['KR Puram']);
-    expect(nextQualifier(saved)).toBeNull();
+    // The CRM fields answer type, budget and area; buy-or-rent is the
+    // one rung an agent-entered profile carries no column for until
+    // someone asks.
+    expect(nextQualifier(saved)).toBe('intent');
+    expect(
+      nextQualifier({ ...saved, listing_types: ['Sale'] })
+    ).toBeNull();
   });
 
   it('keeps the known Villa type when the buyer only adds budget and area', () => {
-    const known = prefs({ property_types: ['Villa'] });
+    const known = prefs({ property_types: ['Villa'], listing_types: ['Sale'] });
     const extracted = prefs({
       budget_min: 25_000_000,
       budget_max: 30_000_000,
@@ -211,29 +217,41 @@ describe('carriesRequirementSignal', () => {
 });
 
 describe('nextQualifier', () => {
-  it('walks type → budget → location', () => {
+  it('walks type → intent → budget → location', () => {
     expect(nextQualifier(prefs())).toBe('type');
     expect(nextQualifier(prefs({ property_categories: ['plot'] }))).toBe(
-      'budget'
+      'intent'
     );
+    // Intent precedes budget because the band list it leads to asks a
+    // renter for a monthly figure and a buyer for a sale figure.
     expect(
       nextQualifier(
-        prefs({ property_categories: ['plot'], budget_max: 20_000_000 })
+        prefs({ property_categories: ['plot'], listing_types: ['Rent'] })
+      )
+    ).toBe('budget');
+    expect(
+      nextQualifier(
+        prefs({
+          property_categories: ['plot'],
+          listing_types: ['Rent'],
+          budget_max: 20_000_000,
+        })
       )
     ).toBe('location');
   });
 
   it('is satisfied by a broad category, not only a specific type', () => {
     expect(nextQualifier(prefs({ property_categories: ['commercial'] }))).toBe(
-      'budget'
+      'intent'
     );
   });
 
-  it('returns null once all three rungs are answered', () => {
+  it('returns null once all four rungs are answered', () => {
     expect(
       nextQualifier(
         prefs({
           property_types: ['Agricultural Land'],
+          listing_types: ['Sale'],
           budget_min: 15_000_000,
           budget_max: 20_000_000,
           areas: ['Devanahalli'],
@@ -247,6 +265,7 @@ describe('nextQualifier', () => {
       nextQualifier(
         prefs({
           property_categories: ['residential'],
+          listing_types: ['Sale'],
           budget_max: 9_000_000,
           projects: ['Purva Vantage'],
         })
@@ -262,6 +281,7 @@ describe('nextQualifier', () => {
     // itself word for word and would have kept repeating it.
     const answered = prefs({
       property_categories: ['commercial'],
+      listing_types: ['Sale'],
       budget_max: 80_000_000,
     });
     expect(nextQualifier(answered)).toBe('location');
@@ -269,15 +289,20 @@ describe('nextQualifier', () => {
   });
 
   it('moves to the next rung rather than skipping the ladder', () => {
-    expect(nextQualifier(prefs(), ['type'])).toBe('budget');
-    expect(nextQualifier(prefs(), ['type', 'budget'])).toBe('location');
-    expect(nextQualifier(prefs(), ['type', 'budget', 'location'])).toBeNull();
+    expect(nextQualifier(prefs(), ['type'])).toBe('intent');
+    expect(nextQualifier(prefs(), ['type', 'intent'])).toBe('budget');
+    expect(nextQualifier(prefs(), ['type', 'intent', 'budget'])).toBe(
+      'location'
+    );
+    expect(
+      nextQualifier(prefs(), ['type', 'intent', 'budget', 'location'])
+    ).toBeNull();
   });
 });
 
 describe('askedQualifiers', () => {
   it('reads each rung back off the message that asked it', () => {
-    for (const field of ['type', 'budget', 'location'] as const) {
+    for (const field of ['type', 'intent', 'budget', 'location'] as const) {
       // Both phrasings, so the fingerprints cannot drift away from the
       // questions they identify.
       expect(
@@ -442,6 +467,7 @@ describe('buildNoMatchReply', () => {
       'Tanwi',
       prefs({
         property_categories: ['plot'],
+        listing_types: ['Sale'],
         budget_max: 20_000_000,
         areas: ['Devanahalli'],
       })
@@ -505,7 +531,7 @@ describe('tallyAreaSuggestions', () => {
 describe('buildQualificationReply', () => {
   it('asks the missing rung and reports which one', () => {
     const out = buildQualificationReply(
-      prefs({ property_categories: ['plot'] }),
+      prefs({ property_categories: ['plot'], listing_types: ['Sale'] }),
       'Tanwi',
       [],
       [],
@@ -520,6 +546,7 @@ describe('buildQualificationReply', () => {
     const out = buildQualificationReply(
       prefs({
         property_categories: ['plot'],
+        listing_types: ['Sale'],
         budget_max: 20_000_000,
         areas: ['Devanahalli'],
       }),
@@ -537,6 +564,7 @@ describe('buildQualificationReply', () => {
     const out = buildQualificationReply(
       prefs({
         property_categories: ['plot'],
+        listing_types: ['Sale'],
         budget_max: 20_000_000,
         areas: ['Devanahalli'],
       }),
@@ -558,6 +586,7 @@ describe('buildQualificationReply', () => {
     const out = buildQualificationReply(
       prefs({
         property_categories: ['plot'],
+        listing_types: ['Sale'],
         budget_max: 20_000_000,
         areas: ['Devanahalli'],
       }),
@@ -579,6 +608,7 @@ describe('buildQualificationReply', () => {
     const out = buildQualificationReply(
       prefs({
         property_categories: ['plot'],
+        listing_types: ['Sale'],
         budget_max: 20_000_000,
         areas: ['Devanahalli'],
       }),
@@ -810,7 +840,7 @@ describe('buildQualificationReply — project-first matching', () => {
 
   it('moves the postscript on to budget once the type is known', () => {
     const outcome = buildQualificationReply(
-      prefs({ ...anju, property_categories: ['plot'] }),
+      prefs({ ...anju, property_categories: ['plot'], listing_types: ['Sale'] }),
       'Anju',
       [match({})],
       [],
@@ -856,7 +886,7 @@ describe('buildQualificationReply — project-first matching', () => {
 
 describe('buildFollowUpQuestion', () => {
   it('asks the rung without re-greeting the lead', () => {
-    for (const field of ['type', 'budget', 'location'] as const) {
+    for (const field of ['type', 'intent', 'budget', 'location'] as const) {
       const text = buildFollowUpQuestion(field);
       expect(text.startsWith('One thing —')).toBe(true);
       expect(text).not.toContain('Got it');
@@ -988,6 +1018,7 @@ describe('buildQualificationReply — enquiry budget disparity handling', () => 
     const outcome = buildQualificationReply(
       prefs({
         property_types: ['Independent House/ Villa'],
+        listing_types: ['Sale'],
         budget_max: 20_000_000,
         areas: ['Koramangala', 'Wilson Garden', 'Lakkasandra'],
       }),
@@ -1016,6 +1047,7 @@ describe('buildQualificationReply — enquiry budget disparity handling', () => 
     const outcome = buildQualificationReply(
       prefs({
         property_types: ['Independent House/ Villa'],
+        listing_types: ['Sale'],
         budget_max: 20_000_000,
         areas: ['Koramangala'],
       }),

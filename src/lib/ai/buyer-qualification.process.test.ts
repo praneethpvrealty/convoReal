@@ -89,6 +89,7 @@ const { EMPTY_PREFERENCES } = await import('./preference-extraction');
 const fullPrefs = {
   ...EMPTY_PREFERENCES,
   property_types: ['Commercial Land'],
+  listing_types: ['Sale' as const],
   budget_max: 20_000_000,
   areas: ['Koramangala'],
 };
