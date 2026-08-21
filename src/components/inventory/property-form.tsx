@@ -6259,13 +6259,20 @@ export function PropertyForm({
                                   <button
                                     type="button"
                                     aria-label={`${isSelected ? 'Deselect' : 'Select'} ${displayName}`}
-                                    className={`size-10 rounded-full border flex items-center justify-center shrink-0 text-xs font-extrabold transition-colors ${
+                                    className={`group size-10 rounded-full border flex items-center justify-center shrink-0 text-xs font-extrabold transition-colors overflow-hidden ${
                                       isSelected
                                         ? 'bg-primary text-primary-foreground border-primary'
-                                        : 'bg-primary/10 text-primary border-primary/25'
+                                        : 'bg-primary/10 text-primary border-primary/25 hover:bg-emerald-500 hover:text-white hover:border-emerald-500'
                                     }`}
                                   >
-                                    {isSelected ? <Check className="size-4" /> : initials}
+                                    {isSelected ? (
+                                      <Check className="size-4" />
+                                    ) : (
+                                      <>
+                                        <span className="group-hover:hidden">{initials}</span>
+                                        <Check className="size-4 hidden group-hover:block" />
+                                      </>
+                                    )}
                                   </button>
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-center justify-between gap-2">

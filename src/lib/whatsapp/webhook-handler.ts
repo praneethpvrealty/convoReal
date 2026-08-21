@@ -2002,6 +2002,31 @@ async function processMessage(
     if (handledProgress) return;
   }
 
+  const feedbackAction = matchTemplateButton(message.button?.text);
+  if (feedbackAction === 'feedback_perfect') {
+    await sendWhatsAppMessageAndPersist({
+      accountId,
+      userId: configOwnerUserId,
+      contactId: contactRecord.id,
+      conversationId: conversation.id,
+      kind: 'text',
+      senderType: 'bot',
+      text: "👍 Glad to hear that! We'll keep sharing similar properties with you.",
+    });
+    return;
+  }
+  if (feedbackAction === 'feedback_not_interested') {
+    const handled = await handlePropertyDisinterestMessage({
+      db: supabaseAdmin(),
+      accountId,
+      configOwnerUserId,
+      contact: contactRecord,
+      conversationId: conversation.id,
+      inboundText: 'Not interested',
+    });
+    if (handled) return;
+  }
+
   if (matchTemplateButton(message.button?.text) === 'still_considering') {
     const keepOutcome = await handleInboxCheckinReply({
       db: supabaseAdmin(),

@@ -69,6 +69,10 @@
     {
       "path": "/api/cron/voice-campaigns",
       "schedule": "*/10 * * * *"
+    },
+    {
+      "path": "/api/cron/share-feedback-followups",
+      "schedule": "*/15 * * * *"
     }
   ]
 }

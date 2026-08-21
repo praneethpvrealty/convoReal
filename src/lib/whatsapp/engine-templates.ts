@@ -70,6 +70,11 @@ import {
   REQUIREMENT_REVIEW_TEMPLATE_NAME,
 } from './requirement-review-template';
 
+import {
+  buildShareFeedbackTemplatePayload,
+  SHARE_FEEDBACK_TEMPLATE_NAME,
+} from './share-feedback-template';
+
 export interface EngineTemplateDef {
   name: string;
   label: string;
@@ -207,6 +212,15 @@ export const ENGINE_TEMPLATES: EngineTemplateDef[] = [
     whyItMatters:
       'The first message after a voice call — a phone call does not open the 24-hour window, so without this opener a qualified lead who never messaged in hears nothing after hanging up. Its quick reply opens the window for the matched-listing follow-up.',
     build: (_origin, language) => buildPostCallOpenerTemplatePayload(language),
+  },
+  {
+    name: SHARE_FEEDBACK_TEMPLATE_NAME,
+    copyKey: 'share_feedback',
+    label: 'Property Share Feedback',
+    whyItMatters:
+      'Asks a buyer for feedback 30 minutes after sharing a property to refine their requirements.',
+    build: (_origin, language) =>
+      buildShareFeedbackTemplatePayload(language),
   },
 ];
 
