@@ -46,7 +46,10 @@ import {
   type MatchAudience,
   type MatchChipTone,
 } from '@/lib/match-chips';
-import { fetchPropertyMatches } from '@/lib/property-matches';
+import {
+  fetchPropertyMatches,
+  inquiredPropertyLabel,
+} from '@/lib/property-matches';
 import { rentalYieldPercent } from '@/lib/rental-yield';
 import {
   hasBedsBaths,
@@ -1599,6 +1602,15 @@ function MatchesSection({ property }: { property: Property }) {
                 <Text style={{ fontSize: 12.5, color: colors.textMuted }}>
                   {m.contact.phone}
                 </Text>
+                {m.inquiries.length > 0 ? (
+                  <Text
+                    numberOfLines={1}
+                    style={{ fontSize: 11.5, color: colors.textFaint }}
+                  >
+                    Enquired:{' '}
+                    {m.inquiries.map(inquiredPropertyLabel).join(' · ')}
+                  </Text>
+                ) : null}
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5 }}>
                   {shared ? (
                     <Tag

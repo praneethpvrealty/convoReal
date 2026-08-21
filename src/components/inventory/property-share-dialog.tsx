@@ -52,6 +52,11 @@ import {
   type ShareGrantTtlKey,
 } from '@/lib/inventory/share-grants';
 import { MatchDetailChips } from '@/components/inventory/match-detail-chips';
+import {
+  fetchInquiredProperties,
+  inquiredPropertyLabel,
+  type InquiredProperty,
+} from '@/lib/contacts/inquired-properties';
 import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
 import { pickShareDialogTemplate } from '@/lib/whatsapp/property-share-template';
 import {
@@ -124,6 +129,9 @@ export function PropertyShareDialog({
 
   // Contact list and selections
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const [inquiriesByContact, setInquiriesByContact] = useState<
+    Map<string, InquiredProperty[]>
+  >(new Map());
   const [loadingContacts, setLoadingContacts] = useState(false);
   const [selectedContactIds, setSelectedContactIds] = useState<string[]>([]);
   // Who the matched list offers: buyers by default, agents only for a
@@ -683,6 +691,13 @@ export function PropertyShareDialog({
       }
 
       setContacts(contactsList);
+      setInquiriesByContact(
+        await fetchInquiredProperties(
+          supabase,
+          accountId,
+          contactsList.map((c) => c.id)
+        )
+      );
 
       // Refresh AI-extracted matching preferences for contacts whose
       // requirements/notes changed since the last extraction (the server
@@ -2479,6 +2494,15 @@ export function PropertyShareDialog({
                           </Badge>
                         </div>
                         <p className="text-[11px] text-slate-500 font-mono mt-0.5">{c.phone}</p>
+
+                        {(inquiriesByContact.get(c.id) ?? []).length > 0 && (
+                          <p className="text-[10px] text-slate-500 mt-1 truncate">
+                            <span className="text-slate-400 font-semibold">Enquired: </span>
+                            {(inquiriesByContact.get(c.id) ?? [])
+                              .map(inquiredPropertyLabel)
+                              .join(' · ')}
+                          </p>
+                        )}
 
                         {score > 0 && <MatchDetailChips details={details} />}
                       </div>
