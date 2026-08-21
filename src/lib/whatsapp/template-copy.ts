@@ -67,7 +67,10 @@ export type TemplateButtonAction =
   // URL buttons — display only.
   | 'view_full_details'
   | 'view_location'
-  | 'browse_showcase';
+  | 'browse_showcase'
+  // Share Feedback
+  | 'feedback_perfect'
+  | 'feedback_not_interested';
 
 type Localised = Record<LanguageCode, string>;
 
@@ -198,6 +201,24 @@ const BUTTON_LABELS: Record<TemplateButtonAction, Localised> = {
     ml: 'പ്രവേശനം അംഗീകരിക്കുക',
     mr: 'प्रवेश मंजूर करा',
   },
+  feedback_perfect: {
+    en: "It's perfect",
+    hi: "यह बिल्कुल सही है",
+    kn: "ಇದು ಪರಿಪೂರ್ಣವಾಗಿದೆ",
+    ta: "இது சரியானது",
+    te: "ఇది ఖచ్చితమైనది",
+    ml: "ഇത് തികഞ്ഞതാണ്",
+    mr: "हे योग्य आहे",
+  },
+  feedback_not_interested: {
+    en: "Not interested",
+    hi: "दिलचस्पी नहीं है",
+    kn: "ಆಸಕ್ತಿ ಇಲ್ಲ",
+    ta: "ஆர்வம் இல்லை",
+    te: "ఆసక్తి లేదు",
+    ml: "താല്പര്യമില്ല",
+    mr: "स्वारस्य नाही",
+  },
   reject_access: {
     en: 'Reject access',
     hi: 'पहुँच अस्वीकार करें',
@@ -299,7 +320,8 @@ export type EngineTemplateKey =
   | 'purchase_progress'
   | 'audio_announcement'
   | 'post_call_options'
-  | 'requirement_review';
+  | 'requirement_review'
+  | 'share_feedback';
 
 interface TemplateCopy {
   body: string;
@@ -323,6 +345,57 @@ const TEMPLATE_COPY: Record<
   EngineTemplateKey,
   Partial<Record<LanguageCode, TemplateCopy>>
 > = {
+  share_feedback: {
+    en: {
+      body: lines(
+        'Hi {{1}}, following up on the property I shared earlier.',
+        '',
+        'Did it match what you are looking for?'
+      ),
+    },
+    hi: {
+      body: lines(
+        'नमस्ते {{1}}, मैंने जो प्रॉपर्टी शेयर की थी, उसके बारे में पूछ रहा हूँ।',
+        '',
+        'क्या यह आपकी ज़रूरत के हिसाब से सही है?'
+      ),
+    },
+    kn: {
+      body: lines(
+        'ನಮಸ್ಕಾರ {{1}}, ನಾನು ಹಂಚಿಕೊಂಡ ಆಸ್ತಿಯ ಬಗ್ಗೆ ಅನುಸರಣೆ.',
+        '',
+        'ಇದು ನಿಮ್ಮ ಅಗತ್ಯಕ್ಕೆ ಹೊಂದಿಕೆಯಾಗುತ್ತದೆಯೇ?'
+      ),
+    },
+    ta: {
+      body: lines(
+        'வணக்கம் {{1}}, நான் பகிர்ந்த சொத்து பற்றிய பின்தொடர்தல்.',
+        '',
+        'இது உங்கள் தேவைக்கு பொருந்துகிறதா?'
+      ),
+    },
+    te: {
+      body: lines(
+        'నమస్కారం {{1}}, నేను పంచుకున్న ఆస్తి గురించి ఫాలో-అప్.',
+        '',
+        'ఇది మీ అవసరాలకు సరిపోతుందా?'
+      ),
+    },
+    ml: {
+      body: lines(
+        'നമസ്കാരം {{1}}, ഞാൻ പങ്കിട്ട വസ്തുവിനെക്കുറിച്ചുള്ള അന്വേഷണം.',
+        '',
+        'ഇത് നിങ്ങളുടെ ആവശ്യങ്ങൾക്ക് അനുയോജ്യമാണോ?'
+      ),
+    },
+    mr: {
+      body: lines(
+        'नमस्कार {{1}}, मी शेअर केलेल्या मालमत्तेबद्दल पाठपुरावा.',
+        '',
+        'हे तुमच्या गरजेनुसार योग्य आहे का?'
+      ),
+    },
+  },
   requirement_review: {
     en: {
       body: lines(

@@ -23,6 +23,7 @@ describe('missingEngineTemplates', () => {
       'purchase_progress_notice',
       'audio_announcement_notice',
       'post_call_options',
+      'property_share_feedback',
     ]);
   });
 

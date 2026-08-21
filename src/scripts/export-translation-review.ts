@@ -66,6 +66,7 @@ const TEMPLATE_LABELS: Record<EngineTemplateKey, string> = {
     'Audio announcement — a voice-note update, delivered as a playable video',
   post_call_options:
     'Post-call options — after a qualification call, offer the matching listings',
+  share_feedback: 'Property share feedback — follow up to see if a shared property matched',
 };
 
 /** What each numbered placeholder gets filled with at send time. */
@@ -125,6 +126,7 @@ const PLACEHOLDER_MEANINGS: Record<EngineTemplateKey, string[]> = {
     'brokerage name',
     'stated requirement (budget / areas)',
   ],
+  share_feedback: ['buyer first name'],
 };
 
 /** The buttons each template actually carries, so a bubble shows the
@@ -149,6 +151,7 @@ const REPLY_BUTTONS: Record<EngineTemplateKey, TemplateButtonAction[]> = {
   purchase_progress: ['paperwork_on_track', 'paperwork_pending'],
   audio_announcement: [],
   post_call_options: ['send_options'],
+  share_feedback: ['feedback_perfect', 'feedback_not_interested', 'update_preferences'],
 };
 
 const BUTTON_ORDER = Object.keys(
