@@ -3,6 +3,7 @@
 import { AgencyArticle } from '@/types';
 import { storagePublicUrl } from '@/lib/storage/url';
 import { ArrowRight, Calendar, Newspaper } from 'lucide-react';
+import Link from 'next/link';
 
 interface ArticlesSectionProps {
   articles: AgencyArticle[];
@@ -36,8 +37,9 @@ export function ArticlesSection({ articles }: ArticlesSectionProps) {
               : null;
 
             return (
-              <article
+              <Link
                 key={article.id}
+                href={`/articles/${article.slug}`}
                 className="group relative flex flex-col items-start justify-between rounded-2xl border border-slate-800 bg-slate-900 overflow-hidden hover:border-slate-700 transition-colors cursor-pointer"
               >
                 {/* Article Image Placeholder or Real Image */}
@@ -69,7 +71,6 @@ export function ArticlesSection({ articles }: ArticlesSectionProps) {
                   
                   <div className="group relative">
                     <h3 className="mt-3 text-lg font-semibold leading-tight text-white group-hover:text-primary transition-colors line-clamp-2">
-                      <span className="absolute inset-0" />
                       {article.title}
                     </h3>
                     <p className="mt-3 line-clamp-3 text-sm leading-relaxed text-slate-400">
@@ -82,7 +83,7 @@ export function ArticlesSection({ articles }: ArticlesSectionProps) {
                     <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
                   </div>
                 </div>
-              </article>
+              </Link>
             );
           })}
         </div>

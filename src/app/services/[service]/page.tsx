@@ -23,36 +23,140 @@ export async function generateMetadata({
   params,
   searchParams,
 }: PageProps): Promise<Metadata> {
-  const service = getAuthorityService((await params).service);
-  if (!service) return {};
   const context = await loadAuthorityContext(searchParams);
-  const businessName = context?.accountName || BRANDING.name;
+  if (!context) return {};
+
+  const slug = (await params).service;
+  const dbService = context.services.find(s => s.slug === slug);
+  const authService = getAuthorityService(slug);
+
+  if (!dbService && !authService) return {};
+
+  const businessName = context.accountName || BRANDING.name;
   const origin = await resolveRequestOrigin();
-  const title = `${service.name} | ${businessName}`;
-  return {
-    title: { absolute: title },
-    description: service.summary,
-    alternates: { canonical: `${origin}/services/${service.slug}` },
-    robots: { index: Boolean(context), follow: true },
-    openGraph: {
-      title,
-      description: service.summary,
-      url: `${origin}/services/${service.slug}`,
-    },
-  };
+
+  if (dbService) {
+    const title = dbService.meta_title || `${dbService.title} | ${businessName}`;
+    const description = dbService.meta_description || dbService.description || '';
+    return {
+      title: { absolute: title },
+      description: description,
+      alternates: { canonical: `${origin}/services/${dbService.slug}` },
+      robots: { index: true, follow: true },
+      openGraph: {
+        title,
+        description,
+        url: `${origin}/services/${dbService.slug}`,
+      },
+    };
+  } else if (authService) {
+    const title = `${authService.name} | ${businessName}`;
+    return {
+      title: { absolute: title },
+      description: authService.summary,
+      alternates: { canonical: `${origin}/services/${authService.slug}` },
+      robots: { index: true, follow: true },
+      openGraph: {
+        title,
+        description: authService.summary,
+        url: `${origin}/services/${authService.slug}`,
+      },
+    };
+  }
+  
+  return {};
 }
 
 export default async function ServicePage({ params, searchParams }: PageProps) {
-  const service = getAuthorityService((await params).service);
-  if (!service) notFound();
   const context = await loadAuthorityContext(searchParams);
   if (!context) notFound();
+
+  const slug = (await params).service;
+  const dbService = context.services.find(s => s.slug === slug);
+  const authService = getAuthorityService(slug);
+
+  if (!dbService && !authService) notFound();
 
   const origin = await resolveRequestOrigin();
   const businessName = context.accountName || BRANDING.name;
   const profile = buildPublicBusinessProfile(businessName, context.properties);
-  const url = `${origin}/services/${service.slug}`;
   const businessId = `${origin}#business`;
+
+  if (dbService) {
+    const url = `${origin}/services/${dbService.slug}`;
+    const description = dbService.meta_description || dbService.description || '';
+    return (
+      <main className="min-h-screen bg-slate-50 text-slate-950">
+        {[
+          realEstateAgentJsonLd({
+            name: businessName,
+            url: origin,
+            telephone: context.settings?.contact_phone,
+            profile,
+          }),
+          serviceJsonLd({
+            name: dbService.title,
+            description,
+            url,
+            providerId: businessId,
+            areasServed: profile.areasServed,
+          }),
+          breadcrumbJsonLd([
+            { name: businessName, url: origin },
+            { name: dbService.title, url },
+          ]),
+        ].map((data, index) => (
+          <script
+            key={index}
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{ __html: jsonLdScript(data) }}
+          />
+        ))}
+        <div className="mx-auto max-w-4xl px-6 py-12 md:py-20">
+          <Link className="text-sm text-blue-700 hover:underline" href="/">
+            ← View current properties
+          </Link>
+          <p className="mt-10 text-sm font-medium tracking-wider text-blue-700 uppercase">
+            {businessName}
+          </p>
+          <h1 className="mt-3 text-4xl font-bold tracking-tight md:text-5xl">
+            {dbService.title}
+          </h1>
+          <p className="mt-5 max-w-3xl text-lg leading-8 text-slate-600">
+            {dbService.description}
+          </p>
+          
+          {dbService.content && (
+            <section className="mt-12 rounded-2xl border bg-white p-7 prose prose-slate max-w-none">
+              <div dangerouslySetInnerHTML={{ __html: dbService.content.replace(/\n/g, '<br />') }} />
+            </section>
+          )}
+
+          <aside className="mt-12 rounded-2xl bg-slate-900 p-7 text-white">
+            <h2 className="text-2xl font-semibold">
+              Ready to learn more?
+            </h2>
+            <p className="mt-2 text-slate-300">
+              Contact {businessName} to discuss this service in detail.
+            </p>
+            <Link
+              className="mt-5 inline-block rounded-lg bg-white px-4 py-2 font-medium text-slate-900"
+              href={`https://wa.me/${context.engineWhatsAppPhone || context.settings?.contact_phone?.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Hi, I'd like to know more about the ${dbService.title} service.`)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Contact on WhatsApp
+            </Link>
+          </aside>
+        </div>
+      </main>
+    );
+  }
+
+  // Fallback to Authority Service (legacy)
+  if (!authService) notFound(); // TS guard
+
+  const url = `${origin}/services/${authService.slug}`;
 
   return (
     <main className="min-h-screen bg-slate-50 text-slate-950">
@@ -64,16 +168,16 @@ export default async function ServicePage({ params, searchParams }: PageProps) {
           profile,
         }),
         serviceJsonLd({
-          name: service.name,
-          description: service.summary,
+          name: authService.name,
+          description: authService.summary,
           url,
           providerId: businessId,
           areasServed: profile.areasServed,
         }),
-        faqJsonLd(service.faq),
+        faqJsonLd(authService.faq),
         breadcrumbJsonLd([
           { name: businessName, url: origin },
-          { name: service.name, url },
+          { name: authService.name, url },
         ]),
       ].map((data, index) => (
         <script
@@ -90,17 +194,17 @@ export default async function ServicePage({ params, searchParams }: PageProps) {
           {businessName}
         </p>
         <h1 className="mt-3 text-4xl font-bold tracking-tight md:text-5xl">
-          {service.name}
+          {authService.name}
         </h1>
         <p className="mt-5 max-w-3xl text-lg leading-8 text-slate-600">
-          {service.summary}
+          {authService.summary}
         </p>
         <section className="mt-12 rounded-2xl border bg-white p-7">
           <h2 className="text-2xl font-semibold">
             How the consultancy can help
           </h2>
           <ol className="mt-6 space-y-4">
-            {service.details.map((detail, index) => (
+            {authService.details.map((detail, index) => (
               <li key={detail} className="flex gap-4">
                 <span className="font-semibold text-blue-700">{index + 1}</span>
                 <span className="leading-7 text-slate-700">{detail}</span>
@@ -111,7 +215,7 @@ export default async function ServicePage({ params, searchParams }: PageProps) {
         <section className="mt-12">
           <h2 className="text-2xl font-semibold">Common questions</h2>
           <div className="mt-6 space-y-4">
-            {service.faq.map((entry) => (
+            {authService.faq.map((entry) => (
               <article
                 key={entry.question}
                 className="rounded-2xl border bg-white p-6"

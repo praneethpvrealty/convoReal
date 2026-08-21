@@ -4,30 +4,16 @@ import * as React from 'react';
 import { AgencyService } from '@/types';
 import * as LucideIcons from 'lucide-react';
 import { ArrowRight } from 'lucide-react';
+import Link from 'next/link';
 
 interface ServicesSectionProps {
   services: AgencyService[];
-  engineWhatsAppPhone?: string | null;
-  brandName?: string | null;
 }
 
 export function ServicesSection({
   services,
-  engineWhatsAppPhone,
-  brandName,
 }: ServicesSectionProps) {
   if (!services || services.length === 0) return null;
-
-  const handleServiceClick = (service: AgencyService) => {
-    if (!engineWhatsAppPhone) return;
-
-    // Use a pre-filled WhatsApp message
-    const message = encodeURIComponent(
-      `Hi! I'm interested in the "${service.title}" service from ${brandName || 'your agency'}. Could you share more details?`
-    );
-    const waUrl = `https://wa.me/${engineWhatsAppPhone}?text=${message}`;
-    window.open(waUrl, '_blank', 'noopener,noreferrer');
-  };
 
   return (
     <section className="py-16 px-4 border-y border-slate-900 bg-slate-950">
@@ -48,9 +34,9 @@ export function ServicesSection({
               : LucideIcons.LayoutGrid;
 
             return (
-              <div
+              <Link
                 key={service.id}
-                onClick={() => handleServiceClick(service)}
+                href={`/services/${service.slug}`}
                 className="group relative flex flex-col items-start gap-4 rounded-2xl border border-slate-800 bg-slate-900/50 p-6 transition-all hover:bg-slate-800 hover:border-slate-700 cursor-pointer overflow-hidden"
               >
                 <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
@@ -70,13 +56,11 @@ export function ServicesSection({
                   )}
                 </div>
 
-                {engineWhatsAppPhone && (
-                  <div className="mt-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-primary opacity-0 -translate-x-2 transition-all group-hover:opacity-100 group-hover:translate-x-0">
-                    Inquire now
-                    <ArrowRight className="size-3.5" />
-                  </div>
-                )}
-              </div>
+                <div className="mt-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-primary opacity-0 -translate-x-2 transition-all group-hover:opacity-100 group-hover:translate-x-0">
+                  View Service
+                  <ArrowRight className="size-3.5" />
+                </div>
+              </Link>
             );
           })}
         </div>

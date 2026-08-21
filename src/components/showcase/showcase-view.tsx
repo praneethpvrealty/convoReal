@@ -1932,8 +1932,6 @@ export function ShowcaseView({
           <>
             <ServicesSection 
               services={services} 
-              engineWhatsAppPhone={engineWhatsAppPhone}
-              brandName={siteName}
             />
             <ArticlesSection 
               articles={articles} 

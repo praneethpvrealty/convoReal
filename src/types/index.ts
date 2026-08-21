@@ -1503,6 +1503,10 @@ export interface AgencyService {
   id: string;
   account_id: string;
   title: string;
+  slug: string | null;
+  meta_title: string | null;
+  meta_description: string | null;
+  content: string | null;
   description: string | null;
   icon: string | null;
   is_active: boolean;
@@ -1515,6 +1519,9 @@ export interface AgencyArticle {
   id: string;
   account_id: string;
   title: string;
+  slug: string | null;
+  meta_title: string | null;
+  meta_description: string | null;
   excerpt: string | null;
   content: string | null;
   image_url: string | null;
