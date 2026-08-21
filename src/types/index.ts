@@ -1498,3 +1498,35 @@ export interface ProjectUnitStats {
   min_bedrooms: number | null;
   max_bedrooms: number | null;
 }
+
+export interface AgencyService {
+  id: string;
+  account_id: string;
+  title: string;
+  slug: string | null;
+  meta_title: string | null;
+  meta_description: string | null;
+  content: string | null;
+  description: string | null;
+  icon: string | null;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AgencyArticle {
+  id: string;
+  account_id: string;
+  title: string;
+  slug: string | null;
+  meta_title: string | null;
+  meta_description: string | null;
+  excerpt: string | null;
+  content: string | null;
+  image_url: string | null;
+  published_at: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}

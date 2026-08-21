@@ -56,6 +56,8 @@ import { MembersTab } from '@/components/settings/members-tab';
 import { TeamsTab } from '@/components/settings/teams-tab';
 import { RoutingRulesTab } from '@/components/settings/routing-rules-tab';
 import { ShowcaseSettingsPanel } from '@/components/settings/showcase-settings';
+import { AgencyServicesManager } from '@/components/settings/agency-services-manager';
+import { AgencyArticlesManager } from '@/components/settings/agency-articles-manager';
 import { YouTubeConnectCard } from '@/components/settings/youtube-connect-card';
 import { AiSettingsPanel } from '@/components/settings/ai-settings';
 import { NotificationSettingsPanel } from '@/components/settings/notification-settings';
@@ -112,6 +114,13 @@ const WHATSAPP_SUBTABS = [
 ] as const;
 type WhatsAppSub = (typeof WHATSAPP_SUBTABS)[number]['value'];
 
+const SHOWCASE_SUBTABS = [
+  { value: 'general', label: 'General', icon: Globe },
+  { value: 'services', label: 'Services', icon: Plug },
+  { value: 'articles', label: 'Articles', icon: Newspaper },
+] as const;
+type ShowcaseSub = (typeof SHOWCASE_SUBTABS)[number]['value'];
+
 /**
  * Edge-fade state for a horizontally scrollable tab bar. `left` /
  * `right` are true only while content continues past that edge, so
@@ -147,6 +156,10 @@ function useEdgeFades() {
 
 function isWhatsAppSub(v: string | null): v is WhatsAppSub {
   return !!v && WHATSAPP_SUBTABS.some((s) => s.value === v);
+}
+
+function isShowcaseSub(v: string | null): v is ShowcaseSub {
+  return !!v && SHOWCASE_SUBTABS.some((s) => s.value === v);
 }
 
 // Grouped sidebar items for compact navigation
@@ -220,6 +233,10 @@ export default function SettingsPage() {
         ? querySub
         : 'connection';
 
+  const showcaseSub: ShowcaseSub = isShowcaseSub(querySub)
+    ? querySub
+    : 'general';
+
   const onChange = (next: TabValue) => {
     const params = new URLSearchParams(searchParams.toString());
     params.set('tab', next);
@@ -227,15 +244,23 @@ export default function SettingsPage() {
     replaceUrl(router, `/settings?${params.toString()}`);
   };
 
-  const onSubChange = (next: WhatsAppSub) => {
+  const onWhatsAppSubChange = (next: WhatsAppSub) => {
     const params = new URLSearchParams(searchParams.toString());
     params.set('tab', 'whatsapp');
     params.set('sub', next);
     replaceUrl(router, `/settings?${params.toString()}`);
   };
 
+  const onShowcaseSubChange = (next: ShowcaseSub) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('tab', 'showcase');
+    params.set('sub', next);
+    replaceUrl(router, `/settings?${params.toString()}`);
+  };
+
   const { ref: mainBarRef, fades: mainFades } = useEdgeFades();
   const { ref: subBarRef, fades: subFades } = useEdgeFades();
+  const { ref: showcaseSubBarRef, fades: showcaseSubFades } = useEdgeFades();
 
   // The tab bars scroll horizontally on narrow screens — keep the
   // active pill in view, both on tap and when a deep link (e.g.
@@ -528,7 +553,7 @@ export default function SettingsPage() {
                 {WHATSAPP_SUBTABS.map(({ value, label, icon: Icon }) => (
                   <button
                     key={value}
-                    onClick={() => onSubChange(value)}
+                    onClick={() => onWhatsAppSubChange(value)}
                     data-tour={`settings-tab-${value === 'templates' ? 'templates' : `whatsapp-${value}`}`}
                     className={cn(
                       'flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-xs whitespace-nowrap transition-colors',
@@ -590,11 +615,57 @@ export default function SettingsPage() {
             <NotificationSettingsPanel />
           </TabsContent>
 
-          <TabsContent value="showcase" className="mt-0">
-            <div className="space-y-6">
-              <ShowcaseSettingsPanel />
-              <YouTubeConnectCard />
+          <TabsContent
+            value="showcase"
+            className="mt-0 space-y-5"
+            data-tour="showcase-settings-form"
+          >
+            <div className="relative w-fit max-w-full">
+              <div
+                ref={showcaseSubBarRef}
+                data-settings-subtabbar
+                className="flex w-fit max-w-full [scrollbar-width:none] flex-nowrap items-center gap-1 overflow-x-auto rounded-lg border border-slate-800 bg-slate-900/60 p-1 [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+              >
+                {SHOWCASE_SUBTABS.map(({ value, label, icon: Icon }) => (
+                  <button
+                    key={value}
+                    onClick={() => onShowcaseSubChange(value)}
+                    className={cn(
+                      'flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-xs whitespace-nowrap transition-colors',
+                      showcaseSub === value
+                        ? 'bg-primary/10 text-primary font-medium'
+                        : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'
+                    )}
+                  >
+                    <Icon className="size-3.5 shrink-0" />
+                    <span>{label}</span>
+                  </button>
+                ))}
+              </div>
+              <div
+                aria-hidden="true"
+                className={cn(
+                  'pointer-events-none absolute inset-y-0 left-0 w-8 rounded-l-lg bg-gradient-to-r from-slate-950/90 to-transparent transition-opacity duration-200',
+                  showcaseSubFades.left ? 'opacity-100' : 'opacity-0'
+                )}
+              />
+              <div
+                aria-hidden="true"
+                className={cn(
+                  'pointer-events-none absolute inset-y-0 right-0 w-8 rounded-r-lg bg-gradient-to-l from-slate-950/90 to-transparent transition-opacity duration-200',
+                  showcaseSubFades.right ? 'opacity-100' : 'opacity-0'
+                )}
+              />
             </div>
+
+            {showcaseSub === 'general' && (
+              <div className="space-y-6">
+                <ShowcaseSettingsPanel />
+                <YouTubeConnectCard />
+              </div>
+            )}
+            {showcaseSub === 'services' && <AgencyServicesManager />}
+            {showcaseSub === 'articles' && <AgencyArticlesManager />}
           </TabsContent>
 
           <TabsContent value="ai" className="mt-0">

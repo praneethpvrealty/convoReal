@@ -3,7 +3,7 @@ import { unstable_cache } from 'next/cache';
 import { supabaseAdmin } from '@/lib/automations/admin-client';
 import { toPublicListingView } from '@/lib/inventory/showcase-visibility';
 import type { GrantedReveals } from '@/lib/inventory/share-grants';
-import type { Project, Property, ShowcaseSettings } from '@/types';
+import type { Project, Property, ShowcaseSettings, AgencyService, AgencyArticle } from '@/types';
 
 export interface ShowcaseData {
   settings: ShowcaseSettings | null;
@@ -31,6 +31,8 @@ export interface ShowcaseData {
     email: string | null;
     avatar_url: string | null;
   }>;
+  services: AgencyService[];
+  articles: AgencyArticle[];
 }
 
 export function resolveSubdomainFromHost(host: string): string | null {
@@ -210,7 +212,7 @@ export const cachedFetchProjectBySlug = cache(
 // aggregate read per render buys the whole catalogue staying fresh.
 const showcaseContentVersion = cache(async (accountId: string) => {
   const admin = supabaseAdmin();
-  const [propertiesResult, settingsResult, accountResult] = await Promise.all([
+  const [propertiesResult, settingsResult, accountResult, servicesResult, articlesResult] = await Promise.all([
     admin
       .from('properties')
       .select('updated_at', { count: 'exact' })
@@ -229,6 +231,18 @@ const showcaseContentVersion = cache(async (accountId: string) => {
       .select('updated_at')
       .eq('id', accountId)
       .maybeSingle(),
+    admin
+      .from('agency_services')
+      .select('updated_at')
+      .eq('account_id', accountId)
+      .order('updated_at', { ascending: false })
+      .limit(1),
+    admin
+      .from('agency_articles')
+      .select('updated_at')
+      .eq('account_id', accountId)
+      .order('updated_at', { ascending: false })
+      .limit(1),
   ]);
 
   return [
@@ -236,6 +250,8 @@ const showcaseContentVersion = cache(async (accountId: string) => {
     propertiesResult.data?.[0]?.updated_at ?? '',
     settingsResult.data?.updated_at ?? '',
     accountResult.data?.updated_at ?? '',
+    servicesResult.data?.[0]?.updated_at ?? '',
+    articlesResult.data?.[0]?.updated_at ?? '',
   ].join('|');
 });
 
@@ -246,7 +262,7 @@ const fetchShowcaseData = async (
   const admin = supabaseAdmin();
 
   if (isAgentMode) {
-    const [settingsResult, accountResult, propertiesResult] = await Promise.all(
+    const [settingsResult, accountResult, propertiesResult, servicesResult, articlesResult] = await Promise.all(
       [
         admin
           .from('showcase_settings')
@@ -261,6 +277,18 @@ const fetchShowcaseData = async (
           .eq('is_published', true)
           .eq('status', 'Available')
           .order('created_at', { ascending: false }),
+        admin
+          .from('agency_services')
+          .select('*')
+          .eq('account_id', accountId)
+          .eq('is_active', true)
+          .order('sort_order', { ascending: true }),
+        admin
+          .from('agency_articles')
+          .select('*')
+          .eq('account_id', accountId)
+          .eq('is_active', true)
+          .order('published_at', { ascending: false }),
       ]
     );
     return {
@@ -270,6 +298,8 @@ const fetchShowcaseData = async (
       properties: propertiesResult.data || [],
       agents: [],
       profiles: [],
+      services: servicesResult.data || [],
+      articles: articlesResult.data || [],
     };
   }
 
@@ -279,6 +309,8 @@ const fetchShowcaseData = async (
     propertiesResult,
     agentsResult,
     profilesResult,
+    servicesResult,
+    articlesResult,
   ] = await Promise.all([
     admin
       .from('showcase_settings')
@@ -302,6 +334,18 @@ const fetchShowcaseData = async (
       .from('profiles')
       .select('user_id, full_name, email, avatar_url')
       .eq('account_id', accountId),
+    admin
+      .from('agency_services')
+      .select('*')
+      .eq('account_id', accountId)
+      .eq('is_active', true)
+      .order('sort_order', { ascending: true }),
+    admin
+      .from('agency_articles')
+      .select('*')
+      .eq('account_id', accountId)
+      .eq('is_active', true)
+      .order('published_at', { ascending: false }),
   ]);
 
   return {
@@ -311,6 +355,8 @@ const fetchShowcaseData = async (
     properties: propertiesResult.data || [],
     agents: agentsResult.data || [],
     profiles: profilesResult.data || [],
+    services: servicesResult.data || [],
+    articles: articlesResult.data || [],
   };
 };
 

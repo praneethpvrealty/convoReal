@@ -202,3 +202,45 @@ export function faqJsonLd(
 export function jsonLdScript(data: JsonLd): string {
   return JSON.stringify(data).replace(/</g, '\\u003c');
 }
+
+export function articleJsonLd({
+  headline,
+  description,
+  image,
+  datePublished,
+  dateModified,
+  authorName,
+  publisherName,
+  url,
+}: {
+  headline: string;
+  description?: string;
+  image?: string | null;
+  datePublished: string;
+  dateModified: string;
+  authorName: string;
+  publisherName: string;
+  url: string;
+}): JsonLd {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'Article',
+    headline,
+    ...(description ? { description } : {}),
+    ...(image ? { image } : {}),
+    datePublished,
+    dateModified,
+    author: {
+      '@type': 'Organization',
+      name: authorName,
+    },
+    publisher: {
+      '@type': 'Organization',
+      name: publisherName,
+    },
+    mainEntityOfPage: {
+      '@type': 'WebPage',
+      '@id': url,
+    },
+  };
+}
