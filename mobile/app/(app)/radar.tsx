@@ -22,6 +22,7 @@ import {
   SectionLabel,
   Tag,
 } from '@/components/ui';
+import { MatchTargetRow } from '@/components/match-target-row';
 import { ApiError } from '@/lib/api';
 import { formatInr } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
@@ -32,6 +33,7 @@ import {
   searchRadarContacts,
   sendMatchAlert,
 } from '@/lib/radar';
+import { scoreTone } from '@/lib/match-chips';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import { usePullRefresh } from '@/lib/use-pull-refresh';
 import { resolveRequirementSource } from '@/lib/requirements-profile';
@@ -381,78 +383,24 @@ function EventCard({
       </View>
 
       <View style={{ gap: spacing.xs }}>
-        {displayTargets.map((match) => {
-          const isChecked = selected.has(match.id);
-          return (
-            <Pressable
-              key={match.id}
-              onPress={() => onToggleTarget(match.id)}
-              accessibilityRole="checkbox"
-              accessibilityState={{ checked: isChecked }}
-              style={[
-                styles.target,
-                {
-                  borderColor: isChecked ? colors.primary : colors.border,
-                  backgroundColor: isChecked
-                    ? colors.primarySoft
-                    : 'transparent',
-                },
-              ]}
-            >
-              <Ionicons
-                name={isChecked ? 'checkbox' : 'square-outline'}
-                size={19}
-                color={isChecked ? colors.primary : colors.textFaint}
-              />
-              <View style={{ flex: 1, gap: 1 }}>
-                <View
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: spacing.sm,
-                  }}
-                >
-                  <Text
-                    style={{
-                      flex: 1,
-                      fontSize: 13.5,
-                      fontFamily: f.semibold,
-                      color: colors.text,
-                    }}
-                    numberOfLines={1}
-                  >
-                    {match.name}
-                  </Text>
-                  <Text
-                    style={{
-                      fontSize: match.manuallyAdded ? 10.5 : 12,
-                      fontFamily: f.bold,
-                      color: match.manuallyAdded ? colors.primary : colors.success,
-                    }}
-                  >
-                    {match.manuallyAdded ? 'Added manually' : `${match.score}%`}
-                  </Text>
-                </View>
-                {match.detail ? (
-                  <Text
-                    style={{ fontSize: 11.5, color: colors.textFaint }}
-                    numberOfLines={1}
-                  >
-                    {match.detail}
-                  </Text>
-                ) : null}
-                {match.chips.length > 0 ? (
-                  <Text
-                    style={{ fontSize: 11, color: colors.textMuted }}
-                    numberOfLines={1}
-                  >
-                    {match.chips.slice(0, 3).join(' · ')}
-                  </Text>
-                ) : null}
-              </View>
-            </Pressable>
-          );
-        })}
+        {displayTargets.map((match) => (
+          <MatchTargetRow
+            key={match.id}
+            name={match.name}
+            detail={match.detail}
+            scoreLabel={
+              match.manuallyAdded ? 'Added manually' : `${match.score}%`
+            }
+            tone={
+              match.manuallyAdded
+                ? 'accent'
+                : scoreTone(match.score ?? 0)
+            }
+            chips={match.chips.slice(0, 3).map((chip) => ({ label: chip }))}
+            selected={selected.has(match.id)}
+            onToggle={() => onToggleTarget(match.id)}
+          />
+        ))}
       </View>
 
       {templateMissing && templateMissing.length > 0 ? (
@@ -687,15 +635,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-  },
-  target: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    borderWidth: 1,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.sm,
   },
   warnBox: {
     flexDirection: 'row',

@@ -22,6 +22,7 @@ import {
 } from "@/lib/whatsapp/property-alert-template";
 import type { MatchEvent, Property, RadarManualContact } from "@/types";
 import { resolveRequirementSource } from "@/lib/requirements/profiles";
+import { MatchTargetRow } from "@/components/matching/match-target-row";
 import { InfoHint } from "@/components/ui/info-hint";
 import { NameTagBadge } from "@/components/contacts/name-tag-badge";
 import { DirectOwnerCard } from "@/components/radar/direct-owner-card";
@@ -485,58 +486,42 @@ export default function RadarPage() {
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[220px] overflow-y-auto pr-1">
-                        {displayTargets.map((match) => {
-                          const checked = selectedIds.has(match.id);
-                          return (
-                            <div
-                              key={match.id}
-                              onClick={() => toggleTarget(evt.id, match.id)}
-                              className={`rounded-lg border p-2.5 flex items-start gap-2.5 cursor-pointer transition-all hover:bg-slate-850/30 select-none ${
-                                checked
-                                  ? "border-primary/40 bg-primary/5"
-                                  : "border-slate-800 bg-slate-950/20"
-                              }`}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={checked}
-                                onChange={() => {}} // toggled by div click
-                                className="mt-0.5 rounded border-slate-700 bg-slate-800 text-primary focus:ring-0 focus:ring-offset-0 h-3.5 w-3.5 cursor-pointer"
-                              />
-                              <div className="min-w-0 flex-1">
-                                <div className="flex justify-between items-start gap-1">
-                                  <h5 className="text-xs font-black text-white truncate">
-                                    {match.name}
-                                  </h5>
-                                  {match.manuallyAdded ? (
-                                    <span className="shrink-0 rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-bold text-primary">
-                                      Added manually
+                        {displayTargets.map((match) => (
+                          <MatchTargetRow
+                            key={match.id}
+                            density="compact"
+                            name={match.name}
+                            detail={match.detail}
+                            scoreLabel={
+                              match.manuallyAdded ? "Added manually" : `${match.score}%`
+                            }
+                            tone={
+                              match.manuallyAdded
+                                ? "accent"
+                                : (match.score ?? 0) >= 70
+                                  ? "strong"
+                                  : (match.score ?? 0) >= 30
+                                    ? "fair"
+                                    : "weak"
+                            }
+                            chips={
+                              match.chips && match.chips.length > 0 ? (
+                                <div className="mt-1.5 flex flex-wrap gap-1">
+                                  {match.chips.slice(0, 2).map((chip) => (
+                                    <span
+                                      key={chip}
+                                      className="text-[8px] font-bold border border-slate-800 bg-slate-900 px-1 py-0.2 rounded text-slate-400"
+                                    >
+                                      {chip}
                                     </span>
-                                  ) : (
-                                    <span className="text-[10px] font-bold text-emerald-400 shrink-0">
-                                      {match.score}%
-                                    </span>
-                                  )}
+                                  ))}
                                 </div>
-                                {match.detail && (
-                                  <p className="text-[9px] text-slate-500 font-semibold">{match.detail}</p>
-                                )}
-                                {match.chips && match.chips.length > 0 && (
-                                  <div className="mt-1.5 flex flex-wrap gap-1">
-                                    {match.chips.slice(0, 2).map((chip) => (
-                                      <span
-                                        key={chip}
-                                        className="text-[8px] font-bold border border-slate-800 bg-slate-900 px-1 py-0.2 rounded text-slate-400"
-                                      >
-                                        {chip}
-                                      </span>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
+                              ) : null
+                            }
+                            selected={selectedIds.has(match.id)}
+                            onToggle={() => toggleTarget(evt.id, match.id)}
+                          />
+                        ))}
                       </div>
                     </div>
 

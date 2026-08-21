@@ -52,6 +52,7 @@ import {
   type ShareGrantTtlKey,
 } from '@/lib/inventory/share-grants';
 import { MatchDetailChips } from '@/components/inventory/match-detail-chips';
+import { MatchTargetRow } from '@/components/matching/match-target-row';
 import {
   fetchInquiredProperties,
   inquiredPropertyLabel,
@@ -2451,64 +2452,34 @@ export function PropertyShareDialog({
                   )}
                 </div>
               ) : (
-                displayedContacts.map(({ contact: c, score, details }) => {
-                  const isSelected = selectedContactIds.includes(c.id);
-                  return (
-                    <div
-                      key={c.id}
-                      onClick={() => toggleContactSelection(c.id)}
-                      className={`flex items-start gap-3.5 p-3 rounded-xl border cursor-pointer transition-all ${isSelected
-                          ? 'bg-primary/5 border-primary/45 ring-1 ring-primary/10'
-                          : 'bg-slate-900/50 border-slate-800 hover:border-slate-750'
-                        }`}
-                    >
-                      <button
-                        type="button"
-                        className={`shrink-0 mt-0.5 ${isSelected ? 'text-primary' : 'text-slate-650'}`}
-                      >
-                        {isSelected ? <CheckSquare className="size-4" /> : <Square className="size-4" />}
-                      </button>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <h4 className="text-xs font-bold text-white truncate">{c.name || 'Unnamed'}</h4>
-                            <NameTagBadge tag={c.name_tag} />
-                            <span
-                              className={`inline-flex items-center rounded px-1.5 py-0.2 text-[9px] font-bold shrink-0 ${c.classification === 'Buyer'
-                                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                                  : 'bg-sky-500/10 text-sky-400 border border-sky-500/20'
-                                }`}
-                            >
-                              {c.classification}
-                            </span>
-                          </div>
-                          <Badge
-                            className={`rounded px-1.5 py-0.5 text-[9px] font-bold shrink-0 ${score >= 70
-                                ? 'bg-green-500/10 text-green-400 border border-green-500/20'
-                                : score >= 30
-                                  ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                                  : 'bg-slate-800 text-slate-400'
-                              }`}
-                          >
-                            {score}% Match
-                          </Badge>
-                        </div>
-                        <p className="text-[11px] text-slate-500 font-mono mt-0.5">{c.phone}</p>
-
-                        {(inquiriesByContact.get(c.id) ?? []).length > 0 && (
-                          <p className="text-[10px] text-slate-500 mt-1 truncate">
-                            <span className="text-slate-400 font-semibold">Enquired: </span>
-                            {(inquiriesByContact.get(c.id) ?? [])
-                              .map(inquiredPropertyLabel)
-                              .join(' · ')}
-                          </p>
-                        )}
-
-                        {score > 0 && <MatchDetailChips details={details} />}
-                      </div>
-                    </div>
-                  );
-                })
+                displayedContacts.map(({ contact: c, score, details }) => (
+                  <MatchTargetRow
+                    key={c.id}
+                    name={c.name || 'Unnamed'}
+                    detail={c.phone}
+                    inquiries={(inquiriesByContact.get(c.id) ?? []).map(
+                      inquiredPropertyLabel
+                    )}
+                    scoreLabel={`${score}% Match`}
+                    tone={score >= 70 ? 'strong' : score >= 30 ? 'fair' : 'weak'}
+                    badges={
+                      <>
+                        <NameTagBadge tag={c.name_tag} />
+                        <span
+                          className={`inline-flex items-center rounded px-1.5 py-0.2 text-[9px] font-bold shrink-0 ${c.classification === 'Buyer'
+                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                              : 'bg-sky-500/10 text-sky-400 border border-sky-500/20'
+                            }`}
+                        >
+                          {c.classification}
+                        </span>
+                      </>
+                    }
+                    chips={score > 0 ? <MatchDetailChips details={details} /> : null}
+                    selected={selectedContactIds.includes(c.id)}
+                    onToggle={() => toggleContactSelection(c.id)}
+                  />
+                ))
               )}
             </div>
 

@@ -27,6 +27,7 @@ import { FlyerSheet } from '@/components/flyer-sheet';
 import { ConvoRealLoader } from '@/components/loader';
 import { PropertyShareSheet } from '@/components/property-share-sheet';
 import { FilterChip, SectionLabel, Tag, nameTagCap } from '@/components/ui';
+import { MatchTargetRow } from '@/components/match-target-row';
 import { propertyMapPin } from '@/lib/map-links';
 import { nativeMapsAvailable } from '@/lib/maps-support';
 import { openInMaps } from '@/lib/open-maps';
@@ -1493,226 +1494,128 @@ function MatchesSection({ property }: { property: Property }) {
           style={styles.matchList}
           contentContainerStyle={{ gap: spacing.sm }}
         >
-        {rows.map((m) => {
-          const tone = scoreTone(m.score);
-          const scoreFg =
-            tone === 'strong'
-              ? colors.success
-              : tone === 'fair'
-                ? colors.warning
-                : colors.textFaint;
-          const scoreBg =
-            tone === 'strong'
-              ? colors.successSoft
-              : tone === 'fair'
-                ? colors.warningSoft
-                : colors.glass;
-          // Already shared: the row recedes and says so, so an agent
-          // working down the list can see who still needs the message
-          // without re-sending to someone who already has it. Sharing
-          // again stays available — it is a reminder, not a lockout.
-          const shared = Boolean(m.sharedAt);
-          const picked = selectedIds.includes(m.contact.id);
-          const displayName =
-            m.contact.name || m.contact.phone || 'Unnamed contact';
-          const initials = displayName
-            .split(/\s+/)
-            .slice(0, 2)
-            .map((part) => part[0])
-            .join('')
-            .toLocaleUpperCase();
-          return (
-            <View
-              key={m.contact.id}
-              style={[
-                styles.matchRow,
-                {
-                  backgroundColor: picked ? colors.primarySoft : colors.glass,
-                  borderColor: picked ? colors.primary : colors.glassBorder,
-                },
-                shared && !picked && { opacity: 0.6 },
-              ]}
-            >
-              <Pressable
-                onPress={() => toggle(m.contact.id)}
-                hitSlop={10}
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked: picked }}
-                accessibilityLabel={`Select ${displayName}`}
-                style={[
-                  styles.matchAvatar,
-                  {
-                    backgroundColor: picked ? colors.primary : colors.primarySoft,
-                    borderColor: picked ? colors.primary : colors.glassBorder,
-                  },
+          {rows.map((m) => {
+            // Already shared: the row recedes and says so, so an agent
+            // working down the list can see who still needs the message
+            // without re-sending to someone who already has it. Sharing
+            // again stays available — it is a reminder, not a lockout.
+            const shared = Boolean(m.sharedAt);
+            const displayName =
+              m.contact.name || m.contact.phone || 'Unnamed contact';
+            return (
+              <MatchTargetRow
+                key={m.contact.id}
+                name={displayName}
+                detail={m.contact.phone}
+                inquiries={m.inquiries.map(inquiredPropertyLabel)}
+                scoreLabel={`${m.score}%`}
+                scoreCaption="match"
+                tone={scoreTone(m.score)}
+                chips={[
+                  ...(shared
+                    ? [
+                        {
+                          label: `✓ Shared ${chatListTime(m.sharedAt!)}`,
+                          color: colors.success,
+                        },
+                      ]
+                    : []),
+                  ...matchChips(m.details).map((chip) => ({
+                    label: chip.label,
+                    color: chipColor(chip.tone, colors),
+                  })),
                 ]}
-              >
-                {picked ? (
-                  <Ionicons name="checkmark" size={18} color={colors.onPrimary} />
-                ) : (
-                  <Text
-                    style={{
-                      fontSize: 12,
-                      fontFamily: f.extrabold,
-                      color: colors.primary,
-                    }}
-                  >
-                    {initials}
-                  </Text>
-                )}
-              </Pressable>
-
-              <Pressable
-                onPress={() => toggle(m.contact.id)}
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked: picked }}
-                accessibilityLabel={`Select ${displayName}`}
-                style={{ flex: 1, gap: 4 }}
-              >
-                <View
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
-                >
-                  <Text
-                    numberOfLines={1}
-                    style={{
-                      fontSize: 14.5,
-                      fontFamily: f.bold,
-                      color: colors.text,
-                      flexShrink: 1,
-                    }}
-                  >
-                    {displayName}
-                  </Text>
-                  {m.contact.name_tag ? (
-                    <View style={nameTagCap}>
-                      <Tag label={m.contact.name_tag} />
-                    </View>
-                  ) : null}
-                  {m.contact.classification ? (
-                    <Tag
-                      label={m.contact.classification}
-                      color={
-                        m.contact.classification === 'Agent'
-                          ? colors.readTick
-                          : colors.success
+                badges={
+                  <>
+                    {m.contact.name_tag ? (
+                      <View style={nameTagCap}>
+                        <Tag label={m.contact.name_tag} />
+                      </View>
+                    ) : null}
+                    {m.contact.classification ? (
+                      <Tag
+                        label={m.contact.classification}
+                        color={
+                          m.contact.classification === 'Agent'
+                            ? colors.readTick
+                            : colors.success
+                        }
+                      />
+                    ) : null}
+                  </>
+                }
+                indicator="avatar"
+                initials={displayName
+                  .split(/\s+/)
+                  .slice(0, 2)
+                  .map((part) => part[0])
+                  .join('')
+                  .toLocaleUpperCase()}
+                dimmed={shared}
+                selected={selectedIds.includes(m.contact.id)}
+                onToggle={() => toggle(m.contact.id)}
+                footer={
+                  <>
+                    <Pressable
+                      onPress={() =>
+                        router.push(`/(app)/contact/${m.contact.id}`)
                       }
-                    />
-                  ) : null}
-                </View>
-                <Text style={{ fontSize: 12.5, color: colors.textMuted }}>
-                  {m.contact.phone}
-                </Text>
-                {m.inquiries.length > 0 ? (
-                  <Text
-                    numberOfLines={1}
-                    style={{ fontSize: 11.5, color: colors.textFaint }}
-                  >
-                    Enquired:{' '}
-                    {m.inquiries.map(inquiredPropertyLabel).join(' · ')}
-                  </Text>
-                ) : null}
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5 }}>
-                  {shared ? (
-                    <Tag
-                      label={`✓ Shared ${chatListTime(m.sharedAt!)}`}
-                      color={colors.success}
-                    />
-                  ) : null}
-                  {matchChips(m.details).map((chip) => (
-                    <Tag
-                      key={chip.label}
-                      label={chip.label}
-                      color={chipColor(chip.tone, colors)}
-                    />
-                  ))}
-                </View>
-              </Pressable>
-
-              <View style={{ alignItems: 'flex-end', gap: 4 }}>
-                <View
-                  style={[
-                    styles.scoreBadge,
-                    { backgroundColor: scoreBg, borderColor: scoreFg },
-                  ]}
-                >
-                  <Text
-                    style={{
-                      fontSize: 11.5,
-                      fontFamily: f.extrabold,
-                      color: scoreFg,
-                    }}
-                  >
-                    {m.score}%
-                  </Text>
-                </View>
-                <Text style={{ fontSize: 10, color: colors.textFaint }}>
-                  match
-                </Text>
-              </View>
-
-              <View
-                style={[
-                  styles.matchActions,
-                  { borderTopColor: colors.glassBorder },
-                ]}
-              >
-                <Pressable
-                  onPress={() => router.push(`/(app)/contact/${m.contact.id}`)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`View ${displayName} contact`}
-                  style={styles.matchAction}
-                >
-                  <Ionicons
-                    name="person-outline"
-                    size={15}
-                    color={colors.textMuted}
-                  />
-                  <Text
-                    style={{
-                      fontSize: 11.5,
-                      fontFamily: f.semibold,
-                      color: colors.textMuted,
-                    }}
-                  >
-                    View contact
-                  </Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => {
-                    haptic.tap();
-                    setShareTo([m.contact]);
-                  }}
-                  accessibilityRole="button"
-                  accessibilityLabel={
-                    shared
-                      ? `Share again with ${displayName}`
-                      : `Share property with ${displayName}`
-                  }
-                  style={[
-                    styles.matchAction,
-                    styles.matchShareAction,
-                    { backgroundColor: colors.primarySoft },
-                  ]}
-                >
-                  <Ionicons
-                    name={shared ? 'refresh-outline' : 'paper-plane-outline'}
-                    size={15}
-                    color={colors.primary}
-                  />
-                  <Text
-                    style={{
-                      fontSize: 11.5,
-                      fontFamily: f.bold,
-                      color: colors.primary,
-                    }}
-                  >
-                    {shared ? 'Share again' : 'Share property'}
-                  </Text>
-                </Pressable>
-              </View>
-            </View>
-          );
-        })}
+                      accessibilityRole="button"
+                      accessibilityLabel={`View ${displayName} contact`}
+                      style={styles.matchAction}
+                    >
+                      <Ionicons
+                        name="person-outline"
+                        size={15}
+                        color={colors.textMuted}
+                      />
+                      <Text
+                        style={{
+                          fontSize: 11.5,
+                          fontFamily: f.semibold,
+                          color: colors.textMuted,
+                        }}
+                      >
+                        View contact
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => {
+                        haptic.tap();
+                        setShareTo([m.contact]);
+                      }}
+                      accessibilityRole="button"
+                      accessibilityLabel={
+                        shared
+                          ? `Share again with ${displayName}`
+                          : `Share property with ${displayName}`
+                      }
+                      style={[
+                        styles.matchAction,
+                        styles.matchShareAction,
+                        { backgroundColor: colors.primarySoft },
+                      ]}
+                    >
+                      <Ionicons
+                        name={shared ? 'refresh-outline' : 'paper-plane-outline'}
+                        size={15}
+                        color={colors.primary}
+                      />
+                      <Text
+                        style={{
+                          fontSize: 11.5,
+                          fontFamily: f.bold,
+                          color: colors.primary,
+                        }}
+                      >
+                        {shared ? 'Share again' : 'Share property'}
+                      </Text>
+                    </Pressable>
+                  </>
+                }
+              />
+            );
+          })}
         </ScrollView>
       ) : null}
 
@@ -2038,14 +1941,6 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     padding: spacing.md,
   },
-  matchRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.md,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    padding: spacing.md,
-  },
   matchSummary: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2088,22 +1983,6 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     padding: spacing.xl,
   },
-  matchAvatar: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: StyleSheet.hairlineWidth,
-  },
-  matchActions: {
-    width: '100%',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderTopWidth: StyleSheet.hairlineWidth,
-    paddingTop: spacing.sm,
-  },
   matchAction: {
     minHeight: 34,
     flexDirection: 'row',
@@ -2123,12 +2002,6 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     borderRadius: radius.full,
     paddingVertical: 13,
-  },
-  scoreBadge: {
-    borderRadius: radius.full,
-    borderWidth: 1,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
   },
   thumbMore: {
     alignItems: 'center',
