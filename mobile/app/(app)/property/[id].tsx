@@ -1416,7 +1416,7 @@ function MatchesSection({ property }: { property: Property }) {
           <Text style={{ flex: 1, fontSize: 12, color: colors.textMuted }}>
             {selected.length > 0
               ? `${selected.length} selected`
-              : `${rows.length} shown${normalizedQuery ? ` for “${searchQuery.trim()}”` : ''}`}
+              : `${rows.length} shown${normalizedQuery ? ` for “${searchQuery.trim()}”` : ''} · tap to select`}
           </Text>
           <Pressable
             onPress={() => {
@@ -1559,7 +1559,13 @@ function MatchesSection({ property }: { property: Property }) {
                 )}
               </Pressable>
 
-              <View style={{ flex: 1, gap: 4 }}>
+              <Pressable
+                onPress={() => toggle(m.contact.id)}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: picked }}
+                accessibilityLabel={`Select ${displayName}`}
+                style={{ flex: 1, gap: 4 }}
+              >
                 <View
                   style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
                 >
@@ -1608,7 +1614,7 @@ function MatchesSection({ property }: { property: Property }) {
                     />
                   ))}
                 </View>
-              </View>
+              </Pressable>
 
               <View style={{ alignItems: 'flex-end', gap: 4 }}>
                 <View
