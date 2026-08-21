@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import { getMatchingContacts } from '@/lib/matching';
 import { attachInquiredListingTypes } from '@/lib/contacts/inquired-intent';
+import { fetchInquiredProperties } from '@/lib/contacts/inquired-properties';
 import type { Contact, Property } from '@/types';
 
 // Only the columns src/lib/matching.ts reads, plus what the caller needs
@@ -89,6 +90,14 @@ export async function GET(
       )
     );
 
+    // What each matched contact has already asked about, so a row can
+    // say whether this share continues a conversation or opens one.
+    const inquiriesByContact = await fetchInquiredProperties(
+      ctx.supabase,
+      ctx.accountId,
+      results.map(({ contact }) => contact.id)
+    );
+
     return NextResponse.json({
       data: results.map(({ contact, score, details, matchedFields }) => {
         // The notes only exist to feed the text heuristics; a client
@@ -101,6 +110,7 @@ export async function GET(
           details,
           matchedFields,
           sharedAt: sharedAtByContact.get(contact.id) ?? null,
+          inquiries: inquiriesByContact.get(contact.id) ?? [],
         };
       }),
     });
