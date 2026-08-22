@@ -18,10 +18,16 @@ import {
 import {
   processClientReplyScreenshot,
   completeClientResponseProperty,
+  completeClientReplyContact,
   handleAgentFollowupReply,
   AGENT_FOLLOWUP_PREFIX,
   type ClientReplyOutcome,
 } from '@/lib/journey/client-response';
+import { parseClientNameAnswer } from '@/lib/journey/client-answer';
+import {
+  parkClientReply,
+  takePendingClientReply,
+} from '@/lib/journey/pending-client-reply';
 import { applyListingDerivations } from '@/lib/ai/listing-derivations';
 import { uploadPropertyImage, uploadPropertyVideo, DocumentTooLargeError } from '@/lib/storage/upload';
 import { queueYouTubeUploadIfConnected } from '@/lib/youtube/upload';
@@ -874,6 +880,17 @@ export async function processOwnerChatbotMessage(
         accessToken,
         phoneNumberId,
       });
+      // Nobody matched, so the reply asks who this is. Hold the parse
+      // until that answer arrives — discarding it made the agent
+      // forward the whole conversation a second time.
+      if (outcome.unmatched) {
+        await parkClientReply({
+          accountId,
+          contactId: contactRecord.id,
+          conversationId: conversation.id,
+          parsed,
+        });
+      }
     } catch (err) {
       console.error('[chatbot-engine] client reply capture failed:', err);
       outcome = { text: "⚠️ I couldn't read that conversation. Try a clearer screenshot, or type the client's update (e.g. \"Surya will speak to the chairman on PROP-1138\")." };
@@ -930,6 +947,72 @@ export async function processOwnerChatbotMessage(
       replyId: buttonId,
     });
     if (handledAgentFollowup) return true;
+  }
+
+  // 1.665. The answer to "who is this client?".
+  //
+  // A forwarded chat whose client could not be matched leaves the
+  // parse parked against this sender, and the agent answers with the
+  // name — "Natarajan is already a contact in our application". That
+  // sentence used to reach the intake classifier and come back as "I
+  // couldn't tell what that was", with the client's actual reply
+  // already parsed and thrown away.
+  //
+  // Both gates are deterministic and free: a parse of this sender's
+  // own has to be parked and still fresh, and the text has to read as
+  // nothing but a person's name. The parked row is consumed on read,
+  // so a name typed later cannot re-file the same response.
+  if (cleanedText && !isInteractiveTap && !propSession && !contactSession) {
+    const namedClient = parseClientNameAnswer(cleanedText);
+    if (namedClient) {
+      const parkedReply = await takePendingClientReply({
+        accountId,
+        contactId: contactRecord.id,
+      });
+      if (parkedReply) {
+        const outcome = await completeClientReplyContact({
+          db: supabaseAdmin(),
+          accountId,
+          userId,
+          name: namedClient,
+          parsed: parkedReply,
+          accessToken,
+          phoneNumberId,
+        });
+        const text =
+          outcome?.text ??
+          `❓ I couldn't find one contact called *${namedClient}* in your book. Send their contact card and I'll save them, or reply with the name exactly as it's filed.`;
+        // Unresolved: park the parse again so the corrected name still
+        // has something to complete.
+        if (!outcome) {
+          await parkClientReply({
+            accountId,
+            contactId: contactRecord.id,
+            conversationId: conversation.id,
+            parsed: parkedReply,
+          });
+        }
+        const sendRes = outcome?.buttons
+          ? await sendInteractiveButtons({
+              phoneNumberId,
+              accessToken,
+              to: contactRecord.phone,
+              bodyText: text,
+              buttons: outcome.buttons,
+            })
+          : await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text });
+        await saveBotMessage(conversation.id, text, sendRes.messageId);
+        if (outcome?.pendingPropertyContactId) {
+          await recordBotTarget({
+            accountId,
+            waMessageId: sendRes.messageId,
+            entityType: 'contact',
+            entityId: outcome.pendingPropertyContactId,
+          });
+        }
+        return true;
+      }
+    }
   }
 
   // 1.66. The answer to "which property is this about?".

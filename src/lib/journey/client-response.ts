@@ -26,10 +26,12 @@ import { addDays, format } from 'date-fns';
 import type { ParsedClientReply } from '@/lib/ai/gemini';
 import { DEFAULT_JOURNEY_STAGES } from '@/components/journey/shared';
 import {
+  matchContactByExactName,
   matchContactByName,
   type BookContact,
 } from '@/lib/contacts/draft-match';
 import { looksLikeQuestion } from '@/lib/ai/lead-question';
+import { CLIENT_QUESTION_PROMPT } from '@/lib/journey/client-answer';
 import { scanMessagesForProperties } from '@/lib/journey/chat-scan';
 import { createNotification } from '@/lib/notifications/create';
 import { isWithinCustomerWindow } from '@/lib/whatsapp/customer-window';
@@ -204,12 +206,21 @@ export function buildAgentReply(args: {
   return reply;
 }
 
+/**
+ * The who-question, asked instead of ending the exchange.
+ *
+ * What the client said is parked and quotable, so the agent can see
+ * the assistant did read the chat and only needs the person named —
+ * rather than being told to forward the whole thing again.
+ */
 export function buildUnmatchedReply(parsed: ParsedClientReply): string {
-  const who = parsed.client_name || 'the client';
+  const who = parsed.client_name
+    ? ` — *${parsed.client_name}* isn't in your book`
+    : '';
   return (
-    `🤔 I read the conversation but couldn't match *${who}* to a contact in your book.` +
+    `🤔 I read the conversation but couldn't work out who this client is${who}.` +
     (parsed.response_summary ? `\n_"${parsed.response_summary}"_` : '') +
-    '\n\nSave them as a contact first (send their contact card), then forward the chat again.'
+    `\n\n${CLIENT_QUESTION_PROMPT}`
   );
 }
 
@@ -627,6 +638,9 @@ export interface ProcessClientReplyArgs {
 export interface ClientReplyOutcome {
   text: string;
   buttons?: Array<{ id: string; title: string }>;
+  /** Set when no contact could be matched: the parse is worth parking,
+   *  because the agent's next message usually names the person. */
+  unmatched?: boolean;
   /** Set when the response was logged but no listing could be matched:
    *  the contact the standing "which property?" question is about, so
    *  the caller can register it against the message it sends and the
@@ -646,7 +660,38 @@ export async function processClientReplyScreenshot(
   const { db, accountId, userId, parsed, accessToken, phoneNumberId } = args;
 
   const contact = await matchClientContact(db, accountId, parsed);
-  if (!contact) return { text: buildUnmatchedReply(parsed) };
+  if (!contact) return { text: buildUnmatchedReply(parsed), unmatched: true };
+
+  return await logClientResponse({
+    db,
+    accountId,
+    userId,
+    contact,
+    parsed,
+    accessToken,
+    phoneNumberId,
+  });
+}
+
+interface LogArgs {
+  db: SupabaseClient;
+  accountId: string;
+  userId: string;
+  contact: BookContact;
+  parsed: ParsedClientReply;
+  accessToken: string;
+  phoneNumberId: string;
+}
+
+/**
+ * Everything that follows knowing WHOSE response this is. Split out
+ * because the contact can arrive later: the agent naming the client
+ * runs exactly this against the parked parse, minutes after the
+ * screenshot itself was read.
+ */
+async function logClientResponse(args: LogArgs): Promise<ClientReplyOutcome> {
+  const { db, accountId, userId, contact, parsed, accessToken, phoneNumberId } =
+    args;
   const contactName = contact.name || parsed.client_name || 'Client';
 
   const property = await matchClientProperty(db, accountId, parsed);
@@ -804,6 +849,54 @@ async function linkClientResponseToProperty(
     }),
     buttons: item ? buildAgentFollowupButtons(item.id) : undefined,
   };
+}
+
+export interface CompleteClientAnswerArgs {
+  db: SupabaseClient;
+  accountId: string;
+  userId: string;
+  /** The name the agent typed back at the who-question. */
+  name: string;
+  /** The parse parked when the screenshot named nobody matchable. */
+  parsed: ParsedClientReply;
+  accessToken: string;
+  phoneNumberId: string;
+}
+
+/**
+ * The agent's answer to "who is this client?".
+ *
+ * Resolves the typed name against the book and runs the logging the
+ * screenshot could not. Returns null when the name resolves to no
+ * contact — or to more than one, which is the same answer here: the
+ * caller reports it rather than guessing, because a response filed
+ * onto the wrong client is worse than one not filed at all.
+ */
+export async function completeClientReplyContact(
+  args: CompleteClientAnswerArgs
+): Promise<ClientReplyOutcome | null> {
+  const { db, accountId, userId, name, parsed } = args;
+
+  const { data } = await db
+    .from('contacts')
+    .select('id, name, phone')
+    .eq('account_id', accountId)
+    .eq('is_merged', false);
+  const book = (data ?? []) as BookContact[];
+
+  const contact =
+    matchContactByExactName(name, book) ?? matchContactByName(name, book);
+  if (!contact) return null;
+
+  return await logClientResponse({
+    db,
+    accountId,
+    userId,
+    contact,
+    parsed: { ...parsed, client_name: parsed.client_name || contact.name },
+    accessToken: args.accessToken,
+    phoneNumberId: args.phoneNumberId,
+  });
 }
 
 export interface CompletePropertyAnswerArgs {
