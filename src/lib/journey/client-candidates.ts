@@ -1,40 +1,56 @@
 // ============================================================
 // Who a forwarded chat is most likely about.
 //
-// A forward carries no sender identity — WhatsApp strips it — and the
-// chat header the agent screenshotted is often cropped out. So the
-// assistant asks who the client is, and the agent types the name.
+// A forward carries no sender identity and the chat header is usually
+// cropped out, so the assistant asks who the client is. It can offer
+// answers: the thread names things — the project the client cancelled,
+// the property discussed — and one of those words sometimes belongs to
+// exactly one contact.
 //
-// It can do better than a blank question. The thread names things:
-// the project the client cancelled ("Lodha Sadhahalli"), the property
-// discussed ("Domlur"), sometimes a first name. Those words appear in
-// exactly one contact's brief and notes often enough to be worth
-// offering as a tap.
+// SOMETIMES. The first version of this offered "Surendra — mentions
+// owner / Naveen — mentions owner / Keshav Reddy — mentions owner",
+// because it mined the model's PARAPHRASE of the thread ("direct
+// purchase from owner") and scored on a hand-written stop list that
+// happened not to contain "owner". Both mistakes are fixed here and
+// neither is fixable by lengthening a word list:
 //
-// Everything here is pure and deterministic. It RANKS; it never picks.
-// The agent taps, or types a different name, and an offered candidate
-// that nobody taps costs nothing.
+//   1. The terms come from what the client actually wrote, not from a
+//      summary of it. A paraphrase introduces the summariser's
+//      vocabulary, and that vocabulary is generic by construction.
+//   2. A term earns its place by being RARE IN THIS BOOK, which the
+//      caller measures rather than assumes. "Owner" matches eleven
+//      contacts, so it identifies nobody; "Domlur" matches one, so it
+//      identifies them. No list of English words can know that, and
+//      every account's answer is different.
+//
+// Everything here is pure. It RANKS; it never picks. A candidate with
+// no evidence is dropped rather than padded in — three names offered
+// as a tap must each be there for a reason the agent can read, or the
+// tap is a coin flip with a client's record as the stake.
 // ============================================================
-
-import { normalisePhone } from '@/lib/contacts/find-or-create';
 
 export interface CandidateContact {
   id: string;
   name: string | null;
   phone: string | null;
-  /** The contact's stated brief, notes and enquiry titles, already
-   *  concatenated by the caller — the text the thread is matched
-   *  against. */
-  haystack: string;
-  /** Most recent activity, for the tie-break. */
   lastActivity?: string | null;
 }
 
-export interface CandidateSignals {
-  clientName?: string | null;
-  clientPhone?: string | null;
-  /** Everything the forward said, in one string. */
-  threadText: string;
+/** What actually connects one contact to the forwarded thread. */
+export interface CandidateEvidence {
+  contact: CandidateContact;
+  /** Rare terms the contact's own stated brief carries — what they
+   *  told the agency they are after, in their file. */
+  matchedTerms: string[];
+  /** Rare terms that appear only in a note about them. Weaker on
+   *  purpose: an agent writes "showed him the Domlur plot" about
+   *  whoever they showed it to, so a note ties a contact to a subject
+   *  far more loosely than their own brief does. */
+  notedTerms?: string[];
+  /** A name token the thread showed and this contact holds. */
+  nameMatched: boolean;
+  /** The thread showed this contact's number. Decisive. */
+  phoneMatched: boolean;
 }
 
 export interface RankedCandidate {
@@ -44,7 +60,9 @@ export interface RankedCandidate {
   reason: string;
 }
 
-/** Words a real-estate thread is full of, which name nobody. */
+/** Words that name nothing in a real-estate thread. Kept short on
+ *  purpose: the rarity measurement is what does the work, and a long
+ *  list here would only hide how much it is doing. */
 const GENERIC = new Set([
   'acre',
   'acres',
@@ -54,47 +72,38 @@ const GENERIC = new Set([
   'booking',
   'budget',
   'building',
+  'buyer',
+  'cancelled',
   'client',
   'commercial',
   'crore',
-  'direct',
   'developer',
   'developers',
-  'east',
+  'direct',
   'flat',
-  'floor',
-  'good',
   'house',
-  'is',
-  'lakh',
   'land',
+  'lakh',
   'looking',
   'morning',
-  'near',
-  'north',
-  'only',
+  'owner',
   'plot',
+  'previous',
   'project',
   'property',
   'purchase',
   'residential',
-  'sale',
-  'site',
-  'south',
-  'the',
+  'seller',
   'villa',
-  'west',
-  'yes',
 ]);
 
 /**
- * The words in a thread that could name one contact and not another —
- * a project, a locality, a builder. Case-folded, deduped, capped.
+ * Candidate identifying words in the client's own message.
  *
- * Length is the whole filter alongside the stop list: a token under
- * five letters ("RE", "ok", "8cr") matches half the book, and matching
- * broadly here is worse than not matching at all, because a wrong
- * candidate offered as a tap is a wrong answer made easy.
+ * A first pass at what to even ask the book about — proper nouns are
+ * not marked as such in a chat, so length and the short stop list are
+ * all that can be judged from the text alone. Whether a surviving term
+ * identifies anybody is decided afterwards, by counting.
  */
 export function distinctiveTerms(text: string, cap = 6): string[] {
   const seen = new Set<string>();
@@ -109,75 +118,61 @@ export function distinctiveTerms(text: string, cap = 6): string[] {
   return [...seen];
 }
 
-function nameTokens(name: string | null | undefined): string[] {
-  return (name || '')
-    .toLowerCase()
-    .replace(/[([{][^)\]}]*[)\]}]/g, ' ')
-    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
-    .split(/\s+/)
-    .filter(Boolean);
+/** Display form for a term the agent will read back: "domlur" is the
+ *  needle, "Domlur" is the word they wrote. */
+function titleCase(term: string): string {
+  return term.charAt(0).toUpperCase() + term.slice(1);
+}
+
+export function candidateReason(evidence: CandidateEvidence): string {
+  if (evidence.phoneMatched) return 'same number as the chat';
+  const parts: string[] = [];
+  if (evidence.nameMatched) parts.push('name matches');
+  if (evidence.matchedTerms.length) {
+    parts.push(
+      `brief mentions ${evidence.matchedTerms.slice(0, 2).map(titleCase).join(' and ')}`
+    );
+  } else if (evidence.notedTerms?.length) {
+    parts.push(
+      `a note mentions ${evidence.notedTerms.slice(0, 2).map(titleCase).join(' and ')}`
+    );
+  }
+  return parts.join(', ');
 }
 
 /**
- * How well one contact answers "who is this?", and in one phrase why.
+ * How strongly one contact answers "who is this?".
  *
- * The phone is decisive when the thread showed one — nothing else can
- * outrank it. Otherwise a shared name token beats a shared subject,
- * because two contacts can both have looked at Domlur but only one is
- * called Natarajan, and both beat mere recency, which is offered only
- * as an ordering among equals rather than as evidence.
+ * The phone is decisive when the thread showed one. Otherwise a shared
+ * name token beats a shared subject, because two contacts can both have
+ * looked at Domlur but only one is called Natarajan.
  */
-export function scoreCandidate(
-  signals: CandidateSignals,
-  contact: CandidateContact
-): { score: number; reason: string } {
-  const phone = normalisePhone(String(signals.clientPhone || ''));
-  const contactPhone = normalisePhone(String(contact.phone || ''));
-  if (
-    phone.length >= 7 &&
-    contactPhone.length >= 7 &&
-    phone.slice(-10) === contactPhone.slice(-10)
-  ) {
-    return { score: 100, reason: 'same number as the chat' };
-  }
-
+export function scoreEvidence(evidence: CandidateEvidence): number {
+  if (evidence.phoneMatched) return 100;
   let score = 0;
-  const reasons: string[] = [];
-
-  const wanted = nameTokens(signals.clientName);
-  const held = nameTokens(contact.name);
-  const sharedName = wanted.filter((t) => t.length >= 3 && held.includes(t));
-  if (sharedName.length) {
-    score += 40 + sharedName.length * 5;
-    reasons.push('name matches');
-  }
-
-  const haystack = (contact.haystack || '').toLowerCase();
-  const hits = distinctiveTerms(signals.threadText).filter((term) =>
-    haystack.includes(term)
-  );
-  if (hits.length) {
-    score += 20 * hits.length;
-    reasons.push(`mentions ${hits.slice(0, 2).join(' and ')}`);
-  }
-
-  return { score, reason: reasons.join(', ') };
+  if (evidence.nameMatched) score += 40;
+  score += 20 * evidence.matchedTerms.length;
+  score += 8 * (evidence.notedTerms?.length ?? 0);
+  return score;
 }
 
 /**
- * The best few candidates, strongest first. Anything that matched on
- * nothing is dropped rather than padded in: three names offered as a
- * tap must each be there for a reason the agent can see, or the tap is
- * a coin flip with a contact's record as the stake.
+ * The best few candidates, strongest first, dropping anything that
+ * matched on nothing. An empty result is a real answer: it means the
+ * book has nothing to say about this thread, and the agent gets the
+ * plain question instead of three guesses dressed as suggestions.
  */
 export function rankClientCandidates(
-  signals: CandidateSignals,
-  contacts: CandidateContact[],
+  evidence: CandidateEvidence[],
   limit = 3
 ): RankedCandidate[] {
-  return contacts
-    .map((contact) => ({ contact, ...scoreCandidate(signals, contact) }))
-    .filter((c) => c.score > 0)
+  return evidence
+    .map((e) => ({
+      contact: e.contact,
+      score: scoreEvidence(e),
+      reason: candidateReason(e),
+    }))
+    .filter((c) => c.score > 0 && c.reason)
     .sort(
       (a, b) =>
         b.score - a.score ||

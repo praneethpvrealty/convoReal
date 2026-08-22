@@ -882,6 +882,7 @@ export async function processOwnerChatbotMessage(
         parsed,
         accessToken,
         phoneNumberId,
+        excludeContactId: contactRecord.id,
       });
       // Nobody matched, so the reply asks who this is. Hold the parse
       // until that answer arrives — discarding it made the agent
@@ -1042,6 +1043,7 @@ export async function processOwnerChatbotMessage(
           parsed: parkedReply,
           accessToken,
           phoneNumberId,
+          excludeContactId: contactRecord.id,
         });
         const text =
           outcome?.text ??
