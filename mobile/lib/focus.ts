@@ -1,4 +1,5 @@
 import { apiFetch } from '@/lib/api';
+import { withAnalyticsTimeout } from '@/lib/analytics-request';
 
 /**
  * Focus — the consultant's landing screen.
@@ -80,6 +81,10 @@ export interface FocusSnapshot {
 }
 
 export async function fetchFocus(): Promise<FocusSnapshot> {
+  return withAnalyticsTimeout(fetchFocusUnbounded(), 'Focus analytics');
+}
+
+async function fetchFocusUnbounded(): Promise<FocusSnapshot> {
   const { data } = await apiFetch<{ data: FocusSnapshot }>('/api/focus');
   return data;
 }
