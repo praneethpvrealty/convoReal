@@ -3178,6 +3178,15 @@ export async function processExternalListingMessage(
   if (Date.now() - updatedAt > DRAFT_SESSION_TIMEOUT_MS) {
     console.log(`[chatbot-engine] Expiring inactive external listing session ${propSession.id}`);
     await supabaseAdmin().from('property_draft_sessions').delete().eq('id', propSession.id);
+    
+    // If this is a template button tap (e.g. "Tell me more" on a digest),
+    // silently expire the session and fall through. Sending an expiration
+    // warning while ignoring their tap is confusing, and they didn't
+    // initiate this interaction to talk about their draft anyway.
+    if (message.type === 'button') {
+      return false;
+    }
+
     const reply = "⌛ *Your listing draft expired due to inactivity.* Please tap \"List My Property\" again to start a new one.";
     const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
     await saveBotMessage(conversation.id, reply, sendRes.messageId);
