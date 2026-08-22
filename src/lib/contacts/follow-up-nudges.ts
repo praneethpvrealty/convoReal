@@ -39,9 +39,16 @@ import { loadPastEnquiryContacts } from '@/lib/journey/past-enquiry';
 import { describeEnquiredProperty } from '@/lib/whatsapp/enquiry-notice-template';
 import {
   buildJourneyCheckinParams,
+  JOURNEY_CHECKIN_TEMPLATE_NAMES,
   journeyCheckinUrlSuffix,
   pickJourneyCheckinTemplate,
 } from '@/lib/whatsapp/journey-checkin-template';
+import {
+  buildEnquiryFollowupParams,
+  ENQUIRY_FOLLOWUP_TEMPLATE_NAMES,
+  enquiryFollowupParamCount,
+  pickEnquiryFollowupTemplate,
+} from '@/lib/whatsapp/enquiry-followup-template';
 import {
   narrowToLanguage,
   resolveSendLanguage,
@@ -107,7 +114,10 @@ export function buildFollowUpCardBody(lead: FollowUpLead): string {
   // the check-in would actually reach — an agent must never tap Check
   // in wondering which of the two people gets the message.
   const who = lead.partyName
-    ? [`👥 ${lead.partyName}`, `↳ we'd message ${lead.name || lead.phone} · ${lead.phone}`]
+    ? [
+        `👥 ${lead.partyName}`,
+        `↳ we'd message ${lead.name || lead.phone} · ${lead.phone}`,
+      ]
     : [`👤 ${lead.name || lead.phone} · ${lead.phone}`];
   return [
     '⏰ *Follow-up due*',
@@ -130,6 +140,90 @@ export function buildFollowUpCheckinText(
   const greeting = first ? `Hi ${first}!` : 'Hi!';
   const subject = propertyTitle ? `*${propertyTitle}*` : 'your property search';
   return `${greeting} Just checking in on ${subject} — where do you stand? If you'd like to talk it over or plan a visit, reply here and we'll set it up.`;
+}
+
+export interface ClosedWindowFollowUpTemplateRow {
+  name: string;
+  language?: string | null;
+  status?: string | null;
+  category?: string | null;
+  body_text: string;
+}
+
+export type ClosedWindowFollowUpTemplate = {
+  kind: 'journey_checkin' | 'enquiry_followup';
+  template: ClosedWindowFollowUpTemplateRow;
+};
+
+export function pickClosedWindowFollowUpTemplate(
+  rows: ClosedWindowFollowUpTemplateRow[],
+  hasProperty: boolean
+): ClosedWindowFollowUpTemplate | null {
+  if (hasProperty) {
+    const template = pickJourneyCheckinTemplate(rows);
+    if (template?.category === 'Utility') {
+      return { kind: 'journey_checkin', template };
+    }
+  }
+
+  const template = pickEnquiryFollowupTemplate(rows);
+  if (template?.category === 'Utility') {
+    return { kind: 'enquiry_followup', template };
+  }
+  return null;
+}
+
+export function buildClosedWindowFollowUpTemplateSend(
+  choice: ClosedWindowFollowUpTemplate,
+  args: {
+    contactName: string | null;
+    accountName: string | null;
+    contactId: string;
+    property: Property | null;
+  }
+): {
+  templateName: string;
+  templateLanguage: string;
+  templateParams: string[];
+  messageParams: { body: string[]; buttonParams?: Record<number, string> };
+  text: string;
+} {
+  if (choice.kind === 'journey_checkin') {
+    if (!args.property) {
+      throw new Error(
+        'A listing is required for the journey check-in template'
+      );
+    }
+    const templateParams = buildJourneyCheckinParams(
+      args.contactName,
+      args.accountName,
+      describeEnquiredProperty(args.property)
+    );
+    return {
+      templateName: choice.template.name,
+      templateLanguage: choice.template.language || 'en_US',
+      templateParams,
+      messageParams: {
+        body: templateParams,
+        buttonParams: {
+          2: journeyCheckinUrlSuffix(args.property, args.contactId),
+        },
+      },
+      text: resolveBodyText(choice.template.body_text, templateParams),
+    };
+  }
+
+  const templateParams = buildEnquiryFollowupParams(
+    args.contactName,
+    args.accountName
+  ).slice(0, enquiryFollowupParamCount(choice.template.name));
+  return {
+    templateName: choice.template.name,
+    templateLanguage: choice.template.language || 'en_US',
+    templateParams,
+    messageParams: { body: templateParams },
+    text: resolveBodyText(choice.template.body_text, templateParams),
+  };
 }
 
 /**
@@ -177,8 +271,9 @@ export async function gatherFollowUpLeads(
   // Members outside the HOT/active filter above still count: the wife
   // may be filed COLD and still be the one who replied. Bounded by the
   // account's party membership, which is a handful of rows.
-  const memberIds = [...new Set([...parties.values()].flatMap((p) => p.memberIds))]
-    .filter((id) => !touchByContactId.has(id));
+  const memberIds = [
+    ...new Set([...parties.values()].flatMap((p) => p.memberIds)),
+  ].filter((id) => !touchByContactId.has(id));
   if (memberIds.length) {
     const { data: memberRows } = await db
       .from('contacts')
@@ -555,7 +650,7 @@ export async function handleFollowUpReply(
     });
     sent = result.success;
   } else {
-    sent = await sendCheckinTemplate({
+    const templateResult = await sendCheckinTemplate({
       db: admin,
       accountId,
       userId: configOwnerUserId,
@@ -564,12 +659,15 @@ export async function handleFollowUpReply(
       contactName: lead.name,
       property,
     });
-    if (!sent) {
+    if (templateResult !== 'sent') {
       await confirmToAgent(
-        `⚠️ Couldn't check in with ${who} — their 24-hour window is closed and the check-in template isn't approved yet. Open the thread to reach them with a template by hand.`
+        templateResult === 'no_template'
+          ? `⚠️ Couldn't check in with ${who} — their 24-hour window is closed and no approved Utility follow-up template is available.`
+          : `⚠️ Couldn't check in with ${who} on WhatsApp. The approved template could not be delivered, so nothing was sent.`
       );
       return true;
     }
+    sent = true;
   }
 
   if (sent) {
@@ -596,8 +694,7 @@ export async function handleFollowUpReply(
 }
 
 /** The closed-window path: the approved enquiry check-in template, the
- *  same row the journey sheet sends. False when no approved row exists
- *  or the send fails. */
+ *  same row the journey sheet sends. */
 async function sendCheckinTemplate(args: {
   db: SupabaseClient;
   accountId: string;
@@ -606,25 +703,25 @@ async function sendCheckinTemplate(args: {
   conversationId: string;
   contactName: string | null;
   property: Property | null;
-}): Promise<boolean> {
+}): Promise<'sent' | 'no_template' | 'failed'> {
   const { db, accountId } = args;
-  type Row = {
-    name: string;
-    language?: string | null;
-    status?: string | null;
-    category?: string | null;
-    body_text: string;
-  };
   const language = await resolveSendLanguage(db, accountId, args.contactId);
   const { data: rows } = await db
     .from('message_templates')
     .select('*')
     .eq('account_id', accountId)
-    .eq('name', 'enquiry_checkin_notice');
-  const template = pickJourneyCheckinTemplate(
-    narrowToLanguage((rows ?? []) as Row[], language)
+    .in('name', [
+      ...JOURNEY_CHECKIN_TEMPLATE_NAMES,
+      ...ENQUIRY_FOLLOWUP_TEMPLATE_NAMES,
+    ]);
+  const choice = pickClosedWindowFollowUpTemplate(
+    narrowToLanguage(
+      (rows ?? []) as ClosedWindowFollowUpTemplateRow[],
+      language
+    ),
+    Boolean(args.property)
   );
-  if (!template) return false;
+  if (!choice) return 'no_template';
 
   const { data: account } = await db
     .from('accounts')
@@ -632,14 +729,12 @@ async function sendCheckinTemplate(args: {
     .eq('id', accountId)
     .maybeSingle();
 
-  const params = buildJourneyCheckinParams(
-    args.contactName,
-    (account as { name?: string | null } | null)?.name ?? null,
-    args.property ? describeEnquiredProperty(args.property) : 'your enquiry'
-  );
-  const urlSuffix = args.property
-    ? journeyCheckinUrlSuffix(args.property, args.contactId)
-    : null;
+  const templateSend = buildClosedWindowFollowUpTemplateSend(choice, {
+    contactName: args.contactName,
+    accountName: (account as { name?: string | null } | null)?.name ?? null,
+    contactId: args.contactId,
+    property: args.property,
+  });
 
   const result = await sendWhatsAppMessageAndPersist({
     accountId,
@@ -648,18 +743,10 @@ async function sendCheckinTemplate(args: {
     conversationId: args.conversationId,
     kind: 'template',
     senderType: 'bot',
-    templateName: template.name,
-    templateLanguage: (template as Row).language || 'en_US',
-    templateParams: [...params],
-    messageParams: {
-      body: [...params],
-      // The URL button sits after the two quick replies, so index 2.
-      ...(urlSuffix ? { buttonParams: { 2: urlSuffix } } : {}),
-    },
-    templateRow: template,
-    text: resolveBodyText((template as Row).body_text, [...params]),
+    ...templateSend,
+    templateRow: choice.template,
   });
-  return result.success;
+  return result.success ? 'sent' : 'failed';
 }
 
 function resolveBodyText(body: string, params: string[]): string {

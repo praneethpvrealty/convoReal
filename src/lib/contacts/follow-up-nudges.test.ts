@@ -1,12 +1,15 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import type { Property } from '@/types';
 
 import {
   parseFollowUpReply,
   buildFollowUpCardBody,
   buildFollowUpCheckinText,
+  buildClosedWindowFollowUpTemplateSend,
   gatherFollowUpLeads,
+  pickClosedWindowFollowUpTemplate,
   FOLLOWUP_CHECKIN_PREFIX,
   FOLLOWUP_SNOOZE_PREFIX,
   FOLLOWUP_COLD_PREFIX,
@@ -94,6 +97,74 @@ describe('buildFollowUpCheckinText', () => {
     const text = buildFollowUpCheckinText('Housing Lead', null);
     expect(text).toContain('Hi!');
     expect(text).toContain('your property search');
+  });
+});
+
+describe('closed-window follow-up template', () => {
+  const journey = {
+    name: 'enquiry_checkin_notice',
+    language: 'en_US',
+    status: 'APPROVED',
+    category: 'Utility',
+    body_text: 'Hi {{1}} about {{3}}',
+  };
+  const enquiryStatus = {
+    name: 'enquiry_status_notice',
+    language: 'en_US',
+    status: 'APPROVED',
+    category: 'Utility',
+    body_text: 'Hi {{1}} from {{2}}',
+  };
+
+  it('uses the listing-specific template and its URL only when a listing exists', () => {
+    const choice = pickClosedWindowFollowUpTemplate(
+      [journey, enquiryStatus],
+      true
+    );
+    expect(choice?.kind).toBe('journey_checkin');
+    const send = buildClosedWindowFollowUpTemplateSend(choice!, {
+      contactName: 'Santhosh Otageri',
+      accountName: 'Aryavarta Ventures',
+      contactId: CONTACT_ID,
+      property: {
+        id: 'property-1',
+        property_code: 'PROP-1',
+        title: 'Devanahalli Plot',
+      } as Property,
+    });
+    expect(send.templateName).toBe('enquiry_checkin_notice');
+    expect(send.messageParams.buttonParams).toEqual({
+      2: `?property_id=PROP-1&v=${CONTACT_ID}`,
+    });
+  });
+
+  it('uses the approved property-free Utility template when no listing can fill the URL button', () => {
+    const choice = pickClosedWindowFollowUpTemplate(
+      [journey, enquiryStatus],
+      false
+    );
+    expect(choice?.kind).toBe('enquiry_followup');
+    const send = buildClosedWindowFollowUpTemplateSend(choice!, {
+      contactName: 'Santhosh Otageri',
+      accountName: 'Aryavarta Ventures',
+      contactId: CONTACT_ID,
+      property: null,
+    });
+    expect(send.templateName).toBe('enquiry_status_notice');
+    expect(send.templateParams).toEqual(['Santhosh', 'Aryavarta Ventures']);
+    expect(send.messageParams.buttonParams).toBeUndefined();
+  });
+
+  it('never falls through to a pending or Marketing template outside the customer window', () => {
+    expect(
+      pickClosedWindowFollowUpTemplate(
+        [
+          { ...journey, status: 'PENDING' },
+          { ...enquiryStatus, category: 'Marketing' },
+        ],
+        true
+      )
+    ).toBeNull();
   });
 });
 
@@ -338,7 +409,11 @@ describe('gatherFollowUpLeads', () => {
         db({
           contacts: [contact('1'), contact('2')],
           follow_up_nudges: [
-            { contact_id: '2', last_nudged_at: null, snoozed_until: daysAgo(-2) },
+            {
+              contact_id: '2',
+              last_nudged_at: null,
+              snoozed_until: daysAgo(-2),
+            },
           ],
           properties: [],
           ...asParty('1', '2'),
