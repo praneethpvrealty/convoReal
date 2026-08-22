@@ -15,6 +15,7 @@ import {
 
 import { ConvoRealLoader } from '@/components/loader';
 import { Avatar, SectionLabel, Tag, nameTagCap } from '@/components/ui';
+import { retryAnalyticsRequest } from '@/lib/analytics-request';
 import {
   fetchFocus,
   type FocusJourney,
@@ -82,18 +83,25 @@ export default function FocusScreen() {
   const { width } = useWindowDimensions();
   const now = new Date();
 
-  const focus = useQuery({ queryKey: ['focus'], queryFn: fetchFocus });
+  const focus = useQuery({
+    queryKey: ['focus'],
+    queryFn: fetchFocus,
+    retry: retryAnalyticsRequest,
+  });
   const insights = useQuery({
     queryKey: ['today-insights'],
     queryFn: fetchTodayInsights,
+    retry: retryAnalyticsRequest,
   });
   const sessions = useQuery({
     queryKey: ['today-sessions'],
     queryFn: fetchExpiringSessions,
+    retry: retryAnalyticsRequest,
   });
   const quiet = useQuery({
     queryKey: ['today-quiet-hot'],
     queryFn: fetchHotGoingQuiet,
+    retry: retryAnalyticsRequest,
   });
 
   const pull = usePullRefresh(() =>

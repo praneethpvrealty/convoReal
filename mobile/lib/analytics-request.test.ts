@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { withAnalyticsTimeout } from './analytics-request';
+import {
+  AnalyticsTimeoutError,
+  retryAnalyticsRequest,
+  withAnalyticsTimeout,
+} from './analytics-request';
 
 describe('withAnalyticsTimeout', () => {
   it('returns the underlying result before the deadline', async () => {
@@ -17,5 +21,19 @@ describe('withAnalyticsTimeout', () => {
     vi.advanceTimersByTime(10);
     await assertion;
     vi.useRealTimers();
+  });
+
+  it('does not retry a request after its deadline', () => {
+    expect(retryAnalyticsRequest(0, new AnalyticsTimeoutError('Pulse'))).toBe(
+      false
+    );
+  });
+
+  it('preserves the shared retry limit for other failures', () => {
+    const error = new Error('Network unavailable');
+
+    expect(retryAnalyticsRequest(0, error)).toBe(true);
+    expect(retryAnalyticsRequest(1, error)).toBe(true);
+    expect(retryAnalyticsRequest(2, error)).toBe(false);
   });
 });

@@ -5,6 +5,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { BottomSheet, sheetScrollArea } from '@/components/sheet';
 import { Avatar } from '@/components/ui';
+import { retryAnalyticsRequest } from '@/lib/analytics-request';
 import { useAuthStore } from '@/lib/auth-store';
 import { openContactChat } from '@/lib/open-chat';
 import { fetchPropertyViewers } from '@/lib/pulse';
@@ -30,10 +31,17 @@ export function PropertyViewersSheet({
   const accountId = useAuthStore((s) => s.profile?.account_id);
   const { show, dialogProps } = useAppDialog();
 
-  const { data: viewers, isLoading } = useQuery({
+  const {
+    data: viewers,
+    isError,
+    isLoading,
+    isRefetching,
+    refetch,
+  } = useQuery({
     queryKey: ['pulse-viewers', propertyId],
     enabled: Boolean(accountId && propertyId),
     queryFn: () => fetchPropertyViewers(accountId!, propertyId!),
+    retry: retryAnalyticsRequest,
   });
 
   return (
@@ -46,6 +54,60 @@ export function PropertyViewersSheet({
         {isLoading ? (
           <View style={{ paddingVertical: spacing.xl, alignItems: 'center' }}>
             <ActivityIndicator color={colors.primary} />
+          </View>
+        ) : isError ? (
+          <View style={[styles.empty, { borderColor: colors.border }]}>
+            <Ionicons
+              name="cloud-offline-outline"
+              size={30}
+              color={colors.warning}
+            />
+            <Text
+              style={{
+                fontSize: 14.5,
+                fontFamily: f.bold,
+                color: colors.text,
+              }}
+            >
+              Viewer activity unavailable
+            </Text>
+            <Text
+              style={{
+                fontSize: 12.5,
+                lineHeight: 18,
+                color: colors.textMuted,
+                textAlign: 'center',
+              }}
+            >
+              We could not load the identified viewers. Check your connection
+              and try again.
+            </Text>
+            <Pressable
+              onPress={() => refetch()}
+              disabled={isRefetching}
+              accessibilityRole="button"
+              accessibilityLabel="Retry loading identified viewers"
+              style={[styles.retry, { backgroundColor: colors.primarySoft }]}
+            >
+              {isRefetching ? (
+                <ActivityIndicator size="small" color={colors.primary} />
+              ) : (
+                <Ionicons
+                  name="refresh-outline"
+                  size={16}
+                  color={colors.primary}
+                />
+              )}
+              <Text
+                style={{
+                  fontSize: 12.5,
+                  fontFamily: f.bold,
+                  color: colors.primary,
+                }}
+              >
+                Retry
+              </Text>
+            </Pressable>
           </View>
         ) : !viewers || viewers.length === 0 ? (
           <View style={[styles.empty, { borderColor: colors.border }]}>
@@ -141,5 +203,13 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     paddingHorizontal: 12,
     paddingVertical: 8,
+  },
+  retry: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    borderRadius: radius.full,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
   },
 });

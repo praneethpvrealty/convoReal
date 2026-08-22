@@ -1,5 +1,19 @@
 export const ANALYTICS_REQUEST_TIMEOUT_MS = 15_000;
 
+export class AnalyticsTimeoutError extends Error {
+  constructor(label: string) {
+    super(`${label} timed out`);
+    this.name = 'AnalyticsTimeoutError';
+  }
+}
+
+export function retryAnalyticsRequest(
+  failureCount: number,
+  error: Error
+): boolean {
+  return !(error instanceof AnalyticsTimeoutError) && failureCount < 2;
+}
+
 export function withAnalyticsTimeout<T>(
   promise: PromiseLike<T>,
   label: string,
@@ -7,7 +21,7 @@ export function withAnalyticsTimeout<T>(
 ): Promise<T> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
-      reject(new Error(`${label} timed out`));
+      reject(new AnalyticsTimeoutError(label));
     }, timeoutMs);
 
     Promise.resolve(promise).then(

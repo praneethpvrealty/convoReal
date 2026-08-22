@@ -24,6 +24,7 @@ import {
   Tag,
   nameTagCap,
 } from '@/components/ui';
+import { retryAnalyticsRequest } from '@/lib/analytics-request';
 import { useAuthStore } from '@/lib/auth-store';
 import { formatInr } from '@/lib/format';
 import {
@@ -81,16 +82,19 @@ export default function PulseScreen() {
     queryKey: ['pulse-stats'],
     enabled: Boolean(accountId),
     queryFn: () => fetchPulseStats(accountId!),
+    retry: retryAnalyticsRequest,
   });
   const top = useQuery({
     queryKey: ['pulse-top-properties'],
     enabled: Boolean(accountId),
     queryFn: () => fetchPulseTopProperties(accountId!),
+    retry: retryAnalyticsRequest,
   });
   const feed = useQuery({
     queryKey: ['pulse-feed'],
     enabled: Boolean(accountId),
     queryFn: fetchPulseFeed,
+    retry: retryAnalyticsRequest,
   });
 
   const events = useMemo(() => {
