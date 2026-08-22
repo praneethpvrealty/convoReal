@@ -279,6 +279,7 @@ export async function POST(request: Request) {
         draft.response_summary ? `Response: ${draft.response_summary}` : null,
         draft.next_action ? `Next: ${draft.next_action}` : null,
         draft.timeline_hint ? `When: ${draft.timeline_hint}` : null,
+        draft.requirement ? `Requirement: ${draft.requirement}` : null,
       ]
         .filter((l): l is string => l !== null)
         .join('\n');
