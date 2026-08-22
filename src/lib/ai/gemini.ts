@@ -351,6 +351,33 @@ export function looksLikeBuyerRequirement(text?: string): boolean {
 }
 
 /**
+ * True when a parsed listing draft is really a BUYER'S BRIEF that the
+ * listing parser did its best with.
+ *
+ * A forwarded chat in which someone says what they are hunting for —
+ * "cancelled my booking, looking for 1 acre residential land in North
+ * Bangalore near the airport, 8 to 10cr, direct purchase only" — has
+ * every surface feature of a listing: a type, a land area, a locality.
+ * The classifier read it as inventory and the parser dutifully produced
+ * "1 Acre Residential Land Requirement in North Bangalore near Airport,
+ * Price: Missing", which is a demand filed as supply.
+ *
+ * Two things separate the two, and both are free to check: a listing
+ * being OFFERED names a price, and a brief says outright that it is one.
+ * Requiring both keeps a genuine listing whose price the sender simply
+ * omitted out of this — that draft asks for the price, as it should.
+ */
+export function draftReadsAsRequirement(
+  draft: Pick<ParsedPropertyDraft, 'price' | 'title' | 'description'>,
+  sourceText?: string | null
+): boolean {
+  if (draft.price !== null && draft.price !== undefined) return false;
+  return [draft.title, draft.description, sourceText].some((field) =>
+    looksLikeBuyerRequirement(field || undefined)
+  );
+}
+
+/**
  * Transcribe the visible text from an image (a forwarded listing poster,
  * screenshot, etc.) so deterministic listing detection can run on an
  * image-only message that has no caption. Returns '' on failure so the
@@ -423,18 +450,20 @@ export async function classifyImageOrText(
   text?: string,
   buffer?: Buffer,
   mimeType?: string
-): Promise<'property' | 'contact' | 'schedule' | 'client_reply' | 'none'> {
+): Promise<'property' | 'contact' | 'schedule' | 'client_reply' | 'requirement' | 'none'> {
   const systemInstruction =
     "You are an expert real estate lead classifier. Your job is to classify if the incoming message (which can be text and/or an image) is:\n" +
     "1. 'property': A property listing to be added to inventory, layout plan, listing advertisement, or property details description.\n" +
     "2. 'contact': Contact details, vCard details, request to add/save a contact/lead, screenshot of contact/profile details, or lead forwarding/inquiry messages containing contact name/phone and their property interest (e.g. 'VaishaliGaur, 917737932199 is interested in SJR Blue Waters' or Magicbricks/99acres/Housing forwards).\n" +
     "3. 'schedule': A meeting, site visit, call or appointment being arranged or confirmed for a stated day/time — typically a screenshot of a chat thread where two people settle on when to meet (e.g. 'Monday 5 pm the meeting with the lawyer is confirmed right' / 'Yes, its confirmed'), or a calendar invite screenshot.\n" +
     "4. 'client_reply': A screenshot of a WhatsApp chat thread where an EXISTING client/lead is replying with a status update or decision about a property that was already shared or discussed with them — e.g. answering a follow-up/check-in like 'just checking in on <property>... are you still considering?' with 'I will speak to the chairman and let you know', 'still thinking about it', 'we liked it, will confirm next week'. The thread typically shows the agent's earlier property link/check-in and the other party's response bubble.\n" +
-    "5. 'none': None of the above.\n\n" +
+    "5. 'requirement': A buyer stating what they are LOOKING FOR — criteria and a budget, with no specific property being offered (e.g. 'I cancelled my Lodha booking. Looking for North Bangalore near airport, residential land 1 acre, budget 8cr to 10cr. Only direct purchase not from developers'). Often a forwarded chat from a client.\n" +
+    "6. 'none': None of the above.\n\n" +
     "Precedence: when BOTH property listing details (area/sq ft, dimensions like 50x75, facing, price in cr/lakh, plot/site number, BHK) AND a person's name/phone are present, classify as 'property' — the listing is the primary intent. Reserve 'contact' for messages whose main purpose is saving a person or forwarding a buyer's interest/requirement.\n" +
     "'client_reply' beats 'property' and 'contact' for a two-sided chat screenshot whose point is the OTHER party's answer about an already-shared listing: the property preview card or code (e.g. PROP-1138) inside such a thread is context, not a new listing, and the person replying is already known, not a new lead to save. Reserve 'contact' for forwards that INTRODUCE a person.\n" +
+    "'requirement' beats 'property': demand is not supply. A listing being OFFERED names ONE specific property and its asking price; a requirement names criteria ('looking for', 'need', 'requirement', 'budget X to Y') and no price of its own. A message that is plainly someone's shopping brief is 'requirement' however many sqft/acre/BHK/locality words it carries.\n" +
     "'schedule' is the narrowest class and never wins over the other two: a listing or a lead forward that merely mentions a day ('call him on Monday', 'site visit possible this weekend') is still 'property' or 'contact'. Choose 'schedule' only when arranging or confirming the WHEN is the entire point of the message and a specific day or time is actually stated. A vague promise to get back ('will let you know', 'soon') is 'client_reply', not 'schedule'.\n" +
-    "Only respond with exactly 'property', 'contact', 'schedule', 'client_reply', or 'none'. Absolutely no markdown, no punctuation, and no other text.";
+    "Only respond with exactly 'property', 'contact', 'schedule', 'client_reply', 'requirement', or 'none'. Absolutely no markdown, no punctuation, and no other text.";
 
   const parts: GeminiPart[] = [];
   if (buffer && mimeType) {
@@ -453,7 +482,14 @@ export async function classifyImageOrText(
     const response = await generateContentRaw(contents, systemInstruction, false, { tier: 'lite', feature: 'chatbot_classify' });
     const classification = response.toLowerCase().trim();
     if (classification.includes("client_reply") || classification.includes("client")) return "client_reply";
-    if (classification.includes("property")) return "property";
+    if (classification.includes("requirement")) return "requirement";
+    if (classification.includes("property")) {
+      // Demand read as supply. Free: the caption already says
+      // "looking for"/"budget" and looksLikePropertyListing is false
+      // for exactly that text, so no round trip is spent here.
+      if (looksLikeBuyerRequirement(text)) return "requirement";
+      return "property";
+    }
     if (classification.includes("schedule")) {
       // A listing poster that also names a viewing day must not be
       // pulled onto the calendar instead of into inventory.

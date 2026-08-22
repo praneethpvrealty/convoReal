@@ -8,18 +8,36 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 
 import { generateJson, generateText } from './gemini';
-import { parseListingFromImageOrText, updateListingDraft, parseContactFromImageOrText, updateContactDraft, looksLikePropertyListing, looksLikeBuyerRequirement, inferBuyerFromRequirements, normalizeClassification, promoteClassificationFromNameTag, classifyImageOrText, normalizeListingFeatures } from './gemini';
+import {
+  parseListingFromImageOrText,
+  updateListingDraft,
+  parseContactFromImageOrText,
+  updateContactDraft,
+  looksLikePropertyListing,
+  looksLikeBuyerRequirement,
+  draftReadsAsRequirement,
+  inferBuyerFromRequirements,
+  normalizeClassification,
+  promoteClassificationFromNameTag,
+  classifyImageOrText,
+  normalizeListingFeatures,
+} from './gemini';
 
 describe('Gemini AI WhatsApp Parsers', { timeout: 30000 }, () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
       const body = init?.body ? JSON.parse(init.body as string) : {};
-      const userMessage = body.contents?.[0]?.parts?.find((p: { text?: string }) => p.text)?.text || '';
+      const userMessage =
+        body.contents?.[0]?.parts?.find((p: { text?: string }) => p.text)
+          ?.text || '';
       const systemInstruction = body.systemInstruction?.parts?.[0]?.text || '';
 
       let mockText = '';
 
-      if (systemInstruction.includes('real estate data parser') || systemInstruction.includes('real estate data updater')) {
+      if (
+        systemInstruction.includes('real estate data parser') ||
+        systemInstruction.includes('real estate data updater')
+      ) {
         // Property Listing Parsing / Updating
         if (userMessage.includes('Ramesh Sajepa')) {
           mockText = JSON.stringify({
@@ -33,11 +51,20 @@ describe('Gemini AI WhatsApp Parsers', { timeout: 30000 }, () => {
             bedrooms: 3,
             bathrooms: 3,
             area_sqft: 2400,
-            features: ['Basement', 'Library', 'Mezzanine', 'Puja Room', 'Two Kitchens', 'Burma Teak Doors and Windows', 'Italian Marble Flooring', 'Wood Flooring'],
+            features: [
+              'Basement',
+              'Library',
+              'Mezzanine',
+              'Puja Room',
+              'Two Kitchens',
+              'Burma Teak Doors and Windows',
+              'Italian Marble Flooring',
+              'Wood Flooring',
+            ],
             nearby_highlights: [],
             owner_contact_name: 'Ramesh Sajepa',
             owner_contact_role: 'Agent',
-            owner_contact_phone: '9876543210'
+            owner_contact_phone: '9876543210',
           });
         } else {
           // handles property updates with landmarks and amenities
@@ -56,45 +83,75 @@ describe('Gemini AI WhatsApp Parsers', { timeout: 30000 }, () => {
             nearby_highlights: ['Wipro Office'],
             owner_contact_name: 'Amit',
             owner_contact_role: 'Agent',
-            owner_contact_phone: '919876543210'
+            owner_contact_phone: '919876543210',
           });
         }
       } else {
         // Contact Parsing / Updating
-        if (userMessage.includes('Shreenath') && userMessage.includes('LAKSHMAN')) {
+        if (
+          userMessage.includes('Shreenath') &&
+          userMessage.includes('LAKSHMAN')
+        ) {
           mockText = JSON.stringify({
             contacts: [
-              { name: 'Shreenath', phone: '91789344713', classification: 'Buyer', notes: 'SJR Blue Waters, Sarjapur Road Magicbricks' },
-              { name: 'LAKSHMAN', phone: '917502598759', classification: 'Buyer', notes: 'SJR Blue Waters, Sarjapur Road Magicbricks' },
-              { name: 'Praveen', phone: '919686194933', classification: 'Buyer', notes: 'SJR Blue Waters, Sarjapur Road Magicbricks' },
-              { name: 'Omi NA', phone: '919986033197', classification: 'Buyer', notes: 'SJR Blue Waters, Sarjapur Road Magicbricks' },
-            ]
+              {
+                name: 'Shreenath',
+                phone: '91789344713',
+                classification: 'Buyer',
+                notes: 'SJR Blue Waters, Sarjapur Road Magicbricks',
+              },
+              {
+                name: 'LAKSHMAN',
+                phone: '917502598759',
+                classification: 'Buyer',
+                notes: 'SJR Blue Waters, Sarjapur Road Magicbricks',
+              },
+              {
+                name: 'Praveen',
+                phone: '919686194933',
+                classification: 'Buyer',
+                notes: 'SJR Blue Waters, Sarjapur Road Magicbricks',
+              },
+              {
+                name: 'Omi NA',
+                phone: '919986033197',
+                classification: 'Buyer',
+                notes: 'SJR Blue Waters, Sarjapur Road Magicbricks',
+              },
+            ],
           });
-        } else if (userMessage.includes('VaishaliGaur') && !userMessage.includes('referred by Suresh Babu')) {
+        } else if (
+          userMessage.includes('VaishaliGaur') &&
+          !userMessage.includes('referred by Suresh Babu')
+        ) {
           mockText = JSON.stringify({
-            contacts: [{
-              name: 'VaishaliGaur',
-              phone: '917737932199',
-              email: null,
-              company: null,
-              classification: 'Buyer',
-              notes: 'Interested in SJR Blue Waters',
-              referrer_name: 'Suresh Babu',
-              referrer_phone: null
-            }]
+            contacts: [
+              {
+                name: 'VaishaliGaur',
+                phone: '917737932199',
+                email: null,
+                company: null,
+                classification: 'Buyer',
+                notes: 'Interested in SJR Blue Waters',
+                referrer_name: 'Suresh Babu',
+                referrer_phone: null,
+              },
+            ],
           });
         } else {
           mockText = JSON.stringify({
-            contacts: [{
-              name: 'VaishaliGaur',
-              phone: '917737932199',
-              email: null,
-              company: null,
-              classification: 'Buyer',
-              notes: 'Interested in SJR Blue Waters',
-              referrer_name: 'Suresh Babu',
-              referrer_phone: '918888888888'
-            }]
+            contacts: [
+              {
+                name: 'VaishaliGaur',
+                phone: '917737932199',
+                email: null,
+                company: null,
+                classification: 'Buyer',
+                notes: 'Interested in SJR Blue Waters',
+                referrer_name: 'Suresh Babu',
+                referrer_phone: '918888888888',
+              },
+            ],
           });
         }
       }
@@ -107,13 +164,13 @@ describe('Gemini AI WhatsApp Parsers', { timeout: 30000 }, () => {
               content: {
                 parts: [
                   {
-                    text: mockText
-                  }
-                ]
-              }
-            }
-          ]
-        })
+                    text: mockText,
+                  },
+                ],
+              },
+            },
+          ],
+        }),
       };
     });
   });
@@ -138,17 +195,24 @@ Phone: 9876543210
 Aryavarta Ventures`;
 
       const draft = await parseListingFromImageOrText(message);
-      
+
       expect(draft.title).toContain('3 BHK House');
       expect(draft.price).toBe(82000000);
       expect(draft.location).toContain('HSR Layout');
-      
+
       // Verification of amenities vs landmarks
       expect(draft.features).toBeDefined();
       expect(draft.features!.length).toBeGreaterThan(0);
       // "Puja Room" or "Basement" should be parsed as features/amenities, not landmark highlights
-      expect(draft.features!.some(f => f.toLowerCase().includes('puja') || f.toLowerCase().includes('basement') || f.toLowerCase().includes('flooring'))).toBe(true);
-      
+      expect(
+        draft.features!.some(
+          (f) =>
+            f.toLowerCase().includes('puja') ||
+            f.toLowerCase().includes('basement') ||
+            f.toLowerCase().includes('flooring')
+        )
+      ).toBe(true);
+
       // Verification of owner/agent referrer
       expect(draft.owner_contact_name).toContain('Ramesh');
       expect(draft.owner_contact_role).toBe('Agent');
@@ -185,17 +249,21 @@ Aryavarta Ventures`;
         rent_per_month: null,
         maintenance: null,
         advance: null,
-        gst: null
+        gst: null,
       };
 
       const updated = await updateListingDraft(
         initialDraft,
-        "add Swimming Pool to amenities, and the landmark is near Wipro Office. Also contact name is Amit (Agent) 919876543210"
+        'add Swimming Pool to amenities, and the landmark is near Wipro Office. Also contact name is Amit (Agent) 919876543210'
       );
 
       expect(updated.features).toContain('Swimming Pool');
       expect(updated.features).toContain('Power Backup');
-      expect(updated.nearby_highlights!.some(h => h.toLowerCase().includes('wipro'))).toBe(true);
+      expect(
+        updated.nearby_highlights!.some((h) =>
+          h.toLowerCase().includes('wipro')
+        )
+      ).toBe(true);
       expect(updated.owner_contact_name).toBe('Amit');
       expect(updated.owner_contact_phone).toContain('9876543210');
       expect(updated.owner_contact_role).toBe('Agent');
@@ -209,7 +277,7 @@ Please save.
 Referred by Suresh Babu.`;
 
       const container = await parseContactFromImageOrText(message);
-      
+
       expect(container.contacts.length).toBe(1);
       const contact = container.contacts[0];
       expect(contact.name).toBe('VaishaliGaur');
@@ -219,23 +287,25 @@ Referred by Suresh Babu.`;
 
     it('handles updates to contact referrers', async () => {
       const initialContainer = {
-        contacts: [{
-          name: 'VaishaliGaur',
-          name_tag: null,
-          phone: '917737932199',
-          email: null,
-          company: null,
-          classification: 'Buyer' as const,
-          notes: 'Interested in SJR Blue Waters',
-          requirements: null,
-          referrer_name: null,
-          referrer_phone: null
-        }]
+        contacts: [
+          {
+            name: 'VaishaliGaur',
+            name_tag: null,
+            phone: '917737932199',
+            email: null,
+            company: null,
+            classification: 'Buyer' as const,
+            notes: 'Interested in SJR Blue Waters',
+            requirements: null,
+            referrer_name: null,
+            referrer_phone: null,
+          },
+        ],
       };
 
       const updated = await updateContactDraft(
         initialContainer,
-        "referred by Suresh Babu phone 918888888888"
+        'referred by Suresh Babu phone 918888888888'
       );
 
       expect(updated.contacts[0].referrer_name).toBe('Suresh Babu');
@@ -250,10 +320,13 @@ Hi User, Omi NA, 919986033197 is interested in SJR Blue Waters, Sarjapur Road Ma
 
       try {
         const container = await parseContactFromImageOrText(message);
-        console.log("SUCCESSFUL PARSE CONTAINER:", JSON.stringify(container, null, 2));
+        console.log(
+          'SUCCESSFUL PARSE CONTAINER:',
+          JSON.stringify(container, null, 2)
+        );
         expect(container.contacts.length).toBe(4);
       } catch (err) {
-        console.error("PARSING FAILED WITH ERROR:", err);
+        console.error('PARSING FAILED WITH ERROR:', err);
         throw err;
       }
     });
@@ -271,22 +344,30 @@ describe('looksLikePropertyListing', () => {
 
   it('keeps a buyer-lead forward as a contact', () => {
     expect(
-      looksLikePropertyListing('Praveen, 919686194933 is interested in SJR Blue Waters, 3 BHK')
+      looksLikePropertyListing(
+        'Praveen, 919686194933 is interested in SJR Blue Waters, 3 BHK'
+      )
     ).toBe(false);
   });
 
   it('keeps a portal lead forward as a contact', () => {
     expect(
-      looksLikePropertyListing('Hi User, LAKSHMAN, 917502598759 is interested in SJR Blue Waters Magicbricks')
+      looksLikePropertyListing(
+        'Hi User, LAKSHMAN, 917502598759 is interested in SJR Blue Waters Magicbricks'
+      )
     ).toBe(false);
   });
 
   it('does not misclassify a plain contact card', () => {
-    expect(looksLikePropertyListing('Deepak P\n9886217718\ndeepak@example.com')).toBe(false);
+    expect(
+      looksLikePropertyListing('Deepak P\n9886217718\ndeepak@example.com')
+    ).toBe(false);
   });
 
   it('requires more than one property spec to override', () => {
-    expect(looksLikePropertyListing('Nice villa available, call Deepak 9886217718')).toBe(false);
+    expect(
+      looksLikePropertyListing('Nice villa available, call Deepak 9886217718')
+    ).toBe(false);
   });
 
   it('returns false for empty text', () => {
@@ -298,20 +379,32 @@ describe('looksLikePropertyListing', () => {
 describe('looksLikeBuyerRequirement', () => {
   it('treats an explicit "Requirements -" message as a buyer requirement', () => {
     expect(
-      looksLikeBuyerRequirement('Requirements - 4000 sqft residential plots in Koramangala 3rd block or in HSR layout.')
+      looksLikeBuyerRequirement(
+        'Requirements - 4000 sqft residential plots in Koramangala 3rd block or in HSR layout.'
+      )
     ).toBe(true);
   });
 
   it('recognises "looking for" / "wants to buy" / "budget is" phrasing', () => {
-    expect(looksLikeBuyerRequirement('looking for a 2BHK in HSR layout')).toBe(true);
-    expect(looksLikeBuyerRequirement('client wants to buy a plot near Hosur')).toBe(true);
+    expect(looksLikeBuyerRequirement('looking for a 2BHK in HSR layout')).toBe(
+      true
+    );
+    expect(
+      looksLikeBuyerRequirement('client wants to buy a plot near Hosur')
+    ).toBe(true);
     expect(looksLikeBuyerRequirement('budget is around 90L')).toBe(true);
   });
 
   it('does not flag a property listing being offered', () => {
-    expect(looksLikeBuyerRequirement('3 BHK flat for sale in HSR, 1.2cr, contact owner Raju')).toBe(false);
     expect(
-      looksLikeBuyerRequirement('3750 sqft\n50*75\nEast facing\n17cr.\nSite number 569\nDeepak 9886217718')
+      looksLikeBuyerRequirement(
+        '3 BHK flat for sale in HSR, 1.2cr, contact owner Raju'
+      )
+    ).toBe(false);
+    expect(
+      looksLikeBuyerRequirement(
+        '3750 sqft\n50*75\nEast facing\n17cr.\nSite number 569\nDeepak 9886217718'
+      )
     ).toBe(false);
   });
 
@@ -321,10 +414,64 @@ describe('looksLikeBuyerRequirement', () => {
   });
 });
 
+describe('draftReadsAsRequirement', () => {
+  it('catches the buyer brief the listing parser filed as inventory', () => {
+    expect(
+      draftReadsAsRequirement(
+        {
+          price: null,
+          title:
+            '1 Acre Residential Land Requirement in North Bangalore near Airport',
+          description: 'Land area 1 acre. Nearby: airport.',
+        },
+        null
+      )
+    ).toBe(true);
+  });
+
+  it('reads the source text when the title says nothing', () => {
+    expect(
+      draftReadsAsRequirement(
+        { price: null, title: '1 Acre Residential Land', description: null },
+        'Looking for North Bangalore near airport, residential land 1 acre, budget 8cr to 10cr'
+      )
+    ).toBe(true);
+  });
+
+  it('leaves a priced listing alone whatever it says', () => {
+    expect(
+      draftReadsAsRequirement(
+        {
+          price: 90000000,
+          title: 'Residential land matching a 1 acre requirement',
+          description: null,
+        },
+        'looking for buyers'
+      )
+    ).toBe(false);
+  });
+
+  it('leaves a listing whose price the sender simply omitted alone', () => {
+    expect(
+      draftReadsAsRequirement(
+        {
+          price: null,
+          title: '3 BHK flat in HSR Layout',
+          description: 'East facing, 1450 sqft, immediate possession',
+        },
+        '3 BHK flat in HSR Layout, east facing, 1450 sqft'
+      )
+    ).toBe(false);
+  });
+});
+
 describe('inferBuyerFromRequirements', () => {
   it('upgrades an Others contact with requirements to Buyer', () => {
     expect(
-      inferBuyerFromRequirements('Others', 'Looking for 2bhks in purva vantage, hsr layout.')
+      inferBuyerFromRequirements(
+        'Others',
+        'Looking for 2bhks in purva vantage, hsr layout.'
+      )
     ).toBe('Buyer');
   });
 
@@ -334,8 +481,12 @@ describe('inferBuyerFromRequirements', () => {
   });
 
   it('does not override a deliberately set role', () => {
-    expect(inferBuyerFromRequirements('Seller', 'Looking for a 2BHK')).toBe('Seller');
-    expect(inferBuyerFromRequirements('Owner & Buyer', 'wants a plot in Whitefield')).toBe('Owner & Buyer');
+    expect(inferBuyerFromRequirements('Seller', 'Looking for a 2BHK')).toBe(
+      'Seller'
+    );
+    expect(
+      inferBuyerFromRequirements('Owner & Buyer', 'wants a plot in Whitefield')
+    ).toBe('Owner & Buyer');
   });
 
   it('leaves an existing Buyer as Buyer', () => {
@@ -373,17 +524,28 @@ describe('promoteClassificationFromNameTag', () => {
   });
 
   it('reads the words the trade actually uses', () => {
-    expect(promoteClassificationFromNameTag('broker', 'Others').classification).toBe('Agent');
-    expect(promoteClassificationFromNameTag('Builder', 'Others').classification).toBe('Developer');
+    expect(
+      promoteClassificationFromNameTag('broker', 'Others').classification
+    ).toBe('Agent');
+    expect(
+      promoteClassificationFromNameTag('Builder', 'Others').classification
+    ).toBe('Developer');
   });
 
   it('promotes every classification value, however it was cased', () => {
-    expect(promoteClassificationFromNameTag('Owner', 'Others').classification).toBe('Owner');
-    expect(promoteClassificationFromNameTag('SELLER', 'Others').classification).toBe('Seller');
-    expect(promoteClassificationFromNameTag('developer', 'Others').classification).toBe('Developer');
-    expect(promoteClassificationFromNameTag('owner and buyer', 'Others').classification).toBe(
-      'Owner & Buyer'
-    );
+    expect(
+      promoteClassificationFromNameTag('Owner', 'Others').classification
+    ).toBe('Owner');
+    expect(
+      promoteClassificationFromNameTag('SELLER', 'Others').classification
+    ).toBe('Seller');
+    expect(
+      promoteClassificationFromNameTag('developer', 'Others').classification
+    ).toBe('Developer');
+    expect(
+      promoteClassificationFromNameTag('owner and buyer', 'Others')
+        .classification
+    ).toBe('Owner & Buyer');
   });
 
   it('corrects a classification the parser had already guessed wrong', () => {
@@ -398,7 +560,9 @@ describe('promoteClassificationFromNameTag', () => {
       name_tag: 'Advocate',
       classification: 'Buyer',
     });
-    expect(promoteClassificationFromNameTag('Bank DSA', 'Others').name_tag).toBe('Bank DSA');
+    expect(
+      promoteClassificationFromNameTag('Bank DSA', 'Others').name_tag
+    ).toBe('Bank DSA');
   });
 
   it('is a no-op when there is no tag', () => {
@@ -412,26 +576,36 @@ describe('promoteClassificationFromNameTag', () => {
 describe('normalizeListingFeatures', () => {
   it('replaces "Black and white payment" with "Mixed payment terms"', () => {
     expect(
-      normalizeListingFeatures(['A Khata', 'Black and white payment', 'Corner land'])
+      normalizeListingFeatures([
+        'A Khata',
+        'Black and white payment',
+        'Corner land',
+      ])
     ).toEqual(['A Khata', 'Mixed payment terms', 'Corner land']);
   });
 
   it('matches casing and "&"/"n" variants', () => {
-    expect(normalizeListingFeatures(['Black & White Payment'])).toEqual(['Mixed payment terms']);
-    expect(normalizeListingFeatures(['black n white'])).toEqual(['Mixed payment terms']);
+    expect(normalizeListingFeatures(['Black & White Payment'])).toEqual([
+      'Mixed payment terms',
+    ]);
+    expect(normalizeListingFeatures(['black n white'])).toEqual([
+      'Mixed payment terms',
+    ]);
   });
 
   it('dedupes when the neutral label already exists', () => {
     expect(
-      normalizeListingFeatures(['Mixed payment terms', 'Black and white payment'])
+      normalizeListingFeatures([
+        'Mixed payment terms',
+        'Black and white payment',
+      ])
     ).toEqual(['Mixed payment terms']);
   });
 
   it('trims, drops empties, and leaves other features untouched', () => {
-    expect(normalizeListingFeatures(['  Access Road  ', '', 'Fenced Boundary'])).toEqual([
-      'Access Road',
-      'Fenced Boundary',
-    ]);
+    expect(
+      normalizeListingFeatures(['  Access Road  ', '', 'Fenced Boundary'])
+    ).toEqual(['Access Road', 'Fenced Boundary']);
   });
 
   it('returns an empty array for non-array input', () => {
@@ -450,7 +624,9 @@ describe('classifyImageOrText image-only override', () => {
       else if (sys.includes('OCR engine')) text = ocrText;
       return {
         ok: true,
-        json: async () => ({ candidates: [{ content: { parts: [{ text }] } }] }),
+        json: async () => ({
+          candidates: [{ content: { parts: [{ text }] } }],
+        }),
       };
     });
   };
@@ -458,14 +634,24 @@ describe('classifyImageOrText image-only override', () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it('reclassifies an image-only listing poster from contact to property', async () => {
-    stubClassifyThenOcr('3750 sqft\n50*75\nEast facing\n17cr.\nSite number 569\nDeepak P 9886217718');
-    const result = await classifyImageOrText(undefined, Buffer.from('img'), 'image/jpeg');
+    stubClassifyThenOcr(
+      '3750 sqft\n50*75\nEast facing\n17cr.\nSite number 569\nDeepak P 9886217718'
+    );
+    const result = await classifyImageOrText(
+      undefined,
+      Buffer.from('img'),
+      'image/jpeg'
+    );
     expect(result).toBe('property');
   });
 
   it('keeps an image-only contact card as contact', async () => {
     stubClassifyThenOcr('Deepak P\n9886217718\ndeepak@example.com');
-    const result = await classifyImageOrText(undefined, Buffer.from('img'), 'image/jpeg');
+    const result = await classifyImageOrText(
+      undefined,
+      Buffer.from('img'),
+      'image/jpeg'
+    );
     expect(result).toBe('contact');
   });
 });
@@ -480,7 +666,9 @@ describe('classifyImageOrText schedule class', () => {
       else if (sys.includes('OCR engine')) text = ocrText;
       return {
         ok: true,
-        json: async () => ({ candidates: [{ content: { parts: [{ text }] } }] }),
+        json: async () => ({
+          candidates: [{ content: { parts: [{ text }] } }],
+        }),
       };
     });
   };
@@ -492,13 +680,24 @@ describe('classifyImageOrText schedule class', () => {
       'schedule',
       'Monday 5 pm the meeting with Kusuma lawyer is confirmed right.\nYes Sharan, its confirmed\nThanks'
     );
-    const result = await classifyImageOrText(undefined, Buffer.from('img'), 'image/jpeg');
+    const result = await classifyImageOrText(
+      undefined,
+      Buffer.from('img'),
+      'image/jpeg'
+    );
     expect(result).toBe('schedule');
   });
 
   it('keeps a listing poster on property even when the model says schedule', async () => {
-    stubClassifyThenOcr('schedule', '3750 sqft\n50*75\nEast facing\n17cr.\nVisit on Monday 5pm');
-    const result = await classifyImageOrText(undefined, Buffer.from('img'), 'image/jpeg');
+    stubClassifyThenOcr(
+      'schedule',
+      '3750 sqft\n50*75\nEast facing\n17cr.\nVisit on Monday 5pm'
+    );
+    const result = await classifyImageOrText(
+      undefined,
+      Buffer.from('img'),
+      'image/jpeg'
+    );
     expect(result).toBe('property');
   });
 

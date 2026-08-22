@@ -8,6 +8,7 @@ import {
   type ParsedPropertyDraft,
   classifyImageOrText,
   looksLikeBuyerRequirement,
+  draftReadsAsRequirement,
   parseContactFromImageOrText,
   parseClientReplyFromImageOrText,
   updateContactDraft,
@@ -2699,7 +2700,7 @@ export async function processOwnerChatbotMessage(
     // A card and a document each decide themselves what they are, so
     // neither reaches the model — and neither is charged for a
     // classification that never ran.
-    let classification: 'property' | 'contact' | 'schedule' | 'client_reply' | 'none';
+    let classification: 'property' | 'contact' | 'schedule' | 'client_reply' | 'requirement' | 'none';
     if (isContactCardMsg) {
       classification = 'contact';
     } else if (isDocMsg) {
@@ -2742,9 +2743,11 @@ export async function processOwnerChatbotMessage(
       classification = 'none';
     }
 
-    // --- CLIENT REPLY FLOW (forwarded chat: a client responding on an
-    // already-shared listing — log it, don't draft from it) ---
-    if (classification === 'client_reply') {
+    // --- CLIENT REPLY / REQUIREMENT FLOW (forwarded chat: a client
+    // responding on an already-shared listing, or saying what they are
+    // hunting for — log it against them, don't draft a listing from
+    // it) ---
+    if (classification === 'client_reply' || classification === 'requirement') {
       return await runClientReplyCapture();
     }
 
@@ -2859,6 +2862,15 @@ export async function processOwnerChatbotMessage(
         }
 
         parsedDraft = await backfillLocationFromMapLink(parsedDraft);
+
+        // The parse says what the classifier could not: a priceless
+        // draft that calls itself a requirement is a buyer's brief,
+        // and filing it as inventory puts demand in the supply book.
+        // The parse is already paid for, so this costs nothing.
+        if (draftReadsAsRequirement(parsedDraft, cleanedText)) {
+          console.log('[chatbot-engine] Listing draft reads as a buyer requirement; capturing it against the client instead.');
+          return await runClientReplyCapture();
+        }
 
         const { isValid } = validateDraft(parsedDraft);
         const initialStatus = isValid ? 'awaiting_confirmation' : 'collecting';
