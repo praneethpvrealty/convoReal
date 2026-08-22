@@ -29,6 +29,7 @@ import {
   propertyLabel,
 } from './client-response';
 import { buildCheckInMessage } from './checkin-message';
+import { CLIENT_QUESTION_PROMPT } from './client-answer';
 
 describe('client follow-up buttons', () => {
   it('builds the three timeline choices against the journey item', () => {
@@ -243,8 +244,23 @@ describe('buildUnmatchedReply', () => {
       next_action: null,
       timeline_hint: null,
     });
-    expect(reply).toContain("couldn't match *Surya Bajaj*");
+    expect(reply).toContain("*Surya Bajaj* isn't in your book");
     expect(reply).toContain('"Will speak to the chairman"');
-    expect(reply).toContain('Save them as a contact first');
+    expect(reply).toContain(CLIENT_QUESTION_PROMPT);
+  });
+
+  it('asks who the client is when the chat named nobody', () => {
+    const reply = buildUnmatchedReply({
+      client_name: null,
+      client_phone: null,
+      property_code: null,
+      property_title: null,
+      response_summary: 'Wants 1 acre near the airport, 8-10cr, direct only',
+      next_action: null,
+      timeline_hint: null,
+    });
+    expect(reply).toContain("couldn't work out who this client is");
+    expect(reply).not.toContain('forward the chat again');
+    expect(reply).toContain(CLIENT_QUESTION_PROMPT);
   });
 });
