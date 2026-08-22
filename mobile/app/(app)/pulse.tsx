@@ -3,12 +3,14 @@ import { useQuery } from '@tanstack/react-query';
 import { Stack, router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   FlatList,
   Pressable,
   RefreshControl,
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
 } from 'react-native';
 
 import { TourTarget } from '@/components/copilot-tour';
@@ -64,6 +66,7 @@ const ANONYMOUS_NUDGE_MIN_EVENTS = 5;
 
 export default function PulseScreen() {
   const { colors, fonts: f } = useTheme();
+  const { width } = useWindowDimensions();
   const accountId = useAuthStore((s) => s.profile?.account_id);
   const [filter, setFilter] = useState<FeedFilter>('all');
   const [expandedVisitors, setExpandedVisitors] = useState<Set<string>>(
@@ -108,6 +111,9 @@ export default function PulseScreen() {
   const pull = usePullRefresh(() =>
     Promise.all([stats.refetch(), top.refetch(), feed.refetch()])
   );
+  const statWidth = width < 500 ? '47%' : '30%';
+  const anyLoading = Boolean(accountId) && (stats.isLoading || top.isLoading || feed.isLoading);
+  const anyError = stats.isError || top.isError || feed.isError;
 
   return (
     <View style={{ flex: 1 }}>
@@ -139,22 +145,37 @@ export default function PulseScreen() {
                   icon="link-outline"
                   label="Link opens"
                   value={stats.data ? String(stats.data.totalViews) : '…'}
+                  width={statWidth}
                 />
                 <StatCard
                   icon="phone-portrait-outline"
                   label="Unique sessions"
                   value={stats.data ? String(stats.data.uniqueSessions) : '…'}
+                  width={statWidth}
                 />
                 <StatCard
                   icon="time-outline"
                   label="Avg dwell"
                   value={stats.data ? `${stats.data.avgDwellTimeSec}s` : '…'}
+                  width={statWidth}
                 />
               </View>
             </TourTarget>
 
+            {anyLoading ? (
+              <InlineStatus text="Loading engagement data…" loading />
+            ) : anyError ? (
+              <InlineStatus
+                text="Some engagement data could not be loaded. Pull to retry."
+              />
+            ) : null}
+
             <SectionLabel text="Top listings" />
-            {top.isLoading ? null : !top.data || top.data.length === 0 ? (
+            {top.isLoading ? (
+              <InlineStatus text="Loading top listings…" loading />
+            ) : top.isError ? (
+              <InlineStatus text="Top listings unavailable. Pull to retry." />
+            ) : !top.data || top.data.length === 0 ? (
               <Text
                 style={[
                   styles.quiet,
@@ -234,7 +255,11 @@ export default function PulseScreen() {
           </View>
         }
         ListEmptyComponent={
-          feed.isLoading ? null : (
+          feed.isLoading ? (
+            <InlineStatus text="Loading visitor activity…" loading />
+          ) : feed.isError ? (
+            <InlineStatus text="Visitor activity unavailable. Pull to retry." />
+          ) : (
             <EmptyState
               icon="pulse-outline"
               title={
@@ -281,16 +306,19 @@ function StatCard({
   icon,
   label,
   value,
+  width,
 }: {
   icon: React.ComponentProps<typeof Ionicons>['name'];
   label: string;
   value: string;
+  width: `${number}%`;
 }) {
   const { colors, fonts: f } = useTheme();
   return (
     <View
       style={[
         styles.stat,
+        { width },
         { backgroundColor: colors.glass, borderColor: colors.glassBorder },
       ]}
     >
@@ -301,6 +329,27 @@ function StatCard({
         {value}
       </Text>
       <Text style={{ fontSize: 12, color: colors.textMuted }}>{label}</Text>
+    </View>
+  );
+}
+
+function InlineStatus({
+  text,
+  loading = false,
+}: {
+  text: string;
+  loading?: boolean;
+}) {
+  const { colors } = useTheme();
+  return (
+    <View
+      accessibilityLiveRegion="polite"
+      style={[styles.status, { borderColor: colors.border }]}
+    >
+      {loading ? <ActivityIndicator size="small" color={colors.primary} /> : null}
+      <Text style={{ flex: 1, fontSize: 12, color: colors.textMuted }}>
+        {text}
+      </Text>
     </View>
   );
 }
@@ -551,11 +600,18 @@ const styles = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   stat: {
     borderWidth: 1,
-    flexGrow: 1,
-    flexBasis: '30%',
     gap: 4,
     borderRadius: radius.lg,
     padding: spacing.md,
+  },
+  status: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.lg,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
   },
   quiet: {
     fontSize: 12.5,

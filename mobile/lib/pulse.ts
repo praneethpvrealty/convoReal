@@ -1,4 +1,5 @@
 import type { PulseEvent } from '@/lib/pulse-feed';
+import { withAnalyticsTimeout } from '@/lib/analytics-request';
 import { supabase } from '@/lib/supabase';
 
 /**
@@ -41,6 +42,13 @@ function one<T>(v: T | T[] | null | undefined): T | null {
 }
 
 export async function fetchPulseStats(accountId: string): Promise<PulseStats> {
+  return withAnalyticsTimeout(
+    fetchPulseStatsUnbounded(accountId),
+    'Showcase Pulse stats'
+  );
+}
+
+async function fetchPulseStatsUnbounded(accountId: string): Promise<PulseStats> {
   const { data, error } = await supabase
     .rpc('pulse_stats', { p_account_id: accountId })
     .maybeSingle();
@@ -58,6 +66,15 @@ export async function fetchPulseStats(accountId: string): Promise<PulseStats> {
 }
 
 export async function fetchPulseTopProperties(
+  accountId: string
+): Promise<PulseTopProperty[]> {
+  return withAnalyticsTimeout(
+    fetchPulseTopPropertiesUnbounded(accountId),
+    'Showcase Pulse top listings'
+  );
+}
+
+async function fetchPulseTopPropertiesUnbounded(
   accountId: string
 ): Promise<PulseTopProperty[]> {
   const { data, error } = await supabase.rpc('pulse_top_properties', {
@@ -83,6 +100,13 @@ export async function fetchPulseTopProperties(
 }
 
 export async function fetchPulseFeed(): Promise<PulseEvent[]> {
+  return withAnalyticsTimeout(
+    fetchPulseFeedUnbounded(),
+    'Showcase Pulse activity'
+  );
+}
+
+async function fetchPulseFeedUnbounded(): Promise<PulseEvent[]> {
   const { data, error } = await supabase
     .from('showcase_events')
     .select(
@@ -109,6 +133,16 @@ export async function fetchPulseFeed(): Promise<PulseEvent[]> {
 }
 
 export async function fetchPropertyViewers(
+  accountId: string,
+  propertyId: string
+): Promise<PulseViewer[]> {
+  return withAnalyticsTimeout(
+    fetchPropertyViewersUnbounded(accountId, propertyId),
+    'Showcase Pulse viewers'
+  );
+}
+
+async function fetchPropertyViewersUnbounded(
   accountId: string,
   propertyId: string
 ): Promise<PulseViewer[]> {

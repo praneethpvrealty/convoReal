@@ -10,6 +10,7 @@ import {
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
 } from 'react-native';
 
 import { ConvoRealLoader } from '@/components/loader';
@@ -78,6 +79,7 @@ function waitedLabel(hours: number): string {
 
 export default function FocusScreen() {
   const { colors } = useTheme();
+  const { width } = useWindowDimensions();
   const now = new Date();
 
   const focus = useQuery({ queryKey: ['focus'], queryFn: fetchFocus });
@@ -94,11 +96,6 @@ export default function FocusScreen() {
     queryFn: fetchHotGoingQuiet,
   });
 
-  const loading =
-    focus.isLoading ||
-    insights.isLoading ||
-    sessions.isLoading ||
-    quiet.isLoading;
   const pull = usePullRefresh(() =>
     Promise.all([
       focus.refetch(),
@@ -107,6 +104,7 @@ export default function FocusScreen() {
       quiet.refetch(),
     ])
   );
+  const statWidth = width < 500 ? '47%' : '30%';
 
   const tasks = focus.data?.tasks;
   const journeys = focus.data?.journeys.top ?? [];
@@ -161,9 +159,14 @@ export default function FocusScreen() {
           })}
         </Text>
 
-        {loading ? (
+        {focus.isLoading ? (
           <ConvoRealLoader
             style={{ alignSelf: 'center', paddingVertical: 40 }}
+          />
+        ) : focus.isError ? (
+          <QueryState
+            text="Focus could not load. Pull to retry."
+            onRetry={() => focus.refetch()}
           />
         ) : (
           <>
@@ -236,7 +239,14 @@ export default function FocusScreen() {
               text="Reply before the window closes"
               style={{ marginTop: spacing.sm }}
             />
-            {(sessions.data ?? []).length === 0 ? (
+            {sessions.isLoading ? (
+              <QueryState text="Loading reply windows…" loading />
+            ) : sessions.isError ? (
+              <QueryState
+                text="Reply windows unavailable. Pull to retry."
+                onRetry={() => sessions.refetch()}
+              />
+            ) : (sessions.data ?? []).length === 0 ? (
               <QuietLine text="Inbox clear — nobody is waiting on a reply." />
             ) : (
               (sessions.data ?? []).slice(0, 10).map((s) => {
@@ -272,7 +282,14 @@ export default function FocusScreen() {
               text="Hot leads going quiet"
               style={{ marginTop: spacing.sm }}
             />
-            {(quiet.data ?? []).length === 0 ? (
+            {quiet.isLoading ? (
+              <QueryState text="Loading quiet hot leads…" loading />
+            ) : quiet.isError ? (
+              <QueryState
+                text="Quiet-lead analytics unavailable. Pull to retry."
+                onRetry={() => quiet.refetch()}
+              />
+            ) : (quiet.data ?? []).length === 0 ? (
               <QuietLine text="No hot leads are going cold. Keep it up." />
             ) : (
               (quiet.data ?? []).map((lead) => (
@@ -297,24 +314,36 @@ export default function FocusScreen() {
               text="Your numbers today"
               style={{ marginTop: spacing.sm }}
             />
+            {insights.isLoading ? (
+              <QueryState text="Loading today’s numbers…" loading />
+            ) : insights.isError ? (
+              <QueryState
+                text="Today’s numbers unavailable. Pull to retry."
+                onRetry={() => insights.refetch()}
+              />
+            ) : null}
             <View style={styles.grid}>
               <StatCard
                 label="New inquiries"
                 value={insights.data?.newInquiries}
+                width={statWidth}
               />
               <StatCard
                 label="New contacts"
                 value={insights.data?.newContacts}
+                width={statWidth}
               />
               <StatCard
                 label="Showcase opens"
                 value={insights.data?.showcaseOpens}
+                width={statWidth}
               />
               <StatCard
                 label="Received"
                 value={insights.data?.messagesReceived}
+                width={statWidth}
               />
-              <StatCard label="Sent" value={insights.data?.messagesSent} />
+              <StatCard label="Sent" value={insights.data?.messagesSent} width={statWidth} />
               <StatCard
                 label="Replied"
                 value={
@@ -322,6 +351,7 @@ export default function FocusScreen() {
                     ? `${insights.data.respondedConversations}/${insights.data.inboundConversations}`
                     : undefined
                 }
+                width={statWidth}
               />
             </View>
           </>
@@ -334,15 +364,18 @@ export default function FocusScreen() {
 function StatCard({
   label,
   value,
+  width,
 }: {
   label: string;
   value: number | string | undefined;
+  width: `${number}%`;
 }) {
   const { colors, fonts: f } = useTheme();
   return (
     <View
       style={[
         styles.stat,
+        { width },
         { backgroundColor: colors.glass, borderColor: colors.glassBorder },
       ]}
     >
@@ -352,6 +385,40 @@ function StatCard({
         {value ?? '…'}
       </Text>
       <Text style={{ fontSize: 11.5, color: colors.textMuted }}>{label}</Text>
+    </View>
+  );
+}
+
+function QueryState({
+  text,
+  loading = false,
+  onRetry,
+}: {
+  text: string;
+  loading?: boolean;
+  onRetry?: () => void;
+}) {
+  const { colors, fonts: f } = useTheme();
+  return (
+    <View
+      accessibilityLiveRegion="polite"
+      style={[styles.status, { borderColor: colors.border }]}
+    >
+      {loading ? <ActivityIndicator size="small" color={colors.primary} /> : null}
+      <Text style={{ flex: 1, fontSize: 12, color: colors.textMuted }}>
+        {text}
+      </Text>
+      {onRetry ? (
+        <Pressable
+          onPress={onRetry}
+          accessibilityRole="button"
+          accessibilityLabel="Retry loading this section"
+        >
+          <Text style={{ fontSize: 12, fontFamily: f.bold, color: colors.primary }}>
+            Retry
+          </Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -534,11 +601,18 @@ const styles = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   stat: {
     borderWidth: 1,
-    flexGrow: 1,
-    flexBasis: '30%',
     gap: 2,
     borderRadius: radius.lg,
     padding: spacing.md,
+  },
+  status: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.lg,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
   },
   quiet: {
     fontSize: 12.5,

@@ -1,3 +1,4 @@
+import { withAnalyticsTimeout } from '@/lib/analytics-request';
 import { supabase } from '@/lib/supabase';
 
 /**
@@ -53,6 +54,13 @@ export interface ExpiringSession {
  * sorted by window expiry.
  */
 export async function fetchExpiringSessions(): Promise<ExpiringSession[]> {
+  return withAnalyticsTimeout(
+    fetchExpiringSessionsUnbounded(),
+    'Reply-window analytics'
+  );
+}
+
+async function fetchExpiringSessionsUnbounded(): Promise<ExpiringSession[]> {
   const windowStart = new Date(Date.now() - DAY_MS).toISOString();
   const { data, error } = await supabase
     .from('messages')
@@ -168,6 +176,13 @@ async function fetchPastEnquiryContacts(): Promise<Set<string>> {
 /** Active HOT leads not touched in 48h+, longest-silent first, capped
  *  at 20. Deals already at legal or registration are left out. */
 export async function fetchHotGoingQuiet(): Promise<QuietHotLead[]> {
+  return withAnalyticsTimeout(
+    fetchHotGoingQuietUnbounded(),
+    'Quiet-lead analytics'
+  );
+}
+
+async function fetchHotGoingQuietUnbounded(): Promise<QuietHotLead[]> {
   const { data, error } = await supabase
     .from('contacts')
     .select('id, name, phone, name_tag, last_contacted_at, created_at')
@@ -219,6 +234,13 @@ export interface TodayInsights {
 }
 
 export async function fetchTodayInsights(): Promise<TodayInsights> {
+  return withAnalyticsTimeout(
+    fetchTodayInsightsUnbounded(),
+    'Today analytics'
+  );
+}
+
+async function fetchTodayInsightsUnbounded(): Promise<TodayInsights> {
   const startIso = startOfLocalDay().toISOString();
   const endIso = endOfLocalDay().toISOString();
 
