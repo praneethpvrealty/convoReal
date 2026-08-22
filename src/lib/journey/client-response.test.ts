@@ -22,6 +22,7 @@ import {
   parseAgentFollowupReplyId,
   buildClientAskBody,
   buildClientFollowupButtons,
+  buildRequirementLine,
   buildUnmatchedReply,
   followupDueDate,
   isJourneyCheckinText,
@@ -243,6 +244,7 @@ describe('buildUnmatchedReply', () => {
       response_summary: 'Will speak to the chairman',
       next_action: null,
       timeline_hint: null,
+      requirement: null,
     });
     expect(reply).toContain("*Surya Bajaj* isn't in your book");
     expect(reply).toContain('"Will speak to the chairman"');
@@ -258,9 +260,53 @@ describe('buildUnmatchedReply', () => {
       response_summary: 'Wants 1 acre near the airport, 8-10cr, direct only',
       next_action: null,
       timeline_hint: null,
+      requirement: null,
     });
     expect(reply).toContain("couldn't work out who this client is");
     expect(reply).not.toContain('forward the chat again');
     expect(reply).toContain(CLIENT_QUESTION_PROMPT);
+  });
+});
+
+describe('buildRequirementLine', () => {
+  it('says where a stated requirement went', () => {
+    const line = buildRequirementLine(
+      'Natarajan',
+      '1 acre residential land in North Bangalore near the airport, 8-10cr, direct purchase only'
+    );
+    expect(line).toContain("Natarajan's requirements");
+    expect(line).toContain('direct purchase only');
+    expect(line).toContain('Radar');
+  });
+
+  it('is silent when the reply stated no requirement', () => {
+    expect(buildRequirementLine('Natarajan', null)).toBe('');
+  });
+});
+
+describe('buildAgentReply with a captured requirement', () => {
+  it('reports the requirement alongside what was logged', () => {
+    const reply = buildAgentReply({
+      contactName: 'Natarajan',
+      propertyLabel: 'Sarjapur 3 acres (PROP-1138)',
+      responseSummary: 'Cancelled the Lodha booking',
+      stageName: 'Shared',
+      dealsUpdated: 0,
+      askOutcome: 'sent',
+      capturedRequirement: 'Residential land 1 acre, North Bangalore, 8-10cr',
+    });
+    expect(reply).toContain('Residential land 1 acre');
+  });
+
+  it('omits the line when nothing was captured', () => {
+    const reply = buildAgentReply({
+      contactName: 'Natarajan',
+      propertyLabel: 'Sarjapur 3 acres (PROP-1138)',
+      responseSummary: 'Still thinking about it',
+      stageName: 'Shared',
+      dealsUpdated: 0,
+      askOutcome: 'sent',
+    });
+    expect(reply).not.toContain('requirements');
   });
 });

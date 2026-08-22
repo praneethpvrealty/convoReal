@@ -1203,6 +1203,10 @@ export interface ParsedClientReply {
   response_summary: string | null;
   next_action: string | null;
   timeline_hint: string | null;
+  /** What the client says they are looking for, when the message
+   *  states or updates a requirement rather than only answering about
+   *  the listing already shared. */
+  requirement: string | null;
 }
 
 /**
@@ -1225,13 +1229,15 @@ export async function parseClientReplyFromImageOrText(
     "  \"property_title\": \"The property's title/description as it appears in the thread (e.g. 'About 3 acres for an outright sale in Sarjapur') or null\",\n" +
     "  \"response_summary\": \"One short third-person sentence stating the client's latest response about the property (e.g. 'Will speak to the chairman in person and get back') or null\",\n" +
     "  \"next_action\": \"What the client said they will do next, if anything (e.g. 'Speak to the chairman') or null\",\n" +
-    "  \"timeline_hint\": \"When the client said they will get back, if stated (e.g. 'tomorrow', 'next week') or null\"\n" +
+    "  \"timeline_hint\": \"When the client said they will get back, if stated (e.g. 'tomorrow', 'next week') or null\",\n" +
+    "  \"requirement\": \"What the client says they are LOOKING FOR, when this message states or updates a requirement — property type, size, locality, budget, purchase mode, all in one line (e.g. '1 acre residential land in North Bangalore near the airport, budget 8-10cr, direct purchase from owner only') — or null\"\n" +
     "}\n\n" +
     "Rules:\n" +
     "1. In a WhatsApp screenshot the agent's own messages are right-aligned (green bubbles); the client's are left-aligned. The client is the left side.\n" +
     "2. Summarize only the client's LATEST reply about the property — earlier small talk or unrelated messages do not belong in response_summary.\n" +
     "3. Never invent a name, code, or timeline that is not visible. null is the correct answer for anything not present.\n" +
-    "4. Output MUST be valid JSON.";
+    "4. `requirement` is null when the client is only answering about a listing already shared ('still thinking about it', 'will speak to the chairman'). Fill it when they say what they now want — including when they have dropped the earlier property and named fresh criteria.\n" +
+    "5. Output MUST be valid JSON.";
 
   const parts: GeminiPart[] = [];
   if (buffer && mimeType) {
@@ -1253,6 +1259,7 @@ export async function parseClientReplyFromImageOrText(
     response_summary: parsed.response_summary || null,
     next_action: parsed.next_action || null,
     timeline_hint: parsed.timeline_hint || null,
+    requirement: parsed.requirement || null,
   };
 }
 

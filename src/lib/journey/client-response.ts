@@ -31,6 +31,9 @@ import {
   type BookContact,
 } from '@/lib/contacts/draft-match';
 import { looksLikeQuestion } from '@/lib/ai/lead-question';
+import { appendRequirement } from '@/lib/ai/buyer-qualification';
+import { carriesRequirementSignal } from '@/lib/ai/requirement-signal';
+import { syncContactPreferences } from '@/lib/contacts/preference-sync';
 import { CLIENT_QUESTION_PROMPT } from '@/lib/journey/client-answer';
 import { scanMessagesForProperties } from '@/lib/journey/chat-scan';
 import { createNotification } from '@/lib/notifications/create';
@@ -171,6 +174,18 @@ export type ClientAskOutcome =
   | 'no_phone'
   | 'failed';
 
+/** The line that says a stated requirement was filed, or nothing. */
+export function buildRequirementLine(
+  contactName: string,
+  requirement: string | null
+): string {
+  if (!requirement) return '';
+  return (
+    `\n\n🎯 Also saved to ${contactName}'s requirements — _"${requirement}"_ — ` +
+    'so matching, Radar and their digest read it now.'
+  );
+}
+
 export function buildAgentReply(args: {
   contactName: string;
   propertyLabel: string;
@@ -178,6 +193,7 @@ export function buildAgentReply(args: {
   stageName: string | null;
   dealsUpdated: number;
   askOutcome: ClientAskOutcome;
+  capturedRequirement?: string | null;
 }): string {
   const first = firstName(args.contactName) || args.contactName;
   let reply =
@@ -191,6 +207,10 @@ export function buildAgentReply(args: {
     '\n\n📒 Saved to the journey timeline and contact notes' +
     (args.dealsUpdated > 0 ? ' and the pipeline deal' : '') +
     '.';
+  reply += buildRequirementLine(
+    args.contactName,
+    args.capturedRequirement ?? null
+  );
   if (args.askOutcome === 'sent' || args.askOutcome === 'sent_template') {
     reply += `\n✉️ Asked ${first} when to expect their update — Today itself / In 2 days / Can't say yet. I'll log their answer and set a follow-up for you.`;
   } else if (args.askOutcome === 'window_closed') {
@@ -673,6 +693,62 @@ export async function processClientReplyScreenshot(
   });
 }
 
+/**
+ * A forwarded reply often is not a status update at all: the client
+ * has dropped the listing that was shared and said what they now want
+ * — "1 acre near the airport, 8 to 10cr, direct purchase only". That
+ * sentence used to survive only as a note, which the matcher does not
+ * read, so the requirement it stated reached nothing: no match rows,
+ * no radar, no digest.
+ *
+ * The brief is appended (never replaced — the client's earlier
+ * criteria still stand until they say otherwise) and the pref_ columns
+ * are re-extracted from it, the same path every other requirement
+ * intake uses. Best-effort: a failure here leaves the response logged.
+ */
+async function captureStatedRequirement(
+  db: SupabaseClient,
+  accountId: string,
+  contactId: string,
+  requirement: string | null | undefined
+): Promise<string | null> {
+  const stated = (requirement || '').trim();
+  if (!stated || !carriesRequirementSignal(stated)) return null;
+
+  try {
+    const { data: row } = await db
+      .from('contacts')
+      .select('requirements')
+      .eq('id', contactId)
+      .eq('account_id', accountId)
+      .maybeSingle();
+
+    const merged = appendRequirement(
+      (row?.requirements as string | null) ?? null,
+      stated
+    );
+    if (merged === ((row?.requirements as string | null) ?? '').trim()) {
+      return null;
+    }
+
+    const { error } = await db
+      .from('contacts')
+      .update({ requirements: merged })
+      .eq('id', contactId)
+      .eq('account_id', accountId);
+    if (error) throw error;
+
+    await syncContactPreferences(db, accountId, contactId);
+    return stated;
+  } catch (err) {
+    console.error(
+      '[client-response] requirement capture failed:',
+      err instanceof Error ? err.message : err
+    );
+    return null;
+  }
+}
+
 interface LogArgs {
   db: SupabaseClient;
   accountId: string;
@@ -713,6 +789,13 @@ async function logClientResponse(args: LogArgs): Promise<ClientReplyOutcome> {
   if (noteError)
     console.error('[client-response] contact note failed:', noteError.message);
 
+  const capturedRequirement = await captureStatedRequirement(
+    db,
+    accountId,
+    contact.id,
+    parsed.requirement
+  );
+
   await createNotification({
     accountId,
     userId,
@@ -730,6 +813,7 @@ async function logClientResponse(args: LogArgs): Promise<ClientReplyOutcome> {
       text:
         `✅ *Logged ${contactName}'s response*` +
         (summary ? `:\n_"${summary}"_` : '.') +
+        buildRequirementLine(contactName, capturedRequirement) +
         `\n\n📒 Saved to their contact notes — but ${PROPERTY_QUESTION_PROMPT}`,
       pendingPropertyContactId: contact.id,
     };
@@ -738,6 +822,7 @@ async function logClientResponse(args: LogArgs): Promise<ClientReplyOutcome> {
   return await linkClientResponseToProperty({
     db,
     accountId,
+    capturedRequirement,
     userId,
     contact,
     contactName,
@@ -758,6 +843,8 @@ interface LinkArgs {
   property: PropertyRow;
   label: string;
   summary: string | null;
+  /** A requirement this reply stated, already written to the contact. */
+  capturedRequirement?: string | null;
   accessToken: string;
   phoneNumberId: string;
 }
@@ -846,6 +933,7 @@ async function linkClientResponseToProperty(
       stageName,
       dealsUpdated,
       askOutcome,
+      capturedRequirement: args.capturedRequirement ?? null,
     }),
     buttons: item ? buildAgentFollowupButtons(item.id) : undefined,
   };
