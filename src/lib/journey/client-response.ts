@@ -35,6 +35,12 @@ import { appendRequirement } from '@/lib/ai/buyer-qualification';
 import { carriesRequirementSignal } from '@/lib/ai/requirement-signal';
 import { syncContactPreferences } from '@/lib/contacts/preference-sync';
 import { CLIENT_QUESTION_PROMPT } from '@/lib/journey/client-answer';
+import {
+  distinctiveTerms,
+  rankClientCandidates,
+  type CandidateContact,
+  type RankedCandidate,
+} from '@/lib/journey/client-candidates';
 import { scanMessagesForProperties } from '@/lib/journey/chat-scan';
 import { createNotification } from '@/lib/notifications/create';
 import { isWithinCustomerWindow } from '@/lib/whatsapp/customer-window';
@@ -224,6 +230,55 @@ export function buildAgentReply(args: {
   // arrives, this one when it does not.
   reply += `\n\n📅 When should I remind you to follow up?`;
   return reply;
+}
+
+/** A tap that names the client a parked forward is about. */
+export const CLIENT_CANDIDATE_PREFIX = 'jcc_';
+
+export function parseClientCandidateReplyId(replyId: string): string | null {
+  if (!replyId.startsWith(CLIENT_CANDIDATE_PREFIX)) return null;
+  return replyId.slice(CLIENT_CANDIDATE_PREFIX.length) || null;
+}
+
+/** WhatsApp allows 20 characters on a button. A name cut mid-word is
+ *  still the name the agent recognises; a rejected send is not. */
+export function candidateButtonTitle(name: string | null): string {
+  const clean = (name || 'Unknown').trim() || 'Unknown';
+  return clean.length <= 20 ? clean : `${clean.slice(0, 19)}…`;
+}
+
+export function buildClientCandidateButtons(
+  candidates: RankedCandidate[]
+): Array<{ id: string; title: string }> {
+  return candidates.slice(0, 3).map((c) => ({
+    id: `${CLIENT_CANDIDATE_PREFIX}${c.contact.id}`,
+    title: candidateButtonTitle(c.contact.name),
+  }));
+}
+
+/**
+ * The who-question with the answers the thread already implies.
+ *
+ * Each name is offered with the reason it is being offered, so a tap is
+ * a judgement rather than a guess — and typing a different name stays
+ * open, because the right contact is often not among the three.
+ */
+export function buildCandidateReply(
+  parsed: ParsedClientReply,
+  candidates: RankedCandidate[]
+): string {
+  const lines = candidates.map(
+    (c) =>
+      `• *${c.contact.name || 'Unnamed contact'}*` +
+      (c.reason ? ` — _${c.reason}_` : '')
+  );
+  return (
+    "🤔 I read the conversation but couldn't work out who this client is." +
+    (parsed.response_summary ? `\n_"${parsed.response_summary}"_` : '') +
+    '\n\n*Is it one of these?*\n' +
+    lines.join('\n') +
+    "\n\nTap the right one — or reply with a different name as it's saved in your book."
+  );
 }
 
 /**
@@ -668,6 +723,135 @@ export interface ClientReplyOutcome {
   pendingPropertyContactId?: string;
 }
 
+function escapeLike(term: string): string {
+  return term.replace(/([%_,\\])/g, '\\$1');
+}
+
+function threadTextOf(parsed: ParsedClientReply): string {
+  return [
+    parsed.response_summary,
+    parsed.requirement,
+    parsed.next_action,
+    parsed.property_title,
+    parsed.client_name,
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
+
+/**
+ * The handful of contacts a forward could plausibly be about.
+ *
+ * Three bounded lookups, run only on the unmatched path: the name the
+ * thread showed, the briefs that mention what the thread mentions, and
+ * the notes that do. Everything is scored in `client-candidates.ts`,
+ * which drops anything that matched on nothing — so an account whose
+ * book has no answer gets the plain question, exactly as before.
+ */
+async function findClientCandidates(
+  db: SupabaseClient,
+  accountId: string,
+  parsed: ParsedClientReply
+): Promise<RankedCandidate[]> {
+  const threadText = threadTextOf(parsed);
+  const terms = distinctiveTerms(threadText);
+  const found = new Map<string, CandidateContact>();
+
+  const remember = (
+    row: {
+      id: string;
+      name: string | null;
+      phone: string | null;
+      requirements?: string | null;
+      updated_at?: string | null;
+    },
+    extra = ''
+  ) => {
+    const existing = found.get(row.id);
+    const haystack = [existing?.haystack, row.requirements, extra]
+      .filter(Boolean)
+      .join(' ');
+    found.set(row.id, {
+      id: row.id,
+      name: row.name,
+      phone: row.phone,
+      haystack,
+      lastActivity: row.updated_at ?? existing?.lastActivity ?? null,
+    });
+  };
+
+  try {
+    if (parsed.client_name) {
+      const { data } = await db
+        .from('contacts')
+        .select('id, name, phone, requirements, updated_at')
+        .eq('account_id', accountId)
+        .eq('is_merged', false)
+        .ilike('name', `%${escapeLike(parsed.client_name.split(/\s+/)[0])}%`)
+        .limit(10);
+      for (const row of data ?? []) remember(row);
+    }
+
+    if (terms.length) {
+      const filter = terms
+        .map((t) => `requirements.ilike.%${escapeLike(t)}%`)
+        .join(',');
+      const { data } = await db
+        .from('contacts')
+        .select('id, name, phone, requirements, updated_at')
+        .eq('account_id', accountId)
+        .eq('is_merged', false)
+        .or(filter)
+        .limit(20);
+      for (const row of data ?? []) remember(row);
+
+      const noteFilter = terms
+        .map((t) => `note_text.ilike.%${escapeLike(t)}%`)
+        .join(',');
+      const { data: notes } = await db
+        .from('contact_notes')
+        .select('contact_id, note_text')
+        .eq('account_id', accountId)
+        .or(noteFilter)
+        .order('created_at', { ascending: false })
+        .limit(40);
+
+      const byContact = new Map<string, string[]>();
+      for (const note of notes ?? []) {
+        const id = note.contact_id as string;
+        const list = byContact.get(id) ?? [];
+        list.push((note.note_text as string) || '');
+        byContact.set(id, list);
+      }
+      if (byContact.size) {
+        const { data: noted } = await db
+          .from('contacts')
+          .select('id, name, phone, requirements, updated_at')
+          .eq('account_id', accountId)
+          .eq('is_merged', false)
+          .in('id', [...byContact.keys()].slice(0, 20));
+        for (const row of noted ?? []) {
+          remember(row, (byContact.get(row.id) ?? []).join(' '));
+        }
+      }
+    }
+  } catch (err) {
+    console.error(
+      '[client-response] candidate lookup failed:',
+      err instanceof Error ? err.message : err
+    );
+  }
+
+  return rankClientCandidates(
+    {
+      clientName: parsed.client_name,
+      clientPhone: parsed.client_phone,
+      threadText,
+    },
+    [...found.values()]
+  );
+}
+
 /**
  * Matches a parsed screenshot to the Engine's records, logs the response
  * everywhere it should surface, and asks the client for a timeline.
@@ -680,7 +864,17 @@ export async function processClientReplyScreenshot(
   const { db, accountId, userId, parsed, accessToken, phoneNumberId } = args;
 
   const contact = await matchClientContact(db, accountId, parsed);
-  if (!contact) return { text: buildUnmatchedReply(parsed), unmatched: true };
+  if (!contact) {
+    const candidates = await findClientCandidates(db, accountId, parsed);
+    if (candidates.length) {
+      return {
+        text: buildCandidateReply(parsed, candidates),
+        buttons: buildClientCandidateButtons(candidates),
+        unmatched: true,
+      };
+    }
+    return { text: buildUnmatchedReply(parsed), unmatched: true };
+  }
 
   return await logClientResponse({
     db,
@@ -948,6 +1142,48 @@ async function linkClientResponseToProperty(
     }),
     buttons: item ? buildAgentFollowupButtons(item.id) : undefined,
   };
+}
+
+export interface CompleteClientTapArgs {
+  db: SupabaseClient;
+  accountId: string;
+  userId: string;
+  /** The contact the agent tapped. */
+  contactId: string;
+  parsed: ParsedClientReply;
+  accessToken: string;
+  phoneNumberId: string;
+}
+
+/**
+ * The agent's tap on one of the offered names. Same logging as a typed
+ * answer; the id names the contact outright, so nothing is resolved.
+ * Returns null when the contact is gone from the book.
+ */
+export async function completeClientReplyForContactId(
+  args: CompleteClientTapArgs
+): Promise<ClientReplyOutcome | null> {
+  const { data } = await args.db
+    .from('contacts')
+    .select('id, name, phone')
+    .eq('id', args.contactId)
+    .eq('account_id', args.accountId)
+    .maybeSingle();
+  if (!data) return null;
+  const contact = data as BookContact;
+
+  return await logClientResponse({
+    db: args.db,
+    accountId: args.accountId,
+    userId: args.userId,
+    contact,
+    parsed: {
+      ...args.parsed,
+      client_name: args.parsed.client_name || contact.name,
+    },
+    accessToken: args.accessToken,
+    phoneNumberId: args.phoneNumberId,
+  });
 }
 
 export interface CompleteClientAnswerArgs {

@@ -22,6 +22,10 @@ import {
   parseAgentFollowupReplyId,
   buildClientAskBody,
   buildClientFollowupButtons,
+  buildCandidateReply,
+  buildClientCandidateButtons,
+  candidateButtonTitle,
+  parseClientCandidateReplyId,
   buildRequirementLine,
   buildUnmatchedReply,
   followupDueDate,
@@ -324,5 +328,74 @@ describe('a forwarded brief with no listing', () => {
       '\n\n🔎 Open their contact to see what in your inventory fits.';
     expect(text).not.toContain(PROPERTY_QUESTION_PROMPT);
     expect(text).toContain('direct purchase only');
+  });
+});
+
+describe('offering the contacts a forward points at', () => {
+  const parsed = {
+    client_name: null,
+    client_phone: null,
+    property_code: null,
+    property_title: null,
+    response_summary:
+      'Cancelled the Lodha booking, wants 1 acre near the airport',
+    next_action: null,
+    timeline_hint: null,
+    requirement: 'Residential land 1 acre, North Bangalore, 8-10cr',
+  };
+  const candidates = [
+    {
+      contact: { id: 'c1', name: 'Natarajan', phone: null, haystack: '' },
+      score: 40,
+      reason: 'mentions sadhahalli',
+    },
+    {
+      contact: { id: 'c2', name: 'Suresh Kumar', phone: null, haystack: '' },
+      score: 20,
+      reason: 'mentions domlur',
+    },
+  ];
+
+  it('names each candidate with the reason it is offered', () => {
+    const text = buildCandidateReply(parsed, candidates);
+    expect(text).toContain('*Natarajan*');
+    expect(text).toContain('mentions sadhahalli');
+    expect(text).toContain('reply with a different name');
+  });
+
+  it('round-trips each button id back to its contact', () => {
+    const buttons = buildClientCandidateButtons(candidates);
+    expect(buttons).toEqual([
+      { id: 'jcc_c1', title: 'Natarajan' },
+      { id: 'jcc_c2', title: 'Suresh Kumar' },
+    ]);
+    for (const b of buttons) {
+      expect(parseClientCandidateReplyId(b.id)).toBe(b.id.slice(4));
+      expect(b.title.length).toBeLessThanOrEqual(20);
+    }
+  });
+
+  it('never sends more than the three buttons WhatsApp allows', () => {
+    const many = Array.from({ length: 5 }, (_, i) => ({
+      contact: {
+        id: `c${i}`,
+        name: `Contact number ${i}`,
+        phone: null,
+        haystack: '',
+      },
+      score: 10,
+      reason: 'mentions domlur',
+    }));
+    expect(buildClientCandidateButtons(many)).toHaveLength(3);
+  });
+
+  it('keeps a long name inside the button limit', () => {
+    const title = candidateButtonTitle('Venkataramana Subramanian Iyer');
+    expect(title.length).toBeLessThanOrEqual(20);
+    expect(title.startsWith('Venkataramana')).toBe(true);
+  });
+
+  it('ignores a button id that is not ours', () => {
+    expect(parseClientCandidateReplyId('jfu_today:item-1')).toBeNull();
   });
 });
