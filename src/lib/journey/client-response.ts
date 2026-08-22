@@ -809,11 +809,22 @@ async function logClientResponse(args: LogArgs): Promise<ClientReplyOutcome> {
   });
 
   if (!property) {
+    // A brief names no listing because there isn't one yet — that is
+    // the whole point of it. Asking "which property is this about?"
+    // there is a question with no answer; the matcher has the brief
+    // now and that is what to say.
+    if (capturedRequirement) {
+      return {
+        text:
+          `✅ *Logged ${contactName}'s requirement*` +
+          buildRequirementLine(contactName, capturedRequirement) +
+          `\n\n🔎 Open their contact to see what in your inventory fits.`,
+      };
+    }
     return {
       text:
         `✅ *Logged ${contactName}'s response*` +
         (summary ? `:\n_"${summary}"_` : '.') +
-        buildRequirementLine(contactName, capturedRequirement) +
         `\n\n📒 Saved to their contact notes — but ${PROPERTY_QUESTION_PROMPT}`,
       pendingPropertyContactId: contact.id,
     };

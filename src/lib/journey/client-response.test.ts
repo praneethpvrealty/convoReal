@@ -31,6 +31,7 @@ import {
 } from './client-response';
 import { buildCheckInMessage } from './checkin-message';
 import { CLIENT_QUESTION_PROMPT } from './client-answer';
+import { PROPERTY_QUESTION_PROMPT } from './property-answer';
 
 describe('client follow-up buttons', () => {
   it('builds the three timeline choices against the journey item', () => {
@@ -308,5 +309,20 @@ describe('buildAgentReply with a captured requirement', () => {
       askOutcome: 'sent',
     });
     expect(reply).not.toContain('requirements');
+  });
+});
+
+describe('a forwarded brief with no listing', () => {
+  it('confirms the requirement instead of asking which property it is about', () => {
+    const line = buildRequirementLine(
+      'Natarajan',
+      'Residential land 1 acre, North Bangalore near airport, 8-10cr, direct purchase only'
+    );
+    const text =
+      "✅ *Logged Natarajan's requirement*" +
+      line +
+      '\n\n🔎 Open their contact to see what in your inventory fits.';
+    expect(text).not.toContain(PROPERTY_QUESTION_PROMPT);
+    expect(text).toContain('direct purchase only');
   });
 });

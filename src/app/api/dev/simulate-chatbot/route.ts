@@ -265,7 +265,7 @@ export async function POST(request: Request) {
       });
     }
 
-    if (classification === 'client_reply') {
+    if (classification === 'client_reply' || classification === 'requirement') {
       const draft =
         mediaBuffer && mimeType
           ? await parseClientReplyFromImageOrText(text, mediaBuffer, mimeType)
