@@ -20,6 +20,8 @@ import {
   processClientReplyScreenshot,
   completeClientResponseProperty,
   completeClientReplyContact,
+  completeClientReplyForContactId,
+  parseClientCandidateReplyId,
   handleAgentFollowupReply,
   AGENT_FOLLOWUP_PREFIX,
   type ClientReplyOutcome,
@@ -936,6 +938,67 @@ export async function processOwnerChatbotMessage(
   const buttonId = isInteractiveTap
     ? message.interactive?.button_reply?.id ?? message.interactive?.list_reply?.id
     : null;
+
+  // 1.675. The tap that names the client a parked forward is about.
+  //
+  // The who-question now offers the two or three contacts the thread
+  // itself points at, each with the reason it is offered. A tap names
+  // the contact outright, so nothing is resolved and nothing is
+  // guessed — the parked parse is claimed and logged against them.
+  const tappedCandidateId = buttonId
+    ? parseClientCandidateReplyId(buttonId)
+    : null;
+  if (tappedCandidateId) {
+    const parkedReply = await takePendingClientReply({
+      accountId,
+      contactId: contactRecord.id,
+    });
+    let text: string;
+    let outcome: ClientReplyOutcome | null = null;
+    if (!parkedReply) {
+      text = "⌛ That conversation has aged out — forward it again and I'll read it against that contact.";
+    } else {
+      outcome = await completeClientReplyForContactId({
+        db: supabaseAdmin(),
+        accountId,
+        userId,
+        contactId: tappedCandidateId,
+        parsed: parkedReply,
+        accessToken,
+        phoneNumberId,
+      });
+      if (!outcome) {
+        await parkClientReply({
+          accountId,
+          contactId: contactRecord.id,
+          conversationId: conversation.id,
+          parsed: parkedReply,
+        });
+      }
+      text =
+        outcome?.text ??
+        "❓ I couldn't find that contact any more. Reply with the name as it's saved in your book.";
+    }
+    const sendRes = outcome?.buttons
+      ? await sendInteractiveButtons({
+          phoneNumberId,
+          accessToken,
+          to: contactRecord.phone,
+          bodyText: text,
+          buttons: outcome.buttons,
+        })
+      : await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text });
+    await saveBotMessage(conversation.id, text, sendRes.messageId);
+    if (outcome?.pendingPropertyContactId) {
+      await recordBotTarget({
+        accountId,
+        waMessageId: sendRes.messageId,
+        entityType: 'contact',
+        entityId: outcome.pendingPropertyContactId,
+      });
+    }
+    return true;
+  }
 
   // The agent setting their own follow-up date on a client's branch.
   if (buttonId?.startsWith(AGENT_FOLLOWUP_PREFIX)) {
