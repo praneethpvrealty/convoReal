@@ -250,6 +250,7 @@ describe('buildUnmatchedReply', () => {
       next_action: null,
       timeline_hint: null,
       requirement: null,
+      mentioned_terms: [],
     });
     expect(reply).toContain("*Surya Bajaj* isn't in your book");
     expect(reply).toContain('"Will speak to the chairman"');
@@ -266,6 +267,7 @@ describe('buildUnmatchedReply', () => {
       next_action: null,
       timeline_hint: null,
       requirement: null,
+      mentioned_terms: [],
     });
     expect(reply).toContain("couldn't work out who this client is");
     expect(reply).not.toContain('forward the chat again');
@@ -342,15 +344,16 @@ describe('offering the contacts a forward points at', () => {
     next_action: null,
     timeline_hint: null,
     requirement: 'Residential land 1 acre, North Bangalore, 8-10cr',
+    mentioned_terms: ['Lodha Sadhahalli'],
   };
   const candidates = [
     {
-      contact: { id: 'c1', name: 'Natarajan', phone: null, haystack: '' },
+      contact: { id: 'c1', name: 'Natarajan', phone: null },
       score: 40,
       reason: 'mentions sadhahalli',
     },
     {
-      contact: { id: 'c2', name: 'Suresh Kumar', phone: null, haystack: '' },
+      contact: { id: 'c2', name: 'Suresh Kumar', phone: null },
       score: 20,
       reason: 'mentions domlur',
     },

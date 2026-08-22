@@ -1,86 +1,178 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  candidateReason,
   distinctiveTerms,
   rankClientCandidates,
-  scoreCandidate,
+  scoreEvidence,
 } from './client-candidates';
 
-const THREAD =
-  'I cancelled my Lodha Sadhahalli project booking. Looking for North Bangalore near airport, residential land 1 acre, budget 8cr to 10cr. Only direct purchase not from developers. That Domlur property someone paid advance for 44k it seems';
+const contact = (id: string, name: string, phone: string | null = null) => ({
+  id,
+  name,
+  phone,
+});
 
 describe('distinctiveTerms', () => {
-  it('keeps the words that could name one contact', () => {
-    const terms = distinctiveTerms(THREAD);
+  it('keeps words that could name one contact', () => {
+    const terms = distinctiveTerms(
+      'Cancelled the Lodha Sadhahalli booking, asked about Domlur'
+    );
     expect(terms).toContain('sadhahalli');
     expect(terms).toContain('domlur');
   });
 
-  it('drops the vocabulary every thread shares', () => {
-    const terms = distinctiveTerms(THREAD);
-    for (const generic of ['residential', 'property', 'budget', 'looking']) {
+  it('drops the vocabulary a summariser reaches for', () => {
+    const terms = distinctiveTerms(
+      'The client wants residential land, direct purchase from owner not developers, budget 8cr'
+    );
+    for (const generic of [
+      'residential',
+      'owner',
+      'purchase',
+      'developers',
+      'budget',
+      'client',
+    ]) {
       expect(terms).not.toContain(generic);
     }
   });
 });
 
-describe('scoreCandidate', () => {
+describe('scoreEvidence', () => {
   it('lets the phone settle it outright', () => {
-    const { score, reason } = scoreCandidate(
-      { clientPhone: '919886217718', threadText: THREAD },
-      { id: 'a', name: 'Someone Else', phone: '+91 98862 17718', haystack: '' }
-    );
-    expect(score).toBe(100);
-    expect(reason).toBe('same number as the chat');
-  });
-
-  it('ranks a name match above a subject match', () => {
-    const byName = scoreCandidate(
-      { clientName: 'Natarajan RE', threadText: THREAD },
-      { id: 'a', name: 'Natarajan', phone: null, haystack: '' }
-    );
-    const bySubject = scoreCandidate(
-      { clientName: 'Natarajan RE', threadText: THREAD },
-      { id: 'b', name: 'Ravi', phone: null, haystack: 'Interested in Domlur' }
-    );
-    expect(byName.score).toBeGreaterThan(bySubject.score);
-    expect(bySubject.reason).toContain('domlur');
-  });
-
-  it('scores nothing when the contact answers nothing', () => {
     expect(
-      scoreCandidate(
-        { clientName: null, threadText: THREAD },
-        { id: 'a', name: 'Ravi', phone: null, haystack: 'Wants a shop in HSR' }
-      ).score
+      scoreEvidence({
+        contact: contact('a', 'Someone'),
+        matchedTerms: [],
+        nameMatched: false,
+        phoneMatched: true,
+      })
+    ).toBe(100);
+  });
+
+  it('ranks a name match above a single subject match', () => {
+    const byName = scoreEvidence({
+      contact: contact('a', 'Natarajan'),
+      matchedTerms: [],
+      nameMatched: true,
+      phoneMatched: false,
+    });
+    const bySubject = scoreEvidence({
+      contact: contact('b', 'Ravi'),
+      matchedTerms: ['domlur'],
+      nameMatched: false,
+      phoneMatched: false,
+    });
+    expect(byName).toBeGreaterThan(bySubject);
+  });
+
+  it('scores nothing when nothing connects the contact to the thread', () => {
+    expect(
+      scoreEvidence({
+        contact: contact('a', 'Ravi'),
+        matchedTerms: [],
+        nameMatched: false,
+        phoneMatched: false,
+      })
     ).toBe(0);
   });
 });
 
-describe('rankClientCandidates', () => {
-  const book = [
-    { id: 'a', name: 'Ravi', phone: null, haystack: 'Wants a shop in HSR' },
-    {
-      id: 'b',
-      name: 'Natarajan',
-      phone: null,
-      haystack: 'Booked at Lodha Sadhahalli last year',
-    },
-    { id: 'c', name: 'Suresh', phone: null, haystack: 'Looked at Domlur' },
-  ];
+describe('candidateReason', () => {
+  it('names the term the agent will recognise', () => {
+    expect(
+      candidateReason({
+        contact: contact('a', 'Natarajan'),
+        matchedTerms: ['domlur'],
+        nameMatched: false,
+        phoneMatched: false,
+      })
+    ).toBe('brief mentions Domlur');
+  });
 
-  it('offers only contacts that matched something, best first', () => {
-    const ranked = rankClientCandidates({ threadText: THREAD }, book);
-    expect(ranked.map((r) => r.contact.id)).toEqual(['b', 'c']);
+  it('is empty when there is nothing to show, so the candidate is dropped', () => {
+    expect(
+      candidateReason({
+        contact: contact('a', 'Ravi'),
+        matchedTerms: [],
+        nameMatched: false,
+        phoneMatched: false,
+      })
+    ).toBe('');
+  });
+});
+
+describe('rankClientCandidates', () => {
+  it('offers only contacts with a reason to show, best first', () => {
+    const ranked = rankClientCandidates([
+      {
+        contact: contact('a', 'Ravi'),
+        matchedTerms: [],
+        nameMatched: false,
+        phoneMatched: false,
+      },
+      {
+        contact: contact('b', 'Natarajan'),
+        matchedTerms: ['domlur'],
+        nameMatched: false,
+        phoneMatched: false,
+      },
+      {
+        contact: contact('c', 'Suresh'),
+        matchedTerms: ['domlur', 'sadhahalli'],
+        nameMatched: false,
+        phoneMatched: false,
+      },
+    ]);
+    expect(ranked.map((r) => r.contact.id)).toEqual(['c', 'b']);
+    expect(ranked[0].reason).toBe('brief mentions Domlur and Sadhahalli');
+  });
+
+  it('offers nothing when the book answers nothing', () => {
+    expect(
+      rankClientCandidates([
+        {
+          contact: contact('a', 'Ravi'),
+          matchedTerms: [],
+          nameMatched: false,
+          phoneMatched: false,
+        },
+      ])
+    ).toEqual([]);
   });
 
   it('caps what it offers', () => {
     const many = Array.from({ length: 8 }, (_, i) => ({
-      id: `x${i}`,
-      name: `Contact ${i}`,
-      phone: null,
-      haystack: 'Lodha Sadhahalli',
+      contact: contact(`x${i}`, `Contact ${i}`),
+      matchedTerms: ['domlur'],
+      nameMatched: false,
+      phoneMatched: false,
     }));
-    expect(rankClientCandidates({ threadText: THREAD }, many)).toHaveLength(3);
+    expect(rankClientCandidates(many)).toHaveLength(3);
+  });
+});
+
+describe('a note is weaker evidence than a brief', () => {
+  it('puts the contact whose own brief names the term first', () => {
+    const ranked = rankClientCandidates([
+      {
+        contact: { id: 'noted', name: 'Rahul', phone: null },
+        matchedTerms: [],
+        notedTerms: ['domlur'],
+        nameMatched: false,
+        phoneMatched: false,
+      },
+      {
+        contact: { id: 'brief', name: 'Natarajan', phone: null },
+        matchedTerms: ['domlur'],
+        notedTerms: [],
+        nameMatched: false,
+        phoneMatched: false,
+      },
+    ]);
+    expect(ranked.map((r) => r.contact.id)).toEqual(['brief', 'noted']);
+    expect(ranked[0].reason).toBe('brief mentions Domlur');
+    expect(ranked[1].reason).toBe('a note mentions Domlur');
   });
 });

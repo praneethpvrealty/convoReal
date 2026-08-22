@@ -39,6 +39,7 @@ import {
   distinctiveTerms,
   rankClientCandidates,
   type CandidateContact,
+  type CandidateEvidence,
   type RankedCandidate,
 } from '@/lib/journey/client-candidates';
 import { scanMessagesForProperties } from '@/lib/journey/chat-scan';
@@ -341,7 +342,8 @@ async function loadStages(
 async function matchClientContact(
   db: SupabaseClient,
   accountId: string,
-  parsed: ParsedClientReply
+  parsed: ParsedClientReply,
+  excludeContactId?: string
 ): Promise<BookContact | null> {
   const digits = (parsed.client_phone || '').replace(/\D/g, '');
   if (digits.length >= 7) {
@@ -352,7 +354,8 @@ async function matchClientContact(
       .eq('account_id', accountId)
       .like('phone', `%${suffix}`);
     const hit = ((data ?? []) as BookContact[]).find(
-      (c) => c.phone && phonesMatch(c.phone, digits)
+      (c) =>
+        c.id !== excludeContactId && c.phone && phonesMatch(c.phone, digits)
     );
     if (hit) return hit;
   }
@@ -364,7 +367,7 @@ async function matchClientContact(
       .eq('is_merged', false);
     return matchContactByName(
       parsed.client_name,
-      (data ?? []) as BookContact[]
+      ((data ?? []) as BookContact[]).filter((c) => c.id !== excludeContactId)
     );
   }
   return null;
@@ -705,6 +708,8 @@ export interface ProcessClientReplyArgs {
   parsed: ParsedClientReply;
   accessToken: string;
   phoneNumberId: string;
+  /** The forwarding agent's own contact row — never the client. */
+  excludeContactId?: string;
 }
 
 /** What the forwarding agent gets back. `buttons` is present once the
@@ -727,111 +732,159 @@ function escapeLike(term: string): string {
   return term.replace(/([%_,\\])/g, '\\$1');
 }
 
-function threadTextOf(parsed: ParsedClientReply): string {
-  return [
-    parsed.response_summary,
-    parsed.requirement,
-    parsed.next_action,
-    parsed.property_title,
-    parsed.client_name,
-  ]
-    .filter(Boolean)
-    .join(' ');
+/**
+ * A term identifies somebody only if it belongs to almost nobody. More
+ * contacts than this share it and it is vocabulary, not a name.
+ */
+const MAX_CONTACTS_PER_TERM = 3;
+
+/** Terms worth asking the book about: what the client actually typed
+ *  first, and only if they typed nothing nameable, the longer words of
+ *  the summary. */
+function candidateTerms(parsed: ParsedClientReply): string[] {
+  const mentioned = (parsed.mentioned_terms || [])
+    .flatMap((term) => term.split(/[^\p{L}\p{N}]+/u))
+    .map((word) => word.toLowerCase())
+    .filter((word) => word.length >= 5);
+  const deduped = [...new Set(mentioned)].slice(0, 6);
+  if (deduped.length) return deduped;
+  return distinctiveTerms(
+    [parsed.property_title, parsed.requirement, parsed.response_summary]
+      .filter(Boolean)
+      .join(' ')
+  );
+}
+
+/** The contacts one term points at — or null when it points at too
+ *  many to mean anything. Two bounded reads, no counting: a term that
+ *  can fill the limit has already disqualified itself. */
+async function contactsForTerm(
+  db: SupabaseClient,
+  accountId: string,
+  term: string
+): Promise<{ brief: string[]; noted: string[] } | null> {
+  const needle = `%${escapeLike(term)}%`;
+  const cap = MAX_CONTACTS_PER_TERM + 1;
+
+  const [briefs, notes] = await Promise.all([
+    db
+      .from('contacts')
+      .select('id')
+      .eq('account_id', accountId)
+      .eq('is_merged', false)
+      .ilike('requirements', needle)
+      .limit(cap),
+    db
+      .from('contact_notes')
+      .select('contact_id')
+      .eq('account_id', accountId)
+      .ilike('note_text', needle)
+      .limit(cap * 5),
+  ]);
+
+  const brief = new Set<string>();
+  for (const row of briefs.data ?? []) brief.add(row.id as string);
+  const noted = new Set<string>();
+  for (const row of notes.data ?? []) {
+    const id = row.contact_id as string;
+    if (!brief.has(id)) noted.add(id);
+  }
+  const total = brief.size + noted.size;
+  if (total === 0 || total > MAX_CONTACTS_PER_TERM) return null;
+  return { brief: [...brief], noted: [...noted] };
 }
 
 /**
  * The handful of contacts a forward could plausibly be about.
  *
- * Three bounded lookups, run only on the unmatched path: the name the
- * thread showed, the briefs that mention what the thread mentions, and
- * the notes that do. Everything is scored in `client-candidates.ts`,
- * which drops anything that matched on nothing — so an account whose
- * book has no answer gets the plain question, exactly as before.
+ * Runs only on the unmatched path. Each term is tested for rarity in
+ * THIS account's book before it is allowed to nominate anybody, so a
+ * word like "owner" — eleven contacts' notes carry it — nominates
+ * nobody, while "Domlur" — one contact's brief carries it — nominates
+ * them. An account whose book answers nothing yields nothing, and the
+ * agent gets the plain question.
  */
-async function findClientCandidates(
+export async function findClientCandidates(
   db: SupabaseClient,
   accountId: string,
-  parsed: ParsedClientReply
+  parsed: ParsedClientReply,
+  /** The agent forwarding this. Their own contact row is never the
+   *  client: the screenshot is taken inside their chat, so the app
+   *  header at the top of it carries their name, and a model that
+   *  reads it there would have them offered as their own client. */
+  excludeContactId?: string
 ): Promise<RankedCandidate[]> {
-  const threadText = threadTextOf(parsed);
-  const terms = distinctiveTerms(threadText);
-  const found = new Map<string, CandidateContact>();
-
-  const remember = (
-    row: {
-      id: string;
-      name: string | null;
-      phone: string | null;
-      requirements?: string | null;
-      updated_at?: string | null;
-    },
-    extra = ''
-  ) => {
-    const existing = found.get(row.id);
-    const haystack = [existing?.haystack, row.requirements, extra]
-      .filter(Boolean)
-      .join(' ');
-    found.set(row.id, {
-      id: row.id,
-      name: row.name,
-      phone: row.phone,
-      haystack,
-      lastActivity: row.updated_at ?? existing?.lastActivity ?? null,
-    });
+  const evidence = new Map<string, CandidateEvidence>();
+  const remember = (contact: CandidateContact): CandidateEvidence => {
+    const existing = evidence.get(contact.id);
+    if (existing) return existing;
+    const fresh: CandidateEvidence = {
+      contact,
+      matchedTerms: [],
+      notedTerms: [],
+      nameMatched: false,
+      phoneMatched: false,
+    };
+    evidence.set(contact.id, fresh);
+    return fresh;
   };
 
   try {
-    if (parsed.client_name) {
-      const { data } = await db
-        .from('contacts')
-        .select('id, name, phone, requirements, updated_at')
-        .eq('account_id', accountId)
-        .eq('is_merged', false)
-        .ilike('name', `%${escapeLike(parsed.client_name.split(/\s+/)[0])}%`)
-        .limit(10);
-      for (const row of data ?? []) remember(row);
+    const nominated = new Map<string, { brief: string[]; noted: string[] }>();
+    for (const term of candidateTerms(parsed)) {
+      const hit = await contactsForTerm(db, accountId, term);
+      if (hit) nominated.set(term, hit);
     }
 
-    if (terms.length) {
-      const filter = terms
-        .map((t) => `requirements.ilike.%${escapeLike(t)}%`)
-        .join(',');
+    const wantedIds = new Set<string>();
+    for (const hit of nominated.values()) {
+      for (const id of [...hit.brief, ...hit.noted]) wantedIds.add(id);
+    }
+
+    if (wantedIds.size) {
       const { data } = await db
         .from('contacts')
-        .select('id, name, phone, requirements, updated_at')
+        .select('id, name, phone, updated_at')
+        .eq('account_id', accountId)
+        .in('id', [...wantedIds].slice(0, 20));
+      for (const row of data ?? []) {
+        remember({
+          id: row.id as string,
+          name: row.name as string | null,
+          phone: row.phone as string | null,
+          lastActivity: row.updated_at as string | null,
+        });
+      }
+      for (const [term, hit] of nominated) {
+        for (const id of hit.brief) evidence.get(id)?.matchedTerms.push(term);
+        for (const id of hit.noted) evidence.get(id)?.notedTerms?.push(term);
+      }
+    }
+
+    const firstName = (parsed.client_name || '').trim().split(/\s+/)[0];
+    if (firstName.length >= 3) {
+      const { data } = await db
+        .from('contacts')
+        .select('id, name, phone, updated_at')
         .eq('account_id', accountId)
         .eq('is_merged', false)
-        .or(filter)
-        .limit(20);
-      for (const row of data ?? []) remember(row);
-
-      const noteFilter = terms
-        .map((t) => `note_text.ilike.%${escapeLike(t)}%`)
-        .join(',');
-      const { data: notes } = await db
-        .from('contact_notes')
-        .select('contact_id, note_text')
-        .eq('account_id', accountId)
-        .or(noteFilter)
-        .order('created_at', { ascending: false })
-        .limit(40);
-
-      const byContact = new Map<string, string[]>();
-      for (const note of notes ?? []) {
-        const id = note.contact_id as string;
-        const list = byContact.get(id) ?? [];
-        list.push((note.note_text as string) || '');
-        byContact.set(id, list);
+        .ilike('name', `%${escapeLike(firstName)}%`)
+        .limit(10);
+      for (const row of data ?? []) {
+        remember({
+          id: row.id as string,
+          name: row.name as string | null,
+          phone: row.phone as string | null,
+          lastActivity: row.updated_at as string | null,
+        }).nameMatched = true;
       }
-      if (byContact.size) {
-        const { data: noted } = await db
-          .from('contacts')
-          .select('id, name, phone, requirements, updated_at')
-          .eq('account_id', accountId)
-          .eq('is_merged', false)
-          .in('id', [...byContact.keys()].slice(0, 20));
-        for (const row of noted ?? []) {
-          remember(row, (byContact.get(row.id) ?? []).join(' '));
+    }
+
+    const digits = (parsed.client_phone || '').replace(/\D/g, '');
+    if (digits.length >= 7) {
+      for (const item of evidence.values()) {
+        if (item.contact.phone && phonesMatch(item.contact.phone, digits)) {
+          item.phoneMatched = true;
         }
       }
     }
@@ -842,14 +895,8 @@ async function findClientCandidates(
     );
   }
 
-  return rankClientCandidates(
-    {
-      clientName: parsed.client_name,
-      clientPhone: parsed.client_phone,
-      threadText,
-    },
-    [...found.values()]
-  );
+  if (excludeContactId) evidence.delete(excludeContactId);
+  return rankClientCandidates([...evidence.values()]);
 }
 
 /**
@@ -863,9 +910,19 @@ export async function processClientReplyScreenshot(
 ): Promise<ClientReplyOutcome> {
   const { db, accountId, userId, parsed, accessToken, phoneNumberId } = args;
 
-  const contact = await matchClientContact(db, accountId, parsed);
+  const contact = await matchClientContact(
+    db,
+    accountId,
+    parsed,
+    args.excludeContactId
+  );
   if (!contact) {
-    const candidates = await findClientCandidates(db, accountId, parsed);
+    const candidates = await findClientCandidates(
+      db,
+      accountId,
+      parsed,
+      args.excludeContactId
+    );
     if (candidates.length) {
       return {
         text: buildCandidateReply(parsed, candidates),
@@ -1196,6 +1253,8 @@ export interface CompleteClientAnswerArgs {
   parsed: ParsedClientReply;
   accessToken: string;
   phoneNumberId: string;
+  /** The forwarding agent's own contact row — never the client. */
+  excludeContactId?: string;
 }
 
 /**
@@ -1217,7 +1276,9 @@ export async function completeClientReplyContact(
     .select('id, name, phone')
     .eq('account_id', accountId)
     .eq('is_merged', false);
-  const book = (data ?? []) as BookContact[];
+  const book = ((data ?? []) as BookContact[]).filter(
+    (c) => c.id !== args.excludeContactId
+  );
 
   const contact =
     matchContactByExactName(name, book) ?? matchContactByName(name, book);
