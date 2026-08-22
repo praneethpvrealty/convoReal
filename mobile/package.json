@@ -10,7 +10,10 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "test:e2e:contact-notes": "maestro test e2e/maestro/contact-notes-keyboard.yaml",
-    "test:e2e:buyer-requirements": "maestro test e2e/maestro/buyer-requirement-request.yaml"
+    "test:e2e:buyer-requirements": "maestro test e2e/maestro/buyer-requirement-request.yaml",
+    "test:e2e:core-navigation": "maestro test e2e/maestro/core-navigation.yaml",
+    "test:e2e:contact-requirements": "maestro test e2e/maestro/contact-requirements-sheet.yaml",
+    "test:e2e": "npm run test:e2e:core-navigation && npm run test:e2e:contact-notes && npm run test:e2e:buyer-requirements && npm run test:e2e:contact-requirements"
   },
   "dependencies": {
     "@bacons/apple-targets": "^5.0.0",

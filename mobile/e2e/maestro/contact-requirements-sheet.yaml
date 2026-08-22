@@ -1,0 +1,10 @@
+appId: com.convoreal.app
+---
+- launchApp
+- tapOn: Contacts
+- tapOn: Search contacts
+- inputText: Aditya U B
+- tapOn: Aditya U B
+- tapOn: Requirements
+- assertVisible: Requirements
+- assertVisible: Ask them on WhatsApp
