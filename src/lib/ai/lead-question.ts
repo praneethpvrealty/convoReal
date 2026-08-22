@@ -39,6 +39,10 @@ import type { Property } from '@/types';
 import { generateText } from '@/lib/ai/gemini';
 import { burnCredits } from '@/lib/credits/burn';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
+import {
+  botInstructionPrompt,
+  type BotInstructionMatch,
+} from '@/lib/ai/bot-instructions';
 
 /** Same feature key and price the public Ask endpoint burns. */
 const AI_FEATURE = 'chatbot_auto_reply' as const;
@@ -55,6 +59,7 @@ export interface LeadAnswer {
   source: LeadAnswerSource;
   /** The matched deterministic intent, for logging. */
   intent?: string | null;
+  appliedInstructionIds?: string[];
 }
 
 /** The listing fields the final-price rung reads. Not part of QaProperty:
@@ -249,6 +254,11 @@ export function mergeLeadAnswers(
     intent: answers.every((a) => a.intent === first.intent)
       ? first.intent
       : null,
+    appliedInstructionIds: [
+      ...new Set(
+        answers.flatMap((answer) => answer.appliedInstructionIds ?? [])
+      ),
+    ],
   };
 }
 
@@ -383,6 +393,7 @@ export async function answerLeadQuestion(args: {
   /** This listing's harvested portal copies, for a buyer comparing us
    *  against MagicBricks / 99acres / Housing. */
   portalListings?: PortalListingFigures[];
+  botInstructions?: BotInstructionMatch[];
 }): Promise<LeadAnswer> {
   const { accountId, question, property } = args;
   // Before the listing check: a lead asking to be called is asking for
@@ -460,16 +471,33 @@ export async function answerLeadQuestion(args: {
 
   try {
     const prompt = `Property details:\n${buildPropertyContext(qaProperty)}\n\nBuyer's question: ${question}\n\nAnswer:`;
-    const raw = await generateText(prompt, PROPERTY_QA_SYSTEM_PROMPT, {
-      feature: AI_FEATURE,
-    });
+    const instructionPrompt = botInstructionPrompt(args.botInstructions ?? []);
+    const raw = await generateText(
+      prompt,
+      `${PROPERTY_QA_SYSTEM_PROMPT}${instructionPrompt}`,
+      { feature: AI_FEATURE }
+    );
     const answer = (raw || '').trim();
     // The system prompt tells Gemini to refuse rather than invent. A
     // refusal is a handover, not an answer.
-    if (!answer || isNonAnswer(answer)) {
+    if (!answer) {
       return { text: HANDOVER_TEXT, source: 'handover' };
     }
-    return { text: answer, source: 'ai' };
+    const appliedInstructionIds = (args.botInstructions ?? []).map(
+      (rule) => rule.id
+    );
+    if (isNonAnswer(answer)) {
+      return {
+        text: HANDOVER_TEXT,
+        source: 'handover',
+        appliedInstructionIds,
+      };
+    }
+    return {
+      text: answer,
+      source: 'ai',
+      appliedInstructionIds,
+    };
   } catch (err) {
     console.error('[lead-question] AI answer failed:', err);
     return { text: HANDOVER_TEXT, source: 'handover' };

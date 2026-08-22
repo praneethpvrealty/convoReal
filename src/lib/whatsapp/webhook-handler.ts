@@ -116,6 +116,10 @@ import {
   type LeadAnswer,
 } from '@/lib/ai/lead-question';
 import {
+  markBotInstructionsFired,
+  retrieveBotInstructions,
+} from '@/lib/ai/bot-instructions';
+import {
   photoHandoverText,
   requestsPropertyPhotos,
   sendSubjectPhotos,
@@ -3061,17 +3065,31 @@ async function processMessage(
         .eq('account_id', accountId)
         .maybeSingle();
       const answers = await Promise.all(
-        (subjects.length > 0 ? subjects : [null]).map(async (subject) =>
-          answerLeadQuestion({
+        (subjects.length > 0 ? subjects : [null]).map(async (subject) => {
+          const [portalListings, botInstructions] = await Promise.all([
+            subject
+              ? subjectPortalListings(admin, accountId, subject.id)
+              : Promise.resolve([]),
+            retrieveBotInstructions(admin, {
+              accountId,
+              contactClassification:
+                (contactRecord as { classification?: string | null })
+                  .classification ?? null,
+              listingType: subject?.listing_type ?? null,
+              language:
+                (contactRecord as { preferred_language?: string | null })
+                  .preferred_language ?? null,
+            }),
+          ])
+          return answerLeadQuestion({
             accountId,
             question: inboundText,
             property: subject,
             shareSellerFinalPrice: qaConfig?.share_seller_final_price === true,
-            portalListings: subject
-              ? await subjectPortalListings(admin, accountId, subject.id)
-              : [],
-          })
-        )
+            portalListings,
+            botInstructions,
+          });
+        }),
       );
       answer = mergeLeadAnswers(answers, subjects);
     }
@@ -3085,6 +3103,12 @@ async function processMessage(
       senderType: 'bot',
       text: answer.text,
     });
+
+    await markBotInstructionsFired(
+      admin,
+      accountId,
+      answer.appliedInstructionIds ?? [],
+    );
 
     if (answer.source === 'handover') {
       // The lead has been promised a person, so make sure one hears

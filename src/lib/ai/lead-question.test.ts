@@ -156,11 +156,20 @@ describe('answerLeadQuestion', () => {
       accountId: 'a1',
       question: 'is the price negotiable at all',
       property,
+      botInstructions: [
+        {
+          id: 'rule-1',
+          influence: 'tone',
+          directive: 'Use a concise, warm tone.',
+        },
+      ],
     });
     expect(res.source).toBe('ai');
     expect(res.text).toContain('open to discussing');
-    const [prompt] = vi.mocked(generateText).mock.calls[0];
+    expect(res.appliedInstructionIds).toEqual(['rule-1']);
+    const [prompt, systemInstruction] = vi.mocked(generateText).mock.calls[0];
     expect(prompt).toContain('Commercial Plot on 19th Main');
+    expect(systemInstruction).toContain('[tone] Use a concise, warm tone.');
   });
 
   it('hands over when Gemini refuses rather than inventing', async () => {

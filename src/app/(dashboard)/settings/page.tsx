@@ -27,6 +27,7 @@ import {
   Bell,
   Ticket,
   KeyRound,
+  BookOpen,
 } from 'lucide-react';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import {
@@ -71,6 +72,7 @@ import { InfoHint } from '@/components/ui/info-hint';
 import { FavoriteButton } from '@/components/layout/favorite-button';
 import { BetaInviteHub } from '@/components/settings/beta-invite-hub';
 import { ApiKeysTab } from '@/components/settings/api-keys-tab';
+import { BotInstructionsPanel } from '@/components/settings/bot-instructions-panel';
 
 const BASE_TAB_VALUES = [
   'profile',
@@ -83,6 +85,7 @@ const BASE_TAB_VALUES = [
   'notifications',
   'showcase',
   'ai',
+  'bot-rules',
   'other',
   'billing',
   'credits',
@@ -328,6 +331,7 @@ export default function SettingsPage() {
       items: [
         { value: 'showcase', label: 'Showcase', icon: Globe },
         { value: 'ai', label: 'AI Config', icon: Sparkles },
+        { value: 'bot-rules', label: 'Bot Rules', icon: BookOpen },
         { value: 'other', label: 'Other', icon: Sliders },
         ...(membersEnabled
           ? [
@@ -670,6 +674,10 @@ export default function SettingsPage() {
 
           <TabsContent value="ai" className="mt-0">
             <AiSettingsPanel />
+          </TabsContent>
+
+          <TabsContent value="bot-rules" className="mt-0">
+            <BotInstructionsPanel />
           </TabsContent>
 
           <TabsContent value="other" className="mt-0">

@@ -316,6 +316,12 @@ Per-(contact × property) funnel tracking behind the `/journey` canvas — recor
   fanned it out on the shared `occasion_greeting` template. The same migration
   adds `broadcasts.header_media_url`, the resolved header-image URL a broadcast
   attaches to every send.
+- `bot_instructions` (migration `20260822080000`): Account-authored reply
+  rules with an approved influence area, active/proposed/paused lifecycle,
+  optional contact/listing/language/funnel scope, and hit counters. RLS lets
+  members read and admins write. `match_bot_instructions` performs bounded,
+  specificity-first retrieval (20 rows maximum); only the WhatsApp service
+  path can increment counters after a successful send.
 
 ### Group I: Owners Den (migrations 132–133)
 
