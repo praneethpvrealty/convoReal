@@ -8,11 +8,6 @@ import {
   Trash2,
   Mail,
   CircleAlert,
-  Sparkles,
-  BookOpen,
-  LayoutGrid,
-  UserRound,
-  Box,
 } from 'lucide-react';
 
 import { createClient } from '@/lib/supabase/client';
@@ -45,6 +40,7 @@ import {
   DEFAULT_SHOWCASE_STYLE,
   type ShowcaseStyle,
 } from '@/lib/showcase/style';
+import { ShowcasePresentationControls } from '@/components/settings/showcase-presentation-controls';
 
 const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
 const ALLOWED_MIME = new Set([
@@ -58,38 +54,6 @@ const ALLOWED_MIME = new Set([
 // rejects anything malformed when we call updateUser({ email }). We
 // just want to stop obvious typos before making a network call.
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-const SHOWCASE_STYLE_OPTIONS: Array<{
-  value: ShowcaseStyle;
-  label: string;
-  description: string;
-  icon: typeof Sparkles;
-}> = [
-  {
-    value: 'spotlight',
-    label: 'Spotlight',
-    description: 'Cinematic, photo-first listings',
-    icon: Sparkles,
-  },
-  {
-    value: 'editorial',
-    label: 'Editorial',
-    description: 'Refined magazine presentation',
-    icon: BookOpen,
-  },
-  {
-    value: 'gallery',
-    label: 'Gallery',
-    description: 'Fast, visual property browsing',
-    icon: LayoutGrid,
-  },
-  {
-    value: 'signature',
-    label: 'Signature',
-    description: 'Agent-led personal branding',
-    icon: UserRound,
-  },
-];
 
 export function ProfileForm() {
   const { user, profile, refreshProfile } = useAuth();
@@ -411,85 +375,15 @@ export function ProfileForm() {
             </p>
           </div>
 
-          <div className="space-y-3">
-            <div>
-              <Label className="text-slate-200">Personal showcase style</Label>
-              <p className="mt-1 text-xs text-slate-500">
-                Choose how properties appear on your personal agent showcase
-                link.
-              </p>
-            </div>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {SHOWCASE_STYLE_OPTIONS.map((option) => {
-                const Icon = option.icon;
-                const selected = showcaseStyle === option.value;
-                return (
-                  <button
-                    key={option.value}
-                    type="button"
-                    aria-pressed={selected}
-                    disabled={saving}
-                    onClick={() => setShowcaseStyle(option.value)}
-                    className={`flex items-start gap-3 rounded-xl border p-4 text-left transition-colors ${
-                      selected
-                        ? 'border-primary bg-primary/10 text-white'
-                        : 'border-slate-800 bg-slate-900/50 text-slate-300 hover:border-slate-700 hover:bg-slate-900'
-                    }`}
-                  >
-                    <span
-                      className={`flex size-9 shrink-0 items-center justify-center rounded-lg ${
-                        selected
-                          ? 'bg-primary text-primary-foreground'
-                          : 'bg-slate-800 text-slate-400'
-                      }`}
-                    >
-                      <Icon className="size-4" />
-                    </span>
-                    <span>
-                      <span className="block text-sm font-semibold">
-                        {option.label}
-                      </span>
-                      <span className="mt-1 block text-xs text-slate-500">
-                        {option.description}
-                      </span>
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-            <button
-              type="button"
-              aria-pressed={showcase3dEnabled}
-              disabled={saving}
-              onClick={() => setShowcase3dEnabled((enabled) => !enabled)}
-              className={`flex w-full items-center gap-3 rounded-xl border p-4 text-left transition-colors ${
-                showcase3dEnabled
-                  ? 'border-primary/50 bg-primary/5'
-                  : 'border-slate-800 bg-slate-900/40'
-              }`}
-            >
-              <span className="bg-slate-850 text-primary flex size-9 shrink-0 items-center justify-center rounded-lg">
-                <Box className="size-4" />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-sm font-semibold text-white">
-                  3D property transitions
-                </span>
-                <span className="mt-1 block text-xs text-slate-500">
-                  Cards tilt into focus while visitors move between listings.
-                </span>
-              </span>
-              <span
-                className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${
-                  showcase3dEnabled
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-slate-800 text-slate-400'
-                }`}
-              >
-                {showcase3dEnabled ? 'On' : 'Off'}
-              </span>
-            </button>
-          </div>
+          <ShowcasePresentationControls
+            title="Personal showcase style"
+            description="Choose how properties appear on your personal agent showcase link."
+            value={showcaseStyle}
+            threeDimensional={showcase3dEnabled}
+            disabled={saving}
+            onValueChange={setShowcaseStyle}
+            onThreeDimensionalChange={setShowcase3dEnabled}
+          />
 
           {/* Read-only block */}
           <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-4">

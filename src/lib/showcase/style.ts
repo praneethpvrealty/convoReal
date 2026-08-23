@@ -15,3 +15,19 @@ export function toShowcaseStyle(value: unknown): ShowcaseStyle {
     ? (value as ShowcaseStyle)
     : DEFAULT_SHOWCASE_STYLE;
 }
+
+interface ShowcasePresentationSource {
+  showcase_style?: unknown;
+  showcase_3d_enabled?: boolean | null;
+}
+
+export function resolveShowcasePresentation(
+  company: ShowcasePresentationSource | null | undefined,
+  personal?: ShowcasePresentationSource | null
+): { style: ShowcaseStyle; threeDimensional: boolean } {
+  const source = personal ?? company;
+  return {
+    style: toShowcaseStyle(source?.showcase_style),
+    threeDimensional: source?.showcase_3d_enabled ?? true,
+  };
+}

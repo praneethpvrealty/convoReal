@@ -1101,42 +1101,53 @@ export function ShowcaseView({
         deck.querySelectorAll<HTMLElement>('.showcase-listing-card')
       );
 
-      if (!mobile.matches || reducedMotion.matches) {
+      if (reducedMotion.matches) {
         cards.forEach((card) => {
           card.style.removeProperty('--showcase-card-rotate-x');
           card.style.removeProperty('--showcase-card-translate-y');
+          card.style.removeProperty('--showcase-card-translate-z');
           card.style.removeProperty('--showcase-card-scale');
           card.style.removeProperty('--showcase-card-opacity');
         });
         return;
       }
 
+      const mobileDeck = mobile.matches;
+      const viewportHeight = mobileDeck
+        ? deck.clientHeight
+        : Math.max(window.innerHeight, 1);
       const deckRect = deck.getBoundingClientRect();
-      const deckCenter = deckRect.top + deck.clientHeight / 2;
+      const deckCenter = mobileDeck
+        ? deckRect.top + deck.clientHeight / 2
+        : viewportHeight / 2;
       cards.forEach((card) => {
         const cardRect = card.getBoundingClientRect();
         const cardCenter = cardRect.top + cardRect.height / 2;
         const distance = Math.max(
           -1,
-          Math.min(1, (cardCenter - deckCenter) / deck.clientHeight)
+          Math.min(1, (cardCenter - deckCenter) / viewportHeight)
         );
         const depth = Math.abs(distance);
 
         card.style.setProperty(
           '--showcase-card-rotate-x',
-          `${distance * -68}deg`
+          `${distance * (mobileDeck ? -68 : -20)}deg`
         );
         card.style.setProperty(
           '--showcase-card-translate-y',
-          `${distance * 10}%`
+          `${distance * (mobileDeck ? 10 : 3)}%`
+        );
+        card.style.setProperty(
+          '--showcase-card-translate-z',
+          `${depth * (mobileDeck ? -180 : -100)}px`
         );
         card.style.setProperty(
           '--showcase-card-scale',
-          `${1 - depth * 0.12}`
+          `${1 - depth * (mobileDeck ? 0.12 : 0.035)}`
         );
         card.style.setProperty(
           '--showcase-card-opacity',
-          `${1 - depth * 0.62}`
+          `${1 - depth * (mobileDeck ? 0.62 : 0.18)}`
         );
       });
     };
@@ -1146,6 +1157,7 @@ export function ShowcaseView({
     };
 
     deck.addEventListener('scroll', scheduleUpdate, { passive: true });
+    window.addEventListener('scroll', scheduleUpdate, { passive: true });
     window.addEventListener('resize', scheduleUpdate);
     mobile.addEventListener('change', scheduleUpdate);
     reducedMotion.addEventListener('change', scheduleUpdate);
@@ -1154,6 +1166,7 @@ export function ShowcaseView({
     return () => {
       if (frame) window.cancelAnimationFrame(frame);
       deck.removeEventListener('scroll', scheduleUpdate);
+      window.removeEventListener('scroll', scheduleUpdate);
       window.removeEventListener('resize', scheduleUpdate);
       mobile.removeEventListener('change', scheduleUpdate);
       reducedMotion.removeEventListener('change', scheduleUpdate);
