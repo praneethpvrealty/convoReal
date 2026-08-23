@@ -24,6 +24,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { FlyerSheet } from '@/components/flyer-sheet';
+import { ListingAudienceSheet } from '@/components/listing-audience-sheet';
 import { ConvoRealLoader } from '@/components/loader';
 import { PropertyShareSheet } from '@/components/property-share-sheet';
 import { FilterChip, SectionLabel, Tag, nameTagCap } from '@/components/ui';
@@ -40,6 +41,12 @@ import { friendlyError } from '@/lib/errors';
 import { chatListTime, formatInr } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
 import { listingPrice } from '@/lib/listing-price';
+import {
+  audienceListingLabel,
+  fetchListingAudience,
+  reachableAudienceIds,
+  type AudienceListing,
+} from '@/lib/listing-audience';
 import {
   inMatchAudience,
   matchChips,
@@ -1257,6 +1264,9 @@ function MatchesSection({ property }: { property: Property }) {
   const [shareTo, setShareTo] = useState<Contact[] | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [expanded, setExpanded] = useState(false);
+  const [audiencePickerOpen, setAudiencePickerOpen] = useState(false);
+  const [audienceBusyId, setAudienceBusyId] = useState<string | null>(null);
+  const { show, dialogProps } = useAppDialog();
 
   const matches = useQuery({
     queryKey: ['property-matches', property.id],
@@ -1294,6 +1304,48 @@ function MatchesSection({ property }: { property: Property }) {
     setSelectedIds((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
     );
+  }
+
+  // One tap: everyone who engaged with another listing. Matching
+  // answers who fits this property; this answers who already asked
+  // about a comparable one. Lands on the All tab because an audience
+  // spans buyers and agents, and a pick hidden by the active filter
+  // would look like nothing happened.
+  async function applyListingAudience(listing: AudienceListing) {
+    setAudienceBusyId(listing.propertyId);
+    try {
+      const members = await fetchListingAudience(listing.propertyId);
+      const { ids, unreachable } = reachableAudienceIds(
+        members,
+        all.map((m) => m.contact)
+      );
+      if (ids.length === 0) {
+        show({
+          title: 'Nobody to select',
+          message: `No one in ${audienceListingLabel(listing)}'s audience can be messaged on WhatsApp from here.`,
+        });
+        return;
+      }
+      setSelectedIds((prev) => [...new Set([...prev, ...ids])]);
+      setAudience('all');
+      setExpanded(true);
+      setAudiencePickerOpen(false);
+      if (unreachable > 0) {
+        show({
+          title: `Selected ${ids.length} of ${members.length}`,
+          message: `${unreachable} contact${unreachable === 1 ? '' : 's'} in this audience could not be selected — no WhatsApp number, or not in the matching list.`,
+        });
+      }
+    } catch (err) {
+      show({
+        title: 'Could not load that audience',
+        message: friendlyError(
+          err instanceof ApiError ? err.message : 'Try again.'
+        ),
+      });
+    } finally {
+      setAudienceBusyId(null);
+    }
   }
 
   // Switching audience drops selections outside it, so "Select all"
@@ -1378,6 +1430,32 @@ function MatchesSection({ property }: { property: Property }) {
             onPress={() => switchAudience('all')}
           />
         </View>
+      ) : null}
+
+      {expanded ? (
+        <Pressable
+          onPress={() => {
+            haptic.tap();
+            setAudiencePickerOpen(true);
+          }}
+          accessibilityRole="button"
+          accessibilityLabel="Share with a listing's audience"
+          style={[
+            styles.audienceCta,
+            { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+          ]}
+        >
+          <Ionicons name="people-circle-outline" size={18} color={colors.primary} />
+          <View style={{ flex: 1, gap: 1 }}>
+            <Text style={{ fontSize: 13, fontFamily: f.bold, color: colors.text }}>
+              Share with a listing&apos;s audience
+            </Text>
+            <Text style={{ fontSize: 11.5, color: colors.textMuted }}>
+              Everyone who enquired about or viewed another listing
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+        </Pressable>
       ) : null}
 
       {expanded && (audienceRows.length > 5 || searchQuery) ? (
@@ -1642,6 +1720,15 @@ function MatchesSection({ property }: { property: Property }) {
           </Text>
         </Pressable>
       ) : null}
+
+      <ListingAudienceSheet
+        visible={audiencePickerOpen}
+        onClose={() => setAudiencePickerOpen(false)}
+        onPick={applyListingAudience}
+        busyId={audienceBusyId}
+      />
+
+      <AppDialog {...dialogProps} />
 
       <PropertyShareSheet
         property={property}
@@ -1994,6 +2081,15 @@ const styles = StyleSheet.create({
   },
   matchShareAction: {
     paddingHorizontal: spacing.md,
+  },
+  audienceCta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.md,
   },
   bulkShare: {
     flexDirection: 'row',
