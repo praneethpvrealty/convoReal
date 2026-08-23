@@ -43,6 +43,7 @@ import { burnCredits } from '@/lib/credits/burn';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 import { recordLearnedFacts } from '@/lib/learning/record';
 import { sendRequirementReview } from '@/lib/whatsapp/requirement-review';
+import { logListingsSent } from '@/lib/whatsapp/share-property-send';
 import { visibleTagSuggestions } from '@/lib/contact-preferences';
 import { resolveRequirementSource } from '@/lib/requirements/profiles';
 import type { Contact, Property } from '@/types';
@@ -66,7 +67,7 @@ const QUALIFIABLE_CLASSIFICATIONS = ['Buyer', 'Agent', 'Owner & Buyer'];
 const HUMAN_ACTIVITY_WINDOW = 6;
 
 /** Listings per reply. Three is a shortlist; more reads as a dump. */
-const MAX_MATCHES_SENT = 3;
+export const MAX_MATCHES_SENT = 3;
 
 /** Localities offered as chips on the location question. */
 const MAX_AREA_SUGGESTIONS = 3;
@@ -152,6 +153,23 @@ const QUALIFIER_FINGERPRINTS: Record<QualifierField, RegExp> = {
   budget: /what budget(?: range)? are you working with/i,
   location: /which area (?:are you looking at|suits you best)/i,
 };
+
+/**
+ * True when this bot message is one of the ladder's own questions.
+ *
+ * The ladder used to claim any reply that followed any bot message,
+ * which is only sound while the bot asks nothing else. It asks plenty:
+ * a journey check-in ("when should we check back with you?"), a
+ * feedback prompt, an alerts opt-in. A client answering the check-in
+ * with "By the 5th of September" had that date filed as their BRIEF,
+ * their preferences re-extracted from it, and a shortlist pitched
+ * fourteen seconds after they had asked to be left until September.
+ */
+export function isQualifierQuestion(text?: string | null): boolean {
+  return QUALIFIER_ORDER.some((field) =>
+    QUALIFIER_FINGERPRINTS[field].test(text || '')
+  );
+}
 
 /** Rungs already put to the lead, read back off the bot's own messages. */
 export function askedQualifiers(
@@ -241,7 +259,8 @@ export function buildEnquiryBudgetDisparityReply(
     else portal = opts.leadPortal;
   }
 
-  const propLoc = (prop.location || prop.sublocality || '').trim() || 'the area';
+  const propLoc =
+    (prop.location || prop.sublocality || '').trim() || 'the area';
   const rawLand = prop.land_area ? Number(prop.land_area) : null;
   const landUnit = (prop.land_area_unit || 'sqft').toLowerCase().includes('sq')
     ? 'sq.ft'
@@ -386,7 +405,12 @@ export function buildListingLines(
   // accountShowcaseOrigin() returns a bare origin, so the path has to
   // be closed here or the link goes out as `https://host?property_id=`.
   const base = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
-  return matches.slice(0, MAX_MATCHES_SENT).map((m, i) => {
+  const shown = matches.slice(0, MAX_MATCHES_SENT);
+  // "1." in front of the only listing there is announces a list that
+  // never arrives; the closing line asks about "these" for the same
+  // reason. One listing is a listing.
+  const numbered = shown.length > 1;
+  return shown.map((m, i) => {
     // Skips the greeting AND the brokerage: this is a free-form list
     // inside a message the bot already signed, so repeating the name on
     // every line would read like a form letter.
@@ -395,7 +419,7 @@ export function buildListingLines(
       m.property
     );
     return [
-      `*${i + 1}. ${title}*`,
+      numbered ? `*${i + 1}. ${title}*` : `*${title}*`,
       specs,
       `📍 ${location}`,
       `${propertyShowcaseUrl(base, m.property)}&v=${encodeURIComponent(contactId)}`,
@@ -426,7 +450,9 @@ export function buildMatchesReply(
     '',
     listings.join('\n\n'),
     '',
-    "Want photos or a site visit for any of these? Reply with the number and I'll set it up.",
+    shown.length === 1
+      ? "Want photos or a site visit? Just say the word and I'll set it up."
+      : "Want photos or a site visit for any of these? Reply with the number and I'll set it up.",
     ...(followUp ? ['', followUp] : []),
   ].join('\n');
 }
@@ -484,6 +510,11 @@ export interface QualificationOutcome {
   missing: QualifierField | null;
   /** Exactly the text the lead receives. */
   reply: string;
+  /** The listings this reply actually shows, for the share ledger —
+   *  empty when it asks a question or acknowledges a shortlist that
+   *  already went out. What was sent has to be recorded where it was
+   *  decided, or the next send has no way to know. */
+  sentPropertyIds: string[];
 }
 
 /**
@@ -516,6 +547,7 @@ export function buildQualificationReply(
     return {
       missing,
       reply: buildQualifierQuestion(missing, prefs, areaSuggestions),
+      sentPropertyIds: [],
     };
   }
   if (matches.length && shortlistAlreadySent(matches, recentBotTexts)) {
@@ -525,6 +557,7 @@ export function buildQualificationReply(
         contactName,
         shortCircuit && laddered ? laddered : null
       ),
+      sentPropertyIds: [],
     };
   }
   if (matches.length) {
@@ -539,14 +572,17 @@ export function buildQualificationReply(
         // finished on its own has nothing left to ask.
         shortCircuit && laddered ? buildFollowUpQuestion(laddered) : null
       ),
+      sentPropertyIds: matches
+        .slice(0, MAX_MATCHES_SENT)
+        .map((m) => m.property.id),
     };
   }
 
   const isBudgetDisparity = Boolean(
     enquiredContext?.property &&
-      enquiredContext.property.price &&
-      prefs.budget_max &&
-      Number(enquiredContext.property.price) >= Number(prefs.budget_max) * 1.25
+    enquiredContext.property.price &&
+    prefs.budget_max &&
+    Number(enquiredContext.property.price) >= Number(prefs.budget_max) * 1.25
   );
 
   if (isBudgetDisparity && enquiredContext?.property) {
@@ -571,12 +607,14 @@ export function buildQualificationReply(
         leadPortal: enquiredContext.leadPortal,
         hasPriorListingDetails,
       }),
+      sentPropertyIds: [],
     };
   }
 
   return {
     missing: null,
     reply: buildNoMatchReply(contactName, prefs),
+    sentPropertyIds: [],
   };
 }
 
@@ -683,10 +721,7 @@ export function nextQualifierForContact(
 ): QualifierField | null {
   const source = resolveRequirementSource(contact);
   const prefs = prefsFromContact(source);
-  if (
-    prefs.areas.length === 0 &&
-    (source.areas_of_interest?.length ?? 0) > 0
-  ) {
+  if (prefs.areas.length === 0 && (source.areas_of_interest?.length ?? 0) > 0) {
     prefs.areas = source.areas_of_interest as string[];
   }
   const missing = nextQualifier(prefs);
@@ -1001,9 +1036,15 @@ export async function processBuyerQualificationMessage(
     const asked = askedQualifiers(recentBotTexts);
 
     // A bare answer ("Devanahalli") carries no signal of its own — it
-    // only means something because we asked the question directly
-    // before it. Anything else needs to look like a requirement.
-    const awaitingAnswer = (recent || [])[1]?.sender_type === 'bot';
+    // only means something because THE LADDER asked its question
+    // directly before it. Any other bot question standing there is
+    // somebody else's, and its answer belongs to them: a date given to
+    // a journey check-in is not a buying requirement. Anything else
+    // needs to look like a requirement on its own.
+    const previous = (recent || [])[1];
+    const awaitingAnswer =
+      previous?.sender_type === 'bot' &&
+      isQualifierQuestion(previous.content_text as string | null);
     if (!awaitingAnswer && !carriesRequirementSignal(text)) return false;
 
     const requirements = appendRequirement(contact.requirements, text);
@@ -1123,6 +1164,7 @@ export async function processBuyerQualificationMessage(
     const matches =
       !laddered || hasProject(prefs)
         ? await rankPropertiesForContact(db, accountId, contact.id, {
+            excludeAlreadySent: true,
             strictArea: true,
           })
         : [];
@@ -1143,16 +1185,21 @@ export async function processBuyerQualificationMessage(
 
     const isBudgetDisparity = Boolean(
       enquiredProperty &&
-        enquiredProperty.price &&
-        prefs.budget_max &&
-        Number(enquiredProperty.price) >= Number(prefs.budget_max) * 1.25
+      enquiredProperty.price &&
+      prefs.budget_max &&
+      Number(enquiredProperty.price) >= Number(prefs.budget_max) * 1.25
     );
 
     // Fully qualified, nothing fits: play the updated brief back with
     // one-tap corrections instead of "our team will call you", UNLESS
     // there is an enquiry-vs-budget disparity that warrants a direct
     // contextual bridge reply.
-    if (!missing && matches.length === 0 && configOwnerUserId && !isBudgetDisparity) {
+    if (
+      !missing &&
+      matches.length === 0 &&
+      configOwnerUserId &&
+      !isBudgetDisparity
+    ) {
       const reviewed = await sendRequirementReview({
         db,
         accountId,
@@ -1202,6 +1249,19 @@ export async function processBuyerQualificationMessage(
       accessToken,
       phoneNumberId
     );
+
+    // What went out is recorded where it was decided, so a later
+    // shortlist — days or weeks on, past any message window — knows
+    // this lead has already seen these.
+    if (configOwnerUserId) {
+      await logListingsSent(
+        db,
+        accountId,
+        configOwnerUserId,
+        contact.id,
+        outcome.sentPropertyIds
+      );
+    }
 
     // Surface the same matches on Match Radar so the agent picks the
     // thread up already knowing what the lead was shown. Only when

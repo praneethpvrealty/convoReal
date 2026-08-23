@@ -18,7 +18,11 @@ import {
   rankPropertiesForContact,
   generateMatchEventForContact,
 } from '@/lib/radar/engine';
-import { buildMatchesReply } from '@/lib/ai/buyer-qualification';
+import {
+  buildMatchesReply,
+  MAX_MATCHES_SENT,
+} from '@/lib/ai/buyer-qualification';
+import { logListingsSent } from '@/lib/whatsapp/share-property-send';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { sendListingFeedbackPrompt } from '@/lib/whatsapp/listing-feedback';
 import { sendRequirementReview } from '@/lib/whatsapp/requirement-review';
@@ -86,6 +90,7 @@ export async function sendPreferenceMatchFollowUp(args: {
     // radius would surface listings they did not ask about.
     const matches = await rankPropertiesForContact(db, accountId, contactId, {
       strictArea: true,
+      excludeAlreadySent: true,
     });
 
     const contactName = (contact?.name as string | null) ?? null;
@@ -144,6 +149,14 @@ export async function sendPreferenceMatchFollowUp(args: {
     });
 
     if (matches.length > 0 && result.success) {
+      await logListingsSent(
+        db,
+        accountId,
+        userId,
+        contactId,
+        matches.slice(0, MAX_MATCHES_SENT).map((m) => m.property.id)
+      );
+
       // One tap per listing beats "reply with the number". No form row:
       // this lead just completed the form.
       await sendListingFeedbackPrompt({

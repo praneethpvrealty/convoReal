@@ -15,6 +15,7 @@ vi.mock('@/lib/supabase/admin', () => ({
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import {
   appendRequirement,
+  isQualifierQuestion,
   processBuyerQualificationMessage,
   buildQualificationReply,
   tallyAreaSuggestions,
@@ -93,9 +94,7 @@ describe('portal enquiry context', () => {
     // one rung an agent-entered profile carries no column for until
     // someone asks.
     expect(nextQualifier(saved)).toBe('intent');
-    expect(
-      nextQualifier({ ...saved, listing_types: ['Sale'] })
-    ).toBeNull();
+    expect(nextQualifier({ ...saved, listing_types: ['Sale'] })).toBeNull();
   });
 
   it('keeps the known Villa type when the buyer only adds budget and area', () => {
@@ -840,7 +839,11 @@ describe('buildQualificationReply — project-first matching', () => {
 
   it('moves the postscript on to budget once the type is known', () => {
     const outcome = buildQualificationReply(
-      prefs({ ...anju, property_categories: ['plot'], listing_types: ['Sale'] }),
+      prefs({
+        ...anju,
+        property_categories: ['plot'],
+        listing_types: ['Sale'],
+      }),
       'Anju',
       [match({})],
       [],
@@ -937,9 +940,9 @@ describe('preferenceFacts', () => {
   });
 
   it('clears a stale no-budget flag when a numeric budget is extracted', () => {
-    expect(preferenceFacts(prefs({ budget_max: 25_000_000 }), [])).toContainEqual(
-      { field: 'no_budget', value: false }
-    );
+    expect(
+      preferenceFacts(prefs({ budget_max: 25_000_000 }), [])
+    ).toContainEqual({ field: 'no_budget', value: false });
     expect(preferenceFacts(prefs(), [])).not.toContainEqual(
       expect.objectContaining({ field: 'no_budget' })
     );
@@ -950,7 +953,8 @@ describe('buildEnquiryBudgetDisparityReply', () => {
   const enquiredProperty: Property = {
     id: 'prop-1095',
     account_id: 'acc',
-    title: 'Old residential house in 4200 sqft plot is available for sale in Koramangala 1st block',
+    title:
+      'Old residential house in 4200 sqft plot is available for sale in Koramangala 1st block',
     price: 147_000_000,
     location: 'Koramangala 1st block',
     sublocality: 'Koramangala 1st block',
@@ -974,10 +978,18 @@ describe('buildEnquiryBudgetDisparityReply', () => {
       hasPriorListingDetails: true,
     });
 
-    expect(text).toContain('Hi Santhosh, the details above are for the specific Koramangala 1st block property you inquired about on Housing.com.');
-    expect(text).toContain('4,200 sq.ft plot in Koramangala 1st block is in the ₹14+ Cr bracket');
-    expect(text).toContain('for your ₹2 Cr budget, we MAY have great residential options (2/3 BHK apartments and independent floors) in Wilson Garden, Lakkasandra, and Chamarajpet.');
-    expect(text).toContain('Are you looking for an independent house/plot or an apartment in those areas? Let me know and I\'ll share the options within ₹2 Cr.');
+    expect(text).toContain(
+      'Hi Santhosh, the details above are for the specific Koramangala 1st block property you inquired about on Housing.com.'
+    );
+    expect(text).toContain(
+      '4,200 sq.ft plot in Koramangala 1st block is in the ₹14+ Cr bracket'
+    );
+    expect(text).toContain(
+      'for your ₹2 Cr budget, we MAY have great residential options (2/3 BHK apartments and independent floors) in Wilson Garden, Lakkasandra, and Chamarajpet.'
+    );
+    expect(text).toContain(
+      "Are you looking for an independent house/plot or an apartment in those areas? Let me know and I'll share the options within ₹2 Cr."
+    );
   });
 
   it('formats disparity bridge when lead only named the enquired locality', () => {
@@ -992,9 +1004,15 @@ describe('buildEnquiryBudgetDisparityReply', () => {
       hasPriorListingDetails: false,
     });
 
-    expect(text).toContain('Hi Santhosh, your initial inquiry was for the specific Koramangala 1st block property on MagicBricks.');
-    expect(text).toContain('for your ₹2 Cr budget in Koramangala 1st block, options are typically 2/3 BHK apartments rather than large independent plots.');
-    expect(text).toContain('Are you looking for an independent house/plot or an apartment? Let me know and I\'ll share the options within ₹2 Cr.');
+    expect(text).toContain(
+      'Hi Santhosh, your initial inquiry was for the specific Koramangala 1st block property on MagicBricks.'
+    );
+    expect(text).toContain(
+      'for your ₹2 Cr budget in Koramangala 1st block, options are typically 2/3 BHK apartments rather than large independent plots.'
+    );
+    expect(text).toContain(
+      "Are you looking for an independent house/plot or an apartment? Let me know and I'll share the options within ₹2 Cr."
+    );
   });
 });
 
@@ -1033,7 +1051,9 @@ describe('buildQualificationReply — enquiry budget disparity handling', () => 
     );
 
     expect(outcome.missing).toBeNull();
-    expect(outcome.reply).toContain('Hi Santhosh, the details above are for the specific Koramangala 1st block property you inquired about on Housing.com.');
+    expect(outcome.reply).toContain(
+      'Hi Santhosh, the details above are for the specific Koramangala 1st block property you inquired about on Housing.com.'
+    );
     expect(outcome.reply).toContain('₹14+ Cr bracket');
     expect(outcome.reply).toContain('for your ₹2 Cr budget');
   });
@@ -1062,6 +1082,75 @@ describe('buildQualificationReply — enquiry budget disparity handling', () => 
     );
 
     expect(outcome.missing).toBeNull();
-    expect(outcome.reply).toContain('Nothing in our live inventory matches that exactly right now');
+    expect(outcome.reply).toContain(
+      'Nothing in our live inventory matches that exactly right now'
+    );
+  });
+});
+
+describe('a bot question that is not the ladder’s own', () => {
+  it('recognises each rung it asks', () => {
+    expect(
+      isQualifierQuestion(
+        'Got it 👍 What kind of property are you looking for?'
+      )
+    ).toBe(true);
+    expect(isQualifierQuestion('What budget range are you working with?')).toBe(
+      true
+    );
+    expect(isQualifierQuestion('Which area are you looking at?')).toBe(true);
+    expect(isQualifierQuestion('Are you looking to buy or to rent?')).toBe(
+      true
+    );
+  });
+
+  it('disowns the journey check-in, so its answer is not filed as a brief', () => {
+    expect(
+      isQualifierQuestion(
+        'Hi Gerry, thanks for your update on Large villa plot #135 (PROP-1005). When should we check back with you?'
+      )
+    ).toBe(false);
+    expect(
+      isQualifierQuestion(
+        'Quick check — do any of these work for you? One tap trains your matches.'
+      )
+    ).toBe(false);
+    expect(isQualifierQuestion(null)).toBe(false);
+  });
+});
+
+describe('a shortlist of one', () => {
+  const one = [
+    {
+      property: {
+        id: 'p1',
+        title: '70x60 Residential Plot in Oval Reef, Devanahalli',
+        property_code: 'PROP-1019',
+        price: 44100000,
+        location: 'Devanahalli',
+        area: 4200,
+        area_unit: 'Sq.Ft.',
+      },
+      score: 90,
+      details: [],
+    },
+  ] as unknown as Parameters<typeof buildMatchesReply>[1];
+
+  it('does not number the only listing there is', () => {
+    const reply = buildMatchesReply('Gerry', one, 'https://x.test', 'c1');
+    expect(reply).toContain("here's one that fits");
+    expect(reply).not.toContain('*1.');
+    expect(reply).not.toContain('any of these');
+  });
+
+  it('still numbers a real list', () => {
+    const two = [
+      ...one,
+      { ...one[0], property: { ...one[0].property, id: 'p2' } },
+    ];
+    const reply = buildMatchesReply('Gerry', two, 'https://x.test', 'c1');
+    expect(reply).toContain('*1.');
+    expect(reply).toContain('*2.');
+    expect(reply).toContain('any of these');
   });
 });

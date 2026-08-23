@@ -132,7 +132,9 @@ export async function sendListingFeedbackPrompt(args: {
       senderType: 'bot',
       interactiveType: 'list',
       interactiveBody:
-        'Quick check — do any of these work for you? One tap trains your matches.',
+        args.matches.length === 1
+          ? 'Quick check — does this one work for you? One tap trains your matches.'
+          : 'Quick check — do any of these work for you? One tap trains your matches.',
       interactiveButtonLabel: 'Pick one',
       interactiveSections: buildListingFeedbackSections(args.matches, {
         includeFormRow: args.includeFormRow,

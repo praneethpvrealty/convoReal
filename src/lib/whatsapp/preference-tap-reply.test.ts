@@ -171,7 +171,7 @@ describe('sendPreferenceTapReply', () => {
       expect.anything(),
       'acct-1',
       'c1',
-      { strictArea: true }
+      { strictArea: true, excludeAlreadySent: true }
     );
   });
 
