@@ -2,7 +2,18 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Loader2, Upload, Trash2, Mail, CircleAlert } from 'lucide-react';
+import {
+  Loader2,
+  Upload,
+  Trash2,
+  Mail,
+  CircleAlert,
+  Sparkles,
+  BookOpen,
+  LayoutGrid,
+  UserRound,
+  Box,
+} from 'lucide-react';
 
 import { createClient } from '@/lib/supabase/client';
 import { storagePublicUrl } from '@/lib/storage/url';
@@ -30,6 +41,10 @@ import {
   CardTitle,
   CardDescription,
 } from '@/components/ui/card';
+import {
+  DEFAULT_SHOWCASE_STYLE,
+  type ShowcaseStyle,
+} from '@/lib/showcase/style';
 
 const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
 const ALLOWED_MIME = new Set([
@@ -44,6 +59,38 @@ const ALLOWED_MIME = new Set([
 // just want to stop obvious typos before making a network call.
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+const SHOWCASE_STYLE_OPTIONS: Array<{
+  value: ShowcaseStyle;
+  label: string;
+  description: string;
+  icon: typeof Sparkles;
+}> = [
+  {
+    value: 'spotlight',
+    label: 'Spotlight',
+    description: 'Cinematic, photo-first listings',
+    icon: Sparkles,
+  },
+  {
+    value: 'editorial',
+    label: 'Editorial',
+    description: 'Refined magazine presentation',
+    icon: BookOpen,
+  },
+  {
+    value: 'gallery',
+    label: 'Gallery',
+    description: 'Fast, visual property browsing',
+    icon: LayoutGrid,
+  },
+  {
+    value: 'signature',
+    label: 'Signature',
+    description: 'Agent-led personal branding',
+    icon: UserRound,
+  },
+];
+
 export function ProfileForm() {
   const { user, profile, refreshProfile } = useAuth();
   const supabase = createClient();
@@ -57,12 +104,18 @@ export function ProfileForm() {
   const [saving, setSaving] = useState(false);
   const [emailChangePending, setEmailChangePending] = useState(false);
   const [phoneDialogOpen, setPhoneDialogOpen] = useState(false);
+  const [showcaseStyle, setShowcaseStyle] = useState<ShowcaseStyle>(
+    DEFAULT_SHOWCASE_STYLE
+  );
+  const [showcase3dEnabled, setShowcase3dEnabled] = useState(true);
 
   // Seed form state once the profile loads.
   useEffect(() => {
     if (!profile) return;
     setFullName(profile.full_name ?? '');
     setEmail(profile.email ?? '');
+    setShowcaseStyle(profile.showcase_style ?? DEFAULT_SHOWCASE_STYLE);
+    setShowcase3dEnabled(profile.showcase_3d_enabled ?? true);
   }, [profile]);
 
   // Cleanup object URLs to avoid leaks.
@@ -161,6 +214,8 @@ export function ProfileForm() {
         .update({
           full_name: trimmedName,
           avatar_url: nextAvatarUrl,
+          showcase_style: showcaseStyle,
+          showcase_3d_enabled: showcase3dEnabled,
         })
         .eq('user_id', user.id)
         .select('user_id');
@@ -216,7 +271,9 @@ export function ProfileForm() {
     (fullName.trim() !== (profile.full_name ?? '') ||
       email.trim().toLowerCase() !== (profile.email ?? '').toLowerCase() ||
       pendingAvatar !== null ||
-      removeAvatar);
+      removeAvatar ||
+      showcaseStyle !== (profile.showcase_style ?? DEFAULT_SHOWCASE_STYLE) ||
+      showcase3dEnabled !== (profile.showcase_3d_enabled ?? true));
 
   const joined = user?.created_at
     ? new Date(user.created_at).toLocaleDateString(undefined, {
@@ -352,6 +409,86 @@ export function ProfileForm() {
               ConvoReal is a WhatsApp-based platform — this verified number is where your
               enquiries, alerts and listing sync arrive. Changing it requires a WhatsApp OTP.
             </p>
+          </div>
+
+          <div className="space-y-3">
+            <div>
+              <Label className="text-slate-200">Personal showcase style</Label>
+              <p className="mt-1 text-xs text-slate-500">
+                Choose how properties appear on your personal agent showcase
+                link.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {SHOWCASE_STYLE_OPTIONS.map((option) => {
+                const Icon = option.icon;
+                const selected = showcaseStyle === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    aria-pressed={selected}
+                    disabled={saving}
+                    onClick={() => setShowcaseStyle(option.value)}
+                    className={`flex items-start gap-3 rounded-xl border p-4 text-left transition-colors ${
+                      selected
+                        ? 'border-primary bg-primary/10 text-white'
+                        : 'border-slate-800 bg-slate-900/50 text-slate-300 hover:border-slate-700 hover:bg-slate-900'
+                    }`}
+                  >
+                    <span
+                      className={`flex size-9 shrink-0 items-center justify-center rounded-lg ${
+                        selected
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-slate-800 text-slate-400'
+                      }`}
+                    >
+                      <Icon className="size-4" />
+                    </span>
+                    <span>
+                      <span className="block text-sm font-semibold">
+                        {option.label}
+                      </span>
+                      <span className="mt-1 block text-xs text-slate-500">
+                        {option.description}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <button
+              type="button"
+              aria-pressed={showcase3dEnabled}
+              disabled={saving}
+              onClick={() => setShowcase3dEnabled((enabled) => !enabled)}
+              className={`flex w-full items-center gap-3 rounded-xl border p-4 text-left transition-colors ${
+                showcase3dEnabled
+                  ? 'border-primary/50 bg-primary/5'
+                  : 'border-slate-800 bg-slate-900/40'
+              }`}
+            >
+              <span className="bg-slate-850 text-primary flex size-9 shrink-0 items-center justify-center rounded-lg">
+                <Box className="size-4" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold text-white">
+                  3D property transitions
+                </span>
+                <span className="mt-1 block text-xs text-slate-500">
+                  Cards tilt into focus while visitors move between listings.
+                </span>
+              </span>
+              <span
+                className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${
+                  showcase3dEnabled
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-slate-800 text-slate-400'
+                }`}
+              >
+                {showcase3dEnabled ? 'On' : 'Off'}
+              </span>
+            </button>
           </div>
 
           {/* Read-only block */}

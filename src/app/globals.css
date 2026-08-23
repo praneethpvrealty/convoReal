@@ -947,3 +947,165 @@ html[data-mode="light"][data-theme="verdant"] {
   .signal-wave-loader .wave-ring { r: 18; opacity: 0.3; }
   .flow-node-loader .flow-pulse { opacity: 0; }
 }
+
+.showcase-surface[data-showcase-style='spotlight'] .showcase-listing-grid {
+  max-width: 64rem;
+  margin-inline: auto;
+}
+
+.showcase-surface[data-showcase-style='spotlight'] .showcase-listing-image {
+  height: 18rem;
+}
+
+.showcase-surface[data-showcase-style='spotlight'] .showcase-listing-card:first-child {
+  grid-column: 1 / -1;
+}
+
+.showcase-surface[data-showcase-style='spotlight'] .showcase-listing-card:first-child .showcase-listing-image {
+  height: 30rem;
+}
+
+.showcase-surface[data-showcase-style='editorial'] .showcase-listing-grid {
+  max-width: 68rem;
+  margin-inline: auto;
+}
+
+.showcase-surface[data-showcase-style='editorial'] .showcase-listing-card {
+  border-radius: 0.5rem;
+  border-color: rgb(226 215 198 / 0.6);
+  background: #f0e9dd;
+  box-shadow: 0 20px 45px rgb(0 0 0 / 0.16);
+}
+
+.showcase-surface[data-showcase-style='editorial'] .showcase-listing-image {
+  height: 17rem;
+}
+
+.showcase-surface[data-showcase-style='editorial'] .showcase-listing-type {
+  border-radius: 0.2rem;
+  border: 0;
+  background: rgb(25 31 27 / 0.88);
+  color: #f5efe5;
+}
+
+.showcase-surface[data-showcase-style='editorial'] .showcase-listing-title,
+.showcase-surface[data-showcase-style='editorial'] .showcase-listing-price {
+  color: #241d1a;
+  font-family: Georgia, 'Times New Roman', serif;
+}
+
+.showcase-surface[data-showcase-style='editorial'] .showcase-listing-title {
+  font-size: 1.2rem;
+}
+
+.showcase-surface[data-showcase-style='editorial'] .showcase-listing-body {
+  color: #514943;
+}
+
+.showcase-surface[data-showcase-style='editorial'] .showcase-listing-body .text-slate-300,
+.showcase-surface[data-showcase-style='editorial'] .showcase-listing-body .text-slate-350,
+.showcase-surface[data-showcase-style='editorial'] .showcase-listing-body .text-slate-400,
+.showcase-surface[data-showcase-style='editorial'] .showcase-listing-body .text-slate-500,
+.showcase-surface[data-showcase-style='editorial'] .showcase-listing-body .text-slate-550,
+.showcase-surface[data-showcase-style='editorial'] .showcase-listing-body .text-slate-650 {
+  color: #6f655d;
+}
+
+.showcase-surface[data-showcase-style='editorial'] .showcase-listing-facts {
+  border-color: rgb(77 68 62 / 0.16);
+}
+
+.showcase-surface[data-showcase-style='editorial'] .showcase-listing-facts > div {
+  border-color: rgb(77 68 62 / 0.14);
+  background: rgb(77 68 62 / 0.07);
+}
+
+.showcase-surface[data-showcase-style='signature'] .showcase-hero {
+  text-align: left;
+  margin-inline: 0;
+  max-width: 46rem;
+}
+
+.showcase-surface[data-showcase-style='signature'] .showcase-listing-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.showcase-surface[data-showcase-style='signature'] .showcase-listing-card {
+  display: grid;
+  grid-template-columns: minmax(10rem, 0.85fr) minmax(0, 1.15fr);
+  min-height: 20rem;
+  background: linear-gradient(145deg, rgb(25 22 48 / 0.94), rgb(15 17 38 / 0.94));
+}
+
+.showcase-surface[data-showcase-style='signature'] .showcase-listing-image {
+  height: 100%;
+}
+
+.showcase-surface[data-showcase-style='signature'] .showcase-listing-body {
+  min-width: 0;
+}
+
+.showcase-surface[data-showcase-3d='true'] .showcase-listing-grid {
+  perspective: 1100px;
+}
+
+@keyframes showcase-card-3d {
+  0% {
+    opacity: 0.45;
+    transform: translateY(2.5rem) rotateX(-24deg) scale(0.94);
+  }
+  42%, 58% {
+    opacity: 1;
+    transform: translateY(0) rotateX(0) scale(1);
+  }
+  100% {
+    opacity: 0.45;
+    transform: translateY(-2.5rem) rotateX(24deg) scale(0.94);
+  }
+}
+
+@media (max-width: 767px) {
+  .showcase-surface[data-showcase-style='spotlight'] .showcase-listing-card,
+  .showcase-surface[data-showcase-style='spotlight'] .showcase-listing-card:first-child {
+    min-height: calc(100svh - 8rem);
+  }
+
+  .showcase-surface[data-showcase-style='spotlight'] .showcase-listing-image,
+  .showcase-surface[data-showcase-style='spotlight'] .showcase-listing-card:first-child .showcase-listing-image {
+    height: 54svh;
+  }
+
+  .showcase-surface[data-showcase-style='signature'] .showcase-listing-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .showcase-surface[data-showcase-style='signature'] .showcase-listing-card {
+    display: flex;
+    min-height: auto;
+  }
+
+  .showcase-surface[data-showcase-style='signature'] .showcase-listing-image {
+    height: 16rem;
+  }
+
+  @supports (animation-timeline: view()) {
+    .showcase-surface[data-showcase-3d='true'] .showcase-listing-card {
+      transform-origin: center center;
+      transform-style: preserve-3d;
+      animation-name: showcase-card-3d;
+      animation-duration: 1ms;
+      animation-fill-mode: both;
+      animation-timing-function: linear;
+      animation-timeline: view(block);
+      animation-range: cover 0% cover 100%;
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .showcase-surface[data-showcase-3d='true'] .showcase-listing-card {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}

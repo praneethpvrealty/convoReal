@@ -111,6 +111,21 @@ describe('showcase with site data blocked', () => {
     expect(screen.getByText('Sarjapur JV Land')).toBeTruthy();
   });
 
+  it('applies the selected agent style and 3D preference', () => {
+    const { container } = render(
+      <ShowcaseView
+        properties={[property]}
+        settings={settings}
+        accountId="acct-1"
+        showcaseStyle="editorial"
+        showcase3dEnabled
+      />
+    );
+    const surface = container.querySelector('.showcase-surface');
+    expect(surface?.getAttribute('data-showcase-style')).toBe('editorial');
+    expect(surface?.getAttribute('data-showcase-3d')).toBe('true');
+  });
+
   // The reported URL was a deep link: ?property_id=... opens the detail
   // modal during the same mount that reads storage.
   it('still opens a deep-linked listing', () => {

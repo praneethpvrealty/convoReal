@@ -59,6 +59,7 @@ import {
   locationCandidates,
   matchesSelectedLocation,
 } from '@/lib/showcase/location-search';
+import { DEFAULT_SHOWCASE_STYLE, type ShowcaseStyle } from '@/lib/showcase/style';
 
 // Dwell-time cap for Pulse view_property events — a tab left open in the
 // background must not report hours of "viewing".
@@ -124,6 +125,8 @@ interface ShowcaseViewProps {
   disableSavedState?: boolean;
   services?: AgencyService[];
   articles?: AgencyArticle[];
+  showcaseStyle?: ShowcaseStyle;
+  showcase3dEnabled?: boolean;
 }
 
 /** Resolve the share-link target so the detail modal is part of the server render. */
@@ -158,6 +161,8 @@ export function ShowcaseView({
   disableSavedState = false,
   services = [],
   articles = [],
+  showcaseStyle = DEFAULT_SHOWCASE_STYLE,
+  showcase3dEnabled = false,
 }: ShowcaseViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
@@ -1365,7 +1370,11 @@ export function ShowcaseView({
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-primary selection:text-white relative overflow-hidden">
+    <div
+      data-showcase-style={showcaseStyle}
+      data-showcase-3d={showcase3dEnabled ? 'true' : 'false'}
+      className="showcase-surface min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-primary selection:text-white relative overflow-hidden"
+    >
       {/* Decorative Radial Background Lights */}
       <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-primary/8 rounded-full blur-[130px] pointer-events-none" />
       <div className="absolute top-1/3 right-1/4 w-[500px] h-[500px] bg-indigo-500/8 rounded-full blur-[110px] pointer-events-none" />
@@ -1417,7 +1426,7 @@ export function ShowcaseView({
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-10 z-10">
         
         {/* Hero Section */}
-        <div className="text-center max-w-3xl mx-auto mb-12 animate-fade-in">
+        <div className="showcase-hero text-center max-w-3xl mx-auto mb-12 animate-fade-in">
           <h1 className="text-4xl sm:text-5xl font-black text-white tracking-tight leading-tight">
             {hero?.title || 'Discover Your Dream'}{' '}
             <span className="bg-gradient-to-r from-primary via-indigo-400 to-primary/80 bg-clip-text text-transparent">
@@ -1768,7 +1777,7 @@ export function ShowcaseView({
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in-up">
+          <div className="showcase-listing-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in-up">
             {filteredProperties.map((property) => {
               const hasImages = property.images && property.images.length > 0;
               const mainImage = hasImages ? storagePublicUrl(property.images[0]) : null;
@@ -1811,7 +1820,7 @@ export function ShowcaseView({
               return (
                 <div
                   key={property.id}
-                  className={`flex flex-col rounded-3xl border bg-slate-900/20 overflow-hidden hover:border-slate-800 hover:shadow-2xl hover:shadow-primary/4 transition-all duration-500 group relative ${
+                  className={`showcase-listing-card flex flex-col rounded-3xl border bg-slate-900/20 overflow-hidden hover:border-slate-800 hover:shadow-2xl hover:shadow-primary/4 transition-all duration-500 group relative ${
                     interestStatus[property.id] === 'interested'
                       ? 'border-emerald-500/35 ring-1 ring-emerald-500/20 shadow-lg shadow-emerald-950/10'
                       : 'border-slate-900/60'
@@ -1820,7 +1829,7 @@ export function ShowcaseView({
                   {/* Image Container */}
                   <div 
                     onClick={() => openPropertyModal(property)}
-                    className="relative h-52 w-full bg-slate-950 overflow-hidden cursor-pointer shrink-0"
+                    className="showcase-listing-image relative h-52 w-full bg-slate-950 overflow-hidden cursor-pointer shrink-0"
                   >
                     {mainImage ? (
                       // eslint-disable-next-line @next/next/no-img-element
@@ -1833,7 +1842,7 @@ export function ShowcaseView({
                           // Resize endpoint unavailable → fall back to the original file
                           if (e.currentTarget.src !== mainImage) e.currentTarget.src = mainImage;
                         }}
-                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                        className="showcase-listing-photo w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                       />
                     ) : (
                       <div className="w-full h-full flex flex-col items-center justify-center text-slate-600 gap-2 bg-slate-950">
@@ -1846,7 +1855,7 @@ export function ShowcaseView({
                     <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-slate-950/60 to-transparent pointer-events-none" />
 
                     {/* Overlay Category Tag */}
-                    <div className="absolute top-3 left-3 bg-slate-950/80 backdrop-blur-md px-2.5 py-0.5 rounded-full border border-slate-800/80 text-[10px] font-extrabold tracking-wider uppercase text-primary">
+                    <div className="showcase-listing-type absolute top-3 left-3 bg-slate-950/80 backdrop-blur-md px-2.5 py-0.5 rounded-full border border-slate-800/80 text-[10px] font-extrabold tracking-wider uppercase text-primary">
                       {property.type}
                     </div>
 
@@ -1859,7 +1868,7 @@ export function ShowcaseView({
                   </div>
 
                   {/* Body Content */}
-                  <div className="flex-1 p-5 flex flex-col justify-between">
+                  <div className="showcase-listing-body flex-1 p-5 flex flex-col justify-between">
                     <div>
                       <div className="flex items-center justify-between mb-1 gap-2">
                         <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest truncate">
@@ -1873,7 +1882,7 @@ export function ShowcaseView({
                       </div>
                       <h3
                         onClick={() => openPropertyModal(property)}
-                        className="text-base font-bold text-white line-clamp-1 group-hover:text-primary transition-colors cursor-pointer"
+                        className="showcase-listing-title text-base font-bold text-white line-clamp-1 group-hover:text-primary transition-colors cursor-pointer"
                         title={property.title}
                       >
                         {property.title}
@@ -1888,7 +1897,7 @@ export function ShowcaseView({
                       </div>
 
                       {/* Specs Grid */}
-                      <div className="grid grid-cols-3 gap-2 py-3 border-y border-slate-900/60 text-xs text-slate-350 mb-4 font-semibold">
+                      <div className="showcase-listing-facts grid grid-cols-3 gap-2 py-3 border-y border-slate-900/60 text-xs text-slate-350 mb-4 font-semibold">
                         {['Flat/ Apartment', 'Residential House', 'Villa', 'Builder Floor Apartment', 'Penthouse', 'Studio Apartment', 'Farm House', 'House'].includes(property.type) ? (
                           <>
                             <div className="flex flex-col items-center justify-center bg-slate-950/40 py-2 rounded-xl border border-slate-900/60">
@@ -1950,7 +1959,7 @@ export function ShowcaseView({
                                   ? 'Guide Price'
                                   : 'Price'}
                           </span>
-                          <span className="text-lg font-black text-white leading-tight">
+                          <span className="showcase-listing-price text-lg font-black text-white leading-tight">
                             {property.listing_type === 'Rent' || property.listing_type === 'Built to Suit' ? (
                               <span>{formatPrice(property.rent_per_month || 0)}/mo</span>
                             ) : property.listing_type === 'JV/JD' ? (
