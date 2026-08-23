@@ -1,14 +1,14 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher'
+import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import {
   accountDefaultLanguage,
   resolveLanguage,
   pickTemplateForLanguage,
   isLanguageFallback,
   warnLanguageFallback,
-} from '@/lib/whatsapp/template-language'
-import type { LanguageCode } from '@/lib/languages'
-import { truncateParametersToBudget } from '@/lib/whatsapp/template-send-builder'
+} from '@/lib/whatsapp/template-language';
+import type { LanguageCode } from '@/lib/languages';
+import { truncateParametersToBudget } from '@/lib/whatsapp/template-send-builder';
 import {
   OWNER_DIGEST_TEMPLATE_NAME,
   OWNER_DIGEST_CONSENT_TEMPLATE_NAME,
@@ -16,10 +16,10 @@ import {
   CONSENT_NO_TEXT,
   buildOwnerDigestParams,
   buildOwnerDigestConsentParams,
-} from '@/lib/whatsapp/owner-digest-template'
-import type { MessageTemplate } from '@/types'
-import { CLOSED_LISTING_STATUS_FILTER } from '@/lib/inventory/listing-status'
-import { supabaseAdmin } from '@/lib/supabase/admin'
+} from '@/lib/whatsapp/owner-digest-template';
+import type { MessageTemplate } from '@/types';
+import { CLOSED_LISTING_STATUS_FILTER } from '@/lib/inventory/listing-status';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 
 /**
  * Owner property status digests.
@@ -32,6 +32,8 @@ import { supabaseAdmin } from '@/lib/supabase/admin'
  *                           entered the pipeline)
  *   - site visits scheduled (appointments, event_type 'site_visit')
  *   - showcase views       (showcase_events 'view_property')
+ *   - journey drop feedback (the furthest stage reached and the
+ *                            agent-recorded reason, without buyer identity)
  *
  * A digest is sent ONLY when at least one of those counters is non-zero
  * for the period, and never twice for the same IST day (owner_digest_log
@@ -43,31 +45,36 @@ import { supabaseAdmin } from '@/lib/supabase/admin'
 
 // ── Types ─────────────────────────────────────────────────────────
 
-export type DigestFrequency = 'off' | 'daily' | 'weekly'
+export type DigestFrequency = 'off' | 'daily' | 'weekly';
 
 export interface PropertyDigestStats {
-  property_id: string
-  title: string
-  listing_type?: string | null
-  inquiries: number
-  shortlisted: number
-  visits: number
-  views: number
+  property_id: string;
+  title: string;
+  listing_type?: string | null;
+  inquiries: number;
+  shortlisted: number;
+  visits: number;
+  views: number;
+  dropped: number;
+  drop_feedback: Array<{
+    stage: string | null;
+    reason: string | null;
+  }>;
 }
 
 export interface OwnerDigest {
-  contactId: string
-  name: string | null
-  properties: PropertyDigestStats[]
+  contactId: string;
+  name: string | null;
+  properties: PropertyDigestStats[];
 }
 
 export interface DigestPeriod {
-  startIso: string
-  endIso: string
+  startIso: string;
+  endIso: string;
   /** Human phrase used in the message, e.g. 'today' / 'this week'. */
-  label: string
+  label: string;
   /** IST calendar date used as the dedup key (YYYY-MM-DD). */
-  digestDate: string
+  digestDate: string;
 }
 
 // ── Pure helpers (unit tested) ────────────────────────────────────
@@ -78,12 +85,12 @@ function istDateParts(now: Date): { ymd: string; weekday: string } {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
-  }).format(now)
+  }).format(now);
   const weekday = new Intl.DateTimeFormat('en-US', {
     timeZone: 'Asia/Kolkata',
     weekday: 'long',
-  }).format(now)
-  return { ymd, weekday }
+  }).format(now);
+  return { ymd, weekday };
 }
 
 export function istHour(now: Date = new Date()): number {
@@ -94,17 +101,20 @@ export function istHour(now: Date = new Date()): number {
       hour12: false,
     }).format(now),
     10
-  )
+  );
 }
 
 /**
  * Whether a digest run is due today for the given frequency.
  * Weekly digests go out on Monday (IST).
  */
-export function isDigestDueToday(frequency: DigestFrequency, now: Date = new Date()): boolean {
-  if (frequency === 'daily') return true
-  if (frequency === 'weekly') return istDateParts(now).weekday === 'Monday'
-  return false
+export function isDigestDueToday(
+  frequency: DigestFrequency,
+  now: Date = new Date()
+): boolean {
+  if (frequency === 'daily') return true;
+  if (frequency === 'weekly') return istDateParts(now).weekday === 'Monday';
+  return false;
 }
 
 /** The activity window covered by today's digest. */
@@ -112,39 +122,70 @@ export function digestPeriod(
   frequency: Exclude<DigestFrequency, 'off'>,
   now: Date = new Date()
 ): DigestPeriod {
-  const days = frequency === 'daily' ? 1 : 7
-  const end = now
-  const start = new Date(now.getTime() - days * 24 * 60 * 60 * 1000)
+  const days = frequency === 'daily' ? 1 : 7;
+  const end = now;
+  const start = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
   return {
     startIso: start.toISOString(),
     endIso: end.toISOString(),
     label: frequency === 'daily' ? 'today' : 'this week',
     digestDate: istDateParts(now).ymd,
-  }
+  };
 }
 
 export function hasUpdates(digest: OwnerDigest): boolean {
   return digest.properties.some(
-    (p) => p.inquiries > 0 || p.shortlisted > 0 || p.visits > 0 || p.views > 0
-  )
+    (p) =>
+      p.inquiries > 0 ||
+      p.shortlisted > 0 ||
+      p.visits > 0 ||
+      p.views > 0 ||
+      p.dropped > 0
+  );
 }
 
 const plural = (n: number, singular: string, pluralWord?: string) =>
-  `${n} ${n === 1 ? singular : pluralWord || `${singular}s`}`
+  `${n} ${n === 1 ? singular : pluralWord || `${singular}s`}`;
 
-export type OwnerActivityAudience = 'buyer' | 'tenant' | 'mixed'
+function ownerSafeDropReason(
+  reason: unknown,
+  contactName: unknown
+): string | null {
+  if (typeof reason !== 'string') return null;
+  let value = reason.trim().replace(/\s+/g, ' ');
+  if (!value) return null;
+  if (typeof contactName === 'string') {
+    for (const part of contactName
+      .trim()
+      .split(/\s+/)
+      .filter((word) => word.length >= 3)) {
+      const escaped = part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      value = value.replace(
+        new RegExp(`\\b${escaped}\\b`, 'gi'),
+        'the prospect'
+      );
+    }
+  }
+  value = value
+    .replace(/\b[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}\b/g, '[redacted]')
+    .replace(/\+?\d[\d\s-]{7,}\d/g, '[redacted]')
+    .trim();
+  return value || null;
+}
+
+export type OwnerActivityAudience = 'buyer' | 'tenant' | 'mixed';
 
 export function resolveOwnerActivityAudience(
   listingTypes: Array<string | null | undefined>
 ): OwnerActivityAudience {
   const normalized = listingTypes
     .map((type) => type?.trim().toLowerCase())
-    .filter((type): type is string => Boolean(type))
-  const hasRental = normalized.includes('rent')
-  const hasNonRental = normalized.some((type) => type !== 'rent')
-  if (hasRental && !hasNonRental) return 'tenant'
-  if (hasRental && hasNonRental) return 'mixed'
-  return 'buyer'
+    .filter((type): type is string => Boolean(type));
+  const hasRental = normalized.includes('rent');
+  const hasNonRental = normalized.some((type) => type !== 'rent');
+  if (hasRental && !hasNonRental) return 'tenant';
+  if (hasRental && hasNonRental) return 'mixed';
+  return 'buyer';
 }
 
 function ownerActivityWords(audience: OwnerActivityAudience) {
@@ -154,7 +195,7 @@ function ownerActivityWords(audience: OwnerActivityAudience) {
       activity: 'tenant',
       singular: 'tenant',
       plural: 'tenants',
-    }
+    };
   }
   if (audience === 'mixed') {
     return {
@@ -162,14 +203,14 @@ function ownerActivityWords(audience: OwnerActivityAudience) {
       activity: 'prospect',
       singular: 'prospect',
       plural: 'prospects',
-    }
+    };
   }
   return {
     interestSubject: 'buyers',
     activity: 'buyer',
     singular: 'buyer',
     plural: 'buyers',
-  }
+  };
 }
 
 /** Compact one-line totals for the template's {{3}} param. */
@@ -180,14 +221,16 @@ export function buildOwnerDigestSummaryLine(digest: OwnerDigest): string {
       shortlisted: acc.shortlisted + p.shortlisted,
       visits: acc.visits + p.visits,
       views: acc.views + p.views,
+      dropped: acc.dropped + p.dropped,
     }),
-    { inquiries: 0, shortlisted: 0, visits: 0, views: 0 }
-  )
+    { inquiries: 0, shortlisted: 0, visits: 0, views: 0, dropped: 0 }
+  );
   const words = ownerActivityWords(
     resolveOwnerActivityAudience(digest.properties.map((p) => p.listing_type))
-  )
-  const bits: string[] = []
-  if (totals.inquiries > 0) bits.push(plural(totals.inquiries, 'new enquiry', 'new enquiries'))
+  );
+  const bits: string[] = [];
+  if (totals.inquiries > 0)
+    bits.push(plural(totals.inquiries, 'new enquiry', 'new enquiries'));
   if (totals.shortlisted > 0) {
     bits.push(
       plural(
@@ -195,51 +238,97 @@ export function buildOwnerDigestSummaryLine(digest: OwnerDigest): string {
         `${words.singular} shortlisted`,
         `${words.plural} shortlisted`
       )
-    )
+    );
   }
-  if (totals.visits > 0) bits.push(plural(totals.visits, 'site visit scheduled', 'site visits scheduled'))
-  if (totals.views > 0) bits.push(plural(totals.views, 'showcase view'))
-  return bits.join(' · ')
+  if (totals.visits > 0)
+    bits.push(
+      plural(totals.visits, 'site visit scheduled', 'site visits scheduled')
+    );
+  if (totals.views > 0) bits.push(plural(totals.views, 'showcase view'));
+  const firstDrop = digest.properties.flatMap((p) => p.drop_feedback)[0];
+  if (totals.dropped > 0) {
+    const stage = firstDrop?.stage ? ` after ${firstDrop.stage}` : '';
+    const reason = firstDrop?.reason
+      ? ` — ${firstDrop.reason.trim().replace(/\s+/g, ' ').slice(0, 120)}`
+      : '';
+    bits.push(
+      `${plural(totals.dropped, `${words.singular} did not proceed`, `${words.plural} did not proceed`)}${stage}${reason}`
+    );
+  }
+  return bits.join(' · ');
 }
 
 /** Rich free-form message for owners with an open 24h window. */
-export function buildOwnerDigestMessage(digest: OwnerDigest, periodLabel: string): string {
-  const firstName = digest.name?.trim().split(/\s+/)[0] || 'there'
+export function buildOwnerDigestMessage(
+  digest: OwnerDigest,
+  periodLabel: string
+): string {
+  const firstName = digest.name?.trim().split(/\s+/)[0] || 'there';
   const words = ownerActivityWords(
     resolveOwnerActivityAudience(digest.properties.map((p) => p.listing_type))
-  )
+  );
   const lines: string[] = [
     `📊 *Your Property Update — ${periodLabel}*`,
     '',
     `Hi ${firstName}, here's the ${words.activity} activity on your ${
       digest.properties.length === 1 ? 'listing' : 'listings'
     }:`,
-  ]
+  ];
   for (const p of digest.properties) {
-    if (p.inquiries === 0 && p.shortlisted === 0 && p.visits === 0 && p.views === 0) continue
-    lines.push('', `*${p.title}*`)
-    if (p.inquiries > 0) lines.push(`• ${plural(p.inquiries, 'new enquiry', 'new enquiries')}`)
+    if (
+      p.inquiries === 0 &&
+      p.shortlisted === 0 &&
+      p.visits === 0 &&
+      p.views === 0 &&
+      p.dropped === 0
+    )
+      continue;
+    lines.push('', `*${p.title}*`);
+    if (p.inquiries > 0)
+      lines.push(`• ${plural(p.inquiries, 'new enquiry', 'new enquiries')}`);
     if (p.shortlisted > 0) {
       const propertyWords = ownerActivityWords(
         resolveOwnerActivityAudience([p.listing_type])
-      )
+      );
       lines.push(
         `• ${plural(
           p.shortlisted,
           `${propertyWords.singular} shortlisted`,
           `${propertyWords.plural} shortlisted`
         )}`
-      )
+      );
     }
-    if (p.visits > 0) lines.push(`• ${plural(p.visits, 'site visit scheduled', 'site visits scheduled')}`)
-    if (p.views > 0) lines.push(`• ${plural(p.views, 'showcase view')}`)
+    if (p.visits > 0)
+      lines.push(
+        `• ${plural(p.visits, 'site visit scheduled', 'site visits scheduled')}`
+      );
+    if (p.views > 0) lines.push(`• ${plural(p.views, 'showcase view')}`);
+    if (p.dropped > 0) {
+      const propertyWords = ownerActivityWords(
+        resolveOwnerActivityAudience([p.listing_type])
+      );
+      lines.push(
+        `• ${plural(
+          p.dropped,
+          `${propertyWords.singular} did not proceed`,
+          `${propertyWords.plural} did not proceed`
+        )}`
+      );
+      for (const feedback of p.drop_feedback.slice(0, 3)) {
+        const stage = feedback.stage
+          ? `after ${feedback.stage}`
+          : 'after the latest stage';
+        const reason = feedback.reason?.trim().replace(/\s+/g, ' ');
+        lines.push(`  ↳ ${stage}${reason ? `: ${reason}` : ''}`);
+      }
+    }
   }
   lines.push(
     '',
     'Reply to this message for details or to talk to your agent.',
     '_Reply STOP UPDATES to pause these updates._'
-  )
-  return lines.join('\n')
+  );
+  return lines.join('\n');
 }
 
 /** Owner-side WhatsApp control commands ("their dashboard" is the chat).
@@ -248,30 +337,30 @@ export function buildOwnerDigestMessage(digest: OwnerDigest, periodLabel: string
 export function parseOwnerDigestCommand(
   text: string | null | undefined
 ): 'stop' | 'start' | null {
-  if (!text) return null
-  const cleaned = text.trim().toLowerCase()
-  if (cleaned.length > 40) return null
-  if (cleaned === CONSENT_YES_TEXT.toLowerCase()) return 'start'
-  if (cleaned === CONSENT_NO_TEXT.toLowerCase()) return 'stop'
-  if (/^(stop|pause)\s+(property\s+)?updates?$/.test(cleaned)) return 'stop'
-  if (/^(start|resume)\s+(property\s+)?updates?$/.test(cleaned)) return 'start'
-  return null
+  if (!text) return null;
+  const cleaned = text.trim().toLowerCase();
+  if (cleaned.length > 40) return null;
+  if (cleaned === CONSENT_YES_TEXT.toLowerCase()) return 'start';
+  if (cleaned === CONSENT_NO_TEXT.toLowerCase()) return 'stop';
+  if (/^(stop|pause)\s+(property\s+)?updates?$/.test(cleaned)) return 'stop';
+  if (/^(start|resume)\s+(property\s+)?updates?$/.test(cleaned)) return 'start';
+  return null;
 }
 
 // ── Engine ────────────────────────────────────────────────────────
 
-const SESSION_WINDOW_MS = 24 * 60 * 60 * 1000
+const SESSION_WINDOW_MS = 24 * 60 * 60 * 1000;
 /** Only deliver during IST business-friendly morning hours. */
-const SEND_HOUR_START_IST = 8
-const SEND_HOUR_END_IST = 13
+const SEND_HOUR_START_IST = 8;
+const SEND_HOUR_END_IST = 13;
 /** Safety cap per run — protects Meta rate limits on huge accounts. */
-const MAX_DIGESTS_PER_ACCOUNT_PER_RUN = 200
+const MAX_DIGESTS_PER_ACCOUNT_PER_RUN = 200;
 
 function resolveTemplateBodyText(bodyTemplateText: string, params: string[]) {
   return bodyTemplateText.replace(/\{\{(\d+)\}\}/g, (match, numberStr) => {
-    const idx = parseInt(numberStr) - 1
-    return idx >= 0 && idx < params.length ? params[idx] : match
-  })
+    const idx = parseInt(numberStr) - 1;
+    return idx >= 0 && idx < params.length ? params[idx] : match;
+  });
 }
 
 async function isSessionOpen(
@@ -284,56 +373,56 @@ async function isSessionOpen(
     .select('id')
     .eq('account_id', accountId)
     .eq('contact_id', contactId)
-    .maybeSingle()
-  if (!conv) return false
-  const since = new Date(Date.now() - SESSION_WINDOW_MS).toISOString()
+    .maybeSingle();
+  if (!conv) return false;
+  const since = new Date(Date.now() - SESSION_WINDOW_MS).toISOString();
   const { count } = await db
     .from('messages')
     .select('id', { count: 'exact', head: true })
     .eq('conversation_id', conv.id)
     .eq('sender_type', 'customer')
-    .gte('created_at', since)
-  return (count ?? 0) > 0
+    .gte('created_at', since);
+  return (count ?? 0) > 0;
 }
 
 interface AccountRunSummary {
-  accountId: string
-  owners: number
-  sent: number
-  consentRequested: number
-  skippedNoUpdates: number
-  skippedDeclined: number
-  skippedAwaitingConsent: number
-  skippedAlreadySent: number
-  skippedNoTemplate: number
-  failed: number
+  accountId: string;
+  owners: number;
+  sent: number;
+  consentRequested: number;
+  skippedNoUpdates: number;
+  skippedDeclined: number;
+  skippedAwaitingConsent: number;
+  skippedAlreadySent: number;
+  skippedNoTemplate: number;
+  failed: number;
 }
 
 /** Freeform consent request (open 24h window). Pure — unit tested.
  *  Takes only the fields it reads, so the inbound ask can pass an
  *  owner's listings without gathering a full activity digest. */
 export function buildConsentRequestMessage(digest: {
-  name: string | null
-  properties: { title: string; listing_type?: string | null }[]
+  name: string | null;
+  properties: { title: string; listing_type?: string | null }[];
 }): string {
-  const firstName = digest.name?.trim().split(/\s+/)[0] || 'there'
+  const firstName = digest.name?.trim().split(/\s+/)[0] || 'there';
   const words = ownerActivityWords(
     resolveOwnerActivityAudience(digest.properties.map((p) => p.listing_type))
-  )
-  const titles = digest.properties.map((p) => p.title?.trim()).filter(Boolean)
+  );
+  const titles = digest.properties.map((p) => p.title?.trim()).filter(Boolean);
   const listingPhrase =
     titles.length === 1
       ? `your listing *${titles[0]}*`
       : titles.length === 2
         ? `your listings *${titles[0]}* and *${titles[1]}*`
-        : `your ${digest.properties.length} listings`
+        : `your ${digest.properties.length} listings`;
   return [
     `Hi ${firstName}, ${words.interestSubject} have been showing interest in ${listingPhrase}. 👀`,
     '',
     `Would you like to receive a short WhatsApp status update (new enquiries, shortlists and scheduled site visits) whenever there is fresh ${words.activity} activity on your property?`,
     '',
     '_You can change your mind anytime by replying STOP UPDATES or START UPDATES._',
-  ].join('\n')
+  ].join('\n');
 }
 
 /** Interactive button ids for the freeform consent request. The reply
@@ -342,20 +431,20 @@ export function buildConsentRequestMessage(digest: {
 export const CONSENT_BUTTONS = [
   { id: 'owner_digest_yes', title: CONSENT_YES_TEXT },
   { id: 'owner_digest_no', title: CONSENT_NO_TEXT },
-]
+];
 
-type ConsentOutcome = 'sent' | 'no_template' | 'already_claimed' | 'failed'
+type ConsentOutcome = 'sent' | 'no_template' | 'already_claimed' | 'failed';
 
 async function sendConsentRequest(
   db: SupabaseClient,
   args: {
-    accountId: string
-    digest: OwnerDigest
-    period: DigestPeriod
-    consentTemplate: MessageTemplate | null
+    accountId: string;
+    digest: OwnerDigest;
+    period: DigestPeriod;
+    consentTemplate: MessageTemplate | null;
   }
 ): Promise<ConsentOutcome> {
-  const { accountId, digest, period, consentTemplate } = args
+  const { accountId, digest, period, consentTemplate } = args;
 
   // The consent request claims the owner's day slot too — one message
   // per owner per day, whichever kind it is.
@@ -371,9 +460,9 @@ async function sendConsentRequest(
       channel: 'consent_requested',
     })
     .select('id')
-    .single()
+    .single();
   if (claimErr || !claim) {
-    return claimErr?.code === '23505' ? 'already_claimed' : 'failed'
+    return claimErr?.code === '23505' ? 'already_claimed' : 'failed';
   }
 
   const markRequested = () =>
@@ -384,9 +473,9 @@ async function sendConsentRequest(
         updated_at: new Date().toISOString(),
       })
       .eq('id', digest.contactId)
-      .eq('account_id', accountId)
+      .eq('account_id', accountId);
 
-  const open = await isSessionOpen(db, accountId, digest.contactId)
+  const open = await isSessionOpen(db, accountId, digest.contactId);
   if (open) {
     const res = await sendWhatsAppMessageAndPersist({
       accountId,
@@ -396,28 +485,33 @@ async function sendConsentRequest(
       senderType: 'bot',
       interactiveBody: buildConsentRequestMessage(digest),
       interactiveButtons: CONSENT_BUTTONS,
-    })
+    });
     if (!res.success) {
-      await db.from('owner_digest_log').update({ channel: 'failed' }).eq('id', claim.id)
-      return 'failed'
+      await db
+        .from('owner_digest_log')
+        .update({ channel: 'failed' })
+        .eq('id', claim.id);
+      return 'failed';
     }
-    await markRequested()
-    return 'sent'
+    await markRequested();
+    return 'sent';
   }
 
   if (!consentTemplate) {
     await db
       .from('owner_digest_log')
       .update({ channel: 'skipped_no_template' })
-      .eq('id', claim.id)
-    return 'no_template'
+      .eq('id', claim.id);
+    return 'no_template';
   }
 
   const params = buildOwnerDigestConsentParams(
     digest.name,
     digest.properties.map((p) => p.title)
-  )
-  const bodyParams = truncateParametersToBudget(consentTemplate.body_text, [...params])
+  );
+  const bodyParams = truncateParametersToBudget(consentTemplate.body_text, [
+    ...params,
+  ]);
   const res = await sendWhatsAppMessageAndPersist({
     accountId,
     contactId: digest.contactId,
@@ -429,13 +523,16 @@ async function sendConsentRequest(
     messageParams: { body: bodyParams },
     templateRow: consentTemplate,
     text: resolveTemplateBodyText(consentTemplate.body_text, bodyParams),
-  })
+  });
   if (!res.success) {
-    await db.from('owner_digest_log').update({ channel: 'failed' }).eq('id', claim.id)
-    return 'failed'
+    await db
+      .from('owner_digest_log')
+      .update({ channel: 'failed' })
+      .eq('id', claim.id);
+    return 'failed';
   }
-  await markRequested()
-  return 'sent'
+  await markRequested();
+  return 'sent';
 }
 
 /**
@@ -451,7 +548,7 @@ export async function gatherOwnerDigests(
   period: DigestPeriod,
   ownerContactIds?: string[]
 ): Promise<OwnerDigest[]> {
-  if (ownerContactIds && ownerContactIds.length === 0) return []
+  if (ownerContactIds && ownerContactIds.length === 0) return [];
 
   // Every listing with a known owner contact.
   let propertiesQuery = db
@@ -465,53 +562,65 @@ export async function gatherOwnerDigests(
     // Agent-referred listings put the referring agent in
     // owner_contact_id — they get the agent inventory digest, not an
     // owner digest (migration 191 has the full story).
-    .neq('listing_source', 'agent')
+    .neq('listing_source', 'agent');
   propertiesQuery = ownerContactIds
     ? propertiesQuery.in('owner_contact_id', ownerContactIds)
-    : propertiesQuery.not('owner_contact_id', 'is', null)
-  const { data: properties } = await propertiesQuery
-  if (!properties || properties.length === 0) return []
+    : propertiesQuery.not('owner_contact_id', 'is', null);
+  const { data: properties } = await propertiesQuery;
+  if (!properties || properties.length === 0) return [];
 
-  const propertyIds = properties.map((p) => p.id as string)
+  const propertyIds = properties.map((p) => p.id as string);
 
-  const [inquiriesRes, dealsRes, visitsRes, viewsRes] = await Promise.all([
-    db
-      .from('contact_property_inquiries')
-      .select('property_id, contact_id')
-      .in('property_id', propertyIds)
-      .gte('created_at', period.startIso)
-      .lt('created_at', period.endIso)
-      .limit(5000),
-    db
-      .from('deals')
-      .select('property_id, contact_id')
-      .eq('account_id', accountId)
-      .in('property_id', propertyIds)
-      .gte('created_at', period.startIso)
-      .lt('created_at', period.endIso)
-      .limit(5000),
-    db
-      .from('appointments')
-      .select('property_id, contact_id')
-      .eq('account_id', accountId)
-      .eq('event_type', 'site_visit')
-      .eq('status', 'scheduled')
-      .in('property_id', propertyIds)
-      .gte('created_at', period.startIso)
-      .lt('created_at', period.endIso)
-      .limit(5000),
-    db
-      .from('showcase_events')
-      .select('property_id, session_key')
-      .eq('account_id', accountId)
-      .eq('event_type', 'view_property')
-      .in('property_id', propertyIds)
-      .gte('created_at', period.startIso)
-      .lt('created_at', period.endIso)
-      .limit(5000),
-  ])
+  const [inquiriesRes, dealsRes, visitsRes, viewsRes, journeyDropsRes] =
+    await Promise.all([
+      db
+        .from('contact_property_inquiries')
+        .select('property_id, contact_id')
+        .in('property_id', propertyIds)
+        .gte('created_at', period.startIso)
+        .lt('created_at', period.endIso)
+        .limit(5000),
+      db
+        .from('deals')
+        .select('property_id, contact_id')
+        .eq('account_id', accountId)
+        .in('property_id', propertyIds)
+        .gte('created_at', period.startIso)
+        .lt('created_at', period.endIso)
+        .limit(5000),
+      db
+        .from('appointments')
+        .select('property_id, contact_id')
+        .eq('account_id', accountId)
+        .eq('event_type', 'site_visit')
+        .eq('status', 'scheduled')
+        .in('property_id', propertyIds)
+        .gte('created_at', period.startIso)
+        .lt('created_at', period.endIso)
+        .limit(5000),
+      db
+        .from('showcase_events')
+        .select('property_id, session_key')
+        .eq('account_id', accountId)
+        .eq('event_type', 'view_property')
+        .in('property_id', propertyIds)
+        .gte('created_at', period.startIso)
+        .lt('created_at', period.endIso)
+        .limit(5000),
+      db
+        .from('journey_items')
+        .select(
+          'property_id, contact_id, drop_reason, stage:journey_stages(name), contact:contacts(name)'
+        )
+        .eq('account_id', accountId)
+        .eq('status', 'dropped')
+        .in('property_id', propertyIds)
+        .gte('dropped_at', period.startIso)
+        .lt('dropped_at', period.endIso)
+        .limit(5000),
+    ]);
 
-  const statsByProperty = new Map<string, PropertyDigestStats>()
+  const statsByProperty = new Map<string, PropertyDigestStats>();
   for (const p of properties) {
     statsByProperty.set(p.id as string, {
       property_id: p.id as string,
@@ -521,7 +630,9 @@ export async function gatherOwnerDigests(
       shortlisted: 0,
       visits: 0,
       views: 0,
-    })
+      dropped: 0,
+      drop_feedback: [],
+    });
   }
 
   const countDistinct = (
@@ -529,38 +640,63 @@ export async function gatherOwnerDigests(
     key: string,
     bump: (stats: PropertyDigestStats, distinctCount: number) => void
   ) => {
-    const byProperty = new Map<string, Set<string>>()
+    const byProperty = new Map<string, Set<string>>();
     for (const row of rows || []) {
-      const pid = row.property_id as string | null
-      if (!pid) continue
-      const val = (row[key] as string | null) || `anon-${byProperty.get(pid)?.size ?? 0}-${pid}`
-      if (!byProperty.has(pid)) byProperty.set(pid, new Set())
-      byProperty.get(pid)!.add(val)
+      const pid = row.property_id as string | null;
+      if (!pid) continue;
+      const val =
+        (row[key] as string | null) ||
+        `anon-${byProperty.get(pid)?.size ?? 0}-${pid}`;
+      if (!byProperty.has(pid)) byProperty.set(pid, new Set());
+      byProperty.get(pid)!.add(val);
     }
     for (const [pid, set] of byProperty) {
-      const stats = statsByProperty.get(pid)
-      if (stats) bump(stats, set.size)
+      const stats = statsByProperty.get(pid);
+      if (stats) bump(stats, set.size);
     }
+  };
+
+  countDistinct(inquiriesRes.data, 'contact_id', (s, n) => (s.inquiries = n));
+  countDistinct(dealsRes.data, 'contact_id', (s, n) => (s.shortlisted = n));
+  countDistinct(visitsRes.data, 'contact_id', (s, n) => (s.visits = n));
+  countDistinct(viewsRes.data, 'session_key', (s, n) => (s.views = n));
+  const dropContactsByProperty = new Map<string, Set<string>>();
+  for (const row of (journeyDropsRes.data ?? []) as Array<
+    Record<string, unknown>
+  >) {
+    const propertyId = row.property_id as string | null;
+    const contactId = row.contact_id as string | null;
+    if (!propertyId || !contactId) continue;
+    if (!dropContactsByProperty.has(propertyId)) {
+      dropContactsByProperty.set(propertyId, new Set());
+    }
+    const contacts = dropContactsByProperty.get(propertyId)!;
+    if (contacts.has(contactId)) continue;
+    contacts.add(contactId);
+    const stats = statsByProperty.get(propertyId);
+    if (!stats) continue;
+    const stage = row.stage as { name?: string | null } | null;
+    const contact = row.contact as { name?: string | null } | null;
+    stats.dropped++;
+    stats.drop_feedback.push({
+      stage: stage?.name?.trim() || null,
+      reason: ownerSafeDropReason(row.drop_reason, contact?.name),
+    });
   }
 
-  countDistinct(inquiriesRes.data, 'contact_id', (s, n) => (s.inquiries = n))
-  countDistinct(dealsRes.data, 'contact_id', (s, n) => (s.shortlisted = n))
-  countDistinct(visitsRes.data, 'contact_id', (s, n) => (s.visits = n))
-  countDistinct(viewsRes.data, 'session_key', (s, n) => (s.views = n))
-
   // Bucket per owner.
-  const byOwner = new Map<string, PropertyDigestStats[]>()
+  const byOwner = new Map<string, PropertyDigestStats[]>();
   for (const p of properties) {
-    const ownerId = p.owner_contact_id as string
-    if (!byOwner.has(ownerId)) byOwner.set(ownerId, [])
-    byOwner.get(ownerId)!.push(statsByProperty.get(p.id as string)!)
+    const ownerId = p.owner_contact_id as string;
+    if (!byOwner.has(ownerId)) byOwner.set(ownerId, []);
+    byOwner.get(ownerId)!.push(statsByProperty.get(p.id as string)!);
   }
 
   return Array.from(byOwner.entries()).map(([contactId, props]) => ({
     contactId,
     name: null, // filled from the contacts lookup later
     properties: props,
-  }))
+  }));
 }
 
 /**
@@ -568,33 +704,40 @@ export async function gatherOwnerDigests(
  * Invoked by /api/cron/owner-digest (daily). Idempotent within a day.
  */
 export async function sendOwnerStatusDigests(options?: {
-  db?: SupabaseClient
-  now?: Date
+  db?: SupabaseClient;
+  now?: Date;
   /** Skip the IST morning-hours gate (manual/test runs). */
-  force?: boolean
+  force?: boolean;
 }): Promise<{ ran: boolean; reason?: string; accounts: AccountRunSummary[] }> {
-  const db = options?.db || supabaseAdmin()
-  const now = options?.now || new Date()
+  const db = options?.db || supabaseAdmin();
+  const now = options?.now || new Date();
 
-  const hour = istHour(now)
-  if (!options?.force && (hour < SEND_HOUR_START_IST || hour >= SEND_HOUR_END_IST)) {
-    return { ran: false, reason: `outside IST send window (hour=${hour})`, accounts: [] }
+  const hour = istHour(now);
+  if (
+    !options?.force &&
+    (hour < SEND_HOUR_START_IST || hour >= SEND_HOUR_END_IST)
+  ) {
+    return {
+      ran: false,
+      reason: `outside IST send window (hour=${hour})`,
+      accounts: [],
+    };
   }
 
   const { data: settingsRows } = await db
     .from('owner_digest_settings')
     .select('account_id, frequency')
-    .neq('frequency', 'off')
+    .neq('frequency', 'off');
   if (!settingsRows || settingsRows.length === 0) {
-    return { ran: true, accounts: [] }
+    return { ran: true, accounts: [] };
   }
 
-  const summaries: AccountRunSummary[] = []
+  const summaries: AccountRunSummary[] = [];
 
   for (const settings of settingsRows) {
-    const accountId = settings.account_id as string
-    const frequency = settings.frequency as Exclude<DigestFrequency, 'off'>
-    if (!isDigestDueToday(frequency, now)) continue
+    const accountId = settings.account_id as string;
+    const frequency = settings.frequency as Exclude<DigestFrequency, 'off'>;
+    if (!isDigestDueToday(frequency, now)) continue;
 
     const summary: AccountRunSummary = {
       accountId,
@@ -607,118 +750,141 @@ export async function sendOwnerStatusDigests(options?: {
       skippedAlreadySent: 0,
       skippedNoTemplate: 0,
       failed: 0,
-    }
-    summaries.push(summary)
+    };
+    summaries.push(summary);
 
     try {
-      const period = digestPeriod(frequency, now)
-      const digests = await gatherOwnerDigests(db, accountId, period)
-      summary.owners = digests.length
-      if (digests.length === 0) continue
+      const period = digestPeriod(frequency, now);
+      const digests = await gatherOwnerDigests(db, accountId, period);
+      summary.owners = digests.length;
+      if (digests.length === 0) continue;
 
       // Owner contact details (phone for send, name for greeting,
       // consent state for the consent-first gate).
-      const ownerIds = digests.map((d) => d.contactId)
+      const ownerIds = digests.map((d) => d.contactId);
       const { data: ownerRows } = await db
         .from('contacts')
-        .select('id, name, phone, preferred_language, owner_digest_consent, owner_digest_consent_requested_at')
+        .select(
+          'id, name, phone, preferred_language, owner_digest_consent, owner_digest_consent_requested_at'
+        )
         .eq('account_id', accountId)
-        .in('id', ownerIds)
+        .in('id', ownerIds);
       const ownerById = new Map(
-        (ownerRows || []).map((c) => [c.id as string, c as Record<string, unknown>])
-      )
+        (ownerRows || []).map((c) => [
+          c.id as string,
+          c as Record<string, unknown>,
+        ])
+      );
 
       // Every language variant, looked up once per account. The pick
       // then happens per OWNER inside the loop: one account's owners do
       // not share a language, and resolving the template once for the
       // whole run would send every one of them whatever the first row
       // happened to be.
-      const templateVariants = async (name: string): Promise<MessageTemplate[]> => {
+      const templateVariants = async (
+        name: string
+      ): Promise<MessageTemplate[]> => {
         const { data: rows } = await db
           .from('message_templates')
           .select('*')
           .eq('account_id', accountId)
           .eq('name', name)
-          .order('last_submitted_at', { ascending: false, nullsFirst: false })
-        return (rows || []) as MessageTemplate[]
-      }
+          .order('last_submitted_at', { ascending: false, nullsFirst: false });
+        return (rows || []) as MessageTemplate[];
+      };
       const [digestVariants, consentVariants] = await Promise.all([
         templateVariants(OWNER_DIGEST_TEMPLATE_NAME),
         templateVariants(OWNER_DIGEST_CONSENT_TEMPLATE_NAME),
-      ])
-      const accountLanguage = await accountDefaultLanguage(db, accountId)
+      ]);
+      const accountLanguage = await accountDefaultLanguage(db, accountId);
       const forOwner = (
         variants: MessageTemplate[],
-        owner: Record<string, unknown> | undefined,
+        owner: Record<string, unknown> | undefined
       ): { template: MessageTemplate | null; language: LanguageCode } => {
         const language = resolveLanguage(
           owner?.preferred_language as string | null | undefined,
-          accountLanguage,
-        )
-        const template = pickTemplateForLanguage(variants, language)
+          accountLanguage
+        );
+        const template = pickTemplateForLanguage(variants, language);
         // Callers below expect null for anything not approved — the
         // pre-language behaviour, kept so a pending row still reads as
         // "no template" rather than being sent.
         return {
           template:
-            (template?.status ?? '').toUpperCase() === 'APPROVED' ? template : null,
+            (template?.status ?? '').toUpperCase() === 'APPROVED'
+              ? template
+              : null,
           language,
-        }
-      }
+        };
+      };
 
-      let sentThisRun = 0
+      let sentThisRun = 0;
       for (const digest of digests) {
-        if (sentThisRun >= MAX_DIGESTS_PER_ACCOUNT_PER_RUN) break
+        if (sentThisRun >= MAX_DIGESTS_PER_ACCOUNT_PER_RUN) break;
 
         if (!hasUpdates(digest)) {
-          summary.skippedNoUpdates++
-          continue
+          summary.skippedNoUpdates++;
+          continue;
         }
-        const owner = ownerById.get(digest.contactId)
-        if (!owner || !owner.phone) continue
+        const owner = ownerById.get(digest.contactId);
+        if (!owner || !owner.phone) continue;
         // Consent-first: the owner's choice ALWAYS overrides the account
         // setting. declined → never send; pending → ask once, then wait.
-        const consent = (owner.owner_digest_consent as string | null) ?? 'pending'
+        const consent =
+          (owner.owner_digest_consent as string | null) ?? 'pending';
         if (consent === 'declined') {
-          summary.skippedDeclined++
-          continue
+          summary.skippedDeclined++;
+          continue;
         }
-        digest.name = (owner.name as string | null) ?? null
+        digest.name = (owner.name as string | null) ?? null;
 
         if (consent !== 'granted') {
           if (owner.owner_digest_consent_requested_at) {
             // Asked before, no answer yet — stay silent, never re-ask.
-            summary.skippedAwaitingConsent++
-            continue
+            summary.skippedAwaitingConsent++;
+            continue;
           }
-          const consentPick = forOwner(consentVariants, owner)
-          if (consentPick.template && isLanguageFallback(consentPick.template, consentPick.language)) {
-            warnLanguageFallback('Owner Digest', accountId, consentPick.language, consentPick.template)
+          const consentPick = forOwner(consentVariants, owner);
+          if (
+            consentPick.template &&
+            isLanguageFallback(consentPick.template, consentPick.language)
+          ) {
+            warnLanguageFallback(
+              'Owner Digest',
+              accountId,
+              consentPick.language,
+              consentPick.template
+            );
           }
           const outcome = await sendConsentRequest(db, {
             accountId,
             digest,
             period,
             consentTemplate: consentPick.template,
-          })
+          });
           if (outcome === 'sent') {
-            summary.consentRequested++
-            sentThisRun++
+            summary.consentRequested++;
+            sentThisRun++;
           } else if (outcome === 'no_template') {
-            summary.skippedNoTemplate++
+            summary.skippedNoTemplate++;
           } else if (outcome === 'already_claimed') {
-            summary.skippedAlreadySent++
+            summary.skippedAlreadySent++;
           } else {
-            summary.failed++
+            summary.failed++;
           }
-          continue
+          continue;
         }
 
         // Insert-as-claim dedup: the UNIQUE(account, owner, day) row is
         // claimed BEFORE sending; a racing tick loses with 23505.
         const activeProps = digest.properties.filter(
-          (p) => p.inquiries > 0 || p.shortlisted > 0 || p.visits > 0 || p.views > 0
-        )
+          (p) =>
+            p.inquiries > 0 ||
+            p.shortlisted > 0 ||
+            p.visits > 0 ||
+            p.views > 0 ||
+            p.dropped > 0
+        );
         const { data: claim, error: claimErr } = await db
           .from('owner_digest_log')
           .insert({
@@ -730,17 +896,17 @@ export async function sendOwnerStatusDigests(options?: {
             stats: activeProps,
           })
           .select('id')
-          .single()
+          .single();
         if (claimErr || !claim) {
-          if (claimErr?.code === '23505') summary.skippedAlreadySent++
-          else summary.failed++
-          continue
+          if (claimErr?.code === '23505') summary.skippedAlreadySent++;
+          else summary.failed++;
+          continue;
         }
 
         const recordChannel = (channel: string) =>
-          db.from('owner_digest_log').update({ channel }).eq('id', claim.id)
+          db.from('owner_digest_log').update({ channel }).eq('id', claim.id);
 
-        const open = await isSessionOpen(db, accountId, digest.contactId)
+        const open = await isSessionOpen(db, accountId, digest.contactId);
         if (open) {
           const res = await sendWhatsAppMessageAndPersist({
             accountId,
@@ -751,27 +917,32 @@ export async function sendOwnerStatusDigests(options?: {
               { ...digest, properties: activeProps },
               period.label
             ),
-          })
+          });
           if (res.success) {
-            summary.sent++
-            sentThisRun++
-            await recordChannel('freeform')
+            summary.sent++;
+            sentThisRun++;
+            await recordChannel('freeform');
           } else {
-            summary.failed++
-            await recordChannel('failed')
+            summary.failed++;
+            await recordChannel('failed');
           }
-          continue
+          continue;
         }
 
-        const digestPick = forOwner(digestVariants, owner)
-        const digestTemplate = digestPick.template
+        const digestPick = forOwner(digestVariants, owner);
+        const digestTemplate = digestPick.template;
         if (!digestTemplate) {
-          summary.skippedNoTemplate++
-          await recordChannel('skipped_no_template')
-          continue
+          summary.skippedNoTemplate++;
+          await recordChannel('skipped_no_template');
+          continue;
         }
         if (isLanguageFallback(digestTemplate, digestPick.language)) {
-          warnLanguageFallback('Owner Digest', accountId, digestPick.language, digestTemplate)
+          warnLanguageFallback(
+            'Owner Digest',
+            accountId,
+            digestPick.language,
+            digestTemplate
+          );
         }
 
         const params = buildOwnerDigestParams(
@@ -779,8 +950,11 @@ export async function sendOwnerStatusDigests(options?: {
           activeProps.map((p) => p.title),
           period.label,
           buildOwnerDigestSummaryLine(digest)
-        )
-        const bodyParams = truncateParametersToBudget(digestTemplate.body_text, [...params])
+        );
+        const bodyParams = truncateParametersToBudget(
+          digestTemplate.body_text,
+          [...params]
+        );
         const res = await sendWhatsAppMessageAndPersist({
           accountId,
           contactId: digest.contactId,
@@ -792,23 +966,23 @@ export async function sendOwnerStatusDigests(options?: {
           messageParams: { body: bodyParams },
           templateRow: digestTemplate,
           text: resolveTemplateBodyText(digestTemplate.body_text, bodyParams),
-        })
+        });
         if (res.success) {
-          summary.sent++
-          sentThisRun++
-          await recordChannel('template')
+          summary.sent++;
+          sentThisRun++;
+          await recordChannel('template');
         } else {
-          summary.failed++
-          await recordChannel('failed')
+          summary.failed++;
+          await recordChannel('failed');
         }
       }
     } catch (err) {
-      console.error(`[owner-digest] account ${accountId} failed:`, err)
-      summary.failed++
+      console.error(`[owner-digest] account ${accountId} failed:`, err);
+      summary.failed++;
     }
   }
 
-  return { ran: true, accounts: summaries }
+  return { ran: true, accounts: summaries };
 }
 
 /**
@@ -819,12 +993,12 @@ export async function sendOwnerStatusDigests(options?: {
  * failed (caller stays silent).
  */
 export async function applyOwnerDigestCommand(args: {
-  command: 'stop' | 'start'
-  accountId: string
-  contactId: string
-  db?: SupabaseClient
+  command: 'stop' | 'start';
+  accountId: string;
+  contactId: string;
+  db?: SupabaseClient;
 }): Promise<string | null> {
-  const db = args.db || supabaseAdmin()
+  const db = args.db || supabaseAdmin();
   const { error } = await db
     .from('contacts')
     .update({
@@ -832,13 +1006,13 @@ export async function applyOwnerDigestCommand(args: {
       updated_at: new Date().toISOString(),
     })
     .eq('id', args.contactId)
-    .eq('account_id', args.accountId)
+    .eq('account_id', args.accountId);
   if (error) {
-    console.error('[owner-digest] consent update failed:', error.message)
-    return null
+    console.error('[owner-digest] consent update failed:', error.message);
+    return null;
   }
   if (args.command === 'stop') {
-    return "Understood — you won't receive property status updates. Reply START UPDATES anytime if you change your mind."
+    return "Understood — you won't receive property status updates. Reply START UPDATES anytime if you change your mind.";
   }
 
   const { data: listings } = await db
@@ -847,11 +1021,11 @@ export async function applyOwnerDigestCommand(args: {
     .eq('account_id', args.accountId)
     .eq('owner_contact_id', args.contactId)
     .not('status', 'in', CLOSED_LISTING_STATUS_FILTER)
-    .neq('listing_source', 'agent')
+    .neq('listing_source', 'agent');
   const words = ownerActivityWords(
     resolveOwnerActivityAudience(
       (listings || []).map((listing) => listing.listing_type as string | null)
     )
-  )
-  return `✅ Great! You'll receive a short status update whenever there's new ${words.activity} activity on your property. Reply STOP UPDATES anytime to pause.`
+  );
+  return `✅ Great! You'll receive a short status update whenever there's new ${words.activity} activity on your property. Reply STOP UPDATES anytime to pause.`;
 }
