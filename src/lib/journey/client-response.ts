@@ -35,6 +35,7 @@ import { appendRequirement } from '@/lib/ai/buyer-qualification';
 import { carriesRequirementSignal } from '@/lib/ai/requirement-signal';
 import { syncContactPreferences } from '@/lib/contacts/preference-sync';
 import { CLIENT_QUESTION_PROMPT } from '@/lib/journey/client-answer';
+import { parseCheckBackDate, quietUntilFrom } from '@/lib/journey/pitch-quiet';
 import {
   distinctiveTerms,
   rankClientCandidates,
@@ -172,6 +173,55 @@ export function buildClientAskBody(args: {
     ? ` noted your update on ${args.propertyLabel}: "${args.responseSummary}"`
     : ` thanks for your update on ${args.propertyLabel}.`;
   return `${greeting}${noted}\n\nWhen should we check back with you?`;
+}
+
+/** The timeline question, found again in a stored bot message —
+ *  free-form ("When should we check back with you?") or the approved
+ *  template's own wording. */
+export const TIMELINE_ASK_FINGERPRINT =
+  /when should we check back with you|when we should check back/i;
+
+export interface TypedCheckBackArgs {
+  db: SupabaseClient;
+  accountId: string;
+  contactId: string;
+  /** What the client typed. */
+  text: string;
+  /** The bot message immediately before it. */
+  previousBotText: string | null | undefined;
+  now?: Date;
+}
+
+/**
+ * A client who answers the timeline question in words rather than by
+ * tapping one of the three buttons.
+ *
+ * Everyone does this — "By the 5th of September" — and until now it
+ * landed nowhere: no acknowledgement, no follow-up date, and the next
+ * thing they heard was a new listing. Returns the line to send back, or
+ * null when the standing question is not the timeline one.
+ */
+export async function captureTypedCheckBack(
+  args: TypedCheckBackArgs
+): Promise<string | null> {
+  if (!TIMELINE_ASK_FINGERPRINT.test(args.previousBotText || '')) return null;
+  const now = args.now ?? new Date();
+  const named = parseCheckBackDate(args.text, now);
+  const until = quietUntilFrom(named, now);
+
+  const { error } = await args.db
+    .from('contacts')
+    .update({ pitch_quiet_until: until.toISOString() })
+    .eq('id', args.contactId)
+    .eq('account_id', args.accountId);
+  if (error) {
+    console.error('[client-response] typed quiet window failed:', error.message);
+    return null;
+  }
+
+  return named
+    ? `👍 Noted — we'll check back with you around ${format(named, 'd MMMM')}.`
+    : "👍 No problem — take your time. We're here whenever you're ready.";
 }
 
 export type ClientAskOutcome =
@@ -1540,6 +1590,17 @@ async function applyTimelineChoice(
     DEFAULT_LANGUAGE
   );
   const due = followupDueDate(choice);
+
+  // They have just said when to come back. Unprompted new-listing
+  // pitches hold until then; alerts they opted into, and every reply to
+  // something they send, are untouched.
+  const { error: quietError } = await db
+    .from('contacts')
+    .update({ pitch_quiet_until: quietUntilFrom(due).toISOString() })
+    .eq('id', item?.contact_id ?? contact.id)
+    .eq('account_id', accountId);
+  if (quietError)
+    console.error('[client-response] quiet window failed:', quietError.message);
 
   const { error: evError } = await db.from('journey_events').insert({
     account_id: accountId,

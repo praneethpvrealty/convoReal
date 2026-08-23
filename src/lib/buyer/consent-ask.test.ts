@@ -179,3 +179,30 @@ describe('claimBuyerConsentAsk', () => {
     ).toBeNull();
   });
 });
+
+describe('a client who asked to be left until a date', () => {
+  const base = {
+    classification: 'Buyer',
+    buyer_alerts_consent: 'pending',
+    pref_areas: ['Devanahalli'],
+    pref_budget_max: 60000000,
+  } as unknown as Contact;
+
+  it('is not asked to subscribe while the window stands', () => {
+    expect(
+      buyerConsentAskReason(
+        { ...base, pitch_quiet_until: '2026-09-05T18:29:59Z' },
+        new Date('2026-08-23T08:30:00Z')
+      )
+    ).toBeNull();
+  });
+
+  it('is asked again once the date has passed', () => {
+    expect(
+      buyerConsentAskReason(
+        { ...base, pitch_quiet_until: '2026-08-01T00:00:00Z' },
+        new Date('2026-08-23T08:30:00Z')
+      )
+    ).toBe('brief');
+  });
+});

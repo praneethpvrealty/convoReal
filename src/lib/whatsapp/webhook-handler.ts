@@ -85,6 +85,7 @@ import {
 import { JOURNEY_CHECKIN_KEEP_BUTTON } from '@/lib/whatsapp/journey-checkin-template';
 import {
   CLIENT_FOLLOWUP_PREFIX,
+  captureTypedCheckBack,
   handleClientFollowupReply,
   handleInboxCheckinReply,
   handleTimelineTemplateTap,
@@ -2366,6 +2367,46 @@ async function processMessage(
           quotedPropertyId,
         });
         if (handledDisinterest) return;
+      }
+    }
+
+    // A client answering the journey timeline question in words rather
+    // than by tapping — "By the 5th of September". It used to land
+    // nowhere: no acknowledgement, no date, and a new listing pitched
+    // seconds later. Runs before qualification, which no longer claims
+    // this answer but has nothing to say about it either.
+    if (message.type === 'text' && contentText) {
+      try {
+        const { data: previous } = await supabaseAdmin()
+          .from('messages')
+          .select('sender_type, content_text')
+          .eq('conversation_id', conversation.id)
+          .order('created_at', { ascending: false })
+          .limit(2);
+        const previousBot = (previous ?? [])[1];
+        if (previousBot?.sender_type === 'bot') {
+          const ack = await captureTypedCheckBack({
+            db: supabaseAdmin(),
+            accountId,
+            contactId: contactRecord.id,
+            text: contentText,
+            previousBotText: previousBot.content_text as string | null,
+          });
+          if (ack) {
+            await sendWhatsAppMessageAndPersist({
+              accountId,
+              userId: configOwnerUserId,
+              contactId: contactRecord.id,
+              conversationId: conversation.id,
+              kind: 'text',
+              senderType: 'bot',
+              text: ack,
+            });
+            return;
+          }
+        }
+      } catch (err) {
+        console.error('[timeline] typed check-back capture failed:', err);
       }
     }
 
