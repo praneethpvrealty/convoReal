@@ -36,6 +36,7 @@ import {
   MAX_MATCHES_SENT,
 } from '@/lib/ai/buyer-qualification';
 import { logListingsSent } from '@/lib/whatsapp/share-property-send';
+import { isPitchQuiet } from '@/lib/journey/pitch-quiet';
 import { rankPropertiesForContact } from '@/lib/radar/engine';
 import { accountShowcaseOrigin } from '@/lib/showcase/account-showcase-url';
 import { resolveAssignedAgent } from '@/lib/voice/assigned-agent';
@@ -155,6 +156,18 @@ async function sendMatchesPack(args: {
   ctx: FollowUpContext;
 }): Promise<boolean> {
   const { admin, accountId, contact } = args;
+
+  // A client who named a date to be checked back on is not chased with
+  // listings before it. This pack is ours to send, not theirs to have
+  // asked for.
+  const { data: quietRow } = await admin
+    .from('contacts')
+    .select('pitch_quiet_until')
+    .eq('id', contact.id)
+    .eq('account_id', accountId)
+    .maybeSingle();
+  if (isPitchQuiet(quietRow ?? {})) return false;
+
   const matches = await rankPropertiesForContact(admin, accountId, contact.id, {
     strictArea: true,
     excludeAlreadySent: true,

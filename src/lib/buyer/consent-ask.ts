@@ -16,6 +16,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Contact } from '@/types';
 import { hasBuyerBrief } from './matches-ranking';
+import { isPitchQuiet } from '@/lib/journey/pitch-quiet';
 import {
   buildConsentRequestMessage,
   buildEnquiryConsentRequestMessage,
@@ -36,10 +37,15 @@ const OWNER_CLASSIFICATIONS = ['Owner', 'Seller'];
  * is the failure mode consent bookkeeping exists to prevent.
  */
 export function buyerConsentAskReason(
-  contact: Contact
+  contact: Contact,
+  now: Date = new Date()
 ): 'brief' | 'enquiry' | null {
   if ((contact.buyer_alerts_consent ?? 'pending') !== 'pending') return null;
   if (contact.buyer_alerts_consent_requested_at) return null;
+  // They have told us when to come back. Asking them to subscribe to
+  // listings in the meantime is the pitch that answer was refusing —
+  // and the ask only fires once, so holding it costs nothing but time.
+  if (isPitchQuiet(contact, now)) return null;
   if (
     BUYER_CLASSIFICATIONS.includes(contact.classification ?? '') &&
     hasBuyerBrief(contact)

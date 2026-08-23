@@ -288,6 +288,10 @@ export interface Contact {
    *  (migration 174). Set once — a buyer who never answered is never
    *  asked again. */
   buyer_alerts_consent_requested_at?: string | null;
+  /** A date this contact asked to be checked back on. Unprompted
+   *  new-listing pitches hold until then; alerts they opted into and
+   *  replies to their own messages are unaffected. */
+  pitch_quiet_until?: string | null;
   /** Org hierarchy (migration 082) — which agent/team this contact is
    *  scoped to. Null = unassigned (visible to Org Manager/Leader via the
    *  "unassigned queue" RLS branch; invisible to Org Agents). */
