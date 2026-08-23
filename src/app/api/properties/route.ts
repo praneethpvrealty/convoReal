@@ -48,6 +48,19 @@ function sanitizeLocalityLabel(label: string): string {
   return label.split(",")[0].replace(/[(),.]/g, " ").replace(/\s+/g, " ").trim();
 }
 
+function localityOrFilter(locations: string[]): string {
+  return locations
+    .flatMap((location) => {
+      const stem = localityStemProbe(location);
+      return stem ? [location, stem] : [location];
+    })
+    .map((location) => {
+      const clean = location.replace(/"/g, '\\"');
+      return `location.ilike."%${clean}%",sublocality.ilike."%${clean}%",city.ilike."%${clean}%"`;
+    })
+    .join(",");
+}
+
 /** land_area_unit values → sqft factor. Shared with the property form
  *  and search-parser.ts so a stored area converts identically wherever
  *  it is read. */
@@ -162,6 +175,13 @@ export async function GET(request: Request) {
     );
     const nearPlaceId = searchParams.get("near_place_id")?.trim() || "";
     const nearLabel = sanitizeLocalityLabel(searchParams.get("near_label") || "");
+    const locations = [...new Set(
+      searchParams
+        .getAll("location")
+        .map(sanitizeLocalityLabel)
+        .filter(Boolean)
+        .map((location) => location.toLowerCase())
+    )].slice(0, 8);
 
     const from = page * limit;
     const to = from + limit - 1;
@@ -209,19 +229,7 @@ export async function GET(request: Request) {
         // Apply location filter from NL query — skipped when a locality was
         // picked from autocomplete (the tiered search owns location then).
         if (!hasNear && parsed.locations.length > 0 && !parsed.remainingSearch) {
-          const locFilters = parsed.locations
-            // Probe the locality stem too, so "in Suryanagar" also
-            // matches rows stored as "Surya Nagar" / "Surya City".
-            .flatMap(loc => {
-              const stem = localityStemProbe(loc);
-              return stem ? [loc, stem] : [loc];
-            })
-            .map(loc => {
-              const clean = loc.replace(/"/g, '\\"');
-              return `location.ilike."%${clean}%",sublocality.ilike."%${clean}%",city.ilike."%${clean}%"`;
-            })
-            .join(",");
-          query = query.or(locFilters);
+          query = query.or(localityOrFilter(parsed.locations));
         }
 
         // Full-text fallback on remaining terms after stripping structured intent
@@ -240,6 +248,10 @@ export async function GET(request: Request) {
             `property_code.ilike.${term}`
           );
         }
+      }
+
+      if (locations.length > 0) {
+        query = query.or(localityOrFilter(locations));
       }
 
       if (type) {

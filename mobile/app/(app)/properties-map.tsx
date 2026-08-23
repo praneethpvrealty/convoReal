@@ -33,7 +33,7 @@ const BENGALURU = {
 export default function PropertiesMapScreen() {
   const { colors, dark, fonts: f } = useTheme();
   const insets = useSafeAreaInsets();
-  const { search, listing, near, includeUnavailable, filters } =
+  const { search, listing, near, locations, includeUnavailable, filters } =
     usePropertySearch();
   const mapRef = useRef<MapView>(null);
 
@@ -43,6 +43,7 @@ export default function PropertiesMapScreen() {
       search.trim(),
       listing,
       near,
+      locations,
       includeUnavailable,
       propertyFiltersKey(filters),
     ],
@@ -54,7 +55,8 @@ export default function PropertiesMapScreen() {
         listing,
         near,
         includeUnavailable,
-        filters
+        filters,
+        locations
       );
       params.set('limit', '100');
       return apiFetch<PropertiesResponse>(`/api/properties?${params.toString()}`);

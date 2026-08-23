@@ -26,6 +26,7 @@ interface PropertySearchState {
   search: string;
   listing: ListingFilter;
   near: NearAnchor | null;
+  locations: string[];
   /** Off by default: results are Available-only until the chip widens them. */
   includeUnavailable: boolean;
   /** Type, status, source, showcase, price band and sort — everything
@@ -34,6 +35,8 @@ interface PropertySearchState {
   setSearch: (v: string) => void;
   setListing: (v: ListingFilter) => void;
   setNear: (v: NearAnchor | null) => void;
+  addLocation: (label: string) => void;
+  removeLocation: (label: string) => void;
   setRadius: (km: number) => void;
   setIncludeUnavailable: (v: boolean) => void;
   setFilters: (v: PropertyFilters) => void;
@@ -47,11 +50,22 @@ export const usePropertySearch = create<PropertySearchState>((set) => ({
   search: '',
   listing: 'All',
   near: null,
+  locations: [],
   includeUnavailable: false,
   filters: EMPTY_PROPERTY_FILTERS,
   setSearch: (search) => set({ search }),
   setListing: (listing) => set({ listing }),
-  setNear: (near) => set({ near }),
+  setNear: (near) => set(near ? { near, locations: [] } : { near: null }),
+  addLocation: (label) =>
+    set((state) => {
+      const trimmed = label.trim();
+      if (!trimmed || state.locations.some((item) => item.toLowerCase() === trimmed.toLowerCase())) {
+        return {};
+      }
+      return { locations: [...state.locations, trimmed], near: null };
+    }),
+  removeLocation: (label) =>
+    set((state) => ({ locations: state.locations.filter((item) => item !== label) })),
   setRadius: (radiusKm) =>
     set((s) => (s.near ? { near: { ...s.near, radiusKm } } : {})),
   setIncludeUnavailable: (includeUnavailable) => set({ includeUnavailable }),

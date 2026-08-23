@@ -87,6 +87,7 @@ import {
 import type { Contact, PropertiesResponse, Property } from '@/lib/types';
 import { usePullRefresh } from '@/lib/use-pull-refresh';
 import { contactHandle, hasPhone } from '@/lib/reachability';
+import { appendLocationFilters } from '@/lib/property-location-query';
 
 const LISTING_FILTERS: ListingFilter[] = [
   'All',
@@ -110,7 +111,8 @@ export function buildPropertyParams(
   listing: ListingFilter,
   near: NearAnchor | null,
   includeUnavailable: boolean,
-  filters: PropertyFilters = EMPTY_PROPERTY_FILTERS
+  filters: PropertyFilters = EMPTY_PROPERTY_FILTERS,
+  locations: readonly string[] = []
 ): URLSearchParams {
   const params = new URLSearchParams({
     page: String(page),
@@ -131,7 +133,10 @@ export function buildPropertyParams(
       params.set('near_label', near.label);
     }
   }
-  return applyPropertyFilterParams(params, filters, Boolean(near));
+  return appendLocationFilters(
+    applyPropertyFilterParams(params, filters, Boolean(near)),
+    locations
+  );
 }
 
 export async function fetchPropertyPage(
@@ -140,10 +145,11 @@ export async function fetchPropertyPage(
   listing: ListingFilter,
   near: NearAnchor | null,
   includeUnavailable: boolean,
-  filters: PropertyFilters = EMPTY_PROPERTY_FILTERS
+  filters: PropertyFilters = EMPTY_PROPERTY_FILTERS,
+  locations: readonly string[] = []
 ): Promise<PropertiesResponse> {
   return apiFetch<PropertiesResponse>(
-    `/api/properties?${buildPropertyParams(page, search, listing, near, includeUnavailable, filters).toString()}`
+    `/api/properties?${buildPropertyParams(page, search, listing, near, includeUnavailable, filters, locations).toString()}`
   );
 }
 
@@ -169,6 +175,7 @@ export default function PropertiesScreen() {
     search,
     listing,
     near,
+    locations,
     includeUnavailable,
     filters,
     setSearch,
@@ -211,6 +218,7 @@ export default function PropertiesScreen() {
       debounced,
       listing,
       near,
+      locations,
       includeUnavailable,
       propertyFiltersKey(filters),
     ],
@@ -221,7 +229,8 @@ export default function PropertiesScreen() {
         listing,
         near,
         includeUnavailable,
-        filters
+        filters,
+        locations
       ),
     // The properties API is 0-INDEXED (`from = page * limit` in
     // route.ts) — page 1 means "skip the first 20 rows".
@@ -804,7 +813,8 @@ function NearMeChip({
  */
 function LocalitySearchBox() {
   const { colors, fonts: f } = useTheme();
-  const { search, setSearch, setNear } = usePropertySearch();
+  const { search, locations, setSearch, setNear, addLocation, removeLocation } =
+    usePropertySearch();
   const [focused, setFocused] = useState(false);
   const session = useRef(sessionToken());
 
@@ -852,6 +862,14 @@ function LocalitySearchBox() {
     }
   }
 
+  function add(s: PlaceSuggestion) {
+    haptic.tap();
+    addLocation(s.main_text);
+    setSearch('');
+    setFocused(false);
+    Keyboard.dismiss();
+  }
+
   return (
     <View>
       <SearchBar
@@ -868,6 +886,26 @@ function LocalitySearchBox() {
         }}
       />
 
+      {locations.length > 0 ? (
+        <View style={styles.locationChips}>
+          {locations.map((location) => (
+            <Pressable
+              key={location}
+              onPress={() => removeLocation(location)}
+              hitSlop={6}
+              accessibilityRole="button"
+              accessibilityLabel={`Remove ${location} location filter`}
+              style={[styles.locationChip, { backgroundColor: colors.primarySoft }]}
+            >
+              <Text style={{ fontSize: 12.5, fontFamily: f.semibold, color: colors.primary }}>
+                {location}
+              </Text>
+              <Ionicons name="close" size={14} color={colors.primary} />
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
+
       {enabled && suggestions && suggestions.length > 0 ? (
         <View
           style={[
@@ -881,41 +919,54 @@ function LocalitySearchBox() {
           ]}
         >
           {suggestions.map((s) => (
-            <Pressable
+            <View
               key={s.place_id}
               style={[styles.suggestionRow, { borderTopColor: colors.border }]}
-              onPress={() => pick(s)}
             >
-              <Ionicons
-                name="location-outline"
-                size={15}
-                color={colors.primary}
-              />
-              <View style={{ flex: 1 }}>
-                <Text
-                  style={{
-                    fontSize: 14,
-                    fontFamily: f.semibold,
-                    color: colors.text,
-                  }}
-                >
-                  {s.main_text}
-                </Text>
-                {s.secondary_text ? (
+              <Pressable
+                onPress={() => add(s)}
+                accessibilityRole="button"
+                accessibilityLabel={`Add ${s.main_text} location filter`}
+                style={styles.suggestionLocation}
+              >
+                <Ionicons
+                  name="location-outline"
+                  size={15}
+                  color={colors.primary}
+                />
+                <View style={{ flex: 1 }}>
                   <Text
-                    style={{ fontSize: 11.5, color: colors.textFaint }}
-                    numberOfLines={1}
+                    style={{
+                      fontSize: 14,
+                      fontFamily: f.semibold,
+                      color: colors.text,
+                    }}
                   >
-                    {s.secondary_text}
+                    {s.main_text}
                   </Text>
-                ) : null}
-              </View>
-              <Ionicons
-                name="locate-outline"
-                size={14}
-                color={colors.textFaint}
-              />
-            </Pressable>
+                  {s.secondary_text ? (
+                    <Text
+                      style={{ fontSize: 11.5, color: colors.textFaint }}
+                      numberOfLines={1}
+                    >
+                      {s.secondary_text}
+                    </Text>
+                  ) : null}
+                </View>
+              </Pressable>
+              <Pressable
+                onPress={() => pick(s)}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={`Search near ${s.main_text}`}
+              >
+                <Ionicons
+                  name="navigate-outline"
+                  size={16}
+                  color={colors.textFaint}
+                />
+              </Pressable>
+            </View>
           ))}
         </View>
       ) : null}
@@ -1213,6 +1264,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: 10,
     borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  suggestionLocation: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  locationChips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginTop: spacing.xs },
+  locationChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    borderRadius: radius.full,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
   },
   filtersRow: { height: 52, justifyContent: 'center' },
   filters: {
