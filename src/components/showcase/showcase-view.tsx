@@ -55,6 +55,10 @@ import { ServicesSection } from '@/components/showcase/services-section';
 import { ArticlesSection } from '@/components/showcase/articles-section';
 import { readStored, removeStored, writeStored } from '@/lib/safe-storage';
 import { buildPublicBusinessProfile } from '@/lib/seo/business-profile';
+import {
+  locationCandidates,
+  matchesSelectedLocation,
+} from '@/lib/showcase/location-search';
 
 // Dwell-time cap for Pulse view_property events — a tab left open in the
 // background must not report hours of "viewing".
@@ -156,6 +160,8 @@ export function ShowcaseView({
   articles = [],
 }: ShowcaseViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
+  const [locationQuery, setLocationQuery] = useState('');
 
   // ── Showcase Pulse tracking (fire-and-forget beacons) ──────────
   // One tracker per page load; 'open' fires once on mount, property
@@ -409,6 +415,7 @@ export function ShowcaseView({
     let bedsToSet = 'All';
     let sortByToSet = 'newest';
     let searchQueryToSet = '';
+    let locationsToSet: string[] = [];
     let propertyIdToSet = '';
 
     interface SavedShowcaseState {
@@ -418,6 +425,7 @@ export function ShowcaseView({
       minBeds?: string;
       sortBy?: string;
       searchQuery?: string;
+      selectedLocations?: string[];
       selectedPropertyId?: string | null;
     }
 
@@ -468,6 +476,10 @@ export function ShowcaseView({
       searchQueryToSet = savedState.searchQuery;
     }
 
+    if (savedState?.selectedLocations) {
+      locationsToSet = savedState.selectedLocations;
+    }
+
     if (urlPropertyId) {
       propertyIdToSet = urlPropertyId;
     } else if (initialPropertyId) {
@@ -482,6 +494,7 @@ export function ShowcaseView({
     if (bedsToSet !== 'All') setMinBeds(bedsToSet);
     if (sortByToSet !== 'newest') setSortBy(sortByToSet);
     if (searchQueryToSet) setSearchQuery(searchQueryToSet);
+    if (locationsToSet.length > 0) setSelectedLocations(locationsToSet);
 
     if (propertyIdToSet) {
       const match = properties.find(
@@ -506,11 +519,12 @@ export function ShowcaseView({
       minBeds,
       sortBy,
       searchQuery,
+      selectedLocations,
       selectedPropertyId: selectedProperty?.property_code || selectedProperty?.id || null
     };
 
     writeStored('showcase_state', JSON.stringify(stateToSave));
-  }, [selectedType, selectedListingType, minBeds, sortBy, searchQuery, selectedProperty, disableSavedState]);
+  }, [selectedType, selectedListingType, minBeds, sortBy, searchQuery, selectedLocations, selectedProperty, disableSavedState]);
 
   // 3. Debounced Search Analytics Event
   useEffect(() => {
@@ -984,6 +998,12 @@ export function ShowcaseView({
       result = result.filter((p) => p.bedrooms && p.bedrooms >= beds);
     }
 
+    if (selectedLocations.length > 0) {
+      result = result.filter((property) =>
+        matchesSelectedLocation(property, selectedLocations)
+      );
+    }
+
     // Filter by search query — supports natural language
     if (searchQuery) {
       const parsed = parsePropertyQuery(searchQuery);
@@ -1037,7 +1057,37 @@ export function ShowcaseView({
     }
 
     return result;
-  }, [properties, selectedType, selectedListingType, minBeds, searchQuery, sortBy]);
+  }, [properties, selectedType, selectedListingType, minBeds, searchQuery, selectedLocations, sortBy]);
+
+  const availableLocations = useMemo(
+    () => locationCandidates(properties),
+    [properties]
+  );
+  const matchingLocations = useMemo(() => {
+    const query = locationQuery.trim().toLocaleLowerCase();
+    if (!query) return [];
+    return availableLocations
+      .filter(
+        (location) =>
+          location.toLocaleLowerCase().includes(query) &&
+          !selectedLocations.some(
+            (selected) =>
+              selected.toLocaleLowerCase() === location.toLocaleLowerCase()
+          )
+      )
+      .slice(0, 8);
+  }, [availableLocations, locationQuery, selectedLocations]);
+
+  const addLocation = (location: string) => {
+    setSelectedLocations((current) =>
+      current.some(
+        (selected) => selected.toLocaleLowerCase() === location.toLocaleLowerCase()
+      )
+        ? current
+        : [...current, location]
+    );
+    setLocationQuery('');
+  };
 
   // Document request submission handler
   const handleDocRequestSubmit = async (e: React.FormEvent) => {
@@ -1566,7 +1616,7 @@ export function ShowcaseView({
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
             
             {/* Search Input */}
-            <div className="relative lg:col-span-4">
+            <div className="relative lg:col-span-3">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-slate-500" />
               <Input
                 value={searchQuery}
@@ -1574,6 +1624,40 @@ export function ShowcaseView({
                 placeholder='Search properties — "2 BHK villa" or "price > 50 Cr"'
                 className="pl-11 bg-slate-950/60 border-slate-900 text-white placeholder:text-slate-650 focus:border-primary focus:ring-1 focus:ring-primary w-full rounded-xl transition-all"
               />
+            </div>
+
+            <div className="relative lg:col-span-3">
+              <MapPin className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-slate-500" />
+              <Input
+                value={locationQuery}
+                onChange={(e) => setLocationQuery(e.target.value)}
+                placeholder="Add a location"
+                aria-label="Search locations"
+                aria-controls="location-suggestions"
+                aria-expanded={matchingLocations.length > 0}
+                className="pl-11 bg-slate-950/60 border-slate-900 text-white placeholder:text-slate-650 focus:border-primary focus:ring-1 focus:ring-primary w-full rounded-xl transition-all"
+              />
+              {matchingLocations.length > 0 && (
+                <div
+                  id="location-suggestions"
+                  role="listbox"
+                  className="absolute z-20 mt-2 max-h-64 w-full overflow-y-auto rounded-xl border border-slate-800 bg-slate-950 p-1 shadow-2xl"
+                >
+                  {matchingLocations.map((location) => (
+                    <button
+                      key={location}
+                      type="button"
+                      role="option"
+                      aria-selected={false}
+                      onClick={() => addLocation(location)}
+                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-300 transition-colors hover:bg-slate-900 hover:text-white"
+                    >
+                      <MapPin className="size-3.5 shrink-0 text-primary" />
+                      {location}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Listing Type Filter */}
@@ -1609,7 +1693,7 @@ export function ShowcaseView({
             </div>
 
             {/* Sort Control */}
-            <div className="relative lg:col-span-4 flex items-center gap-2">
+            <div className="relative lg:col-span-2 flex items-center gap-2">
               <ArrowUpDown className="size-4 text-slate-500 shrink-0" />
               <select
                 value={sortBy}
@@ -1623,6 +1707,37 @@ export function ShowcaseView({
               </select>
             </div>
           </div>
+
+          {selectedLocations.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 border-t border-slate-900/60 pt-3">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-550">
+                Locations:
+              </span>
+              {selectedLocations.map((location) => (
+                <button
+                  key={location}
+                  type="button"
+                  onClick={() =>
+                    setSelectedLocations((current) =>
+                      current.filter((selected) => selected !== location)
+                    )
+                  }
+                  aria-label={`Remove ${location}`}
+                  className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary transition-colors hover:bg-primary/20"
+                >
+                  {location}
+                  <X className="size-3" />
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => setSelectedLocations([])}
+                className="text-xs font-bold text-slate-400 transition-colors hover:text-white"
+              >
+                Clear all
+              </button>
+            </div>
+          )}
 
           {/* Type Pills */}
           <div className="flex flex-wrap items-center gap-2 pt-2.5 border-t border-slate-900/60 overflow-x-auto scrollbar-none">
