@@ -210,7 +210,7 @@ export function AgencyServicesManager() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-tour="showcase-services-manager">
       <Card className="border-slate-800 bg-slate-900/50">
         <CardHeader className="flex flex-row items-center justify-between pb-4">
           <div className="space-y-1">

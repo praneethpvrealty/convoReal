@@ -174,7 +174,7 @@ export default function GapsContent() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5" data-tour="conversation-gaps">
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="flex items-center gap-2 text-lg font-bold text-white">
