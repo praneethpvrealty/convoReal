@@ -52,6 +52,7 @@ import {
   type ShareGrantTtlKey,
 } from '@/lib/inventory/share-grants';
 import { MatchDetailChips } from '@/components/inventory/match-detail-chips';
+import { ListingAudiencePicker } from '@/components/inventory/listing-audience-picker';
 import { MatchTargetRow } from '@/components/matching/match-target-row';
 import {
   fetchInquiredProperties,
@@ -945,6 +946,13 @@ export function PropertyShareDialog({
       })
     );
   }
+
+  // Union rather than replace: an audience is added to whoever the
+  // agent already picked, and picking two listings' audiences in a row
+  // never double-selects anyone.
+  const addContactsToSelection = useCallback((ids: string[]) => {
+    setSelectedContactIds((prev) => [...new Set([...prev, ...ids])]);
+  }, []);
 
   // Toggle single selection
   function toggleContactSelection(id: string) {
@@ -2277,6 +2285,15 @@ export function PropertyShareDialog({
                 </button>
               )}
             </div>
+
+            {/* One click: everyone who engaged with another listing.
+              Matching answers who fits this property; this answers who
+              already asked about a comparable one. */}
+            <ListingAudiencePicker
+              accountId={accountId}
+              loadedContacts={contacts}
+              onSelect={addContactsToSelection}
+            />
 
             {/* Action Bar / Matching Status */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-950/20 border border-slate-850 p-3.5 rounded-xl">
