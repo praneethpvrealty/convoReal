@@ -14,6 +14,10 @@ describe('matchTourIntent', () => {
     ['send message to many people', 'send-broadcast'],
     ['who viewed my properties?', 'check-property-views'],
     ['show me pulse', 'check-property-views'],
+    ['help me set up my agency showcase', 'set-up-showcase'],
+    ['how do I add services to my public page?', 'set-up-showcase'],
+    ['how do I set bot reply rules?', 'set-bot-rules'],
+    ['show me missed WhatsApp conversations', 'review-conversation-gaps'],
     // Hindi / Hinglish
     ['contact kaise add karu', 'add-contact'],
     ['naya lead add karna hai', 'add-contact'],

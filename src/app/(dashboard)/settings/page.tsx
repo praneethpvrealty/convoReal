@@ -634,6 +634,7 @@ export default function SettingsPage() {
                   <button
                     key={value}
                     onClick={() => onShowcaseSubChange(value)}
+                    data-tour={`showcase-subtab-${value}`}
                     className={cn(
                       'flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-xs whitespace-nowrap transition-colors',
                       showcaseSub === value

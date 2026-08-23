@@ -37,6 +37,7 @@ import {
   Mail,
   Ticket,
   Upload,
+  Globe,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { StepMedia } from '@/components/onboarding/step-media';
@@ -130,6 +131,11 @@ function StepWelcome({ onNext }: { onNext: () => void }) {
             icon: <Users className="size-4 text-violet-400" />,
             label: '3 · Bring in your buyers',
             sub: 'Import your list once — matching starts immediately. New enquiries add themselves.',
+          },
+          {
+            icon: <Globe className="size-4 text-cyan-400" />,
+            label: '4 · Make your Showcase yours',
+            sub: 'Optional: add your agency services, articles and preferred public style when the basics are ready.',
           },
         ]}
       />
@@ -438,7 +444,7 @@ function StepProperty({
           {
             icon: <Check className="size-4 text-emerald-400" />,
             label: 'Tap Confirm',
-            sub: 'The property lands in your inventory with a shareable showcase link',
+            sub: 'The property lands in your inventory with a shareable showcase link — clients can rate it so future matches improve.',
           },
         ]}
       />
@@ -699,6 +705,31 @@ function AllDone({ onClose }: { onClose: () => void }) {
           ever stuck, the Copilot button at the bottom-right can walk you
           through any screen.
         </p>
+      </div>
+      <div className="w-full rounded-xl border border-cyan-500/25 bg-cyan-500/5 p-4 text-left">
+        <div className="flex items-start gap-3">
+          <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-cyan-500/15">
+            <Globe className="size-4 text-cyan-300" />
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-medium text-white">
+              One optional finishing touch: your Showcase
+            </p>
+            <p className="mt-0.5 text-xs leading-relaxed text-slate-400">
+              Choose how your public agency page looks, then add services and
+              articles whenever you&apos;re ready. It gives every listing link a
+              more complete home.
+            </p>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => window.open('/settings?tab=showcase', '_blank')}
+              className="mt-2.5 gap-1.5 border-slate-700 text-slate-200 hover:bg-slate-700"
+            >
+              <Globe className="size-3.5" /> Set up Showcase
+            </Button>
+          </div>
+        </div>
       </div>
       <div className="border-primary/30 bg-primary/5 w-full rounded-xl border p-4 text-left">
         <div className="flex items-start gap-3">

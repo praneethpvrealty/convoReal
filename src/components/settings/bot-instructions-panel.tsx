@@ -143,7 +143,7 @@ export function BotInstructionsPanel() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-tour="bot-rule-book">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
