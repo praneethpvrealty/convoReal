@@ -18,7 +18,9 @@ import {
   rankPropertiesForContact,
   generateMatchEventForContact,
 } from '@/lib/radar/engine';
+import { logListingsSent } from '@/lib/whatsapp/share-property-send';
 import {
+  MAX_MATCHES_SENT,
   buildListingLines,
   buildFollowUpQuestion,
   nextQualifierForContact,
@@ -116,7 +118,10 @@ export async function sendPreferenceTapReply(args: {
       // strictArea for the same reason as the form follow-up: this goes
       // straight to a buyer who named their area, so the loose 20km
       // radius would surface listings they did not ask about.
-      rankPropertiesForContact(db, accountId, contactId, { strictArea: true }),
+      rankPropertiesForContact(db, accountId, contactId, {
+        strictArea: true,
+        excludeAlreadySent: true,
+      }),
     ]);
     if (!contact)
       return { matchCount: 0, replySent: false, formOffered: false };
@@ -164,6 +169,14 @@ export async function sendPreferenceTapReply(args: {
     let formOffered = false;
 
     if (matches.length > 0 && result.success) {
+      await logListingsSent(
+        db,
+        accountId,
+        userId,
+        contactId,
+        matches.slice(0, MAX_MATCHES_SENT).map((m) => m.property.id)
+      );
+
       // One tap per listing beats "reply with the number": the form row
       // inside the list also replaces the separate form message, so the
       // whole turn stays at two bubbles.

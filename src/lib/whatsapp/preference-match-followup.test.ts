@@ -5,6 +5,7 @@ const generateMatchEventForContact = vi.fn();
 const sendWhatsAppMessageAndPersist = vi.fn();
 const buildMatchesReply = vi.fn();
 const accountShowcaseBrowseUrl = vi.fn();
+const logListingsSent = vi.fn();
 
 vi.mock('@/lib/radar/engine', () => ({
   rankPropertiesForContact: (...args: unknown[]) =>
@@ -15,6 +16,11 @@ vi.mock('@/lib/radar/engine', () => ({
 
 vi.mock('@/lib/ai/buyer-qualification', () => ({
   buildMatchesReply: (...args: unknown[]) => buildMatchesReply(...args),
+  MAX_MATCHES_SENT: 3,
+}));
+
+vi.mock('@/lib/whatsapp/share-property-send', () => ({
+  logListingsSent: (...args: unknown[]) => logListingsSent(...args),
 }));
 
 vi.mock('@/lib/whatsapp/meta-api-dispatcher', () => ({
@@ -109,7 +115,7 @@ describe('sendPreferenceMatchFollowUp', () => {
       expect.anything(),
       'acct-1',
       'contact-1',
-      { strictArea: true }
+      { strictArea: true, excludeAlreadySent: true }
     );
   });
 

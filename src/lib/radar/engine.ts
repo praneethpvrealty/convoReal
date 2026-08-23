@@ -305,9 +305,19 @@ export async function rankPropertiesForContact(
    *  strict_area_match. Radar suggests to an agent who filters before
    *  sending; a reply sent straight to a buyer who just named their area
    *  cannot afford the loose radius. */
-  opts: { strictArea?: boolean } = {}
+  opts: {
+    strictArea?: boolean;
+    /** Drop listings this contact has already been sent (the
+     *  property_shares ledger). Set by the paths that message a BUYER
+     *  unprompted — an alert, a follow-up, a preference reply — where
+     *  re-sending a listing they were shown weeks ago reads as nobody
+     *  having kept track. Left off for agent-facing suggestions, where
+     *  the agent decides what to re-send and the UI already marks who
+     *  was contacted. */
+    excludeAlreadySent?: boolean;
+  } = {}
 ): Promise<RankedPropertyMatch[]> {
-  const [{ data: contact }, { data: properties }, { data: rejected }] =
+  const [{ data: contact }, { data: properties }, { data: rejected }, shared] =
     await Promise.all([
       db
         .from('contacts')
@@ -329,15 +339,27 @@ export async function rankPropertiesForContact(
         .eq('account_id', accountId)
         .eq('contact_id', contactId)
         .eq('verdict', 'rejected'),
+      opts.excludeAlreadySent
+        ? db
+            .from('property_shares')
+            .select('property_id')
+            .eq('account_id', accountId)
+            .eq('contact_id', contactId)
+        : Promise.resolve({ data: [] as { property_id: string }[] }),
     ]);
 
   if (!contact || !properties || properties.length === 0) return [];
   if (!isRadarContactClassification((contact as Contact).classification)) return [];
 
-  const rejectedIds = new Set(
+  // Rejected outright, or already sent once — either way, offering it
+  // again spends trust the thread has not got to spare.
+  const seen = new Set(
     ((rejected ?? []) as { property_id: string }[]).map((r) => r.property_id)
   );
-  const pool = (properties as Property[]).filter((p) => !rejectedIds.has(p.id));
+  for (const row of (shared.data ?? []) as { property_id: string }[]) {
+    seen.add(row.property_id);
+  }
+  const pool = (properties as Property[]).filter((p) => !seen.has(p.id));
 
   const base = opts.strictArea
     ? ({ ...(contact as Contact), strict_area_match: true } as Contact)

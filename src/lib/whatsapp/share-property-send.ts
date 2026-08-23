@@ -72,6 +72,52 @@ export async function logPropertyShare(
   if (error) console.error('[share-property-send] share ledger failed:', error.message);
 }
 
+/**
+ * The same ledger row for a batch the BOT sent — an alert shortlist, a
+ * follow-up, a preference reply.
+ *
+ * Until this existed the ledger only knew about shares a person made
+ * from the web app, so an automated shortlist could re-offer a listing
+ * an agent had sent by hand weeks earlier: one went out to a buyer on
+ * 11 July and came back as "here's one that fits" on 23 August, because
+ * the only guard compared titles against the last few bot messages in
+ * the thread. What was sent has to outlive the window it was sent in.
+ *
+ * Best-effort, like its single-row twin: a ledger failure must never
+ * turn a delivered message into a reported error.
+ */
+export async function logListingsSent(
+  db: SupabaseClient,
+  accountId: string,
+  userId: string | null,
+  contactId: string,
+  propertyIds: string[],
+): Promise<void> {
+  if (propertyIds.length === 0) return;
+  try {
+    const { data: contact } = await db
+      .from('contacts')
+      .select('classification')
+      .eq('id', contactId)
+      .eq('account_id', accountId)
+      .maybeSingle();
+    const { error } = await db.from('property_shares').upsert(
+      [...new Set(propertyIds)].map((propertyId) => ({
+        account_id: accountId,
+        property_id: propertyId,
+        contact_id: contactId,
+        recipient_kind: contact?.classification === 'Agent' ? 'agent' : 'buyer',
+        channel: 'whatsapp',
+        created_by: userId,
+      })),
+      { onConflict: 'account_id,property_id,contact_id', ignoreDuplicates: true },
+    );
+    if (error) console.error('[share-property-send] bot share ledger failed:', error.message);
+  } catch (err) {
+    console.error('[share-property-send] bot share ledger threw:', err);
+  }
+}
+
 /** Renders a template body with its params, for the persisted text. */
 function resolveTemplateBodyText(bodyTemplateText: string, params: string[]) {
   return bodyTemplateText.replace(/\{\{(\d+)\}\}/g, (match, numberStr) => {

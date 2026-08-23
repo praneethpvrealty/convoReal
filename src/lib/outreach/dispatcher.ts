@@ -31,7 +31,11 @@ import {
   pickPostCallOpenerTemplate,
   POST_CALL_OPENER_TEMPLATE_NAME,
 } from '@/lib/whatsapp/post-call-template';
-import { buildMatchesReply } from '@/lib/ai/buyer-qualification';
+import {
+  buildMatchesReply,
+  MAX_MATCHES_SENT,
+} from '@/lib/ai/buyer-qualification';
+import { logListingsSent } from '@/lib/whatsapp/share-property-send';
 import { rankPropertiesForContact } from '@/lib/radar/engine';
 import { accountShowcaseOrigin } from '@/lib/showcase/account-showcase-url';
 import { resolveAssignedAgent } from '@/lib/voice/assigned-agent';
@@ -153,6 +157,7 @@ async function sendMatchesPack(args: {
   const { admin, accountId, contact } = args;
   const matches = await rankPropertiesForContact(admin, accountId, contact.id, {
     strictArea: true,
+    excludeAlreadySent: true,
   });
   const text = matches.length
     ? buildMatchesReply(
@@ -170,6 +175,15 @@ async function sendMatchesPack(args: {
     senderType: 'bot',
     text,
   });
+  if (result.success && matches.length) {
+    await logListingsSent(
+      admin,
+      accountId,
+      args.userId,
+      contact.id,
+      matches.slice(0, MAX_MATCHES_SENT).map((m) => m.property.id)
+    );
+  }
   return result.success;
 }
 
