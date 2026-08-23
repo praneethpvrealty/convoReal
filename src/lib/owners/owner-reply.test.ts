@@ -35,6 +35,8 @@ function digest(overrides?: Partial<OwnerDigest>): OwnerDigest {
         shortlisted: 1,
         visits: 0,
         views: 14,
+        dropped: 0,
+        drop_feedback: [],
       },
     ],
     ...overrides,

@@ -155,18 +155,31 @@ export function buildOwnerReplyPrompt(
   const activityLines: string[] = [];
   if (digest) {
     for (const p of digest.properties) {
+      const dropped = p.dropped ?? 0;
       if (
         p.inquiries === 0 &&
         p.shortlisted === 0 &&
         p.visits === 0 &&
-        p.views === 0
+        p.views === 0 &&
+        dropped === 0
       )
         continue;
       const bits: string[] = [];
       if (p.inquiries > 0) bits.push(`${p.inquiries} new enquiries`);
-      if (p.shortlisted > 0) bits.push(`${p.shortlisted} prospects shortlisted`);
+      if (p.shortlisted > 0)
+        bits.push(`${p.shortlisted} prospects shortlisted`);
       if (p.visits > 0) bits.push(`${p.visits} site visits scheduled`);
       if (p.views > 0) bits.push(`${p.views} showcase views`);
+      if (dropped > 0) {
+        bits.push(
+          `${dropped} prospect${dropped === 1 ? '' : 's'} did not proceed`
+        );
+      }
+      for (const feedback of p.drop_feedback ?? []) {
+        const stage = feedback.stage ? ` after ${feedback.stage}` : '';
+        const reason = feedback.reason ? ` — ${feedback.reason}` : '';
+        bits.push(`feedback${stage}${reason}`);
+      }
       activityLines.push(`- "${p.title}": ${bits.join(', ')}`);
     }
   }

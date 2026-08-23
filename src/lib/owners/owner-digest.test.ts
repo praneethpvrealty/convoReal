@@ -30,6 +30,8 @@ function digest(overrides?: Partial<OwnerDigest>): OwnerDigest {
         shortlisted: 2,
         visits: 1,
         views: 24,
+        dropped: 0,
+        drop_feedback: [],
       },
       {
         property_id: 'p2',
@@ -38,6 +40,8 @@ function digest(overrides?: Partial<OwnerDigest>): OwnerDigest {
         shortlisted: 0,
         visits: 0,
         views: 0,
+        dropped: 0,
+        drop_feedback: [],
       },
     ],
     ...overrides,
@@ -71,8 +75,12 @@ describe('digestPeriod', () => {
     const daily = digestPeriod('daily', MONDAY);
     const weekly = digestPeriod('weekly', MONDAY);
     const day = 24 * 60 * 60 * 1000;
-    expect(new Date(daily.endIso).getTime() - new Date(daily.startIso).getTime()).toBe(day);
-    expect(new Date(weekly.endIso).getTime() - new Date(weekly.startIso).getTime()).toBe(7 * day);
+    expect(
+      new Date(daily.endIso).getTime() - new Date(daily.startIso).getTime()
+    ).toBe(day);
+    expect(
+      new Date(weekly.endIso).getTime() - new Date(weekly.startIso).getTime()
+    ).toBe(7 * day);
     expect(daily.label).toBe('today');
     expect(weekly.label).toBe('this week');
   });
@@ -80,7 +88,9 @@ describe('digestPeriod', () => {
   it('stamps the IST date as the dedup key', () => {
     expect(digestPeriod('daily', MONDAY).digestDate).toBe('2026-07-13');
     // 20:00 UTC Sunday is already Monday in IST.
-    expect(digestPeriod('daily', new Date('2026-07-12T20:00:00Z')).digestDate).toBe('2026-07-13');
+    expect(
+      digestPeriod('daily', new Date('2026-07-12T20:00:00Z')).digestDate
+    ).toBe('2026-07-13');
   });
 });
 
@@ -119,6 +129,8 @@ describe('hasUpdates', () => {
         shortlisted: 0,
         visits: 0,
         views: 0,
+        dropped: 0,
+        drop_feedback: [],
       })),
     });
     expect(hasUpdates(quiet)).toBe(false);
@@ -160,11 +172,38 @@ describe('buildOwnerDigestSummaryLine', () => {
             shortlisted: 1,
             visits: 0,
             views: 1,
+            dropped: 0,
+            drop_feedback: [],
           },
         ],
       })
     );
     expect(line).toBe('1 new enquiry · 1 buyer shortlisted · 1 showcase view');
+  });
+});
+
+describe('journey drop feedback', () => {
+  it('counts a dropped journey as activity and includes its stage and reason', () => {
+    const dropped = digest({
+      properties: [
+        {
+          ...digest().properties[0],
+          inquiries: 0,
+          shortlisted: 0,
+          visits: 0,
+          views: 0,
+          dropped: 1,
+          drop_feedback: [{ stage: 'Visited', reason: 'Locality mismatch' }],
+        },
+      ],
+    });
+    expect(hasUpdates(dropped)).toBe(true);
+    expect(buildOwnerDigestSummaryLine(dropped)).toBe(
+      '1 buyer did not proceed after Visited — Locality mismatch'
+    );
+    expect(buildOwnerDigestMessage(dropped, 'today')).toContain(
+      '↳ after Visited: Locality mismatch'
+    );
   });
 });
 
@@ -198,7 +237,9 @@ describe('parseOwnerDigestCommand', () => {
   });
 
   it('ignores normal conversation', () => {
-    expect(parseOwnerDigestCommand('please stop calling about updates')).toBeNull();
+    expect(
+      parseOwnerDigestCommand('please stop calling about updates')
+    ).toBeNull();
     expect(parseOwnerDigestCommand('stop')).toBeNull();
     expect(parseOwnerDigestCommand('any update?')).toBeNull();
     expect(parseOwnerDigestCommand('no')).toBeNull();
@@ -243,7 +284,11 @@ describe('buildConsentRequestMessage', () => {
       properties: [
         digest().properties[0],
         digest().properties[1],
-        { ...digest().properties[0], property_id: 'p3', title: 'Farm Land, Kanakapura' },
+        {
+          ...digest().properties[0],
+          property_id: 'p3',
+          title: 'Farm Land, Kanakapura',
+        },
       ],
     });
     expect(buildConsentRequestMessage(many)).toContain('your 3 listings');
@@ -283,7 +328,8 @@ function tableStub(rows: Row[]) {
       return builder;
     },
     not: (col: string, op: string, operand: unknown) => {
-      if (op === 'is') filters.push((r) => r[col] !== null && r[col] !== undefined);
+      if (op === 'is')
+        filters.push((r) => r[col] !== null && r[col] !== undefined);
       else {
         const allowed = String(operand)
           .slice(1, -1)
@@ -302,11 +348,13 @@ function tableStub(rows: Row[]) {
 describe('gatherOwnerDigests', () => {
   const period = digestPeriod('daily', MONDAY);
 
-  const run = (properties: Row[]) =>
+  const run = (properties: Row[], tableRows: Record<string, Row[]> = {}) =>
     gatherOwnerDigests(
       {
         from: (table: string) =>
-          tableStub(table === 'properties' ? properties : []),
+          tableStub(
+            table === 'properties' ? properties : (tableRows[table] ?? [])
+          ),
       } as never,
       'acc1',
       period
@@ -336,5 +384,46 @@ describe('gatherOwnerDigests', () => {
     // The consent request is what the owner sees first, so an owner with
     // nothing live must not reach the sender at all.
     expect(await run([listing('p1', 'Sold')])).toEqual([]);
+  });
+
+  it('adds dropped journey feedback without identifying the buyer', async () => {
+    const [owner] = await run([listing('p1', 'Available')], {
+      journey_items: [
+        {
+          account_id: 'acc1',
+          property_id: 'p1',
+          contact_id: 'buyer1',
+          status: 'dropped',
+          dropped_at: period.startIso,
+          drop_reason: 'Locality mismatch',
+          stage: { name: 'Visited' },
+          contact: { name: 'Samprith' },
+        },
+      ],
+    });
+    expect(owner.properties[0]).toMatchObject({
+      dropped: 1,
+      drop_feedback: [{ stage: 'Visited', reason: 'Locality mismatch' }],
+    });
+  });
+
+  it('redacts the prospect name from a recorded drop reason', async () => {
+    const [owner] = await run([listing('p1', 'Available')], {
+      journey_items: [
+        {
+          account_id: 'acc1',
+          property_id: 'p1',
+          contact_id: 'buyer1',
+          status: 'dropped',
+          dropped_at: period.startIso,
+          drop_reason: 'Samprith preferred another locality',
+          stage: { name: 'Visited' },
+          contact: { name: 'Samprith' },
+        },
+      ],
+    });
+    expect(owner.properties[0].drop_feedback[0].reason).toBe(
+      'the prospect preferred another locality'
+    );
   });
 });
