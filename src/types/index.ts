@@ -1322,6 +1322,8 @@ export interface ShowcaseSettings {
   meta_pixel_id?: string | null;
   subdomain?: string | null;
   theme?: string;
+  showcase_style?: ShowcaseStyle;
+  showcase_3d_enabled?: boolean;
   created_at: string;
   updated_at: string;
 }

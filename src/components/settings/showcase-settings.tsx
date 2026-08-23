@@ -13,6 +13,7 @@ import {
   CheckCircle2,
   BarChart3,
   Image as ImageIcon,
+  Palette,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
@@ -36,6 +37,12 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { BRANDING } from '@/config/branding';
 import { storagePublicUrl } from '@/lib/storage/url';
+import {
+  DEFAULT_SHOWCASE_STYLE,
+  toShowcaseStyle,
+  type ShowcaseStyle,
+} from '@/lib/showcase/style';
+import { ShowcasePresentationControls } from '@/components/settings/showcase-presentation-controls';
 
 /** Mirrors the reserved list in resolveSubdomainFromHost()
  *  (src/lib/showcase/public-data.ts) — these labels resolve to the main
@@ -65,6 +72,8 @@ interface ShowcaseForm {
   metaPixelId: string;
   subdomain: string;
   theme: string;
+  showcaseStyle: ShowcaseStyle;
+  showcase3dEnabled: boolean;
   /** Bucket-relative path, resolved for display by storagePublicUrl. */
   brandImage: string;
 }
@@ -76,6 +85,8 @@ const BLANK: ShowcaseForm = {
   metaPixelId: '',
   subdomain: '',
   theme: 'violet',
+  showcaseStyle: DEFAULT_SHOWCASE_STYLE,
+  showcase3dEnabled: true,
   brandImage: '',
 };
 
@@ -249,6 +260,8 @@ export function ShowcaseSettingsPanel() {
             metaPixelId: data.meta_pixel_id || '',
             subdomain: data.subdomain || '',
             theme: data.theme || 'violet',
+            showcaseStyle: toShowcaseStyle(data.showcase_style),
+            showcase3dEnabled: data.showcase_3d_enabled ?? true,
             brandImage: data.brand_image_url || '',
           };
           setForm((prev) => ({ ...prev, ...loaded }));
@@ -273,9 +286,13 @@ export function ShowcaseSettingsPanel() {
     setSaved((prev) => ({ ...prev, brandName: account.name }));
   }, [account?.name]);
 
-  const dirty = (Object.keys(form) as (keyof ShowcaseForm)[]).some(
-    (key) => form[key].trim() !== saved[key].trim()
-  );
+  const dirty = (Object.keys(form) as (keyof ShowcaseForm)[]).some((key) => {
+    const value = form[key];
+    const savedValue = saved[key];
+    return typeof value === 'string' && typeof savedValue === 'string'
+      ? value.trim() !== savedValue.trim()
+      : value !== savedValue;
+  });
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -314,6 +331,8 @@ export function ShowcaseSettingsPanel() {
         brand_image_url: form.brandImage.trim() || null,
         subdomain: subdomain || null,
         theme: form.theme,
+        showcase_style: form.showcaseStyle,
+        showcase_3d_enabled: form.showcase3dEnabled,
         updated_at: new Date().toISOString(),
       };
 
@@ -420,6 +439,29 @@ export function ShowcaseSettingsPanel() {
           </div>
         </Section>
       )}
+
+      <Section
+        icon={<Palette className="text-primary size-5" />}
+        title="Company showcase design"
+        description="Choose the presentation used by the company link and your branded web address. Personal agent links keep each agent's own selection."
+      >
+        <ShowcasePresentationControls
+          title="Company listing style"
+          description="This design applies to all published company inventory on mobile and desktop."
+          value={form.showcaseStyle}
+          threeDimensional={form.showcase3dEnabled}
+          disabled={saving || !canEditSettings}
+          onValueChange={(value) => set('showcaseStyle', value)}
+          onThreeDimensionalChange={(enabled) =>
+            set('showcase3dEnabled', enabled)
+          }
+        />
+        {!canEditSettings && (
+          <p className="text-xs text-slate-500">
+            Only account admins can change the company showcase design.
+          </p>
+        )}
+      </Section>
 
       <Section
         icon={<Building className="text-primary size-5" />}
