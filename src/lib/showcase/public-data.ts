@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/automations/admin-client';
 import { toPublicListingView } from '@/lib/inventory/showcase-visibility';
 import type { GrantedReveals } from '@/lib/inventory/share-grants';
 import type { Project, Property, ShowcaseSettings, AgencyService, AgencyArticle } from '@/types';
+import type { ShowcaseStyle } from '@/lib/showcase/style';
 
 export interface ShowcaseData {
   settings: ShowcaseSettings | null;
@@ -30,6 +31,8 @@ export interface ShowcaseData {
     full_name: string | null;
     email: string | null;
     avatar_url: string | null;
+    showcase_style: ShowcaseStyle | null;
+    showcase_3d_enabled: boolean | null;
   }>;
   services: AgencyService[];
   articles: AgencyArticle[];
@@ -212,7 +215,7 @@ export const cachedFetchProjectBySlug = cache(
 // aggregate read per render buys the whole catalogue staying fresh.
 const showcaseContentVersion = cache(async (accountId: string) => {
   const admin = supabaseAdmin();
-  const [propertiesResult, settingsResult, accountResult, servicesResult, articlesResult] = await Promise.all([
+  const [propertiesResult, settingsResult, accountResult, servicesResult, articlesResult, profilesResult] = await Promise.all([
     admin
       .from('properties')
       .select('updated_at', { count: 'exact' })
@@ -243,6 +246,12 @@ const showcaseContentVersion = cache(async (accountId: string) => {
       .eq('account_id', accountId)
       .order('updated_at', { ascending: false })
       .limit(1),
+    admin
+      .from('profiles')
+      .select('updated_at')
+      .eq('account_id', accountId)
+      .order('updated_at', { ascending: false })
+      .limit(1),
   ]);
 
   return [
@@ -252,6 +261,7 @@ const showcaseContentVersion = cache(async (accountId: string) => {
     accountResult.data?.updated_at ?? '',
     servicesResult.data?.[0]?.updated_at ?? '',
     articlesResult.data?.[0]?.updated_at ?? '',
+    profilesResult.data?.[0]?.updated_at ?? '',
   ].join('|');
 });
 
@@ -332,7 +342,7 @@ const fetchShowcaseData = async (
       .eq('classification', 'Agent'),
     admin
       .from('profiles')
-      .select('user_id, full_name, email, avatar_url')
+      .select('user_id, full_name, email, avatar_url, showcase_style, showcase_3d_enabled')
       .eq('account_id', accountId),
     admin
       .from('agency_services')
@@ -385,7 +395,7 @@ async function engineWhatsAppPhone(
 
 // The version rides in the cache key rather than the arguments, so a
 // catalogue edit lands on a fresh entry immediately; the TTL is only a
-// ceiling for the agent/profile rows the version does not cover.
+// ceiling for rows outside the catalogue version.
 export async function cachedFetchShowcaseData(
   accountId: string,
   isAgentMode: boolean

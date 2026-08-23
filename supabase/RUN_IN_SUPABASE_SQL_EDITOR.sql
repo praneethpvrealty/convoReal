@@ -2881,3 +2881,21 @@ ADD CONSTRAINT agency_articles_account_id_slug_key UNIQUE (account_id, slug);
 
 ALTER TABLE agency_services
 ADD CONSTRAINT agency_services_account_id_slug_key UNIQUE (account_id, slug);
+
+-- Personal agent showcase presentation preferences.
+ALTER TABLE profiles
+  ADD COLUMN IF NOT EXISTS showcase_style TEXT NOT NULL DEFAULT 'gallery',
+  ADD COLUMN IF NOT EXISTS showcase_3d_enabled BOOLEAN NOT NULL DEFAULT TRUE;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'profiles_showcase_style_check'
+      AND conrelid = 'profiles'::regclass
+  ) THEN
+    ALTER TABLE profiles
+      ADD CONSTRAINT profiles_showcase_style_check
+      CHECK (showcase_style IN ('spotlight', 'editorial', 'gallery', 'signature'));
+  END IF;
+END $$;

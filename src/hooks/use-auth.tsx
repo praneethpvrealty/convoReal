@@ -22,6 +22,7 @@ import {
   type AccountRole,
   type OrgRole,
 } from "@/lib/auth/roles";
+import type { ShowcaseStyle } from "@/lib/showcase/style";
 
 interface Profile {
   id: string;
@@ -48,6 +49,8 @@ interface Profile {
    *  profile row. Narrowed by the locale provider, never trusted raw. */
   ui_languages: string[];
   active_ui_language: string | null;
+  showcase_style: ShowcaseStyle;
+  showcase_3d_enabled: boolean;
 }
 
 interface AccountSummary {
@@ -204,7 +207,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // missing account collapses to null rather than a half-
           // populated row (shouldn't happen post-017 NOT NULL, but
           // belt-and-braces against forks running older schemas).
-          "id, full_name, email, phone, avatar_url, role, beta_features, account_id, account_role, org_role, team_id, is_read_only, ui_languages, active_ui_language, account:accounts!inner(id, name, status, default_language)",
+          "id, full_name, email, phone, avatar_url, role, beta_features, account_id, account_role, org_role, team_id, is_read_only, ui_languages, active_ui_language, showcase_style, showcase_3d_enabled, account:accounts!inner(id, name, status, default_language)",
         )
         .eq("user_id", userId)
         .maybeSingle();
@@ -250,6 +253,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               // these; the locale provider narrows the defaults anyway.
               ui_languages: [],
               active_ui_language: null,
+              showcase_style: "gallery",
+              showcase_3d_enabled: true,
             });
             setAccount(null);
           }
@@ -303,6 +308,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // sanitizeLanguageSet() turns that into ['en'].
           ui_languages: data.ui_languages ?? [],
           active_ui_language: data.active_ui_language ?? null,
+          showcase_style: data.showcase_style ?? "gallery",
+          showcase_3d_enabled: data.showcase_3d_enabled ?? true,
           account_id: data.account_id ?? null,
           account_role: accountRole,
           org_role: orgRole,

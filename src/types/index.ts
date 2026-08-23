@@ -1,5 +1,6 @@
 import type { AccountRole, OrgRole } from '@/lib/auth/roles';
 import type { LanguageCode } from '@/lib/languages';
+import type { ShowcaseStyle } from '@/lib/showcase/style';
 
 export interface Profile {
   id: string;
@@ -54,6 +55,8 @@ export interface Profile {
   /** Toggled by the agent themselves or their leader — used by the
    *  routing engine's round-robin rule to skip unavailable agents. */
   is_available?: boolean;
+  showcase_style?: ShowcaseStyle;
+  showcase_3d_enabled?: boolean;
   created_at: string;
 }
 
