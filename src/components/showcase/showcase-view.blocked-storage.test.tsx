@@ -124,6 +124,11 @@ describe('showcase with site data blocked', () => {
     const surface = container.querySelector('.showcase-surface');
     expect(surface?.getAttribute('data-showcase-style')).toBe('editorial');
     expect(surface?.getAttribute('data-showcase-3d')).toBe('true');
+    expect(screen.getByLabelText('Property flip deck')).toBeTruthy();
+    expect(screen.getByText('Swipe through listings')).toBeTruthy();
+    expect(container.querySelector('.showcase-card-position')?.textContent).toBe(
+      '01/01'
+    );
   });
 
   // The reported URL was a deep link: ?property_id=... opens the detail

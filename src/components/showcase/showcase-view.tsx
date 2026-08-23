@@ -36,6 +36,7 @@ import {
   Home,
   Play,
   Download,
+  MoveVertical,
 } from 'lucide-react';
 import type { Property, ShowcaseSettings, AgencyService, AgencyArticle } from '@/types';
 import { BRANDING } from '@/config/branding';
@@ -395,6 +396,7 @@ export function ShowcaseView({
   const [reshareCopied, setReshareCopied] = useState(false);
 
   const isStateLoadedRef = useRef(false);
+  const listingDeckRef = useRef<HTMLDivElement>(null);
 
   // 1. Client-side mount hook to load state from URL and localStorage (retained for 7 days)
   useEffect(() => {
@@ -1082,6 +1084,81 @@ export function ShowcaseView({
       )
       .slice(0, 8);
   }, [availableLocations, locationQuery, selectedLocations]);
+
+  useEffect(() => {
+    const deck = listingDeckRef.current;
+    if (!showcase3dEnabled || !deck || typeof window.matchMedia !== 'function') {
+      return;
+    }
+
+    const mobile = window.matchMedia('(max-width: 767px)');
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    let frame = 0;
+
+    const updateCards = () => {
+      frame = 0;
+      const cards = Array.from(
+        deck.querySelectorAll<HTMLElement>('.showcase-listing-card')
+      );
+
+      if (!mobile.matches || reducedMotion.matches) {
+        cards.forEach((card) => {
+          card.style.removeProperty('--showcase-card-rotate-x');
+          card.style.removeProperty('--showcase-card-translate-y');
+          card.style.removeProperty('--showcase-card-scale');
+          card.style.removeProperty('--showcase-card-opacity');
+        });
+        return;
+      }
+
+      const deckRect = deck.getBoundingClientRect();
+      const deckCenter = deckRect.top + deck.clientHeight / 2;
+      cards.forEach((card) => {
+        const cardRect = card.getBoundingClientRect();
+        const cardCenter = cardRect.top + cardRect.height / 2;
+        const distance = Math.max(
+          -1,
+          Math.min(1, (cardCenter - deckCenter) / deck.clientHeight)
+        );
+        const depth = Math.abs(distance);
+
+        card.style.setProperty(
+          '--showcase-card-rotate-x',
+          `${distance * -68}deg`
+        );
+        card.style.setProperty(
+          '--showcase-card-translate-y',
+          `${distance * 10}%`
+        );
+        card.style.setProperty(
+          '--showcase-card-scale',
+          `${1 - depth * 0.12}`
+        );
+        card.style.setProperty(
+          '--showcase-card-opacity',
+          `${1 - depth * 0.62}`
+        );
+      });
+    };
+
+    const scheduleUpdate = () => {
+      if (!frame) frame = window.requestAnimationFrame(updateCards);
+    };
+
+    deck.addEventListener('scroll', scheduleUpdate, { passive: true });
+    window.addEventListener('resize', scheduleUpdate);
+    mobile.addEventListener('change', scheduleUpdate);
+    reducedMotion.addEventListener('change', scheduleUpdate);
+    scheduleUpdate();
+
+    return () => {
+      if (frame) window.cancelAnimationFrame(frame);
+      deck.removeEventListener('scroll', scheduleUpdate);
+      window.removeEventListener('resize', scheduleUpdate);
+      mobile.removeEventListener('change', scheduleUpdate);
+      reducedMotion.removeEventListener('change', scheduleUpdate);
+    };
+  }, [filteredProperties, interestStatus, showcase3dEnabled]);
 
   const addLocation = (location: string) => {
     setSelectedLocations((current) =>
@@ -1777,8 +1854,23 @@ export function ShowcaseView({
             </p>
           </div>
         ) : (
-          <div className="showcase-listing-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in-up">
-            {filteredProperties.map((property) => {
+          <div className="showcase-deck-shell">
+            <div className="showcase-deck-intro" aria-hidden="true">
+              <span className="showcase-deck-intro-icon">
+                <MoveVertical className="size-4" />
+              </span>
+              <span>
+                <strong>Swipe through listings</strong>
+                <small>Each property snaps into focus</small>
+              </span>
+            </div>
+            <div
+              ref={listingDeckRef}
+              tabIndex={showcase3dEnabled ? 0 : undefined}
+              aria-label={showcase3dEnabled ? 'Property flip deck' : undefined}
+              className="showcase-listing-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in-up"
+            >
+            {filteredProperties.map((property, propertyIndex) => {
               const hasImages = property.images && property.images.length > 0;
               const mainImage = hasImages ? storagePublicUrl(property.images[0]) : null;
               const isLand = [
@@ -1857,6 +1949,12 @@ export function ShowcaseView({
                     {/* Overlay Category Tag */}
                     <div className="showcase-listing-type absolute top-3 left-3 bg-slate-950/80 backdrop-blur-md px-2.5 py-0.5 rounded-full border border-slate-800/80 text-[10px] font-extrabold tracking-wider uppercase text-primary">
                       {property.type}
+                    </div>
+
+                    <div className="showcase-card-position" aria-hidden="true">
+                      <span>{String(propertyIndex + 1).padStart(2, '0')}</span>
+                      <span className="showcase-card-position-divider">/</span>
+                      <span>{String(filteredProperties.length).padStart(2, '0')}</span>
                     </div>
 
                     {interestStatus[property.id] === 'interested' && (
@@ -2011,6 +2109,7 @@ export function ShowcaseView({
                 </div>
               );
             })}
+            </div>
           </div>
         )}
 
