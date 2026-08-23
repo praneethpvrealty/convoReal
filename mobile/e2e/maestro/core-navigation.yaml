@@ -1,0 +1,10 @@
+appId: com.convoreal.app
+---
+- launchApp
+- assertVisible: Inbox
+- tapOn: Contacts
+- assertVisible: Search contacts
+- tapOn: Properties
+- assertVisible: Properties
+- tapOn: Inbox
+- assertVisible: Search conversations
