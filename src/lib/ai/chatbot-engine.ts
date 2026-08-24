@@ -19,9 +19,11 @@ import {
 import {
   processClientReplyScreenshot,
   completeClientResponseProperty,
+  completeClientResponsePropertyId,
   completeClientReplyContact,
   completeClientReplyForContactId,
   parseClientCandidateReplyId,
+  parsePropertyCandidateReplyId,
   handleAgentFollowupReply,
   AGENT_FOLLOWUP_PREFIX,
   type ClientReplyOutcome,
@@ -29,6 +31,7 @@ import {
 import {
   parseClientAnswerContext,
   parseClientNameAnswer,
+  parsePropertyOwnerName,
 } from '@/lib/journey/client-answer';
 import {
   parkClientReply,
@@ -1004,6 +1007,40 @@ export async function processOwnerChatbotMessage(
     return true;
   }
 
+  const tappedProperty = buttonId
+    ? parsePropertyCandidateReplyId(buttonId)
+    : null;
+  if (tappedProperty) {
+    const outcome = await completeClientResponsePropertyId({
+      db: supabaseAdmin(),
+      accountId,
+      userId,
+      contactId: tappedProperty.contactId,
+      propertyId: tappedProperty.propertyId,
+      accessToken,
+      phoneNumberId,
+    });
+    const text =
+      outcome?.text ??
+      "❓ I couldn't find that contact or property any more. Forward the update again and I'll rematch it.";
+    const sendRes = outcome?.buttons
+      ? await sendInteractiveButtons({
+          phoneNumberId,
+          accessToken,
+          to: contactRecord.phone,
+          bodyText: text,
+          buttons: outcome.buttons,
+        })
+      : await sendTextMessage({
+          phoneNumberId,
+          accessToken,
+          to: contactRecord.phone,
+          text,
+        });
+    await saveBotMessage(conversation.id, text, sendRes.messageId);
+    return true;
+  }
+
   // The agent setting their own follow-up date on a client's branch.
   if (buttonId?.startsWith(AGENT_FOLLOWUP_PREFIX)) {
     const handledAgentFollowup = await handleAgentFollowupReply({
@@ -1048,6 +1085,10 @@ export async function processOwnerChatbotMessage(
         const completedReply = {
           ...parkedReply,
           response_summary: responseSummary || null,
+          related_owner_name:
+            parsePropertyOwnerName(cleanedText) ??
+            parkedReply.related_owner_name ??
+            null,
         };
         const outcome = await completeClientReplyContact({
           db: supabaseAdmin(),

@@ -83,3 +83,11 @@ export function parseClientAnswerContext(text?: string | null): string | null {
   if (!clause || !parseClientNameAnswer(value)) return null;
   return value.slice(clause.index + clause[0].length).trim() || null;
 }
+
+export function parsePropertyOwnerName(text?: string | null): string | null {
+  const value = (text || '').trim();
+  const match = value.match(
+    /\b(?:property\s+owner|owner(?:\s+of\s+(?:the\s+)?property)?)\s+is\s+((?:(?:mr|mrs|ms|dr)\.?\s+)?[\p{L}][\p{L}'.-]*(?:\s+[\p{L}][\p{L}'.-]*){0,3})\s*$/iu
+  );
+  return match?.[1]?.trim() || null;
+}

@@ -1467,6 +1467,7 @@ export interface ParsedClientReply {
    *  summariser's vocabulary, and matching a contact on that is how
    *  three people came to be offered because a note said "owner". */
   mentioned_terms: string[];
+  related_owner_name?: string | null;
 }
 
 /**
