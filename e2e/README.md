@@ -99,3 +99,23 @@ npm run test:e2e:contact-followup
 ```
 
 For repeatable hosted runs, add `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` once to the GitHub environment named `ui-tests`, then run the Contact follow-up UI workflow. No Vercel token is used.
+
+## Agent inventory sharing
+
+`agent-inventory-sharing.mjs` creates two temporary agent accounts and exercises
+the real authenticated routes against Supabase. It proves that inventory tagged
+to Agent B in Agent A's account is loaded into Agent B's inventory once, and
+that a direct Agent A → Agent B share enters Pending Review, rejects duplicates,
+and becomes a published recipient listing only after Agent B approves it.
+
+The script deletes its users, accounts, contacts, properties and invites in a
+`finally` block. It also clears the temporary source contact's phone before
+approval so the E2E test never sends a WhatsApp message.
+
+```bash
+npm run dev
+npm run test:e2e:agent-inventory-sharing
+```
+
+This scenario runs in the scheduled release gate and automatically whenever
+its inventory-sharing implementation or E2E definition changes on `main`.

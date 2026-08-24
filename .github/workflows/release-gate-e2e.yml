@@ -4,6 +4,18 @@ on:
   workflow_dispatch:
   schedule:
     - cron: '0 2 * * *'
+  push:
+    branches: [main]
+    paths:
+      - 'e2e/agent-inventory-sharing.mjs'
+      - 'src/app/api/agents/inventory-sync/**'
+      - 'src/app/api/properties/route.ts'
+      - 'src/app/api/properties/**/approve/**'
+      - 'src/app/api/properties/**/share-to-agent-account/**'
+      - 'src/lib/agents/source-inventory-sync.ts'
+      - 'src/lib/inventory/shared-property-copy.ts'
+      - 'supabase/migrations/*agent_source_inventory_sync.sql'
+      - '.github/workflows/release-gate-e2e.yml'
 
 concurrency:
   group: release-gate-e2e
@@ -14,7 +26,7 @@ permissions:
 
 jobs:
   contact-and-requirements:
-    name: Contact and requirements flow
+    name: Contact, requirements and inventory flows
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: ui-tests
@@ -41,6 +53,7 @@ jobs:
           cat /tmp/convoreal-dev.log
           exit 1
       - run: npm run test:e2e:contact-followup
+      - run: npm run test:e2e:agent-inventory-sharing
 
   production-ai-billing:
     name: Production AI credits and errors

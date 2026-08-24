@@ -52,6 +52,7 @@
     "e2e:share-grant": "tsx src/scripts/e2e-share-grant.ts",
     "test:e2e": "node --env-file=.env.local e2e/language-switcher.mjs && node --env-file=.env.local e2e/template-languages.mjs && node --env-file=.env.local e2e/translation-review-gate.mjs",
     "test:e2e:contact-followup": "node --env-file=.env.e2e.local e2e/contact-followup-regressions.mjs",
+    "test:e2e:agent-inventory-sharing": "node e2e/agent-inventory-sharing.mjs",
     "smoke:ai-billing": "node e2e/daily-ai-billing-smoke.mjs"
   },
   "dependencies": {
