@@ -13,17 +13,20 @@
 // ============================================================
 
 import { chromium } from 'playwright';
+import { existsSync } from 'node:fs';
 
 export const BASE = process.env.E2E_BASE_URL ?? 'http://localhost:3000';
 export const SHOTS = 'e2e/shots';
 
-const CHROME =
-  process.env.E2E_CHROMIUM ?? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+const bundledChrome = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+const chromePath =
+  process.env.E2E_CHROMIUM?.trim() ||
+  (existsSync(bundledChrome) ? bundledChrome : undefined);
 
 export async function launch() {
   const accountId = process.env.E2E_ACCOUNT_ID?.trim();
   const browser = await chromium.launch({
-    executablePath: CHROME,
+    ...(chromePath ? { executablePath: chromePath } : {}),
     args: ['--no-proxy-server'],
   });
   const ctx = await browser.newContext({

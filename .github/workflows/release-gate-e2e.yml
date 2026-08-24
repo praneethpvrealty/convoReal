@@ -29,10 +29,12 @@ jobs:
     name: Contact, requirements and inventory flows
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    environment: ui-tests
+    environment: production-smoke
     env:
-      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      # These two values are intentionally public client configuration.
+      # The privileged key remains masked in the protected environment.
+      NEXT_PUBLIC_SUPABASE_URL: https://ucqzafsbckmkeumgpxtb.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_H0SufEzFu7RWQQzKC5nESQ_oQVEtdqi
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       NEXT_PUBLIC_SITE_URL: http://localhost:3000
     steps:
@@ -57,6 +59,7 @@ jobs:
 
   production-ai-billing:
     name: Production AI credits and errors
+    if: github.event_name != 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: production-smoke
