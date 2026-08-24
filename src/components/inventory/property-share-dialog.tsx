@@ -41,6 +41,7 @@ import {
   MapPin,
   FileText,
   Ban,
+  FolderInput,
 } from 'lucide-react';
 import { getMatchingContacts, inMatchAudience, type MatchAudience, type MatchDetails } from '@/lib/matching';
 import { attachInquiredListingTypes } from '@/lib/contacts/inquired-intent';
@@ -580,15 +581,20 @@ export function PropertyShareDialog({
   // Anonymous Guest (`v=` only attributes events, never filters).
   const [personalSearch, setPersonalSearch] = useState('');
   const [copiedPersonalId, setCopiedPersonalId] = useState<string | null>(null);
+  const [inventorySharingContactId, setInventorySharingContactId] = useState<string | null>(null);
 
   const personalContacts = useMemo(() => {
     const q = personalSearch.toLowerCase().trim();
-    const reachable = contacts.filter(hasPhone);
+    const reachable = contacts.filter(
+      (contact) =>
+        hasPhone(contact) &&
+        (audienceTab !== 'agent' || contact.classification === 'Agent')
+    );
     if (!q) return reachable;
     return reachable.filter(
       (c) => (c.name || '').toLowerCase().includes(q) || (c.phone || '').includes(q),
     );
-  }, [contacts, personalSearch]);
+  }, [contacts, personalSearch, audienceTab]);
 
   const personalizedUrl = useCallback(
     (contactId: string, contactGrantToken: string | null) => {
@@ -656,6 +662,30 @@ export function PropertyShareDialog({
     } catch (err) {
       toast.error('Failed to copy message');
       console.error(err);
+    }
+  };
+
+  const handleInventoryShare = async (contact: Contact) => {
+    if (!property) return;
+    setInventorySharingContactId(contact.id);
+    try {
+      const response = await fetch(
+        `/api/properties/${property.id}/share-to-agent-account`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contact_id: contact.id }),
+        }
+      );
+      const json = await response.json();
+      if (!response.ok) throw new Error(json.error || 'Failed to share inventory');
+      toast.success(
+        `${contact.name || contact.phone} will see this under Listings to review`
+      );
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to share inventory');
+    } finally {
+      setInventorySharingContactId(null);
     }
   };
 
@@ -2025,9 +2055,13 @@ export function PropertyShareDialog({
                     Send personally (tracked)
                   </Label>
                   <p className="text-[11px] text-slate-500 font-medium">
-                    Each contact gets this same message with their own link, so every open, photo
-                    swipe, and map click shows up <strong className="text-slate-400">by name</strong> in
-                    Showcase Pulse — no more Anonymous Guests.
+                    {audienceTab === 'agent' ? (
+                      <>Registered ConvoReal agents can receive the listing directly in their review queue. Approval adds it to their inventory with your source attribution intact.</>
+                    ) : (
+                      <>Each contact gets this same message with their own link, so every open, photo
+                      swipe, and map click shows up <strong className="text-slate-400">by name</strong> in
+                      Showcase Pulse — no more Anonymous Guests.</>
+                    )}
                   </p>
 
                   <div className="relative">
@@ -2079,6 +2113,23 @@ export function PropertyShareDialog({
                             )}
                           </div>
                           <div className="flex items-center gap-1.5 shrink-0">
+                            {audienceTab === 'agent' && contact.classification === 'Agent' && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={inventorySharingContactId !== null}
+                                onClick={() => void handleInventoryShare(contact)}
+                                title="Add to this agent's ConvoReal review queue"
+                                className="h-7 px-2.5 text-[11px] border-primary/40 bg-primary/10 hover:bg-primary/20 text-primary flex items-center gap-1"
+                              >
+                                {inventorySharingContactId === contact.id ? (
+                                  <Loader2 className="size-3 animate-spin" />
+                                ) : (
+                                  <FolderInput className="size-3" />
+                                )}
+                                Inventory
+                              </Button>
+                            )}
                             <Button
                               size="sm"
                               onClick={() => handleWhatsAppPersonal(contact)}

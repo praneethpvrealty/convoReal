@@ -2,7 +2,7 @@
 
 import { useSearchParams, useRouter } from "next/navigation";
 import { pushUrl } from "@/lib/navigation";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import DashboardContent from "./dashboard-content";
 import FocusContent from "./focus-content";
@@ -45,7 +45,13 @@ const DEFAULT_TAB: TabId = "focus";
 export default function DashboardPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { isOrgManager, isOrgLeader } = useAuth();
+  const { isOrgManager, isOrgLeader, canSendMessages, accountId } = useAuth();
+
+  useEffect(() => {
+    if (accountId && canSendMessages) {
+      void fetch('/api/agents/inventory-sync', { method: 'POST' });
+    }
+  }, [accountId, canSendMessages]);
 
   const tabs = useMemo(
     () =>
