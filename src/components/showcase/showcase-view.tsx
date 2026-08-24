@@ -60,6 +60,7 @@ import {
   locationCandidates,
   matchesSelectedLocation,
 } from '@/lib/showcase/location-search';
+import { showcaseCardMotion } from '@/lib/showcase/card-motion';
 import { DEFAULT_SHOWCASE_STYLE, type ShowcaseStyle } from '@/lib/showcase/style';
 
 // Dwell-time cap for Pulse view_property events — a tab left open in the
@@ -1123,31 +1124,30 @@ export function ShowcaseView({
       cards.forEach((card) => {
         const cardRect = card.getBoundingClientRect();
         const cardCenter = cardRect.top + cardRect.height / 2;
-        const distance = Math.max(
-          -1,
-          Math.min(1, (cardCenter - deckCenter) / viewportHeight)
+        const motion = showcaseCardMotion(
+          (cardCenter - deckCenter) / viewportHeight,
+          mobileDeck
         );
-        const depth = Math.abs(distance);
 
         card.style.setProperty(
           '--showcase-card-rotate-x',
-          `${distance * (mobileDeck ? -68 : -20)}deg`
+          `${motion.rotateXDegrees}deg`
         );
         card.style.setProperty(
           '--showcase-card-translate-y',
-          `${distance * (mobileDeck ? 10 : 3)}%`
+          `${motion.translateYPercent}%`
         );
         card.style.setProperty(
           '--showcase-card-translate-z',
-          `${depth * (mobileDeck ? -180 : -100)}px`
+          `${motion.translateZPixels}px`
         );
         card.style.setProperty(
           '--showcase-card-scale',
-          `${1 - depth * (mobileDeck ? 0.12 : 0.035)}`
+          `${motion.scale}`
         );
         card.style.setProperty(
           '--showcase-card-opacity',
-          `${1 - depth * (mobileDeck ? 0.62 : 0.18)}`
+          `${motion.opacity}`
         );
       });
     };
