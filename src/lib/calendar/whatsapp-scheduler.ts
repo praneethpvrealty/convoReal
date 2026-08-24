@@ -25,11 +25,16 @@ import {
   type CandidateScheduleItem,
   type ParsedSchedulingResult,
 } from '@/lib/calendar/event-parse';
-import { recordBotTarget } from '@/lib/whatsapp/bot-message-target';
+import {
+  clearBotTarget,
+  latestBotTargetForPrompt,
+  recordBotTarget,
+} from '@/lib/whatsapp/bot-message-target';
 import { parseEventOutcome } from '@/lib/calendar/event-outcome';
 import { autoLinkContactProperty } from '@/lib/calendar/auto-link';
 import { findDuplicate, type ExistingRow } from '@/lib/calendar/event-dedupe';
 import { createNotification } from '@/lib/notifications/create';
+import { scanMessagesForProperties } from '@/lib/journey/chat-scan';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { buildCallUpdateParams } from '@/lib/whatsapp/call-update-template';
 import { CALL_UPDATE_TEMPLATE_NAME } from '@/lib/whatsapp/call-update-template';
@@ -50,7 +55,7 @@ const EVENT_TYPE_EMOJI: Record<string, string> = {
 
 /** Phrases that are a scheduling request on their own. */
 const SCHEDULING_VERB =
-  /\b(remind me|reminder|schedule|re-?schedule|book|fix (a |the )?(meeting|visit|call|appointment)|set up (a )?(meeting|visit|call)|follow ?up (with|on)|site visit)\b/i;
+  /\b(remind me|reminder|schedule|re-?schedule|book|arrange (a |the )?(meeting|visit|call|appointment)|fix (a |the )?(meeting|visit|call|appointment)|set up (a )?(meeting|visit|call)|follow ?up (with|on)|site visit)\b/i;
 
 /**
  * An explicit to-do declaration.
@@ -102,6 +107,25 @@ const TIME_CUE =
  */
 const DATE_CUE =
   /\b(\d{1,2}(st|nd|rd|th)? (jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*|(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]* \d{1,2}(st|nd|rd|th)?|\d{1,2}\/\d{1,2}(\/\d{2,4})?|\d{1,2}-\d{1,2}-\d{2,4}|(mon|tues|wednes|thurs|fri|satur|sun)day)\b/i;
+
+const INBOUND_VISIT_REQUEST =
+  /\b(?:arrange|book|schedule|fix|set\s*up)\s+(?:a\s+|the\s+)?(?:(?:property|site)\s+)?visit\b|\b(?:want|would like|need|like)\s+to\s+(?:visit|view|see)\b|\bcan\s+(?:we|i)\s+(?:visit|view)\b/i;
+const VISIT_PROMPT = /property visit details|visit date and time|visit time|visit date/i;
+const VISIT_DATE_CUE =
+  /\b(?:today|tomorrow|day after tomorrow|in\s+\d+\s+days?|(?:this|next|coming)\s+(?:mon|tue|wed|thu|fri|sat|sun)[a-z]*|(?:mon|tues|wednes|thurs|fri|satur|sun)day)\b|\b\d{1,2}(?:st|nd|rd|th)?\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b|\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{1,2}(?:st|nd|rd|th)?\b|\b\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?\b/i;
+const VISIT_TIME_CUE =
+  /\b(?:at\s*)?\d{1,2}(?::\d{2})?\s*(?:am|pm)\b|\b\d{1,2}:\d{2}\b/i;
+
+export function isInboundVisitRequest(text: string): boolean {
+  return INBOUND_VISIT_REQUEST.test(text.trim());
+}
+
+export function missingVisitDetails(text: string): Array<'date' | 'time'> {
+  const missing: Array<'date' | 'time'> = [];
+  if (!VISIT_DATE_CUE.test(text)) missing.push('date');
+  if (!VISIT_TIME_CUE.test(text)) missing.push('time');
+  return missing;
+}
 
 /** Forwarded listings and portal leads — intake material, not events. */
 const LISTING_SIGNAL =
@@ -1780,6 +1804,121 @@ export interface InboundSchedulingParams {
   phoneNumberId: string;
 }
 
+interface PendingVisitPrompt {
+  property: SchedulerProperty;
+  promptText: string;
+  waMessageId: string;
+}
+
+async function pendingVisitPrompt(params: {
+  admin: ReturnType<typeof supabaseAdmin>;
+  accountId: string;
+  conversationId: string;
+  properties: SchedulerProperty[];
+}): Promise<PendingVisitPrompt | null> {
+  const target = await latestBotTargetForPrompt({
+    accountId: params.accountId,
+    conversationId: params.conversationId,
+    entityType: 'property',
+    prompt: VISIT_PROMPT,
+    withinHours: 24,
+    client: params.admin,
+  });
+  if (!target?.waMessageId) return null;
+
+  const property = params.properties.find((p) => p.id === target.entityId);
+  if (!property) return null;
+
+  const { data } = await params.admin
+    .from('messages')
+    .select('content_text')
+    .eq('conversation_id', params.conversationId)
+    .eq('message_id', target.waMessageId)
+    .maybeSingle();
+  const promptText = ((data?.content_text as string | null) || '').trim();
+  if (!promptText) return null;
+
+  return { property, promptText, waMessageId: target.waMessageId };
+}
+
+async function propertyFromRecentConversation(params: {
+  admin: ReturnType<typeof supabaseAdmin>;
+  conversationId: string;
+  properties: SchedulerProperty[];
+}): Promise<SchedulerProperty | null> {
+  const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const { data } = await params.admin
+    .from('messages')
+    .select('content_text, created_at')
+    .eq('conversation_id', params.conversationId)
+    .in('sender_type', ['agent', 'bot'])
+    .gte('created_at', since)
+    .order('created_at', { ascending: false })
+    .limit(12);
+  const found = scanMessagesForProperties(
+    (data || []) as Array<{ content_text: string | null; created_at: string }>,
+    params.properties
+      .filter((p): p is SchedulerProperty & { title: string } => Boolean(p.title))
+      .map((p) => ({ id: p.id, title: p.title, property_code: p.property_code }))
+  );
+  const propertyId = found.keys().next().value as string | undefined;
+  return params.properties.find((p) => p.id === propertyId) || null;
+}
+
+function visitDetailsPrompt(params: {
+  property: SchedulerProperty;
+  missing: Array<'date' | 'time'>;
+  contextText: string;
+}): string {
+  const label = params.property.title || params.property.property_code || 'the selected property';
+  const carried = params.contextText.trim();
+  if (params.missing.length === 1 && params.missing[0] === 'time') {
+    return `🗓 *Visit time needed*\n\nWhat time would suit you for the property visit to *${label}*?\n\n_Date already noted: ${carried}_`;
+  }
+  if (params.missing.length === 1 && params.missing[0] === 'date') {
+    return `🗓 *Visit date needed*\n\nWhich day would suit you for the property visit to *${label}*?\n\n_Time already noted: ${carried}_`;
+  }
+  return `🗓 *Property visit details*\n\nWhat date and time would suit you for the visit to *${label}*?`;
+}
+
+async function askForVisitDetails(params: {
+  admin: ReturnType<typeof supabaseAdmin>;
+  accountId: string;
+  conversationId: string;
+  contactPhone: string;
+  accessToken: string;
+  phoneNumberId: string;
+  property: SchedulerProperty;
+  missing: Array<'date' | 'time'>;
+  contextText: string;
+  replaceWamid?: string;
+}): Promise<void> {
+  const prompt = visitDetailsPrompt({
+    property: params.property,
+    missing: params.missing,
+    contextText: params.contextText,
+  });
+  const wamid = await replyAndLog({
+    phoneNumberId: params.phoneNumberId,
+    accessToken: params.accessToken,
+    toPhone: params.contactPhone,
+    conversationId: params.conversationId,
+    text: prompt,
+  });
+  await recordBotTarget({
+    accountId: params.accountId,
+    waMessageId: wamid,
+    entityType: 'property',
+    entityId: params.property.id,
+    client: params.admin,
+  });
+  await clearBotTarget({
+    accountId: params.accountId,
+    waMessageId: params.replaceWamid,
+    client: params.admin,
+  });
+}
+
 /**
  * Turns a lead's inbound WhatsApp message ("can we visit the JP Nagar
  * flat this Saturday at 3pm?") into an appointment on the agent's
@@ -1795,8 +1934,68 @@ export async function tryHandleInboundScheduling(params: InboundSchedulingParams
   const text = contentText?.trim() || '';
   const agentUserId = assignedAgentUserId || ownerUserId;
 
-  if (!ownerUserId || message.type !== 'text' || !text || !looksLikeSchedulingText(text)) {
+  if (!ownerUserId || message.type !== 'text' || !text) {
     return false;
+  }
+
+  const visitRequest = isInboundVisitRequest(text);
+  const schedulingRequest = looksLikeSchedulingText(text);
+  const possibleVisitReply = missingVisitDetails(text).length < 2;
+  if (!visitRequest && !schedulingRequest && !possibleVisitReply) return false;
+
+  const admin = supabaseAdmin();
+  const { data: propertyRows } = await admin
+    .from('properties')
+    .select('id, title, property_code, location, sublocality')
+    .eq('account_id', accountId);
+  const properties = (propertyRows || []) as SchedulerProperty[];
+  const pending = await pendingVisitPrompt({
+    admin,
+    accountId,
+    conversationId: conversation.id,
+    properties,
+  });
+  if (!pending && !visitRequest && !schedulingRequest) return false;
+
+  const selectedProperty =
+    pending?.property ||
+    (visitRequest
+      ? await propertyFromRecentConversation({
+          admin,
+          conversationId: conversation.id,
+          properties,
+        })
+      : null);
+  const schedulingText = pending
+    ? `Schedule a site visit to ${pending.property.title || pending.property.property_code || 'the selected property'}. ${pending.promptText}\nLead reply: ${text}`
+    : text;
+  const missing = missingVisitDetails(schedulingText);
+
+  if ((pending || visitRequest) && selectedProperty && missing.length > 0) {
+    await askForVisitDetails({
+      admin,
+      accountId,
+      conversationId: conversation.id,
+      contactPhone: contactRecord.phone,
+      accessToken,
+      phoneNumberId,
+      property: selectedProperty,
+      missing,
+      contextText: text,
+      replaceWamid: pending?.waMessageId,
+    });
+    return true;
+  }
+
+  if (visitRequest && !selectedProperty && missing.length > 0) {
+    await replyAndLog({
+      phoneNumberId,
+      accessToken,
+      toPhone: contactRecord.phone,
+      conversationId: conversation.id,
+      text: 'Which property would you like to visit? Please share its property code or name.',
+    });
+    return true;
   }
 
   if (!(await hardBurn(accountId, 'event_parse'))) {
@@ -1805,7 +2004,7 @@ export async function tryHandleInboundScheduling(params: InboundSchedulingParams
 
   let draft: ParsedEventDraft;
   try {
-    draft = await parseEventFromInput({ text });
+    draft = await parseEventFromInput({ text: schedulingText });
   } catch (err) {
     console.error('[wa-scheduler] inbound parse failed:', err);
     return false;
@@ -1821,16 +2020,16 @@ export async function tryHandleInboundScheduling(params: InboundSchedulingParams
     endIso = new Date(new Date(startIso).getTime() + (draft.duration_minutes || 60) * 60 * 1000).toISOString();
   }
 
-  const admin = supabaseAdmin();
-  const { data: properties } = await admin
-    .from('properties')
-    .select('id, title, property_code, location, sublocality')
-    .eq('account_id', accountId);
-  const property = resolveByName(
+  const property = selectedProperty || resolveByName(
     draft.property_hint,
-    properties || [],
+    properties,
     (p) => `${p.property_code || ''} ${p.title || ''} ${p.location || ''} ${p.sublocality || ''}`
   );
+  const eventType = pending || visitRequest ? 'site_visit' : draft.event_type;
+  const title =
+    property && eventType === 'site_visit'
+      ? `Site visit — ${property.title || property.property_code || 'Property'}`
+      : draft.title;
 
   const { data: inserted, error } = await admin
     .from('appointments')
@@ -1838,9 +2037,9 @@ export async function tryHandleInboundScheduling(params: InboundSchedulingParams
       account_id: accountId,
       user_id: ownerUserId,
       assigned_to: agentUserId,
-      title: draft.title,
+      title,
       description: draft.notes,
-      event_type: draft.event_type,
+      event_type: eventType,
       start_time: startIso,
       end_time: endIso,
       location: draft.location,
@@ -1849,7 +2048,7 @@ export async function tryHandleInboundScheduling(params: InboundSchedulingParams
       contact_ids: [contactRecord.id],
       property_id: property?.id || null,
       source: 'whatsapp',
-      transcript: text,
+      transcript: pending ? `${pending.promptText}\n${text}` : text,
     })
     .select('id')
     .single();
@@ -1857,6 +2056,11 @@ export async function tryHandleInboundScheduling(params: InboundSchedulingParams
     console.error('[wa-scheduler] inbound appointment insert failed:', error);
     return false;
   }
+  await clearBotTarget({
+    accountId,
+    waMessageId: pending?.waMessageId,
+    client: admin,
+  });
 
   const whenLabel = new Date(startIso).toLocaleString('en-IN', {
     timeZone: 'Asia/Kolkata',
@@ -1875,7 +2079,7 @@ export async function tryHandleInboundScheduling(params: InboundSchedulingParams
     eventKey: 'appointment_booked',
     title: `New booking from ${leadName}`,
     body: [
-      `${draft.title}`,
+      title,
       `🕐 ${whenLabel}`,
       property ? `🏠 ${property.title}` : null,
       draft.location ? `📌 ${draft.location}` : null,
@@ -1888,7 +2092,7 @@ export async function tryHandleInboundScheduling(params: InboundSchedulingParams
     whatsappText: [
       '📅 *New booking from a lead*',
       `👤 ${leadName}`,
-      `${EVENT_TYPE_EMOJI[draft.event_type] || '🗓'} ${draft.title}`,
+      `${EVENT_TYPE_EMOJI[eventType] || '🗓'} ${title}`,
       `🕐 ${whenLabel}`,
       property ? `🏠 ${property.title}` : null,
       draft.location ? `📌 ${draft.location}` : null,
@@ -1906,8 +2110,8 @@ export async function tryHandleInboundScheduling(params: InboundSchedulingParams
     conversationId: conversation.id,
     text: formatInboundConfirmation({
       contactName: contactRecord.name ?? null,
-      title: draft.title,
-      eventType: draft.event_type,
+      title,
+      eventType,
       startIso,
       propertyTitle: property?.title || null,
       location: draft.location,
