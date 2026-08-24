@@ -61,7 +61,11 @@ export default async function ArticlePage({ params, searchParams }: PageProps) {
 
   const origin = await resolveRequestOrigin();
   const businessName = context.accountName || BRANDING.name;
-  const profile = buildPublicBusinessProfile(businessName, context.properties);
+  const profile = buildPublicBusinessProfile(businessName, context.properties, {
+    description: context.settings?.public_business_description,
+    areasServed: context.settings?.public_areas_served,
+    propertyTypes: context.settings?.public_property_expertise,
+  });
   const url = `${origin}/articles/${article.slug}`;
 
   const description = article.meta_description || article.excerpt || '';

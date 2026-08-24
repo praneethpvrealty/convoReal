@@ -27,4 +27,61 @@ describe('buildPublicBusinessProfile', () => {
     expect(profile.inventoryLastUpdated).toBe('2026-08-18T00:00:00.000Z');
     expect(profile.description).not.toContain('Confidential exact address');
   });
+
+  it('cleans inventory-derived copy and treats Bangalore as Bengaluru', () => {
+    const properties = [
+      {
+        type: 'Residential Land/ Plot',
+        sublocality: 'JP Nagar',
+        city: 'Bangalore',
+      },
+      {
+        type: 'Residential Land / Plot',
+        sublocality: 'HBR Layout',
+        city: 'Bengaluru',
+      },
+    ] as Property[];
+
+    const profile = buildPublicBusinessProfile(
+      'Aryavarta Ventures',
+      properties
+    );
+
+    expect(profile.areasServed).toEqual([
+      'JP Nagar',
+      'HBR Layout',
+      'Bengaluru',
+    ]);
+    expect(profile.propertyTypes).toEqual(['Residential Land / Plot']);
+    expect(profile.description).toBe(
+      'Aryavarta Ventures helps buyers, sellers, investors, and property owners with Residential Land / Plot across JP Nagar, HBR Layout, and Bengaluru. Explore current listings or contact our team to discuss your property requirements.'
+    );
+  });
+
+  it('uses settings-authored public profile copy and lists', () => {
+    const profile = buildPublicBusinessProfile(
+      'Aryavarta Ventures',
+      [
+        {
+          type: 'Residential House',
+          city: 'Bangalore',
+        },
+      ] as Property[],
+      {
+        description:
+          'Independent real estate advisory for land and commercial transactions.',
+        areasServed: ['Bengaluru', 'JP Nagar', 'bengaluru'],
+        propertyTypes: ['Commercial Property', 'Land Aggregation'],
+      }
+    );
+
+    expect(profile.description).toBe(
+      'Independent real estate advisory for land and commercial transactions.'
+    );
+    expect(profile.areasServed).toEqual(['Bengaluru', 'JP Nagar']);
+    expect(profile.propertyTypes).toEqual([
+      'Commercial Property',
+      'Land Aggregation',
+    ]);
+  });
 });

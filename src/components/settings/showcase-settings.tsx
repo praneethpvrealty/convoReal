@@ -74,6 +74,9 @@ interface ShowcaseForm {
   theme: string;
   showcaseStyle: ShowcaseStyle;
   showcase3dEnabled: boolean;
+  businessDescription: string;
+  areasServed: string;
+  propertyExpertise: string;
   /** Bucket-relative path, resolved for display by storagePublicUrl. */
   brandImage: string;
 }
@@ -87,8 +90,20 @@ const BLANK: ShowcaseForm = {
   theme: 'violet',
   showcaseStyle: DEFAULT_SHOWCASE_STYLE,
   showcase3dEnabled: true,
+  businessDescription: '',
+  areasServed: '',
+  propertyExpertise: '',
   brandImage: '',
 };
+
+function parseList(value: string): string[] | null {
+  const items = value
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .slice(0, 12);
+  return items.length > 0 ? items : null;
+}
 
 function ShareLinkCard({
   label,
@@ -262,6 +277,11 @@ export function ShowcaseSettingsPanel() {
             theme: data.theme || 'violet',
             showcaseStyle: toShowcaseStyle(data.showcase_style),
             showcase3dEnabled: data.showcase_3d_enabled ?? true,
+            businessDescription: data.public_business_description || '',
+            areasServed: (data.public_areas_served || []).join(', '),
+            propertyExpertise: (data.public_property_expertise || []).join(
+              ', '
+            ),
             brandImage: data.brand_image_url || '',
           };
           setForm((prev) => ({ ...prev, ...loaded }));
@@ -333,6 +353,9 @@ export function ShowcaseSettingsPanel() {
         theme: form.theme,
         showcase_style: form.showcaseStyle,
         showcase_3d_enabled: form.showcase3dEnabled,
+        public_business_description: form.businessDescription.trim() || null,
+        public_areas_served: parseList(form.areasServed),
+        public_property_expertise: parseList(form.propertyExpertise),
         updated_at: new Date().toISOString(),
       };
 
@@ -342,7 +365,10 @@ export function ShowcaseSettingsPanel() {
             .update(payload)
             .eq('account_id', accountId)
             .select('account_id')
-        : await supabase.from('showcase_settings').insert([payload]).select('account_id');
+        : await supabase
+            .from('showcase_settings')
+            .insert([payload])
+            .select('account_id');
 
       if (!error && !savedRow?.length) {
         toast.error('Your settings could not be saved.');
@@ -401,7 +427,7 @@ export function ShowcaseSettingsPanel() {
   const businessUrl = saved.subdomain
     ? `https://${saved.subdomain}.${BRANDING.baseDomain}`
     : '';
-  const businessShareMessage = `You can find my inventories here - ${businessUrl}`;
+  const businessShareMessage = `You can explore my current property listings here: ${businessUrl}`;
 
   const handleCopyBusinessMessage = () => {
     if (!businessUrl) return;
@@ -423,7 +449,7 @@ export function ShowcaseSettingsPanel() {
             <ShareLinkCard
               label="Company Showcase Link"
               accent="text-primary"
-              description="Showcases all published properties listed across the entire account inventory."
+              description="Shows all published properties across your account."
               url={companyUrl}
               copied={copiedUrlType === 'company'}
               onCopy={() => handleCopyLink(companyUrl, 'company')}
@@ -431,7 +457,7 @@ export function ShowcaseSettingsPanel() {
             <ShareLinkCard
               label="My Personal Agent Showcase Link"
               accent="text-indigo-400"
-              description="Showcases exclusively properties created or posted by you."
+              description="Shows only the properties created or published by you."
               url={personalUrl}
               copied={copiedUrlType === 'personal'}
               onCopy={() => handleCopyLink(personalUrl, 'personal')}
@@ -538,7 +564,9 @@ export function ShowcaseSettingsPanel() {
                   ) : (
                     <Copy className="size-3.5" />
                   )}
-                  {copiedUrlType === 'business' ? 'Copied!' : 'Copy with message'}
+                  {copiedUrlType === 'business'
+                    ? 'Copied!'
+                    : 'Copy with message'}
                 </Button>
                 <a
                   href={businessUrl}
@@ -586,6 +614,80 @@ export function ShowcaseSettingsPanel() {
             The default color branding for your public showcase URL.
           </p>
         </div>
+      </Section>
+
+      <Section
+        icon={<Building className="text-primary size-5" />}
+        title="Public business profile"
+        description="Control the About section shown on your public showcase and search pages."
+      >
+        <div className="space-y-2">
+          <Label
+            htmlFor="businessDescription"
+            className="text-slate-350 font-medium"
+          >
+            About your business
+          </Label>
+          <Textarea
+            id="businessDescription"
+            value={form.businessDescription}
+            onChange={(e) => set('businessDescription', e.target.value)}
+            placeholder="Describe your services, specialities, and the clients you help."
+            maxLength={600}
+            rows={4}
+            disabled={!canEditSettings}
+            className="focus:border-primary focus:ring-primary min-h-[100px] border-slate-800 bg-slate-950 text-white placeholder:text-slate-600 focus:ring-1"
+          />
+          <p className="text-[11px] text-slate-400">
+            Leave blank to use a polished summary based on your published
+            inventory.
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="areasServed" className="text-slate-350 font-medium">
+            Areas served
+          </Label>
+          <Input
+            id="areasServed"
+            value={form.areasServed}
+            onChange={(e) => set('areasServed', e.target.value)}
+            placeholder="e.g. Bengaluru, JP Nagar, Koramangala"
+            disabled={!canEditSettings}
+            className="focus:border-primary focus:ring-primary border-slate-800 bg-slate-950 text-white placeholder:text-slate-600 focus:ring-1"
+          />
+          <p className="text-[11px] text-slate-400">
+            Separate areas with commas. Leave blank to derive them from your
+            published properties.
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <Label
+            htmlFor="propertyExpertise"
+            className="text-slate-350 font-medium"
+          >
+            Property expertise
+          </Label>
+          <Input
+            id="propertyExpertise"
+            value={form.propertyExpertise}
+            onChange={(e) => set('propertyExpertise', e.target.value)}
+            placeholder="e.g. Residential Land, Commercial Property, Apartments"
+            disabled={!canEditSettings}
+            className="focus:border-primary focus:ring-primary border-slate-800 bg-slate-950 text-white placeholder:text-slate-600 focus:ring-1"
+          />
+          <p className="text-[11px] text-slate-400">
+            Separate specialities with commas. Leave blank to use the property
+            types in your published inventory.
+          </p>
+        </div>
+
+        {!canEditSettings && (
+          <p className="text-xs text-slate-500">
+            Only account admins can change the public business profile.
+          </p>
+        )}
       </Section>
 
       <Section

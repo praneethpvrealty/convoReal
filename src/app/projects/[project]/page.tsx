@@ -179,7 +179,11 @@ export default async function ProjectPage({ params, searchParams }: PageProps) {
 
   const origin = await resolveRequestOrigin();
   const siteName = data.accountName || BRANDING.name;
-  const businessProfile = buildPublicBusinessProfile(siteName, data.properties);
+  const businessProfile = buildPublicBusinessProfile(siteName, data.properties, {
+    description: data.settings?.public_business_description,
+    areasServed: data.settings?.public_areas_served,
+    propertyTypes: data.settings?.public_property_expertise,
+  });
 
   return (
     <>

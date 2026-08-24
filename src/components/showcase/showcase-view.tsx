@@ -840,8 +840,13 @@ export function ShowcaseView({
   const siteName = siteNameProp || BRANDING.name;
   const displayPhone = referrerPhone || settings?.contact_phone || '';
   const businessProfile = useMemo(
-    () => buildPublicBusinessProfile(siteName, properties),
-    [siteName, properties]
+    () =>
+      buildPublicBusinessProfile(siteName, properties, {
+        description: settings?.public_business_description,
+        areasServed: settings?.public_areas_served,
+        propertyTypes: settings?.public_property_expertise,
+      }),
+    [siteName, properties, settings]
   );
 
   /**

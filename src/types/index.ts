@@ -1328,6 +1328,9 @@ export interface ShowcaseSettings {
   theme?: string;
   showcase_style?: ShowcaseStyle;
   showcase_3d_enabled?: boolean;
+  public_business_description?: string | null;
+  public_areas_served?: string[] | null;
+  public_property_expertise?: string[] | null;
   created_at: string;
   updated_at: string;
 }
