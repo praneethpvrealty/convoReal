@@ -109,13 +109,12 @@ export async function POST(request: Request) {
     const label = labels[i] ?? null;
     const { token, hash, code } = generateBetaInvite();
 
-    const { data, error } = await admin.rpc("issue_beta_invite", {
+    const { data, error } = await admin.rpc("issue_beta_seed", {
       p_token_hash: hash,
       p_code: code,
       p_label: label,
       p_invitee_phone: null,
       p_invitee_email: null,
-      p_as_seed: true,
     });
 
     if (error) {
