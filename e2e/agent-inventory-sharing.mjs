@@ -151,7 +151,7 @@ try {
         price: 27500000,
         status: 'Available',
         is_published: true,
-        listing_source: 'self',
+        listing_source: 'owner',
       },
     ])
     .select('id, title');
