@@ -7,6 +7,8 @@ import {
   formatAgendaMessage,
   formatInboundConfirmation,
   istDayWindow,
+  isInboundVisitRequest,
+  missingVisitDetails,
 } from './whatsapp-scheduler';
 
 describe('looksLikeSchedulingText', () => {
@@ -111,6 +113,26 @@ describe('looksLikeSchedulingText', () => {
     expect(
       looksLikeSchedulingText('Remind me tomorrow to update the 3BHK 1850 sqft listing price to 1.3 crore')
     ).toBe(true);
+  });
+});
+
+describe('inbound property visit dialogue', () => {
+  it('recognizes Ramanathan\'s visit request without a date or time', () => {
+    expect(isInboundVisitRequest('Arrange a visit pls')).toBe(true);
+    expect(looksLikeSchedulingText('Arrange a visit pls')).toBe(true);
+    expect(missingVisitDetails('Arrange a visit pls')).toEqual(['date', 'time']);
+  });
+
+  it('collects a relative visit day before asking for the time', () => {
+    expect(missingVisitDetails('In 2 days')).toEqual(['time']);
+  });
+
+  it('has enough information after the time reply is combined with the carried day', () => {
+    expect(missingVisitDetails('Date already noted: In 2 days. Lead reply: 3 pm')).toEqual([]);
+  });
+
+  it('does not confuse a question about access with a booking request', () => {
+    expect(isInboundVisitRequest('Can we see inside when we visit tomorrow?')).toBe(false);
   });
 });
 
