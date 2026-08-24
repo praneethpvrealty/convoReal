@@ -353,9 +353,6 @@ export function ShowcaseSettingsPanel() {
         theme: form.theme,
         showcase_style: form.showcaseStyle,
         showcase_3d_enabled: form.showcase3dEnabled,
-        public_business_description: form.businessDescription.trim() || null,
-        public_areas_served: parseList(form.areasServed),
-        public_property_expertise: parseList(form.propertyExpertise),
         updated_at: new Date().toISOString(),
       };
 
@@ -383,6 +380,26 @@ export function ShowcaseSettingsPanel() {
           return;
         }
         throw error;
+      }
+
+      const publicProfileChanged =
+        form.businessDescription.trim() !== saved.businessDescription.trim() ||
+        form.areasServed.trim() !== saved.areasServed.trim() ||
+        form.propertyExpertise.trim() !== saved.propertyExpertise.trim();
+      if (publicProfileChanged) {
+        const response = await fetch('/api/showcase/public-profile', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            description: form.businessDescription.trim() || null,
+            areasServed: parseList(form.areasServed),
+            propertyExpertise: parseList(form.propertyExpertise),
+          }),
+        });
+        if (!response.ok) {
+          const body = await response.json().catch(() => null);
+          throw new Error(body?.error ?? 'Failed to update the public profile');
+        }
       }
 
       setHasRow(true);
