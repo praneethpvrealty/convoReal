@@ -180,7 +180,11 @@ export default async function PropertyPage({
   const canonicalUrl = `${origin}/property/${canonicalSlug}`;
   const siteName = accountName || BRANDING.name;
   const businessId = `${origin}#business`;
-  const businessProfile = buildPublicBusinessProfile(siteName, propertiesList);
+  const businessProfile = buildPublicBusinessProfile(siteName, propertiesList, {
+    description: settings?.public_business_description,
+    areasServed: settings?.public_areas_served,
+    propertyTypes: settings?.public_property_expertise,
+  });
 
   // Structured data describes the listing to crawlers in the clear, so
   // a teaser emits none of it — the page is noindex anyway.

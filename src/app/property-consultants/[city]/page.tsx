@@ -56,7 +56,11 @@ export default async function ConsultantCityPage({
 
   const origin = await resolveRequestOrigin();
   const businessName = context.accountName || BRANDING.name;
-  const profile = buildPublicBusinessProfile(businessName, context.properties);
+  const profile = buildPublicBusinessProfile(businessName, context.properties, {
+    description: context.settings?.public_business_description,
+    areasServed: context.settings?.public_areas_served,
+    propertyTypes: context.settings?.public_property_expertise,
+  });
   const publicProperties = locality.properties.filter(
     (property) => !isTeaserGated(property)
   );

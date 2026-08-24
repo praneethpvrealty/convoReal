@@ -120,7 +120,11 @@ export async function generateMetadata({
 
     const data = await cachedFetchShowcaseData(accountId, false);
     const siteName = data.accountName || BRANDING.name;
-    const profile = buildPublicBusinessProfile(siteName, data.properties);
+    const profile = buildPublicBusinessProfile(siteName, data.properties, {
+      description: data.settings?.public_business_description,
+      areasServed: data.settings?.public_areas_served,
+      propertyTypes: data.settings?.public_property_expertise,
+    });
     const origin = await resolveRequestOrigin();
     const title = `${siteName} — Properties & Real Estate Consultancy`;
 
@@ -479,7 +483,12 @@ export default async function RootPage({ searchParams }: PageProps) {
   const businessId = `${origin}#business`;
   const businessProfile = buildPublicBusinessProfile(
     siteName,
-    publishedProperties
+    publishedProperties,
+    {
+      description: settings?.public_business_description,
+      areasServed: settings?.public_areas_served,
+      propertyTypes: settings?.public_property_expertise,
+    }
   );
 
   // Render

@@ -70,6 +70,11 @@ export const MENU_LINKS = {
     icon: 'notifications-outline',
     label: 'Notification settings',
   },
+  showcaseProfile: {
+    href: '/(app)/showcase-profile',
+    icon: 'storefront-outline',
+    label: 'Public business profile',
+  },
   botRules: {
     href: '/(app)/bot-rules',
     icon: 'book-outline',
@@ -117,7 +122,14 @@ export const MENU_SECTIONS: { title: string; ids: readonly MenuRouteId[] }[] = [
   },
   {
     title: 'App & account',
-    ids: ['credits', 'notifications', 'botRules', 'widgets', 'connection'],
+    ids: [
+      'credits',
+      'notifications',
+      'showcaseProfile',
+      'botRules',
+      'widgets',
+      'connection',
+    ],
   },
 ];
 

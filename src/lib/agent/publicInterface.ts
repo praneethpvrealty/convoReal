@@ -72,7 +72,11 @@ export async function loadPublicAgentContext(request: Request) {
     accountId,
     origin: publicRequestOrigin(request),
     businessName,
-    profile: buildPublicBusinessProfile(businessName, data.properties),
+    profile: buildPublicBusinessProfile(businessName, data.properties, {
+      description: data.settings?.public_business_description,
+      areasServed: data.settings?.public_areas_served,
+      propertyTypes: data.settings?.public_property_expertise,
+    }),
     properties: data.properties,
   };
 }

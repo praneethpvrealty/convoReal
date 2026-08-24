@@ -108,7 +108,11 @@ export default async function FarmlandDestinationPage({
 
   const origin = await resolveRequestOrigin();
   const siteName = accountName || BRANDING.name;
-  const businessProfile = buildPublicBusinessProfile(siteName, properties);
+  const businessProfile = buildPublicBusinessProfile(siteName, properties, {
+    description: settings?.public_business_description,
+    areasServed: settings?.public_areas_served,
+    propertyTypes: settings?.public_property_expertise,
+  });
 
   return (
     <>
