@@ -26,7 +26,10 @@ import {
   AGENT_FOLLOWUP_PREFIX,
   type ClientReplyOutcome,
 } from '@/lib/journey/client-response';
-import { parseClientNameAnswer } from '@/lib/journey/client-answer';
+import {
+  parseClientAnswerContext,
+  parseClientNameAnswer,
+} from '@/lib/journey/client-answer';
 import {
   parkClientReply,
   takePendingClientReply,
@@ -1035,12 +1038,23 @@ export async function processOwnerChatbotMessage(
         contactId: contactRecord.id,
       });
       if (parkedReply) {
+        const answerContext = parseClientAnswerContext(cleanedText);
+        const responseSummary = [
+          parkedReply.response_summary?.trim().replace(/[.\s]+$/, ''),
+          answerContext,
+        ]
+          .filter((part): part is string => !!part)
+          .join('. ');
+        const completedReply = {
+          ...parkedReply,
+          response_summary: responseSummary || null,
+        };
         const outcome = await completeClientReplyContact({
           db: supabaseAdmin(),
           accountId,
           userId,
           name: namedClient,
-          parsed: parkedReply,
+          parsed: completedReply,
           accessToken,
           phoneNumberId,
           excludeContactId: contactRecord.id,
@@ -1055,7 +1069,7 @@ export async function processOwnerChatbotMessage(
             accountId,
             contactId: contactRecord.id,
             conversationId: conversation.id,
-            parsed: parkedReply,
+            parsed: completedReply,
           });
         }
         const sendRes = outcome?.buttons

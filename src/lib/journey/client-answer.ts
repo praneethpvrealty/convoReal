@@ -35,6 +35,9 @@ const LEAD_IN =
 const PREDICATE =
   /^(?:is|was|isn'?t|are|already|has|have|had|exists?|saved|came|replied)$/i;
 
+const RELATIONSHIP_CLAUSE =
+  /\s+(?:and|,)\s+(?=(?:(?:the|his|her|their)\s+)?(?:property\s+)?(?:owner|seller|agent|referrer|facilitator)\b)/i;
+
 /** A name past this many words is a sentence. */
 const MAX_NAME_WORDS = 4;
 
@@ -56,12 +59,14 @@ export function parseClientNameAnswer(text?: string | null): string | null {
   if (!value || value.length > MAX_ANSWER_LEN) return null;
   if (LINK.test(value) || CODE.test(value)) return null;
 
-  const words = value.replace(LEAD_IN, '').trim().split(/\s+/).filter(Boolean);
+  const answer = value.split(RELATIONSHIP_CLAUSE, 1)[0];
+  const words = answer.replace(LEAD_IN, '').trim().split(/\s+/).filter(Boolean);
   if (!words.length) return null;
 
   const name: string[] = [];
   for (const word of words) {
     if (name.length && PREDICATE.test(word)) break;
+    if (name.length && /^(?:and|or)$/i.test(word)) return null;
     if (name.length === MAX_NAME_WORDS) return null;
     if (!/^[\p{L}][\p{L}'.-]*$/u.test(word)) return null;
     name.push(word);
@@ -70,4 +75,11 @@ export function parseClientNameAnswer(text?: string | null): string | null {
   const joined = name.join(' ').replace(/[.\s]+$/, '');
   if (joined.replace(/[^\p{L}]/gu, '').length < 3) return null;
   return joined;
+}
+
+export function parseClientAnswerContext(text?: string | null): string | null {
+  const value = (text || '').trim().replace(/^["'\u201c]|["'\u201d.!]+$/g, '');
+  const clause = RELATIONSHIP_CLAUSE.exec(value);
+  if (!clause || !parseClientNameAnswer(value)) return null;
+  return value.slice(clause.index + clause[0].length).trim() || null;
 }
