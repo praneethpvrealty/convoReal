@@ -2313,36 +2313,36 @@ async function processMessage(
       }
     }
 
-  // A lead asking to meet ("can we visit the JP Nagar flat Saturday 3pm?")
-  // books the appointment on the agent's calendar. Runs before the
-  // read-only calendar query below so a concrete date/time creates an
-  // event instead of just listing existing ones; vague schedule talk
-  // ("what visits do I have?") falls through untouched.
-  // A question that happens to mention a day is not a booking request.
-  // "Can we see inside when we visit tomorrow" parsed as a schedule and
-  // re-acknowledged a visit already in the diary; it is a question about
-  // access, and it belongs on the answer ladder below.
-  // "Call me tomorrow at 5" carries a date and a time but asks for a
-  // phone call, not a site visit — it belongs to the handover branch
-  // below, the same way a question does.
-  if (
-    !requestsHumanContact(contentText) &&
-    (!looksLikeQuestion(contentText) ||
-      isInboundVisitRequest(contentText || ''))
-  ) {
-    const booked = await tryHandleInboundScheduling({
-      message,
-      contentText,
-      contactRecord,
-      conversation,
-      accountId,
-      ownerUserId: configOwnerUserId,
-      assignedAgentUserId,
-      accessToken,
-      phoneNumberId,
-    });
-    if (booked) return;
-  }
+    // A lead asking to meet ("can we visit the JP Nagar flat Saturday 3pm?")
+    // books the appointment on the agent's calendar. Runs before the
+    // read-only calendar query below so a concrete date/time creates an
+    // event instead of just listing existing ones; vague schedule talk
+    // ("what visits do I have?") falls through untouched.
+    // A question that happens to mention a day is not a booking request.
+    // "Can we see inside when we visit tomorrow" parsed as a schedule and
+    // re-acknowledged a visit already in the diary; it is a question about
+    // access, and it belongs on the answer ladder below.
+    // "Call me tomorrow at 5" carries a date and a time but asks for a
+    // phone call, not a site visit — it belongs to the handover branch
+    // below, the same way a question does.
+    if (
+      !requestsHumanContact(contentText) &&
+      (!looksLikeQuestion(contentText) ||
+        isInboundVisitRequest(contentText || ''))
+    ) {
+      const booked = await tryHandleInboundScheduling({
+        message,
+        contentText,
+        contactRecord,
+        conversation,
+        accountId,
+        ownerUserId: configOwnerUserId,
+        assignedAgentUserId,
+        accessToken,
+        phoneNumberId,
+      });
+      if (booked) return;
+    }
 
     // A text reply to a journey check-in the agent sent from the Engine
     // inbox ("just checking in on <property>..."). Logged on the journey
