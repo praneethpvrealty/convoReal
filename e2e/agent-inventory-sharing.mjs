@@ -83,6 +83,29 @@ async function authenticatedRequest(agent, method, path, data) {
   }
 }
 
+async function loginAndWaitForSourceCopy(agent, sourcePropertyId) {
+  process.env.E2E_EMAIL = agent.email;
+  process.env.E2E_PASSWORD = agent.password;
+  process.env.E2E_ACCOUNT_ID = agent.accountId;
+  const { browser, page } = await launch();
+  try {
+    await login(page);
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      const { data } = await admin
+        .from('properties')
+        .select('id, account_id, source_property_id, status, is_published, listing_source')
+        .eq('account_id', agent.accountId)
+        .eq('source_property_id', sourcePropertyId)
+        .maybeSingle();
+      if (data) return data;
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+    return null;
+  } finally {
+    await browser.close();
+  }
+}
+
 async function cleanup() {
   if (created.accounts.length) {
     await admin.from('properties').delete().in('account_id', created.accounts);
@@ -160,22 +183,9 @@ try {
   const directSource = sources.find((row) => row.title.startsWith('Direct agent share'));
   if (!autoSource || !directSource) throw new Error('Source fixtures were not created.');
 
-  const firstSync = await authenticatedRequest(
-    agentB,
-    'POST',
-    '/api/agents/inventory-sync',
-  );
-  must('source inventory sync succeeds', firstSync.status === 200, JSON.stringify(firstSync));
-  must('source inventory imports once', firstSync.body?.data?.imported === 1, JSON.stringify(firstSync.body));
-
-  const { data: autoCopy } = await admin
-    .from('properties')
-    .select('id, account_id, source_property_id, status, is_published, listing_source')
-    .eq('account_id', agentB.accountId)
-    .eq('source_property_id', autoSource.id)
-    .single();
+  const autoCopy = await loginAndWaitForSourceCopy(agentB, autoSource.id);
   must(
-    'source inventory is loaded into Agent B account',
+    'dashboard login loads source inventory into Agent B account',
     autoCopy?.status === 'Available' && autoCopy?.is_published === false && autoCopy?.listing_source === 'agent',
     JSON.stringify(autoCopy),
   );
@@ -185,7 +195,13 @@ try {
     'POST',
     '/api/agents/inventory-sync',
   );
-  must('repeat source sync is idempotent', secondSync.body?.data?.imported === 0, JSON.stringify(secondSync.body));
+  must(
+    'repeat source sync is idempotent',
+    secondSync.status === 200 &&
+      secondSync.body?.data?.matched === 1 &&
+      secondSync.body?.data?.imported === 0,
+    JSON.stringify(secondSync),
+  );
 
   const shared = await authenticatedRequest(
     agentA,
