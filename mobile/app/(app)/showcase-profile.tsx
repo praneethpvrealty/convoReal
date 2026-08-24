@@ -5,6 +5,7 @@ import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { ConvoRealLoader } from '@/components/loader';
 import { Banner, PrimaryButton, SectionLabel } from '@/components/ui';
+import { apiFetch } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
 import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
@@ -106,21 +107,21 @@ function PublicProfileForm({
     if (!accountId || !canEdit) return;
     setSaving(true);
     setMessage(null);
-    const { error } = await supabase.from('showcase_settings').upsert(
-      {
-        account_id: accountId,
-        public_business_description: description.trim() || null,
-        public_areas_served: parseList(areas),
-        public_property_expertise: parseList(expertise),
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'account_id' }
-    );
-    setSaving(false);
-    if (error) {
+    try {
+      await apiFetch('/api/showcase/public-profile', {
+        method: 'PATCH',
+        body: JSON.stringify({
+          description: description.trim() || null,
+          areasServed: parseList(areas),
+          propertyExpertise: parseList(expertise),
+        }),
+      });
+    } catch {
       haptic.warn();
       setMessage({ kind: 'error', text: 'Could not save. Please try again.' });
       return;
+    } finally {
+      setSaving(false);
     }
     await queryClient.invalidateQueries({
       queryKey: ['showcase-public-profile', accountId],
