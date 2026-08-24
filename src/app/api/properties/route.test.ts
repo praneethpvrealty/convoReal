@@ -33,6 +33,10 @@ vi.mock('@/lib/auth/account', () => ({
     ),
 }));
 
+vi.mock('@/lib/agents/source-inventory-sync', () => ({
+  syncAgentSourceInventory: async () => ({ imported: 0, matched: 0 }),
+}));
+
 import { GET } from './route';
 
 beforeEach(() => {

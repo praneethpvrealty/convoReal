@@ -15,6 +15,7 @@ import { PropertyApprovals } from '@/components/property-approvals';
 import { AnimatedCounter } from '@/components/motion';
 import { GradientHero, SectionLabel } from '@/components/ui';
 import { formatInr } from '@/lib/format';
+import { apiFetch } from '@/lib/api';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
 import { onGradient, radius, spacing, useTheme, fonts } from '@/lib/theme';
@@ -34,6 +35,8 @@ interface Overview {
 }
 
 async function fetchOverview(): Promise<Overview> {
+  await apiFetch('/api/agents/inventory-sync', { method: 'POST' }).catch(() => null);
+
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
   const endOfToday = new Date(startOfToday);

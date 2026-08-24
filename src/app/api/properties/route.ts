@@ -19,6 +19,7 @@ import { maskPropertyForViewer } from "@/lib/inventory/location-guard";
 import { SQFT_PER_AREA_UNIT } from "@/lib/inventory/property-options";
 import { rentalYieldPercent } from "@/lib/inventory/rental-yield";
 import type { Property } from "@/types";
+import { syncAgentSourceInventory } from "@/lib/agents/source-inventory-sync";
 
 const MAX_LIMIT = 100;
 const DEFAULT_LIMIT = 25;
@@ -145,6 +146,13 @@ async function geocodeRowsOnTheFly(supabase: any, rows: any[]): Promise<any[]> {
 export async function GET(request: Request) {
   try {
     const ctx = await requireRole("viewer");
+    if (ctx.role !== "viewer") {
+      try {
+        await syncAgentSourceInventory(ctx);
+      } catch (error) {
+        console.error("[GET /api/properties] Source inventory sync failed:", error);
+      }
+    }
     const { searchParams } = new URL(request.url);
 
     const page = Math.max(0, parseInt(searchParams.get("page") || "0", 10));

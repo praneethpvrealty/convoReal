@@ -26,6 +26,7 @@ import { useAuthStore } from '@/lib/auth-store';
 import { ENV } from '@/lib/env';
 import { haptic } from '@/lib/haptics';
 import { storagePublicUrl } from '@/lib/storage-url';
+import { supabase } from '@/lib/supabase';
 import {
   logExternalShare,
   sendPropertyViaEngine,
@@ -42,7 +43,7 @@ import {
 import { fetchShowcaseSubdomain } from '@/lib/showcase-settings';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import type { Contact, Property } from '@/lib/types';
-import { contactHandle, hasPhone } from '@/lib/reachability';
+import { contactHandle } from '@/lib/reachability';
 
 const TONES: { value: ShareTone; label: string }[] = [
   { value: 'professional', label: '💼 Professional' },
@@ -95,8 +96,9 @@ export function PropertyShareSheet({
   const [detail, setDetail] = useState<ShareDetailLevel>('standard');
   const [message, setMessage] = useState('');
   const [copied, setCopied] = useState<'link' | 'message' | null>(null);
-  const [picker, setPicker] = useState<'external' | 'engine' | null>(null);
+  const [picker, setPicker] = useState<'external' | 'engine' | 'inventory' | null>(null);
   const [engineSending, setEngineSending] = useState(false);
+  const [inventorySharing, setInventorySharing] = useState(false);
   const [sharingPhoto, setSharingPhoto] = useState(false);
   const [dialog, setDialog] = useState<{ title: string; message?: string; actions: DialogAction[] } | null>(null);
 
@@ -367,6 +369,75 @@ export function PropertyShareSheet({
     });
   }
 
+  async function shareToInventoryMany(agentContacts: Contact[]) {
+    if (agentContacts.length === 0) return;
+    setInventorySharing(true);
+    haptic.send();
+    const shared: string[] = [];
+    const failed: string[] = [];
+    for (const agentContact of agentContacts) {
+      try {
+        await apiFetch(`/api/properties/${property.id}/share-to-agent-account`, {
+          method: 'POST',
+          body: JSON.stringify({ contact_id: agentContact.id }),
+        });
+        shared.push(agentContact.name || contactHandle(agentContact));
+      } catch (error) {
+        failed.push(
+          `${agentContact.name || contactHandle(agentContact)}: ${
+            error instanceof Error ? error.message : 'failed'
+          }`
+        );
+      }
+    }
+    setInventorySharing(false);
+    setPicker(null);
+    if (shared.length > 0) haptic.success();
+    else haptic.warn();
+    setDialog({
+      title:
+        failed.length === 0
+          ? 'Sent for inventory review'
+          : `Shared with ${shared.length} of ${agentContacts.length}`,
+      message: [
+        shared.length > 0
+          ? `${shared.join(', ')} will see this under Listings to review. It enters inventory only after approval.`
+          : null,
+        failed.length > 0 ? failed.join('\n') : null,
+      ]
+        .filter(Boolean)
+        .join('\n\n'),
+      actions: [
+        {
+          label: 'OK',
+          variant: 'primary',
+          onPress: () => {
+            setDialog(null);
+            if (failed.length === 0) onClose();
+          },
+        },
+      ],
+    });
+  }
+
+  async function searchAgentContacts(query: string): Promise<Contact[]> {
+    const term = `%${query}%`;
+    const digits = query.replace(/\D/g, '');
+    const or =
+      digits.length >= 4
+        ? `name.ilike.${term},name_tag.ilike.${term},phone.ilike.%${digits}%`
+        : `name.ilike.${term},name_tag.ilike.${term}`;
+    const { data, error } = await supabase
+      .from('contacts')
+      .select('id, name, name_tag, phone, classification')
+      .eq('classification', 'Agent')
+      .eq('is_merged', false)
+      .or(or)
+      .limit(8);
+    if (error) throw error;
+    return (data ?? []) as Contact[];
+  }
+
   // One list for both props: a single preselected contact is just a
   // one-recipient set, so every send path below reads `recipients` and
   // only falls back to the picker when nothing was preselected.
@@ -483,6 +554,40 @@ export function PropertyShareSheet({
           />
         </Pressable>
 
+        {audience === 'agent' ? (
+          <Pressable
+            disabled={inventorySharing}
+            onPress={() => {
+              const agents = recipients.filter((row) => row.classification === 'Agent');
+              if (agents.length > 0) void shareToInventoryMany(agents);
+              else setPicker('inventory');
+            }}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: inventorySharing, busy: inventorySharing }}
+            accessibilityLabel="Share to a ConvoReal agent inventory"
+            style={[
+              styles.engineButton,
+              { backgroundColor: colors.primarySoft, borderColor: colors.primary },
+              inventorySharing && { opacity: 0.6 },
+            ]}
+          >
+            <Ionicons name="folder-open-outline" size={20} color={colors.primary} />
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 14, fontFamily: f.bold, color: colors.primary }}>
+                {inventorySharing ? 'Sharing to inventory…' : 'Share to agent inventory'}
+              </Text>
+              <Text style={{ fontSize: 11.5, color: colors.textMuted }}>
+                Sends to their review queue; approval adds the attributed listing
+              </Text>
+            </View>
+            {inventorySharing ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <Ionicons name="chevron-forward" size={16} color={colors.primary} />
+            )}
+          </Pressable>
+        ) : null}
+
         <SectionLabel text="Send from ConvoReal" />
         <Pressable
           disabled={engineSending}
@@ -578,6 +683,19 @@ export function PropertyShareSheet({
         hint="Pick everyone who should receive this listing from your business number. Search again to add more — your picks are kept."
         busy={engineSending}
         busyLabel="Sending from ConvoReal…"
+      />
+      <ContactPickerSheet
+        visible={picker === 'inventory'}
+        onClose={() => setPicker(null)}
+        multiSelect
+        confirmLabel="Send for review"
+        onSelectMany={shareToInventoryMany}
+        title="Share to agent inventory"
+        hint="Choose registered agent contacts. Each listing enters their ConvoReal review queue and is added only after approval."
+        busy={inventorySharing}
+        busyLabel="Sharing to inventory…"
+        searchContacts={searchAgentContacts}
+        searchKey="agent-inventory-share"
       />
       <AppDialog
         visible={dialog !== null}

@@ -4,6 +4,10 @@ import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit';
 import { checkPlanLimit, gateResponse } from '@/lib/billing/gates';
 import { findOrCreateContact } from '@/lib/contacts/find-or-create';
+import {
+  buildSharedPropertyCopy,
+  SHARED_PROPERTY_COLUMNS,
+} from '@/lib/inventory/shared-property-copy';
 
 /**
  * POST /api/inventory/import-shared
@@ -24,16 +28,6 @@ import { findOrCreateContact } from '@/lib/contacts/find-or-create';
  */
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-const COPIED_COLUMNS =
-  'id, account_id, title, description, price, listing_type, rent_per_month, maintenance, advance, gst, ' +
-  'jv_structure, owner_share_percent, builder_share_percent, goodwill_amount, ' +
-  'bts_lease_years, bts_lock_in_years, bts_escalation_percent, ' +
-  'location, type, bedrooms, bathrooms, furnishing, floor_number, total_floors, balconies, ' +
-  'area_sqft, area_unit, land_area, land_area_unit, ' +
-  'super_built_area, sublocality, city, state, project, land_zone, ideal_for, dimensions, ' +
-  'road_width, road_width_unit, facing_direction, nearby_highlights, features, images, ' +
-  'google_map_link, latitude, longitude, locality_place_id, locality_canonical, is_published';
 
 function extractPropertyId(input: unknown): string | null {
   if (typeof input !== 'string') return null;
@@ -78,7 +72,7 @@ export async function POST(request: Request) {
 
     const { data: sourceRow } = await admin
       .from('properties')
-      .select(COPIED_COLUMNS)
+      .select(SHARED_PROPERTY_COLUMNS)
       .eq('id', sourceId)
       .maybeSingle();
     const source = sourceRow as Record<string, unknown> | null;
@@ -134,22 +128,13 @@ export async function POST(request: Request) {
       sharerContactId = result.contactId;
     }
 
-    const copied = { ...source };
-    delete copied.id;
-    delete copied.account_id;
-    delete copied.is_published;
     const { data: created, error: insertError } = await ctx.supabase
       .from('properties')
-      .insert({
-        ...copied,
-        account_id: ctx.accountId,
-        user_id: ctx.userId,
-        status: 'Available',
-        is_published: false,
-        listing_source: 'agent',
-        owner_contact_id: sharerContactId,
-        source_property_id: source.id,
-      })
+      .insert(buildSharedPropertyCopy(source, {
+        accountId: ctx.accountId,
+        userId: ctx.userId,
+        ownerContactId: sharerContactId,
+      }))
       .select('id, title')
       .single();
 
