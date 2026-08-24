@@ -139,7 +139,6 @@ export async function POST(request: Request) {
       p_label: label,
       p_invitee_phone: inviteePhone,
       p_invitee_email: inviteeEmail,
-      p_as_seed: false,
     });
 
     if (error) return rpcErrorToResponse(error, "POST /api/beta-invites");
