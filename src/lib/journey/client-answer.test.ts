@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { parseClientNameAnswer } from './client-answer';
+import {
+  parseClientAnswerContext,
+  parseClientNameAnswer,
+} from './client-answer';
 
 describe('parseClientNameAnswer', () => {
   it('reads the name out of the sentence an agent actually types', () => {
@@ -12,6 +15,16 @@ describe('parseClientNameAnswer', () => {
     expect(parseClientNameAnswer('his name is Ravi Shankar')).toBe(
       'Ravi Shankar'
     );
+    expect(
+      parseClientNameAnswer(
+        'Its Yogendranath and owner of the property is Dr Swaroop'
+      )
+    ).toBe('Yogendranath');
+    expect(
+      parseClientAnswerContext(
+        'Its Yogendranath and owner of the property is Dr Swaroop'
+      )
+    ).toBe('owner of the property is Dr Swaroop');
   });
 
   it('accepts a bare name', () => {
@@ -32,6 +45,8 @@ describe('parseClientNameAnswer', () => {
         'Send the Sarjapur brochure to everyone who enquired last week and then set a reminder'
       )
     ).toBeNull();
+    expect(parseClientNameAnswer("it's Ravi and Suresh")).toBeNull();
+    expect(parseClientAnswerContext("it's Ravi and Suresh")).toBeNull();
   });
 
   it('refuses a run of words too long to be a name', () => {
