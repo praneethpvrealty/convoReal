@@ -34,7 +34,10 @@ import { looksLikeQuestion } from '@/lib/ai/lead-question';
 import { appendRequirement } from '@/lib/ai/buyer-qualification';
 import { carriesRequirementSignal } from '@/lib/ai/requirement-signal';
 import { syncContactPreferences } from '@/lib/contacts/preference-sync';
-import { CLIENT_QUESTION_PROMPT } from '@/lib/journey/client-answer';
+import {
+  CLIENT_QUESTION_PROMPT,
+  parsePropertyOwnerName,
+} from '@/lib/journey/client-answer';
 import { parseCheckBackDate, quietUntilFrom } from '@/lib/journey/pitch-quiet';
 import {
   distinctiveTerms,
@@ -72,6 +75,10 @@ import {
 } from '@/lib/whatsapp/timeline-ask-template';
 import { pickApprovedTemplate } from '@/lib/whatsapp/pick-approved-template';
 import { narrowToLanguage } from '@/lib/whatsapp/template-language';
+import {
+  rankJourneyPropertyCandidates,
+  type RankedPropertyCandidate,
+} from '@/lib/journey/property-candidates';
 
 export const CLIENT_FOLLOWUP_PREFIX = 'jfu_';
 
@@ -251,6 +258,8 @@ export function buildAgentReply(args: {
   dealsUpdated: number;
   askOutcome: ClientAskOutcome;
   capturedRequirement?: string | null;
+  reminderDate?: string | null;
+  ownerNotice?: 'sent' | 'not_found' | 'no_phone' | 'failed' | 'same_contact';
 }): string {
   const first = firstName(args.contactName) || args.contactName;
   let reply =
@@ -268,6 +277,18 @@ export function buildAgentReply(args: {
     args.contactName,
     args.capturedRequirement ?? null
   );
+  if (args.reminderDate) {
+    reply += `\n📅 Follow-up reminder created for *${args.reminderDate}*.`;
+  }
+  if (args.ownerNotice === 'sent') {
+    reply += `\n✉️ The property owner was informed on WhatsApp.`;
+  } else if (args.ownerNotice === 'not_found') {
+    reply += `\n⚠️ The named property owner was not found in Contacts.`;
+  } else if (args.ownerNotice === 'no_phone') {
+    reply += `\n⚠️ The property owner has no WhatsApp number in Contacts.`;
+  } else if (args.ownerNotice === 'failed') {
+    reply += `\n⚠️ The owner message could not be delivered; the reminder remains active.`;
+  }
   if (args.askOutcome === 'sent' || args.askOutcome === 'sent_template') {
     reply += `\n✉️ Asked ${first} when to expect their update — Today itself / In 2 days / Can't say yet. I'll log their answer and set a follow-up for you.`;
   } else if (args.askOutcome === 'window_closed') {
@@ -305,6 +326,44 @@ export function buildClientCandidateButtons(
     id: `${CLIENT_CANDIDATE_PREFIX}${c.contact.id}`,
     title: candidateButtonTitle(c.contact.name),
   }));
+}
+
+export const PROPERTY_CANDIDATE_PREFIX = 'jpc_';
+
+export function parsePropertyCandidateReplyId(
+  replyId: string
+): { propertyId: string; contactId: string } | null {
+  if (!replyId.startsWith(PROPERTY_CANDIDATE_PREFIX)) return null;
+  const [propertyId, contactId] = replyId
+    .slice(PROPERTY_CANDIDATE_PREFIX.length)
+    .split(':');
+  return propertyId && contactId ? { propertyId, contactId } : null;
+}
+
+export function buildPropertyCandidateButtons(
+  contactId: string,
+  candidates: RankedPropertyCandidate<PropertyRow & { title: string }>[]
+): Array<{ id: string; title: string }> {
+  return candidates.slice(0, 3).map(({ property }) => ({
+    id: `${PROPERTY_CANDIDATE_PREFIX}${property.id}:${contactId}`,
+    title: candidateButtonTitle(property.property_code || property.title),
+  }));
+}
+
+export function buildPropertyCandidateReply(
+  contactName: string,
+  candidates: RankedPropertyCandidate<PropertyRow & { title: string }>[]
+): string {
+  return [
+    `🔎 I found ${candidates.length} likely ${candidates.length === 1 ? 'property' : 'properties'} for ${contactName}.`,
+    '',
+    ...candidates.map(
+      ({ property, reason }) =>
+        `• *${property.title}*${property.property_code ? ` (${property.property_code})` : ''} — _${reason}_`
+    ),
+    '',
+    'Tap the right property before I create the event, reminders or owner message.',
+  ].join('\n');
 }
 
 /**
@@ -427,6 +486,72 @@ interface PropertyRow {
   id: string;
   title: string | null;
   property_code: string | null;
+  owner_contact_id?: string | null;
+  listing_source?: string | null;
+  location?: string | null;
+  sublocality?: string | null;
+  city?: string | null;
+  type?: string | null;
+  tags?: string[] | null;
+}
+
+interface ClientPropertyResolution {
+  property: PropertyRow | null;
+  candidates: RankedPropertyCandidate<PropertyRow & { title: string }>[];
+}
+
+async function resolveClientProperty(
+  db: SupabaseClient,
+  accountId: string,
+  parsed: ParsedClientReply
+): Promise<ClientPropertyResolution> {
+  const select =
+    'id, title, property_code, owner_contact_id, listing_source, location, sublocality, city, type, tags';
+  const code = (parsed.property_code || '').trim();
+  if (code) {
+    const { data } = await db
+      .from('properties')
+      .select(select)
+      .eq('account_id', accountId)
+      .ilike('property_code', code)
+      .limit(1)
+      .maybeSingle();
+    if (data) return { property: data as PropertyRow, candidates: [] };
+  }
+  const title = (parsed.property_title || '').trim().replace(/[.\s]+$/, '');
+  if (title.length >= 8) {
+    const escaped = title.replace(/([%_\\])/g, '\\$1');
+    const { data } = await db
+      .from('properties')
+      .select(select)
+      .eq('account_id', accountId)
+      .ilike('title', `%${escaped}%`)
+      .limit(2);
+    if (data && data.length === 1) {
+      return { property: data[0] as PropertyRow, candidates: [] };
+    }
+  }
+  const { data } = await db
+    .from('properties')
+    .select(select)
+    .eq('account_id', accountId)
+    .limit(500);
+  const properties = ((data ?? []) as PropertyRow[]).filter(
+    (property): property is PropertyRow & { title: string } =>
+      Boolean(property.title?.trim())
+  );
+  const query = [
+    parsed.property_title,
+    parsed.response_summary,
+    parsed.requirement,
+    ...(parsed.mentioned_terms || []),
+  ]
+    .filter(Boolean)
+    .join(' ');
+  return {
+    property: null,
+    candidates: rankJourneyPropertyCandidates(query, properties),
+  };
 }
 
 async function matchClientProperty(
@@ -434,35 +559,14 @@ async function matchClientProperty(
   accountId: string,
   parsed: ParsedClientReply
 ): Promise<PropertyRow | null> {
-  const code = (parsed.property_code || '').trim();
-  if (code) {
-    const { data } = await db
-      .from('properties')
-      .select('id, title, property_code')
-      .eq('account_id', accountId)
-      .ilike('property_code', code)
-      .limit(1)
-      .maybeSingle();
-    if (data) return data as PropertyRow;
-  }
-  const title = (parsed.property_title || '').trim().replace(/[.\s]+$/, '');
-  if (title.length >= 8) {
-    const escaped = title.replace(/([%_\\])/g, '\\$1');
-    const { data } = await db
-      .from('properties')
-      .select('id, title, property_code')
-      .eq('account_id', accountId)
-      .ilike('title', `%${escaped}%`)
-      .limit(2);
-    if (data && data.length === 1) return data[0] as PropertyRow;
-  }
-  return null;
+  return (await resolveClientProperty(db, accountId, parsed)).property;
 }
 
 interface ItemRow {
   id: string;
   stage_id: string;
   status: string;
+  planned_at?: string | null;
 }
 
 async function ensureJourneyItem(
@@ -477,7 +581,7 @@ async function ensureJourneyItem(
   const read = async () => {
     const { data } = await db
       .from('journey_items')
-      .select('id, stage_id, status')
+      .select('id, stage_id, status, planned_at')
       .eq('account_id', accountId)
       .eq('contact_id', contactId)
       .eq('property_id', propertyId)
@@ -506,7 +610,7 @@ async function ensureJourneyItem(
         ignoreDuplicates: true,
       }
     )
-    .select('id, stage_id, status');
+    .select('id, stage_id, status, planned_at');
   if (error) {
     console.error(
       '[client-response] journey item capture failed:',
@@ -991,6 +1095,7 @@ export async function processClientReplyScreenshot(
     parsed,
     accessToken,
     phoneNumberId,
+    relatedOwnerName: parsed.related_owner_name,
   });
 }
 
@@ -1058,6 +1163,7 @@ interface LogArgs {
   parsed: ParsedClientReply;
   accessToken: string;
   phoneNumberId: string;
+  relatedOwnerName?: string | null;
 }
 
 /**
@@ -1071,7 +1177,8 @@ async function logClientResponse(args: LogArgs): Promise<ClientReplyOutcome> {
     args;
   const contactName = contact.name || parsed.client_name || 'Client';
 
-  const property = await matchClientProperty(db, accountId, parsed);
+  const propertyResolution = await resolveClientProperty(db, accountId, parsed);
+  const property = propertyResolution.property;
   const summary = parsed.response_summary || parsed.next_action || null;
   const label = property
     ? propertyLabel(property)
@@ -1122,6 +1229,18 @@ async function logClientResponse(args: LogArgs): Promise<ClientReplyOutcome> {
           `\n\n🔎 Open their contact to see what in your inventory fits.`,
       };
     }
+    if (propertyResolution.candidates.length) {
+      return {
+        text: buildPropertyCandidateReply(
+          contactName,
+          propertyResolution.candidates
+        ),
+        buttons: buildPropertyCandidateButtons(
+          contact.id,
+          propertyResolution.candidates
+        ),
+      };
+    }
     return {
       text:
         `✅ *Logged ${contactName}'s response*` +
@@ -1143,6 +1262,7 @@ async function logClientResponse(args: LogArgs): Promise<ClientReplyOutcome> {
     summary,
     accessToken,
     phoneNumberId,
+    relatedOwnerName: args.relatedOwnerName,
   });
 }
 
@@ -1159,6 +1279,123 @@ interface LinkArgs {
   capturedRequirement?: string | null;
   accessToken: string;
   phoneNumberId: string;
+  relatedOwnerName?: string | null;
+}
+
+async function ensureDefaultFollowup(args: {
+  db: SupabaseClient;
+  accountId: string;
+  userId: string;
+  item: ItemRow;
+  contactId: string;
+  contactName: string;
+  propertyId: string;
+  label: string;
+}): Promise<string> {
+  const due = args.item.planned_at
+    ? new Date(`${args.item.planned_at}T12:00:00`)
+    : addDays(new Date(), DEFAULT_FOLLOWUP_DAYS);
+  if (!args.item.planned_at) {
+    await args.db
+      .from('journey_items')
+      .update({
+        planned_at: format(due, 'yyyy-MM-dd'),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', args.item.id)
+      .eq('account_id', args.accountId);
+  }
+
+  const { data: existing } = await args.db
+    .from('todos')
+    .select('id')
+    .eq('account_id', args.accountId)
+    .eq('contact_id', args.contactId)
+    .eq('property_id', args.propertyId)
+    .eq('completed', false)
+    .eq('source', 'system')
+    .limit(1)
+    .maybeSingle();
+  if (!existing) {
+    const { error } = await args.db.from('todos').insert({
+      account_id: args.accountId,
+      user_id: args.userId,
+      assigned_to: args.userId,
+      title: `Follow up with ${args.contactName} — ${args.label}`,
+      due_date: due.toISOString(),
+      priority: 'medium',
+      completed: false,
+      contact_id: args.contactId,
+      property_id: args.propertyId,
+      source: 'system',
+    });
+    if (error)
+      console.error('[client-response] default follow-up failed:', error.message);
+  }
+  return format(due, 'd MMM yyyy');
+}
+
+async function notifyPropertyOwner(args: {
+  db: SupabaseClient;
+  accountId: string;
+  userId: string;
+  property: PropertyRow;
+  client: BookContact;
+  clientName: string;
+  relatedOwnerName?: string | null;
+  label: string;
+  summary: string | null;
+}): Promise<'sent' | 'not_found' | 'no_phone' | 'failed' | 'same_contact'> {
+  let owner: BookContact | null = null;
+  if (args.relatedOwnerName) {
+    const { data } = await args.db
+      .from('contacts')
+      .select('id, name, phone')
+      .eq('account_id', args.accountId)
+      .eq('is_merged', false);
+    const book = (data ?? []) as BookContact[];
+    owner =
+      matchContactByExactName(args.relatedOwnerName, book) ??
+      matchContactByName(args.relatedOwnerName, book);
+  } else if (
+    args.property.owner_contact_id &&
+    args.property.listing_source !== 'agent'
+  ) {
+    const { data } = await args.db
+      .from('contacts')
+      .select('id, name, phone')
+      .eq('id', args.property.owner_contact_id)
+      .eq('account_id', args.accountId)
+      .maybeSingle();
+    owner = (data as BookContact | null) ?? null;
+  }
+  if (!owner) return 'not_found';
+  if (owner.id === args.client.id) return 'same_contact';
+  if (!owner.phone) return 'no_phone';
+
+  const text = [
+    `Hi ${(owner.name || 'there').trim().split(/\s+/)[0]}, an enquiry update was recorded for *${args.label}* through ${args.clientName}.`,
+    args.summary ? `_${args.summary}_` : '',
+    '',
+    'The enquiry and follow-up are now being tracked in ConvoReal. Reply here if you want to add an owner-side update.',
+  ]
+    .filter(Boolean)
+    .join('\n');
+  try {
+    const result = await sendWhatsAppMessageAndPersist({
+      accountId: args.accountId,
+      userId: args.userId,
+      contactId: owner.id,
+      kind: 'text',
+      senderType: 'bot',
+      text,
+      customDbClient: args.db,
+    });
+    return result.success ? 'sent' : 'failed';
+  } catch (err) {
+    console.error('[client-response] owner notice failed:', err);
+    return 'failed';
+  }
 }
 
 /**
@@ -1196,6 +1433,13 @@ async function linkClientResponseToProperty(
   );
   let stageName: string | null = null;
   let askOutcome: ClientAskOutcome = 'failed';
+  let reminderDate: string | null = null;
+  let ownerNotice:
+    | 'sent'
+    | 'not_found'
+    | 'no_phone'
+    | 'failed'
+    | 'same_contact' = 'not_found';
   if (item) {
     stageName = stages.find((s) => s.id === item.stage_id)?.name ?? null;
     const { error: evError } = await db.from('journey_events').insert({
@@ -1211,6 +1455,29 @@ async function linkClientResponseToProperty(
       .from('journey_items')
       .update({ updated_at: new Date().toISOString() })
       .eq('id', item.id);
+
+    reminderDate = await ensureDefaultFollowup({
+      db,
+      accountId,
+      userId,
+      item,
+      contactId: contact.id,
+      contactName,
+      propertyId: property.id,
+      label,
+    });
+
+    ownerNotice = await notifyPropertyOwner({
+      db,
+      accountId,
+      userId,
+      property,
+      client: contact,
+      clientName: contactName,
+      relatedOwnerName: args.relatedOwnerName,
+      label,
+      summary,
+    });
 
     askOutcome = await askClientForTimeline({
       db,
@@ -1246,6 +1513,8 @@ async function linkClientResponseToProperty(
       dealsUpdated,
       askOutcome,
       capturedRequirement: args.capturedRequirement ?? null,
+      reminderDate,
+      ownerNotice,
     }),
     buttons: item ? buildAgentFollowupButtons(item.id) : undefined,
   };
@@ -1290,6 +1559,7 @@ export async function completeClientReplyForContactId(
     },
     accessToken: args.accessToken,
     phoneNumberId: args.phoneNumberId,
+    relatedOwnerName: args.parsed.related_owner_name,
   });
 }
 
@@ -1342,6 +1612,7 @@ export async function completeClientReplyContact(
     parsed: { ...parsed, client_name: parsed.client_name || contact.name },
     accessToken: args.accessToken,
     phoneNumberId: args.phoneNumberId,
+    relatedOwnerName: parsed.related_owner_name,
   });
 }
 
@@ -1408,6 +1679,60 @@ export async function completeClientResponseProperty(
     property,
     label: propertyLabel(property),
     summary,
+    accessToken: args.accessToken,
+    phoneNumberId: args.phoneNumberId,
+  });
+}
+
+export async function completeClientResponsePropertyId(args: {
+  db: SupabaseClient;
+  accountId: string;
+  userId: string;
+  contactId: string;
+  propertyId: string;
+  accessToken: string;
+  phoneNumberId: string;
+}): Promise<ClientReplyOutcome | null> {
+  const [{ data: contactRow }, { data: propertyRow }] = await Promise.all([
+    args.db
+      .from('contacts')
+      .select('id, name, phone')
+      .eq('id', args.contactId)
+      .eq('account_id', args.accountId)
+      .maybeSingle(),
+    args.db
+      .from('properties')
+      .select(
+        'id, title, property_code, owner_contact_id, listing_source, location, sublocality, city, type, tags'
+      )
+      .eq('id', args.propertyId)
+      .eq('account_id', args.accountId)
+      .maybeSingle(),
+  ]);
+  if (!contactRow || !propertyRow) return null;
+  const contact = contactRow as BookContact;
+  const property = propertyRow as PropertyRow;
+  const { data: notes } = await args.db
+    .from('contact_notes')
+    .select('note_text')
+    .eq('contact_id', args.contactId)
+    .order('created_at', { ascending: false })
+    .limit(5);
+  const summary =
+    (notes ?? [])
+      .map((note) => extractLoggedSummary(note.note_text as string))
+      .find((value): value is string => Boolean(value)) ?? null;
+
+  return await linkClientResponseToProperty({
+    db: args.db,
+    accountId: args.accountId,
+    userId: args.userId,
+    contact,
+    contactName: contact.name || 'Client',
+    property,
+    label: propertyLabel(property),
+    summary,
+    relatedOwnerName: parsePropertyOwnerName(summary),
     accessToken: args.accessToken,
     phoneNumberId: args.phoneNumberId,
   });
@@ -1643,7 +1968,17 @@ async function applyTimelineChoice(
     'client';
 
   if (due) {
-    const { error: todoError } = await db.from('todos').insert({
+    const { data: existingTodo } = await db
+      .from('todos')
+      .select('id')
+      .eq('account_id', accountId)
+      .eq('contact_id', item.contact_id)
+      .eq('property_id', item.property_id)
+      .eq('completed', false)
+      .eq('source', 'system')
+      .limit(1)
+      .maybeSingle();
+    const todo = {
       account_id: accountId,
       user_id: ownerUserId,
       assigned_to: ownerUserId,
@@ -1654,7 +1989,10 @@ async function applyTimelineChoice(
       contact_id: item.contact_id,
       property_id: item.property_id,
       source: 'system',
-    });
+    };
+    const { error: todoError } = existingTodo
+      ? await db.from('todos').update(todo).eq('id', existingTodo.id)
+      : await db.from('todos').insert(todo);
     if (todoError)
       console.error(
         '[client-response] follow-up todo failed:',

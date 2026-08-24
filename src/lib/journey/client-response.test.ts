@@ -24,8 +24,11 @@ import {
   buildClientFollowupButtons,
   buildCandidateReply,
   buildClientCandidateButtons,
+  buildPropertyCandidateButtons,
+  buildPropertyCandidateReply,
   candidateButtonTitle,
   parseClientCandidateReplyId,
+  parsePropertyCandidateReplyId,
   buildRequirementLine,
   buildUnmatchedReply,
   followupDueDate,
@@ -400,5 +403,49 @@ describe('offering the contacts a forward points at', () => {
 
   it('ignores a button id that is not ours', () => {
     expect(parseClientCandidateReplyId('jfu_today:item-1')).toBeNull();
+  });
+});
+
+describe('confirming the property before side effects', () => {
+  const candidates = [
+    {
+      property: {
+        id: 'p1',
+        title: 'JP Nagar 100 Feet Road Commercial Building',
+        property_code: 'PROP-101',
+      },
+      score: 220,
+      reason: 'location jp, nagar · title 100',
+    },
+    {
+      property: {
+        id: 'p2',
+        title: 'JP Nagar Commercial Land',
+        property_code: 'PROP-102',
+      },
+      score: 120,
+      reason: 'location jp, nagar',
+    },
+  ];
+
+  it('offers ranked properties and round-trips the selected IDs', () => {
+    const buttons = buildPropertyCandidateButtons('c1', candidates);
+    expect(buttons).toEqual([
+      { id: 'jpc_p1:c1', title: 'PROP-101' },
+      { id: 'jpc_p2:c1', title: 'PROP-102' },
+    ]);
+    expect(parsePropertyCandidateReplyId(buttons[0].id)).toEqual({
+      propertyId: 'p1',
+      contactId: 'c1',
+    });
+    expect(parsePropertyCandidateReplyId('jfa_today:item')).toBeNull();
+  });
+
+  it('states that confirmation happens before events and owner messages', () => {
+    const reply = buildPropertyCandidateReply('Yogendranath', candidates);
+    expect(reply).toContain('JP Nagar 100 Feet Road');
+    expect(reply).toContain(
+      'before I create the event, reminders or owner message'
+    );
   });
 });

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   parseClientAnswerContext,
   parseClientNameAnswer,
+  parsePropertyOwnerName,
 } from './client-answer';
 
 describe('parseClientNameAnswer', () => {
@@ -25,6 +26,11 @@ describe('parseClientNameAnswer', () => {
         'Its Yogendranath and owner of the property is Dr Swaroop'
       )
     ).toBe('owner of the property is Dr Swaroop');
+    expect(
+      parsePropertyOwnerName(
+        'Its Yogendranath and owner of the property is Dr Swaroop'
+      )
+    ).toBe('Dr Swaroop');
   });
 
   it('accepts a bare name', () => {

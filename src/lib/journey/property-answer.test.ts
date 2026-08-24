@@ -187,6 +187,6 @@ describe('the capture hands the pending contact back', () => {
     // Both paths go through one function, so a late answer produces the
     // journey item, the event, the client ask and the deal notes — not
     // a thinner version of them.
-    expect(source.match(/linkClientResponseToProperty\(/g)?.length).toBe(3);
+    expect(source.match(/linkClientResponseToProperty\(/g)?.length).toBe(4);
   });
 });
