@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   audienceListingLabel,
+  filterAudienceListings,
   reachableAudienceIds,
 } from './listing-audience-select';
 import type { AudienceContact } from '@shared/lib/inventory/listing-audience';
@@ -52,5 +53,30 @@ describe('reachableAudienceIds', () => {
     );
     expect(ids).toEqual([]);
     expect(unreachable).toBe(1);
+  });
+});
+
+describe('filterAudienceListings', () => {
+  const listings = [
+    { propertyId: 'p1', title: 'Villa in Whitefield', propertyCode: 'CR-1', contactsCount: 3, lastAt: null },
+    { propertyId: 'p2', title: 'Plot in HSR', propertyCode: 'PROP-1095', contactsCount: 70, lastAt: null },
+    { propertyId: 'p3', title: null, propertyCode: null, contactsCount: 1, lastAt: null },
+  ];
+
+  it('returns everything for an empty or whitespace query', () => {
+    expect(filterAudienceListings(listings, '')).toHaveLength(3);
+    expect(filterAudienceListings(listings, '   ')).toHaveLength(3);
+  });
+
+  it('matches on title, case-insensitively', () => {
+    expect(filterAudienceListings(listings, 'whitefield').map((l) => l.propertyId)).toEqual(['p1']);
+  });
+
+  it('matches on property code', () => {
+    expect(filterAudienceListings(listings, 'prop-10').map((l) => l.propertyId)).toEqual(['p2']);
+  });
+
+  it('survives listings with no title or code', () => {
+    expect(filterAudienceListings(listings, 'zzz')).toEqual([]);
   });
 });

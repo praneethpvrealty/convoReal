@@ -2,12 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Loader2, Users2, ChevronDown } from 'lucide-react';
+import { Loader2, Users2, ChevronDown, Search, X } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { Input } from '@/components/ui/input';
 import {
   audienceListingLabel,
   fetchAudienceListings,
   fetchListingAudience,
+  filterAudienceListings,
   reachableAudienceIds,
   type AudienceListing,
 } from '@/lib/inventory/listing-audience';
@@ -16,7 +18,10 @@ interface ListingAudiencePickerProps {
   accountId: string | null;
   /** The contact rows the caller can already select by id. */
   loadedContacts: { id: string; phone?: string | null }[];
-  onSelect: (contactIds: string[]) => void;
+  onSelect: (
+    contactIds: string[],
+    applied: { listing: AudienceListing; unreachable: number }
+  ) => void;
 }
 
 export function ListingAudiencePicker({
@@ -25,6 +30,7 @@ export function ListingAudiencePicker({
   onSelect,
 }: ListingAudiencePickerProps) {
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
   const [listings, setListings] = useState<AudienceListing[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [applyingId, setApplyingId] = useState<string | null>(null);
@@ -54,6 +60,10 @@ export function ListingAudiencePicker({
   }, [open, listings, accountId]);
 
   useEffect(() => {
+    if (!open) setQuery('');
+  }, [open]);
+
+  useEffect(() => {
     if (!open) return;
     function onPointerDown(event: MouseEvent) {
       if (!containerRef.current?.contains(event.target as Node)) setOpen(false);
@@ -61,6 +71,8 @@ export function ListingAudiencePicker({
     document.addEventListener('mousedown', onPointerDown);
     return () => document.removeEventListener('mousedown', onPointerDown);
   }, [open]);
+
+  const visibleListings = filterAudienceListings(listings ?? [], query);
 
   const applyListing = useCallback(
     async (listing: AudienceListing) => {
@@ -82,14 +94,8 @@ export function ListingAudiencePicker({
           );
           return;
         }
-        onSelect(ids);
+        onSelect(ids, { listing, unreachable });
         setOpen(false);
-        toast.success(
-          `Selected ${ids.length} contact${ids.length === 1 ? '' : 's'} from ${audienceListingLabel(listing)}` +
-            (unreachable > 0
-              ? ` · ${unreachable} skipped (no WhatsApp number)`
-              : '')
-        );
       } catch (err) {
         console.error('[listing-audience] audience failed:', err);
         toast.error('Failed to load that listing’s audience');
@@ -123,48 +129,74 @@ export function ListingAudiencePicker({
       </button>
 
       {open && (
-        <div className="absolute z-30 mt-1 max-h-64 w-full overflow-y-auto rounded-xl border border-slate-800 bg-slate-900 p-1 shadow-xl">
-          {loading ? (
-            <div className="flex items-center gap-2 px-3 py-3 text-xs text-slate-400">
-              <Loader2 className="text-primary size-3.5 animate-spin" />
-              Loading listings…
-            </div>
-          ) : (listings ?? []).length === 0 ? (
-            <p className="px-3 py-3 text-xs text-slate-500">
-              No listing has an engaged audience yet. Enquiries and tracked
-              showcase views build one.
-            </p>
-          ) : (
-            (listings ?? []).map((listing) => (
+        <div className="absolute z-30 mt-1 w-full rounded-xl border border-slate-800 bg-slate-900 p-1 shadow-xl">
+          <div className="relative p-1">
+            <Input
+              autoFocus
+              placeholder="Search listings by title or code..."
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              className="h-8 border-slate-800 bg-slate-950 pr-8 pl-8 text-xs text-slate-200 placeholder:text-slate-500"
+            />
+            <Search className="absolute top-1/2 left-3.5 size-3.5 -translate-y-1/2 text-slate-500" />
+            {query && (
               <button
-                key={listing.propertyId}
                 type="button"
-                disabled={applyingId !== null}
-                onClick={() => applyListing(listing)}
-                className="hover:bg-slate-850 flex w-full cursor-pointer items-center justify-between gap-3 rounded-lg px-3 py-2 text-left disabled:opacity-60"
+                onClick={() => setQuery('')}
+                className="absolute top-1/2 right-3.5 -translate-y-1/2 text-slate-400 hover:text-white"
               >
-                <span className="min-w-0">
-                  <span className="block truncate text-xs text-slate-200">
-                    {listing.title || 'Untitled listing'}
-                  </span>
-                  {listing.propertyCode && (
-                    <span className="block text-[10px] text-slate-500">
-                      {listing.propertyCode}
-                    </span>
-                  )}
-                </span>
-                <span className="flex shrink-0 items-center gap-2">
-                  <span className="text-primary text-[10px] font-bold">
-                    {listing.contactsCount} contact
-                    {listing.contactsCount === 1 ? '' : 's'}
-                  </span>
-                  {applyingId === listing.propertyId && (
-                    <Loader2 className="text-primary size-3 animate-spin" />
-                  )}
-                </span>
+                <X className="size-3" />
               </button>
-            ))
-          )}
+            )}
+          </div>
+
+          <div className="max-h-56 overflow-y-auto">
+            {loading ? (
+              <div className="flex items-center gap-2 px-3 py-3 text-xs text-slate-400">
+                <Loader2 className="text-primary size-3.5 animate-spin" />
+                Loading listings…
+              </div>
+            ) : (listings ?? []).length === 0 ? (
+              <p className="px-3 py-3 text-xs text-slate-500">
+                No listing has an engaged audience yet. Enquiries and tracked
+                showcase views build one.
+              </p>
+            ) : visibleListings.length === 0 ? (
+              <p className="px-3 py-3 text-xs text-slate-500">
+                No listing matches “{query}”.
+              </p>
+            ) : (
+              visibleListings.map((listing) => (
+                <button
+                  key={listing.propertyId}
+                  type="button"
+                  disabled={applyingId !== null}
+                  onClick={() => applyListing(listing)}
+                  className="hover:bg-slate-850 flex w-full cursor-pointer items-center justify-between gap-3 rounded-lg px-3 py-2 text-left disabled:opacity-60"
+                >
+                  <span className="min-w-0">
+                    <span className="block truncate text-xs text-slate-200">
+                      {listing.title || 'Untitled listing'}
+                    </span>
+                    {listing.propertyCode && (
+                      <span className="block text-[10px] text-slate-500">
+                        {listing.propertyCode}
+                      </span>
+                    )}
+                  </span>
+                  <span className="flex shrink-0 items-center gap-2">
+                    <span className="text-primary text-[10px] font-bold">
+                      {listing.contactsCount} contact
+                      {listing.contactsCount === 1 ? '' : 's'}
+                    </span>
+                    {applyingId === listing.propertyId && (
+                      <Loader2 className="text-primary size-3 animate-spin" />
+                    )}
+                  </span>
+                </button>
+              ))
+            )}
+          </div>
         </div>
       )}
     </div>

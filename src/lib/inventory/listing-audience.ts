@@ -96,6 +96,24 @@ export function audienceReasonLabel(contact: AudienceContact): string {
 }
 
 /**
+ * Narrow the picker to what an agent typed. An account with a hundred
+ * engaged listings makes scrolling the wrong instrument — the listing
+ * they mean is one they can already name, by title or by code.
+ */
+export function filterAudienceListings(
+  listings: AudienceListing[],
+  query: string
+): AudienceListing[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return listings;
+  return listings.filter((listing) =>
+    [listing.title, listing.propertyCode].some((value) =>
+      value?.toLowerCase().includes(q)
+    )
+  );
+}
+
+/**
  * Which of an audience the current screen can actually select.
  *
  * Every route out of the share flows is a WhatsApp send, and both
