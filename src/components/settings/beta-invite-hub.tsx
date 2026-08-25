@@ -15,6 +15,7 @@
 // ============================================================
 
 import { useCallback, useEffect, useState } from 'react';
+import Image from 'next/image';
 import { toast } from 'sonner';
 import {
   Check,
@@ -71,6 +72,7 @@ export function BetaInviteHub() {
   const [inviteePhone, setInviteePhone] = useState('');
   const [fresh, setFresh] = useState<IssuedLink | null>(null);
   const [copied, setCopied] = useState(false);
+  const [previewReady, setPreviewReady] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -123,6 +125,7 @@ export function BetaInviteHub() {
       }
       setFresh(data);
       setCopied(false);
+      setPreviewReady(false);
       setLabel('');
       setInviteePhone('');
       await load();
@@ -178,6 +181,7 @@ export function BetaInviteHub() {
         } else {
           setFresh(data);
           setCopied(false);
+          setPreviewReady(false);
           toast.info('Fresh link ready — tap Share on WhatsApp.');
         }
       } catch {
@@ -319,6 +323,21 @@ export function BetaInviteHub() {
             {fresh.url}
           </code>
 
+          <Image
+            src={`${fresh.url}/opengraph-image`}
+            alt="Your personalized ConvoReal invitation"
+            width={1200}
+            height={630}
+            unoptimized
+            priority
+            onLoad={() => setPreviewReady(true)}
+            onError={() => {
+              setPreviewReady(false);
+              toast.error('Could not prepare the invitation image.');
+            }}
+            className="aspect-[1200/630] w-full rounded-lg border border-slate-800 object-cover"
+          />
+
           <div className="flex flex-col gap-2 sm:flex-row">
             <Button
               variant="outline"
@@ -332,21 +351,25 @@ export function BetaInviteHub() {
               )}
               {copied ? 'Copied' : 'Copy link'}
             </Button>
-            <a
-              href={betaInviteWhatsAppUrl(
-                fresh.shareMessage,
-                fresh.inviteePhone
-              )}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={() => setFresh(null)}
+            <Button
+              disabled={!previewReady}
+              onClick={() => {
+                window.open(
+                  betaInviteWhatsAppUrl(fresh.shareMessage, fresh.inviteePhone),
+                  '_blank',
+                  'noopener,noreferrer'
+                );
+                setFresh(null);
+              }}
               className="flex-1"
             >
-              <Button className="w-full">
+              {previewReady ? (
                 <MessageCircle className="size-4" />
-                Share on WhatsApp
-              </Button>
-            </a>
+              ) : (
+                <Loader2 className="size-4 animate-spin" />
+              )}
+              {previewReady ? 'Share on WhatsApp' : 'Preparing image…'}
+            </Button>
           </div>
           <button
             type="button"
