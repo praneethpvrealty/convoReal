@@ -13,6 +13,7 @@ vi.mock('./api', () => ({
   apiFetch: vi.fn(),
   ApiError: class extends Error {},
   isTimeout: () => false,
+  isRateLimited: (e: unknown) => (e as { status?: number })?.status === 429,
 }));
 vi.mock('./auth-store', () => ({ useAuthStore: { getState: () => ({}) } }));
 vi.mock('./supabase', () => ({ supabase: {} }));
@@ -92,5 +93,34 @@ describe('sendPropertyViaEngineMany', () => {
     expect(outcomes.get('c1')?.templateStatus).toBe('PENDING');
     expect(outcomes.get('c0')?.sent).toBe(true);
     expect(outcomes.get('c2')?.sent).toBe(true);
+  });
+});
+
+describe('rate-limited shares', () => {
+  it('waits out a 429 and reports the retry verdict, not a failure', async () => {
+    vi.useFakeTimers();
+    let call = 0;
+    vi.mocked(apiFetch).mockImplementation(async () => {
+      if (++call === 1) {
+        throw Object.assign(new Error('Rate limit exceeded'), {
+          status: 429,
+          retryAfterSeconds: 5,
+        });
+      }
+      return { data: { sent: true, conversation_id: null } };
+    });
+
+    const { sendPropertyViaEngine } = await import('./property-share-actions');
+    const pending = sendPropertyViaEngine(
+      { id: 'c0', name: 'C0' } as Contact,
+      property,
+      'hi'
+    );
+    await vi.advanceTimersByTimeAsync(6_000);
+    const outcome = await pending;
+
+    expect(call).toBe(2);
+    expect(outcome.sent).toBe(true);
+    vi.useRealTimers();
   });
 });

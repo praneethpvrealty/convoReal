@@ -5,11 +5,19 @@ import { supabase } from './supabase';
 export class ApiError extends Error {
   constructor(
     readonly status: number,
-    message: string
+    message: string,
+    /** Seconds the server asked us to wait, from a 429's Retry-After.
+     *  A refusal that names its own reset is a wait, not a failure. */
+    readonly retryAfterSeconds?: number
   ) {
     super(message);
     this.name = 'ApiError';
   }
+}
+
+/** A refusal the server will lift on its own once the window resets. */
+export function isRateLimited(err: unknown): boolean {
+  return err instanceof ApiError && err.status === 429;
 }
 
 /** A request that never came back within REQUEST_TIMEOUT_MS. */
@@ -206,10 +214,14 @@ export async function apiFetch<T>(
   if (!res.ok) {
     const body = (await res.json().catch(() => null)) as {
       error?: string;
+      retry_after_seconds?: number;
     } | null;
+    const retryAfter =
+      Number(res.headers?.get?.('Retry-After')) || body?.retry_after_seconds;
     throw new ApiError(
       res.status,
-      body?.error ?? `Request failed (${res.status})`
+      body?.error ?? `Request failed (${res.status})`,
+      Number.isFinite(retryAfter) && retryAfter ? Number(retryAfter) : undefined
     );
   }
   // 204 No Content (e.g. DELETE /api/properties/[id]) has an empty body —
