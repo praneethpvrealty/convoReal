@@ -7,7 +7,7 @@
 // template outside it — mirroring Match Radar. Only a missing or
 // unapproved template comes back unsent.
 
-import { apiFetch, ApiError } from '@/lib/api';
+import { apiFetch, ApiError, isTimeout } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
 import { supabase } from '@/lib/supabase';
 import type { Contact, Property } from '@/lib/types';
@@ -18,7 +18,10 @@ import type { Contact, Property } from '@/lib/types';
  *  is what marks the recipient as already contacted on the listing's
  *  Matching Contacts list. Best-effort: failures don't block the
  *  WhatsApp hand-off the caller is about to make. */
-export async function logExternalShare(contact: Contact, property: Property): Promise<void> {
+export async function logExternalShare(
+  contact: Contact,
+  property: Property
+): Promise<void> {
   const { profile, session } = useAuthStore.getState();
   if (!profile?.account_id || !session?.user.id) return;
   const now = new Date().toISOString();
@@ -31,7 +34,10 @@ export async function logExternalShare(contact: Contact, property: Property): Pr
       // Touch settled alongside the note insert below; the note is the
       // record that matters and the caller reports on it.
       // eslint-disable-next-line convoreal/supabase-write-guard
-      .update({ last_contacted_at: now, last_inquired_property_id: property.id })
+      .update({
+        last_contacted_at: now,
+        last_inquired_property_id: property.id,
+      })
       .eq('id', contact.id),
     supabase.from('contact_notes').insert({
       contact_id: contact.id,
@@ -48,10 +54,28 @@ export async function logExternalShare(contact: Contact, property: Property): Pr
         channel: 'whatsapp',
         created_by: session.user.id,
       },
-      { onConflict: 'account_id,property_id,contact_id', ignoreDuplicates: true }
+      {
+        onConflict: 'account_id,property_id,contact_id',
+        ignoreDuplicates: true,
+      }
     ),
   ]);
 }
+
+/**
+ * One share is several Meta Cloud API round trips server-side — the
+ * listing photo, then the text or the template — on top of the window
+ * lookup and the ledger write. The default 20-second budget routinely
+ * abandoned a send that was still in flight, so the agent saw "the
+ * server did not respond" for a message WhatsApp went on to deliver.
+ */
+const SHARE_TIMEOUT_MS = 60_000;
+
+/** How many shares are in flight at once during a fan-out. Sequential
+ *  sends put a 30-contact list minutes away from a verdict; the account
+ *  is a single WhatsApp number, so this stays small enough not to race
+ *  Meta's own per-number pacing. */
+const SHARE_CONCURRENCY = 4;
 
 export interface EngineSendOutcome {
   sent: boolean;
@@ -65,6 +89,10 @@ export interface EngineSendOutcome {
    *  manual fallback. */
   templateStatus?: string;
   error?: string;
+  /** The request was abandoned before the server answered. Nothing is
+   *  known about the send — it may well have gone out — so this is
+   *  reported apart from a refusal the server actually returned. */
+  timedOut?: boolean;
 }
 
 /** Send a property share through the account's WhatsApp Business number
@@ -86,6 +114,7 @@ export async function sendPropertyViaEngine(
       };
     }>('/api/whatsapp/share-property', {
       method: 'POST',
+      timeoutMs: SHARE_TIMEOUT_MS,
       body: JSON.stringify({
         contact_id: contact.id,
         property_id: property.id,
@@ -102,7 +131,42 @@ export async function sendPropertyViaEngine(
   } catch (e) {
     return {
       sent: false,
-      error: e instanceof ApiError ? e.message : 'Failed to send WhatsApp message',
+      ...(isTimeout(e) ? { timedOut: true } : {}),
+      error:
+        e instanceof ApiError ? e.message : 'Failed to send WhatsApp message',
     };
   }
+}
+
+/**
+ * Fan a share out to many contacts, a few at a time, reporting each
+ * recipient's own verdict as it lands. Every contact gets their own
+ * 24-hour-window check server-side, so a closed window for one must not
+ * read as a failure for the rest.
+ */
+export async function sendPropertyViaEngineMany(
+  contacts: Contact[],
+  property: Property,
+  messageFor: (contact: Contact) => string,
+  onProgress?: (done: number, total: number) => void
+): Promise<Map<string, EngineSendOutcome>> {
+  const outcomes = new Map<string, EngineSendOutcome>();
+  let next = 0;
+  let done = 0;
+  const worker = async () => {
+    while (next < contacts.length) {
+      const contact = contacts[next++];
+      const outcome = await sendPropertyViaEngine(
+        contact,
+        property,
+        messageFor(contact)
+      );
+      outcomes.set(contact.id, outcome);
+      onProgress?.(++done, contacts.length);
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(SHARE_CONCURRENCY, contacts.length) }, worker)
+  );
+  return outcomes;
 }

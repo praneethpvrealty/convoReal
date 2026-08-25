@@ -97,8 +97,20 @@ export function apiBase(): string {
   return resolvedBase ?? ENV.apiBaseUrl;
 }
 
-export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const { signal: callerSignal, ...rest } = init ?? {};
+/**
+ * `RequestInit` plus a per-call timeout. A few routes do real work
+ * behind the request — a property share hands one message at a time to
+ * Meta's Cloud API, which is several seconds per hop — and the default
+ * budget abandons them while the server is still sending, so the agent
+ * reads "did not respond" for messages that were on their way.
+ */
+export type ApiRequestInit = RequestInit & { timeoutMs?: number };
+
+export async function apiFetch<T>(
+  path: string,
+  init?: ApiRequestInit
+): Promise<T> {
+  const { signal: callerSignal, timeoutMs, ...rest } = init ?? {};
   const method = (rest.method ?? 'GET').toUpperCase();
   // Replaying a body is only safe when the call has no side effect.
   const isIdempotent = method === 'GET' || method === 'HEAD';
@@ -128,7 +140,7 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
         },
       },
       callerSignal,
-      isMultipart ? UPLOAD_TIMEOUT_MS : REQUEST_TIMEOUT_MS
+      timeoutMs ?? (isMultipart ? UPLOAD_TIMEOUT_MS : REQUEST_TIMEOUT_MS)
     );
 
   let res = await doFetch(apiBase(), session.access_token);
@@ -192,8 +204,13 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   }
 
   if (!res.ok) {
-    const body = (await res.json().catch(() => null)) as { error?: string } | null;
-    throw new ApiError(res.status, body?.error ?? `Request failed (${res.status})`);
+    const body = (await res.json().catch(() => null)) as {
+      error?: string;
+    } | null;
+    throw new ApiError(
+      res.status,
+      body?.error ?? `Request failed (${res.status})`
+    );
   }
   // 204 No Content (e.g. DELETE /api/properties/[id]) has an empty body —
   // res.json() would throw and turn a successful call into an error dialog.
@@ -225,10 +242,13 @@ export async function authHeaders(): Promise<Record<string, string>> {
  * fresh workspaces first. Irreversible — always confirm before calling.
  */
 export function deleteAccount() {
-  return apiFetch<{ ok: boolean; workspaceDeleted: boolean }>('/api/account/delete', {
-    method: 'DELETE',
-    body: JSON.stringify({ confirm: 'DELETE' }),
-  });
+  return apiFetch<{ ok: boolean; workspaceDeleted: boolean }>(
+    '/api/account/delete',
+    {
+      method: 'DELETE',
+      body: JSON.stringify({ confirm: 'DELETE' }),
+    }
+  );
 }
 
 /** Register this device's Expo push token so the backend can push to it. */
@@ -258,7 +278,9 @@ export function sessionToken(): string {
   crypto.getRandomValues(bytes);
   bytes[6] = (bytes[6] & 0x0f) | 0x40;
   bytes[8] = (bytes[8] & 0x3f) | 0x80;
-  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join(
+    ''
+  );
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
@@ -285,7 +307,9 @@ export function placeDetails(placeId: string, session: string) {
       sublocality?: string | null;
       city?: string | null;
     };
-  }>(`/api/maps/place-details?place_id=${encodeURIComponent(placeId)}&session=${session}`);
+  }>(
+    `/api/maps/place-details?place_id=${encodeURIComponent(placeId)}&session=${session}`
+  );
 }
 
 /**
@@ -298,7 +322,7 @@ export function suggestReplies(conversationId: string) {
   return apiFetch<{ suggestions: string[] }>('/api/whatsapp/suggest-replies', {
     method: 'POST',
     body: JSON.stringify({ conversation_id: conversationId }),
-  })
+  });
 }
 
 /** Contract of POST /api/whatsapp/send (src/app/api/whatsapp/send/route.ts).
@@ -330,17 +354,14 @@ export function logPersonalWhatsAppJourneySend(args: {
     ok: boolean;
     duplicate: boolean;
     eventId: string | null;
-  }>(
-    '/api/journey/events',
-    {
-      method: 'POST',
-      body: JSON.stringify({
-        item_id: args.itemId,
-        message: args.message,
-        source: args.source,
-      }),
-    }
-  );
+  }>('/api/journey/events', {
+    method: 'POST',
+    body: JSON.stringify({
+      item_id: args.itemId,
+      message: args.message,
+      source: args.source,
+    }),
+  });
 }
 
 /**
