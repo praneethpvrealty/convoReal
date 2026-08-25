@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import * as Linking from 'expo-linking';
 import { Link, Stack, router, useLocalSearchParams } from 'expo-router';
 import { useRef, useState } from 'react';
@@ -57,7 +57,9 @@ import {
 import {
   fetchPropertyMatches,
   inquiredPropertyLabel,
+  type PropertyMatch,
 } from '@/lib/property-matches';
+import { propertyDetailPrimaryAction } from '@/lib/property-detail-primary-action';
 import { rentalYieldPercent } from '@/lib/rental-yield';
 import {
   hasBedsBaths,
@@ -113,10 +115,18 @@ export default function PropertyDetailScreen() {
   const pagerRef = useRef<ScrollView>(null);
   const [activeImage, setActiveImage] = useState(0);
   const [viewerOpen, setViewerOpen] = useState(false);
+  const [selectedMatchIds, setSelectedMatchIds] = useState<string[]>([]);
+  const [shareTo, setShareTo] = useState<Contact[] | null>(null);
   const { data: property, isLoading } = useQuery({
     queryKey: ['property', id],
     queryFn: () => fetchProperty(id),
     enabled: Boolean(id),
+  });
+  const matchesQuery = useQuery({
+    queryKey: ['property-matches', id],
+    queryFn: () => fetchPropertyMatches(id),
+    enabled: Boolean(id),
+    staleTime: 60_000,
   });
 
   // A gated listing's photos live in the guarded bucket, so the gallery
@@ -169,6 +179,14 @@ export default function PropertyDetailScreen() {
   // (e.g. "Coorg") would just open a vague search, so we hide it.
   const hasMapLocation = Boolean(coords) || !!property.google_map_link;
   const ownerPhone = property.owner?.phone;
+  const selectedContacts = (matchesQuery.data ?? [])
+    .filter((match) => selectedMatchIds.includes(match.contact.id))
+    .map((match) => match.contact);
+  const primaryAction = propertyDetailPrimaryAction({
+    selectedCount: selectedContacts.length,
+    ownerPhone: Boolean(ownerPhone),
+    hasMapLocation,
+  });
   const area = isLand
     ? property.land_area
       ? `${property.land_area} ${property.land_area_unit || ''}`.trim()
@@ -846,7 +864,14 @@ export default function PropertyDetailScreen() {
             </Section>
           ) : null}
 
-          <MatchesSection property={property} />
+          <MatchesSection
+            matches={matchesQuery.data ?? []}
+            isLoading={matchesQuery.isLoading}
+            isError={matchesQuery.isError}
+            selectedIds={selectedMatchIds}
+            setSelectedIds={setSelectedMatchIds}
+            onShare={setShareTo}
+          />
 
           {coords ? (
             <Section title="Location">
@@ -1014,27 +1039,36 @@ export default function PropertyDetailScreen() {
             {price.value}
           </Text>
         </View>
-        {ownerPhone || hasMapLocation ? (
+        {primaryAction ? (
           <Pressable
             style={({ pressed }) => [
               styles.ctaButton,
               { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 },
             ]}
-            onPress={() =>
-              ownerPhone
-                ? Linking.openURL(
-                    `https://wa.me/${ownerPhone.replace(/\D/g, '')}`
-                  )
-                : openInMaps({
-                    latitude: coords?.latitude,
-                    longitude: coords?.longitude,
-                    label: mapQuery,
-                    fallbackUrl: pin?.mapUrl,
-                  })
-            }
+            onPress={() => {
+              if (primaryAction.kind === 'share') {
+                haptic.tap();
+                setShareTo(selectedContacts);
+                return;
+              }
+              if (primaryAction.kind === 'whatsapp' && ownerPhone) {
+                void Linking.openURL(
+                  `https://wa.me/${ownerPhone.replace(/\D/g, '')}`
+                );
+                return;
+              }
+              void openInMaps({
+                latitude: coords?.latitude,
+                longitude: coords?.longitude,
+                label: mapQuery,
+                fallbackUrl: pin?.mapUrl,
+              });
+            }}
+            accessibilityRole="button"
+            accessibilityLabel={primaryAction.label}
           >
             <Ionicons
-              name={ownerPhone ? 'logo-whatsapp' : 'map-outline'}
+              name={primaryAction.icon}
               size={17}
               color={colors.onPrimary}
             />
@@ -1045,11 +1079,26 @@ export default function PropertyDetailScreen() {
                 fontFamily: f.bold,
               }}
             >
-              {ownerPhone ? 'WhatsApp' : 'Open Maps'}
+              {primaryAction.label}
             </Text>
           </Pressable>
         ) : null}
       </View>
+
+      <PropertyShareSheet
+        property={property}
+        contacts={shareTo ?? undefined}
+        visible={shareTo !== null}
+        onClose={() => setShareTo(null)}
+        onShared={(ids) => {
+          setSelectedMatchIds((prev) =>
+            prev.filter((contactId) => !ids.includes(contactId))
+          );
+          void queryClient.invalidateQueries({
+            queryKey: ['property-matches', property.id],
+          });
+        }}
+      />
     </View>
   );
 }
@@ -1256,25 +1305,30 @@ function chipColor(tone: MatchChipTone, colors: ThemeColors): string {
  * same server-side engine, so a listing scores identically on both
  * surfaces.
  */
-function MatchesSection({ property }: { property: Property }) {
+function MatchesSection({
+  matches,
+  isLoading,
+  isError,
+  selectedIds,
+  setSelectedIds,
+  onShare,
+}: {
+  matches: PropertyMatch[];
+  isLoading: boolean;
+  isError: boolean;
+  selectedIds: string[];
+  setSelectedIds: React.Dispatch<React.SetStateAction<string[]>>;
+  onShare: (contacts: Contact[]) => void;
+}) {
   const { colors, fonts: f } = useTheme();
-  const queryClient = useQueryClient();
   const [audience, setAudience] = useState<MatchAudience>('buyers');
   const [searchQuery, setSearchQuery] = useState('');
-  const [shareTo, setShareTo] = useState<Contact[] | null>(null);
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [expanded, setExpanded] = useState(false);
   const [audiencePickerOpen, setAudiencePickerOpen] = useState(false);
   const [audienceBusyId, setAudienceBusyId] = useState<string | null>(null);
   const { show, dialogProps } = useAppDialog();
 
-  const matches = useQuery({
-    queryKey: ['property-matches', property.id],
-    queryFn: () => fetchPropertyMatches(property.id),
-    staleTime: 60_000,
-  });
-
-  const all = matches.data ?? [];
+  const all = matches;
   const agentCount = all.filter(
     (m) => m.contact.classification === 'Agent'
   ).length;
@@ -1295,10 +1349,9 @@ function MatchesSection({ property }: { property: Property }) {
   const sharedCount = audienceRows.filter((m) => m.sharedAt).length;
   const allSelected =
     rows.length > 0 && rows.every((m) => selectedIds.includes(m.contact.id));
-  const selected = all
-    .filter((m) => selectedIds.includes(m.contact.id))
-    .map((m) => m.contact);
-
+  const selectedCount = all.filter((m) =>
+    selectedIds.includes(m.contact.id)
+  ).length;
   function toggle(id: string) {
     haptic.tap();
     setSelectedIds((prev) =>
@@ -1388,12 +1441,12 @@ function MatchesSection({ property }: { property: Property }) {
           <Text
             style={{ fontSize: 14, fontFamily: f.bold, color: colors.text }}
           >
-            {matches.isLoading
+            {isLoading
               ? 'Finding the best contacts…'
               : `${audienceRows.length} ${audience === 'agents' ? 'agent' : audience === 'buyers' ? 'buyer' : 'contact'}${audienceRows.length === 1 ? '' : 's'} ranked`}
           </Text>
           <Text style={{ fontSize: 11.5, color: colors.textMuted }}>
-            {matches.isError
+            {isError
               ? 'Could not load matches — pull to refresh.'
               : expanded
                 ? `${sharedCount} already shared · Select contacts to share together`
@@ -1496,8 +1549,8 @@ function MatchesSection({ property }: { property: Property }) {
       {expanded && rows.length > 0 ? (
         <View style={styles.matchSelectionBar}>
           <Text style={{ flex: 1, fontSize: 12, color: colors.textMuted }}>
-            {selected.length > 0
-              ? `${selected.length} selected`
+            {selectedCount > 0
+              ? `${selectedCount} selected`
               : `${rows.length} shown${normalizedQuery ? ` for “${searchQuery.trim()}”` : ''} · tap to select`}
           </Text>
           <Pressable
@@ -1531,11 +1584,11 @@ function MatchesSection({ property }: { property: Property }) {
         </View>
       ) : null}
 
-      {expanded && matches.isLoading ? (
+      {expanded && isLoading ? (
         <ActivityIndicator size="small" color={colors.primary} />
       ) : null}
 
-      {expanded && !matches.isLoading && rows.length === 0 ? (
+      {expanded && !isLoading && rows.length === 0 ? (
         <View
           style={[
             styles.matchEmpty,
@@ -1660,7 +1713,7 @@ function MatchesSection({ property }: { property: Property }) {
                     <Pressable
                       onPress={() => {
                         haptic.tap();
-                        setShareTo([m.contact]);
+                        onShare([m.contact]);
                       }}
                       accessibilityRole="button"
                       accessibilityLabel={
@@ -1697,30 +1750,6 @@ function MatchesSection({ property }: { property: Property }) {
         </ScrollView>
       ) : null}
 
-      {selected.length > 0 ? (
-        <Pressable
-          onPress={() => {
-            haptic.tap();
-            setShareTo(selected);
-          }}
-          accessibilityRole="button"
-          accessibilityLabel={`Share this property with ${selected.length} selected contacts`}
-          style={[styles.bulkShare, { backgroundColor: colors.primary }]}
-        >
-          <Ionicons name="paper-plane" size={16} color={colors.onPrimary} />
-          <Text
-            style={{
-              fontSize: 14,
-              fontFamily: f.bold,
-              color: colors.onPrimary,
-            }}
-          >
-            Share with {selected.length} contact
-            {selected.length === 1 ? '' : 's'}
-          </Text>
-        </Pressable>
-      ) : null}
-
       <ListingAudienceSheet
         visible={audiencePickerOpen}
         onClose={() => setAudiencePickerOpen(false)}
@@ -1729,19 +1758,6 @@ function MatchesSection({ property }: { property: Property }) {
       />
 
       <AppDialog {...dialogProps} />
-
-      <PropertyShareSheet
-        property={property}
-        contacts={shareTo ?? undefined}
-        visible={shareTo !== null}
-        onClose={() => setShareTo(null)}
-        onShared={(ids) => {
-          setSelectedIds((prev) => prev.filter((id) => !ids.includes(id)));
-          void queryClient.invalidateQueries({
-            queryKey: ['property-matches', property.id],
-          });
-        }}
-      />
     </Section>
   );
 }
@@ -2090,14 +2106,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radius.md,
-  },
-  bulkShare: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
-    borderRadius: radius.full,
-    paddingVertical: 13,
   },
   thumbMore: {
     alignItems: 'center',
