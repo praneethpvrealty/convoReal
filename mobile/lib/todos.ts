@@ -92,6 +92,31 @@ export async function setTodoCompleted(
   if (!data?.length) throw new Error('Todo not found');
 }
 
+export async function updateTodo(
+  id: string,
+  updates: {
+    title: string;
+    description: string | null;
+    dueDate: Date | null;
+    priority: TodoPriority;
+    completed: boolean;
+  }
+): Promise<void> {
+  const { data, error } = await supabase
+    .from('todos')
+    .update({
+      title: updates.title,
+      description: updates.description,
+      due_date: updates.dueDate ? updates.dueDate.toISOString() : null,
+      priority: updates.priority,
+      completed: updates.completed,
+    })
+    .eq('id', id)
+    .select('id');
+  if (error) throw error;
+  if (!data?.length) throw new Error('Todo not found');
+}
+
 export async function deleteTodo(id: string): Promise<void> {
   // Same guard as setTodoCompleted: a delete RLS refuses removes zero
   // rows and reports no error, so without reading the row back this

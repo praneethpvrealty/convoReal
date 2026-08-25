@@ -33,6 +33,7 @@ import {
   fetchTodos,
   setTodoCompleted,
   sortTodos,
+  updateTodo,
   type Todo,
   type TodoPriority,
 } from '@/lib/todos';
@@ -558,6 +559,15 @@ function TodoRow({ todo, now }: { todo: Todo; now: Date }) {
   const { colors, fonts: f } = useTheme();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState(todo.title);
+  const [editDescription, setEditDescription] = useState(todo.description ?? '');
+  const [editPriority, setEditPriority] = useState<TodoPriority>(todo.priority);
+  const [editCompleted, setEditCompleted] = useState(todo.completed);
+  const [editDue, setEditDue] = useState<Date | null>(
+    todo.due_date ? new Date(todo.due_date) : null
+  );
+  const [editPicker, setEditPicker] = useState<'date' | 'time' | null>(null);
   const due = todo.due_date ? new Date(todo.due_date) : null;
   const overdue =
     due !== null && !todo.completed && due.getTime() < now.getTime();
@@ -592,6 +602,41 @@ function TodoRow({ todo, now }: { todo: Todo; now: Date }) {
     }
   }
 
+  async function saveEdit() {
+    const title = editTitle.trim();
+    if (!title) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await updateTodo(todo.id, {
+        title,
+        description: editDescription.trim() || null,
+        dueDate: editDue,
+        priority: editPriority,
+        completed: editCompleted,
+      });
+      haptic.success();
+      queryClient.invalidateQueries({ queryKey: ['todos'] });
+      setEditing(false);
+    } catch {
+      haptic.warn();
+      setError('Could not update this task. Check your connection and try again.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function cancelEdit() {
+    setEditTitle(todo.title);
+    setEditDescription(todo.description ?? '');
+    setEditPriority(todo.priority);
+    setEditCompleted(todo.completed);
+    setEditDue(todo.due_date ? new Date(todo.due_date) : null);
+    setEditPicker(null);
+    setError(null);
+    setEditing(false);
+  }
+
   const meta = [
     due
       ? `${due.toLocaleDateString([], { day: 'numeric', month: 'short' })} · ${due.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
@@ -601,6 +646,7 @@ function TodoRow({ todo, now }: { todo: Todo; now: Date }) {
   ].filter(Boolean);
 
   return (
+    <>
     <View
       style={[
         styles.card,
@@ -657,6 +703,18 @@ function TodoRow({ todo, now }: { todo: Todo; now: Date }) {
         ) : null}
       </View>
       <Pressable
+        onPress={() => {
+          haptic.tap();
+          setEditing(true);
+        }}
+        disabled={busy}
+        hitSlop={8}
+        accessibilityRole="button"
+        accessibilityLabel={`Edit ${todo.title}`}
+      >
+        <Ionicons name="create-outline" size={17} color={colors.primary} />
+      </Pressable>
+      <Pressable
         onPress={remove}
         disabled={busy}
         hitSlop={8}
@@ -666,6 +724,147 @@ function TodoRow({ todo, now }: { todo: Todo; now: Date }) {
         <Ionicons name="trash-outline" size={17} color={colors.textFaint} />
       </Pressable>
     </View>
+    <BottomSheet
+      visible={editing}
+      onClose={cancelEdit}
+      contentStyle={styles.sheet}
+    >
+      <ScrollView
+        style={sheetScrollArea}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ gap: spacing.md }}
+      >
+        <Text style={{ fontSize: 18, fontFamily: f.extrabold, color: colors.text }}>
+          Edit task
+        </Text>
+        <TextInput
+          value={editTitle}
+          onChangeText={setEditTitle}
+          placeholder="Task title"
+          placeholderTextColor={colors.textFaint}
+          accessibilityLabel="Task title"
+          style={[
+            styles.editInput,
+            { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text },
+          ]}
+        />
+        <TextInput
+          multiline
+          value={editDescription}
+          onChangeText={setEditDescription}
+          placeholder="Description (optional)"
+          placeholderTextColor={colors.textFaint}
+          accessibilityLabel="Task description"
+          style={[
+            styles.notesInput,
+            { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text },
+          ]}
+        />
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+          {PRIORITIES.map((priority) => (
+            <FilterChip
+              key={priority}
+              label={priority === 'low' ? 'Low' : priority === 'medium' ? 'Medium' : 'High'}
+              active={editPriority === priority}
+              onPress={() => setEditPriority(priority)}
+            />
+          ))}
+          <FilterChip
+            label={editCompleted ? 'Completed' : 'Open'}
+            active={editCompleted}
+            onPress={() => setEditCompleted((value) => !value)}
+          />
+        </View>
+        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+          <Pressable
+            onPress={() => {
+              if (!editDue) {
+                const next = new Date();
+                next.setDate(next.getDate() + 1);
+                next.setHours(9, 0, 0, 0);
+                setEditDue(next);
+              }
+              setEditPicker('date');
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Change task due date"
+            style={[styles.pickerButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          >
+            <Ionicons name="calendar-outline" size={15} color={colors.primary} />
+            <Text style={{ fontSize: 13.5, fontFamily: f.semibold, color: colors.text }}>
+              {editDue
+                ? editDue.toLocaleDateString([], { day: 'numeric', month: 'short' })
+                : 'Add due date'}
+            </Text>
+          </Pressable>
+          {editDue ? (
+            <Pressable
+              onPress={() => setEditPicker('time')}
+              accessibilityRole="button"
+              accessibilityLabel="Change task due time"
+              style={[styles.pickerButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            >
+              <Ionicons name="time-outline" size={15} color={colors.primary} />
+              <Text style={{ fontSize: 13.5, fontFamily: f.semibold, color: colors.text }}>
+                {editDue.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </Text>
+            </Pressable>
+          ) : null}
+        </View>
+        {editPicker && editDue ? (
+          <InlineDateTimePicker
+            value={editDue}
+            mode={editPicker}
+            onChange={setEditDue}
+            onClose={() => setEditPicker(null)}
+          />
+        ) : null}
+        {editDue ? (
+          <Pressable
+            onPress={() => {
+              setEditDue(null);
+              setEditPicker(null);
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Clear task due date"
+          >
+            <Text style={{ fontSize: 13, fontFamily: f.semibold, color: colors.danger }}>
+              Clear due date
+            </Text>
+          </Pressable>
+        ) : null}
+        {todo.contact ? (
+          <DetailRow
+            icon="person-outline"
+            text={todo.contact.name || todo.contact.phone || 'Linked contact'}
+            accent
+          />
+        ) : null}
+        {todo.property ? (
+          <DetailRow icon="home-outline" text={todo.property.title} accent />
+        ) : null}
+        {error ? (
+          <Text style={{ fontSize: 12.5, color: colors.danger }}>{error}</Text>
+        ) : null}
+        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+          <SheetButton
+            label="Save changes"
+            color={colors.primary}
+            textColor={colors.onPrimary}
+            disabled={busy || !editTitle.trim()}
+            busy={busy}
+            onPress={saveEdit}
+          />
+          <SheetButton
+            label="Cancel"
+            color={colors.surface}
+            textColor={colors.textMuted}
+            onPress={cancelEdit}
+          />
+        </View>
+      </ScrollView>
+    </BottomSheet>
+    </>
   );
 }
 
