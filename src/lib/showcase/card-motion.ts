@@ -15,11 +15,11 @@ export function showcaseCardMotion(
 
   if (mobileDeck) {
     return {
-      rotateXDegrees: distance * -68,
-      translateYPercent: distance * 10,
-      translateZPixels: depth * -180,
-      scale: 1 - depth * 0.12,
-      opacity: 1 - depth * 0.62,
+      rotateXDegrees: 0,
+      translateYPercent: 0,
+      translateZPixels: 0,
+      scale: 1,
+      opacity: 1,
     };
   }
 
