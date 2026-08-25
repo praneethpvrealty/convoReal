@@ -25,7 +25,7 @@ import {
   SectionLabel,
   TextField,
 } from '@/components/ui';
-import { sendTextMessage } from '@/lib/api';
+import { apiFetch, sendTextMessage } from '@/lib/api';
 import { friendlyError } from '@/lib/errors';
 import { formatInr } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
@@ -100,7 +100,17 @@ export function ShowcaseShareSheet({
   const [brokerMessage, setBrokerMessage] = useState(BROKER_MESSAGE);
   const [recipients, setRecipients] = useState(false);
   const [sending, setSending] = useState(false);
+  const [messageMode, setMessageMode] = useState<'pitch' | 'list'>('pitch');
+  const [digestDraft, setDigestDraft] = useState<{
+    base: string;
+    text: string;
+  } | null>(null);
 
+  const pickedKeys = useMemo(
+    () => picked.map((p) => p.property_code || p.id),
+    [picked]
+  );
+  const pickedIds = pickedKeys.join(',');
   const debounced = useDebounced(pickerSearch.trim());
   const baseUrl = useQuery({
     queryKey: ['showcase-url'],
@@ -114,8 +124,8 @@ export function ShowcaseShareSheet({
     queryFn: () => fetchPropertyPage(0, debounced, 'All', null, false),
   });
 
-  const message = audience === 'agent' ? brokerMessage : clientMessage;
-  const setMessage = audience === 'agent' ? setBrokerMessage : setClientMessage;
+  const pitch = audience === 'agent' ? brokerMessage : clientMessage;
+  const setPitch = audience === 'agent' ? setBrokerMessage : setClientMessage;
 
   const link = useMemo(() => {
     if (!baseUrl.data) return '';
@@ -123,10 +133,34 @@ export function ShowcaseShareSheet({
       scope,
       category,
       search: trimmedSearch,
-      ids: picked.map((p) => p.property_code || p.id),
+      ids: pickedKeys,
       audience,
     });
-  }, [baseUrl.data, scope, category, trimmedSearch, picked, audience]);
+  }, [baseUrl.data, scope, category, trimmedSearch, pickedKeys, audience]);
+
+  // The digest is a business rule, so the phone asks the server for it
+  // rather than carrying a second copy of the builder (AGENTS.md §2.8).
+  const digest = useQuery({
+    queryKey: ['inventory-share-summary', scope, category, trimmedSearch, pickedIds, link],
+    enabled: visible && messageMode === 'list' && link.length > 0,
+    queryFn: () =>
+      apiFetch<{ data: { summary: string; count: number } }>(
+        `/api/inventory/share-summary?${new URLSearchParams({
+          scope,
+          category,
+          search: trimmedSearch,
+          ids: pickedIds,
+          portal_url: link,
+        }).toString()}`
+      ).then((response) => response.data),
+  });
+
+  // Manual edits survive until an input changes the generated text, the
+  // same rule the web preview uses.
+  const autoDigest = digest.data?.summary ?? '';
+  const digestText =
+    digestDraft?.base === autoDigest ? digestDraft.text : autoDigest;
+  const message = messageMode === 'list' ? digestText : pitch;
 
   const scopeLabel =
     scope === 'search'
@@ -141,7 +175,12 @@ export function ShowcaseShareSheet({
 
   function messageFor(url: string, name?: string | null) {
     const greeting = name?.trim().split(/\s+/)[0];
-    const body = message.replaceAll('{portalUrl}', url);
+    // The digest already carries the scoped link; swap it for the
+    // recipient's tracked one rather than appending a second copy.
+    const body =
+      messageMode === 'list'
+        ? message.replaceAll(link, url)
+        : message.replaceAll('{portalUrl}', url);
     return greeting ? body.replace(/^Hi!/, `Hi ${greeting}!`) : body;
   }
 
@@ -187,7 +226,7 @@ export function ShowcaseShareSheet({
       scope,
       category,
       search: trimmedSearch,
-      ids: picked.map((p) => p.property_code || p.id),
+      ids: pickedKeys,
       audience,
     });
     await Share.share({ message: messageFor(anonymous), url: anonymous });
@@ -448,15 +487,46 @@ export function ShowcaseShareSheet({
         </Text>
 
         <SectionLabel text="3 · How it goes out" />
-        <TextField
-          value={message}
-          onChangeText={setMessage}
-          multiline
-          style={{ minHeight: 120 }}
-        />
+        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+          <FilterChip
+            label="Short pitch"
+            active={messageMode === 'pitch'}
+            onPress={() => setMessageMode('pitch')}
+          />
+          <FilterChip
+            label="Full list"
+            active={messageMode === 'list'}
+            onPress={() => setMessageMode('list')}
+          />
+        </View>
+        {messageMode === 'list' && digest.isPending ? (
+          <View style={{ paddingVertical: spacing.lg, alignItems: 'center' }}>
+            <ActivityIndicator color={colors.primary} />
+          </View>
+        ) : messageMode === 'list' && digest.isError ? (
+          <Text style={{ fontSize: 12, color: colors.danger }}>
+            Could not build the list — try again, or send the short pitch.
+          </Text>
+        ) : messageMode === 'list' && !digestText ? (
+          <Text style={{ fontSize: 12, color: colors.textMuted }}>
+            Nothing to list in this selection yet.
+          </Text>
+        ) : (
+          <TextField
+            value={message}
+            onChangeText={(text) =>
+              messageMode === 'list'
+                ? setDigestDraft({ base: autoDigest, text })
+                : setPitch(text)
+            }
+            multiline
+            style={{ minHeight: messageMode === 'list' ? 180 : 120 }}
+          />
+        )}
         <Text style={{ fontSize: 11, color: colors.textFaint }}>
-          {'{portalUrl}'} is replaced with the recipient&apos;s own tracked
-          link, so their opens show by name in Pulse.
+          {messageMode === 'list'
+            ? `A WhatsApp-ready digest of the ${digest.data?.count ?? 0} listings this link opens, grouped by category.`
+            : `{portalUrl} is replaced with the recipient's own tracked link, so their opens show by name in Pulse.`}
         </Text>
 
         <View style={{ flexDirection: 'row', gap: spacing.sm }}>
