@@ -28,9 +28,12 @@ async function createAgent(label, phoneSuffix) {
   const email = `inventory-${label.toLowerCase()}-${stamp}@convoreal-test.invalid`;
   const phone = `+9199${phoneSuffix}${String(Date.now()).slice(-6)}`;
   const invite = `e2e-inventory-${label.toLowerCase()}-${randomBytes(8).toString('base64url')}`;
-  const { data: tokenHash, error: hashError } = await admin.rpc('hash_beta_token', {
-    p_token: invite,
-  });
+  const { data: tokenHash, error: hashError } = await admin.rpc(
+    'hash_beta_token',
+    {
+      p_token: invite,
+    }
+  );
   if (hashError) throw hashError;
   const { error: inviteError } = await admin.from('beta_invites').insert({
     code: invite,
@@ -47,7 +50,10 @@ async function createAgent(label, phoneSuffix) {
     email_confirm: true,
     phone,
     phone_confirm: true,
-    user_metadata: { beta_invite: invite, full_name: `Inventory Agent ${label}` },
+    user_metadata: {
+      beta_invite: invite,
+      full_name: `Inventory Agent ${label}`,
+    },
   });
   if (error) throw error;
   const userId = data.user.id;
@@ -59,10 +65,19 @@ async function createAgent(label, phoneSuffix) {
     .eq('user_id', userId)
     .single();
   if (profileError || !profile?.account_id) {
-    throw profileError ?? new Error(`Agent ${label} account was not bootstrapped.`);
+    throw (
+      profileError ?? new Error(`Agent ${label} account was not bootstrapped.`)
+    );
   }
   created.accounts.push(profile.account_id);
-  return { label, email, phone, password, userId, accountId: profile.account_id };
+  return {
+    label,
+    email,
+    phone,
+    password,
+    userId,
+    accountId: profile.account_id,
+  };
 }
 
 async function authenticatedRequest(agent, method, path, data) {
@@ -93,7 +108,9 @@ async function loginAndWaitForSourceCopy(agent, sourcePropertyId) {
     for (let attempt = 0; attempt < 40; attempt += 1) {
       const { data } = await admin
         .from('properties')
-        .select('id, account_id, source_property_id, status, is_published, listing_source')
+        .select(
+          'id, account_id, source_property_id, status, is_published, listing_source'
+        )
         .eq('account_id', agent.accountId)
         .eq('source_property_id', sourcePropertyId)
         .maybeSingle();
@@ -142,6 +159,21 @@ try {
     .single();
   if (bContactError) throw bContactError;
 
+  const { data: unregisteredContact, error: unregisteredContactError } =
+    await admin
+      .from('contacts')
+      .insert({
+        account_id: agentA.accountId,
+        user_id: agentA.userId,
+        name: 'Inventory Agent C',
+        phone: `+9198${String(Date.now()).slice(-8)}`,
+        classification: 'Agent',
+        status: 'active',
+      })
+      .select('id')
+      .single();
+  if (unregisteredContactError) throw unregisteredContactError;
+
   const { data: sources, error: sourceError } = await admin
     .from('properties')
     .insert([
@@ -176,46 +208,82 @@ try {
         is_published: true,
         listing_source: 'owner',
       },
+      {
+        account_id: agentA.accountId,
+        user_id: agentA.userId,
+        title: `Contact inventory share ${stamp}`,
+        description: 'E2E contact-level inventory share',
+        location: 'Koramangala, Bengaluru',
+        city: 'Bengaluru',
+        state: 'Karnataka',
+        listing_type: 'Sale',
+        type: 'Flat/ Apartment',
+        price: 18500000,
+        status: 'Available',
+        is_published: true,
+        listing_source: 'owner',
+      },
     ])
     .select('id, title');
   if (sourceError) throw sourceError;
-  const autoSource = sources.find((row) => row.title.startsWith('Agent B source'));
-  const directSource = sources.find((row) => row.title.startsWith('Direct agent share'));
-  if (!autoSource || !directSource) throw new Error('Source fixtures were not created.');
+  const autoSource = sources.find((row) =>
+    row.title.startsWith('Agent B source')
+  );
+  const directSource = sources.find((row) =>
+    row.title.startsWith('Direct agent share')
+  );
+  const contactShareSource = sources.find((row) =>
+    row.title.startsWith('Contact inventory share')
+  );
+  if (!autoSource || !directSource || !contactShareSource) {
+    throw new Error('Source fixtures were not created.');
+  }
 
   const autoCopy = await loginAndWaitForSourceCopy(agentB, autoSource.id);
   must(
     'dashboard login loads source inventory into Agent B account',
-    autoCopy?.status === 'Available' && autoCopy?.is_published === false && autoCopy?.listing_source === 'agent',
-    JSON.stringify(autoCopy),
+    autoCopy?.status === 'Available' &&
+      autoCopy?.is_published === false &&
+      autoCopy?.listing_source === 'agent',
+    JSON.stringify(autoCopy)
   );
 
   const secondSync = await authenticatedRequest(
     agentB,
     'POST',
-    '/api/agents/inventory-sync',
+    '/api/agents/inventory-sync'
   );
   must(
     'repeat source sync is idempotent',
     secondSync.status === 200 &&
       secondSync.body?.data?.matched === 1 &&
       secondSync.body?.data?.imported === 0,
-    JSON.stringify(secondSync),
+    JSON.stringify(secondSync)
   );
 
   const shared = await authenticatedRequest(
     agentA,
     'POST',
     `/api/properties/${directSource.id}/share-to-agent-account`,
-    { contact_id: bContact.id },
+    { contact_id: bContact.id }
   );
-  must('direct inventory share is accepted', shared.status === 201, JSON.stringify(shared));
-  must('direct share enters review', shared.body?.data?.status === 'Pending Review', JSON.stringify(shared.body));
+  must(
+    'direct inventory share is accepted',
+    shared.status === 201,
+    JSON.stringify(shared)
+  );
+  must(
+    'direct share enters review',
+    shared.body?.data?.status === 'Pending Review',
+    JSON.stringify(shared.body)
+  );
 
   const pendingId = shared.body.data.id;
   const { data: pending } = await admin
     .from('properties')
-    .select('account_id, source_property_id, status, is_published, owner_contact_id')
+    .select(
+      'account_id, source_property_id, status, is_published, owner_contact_id'
+    )
     .eq('id', pendingId)
     .single();
   must(
@@ -225,26 +293,93 @@ try {
       pending?.status === 'Pending Review' &&
       pending?.is_published === false &&
       Boolean(pending?.owner_contact_id),
-    JSON.stringify(pending),
+    JSON.stringify(pending)
   );
 
   const duplicate = await authenticatedRequest(
     agentA,
     'POST',
     `/api/properties/${directSource.id}/share-to-agent-account`,
-    { contact_id: bContact.id },
+    { contact_id: bContact.id }
   );
-  must('duplicate direct share is rejected', duplicate.status === 409, JSON.stringify(duplicate));
+  must(
+    'duplicate direct share is rejected',
+    duplicate.status === 409,
+    JSON.stringify(duplicate)
+  );
+
+  const registeredStatus = await authenticatedRequest(
+    agentA,
+    'GET',
+    `/api/contacts/${bContact.id}/share-inventory`
+  );
+  must(
+    'contact share detects an existing ConvoReal account',
+    registeredStatus.status === 200 &&
+      registeredStatus.body?.data?.registered === true,
+    JSON.stringify(registeredStatus)
+  );
+
+  const contactShare = await authenticatedRequest(
+    agentA,
+    'POST',
+    `/api/contacts/${bContact.id}/share-inventory`,
+    { property_ids: [contactShareSource.id] }
+  );
+  must(
+    'contact share adds selected properties to the review queue',
+    contactShare.status === 200 &&
+      contactShare.body?.data?.sharedCount === 1 &&
+      contactShare.body?.data?.pending?.[0]?.status === 'Pending Review',
+    JSON.stringify(contactShare)
+  );
+
+  const unregisteredStatus = await authenticatedRequest(
+    agentA,
+    'GET',
+    `/api/contacts/${unregisteredContact.id}/share-inventory`
+  );
+  must(
+    'contact share offers an invite for an agent without the app',
+    unregisteredStatus.status === 200 &&
+      unregisteredStatus.body?.data?.registered === false,
+    JSON.stringify(unregisteredStatus)
+  );
+
+  const appInvite = await authenticatedRequest(
+    agentA,
+    'POST',
+    '/api/beta-invites',
+    {
+      label: 'Inventory Agent C',
+      invitee_phone: `+9198${String(Date.now()).slice(-8)}`,
+    }
+  );
+  must(
+    'an account agent can prepare the optional WhatsApp app invite',
+    appInvite.status === 200 &&
+      typeof appInvite.body?.shareMessage === 'string' &&
+      appInvite.body.shareMessage.includes(appInvite.body.url),
+    JSON.stringify(appInvite)
+  );
+  if (appInvite.body?.code) created.invites.push(appInvite.body.code);
 
   // Avoid sending a real WhatsApp notification from this production-shaped
   // test. Attribution was asserted above; approval only needs the contact id.
-  await admin.from('contacts').update({ phone: null }).eq('id', pending.owner_contact_id);
+  await admin
+    .from('contacts')
+    .update({ phone: null })
+    .eq('id', pending.owner_contact_id);
   const approved = await authenticatedRequest(
     agentB,
     'POST',
-    `/api/properties/${pendingId}/approve`,
+    `/api/properties/${pendingId}/approve`
   );
-  must('recipient can approve the shared listing', approved.status === 200, JSON.stringify(approved));
+  must(
+    'recipient can approve the shared listing',
+    approved.status === 200,
+    JSON.stringify(approved)
+  );
 
   const { data: liveCopy } = await admin
     .from('properties')
@@ -253,8 +388,10 @@ try {
     .single();
   must(
     'approval adds the listing to recipient inventory',
-    liveCopy?.status === 'Available' && liveCopy?.is_published === true && liveCopy?.source_property_id === directSource.id,
-    JSON.stringify(liveCopy),
+    liveCopy?.status === 'Available' &&
+      liveCopy?.is_published === true &&
+      liveCopy?.source_property_id === directSource.id,
+    JSON.stringify(liveCopy)
   );
 
   console.log('agent inventory sharing E2E passed');

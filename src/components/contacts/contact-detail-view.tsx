@@ -89,6 +89,7 @@ import {
   Waypoints,
   ArrowRightLeft,
   ClipboardList,
+  Send,
 } from 'lucide-react';
 import {
   Tooltip,
@@ -119,6 +120,7 @@ import { GreetingsGeneratorDialog } from '@/components/contacts/greetings-genera
 import { OwnerDetailsRequestDialog } from '@/components/contacts/owner-details-request-dialog';
 import { ContactRequirementsDialog } from '@/components/contacts/contact-requirements-dialog';
 import { MoveToEngineDialog } from '@/components/contacts/move-to-engine-dialog';
+import { ShareInventoryDialog } from '@/components/contacts/share-inventory-dialog';
 import { SearchablePropertySelect } from '@/components/ui/searchable-property-select';
 import { isLocationGuarded } from '@/lib/inventory/location-guard';
 
@@ -171,6 +173,7 @@ export function ContactDetailView({
   const [greetingsOpen, setGreetingsOpen] = useState(false);
   const [moveToEngineOpen, setMoveToEngineOpen] = useState(false);
   const [detailsRequestOpen, setDetailsRequestOpen] = useState(false);
+  const [inventoryShareOpen, setInventoryShareOpen] = useState(false);
   const collectsBuyerRequirements =
     contact?.classification === 'Buyer' ||
     contact?.classification === 'Owner & Buyer';
@@ -274,10 +277,14 @@ export function ContactDetailView({
   const [editAreasOfInterest, setEditAreasOfInterest] = useState<string[]>([]);
   const [editAreasText, setEditAreasText] = useState('');
   const [editAreasGeo, setEditAreasGeo] = useState<AreaOfInterestGeo[]>([]);
-  const [editProjectsOfInterest, setEditProjectsOfInterest] = useState<string[]>([]);
+  const [editProjectsOfInterest, setEditProjectsOfInterest] = useState<
+    string[]
+  >([]);
   const [editProjectsText, setEditProjectsText] = useState('');
   const [editStrictProjectMatch, setEditStrictProjectMatch] = useState(false);
-  const [editPropertyInterests, setEditPropertyInterests] = useState<string[]>([]);
+  const [editPropertyInterests, setEditPropertyInterests] = useState<string[]>(
+    []
+  );
   const [editMinRoi, setEditMinRoi] = useState('');
   const [savingPreferences, setSavingPreferences] = useState(false);
   const [editDob, setEditDob] = useState('');
@@ -1225,10 +1232,10 @@ ${matchingUrl.toString()}`;
         const preferenceHints = [
           ...(source.property_interests || []),
           ...(source.pref_property_types || []),
-          ...((source.pref_property_categories || []).map(
+          ...(source.pref_property_categories || []).map(
             (category) =>
               `${category[0]?.toUpperCase()}${category.slice(1).toLowerCase()}`
-          )),
+          ),
         ].filter(Boolean);
         const hasInterestFilters =
           areaHints.length > 0 || preferenceHints.length > 0;
@@ -1716,6 +1723,15 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                       <Share2 className="size-3 text-amber-400" />
                       Share Listing
                     </button>
+                    {contact.classification === 'Agent' && (
+                      <button
+                        onClick={() => setInventoryShareOpen(true)}
+                        className="flex cursor-pointer items-center gap-1.5 rounded-md border border-violet-500/20 px-2 py-0.5 font-medium text-violet-400 transition-all hover:bg-violet-500/10 hover:text-violet-300"
+                      >
+                        <Send className="size-3 text-violet-400" />
+                        Share Inventory
+                      </button>
+                    )}
                     {collectsBuyerRequirements ? (
                       <button
                         onClick={() => setActiveTab('requirements')}
@@ -1905,8 +1921,8 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                   value="details"
                   className="data-active:text-primary shrink-0 text-slate-400 data-active:bg-slate-800"
                 >
-                Details
-              </TabsTrigger>
+                  Details
+                </TabsTrigger>
                 {collectsBuyerRequirements && (
                   <TabsTrigger
                     value="requirements"
@@ -2647,7 +2663,9 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                           type="number"
                           step="0.01"
                           value={editMinRoi}
-                          onChange={(event) => setEditMinRoi(event.target.value)}
+                          onChange={(event) =>
+                            setEditMinRoi(event.target.value)
+                          }
                           placeholder="e.g. 4.5"
                           className="h-8 border-slate-700 bg-slate-800 text-xs text-white"
                         />
@@ -2722,7 +2740,9 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                                   setEditPropertyInterests((current) =>
                                     event.target.checked
                                       ? [...current, option]
-                                      : current.filter((item) => item !== option)
+                                      : current.filter(
+                                          (item) => item !== option
+                                        )
                                   )
                                 }
                                 className="text-primary mt-0.5 size-3.5 rounded border-slate-700 bg-slate-800"
@@ -3684,6 +3704,20 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                 contactPhone={contact.phone}
               />
             )}
+            {contactId &&
+              contact &&
+              hasPhone(contact) &&
+              contact.classification === 'Agent' && (
+                <ShareInventoryDialog
+                  open={inventoryShareOpen}
+                  onOpenChange={setInventoryShareOpen}
+                  contactId={contactId}
+                  contactName={contact.name || ''}
+                  contactPhone={contact.phone}
+                  properties={allProperties}
+                  showcaseBaseUrl={getShowcaseBaseUrl()}
+                />
+              )}
           </div>
         )}
       </SheetContent>
