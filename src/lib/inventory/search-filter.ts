@@ -44,3 +44,20 @@ export function filterPropertiesBySearch<T extends Partial<Property>>(
 
   return result;
 }
+
+/** The receiving half of a hand-picked share link: resolves ?ids= keys
+ *  (property_code or id, case-insensitive) into listings, in link order. */
+export function selectPinnedProperties<T extends Partial<Property>>(
+  properties: T[],
+  keys: string[]
+): T[] {
+  if (keys.length === 0) return properties;
+  const byKey = new Map<string, T>();
+  for (const p of properties) {
+    if (p.id) byKey.set(p.id.toLowerCase(), p);
+    if (p.property_code) byKey.set(p.property_code.toLowerCase(), p);
+  }
+  return keys
+    .map((key) => byKey.get(key.trim().toLowerCase()))
+    .filter((p): p is T => Boolean(p));
+}

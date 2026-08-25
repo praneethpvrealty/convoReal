@@ -13,11 +13,32 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
-import { Share2, Copy, Check, ExternalLink, MessageCircle, Search, Smartphone, UserCheck, X, User, Handshake, ClipboardList, Send, Loader2, Sparkles } from 'lucide-react';
+import {
+  Share2,
+  Copy,
+  Check,
+  ExternalLink,
+  Search,
+  Smartphone,
+  X,
+  User,
+  Handshake,
+  Send,
+  Loader2,
+  Sparkles,
+  ListChecks,
+  Layers,
+  Filter,
+} from 'lucide-react';
 import type { MessageTemplate, Property, ShowcaseSettings } from '@/types';
+import type {
+  ShareCategory,
+  ShareScope,
+} from '@/lib/inventory/showcase-share-link';
 import { buildInventorySummary } from '@/lib/inventory-summary-builder';
 import { filterPropertiesBySearch } from '@/lib/inventory/search-filter';
+import { buildShowcaseShareLink } from '@/lib/inventory/showcase-share-link';
+import { formatShareAmount } from '@/lib/share-message-builder';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import {
   buildInventoryUpdateTemplatePayload,
@@ -40,18 +61,35 @@ interface ShowcaseShareDialogProps {
   activeSearch?: string;
 }
 
+const MAX_PICKED = 25;
+
 function getBaseHost() {
   if (typeof window === 'undefined') return '';
   const host = window.location.host;
   const parts = host.split('.');
-  
-  // If it's localhost or IP address or simple domain
-  if (parts.length <= 2 || host.includes('localhost') || /^\d+\.\d+\.\d+\.\d+$/.test(host)) {
+
+  if (
+    parts.length <= 2 ||
+    host.includes('localhost') ||
+    /^\d+\.\d+\.\d+\.\d+$/.test(host)
+  ) {
     return host;
   }
-  
-  // Strip first part if there are 3 parts (e.g. app.convoreal.com -> convoreal.com)
+
   return parts.slice(1).join('.');
+}
+
+function stepLabel(index: number, title: string) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="bg-primary/20 text-primary flex size-5 items-center justify-center rounded-full text-[10px] font-black">
+        {index}
+      </span>
+      <span className="text-slate-350 text-xs font-bold tracking-wider uppercase">
+        {title}
+      </span>
+    </div>
+  );
 }
 
 export function ShowcaseShareDialog({
@@ -61,24 +99,36 @@ export function ShowcaseShareDialog({
   showcaseSettings,
   activeSearch,
 }: ShowcaseShareDialogProps) {
-  const [shareCategory, setShareCategory] = useState<'All' | 'Residential' | 'Commercial' | 'Agricultural'>('All');
+  const trimmedSearch = activeSearch?.trim() || '';
+
+  // Step 1 — WHO. Clients get the teaser showcase (masked address,
+  // inquiry funnel); co-brokers get the complete clean view.
+  const [audience, setAudience] = useState<'client' | 'agent'>('client');
+
+  // Step 2 — WHAT. One scope at a time, so the link, the message and the
+  // Engine snapshot can never describe different sets of listings.
+  const [scope, setScope] = useState<ShareScope>(
+    trimmedSearch ? 'search' : 'all'
+  );
+  const [shareCategory, setShareCategory] = useState<ShareCategory>('All');
+  const [picked, setPicked] = useState<string[]>([]);
+  const [pickerSearch, setPickerSearch] = useState('');
+
+  // Step 3 — HOW.
+  const [messageMode, setMessageMode] = useState<'pitch' | 'list'>('pitch');
   const [copied, setCopied] = useState(false);
-  const [copiedWithMessage, setCopiedWithMessage] = useState(false);
-  const [includeSearch, setIncludeSearch] = useState(true);
-
-  // WHO the link is for — mirrors the property share dialog. Clients get
-  // the teaser showcase (masked address, inquiry funnel); co-brokers get
-  // the complete clean view (mode=view: full specs + map, no forms).
-  const [audienceTab, setAudienceTab] = useState<'client' | 'agent'>('client');
-
-  // "Send personally" picker — each contact gets a link tagged with
-  // ?v=<contactId> so their showcase activity shows up by name in Pulse.
+  const [copiedMessage, setCopiedMessage] = useState(false);
   const [contacts, setContacts] = useState<PickerContact[]>([]);
   const [loadingContacts, setLoadingContacts] = useState(false);
   const [contactSearch, setContactSearch] = useState('');
-  const [copiedContactId, setCopiedContactId] = useState<string | null>(null);
+  const [selectedContactIds, setSelectedContactIds] = useState<string[]>([]);
 
-  const defaultPassionateMessage = `Hi {name}! 👋
+  useEffect(() => {
+    if (!open) return;
+    setScope(trimmedSearch ? 'search' : 'all');
+  }, [open, trimmedSearch]);
+
+  const defaultClientMessage = `Hi {name}! 👋
 
 I've curated an exclusive property showcase just for you. Browse through handpicked listings and find the one that feels right.
 
@@ -100,17 +150,15 @@ Open to co-broking on all of these. Ping me for commission terms, documents, or 
 Best regards`;
 
   // One editable draft per audience so switching tabs doesn't clobber edits.
-  const [clientMessage, setClientMessage] = useState(defaultPassionateMessage);
+  const [clientMessage, setClientMessage] = useState(defaultClientMessage);
   const [brokerMessage, setBrokerMessage] = useState(defaultBrokerMessage);
-  const passionateMessage = audienceTab === 'agent' ? brokerMessage : clientMessage;
-  const setPassionateMessage = audienceTab === 'agent' ? setBrokerMessage : setClientMessage;
+  const pitchMessage = audience === 'agent' ? brokerMessage : clientMessage;
+  const setPitchMessage =
+    audience === 'agent' ? setBrokerMessage : setClientMessage;
 
   useEffect(() => {
     if (!open || !accountId) return;
     let cancelled = false;
-    // Microtask defer keeps the synchronous loading-flag setter out of
-    // the effect body (react-hooks/set-state-in-effect) — same pattern
-    // as the Today page loaders.
     Promise.resolve().then(() => {
       if (cancelled) return;
       setLoadingContacts(true);
@@ -137,61 +185,9 @@ Best regards`;
     };
   }, [open, accountId]);
 
-  const filteredContacts = useMemo(() => {
-    const q = contactSearch.toLowerCase().trim();
-    if (!q) return contacts;
-    return contacts.filter(
-      (c) => (c.name || '').toLowerCase().includes(q) || (c.phone || '').includes(q),
-    );
-  }, [contacts, contactSearch]);
-
-  // A shared search string already names exactly what the receiver should
-  // see, so the category buttons are redundant while it is applied.
-  const trimmedSearch = activeSearch?.trim() || '';
-  const searchApplied = includeSearch && trimmedSearch.length > 0;
-  const effectiveCategory = searchApplied ? 'All' : shareCategory;
-
-  const generatedLink = useMemo(() => {
-    if (typeof window === 'undefined') return '';
-
-    let targetDomain = window.location.host;
-    let isSubdomainUsed = false;
-
-    if (showcaseSettings?.subdomain) {
-      const baseDomain = getBaseHost();
-      targetDomain = `${showcaseSettings.subdomain}.${baseDomain}`;
-      isSubdomainUsed = true;
-    }
-
-    const protocol = window.location.protocol;
-    const urlObj = new URL(`${protocol}//${targetDomain}`);
-
-    // If no subdomain is configured, we must append the ref parameter so page.tsx can resolve the account showcase page
-    if (!isSubdomainUsed && accountId) {
-      urlObj.searchParams.set('ref', accountId);
-    }
-
-    if (searchApplied) {
-      urlObj.searchParams.set('search', trimmedSearch);
-    } else if (shareCategory !== 'All') {
-      urlObj.searchParams.set('category', shareCategory);
-    }
-
-    // Co-broker shares open the complete clean view (full specs + map,
-    // no inquiry forms). Plain param — a default, not access control.
-    if (audienceTab === 'agent') {
-      urlObj.searchParams.set('mode', 'view');
-    }
-
-    return urlObj.toString();
-  }, [accountId, shareCategory, showcaseSettings, searchApplied, trimmedSearch, audienceTab]);
-
-  // ── WhatsApp inventory summary ────────────────────────────────
-  // Published listings for the category-grouped digest; fetched once
-  // per dialog open (newest first, same visibility rules as the
-  // public showcase: published + Available).
-  const [summaryProperties, setSummaryProperties] = useState<Property[] | null>(null);
-  const [copiedSummary, setCopiedSummary] = useState(false);
+  // Published + Available listings: the same set the public showcase
+  // shows, and the pool both the picker and the digest draw from.
+  const [properties, setProperties] = useState<Property[] | null>(null);
 
   useEffect(() => {
     if (!open || !accountId) return;
@@ -201,7 +197,9 @@ Best regards`;
       const db = createClient();
       void db
         .from('properties')
-        .select('id, title, type, listing_type, price, rent_per_month, rental_income, roi, area_sqft, area_unit, land_area, land_area_unit, bedrooms, location, sublocality, city, project, property_code, listing_source')
+        .select(
+          'id, title, type, listing_type, price, rent_per_month, rental_income, roi, area_sqft, area_unit, land_area, land_area_unit, bedrooms, location, sublocality, city, project, property_code, listing_source'
+        )
         .eq('account_id', accountId)
         .eq('is_published', true)
         .eq('status', 'Available')
@@ -209,10 +207,10 @@ Best regards`;
         .then(({ data, error }) => {
           if (cancelled) return;
           if (error) {
-            console.error('[showcase-share] summary listings load failed:', error);
-            setSummaryProperties([]);
+            console.error('[showcase-share] listings load failed:', error);
+            setProperties([]);
           } else {
-            setSummaryProperties((data ?? []) as unknown as Property[]);
+            setProperties((data ?? []) as unknown as Property[]);
           }
         });
     });
@@ -221,72 +219,95 @@ Best regards`;
     };
   }, [open, accountId]);
 
-  const summaryScope = useMemo(() => {
-    if (!summaryProperties) return null;
-    return searchApplied
-      ? filterPropertiesBySearch(summaryProperties, trimmedSearch)
-      : summaryProperties;
-  }, [summaryProperties, searchApplied, trimmedSearch]);
+  const pickerResults = useMemo(() => {
+    if (!properties) return [];
+    return filterPropertiesBySearch(properties, pickerSearch);
+  }, [properties, pickerSearch]);
+
+  /** Exactly what the receiver will see, for every scope. */
+  const scopeProperties = useMemo(() => {
+    if (!properties) return null;
+    if (scope === 'search')
+      return filterPropertiesBySearch(properties, trimmedSearch);
+    if (scope === 'pick') {
+      const byId = new Map(properties.map((p) => [p.id, p]));
+      return picked
+        .map((id) => byId.get(id))
+        .filter((p): p is Property => Boolean(p));
+    }
+    return properties;
+  }, [properties, scope, trimmedSearch, picked]);
+
+  const generatedLink = useMemo(() => {
+    if (typeof window === 'undefined') return '';
+
+    const subdomain = showcaseSettings?.subdomain;
+    const targetDomain = subdomain
+      ? `${subdomain}.${getBaseHost()}`
+      : window.location.host;
+
+    return buildShowcaseShareLink({
+      baseUrl: `${window.location.protocol}//${targetDomain}`,
+      accountId,
+      includeRef: !subdomain,
+      scope,
+      category: shareCategory,
+      search: trimmedSearch,
+      ids: (scopeProperties ?? []).map((p) => p.property_code || p.id),
+      audience,
+    });
+  }, [
+    accountId,
+    showcaseSettings,
+    scope,
+    trimmedSearch,
+    scopeProperties,
+    shareCategory,
+    audience,
+  ]);
 
   const autoSummary = useMemo(() => {
-    if (!summaryScope) return '';
-    return buildInventorySummary(summaryScope, {
+    if (!scopeProperties) return '';
+    return buildInventorySummary(scopeProperties, {
       portalUrl: generatedLink,
-      category: effectiveCategory,
+      category: scope === 'all' ? shareCategory : 'All',
     });
-  }, [summaryScope, generatedLink, effectiveCategory]);
+  }, [scopeProperties, generatedLink, scope, shareCategory]);
 
-  // Manual edits survive until an input (category/audience) changes the
-  // auto text: the draft remembers which auto text it was based on, and a
-  // mismatch silently discards it — no reset effect required.
-  const [summaryDraft, setSummaryDraft] = useState<{ base: string; text: string } | null>(null);
-  const summaryMessage = summaryDraft?.base === autoSummary ? summaryDraft.text : autoSummary;
+  // Manual edits survive until an input changes the auto text: the draft
+  // remembers which auto text it was based on, and a mismatch silently
+  // discards it — no reset effect required.
+  const [summaryDraft, setSummaryDraft] = useState<{
+    base: string;
+    text: string;
+  } | null>(null);
+  const summaryMessage =
+    summaryDraft?.base === autoSummary ? summaryDraft.text : autoSummary;
 
-  const handleCopySummary = async () => {
-    try {
-      await navigator.clipboard.writeText(summaryMessage);
-      setCopiedSummary(true);
-      toast.success('Inventory summary copied to clipboard!');
-      setTimeout(() => setCopiedSummary(false), 2000);
-    } catch (err) {
-      toast.error('Failed to copy summary');
-      console.error(err);
-    }
-  };
+  const scopeCount = scopeProperties?.length ?? 0;
+  const scopeSummaryLabel =
+    scope === 'search'
+      ? `${scopeCount} matching “${trimmedSearch}”`
+      : scope === 'pick'
+        ? `${scopeCount} hand-picked`
+        : shareCategory === 'All'
+          ? `${scopeCount} published listings`
+          : `${scopeCount} ${shareCategory} listings`;
 
-  const handleWhatsAppSummary = () => {
-    // No phone number → WhatsApp opens its chat picker, so the digest can
-    // go to a group or broadcast list (like the shout-out messages agents
-    // already post).
-    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(summaryMessage)}`, '_blank');
-  };
-
-  const handleShareSummary = async () => {
-    try {
-      if (navigator.share) {
-        await navigator.share({ title: 'Inventory Summary', text: summaryMessage });
-      } else {
-        await navigator.clipboard.writeText(summaryMessage);
-        toast.success('Summary copied to clipboard!');
-      }
-    } catch (err) {
-      if (err instanceof Error && err.name !== 'AbortError') {
-        toast.error('Failed to share');
-        console.error(err);
-      }
-    }
-  };
-
-  // ── Engine template sending ─────────────────────────────────────
-  // The inventory_update Marketing template lets the digest go out from
-  // the account's own WhatsApp Business number — replies land in the
-  // ConvoReal Inbox (24h window opens, copilot takes over), instead of
-  // leaking the conversation to the agent's personal WhatsApp.
-  const [engineTemplate, setEngineTemplate] = useState<MessageTemplate | null>(null);
+  // ── Engine template ─────────────────────────────────────────────
+  // The inventory_update template lets the digest go out from the
+  // account's own WhatsApp Business number — replies land in the
+  // ConvoReal Inbox instead of the agent's personal WhatsApp.
+  const [engineTemplate, setEngineTemplate] = useState<MessageTemplate | null>(
+    null
+  );
   const [engineTemplateChecked, setEngineTemplateChecked] = useState(false);
-  const [submittingEngineTemplate, setSubmittingEngineTemplate] = useState(false);
-  const [engineSendingContactId, setEngineSendingContactId] = useState<string | null>(null);
-  const [engineSentContactIds, setEngineSentContactIds] = useState<Set<string>>(new Set());
+  const [submittingEngineTemplate, setSubmittingEngineTemplate] =
+    useState(false);
+  const [sendingEngine, setSendingEngine] = useState(false);
+  const [engineSentContactIds, setEngineSentContactIds] = useState<Set<string>>(
+    new Set()
+  );
 
   const fetchEngineTemplate = useCallback(async () => {
     if (!accountId) return;
@@ -319,7 +340,9 @@ Best regards`;
   const handleSubmitEngineTemplate = async () => {
     setSubmittingEngineTemplate(true);
     try {
-      const payload = buildInventoryUpdateTemplatePayload(window.location.origin);
+      const payload = buildInventoryUpdateTemplatePayload(
+        window.location.origin
+      );
       const res = await fetch('/api/whatsapp/templates/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -327,57 +350,55 @@ Best regards`;
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Template submission failed');
-      toast.success('Template submitted to Meta — sending unlocks once it is approved (usually within minutes to a few hours).');
+      toast.success(
+        'Template submitted to Meta — sending unlocks once it is approved (usually within minutes to a few hours).'
+      );
       await fetchEngineTemplate();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Template submission failed');
+      toast.error(
+        err instanceof Error ? err.message : 'Template submission failed'
+      );
       console.error('[showcase-share] template submit failed:', err);
     } finally {
       setSubmittingEngineTemplate(false);
     }
   };
 
-  const handleEngineSendPersonal = async (contact: PickerContact) => {
-    if (!engineTemplate || !accountId) return;
-    setEngineSendingContactId(contact.id);
-    try {
-      const [residential, commercial, farmAndLand] = buildInventoryUpdateParams(summaryScope ?? []);
-      const firstName = contact.name?.trim().split(/\s+/)[0] || 'there';
-      // Dynamic URL-button suffix → tracked, personalised portal open.
-      const buttonParams: Record<number, string> = {};
-      (engineTemplate.buttons ?? []).forEach((btn, idx) => {
-        if (btn.type === 'URL' && btn.url.includes('{{1}}')) {
-          buttonParams[idx] = `?ref=${accountId}&v=${contact.id}`;
-        }
-      });
-      const res = await fetch('/api/whatsapp/broadcast', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          recipients: [
-            {
-              phone: contact.phone,
-              params: [firstName, residential, commercial, farmAndLand],
-              ...(Object.keys(buttonParams).length > 0 ? { messageParams: { buttonParams } } : {}),
-            },
-          ],
-          template_name: engineTemplate.name,
-          template_language: engineTemplate.language || 'en_US',
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Send failed');
-      const result = data.results?.[0];
-      if (result?.status === 'failed') throw new Error(result.error || 'Delivery failure');
-      setEngineSentContactIds((prev) => new Set(prev).add(contact.id));
-      toast.success(`Inventory update sent to ${contact.name || contact.phone} from your business number — replies land in your Inbox.`);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to send via Engine');
-      console.error('[showcase-share] Engine send failed:', err);
-    } finally {
-      setEngineSendingContactId(null);
-    }
-  };
+  const filteredContacts = useMemo(() => {
+    const q = contactSearch.toLowerCase().trim();
+    if (!q) return contacts;
+    return contacts.filter(
+      (c) =>
+        (c.name || '').toLowerCase().includes(q) || (c.phone || '').includes(q)
+    );
+  }, [contacts, contactSearch]);
+
+  const selectedContacts = useMemo(
+    () => contacts.filter((c) => selectedContactIds.includes(c.id)),
+    [contacts, selectedContactIds]
+  );
+  const sendableContacts = selectedContacts.filter((c) => c.phone);
+
+  function toggleContact(id: string) {
+    setSelectedContactIds((current) =>
+      current.includes(id)
+        ? current.filter((value) => value !== id)
+        : [...current, id]
+    );
+  }
+
+  function togglePicked(id: string) {
+    setPicked((current) => {
+      if (current.includes(id)) return current.filter((value) => value !== id);
+      if (current.length >= MAX_PICKED) {
+        toast.error(
+          `Choose no more than ${MAX_PICKED} properties for one link`
+        );
+        return current;
+      }
+      return [...current, id];
+    });
+  }
 
   /** Same portal link, tagged with the contact so Pulse events carry
    *  their identity (`v=` is read by the showcase tracker, never used
@@ -389,30 +410,18 @@ Best regards`;
     return url.toString();
   };
 
-  const buildMessage = (link: string, name?: string | null) =>
-    passionateMessage
-      .replaceAll('{portalUrl}', link)
-      .replaceAll('{name}', name?.trim().split(/\s+/)[0] || 'there');
-
-  const handleCopyPersonalLink = async (contact: PickerContact) => {
-    try {
-      await navigator.clipboard.writeText(
-        buildMessage(personalizedLink(contact.id), contact.name),
-      );
-      setCopiedContactId(contact.id);
-      toast.success(`Personal message for ${contact.name || contact.phone} copied!`);
-      setTimeout(() => setCopiedContactId(null), 2000);
-    } catch (err) {
-      toast.error('Failed to copy link');
-      console.error(err);
+  const buildMessage = (link: string, name?: string | null) => {
+    const firstName = name?.trim().split(/\s+/)[0] || 'there';
+    if (messageMode === 'list') {
+      return summaryMessage.replace(generatedLink, link);
     }
+    return pitchMessage
+      .replaceAll('{portalUrl}', link)
+      .replaceAll('{name}', firstName);
   };
 
-  const handleWhatsAppPersonal = (contact: PickerContact) => {
-    const message = buildMessage(personalizedLink(contact.id), contact.name);
-    const phone = (contact.phone || '').replace(/\D/g, '');
-    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
-  };
+  const previewMessage =
+    messageMode === 'list' ? summaryMessage : buildMessage(generatedLink);
 
   const handleCopyLink = async () => {
     try {
@@ -426,17 +435,22 @@ Best regards`;
     }
   };
 
-  const handleViewShowcase = () => {
-    window.open(generatedLink, '_blank');
-  };
-
-  const handleCopyWithMessage = async () => {
+  const handleCopyMessage = async () => {
     try {
-      const messageWithLink = buildMessage(generatedLink);
-      await navigator.clipboard.writeText(messageWithLink);
-      setCopiedWithMessage(true);
-      toast.success('Message with showcase link copied to clipboard!');
-      setTimeout(() => setCopiedWithMessage(false), 2000);
+      const contact =
+        selectedContacts.length === 1 ? selectedContacts[0] : null;
+      await navigator.clipboard.writeText(
+        contact
+          ? buildMessage(personalizedLink(contact.id), contact.name)
+          : previewMessage
+      );
+      setCopiedMessage(true);
+      toast.success(
+        contact
+          ? `Message for ${contact.name || contact.phone} copied!`
+          : 'Message copied to clipboard!'
+      );
+      setTimeout(() => setCopiedMessage(false), 2000);
     } catch (err) {
       toast.error('Failed to copy message');
       console.error(err);
@@ -445,14 +459,13 @@ Best regards`;
 
   const handleShareMessage = async () => {
     try {
-      const messageWithLink = buildMessage(generatedLink);
       if (navigator.share) {
         await navigator.share({
           title: 'Property Showcase',
-          text: messageWithLink,
+          text: previewMessage,
         });
       } else {
-        await navigator.clipboard.writeText(messageWithLink);
+        await navigator.clipboard.writeText(previewMessage);
         toast.success('Message copied to clipboard!');
       }
     } catch (err) {
@@ -463,416 +476,633 @@ Best regards`;
     }
   };
 
+  const handleWhatsApp = () => {
+    // No recipient → WhatsApp opens its own chat picker, so the message
+    // can go to a group or broadcast list.
+    if (sendableContacts.length === 0) {
+      window.open(
+        `https://api.whatsapp.com/send?text=${encodeURIComponent(previewMessage)}`,
+        '_blank'
+      );
+      return;
+    }
+    // Personal WhatsApp can only open one chat at a time.
+    for (const contact of sendableContacts.slice(0, 1)) {
+      const message = buildMessage(personalizedLink(contact.id), contact.name);
+      const phone = (contact.phone || '').replace(/\D/g, '');
+      window.open(
+        `https://wa.me/${phone}?text=${encodeURIComponent(message)}`,
+        '_blank'
+      );
+    }
+    if (sendableContacts.length > 1) {
+      toast.info(
+        'WhatsApp opens one chat at a time — use Engine to send to everyone selected at once.'
+      );
+    }
+  };
+
+  const handleEngineSend = async () => {
+    if (!engineTemplate || !accountId || sendableContacts.length === 0) return;
+    setSendingEngine(true);
+    const [residential, commercial, farmAndLand] = buildInventoryUpdateParams(
+      scopeProperties ?? []
+    );
+    let sent = 0;
+    const failures: string[] = [];
+    try {
+      for (const contact of sendableContacts) {
+        const firstName = contact.name?.trim().split(/\s+/)[0] || 'there';
+        // Dynamic URL-button suffix → tracked, personalised portal open.
+        const buttonParams: Record<number, string> = {};
+        (engineTemplate.buttons ?? []).forEach((btn, idx) => {
+          if (btn.type === 'URL' && btn.url.includes('{{1}}')) {
+            const link = new URL(personalizedLink(contact.id));
+            buttonParams[idx] = `${link.search}`;
+          }
+        });
+        try {
+          const res = await fetch('/api/whatsapp/broadcast', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              recipients: [
+                {
+                  phone: contact.phone,
+                  params: [firstName, residential, commercial, farmAndLand],
+                  ...(Object.keys(buttonParams).length > 0
+                    ? { messageParams: { buttonParams } }
+                    : {}),
+                },
+              ],
+              template_name: engineTemplate.name,
+              template_language: engineTemplate.language || 'en_US',
+            }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Send failed');
+          const result = data.results?.[0];
+          if (result?.status === 'failed')
+            throw new Error(result.error || 'Delivery failure');
+          sent += 1;
+          setEngineSentContactIds((prev) => new Set(prev).add(contact.id));
+        } catch (err) {
+          failures.push(contact.name || contact.phone || 'contact');
+          console.error('[showcase-share] Engine send failed:', err);
+        }
+      }
+    } finally {
+      setSendingEngine(false);
+    }
+
+    if (sent > 0) {
+      toast.success(
+        `Inventory update sent to ${sent} ${sent === 1 ? 'contact' : 'contacts'} from your business number — replies land in your Inbox.`
+      );
+    }
+    if (failures.length > 0) {
+      toast.error(`Could not send to ${failures.join(', ')}`);
+    }
+  };
+
+  const scopeOptions: {
+    key: ShareScope;
+    label: string;
+    desc: string;
+    icon: typeof Layers;
+  }[] = [
+    {
+      key: 'all',
+      label: 'Whole showcase',
+      desc: 'Everything published',
+      icon: Layers,
+    },
+    {
+      key: 'search',
+      label: 'Search results',
+      desc: trimmedSearch ? `“${trimmedSearch}”` : 'Search inventory first',
+      icon: Filter,
+    },
+    {
+      key: 'pick',
+      label: 'Hand-picked',
+      desc: 'Choose listings',
+      icon: ListChecks,
+    },
+  ];
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-slate-900 border-slate-700 text-slate-200 sm:max-w-xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader className="border-b border-slate-800 pb-3 mb-2">
-          <DialogTitle className="text-white flex items-center gap-2 text-lg font-black tracking-tight">
-            <Share2 className="size-5 text-primary" />
+      <DialogContent className="max-h-[90vh] overflow-y-auto border-slate-700 bg-slate-900 text-slate-200 sm:max-w-xl">
+        <DialogHeader className="mb-2 border-b border-slate-800 pb-3">
+          <DialogTitle className="flex items-center gap-2 text-lg font-black tracking-tight text-white">
+            <Share2 className="text-primary size-5" />
             Share Showcase Portal
           </DialogTitle>
-          <DialogDescription className="text-slate-400 text-xs">
-            Generate and copy the public URL to share your listings with clients.
+          <DialogDescription className="text-xs text-slate-400">
+            Pick who it is for, what they should see, and how it goes out.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-5 py-3">
-          {/* Audience tabs — the first decision is WHO this goes to */}
-          <div className="grid grid-cols-2 gap-1 rounded-xl border border-slate-800 bg-slate-950 p-1">
-            {([
-              { key: 'client', label: 'To Clients', desc: 'Teaser — masked address, inquiry funnel', icon: User },
-              { key: 'agent', label: 'To Co-Brokers', desc: 'Complete info — specs, photos & map', icon: Handshake },
-            ] as const).map((tab) => (
-              <button
-                key={tab.key}
-                type="button"
-                onClick={() => setAudienceTab(tab.key)}
-                className={`flex flex-col items-center gap-0.5 rounded-lg px-2 py-2 transition-all cursor-pointer ${
-                  audienceTab === tab.key
-                    ? 'bg-primary/15 text-primary border border-primary/40'
-                    : 'text-slate-400 hover:text-white border border-transparent'
-                }`}
-              >
-                <tab.icon className="size-4" />
-                <span className="text-xs font-bold">{tab.label}</span>
-                <span className="text-[9px] text-slate-500 hidden sm:block">{tab.desc}</span>
-              </button>
-            ))}
-          </div>
-          <p className="text-[11px] text-slate-500 font-medium -mt-3">
-            {audienceTab === 'agent'
-              ? 'Co-broker links open the complete catalog — full specs, photos, and map locations, without inquiry forms — so partners can evaluate and present listings independently.'
-              : 'Client links open the teaser showcase — exact addresses stay masked until they inquire, so every serious viewer becomes a captured lead.'}
-          </p>
-
-          {/* Active search — when shared, it defines the result set on its own */}
-          {trimmedSearch && (
-            <div className="space-y-2 rounded-xl border border-slate-900 bg-slate-950/20 p-3 relative z-10">
-              <div className="flex items-center gap-2.5">
-                <input
-                  type="checkbox"
-                  id="include-search"
-                  checked={includeSearch}
-                  onChange={(e) => setIncludeSearch(e.target.checked)}
-                  className="size-4 border-slate-800 rounded text-primary focus:ring-primary/20 bg-slate-950 cursor-pointer"
-                />
-                <label htmlFor="include-search" className="text-xs font-bold text-slate-350 cursor-pointer select-none">
-                  Share only your search results: <span className="text-primary italic font-black">&quot;{trimmedSearch}&quot;</span>
-                </label>
-              </div>
-              <p className="text-[11px] text-slate-500 font-medium">
-                {searchApplied
-                  ? 'The link, the summary, and every personal send below carry only the listings matching this search. Uncheck to share the full showcase and pick a category instead.'
-                  : 'Currently sharing your full showcase. Tick this to send only the listings matching your search.'}
-              </p>
+          {/* ── Step 1 — WHO ─────────────────────────────────────── */}
+          <div className="space-y-2">
+            {stepLabel(1, 'Who is it for')}
+            <div className="grid grid-cols-2 gap-1 rounded-xl border border-slate-800 bg-slate-950 p-1">
+              {(
+                [
+                  {
+                    key: 'client',
+                    label: 'To Clients',
+                    desc: 'Teaser — masked address, inquiry funnel',
+                    icon: User,
+                  },
+                  {
+                    key: 'agent',
+                    label: 'To Co-Brokers',
+                    desc: 'Complete info — specs, photos & map',
+                    icon: Handshake,
+                  },
+                ] as const
+              ).map((tab) => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setAudience(tab.key)}
+                  className={`flex cursor-pointer flex-col items-center gap-0.5 rounded-lg px-2 py-2 transition-all ${
+                    audience === tab.key
+                      ? 'border-primary/40 bg-primary/15 text-primary border'
+                      : 'border border-transparent text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <tab.icon className="size-4" />
+                  <span className="text-xs font-bold">{tab.label}</span>
+                  <span className="hidden text-[9px] text-slate-500 sm:block">
+                    {tab.desc}
+                  </span>
+                </button>
+              ))}
             </div>
-          )}
+            <p className="text-[11px] font-medium text-slate-500">
+              {audience === 'agent'
+                ? 'Co-broker links open the complete catalog — full specs, photos, and map locations, without inquiry forms.'
+                : 'Client links open the teaser showcase — exact addresses stay masked until they inquire, so every serious viewer becomes a captured lead.'}
+            </p>
+          </div>
 
-          {/* Category Filter Options */}
-          {!searchApplied && (
-            <div className="space-y-2">
-              <Label className="text-slate-350 text-xs font-bold uppercase tracking-wider">
-                Filter by Category
-              </Label>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {(['All', 'Residential', 'Commercial', 'Agricultural'] as const).map((cat) => (
+          {/* ── Step 2 — WHAT ────────────────────────────────────── */}
+          <div className="space-y-2">
+            {stepLabel(2, 'What they see')}
+            <div className="grid grid-cols-3 gap-2">
+              {scopeOptions.map((option) => {
+                const disabled = option.key === 'search' && !trimmedSearch;
+                return (
+                  <button
+                    key={option.key}
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => setScope(option.key)}
+                    className={`flex cursor-pointer flex-col items-center gap-1 rounded-lg border px-2 py-2.5 text-center transition-all disabled:cursor-not-allowed disabled:opacity-40 ${
+                      scope === option.key
+                        ? 'border-primary bg-primary/15 text-primary'
+                        : 'border-slate-800 bg-slate-950 text-slate-400 hover:border-slate-700 hover:text-white'
+                    }`}
+                  >
+                    <option.icon className="size-4" />
+                    <span className="text-[11px] font-bold">
+                      {option.label}
+                    </span>
+                    <span className="line-clamp-1 text-[9px] text-slate-500">
+                      {option.desc}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {scope === 'all' && (
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {(
+                  ['All', 'Residential', 'Commercial', 'Agricultural'] as const
+                ).map((cat) => (
                   <button
                     key={cat}
                     type="button"
                     onClick={() => setShareCategory(cat)}
-                    className={`text-xs px-2.5 py-2 rounded-lg border transition-all cursor-pointer font-semibold text-center select-none ${
+                    className={`cursor-pointer rounded-lg border px-2.5 py-2 text-center text-xs font-semibold transition-all select-none ${
                       shareCategory === cat
-                        ? 'bg-primary text-primary-foreground border-primary font-bold shadow-md shadow-primary/20'
-                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
+                        ? 'border-primary bg-primary text-primary-foreground shadow-primary/20 font-bold shadow-md'
+                        : 'border-slate-800 bg-slate-950 text-slate-400 hover:border-slate-700 hover:text-white'
                     }`}
                   >
                     {cat === 'All' ? 'All Properties' : cat}
                   </button>
                 ))}
               </div>
-              <p className="text-[11px] text-slate-500 font-medium">
-                Selecting a category will automatically apply the filter when the customer opens the link.
-              </p>
-            </div>
-          )}
+            )}
 
-          {/* Generated Link Input */}
-          <div className="bg-slate-950/40 border border-slate-850 p-4 rounded-xl space-y-3">
-            <Label className="text-slate-350 text-xs font-bold uppercase tracking-wider block">
-              🔗 Showcase Portal URL
-            </Label>
+            {scope === 'pick' && (
+              <div className="border-slate-850 space-y-2 rounded-xl border bg-slate-950/40 p-3">
+                <div className="relative">
+                  <Search className="absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-slate-500" />
+                  <input
+                    type="text"
+                    placeholder="Search your published listings..."
+                    value={pickerSearch}
+                    onChange={(e) => setPickerSearch(e.target.value)}
+                    className="focus:ring-primary h-9 w-full rounded-lg border border-slate-800 bg-slate-900 pr-7 pl-8 text-xs text-white placeholder:text-slate-500 focus:ring-1 focus:outline-none"
+                  />
+                  {pickerSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setPickerSearch('')}
+                      className="absolute top-1/2 right-2.5 -translate-y-1/2 text-slate-400 hover:text-white"
+                    >
+                      <X className="size-3" />
+                    </button>
+                  )}
+                </div>
+                {properties === null ? (
+                  <div className="h-24 animate-pulse rounded-lg bg-slate-900" />
+                ) : pickerResults.length === 0 ? (
+                  <p className="py-4 text-center text-xs font-medium text-slate-500">
+                    No published listings match this search.
+                  </p>
+                ) : (
+                  <div className="max-h-56 space-y-1.5 overflow-y-auto pr-0.5">
+                    {pickerResults.slice(0, 100).map((property) => {
+                      const checked = picked.includes(property.id);
+                      return (
+                        <button
+                          key={property.id}
+                          type="button"
+                          onClick={() => togglePicked(property.id)}
+                          className={`flex w-full cursor-pointer items-center gap-2.5 rounded-lg border p-2.5 text-left transition-colors ${
+                            checked
+                              ? 'border-primary bg-primary/10'
+                              : 'border-slate-800 bg-slate-900 hover:border-slate-700'
+                          }`}
+                        >
+                          <span
+                            className={`flex size-4 shrink-0 items-center justify-center rounded border ${
+                              checked
+                                ? 'border-primary bg-primary text-primary-foreground'
+                                : 'border-slate-600'
+                            }`}
+                          >
+                            {checked && <Check className="size-3" />}
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-xs font-bold text-white">
+                              {property.title}
+                            </span>
+                            <span className="block truncate text-[10px] text-slate-500">
+                              {[
+                                property.sublocality ||
+                                  property.city ||
+                                  property.location,
+                                formatShareAmount(property.price),
+                              ]
+                                .filter(Boolean)
+                                .join(' · ')}
+                            </span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <p className="text-[11px] font-medium text-slate-500">
+              This link will open{' '}
+              <span className="text-primary font-bold">
+                {scopeSummaryLabel}
+              </span>
+              {scope === 'pick' && picked.length === 0
+                ? ' — pick at least one listing.'
+                : '.'}
+            </p>
+          </div>
+
+          {/* ── Step 3 — HOW ─────────────────────────────────────── */}
+          <div className="space-y-3">
+            {stepLabel(3, 'How it goes out')}
+
             <div className="flex gap-2">
               <Input
                 readOnly
                 value={generatedLink}
-                className="bg-slate-900 border-slate-800 text-xs h-9 text-slate-200 select-all font-mono"
+                className="h-9 border-slate-800 bg-slate-900 font-mono text-xs text-slate-200 select-all"
               />
               <Button
-                onClick={handleCopyLink}
-                className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-xs h-9 px-3 shrink-0 flex items-center gap-1"
+                onClick={() => void handleCopyLink()}
+                className="bg-primary text-primary-foreground hover:bg-primary/90 flex h-9 shrink-0 items-center gap-1 px-3 text-xs font-semibold"
               >
-                {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+                {copied ? (
+                  <Check className="size-3.5" />
+                ) : (
+                  <Copy className="size-3.5" />
+                )}
                 {copied ? 'Copied' : 'Copy'}
               </Button>
               <Button
                 variant="outline"
-                onClick={handleViewShowcase}
-                className="border-slate-800 hover:bg-slate-800 text-slate-350 text-xs h-9 px-3 shrink-0 flex items-center gap-1"
+                onClick={() => window.open(generatedLink, '_blank')}
+                className="text-slate-350 flex h-9 shrink-0 items-center gap-1 border-slate-800 px-3 text-xs hover:bg-slate-800"
               >
                 <ExternalLink className="size-3.5" />
                 View
               </Button>
             </div>
-          </div>
 
-          {/* Passionate Share Message */}
-          <div className="bg-slate-950/40 border border-slate-850 p-4 rounded-xl space-y-3">
-            <Label className="text-slate-350 text-xs font-bold uppercase tracking-wider block flex items-center gap-2">
-              <MessageCircle className="size-3.5 text-emerald-400" />
-              Share with the message
-            </Label>
-            <Textarea
-              value={passionateMessage}
-              onChange={(e) => setPassionateMessage(e.target.value)}
-              placeholder="Write a passionate message to share with your customers..."
-              className="bg-slate-900 border-slate-800 text-xs text-slate-200 min-h-[120px] resize-none"
-            />
-            <p className="text-[10px] text-slate-500">
-              Use <code className="bg-slate-950 px-1 py-0.5 rounded text-primary">{'{portalUrl}'}</code> for the showcase link and <code className="bg-slate-950 px-1 py-0.5 rounded text-primary">{'{name}'}</code> for the contact&apos;s first name. Both are replaced when copied or sent.
-            </p>
-            <div className="flex gap-2">
-              <Button
-                onClick={handleCopyWithMessage}
-                className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs py-2.5 flex items-center justify-center gap-2"
-              >
-                {copiedWithMessage ? (
-                  <>
-                    <Check className="size-3.5" />
-                    Copied!
-                  </>
-                ) : (
-                  <>
-                    <Copy className="size-3.5" />
-                    Copy Message
-                  </>
-                )}
-              </Button>
-              <Button
-                onClick={handleShareMessage}
-                variant="outline"
-                className="border-emerald-600 hover:bg-emerald-600/20 text-emerald-400 font-semibold text-xs py-2.5 px-4 flex items-center justify-center gap-2"
-              >
-                <Share2 className="size-3.5" />
-                Share
-              </Button>
-            </div>
-          </div>
+            <div className="border-slate-850 space-y-2 rounded-xl border bg-slate-950/40 p-4">
+              <div className="grid grid-cols-2 gap-1 rounded-lg border border-slate-800 bg-slate-950 p-1">
+                {(
+                  [
+                    { key: 'pitch', label: 'Short pitch' },
+                    { key: 'list', label: 'Full list' },
+                  ] as const
+                ).map((mode) => (
+                  <button
+                    key={mode.key}
+                    type="button"
+                    onClick={() => setMessageMode(mode.key)}
+                    className={`cursor-pointer rounded-md px-2 py-1.5 text-[11px] font-bold transition-all ${
+                      messageMode === mode.key
+                        ? 'bg-primary/15 text-primary'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    {mode.label}
+                  </button>
+                ))}
+              </div>
 
-          {/* WhatsApp inventory summary — category-grouped digest */}
-          <div className="bg-slate-950/40 border border-slate-850 p-4 rounded-xl space-y-3">
-            <Label className="text-slate-350 text-xs font-bold uppercase tracking-wider block flex items-center gap-2">
-              <ClipboardList className="size-3.5 text-sky-400" />
-              Inventory summary
-            </Label>
-            <p className="text-[11px] text-slate-500 font-medium">
-              A WhatsApp-ready digest of your published listings — grouped by
-              Residential / Commercial / Agricultural with price, size, rent &
-              ROI where available. Follows the category filter above; edit
-              freely before sending to a group or broadcast list.
-            </p>
-            {summaryScope === null ? (
-              <div className="h-24 rounded-lg bg-slate-900 animate-pulse" />
-            ) : summaryMessage ? (
-              <>
+              {messageMode === 'pitch' ? (
+                <>
+                  <Textarea
+                    value={pitchMessage}
+                    onChange={(e) => setPitchMessage(e.target.value)}
+                    className="min-h-[120px] resize-none border-slate-800 bg-slate-900 text-xs text-slate-200"
+                  />
+                  <p className="text-[10px] text-slate-500">
+                    Use{' '}
+                    <code className="text-primary rounded bg-slate-950 px-1 py-0.5">
+                      {'{portalUrl}'}
+                    </code>{' '}
+                    for the showcase link and{' '}
+                    <code className="text-primary rounded bg-slate-950 px-1 py-0.5">
+                      {'{name}'}
+                    </code>{' '}
+                    for the contact&apos;s first name.
+                  </p>
+                </>
+              ) : scopeProperties === null ? (
+                <div className="h-24 animate-pulse rounded-lg bg-slate-900" />
+              ) : summaryMessage ? (
                 <Textarea
                   value={summaryMessage}
-                  onChange={(e) => setSummaryDraft({ base: autoSummary, text: e.target.value })}
-                  className="bg-slate-900 border-slate-800 text-xs text-slate-200 min-h-[160px] max-h-[280px] overflow-y-auto font-mono resize-none"
+                  onChange={(e) =>
+                    setSummaryDraft({ base: autoSummary, text: e.target.value })
+                  }
+                  className="max-h-[280px] min-h-[160px] resize-none overflow-y-auto border-slate-800 bg-slate-900 font-mono text-xs text-slate-200"
                 />
-                <div className="flex gap-2">
-                  <Button
-                    onClick={() => void handleCopySummary()}
-                    className="flex-1 bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs py-2.5 flex items-center justify-center gap-2"
-                  >
-                    {copiedSummary ? (
-                      <>
-                        <Check className="size-3.5" />
-                        Copied!
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="size-3.5" />
-                        Copy Summary
-                      </>
-                    )}
-                  </Button>
-                  <Button
-                    onClick={handleWhatsAppSummary}
-                    className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs py-2.5 px-4 flex items-center justify-center gap-2"
-                  >
-                    <Smartphone className="size-3.5" />
-                    WhatsApp
-                  </Button>
-                  <Button
-                    onClick={() => void handleShareSummary()}
-                    variant="outline"
-                    className="border-sky-600 hover:bg-sky-600/20 text-sky-400 font-semibold text-xs py-2.5 px-4 flex items-center justify-center gap-2"
-                  >
-                    <Share2 className="size-3.5" />
-                    Share
-                  </Button>
-                </div>
-              </>
-            ) : (
-              <p className="py-3 text-center text-xs font-medium text-slate-500">
-                No published listings{shareCategory !== 'All' ? ` in ${shareCategory}` : ''} to summarise yet.
-              </p>
-            )}
-
-            {/* Engine template status — the preferred send path */}
-            {engineTemplateChecked && (
-              <div className="border border-primary/25 bg-primary/5 rounded-lg p-3 space-y-2">
-                <p className="text-[11px] font-bold text-primary flex items-center gap-1.5">
-                  <Sparkles className="size-3.5" />
-                  Send from your WhatsApp Business number
+              ) : (
+                <p className="py-3 text-center text-xs font-medium text-slate-500">
+                  Nothing to list in this selection yet.
                 </p>
-                {engineTemplateApproved ? (
-                  <p className="text-[11px] text-slate-400 leading-relaxed">
-                    Template approved ✅ — use the <strong className="text-primary">Engine</strong> button
-                    next to any contact below. They get a personalised inventory snapshot with a
-                    tracked showcase link and quick-reply buttons; their reply opens a conversation
-                    in your <strong className="text-slate-300">Inbox</strong> where the copilot takes over.
-                  </p>
-                ) : engineTemplate?.status === 'PENDING' ? (
-                  <p className="text-[11px] text-slate-400 leading-relaxed">
-                    Template submitted — waiting for Meta approval (usually minutes to a few hours).
-                    Engine sending unlocks automatically once approved.
-                  </p>
-                ) : engineTemplate?.status === 'REJECTED' ? (
-                  <div className="space-y-2">
-                    <p className="text-[11px] text-rose-400 leading-relaxed">
-                      Meta rejected the template{engineTemplate.rejection_reason ? `: ${engineTemplate.rejection_reason}` : ''}.
-                    </p>
-                    <Button
-                      size="sm"
-                      onClick={() => void handleSubmitEngineTemplate()}
-                      disabled={submittingEngineTemplate}
-                      className="h-8 text-[11px] font-bold bg-primary hover:bg-primary/90 text-primary-foreground"
-                    >
-                      {submittingEngineTemplate ? <Loader2 className="size-3.5 animate-spin" /> : 'Resubmit template'}
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <p className="text-[11px] text-slate-400 leading-relaxed">
-                      One-time setup: submit the ready-made <code className="bg-slate-950 px-1 py-0.5 rounded text-primary">inventory_update</code> template
-                      for Meta approval. After that, inventory updates go out from your business
-                      number — every reply lands in your Inbox instead of your personal WhatsApp,
-                      and every link click is tracked by name in Pulse.
-                    </p>
-                    <Button
-                      size="sm"
-                      onClick={() => void handleSubmitEngineTemplate()}
-                      disabled={submittingEngineTemplate}
-                      className="h-8 text-[11px] font-bold bg-primary hover:bg-primary/90 text-primary-foreground flex items-center gap-1.5"
-                    >
-                      {submittingEngineTemplate ? (
-                        <>
-                          <Loader2 className="size-3.5 animate-spin" />
-                          Submitting…
-                        </>
-                      ) : (
-                        <>
-                          <Send className="size-3.5" />
-                          Create & submit template
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Send personally — per-contact tracked links */}
-          <div className="bg-slate-950/40 border border-slate-850 p-4 rounded-xl space-y-3">
-            <Label className="text-slate-350 text-xs font-bold uppercase tracking-wider block flex items-center gap-2">
-              <UserCheck className="size-3.5 text-primary" />
-              Send personally (tracked)
-            </Label>
-            <p className="text-[11px] text-slate-500 font-medium">
-              Each contact gets their own link, so every open, photo swipe, and map click shows up
-              <strong className="text-slate-400"> by name</strong> in Showcase Pulse — no more Anonymous Guests.
-            </p>
-
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-slate-500" />
-              <input
-                type="text"
-                placeholder="Search contacts by name or phone..."
-                value={contactSearch}
-                onChange={(e) => setContactSearch(e.target.value)}
-                className="h-9 w-full rounded-lg border border-slate-800 bg-slate-900 pl-8 pr-7 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-primary"
-              />
-              {contactSearch && (
-                <button
-                  type="button"
-                  onClick={() => setContactSearch('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
-                >
-                  <X className="size-3" />
-                </button>
               )}
+
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => void handleCopyMessage()}
+                  className="flex flex-1 items-center justify-center gap-2 bg-emerald-600 py-2.5 text-xs font-semibold text-white hover:bg-emerald-500"
+                >
+                  {copiedMessage ? (
+                    <>
+                      <Check className="size-3.5" />
+                      Copied!
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="size-3.5" />
+                      Copy Message
+                    </>
+                  )}
+                </Button>
+                <Button
+                  onClick={() => void handleShareMessage()}
+                  variant="outline"
+                  className="flex items-center justify-center gap-2 border-emerald-600 px-4 py-2.5 text-xs font-semibold text-emerald-400 hover:bg-emerald-600/20"
+                >
+                  <Share2 className="size-3.5" />
+                  Share
+                </Button>
+              </div>
             </div>
 
-            {loadingContacts ? (
-              <div className="space-y-2">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="h-10 rounded-lg bg-slate-900 animate-pulse" />
-                ))}
-              </div>
-            ) : filteredContacts.length === 0 ? (
-              <p className="py-4 text-center text-xs font-medium text-slate-500">
-                {contacts.length === 0 ? 'No active contacts yet' : 'No matching contacts found'}
-              </p>
-            ) : (
-              <div className="max-h-56 overflow-y-auto space-y-1.5 pr-0.5 scrollbar-thin scrollbar-thumb-slate-800">
-                {filteredContacts.slice(0, 50).map((contact) => (
-                  <div
-                    key={contact.id}
-                    className="flex items-center justify-between gap-2 rounded-lg border border-slate-800 bg-slate-900 px-3 py-2"
+            {/* Recipients — tracked, multi-select */}
+            <div className="border-slate-850 space-y-3 rounded-xl border bg-slate-950/40 p-4">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-slate-350 text-xs font-bold tracking-wider uppercase">
+                  Send to contacts
+                </span>
+                {selectedContactIds.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedContactIds([])}
+                    className="text-[10px] font-bold text-slate-400 hover:text-white"
                   >
-                    <div className="min-w-0">
-                      <span className="text-xs font-bold text-white truncate flex items-center gap-1.5">
-                        <span className="truncate">{contact.name || contact.phone || 'Unnamed contact'}</span>
-                        <NameTagBadge tag={contact.name_tag} />
-                      </span>
-                      {contact.name && contact.phone && (
-                        <span className="text-[10px] text-slate-500 font-medium truncate block">
-                          📞 {contact.phone}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      {engineTemplateApproved && contact.phone && (
-                        <Button
-                          size="sm"
-                          onClick={() => void handleEngineSendPersonal(contact)}
-                          disabled={engineSendingContactId !== null}
-                          title="Send the inventory update template from your WhatsApp Business number — replies land in your Inbox"
-                          className="h-7 px-2.5 text-[11px] font-bold bg-primary hover:bg-primary/90 text-primary-foreground flex items-center gap-1"
-                        >
-                          {engineSendingContactId === contact.id ? (
-                            <Loader2 className="size-3 animate-spin" />
-                          ) : engineSentContactIds.has(contact.id) ? (
-                            <Check className="size-3" />
-                          ) : (
-                            <Send className="size-3" />
-                          )}
-                          Engine
-                        </Button>
-                      )}
-                      <Button
-                        size="sm"
-                        disabled={!contact.phone}
-                        title={contact.phone ? undefined : 'Add a phone number to this contact to send on WhatsApp'}
-                        onClick={() => handleWhatsAppPersonal(contact)}
-                        className="h-7 px-2.5 text-[11px] font-bold bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-1"
-                      >
-                        <Smartphone className="size-3" />
-                        WhatsApp
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => void handleCopyPersonalLink(contact)}
-                        className="h-7 px-2 text-[11px] border-slate-800 hover:bg-slate-800 text-slate-350 flex items-center gap-1"
-                      >
-                        {copiedContactId === contact.id ? (
-                          <Check className="size-3 text-emerald-400" />
-                        ) : (
-                          <Copy className="size-3" />
-                        )}
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-                {filteredContacts.length > 50 && (
-                  <p className="pt-1 text-center text-[10px] font-medium text-slate-500">
-                    Showing first 50 — refine the search to find others
-                  </p>
+                    Clear {selectedContactIds.length}
+                  </button>
                 )}
               </div>
-            )}
+              <p className="text-[11px] font-medium text-slate-500">
+                Each contact gets their own link, so every open, photo swipe,
+                and map click shows up{' '}
+                <strong className="text-slate-400">by name</strong> in Showcase
+                Pulse.
+              </p>
+
+              <div className="relative">
+                <Search className="absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-slate-500" />
+                <input
+                  type="text"
+                  placeholder="Search contacts by name or phone..."
+                  value={contactSearch}
+                  onChange={(e) => setContactSearch(e.target.value)}
+                  className="focus:ring-primary h-9 w-full rounded-lg border border-slate-800 bg-slate-900 pr-7 pl-8 text-xs text-white placeholder:text-slate-500 focus:ring-1 focus:outline-none"
+                />
+                {contactSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setContactSearch('')}
+                    className="absolute top-1/2 right-2.5 -translate-y-1/2 text-slate-400 hover:text-white"
+                  >
+                    <X className="size-3" />
+                  </button>
+                )}
+              </div>
+
+              {loadingContacts ? (
+                <div className="space-y-2">
+                  {[1, 2, 3].map((i) => (
+                    <div
+                      key={i}
+                      className="h-10 animate-pulse rounded-lg bg-slate-900"
+                    />
+                  ))}
+                </div>
+              ) : filteredContacts.length === 0 ? (
+                <p className="py-4 text-center text-xs font-medium text-slate-500">
+                  {contacts.length === 0
+                    ? 'No active contacts yet'
+                    : 'No matching contacts found'}
+                </p>
+              ) : (
+                <div className="max-h-56 space-y-1.5 overflow-y-auto pr-0.5">
+                  {filteredContacts.slice(0, 50).map((contact) => {
+                    const checked = selectedContactIds.includes(contact.id);
+                    return (
+                      <button
+                        key={contact.id}
+                        type="button"
+                        onClick={() => toggleContact(contact.id)}
+                        className={`flex w-full cursor-pointer items-center gap-2.5 rounded-lg border px-3 py-2 text-left transition-colors ${
+                          checked
+                            ? 'border-primary bg-primary/10'
+                            : 'border-slate-800 bg-slate-900 hover:border-slate-700'
+                        }`}
+                      >
+                        <span
+                          className={`flex size-4 shrink-0 items-center justify-center rounded border ${
+                            checked
+                              ? 'border-primary bg-primary text-primary-foreground'
+                              : 'border-slate-600'
+                          }`}
+                        >
+                          {checked && <Check className="size-3" />}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="flex items-center gap-1.5 truncate text-xs font-bold text-white">
+                            <span className="truncate">
+                              {contact.name ||
+                                contact.phone ||
+                                'Unnamed contact'}
+                            </span>
+                            <NameTagBadge tag={contact.name_tag} />
+                          </span>
+                          <span className="block truncate text-[10px] font-medium text-slate-500">
+                            {contact.phone
+                              ? `📞 ${contact.phone}`
+                              : 'No phone number'}
+                          </span>
+                        </span>
+                        {engineSentContactIds.has(contact.id) && (
+                          <span className="flex shrink-0 items-center gap-1 text-[10px] font-bold text-emerald-400">
+                            <Check className="size-3" />
+                            Sent
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                  {filteredContacts.length > 50 && (
+                    <p className="pt-1 text-center text-[10px] font-medium text-slate-500">
+                      Showing first 50 — refine the search to find others
+                    </p>
+                  )}
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                {engineTemplateApproved && (
+                  <Button
+                    onClick={() => void handleEngineSend()}
+                    disabled={sendableContacts.length === 0 || sendingEngine}
+                    title="Send the inventory update template from your WhatsApp Business number — replies land in your Inbox"
+                    className="bg-primary text-primary-foreground hover:bg-primary/90 flex flex-1 items-center justify-center gap-2 py-2.5 text-xs font-bold"
+                  >
+                    {sendingEngine ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : (
+                      <Send className="size-3.5" />
+                    )}
+                    Send via Engine
+                    {sendableContacts.length > 0
+                      ? ` (${sendableContacts.length})`
+                      : ''}
+                  </Button>
+                )}
+                <Button
+                  onClick={handleWhatsApp}
+                  variant={engineTemplateApproved ? 'outline' : 'default'}
+                  className={
+                    engineTemplateApproved
+                      ? 'flex items-center justify-center gap-2 border-emerald-600 px-4 py-2.5 text-xs font-semibold text-emerald-400 hover:bg-emerald-600/20'
+                      : 'flex flex-1 items-center justify-center gap-2 bg-emerald-600 py-2.5 text-xs font-semibold text-white hover:bg-emerald-500'
+                  }
+                >
+                  <Smartphone className="size-3.5" />
+                  WhatsApp
+                </Button>
+              </div>
+
+              {engineTemplateChecked && !engineTemplateApproved && (
+                <div className="border-primary/25 bg-primary/5 space-y-2 rounded-lg border p-3">
+                  <p className="text-primary flex items-center gap-1.5 text-[11px] font-bold">
+                    <Sparkles className="size-3.5" />
+                    Send from your WhatsApp Business number
+                  </p>
+                  {engineTemplate?.status === 'PENDING' ? (
+                    <p className="text-[11px] leading-relaxed text-slate-400">
+                      Template submitted — waiting for Meta approval (usually
+                      minutes to a few hours). Engine sending unlocks
+                      automatically once approved.
+                    </p>
+                  ) : (
+                    <>
+                      <p className="text-[11px] leading-relaxed text-slate-400">
+                        {engineTemplate?.status === 'REJECTED'
+                          ? `Meta rejected the template${engineTemplate.rejection_reason ? `: ${engineTemplate.rejection_reason}` : ''}.`
+                          : 'One-time setup: submit the ready-made inventory_update template for Meta approval. After that, updates go out from your business number — replies land in your Inbox instead of your personal WhatsApp.'}
+                      </p>
+                      <Button
+                        size="sm"
+                        onClick={() => void handleSubmitEngineTemplate()}
+                        disabled={submittingEngineTemplate}
+                        className="bg-primary text-primary-foreground hover:bg-primary/90 flex h-8 items-center gap-1.5 text-[11px] font-bold"
+                      >
+                        {submittingEngineTemplate ? (
+                          <>
+                            <Loader2 className="size-3.5 animate-spin" />
+                            Submitting…
+                          </>
+                        ) : (
+                          <>
+                            <Send className="size-3.5" />
+                            {engineTemplate?.status === 'REJECTED'
+                              ? 'Resubmit template'
+                              : 'Create & submit template'}
+                          </>
+                        )}
+                      </Button>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
-        <div className="border-t border-slate-800 pt-3.5 flex justify-end">
+        <div className="flex justify-end border-t border-slate-800 pt-3.5">
           <Button
             type="button"
             variant="outline"
             onClick={() => onOpenChange(false)}
-            className="border-slate-800 hover:bg-slate-850 text-xs text-slate-300 h-9"
+            className="hover:bg-slate-850 h-9 border-slate-800 text-xs text-slate-300"
           >
             Close
           </Button>

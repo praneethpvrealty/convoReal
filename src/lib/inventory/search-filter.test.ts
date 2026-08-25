@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import type { Property } from '@/types';
-import { filterPropertiesBySearch } from './search-filter';
+import {
+  filterPropertiesBySearch,
+  selectPinnedProperties,
+} from './search-filter';
 
 const property = (overrides: Partial<Property>): Property =>
   ({
@@ -49,5 +52,22 @@ describe('filterPropertiesBySearch', () => {
     expect(
       filterPropertiesBySearch(list, 'rent yielding').map((p) => p.title)
     ).toEqual(['Yielding']);
+  });
+});
+
+describe('selectPinnedProperties', () => {
+  it('returns the listings named by the link, in link order', () => {
+    const a = property({ title: 'A', property_code: 'CR-1' });
+    const b = property({ title: 'B', property_code: 'CR-2' });
+    const list = [a, b];
+    expect(
+      selectPinnedProperties(list, ['cr-2', 'CR-1']).map((p) => p.title)
+    ).toEqual(['B', 'A']);
+  });
+
+  it('drops keys that no longer resolve, and passes everything through for an empty link', () => {
+    const a = property({ title: 'A', property_code: 'CR-1' });
+    expect(selectPinnedProperties([a], ['CR-9'])).toEqual([]);
+    expect(selectPinnedProperties([a], [])).toHaveLength(1);
   });
 });
