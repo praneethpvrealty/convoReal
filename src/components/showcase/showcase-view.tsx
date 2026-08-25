@@ -13,7 +13,7 @@ import { getShowcaseSessionKey } from '@/lib/pulse/session-key';
 import { propertyMapPin } from '@/lib/maps/map-links';
 import { toast } from 'sonner';
 import { CATEGORY_SUBTYPES } from '@/lib/search-parser';
-import { filterPropertiesBySearch } from '@/lib/inventory/search-filter';
+import { filterPropertiesBySearch, selectPinnedProperties } from '@/lib/inventory/search-filter';
 import {
   Search,
   MapPin,
@@ -168,6 +168,9 @@ export function ShowcaseView({
   showcase3dEnabled = false,
 }: ShowcaseViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
+  // A curated share (?ids=) pins the catalog to exactly the listings the
+  // agent hand-picked, in their order, ignoring saved filters.
+  const [pinnedIds, setPinnedIds] = useState<string[]>([]);
   const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
   const [locationQuery, setLocationQuery] = useState('');
 
@@ -411,6 +414,11 @@ export function ShowcaseView({
     const urlMinBeds = urlParams.get('beds');
     const urlSortBy = urlParams.get('sort');
     const urlSearchQuery = urlParams.get('search');
+    const urlIds = urlParams.get('ids');
+    const curated = (urlIds || '')
+      .split(',')
+      .map((value) => value.trim().toLowerCase())
+      .filter(Boolean);
 
     // Clean listing mode: hide inquiry form, buttons, document requests
     // ('agent' is the legacy value for links shared before the rename)
@@ -439,7 +447,7 @@ export function ShowcaseView({
     }
 
     // Load from localStorage if less than 7 days old
-    const savedStateStr = disableSavedState ? null : readStored('showcase_state');
+    const savedStateStr = disableSavedState || curated.length > 0 ? null : readStored('showcase_state');
     let savedState: SavedShowcaseState | null = null;
     if (savedStateStr) {
       try {
@@ -498,6 +506,7 @@ export function ShowcaseView({
     }
 
     // Restore state
+    if (curated.length > 0) setPinnedIds(curated);
     if (categoryToSet !== 'All') setSelectedType(categoryToSet);
     if (listingTypeToSet !== 'All') setSelectedListingType(listingTypeToSet);
     if (bedsToSet !== 'All') setMinBeds(bedsToSet);
@@ -990,6 +999,10 @@ export function ShowcaseView({
 
   // Filter & Sort properties
   const filteredProperties = useMemo(() => {
+    if (pinnedIds.length > 0) {
+      return selectPinnedProperties(properties, pinnedIds);
+    }
+
     let result = [...properties];
 
     // Filter by type
@@ -1033,7 +1046,7 @@ export function ShowcaseView({
     }
 
     return result;
-  }, [properties, selectedType, selectedListingType, minBeds, searchQuery, selectedLocations, sortBy]);
+  }, [properties, pinnedIds, selectedType, selectedListingType, minBeds, searchQuery, selectedLocations, sortBy]);
 
   const availableLocations = useMemo(
     () => locationCandidates(properties),

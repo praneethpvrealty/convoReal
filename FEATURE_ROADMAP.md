@@ -165,3 +165,11 @@ _A party is several people on one requirement — a couple buying together, or t
 - [ ] **Match counts and share dialogs still list people, not deals**: dedup is opt-in per caller by design — a share dialog *should* offer a husband and wife separately, since you may want to send to both. But the inventory match count (`src/app/(dashboard)/inventory/inventory-content.tsx`) and the property match list are counting deals and should pass the party index. They are client components with no party map in hand; closing this means loading it alongside contacts, or moving the count server-side.
 - [ ] **Suggestions are per contact, not a queue**: they surface on the contact you have open (`party-panel.tsx`). There is no account-wide "these look like parties" review screen the way there is for duplicates. The API (`/api/contacts/[id]/party/suggestions`) is already the whole rule; a queue is a second consumer of it.
 - [ ] **Party editing on mobile (§2.8)**: the mobile contact screen shows who a contact buys with, read-only (`BuysWithRow` in `mobile/app/(app)/contact/[id].tsx`), and every behavioural rule is server-side so both surfaces already dedup identically. Linking, unlinking and suggestions ship on web only; closing the gap means a native picker over the same routes, which already accept mobile bearer tokens.
+
+---
+
+### Deferred: showcase portal sharing on mobile
+
+_A §2.8 gap, stated rather than silent._
+
+- [ ] **Showcase portal share (mobile)**: the revamped three-step share flow (audience → scope → send) ships on web only (`src/components/inventory/showcase-share-dialog.tsx`). The mobile app has no showcase-portal share surface at all today — `agent-inventory-share-sheet.tsx` shares hand-picked properties with one contact, which is a different flow. Both halves of the rule are already shared and mobile-reachable: `buildShowcaseShareLink` and `filterPropertiesBySearch`/`selectPinnedProperties` in `src/lib/inventory/`, plus `buildInventorySummary`, so closing the gap is one sheet over the same helpers.
