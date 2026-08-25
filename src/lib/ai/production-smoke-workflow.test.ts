@@ -33,4 +33,10 @@ describe('production AI smoke workflow configuration', () => {
       );
     }
   });
+
+  it('runs after its workflow or smoke script changes on main', () => {
+    expect(daily).toContain('branches: [main]');
+    expect(daily).toContain("'e2e/daily-ai-billing-smoke.mjs'");
+    expect(daily).toContain("'.github/workflows/daily-ai-billing-smoke.yml'");
+  });
 });
