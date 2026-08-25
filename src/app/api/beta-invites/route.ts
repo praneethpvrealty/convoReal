@@ -4,7 +4,8 @@
 //   GET  — the calling account's own seats and their status.
 //   POST — spend one seat, returning the link exactly once.
 //
-// Both admin+. This is what Settings → Invites renders.
+// GET is admin+ for Settings → Invites. POST is agent+ so an account
+// holder can append a personal app invitation while sharing inventory.
 //
 // The plaintext token is returned ONLY in the POST response. The row
 // stores the SHA-256 hash, so GET can never resurface a link — same
@@ -16,21 +17,21 @@
 // requests race past the 5-seat limit.
 // ============================================================
 
-import { NextResponse } from "next/server";
-import type { PostgrestError } from "@supabase/supabase-js";
+import { NextResponse } from 'next/server';
+import type { PostgrestError } from '@supabase/supabase-js';
 
-import { requireRole, toErrorResponse } from "@/lib/auth/account";
-import { inviteBaseUrl } from "@/lib/auth/invite-base-url";
+import { requireRole, toErrorResponse } from '@/lib/auth/account';
+import { inviteBaseUrl } from '@/lib/auth/invite-base-url';
 import {
   betaInviteShareMessage,
   betaInviteUrl,
   generateBetaInvite,
-} from "@/lib/beta/invites";
+} from '@/lib/beta/invites';
 import {
   checkRateLimit,
   rateLimitResponse,
   RATE_LIMITS,
-} from "@/lib/rate-limit";
+} from '@/lib/rate-limit';
 
 const MAX_LABEL_LEN = 80;
 
@@ -46,45 +47,45 @@ interface BetaProgram {
 
 /** Mirrors the SQLSTATE contract documented on issue_beta_invite(). */
 function rpcErrorToResponse(err: PostgrestError, tag: string): NextResponse {
-  if (err.code === "42501") {
+  if (err.code === '42501') {
     return NextResponse.json({ error: err.message }, { status: 403 });
   }
-  if (err.code === "22023") {
+  if (err.code === '22023') {
     return NextResponse.json({ error: err.message }, { status: 409 });
   }
   console.error(`[${tag}] unexpected RPC error:`, err);
   return NextResponse.json(
-    { error: "Failed to issue invitation" },
-    { status: 500 },
+    { error: 'Failed to issue invitation' },
+    { status: 500 }
   );
 }
 
 export async function GET() {
   try {
-    const ctx = await requireRole("admin");
+    const ctx = await requireRole('admin');
 
     const [invites, program, quota] = await Promise.all([
       ctx.supabase
-        .from("beta_invites")
+        .from('beta_invites')
         .select(
-          "id, code, label, status, generation, invitee_phone, invitee_email, created_at, expires_at, accepted_at, seat_number",
+          'id, code, label, status, generation, invitee_phone, invitee_email, created_at, expires_at, accepted_at, seat_number'
         )
-        .eq("issued_by_account_id", ctx.accountId)
-        .neq("status", "revoked")
-        .order("created_at", { ascending: false }),
-      ctx.supabase.rpc("beta_program_public"),
+        .eq('issued_by_account_id', ctx.accountId)
+        .neq('status', 'revoked')
+        .order('created_at', { ascending: false }),
+      ctx.supabase.rpc('beta_program_public'),
       ctx.supabase
-        .from("accounts")
-        .select("invite_quota")
-        .eq("id", ctx.accountId)
+        .from('accounts')
+        .select('invite_quota')
+        .eq('id', ctx.accountId)
         .maybeSingle(),
     ]);
 
     if (invites.error) {
-      console.error("[GET /api/beta-invites] fetch error:", invites.error);
+      console.error('[GET /api/beta-invites] fetch error:', invites.error);
       return NextResponse.json(
-        { error: "Failed to load invitations" },
-        { status: 500 },
+        { error: 'Failed to load invitations' },
+        { status: 500 }
       );
     }
 
@@ -101,11 +102,11 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const ctx = await requireRole("admin");
+    const ctx = await requireRole('agent');
 
     const limit = await checkRateLimit(
       `beta:invite:${ctx.userId}`,
-      RATE_LIMITS.adminAction,
+      RATE_LIMITS.adminAction
     );
     if (!limit.success) return rateLimitResponse(limit);
 
@@ -118,13 +119,13 @@ export async function POST(request: Request) {
         invitee_phone?: unknown;
         invitee_email?: unknown;
       };
-      if (typeof body.label === "string") {
+      if (typeof body.label === 'string') {
         label = body.label.trim().slice(0, MAX_LABEL_LEN) || null;
       }
-      if (typeof body.invitee_phone === "string") {
+      if (typeof body.invitee_phone === 'string') {
         inviteePhone = body.invitee_phone.trim() || null;
       }
-      if (typeof body.invitee_email === "string") {
+      if (typeof body.invitee_email === 'string') {
         inviteeEmail = body.invitee_email.trim() || null;
       }
     } catch {
@@ -133,7 +134,7 @@ export async function POST(request: Request) {
 
     const { token, hash, code } = generateBetaInvite();
 
-    const { data, error } = await ctx.supabase.rpc("issue_beta_invite", {
+    const { data, error } = await ctx.supabase.rpc('issue_beta_invite', {
       p_token_hash: hash,
       p_code: code,
       p_label: label,
@@ -141,7 +142,7 @@ export async function POST(request: Request) {
       p_invitee_email: inviteeEmail,
     });
 
-    if (error) return rpcErrorToResponse(error, "POST /api/beta-invites");
+    if (error) return rpcErrorToResponse(error, 'POST /api/beta-invites');
 
     const issued = data as {
       id: string;
@@ -152,15 +153,15 @@ export async function POST(request: Request) {
 
     const url = betaInviteUrl(
       token,
-      inviteBaseUrl(request, "POST /api/beta-invites"),
+      inviteBaseUrl(request, 'POST /api/beta-invites')
     );
 
     const [{ data: program }, { data: profile }] = await Promise.all([
-      ctx.supabase.rpc("beta_program_public"),
+      ctx.supabase.rpc('beta_program_public'),
       ctx.supabase
-        .from("profiles")
-        .select("full_name")
-        .eq("user_id", ctx.userId)
+        .from('profiles')
+        .select('full_name')
+        .eq('user_id', ctx.userId)
         .maybeSingle(),
     ]);
 
@@ -172,8 +173,8 @@ export async function POST(request: Request) {
     const expiryDays = Math.max(
       1,
       Math.round(
-        (new Date(issued.expires_at).getTime() - Date.now()) / 86_400_000,
-      ),
+        (new Date(issued.expires_at).getTime() - Date.now()) / 86_400_000
+      )
     );
 
     return NextResponse.json({

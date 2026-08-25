@@ -28,6 +28,7 @@ import {
   type ApproveCelebrationState,
 } from '@/components/approve-celebration';
 import { AreasOfInterestInput } from '@/components/areas-of-interest-input';
+import { AgentInventoryShareSheet } from '@/components/agent-inventory-share-sheet';
 import { ConvoRealLoader } from '@/components/loader';
 import { MoveToEngineSheet } from '@/components/move-to-engine-sheet';
 import { OwnerDetailsRequestSheet } from '@/components/owner-details-request-sheet';
@@ -284,6 +285,7 @@ function ContactCard({ contact }: { contact: Contact }) {
   const [celebration, setCelebration] =
     useState<ApproveCelebrationState | null>(null);
   const [moveToEngineOpen, setMoveToEngineOpen] = useState(false);
+  const [inventoryShareOpen, setInventoryShareOpen] = useState(false);
   const [detailsRequestOpen, setDetailsRequestOpen] = useState(false);
   const [requirementsOpen, setRequirementsOpen] = useState(false);
   const [favoriting, setFavoriting] = useState(false);
@@ -409,7 +411,10 @@ function ContactCard({ contact }: { contact: Contact }) {
   );
   const areaHints = source
     ? Array.from(
-        new Set([...(source.pref_areas ?? []), ...(source.areas_of_interest ?? [])]),
+        new Set([
+          ...(source.pref_areas ?? []),
+          ...(source.areas_of_interest ?? []),
+        ])
       )
     : [];
   const propertyHints = source
@@ -418,7 +423,7 @@ function ContactCard({ contact }: { contact: Contact }) {
           ...(source.property_interests ?? []),
           ...(source.pref_property_types ?? []),
           ...(source.pref_property_categories ?? []),
-        ]),
+        ])
       )
     : [];
 
@@ -537,13 +542,20 @@ function ContactCard({ contact }: { contact: Contact }) {
             />
           ) : null}
           {contact.classification === 'Agent' ? (
-            <ActionButton
-              icon="map-outline"
-              label="Journey"
-              onPress={() =>
-                router.push(`/(app)/journey?contactId=${contact.id}`)
-              }
-            />
+            <>
+              <ActionButton
+                icon="paper-plane-outline"
+                label="Share Inventory"
+                onPress={() => setInventoryShareOpen(true)}
+              />
+              <ActionButton
+                icon="map-outline"
+                label="Journey"
+                onPress={() =>
+                  router.push(`/(app)/journey?contactId=${contact.id}`)
+                }
+              />
+            </>
           ) : null}
         </View>
 
@@ -692,6 +704,13 @@ function ContactCard({ contact }: { contact: Contact }) {
         onClose={() => setMoveToEngineOpen(false)}
         contact={contact}
       />
+      {contact.classification === 'Agent' ? (
+        <AgentInventoryShareSheet
+          visible={inventoryShareOpen}
+          onClose={() => setInventoryShareOpen(false)}
+          contact={contact}
+        />
+      ) : null}
       {!BUYER_PREF_CLASSIFICATIONS.includes(
         contact.classification ?? 'Others'
       ) ? (
@@ -1197,13 +1216,11 @@ function ContactEditor({
   const [strictArea, setStrictArea] = useState(
     Boolean(contact.strict_area_match)
   );
-  const [propertyInterests, setPropertyInterests] = useState<string[]>(
-    [
-      ...(source.property_interests ?? []),
-      ...(source.pref_property_types ?? []),
-      ...(source.pref_property_categories ?? []),
-    ]
-  );
+  const [propertyInterests, setPropertyInterests] = useState<string[]>([
+    ...(source.property_interests ?? []),
+    ...(source.pref_property_types ?? []),
+    ...(source.pref_property_categories ?? []),
+  ]);
   const [minRoi, setMinRoi] = useState(
     contact.min_roi != null ? String(contact.min_roi) : ''
   );
@@ -1330,7 +1347,9 @@ function ContactEditor({
                   style={{
                     borderWidth: 1,
                     borderColor: selected ? colors.primary : colors.border,
-                    backgroundColor: selected ? colors.primarySoft : colors.surface,
+                    backgroundColor: selected
+                      ? colors.primarySoft
+                      : colors.surface,
                     borderRadius: 10,
                     paddingHorizontal: spacing.lg,
                     paddingVertical: spacing.sm,

@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { requireRole, checkRateLimit, createClient, findOrCreateContact } =
-  vi.hoisted(() => ({
+const { requireRole, checkRateLimit, shareInventoryWithAgent } = vi.hoisted(
+  () => ({
     requireRole: vi.fn(),
     checkRateLimit: vi.fn(),
-    createClient: vi.fn(),
-    findOrCreateContact: vi.fn(),
-  }));
+    shareInventoryWithAgent: vi.fn(),
+  })
+);
 
 vi.mock('@/lib/auth/account', () => ({
   requireRole,
@@ -24,106 +24,35 @@ vi.mock('@/lib/rate-limit', () => ({
     Response.json({ error: 'rate limited' }, { status: 429 }),
 }));
 
-vi.mock('@supabase/supabase-js', () => ({ createClient }));
-
-vi.mock('@/lib/contacts/find-or-create', () => ({ findOrCreateContact }));
+vi.mock('@/lib/inventory/agent-account-share', () => ({
+  shareInventoryWithAgent,
+}));
 
 import { POST } from './route';
-
-function resolvedQuery(value: unknown, onUpsert?: (value: unknown) => void) {
-  const query = {
-    select: () => query,
-    eq: () => query,
-    upsert: (upsertValue?: unknown) => {
-      onUpsert?.(upsertValue);
-      return query;
-    },
-    maybeSingle: async () => value,
-  };
-  return query;
-}
 
 describe('POST /api/properties/[id]/share-to-agent-account', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    checkRateLimit.mockResolvedValue({ success: true });
-  });
-
-  it('adds a safe attributed copy to the recipient review queue', async () => {
-    const source = {
-      id: 'source-property',
-      account_id: 'sender-account',
-      title: 'Indiranagar Office',
-      location: 'Indiranagar',
-      type: 'Commercial Office',
-      price: 50_000_000,
-      is_published: true,
-    };
-    const ctxSupabase = {
-      from: vi.fn((table: string) => {
-        if (table === 'properties') {
-          return resolvedQuery({ data: source, error: null });
-        }
-        if (table === 'contacts') {
-          return resolvedQuery({
-            data: {
-              id: 'recipient-contact',
-              name: 'Agent B',
-              phone: '+919900011223',
-              classification: 'Agent',
-            },
-            error: null,
-          });
-        }
-        return resolvedQuery({
-          data: { full_name: 'Agent A', phone: '+919811122233' },
-          error: null,
-        });
-      }),
-    };
     requireRole.mockResolvedValue({
       accountId: 'sender-account',
       userId: 'sender-user',
-      role: 'agent',
-      supabase: ctxSupabase,
     });
+    checkRateLimit.mockResolvedValue({ success: true });
+  });
 
-    const inserted: Record<string, unknown>[] = [];
-    let propertyCalls = 0;
-    const admin = {
-      rpc: vi.fn().mockResolvedValue({
-        data: [{ user_id: 'recipient-user', account_id: 'recipient-account' }],
-        error: null,
-      }),
-      from: vi.fn((table: string) => {
-        if (table === 'accounts') {
-          return resolvedQuery({
-            data: { name: 'Sender Realty' },
-            error: null,
-          });
-        }
-        propertyCalls += 1;
-        if (propertyCalls === 1) {
-          return resolvedQuery({ data: null, error: null });
-        }
-        return resolvedQuery(
-          {
-            data: {
-              id: 'pending-copy',
-              title: source.title,
-              status: 'Pending Review',
-            },
-            error: null,
-          },
-          (row) => inserted.push(row as Record<string, unknown>)
-        );
-      }),
-    };
-    createClient.mockReturnValue(admin);
-    findOrCreateContact.mockResolvedValue({
-      contactId: 'sender-contact-in-recipient',
-      isNew: true,
-      matchedOn: 'created',
+  it('keeps the single-property endpoint compatible with the shared service', async () => {
+    shareInventoryWithAgent.mockResolvedValue({
+      registered: true,
+      recipientName: 'Agent B',
+      sharedCount: 1,
+      alreadySharedCount: 0,
+      pending: [
+        {
+          id: 'pending-copy',
+          title: 'Indiranagar Office',
+          status: 'Pending Review',
+        },
+      ],
     });
 
     const response = await POST(
@@ -138,21 +67,37 @@ describe('POST /api/properties/[id]/share-to-agent-account', () => {
     );
 
     expect(response.status).toBe(201);
-    expect(inserted[0]).toMatchObject({
-      account_id: 'recipient-account',
-      user_id: 'recipient-user',
-      owner_contact_id: 'sender-contact-in-recipient',
-      source_property_id: 'source-property',
-      status: 'Pending Review',
-      is_published: false,
-    });
-    expect(findOrCreateContact).toHaveBeenCalledWith(
-      admin,
-      expect.objectContaining({
-        accountId: 'recipient-account',
-        userId: 'recipient-user',
-        classification: 'Agent',
-      })
+    expect(shareInventoryWithAgent).toHaveBeenCalledWith(
+      expect.objectContaining({ accountId: 'sender-account' }),
+      'recipient-contact',
+      ['source-property']
     );
+    await expect(response.json()).resolves.toEqual({
+      data: {
+        id: 'pending-copy',
+        title: 'Indiranagar Office',
+        status: 'Pending Review',
+      },
+    });
+  });
+
+  it('still reports an agent without a separate account', async () => {
+    shareInventoryWithAgent.mockResolvedValue({
+      registered: false,
+      recipientName: 'Agent B',
+      sharedCount: 0,
+      alreadySharedCount: 0,
+      pending: [],
+    });
+
+    const response = await POST(
+      new Request('http://test', {
+        method: 'POST',
+        body: JSON.stringify({ contact_id: 'recipient-contact' }),
+      }),
+      { params: Promise.resolve({ id: 'source-property' }) }
+    );
+
+    expect(response.status).toBe(404);
   });
 });
