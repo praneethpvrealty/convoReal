@@ -64,6 +64,7 @@ import {
   gateRequestStatusLabel,
   gateSummary,
 } from '@/lib/inventory/gate-stats';
+import { buildShowcaseShareLink } from '@/lib/inventory/showcase-share-link';
 import {
   MONTHLY_PRICED_LISTING_TYPES,
   rentalYieldPercent,
@@ -982,5 +983,67 @@ describe('the contact form offers the same buy-or-rent choices on both surfaces'
     // nobody has asked, and the matcher treats it as "no gate".
     expect(web).toContain('<option value="">Not stated</option>');
     expect(mobile).toContain('setListingTypes(active ? [] : opt.value)');
+  });
+});
+
+describe('mobile/lib/showcase-scope.ts mirrors the showcase share link', () => {
+  // A shared catalog link is a promise about what the recipient will
+  // open. If the phone spelled a param differently, or let a category
+  // survive alongside a search, the same three taps would open two
+  // different showcases on the two surfaces.
+  const mobile = mobileSource('lib/showcase-scope.ts');
+
+  const cases = [
+    { scope: 'all' as const, category: 'Commercial' as const },
+    { scope: 'search' as const, category: 'Commercial' as const, search: 'hsr' },
+    { scope: 'pick' as const, ids: ['CR-1', 'CR-2'] },
+  ];
+
+  it('builds the same query for the same choices', () => {
+    for (const c of cases) {
+      const url = new URL(
+        buildShowcaseShareLink({
+          baseUrl: 'https://acme.convoreal.com',
+          includeRef: false,
+          audience: 'client',
+          ...c,
+        })
+      );
+      for (const key of url.searchParams.keys()) {
+        expect(mobile, `mobile is missing the "${key}" param`).toContain(
+          `'${key}'`
+        );
+      }
+    }
+  });
+
+  it('keeps one scope exclusive of the others', () => {
+    // Web: search wins over pick wins over category, as one if/else.
+    const searchLink = buildShowcaseShareLink({
+      baseUrl: 'https://acme.convoreal.com',
+      includeRef: false,
+      audience: 'client',
+      scope: 'search',
+      category: 'Commercial',
+      search: 'hsr',
+    });
+    expect(searchLink).not.toContain('category=');
+    expect(mobile).toContain("if (scope === 'search')");
+    expect(mobile).toContain("} else if (scope === 'pick')");
+    expect(mobile).toContain("} else if (category !== 'All')");
+  });
+
+  it('marks a co-broker link and a named visitor the same way', () => {
+    const link = buildShowcaseShareLink({
+      baseUrl: 'https://acme.convoreal.com',
+      includeRef: false,
+      audience: 'agent',
+      scope: 'all',
+      visitorId: 'contact-9',
+    });
+    expect(link).toContain('mode=view');
+    expect(link).toContain('v=contact-9');
+    expect(mobile).toContain("withParam(url, 'mode', 'view')");
+    expect(mobile).toContain("withParam(url, 'v', visitorId)");
   });
 });
