@@ -14,13 +14,13 @@ describe('showcase card motion', () => {
     expect(showcaseCardMotion(-1, false).rotateXDegrees).toBe(0);
   });
 
-  it('retains the stronger vertical flip in the mobile deck', () => {
+  it('keeps mobile cards stable and fully readable', () => {
     expect(showcaseCardMotion(1, true)).toEqual({
-      rotateXDegrees: -68,
-      translateYPercent: 10,
-      translateZPixels: -180,
-      scale: 0.88,
-      opacity: 0.38,
+      rotateXDegrees: 0,
+      translateYPercent: 0,
+      translateZPixels: 0,
+      scale: 1,
+      opacity: 1,
     });
   });
 

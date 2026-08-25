@@ -37,7 +37,6 @@ import {
   Home,
   Play,
   Download,
-  MoveVertical,
 } from 'lucide-react';
 import type { Property, ShowcaseSettings, AgencyService, AgencyArticle } from '@/types';
 import { BRANDING } from '@/config/branding';
@@ -1849,19 +1848,9 @@ export function ShowcaseView({
           </div>
         ) : (
           <div className="showcase-deck-shell">
-            <div className="showcase-deck-intro" aria-hidden="true">
-              <span className="showcase-deck-intro-icon">
-                <MoveVertical className="size-4" />
-              </span>
-              <span>
-                <strong>Swipe through listings</strong>
-                <small>Each property snaps into focus</small>
-              </span>
-            </div>
             <div
               ref={listingDeckRef}
-              tabIndex={showcase3dEnabled ? 0 : undefined}
-              aria-label={showcase3dEnabled ? 'Property flip deck' : undefined}
+              aria-label="Property listings"
               className="showcase-listing-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in-up"
             >
             {filteredProperties.map((property, propertyIndex) => {
