@@ -194,6 +194,7 @@ export async function POST(request: Request) {
       shareMessage: betaInviteShareMessage({
         url,
         inviterName: profile?.full_name || null,
+        inviteeName: label,
         seatsRemaining,
         expiryDays,
       }),

@@ -109,6 +109,18 @@ describe('betaInviteShareMessage', () => {
     expect(msg).toContain('dies in 14 days');
   });
 
+  it('personally addresses a named recipient', () => {
+    const msg = betaInviteShareMessage({
+      url,
+      inviterName: 'Praneeth',
+      inviteeName: 'Deepak',
+      seatsRemaining: 98,
+      expiryDays: 14,
+    });
+    expect(msg.startsWith('Deepak, Praneeth here — ')).toBe(true);
+    expect(msg.trimEnd().split('\n').pop()).toBe(url);
+  });
+
   it('reads naturally with no inviter name', () => {
     const msg = betaInviteShareMessage({
       url,
