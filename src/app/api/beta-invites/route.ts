@@ -32,6 +32,7 @@ import {
   rateLimitResponse,
   RATE_LIMITS,
 } from '@/lib/rate-limit';
+import { toAuthPhone } from '@/lib/whatsapp/phone-utils';
 
 const MAX_LABEL_LEN = 80;
 
@@ -123,7 +124,14 @@ export async function POST(request: Request) {
         label = body.label.trim().slice(0, MAX_LABEL_LEN) || null;
       }
       if (typeof body.invitee_phone === 'string') {
-        inviteePhone = body.invitee_phone.trim() || null;
+        const rawPhone = body.invitee_phone.trim();
+        inviteePhone = rawPhone ? toAuthPhone(rawPhone) : null;
+        if (rawPhone && !inviteePhone) {
+          return NextResponse.json(
+            { error: 'Enter a valid WhatsApp number, including country code.' },
+            { status: 400 }
+          );
+        }
       }
       if (typeof body.invitee_email === 'string') {
         inviteeEmail = body.invitee_email.trim() || null;

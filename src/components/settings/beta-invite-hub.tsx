@@ -30,6 +30,8 @@ import {
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { toAuthPhone } from '@/lib/whatsapp/phone-utils';
 
 interface BetaInvite {
   id: string;
@@ -40,6 +42,7 @@ interface BetaInvite {
   expires_at: string;
   accepted_at: string | null;
   seat_number: number | null;
+  invitee_phone: string | null;
 }
 
 interface Program {
@@ -63,6 +66,7 @@ export function BetaInviteHub() {
   const [loading, setLoading] = useState(true);
   const [issuing, setIssuing] = useState(false);
   const [label, setLabel] = useState('');
+  const [inviteePhone, setInviteePhone] = useState('');
   const [fresh, setFresh] = useState<IssuedLink | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -92,12 +96,23 @@ export function BetaInviteHub() {
   }, [load]);
 
   const issue = useCallback(async () => {
+    const normalizedPhone = inviteePhone.trim()
+      ? toAuthPhone(inviteePhone)
+      : null;
+    if (inviteePhone.trim() && !normalizedPhone) {
+      toast.error('Enter a valid WhatsApp number, including country code.');
+      return;
+    }
+
     setIssuing(true);
     try {
       const res = await fetch('/api/beta-invites', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ label: label.trim() || null }),
+        body: JSON.stringify({
+          label: label.trim() || null,
+          invitee_phone: normalizedPhone,
+        }),
       });
       const data = (await res.json()) as IssuedLink & { error?: string };
       if (!res.ok) {
@@ -107,13 +122,14 @@ export function BetaInviteHub() {
       setFresh(data);
       setCopied(false);
       setLabel('');
+      setInviteePhone('');
       await load();
     } catch {
       toast.error('Could not create an invitation — check your connection.');
     } finally {
       setIssuing(false);
     }
-  }, [label, load]);
+  }, [inviteePhone, label, load]);
 
   const revoke = useCallback(
     async (id: string) => {
@@ -127,7 +143,7 @@ export function BetaInviteHub() {
       if (fresh?.id === id) setFresh(null);
       await load();
     },
-    [fresh, load],
+    [fresh, load]
   );
 
   const copyLink = useCallback(async () => {
@@ -157,21 +173,22 @@ export function BetaInviteHub() {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h2 className="flex items-center gap-2 text-base font-semibold text-white">
-              <Ticket className="size-4 text-primary" />
+              <Ticket className="text-primary size-4" />
               Your invitations
             </h2>
             <p className="mt-1 max-w-prose text-sm text-slate-400">
               You have <b className="text-white">{remaining}</b> of {quota}{' '}
-              seats left to hand out. Give them to consultants you&apos;d actually
-              vouch for — that&apos;s the whole point of an invite-only beta.
+              seats left to hand out. Give them to consultants you&apos;d
+              actually vouch for — that&apos;s the whole point of an invite-only
+              beta.
             </p>
           </div>
           {seatsLeft !== null && (
             <div className="text-right">
-              <p className="font-mono text-2xl font-bold tabular-nums text-white">
+              <p className="font-mono text-2xl font-bold text-white tabular-nums">
                 {seatsLeft}
               </p>
-              <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-slate-500">
+              <p className="font-mono text-[10px] tracking-[0.14em] text-slate-500 uppercase">
                 seats left in beta
               </p>
             </div>
@@ -185,14 +202,49 @@ export function BetaInviteHub() {
         )}
 
         {remaining > 0 && program?.issuance_open !== false && (
-          <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-            <Input
-              value={label}
-              onChange={(e) => setLabel(e.target.value)}
-              placeholder="Who's this for? e.g. Ravi — Prestige, Whitefield"
-              className="border-slate-700 bg-slate-950 text-white placeholder:text-slate-500"
-            />
-            <Button onClick={() => void issue()} disabled={issuing}>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="flex flex-col gap-1.5">
+              <Label
+                htmlFor="beta-invite-label"
+                className="text-xs text-slate-400"
+              >
+                Name or note
+              </Label>
+              <Input
+                id="beta-invite-label"
+                value={label}
+                onChange={(e) => setLabel(e.target.value)}
+                placeholder="e.g. Ravi — Prestige, Whitefield"
+                className="border-slate-700 bg-slate-950 text-white placeholder:text-slate-500"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label
+                htmlFor="beta-invite-phone"
+                className="text-xs text-slate-400"
+              >
+                WhatsApp number{' '}
+                <span className="text-slate-600">(optional)</span>
+              </Label>
+              <Input
+                id="beta-invite-phone"
+                type="tel"
+                inputMode="tel"
+                value={inviteePhone}
+                onChange={(e) => setInviteePhone(e.target.value)}
+                placeholder="e.g. +91 99002 77111"
+                className="border-slate-700 bg-slate-950 text-white placeholder:text-slate-500"
+              />
+            </div>
+            <p className="text-xs leading-relaxed text-slate-500 sm:col-span-2">
+              When supplied, this invite can only finish onboarding after that
+              number is verified by WhatsApp OTP.
+            </p>
+            <Button
+              onClick={() => void issue()}
+              disabled={issuing}
+              className="sm:col-start-2 sm:justify-self-end"
+            >
               {issuing ? (
                 <Loader2 className="size-4 animate-spin" />
               ) : (
@@ -207,19 +259,19 @@ export function BetaInviteHub() {
       </div>
 
       {fresh && (
-        <div className="flex flex-col gap-3 rounded-xl border border-primary/40 bg-primary/5 p-5">
+        <div className="border-primary/40 bg-primary/5 flex flex-col gap-3 rounded-xl border p-5">
           <div>
-            <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-primary">
+            <p className="text-primary font-mono text-[10px] tracking-[0.16em] uppercase">
               {fresh.code} · copy this now
             </p>
             <p className="mt-1 text-sm text-slate-300">
               This link is shown once. We store only a hash of it, so we
-              can&apos;t show it to you again — if you lose it, revoke the
-              seat and generate a new one.
+              can&apos;t show it to you again — if you lose it, revoke the seat
+              and generate a new one.
             </p>
           </div>
 
-          <code className="block overflow-x-auto whitespace-nowrap rounded-lg border border-slate-800 bg-slate-950 px-3.5 py-2.5 font-mono text-xs text-slate-200">
+          <code className="block overflow-x-auto rounded-lg border border-slate-800 bg-slate-950 px-3.5 py-2.5 font-mono text-xs whitespace-nowrap text-slate-200">
             {fresh.url}
           </code>
 
@@ -230,7 +282,7 @@ export function BetaInviteHub() {
               className="flex-1 border-slate-700"
             >
               {copied ? (
-                <Check className="size-4 text-primary" />
+                <Check className="text-primary size-4" />
               ) : (
                 <Copy className="size-4" />
               )}
@@ -260,7 +312,11 @@ export function BetaInviteHub() {
 
       <div className="flex flex-col gap-2.5">
         {invites.map((inv) => (
-          <SeatRow key={inv.id} invite={inv} onRevoke={() => void revoke(inv.id)} />
+          <SeatRow
+            key={inv.id}
+            invite={inv}
+            onRevoke={() => void revoke(inv.id)}
+          />
         ))}
 
         {Array.from({ length: remaining }).map((_, i) => (
@@ -301,6 +357,11 @@ function SeatRow({
               ? ' · expired'
               : ` · expires ${new Date(invite.expires_at).toLocaleDateString()}`}
         </p>
+        {invite.invitee_phone ? (
+          <p className="mt-1 text-xs text-slate-400">
+            Reserved for {invite.invitee_phone}
+          </p>
+        ) : null}
       </div>
 
       <span
