@@ -10,6 +10,7 @@ import {
   generateInviteCode,
   hashInviteToken,
 } from './invites';
+import { betaInviteCardSvg, betaInvitePreviewDetails } from './invite-card';
 
 describe('generateBetaInvite', () => {
   it('returns a hash that matches the plaintext token', () => {
@@ -168,11 +169,8 @@ describe('betaInviteShareMessage', () => {
 });
 
 describe('personalized invite preview asset', () => {
-  it('uses a traced JPEG that the production image renderer can decode', () => {
-    const route = readFileSync(
-      'src/app/i/[token]/opengraph-image.tsx',
-      'utf8'
-    );
+  it('uses a traced JPEG and emits a compressed JPEG response', () => {
+    const route = readFileSync('src/app/i/[token]/opengraph-image.ts', 'utf8');
     const background = readFileSync(
       'src/app/i/[token]/beta-invite-preview-background.jpg'
     );
@@ -180,7 +178,38 @@ describe('personalized invite preview asset', () => {
     expect(route).toContain(
       "new URL('./beta-invite-preview-background.jpg', import.meta.url)"
     );
-    expect(route).toContain('data:image/jpeg;base64');
+    expect(route).toContain('.jpeg({ quality: 82');
+    expect(route).toContain("export const contentType = 'image/jpeg'");
+    expect(route).toContain('s-maxage=3600');
     expect(background.subarray(0, 2).toString('hex')).toBe('ffd8');
+  });
+
+  it('renders personalized copy safely into the invitation card', () => {
+    const details = betaInvitePreviewDetails({
+      ok: true,
+      label: 'Ravi & Sons <Bengaluru>',
+      inviter_name: 'Praneeth',
+      expires_at: new Date(Date.now() + 2 * 86_400_000).toISOString(),
+      account_cap: 100,
+      seats_taken: 3,
+    });
+    const svg = betaInviteCardSvg(details);
+
+    expect(svg).toContain('Ravi &amp; Sons &lt;Bengaluru&gt;');
+    expect(svg).toContain('reserved by Praneeth');
+    expect(svg).toContain('97 beta seats left');
+    expect(svg).not.toContain('Ravi & Sons <Bengaluru>');
+  });
+
+  it('prepares the card before opening WhatsApp', () => {
+    const hub = readFileSync(
+      'src/components/settings/beta-invite-hub.tsx',
+      'utf8'
+    );
+
+    expect(hub).toContain('`${fresh.url}/opengraph-image`');
+    expect(hub).toContain('onLoad={() => setPreviewReady(true)}');
+    expect(hub).toContain('disabled={!previewReady}');
+    expect(hub).toContain("'Preparing image…'");
   });
 });
