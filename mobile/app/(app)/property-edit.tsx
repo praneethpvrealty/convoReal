@@ -381,7 +381,6 @@ function EditForm({ property }: { property: Property }) {
     <KeyboardAvoidingView
       style={{ flex: 1 }}
       behavior={propertyEditKeyboardBehavior(Platform.OS)}
-      contentContainerStyle={styles.keyboardContent}
     >
       <ScrollView
         contentContainerStyle={styles.container}
@@ -1078,7 +1077,6 @@ function SelectField({
 }
 
 const styles = StyleSheet.create({
-  keyboardContent: { flex: 1 },
   container: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xl },
   row: { flexDirection: 'row', gap: spacing.sm },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
