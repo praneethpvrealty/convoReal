@@ -7,7 +7,7 @@
 // template outside it — mirroring Match Radar. Only a missing or
 // unapproved template comes back unsent.
 
-import { apiFetch, ApiError, isTimeout } from '@/lib/api';
+import { apiFetch, ApiError, isRateLimited, isTimeout } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
 import { supabase } from '@/lib/supabase';
 import type { Contact, Property } from '@/lib/types';
@@ -77,6 +77,10 @@ const SHARE_TIMEOUT_MS = 60_000;
  *  Meta's own per-number pacing. */
 const SHARE_CONCURRENCY = 4;
 
+/** Longest a rate-limited share waits for its window to reset before
+ *  giving up. The limiter's window is a minute, so one wait covers it. */
+const MAX_RETRY_WAIT_MS = 70_000;
+
 export interface EngineSendOutcome {
   sent: boolean;
   conversationId?: string;
@@ -93,6 +97,9 @@ export interface EngineSendOutcome {
    *  known about the send — it may well have gone out — so this is
    *  reported apart from a refusal the server actually returned. */
   timedOut?: boolean;
+  /** Seconds until the send rate limit resets. Set only on the first
+   *  attempt — a retried share reports its real verdict. */
+  rateLimitedFor?: number;
 }
 
 /** Send a property share through the account's WhatsApp Business number
@@ -100,6 +107,21 @@ export interface EngineSendOutcome {
  *  template fallback happen server-side; the composed message is used
  *  as-is when free text is allowed. */
 export async function sendPropertyViaEngine(
+  contact: Contact,
+  property: Property,
+  message: string
+): Promise<EngineSendOutcome> {
+  const outcome = await attemptShare(contact, property, message);
+  // A 429 is the server asking us to wait, not a share that failed.
+  // Reporting it as one is what turned a 31-contact fan-out into 30
+  // "could not send" lines for messages that were never attempted.
+  if (!outcome.rateLimitedFor) return outcome;
+  const wait = Math.min(outcome.rateLimitedFor * 1000, MAX_RETRY_WAIT_MS);
+  await new Promise((resolve) => setTimeout(resolve, wait));
+  return attemptShare(contact, property, message);
+}
+
+async function attemptShare(
   contact: Contact,
   property: Property,
   message: string
@@ -132,6 +154,9 @@ export async function sendPropertyViaEngine(
     return {
       sent: false,
       ...(isTimeout(e) ? { timedOut: true } : {}),
+      ...(isRateLimited(e)
+        ? { rateLimitedFor: (e as ApiError).retryAfterSeconds ?? 60 }
+        : {}),
       error:
         e instanceof ApiError ? e.message : 'Failed to send WhatsApp message',
     };
