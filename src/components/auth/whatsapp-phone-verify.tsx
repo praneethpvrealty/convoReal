@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 // ============================================================
 // WhatsApp phone verification — shared OTP widget.
@@ -16,30 +16,33 @@
 // body-level creation breaks static prerendering.
 // ============================================================
 
-import { useState } from "react";
-import { Phone, ArrowLeft } from "lucide-react";
+import { useState } from 'react';
+import { Phone, ArrowLeft } from 'lucide-react';
 
-import { createClient } from "@/lib/supabase/client";
-import { toAuthPhone } from "@/lib/whatsapp/phone-utils";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { createClient } from '@/lib/supabase/client';
+import { toAuthPhone } from '@/lib/whatsapp/phone-utils';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 const cleanPhoneInput = toAuthPhone;
 
 export function WhatsappPhoneVerify({
   onVerified,
   initialPhone,
-  idPrefix = "wa-verify",
+  lockedPhone = false,
+  idPrefix = 'wa-verify',
 }: {
   /** Called with the verified E.164 phone after a successful OTP. */
   onVerified: (phone: string) => void;
   initialPhone?: string;
+  /** Prevents a phone-bound invite from being verified with another number. */
+  lockedPhone?: boolean;
   /** Keeps input ids unique when two instances could mount. */
   idPrefix?: string;
 }) {
-  const [phone, setPhone] = useState(initialPhone || "");
-  const [otp, setOtp] = useState("");
+  const [phone, setPhone] = useState(initialPhone || '');
+  const [otp, setOtp] = useState('');
   const [otpSent, setOtpSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -51,7 +54,9 @@ export function WhatsappPhoneVerify({
     setInfo(null);
     const cleanPhone = cleanPhoneInput(phone);
     if (!cleanPhone) {
-      setError("Enter a valid WhatsApp number (e.g. 9900277111 or +919900277111)");
+      setError(
+        'Enter a valid WhatsApp number (e.g. 9900277111 or +919900277111)'
+      );
       return;
     }
     setLoading(true);
@@ -62,7 +67,7 @@ export function WhatsappPhoneVerify({
       setError(error.message);
       return;
     }
-    setInfo("Code sent to your WhatsApp!");
+    setInfo('Code sent to your WhatsApp!');
     setOtpSent(true);
   };
 
@@ -76,7 +81,7 @@ export function WhatsappPhoneVerify({
     const { error } = await supabase.auth.verifyOtp({
       phone: cleanPhone,
       token: otp.trim(),
-      type: "phone_change",
+      type: 'phone_change',
     });
     setLoading(false);
     if (error) {
@@ -106,23 +111,30 @@ export function WhatsappPhoneVerify({
               WhatsApp Number
             </Label>
             <div className="relative">
-              <Phone className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Phone className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
               <Input
                 id={`${idPrefix}-phone`}
                 type="tel"
                 placeholder="e.g. +91 99002 77111"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
+                readOnly={lockedPhone}
                 required
                 className="h-10 rounded-xl pl-10"
               />
             </div>
-            <p className="text-[11px] font-medium text-muted-foreground">
-              We&apos;ll send a one-time code to this number on WhatsApp.
+            <p className="text-muted-foreground text-[11px] font-medium">
+              {lockedPhone
+                ? 'Your invitation is reserved for this number.'
+                : "We'll send a one-time code to this number on WhatsApp."}
             </p>
           </div>
-          <Button type="submit" disabled={loading} className="h-10 w-full rounded-xl text-xs font-bold">
-            {loading ? "Sending code…" : "Send WhatsApp Code"}
+          <Button
+            type="submit"
+            disabled={loading}
+            className="h-10 w-full rounded-xl text-xs font-bold"
+          >
+            {loading ? 'Sending code…' : 'Send WhatsApp Code'}
           </Button>
         </form>
       ) : (
@@ -132,18 +144,20 @@ export function WhatsappPhoneVerify({
               <Label htmlFor={`${idPrefix}-otp`} className="text-xs font-bold">
                 Verification Code
               </Label>
-              <button
-                type="button"
-                onClick={() => {
-                  setOtpSent(false);
-                  setInfo(null);
-                  setError(null);
-                  setOtp("");
-                }}
-                className="flex cursor-pointer items-center gap-1 text-[11px] font-bold text-primary hover:underline"
-              >
-                <ArrowLeft className="size-3" /> Change Number
-              </button>
+              {!lockedPhone ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOtpSent(false);
+                    setInfo(null);
+                    setError(null);
+                    setOtp('');
+                  }}
+                  className="text-primary flex cursor-pointer items-center gap-1 text-[11px] font-bold hover:underline"
+                >
+                  <ArrowLeft className="size-3" /> Change Number
+                </button>
+              ) : null}
             </div>
             <Input
               id={`${idPrefix}-otp`}
@@ -153,7 +167,9 @@ export function WhatsappPhoneVerify({
               maxLength={6}
               placeholder="6-digit code"
               value={otp}
-              onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              onChange={(e) =>
+                setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))
+              }
               required
               className="h-12 rounded-xl text-center text-xl font-bold tracking-[0.4em] placeholder:text-sm placeholder:font-medium placeholder:tracking-normal"
             />
@@ -163,7 +179,7 @@ export function WhatsappPhoneVerify({
             disabled={loading || otp.length !== 6}
             className="h-10 w-full rounded-xl text-xs font-bold"
           >
-            {loading ? "Verifying…" : "Verify Number"}
+            {loading ? 'Verifying…' : 'Verify Number'}
           </Button>
         </form>
       )}

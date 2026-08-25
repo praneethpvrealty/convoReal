@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 // ============================================================
 // /verify-phone — the staff WhatsApp gate.
@@ -12,23 +12,24 @@
 // auth.users.phone_confirmed_at, not the sign-in method.
 // ============================================================
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { MessageSquare } from "lucide-react";
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { MessageSquare } from 'lucide-react';
 
-import { createClient } from "@/lib/supabase/client";
-import { WhatsappPhoneVerify } from "@/components/auth/whatsapp-phone-verify";
+import { createClient } from '@/lib/supabase/client';
+import { WhatsappPhoneVerify } from '@/components/auth/whatsapp-phone-verify';
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
+} from '@/components/ui/card';
 
 export default function VerifyPhonePage() {
   const router = useRouter();
   const [ready, setReady] = useState(false);
+  const [requiredPhone, setRequiredPhone] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -37,13 +38,20 @@ export default function VerifyPhonePage() {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) {
-        router.replace("/login");
+        router.replace('/login');
         return;
       }
       if (user.phone && user.phone_confirmed_at) {
         // Already verified (e.g. WhatsApp-OTP login) — nothing to do.
-        router.replace("/dashboard");
+        router.replace('/dashboard');
         return;
+      }
+      const requirement = await fetch('/api/beta-invites/required-phone', {
+        cache: 'no-store',
+      });
+      if (requirement.ok) {
+        const data = (await requirement.json()) as { phone: string | null };
+        setRequiredPhone(data.phone);
       }
       setReady(true);
     })();
@@ -52,34 +60,38 @@ export default function VerifyPhonePage() {
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-950 px-4">
-      <div className="pointer-events-none absolute top-1/4 left-1/4 h-[500px] w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/10 blur-[120px]" />
+      <div className="bg-primary/10 pointer-events-none absolute top-1/4 left-1/4 h-[500px] w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-full blur-[120px]" />
       <Card className="relative z-10 w-full max-w-md overflow-hidden rounded-3xl border border-slate-800/80 bg-slate-900/60 p-2 shadow-2xl backdrop-blur-xl">
         <CardHeader className="items-center pb-2 text-center">
-          <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 shadow-inner">
-            <MessageSquare className="h-6 w-6 text-primary" />
+          <div className="border-primary/20 bg-primary/10 mb-2 flex h-12 w-12 items-center justify-center rounded-2xl border shadow-inner">
+            <MessageSquare className="text-primary h-6 w-6" />
           </div>
           <CardTitle className="text-2xl font-black tracking-tight text-white">
             Verify your WhatsApp number
           </CardTitle>
           <CardDescription className="font-medium text-slate-400">
-            ConvoReal runs on WhatsApp — client enquiries, alerts and listing sync all reach you
-            there. Verify the WhatsApp number you use for business to continue. You&apos;ll only do
-            this once.
+            ConvoReal runs on WhatsApp — client enquiries, alerts and listing
+            sync all reach you there. Verify the WhatsApp number you use for
+            business to continue. You&apos;ll only do this once.
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-2">
           {ready ? (
             <WhatsappPhoneVerify
               idPrefix="staff-verify"
+              initialPhone={requiredPhone || undefined}
+              lockedPhone={Boolean(requiredPhone)}
               onVerified={() => {
                 // The DB trigger has already mirrored the verified
                 // number onto profiles.phone; hard navigation so the
                 // shell re-reads a fresh session.
-                window.location.href = "/dashboard";
+                window.location.href = '/dashboard';
               }}
             />
           ) : (
-            <p className="py-6 text-center text-sm font-medium text-slate-400">Loading…</p>
+            <p className="py-6 text-center text-sm font-medium text-slate-400">
+              Loading…
+            </p>
           )}
         </CardContent>
       </Card>
