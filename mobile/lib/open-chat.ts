@@ -28,7 +28,7 @@ export async function openContactChat(
   const draftParam = opts?.draftText
     ? `?draftText=${encodeURIComponent(opts.draftText)}`
     : '';
-  const existing = await findThread(contact.id);
+  const existing = await findContactThread(contact.id);
   if (existing) {
     router.push(`/(app)/conversation/${existing}${draftParam}`);
     return { ok: true };
@@ -48,7 +48,7 @@ export async function openContactChat(
     // Lost the race against another creator — migration 229's
     // conversations_account_contact_unique means the winner's thread
     // is the answer, not a failure to report.
-    const raced = error.code === '23505' ? await findThread(contact.id) : null;
+    const raced = error.code === '23505' ? await findContactThread(contact.id) : null;
     if (!raced) {
       haptic.warn();
       return { ok: false, error: friendlyError(error.message) };
@@ -61,7 +61,7 @@ export async function openContactChat(
   return { ok: true };
 }
 
-async function findThread(contactId: string): Promise<string | null> {
+export async function findContactThread(contactId: string): Promise<string | null> {
   const { data } = await supabase
     .from('conversations')
     .select('id')

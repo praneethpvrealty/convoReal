@@ -170,6 +170,7 @@ _A party is several people on one requirement — a couple buying together, or t
 
 ### Deferred: showcase portal sharing on mobile
 
-_A §2.8 gap, stated rather than silent._
+_§2.8 gaps, stated rather than silent. The three-step share flow (audience → scope → send) now ships on both surfaces — `src/components/inventory/showcase-share-dialog.tsx` and `mobile/components/showcase-share-sheet.tsx`, over the same link rule (`buildShowcaseShareLink`, ported as `mobile/lib/showcase-scope.ts` and pinned by `src/lib/mobile-parity.test.ts`). What the phone still does differently:_
 
-- [ ] **Showcase portal share (mobile)**: the revamped three-step share flow (audience → scope → send) ships on web only (`src/components/inventory/showcase-share-dialog.tsx`). The mobile app has no showcase-portal share surface at all today — `agent-inventory-share-sheet.tsx` shares hand-picked properties with one contact, which is a different flow. Both halves of the rule are already shared and mobile-reachable: `buildShowcaseShareLink` and `filterPropertiesBySearch`/`selectPinnedProperties` in `src/lib/inventory/`, plus `buildInventorySummary`, so closing the gap is one sheet over the same helpers.
+- [ ] **Inventory digest ("Full list") on mobile**: the web sheet can send a category-grouped digest of the scoped listings (`buildInventorySummary`) as the message body; mobile sends the editable pitch only. Closing it means either porting the builder or exposing it as an API route both surfaces call — the latter is preferable, since the digest is a business rule, not a rendering choice.
+- [ ] **Engine template send on mobile**: web can submit and send the `inventory_update` MARKETING template from the account's WhatsApp Business number to a whole selection. Mobile's ConvoReal channel sends free-form text into each contact's existing thread instead, which reaches only contacts inside the 24-hour window and never opens a new one.

@@ -9,6 +9,19 @@ import { useAuthStore } from '@/lib/auth-store';
 import { supabase } from '@/lib/supabase';
 import { getShowcaseUrl } from '@/lib/welcome-message';
 import type { Contact } from '@/lib/types';
+import {
+  applyShowcaseScope,
+  type ShowcaseScopeOptions,
+  withShowcaseVisitor,
+} from '@/lib/showcase-scope';
+
+export {
+  applyShowcaseScope,
+  type ShareCategory,
+  type ShareScope,
+  type ShowcaseScopeOptions,
+  withShowcaseVisitor,
+} from '@/lib/showcase-scope';
 
 function withParam(baseUrl: string, key: string, value: string): string {
   const sep = baseUrl.includes('?') ? '&' : '?';
@@ -71,4 +84,11 @@ export async function logShowcaseShare(contact: Contact): Promise<void> {
       note_text: '🔗 Shared the showcase catalog via personal WhatsApp',
     }),
   ]);
+}
+
+/** Scoped showcase link for the account, ready to share. */
+export async function scopedShowcaseUrl(
+  options: ShowcaseScopeOptions
+): Promise<string> {
+  return applyShowcaseScope(await getShowcaseUrl(), options);
 }
