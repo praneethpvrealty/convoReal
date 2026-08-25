@@ -36,6 +36,7 @@ export interface ReconcilableProperty {
   area_sqft?: number | null;
   land_area?: number | null;
   land_area_unit?: string | null;
+  super_built_area?: number | null;
   bedrooms?: number | null;
 }
 
@@ -66,19 +67,29 @@ function drift(ours: number, theirs: number): number {
   return Math.abs(theirs - ours) / Math.abs(ours);
 }
 
-/**
- * Our area figure for comparison. A plot is listed on the portals by
- * its extent, so `land_area` is the like-for-like number when it is
- * held in Sq.Ft.; a land area in acres or guntas is a different unit
- * and comparing it to a portal's sqft would manufacture a discrepancy
- * on every plot we own.
- */
+function isSqftUnit(unit: string | null | undefined): boolean {
+  return ['sqft', 'squarefeet', 'squarefoot'].includes(
+    (unit || '').toLowerCase().replace(/[^a-z0-9]+/g, '')
+  );
+}
+
+export function comparableAreasSqft(
+  property: ReconcilableProperty
+): number[] {
+  const areas = [property.area_sqft, property.super_built_area];
+  if (property.land_area && isSqftUnit(property.land_area_unit)) {
+    areas.push(property.land_area);
+  }
+  return [...new Set(areas.filter((area): area is number => !!area && area > 0))];
+}
+
+/** The primary area used by older callers that need one figure. */
 export function comparableAreaSqft(
   property: ReconcilableProperty
 ): number | null {
   if (property.area_sqft) return property.area_sqft;
-  const unit = (property.land_area_unit || '').trim().toLowerCase();
-  if (property.land_area && (unit === 'sq.ft.' || unit === 'sqft' || unit === 'sq ft')) {
+  if (property.super_built_area) return property.super_built_area;
+  if (property.land_area && isSqftUnit(property.land_area_unit)) {
     return property.land_area;
   }
   return null;
@@ -93,13 +104,13 @@ export function findPortalDiscrepancies(
   property: ReconcilableProperty,
   listings: PortalListingFigures[]
 ): PortalDiscrepancy[] {
-  const ourArea = comparableAreaSqft(property);
+  const ourAreas = comparableAreasSqft(property);
   const out: PortalDiscrepancy[] = [];
 
   for (const listing of listings) {
+    const portalArea = listing.areaSqft;
     const pairs: [ReconciledField, number | null | undefined, number | null | undefined][] = [
       ['price', property.price, listing.price],
-      ['area_sqft', ourArea, listing.areaSqft],
       ['bedrooms', property.bedrooms, listing.bedrooms],
     ];
 
@@ -118,6 +129,26 @@ export function findPortalDiscrepancies(
         theirs,
         drift: gap,
       });
+    }
+
+    if (portalArea && ourAreas.length) {
+      const ours = ourAreas.reduce((closest, candidate) =>
+        drift(candidate, portalArea) < drift(closest, portalArea)
+          ? candidate
+          : closest
+      );
+      const gap = drift(ours, portalArea);
+      if (gap > DRIFT_TOLERANCE) {
+        out.push({
+          portal: listing.portal,
+          portalLabel: PORTALS[listing.portal]?.label ?? listing.portal,
+          listingUrl: listing.listingUrl ?? null,
+          field: 'area_sqft',
+          ours,
+          theirs: portalArea,
+          drift: gap,
+        });
+      }
     }
   }
 

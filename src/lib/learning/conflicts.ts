@@ -188,7 +188,9 @@ export async function loadConflicts(
     propertyIds.size
       ? db
           .from('properties')
-          .select('id, title, property_code, price, area_sqft, land_area, land_area_unit, bedrooms')
+          .select(
+            'id, title, property_code, price, area_sqft, land_area, land_area_unit, super_built_area, bedrooms'
+          )
           .eq('account_id', accountId)
           .in('id', [...propertyIds])
       : Promise.resolve({ data: [] as Record<string, unknown>[] }),
