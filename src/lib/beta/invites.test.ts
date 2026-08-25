@@ -169,8 +169,8 @@ describe('betaInviteShareMessage', () => {
 });
 
 describe('personalized invite preview asset', () => {
-  it('uses a traced JPEG and emits a compressed JPEG response', () => {
-    const route = readFileSync('src/app/i/[token]/opengraph-image.ts', 'utf8');
+  it('uses the traced background and caches the generated image', () => {
+    const route = readFileSync('src/app/i/[token]/opengraph-image.tsx', 'utf8');
     const background = readFileSync(
       'src/app/i/[token]/beta-invite-preview-background.jpg'
     );
@@ -178,8 +178,9 @@ describe('personalized invite preview asset', () => {
     expect(route).toContain(
       "new URL('./beta-invite-preview-background.jpg', import.meta.url)"
     );
-    expect(route).toContain('.jpeg({ quality: 82');
-    expect(route).toContain("export const contentType = 'image/jpeg'");
+    expect(route).toContain('data:image/jpeg;base64');
+    expect(route).toContain('data:image/svg+xml;base64');
+    expect(route).toContain("export const contentType = 'image/png'");
     expect(route).toContain('s-maxage=3600');
     expect(background.subarray(0, 2).toString('hex')).toBe('ffd8');
   });
