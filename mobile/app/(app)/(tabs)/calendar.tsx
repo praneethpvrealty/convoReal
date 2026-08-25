@@ -4,6 +4,7 @@ import { Link } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -35,8 +36,9 @@ import {
   type Todo,
   type TodoPriority,
 } from '@/lib/todos';
-import type { Appointment, AppointmentType } from '@/lib/types';
+import type { Appointment, AppointmentType, Contact } from '@/lib/types';
 import { usePullRefresh } from '@/lib/use-pull-refresh';
+import { useDebounced } from '@/lib/use-debounced';
 
 const TYPE_META: Record<
   AppointmentType,
@@ -775,10 +777,66 @@ function AppointmentDetail({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editingNotes, setEditingNotes] = useState(false);
+  const [editingDetails, setEditingDetails] = useState(false);
+  const [editTitle, setEditTitle] = useState(appointment?.title ?? '');
+  const [editDescription, setEditDescription] = useState(
+    appointment?.description ?? ''
+  );
+  const [editLocation, setEditLocation] = useState(appointment?.location ?? '');
+  const [editType, setEditType] = useState<AppointmentType>(
+    appointment?.event_type ?? 'meeting'
+  );
+  const [editStart, setEditStart] = useState(
+    () => new Date(appointment?.start_time ?? Date.now())
+  );
+  const [detailsPicker, setDetailsPicker] = useState<'date' | 'time' | null>(null);
+  const [editContactIds, setEditContactIds] = useState<string[]>(() =>
+    appointment?.contact_ids?.length
+      ? appointment.contact_ids
+      : appointment?.contact_id
+        ? [appointment.contact_id]
+        : []
+  );
+  const [contactSearch, setContactSearch] = useState('');
+  const debouncedContactSearch = useDebounced(contactSearch);
+  const [notificationScope, setNotificationScope] = useState<
+    'none' | 'new' | 'all'
+  >('new');
   const [notes, setNotes] = useState<Record<EventFieldKey, string>>({
     agenda: appointment?.agenda ?? '',
     minutes: appointment?.minutes ?? '',
     outcome: appointment?.outcome ?? '',
+  });
+
+  const selectedContactsQuery = useQuery({
+    queryKey: ['appointment-participants', appointment?.id, editContactIds],
+    enabled: !!appointment && editContactIds.length > 0,
+    queryFn: async () => {
+      const { data, error: queryError } = await supabase
+        .from('contacts')
+        .select('id, name, phone, name_tag')
+        .in('id', editContactIds);
+      if (queryError) throw queryError;
+      return (data ?? []) as Contact[];
+    },
+  });
+  const contactOptionsQuery = useQuery({
+    queryKey: ['appointment-contact-picker', debouncedContactSearch],
+    enabled:
+      !!appointment &&
+      editingDetails &&
+      debouncedContactSearch.trim().length >= 2,
+    queryFn: async () => {
+      const term = `%${debouncedContactSearch.trim()}%`;
+      const { data, error: queryError } = await supabase
+        .from('contacts')
+        .select('id, name, phone, name_tag')
+        .eq('is_merged', false)
+        .or(`name.ilike.${term},name_tag.ilike.${term},phone.ilike.${term}`)
+        .limit(8);
+      if (queryError) throw queryError;
+      return (data ?? []) as Contact[];
+    },
   });
 
   if (!appointment) return null;
@@ -791,6 +849,53 @@ function AppointmentDetail({
     setNewStart(null);
     setPicker(null);
     setError(null);
+  }
+
+  async function saveDetails() {
+    if (!appointment || !editTitle.trim()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const oldStart = new Date(appointment.start_time).getTime();
+      const oldEnd = appointment.end_time
+        ? new Date(appointment.end_time).getTime()
+        : oldStart + 60 * 60 * 1000;
+      const duration = Math.max(oldEnd - oldStart, 15 * 60 * 1000);
+      const result = await apiFetch<{
+        notifications: { sent: number; failed: number; recipients: number } | null;
+      }>(`/api/appointments/${appointment.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          title: editTitle.trim(),
+          description: editDescription.trim() || null,
+          location: editLocation.trim() || null,
+          event_type: editType,
+          start_time: editStart.toISOString(),
+          end_time: new Date(editStart.getTime() + duration).toISOString(),
+          contact_id: editContactIds[0] ?? null,
+          contact_ids: editContactIds,
+          notify_participants: notificationScope !== 'none',
+          notification_scope: notificationScope === 'all' ? 'all' : 'new',
+        }),
+      });
+      haptic.success();
+      queryClient.invalidateQueries({ queryKey: ['appointments'] });
+      const delivery = result.notifications;
+      Alert.alert(
+        'Event updated',
+        delivery?.failed
+          ? `${delivery.sent} message${delivery.sent === 1 ? '' : 's'} sent. ${delivery.failed} could not be delivered.`
+          : delivery?.sent
+            ? `${delivery.sent} participant${delivery.sent === 1 ? '' : 's'} notified on WhatsApp.`
+            : 'Your changes have been saved.'
+      );
+      onClose();
+    } catch (err) {
+      haptic.warn();
+      setError(err instanceof ApiError ? err.message : 'Could not update this event.');
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function setStatus(status: Appointment['status']) {
@@ -934,17 +1039,198 @@ function AppointmentDetail({
           </View>
         </View>
 
-        {appointment.location ? (
+        {editingDetails ? (
+          <View style={{ gap: spacing.md }}>
+            <TextInput
+              value={editTitle}
+              onChangeText={setEditTitle}
+              placeholder="Event title"
+              placeholderTextColor={colors.textFaint}
+              accessibilityLabel="Event title"
+              style={[
+                styles.editInput,
+                { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text },
+              ]}
+            />
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+              {(Object.keys(TYPE_META) as AppointmentType[]).map((type) => (
+                <FilterChip
+                  key={type}
+                  label={TYPE_META[type].label}
+                  active={editType === type}
+                  onPress={() => setEditType(type)}
+                />
+              ))}
+            </View>
+            <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+              <Pressable
+                style={[styles.pickerButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                onPress={() => setDetailsPicker('date')}
+                accessibilityRole="button"
+                accessibilityLabel="Change event date"
+              >
+                <Ionicons name="calendar-outline" size={15} color={colors.primary} />
+                <Text style={{ fontSize: 13.5, fontFamily: f.semibold, color: colors.text }}>
+                  {editStart.toLocaleDateString([], { day: 'numeric', month: 'short' })}
+                </Text>
+              </Pressable>
+              <Pressable
+                style={[styles.pickerButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                onPress={() => setDetailsPicker('time')}
+                accessibilityRole="button"
+                accessibilityLabel="Change event time"
+              >
+                <Ionicons name="time-outline" size={15} color={colors.primary} />
+                <Text style={{ fontSize: 13.5, fontFamily: f.semibold, color: colors.text }}>
+                  {editStart.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </Text>
+              </Pressable>
+            </View>
+            {detailsPicker ? (
+              <InlineDateTimePicker
+                value={editStart}
+                mode={detailsPicker}
+                onChange={setEditStart}
+                onClose={() => setDetailsPicker(null)}
+              />
+            ) : null}
+            <TextInput
+              value={editLocation}
+              onChangeText={setEditLocation}
+              placeholder="Location or meeting link"
+              placeholderTextColor={colors.textFaint}
+              accessibilityLabel="Event location"
+              style={[
+                styles.editInput,
+                { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text },
+              ]}
+            />
+            <TextInput
+              multiline
+              value={editDescription}
+              onChangeText={setEditDescription}
+              placeholder="Description (optional)"
+              placeholderTextColor={colors.textFaint}
+              accessibilityLabel="Event description"
+              style={[
+                styles.notesInput,
+                { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text },
+              ]}
+            />
+            <Text style={{ fontSize: 11.5, fontFamily: f.bold, color: colors.textMuted }}>
+              PARTICIPANTS
+            </Text>
+            {(selectedContactsQuery.data ?? []).map((contact) => (
+              <View
+                key={contact.id}
+                style={[styles.participantRow, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              >
+                <Ionicons name="person-outline" size={16} color={colors.primary} />
+                <Text style={{ flex: 1, fontSize: 14, color: colors.text }} numberOfLines={1}>
+                  {contact.name || contact.phone}
+                </Text>
+                <Pressable
+                  onPress={() => setEditContactIds((ids) => ids.filter((id) => id !== contact.id))}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Remove ${contact.name || contact.phone}`}
+                >
+                  <Ionicons name="close-circle" size={18} color={colors.textFaint} />
+                </Pressable>
+              </View>
+            ))}
+            <TextInput
+              value={contactSearch}
+              onChangeText={setContactSearch}
+              placeholder="Add participant — search name or phone"
+              placeholderTextColor={colors.textFaint}
+              accessibilityLabel="Search participants"
+              style={[
+                styles.editInput,
+                { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text },
+              ]}
+            />
+            {(contactOptionsQuery.data ?? [])
+              .filter((contact) => !editContactIds.includes(contact.id))
+              .map((contact) => (
+                <Pressable
+                  key={contact.id}
+                  onPress={() => {
+                    setEditContactIds((ids) => [...ids, contact.id]);
+                    setContactSearch('');
+                  }}
+                  style={[styles.participantRow, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                >
+                  <Ionicons name="person-add-outline" size={16} color={colors.primary} />
+                  <Text style={{ flex: 1, fontSize: 14, color: colors.text }} numberOfLines={1}>
+                    {contact.name || contact.phone}
+                  </Text>
+                </Pressable>
+              ))}
+            {editContactIds.length > 0 ? (
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+                <FilterChip
+                  label="Inform new participants"
+                  active={notificationScope === 'new'}
+                  onPress={() => setNotificationScope('new')}
+                />
+                <FilterChip
+                  label="Notify everyone"
+                  active={notificationScope === 'all'}
+                  onPress={() => setNotificationScope('all')}
+                />
+                <FilterChip
+                  label="No message"
+                  active={notificationScope === 'none'}
+                  onPress={() => setNotificationScope('none')}
+                />
+              </View>
+            ) : null}
+            <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+              <SheetButton
+                label="Save event"
+                color={colors.primary}
+                textColor={colors.onPrimary}
+                disabled={busy || !editTitle.trim()}
+                busy={busy}
+                onPress={saveDetails}
+              />
+              <SheetButton
+                label="Back"
+                color={colors.surface}
+                textColor={colors.textMuted}
+                onPress={() => setEditingDetails(false)}
+              />
+            </View>
+          </View>
+        ) : (
+          <Pressable
+            onPress={() => {
+              haptic.tap();
+              setEditingDetails(true);
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Edit this event"
+            style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}
+          >
+            <Ionicons name="create-outline" size={16} color={colors.primary} />
+            <Text style={{ fontSize: 14, fontFamily: f.semibold, color: colors.primary }}>
+              Edit event and participants
+            </Text>
+          </Pressable>
+        )}
+
+        {!editingDetails && appointment.location ? (
           <DetailRow icon="location-outline" text={appointment.location} />
         ) : null}
-        {appointment.description ? (
+        {!editingDetails && appointment.description ? (
           <DetailRow icon="text-outline" text={appointment.description} />
         ) : null}
         {/* Type-specific notes (migration 128): agenda before the
               event, minutes / outcome after it. Editable here because
               the post-event ones exist to be filled in once the event
               is done, which is when this sheet is open. */}
-        {editingNotes ? (
+        {!editingDetails && (editingNotes ? (
           <View style={{ gap: spacing.md }}>
             {eventTypeFields(appointment.event_type).map((field) => (
               <View key={field.key} style={{ gap: 6 }}>
@@ -1059,8 +1345,8 @@ function AppointmentDetail({
               </Text>
             </Pressable>
           </>
-        )}
-        {appointment.contact ? (
+        ))}
+        {!editingDetails && appointment.contact ? (
           <Link href={`/(app)/contact/${appointment.contact.id}`} asChild>
             <Pressable onPress={onClose}>
               <DetailRow
@@ -1073,7 +1359,7 @@ function AppointmentDetail({
             </Pressable>
           </Link>
         ) : null}
-        {appointment.property ? (
+        {!editingDetails && appointment.property ? (
           <Link href={`/(app)/property/${appointment.property.id}`} asChild>
             <Pressable onPress={onClose}>
               <DetailRow
@@ -1089,7 +1375,7 @@ function AppointmentDetail({
           <Text style={{ fontSize: 12.5, color: colors.danger }}>{error}</Text>
         ) : null}
 
-        {appointment.status === 'scheduled' ? (
+        {!editingDetails && appointment.status === 'scheduled' ? (
           rescheduling ? (
             <View style={{ gap: spacing.sm }}>
               <View style={{ flexDirection: 'row', gap: spacing.sm }}>
@@ -1366,6 +1652,23 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     fontFamily: fonts.regular,
     textAlignVertical: 'top',
+  },
+  editInput: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 11,
+    fontSize: 14,
+    fontFamily: fonts.regular,
+  },
+  participantRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 10,
   },
   pickerButton: {
     flex: 1,

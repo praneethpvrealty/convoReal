@@ -1,5 +1,10 @@
 import { NextResponse } from 'next/server'
 import { requireRole, toErrorResponse } from '@/lib/auth/account'
+import { supabaseAdmin } from '@/lib/automations/admin-client'
+import {
+  sendAppointmentUpdateNotifications,
+  type AppointmentNotificationScope,
+} from '@/lib/appointments/update-notification'
 
 export async function PUT(
   request: Request,
@@ -12,6 +17,7 @@ export async function PUT(
     const body = await request.json()
     const {
       contact_id,
+      contact_ids,
       property_id,
       title,
       description,
@@ -19,10 +25,48 @@ export async function PUT(
       end_time,
       location,
       status,
+      event_type,
+      assigned_to,
+      agenda,
+      minutes,
+      outcome,
+      notify_participants,
+      notification_scope,
     } = body
+
+    const { data: existing, error: existingError } = await supabase
+      .from('appointments')
+      .select('id, user_id, start_time, contact_id, contact_ids')
+      .eq('id', id)
+      .eq('account_id', accountId)
+      .maybeSingle()
+    if (existingError) {
+      return NextResponse.json({ error: existingError.message }, { status: 500 })
+    }
+    if (!existing) {
+      return NextResponse.json({ error: 'Appointment not found' }, { status: 404 })
+    }
+
+    const requestedContactIds = Array.isArray(contact_ids)
+      ? [...new Set(contact_ids.filter((value: unknown): value is string => typeof value === 'string'))]
+      : null
+    if (contact_id && requestedContactIds && !requestedContactIds.includes(contact_id)) {
+      requestedContactIds.unshift(contact_id)
+    }
+    if (requestedContactIds) {
+      const { data: validContacts } = await supabase
+        .from('contacts')
+        .select('id')
+        .eq('account_id', accountId)
+        .in('id', requestedContactIds)
+      if ((validContacts ?? []).length !== requestedContactIds.length) {
+        return NextResponse.json({ error: 'One or more participants are invalid' }, { status: 400 })
+      }
+    }
 
     const updatePayload: Record<string, unknown> = {
       contact_id: contact_id !== undefined ? contact_id : undefined,
+      contact_ids: requestedContactIds ?? undefined,
       property_id: property_id !== undefined ? property_id : undefined,
       title: title !== undefined ? title : undefined,
       description: description !== undefined ? description : undefined,
@@ -30,6 +74,11 @@ export async function PUT(
       end_time: end_time !== undefined ? end_time : undefined,
       location: location !== undefined ? location : undefined,
       status: status !== undefined ? status : undefined,
+      event_type: event_type !== undefined ? event_type : undefined,
+      assigned_to: assigned_to !== undefined ? assigned_to : undefined,
+      agenda: agenda !== undefined ? agenda : undefined,
+      minutes: minutes !== undefined ? minutes : undefined,
+      outcome: outcome !== undefined ? outcome : undefined,
       updated_at: new Date().toISOString(),
     }
 
@@ -40,12 +89,6 @@ export async function PUT(
     // ever get set to true (src/lib/appointments/reminder.ts) and
     // nothing else resets them.
     if (start_time !== undefined) {
-      const { data: existing } = await supabase
-        .from('appointments')
-        .select('start_time')
-        .eq('id', id)
-        .eq('account_id', accountId)
-        .maybeSingle()
       if (existing && new Date(existing.start_time).getTime() !== new Date(start_time).getTime()) {
         updatePayload.reminder_morning_sent = false
         updatePayload.reminder_1h_sent = false
@@ -64,14 +107,46 @@ export async function PUT(
       .update(updatePayload)
       .eq('id', id)
       .eq('account_id', accountId)
-      .select('*, contact:contacts(id, name, phone), property:properties(id, title, location, sublocality)')
+      .select('*, contact:contacts(id, name, phone), property:properties(id, title, type, location_privacy, location, sublocality, city, state)')
       .single()
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    return NextResponse.json(appointment)
+    let notifications = null
+    if (notify_participants === true) {
+      const scope: AppointmentNotificationScope =
+        notification_scope === 'all' ? 'all' : 'new'
+      const previousContactIds = existing.contact_ids?.length
+        ? existing.contact_ids
+        : existing.contact_id
+          ? [existing.contact_id]
+          : []
+      const currentContactIds = appointment.contact_ids?.length
+        ? appointment.contact_ids
+        : appointment.contact_id
+          ? [appointment.contact_id]
+          : []
+      try {
+        notifications = await sendAppointmentUpdateNotifications({
+          db: supabaseAdmin(),
+          appointment,
+          previousContactIds,
+          currentContactIds,
+          scope,
+        })
+      } catch (notificationError) {
+        console.error('Appointment updated but participant notifications failed:', notificationError)
+        const previousSet = new Set(previousContactIds)
+        const recipients = currentContactIds.filter(
+          (contactId: string) => scope === 'all' || !previousSet.has(contactId),
+        ).length
+        notifications = { sent: 0, failed: recipients, recipients }
+      }
+    }
+
+    return NextResponse.json({ appointment, notifications })
   } catch (error) {
     console.error('Error updating appointment:', error)
     return toErrorResponse(error)
