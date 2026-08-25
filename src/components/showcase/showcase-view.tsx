@@ -12,7 +12,8 @@ import { createShowcaseTracker } from '@/lib/pulse/tracker';
 import { getShowcaseSessionKey } from '@/lib/pulse/session-key';
 import { propertyMapPin } from '@/lib/maps/map-links';
 import { toast } from 'sonner';
-import { CATEGORY_SUBTYPES, parsePropertyQuery } from '@/lib/search-parser';
+import { CATEGORY_SUBTYPES } from '@/lib/search-parser';
+import { filterPropertiesBySearch } from '@/lib/inventory/search-filter';
 import {
   Search,
   MapPin,
@@ -1017,45 +1018,7 @@ export function ShowcaseView({
       );
     }
 
-    // Filter by search query — supports natural language
-    if (searchQuery) {
-      const parsed = parsePropertyQuery(searchQuery);
-
-      // Apply price range from parsed query
-      if (parsed.minPrice !== null) {
-        result = result.filter((p) => p.price >= parsed.minPrice!);
-      }
-      if (parsed.maxPrice !== null) {
-        result = result.filter((p) => p.price <= parsed.maxPrice!);
-      }
-
-      // Apply type filter from parsed query
-      if (parsed.types.length > 0) {
-        result = result.filter((p) => parsed.types.includes(p.type));
-      }
-
-      if (parsed.rentYielding) {
-        result = result.filter((p) => (p.rental_income ?? 0) > 0 || (p.roi ?? 0) > 0);
-      }
-
-      if (parsed.listingSource) {
-        result = result.filter((p) => (p.listing_source ?? 'owner') === parsed.listingSource);
-      }
-
-      // Apply text search on remaining search terms
-      if (parsed.remainingSearch) {
-        const text = parsed.remainingSearch;
-        result = result.filter(
-          (p) =>
-            p.title.toLowerCase().includes(text) ||
-            p.location.toLowerCase().includes(text) ||
-            p.sublocality?.toLowerCase().includes(text) ||
-            p.city?.toLowerCase().includes(text) ||
-            (p.project && p.project.toLowerCase().includes(text)) ||
-            p.property_code?.toLowerCase().includes(text)
-        );
-      }
-    }
+    result = filterPropertiesBySearch(result, searchQuery);
 
     // Sort
     if (sortBy === 'price-low') {

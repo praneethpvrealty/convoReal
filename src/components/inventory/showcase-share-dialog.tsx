@@ -17,6 +17,7 @@ import { Label } from '@/components/ui/label';
 import { Share2, Copy, Check, ExternalLink, MessageCircle, Search, Smartphone, UserCheck, X, User, Handshake, ClipboardList, Send, Loader2, Sparkles } from 'lucide-react';
 import type { MessageTemplate, Property, ShowcaseSettings } from '@/types';
 import { buildInventorySummary } from '@/lib/inventory-summary-builder';
+import { filterPropertiesBySearch } from '@/lib/inventory/search-filter';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import {
   buildInventoryUpdateTemplatePayload,
@@ -27,7 +28,7 @@ import {
 interface PickerContact {
   id: string;
   name: string | null;
-  phone: string;
+  phone: string | null;
   name_tag?: string | null;
 }
 
@@ -140,9 +141,15 @@ Best regards`;
     const q = contactSearch.toLowerCase().trim();
     if (!q) return contacts;
     return contacts.filter(
-      (c) => (c.name || '').toLowerCase().includes(q) || c.phone.includes(q),
+      (c) => (c.name || '').toLowerCase().includes(q) || (c.phone || '').includes(q),
     );
   }, [contacts, contactSearch]);
+
+  // A shared search string already names exactly what the receiver should
+  // see, so the category buttons are redundant while it is applied.
+  const trimmedSearch = activeSearch?.trim() || '';
+  const searchApplied = includeSearch && trimmedSearch.length > 0;
+  const effectiveCategory = searchApplied ? 'All' : shareCategory;
 
   const generatedLink = useMemo(() => {
     if (typeof window === 'undefined') return '';
@@ -164,13 +171,10 @@ Best regards`;
       urlObj.searchParams.set('ref', accountId);
     }
 
-    // Add category filter if selected (and not 'All')
-    if (shareCategory !== 'All') {
+    if (searchApplied) {
+      urlObj.searchParams.set('search', trimmedSearch);
+    } else if (shareCategory !== 'All') {
       urlObj.searchParams.set('category', shareCategory);
-    }
-
-    if (includeSearch && activeSearch?.trim()) {
-      urlObj.searchParams.set('search', activeSearch.trim());
     }
 
     // Co-broker shares open the complete clean view (full specs + map,
@@ -180,7 +184,7 @@ Best regards`;
     }
 
     return urlObj.toString();
-  }, [accountId, shareCategory, showcaseSettings, includeSearch, activeSearch, audienceTab]);
+  }, [accountId, shareCategory, showcaseSettings, searchApplied, trimmedSearch, audienceTab]);
 
   // ── WhatsApp inventory summary ────────────────────────────────
   // Published listings for the category-grouped digest; fetched once
@@ -197,7 +201,7 @@ Best regards`;
       const db = createClient();
       void db
         .from('properties')
-        .select('id, title, type, listing_type, price, rent_per_month, rental_income, roi, area_sqft, area_unit, land_area, land_area_unit, bedrooms, sublocality, city')
+        .select('id, title, type, listing_type, price, rent_per_month, rental_income, roi, area_sqft, area_unit, land_area, land_area_unit, bedrooms, location, sublocality, city, project, property_code, listing_source')
         .eq('account_id', accountId)
         .eq('is_published', true)
         .eq('status', 'Available')
@@ -217,13 +221,20 @@ Best regards`;
     };
   }, [open, accountId]);
 
+  const summaryScope = useMemo(() => {
+    if (!summaryProperties) return null;
+    return searchApplied
+      ? filterPropertiesBySearch(summaryProperties, trimmedSearch)
+      : summaryProperties;
+  }, [summaryProperties, searchApplied, trimmedSearch]);
+
   const autoSummary = useMemo(() => {
-    if (!summaryProperties) return '';
-    return buildInventorySummary(summaryProperties, {
+    if (!summaryScope) return '';
+    return buildInventorySummary(summaryScope, {
       portalUrl: generatedLink,
-      category: shareCategory,
+      category: effectiveCategory,
     });
-  }, [summaryProperties, generatedLink, shareCategory]);
+  }, [summaryScope, generatedLink, effectiveCategory]);
 
   // Manual edits survive until an input (category/audience) changes the
   // auto text: the draft remembers which auto text it was based on, and a
@@ -330,7 +341,7 @@ Best regards`;
     if (!engineTemplate || !accountId) return;
     setEngineSendingContactId(contact.id);
     try {
-      const [residential, commercial, farmAndLand] = buildInventoryUpdateParams(summaryProperties ?? []);
+      const [residential, commercial, farmAndLand] = buildInventoryUpdateParams(summaryScope ?? []);
       const firstName = contact.name?.trim().split(/\s+/)[0] || 'there';
       // Dynamic URL-button suffix → tracked, personalised portal open.
       const buttonParams: Record<number, string> = {};
@@ -399,7 +410,7 @@ Best regards`;
 
   const handleWhatsAppPersonal = (contact: PickerContact) => {
     const message = buildMessage(personalizedLink(contact.id), contact.name);
-    const phone = contact.phone.replace(/\D/g, '');
+    const phone = (contact.phone || '').replace(/\D/g, '');
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
   };
 
@@ -494,45 +505,54 @@ Best regards`;
               : 'Client links open the teaser showcase — exact addresses stay masked until they inquire, so every serious viewer becomes a captured lead.'}
           </p>
 
-          {/* Category Filter Options */}
-          <div className="space-y-2">
-            <Label className="text-slate-350 text-xs font-bold uppercase tracking-wider">
-              Filter by Category
-            </Label>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {(['All', 'Residential', 'Commercial', 'Agricultural'] as const).map((cat) => (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => setShareCategory(cat)}
-                  className={`text-xs px-2.5 py-2 rounded-lg border transition-all cursor-pointer font-semibold text-center select-none ${
-                    shareCategory === cat
-                      ? 'bg-primary text-primary-foreground border-primary font-bold shadow-md shadow-primary/20'
-                      : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
-                  }`}
-                >
-                  {cat === 'All' ? 'All Properties' : cat}
-                </button>
-              ))}
+          {/* Active search — when shared, it defines the result set on its own */}
+          {trimmedSearch && (
+            <div className="space-y-2 rounded-xl border border-slate-900 bg-slate-950/20 p-3 relative z-10">
+              <div className="flex items-center gap-2.5">
+                <input
+                  type="checkbox"
+                  id="include-search"
+                  checked={includeSearch}
+                  onChange={(e) => setIncludeSearch(e.target.checked)}
+                  className="size-4 border-slate-800 rounded text-primary focus:ring-primary/20 bg-slate-950 cursor-pointer"
+                />
+                <label htmlFor="include-search" className="text-xs font-bold text-slate-350 cursor-pointer select-none">
+                  Share only your search results: <span className="text-primary italic font-black">&quot;{trimmedSearch}&quot;</span>
+                </label>
+              </div>
+              <p className="text-[11px] text-slate-500 font-medium">
+                {searchApplied
+                  ? 'The link, the summary, and every personal send below carry only the listings matching this search. Uncheck to share the full showcase and pick a category instead.'
+                  : 'Currently sharing your full showcase. Tick this to send only the listings matching your search.'}
+              </p>
             </div>
-            <p className="text-[11px] text-slate-500 font-medium">
-              Selecting a category will automatically apply the filter when the customer opens the link.
-            </p>
-          </div>
+          )}
 
-          {/* Active Search Filter Checkbox */}
-          {activeSearch?.trim() && (
-            <div className="flex items-center gap-2.5 p-3 bg-slate-950/20 border border-slate-900 rounded-xl relative z-10">
-              <input
-                type="checkbox"
-                id="include-search"
-                checked={includeSearch}
-                onChange={(e) => setIncludeSearch(e.target.checked)}
-                className="size-4 border-slate-800 rounded text-primary focus:ring-primary/20 bg-slate-950 cursor-pointer"
-              />
-              <label htmlFor="include-search" className="text-xs font-bold text-slate-350 cursor-pointer select-none">
-                Include active search query: <span className="text-primary italic font-black">&quot;{activeSearch}&quot;</span>
-              </label>
+          {/* Category Filter Options */}
+          {!searchApplied && (
+            <div className="space-y-2">
+              <Label className="text-slate-350 text-xs font-bold uppercase tracking-wider">
+                Filter by Category
+              </Label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {(['All', 'Residential', 'Commercial', 'Agricultural'] as const).map((cat) => (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setShareCategory(cat)}
+                    className={`text-xs px-2.5 py-2 rounded-lg border transition-all cursor-pointer font-semibold text-center select-none ${
+                      shareCategory === cat
+                        ? 'bg-primary text-primary-foreground border-primary font-bold shadow-md shadow-primary/20'
+                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
+                    }`}
+                  >
+                    {cat === 'All' ? 'All Properties' : cat}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[11px] text-slate-500 font-medium">
+                Selecting a category will automatically apply the filter when the customer opens the link.
+              </p>
             </div>
           )}
 
@@ -620,7 +640,7 @@ Best regards`;
               ROI where available. Follows the category filter above; edit
               freely before sending to a group or broadcast list.
             </p>
-            {summaryProperties === null ? (
+            {summaryScope === null ? (
               <div className="h-24 rounded-lg bg-slate-900 animate-pulse" />
             ) : summaryMessage ? (
               <>
@@ -784,17 +804,17 @@ Best regards`;
                   >
                     <div className="min-w-0">
                       <span className="text-xs font-bold text-white truncate flex items-center gap-1.5">
-                        <span className="truncate">{contact.name || contact.phone}</span>
+                        <span className="truncate">{contact.name || contact.phone || 'Unnamed contact'}</span>
                         <NameTagBadge tag={contact.name_tag} />
                       </span>
-                      {contact.name && (
+                      {contact.name && contact.phone && (
                         <span className="text-[10px] text-slate-500 font-medium truncate block">
                           📞 {contact.phone}
                         </span>
                       )}
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
-                      {engineTemplateApproved && (
+                      {engineTemplateApproved && contact.phone && (
                         <Button
                           size="sm"
                           onClick={() => void handleEngineSendPersonal(contact)}
@@ -814,6 +834,8 @@ Best regards`;
                       )}
                       <Button
                         size="sm"
+                        disabled={!contact.phone}
+                        title={contact.phone ? undefined : 'Add a phone number to this contact to send on WhatsApp'}
                         onClick={() => handleWhatsAppPersonal(contact)}
                         className="h-7 px-2.5 text-[11px] font-bold bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-1"
                       >
