@@ -30,6 +30,7 @@ import { supabase } from '@/lib/supabase';
 import {
   logExternalShare,
   sendPropertyViaEngine,
+  sendPropertyViaEngineMany,
 } from '@/lib/property-share-actions';
 import { propertyShareUrl } from '@/lib/property-share-link';
 import {
@@ -96,11 +97,21 @@ export function PropertyShareSheet({
   const [detail, setDetail] = useState<ShareDetailLevel>('standard');
   const [message, setMessage] = useState('');
   const [copied, setCopied] = useState<'link' | 'message' | null>(null);
-  const [picker, setPicker] = useState<'external' | 'engine' | 'inventory' | null>(null);
+  const [picker, setPicker] = useState<
+    'external' | 'engine' | 'inventory' | null
+  >(null);
   const [engineSending, setEngineSending] = useState(false);
+  const [engineProgress, setEngineProgress] = useState<{
+    done: number;
+    total: number;
+  } | null>(null);
   const [inventorySharing, setInventorySharing] = useState(false);
   const [sharingPhoto, setSharingPhoto] = useState(false);
-  const [dialog, setDialog] = useState<{ title: string; message?: string; actions: DialogAction[] } | null>(null);
+  const [dialog, setDialog] = useState<{
+    title: string;
+    message?: string;
+    actions: DialogAction[];
+  } | null>(null);
 
   // The account's showcase subdomain, so a link shared from a phone
   // lands on the agency's own showcase like the web dialog's does.
@@ -127,11 +138,17 @@ export function PropertyShareSheet({
   // Sign the message with the account's own name (Settings → profile),
   // reactive via the auth store, and fall back to the email handle only
   // until a name is set.
-  const emailName = (session?.user.email?.split('@')[0] ?? '').split(/[._-]/)[0];
+  const emailName = (session?.user.email?.split('@')[0] ?? '').split(
+    /[._-]/
+  )[0];
   const agentName =
     fullName?.trim() ||
-    (emailName ? emailName.charAt(0).toUpperCase() + emailName.slice(1) : undefined);
-  const agentPhone = session?.user.phone ? `+${session.user.phone.replace(/^\+/, '')}` : undefined;
+    (emailName
+      ? emailName.charAt(0).toUpperCase() + emailName.slice(1)
+      : undefined);
+  const agentPhone = session?.user.phone
+    ? `+${session.user.phone.replace(/^\+/, '')}`
+    : undefined;
 
   const generated = useMemo(
     () =>
@@ -221,7 +238,7 @@ export function PropertyShareSheet({
       } else {
         const flyer = await apiFetch<{ data: { image: string } }>(
           `/api/properties/${property.id}/flyer`,
-          { method: 'POST', body: JSON.stringify({ size: 1080 }) },
+          { method: 'POST', body: JSON.stringify({ size: 1080 }) }
         );
         const dataUrl = flyer.data.image;
         const b64 = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
@@ -232,7 +249,10 @@ export function PropertyShareSheet({
         mimeType = 'image/png';
       }
 
-      const file = new File(Paths.cache, `property-${property.id}-${Date.now()}.${ext}`);
+      const file = new File(
+        Paths.cache,
+        `property-${property.id}-${Date.now()}.${ext}`
+      );
       file.create();
       file.write(bytes);
 
@@ -246,7 +266,9 @@ export function PropertyShareSheet({
       setDialog({
         title: 'Could not share the photo',
         message: err instanceof Error ? err.message : 'Please try again.',
-        actions: [{ label: 'OK', variant: 'primary', onPress: () => setDialog(null) }],
+        actions: [
+          { label: 'OK', variant: 'primary', onPress: () => setDialog(null) },
+        ],
       });
     } finally {
       setSharingPhoto(false);
@@ -272,7 +294,8 @@ export function PropertyShareSheet({
       haptic.success();
       onShared?.([contact.id]);
       onClose();
-      if (outcome.conversationId) router.push(`/(app)/conversation/${outcome.conversationId}`);
+      if (outcome.conversationId)
+        router.push(`/(app)/conversation/${outcome.conversationId}`);
       return;
     }
     if (outcome.templateStatus) {
@@ -280,12 +303,18 @@ export function PropertyShareSheet({
       const convId = outcome.conversationId;
       const pending = outcome.templateStatus === 'PENDING';
       setDialog({
-        title: pending ? 'Template awaiting Meta approval' : 'One-time template setup needed',
+        title: pending
+          ? 'Template awaiting Meta approval'
+          : 'One-time template setup needed',
         message: pending
           ? `${contact.name || contact.phone} hasn’t messaged in the last 24 hours, so this share needs the approved property template — it’s still under review by Meta (usually minutes to a few hours). Try again once it’s approved, or open the chat to send another approved template.`
           : `${contact.name || contact.phone} hasn’t messaged in the last 24 hours, so WhatsApp requires a pre-approved template. An Org Manager can set up the property template once from Radar on the ConvoReal web app — after Meta approves it, shares like this go out automatically. For now, open the chat to send an approved template.`,
         actions: [
-          { label: 'Not now', variant: 'muted', onPress: () => setDialog(null) },
+          {
+            label: 'Not now',
+            variant: 'muted',
+            onPress: () => setDialog(null),
+          },
           ...(convId
             ? [
                 {
@@ -305,9 +334,13 @@ export function PropertyShareSheet({
     }
     haptic.warn();
     setDialog({
-      title: 'Could not send',
-      message: outcome.error ?? 'Please try again.',
-      actions: [{ label: 'OK', variant: 'primary', onPress: () => setDialog(null) }],
+      title: outcome.timedOut ? 'Still sending' : 'Could not send',
+      message: outcome.timedOut
+        ? 'WhatsApp is taking longer than usual to answer. The message may still go out — open the chat in a moment to check before sending it again.'
+        : (outcome.error ?? 'Please try again.'),
+      actions: [
+        { label: 'OK', variant: 'primary', onPress: () => setDialog(null) },
+      ],
     });
   }
 
@@ -324,26 +357,33 @@ export function PropertyShareSheet({
       return;
     }
     setEngineSending(true);
+    setEngineProgress({ done: 0, total: contacts.length });
     haptic.send();
+    const outcomes = await sendPropertyViaEngineMany(
+      contacts,
+      property,
+      (c) => addRecipientGreeting(message, c.name),
+      (done, total) => setEngineProgress({ done, total })
+    );
     const blocked: string[] = [];
     const failed: string[] = [];
+    const pending: string[] = [];
     const reached: string[] = [];
     for (const c of contacts) {
-      const outcome = await sendPropertyViaEngine(
-        c,
-        property,
-        addRecipientGreeting(message, c.name)
-      );
-      if (outcome.sent) {
+      const outcome = outcomes.get(c.id);
+      if (outcome?.sent) {
         reached.push(c.id);
-      } else if (outcome.templateStatus) {
+      } else if (outcome?.templateStatus) {
         blocked.push(c.name || contactHandle(c));
+      } else if (outcome?.timedOut) {
+        pending.push(c.name || contactHandle(c));
       } else {
         failed.push(c.name || contactHandle(c));
       }
     }
     const sent = reached.length;
     setEngineSending(false);
+    setEngineProgress(null);
     setPicker(null);
     // Report the partial set too — the ones that did land are already
     // on the ledger and must show as shared.
@@ -361,11 +401,16 @@ export function PropertyShareSheet({
         blocked.length
           ? `No message in the last 24 hours, so WhatsApp needs an approved template for: ${blocked.join(', ')}.`
           : null,
+        pending.length
+          ? `Still sending — WhatsApp hasn't answered yet, so these may still go out. Check the chats before resending: ${pending.join(', ')}.`
+          : null,
         failed.length ? `Could not send to: ${failed.join(', ')}.` : null,
       ]
         .filter(Boolean)
         .join('\n\n'),
-      actions: [{ label: 'OK', variant: 'primary', onPress: () => setDialog(null) }],
+      actions: [
+        { label: 'OK', variant: 'primary', onPress: () => setDialog(null) },
+      ],
     });
   }
 
@@ -377,10 +422,13 @@ export function PropertyShareSheet({
     const failed: string[] = [];
     for (const agentContact of agentContacts) {
       try {
-        await apiFetch(`/api/properties/${property.id}/share-to-agent-account`, {
-          method: 'POST',
-          body: JSON.stringify({ contact_id: agentContact.id }),
-        });
+        await apiFetch(
+          `/api/properties/${property.id}/share-to-agent-account`,
+          {
+            method: 'POST',
+            body: JSON.stringify({ contact_id: agentContact.id }),
+          }
+        );
         shared.push(agentContact.name || contactHandle(agentContact));
       } catch (error) {
         failed.push(
@@ -466,19 +514,63 @@ export function PropertyShareSheet({
           ? void shareExternalWithContact(recipients[0])
           : setPicker('external'),
     },
-    { key: 'telegram', icon: 'paper-plane' as const, label: 'Telegram', color: colors.readTick, onPress: () => Linking.openURL(targets.telegram) },
-    { key: 'email', icon: 'mail-outline' as const, label: 'Email', color: colors.primary, onPress: () => Linking.openURL(targets.email) },
-    { key: 'sms', icon: 'chatbox-outline' as const, label: 'SMS', color: colors.primary, onPress: () => Linking.openURL(targets.sms) },
-    { key: 'copy', icon: (copied === 'message' ? 'checkmark' : 'copy-outline') as 'checkmark' | 'copy-outline', label: copied === 'message' ? 'Copied!' : 'Copy message', color: colors.primary, onPress: () => copy('message') },
-    { key: 'photo', icon: (sharingPhoto ? 'hourglass-outline' : 'image-outline') as 'hourglass-outline' | 'image-outline', label: sharingPhoto ? 'Preparing…' : 'Share photo', color: colors.primary, onPress: sharePhoto },
-    { key: 'more', icon: 'share-social-outline' as const, label: 'More apps…', color: colors.primary, onPress: () => Share.share({ message }) },
+    {
+      key: 'telegram',
+      icon: 'paper-plane' as const,
+      label: 'Telegram',
+      color: colors.readTick,
+      onPress: () => Linking.openURL(targets.telegram),
+    },
+    {
+      key: 'email',
+      icon: 'mail-outline' as const,
+      label: 'Email',
+      color: colors.primary,
+      onPress: () => Linking.openURL(targets.email),
+    },
+    {
+      key: 'sms',
+      icon: 'chatbox-outline' as const,
+      label: 'SMS',
+      color: colors.primary,
+      onPress: () => Linking.openURL(targets.sms),
+    },
+    {
+      key: 'copy',
+      icon: (copied === 'message' ? 'checkmark' : 'copy-outline') as
+        | 'checkmark'
+        | 'copy-outline',
+      label: copied === 'message' ? 'Copied!' : 'Copy message',
+      color: colors.primary,
+      onPress: () => copy('message'),
+    },
+    {
+      key: 'photo',
+      icon: (sharingPhoto ? 'hourglass-outline' : 'image-outline') as
+        | 'hourglass-outline'
+        | 'image-outline',
+      label: sharingPhoto ? 'Preparing…' : 'Share photo',
+      color: colors.primary,
+      onPress: sharePhoto,
+    },
+    {
+      key: 'more',
+      icon: 'share-social-outline' as const,
+      label: 'More apps…',
+      color: colors.primary,
+      onPress: () => Share.share({ message }),
+    },
   ];
 
   return (
     <BottomSheet visible={visible} onClose={onClose} title="Share property">
       <ScrollView
         style={sheetScrollArea}
-        contentContainerStyle={{ paddingHorizontal: spacing.lg, gap: spacing.md, paddingBottom: spacing.sm }}
+        contentContainerStyle={{
+          paddingHorizontal: spacing.lg,
+          gap: spacing.md,
+          paddingBottom: spacing.sm,
+        }}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
       >
@@ -500,7 +592,13 @@ export function PropertyShareSheet({
         {audience === 'client' ? (
           <>
             <SectionLabel text="Tone" />
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+            <View
+              style={{
+                flexDirection: 'row',
+                flexWrap: 'wrap',
+                gap: spacing.sm,
+              }}
+            >
               {TONES.map((t) => (
                 <FilterChip
                   key={t.value}
@@ -534,7 +632,11 @@ export function PropertyShareSheet({
           accessibilityLabel="Share message"
           style={[
             styles.draft,
-            { backgroundColor: colors.surfaceRaised, borderColor: colors.border, color: colors.text },
+            {
+              backgroundColor: colors.surfaceRaised,
+              borderColor: colors.border,
+              color: colors.text,
+            },
           ]}
         />
 
@@ -544,7 +646,10 @@ export function PropertyShareSheet({
           accessibilityLabel="Copy link"
           style={[styles.linkRow, { backgroundColor: colors.surfaceSunken }]}
         >
-          <Text style={{ flex: 1, fontSize: 12, color: colors.textMuted }} numberOfLines={1}>
+          <Text
+            style={{ flex: 1, fontSize: 12, color: colors.textMuted }}
+            numberOfLines={1}
+          >
             {url}
           </Text>
           <Ionicons
@@ -558,32 +663,57 @@ export function PropertyShareSheet({
           <Pressable
             disabled={inventorySharing}
             onPress={() => {
-              const agents = recipients.filter((row) => row.classification === 'Agent');
+              const agents = recipients.filter(
+                (row) => row.classification === 'Agent'
+              );
               if (agents.length > 0) void shareToInventoryMany(agents);
               else setPicker('inventory');
             }}
             accessibilityRole="button"
-            accessibilityState={{ disabled: inventorySharing, busy: inventorySharing }}
+            accessibilityState={{
+              disabled: inventorySharing,
+              busy: inventorySharing,
+            }}
             accessibilityLabel="Share to a ConvoReal agent inventory"
             style={[
               styles.engineButton,
-              { backgroundColor: colors.primarySoft, borderColor: colors.primary },
+              {
+                backgroundColor: colors.primarySoft,
+                borderColor: colors.primary,
+              },
               inventorySharing && { opacity: 0.6 },
             ]}
           >
-            <Ionicons name="folder-open-outline" size={20} color={colors.primary} />
+            <Ionicons
+              name="folder-open-outline"
+              size={20}
+              color={colors.primary}
+            />
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 14, fontFamily: f.bold, color: colors.primary }}>
-                {inventorySharing ? 'Sharing to inventory…' : 'Share to agent inventory'}
+              <Text
+                style={{
+                  fontSize: 14,
+                  fontFamily: f.bold,
+                  color: colors.primary,
+                }}
+              >
+                {inventorySharing
+                  ? 'Sharing to inventory…'
+                  : 'Share to agent inventory'}
               </Text>
               <Text style={{ fontSize: 11.5, color: colors.textMuted }}>
-                Sends to their review queue; approval adds the attributed listing
+                Sends to their review queue; approval adds the attributed
+                listing
               </Text>
             </View>
             {inventorySharing ? (
               <ActivityIndicator size="small" color={colors.primary} />
             ) : (
-              <Ionicons name="chevron-forward" size={16} color={colors.primary} />
+              <Ionicons
+                name="chevron-forward"
+                size={16}
+                color={colors.primary}
+              />
             )}
           </Pressable>
         ) : null}
@@ -592,7 +722,9 @@ export function PropertyShareSheet({
         <Pressable
           disabled={engineSending}
           onPress={() =>
-            recipients.length ? void sendViaConvoRealMany(recipients) : setPicker('engine')
+            recipients.length
+              ? void sendViaConvoRealMany(recipients)
+              : setPicker('engine')
           }
           accessibilityRole="button"
           accessibilityState={{ disabled: engineSending, busy: engineSending }}
@@ -603,15 +735,26 @@ export function PropertyShareSheet({
           }
           style={[
             styles.engineButton,
-            { backgroundColor: colors.primarySoft, borderColor: colors.primary },
+            {
+              backgroundColor: colors.primarySoft,
+              borderColor: colors.primary,
+            },
             engineSending && { opacity: 0.6 },
           ]}
         >
           <Ionicons name="logo-whatsapp" size={20} color={colors.primary} />
           <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 14, fontFamily: f.bold, color: colors.primary }}>
+            <Text
+              style={{
+                fontSize: 14,
+                fontFamily: f.bold,
+                color: colors.primary,
+              }}
+            >
               {engineSending
-                ? 'Sending from ConvoReal…'
+                ? engineProgress && engineProgress.total > 1
+                  ? `Sending ${engineProgress.done} of ${engineProgress.total}…`
+                  : 'Sending from ConvoReal…'
                 : recipientName
                   ? `Send to ${recipientName}`
                   : 'Send via ConvoReal WhatsApp'}
@@ -635,17 +778,35 @@ export function PropertyShareSheet({
               onPress={c.onPress}
               accessibilityRole="button"
               accessibilityLabel={c.label}
-              style={[styles.channel, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
+              style={[
+                styles.channel,
+                {
+                  backgroundColor: colors.glass,
+                  borderColor: colors.glassBorder,
+                },
+              ]}
             >
               <Ionicons name={c.icon} size={17} color={c.color} />
-              <Text style={{ fontSize: 13, fontFamily: f.semibold, color: colors.text }}>
+              <Text
+                style={{
+                  fontSize: 13,
+                  fontFamily: f.semibold,
+                  color: colors.text,
+                }}
+              >
                 {c.label}
               </Text>
             </Pressable>
           ))}
         </View>
 
-        <Text style={{ fontSize: 11.5, color: colors.textFaint, textAlign: 'center' }}>
+        <Text
+          style={{
+            fontSize: 11.5,
+            color: colors.textFaint,
+            textAlign: 'center',
+          }}
+        >
           {recipients.length > 1
             ? `Send from ConvoReal reaches all ${recipients.length} from your business number, each with their own greeting and their own 24-hour-window check. WhatsApp opens one chat at a time, so it asks who first.`
             : recipientName
@@ -734,10 +895,18 @@ function AudienceCard({
         },
       ]}
     >
-      <Text style={{ fontSize: 14, fontFamily: f.bold, color: active ? colors.primary : colors.text }}>
+      <Text
+        style={{
+          fontSize: 14,
+          fontFamily: f.bold,
+          color: active ? colors.primary : colors.text,
+        }}
+      >
         {title}
       </Text>
-      <Text style={{ fontSize: 11.5, color: colors.textMuted }}>{subtitle}</Text>
+      <Text style={{ fontSize: 11.5, color: colors.textMuted }}>
+        {subtitle}
+      </Text>
     </Pressable>
   );
 }
