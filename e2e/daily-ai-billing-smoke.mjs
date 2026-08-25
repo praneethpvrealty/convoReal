@@ -124,6 +124,7 @@ async function resetWallet(accountId, credits) {
       promo_credits: 0,
       pending_referral_credits: 0,
       total_credits: credits,
+      monthly_reset_at: new Date(Date.now() + 32 * 86_400_000).toISOString(),
     })
     .eq('account_id', accountId);
   if (walletError) throw new Error(`Could not reset smoke wallet: ${walletError.message}`);

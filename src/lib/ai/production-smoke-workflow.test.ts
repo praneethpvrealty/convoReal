@@ -9,6 +9,7 @@ const releaseGate = readFileSync(
   '.github/workflows/release-gate-e2e.yml',
   'utf8'
 );
+const smokeScript = readFileSync('e2e/daily-ai-billing-smoke.mjs', 'utf8');
 
 describe('production AI smoke workflow configuration', () => {
   it.each([
@@ -38,5 +39,11 @@ describe('production AI smoke workflow configuration', () => {
     expect(daily).toContain('branches: [main]');
     expect(daily).toContain("'e2e/daily-ai-billing-smoke.mjs'");
     expect(daily).toContain("'.github/workflows/daily-ai-billing-smoke.yml'");
+  });
+
+  it('prevents a lazy monthly refill from changing probe balances', () => {
+    expect(smokeScript).toContain(
+      'monthly_reset_at: new Date(Date.now() + 32 * 86_400_000).toISOString()'
+    );
   });
 });
