@@ -1,6 +1,7 @@
-'use client'
+'use client';
 
-import { useEffect } from 'react'
+import { useEffect } from 'react';
+import * as Sentry from '@sentry/nextjs';
 
 /**
  * Last-resort fallback when the root layout itself throws. Must render
@@ -12,30 +13,13 @@ export default function GlobalError({
   error,
   reset,
 }: {
-  error: Error & { digest?: string }
-  reset: () => void
+  error: Error & { digest?: string };
+  reset: () => void;
 }) {
   useEffect(() => {
-    console.error('[error boundary]', error)
-    // Report it too: a crash that only happens on someone else's device
-    // is otherwise invisible — see /api/client-error.
-    try {
-      void fetch('/api/client-error', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: error?.message,
-          digest: error?.digest,
-          stack: error?.stack,
-          url: typeof window !== 'undefined' ? window.location.href : '',
-          buildId: process.env.NEXT_PUBLIC_BUILD_ID ?? '',
-        }),
-        keepalive: true,
-      }).catch(() => {})
-    } catch {
-      // reporting must never mask the original failure
-    }
-  }, [error])
+    console.error('[error boundary]', error);
+    Sentry.captureException(error);
+  }, [error]);
 
   return (
     <html lang="en">
@@ -56,10 +40,24 @@ export default function GlobalError({
         }}
       >
         <div>
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 600, color: '#fff', margin: '0 0 8px' }}>
+          <h1
+            style={{
+              fontSize: '1.5rem',
+              fontWeight: 600,
+              color: '#fff',
+              margin: '0 0 8px',
+            }}
+          >
             Everyone&apos;s Out Showing Properties
           </h1>
-          <p style={{ fontSize: '0.875rem', color: '#94a3b8', maxWidth: '24rem', margin: '0 auto' }}>
+          <p
+            style={{
+              fontSize: '0.875rem',
+              color: '#94a3b8',
+              maxWidth: '24rem',
+              margin: '0 auto',
+            }}
+          >
             The whole team&apos;s gone quiet. Please try again in a moment.
           </p>
         </div>
@@ -80,5 +78,5 @@ export default function GlobalError({
         </button>
       </body>
     </html>
-  )
+  );
 }

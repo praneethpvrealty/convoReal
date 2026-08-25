@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import Redis from 'ioredis';
+import * as Sentry from '@sentry/node';
 import { processWebhook } from '../lib/whatsapp/webhook-handler';
 import {
   processListingVideoJob,
@@ -17,6 +18,7 @@ import {
 import { processReminderAudioJob } from '../lib/voice/reminder-audio-worker';
 import type { ReminderAudioJob } from '../lib/voice/reminder-audio';
 import { createShutdownGate } from '../lib/queue/graceful-shutdown';
+import { sanitizeSentryEvent } from '../lib/monitoring/sanitize';
 
 // Helper to manually load Next.js environment files
 function loadEnv() {
@@ -48,6 +50,17 @@ function loadEnv() {
 
 // Load env variables
 loadEnv();
+
+const sentryDsn = process.env.SENTRY_DSN;
+Sentry.init({
+  dsn: sentryDsn,
+  enabled: Boolean(sentryDsn) && process.env.NODE_ENV !== 'test',
+  environment: process.env.SENTRY_ENVIRONMENT ?? process.env.NODE_ENV,
+  release: process.env.SENTRY_RELEASE,
+  sendDefaultPii: false,
+  tracesSampleRate: 0,
+  beforeSend: sanitizeSentryEvent,
+});
 
 const redisUrl = process.env.REDIS_URL;
 if (!redisUrl) {
@@ -125,6 +138,9 @@ async function startWorker() {
             );
           } catch (videoErr) {
             console.error('[Worker] Listing-video job crashed:', videoErr);
+            Sentry.captureException(videoErr, {
+              tags: { runtime: 'queue-worker', operation: 'media_job' },
+            });
           }
           shutdownGate.finishWork();
           continue;
@@ -138,6 +154,9 @@ async function startWorker() {
             '[Worker] Failed to parse payload JSON. Moving to Dead Letter Queue...',
             parseErr
           );
+          Sentry.captureException(parseErr, {
+            tags: { runtime: 'queue-worker', operation: 'parse_webhook' },
+          });
           const dlqItem = {
             payload: payloadStr,
             error:
@@ -182,6 +201,9 @@ async function startWorker() {
           console.error(
             `[Worker] Job failed after ${maxAttempts} attempts. Moving to Dead Letter Queue (DLQ)...`
           );
+          Sentry.captureException(lastError, {
+            tags: { runtime: 'queue-worker', operation: 'process_webhook' },
+          });
           const dlqItem = {
             payload: body,
             error:
@@ -199,6 +221,9 @@ async function startWorker() {
       shutdownGate.finishWork();
       if (!shutdownGate.shouldContinue()) break;
       console.error('[Worker] Loop error:', err);
+      Sentry.captureException(err, {
+        tags: { runtime: 'queue-worker', operation: 'queue_loop' },
+      });
       // Wait 1 second before retrying to prevent hot loops
       await new Promise((resolve) => setTimeout(resolve, 1000));
     }
@@ -216,4 +241,18 @@ process.on('SIGINT', () => {
   shutdownGate.requestShutdown();
 });
 
-startWorker();
+process.on('uncaughtException', async (error) => {
+  Sentry.captureException(error, {
+    tags: { runtime: 'queue-worker', operation: 'uncaught_exception' },
+  });
+  await Sentry.flush(2_000);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason) => {
+  Sentry.captureException(reason, {
+    tags: { runtime: 'queue-worker', operation: 'unhandled_rejection' },
+  });
+});
+
+void startWorker().finally(() => Sentry.flush(2_000));

@@ -11,24 +11,32 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
+	"github.com/getsentry/sentry-go"
+	sentryhttp "github.com/getsentry/sentry-go/http"
 	"github.com/redis/go-redis/v9"
 )
 
 const maxWebhookBodyBytes = 1 << 20
 
 var (
-	redisClient *redis.Client
-	appSecret   string
-	verifyToken string
-	redisQueue  = "whatsapp-webhooks"
+	redisClient   *redis.Client
+	appSecret     string
+	verifyToken   string
+	redisQueue    = "whatsapp-webhooks"
+	phonePattern  = regexp.MustCompile(`(?:\+?\d[\s().-]*){8,}`)
+	emailPattern  = regexp.MustCompile(`(?i)[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}`)
+	bearerPattern = regexp.MustCompile(`(?i)\bBearer\s+[^\s,;]+`)
 )
 
 func main() {
 	// Initialize logging
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
+	initSentry()
+	defer sentry.Flush(2 * time.Second)
 
 	// Load Environment variables
 	port := os.Getenv("PORT")
@@ -44,11 +52,13 @@ func main() {
 	}
 
 	log.Printf("Starting Go Ingress webhook receiver...")
-	log.Printf("Redis URL: %s", redisURL)
+	log.Printf("Redis connection configured")
 
 	// Initialize Redis
 	opt, err := redis.ParseURL(redisURL)
 	if err != nil {
+		captureOperationalError(context.Background(), err, "parse_redis_url")
+		sentry.Flush(2 * time.Second)
 		log.Fatalf("Failed to parse Redis URL: %v", err)
 	}
 	redisClient = redis.NewClient(opt)
@@ -57,24 +67,40 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := redisClient.Ping(ctx).Err(); err != nil {
+		captureOperationalError(ctx, err, "startup_redis_ping")
 		log.Printf("[Warning] Failed to ping Redis on startup: %v. Will retry on request.", err)
 	} else {
 		log.Println("Successfully connected to Redis.")
 	}
 
 	// Handlers
-	http.HandleFunc("/api/whatsapp/webhook", handleWebhook)
-	http.HandleFunc("/healthz", handleHealthz)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/whatsapp/webhook", handleWebhook)
+	mux.HandleFunc("/healthz", handleHealthz)
+	sentryHandler := sentryhttp.New(sentryhttp.Options{Repanic: true})
+	server := &http.Server{
+		Addr:              ":" + port,
+		Handler:           sentryHandler.Handle(mux),
+		ReadHeaderTimeout: 10 * time.Second,
+	}
 
 	log.Printf("Server listening on port %s", port)
-	if err := http.ListenAndServe(":"+port, nil); err != nil {
+	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		captureOperationalError(context.Background(), err, "http_server")
+		sentry.Flush(2 * time.Second)
 		log.Fatalf("Server failed: %v", err)
 	}
 }
 
 func handleHealthz(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+	defer cancel()
+	if redisClient == nil || redisClient.Ping(ctx).Err() != nil {
+		http.Error(w, "degraded", http.StatusServiceUnavailable)
+		return
+	}
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("ok"))
+	_, _ = w.Write([]byte("ok"))
 }
 
 func handleWebhook(w http.ResponseWriter, r *http.Request) {
@@ -117,11 +143,12 @@ func handleVerification(w http.ResponseWriter, r *http.Request) {
 	}
 
 	proxyURL := fmt.Sprintf("%s/api/whatsapp/webhook?%s", strings.TrimSuffix(nextjsURL, "/"), r.URL.RawQuery)
-	log.Printf("[GET] Static verification mismatch. Proxying request to: %s", proxyURL)
+	log.Printf("[GET] Static verification mismatch. Proxying request to Next.js backend.")
 
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Get(proxyURL)
 	if err != nil {
+		captureOperationalError(r.Context(), err, "verification_proxy_request")
 		log.Printf("[GET] Proxy request failed: %v", err)
 		http.Error(w, "Proxy verification failed", http.StatusBadGateway)
 		return
@@ -130,6 +157,7 @@ func handleVerification(w http.ResponseWriter, r *http.Request) {
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
+		captureOperationalError(r.Context(), err, "verification_proxy_read")
 		log.Printf("[GET] Failed to read proxy response: %v", err)
 		http.Error(w, "Failed to read response", http.StatusInternalServerError)
 		return
@@ -183,6 +211,7 @@ func handleEvent(w http.ResponseWriter, r *http.Request) {
 
 	err = redisClient.RPush(ctx, redisQueue, string(bodyBytes)).Err()
 	if err != nil {
+		captureOperationalError(r.Context(), err, "redis_enqueue")
 		log.Printf("[POST] Redis enqueue error: %v", err)
 		http.Error(w, "Queue failed", http.StatusInternalServerError)
 		return
@@ -212,4 +241,58 @@ func verifySignature(body []byte, signatureHeader string, secret string) bool {
 
 	// Secure constant-time comparison
 	return hmac.Equal(computedSignature, expectedSignature)
+}
+
+func initSentry() {
+	dsn := os.Getenv("SENTRY_DSN")
+	if err := sentry.Init(sentry.ClientOptions{
+		Dsn:            dsn,
+		EnableTracing:  false,
+		Environment:    os.Getenv("SENTRY_ENVIRONMENT"),
+		Release:        os.Getenv("SENTRY_RELEASE"),
+		SendDefaultPII: false,
+		BeforeSend:     sanitizeSentryEvent,
+	}); err != nil {
+		log.Printf("[Warning] Sentry initialization failed: %v", err)
+	}
+}
+
+func sanitizeSentryEvent(event *sentry.Event, _ *sentry.EventHint) *sentry.Event {
+	event.User = sentry.User{}
+	event.Extra = nil
+	event.Breadcrumbs = nil
+	if event.Request != nil {
+		event.Request.URL = strings.SplitN(strings.SplitN(event.Request.URL, "?", 2)[0], "#", 2)[0]
+		event.Request.Data = ""
+		event.Request.QueryString = ""
+		event.Request.Cookies = ""
+		event.Request.Headers = nil
+		event.Request.Env = nil
+	}
+	event.Message = redactSensitiveText(event.Message)
+	for index := range event.Exception {
+		event.Exception[index].Value = redactSensitiveText(event.Exception[index].Value)
+	}
+	return event
+}
+
+func redactSensitiveText(value string) string {
+	value = emailPattern.ReplaceAllString(value, "[email]")
+	value = bearerPattern.ReplaceAllString(value, "Bearer [token]")
+	return phonePattern.ReplaceAllString(value, "[phone]")
+}
+
+func captureOperationalError(ctx context.Context, err error, operation string) {
+	if err == nil {
+		return
+	}
+	hub := sentry.GetHubFromContext(ctx)
+	if hub == nil {
+		hub = sentry.CurrentHub()
+	}
+	hub.WithScope(func(scope *sentry.Scope) {
+		scope.SetTag("runtime", "go-ingress")
+		scope.SetTag("operation", operation)
+		hub.CaptureException(err)
+	})
 }

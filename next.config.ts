@@ -1,4 +1,5 @@
-import type { NextConfig } from "next";
+import type { NextConfig } from 'next';
+import { withSentryConfig } from '@sentry/nextjs';
 
 /**
  * Baseline security headers applied to every response.
@@ -24,18 +25,18 @@ import type { NextConfig } from "next";
  */
 const SECURITY_HEADERS = [
   {
-    key: "Strict-Transport-Security",
-    value: "max-age=63072000; includeSubDomains; preload",
+    key: 'Strict-Transport-Security',
+    value: 'max-age=63072000; includeSubDomains; preload',
   },
-  { key: "X-Content-Type-Options", value: "nosniff" },
-  { key: "X-Frame-Options", value: "DENY" },
-  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  { key: 'X-Content-Type-Options', value: 'nosniff' },
+  { key: 'X-Frame-Options', value: 'DENY' },
+  { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
   {
-    key: "Permissions-Policy",
-    value: "camera=(), microphone=(self), geolocation=(), payment=(), usb=()",
+    key: 'Permissions-Policy',
+    value: 'camera=(), microphone=(self), geolocation=(), payment=(), usb=()',
   },
   {
-    key: "Content-Security-Policy-Report-Only",
+    key: 'Content-Security-Policy-Report-Only',
     value: [
       "default-src 'self'",
       // Next.js needs 'unsafe-inline' for its inline hydration script
@@ -53,7 +54,7 @@ const SECURITY_HEADERS = [
       "font-src 'self' data:",
       // Supabase REST + realtime (WSS). Server-side Meta Graph calls do
       // not belong here; www.facebook.com is the Pixel's beacon target.
-      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://www.facebook.com",
+      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://www.facebook.com https://*.ingest.sentry.io",
       // Unlisted YouTube embeds of listing videos on the Showcase,
       // plus the Supabase-storage MP4 fallback the <video> tag plays.
       "frame-src 'self' https://www.youtube-nocookie.com",
@@ -61,7 +62,7 @@ const SECURITY_HEADERS = [
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'",
-    ].join("; "),
+    ].join('; '),
   },
 ] as const;
 
@@ -126,14 +127,14 @@ const nextConfig: NextConfig = {
       // `next dev` Turbopack reuses stable chunk names across rebuilds —
       // this header would make browsers cache dev chunks for a year and
       // serve stale code after every edit.
-      ...(process.env.NODE_ENV === "production"
+      ...(process.env.NODE_ENV === 'production'
         ? [
             {
-              source: "/_next/static/:path*",
+              source: '/_next/static/:path*',
               headers: [
                 {
-                  key: "Cache-Control",
-                  value: "public, max-age=31536000, immutable",
+                  key: 'Cache-Control',
+                  value: 'public, max-age=31536000, immutable',
                 },
               ],
             },
@@ -147,22 +148,22 @@ const nextConfig: NextConfig = {
         // in the page itself via unstable_cache (1 h TTL).  We keep the header
         // as a best-effort fallback for any static assets or edge middleware
         // that might still benefit.
-        source: "/",
+        source: '/',
         headers: [
           {
-            key: "Cache-Control",
+            key: 'Cache-Control',
             value:
-              "public, max-age=0, s-maxage=3600, stale-while-revalidate=86400",
+              'public, max-age=0, s-maxage=3600, stale-while-revalidate=86400',
           },
         ],
       },
       {
-        source: "/:path*",
+        source: '/:path*',
         headers: [
           {
-            key: "Cache-Control",
+            key: 'Cache-Control',
             value:
-              "public, max-age=0, s-maxage=300, stale-while-revalidate=86400",
+              'public, max-age=0, s-maxage=300, stale-while-revalidate=86400',
           },
         ],
       },
@@ -178,14 +179,14 @@ const nextConfig: NextConfig = {
         // how a stale "no properties yet" snapshot kept being served to
         // an account that already had properties. API responses are
         // per-user and must never be shared across requests at the edge.
-        source: "/api/:path*",
-        headers: [{ key: "Cache-Control", value: "no-store" }],
+        source: '/api/:path*',
+        headers: [{ key: 'Cache-Control', value: 'no-store' }],
       },
       {
         // Security headers on every response, including /_next/static
         // assets (nosniff matters there) and /api/* (HSTS + referrer-
         // policy don't hurt).
-        source: "/:path*",
+        source: '/:path*',
         headers: [...SECURITY_HEADERS],
       },
     ];
@@ -243,4 +244,13 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withSentryConfig(nextConfig, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  silent: !process.env.CI,
+  widenClientFileUpload: true,
+  webpack: {
+    automaticVercelMonitors: true,
+    treeshake: { removeDebugLogging: true },
+  },
+});
