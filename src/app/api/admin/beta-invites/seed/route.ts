@@ -143,6 +143,7 @@ export async function POST(request: Request) {
       shareMessage: betaInviteShareMessage({
         url,
         inviterName: null,
+        inviteeName: label,
         seatsRemaining: prog
           ? Math.max(0, prog.account_cap - prog.seats_taken)
           : null,

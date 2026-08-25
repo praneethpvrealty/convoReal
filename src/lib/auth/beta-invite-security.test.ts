@@ -14,6 +14,10 @@ const phoneBindingMigration = readFileSync(
   'supabase/migrations/20260825120323_bind_beta_invites_to_verified_phone.sql',
   'utf8'
 );
+const rotationMigration = readFileSync(
+  'supabase/migrations/20260825124808_rotate_beta_invite_tokens.sql',
+  'utf8'
+);
 
 describe('beta invite issuance privilege boundary', () => {
   it('removes the caller-controlled seed flag from the tenant RPC', () => {
@@ -24,7 +28,7 @@ describe('beta invite issuance privilege boundary', () => {
   });
 
   it('keeps seed issuance service-role-only at both grant and runtime', () => {
-    expect(seedRoute).toContain('admin.rpc("issue_beta_seed"');
+    expect(seedRoute).toMatch(/admin\.rpc\(['"]issue_beta_seed['"]/);
     expect(migration).toMatch(
       /REVOKE ALL ON FUNCTION public\.issue_beta_seed[\s\S]*?FROM PUBLIC, anon, authenticated;/
     );
@@ -60,5 +64,30 @@ describe('beta invite phone binding', () => {
     expect(phoneBindingMigration).toMatch(
       /WHEN SQLSTATE '22023' THEN\s+RAISE;/
     );
+  });
+});
+
+describe('beta invite token rotation', () => {
+  it('locks and authorizes the existing invite before rotating it', () => {
+    expect(rotationMigration).toContain('WHERE id = p_id\n  FOR UPDATE');
+    expect(rotationMigration).toContain('public.is_account_member');
+    expect(rotationMigration).toContain("v_inv.status <> 'pending'");
+  });
+
+  it('keeps the privileged RPC away from anonymous and service roles', () => {
+    expect(rotationMigration).toContain("SET search_path = ''");
+    expect(rotationMigration).toMatch(
+      /REVOKE ALL ON FUNCTION public\.rotate_beta_invite[\s\S]*?FROM PUBLIC, anon, service_role;/
+    );
+    expect(rotationMigration).toMatch(
+      /GRANT EXECUTE ON FUNCTION public\.rotate_beta_invite[\s\S]*?TO authenticated;/
+    );
+  });
+
+  it('preserves the same invite row and recipient while changing credentials', () => {
+    expect(rotationMigration).toContain('SET token_hash = p_token_hash');
+    expect(rotationMigration).toContain("'label', v_inv.label");
+    expect(rotationMigration).toContain("'invitee_phone', v_inv.invitee_phone");
+    expect(rotationMigration).not.toContain('INSERT INTO public.beta_invites');
   });
 });

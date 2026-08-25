@@ -10,10 +10,8 @@
 //
 // The link is shown exactly once, when it's generated — the row
 // stores only the SHA-256 hash, so the API physically cannot return
-// it again. That's why the freshly-issued link stays pinned in a
-// callout until dismissed, and why the empty-state copy warns about
-// it: an admin who closes this without copying has to revoke and
-// re-issue.
+// it again. A resend rotates the row to a fresh token, invalidating
+// the old link while preserving the person, phone and quota seat.
 // ============================================================
 
 import { useCallback, useEffect, useState } from 'react';
@@ -24,6 +22,7 @@ import {
   Loader2,
   MessageCircle,
   Plus,
+  RotateCw,
   Ticket,
   Trash2,
 } from 'lucide-react';
@@ -67,6 +66,7 @@ export function BetaInviteHub() {
   const [program, setProgram] = useState<Program | null>(null);
   const [loading, setLoading] = useState(true);
   const [issuing, setIssuing] = useState(false);
+  const [resendingId, setResendingId] = useState<string | null>(null);
   const [label, setLabel] = useState('');
   const [inviteePhone, setInviteePhone] = useState('');
   const [fresh, setFresh] = useState<IssuedLink | null>(null);
@@ -146,6 +146,48 @@ export function BetaInviteHub() {
       await load();
     },
     [fresh, load]
+  );
+
+  const resend = useCallback(
+    async (invite: BetaInvite) => {
+      const popup = window.open('about:blank', '_blank');
+      if (popup) popup.opener = null;
+      setResendingId(invite.id);
+      try {
+        const res = await fetch(`/api/beta-invites/${invite.id}`, {
+          method: 'POST',
+        });
+        const data = (await res.json()) as IssuedLink & { error?: string };
+        if (!res.ok) {
+          popup?.close();
+          toast.error(data.error || 'Could not resend that invitation');
+          return;
+        }
+
+        await load();
+        const whatsappUrl = betaInviteWhatsAppUrl(
+          data.shareMessage,
+          data.inviteePhone
+        );
+        if (popup) {
+          popup.location.href = whatsappUrl;
+          setFresh(null);
+          toast.success(
+            'Fresh link created. The previous link no longer works.'
+          );
+        } else {
+          setFresh(data);
+          setCopied(false);
+          toast.info('Fresh link ready — tap Share on WhatsApp.');
+        }
+      } catch {
+        popup?.close();
+        toast.error('Could not resend the invitation — check your connection.');
+      } finally {
+        setResendingId(null);
+      }
+    },
+    [load]
   );
 
   const copyLink = useCallback(async () => {
@@ -267,9 +309,9 @@ export function BetaInviteHub() {
               {fresh.code} · copy this now
             </p>
             <p className="mt-1 text-sm text-slate-300">
-              This link is shown once. We store only a hash of it, so we
-              can&apos;t show it to you again — if you lose it, revoke the seat
-              and generate a new one.
+              For security, this link is visible only until you share or dismiss
+              it. Need it later? Use Resend beside the person below — that
+              creates a fresh link and invalidates this one.
             </p>
           </div>
 
@@ -297,6 +339,7 @@ export function BetaInviteHub() {
               )}
               target="_blank"
               rel="noopener noreferrer"
+              onClick={() => setFresh(null)}
               className="flex-1"
             >
               <Button className="w-full">
@@ -320,6 +363,8 @@ export function BetaInviteHub() {
           <SeatRow
             key={inv.id}
             invite={inv}
+            resending={resendingId === inv.id}
+            onResend={() => void resend(inv)}
             onRevoke={() => void revoke(inv.id)}
           />
         ))}
@@ -340,9 +385,13 @@ export function BetaInviteHub() {
 
 function SeatRow({
   invite,
+  resending,
+  onResend,
   onRevoke,
 }: {
   invite: BetaInvite;
+  resending: boolean;
+  onResend: () => void;
   onRevoke: () => void;
 }) {
   const claimed = invite.status === 'accepted';
@@ -388,15 +437,31 @@ function SeatRow({
       </span>
 
       {!claimed && (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onRevoke}
-          className="text-slate-500 hover:text-red-400"
-          aria-label="Revoke invitation"
-        >
-          <Trash2 className="size-4" />
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onResend}
+            disabled={resending}
+            className="border-slate-700"
+          >
+            {resending ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <RotateCw className="size-4" />
+            )}
+            Resend
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onRevoke}
+            className="text-slate-500 hover:text-red-400"
+            aria-label="Revoke invitation"
+          >
+            <Trash2 className="size-4" />
+          </Button>
+        </div>
       )}
     </div>
   );

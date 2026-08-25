@@ -83,6 +83,7 @@ export function betaInviteWhatsAppUrl(
 export function betaInviteShareMessage(args: {
   url: string;
   inviterName?: string | null;
+  inviteeName?: string | null;
   seatsRemaining?: number | null;
   expiryDays: number;
 }): string {
@@ -92,9 +93,11 @@ export function betaInviteShareMessage(args: {
   // message — that's how a real broker text starts — and the URL is
   // always the last line so WhatsApp's link preview sits at the
   // bottom, next to the tap.
+  const recipient = args.inviteeName?.trim();
+  const addressed = recipient ? `${recipient}, ` : '';
   const opener = args.inviterName
-    ? `${args.inviterName} here — I've got a ConvoReal beta seat for you. They're letting in 100 property consultants this month, invite-only.`
-    : "I've got a ConvoReal beta seat for you — they're letting in 100 property consultants this month, invite-only.";
+    ? `${addressed}${args.inviterName} here — I've got a ConvoReal beta seat for you. They're letting in 100 property consultants this month, invite-only.`
+    : `${addressed}I've got a ConvoReal beta seat for you — they're letting in 100 property consultants this month, invite-only.`;
 
   const scarcity =
     typeof args.seatsRemaining === 'number' && args.seatsRemaining > 0
