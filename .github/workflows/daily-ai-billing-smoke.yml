@@ -1,6 +1,11 @@
 name: Daily production AI billing smoke
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'e2e/daily-ai-billing-smoke.mjs'
+      - '.github/workflows/daily-ai-billing-smoke.yml'
   schedule:
     # 01:30 IST (20:00 UTC on the preceding day)
     - cron: '0 20 * * *'
