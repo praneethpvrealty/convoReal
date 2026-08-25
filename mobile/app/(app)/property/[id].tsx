@@ -1326,6 +1326,15 @@ function MatchesSection({
   const [expanded, setExpanded] = useState(false);
   const [audiencePickerOpen, setAudiencePickerOpen] = useState(false);
   const [audienceBusyId, setAudienceBusyId] = useState<string | null>(null);
+  // Survives the action that created it: a silent bulk selection is
+  // the one thing that could put a listing in front of the wrong 22
+  // people, so what was added stays on screen — count, source listing,
+  // and a way to undo exactly it.
+  const [appliedAudience, setAppliedAudience] = useState<{
+    listing: AudienceListing;
+    ids: string[];
+    unreachable: number;
+  } | null>(null);
   const { show, dialogProps } = useAppDialog();
 
   const all = matches;
@@ -1380,15 +1389,10 @@ function MatchesSection({
         return;
       }
       setSelectedIds((prev) => [...new Set([...prev, ...ids])]);
+      setAppliedAudience({ listing, ids, unreachable });
       setAudience('all');
       setExpanded(true);
       setAudiencePickerOpen(false);
-      if (unreachable > 0) {
-        show({
-          title: `Selected ${ids.length} of ${members.length}`,
-          message: `${unreachable} contact${unreachable === 1 ? '' : 's'} in this audience could not be selected — no WhatsApp number, or not in the matching list.`,
-        });
-      }
     } catch (err) {
       show({
         title: 'Could not load that audience',
@@ -1482,6 +1486,45 @@ function MatchesSection({
             active={audience === 'all'}
             onPress={() => switchAudience('all')}
           />
+        </View>
+      ) : null}
+
+      {expanded && appliedAudience ? (
+        <View
+          style={[
+            styles.audienceBanner,
+            { backgroundColor: colors.primarySoft, borderColor: colors.primary },
+          ]}
+        >
+          <Ionicons name="checkmark-circle" size={18} color={colors.primary} />
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={{ fontSize: 13, fontFamily: f.bold, color: colors.text }}>
+              {appliedAudience.ids.length} contact
+              {appliedAudience.ids.length === 1 ? '' : 's'} from{' '}
+              {audienceListingLabel(appliedAudience.listing)} selected
+            </Text>
+            <Text style={{ fontSize: 11.5, lineHeight: 16, color: colors.textMuted }}>
+              Everyone who enquired about or viewed that listing is ticked below.
+              {appliedAudience.unreachable > 0
+                ? ` ${appliedAudience.unreachable} skipped — no WhatsApp number.`
+                : ''}
+            </Text>
+          </View>
+          <Pressable
+            onPress={() => {
+              haptic.tap();
+              const removed = new Set(appliedAudience.ids);
+              setSelectedIds((prev) => prev.filter((id) => !removed.has(id)));
+              setAppliedAudience(null);
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Undo the listing audience selection"
+            hitSlop={8}
+          >
+            <Text style={{ fontSize: 11.5, fontFamily: f.bold, color: colors.primary }}>
+              Undo
+            </Text>
+          </Pressable>
         </View>
       ) : null}
 
@@ -2097,6 +2140,15 @@ const styles = StyleSheet.create({
   },
   matchShareAction: {
     paddingHorizontal: spacing.md,
+  },
+  audienceBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.md,
   },
   audienceCta: {
     flexDirection: 'row',

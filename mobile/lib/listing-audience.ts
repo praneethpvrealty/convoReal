@@ -14,6 +14,7 @@ import type {
 export type { AudienceContact, AudienceListing };
 export {
   audienceListingLabel,
+  filterAudienceListings,
   reachableAudienceIds,
 } from '@/lib/listing-audience-select';
 

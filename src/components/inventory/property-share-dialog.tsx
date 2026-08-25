@@ -54,6 +54,7 @@ import {
 } from '@/lib/inventory/share-grants';
 import { MatchDetailChips } from '@/components/inventory/match-detail-chips';
 import { ListingAudiencePicker } from '@/components/inventory/listing-audience-picker';
+import { audienceListingLabel, type AudienceListing } from '@/lib/inventory/listing-audience';
 import { MatchTargetRow } from '@/components/matching/match-target-row';
 import {
   fetchInquiredProperties,
@@ -825,6 +826,7 @@ export function PropertyShareDialog({
       setCopiedLink(false);
       setSelectedContactIds(preSelectedContactId ? [preSelectedContactId] : []);
       setMatchAudience('buyers');
+      setAppliedAudience(null);
       setSelectedTemplate(null);
       setVariableMappings({});
       setCustomVariableValues({});
@@ -980,8 +982,33 @@ export function PropertyShareDialog({
   // Union rather than replace: an audience is added to whoever the
   // agent already picked, and picking two listings' audiences in a row
   // never double-selects anyone.
-  const addContactsToSelection = useCallback((ids: string[]) => {
-    setSelectedContactIds((prev) => [...new Set([...prev, ...ids])]);
+  //
+  // The banner outlives the toast that used to be the only feedback. A
+  // bulk selection that scrolls away is the one thing that could put a
+  // listing in front of the wrong 22 people, so what was added stays on
+  // screen — count, source listing, and a way to undo exactly it.
+  const [appliedAudience, setAppliedAudience] = useState<{
+    listing: AudienceListing;
+    ids: string[];
+    unreachable: number;
+  } | null>(null);
+
+  const addContactsToSelection = useCallback(
+    (ids: string[], applied: { listing: AudienceListing; unreachable: number }) => {
+      setSelectedContactIds((prev) => [...new Set([...prev, ...ids])]);
+      setAppliedAudience({ ...applied, ids });
+    },
+    []
+  );
+
+  const undoAppliedAudience = useCallback(() => {
+    setAppliedAudience((applied) => {
+      if (applied) {
+        const removed = new Set(applied.ids);
+        setSelectedContactIds((prev) => prev.filter((id) => !removed.has(id)));
+      }
+      return null;
+    });
   }, []);
 
   // Toggle single selection
@@ -2345,6 +2372,30 @@ export function PropertyShareDialog({
               loadedContacts={contacts}
               onSelect={addContactsToSelection}
             />
+
+            {appliedAudience && (
+              <div className="flex items-start gap-2.5 rounded-xl border border-primary/30 bg-primary/10 px-3.5 py-2.5">
+                <UserCheck className="size-4 shrink-0 text-primary mt-0.5" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-semibold text-white">
+                    {appliedAudience.ids.length} contact{appliedAudience.ids.length === 1 ? '' : 's'} from{' '}
+                    {audienceListingLabel(appliedAudience.listing)} selected
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-slate-400">
+                    Everyone who enquired about or viewed that listing is ticked below.
+                    {appliedAudience.unreachable > 0 &&
+                      ` ${appliedAudience.unreachable} skipped — no WhatsApp number.`}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={undoAppliedAudience}
+                  className="shrink-0 cursor-pointer text-[11px] font-bold text-primary hover:text-primary/80"
+                >
+                  Undo
+                </button>
+              </div>
+            )}
 
             {/* Action Bar / Matching Status */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-950/20 border border-slate-850 p-3.5 rounded-xl">

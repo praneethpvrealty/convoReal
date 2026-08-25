@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -10,9 +11,11 @@ import {
 } from 'react-native';
 
 import { BottomSheet, sheetScrollArea } from '@/components/sheet';
+import { SearchBar } from '@/components/ui';
 import { haptic } from '@/lib/haptics';
 import {
   fetchAudienceListings,
+  filterAudienceListings,
   type AudienceListing,
 } from '@/lib/listing-audience';
 import { radius, spacing, useTheme } from '@/lib/theme';
@@ -34,13 +37,15 @@ export function ListingAudienceSheet({
   busyId: string | null;
 }) {
   const { colors, fonts: f } = useTheme();
+  const [query, setQuery] = useState('');
   const { data, isLoading, isError } = useQuery({
     queryKey: ['audience-listings'],
     enabled: visible,
     staleTime: 60_000,
     queryFn: fetchAudienceListings,
   });
-  const listings = data ?? [];
+  const all = data ?? [];
+  const listings = filterAudienceListings(all, query);
 
   return (
     <BottomSheet
@@ -76,7 +81,7 @@ export function ListingAudienceSheet({
             Could not load listing audiences. Check your connection and try
             again.
           </Text>
-        ) : listings.length === 0 ? (
+        ) : all.length === 0 ? (
           <Text
             style={{
               fontSize: 12.5,
@@ -89,10 +94,29 @@ export function ListingAudienceSheet({
             showcase views build one.
           </Text>
         ) : (
-          <ScrollView
-            style={[sheetScrollArea, { maxHeight: 400 }]}
-            keyboardShouldPersistTaps="handled"
-          >
+          <>
+            {all.length > 5 || query ? (
+              <SearchBar
+                value={query}
+                onChangeText={setQuery}
+                placeholder="Search listings by title or code"
+              />
+            ) : null}
+            {listings.length === 0 ? (
+              <Text
+                style={{
+                  fontSize: 12.5,
+                  color: colors.textMuted,
+                  paddingVertical: spacing.md,
+                }}
+              >
+                No listing matches “{query}”.
+              </Text>
+            ) : null}
+            <ScrollView
+              style={[sheetScrollArea, { maxHeight: 400 }]}
+              keyboardShouldPersistTaps="handled"
+            >
             {listings.map((listing) => (
               <Pressable
                 key={listing.propertyId}
@@ -145,6 +169,7 @@ export function ListingAudienceSheet({
               </Pressable>
             ))}
           </ScrollView>
+          </>
         )}
       </View>
     </BottomSheet>
