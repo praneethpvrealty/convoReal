@@ -1,5 +1,4 @@
 import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
 import { ImageResponse } from 'next/og';
 
 import { getBetaInvitePreview } from '@/lib/beta/invite-preview';
@@ -18,9 +17,7 @@ export default async function Image({
   const { token } = await params;
   const [preview, background] = await Promise.all([
     getBetaInvitePreview(token),
-    readFile(
-      join(process.cwd(), 'public/brand/beta-invite-preview-background.webp')
-    ),
+    readFile(new URL('./beta-invite-preview-background.jpg', import.meta.url)),
   ]);
 
   const recipient =
@@ -39,7 +36,7 @@ export default async function Image({
     typeof preview.seats_taken === 'number'
       ? Math.max(0, preview.account_cap - preview.seats_taken)
       : null;
-  const backgroundUrl = `data:image/webp;base64,${background.toString('base64')}`;
+  const backgroundUrl = `data:image/jpeg;base64,${background.toString('base64')}`;
 
   return new ImageResponse(
     <div

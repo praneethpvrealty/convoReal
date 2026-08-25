@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 
 import {
   betaInviteShareMessage,
@@ -163,5 +164,23 @@ describe('betaInviteShareMessage', () => {
     });
     expect(msg).not.toContain('Only 0');
     expect(msg).toContain('Only 100 property consultants get in this month');
+  });
+});
+
+describe('personalized invite preview asset', () => {
+  it('uses a traced JPEG that the production image renderer can decode', () => {
+    const route = readFileSync(
+      'src/app/i/[token]/opengraph-image.tsx',
+      'utf8'
+    );
+    const background = readFileSync(
+      'src/app/i/[token]/beta-invite-preview-background.jpg'
+    );
+
+    expect(route).toContain(
+      "new URL('./beta-invite-preview-background.jpg', import.meta.url)"
+    );
+    expect(route).toContain('data:image/jpeg;base64');
+    expect(background.subarray(0, 2).toString('hex')).toBe('ffd8');
   });
 });
