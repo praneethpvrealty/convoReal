@@ -190,6 +190,7 @@ export async function POST(request: Request) {
       code,
       // Returned exactly once. Never retrievable again.
       url,
+      inviteePhone,
       shareMessage: betaInviteShareMessage({
         url,
         inviterName: profile?.full_name || null,

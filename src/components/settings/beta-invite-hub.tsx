@@ -31,6 +31,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { betaInviteWhatsAppUrl } from '@/lib/beta/invites';
 import { toAuthPhone } from '@/lib/whatsapp/phone-utils';
 
 interface BetaInvite {
@@ -56,6 +57,7 @@ interface IssuedLink {
   id: string;
   code: string;
   url: string;
+  inviteePhone: string | null;
   shareMessage: string;
 }
 
@@ -289,7 +291,10 @@ export function BetaInviteHub() {
               {copied ? 'Copied' : 'Copy link'}
             </Button>
             <a
-              href={`https://wa.me/?text=${encodeURIComponent(fresh.shareMessage)}`}
+              href={betaInviteWhatsAppUrl(
+                fresh.shareMessage,
+                fresh.inviteePhone
+              )}
               target="_blank"
               rel="noopener noreferrer"
               className="flex-1"

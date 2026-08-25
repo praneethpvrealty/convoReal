@@ -12,9 +12,9 @@
 // /i/<token> — short enough to read out over a phone call.
 // ============================================================
 
-import { randomInt } from "node:crypto";
+import { randomInt } from 'node:crypto';
 
-import { generateInviteToken, hashInviteToken } from "@/lib/auth/invitations";
+import { generateInviteToken, hashInviteToken } from '@/lib/auth/invitations';
 
 export { hashInviteToken };
 
@@ -24,7 +24,7 @@ export { hashInviteToken };
  * confusable characters cost support time, and dropping vowels
  * means a random draw can't spell a word nobody wants to read out.
  */
-const CODE_ALPHABET = "23456789BCDFGHJKMNPQRSTVWXYZ";
+const CODE_ALPHABET = '23456789BCDFGHJKMNPQRSTVWXYZ';
 const CODE_LENGTH = 4;
 
 export interface GeneratedBetaInvite {
@@ -42,7 +42,7 @@ export interface GeneratedBetaInvite {
  * a collision surfaces to a user as a failed invite.
  */
 export function generateInviteCode(): string {
-  let body = "";
+  let body = '';
   for (let i = 0; i < CODE_LENGTH; i++) {
     body += CODE_ALPHABET[randomInt(CODE_ALPHABET.length)];
   }
@@ -59,7 +59,15 @@ export function generateBetaInvite(): GeneratedBetaInvite {
  * so callers can pass NEXT_PUBLIC_SITE_URL verbatim.
  */
 export function betaInviteUrl(token: string, baseUrl: string): string {
-  return `${baseUrl.replace(/\/+$/, "")}/i/${token}`;
+  return `${baseUrl.replace(/\/+$/, '')}/i/${token}`;
+}
+
+export function betaInviteWhatsAppUrl(
+  message: string,
+  inviteePhone?: string | null
+): string {
+  const phone = inviteePhone?.replace(/\D/g, '') ?? '';
+  return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
 }
 
 /**
@@ -89,22 +97,22 @@ export function betaInviteShareMessage(args: {
     : "I've got a ConvoReal beta seat for you — they're letting in 100 property consultants this month, invite-only.";
 
   const scarcity =
-    typeof args.seatsRemaining === "number" && args.seatsRemaining > 0
+    typeof args.seatsRemaining === 'number' && args.seatsRemaining > 0
       ? `Only ${args.seatsRemaining} of 100 seats left — your link dies in ${args.expiryDays} days:`
       : `Only 100 property consultants get in this month — your link dies in ${args.expiryDays} days:`;
 
   return [
     opener,
-    "",
-    "It runs my whole business on WhatsApp: every enquiry becomes a contact by itself, inventory matches itself to my buyers, and owners get updates without me typing a word.",
-    "",
-    "Your owners and buyers get their own free Portfolio too — they watch interest and matches themselves; every deal still runs through you.",
-    "",
+    '',
+    'It runs my whole business on WhatsApp: every enquiry becomes a contact by itself, inventory matches itself to my buyers, and owners get updates without me typing a word.',
+    '',
+    'Your owners and buyers get their own free Portfolio too — they watch interest and matches themselves; every deal still runs through you.',
+    '',
     "This is the AI era of real estate — the Engine is what turns a broker into a professional consultant. Don't get left behind.",
-    "",
+    '',
     `Claim the seat, import your buyer list, and see what matches by tomorrow. ${scarcity}`,
     args.url,
-  ].join("\n");
+  ].join('\n');
 }
 
 /** Human label for a seat card. */
