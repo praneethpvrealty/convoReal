@@ -25,6 +25,7 @@ import {
   queryClient,
 } from '@/lib/query';
 import { useTheme } from '@/lib/theme';
+import { Sentry } from '@/lib/monitoring';
 
 // Expo Router renders this instead of blanking the whole navigator when
 // a screen throws while rendering (see components/error-boundary).
@@ -34,7 +35,7 @@ export function ErrorBoundary(
   return <AppErrorBoundary {...props} />;
 }
 
-export default function RootLayout() {
+function RootLayout() {
   useAuthListener();
   const { colors, dark } = useTheme();
   const session = useAuthStore((s) => s.session);
@@ -97,3 +98,5 @@ export default function RootLayout() {
     </GestureHandlerRootView>
   );
 }
+
+export default Sentry.wrap(RootLayout);

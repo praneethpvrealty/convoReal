@@ -18,9 +18,7 @@
         "ITSAppUsesNonExemptEncryption": false
       },
       "entitlements": {
-        "com.apple.security.application-groups": [
-          "group.com.convoreal.app"
-        ]
+        "com.apple.security.application-groups": ["group.com.convoreal.app"]
       }
     },
     "android": {
@@ -78,10 +76,7 @@
               "pathPrefix": "/dashboard"
             }
           ],
-          "category": [
-            "BROWSABLE",
-            "DEFAULT"
-          ]
+          "category": ["BROWSABLE", "DEFAULT"]
         }
       ],
       "permissions": [
@@ -218,6 +213,14 @@
               "updatePeriodMillis": 1800000
             }
           ]
+        }
+      ],
+      [
+        "@sentry/react-native/expo",
+        {
+          "organization": "convoreal",
+          "project": "convoreal-mobile",
+          "url": "https://sentry.io/"
         }
       ],
       "@bacons/apple-targets"
