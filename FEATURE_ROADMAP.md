@@ -168,8 +168,13 @@ _A party is several people on one requirement — a couple buying together, or t
 
 ---
 
-### Deferred: showcase portal sharing on mobile
+### Showcase portal sharing: web ↔ mobile parity closed
 
-_A §2.8 gap, stated rather than silent. The three-step share flow (audience → scope → send) ships on both surfaces — `src/components/inventory/showcase-share-dialog.tsx` and `mobile/components/showcase-share-sheet.tsx` — over the same link rule (`buildShowcaseShareLink`, ported as `mobile/lib/showcase-scope.ts` and pinned by `src/lib/mobile-parity.test.ts`) and the same digest (`GET /api/inventory/share-summary`, which mobile calls rather than carrying a second copy of `buildInventorySummary`). What is still web-only:_
+_Kept as a record of how the split was drawn, since it is the pattern for the next shared feature._
 
-- [ ] **Engine template send on mobile**: web can submit and send the `inventory_update` MARKETING template from the account's WhatsApp Business number to a whole selection. Mobile's ConvoReal channel sends free-form text into each contact's existing thread instead, which reaches only contacts inside the 24-hour window and never opens a new one. Closing it means a template-status check and a `/api/whatsapp/broadcast` call from the sheet, plus the one-time submit affordance.
+The three-step share flow (audience → scope → send) ships on both surfaces — `src/components/inventory/showcase-share-dialog.tsx` and `mobile/components/showcase-share-sheet.tsx` — over one set of rules:
+
+- **The link**: `buildShowcaseShareLink` (`src/lib/inventory/showcase-share-link.ts`), ported as `mobile/lib/showcase-scope.ts` and pinned against the web builder by `src/lib/mobile-parity.test.ts`.
+- **The digest and the template params**: `GET /api/inventory/share-summary`, which mobile calls rather than carrying a second copy of `buildInventorySummary` / `buildInventoryUpdateParams`.
+- **The template definition**: `GET /api/inventory/update-template`, so both surfaces submit the same `inventory_update` payload under a name Meta reserves for four weeks after deletion.
+- **The sends**: `/api/whatsapp/broadcast` (Engine template, reaches a shut 24-hour window) and `/api/whatsapp/send` (free-form, open threads only) on both.
