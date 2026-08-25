@@ -1,11 +1,15 @@
 import { NextResponse } from 'next/server';
 import { getCurrentAccount, toErrorResponse } from '@/lib/auth/account';
 import { buildInventorySummary } from '@/lib/inventory-summary-builder';
+import { buildInventoryUpdateParams } from '@/lib/whatsapp/inventory-update-template';
 import {
   filterPropertiesBySearch,
   selectPinnedProperties,
 } from '@/lib/inventory/search-filter';
-import type { ShareCategory, ShareScope } from '@/lib/inventory/showcase-share-link';
+import type {
+  ShareCategory,
+  ShareScope,
+} from '@/lib/inventory/showcase-share-link';
 import type { Property } from '@/types';
 
 const CATEGORIES: ShareCategory[] = [
@@ -17,7 +21,9 @@ const CATEGORIES: ShareCategory[] = [
 
 // GET /api/inventory/share-summary?scope=&category=&search=&ids=&portal_url=
 //
-// The WhatsApp-ready digest of the listings one share link opens,
+// The WhatsApp-ready digest of the listings one share link opens, plus
+// the three body parameters the inventory_update template renders from
+// the same set,
 // grouped by category with price, size, rent and ROI. The scope rules
 // are the same pure modules the web dialog builds its preview from
 // (AGENTS.md §2.8): the phone gets the digest by calling this rather
@@ -81,6 +87,9 @@ export async function GET(request: Request) {
           category: scope === 'all' ? category : 'All',
         }),
         count: scoped.length,
+        // Body params {{2}}..{{4}} of the inventory_update template, so a
+        // surface that cannot import the builder can still send it.
+        template_params: buildInventoryUpdateParams(scoped),
       },
     });
   } catch (err) {

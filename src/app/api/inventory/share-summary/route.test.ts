@@ -54,7 +54,7 @@ async function callGet(query: string) {
     new Request(`http://test/api/inventory/share-summary${query}`)
   );
   return (await response.json()) as {
-    data: { summary: string; count: number };
+    data: { summary: string; count: number; template_params: string[] };
   };
 }
 
@@ -103,6 +103,18 @@ describe('/api/inventory/share-summary', () => {
     const body = await callGet('?scope=pick&ids=');
     expect(body.data.count).toBe(0);
     expect(body.data.summary).toBe('');
+  });
+
+  it('returns the template body params for the same scope', () => {
+    // {{2}}..{{4}} of inventory_update: one line per section, so a
+    // surface without the builder can still send the template.
+    getCurrentAccount.mockResolvedValue(accountWith(rows));
+    return callGet('?scope=all').then((body) => {
+      const [residential, commercial, farmAndLand] = body.data.template_params;
+      expect(residential).toContain('Villa in Whitefield');
+      expect(commercial).toContain('Shop on 27th Main');
+      expect(farmAndLand).toContain('fresh stock');
+    });
   });
 
   it('refuses an unauthenticated caller', async () => {

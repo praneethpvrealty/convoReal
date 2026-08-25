@@ -26,6 +26,8 @@ import {
   TextField,
 } from '@/components/ui';
 import { apiFetch, sendTextMessage } from '@/lib/api';
+import { supabase } from '@/lib/supabase';
+import { useAuthStore } from '@/lib/auth-store';
 import { friendlyError } from '@/lib/errors';
 import { formatInr } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
@@ -42,6 +44,13 @@ import { radius, spacing, useTheme } from '@/lib/theme';
 import type { Contact, Property } from '@/lib/types';
 import { useDebounced } from '@/lib/use-debounced';
 import { getShowcaseUrl } from '@/lib/welcome-message';
+
+interface EngineTemplate {
+  name: string;
+  language: string | null;
+  status: string;
+  buttons: { type: string; url?: string }[] | null;
+}
 
 const MAX_PICKED = 25;
 const CATEGORIES: ShareCategory[] = [
@@ -142,9 +151,17 @@ export function ShowcaseShareSheet({
   // rather than carrying a second copy of the builder (AGENTS.md §2.8).
   const digest = useQuery({
     queryKey: ['inventory-share-summary', scope, category, trimmedSearch, pickedIds, link],
-    enabled: visible && messageMode === 'list' && link.length > 0,
+    // Fetched for both modes: the Engine send needs the template's body
+    // params even when the agent is looking at the short pitch.
+    enabled: visible && link.length > 0,
     queryFn: () =>
-      apiFetch<{ data: { summary: string; count: number } }>(
+      apiFetch<{
+        data: {
+          summary: string;
+          count: number;
+          template_params: [string, string, string];
+        };
+      }>(
         `/api/inventory/share-summary?${new URLSearchParams({
           scope,
           category,
@@ -154,6 +171,27 @@ export function ShowcaseShareSheet({
         }).toString()}`
       ).then((response) => response.data),
   });
+
+  // The Engine channel: the inventory_update template goes out from the
+  // account's WhatsApp Business number, which reaches a contact whose
+  // 24-hour window is shut — the free-form ConvoReal channel cannot.
+  const accountId = useAuthStore((state) => state.profile?.account_id);
+  const template = useQuery({
+    queryKey: ['inventory-update-template', accountId],
+    enabled: visible && Boolean(accountId),
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('message_templates')
+        .select('name, language, status, buttons')
+        .eq('account_id', accountId)
+        .eq('name', 'inventory_update')
+        .order('last_submitted_at', { ascending: false, nullsFirst: false })
+        .limit(1)
+        .maybeSingle();
+      return (data ?? null) as EngineTemplate | null;
+    },
+  });
+  const templateApproved = template.data?.status === 'APPROVED';
 
   // Manual edits survive until an input changes the generated text, the
   // same rule the web preview uses.
@@ -172,6 +210,14 @@ export function ShowcaseShareSheet({
           : `${category} listings`;
 
   const ready = link.length > 0 && (scope !== 'pick' || picked.length > 0);
+
+  /** The template's URL button appends this to the app origin, so the
+   *  suffix must carry the scope as well as the contact. */
+  function trackedQuery(contactId: string) {
+    const tracked = withShowcaseVisitor(link, contactId);
+    const query = tracked.slice(tracked.indexOf('?'));
+    return tracked.includes('?') ? query : `?v=${contactId}`;
+  }
 
   function messageFor(url: string, name?: string | null) {
     const greeting = name?.trim().split(/\s+/)[0];
@@ -289,13 +335,124 @@ export function ShowcaseShareSheet({
     if (sent > 0) closeSheet();
   }
 
+  /** Template fan-out from the business number. Unlike the free-form
+   *  channel this opens a conversation with a contact who has none, so
+   *  it is the one path that reaches a shut 24-hour window. */
+  async function sendViaEngine(contacts: Contact[]) {
+    const engine = template.data;
+    const params = digest.data?.template_params;
+    if (!engine || !params) {
+      show({
+        title: 'Still preparing',
+        message: 'The inventory snapshot is still loading — try again in a moment.',
+        actions: [{ label: 'OK', variant: 'primary', onPress: close }],
+      });
+      return;
+    }
+    setSending(true);
+    const failed: string[] = [];
+    let sent = 0;
+    for (const contact of contacts) {
+      if (!contact.phone) {
+        failed.push(contact.name || 'contact with no number');
+        continue;
+      }
+      try {
+        // Dynamic URL-button suffix → a tracked, personalised open.
+        const buttonParams: Record<number, string> = {};
+        (engine.buttons ?? []).forEach((button, index) => {
+          if (button.type === 'URL' && button.url?.includes('{{1}}')) {
+            buttonParams[index] = trackedQuery(contact.id);
+          }
+        });
+        const response = await apiFetch<{
+          results?: { status?: string; error?: string }[];
+        }>('/api/whatsapp/broadcast', {
+          method: 'POST',
+          body: JSON.stringify({
+            recipients: [
+              {
+                phone: contact.phone,
+                params: [
+                  contact.name?.trim().split(/\s+/)[0] || 'there',
+                  ...params,
+                ],
+                ...(Object.keys(buttonParams).length > 0
+                  ? { messageParams: { buttonParams } }
+                  : {}),
+              },
+            ],
+            template_name: engine.name,
+            template_language: engine.language || 'en_US',
+          }),
+        });
+        const result = response.results?.[0];
+        if (result?.status === 'failed') {
+          throw new Error(result.error || 'Delivery failure');
+        }
+        sent += 1;
+      } catch (error) {
+        failed.push(
+          `${contact.name || contact.phone}${
+            error instanceof Error ? ` (${friendlyError(error.message)})` : ''
+          }`
+        );
+      }
+    }
+    setSending(false);
+    haptic[sent > 0 ? 'success' : 'warn']();
+    show({
+      title: sent > 0 ? `Sent to ${sent}` : 'Nothing sent',
+      message:
+        failed.length > 0
+          ? `Could not reach: ${failed.join(', ')}.`
+          : 'The inventory update went out from your business number — replies land in your Inbox.',
+      actions: [{ label: 'OK', variant: 'primary', onPress: close }],
+    });
+    if (sent > 0) closeSheet();
+  }
+
+  /** One-time setup: the definition comes from the server so both
+   *  surfaces register the same template under this reserved name. */
+  async function submitTemplate() {
+    setSending(true);
+    try {
+      const payload = await apiFetch<{ data: unknown }>(
+        '/api/inventory/update-template'
+      );
+      await apiFetch('/api/whatsapp/templates/submit', {
+        method: 'POST',
+        body: JSON.stringify(payload.data),
+      });
+      await template.refetch();
+      show({
+        title: 'Template submitted',
+        message:
+          'Meta usually reviews it within minutes to a few hours. Engine sending unlocks automatically once approved.',
+        actions: [{ label: 'OK', variant: 'primary', onPress: close }],
+      });
+    } catch (error) {
+      show({
+        title: 'Could not submit the template',
+        message: friendlyError(
+          error instanceof Error ? error.message : 'Please try again.'
+        ),
+        actions: [{ label: 'OK', variant: 'primary', onPress: close }],
+      });
+    } finally {
+      setSending(false);
+    }
+  }
+
   function chooseChannel(contacts: Contact[]) {
     setRecipients(false);
     if (contacts.length === 0) return;
     show({
       title: `Send to ${contacts.length} ${contacts.length === 1 ? 'contact' : 'contacts'}`,
       message:
-        'ConvoReal sends from your business number, so replies land in your Inbox. WhatsApp opens one chat from your personal number.',
+        templateApproved
+          ? 'Engine sends the approved inventory update from your business number and reaches contacts whose 24-hour window has closed. ConvoReal sends this exact message into open threads only. WhatsApp opens one chat from your personal number.'
+          : 'ConvoReal sends from your business number, so replies land in your Inbox. WhatsApp opens one chat from your personal number.',
       actions: [
         { label: 'Cancel', variant: 'muted', onPress: close },
         {
@@ -307,12 +464,24 @@ export function ShowcaseShareSheet({
         },
         {
           label: 'ConvoReal',
-          variant: 'primary',
+          variant: templateApproved ? undefined : 'primary',
           onPress: () => {
             close();
             void sendViaConvoReal(contacts);
           },
         },
+        ...(templateApproved
+          ? [
+              {
+                label: 'Engine',
+                variant: 'primary' as const,
+                onPress: () => {
+                  close();
+                  void sendViaEngine(contacts);
+                },
+              },
+            ]
+          : []),
       ],
     });
   }
@@ -562,6 +731,40 @@ export function ShowcaseShareSheet({
           </Pressable>
         </View>
 
+        {template.data && !templateApproved ? (
+          <View
+            style={[
+              styles.notice,
+              { borderColor: colors.primary, backgroundColor: colors.primarySoft },
+            ]}
+          >
+            <Ionicons name="sparkles-outline" size={16} color={colors.primary} />
+            <Text style={{ flex: 1, fontSize: 11.5, color: colors.text, lineHeight: 16 }}>
+              {template.data.status === 'PENDING'
+                ? 'Inventory update template submitted — Engine sending unlocks once Meta approves it.'
+                : `Meta rejected the inventory update template. Resubmit to send from your business number.`}
+            </Text>
+          </View>
+        ) : null}
+        {!template.isPending &&
+        (!template.data || template.data.status === 'REJECTED') ? (
+          <Pressable
+            onPress={() => void submitTemplate()}
+            disabled={sending}
+            accessibilityRole="button"
+            accessibilityLabel="Create and submit the inventory update template"
+            style={[
+              styles.secondary,
+              { borderColor: colors.primary, opacity: sending ? 0.5 : 1 },
+            ]}
+          >
+            <Ionicons name="send-outline" size={16} color={colors.primary} />
+            <Text style={{ fontSize: 13, fontFamily: f.bold, color: colors.primary }}>
+              {template.data ? 'Resubmit template' : 'Set up Engine sending'}
+            </Text>
+          </Pressable>
+        ) : null}
+
         <PrimaryButton
           label="Send to contacts"
           icon="people-outline"
@@ -592,6 +795,14 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: spacing.sm,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.md,
+    padding: spacing.md,
+  },
+  notice: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
     gap: spacing.sm,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radius.md,
