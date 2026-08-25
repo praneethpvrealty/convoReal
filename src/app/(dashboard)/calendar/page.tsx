@@ -150,6 +150,7 @@ export default function CalendarPage() {
   const [apptStatus, setApptStatus] = useState<"scheduled" | "completed" | "cancelled">("scheduled");
   const [apptEventType, setApptEventType] = useState<EventTypeKey>("meeting");
   const [apptAssignedTo, setApptAssignedTo] = useState("");
+  const [apptNotificationScope, setApptNotificationScope] = useState<"none" | "new" | "all">("new");
   // Type-specific structured notes (agenda / minutes / outcome).
   const [apptExtras, setApptExtras] = useState<Record<EventFieldKey, string>>({ ...EMPTY_EXTRAS });
 
@@ -378,6 +379,7 @@ export default function CalendarPage() {
     setApptStatus("scheduled");
     setApptEventType("meeting");
     setApptAssignedTo(assignedTo || user?.id || "");
+    setApptNotificationScope("none");
     setApptExtras({ ...EMPTY_EXTRAS });
 
     const start = date ? new Date(date) : new Date();
@@ -406,6 +408,7 @@ export default function CalendarPage() {
     setApptStatus(appt.status);
     setApptEventType(appt.event_type || "meeting");
     setApptAssignedTo(appt.assigned_to || appt.user_id || "");
+    setApptNotificationScope("new");
     setApptExtras({
       agenda: appt.agenda || "",
       minutes: appt.minutes || "",
@@ -486,16 +489,31 @@ export default function CalendarPage() {
           ? { ...payload, reminder_morning_sent: false, reminder_1h_sent: false, reschedule_requested_at: null, client_confirmed_at: null }
           : payload;
 
-        const { data, error } = await supabase
-          .from("appointments")
-          .update(updatePayload)
-          .eq("id", selectedAppt.id)
-          .eq("account_id", accountId)
-          .select("id");
-
-        if (error) throw error;
-        if (!data?.length) throw new Error("That appointment is no longer there.");
-        toast.success("Appointment updated successfully");
+        const response = await fetch(`/api/appointments/${selectedAppt.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...updatePayload,
+            notify_participants: apptNotificationScope !== "none",
+            notification_scope: apptNotificationScope === "all" ? "all" : "new",
+          }),
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || "Failed to update appointment");
+        const delivery = result.notifications as
+          | { sent: number; failed: number; recipients: number }
+          | null;
+        if (delivery?.failed) {
+          toast.warning(
+            `Appointment updated. ${delivery.sent} message${delivery.sent === 1 ? "" : "s"} sent; ${delivery.failed} could not be delivered.`,
+          );
+        } else if (delivery?.sent) {
+          toast.success(
+            `Appointment updated and ${delivery.sent} participant${delivery.sent === 1 ? "" : "s"} notified.`,
+          );
+        } else {
+          toast.success("Appointment updated successfully");
+        }
       } else {
         const userRes = await supabase.auth.getUser();
         const userId = userRes.data.user?.id;
@@ -1628,6 +1646,22 @@ export default function CalendarPage() {
                         ? "Calls stay internal — only you get the reminder, linked contacts are not messaged."
                         : "Reminders go to every linked contact — 7 AM on the day & 1 hour before."}
                     </p>
+                    {selectedAppt && apptContactIds.length > 0 && (
+                      <div className="mt-2">
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                          WhatsApp after saving
+                        </label>
+                        <select
+                          value={apptNotificationScope}
+                          onChange={(e) => setApptNotificationScope(e.target.value as "none" | "new" | "all")}
+                          className="w-full rounded-lg border border-slate-800 bg-slate-950 px-2.5 py-2 text-xs text-white focus:border-primary focus:outline-none"
+                        >
+                          <option value="new">Inform newly added participants</option>
+                          <option value="all">Send updated details to everyone</option>
+                          <option value="none">Do not send a message</option>
+                        </select>
+                      </div>
+                    )}
                   </div>
 
                   <div>
