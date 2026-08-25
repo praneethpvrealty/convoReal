@@ -87,6 +87,30 @@ describe('PortalDriftPanel', () => {
     expect(screen.getByText('Ad live on withdrawn stock')).toBeTruthy();
   });
 
+  it('shows only the fields that actually disagree', async () => {
+    mockDriftFetch([
+      [
+        {
+          ...BASE_FINDING,
+          driftKind: 'details_drift',
+          parsedPropertyType: null,
+          listingType: null,
+          parsedPrice: null,
+          listingPrice: null,
+          parsedAreaSqft: 3000,
+          listingAreaSqft: 2400,
+        },
+      ],
+    ]);
+
+    renderPanel();
+
+    expect(await screen.findByText('Ad and listing disagree')).toBeTruthy();
+    expect(screen.getByText(/3000 vs 2400 sq ft/)).toBeTruthy();
+    expect(screen.queryByText(/Apartment vs/)).toBeNull();
+    expect(screen.queryByText(/₹/)).toBeNull();
+  });
+
   it('hides and persists a signature-specific dismissal', async () => {
     mockDriftFetch([[BASE_FINDING]]);
 
@@ -126,4 +150,3 @@ describe('PortalDriftPanel', () => {
     expect(screen.queryByText(/1 portal ad out of step with your inventory/)).toBeNull();
   });
 });
-

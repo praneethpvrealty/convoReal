@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   comparableAreaSqft,
+  comparableAreasSqft,
   findPortalDiscrepancies,
   portalFromQuestion,
 } from './listing-reconcile';
@@ -45,6 +46,16 @@ describe('comparableAreaSqft', () => {
       comparableAreaSqft({ land_area: 2, land_area_unit: 'Acres' })
     ).toBeNull();
   });
+
+  it('keeps built-up and plot measurements as valid area semantics', () => {
+    expect(
+      comparableAreasSqft({
+        area_sqft: 5400,
+        land_area: 2400,
+        land_area_unit: 'Sq.Ft.',
+      })
+    ).toEqual([5400, 2400]);
+  });
 });
 
 describe('findPortalDiscrepancies', () => {
@@ -71,6 +82,37 @@ describe('findPortalDiscrepancies', () => {
         { portal: 'housing', areaSqft: 4200 },
       ])
     ).toEqual([]);
+  });
+
+  it('does not compare a portal plot area with the built-up area', () => {
+    expect(
+      findPortalDiscrepancies(
+        {
+          price: 43_200_000,
+          area_sqft: 5400,
+          land_area: 2400,
+          land_area_unit: 'Sq.Ft.',
+        },
+        [{ portal: 'housing', price: 43_200_000, areaSqft: 2400 }]
+      )
+    ).toEqual([]);
+  });
+
+  it('compares a genuinely different portal area with the closest listing area', () => {
+    const drifts = findPortalDiscrepancies(
+      {
+        area_sqft: 5400,
+        land_area: 2400,
+        land_area_unit: 'Sq.Ft.',
+      },
+      [{ portal: 'housing', areaSqft: 3000 }]
+    );
+    expect(drifts).toHaveLength(1);
+    expect(drifts[0]).toMatchObject({
+      field: 'area_sqft',
+      ours: 2400,
+      theirs: 3000,
+    });
   });
 
   it('treats a bedroom count as exact', () => {
