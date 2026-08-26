@@ -1,3 +1,6 @@
+import { Alert } from 'react-native';
+
+import { openContactChat } from '@/lib/open-chat';
 import { supabase } from '@/lib/supabase';
 
 /**
@@ -8,6 +11,13 @@ import { supabase } from '@/lib/supabase';
  */
 
 export type TodoPriority = 'low' | 'medium' | 'high';
+
+type TodoCheckInKind =
+  | 'site_visit'
+  | 'call'
+  | 'meeting'
+  | 'document'
+  | 'follow_up';
 
 export interface Todo {
   id: string;
@@ -25,6 +35,107 @@ export interface Todo {
 function one<T>(v: T | T[] | null | undefined): T | null {
   if (v === null || v === undefined) return null;
   return Array.isArray(v) ? (v[0] ?? null) : v;
+}
+
+export function inferTodoCheckInKind(
+  title: string,
+  description?: string | null
+): TodoCheckInKind {
+  const text = `${title} ${description ?? ''}`.toLowerCase();
+  if (/\b(site\s*visit|visit|visited|yet to visit|inspection)\b/.test(text)) {
+    return 'site_visit';
+  }
+  if (/\b(call|phone|spoke|speak)\b/.test(text)) return 'call';
+  if (/\b(meet|meeting|appointment)\b/.test(text)) return 'meeting';
+  if (/\b(document|documents|doc|agreement|email|advocate|lawyer|legal)\b/.test(text)) {
+    return 'document';
+  }
+  return 'follow_up';
+}
+
+export function buildTodoParticipantCheckIn(opts: {
+  title: string;
+  description?: string | null;
+  contactName?: string | null;
+  propertyTitle?: string | null;
+}): { label: string; message: string } {
+  const kind = inferTodoCheckInKind(opts.title, opts.description);
+  const firstName = opts.contactName?.trim().split(/\s+/)[0] || 'there';
+  const property = opts.propertyTitle?.trim();
+  const aboutProperty = property ? ` for ${property}` : '';
+
+  switch (kind) {
+    case 'site_visit':
+      return {
+        label: 'visit',
+        message: `Hi ${firstName}, just checking in${aboutProperty}. Were you able to complete the site visit? Please share a quick update on how it went and whether you would like to take it forward or see other options.`,
+      };
+    case 'call':
+      return {
+        label: 'call',
+        message: `Hi ${firstName}, just checking in${aboutProperty}. Were you able to complete the planned call? Please let me know the update and if anything needs to be taken forward from my side.`,
+      };
+    case 'meeting':
+      return {
+        label: 'meeting',
+        message: `Hi ${firstName}, just checking in${aboutProperty}. Were you able to complete the meeting? Please share a quick update and let me know the next step you would like to take.`,
+      };
+    case 'document':
+      return {
+        label: 'document follow-up',
+        message: `Hi ${firstName}, just checking in${aboutProperty}. Were you able to complete the document or legal follow-up? Please let me know the current status and if anything is still pending.`,
+      };
+    default:
+      return {
+        label: 'follow-up',
+        message: `Hi ${firstName}, just checking in${aboutProperty}. Were you able to complete the planned follow-up? Please share the current status and let me know if anything needs to be taken forward.`,
+      };
+  }
+}
+
+type TodoCheckInContext = Pick<Todo, 'id' | 'title' | 'description' | 'completed'> & {
+  contact: Todo['contact'] | Todo['contact'][] | null;
+  property: Todo['property'] | Todo['property'][] | null;
+};
+
+async function fetchTodoCheckInContext(id: string): Promise<TodoCheckInContext | null> {
+  const { data, error } = await supabase
+    .from('todos')
+    .select(
+      'id, title, description, completed, contact:contacts(id, name, phone), property:properties(id, title)'
+    )
+    .eq('id', id)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as unknown as TodoCheckInContext | null) ?? null;
+}
+
+function offerParticipantCheckIn(context: TodoCheckInContext | null): void {
+  if (!context) return;
+  const contact = one(context.contact);
+  if (!contact) return;
+  const property = one(context.property);
+  const draft = buildTodoParticipantCheckIn({
+    title: context.title,
+    description: context.description,
+    contactName: contact.name,
+    propertyTitle: property?.title,
+  });
+  const participant = contact.name || contact.phone || 'the participant';
+
+  Alert.alert(
+    'Task completed',
+    `Check with ${participant} about the ${draft.label}?`,
+    [
+      { text: 'Not now', style: 'cancel' },
+      {
+        text: 'Check in',
+        onPress: () => {
+          void openContactChat(contact, { draftText: draft.message });
+        },
+      },
+    ]
+  );
 }
 
 export async function fetchTodos(): Promise<Todo[]> {
@@ -83,6 +194,7 @@ export async function setTodoCompleted(
   id: string,
   completed: boolean
 ): Promise<void> {
+  const checkInContext = completed ? await fetchTodoCheckInContext(id) : null;
   const { data, error } = await supabase
     .from('todos')
     .update({ completed })
@@ -90,6 +202,10 @@ export async function setTodoCompleted(
     .select('id');
   if (error) throw error;
   if (!data?.length) throw new Error('Todo not found');
+
+  if (completed && checkInContext && !checkInContext.completed) {
+    offerParticipantCheckIn(checkInContext);
+  }
 }
 
 export async function updateTodo(
@@ -102,6 +218,7 @@ export async function updateTodo(
     completed: boolean;
   }
 ): Promise<void> {
+  const checkInContext = updates.completed ? await fetchTodoCheckInContext(id) : null;
   const { data, error } = await supabase
     .from('todos')
     .update({
@@ -115,6 +232,14 @@ export async function updateTodo(
     .select('id');
   if (error) throw error;
   if (!data?.length) throw new Error('Todo not found');
+
+  if (updates.completed && checkInContext && !checkInContext.completed) {
+    offerParticipantCheckIn({
+      ...checkInContext,
+      title: updates.title,
+      description: updates.description,
+    });
+  }
 }
 
 export async function deleteTodo(id: string): Promise<void> {
