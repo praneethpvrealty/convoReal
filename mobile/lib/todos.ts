@@ -2,6 +2,7 @@ import { Alert } from 'react-native';
 
 import { openContactChat } from '@/lib/open-chat';
 import { buildTodoParticipantCheckIn } from '@/lib/todo-check-in';
+import { sortTodos as sortTodosImpl } from '@/lib/todo-sort';
 import { supabase } from '@/lib/supabase';
 
 /**
@@ -128,18 +129,7 @@ export async function fetchTodos(): Promise<Todo[]> {
 
 /** Open tasks first; within each status, newest due date first. */
 export function sortTodos(todos: Todo[]): Todo[] {
-  return [...todos].sort((a, b) => {
-    if (a.completed !== b.completed) return a.completed ? 1 : -1;
-
-    // Dated work stays ahead of undated work, with the latest date first.
-    if (a.due_date && !b.due_date) return -1;
-    if (!a.due_date && b.due_date) return 1;
-    if (!a.due_date && !b.due_date) return 0;
-
-    const dateA = new Date(a.due_date!).getTime();
-    const dateB = new Date(b.due_date!).getTime();
-    return dateB - dateA;
-  });
+  return sortTodosImpl(todos);
 }
 
 export async function addTodo(opts: {
