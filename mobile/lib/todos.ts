@@ -126,13 +126,19 @@ export async function fetchTodos(): Promise<Todo[]> {
   }));
 }
 
-/** Same ordering as the web task panel: open tasks first, then by due date. */
+/** Open tasks first; within each status, newest due date first. */
 export function sortTodos(todos: Todo[]): Todo[] {
   return [...todos].sort((a, b) => {
     if (a.completed !== b.completed) return a.completed ? 1 : -1;
-    const dateA = a.due_date ? new Date(a.due_date).getTime() : 0;
-    const dateB = b.due_date ? new Date(b.due_date).getTime() : 0;
-    return dateA - dateB;
+
+    // Dated work stays ahead of undated work, with the latest date first.
+    if (a.due_date && !b.due_date) return -1;
+    if (!a.due_date && b.due_date) return 1;
+    if (!a.due_date && !b.due_date) return 0;
+
+    const dateA = new Date(a.due_date!).getTime();
+    const dateB = new Date(b.due_date!).getTime();
+    return dateB - dateA;
   });
 }
 
