@@ -48,32 +48,60 @@ async function fetchTodoCheckInContext(id: string): Promise<TodoCheckInContext |
   return (data as unknown as TodoCheckInContext | null) ?? null;
 }
 
-function offerParticipantCheckIn(context: TodoCheckInContext | null): void {
-  if (!context) return;
+/**
+ * Participant-linked work should not disappear from the open queue before
+ * the agent has had a chance to verify what actually happened. The choice
+ * is explicit:
+ * - Check in first: open a reviewable message draft and KEEP the task open.
+ * - Complete now: close it deliberately.
+ * - Keep open: do nothing.
+ */
+async function resolveCompletionIntent(
+  context: TodoCheckInContext | null,
+  title?: string,
+  description?: string | null
+): Promise<boolean> {
+  if (!context || context.completed) return true;
   const contact = one(context.contact);
-  if (!contact) return;
+  if (!contact) return true;
+
   const property = one(context.property);
   const draft = buildTodoParticipantCheckIn({
-    title: context.title,
-    description: context.description,
+    title: title ?? context.title,
+    description: description === undefined ? context.description : description,
     contactName: contact.name,
     propertyTitle: property?.title,
   });
   const participant = contact.name || contact.phone || 'the participant';
 
-  Alert.alert(
-    'Task completed',
-    `Check with ${participant} about the ${draft.label}?`,
-    [
-      { text: 'Not now', style: 'cancel' },
-      {
-        text: 'Check in',
-        onPress: () => {
-          void openContactChat(contact, { draftText: draft.message });
+  return new Promise((resolve) => {
+    Alert.alert(
+      'Open → Completed',
+      `Before closing this task, do you want to check with ${participant} about the ${draft.label}?`,
+      [
+        {
+          text: 'Keep open',
+          style: 'cancel',
+          onPress: () => resolve(false),
         },
-      },
-    ]
-  );
+        {
+          text: 'Check in first',
+          onPress: () => {
+            void openContactChat(contact, { draftText: draft.message });
+            resolve(false);
+          },
+        },
+        {
+          text: 'Complete now',
+          onPress: () => resolve(true),
+        },
+      ],
+      {
+        cancelable: true,
+        onDismiss: () => resolve(false),
+      }
+    );
+  });
 }
 
 export async function fetchTodos(): Promise<Todo[]> {
@@ -133,17 +161,22 @@ export async function setTodoCompleted(
   completed: boolean
 ): Promise<void> {
   const checkInContext = completed ? await fetchTodoCheckInContext(id) : null;
+  const shouldComplete = completed
+    ? await resolveCompletionIntent(checkInContext)
+    : false;
+  const nextCompleted = completed ? shouldComplete : false;
+
+  // The user chose Check in first / Keep open. Do not perform a no-op write:
+  // leaving the row untouched also avoids changing updated_at/audit ordering.
+  if (completed && !nextCompleted) return;
+
   const { data, error } = await supabase
     .from('todos')
-    .update({ completed })
+    .update({ completed: nextCompleted })
     .eq('id', id)
     .select('id');
   if (error) throw error;
   if (!data?.length) throw new Error('Todo not found');
-
-  if (completed && checkInContext && !checkInContext.completed) {
-    offerParticipantCheckIn(checkInContext);
-  }
 }
 
 export async function updateTodo(
@@ -157,6 +190,16 @@ export async function updateTodo(
   }
 ): Promise<void> {
   const checkInContext = updates.completed ? await fetchTodoCheckInContext(id) : null;
+  const completingFromOpen =
+    updates.completed && checkInContext && !checkInContext.completed;
+  const shouldComplete = completingFromOpen
+    ? await resolveCompletionIntent(
+        checkInContext,
+        updates.title,
+        updates.description
+      )
+    : updates.completed;
+
   const { data, error } = await supabase
     .from('todos')
     .update({
@@ -164,20 +207,14 @@ export async function updateTodo(
       description: updates.description,
       due_date: updates.dueDate ? updates.dueDate.toISOString() : null,
       priority: updates.priority,
-      completed: updates.completed,
+      // If the agent chose "Check in first", save their other edits but
+      // deliberately keep the task Open until they come back and close it.
+      completed: shouldComplete,
     })
     .eq('id', id)
     .select('id');
   if (error) throw error;
   if (!data?.length) throw new Error('Todo not found');
-
-  if (updates.completed && checkInContext && !checkInContext.completed) {
-    offerParticipantCheckIn({
-      ...checkInContext,
-      title: updates.title,
-      description: updates.description,
-    });
-  }
 }
 
 export async function deleteTodo(id: string): Promise<void> {
