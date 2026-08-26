@@ -23,7 +23,9 @@ import { EmptyState, FilterChip } from '@/components/ui';
 import { apiFetch, ApiError } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
 import { haptic } from '@/lib/haptics';
+import { openContactChat } from '@/lib/open-chat';
 import { queryClient } from '@/lib/query';
+import { buildTodoParticipantCheckIn } from '@/lib/todo-check-in';
 import { supabase } from '@/lib/supabase';
 import { radius, spacing, useTheme, fonts } from '@/lib/theme';
 import { eventTypeFields, type EventFieldKey } from '@/lib/event-fields';
@@ -769,10 +771,17 @@ function TodoRow({ todo, now }: { todo: Todo; now: Date }) {
               onPress={() => setEditPriority(priority)}
             />
           ))}
+        </View>
+        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
           <FilterChip
-            label={editCompleted ? 'Completed' : 'Open'}
+            label="Open"
+            active={!editCompleted}
+            onPress={() => setEditCompleted(false)}
+          />
+          <FilterChip
+            label="Completed"
             active={editCompleted}
-            onPress={() => setEditCompleted((value) => !value)}
+            onPress={() => setEditCompleted(true)}
           />
         </View>
         <View style={{ flexDirection: 'row', gap: spacing.sm }}>
@@ -839,6 +848,28 @@ function TodoRow({ todo, now }: { todo: Todo; now: Date }) {
             text={todo.contact.name || todo.contact.phone || 'Linked contact'}
             accent
           />
+        ) : null}
+        {!todo.completed && todo.contact ? (
+          <Pressable
+            onPress={async () => {
+              haptic.tap();
+              const draft = buildTodoParticipantCheckIn({
+                title: editTitle.trim() || todo.title,
+                description: editDescription.trim() || null,
+                contactName: todo.contact?.name,
+                propertyTitle: todo.property?.title,
+              });
+              await openContactChat(todo.contact!, { draftText: draft.message });
+            }}
+            accessibilityRole="button"
+            accessibilityLabel={`Check with ${todo.contact?.name?.split(' ')[0] || 'contact'}`}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}
+          >
+            <Ionicons name="chatbubble-outline" size={16} color={colors.primary} />
+            <Text style={{ fontSize: 14, fontFamily: f.semibold, color: colors.primary }}>
+              Check with {todo.contact?.name?.trim().split(/\s+/)[0] || 'contact'}
+            </Text>
+          </Pressable>
         ) : null}
         {todo.property ? (
           <DetailRow icon="home-outline" text={todo.property.title} accent />
