@@ -1,3 +1,7 @@
+import { Alert } from 'react-native';
+
+import { openContactChat } from '@/lib/open-chat';
+import { buildTodoParticipantCheckIn } from '@/lib/todo-check-in';
 import { supabase } from '@/lib/supabase';
 
 /**
@@ -25,6 +29,79 @@ export interface Todo {
 function one<T>(v: T | T[] | null | undefined): T | null {
   if (v === null || v === undefined) return null;
   return Array.isArray(v) ? (v[0] ?? null) : v;
+}
+
+type TodoCheckInContext = Pick<Todo, 'id' | 'title' | 'description' | 'completed'> & {
+  contact: Todo['contact'] | Todo['contact'][] | null;
+  property: Todo['property'] | Todo['property'][] | null;
+};
+
+async function fetchTodoCheckInContext(id: string): Promise<TodoCheckInContext | null> {
+  const { data, error } = await supabase
+    .from('todos')
+    .select(
+      'id, title, description, completed, contact:contacts(id, name, phone), property:properties(id, title)'
+    )
+    .eq('id', id)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as unknown as TodoCheckInContext | null) ?? null;
+}
+
+/**
+ * Participant-linked work should not disappear from the open queue before
+ * the agent has had a chance to verify what actually happened. The choice
+ * is explicit:
+ * - Check in first: open a reviewable message draft and KEEP the task open.
+ * - Complete now: close it deliberately.
+ * - Keep open: do nothing.
+ */
+async function resolveCompletionIntent(
+  context: TodoCheckInContext | null,
+  title?: string,
+  description?: string | null
+): Promise<boolean> {
+  if (!context || context.completed) return true;
+  const contact = one(context.contact);
+  if (!contact) return true;
+
+  const property = one(context.property);
+  const draft = buildTodoParticipantCheckIn({
+    title: title ?? context.title,
+    description: description === undefined ? context.description : description,
+    contactName: contact.name,
+    propertyTitle: property?.title,
+  });
+  const participant = contact.name || contact.phone || 'the participant';
+
+  return new Promise((resolve) => {
+    Alert.alert(
+      'Open → Completed',
+      `Before closing this task, do you want to check with ${participant} about the ${draft.label}?`,
+      [
+        {
+          text: 'Keep open',
+          style: 'cancel',
+          onPress: () => resolve(false),
+        },
+        {
+          text: 'Check in first',
+          onPress: () => {
+            void openContactChat(contact, { draftText: draft.message });
+            resolve(false);
+          },
+        },
+        {
+          text: 'Complete now',
+          onPress: () => resolve(true),
+        },
+      ],
+      {
+        cancelable: true,
+        onDismiss: () => resolve(false),
+      }
+    );
+  });
 }
 
 export async function fetchTodos(): Promise<Todo[]> {
@@ -83,9 +160,19 @@ export async function setTodoCompleted(
   id: string,
   completed: boolean
 ): Promise<void> {
+  const checkInContext = completed ? await fetchTodoCheckInContext(id) : null;
+  const shouldComplete = completed
+    ? await resolveCompletionIntent(checkInContext)
+    : false;
+  const nextCompleted = completed ? shouldComplete : false;
+
+  // The user chose Check in first / Keep open. Do not perform a no-op write:
+  // leaving the row untouched also avoids changing updated_at/audit ordering.
+  if (completed && !nextCompleted) return;
+
   const { data, error } = await supabase
     .from('todos')
-    .update({ completed })
+    .update({ completed: nextCompleted })
     .eq('id', id)
     .select('id');
   if (error) throw error;
@@ -102,6 +189,17 @@ export async function updateTodo(
     completed: boolean;
   }
 ): Promise<void> {
+  const checkInContext = updates.completed ? await fetchTodoCheckInContext(id) : null;
+  const completingFromOpen =
+    updates.completed && checkInContext && !checkInContext.completed;
+  const shouldComplete = completingFromOpen
+    ? await resolveCompletionIntent(
+        checkInContext,
+        updates.title,
+        updates.description
+      )
+    : updates.completed;
+
   const { data, error } = await supabase
     .from('todos')
     .update({
@@ -109,7 +207,9 @@ export async function updateTodo(
       description: updates.description,
       due_date: updates.dueDate ? updates.dueDate.toISOString() : null,
       priority: updates.priority,
-      completed: updates.completed,
+      // If the agent chose "Check in first", save their other edits but
+      // deliberately keep the task Open until they come back and close it.
+      completed: shouldComplete,
     })
     .eq('id', id)
     .select('id');
