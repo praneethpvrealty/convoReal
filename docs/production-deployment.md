@@ -34,6 +34,8 @@ The Go Ingress Service should be deployed as a public web server using [go-ingre
    - `META_APP_SECRET`: *(Your Meta App Secret)*
    - `WHATSAPP_VERIFY_TOKEN`: *(Your custom webhook verify token)*
    - `NEXT_PUBLIC_SITE_URL`: `https://your-nextjs-app.com` (Main Next.js dashboard URL used for proxying GET challenges)
+   - `SENTRY_DSN`: *(DSN of the `convoreal-ingress` Sentry project — Settings → Client Keys)*
+   - `SENTRY_ENVIRONMENT`: `production`
 7. Enable a **Public Domain** in the Railway service networking settings. This will give you an HTTPS URL like `https://go-ingress-production.up.railway.app`.
 
 ---
@@ -60,6 +62,16 @@ The Queue Worker is deployed as a background daemon container (no public web end
    - `NEXT_PUBLIC_DEFAULT_WEBSITE_NAME`: `ConvoReal`
    - `NEXT_PUBLIC_DEFAULT_WEBSITE_URL`: `https://www.convoreal.com`
    - `NEXT_PUBLIC_BASE_DOMAIN`: `convoreal.com`
+   - `SENTRY_DSN`: *(DSN of the `convoreal-worker` Sentry project — Settings → Client Keys)*
+   - `SENTRY_ENVIRONMENT`: `production`
+
+Both services initialise Sentry only when `SENTRY_DSN` is set — the Go
+client treats an empty DSN as disabled, and the worker gates on
+`enabled: Boolean(sentryDsn)`. Leaving it unset is silent: the service
+runs normally and its Sentry project reports no activity, which looks
+identical to a service that never fails. Since both sit in the WhatsApp
+ingestion path, a crash that goes unreported here means dropped inbound
+messages rather than a visibly broken page.
 
 ---
 

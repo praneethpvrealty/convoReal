@@ -20,6 +20,8 @@ eas env:create --name EXPO_PUBLIC_SUPABASE_URL --value https://<PROJECT>.supabas
 eas env:create --name EXPO_PUBLIC_SUPABASE_ANON_KEY --value <ANON-KEY> --environment production
 eas env:create --name EXPO_PUBLIC_API_BASE_URL --value https://www.convoreal.com --environment production
 eas env:create --name GOOGLE_MAPS_ANDROID_API_KEY --value <MAPS-KEY> --environment production
+eas env:create --name EXPO_PUBLIC_SENTRY_DSN --value <MOBILE-DSN> --environment production
+eas env:create --name EXPO_PUBLIC_SENTRY_ENVIRONMENT --value production --environment production
 ```
 
 The Supabase values MUST match the deployed web app's project (see
@@ -27,6 +29,17 @@ The Supabase values MUST match the deployed web app's project (see
 `GOOGLE_MAPS_ANDROID_API_KEY` enables real native maps on Android —
 create a key with "Maps SDK for Android" in Google Cloud, restricted
 to the package `com.convoreal.app`.
+
+The Sentry values are what make the `convoreal-mobile` project report
+anything. `Sentry.init()` in `lib/monitoring.ts` is gated on
+`enabled: Boolean(dsn)`, so a build without `EXPO_PUBLIC_SENTRY_DSN`
+sends nothing and raises no error — the project simply reads as having
+no activity, which is indistinguishable from an app that never crashes.
+The DSN is baked in at build time, so setting it does not reach any
+already-installed app: it takes a new build, not an OTA update. Take the
+DSN from Sentry → convoreal-mobile → Settings → Client Keys (DSN); it is
+safe to embed. `SENTRY_AUTH_TOKEN` is not, and belongs only in EAS build
+secrets for source-map upload.
 
 ## Builds
 
