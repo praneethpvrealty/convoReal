@@ -16,6 +16,7 @@ interface QueuedResponse {
 let queues: Record<string, QueuedResponse[]>;
 let upserts: Array<{ table: string; row: unknown }>;
 let updates: Array<{ table: string; row: unknown }>;
+let deletes: Array<{ table: string }>;
 
 function next(table: string): QueuedResponse {
   return (queues[table] ?? []).shift() ?? { data: null, error: null };
@@ -30,6 +31,10 @@ function makeDb() {
         in: () => builder,
         update: (row: unknown) => {
           updates.push({ table, row });
+          return builder;
+        },
+        delete: () => {
+          deletes.push({ table });
           return builder;
         },
         upsert: (row: unknown) => {
@@ -61,9 +66,15 @@ vi.mock('@/lib/auth/account', () => ({
     ),
 }));
 
-import { POST } from './route';
+import { DELETE, POST } from './route';
 
 const params = Promise.resolve({ id: 'c-1' });
+
+function makeDeleteRequest() {
+  return new Request('http://test/api/contacts/c-1/portal-link', {
+    method: 'DELETE',
+  });
+}
 
 function makeRequest(body: Record<string, unknown>) {
   return new Request('http://test/api/contacts/c-1/portal-link', {
@@ -82,6 +93,7 @@ beforeEach(() => {
   queues = {};
   upserts = [];
   updates = [];
+  deletes = [];
 });
 
 describe('POST /api/contacts/[id]/portal-link', () => {
@@ -134,7 +146,9 @@ describe('POST /api/contacts/[id]/portal-link', () => {
     queues['property_portal_listings'] = [
       {
         data: {
+          id: 'link-1',
           property_id: 'p-1',
+          status: 'active',
           properties: { title: 'Koramangala 4 BHK' },
         },
       },
@@ -194,5 +208,111 @@ describe('POST /api/contacts/[id]/portal-link', () => {
     );
     expect(res.status).toBe(404);
     expect(upserts).toHaveLength(0);
+  });
+  it('takes the ad from a listing that is no longer advertised', async () => {
+    queues['contacts'] = [
+      { data: HOUSING_LEAD },
+      { data: [{ id: 'c-1' }] },
+      { data: [{ id: 'c-1' }] },
+    ];
+    queues['properties'] = [{ data: { id: 'p-2', title: 'HSR Bungalow' } }];
+    queues['property_portal_listings'] = [
+      {
+        data: {
+          id: 'link-1',
+          property_id: 'p-1',
+          status: 'removed',
+          properties: { title: 'Koramangala 4 BHK' },
+        },
+      },
+      { data: [{ id: 'link-1' }] },
+      { data: null },
+    ];
+    queues['contact_property_inquiries'] = [{ data: null }];
+
+    const res = await POST(makeRequest({ propertyId: 'p-2' }) as never, {
+      params,
+    });
+    expect(res.status).toBe(200);
+    // The dead row gives the id up rather than blocking the assertion —
+    // uq_portal_listing_identity would reject two holders of one ad.
+    expect(updates[0]).toMatchObject({
+      table: 'property_portal_listings',
+      row: { portal_listing_id: null },
+    });
+    expect(upserts[0]).toMatchObject({
+      table: 'property_portal_listings',
+      row: { property_id: 'p-2', portal_listing_id: '20327451' },
+    });
+  });
+});
+
+describe('DELETE /api/contacts/[id]/portal-link', () => {
+  it('releases the ad and untags the leads the mapping tagged', async () => {
+    queues['contacts'] = [
+      { data: HOUSING_LEAD },
+      { data: [{ id: 'c-1' }, { id: 'c-2' }] },
+    ];
+    queues['property_portal_listings'] = [
+      { data: { id: 'link-1', property_id: 'p-1' } },
+      { data: [{ id: 'link-1' }] },
+    ];
+    queues['contact_property_inquiries'] = [{ data: null }];
+
+    const res = await DELETE(makeDeleteRequest() as never, { params });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.data).toMatchObject({
+      portal: 'housing',
+      portalListingId: '20327451',
+      propertyId: 'p-1',
+      untaggedContacts: 2,
+    });
+
+    // The identity claim goes; the posting keeps its URL, expiry, status.
+    expect(updates[0]).toMatchObject({
+      table: 'property_portal_listings',
+      row: { portal_listing_id: null },
+    });
+    expect(Object.keys(updates[0].row as object)).toEqual([
+      'portal_listing_id',
+    ]);
+    expect(updates[1]).toMatchObject({
+      table: 'contacts',
+      row: { last_inquired_property_id: null },
+    });
+    expect(deletes[0]).toMatchObject({ table: 'contact_property_inquiries' });
+  });
+
+  it('leaves the junction alone when no lead still points at the listing', async () => {
+    queues['contacts'] = [{ data: HOUSING_LEAD }, { data: [] }];
+    queues['property_portal_listings'] = [
+      { data: { id: 'link-1', property_id: 'p-1' } },
+      { data: [{ id: 'link-1' }] },
+    ];
+
+    const res = await DELETE(makeDeleteRequest() as never, { params });
+    expect(res.status).toBe(200);
+    expect((await res.json()).data.untaggedContacts).toBe(0);
+    expect(deletes).toHaveLength(0);
+  });
+
+  it('reports an ad that was never mapped', async () => {
+    queues['contacts'] = [{ data: HOUSING_LEAD }];
+    queues['property_portal_listings'] = [{ data: null }];
+
+    const res = await DELETE(makeDeleteRequest() as never, { params });
+    expect(res.status).toBe(404);
+    expect(updates).toHaveLength(0);
+  });
+
+  it('has nothing to unmap when the lead quoted no ad id', async () => {
+    queues['contacts'] = [
+      { data: { id: 'c-1', lead_portal: null, lead_portal_listing_id: null } },
+    ];
+
+    const res = await DELETE(makeDeleteRequest() as never, { params });
+    expect(res.status).toBe(400);
+    expect(updates).toHaveLength(0);
   });
 });

@@ -991,6 +991,46 @@ function PortalAdMapping({ contact }: { contact: Contact }) {
     }
   }
 
+  // The correction: the ad was mapped to the wrong listing. Releasing
+  // the id also drops the tags that mapping applied, so the ad and the
+  // leads waiting on it come back together (web parity).
+  async function unmap() {
+    setBusy(true);
+    try {
+      const { data } = await apiFetch<{
+        data: { untaggedContacts: number };
+      }>(`/api/contacts/${contact.id}/portal-link`, { method: 'DELETE' });
+      haptic.success();
+      const others = data.untaggedContacts - 1;
+      show({
+        title: 'Ad unmapped',
+        message:
+          `${portalLabel} ad ${listingId} is free again — map it to the right listing.` +
+          (others > 0
+            ? ` ${others} other lead${others === 1 ? '' : 's'} untagged too.`
+            : ''),
+      });
+      queryClient.invalidateQueries({ queryKey: ['contact', contact.id] });
+      queryClient.invalidateQueries({
+        queryKey: ['portal-ad-link', portal, listingId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['interested-properties', contact.id],
+      });
+      queryClient.invalidateQueries({ queryKey: ['contacts'] });
+    } catch (e) {
+      haptic.warn();
+      show({
+        title: 'Could not unmap the ad',
+        message: friendlyError(
+          e instanceof ApiError ? e.message : 'Try again.'
+        ),
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <View
       style={[
@@ -1019,7 +1059,35 @@ function PortalAdMapping({ contact }: { contact: Contact }) {
             : 'Not mapped yet. Say which listing this ad is and every future enquiry on it matches exactly.'}
         </Text>
       </View>
-      {mapped ? null : (
+      {mapped ? (
+        <Pressable
+          onPress={() => {
+            haptic.tap();
+            unmap();
+          }}
+          disabled={busy}
+          accessibilityRole="button"
+          accessibilityLabel={`Unmap ${portalLabel} ad ${listingId} — wrong listing`}
+          style={[
+            styles.mapAdButton,
+            { borderColor: colors.danger, opacity: busy ? 0.6 : 1 },
+          ]}
+        >
+          {busy ? (
+            <ActivityIndicator size="small" color={colors.danger} />
+          ) : (
+            <Text
+              style={{
+                fontSize: 12,
+                fontFamily: f.bold,
+                color: colors.danger,
+              }}
+            >
+              Unmap
+            </Text>
+          )}
+        </Pressable>
+      ) : (
         <Pressable
           onPress={() => {
             haptic.tap();
