@@ -292,7 +292,7 @@ export interface WhatsAppWebhookEntry {
         phone_number_id: string;
       };
       contacts?: Array<{
-        profile: { name: string };
+        profile?: { name?: string };
         wa_id: string;
       }>;
       messages?: WhatsAppMessage[];
@@ -1129,7 +1129,7 @@ async function handleReaction(
 
 async function processMessage(
   message: WhatsAppMessage,
-  contact: { profile: { name: string }; wa_id: string },
+  contact: { profile?: { name?: string }; wa_id: string },
   accountId: string,
   configOwnerUserId: string,
   accessToken: string,
@@ -1154,7 +1154,7 @@ async function processMessage(
   }
 
   const senderPhone = normalizePhone(message.from);
-  const contactName = contact.profile.name;
+  const contactName = contact.profile?.name ?? '';
 
   // A group message reaches us on this same `messages` field, and `from`
   // is the PARTICIPANT. Everything below would therefore file it in that
