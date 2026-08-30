@@ -4,6 +4,8 @@ import {
   isTellMeMoreText,
   buildOwnerFallbackReply,
   buildOwnerReplyPrompt,
+  replyUsesExpectedScript,
+  resolveOwnerReplyLanguage,
   type OwnedListing,
 } from './owner-reply';
 import type { OwnerDigest } from './owner-digest';
@@ -84,6 +86,27 @@ describe('isTellMeMoreText', () => {
     expect(isTellMeMoreText('tell me more about buyers')).toBe(false);
     expect(isTellMeMoreText('')).toBe(false);
     expect(isTellMeMoreText(null)).toBe(false);
+  });
+});
+
+describe('owner reply language', () => {
+  it('locks an English reply to the latest English owner message', () => {
+    expect(resolveOwnerReplyLanguage('Please send details', 'hi', 'hi')).toBe('en');
+    expect(replyUsesExpectedScript('Hi Swaroop, here are the details.', 'en')).toBe(true);
+    expect(replyUsesExpectedScript('नमस्ते Swaroop जी', 'en')).toBe(false);
+  });
+
+  it('detects supported Indian scripts before stored fallbacks', () => {
+    expect(resolveOwnerReplyLanguage('कृपया विवरण भेजें', 'en', 'en')).toBe('hi');
+    expect(resolveOwnerReplyLanguage('ದಯವಿಟ್ಟು ವಿವರ ಕಳುಹಿಸಿ', 'en', 'en')).toBe('kn');
+    expect(resolveOwnerReplyLanguage('விவரங்களை அனுப்பவும்', 'en', 'en')).toBe('ta');
+    expect(resolveOwnerReplyLanguage('దయచేసి వివరాలు పంపండి', 'en', 'en')).toBe('te');
+    expect(resolveOwnerReplyLanguage('വിശദാംശങ്ങൾ അയയ്ക്കുക', 'en', 'en')).toBe('ml');
+  });
+
+  it('uses contact then account preference for language-neutral replies', () => {
+    expect(resolveOwnerReplyLanguage('👍', 'mr', 'hi')).toBe('mr');
+    expect(resolveOwnerReplyLanguage('1', null, 'kn')).toBe('kn');
   });
 });
 
