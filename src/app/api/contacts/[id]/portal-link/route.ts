@@ -83,25 +83,57 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     // different property is a contradiction, not an update: the agent is
     // told which listing already owns it rather than having the first
     // answer silently replaced.
+    //
+    // Only a live posting owns an ad, though. A row the agent already
+    // marked removed is a posting that is gone from the portal, and it
+    // used to keep its id anyway — so the ad could never be re-pointed
+    // and the error named a listing that was no longer advertised. The
+    // row cannot simply be ignored either: uq_portal_listing_identity
+    // (migration 124) is status-agnostic, and the lead webhook resolves
+    // the ad with a maybeSingle() that a second holder would break. So
+    // the dead row releases the id here, and the assertion proceeds.
     const { data: claimed, error: claimedErr } = await ctx.supabase
       .from('property_portal_listings')
-      .select('property_id, properties(title)')
+      .select('id, property_id, status, properties(title)')
       .eq('account_id', ctx.accountId)
       .eq('portal', portal)
       .eq('portal_listing_id', portalListingId)
       .maybeSingle();
     if (claimedErr) throw claimedErr;
     if (claimed && claimed.property_id !== propertyId) {
-      const claimedTitle =
-        (claimed.properties as { title?: string } | null)?.title ??
-        'another listing';
-      return NextResponse.json(
-        {
-          error: `${portal} ad ${portalListingId} is already mapped to "${claimedTitle}". Unmap it there first.`,
-          code: 'PORTAL_ID_TAKEN',
-        },
-        { status: 409 }
-      );
+      if (claimed.status === 'active') {
+        const claimedTitle =
+          (claimed.properties as { title?: string } | null)?.title ??
+          'another listing';
+        return NextResponse.json(
+          {
+            error: `${portal} ad ${portalListingId} is already mapped to "${claimedTitle}". Unmap it there first.`,
+            code: 'PORTAL_ID_TAKEN',
+          },
+          { status: 409 }
+        );
+      }
+      const { data: freed, error: releaseErr } = await ctx.supabase
+        .from('property_portal_listings')
+        .update({ portal_listing_id: null })
+        .eq('id', claimed.id)
+        .eq('account_id', ctx.accountId)
+        .select('id');
+      if (releaseErr) {
+        return NextResponse.json(
+          { error: releaseErr.message },
+          { status: 500 }
+        );
+      }
+      if (!freed?.length) {
+        return NextResponse.json(
+          {
+            error: `${portal} ad ${portalListingId} is held by a listing you cannot edit.`,
+            code: 'PORTAL_ID_TAKEN',
+          },
+          { status: 409 }
+        );
+      }
     }
 
     const { error: linkErr } = await ctx.supabase
@@ -158,7 +190,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           property_id: propertyId,
           inquiry_source: portal,
         })),
-        { onConflict: 'contact_id,property_id' }
+        { onConflict: 'contact_id,property_id', ignoreDuplicates: true }
       );
     if (inquiryErr) {
       return NextResponse.json({ error: inquiryErr.message }, { status: 500 });
@@ -176,6 +208,85 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   } catch (err) {
     console.error(
       '[POST /api/contacts/[id]/portal-link] Unexpected error:',
+      err
+    );
+    return toErrorResponse(err);
+  }
+}
+
+// DELETE /api/contacts/[id]/portal-link
+//
+// The inverse of the assertion above. Releasing the id is only half of
+// it: the mapping also re-pointed every lead waiting on the ad, so both
+// halves undo together in the unmap_portal_ad function. A lead an agent
+// has since filed elsewhere by hand keeps that answer, and so does an
+// interest that predates the mapping.
+export async function DELETE(_request: NextRequest, { params }: RouteParams) {
+  try {
+    const { id: contactId } = await params;
+    const ctx = await requireRole('agent');
+
+    const limit = await checkRateLimit(
+      `contact:portal-link:${ctx.userId}`,
+      RATE_LIMITS.adminAction
+    );
+    if (!limit.success) return rateLimitResponse(limit);
+
+    const { data: contact, error: contactErr } = await ctx.supabase
+      .from('contacts')
+      .select('id, lead_portal, lead_portal_listing_id')
+      .eq('id', contactId)
+      .eq('account_id', ctx.accountId)
+      .maybeSingle();
+    if (contactErr) throw contactErr;
+    if (!contact)
+      return NextResponse.json({ error: 'Contact not found' }, { status: 404 });
+
+    const portal = contact.lead_portal as PortalKey | null;
+    const portalListingId = contact.lead_portal_listing_id as string | null;
+    if (!portal || !portalListingId || !PORTAL_KEYS.includes(portal)) {
+      return NextResponse.json(
+        {
+          error:
+            'This lead did not quote a portal listing id, so there is nothing to unmap.',
+        },
+        { status: 400 }
+      );
+    }
+
+    // One statement, so a failure cannot leave the ad released with its
+    // leads still tagged, and the contacts are reached by a correlated
+    // predicate rather than an id list that grows with the backlog.
+    const { data: result, error: unmapErr } = await ctx.supabase
+      .rpc('unmap_portal_ad', {
+        p_account_id: ctx.accountId,
+        p_portal: portal,
+        p_portal_listing_id: portalListingId,
+      })
+      .maybeSingle<{ property_id: string; untagged_contacts: number }>();
+    if (unmapErr) {
+      return NextResponse.json({ error: unmapErr.message }, { status: 500 });
+    }
+    if (!result) {
+      return NextResponse.json(
+        {
+          error: `${portal} ad ${portalListingId} is not mapped to a listing.`,
+        },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({
+      data: {
+        portal,
+        portalListingId,
+        propertyId: result.property_id,
+        untaggedContacts: Number(result.untagged_contacts),
+      },
+    });
+  } catch (err) {
+    console.error(
+      '[DELETE /api/contacts/[id]/portal-link] Unexpected error:',
       err
     );
     return toErrorResponse(err);

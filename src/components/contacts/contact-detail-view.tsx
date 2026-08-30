@@ -799,6 +799,38 @@ export function ContactDetailView({
     [contactId, fetchContact, onUpdated]
   );
 
+  // The correction to the above: the ad was mapped to the wrong listing.
+  // Releasing the id also drops the tags that mapping applied, so the
+  // ad and the leads waiting on it come back together.
+  const handleUnmapPortalAd = useCallback(async () => {
+    setMappingAd(true);
+    try {
+      const res = await fetch(`/api/contacts/${contactId}/portal-link`, {
+        method: 'DELETE',
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body?.error || 'Could not unmap the ad');
+
+      const others = (body.data?.untaggedContacts ?? 0) - 1;
+      toast.success(
+        'Ad unmapped — pick the right listing below.' +
+          (others > 0
+            ? ` ${others} other lead${others === 1 ? '' : 's'} untagged too.`
+            : '')
+      );
+      setMapAdOpen(true);
+      await fetchContact();
+      onUpdated();
+    } catch (err) {
+      console.error('Failed to unmap portal ad:', err);
+      toast.error(
+        err instanceof Error ? err.message : 'Could not unmap the ad'
+      );
+    } finally {
+      setMappingAd(false);
+    }
+  }, [contactId, fetchContact, onUpdated]);
+
   useEffect(() => {
     async function loadContacts() {
       const { data } = await supabase
@@ -1869,9 +1901,19 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                       {contact.lead_portal_listing_id}
                     </span>
                     {portalAdLink ? (
-                      <span className="truncate text-slate-500">
-                        mapped — enquiries on it match automatically
-                      </span>
+                      <>
+                        <span className="truncate text-slate-500">
+                          mapped — enquiries on it match automatically
+                        </span>
+                        <button
+                          type="button"
+                          onClick={handleUnmapPortalAd}
+                          disabled={mappingAd}
+                          className="shrink-0 cursor-pointer font-bold text-red-400 hover:text-red-300 disabled:opacity-50"
+                        >
+                          {mappingAd ? 'Unmapping…' : 'Wrong listing?'}
+                        </button>
+                      </>
                     ) : (
                       <>
                         <span className="truncate text-slate-500">

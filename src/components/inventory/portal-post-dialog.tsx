@@ -66,7 +66,13 @@ function defaultExpiryDate(): string {
  *  MagicBricks / Housing (no public posting APIs exist): fields in
  *  the portal's own order and limits, photo downloads, a deep link
  *  to the post form, and posted/expiry tracking per portal. */
-export function PortalPostDialog({ open, onOpenChange, property, currency = 'INR', onSaved }: PortalPostDialogProps) {
+export function PortalPostDialog({
+  open,
+  onOpenChange,
+  property,
+  currency = 'INR',
+  onSaved,
+}: PortalPostDialogProps) {
   const supabase = createClient();
   const { user, accountId } = useAuth();
 
@@ -91,7 +97,9 @@ export function PortalPostDialog({ open, onOpenChange, property, currency = 'INR
     try {
       const { data, error } = await supabase
         .from('property_portal_listings')
-        .select('id, portal, listing_url, portal_listing_id, posted_at, expires_on, status')
+        .select(
+          'id, portal, listing_url, portal_listing_id, posted_at, expires_on, status'
+        )
         .eq('account_id', accountId)
         .eq('property_id', property.id);
       if (error) throw error;
@@ -118,26 +126,40 @@ export function PortalPostDialog({ open, onOpenChange, property, currency = 'INR
   useEffect(() => {
     if (!open || typeof window === 'undefined') return;
     const onMessage = (event: MessageEvent) => {
-      if (event.source !== window || event.origin !== window.location.origin) return;
-      const data = event.data as { type?: string; propertyTitle?: string } | null;
+      if (event.source !== window || event.origin !== window.location.origin)
+        return;
+      const data = event.data as {
+        type?: string;
+        propertyTitle?: string;
+      } | null;
       if (data?.type === 'CONVOREAL_PORTAL_EXT_PONG') {
         setExtensionDetected(true);
       } else if (data?.type === 'CONVOREAL_PORTAL_PAYLOAD_SAVED') {
-        toast.success('Sent to the extension — open the portal tab and use the Autofill panel.');
+        toast.success(
+          'Sent to the extension — open the portal tab and use the Autofill panel.'
+        );
       } else if (data?.type === 'CONVOREAL_PORTAL_EXT_STALE') {
         setExtensionDetected(false);
-        toast.error('The autofill extension was updated — reload this page, then try again.');
+        toast.error(
+          'The autofill extension was updated — reload this page, then try again.'
+        );
       }
     };
     window.addEventListener('message', onMessage);
-    window.postMessage({ type: 'CONVOREAL_PORTAL_EXT_PING' }, window.location.origin);
+    window.postMessage(
+      { type: 'CONVOREAL_PORTAL_EXT_PING' },
+      window.location.origin
+    );
     return () => window.removeEventListener('message', onMessage);
   }, [open]);
 
   const sendToExtension = () => {
     if (!property) return;
     const portals = Object.fromEntries(
-      PORTAL_KEYS.map((key) => [key, buildPortalFields(property, key, currency)])
+      PORTAL_KEYS.map((key) => [
+        key,
+        buildPortalFields(property, key, currency),
+      ])
     );
     window.postMessage(
       {
@@ -146,14 +168,18 @@ export function PortalPostDialog({ open, onOpenChange, property, currency = 'INR
           propertyId: property.id,
           title: property.title,
           portals,
-          photos: (property.images || []).filter((img) => img.trim().length > 0).map(storagePublicUrl),
+          photos: (property.images || [])
+            .filter((img) => img.trim().length > 0)
+            .map(storagePublicUrl),
         },
       },
       window.location.origin
     );
   };
 
-  const activeListing = listings.find((l) => l.portal === activePortal && l.status === 'active') || null;
+  const activeListing =
+    listings.find((l) => l.portal === activePortal && l.status === 'active') ||
+    null;
   const meta = PORTALS[activePortal];
 
   const fields = useMemo(
@@ -162,11 +188,17 @@ export function PortalPostDialog({ open, onOpenChange, property, currency = 'INR
   );
 
   const images = useMemo(
-    () => (property?.images || []).filter((img) => img.trim().length > 0).map(storagePublicUrl),
+    () =>
+      (property?.images || [])
+        .filter((img) => img.trim().length > 0)
+        .map(storagePublicUrl),
     [property]
   );
 
-  const missing = useMemo(() => (property ? missingRequiredFields(property) : []), [property]);
+  const missing = useMemo(
+    () => (property ? missingRequiredFields(property) : []),
+    [property]
+  );
 
   const copyField = async (label: string, value: string) => {
     await navigator.clipboard.writeText(value);
@@ -205,7 +237,13 @@ export function PortalPostDialog({ open, onOpenChange, property, currency = 'INR
     // Typed id first, URL only as a fallback — and never a Housing slug,
     // which parseListingIdFromUrl now refuses rather than storing an id
     // no lead can match.
-    const adId = formAdId.trim() || parseListingIdFromUrl(activePortal, formUrl);
+    const adId =
+      formAdId.trim() || parseListingIdFromUrl(activePortal, formUrl);
+
+    // A dead listing's claim is released only once the write it is
+    // making way for is certain — a Cancel below must leave the
+    // database as it was.
+    let staleClaimId: string | null = null;
 
     if (adId) {
       // One ad, one listing — the same rule the lead-side assertion
@@ -214,15 +252,26 @@ export function PortalPostDialog({ open, onOpenChange, property, currency = 'INR
       // every future enquiry on it across.
       const { data: claimed } = await supabase
         .from('property_portal_listings')
-        .select('property_id, properties(title)')
+        .select('id, property_id, status, properties(title)')
         .eq('account_id', accountId)
         .eq('portal', activePortal)
         .eq('portal_listing_id', adId)
         .maybeSingle();
       if (claimed && claimed.property_id !== property.id) {
-        const title = (claimed.properties as { title?: string } | null)?.title ?? 'another listing';
-        toast.error(`${meta.label} ad ${adId} is already mapped to "${title}". Unmap it there first.`);
-        return;
+        // A listing already marked removed is no longer advertised, so
+        // it does not own the ad — it just still holds the id, which
+        // uq_portal_listing_identity will not let this row take until
+        // the dead one gives it up. Only a live posting is a conflict.
+        if (claimed.status === 'active') {
+          const title =
+            (claimed.properties as { title?: string } | null)?.title ??
+            'another listing';
+          toast.error(
+            `${meta.label} ad ${adId} is already mapped to "${title}". Unmap it there first.`
+          );
+          return;
+        }
+        staleClaimId = claimed.id;
       }
       // A re-post gets a new ad id for the same listing. Replacing is
       // right — the old ad is gone — but it must be said out loud, not
@@ -239,6 +288,20 @@ export function PortalPostDialog({ open, onOpenChange, property, currency = 'INR
 
     setSaving(true);
     try {
+      if (staleClaimId) {
+        const { data: freed, error: releaseErr } = await supabase
+          .from('property_portal_listings')
+          .update({ portal_listing_id: null })
+          .eq('id', staleClaimId)
+          .eq('account_id', accountId)
+          .select('id');
+        if (releaseErr || !freed?.length) {
+          toast.error(
+            `Could not take ${meta.label} ad ${adId} from the removed listing that still holds it.`
+          );
+          return;
+        }
+      }
       const { error } = await supabase.from('property_portal_listings').upsert(
         {
           account_id: accountId,
@@ -258,13 +321,19 @@ export function PortalPostDialog({ open, onOpenChange, property, currency = 'INR
         { onConflict: 'property_id,portal' }
       );
       if (error) throw error;
-      toast.success(`Marked as posted on ${meta.label}. Expiry reminder is set.`);
+      toast.success(
+        `Marked as posted on ${meta.label}. Expiry reminder is set.`
+      );
       setShowMarkForm(false);
       fetchListings();
       onSaved?.();
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to save';
-      toast.error(msg.includes('property_portal_listings') ? 'Run migration 121 to enable portal tracking.' : msg);
+      toast.error(
+        msg.includes('property_portal_listings')
+          ? 'Run migration 121 to enable portal tracking.'
+          : msg
+      );
     } finally {
       setSaving(false);
     }
@@ -295,15 +364,16 @@ export function PortalPostDialog({ open, onOpenChange, property, currency = 'INR
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-slate-900 border-slate-700 text-slate-200 grid-cols-1 sm:max-w-3xl max-h-[90vh] overflow-y-auto overflow-x-hidden">
-        <DialogHeader className="border-b border-slate-800 pb-3 mb-2">
-          <DialogTitle className="text-white flex items-center gap-2 text-lg font-black tracking-tight">
-            <Globe className="size-5 text-primary" />
+      <DialogContent className="max-h-[90vh] grid-cols-1 overflow-x-hidden overflow-y-auto border-slate-700 bg-slate-900 text-slate-200 sm:max-w-3xl">
+        <DialogHeader className="mb-2 border-b border-slate-800 pb-3">
+          <DialogTitle className="flex items-center gap-2 text-lg font-black tracking-tight text-white">
+            <Globe className="text-primary size-5" />
             Post to Property Portals
           </DialogTitle>
-          <DialogDescription className="text-slate-400 text-xs">
-            The portals have no posting APIs — this kit preps every field in the portal&apos;s own format so posting
-            &quot;{property.title}&quot; takes minutes, then tracks where it&apos;s live.
+          <DialogDescription className="text-xs text-slate-400">
+            The portals have no posting APIs — this kit preps every field in the
+            portal&apos;s own format so posting &quot;{property.title}&quot;
+            takes minutes, then tracks where it&apos;s live.
           </DialogDescription>
         </DialogHeader>
 
@@ -311,7 +381,9 @@ export function PortalPostDialog({ open, onOpenChange, property, currency = 'INR
         <div className="grid grid-cols-3 gap-1 rounded-xl border border-slate-800 bg-slate-950 p-1">
           {PORTAL_KEYS.map((key) => {
             const p = PORTALS[key];
-            const posted = listings.some((l) => l.portal === key && l.status === 'active');
+            const posted = listings.some(
+              (l) => l.portal === key && l.status === 'active'
+            );
             return (
               <button
                 key={key}
@@ -321,14 +393,16 @@ export function PortalPostDialog({ open, onOpenChange, property, currency = 'INR
                   setShowMarkForm(false);
                 }}
                 className={cn(
-                  'flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-bold transition-all border',
+                  'flex items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-xs font-bold transition-all',
                   activePortal === key
                     ? 'bg-primary/15 text-primary border-primary/40'
-                    : 'text-slate-400 hover:text-white border-transparent'
+                    : 'border-transparent text-slate-400 hover:text-white'
                 )}
               >
                 {p.label}
-                {posted && <CheckCircle2 className="size-3.5 text-emerald-400" />}
+                {posted && (
+                  <CheckCircle2 className="size-3.5 text-emerald-400" />
+                )}
               </button>
             );
           })}
@@ -339,7 +413,8 @@ export function PortalPostDialog({ open, onOpenChange, property, currency = 'INR
           <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3">
             <div className="flex items-center gap-2 text-xs font-semibold text-amber-300">
               <AlertTriangle className="size-4 shrink-0" />
-              The portals require these — fill them on the property before posting
+              The portals require these — fill them on the property before
+              posting
             </div>
             <div className="mt-2 flex flex-wrap gap-1.5">
               {missing.map((label) => (
@@ -356,26 +431,38 @@ export function PortalPostDialog({ open, onOpenChange, property, currency = 'INR
 
         {/* Posted status */}
         {loading ? (
-          <div className="flex items-center gap-2 text-xs text-slate-500 px-1">
-            <Loader2 className="size-3.5 animate-spin" /> Checking posted status…
+          <div className="flex items-center gap-2 px-1 text-xs text-slate-500">
+            <Loader2 className="size-3.5 animate-spin" /> Checking posted
+            status…
           </div>
         ) : activeListing ? (
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-3">
-            <div className="text-xs text-emerald-300 flex items-center gap-2 min-w-0">
+            <div className="flex min-w-0 items-center gap-2 text-xs text-emerald-300">
               <CheckCircle2 className="size-4 shrink-0" />
               <span className="min-w-0">
                 Live on {meta.label} since{' '}
-                {new Date(activeListing.posted_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                {new Date(activeListing.posted_at).toLocaleDateString('en-IN', {
+                  day: 'numeric',
+                  month: 'short',
+                })}
                 {activeListing.expires_on && (
                   <>
-                    {' '}· expires{' '}
-                    {new Date(`${activeListing.expires_on}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                    {' '}
+                    · expires{' '}
+                    {new Date(
+                      `${activeListing.expires_on}T00:00:00`
+                    ).toLocaleDateString('en-IN', {
+                      day: 'numeric',
+                      month: 'short',
+                    })}
                   </>
                 )}
                 {activeListing.portal_listing_id ? (
                   <> · ad {activeListing.portal_listing_id}</>
                 ) : (
-                  <span className="ml-1 text-amber-400">· no ad id — leads matched by guesswork</span>
+                  <span className="ml-1 text-amber-400">
+                    · no ad id — leads matched by guesswork
+                  </span>
                 )}
                 {activeListing.listing_url && (
                   <a
@@ -389,17 +476,19 @@ export function PortalPostDialog({ open, onOpenChange, property, currency = 'INR
                 )}
               </span>
             </div>
-            <div className="flex gap-2 shrink-0">
+            <div className="flex shrink-0 gap-2">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => {
                   setFormUrl(activeListing.listing_url || '');
                   setFormAdId(activeListing.portal_listing_id || '');
-                  setFormExpiry(activeListing.expires_on || defaultExpiryDate());
+                  setFormExpiry(
+                    activeListing.expires_on || defaultExpiryDate()
+                  );
                   setShowMarkForm(true);
                 }}
-                className="h-7 border-slate-800 text-xs text-slate-300 hover:bg-slate-850"
+                className="hover:bg-slate-850 h-7 border-slate-800 text-xs text-slate-300"
               >
                 Update
               </Button>
@@ -410,18 +499,20 @@ export function PortalPostDialog({ open, onOpenChange, property, currency = 'INR
                 onClick={markRemoved}
                 className="h-7 border-rose-500/30 text-xs text-rose-400 hover:bg-rose-500/10"
               >
-                <Trash2 className="size-3 mr-1" />
+                <Trash2 className="mr-1 size-3" />
                 Mark Removed
               </Button>
             </div>
           </div>
         ) : (
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-800 bg-slate-950/40 p-3">
-            <span className="text-xs text-slate-400">Not posted on {meta.label} yet.</span>
+            <span className="text-xs text-slate-400">
+              Not posted on {meta.label} yet.
+            </span>
             <div className="flex gap-2">
               <Button
                 onClick={() => window.open(meta.postUrl, '_blank', 'noopener')}
-                className="h-7 bg-primary hover:bg-primary/90 text-primary-foreground text-xs px-3 flex items-center gap-1"
+                className="bg-primary hover:bg-primary/90 text-primary-foreground flex h-7 items-center gap-1 px-3 text-xs"
               >
                 <ExternalLink className="size-3" />
                 Open {meta.label} Post Form
@@ -429,7 +520,7 @@ export function PortalPostDialog({ open, onOpenChange, property, currency = 'INR
               <Button
                 variant="outline"
                 onClick={() => setShowMarkForm(true)}
-                className="h-7 border-slate-800 text-xs text-slate-300 hover:bg-slate-850 flex items-center gap-1"
+                className="hover:bg-slate-850 flex h-7 items-center gap-1 border-slate-800 text-xs text-slate-300"
               >
                 <CheckCircle2 className="size-3" />
                 Mark as Posted
@@ -440,31 +531,41 @@ export function PortalPostDialog({ open, onOpenChange, property, currency = 'INR
 
         {/* Browser-extension autofill */}
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-800 bg-slate-950/40 p-3">
-          <div className="flex items-center gap-2 text-xs text-slate-400 min-w-0">
+          <div className="flex min-w-0 items-center gap-2 text-xs text-slate-400">
             <span
               className={cn(
-                'h-2 w-2 rounded-full shrink-0',
-                extensionDetected ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]' : 'bg-slate-600'
+                'h-2 w-2 shrink-0 rounded-full',
+                extensionDetected
+                  ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]'
+                  : 'bg-slate-600'
               )}
             />
             {extensionDetected ? (
               <span>
-                Autofill extension detected — send this listing, then click <strong className="text-slate-200">Autofill</strong> in
-                the floating panel on the portal page.
+                Autofill extension detected — send this listing, then click{' '}
+                <strong className="text-slate-200">Autofill</strong> in the
+                floating panel on the portal page.
               </span>
             ) : (
               <span>
                 Autofill extension not detected. Install once from{' '}
-                <code className="text-slate-300 bg-slate-900 px-1 rounded">extension/portal-autofill</code> (chrome://extensions →
-                Load unpacked) to fill portal forms in one click.
+                <code className="rounded bg-slate-900 px-1 text-slate-300">
+                  extension/portal-autofill
+                </code>{' '}
+                (chrome://extensions → Load unpacked) to fill portal forms in
+                one click.
               </span>
             )}
           </div>
           <Button
             disabled={!extensionDetected || missing.length > 0}
             onClick={sendToExtension}
-            title={missing.length > 0 ? `Fill required fields first: ${missing.join(', ')}` : undefined}
-            className="h-7 bg-violet-600 hover:bg-violet-700 text-white text-xs px-3 flex items-center gap-1 shrink-0 disabled:opacity-40"
+            title={
+              missing.length > 0
+                ? `Fill required fields first: ${missing.join(', ')}`
+                : undefined
+            }
+            className="flex h-7 shrink-0 items-center gap-1 bg-violet-600 px-3 text-xs text-white hover:bg-violet-700 disabled:opacity-40"
           >
             <Globe className="size-3" />
             Send to Extension
@@ -473,35 +574,42 @@ export function PortalPostDialog({ open, onOpenChange, property, currency = 'INR
 
         {/* Mark-as-posted form */}
         {showMarkForm && (
-          <div className="rounded-xl border border-primary/30 bg-slate-950/60 p-3 space-y-3">
+          <div className="border-primary/30 space-y-3 rounded-xl border bg-slate-950/60 p-3">
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1">
-                <Label className="text-[11px] text-slate-300 font-semibold">Listing URL (optional)</Label>
+                <Label className="text-[11px] font-semibold text-slate-300">
+                  Listing URL (optional)
+                </Label>
                 <Input
                   value={formUrl}
                   onChange={(e) => setFormUrl(e.target.value)}
                   placeholder={`https://www.${activePortal === 'housing' ? 'housing.com' : `${activePortal}.com`}/...`}
-                  className="bg-slate-900 border-slate-700 text-xs h-9 text-slate-200"
+                  className="h-9 border-slate-700 bg-slate-900 text-xs text-slate-200"
                 />
               </div>
               <div className="space-y-1">
-                <Label className="text-[11px] text-slate-300 font-semibold">
+                <Label className="text-[11px] font-semibold text-slate-300">
                   {meta.label} ad / property ID
                 </Label>
                 <Input
                   value={formAdId}
                   onChange={(e) => setFormAdId(e.target.value)}
-                  placeholder={activePortal === 'housing' ? 'e.g. 20749829' : 'e.g. 79221031'}
-                  className="bg-slate-900 border-slate-700 text-xs h-9 text-slate-200"
+                  placeholder={
+                    activePortal === 'housing'
+                      ? 'e.g. 20749829'
+                      : 'e.g. 79221031'
+                  }
+                  className="h-9 border-slate-700 bg-slate-900 text-xs text-slate-200"
                 />
                 <p className="text-[10px] leading-relaxed text-slate-500">
-                  The id {meta.label} quotes in its lead emails. With it, every enquiry on this
-                  ad matches this listing exactly; without it they are matched by type, locality
-                  and price — which is a guess.
+                  The id {meta.label} quotes in its lead emails. With it, every
+                  enquiry on this ad matches this listing exactly; without it
+                  they are matched by type, locality and price — which is a
+                  guess.
                 </p>
               </div>
               <div className="space-y-1">
-                <Label className="text-[11px] text-slate-300 font-semibold flex items-center gap-1">
+                <Label className="flex items-center gap-1 text-[11px] font-semibold text-slate-300">
                   <CalendarClock className="size-3" />
                   Expires on — WhatsApp reminder 3 days before
                 </Label>
@@ -509,7 +617,7 @@ export function PortalPostDialog({ open, onOpenChange, property, currency = 'INR
                   type="date"
                   value={formExpiry}
                   onChange={(e) => setFormExpiry(e.target.value)}
-                  className="bg-slate-900 border-slate-700 text-xs h-9 text-slate-200"
+                  className="h-9 border-slate-700 bg-slate-900 text-xs text-slate-200"
                 />
               </div>
             </div>
@@ -526,9 +634,13 @@ export function PortalPostDialog({ open, onOpenChange, property, currency = 'INR
                 size="sm"
                 disabled={saving}
                 onClick={markPosted}
-                className="h-8 bg-primary text-primary-foreground text-xs flex items-center gap-1.5"
+                className="bg-primary text-primary-foreground flex h-8 items-center gap-1.5 text-xs"
               >
-                {saving ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
+                {saving ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <Check className="size-3.5" />
+                )}
                 Save
               </Button>
             </div>
@@ -538,31 +650,37 @@ export function PortalPostDialog({ open, onOpenChange, property, currency = 'INR
         {/* Copy-ready fields */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <Label className="text-slate-300 text-[11px] font-semibold">
+            <Label className="text-[11px] font-semibold text-slate-300">
               Fields in {meta.label}&apos;s form order — copy top to bottom
             </Label>
             <button
               type="button"
               onClick={copyAll}
-              className="text-[10px] text-primary hover:underline flex items-center gap-1"
+              className="text-primary flex items-center gap-1 text-[10px] hover:underline"
             >
               <Copy className="size-3" />
               Copy all
             </button>
           </div>
-          <div className="rounded-xl border border-slate-800 divide-y divide-slate-800/70 overflow-hidden">
+          <div className="divide-y divide-slate-800/70 overflow-hidden rounded-xl border border-slate-800">
             {fields.map((field) => (
-              <div key={field.label} className="flex items-center gap-3 bg-slate-950/40 px-3 py-2">
-                <span className="w-36 shrink-0 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+              <div
+                key={field.label}
+                className="flex items-center gap-3 bg-slate-950/40 px-3 py-2"
+              >
+                <span className="w-36 shrink-0 text-[10px] font-bold tracking-wider text-slate-500 uppercase">
                   {field.label}
                 </span>
-                <span className="min-w-0 flex-1 truncate text-xs text-slate-200" title={field.value}>
+                <span
+                  className="min-w-0 flex-1 truncate text-xs text-slate-200"
+                  title={field.value}
+                >
                   {field.value}
                 </span>
                 <button
                   type="button"
                   onClick={() => copyField(field.label, field.value)}
-                  className="shrink-0 rounded-md p-1.5 text-slate-500 hover:bg-slate-800 hover:text-white transition-colors"
+                  className="shrink-0 rounded-md p-1.5 text-slate-500 transition-colors hover:bg-slate-800 hover:text-white"
                   title={`Copy ${field.label}`}
                 >
                   {copiedField === field.label ? (
@@ -579,7 +697,7 @@ export function PortalPostDialog({ open, onOpenChange, property, currency = 'INR
         {/* Photo pack */}
         {images.length > 0 && (
           <div className="space-y-2">
-            <Label className="text-slate-300 text-[11px] font-semibold">
+            <Label className="text-[11px] font-semibold text-slate-300">
               Photos ({images.length}) — download, then upload on the portal
             </Label>
             <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
@@ -592,7 +710,11 @@ export function PortalPostDialog({ open, onOpenChange, property, currency = 'INR
                   title={`Download photo ${idx + 1}`}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={img} alt="" className="h-full w-full object-cover" />
+                  <img
+                    src={img}
+                    alt=""
+                    className="h-full w-full object-cover"
+                  />
                   <span className="absolute inset-0 flex items-center justify-center bg-slate-950/60 opacity-0 transition-opacity group-hover:opacity-100">
                     {downloadingIdx === idx ? (
                       <Loader2 className="size-4 animate-spin text-white" />
@@ -606,15 +728,16 @@ export function PortalPostDialog({ open, onOpenChange, property, currency = 'INR
           </div>
         )}
 
-        <div className="border-t border-slate-800 pt-3.5 flex justify-between items-center">
+        <div className="flex items-center justify-between border-t border-slate-800 pt-3.5">
           <span className="text-[10px] text-slate-500">
-            Tip: keep the portal tab open beside this dialog and copy field by field.
+            Tip: keep the portal tab open beside this dialog and copy field by
+            field.
           </span>
           <Button
             type="button"
             variant="outline"
             onClick={() => onOpenChange(false)}
-            className="border-slate-800 hover:bg-slate-850 text-xs text-slate-300 h-9"
+            className="hover:bg-slate-850 h-9 border-slate-800 text-xs text-slate-300"
           >
             Close
           </Button>
