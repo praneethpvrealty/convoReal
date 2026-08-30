@@ -3010,6 +3010,9 @@ async function processMessage(
       contactName: contactRecord.name || null,
       conversationId: conversation.id,
       digestConsent: contactRecord.owner_digest_consent,
+      preferredLanguage:
+        (contactRecord as { preferred_language?: string | null })
+          .preferred_language ?? null,
       text: message.button?.text ?? inboundText,
       listings: ownedListings,
     });
