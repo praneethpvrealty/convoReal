@@ -190,7 +190,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           property_id: propertyId,
           inquiry_source: portal,
         })),
-        { onConflict: 'contact_id,property_id' }
+        { onConflict: 'contact_id,property_id', ignoreDuplicates: true }
       );
     if (inquiryErr) {
       return NextResponse.json({ error: inquiryErr.message }, { status: 500 });
@@ -216,16 +216,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
 // DELETE /api/contacts/[id]/portal-link
 //
-// The inverse of the assertion above: the agent mapped the ad to the
-// wrong listing and needs it back. Releasing the id from whichever
-// listing holds it is only half of that — the mapping also re-pointed
-// every lead waiting on the ad, so leaving those tags behind would
-// answer the correction with the wrong listing still on the contact.
-// Both halves undo together, exactly as they were applied.
-//
-// Only leads still pointing at the mapped listing are untagged. One an
-// agent has since filed somewhere else by hand is their answer, not the
-// mapping's, and is left alone.
+// The inverse of the assertion above. Releasing the id is only half of
+// it: the mapping also re-pointed every lead waiting on the ad, so both
+// halves undo together in the unmap_portal_ad function. A lead an agent
+// has since filed elsewhere by hand keeps that answer, and so does an
+// interest that predates the mapping.
 export async function DELETE(_request: NextRequest, { params }: RouteParams) {
   try {
     const { id: contactId } = await params;
@@ -259,15 +254,20 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const { data: link, error: linkReadErr } = await ctx.supabase
-      .from('property_portal_listings')
-      .select('id, property_id')
-      .eq('account_id', ctx.accountId)
-      .eq('portal', portal)
-      .eq('portal_listing_id', portalListingId)
-      .maybeSingle();
-    if (linkReadErr) throw linkReadErr;
-    if (!link) {
+    // One statement, so a failure cannot leave the ad released with its
+    // leads still tagged, and the contacts are reached by a correlated
+    // predicate rather than an id list that grows with the backlog.
+    const { data: result, error: unmapErr } = await ctx.supabase
+      .rpc('unmap_portal_ad', {
+        p_account_id: ctx.accountId,
+        p_portal: portal,
+        p_portal_listing_id: portalListingId,
+      })
+      .maybeSingle<{ property_id: string; untagged_contacts: number }>();
+    if (unmapErr) {
+      return NextResponse.json({ error: unmapErr.message }, { status: 500 });
+    }
+    if (!result) {
       return NextResponse.json(
         {
           error: `${portal} ad ${portalListingId} is not mapped to a listing.`,
@@ -276,62 +276,12 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // The posting itself is untouched: the row keeps its URL, expiry and
-    // status so the portal badges and the expiry reminder still know the
-    // listing is live. Only the identity claim is dropped.
-    const { data: released, error: releaseErr } = await ctx.supabase
-      .from('property_portal_listings')
-      .update({ portal_listing_id: null })
-      .eq('id', link.id)
-      .eq('account_id', ctx.accountId)
-      .select('id');
-    if (releaseErr) {
-      return NextResponse.json({ error: releaseErr.message }, { status: 500 });
-    }
-    if (!released?.length) {
-      return NextResponse.json(
-        { error: 'You do not have permission to edit this listing.' },
-        { status: 403 }
-      );
-    }
-
-    const { data: untagged, error: untagErr } = await ctx.supabase
-      .from('contacts')
-      .update({
-        last_inquired_property_id: null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('account_id', ctx.accountId)
-      .eq('lead_portal', portal)
-      .eq('lead_portal_listing_id', portalListingId)
-      .eq('last_inquired_property_id', link.property_id)
-      .select('id');
-    if (untagErr) {
-      return NextResponse.json({ error: untagErr.message }, { status: 500 });
-    }
-
-    const untaggedIds = (untagged ?? []).map((c) => c.id);
-    if (untaggedIds.length) {
-      const { error: inquiryErr } = await ctx.supabase
-        .from('contact_property_inquiries')
-        .delete()
-        .eq('property_id', link.property_id)
-        .in('contact_id', untaggedIds)
-        .select('contact_id');
-      if (inquiryErr) {
-        return NextResponse.json(
-          { error: inquiryErr.message },
-          { status: 500 }
-        );
-      }
-    }
-
     return NextResponse.json({
       data: {
         portal,
         portalListingId,
-        propertyId: link.property_id as string,
-        untaggedContacts: untaggedIds.length,
+        propertyId: result.property_id,
+        untaggedContacts: Number(result.untagged_contacts),
       },
     });
   } catch (err) {

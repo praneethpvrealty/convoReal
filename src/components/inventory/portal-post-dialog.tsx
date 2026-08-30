@@ -240,6 +240,11 @@ export function PortalPostDialog({
     const adId =
       formAdId.trim() || parseListingIdFromUrl(activePortal, formUrl);
 
+    // A dead listing's claim is released only once the write it is
+    // making way for is certain — a Cancel below must leave the
+    // database as it was.
+    let staleClaimId: string | null = null;
+
     if (adId) {
       // One ad, one listing — the same rule the lead-side assertion
       // enforces (POST /api/contacts/[id]/portal-link). Claiming an id
@@ -266,18 +271,7 @@ export function PortalPostDialog({
           );
           return;
         }
-        const { data: freed, error: releaseErr } = await supabase
-          .from('property_portal_listings')
-          .update({ portal_listing_id: null })
-          .eq('id', claimed.id)
-          .eq('account_id', accountId)
-          .select('id');
-        if (releaseErr || !freed?.length) {
-          toast.error(
-            `Could not take ${meta.label} ad ${adId} from the removed listing that still holds it.`
-          );
-          return;
-        }
+        staleClaimId = claimed.id;
       }
       // A re-post gets a new ad id for the same listing. Replacing is
       // right — the old ad is gone — but it must be said out loud, not
@@ -294,6 +288,20 @@ export function PortalPostDialog({
 
     setSaving(true);
     try {
+      if (staleClaimId) {
+        const { data: freed, error: releaseErr } = await supabase
+          .from('property_portal_listings')
+          .update({ portal_listing_id: null })
+          .eq('id', staleClaimId)
+          .eq('account_id', accountId)
+          .select('id');
+        if (releaseErr || !freed?.length) {
+          toast.error(
+            `Could not take ${meta.label} ad ${adId} from the removed listing that still holds it.`
+          );
+          return;
+        }
+      }
       const { error } = await supabase.from('property_portal_listings').upsert(
         {
           account_id: accountId,

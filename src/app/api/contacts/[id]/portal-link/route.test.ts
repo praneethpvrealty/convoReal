@@ -15,8 +15,10 @@ interface QueuedResponse {
 
 let queues: Record<string, QueuedResponse[]>;
 let upserts: Array<{ table: string; row: unknown }>;
+let upsertOptions: unknown[];
 let updates: Array<{ table: string; row: unknown }>;
 let deletes: Array<{ table: string }>;
+let rpcs: Array<{ fn: string; args: unknown }>;
 
 function next(table: string): QueuedResponse {
   return (queues[table] ?? []).shift() ?? { data: null, error: null };
@@ -37,8 +39,9 @@ function makeDb() {
           deletes.push({ table });
           return builder;
         },
-        upsert: (row: unknown) => {
+        upsert: (row: unknown, options?: unknown) => {
           upserts.push({ table, row });
+          upsertOptions.push(options);
           return builder;
         },
         maybeSingle: () => Promise.resolve(next(table)),
@@ -49,6 +52,12 @@ function makeDb() {
           ),
       };
       return builder;
+    },
+    rpc(fn: string, args: unknown) {
+      rpcs.push({ fn, args });
+      return {
+        maybeSingle: () => Promise.resolve(next(`rpc:${fn}`)),
+      };
     },
   };
 }
@@ -92,8 +101,10 @@ const HOUSING_LEAD = {
 beforeEach(() => {
   queues = {};
   upserts = [];
+  upsertOptions = [];
   updates = [];
   deletes = [];
+  rpcs = [];
 });
 
 describe('POST /api/contacts/[id]/portal-link', () => {
@@ -138,6 +149,9 @@ describe('POST /api/contacts/[id]/portal-link', () => {
     // …and given the junction row the inventory side reads.
     expect(upserts[1].table).toBe('contact_property_inquiries');
     expect(upserts[1].row).toHaveLength(3);
+    // An interest that predates the mapping keeps its own source and
+    // date, so unmapping can tell the two apart.
+    expect(upsertOptions[1]).toMatchObject({ ignoreDuplicates: true });
   });
 
   it('refuses to point one ad at a second listing', async () => {
@@ -248,16 +262,11 @@ describe('POST /api/contacts/[id]/portal-link', () => {
 });
 
 describe('DELETE /api/contacts/[id]/portal-link', () => {
-  it('releases the ad and untags the leads the mapping tagged', async () => {
-    queues['contacts'] = [
-      { data: HOUSING_LEAD },
-      { data: [{ id: 'c-1' }, { id: 'c-2' }] },
+  it('undoes the mapping in one transactional call', async () => {
+    queues['contacts'] = [{ data: HOUSING_LEAD }];
+    queues['rpc:unmap_portal_ad'] = [
+      { data: { property_id: 'p-1', untagged_contacts: 2 } },
     ];
-    queues['property_portal_listings'] = [
-      { data: { id: 'link-1', property_id: 'p-1' } },
-      { data: [{ id: 'link-1' }] },
-    ];
-    queues['contact_property_inquiries'] = [{ data: null }];
 
     const res = await DELETE(makeDeleteRequest() as never, { params });
     expect(res.status).toBe(200);
@@ -269,41 +278,28 @@ describe('DELETE /api/contacts/[id]/portal-link', () => {
       untaggedContacts: 2,
     });
 
-    // The identity claim goes; the posting keeps its URL, expiry, status.
-    expect(updates[0]).toMatchObject({
-      table: 'property_portal_listings',
-      row: { portal_listing_id: null },
-    });
-    expect(Object.keys(updates[0].row as object)).toEqual([
-      'portal_listing_id',
+    // Release, untag and junction cleanup commit together, and the
+    // contacts are reached without an unbounded id list.
+    expect(rpcs).toEqual([
+      {
+        fn: 'unmap_portal_ad',
+        args: {
+          p_account_id: 'acc-1',
+          p_portal: 'housing',
+          p_portal_listing_id: '20327451',
+        },
+      },
     ]);
-    expect(updates[1]).toMatchObject({
-      table: 'contacts',
-      row: { last_inquired_property_id: null },
-    });
-    expect(deletes[0]).toMatchObject({ table: 'contact_property_inquiries' });
-  });
-
-  it('leaves the junction alone when no lead still points at the listing', async () => {
-    queues['contacts'] = [{ data: HOUSING_LEAD }, { data: [] }];
-    queues['property_portal_listings'] = [
-      { data: { id: 'link-1', property_id: 'p-1' } },
-      { data: [{ id: 'link-1' }] },
-    ];
-
-    const res = await DELETE(makeDeleteRequest() as never, { params });
-    expect(res.status).toBe(200);
-    expect((await res.json()).data.untaggedContacts).toBe(0);
+    expect(updates).toHaveLength(0);
     expect(deletes).toHaveLength(0);
   });
 
   it('reports an ad that was never mapped', async () => {
     queues['contacts'] = [{ data: HOUSING_LEAD }];
-    queues['property_portal_listings'] = [{ data: null }];
+    queues['rpc:unmap_portal_ad'] = [{ data: null }];
 
     const res = await DELETE(makeDeleteRequest() as never, { params });
     expect(res.status).toBe(404);
-    expect(updates).toHaveLength(0);
   });
 
   it('has nothing to unmap when the lead quoted no ad id', async () => {
@@ -313,6 +309,6 @@ describe('DELETE /api/contacts/[id]/portal-link', () => {
 
     const res = await DELETE(makeDeleteRequest() as never, { params });
     expect(res.status).toBe(400);
-    expect(updates).toHaveLength(0);
+    expect(rpcs).toHaveLength(0);
   });
 });
