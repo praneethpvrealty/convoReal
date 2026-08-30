@@ -1,7 +1,15 @@
 import { supabaseAdmin } from '@/lib/automations/admin-client';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { generateText } from '@/lib/ai/gemini';
-import { REPLY_LANGUAGE_RULE } from '@/lib/languages';
+import {
+  REPLY_LANGUAGE_RULE,
+  languageDisplay,
+  type LanguageCode,
+} from '@/lib/languages';
+import {
+  accountDefaultLanguage,
+  resolveLanguage,
+} from '@/lib/whatsapp/template-language';
 import {
   gatherOwnerDigests,
   buildOwnerDigestMessage,
@@ -125,16 +133,62 @@ export function buildOwnerFallbackReply(
   return lines.join('\n');
 }
 
-const OWNER_REPLY_SYSTEM = [
+const OWNER_REPLY_SCRIPTS: Record<LanguageCode, RegExp> = {
+  en: /[A-Za-z]/,
+  hi: /[\u0900-\u097f]/,
+  mr: /[\u0900-\u097f]/,
+  kn: /[\u0c80-\u0cff]/,
+  ta: /[\u0b80-\u0bff]/,
+  te: /[\u0c00-\u0c7f]/,
+  ml: /[\u0d00-\u0d7f]/,
+};
+
+const INDIAN_SCRIPT = /[\u0900-\u097f\u0b80-\u0bff\u0c00-\u0cff\u0d00-\u0d7f]/;
+
+export function resolveOwnerReplyLanguage(
+  message: string,
+  contactPreferred?: string | null,
+  accountDefault?: string | null,
+): LanguageCode {
+  if (/[\u0c80-\u0cff]/.test(message)) return 'kn';
+  if (/[\u0b80-\u0bff]/.test(message)) return 'ta';
+  if (/[\u0c00-\u0c7f]/.test(message)) return 'te';
+  if (/[\u0d00-\u0d7f]/.test(message)) return 'ml';
+  if (/[\u0900-\u097f]/.test(message)) {
+    return contactPreferred === 'mr' ? 'mr' : 'hi';
+  }
+  if (/[A-Za-z]/.test(message)) return 'en';
+  return resolveLanguage(contactPreferred, accountDefault);
+}
+
+export function replyUsesExpectedScript(
+  reply: string,
+  language: LanguageCode,
+): boolean {
+  if (language === 'en') {
+    return OWNER_REPLY_SCRIPTS.en.test(reply) && !INDIAN_SCRIPT.test(reply);
+  }
+  return OWNER_REPLY_SCRIPTS[language].test(reply);
+}
+
+function ownerReplySystem(language: LanguageCode): string {
+  const languageRule =
+    language === 'en'
+      ? 'The owner wrote in English. Reply ONLY in English using Latin script. Do not translate into an Indian language.'
+      : `The owner wrote in ${languageDisplay(language)}. Reply ONLY in that language and its script.`;
+
+  return [
   'You are the WhatsApp assistant of a real-estate agency, replying to a PROPERTY OWNER who has listed property with the agency.',
   'Reply in under 100 words, warm and professional.',
   REPLY_LANGUAGE_RULE,
+  languageRule,
   'WhatsApp formatting only: *bold* and "•" bullets — no markdown headers, no links unless given in the facts.',
   'Use ONLY the facts provided. Never invent buyer names, counts, offers, prices or appointments.',
   'If the owner asks which property this is about, name their listing(s).',
   'If the question needs information not in the facts (negotiations, legal, documents, specific buyers), say their agent will follow up personally.',
   'Never treat the owner as a buyer and never offer to find them a property.',
-].join(' ');
+  ].join(' ');
+}
 
 export function buildOwnerReplyPrompt(
   contactName: string | null | undefined,
@@ -208,6 +262,7 @@ export async function handleOwnerInboundMessage(args: {
   contactName: string | null;
   conversationId: string;
   digestConsent?: string | null;
+  preferredLanguage?: string | null;
   text: string;
   listings: OwnedListing[];
 }): Promise<boolean> {
@@ -233,20 +288,39 @@ export async function handleOwnerInboundMessage(args: {
     reply = buildOwnerDigestMessage(digest, 'this week');
   } else {
     try {
+      const accountLanguage = await accountDefaultLanguage(db, args.accountId);
+      const replyLanguage = resolveOwnerReplyLanguage(
+        text,
+        args.preferredLanguage,
+        accountLanguage,
+      );
+      const prompt = buildOwnerReplyPrompt(
+        args.contactName,
+        args.listings,
+        digest,
+        args.digestConsent,
+        text
+      );
       reply = (
         await generateText(
-          buildOwnerReplyPrompt(
-            args.contactName,
-            args.listings,
-            digest,
-            args.digestConsent,
-            text
-          ),
-          OWNER_REPLY_SYSTEM,
+          prompt,
+          ownerReplySystem(replyLanguage),
           { tier: 'lite', feature: 'owner_reply' }
         )
       ).trim();
       if (!reply) throw new Error('empty AI reply');
+      if (!replyUsesExpectedScript(reply, replyLanguage)) {
+        reply = (
+          await generateText(
+            `${prompt}\n\nThe previous draft used the wrong language. Rewrite it in ${languageDisplay(replyLanguage)} only.`,
+            ownerReplySystem(replyLanguage),
+            { tier: 'lite', feature: 'owner_reply' }
+          )
+        ).trim();
+      }
+      if (!reply || !replyUsesExpectedScript(reply, replyLanguage)) {
+        throw new Error('AI reply used the wrong language');
+      }
     } catch (err) {
       console.error('[owner-reply] AI reply failed, using fallback:', err);
       reply = buildOwnerFallbackReply(args.contactName, args.listings, digest);
