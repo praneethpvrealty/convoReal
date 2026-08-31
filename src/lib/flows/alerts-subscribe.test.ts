@@ -13,6 +13,11 @@ describe('classificationAfterSubscribe', () => {
     expect(classificationAfterSubscribe('Seller')).toBe('Owner & Buyer');
   });
 
+  it('leaves an agent or developer as they are — the digest covers both', () => {
+    expect(classificationAfterSubscribe('Agent')).toBeNull();
+    expect(classificationAfterSubscribe('Developer')).toBeNull();
+  });
+
   it('never overwrites a role that already covers buying', () => {
     expect(classificationAfterSubscribe('Buyer')).toBeNull();
     expect(classificationAfterSubscribe('Owner & Buyer')).toBeNull();
