@@ -60,12 +60,9 @@ const MAX_BUYERS_PER_ACCOUNT = 200;
 /** Messages actually sent per account per run. */
 const MAX_SENDS_PER_ACCOUNT = 50;
 
-// Who counts as a buyer side is already decided once, by Radar
-// (isRadarContactClassification): buyers, owner-buyers and agents, who
-// buy and place property for their own clients. This used to keep its
-// own shorter list, so an agent who granted consent was taken at their
-// word and then never sent anything. One definition, both engines.
-const BUYER_CLASSIFICATIONS = ['Buyer', 'Owner & Buyer', 'Agent'];
+// Wider than Radar's isRadarContactClassification on purpose: Radar
+// suggests names to an agent, this sends only what a contact asked for.
+const BUYER_CLASSIFICATIONS = ['Buyer', 'Owner & Buyer', 'Agent', 'Developer'];
 
 export interface AccountDigestSummary {
   accountId: string;
