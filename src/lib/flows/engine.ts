@@ -180,6 +180,15 @@ export const REPROMPT_BODY_TEXT =
   "Sorry, I didn't quite catch that — please tap one of the options below 👇";
 
 /**
+ * Sent in place of a subscription confirmation when the consent write
+ * did not land. Promising alerts we have not recorded is worse than
+ * saying a person will pick it up — and a person will: the node
+ * advances to the flow's handoff either way.
+ */
+export const SUBSCRIBE_UNCONFIRMED_TEXT =
+  "Thanks — I've passed your requirement to our team. One of our specialists will set up your alerts and confirm here shortly.";
+
+/**
  * Bare acknowledgements — "ok", "thanks", a thumbs-up. A customer who
  * has just been told we'll come back to them in two days says one of
  * these to close the exchange politely; answering it with "Sorry, I
@@ -844,9 +853,15 @@ async function fetchAndFormatPropertyListings(
     lines.push("");
   }
 
+  // The cap covers the invitation too: appending after the slice could
+  // push the payload past what Meta accepts and cost the whole message.
+  const bodyBudget = 4000 - (browseLine ? browseLine.length + 2 : 0);
   return {
     text: withBrowseLine(
-      lines.filter((l): l is string => l !== null).join("\n").slice(0, 4000),
+      lines
+        .filter((l): l is string => l !== null)
+        .join("\n")
+        .slice(0, bodyBudget),
       browseLine,
     ),
     shown: shown.map((p, i) => ({
@@ -1488,8 +1503,22 @@ async function advanceFromNodeKey(
       const cfg = node.config as unknown as SendMessageNodeConfig;
       // Written before the confirmation goes out, so the message and
       // the record can never disagree about what the lead agreed to.
+      // When the write does not land, the confirmation is not sent
+      // either: "you're on the list" to somebody the digest will skip
+      // is the exact failure this node exists to end. The run advances
+      // to its handoff regardless, so an agent picks the lead up.
+      let subscribeFailed = false;
       if (cfg.grants_alerts_consent && run.contact_id) {
-        await grantAlertsConsent(db, run.account_id, run.contact_id);
+        subscribeFailed = !(await grantAlertsConsent(
+          db,
+          run.account_id,
+          run.contact_id,
+        ));
+        if (subscribeFailed) {
+          await logEvent(db, run.id, "error", node.node_key, {
+            reason: "alerts_consent_write_failed",
+          });
+        }
       }
       try {
         const accountMeta = await loadAccountMeta(db, run.account_id);
@@ -1498,7 +1527,9 @@ async function advanceFromNodeKey(
           userId: run.user_id,
           conversationId: run.conversation_id!,
           contactId: run.contact_id!,
-          text: interpolateVars(cfg.text, run.vars, accountMeta),
+          text: subscribeFailed
+            ? SUBSCRIBE_UNCONFIRMED_TEXT
+            : interpolateVars(cfg.text, run.vars, accountMeta),
         });
         await logEvent(db, run.id, "message_sent", node.node_key, {
           node_type: "send_message",

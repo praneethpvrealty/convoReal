@@ -7,6 +7,7 @@ import {
   REPROMPT_BODY_TEXT,
   isAcknowledgementOnly,
   browseAllHint,
+  SUBSCRIBE_UNCONFIRMED_TEXT,
   matchesKeywordTrigger,
   isAutoAdvancing,
   isSuspending,
@@ -707,5 +708,12 @@ describe("browseAllHint", () => {
     const line = browseAllHint("https://acme.convoreal.com/?v=c1");
     expect(line).toContain("https://acme.convoreal.com/?v=c1");
     expect(line).toMatch(/anytime/i);
+  });
+});
+
+describe("SUBSCRIBE_UNCONFIRMED_TEXT", () => {
+  it("never claims a subscription the write did not record", () => {
+    expect(SUBSCRIBE_UNCONFIRMED_TEXT).not.toMatch(/on the list/i);
+    expect(SUBSCRIBE_UNCONFIRMED_TEXT).toMatch(/team|specialist/i);
   });
 });
