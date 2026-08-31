@@ -43,6 +43,7 @@ import {
 } from '@/lib/showcase/account-showcase-url';
 import { curateForBuyer, hasBuyerBrief } from './matches-ranking';
 import { attachInquiredListingTypes } from '@/lib/contacts/inquired-intent';
+import { logListingsSent } from '@/lib/whatsapp/share-property-send';
 import {
   buildConsentRequestMessage,
   buildMatchDigestMessage,
@@ -59,7 +60,12 @@ const MAX_BUYERS_PER_ACCOUNT = 200;
 /** Messages actually sent per account per run. */
 const MAX_SENDS_PER_ACCOUNT = 50;
 
-const BUYER_CLASSIFICATIONS = ['Buyer', 'Owner & Buyer'];
+// Who counts as a buyer side is already decided once, by Radar
+// (isRadarContactClassification): buyers, owner-buyers and agents, who
+// buy and place property for their own clients. This used to keep its
+// own shorter list, so an agent who granted consent was taken at their
+// word and then never sent anything. One definition, both engines.
+const BUYER_CLASSIFICATIONS = ['Buyer', 'Owner & Buyer', 'Agent'];
 
 export interface AccountDigestSummary {
   accountId: string;
@@ -93,6 +99,7 @@ function istDateString(now: Date): string {
 
 async function bulkAlreadySentPropertyIds(
   db: SupabaseClient,
+  accountId: string,
   contactIds: string[],
   now: Date
 ): Promise<Map<string, Set<string>>> {
@@ -102,12 +109,31 @@ async function bulkAlreadySentPropertyIds(
   const { data } = await db
     .from('buyer_match_digest_log')
     .select('buyer_contact_id, property_ids')
+    .eq('account_id', accountId)
     .in('buyer_contact_id', contactIds)
     .gte('digest_date', since.toISOString().slice(0, 10));
   for (const row of data || []) {
     const contactId = row.buyer_contact_id as string;
     const sent = byContact.get(contactId) ?? new Set<string>();
     for (const id of (row.property_ids as string[] | null) || []) sent.add(id);
+    byContact.set(contactId, sent);
+  }
+
+  // The digest log only knows what the digest itself sent. A listing an
+  // agent shared by hand, or the chat funnel put in front of them, is
+  // just as sent — and arriving as "here's one that fits" weeks later
+  // reads as nobody having kept track. The share ledger is the record
+  // every surface writes to, so it decides this too, with no time
+  // limit: a listing is offered to a contact once.
+  const { data: shareRows } = await db
+    .from('property_shares')
+    .select('contact_id, property_id')
+    .eq('account_id', accountId)
+    .in('contact_id', contactIds);
+  for (const row of shareRows || []) {
+    const contactId = row.contact_id as string;
+    const sent = byContact.get(contactId) ?? new Set<string>();
+    sent.add(row.property_id as string);
     byContact.set(contactId, sent);
   }
   return byContact;
@@ -216,7 +242,7 @@ async function runAccount(
     .filter((b) => ((b.buyer_alerts_consent as string | undefined) ?? 'pending') !== 'declined')
     .map((b) => b.id);
   const [sentIdsByBuyer, sessionOpenByBuyer] = await Promise.all([
-    bulkAlreadySentPropertyIds(db, consideredIds, now),
+    bulkAlreadySentPropertyIds(db, accountId, consideredIds, now),
     bulkSessionOpen(db, accountId, consideredIds),
   ]);
 
@@ -344,6 +370,9 @@ async function runAccount(
 
       if (delivered) {
         summary.sent++;
+        // Into the ledger every other surface reads, so the funnel and
+        // the next agent share both know these have gone out.
+        await logListingsSent(db, accountId, null, buyer.id, propertyIds);
       } else {
         // Release the claim so tomorrow's run can try again — an
         // unapproved template today may be approved by then.

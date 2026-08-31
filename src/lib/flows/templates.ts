@@ -702,7 +702,8 @@ const REAL_ESTATE_ONBOARDING: FlowTemplate = {
       node_key: "match_subscribed",
       node_type: "send_message",
       config: {
-        text: "✅ *You're on the list.*\n\nI've saved what you're after — type, budget and area — and the engine now watches every new listing against it. The moment one matches, you'll get a message here. No need to check back.",
+        text: "✅ *You're on the list.*\n\nI've saved what you're after — type, budget and area — and the engine now watches every new listing against it. The moment one matches, you'll get a message here. No need to check back.\n\nAnd you don't have to wait for me: our full catalogue is open to browse whenever you like, at the link above.\n\n_Reply STOP ALERTS anytime to turn these off._",
+        grants_alerts_consent: true,
         next_node_key: "handoff_onboarding",
       } as SendMessageNodeConfig,
     },

@@ -57,6 +57,8 @@ import { generateMatchEventForContact } from "@/lib/radar/engine";
 import { createNotification } from "@/lib/notifications/create";
 import { BRIDGE_REPLY_HINT } from "@/lib/whatsapp/reply-bridge";
 import { logListingsSent } from "@/lib/whatsapp/share-property-send";
+import { grantAlertsConsent } from "./alerts-subscribe";
+import { accountShowcaseBrowseUrl } from "@/lib/showcase/account-showcase-url";
 import { checkAccountPropertyLimit } from "@/lib/billing/gates";
 import {
   type CollectInputNodeConfig,
@@ -176,6 +178,15 @@ export function appendUnmatchedText(
  */
 export const REPROMPT_BODY_TEXT =
   "Sorry, I didn't quite catch that — please tap one of the options below 👇";
+
+/**
+ * Sent in place of a subscription confirmation when the consent write
+ * did not land. Promising alerts we have not recorded is worse than
+ * saying a person will pick it up — and a person will: the node
+ * advances to the flow's handoff either way.
+ */
+export const SUBSCRIBE_UNCONFIRMED_TEXT =
+  "Thanks — I've passed your requirement to our team. One of our specialists will set up your alerts and confirm here shortly.";
 
 /**
  * Bare acknowledgements — "ok", "thanks", a thumbs-up. A customer who
@@ -689,6 +700,41 @@ export function resolveInterestTarget(
  * WhatsApp-friendly text message.  Respects the node's optional
  * type / listing_type filters and limit, and the run's collected budget.
  */
+/**
+ * The standing invitation that belongs under every listing set we
+ * send. A lead is shown at most a handful of properties chosen by
+ * whatever brief we hold; the showcase is the whole live catalog, open
+ * whenever they feel like looking, without waiting on an agent or on
+ * the next matching listing to arrive.
+ */
+export function browseAllHint(url: string): string {
+  return `🔎 Browse every live listing anytime: ${url}`;
+}
+
+/** Appends the invitation when the account has a reachable showcase. */
+function withBrowseLine(text: string, line: string | null): string {
+  return line ? `${text}\n\n${line}` : text;
+}
+
+/** The account's showcase, attributed to this contact so the visit
+ *  shows up in Showcase Pulse. Null when it cannot be built — the
+ *  listings still go out. */
+async function showcaseBrowseLine(
+  db: AdminClient,
+  run: FlowRunRow,
+): Promise<string | null> {
+  try {
+    const url = await accountShowcaseBrowseUrl(
+      db,
+      run.account_id,
+      run.contact_id,
+    );
+    return url ? browseAllHint(url) : null;
+  } catch {
+    return null;
+  }
+}
+
 async function fetchAndFormatPropertyListings(
   db: AdminClient,
   run: FlowRunRow,
@@ -737,11 +783,13 @@ async function fetchAndFormatPropertyListings(
     ? interpolateVars(cfg.intro_text, run.vars)
     : "🏡 *Available Properties*\n";
 
+  const browseLine = await showcaseBrowseLine(db, run);
+
   if (fresh.length === 0) {
-    return { text: (
+    return { text: withBrowseLine((
       cfg.empty_text ??
       `${intro}\n\nSorry, no matching properties are currently available. Our team will reach out when something suitable is listed.`
-    ), shown: [] };
+    ), browseLine), shown: [] };
   }
 
   // A lead who typed their budget at a buttons step instead of the
@@ -805,8 +853,17 @@ async function fetchAndFormatPropertyListings(
     lines.push("");
   }
 
+  // The cap covers the invitation too: appending after the slice could
+  // push the payload past what Meta accepts and cost the whole message.
+  const bodyBudget = 4000 - (browseLine ? browseLine.length + 2 : 0);
   return {
-    text: lines.filter((l): l is string => l !== null).join("\n").slice(0, 4000),
+    text: withBrowseLine(
+      lines
+        .filter((l): l is string => l !== null)
+        .join("\n")
+        .slice(0, bodyBudget),
+      browseLine,
+    ),
     shown: shown.map((p, i) => ({
       n: i + 1,
       id: p.id,
@@ -1444,6 +1501,25 @@ async function advanceFromNodeKey(
     }
     if (node.node_type === "send_message") {
       const cfg = node.config as unknown as SendMessageNodeConfig;
+      // Written before the confirmation goes out, so the message and
+      // the record can never disagree about what the lead agreed to.
+      // When the write does not land, the confirmation is not sent
+      // either: "you're on the list" to somebody the digest will skip
+      // is the exact failure this node exists to end. The run advances
+      // to its handoff regardless, so an agent picks the lead up.
+      let subscribeFailed = false;
+      if (cfg.grants_alerts_consent && run.contact_id) {
+        subscribeFailed = !(await grantAlertsConsent(
+          db,
+          run.account_id,
+          run.contact_id,
+        ));
+        if (subscribeFailed) {
+          await logEvent(db, run.id, "error", node.node_key, {
+            reason: "alerts_consent_write_failed",
+          });
+        }
+      }
       try {
         const accountMeta = await loadAccountMeta(db, run.account_id);
         const { whatsapp_message_id } = await engineSendText({
@@ -1451,7 +1527,9 @@ async function advanceFromNodeKey(
           userId: run.user_id,
           conversationId: run.conversation_id!,
           contactId: run.contact_id!,
-          text: interpolateVars(cfg.text, run.vars, accountMeta),
+          text: subscribeFailed
+            ? SUBSCRIBE_UNCONFIRMED_TEXT
+            : interpolateVars(cfg.text, run.vars, accountMeta),
         });
         await logEvent(db, run.id, "message_sent", node.node_key, {
           node_type: "send_message",
