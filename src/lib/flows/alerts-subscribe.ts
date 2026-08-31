@@ -30,7 +30,6 @@ import type { Contact } from '@/types';
  * an unclassified lead is promoted — but a stated role is never
  * overwritten, and an owner becomes both rather than stops being an
  * owner.
- *
  */
 export function classificationAfterSubscribe(
   current: Contact['classification'] | null | undefined
