@@ -57,6 +57,8 @@ import { generateMatchEventForContact } from "@/lib/radar/engine";
 import { createNotification } from "@/lib/notifications/create";
 import { BRIDGE_REPLY_HINT } from "@/lib/whatsapp/reply-bridge";
 import { logListingsSent } from "@/lib/whatsapp/share-property-send";
+import { grantAlertsConsent } from "./alerts-subscribe";
+import { accountShowcaseBrowseUrl } from "@/lib/showcase/account-showcase-url";
 import { checkAccountPropertyLimit } from "@/lib/billing/gates";
 import {
   type CollectInputNodeConfig,
@@ -689,6 +691,41 @@ export function resolveInterestTarget(
  * WhatsApp-friendly text message.  Respects the node's optional
  * type / listing_type filters and limit, and the run's collected budget.
  */
+/**
+ * The standing invitation that belongs under every listing set we
+ * send. A lead is shown at most a handful of properties chosen by
+ * whatever brief we hold; the showcase is the whole live catalog, open
+ * whenever they feel like looking, without waiting on an agent or on
+ * the next matching listing to arrive.
+ */
+export function browseAllHint(url: string): string {
+  return `🔎 Browse every live listing anytime: ${url}`;
+}
+
+/** Appends the invitation when the account has a reachable showcase. */
+function withBrowseLine(text: string, line: string | null): string {
+  return line ? `${text}\n\n${line}` : text;
+}
+
+/** The account's showcase, attributed to this contact so the visit
+ *  shows up in Showcase Pulse. Null when it cannot be built — the
+ *  listings still go out. */
+async function showcaseBrowseLine(
+  db: AdminClient,
+  run: FlowRunRow,
+): Promise<string | null> {
+  try {
+    const url = await accountShowcaseBrowseUrl(
+      db,
+      run.account_id,
+      run.contact_id,
+    );
+    return url ? browseAllHint(url) : null;
+  } catch {
+    return null;
+  }
+}
+
 async function fetchAndFormatPropertyListings(
   db: AdminClient,
   run: FlowRunRow,
@@ -737,11 +774,13 @@ async function fetchAndFormatPropertyListings(
     ? interpolateVars(cfg.intro_text, run.vars)
     : "🏡 *Available Properties*\n";
 
+  const browseLine = await showcaseBrowseLine(db, run);
+
   if (fresh.length === 0) {
-    return { text: (
+    return { text: withBrowseLine((
       cfg.empty_text ??
       `${intro}\n\nSorry, no matching properties are currently available. Our team will reach out when something suitable is listed.`
-    ), shown: [] };
+    ), browseLine), shown: [] };
   }
 
   // A lead who typed their budget at a buttons step instead of the
@@ -806,7 +845,10 @@ async function fetchAndFormatPropertyListings(
   }
 
   return {
-    text: lines.filter((l): l is string => l !== null).join("\n").slice(0, 4000),
+    text: withBrowseLine(
+      lines.filter((l): l is string => l !== null).join("\n").slice(0, 4000),
+      browseLine,
+    ),
     shown: shown.map((p, i) => ({
       n: i + 1,
       id: p.id,
@@ -1444,6 +1486,11 @@ async function advanceFromNodeKey(
     }
     if (node.node_type === "send_message") {
       const cfg = node.config as unknown as SendMessageNodeConfig;
+      // Written before the confirmation goes out, so the message and
+      // the record can never disagree about what the lead agreed to.
+      if (cfg.grants_alerts_consent && run.contact_id) {
+        await grantAlertsConsent(db, run.account_id, run.contact_id);
+      }
       try {
         const accountMeta = await loadAccountMeta(db, run.account_id);
         const { whatsapp_message_id } = await engineSendText({

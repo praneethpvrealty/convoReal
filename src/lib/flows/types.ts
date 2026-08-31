@@ -32,6 +32,14 @@ export interface SendMessageNodeConfig {
   text: string;
   /** Auto-advance target after the message lands at Meta. */
   next_node_key: string;
+  /**
+   * Records the contact's opt-in to new-listing alerts before the
+   * message goes out. Set it on the node that CONFIRMS a subscription
+   * the customer just asked for — the daily buyer match digest reads
+   * that consent, and without it a lead who tapped "keep me posted"
+   * is never sent anything.
+   */
+  grants_alerts_consent?: boolean;
 }
 
 export interface SendButtonsNodeConfig {

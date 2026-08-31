@@ -43,6 +43,7 @@ import {
 } from '@/lib/showcase/account-showcase-url';
 import { curateForBuyer, hasBuyerBrief } from './matches-ranking';
 import { attachInquiredListingTypes } from '@/lib/contacts/inquired-intent';
+import { logListingsSent } from '@/lib/whatsapp/share-property-send';
 import {
   buildConsentRequestMessage,
   buildMatchDigestMessage,
@@ -108,6 +109,23 @@ async function bulkAlreadySentPropertyIds(
     const contactId = row.buyer_contact_id as string;
     const sent = byContact.get(contactId) ?? new Set<string>();
     for (const id of (row.property_ids as string[] | null) || []) sent.add(id);
+    byContact.set(contactId, sent);
+  }
+
+  // The digest log only knows what the digest itself sent. A listing an
+  // agent shared by hand, or the chat funnel put in front of them, is
+  // just as sent — and arriving as "here's one that fits" weeks later
+  // reads as nobody having kept track. The share ledger is the record
+  // every surface writes to, so it decides this too, with no time
+  // limit: a listing is offered to a contact once.
+  const { data: shareRows } = await db
+    .from('property_shares')
+    .select('contact_id, property_id')
+    .in('contact_id', contactIds);
+  for (const row of shareRows || []) {
+    const contactId = row.contact_id as string;
+    const sent = byContact.get(contactId) ?? new Set<string>();
+    sent.add(row.property_id as string);
     byContact.set(contactId, sent);
   }
   return byContact;
@@ -344,6 +362,9 @@ async function runAccount(
 
       if (delivered) {
         summary.sent++;
+        // Into the ledger every other surface reads, so the funnel and
+        // the next agent share both know these have gone out.
+        await logListingsSent(db, accountId, null, buyer.id, propertyIds);
       } else {
         // Release the claim so tomorrow's run can try again — an
         // unapproved template today may be approved by then.
