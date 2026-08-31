@@ -5,6 +5,7 @@ import {
   appendUnmatchedText,
   UNMATCHED_TEXT_MAX_LENGTH,
   REPROMPT_BODY_TEXT,
+  isAcknowledgementOnly,
   matchesKeywordTrigger,
   isAutoAdvancing,
   isSuspending,
@@ -671,5 +672,31 @@ describe('splitByBudget in a rental context', () => {
   it('without the context every listing is above a Rs 45 ceiling', () => {
     const { withinBudget } = splitByBudget([row('cheap', 40_000)], '35 to 45', 5);
     expect(withinBudget).toHaveLength(0);
+  });
+});
+
+describe("isAcknowledgementOnly", () => {
+  it("recognises a bare acknowledgement, whatever its punctuation", () => {
+    for (const text of ["Okay", "ok", "OK.", "thanks!", "Thank you", "👍", "noted", "sari"]) {
+      expect(isAcknowledgementOnly(text)).toBe(true);
+    }
+  });
+
+  it("leaves anything carrying content to the fallback policy", () => {
+    for (const text of [
+      "ok but what about the price",
+      "2",
+      "3 bhk in whitefield",
+      "okay send me the photos",
+      "",
+    ]) {
+      expect(isAcknowledgementOnly(text)).toBe(false);
+    }
+  });
+
+  it("does not swallow a negative reaction", () => {
+    for (const text of ["👎", "❌", "😡"]) {
+      expect(isAcknowledgementOnly(text)).toBe(false);
+    }
   });
 });

@@ -343,6 +343,7 @@ const REAL_ESTATE_ONBOARDING: FlowTemplate = {
         prompt_text:
           "Great choice! 💰 What's your budget range for the purchase? This helps us match you with the right properties.\n\n_For example: 50L–1Cr, 1–2 Cr, 2–5 Cr, 5–10 Cr, 10–25 Cr, 25–50 Cr, 50 Cr+_",
         var_key: "budget",
+        budget_context: "sale",
         next_node_key: "ask_buy_locality",
       } as CollectInputNodeConfig,
     },
@@ -363,6 +364,7 @@ const REAL_ESTATE_ONBOARDING: FlowTemplate = {
         prompt_text:
           "💰 What's your monthly rent budget? This helps us match you with the right properties.\n\n_For example: 25K–50K, 50K–1L, 1L+_",
         var_key: "budget",
+        budget_context: "rent",
         next_node_key: "ask_rent_locality",
       } as CollectInputNodeConfig,
     },

@@ -42,11 +42,21 @@ import {
 } from "./meta-send";
 import { decideFallback, resolveFallbackPolicy } from "./fallback";
 import { parseBudgetText, type BudgetContext } from "@/lib/bot/catalog-match";
+import { formatBudgetINR } from "@/lib/outreach/playbooks";
 import { appendRequirement } from "@/lib/ai/buyer-qualification";
+import {
+  BRIEF_CONFIRMED_VAR,
+  BUDGET_CONTEXT_VAR,
+  buildKnownBriefNote,
+  knownBriefValue,
+  type KnownBriefValue,
+} from "./known-brief";
+import type { Contact } from "@/types";
 import { syncContactPreferences } from "@/lib/contacts/preference-sync";
 import { generateMatchEventForContact } from "@/lib/radar/engine";
 import { createNotification } from "@/lib/notifications/create";
 import { BRIDGE_REPLY_HINT } from "@/lib/whatsapp/reply-bridge";
+import { logListingsSent } from "@/lib/whatsapp/share-property-send";
 import { checkAccountPropertyLimit } from "@/lib/billing/gates";
 import {
   type CollectInputNodeConfig,
@@ -166,6 +176,73 @@ export function appendUnmatchedText(
  */
 export const REPROMPT_BODY_TEXT =
   "Sorry, I didn't quite catch that — please tap one of the options below 👇";
+
+/**
+ * Bare acknowledgements — "ok", "thanks", a thumbs-up. A customer who
+ * has just been told we'll come back to them in two days says one of
+ * these to close the exchange politely; answering it with "Sorry, I
+ * didn't quite catch that" turns their courtesy into a bot error and
+ * reopens a conversation they had ended.
+ *
+ * Deliberately narrow: only a message that is NOTHING but an
+ * acknowledgement qualifies. "ok but what about the price" carries a
+ * question and must still reach the fallback policy.
+ */
+const ACKNOWLEDGEMENTS = new Set([
+  "k",
+  "ok",
+  "ok ok",
+  "okay",
+  "okey",
+  "okie",
+  "okk",
+  "ok ji",
+  "alright",
+  "all right",
+  "sure",
+  "fine",
+  "great",
+  "good",
+  "cool",
+  "nice",
+  "noted",
+  "got it",
+  "understood",
+  "thanks",
+  "thank you",
+  "thanks a lot",
+  "thank u",
+  "thx",
+  "ty",
+  "sari",
+  "seri",
+  "theek hai",
+  "thik hai",
+  "acha",
+  "achha",
+]);
+
+export function isAcknowledgementOnly(text: string): boolean {
+  const raw = (text ?? "").trim();
+  if (!raw) return false;
+  // Only affirmative reactions count. Stripping every emoji instead
+  // would swallow "👎" and "❌" — a rejection the agent has to see.
+  const withoutAffirmative = raw.replace(
+    /[\u{1F44D}\u{1F44C}\u{1F64F}\u{2705}\u{1F642}\u{1F60A}\u{2764}\u{1F44F}\u{1F389}\u{FE0F}]/gu,
+    " ",
+  );
+  const stripped = withoutAffirmative
+    .replace(/[.!,\s]+/g, " ")
+    .trim()
+    .toLowerCase();
+  if (!stripped) return withoutAffirmative !== raw;
+  return ACKNOWLEDGEMENTS.has(stripped);
+}
+
+/** Run var holding which budget the funnel branch is asking about, so
+ *  a later correction reads "3 Cr" the same way the question would. */
+export const BUDGET_CORRECTION_CONFIRM = (text: string): string =>
+  `✅ Updated — I've noted your budget as *${text}*. I'll use that from here.`;
 
 /**
  * Case-insensitive contains/exact match against a list of keywords.
@@ -456,6 +533,55 @@ async function contactBudgetText(
   return min && min > 0 ? `${min} to ${max}` : `up to ${max}`;
 }
 
+/**
+ * Property ids this contact has already been shown — the share ledger
+ * (property_shares, written by every send path) plus anything they
+ * explicitly rejected in listing feedback. Bounded by the contact, so
+ * the set is small; the filter is applied in memory rather than as an
+ * `.in()` filter, which would put the whole list in the query URL.
+ */
+async function alreadyOfferedPropertyIds(
+  db: AdminClient,
+  run: FlowRunRow,
+): Promise<Set<string>> {
+  if (!run.contact_id) return new Set();
+  const [shared, rejected] = await Promise.all([
+    db
+      .from("property_shares")
+      .select("property_id")
+      .eq("account_id", run.account_id)
+      .eq("contact_id", run.contact_id),
+    db
+      .from("listing_feedback")
+      .select("property_id")
+      .eq("account_id", run.account_id)
+      .eq("contact_id", run.contact_id)
+      .eq("verdict", "rejected"),
+  ]);
+  const ids = new Set<string>();
+  for (const row of [...(shared.data ?? []), ...(rejected.data ?? [])]) {
+    const id = (row as { property_id: string | null }).property_id;
+    if (id) ids.add(id);
+  }
+  return ids;
+}
+
+/** The run's contact row, for the checks that need stored preferences.
+ *  Null when the run has no contact or the row has gone. */
+async function loadRunContact(
+  db: AdminClient,
+  run: FlowRunRow,
+): Promise<Contact | null> {
+  if (!run.contact_id) return null;
+  const { data } = await db
+    .from("contacts")
+    .select("*")
+    .eq("id", run.contact_id)
+    .eq("account_id", run.account_id)
+    .maybeSingle();
+  return (data as Contact | null) ?? null;
+}
+
 /** What the run remembers about the listings it last put in the chat,
  *  so a reply of "2" can be resolved back to a property. */
 export interface ShownListing {
@@ -571,7 +697,14 @@ async function fetchAndFormatPropertyListings(
   const limit = Math.max(1, Math.min(cfg.limit ?? 5, 10));
   // Over-fetch so the budget the lead already gave can pick which of
   // these fill the slots, rather than whichever happen to be newest.
-  const pool = Math.min(limit * 6, 60);
+  // Never re-offer a listing this contact has already been sent, by the
+  // bot or by an agent: re-sending it reads as nobody having kept track
+  // of what went out. Same ledger the alert and follow-up paths use.
+  // Read first so the pool can be widened to cover them — filtering
+  // after a fixed cap would report an empty inventory to a repeat
+  // contact while older unoffered listings sat just past the cut.
+  const excluded = await alreadyOfferedPropertyIds(db, run);
+  const pool = Math.min(limit * 6 + excluded.size, 200);
   let query = db
     .from("properties")
     .select("id, title, location, type, bedrooms, area_sqft, price, property_code, listing_type")
@@ -596,11 +729,15 @@ async function fetchAndFormatPropertyListings(
     throw new Error(`Property query failed: ${error.message}`);
   }
 
+  const fresh = ((properties ?? []) as ListingRow[]).filter(
+    (p) => !excluded.has(p.id),
+  );
+
   const intro = cfg.intro_text
     ? interpolateVars(cfg.intro_text, run.vars)
     : "🏡 *Available Properties*\n";
 
-  if (!properties || properties.length === 0) {
+  if (fresh.length === 0) {
     return { text: (
       cfg.empty_text ??
       `${intro}\n\nSorry, no matching properties are currently available. Our team will reach out when something suitable is listed.`
@@ -617,7 +754,7 @@ async function fetchAndFormatPropertyListings(
 
   const { withinBudget, aboveBudget } = splitByBudget(
     preferLocality(
-      properties as ListingRow[],
+      fresh,
       typeof run.vars?.locality === "string" ? run.vars.locality : null,
     ),
     budgetText,
@@ -1377,6 +1514,16 @@ async function advanceFromNodeKey(
         // Remember what was numbered, so the next reply of "2" resolves
         // to a property instead of being reprompted as unrecognised.
         shownCount = shown.length;
+        // The ledger is what stops the next run re-offering these.
+        if (run.contact_id && shown.length > 0) {
+          await logListingsSent(
+            db,
+            run.account_id,
+            run.user_id,
+            run.contact_id,
+            shown.map((l) => l.id),
+          );
+        }
         const withListings = { ...run.vars, [SHOWN_LISTINGS_VAR]: shown };
         await db.from("flow_runs").update({ vars: withListings }).eq("id", run.id);
         run.vars = withListings;
@@ -1402,6 +1549,68 @@ async function advanceFromNodeKey(
       continue;
     }
     if (node.node_type === "collect_input") {
+      // We may already hold these answers — from an earlier funnel run,
+      // a call, or the preference flow. Asking again is the moment a
+      // lead decides nobody is keeping a record. Every consecutive
+      // question we can answer is collected first, so the note that
+      // replaces them names all of them rather than only the first.
+      const contactForBrief = await loadRunContact(db, run);
+      const skipped: Array<{ node_key: string; var_key: string; known: KnownBriefValue }> = [];
+      let scan: FlowNodeRow | null = node;
+      while (scan && scan.node_type === "collect_input") {
+        const scanCfg = scan.config as unknown as CollectInputNodeConfig;
+        const known = knownBriefValue(
+          contactForBrief,
+          scanCfg.var_key,
+          scanCfg.budget_context ?? null,
+        );
+        if (!known) break;
+        skipped.push({ node_key: scan.node_key, var_key: scanCfg.var_key, known });
+        scan = nodes.get(scanCfg.next_node_key) ?? null;
+      }
+      if (skipped.length > 0) {
+        const last = skipped[skipped.length - 1];
+        const lastCfg = nodes.get(last.node_key)!
+          .config as unknown as CollectInputNodeConfig;
+        const alreadyConfirmed = run.vars?.[BRIEF_CONFIRMED_VAR] === true;
+        const newVars: Record<string, unknown> = {
+          ...run.vars,
+          [BRIEF_CONFIRMED_VAR]: true,
+        };
+        for (const s of skipped) newVars[s.var_key] = s.known.value;
+        // The context the correction path needs to read a bare "3 Cr"
+        // as a sale figure or a monthly rent.
+        const budgetNode = skipped.find((s) => s.var_key === "budget");
+        if (budgetNode) {
+          newVars[BUDGET_CONTEXT_VAR] =
+            (nodes.get(budgetNode.node_key)!
+              .config as unknown as CollectInputNodeConfig).budget_context ?? null;
+        }
+        await db.from("flow_runs").update({ vars: newVars }).eq("id", run.id);
+        run.vars = newVars;
+        if (!alreadyConfirmed) {
+          try {
+            await engineSendText({
+              accountId: run.account_id,
+              userId: run.user_id,
+              conversationId: run.conversation_id!,
+              contactId: run.contact_id!,
+              text: buildKnownBriefNote(skipped.map((s) => s.known.label)),
+            });
+          } catch (err) {
+            await logEvent(db, run.id, "error", node.node_key, {
+              reason: "known_brief_send_failed",
+              detail: err instanceof Error ? err.message : String(err),
+            });
+          }
+        }
+        await logEvent(db, run.id, "node_entered", node.node_key, {
+          reason: "collect_input_skipped_known",
+          var_keys: skipped.map((s) => s.var_key),
+        });
+        currentKey = lastCfg.next_node_key;
+        continue;
+      }
       // Send the prompt and suspend. Customer's next TEXT reply will
       // wake us up via handleReplyForActiveRun's collect_input branch.
       const cfg = node.config as unknown as CollectInputNodeConfig;
@@ -1702,6 +1911,16 @@ async function handleReplyForActiveRun(
     return { consumed: true, flow_run_id: run.id, outcome: "no_match" };
   }
 
+  // A bare "ok" / "thanks" closes an exchange; it is not an answer and
+  // not a mistake. Consume it silently rather than capturing it as the
+  // customer's budget or apologising for not understanding it.
+  if (message.kind === "text" && isAcknowledgementOnly(message.text)) {
+    await logEvent(db, run.id, "node_entered", currentNode.node_key, {
+      reason: "acknowledgement_ignored",
+    });
+    return { consumed: true, flow_run_id: run.id, outcome: "no_match" };
+  }
+
   // Two ways a reply can advance:
   //   1. Interactive button/list tap on a send_buttons/send_list node.
   //   2. Text reply on a collect_input node — capture into vars.
@@ -1778,6 +1997,61 @@ async function handleReplyForActiveRun(
         reply_id: message.reply_id,
         from_node: currentNode.node_key,
       });
+    }
+  }
+
+  // We told this lead their budget was on file and invited a
+  // correction; honour it where they gave one. Only inside a run that
+  // made that promise, and only for a message that parses as a budget
+  // — everything else stays with the fallback policy below.
+  if (
+    !matched &&
+    message.kind === "text" &&
+    run.contact_id &&
+    run.vars?.[BRIEF_CONFIRMED_VAR] === true
+  ) {
+    const context =
+      run.vars?.[BUDGET_CONTEXT_VAR] === "rent" ? "rent" : "sale";
+    // A bare number is a listing pick far more often than a budget —
+    // "2" must not silently become ₹2 Cr. Require a unit or a currency
+    // marker, which every real budget correction carries.
+    const looksLikeBudget = /(?:₹|rs\.?|\b(?:cr|crore|crores|lakh|lakhs|lac|lacs|l|k)\b)/i.test(
+      message.text,
+    );
+    const parsed = looksLikeBudget
+      ? parseBudgetText(message.text, context)
+      : { min: null, max: null };
+    if (parsed.max && parsed.max > 0) {
+      const text = formatBudgetINR(parsed.min, parsed.max) ?? message.text.trim();
+      const newVars = { ...run.vars, budget: text };
+      await db.from("flow_runs").update({ vars: newVars }).eq("id", run.id);
+      run.vars = newVars;
+      await db
+        .from("contacts")
+        .update({
+          pref_budget_min: parsed.min,
+          pref_budget_max: parsed.max,
+        })
+        .eq("id", run.contact_id)
+        .eq("account_id", run.account_id);
+      await logEvent(db, run.id, "node_entered", run.current_node_key, {
+        reason: "budget_correction_applied",
+      });
+      try {
+        await engineSendText({
+          accountId: run.account_id,
+          userId: run.user_id,
+          conversationId: run.conversation_id!,
+          contactId: run.contact_id,
+          text: BUDGET_CORRECTION_CONFIRM(text),
+        });
+      } catch (err) {
+        await logEvent(db, run.id, "error", run.current_node_key, {
+          reason: "budget_correction_confirm_failed",
+          detail: err instanceof Error ? err.message : String(err),
+        });
+      }
+      return { consumed: true, flow_run_id: run.id, outcome: "no_match" };
     }
   }
 
