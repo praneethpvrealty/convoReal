@@ -22,10 +22,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Contact, Property } from '@/types';
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import {
-  collapseToParties,
-  loadContactParties,
-} from '@/lib/contacts/parties';
+import { collapseToParties, loadContactParties } from '@/lib/contacts/parties';
 import { BRANDING } from '@/config/branding';
 // The session-first / template-fallback ladder is persona-neutral —
 // reused rather than duplicated (it lives under den/ for historical
@@ -60,20 +57,9 @@ const MAX_BUYERS_PER_ACCOUNT = 200;
 /** Messages actually sent per account per run. */
 const MAX_SENDS_PER_ACCOUNT = 50;
 
-// Everyone who might be on the buying side of a listing. Buyers and
-// owner-buyers are obvious; agents buy and place property for their own
-// clients; developers acquire — land parcels above all, which is a real
-// part of this inventory. This list is wider than Radar's
-// isRadarContactClassification on purpose: Radar suggests contacts to an
-// agent for a property, where a developer among the names is noise,
-// while every send from here was asked for by the contact themselves
-// (consent is checked below) and answers their own stated brief.
-const BUYER_CLASSIFICATIONS = [
-  'Buyer',
-  'Owner & Buyer',
-  'Agent',
-  'Developer',
-];
+// Wider than Radar's isRadarContactClassification on purpose: Radar
+// suggests names to an agent, this sends only what a contact asked for.
+const BUYER_CLASSIFICATIONS = ['Buyer', 'Owner & Buyer', 'Agent', 'Developer'];
 
 export interface AccountDigestSummary {
   accountId: string;
@@ -89,7 +75,9 @@ export interface AccountDigestSummary {
 }
 
 function portalUrl(): string {
-  const base = (process.env.NEXT_PUBLIC_SITE_URL || BRANDING.websiteUrl).replace(/\/$/, '');
+  const base = (
+    process.env.NEXT_PUBLIC_SITE_URL || BRANDING.websiteUrl
+  ).replace(/\/$/, '');
   return `${base}/buyer/login?next=/buyer/matches`;
 }
 
@@ -113,7 +101,9 @@ async function bulkAlreadySentPropertyIds(
 ): Promise<Map<string, Set<string>>> {
   const byContact = new Map<string, Set<string>>();
   if (contactIds.length === 0) return byContact;
-  const since = new Date(now.getTime() - REPEAT_SUPPRESSION_DAYS * 24 * 60 * 60 * 1000);
+  const since = new Date(
+    now.getTime() - REPEAT_SUPPRESSION_DAYS * 24 * 60 * 60 * 1000
+  );
   const { data } = await db
     .from('buyer_match_digest_log')
     .select('buyer_contact_id, property_ids')
@@ -173,7 +163,9 @@ async function bulkSessionOpen(
     .in('conversation_id', convIds)
     .eq('sender_type', 'customer')
     .gte('created_at', since);
-  const openConvIds = new Set((msgRows || []).map((row) => row.conversation_id as string));
+  const openConvIds = new Set(
+    (msgRows || []).map((row) => row.conversation_id as string)
+  );
   for (const [contactId, convId] of convIdByContact) {
     openByContact.set(contactId, openConvIds.has(convId));
   }
@@ -247,7 +239,11 @@ async function runAccount(
   const agencyName = (accountRow?.name as string | undefined) ?? null;
 
   const consideredIds = buyers
-    .filter((b) => ((b.buyer_alerts_consent as string | undefined) ?? 'pending') !== 'declined')
+    .filter(
+      (b) =>
+        ((b.buyer_alerts_consent as string | undefined) ?? 'pending') !==
+        'declined'
+    )
     .map((b) => b.id);
   const [sentIdsByBuyer, sessionOpenByBuyer] = await Promise.all([
     bulkAlreadySentPropertyIds(db, accountId, consideredIds, now),
@@ -257,14 +253,17 @@ async function runAccount(
   for (const buyer of buyers) {
     if (summary.sent + summary.consentRequested >= MAX_SENDS_PER_ACCOUNT) break;
 
-    const consent = (buyer.buyer_alerts_consent as string | undefined) ?? 'pending';
+    const consent =
+      (buyer.buyer_alerts_consent as string | undefined) ?? 'pending';
     if (consent === 'declined') {
       summary.skippedDeclined++;
       continue;
     }
 
     try {
-      const ranked = curateForBuyer(pool, buyer, { limit: MAX_DIGEST_MATCHES * 3 });
+      const ranked = curateForBuyer(pool, buyer, {
+        limit: MAX_DIGEST_MATCHES * 3,
+      });
       if (ranked.length === 0) {
         summary.skippedNoMatches++;
         continue;
@@ -310,7 +309,9 @@ async function runAccount(
         }
         await db
           .from('contacts')
-          .update({ buyer_alerts_consent_requested_at: new Date().toISOString() })
+          .update({
+            buyer_alerts_consent_requested_at: new Date().toISOString(),
+          })
           .eq('id', buyer.id)
           .eq('account_id', accountId);
         summary.consentRequested++;
@@ -418,7 +419,9 @@ export async function sendBuyerMatchDigests(options?: {
       .from('whatsapp_config')
       .select('account_id')
       .eq('status', 'connected');
-    accountIds = [...new Set((configs || []).map((c) => c.account_id as string))];
+    accountIds = [
+      ...new Set((configs || []).map((c) => c.account_id as string)),
+    ];
   }
 
   const accounts: AccountDigestSummary[] = [];

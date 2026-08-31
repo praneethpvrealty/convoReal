@@ -31,9 +31,6 @@ import type { Contact } from '@/types';
  * overwritten, and an owner becomes both rather than stops being an
  * owner.
  *
- * Agents and developers keep their role untouched and still get their
- * alerts: the digest's audience covers them (see BUYER_CLASSIFICATIONS
- * in src/lib/buyer/digest-sender.ts).
  */
 export function classificationAfterSubscribe(
   current: Contact['classification'] | null | undefined
