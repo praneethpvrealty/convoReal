@@ -693,4 +693,10 @@ describe("isAcknowledgementOnly", () => {
       expect(isAcknowledgementOnly(text)).toBe(false);
     }
   });
+
+  it("does not swallow a negative reaction", () => {
+    for (const text of ["👎", "❌", "😡"]) {
+      expect(isAcknowledgementOnly(text)).toBe(false);
+    }
+  });
 });

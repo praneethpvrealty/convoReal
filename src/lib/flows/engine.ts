@@ -42,11 +42,14 @@ import {
 } from "./meta-send";
 import { decideFallback, resolveFallbackPolicy } from "./fallback";
 import { parseBudgetText, type BudgetContext } from "@/lib/bot/catalog-match";
+import { formatBudgetINR } from "@/lib/outreach/playbooks";
 import { appendRequirement } from "@/lib/ai/buyer-qualification";
 import {
   BRIEF_CONFIRMED_VAR,
+  BUDGET_CONTEXT_VAR,
   buildKnownBriefNote,
   knownBriefValue,
+  type KnownBriefValue,
 } from "./known-brief";
 import type { Contact } from "@/types";
 import { syncContactPreferences } from "@/lib/contacts/preference-sync";
@@ -220,16 +223,26 @@ const ACKNOWLEDGEMENTS = new Set([
 ]);
 
 export function isAcknowledgementOnly(text: string): boolean {
-  const stripped = (text ?? "")
-    .replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}\uFE0F]/gu, " ")
+  const raw = (text ?? "").trim();
+  if (!raw) return false;
+  // Only affirmative reactions count. Stripping every emoji instead
+  // would swallow "👎" and "❌" — a rejection the agent has to see.
+  const withoutAffirmative = raw.replace(
+    /[\u{1F44D}\u{1F44C}\u{1F64F}\u{2705}\u{1F642}\u{1F60A}\u{2764}\u{1F44F}\u{1F389}\u{FE0F}]/gu,
+    " ",
+  );
+  const stripped = withoutAffirmative
     .replace(/[.!,\s]+/g, " ")
     .trim()
     .toLowerCase();
-  // Emoji-only ("👍") — the original text had content, the stripped
-  // form has none.
-  if (!stripped) return (text ?? "").trim().length > 0;
+  if (!stripped) return withoutAffirmative !== raw;
   return ACKNOWLEDGEMENTS.has(stripped);
 }
+
+/** Run var holding which budget the funnel branch is asking about, so
+ *  a later correction reads "3 Cr" the same way the question would. */
+export const BUDGET_CORRECTION_CONFIRM = (text: string): string =>
+  `✅ Updated — I've noted your budget as *${text}*. I'll use that from here.`;
 
 /**
  * Case-insensitive contains/exact match against a list of keywords.
@@ -684,7 +697,14 @@ async function fetchAndFormatPropertyListings(
   const limit = Math.max(1, Math.min(cfg.limit ?? 5, 10));
   // Over-fetch so the budget the lead already gave can pick which of
   // these fill the slots, rather than whichever happen to be newest.
-  const pool = Math.min(limit * 6, 60);
+  // Never re-offer a listing this contact has already been sent, by the
+  // bot or by an agent: re-sending it reads as nobody having kept track
+  // of what went out. Same ledger the alert and follow-up paths use.
+  // Read first so the pool can be widened to cover them — filtering
+  // after a fixed cap would report an empty inventory to a repeat
+  // contact while older unoffered listings sat just past the cut.
+  const excluded = await alreadyOfferedPropertyIds(db, run);
+  const pool = Math.min(limit * 6 + excluded.size, 200);
   let query = db
     .from("properties")
     .select("id, title, location, type, bedrooms, area_sqft, price, property_code, listing_type")
@@ -709,10 +729,6 @@ async function fetchAndFormatPropertyListings(
     throw new Error(`Property query failed: ${error.message}`);
   }
 
-  // Never re-offer a listing this contact has already been sent, by the
-  // bot or by an agent: re-sending it reads as nobody having kept track
-  // of what went out. Same ledger the alert and follow-up paths use.
-  const excluded = await alreadyOfferedPropertyIds(db, run);
   const fresh = ((properties ?? []) as ListingRow[]).filter(
     (p) => !excluded.has(p.id),
   );
@@ -1533,22 +1549,43 @@ async function advanceFromNodeKey(
       continue;
     }
     if (node.node_type === "collect_input") {
-      // We may already hold this answer — from an earlier funnel run, a
-      // call, or the preference flow. Asking again is the moment a lead
-      // decides nobody is keeping a record. Say back what we have,
-      // invite a correction, and move on.
-      const known = knownBriefValue(
-        await loadRunContact(db, run),
-        (node.config as unknown as CollectInputNodeConfig).var_key,
-      );
-      if (known) {
-        const cfgKnown = node.config as unknown as CollectInputNodeConfig;
+      // We may already hold these answers — from an earlier funnel run,
+      // a call, or the preference flow. Asking again is the moment a
+      // lead decides nobody is keeping a record. Every consecutive
+      // question we can answer is collected first, so the note that
+      // replaces them names all of them rather than only the first.
+      const contactForBrief = await loadRunContact(db, run);
+      const skipped: Array<{ node_key: string; var_key: string; known: KnownBriefValue }> = [];
+      let scan: FlowNodeRow | null = node;
+      while (scan && scan.node_type === "collect_input") {
+        const scanCfg = scan.config as unknown as CollectInputNodeConfig;
+        const known = knownBriefValue(
+          contactForBrief,
+          scanCfg.var_key,
+          scanCfg.budget_context ?? null,
+        );
+        if (!known) break;
+        skipped.push({ node_key: scan.node_key, var_key: scanCfg.var_key, known });
+        scan = nodes.get(scanCfg.next_node_key) ?? null;
+      }
+      if (skipped.length > 0) {
+        const last = skipped[skipped.length - 1];
+        const lastCfg = nodes.get(last.node_key)!
+          .config as unknown as CollectInputNodeConfig;
         const alreadyConfirmed = run.vars?.[BRIEF_CONFIRMED_VAR] === true;
-        const newVars = {
+        const newVars: Record<string, unknown> = {
           ...run.vars,
-          [cfgKnown.var_key]: known.value,
           [BRIEF_CONFIRMED_VAR]: true,
         };
+        for (const s of skipped) newVars[s.var_key] = s.known.value;
+        // The context the correction path needs to read a bare "3 Cr"
+        // as a sale figure or a monthly rent.
+        const budgetNode = skipped.find((s) => s.var_key === "budget");
+        if (budgetNode) {
+          newVars[BUDGET_CONTEXT_VAR] =
+            (nodes.get(budgetNode.node_key)!
+              .config as unknown as CollectInputNodeConfig).budget_context ?? null;
+        }
         await db.from("flow_runs").update({ vars: newVars }).eq("id", run.id);
         run.vars = newVars;
         if (!alreadyConfirmed) {
@@ -1558,7 +1595,7 @@ async function advanceFromNodeKey(
               userId: run.user_id,
               conversationId: run.conversation_id!,
               contactId: run.contact_id!,
-              text: buildKnownBriefNote([known.label]),
+              text: buildKnownBriefNote(skipped.map((s) => s.known.label)),
             });
           } catch (err) {
             await logEvent(db, run.id, "error", node.node_key, {
@@ -1569,9 +1606,9 @@ async function advanceFromNodeKey(
         }
         await logEvent(db, run.id, "node_entered", node.node_key, {
           reason: "collect_input_skipped_known",
-          var_key: cfgKnown.var_key,
+          var_keys: skipped.map((s) => s.var_key),
         });
-        currentKey = cfgKnown.next_node_key;
+        currentKey = lastCfg.next_node_key;
         continue;
       }
       // Send the prompt and suspend. Customer's next TEXT reply will
@@ -1960,6 +1997,61 @@ async function handleReplyForActiveRun(
         reply_id: message.reply_id,
         from_node: currentNode.node_key,
       });
+    }
+  }
+
+  // We told this lead their budget was on file and invited a
+  // correction; honour it where they gave one. Only inside a run that
+  // made that promise, and only for a message that parses as a budget
+  // — everything else stays with the fallback policy below.
+  if (
+    !matched &&
+    message.kind === "text" &&
+    run.contact_id &&
+    run.vars?.[BRIEF_CONFIRMED_VAR] === true
+  ) {
+    const context =
+      run.vars?.[BUDGET_CONTEXT_VAR] === "rent" ? "rent" : "sale";
+    // A bare number is a listing pick far more often than a budget —
+    // "2" must not silently become ₹2 Cr. Require a unit or a currency
+    // marker, which every real budget correction carries.
+    const looksLikeBudget = /(?:₹|rs\.?|\b(?:cr|crore|crores|lakh|lakhs|lac|lacs|l|k)\b)/i.test(
+      message.text,
+    );
+    const parsed = looksLikeBudget
+      ? parseBudgetText(message.text, context)
+      : { min: null, max: null };
+    if (parsed.max && parsed.max > 0) {
+      const text = formatBudgetINR(parsed.min, parsed.max) ?? message.text.trim();
+      const newVars = { ...run.vars, budget: text };
+      await db.from("flow_runs").update({ vars: newVars }).eq("id", run.id);
+      run.vars = newVars;
+      await db
+        .from("contacts")
+        .update({
+          pref_budget_min: parsed.min,
+          pref_budget_max: parsed.max,
+        })
+        .eq("id", run.contact_id)
+        .eq("account_id", run.account_id);
+      await logEvent(db, run.id, "node_entered", run.current_node_key, {
+        reason: "budget_correction_applied",
+      });
+      try {
+        await engineSendText({
+          accountId: run.account_id,
+          userId: run.user_id,
+          conversationId: run.conversation_id!,
+          contactId: run.contact_id,
+          text: BUDGET_CORRECTION_CONFIRM(text),
+        });
+      } catch (err) {
+        await logEvent(db, run.id, "error", run.current_node_key, {
+          reason: "budget_correction_confirm_failed",
+          detail: err instanceof Error ? err.message : String(err),
+        });
+      }
+      return { consumed: true, flow_run_id: run.id, outcome: "no_match" };
     }
   }
 

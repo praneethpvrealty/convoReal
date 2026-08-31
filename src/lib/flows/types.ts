@@ -141,6 +141,12 @@ export interface CollectInputNodeConfig {
    */
   var_key: string;
   /**
+   * For a `budget` var_key, which budget this branch is asking about.
+   * Set it and a matching budget already on file is reused instead of
+   * re-asked; leave it unset and the question is always asked.
+   */
+  budget_context?: "sale" | "rent";
+  /**
    * Reserved for v2. Accepted on the config but ignored by the v1.5
    * runner — captures any non-empty text.
    */
