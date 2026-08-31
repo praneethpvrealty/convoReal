@@ -43,10 +43,17 @@ import {
 import { decideFallback, resolveFallbackPolicy } from "./fallback";
 import { parseBudgetText, type BudgetContext } from "@/lib/bot/catalog-match";
 import { appendRequirement } from "@/lib/ai/buyer-qualification";
+import {
+  BRIEF_CONFIRMED_VAR,
+  buildKnownBriefNote,
+  knownBriefValue,
+} from "./known-brief";
+import type { Contact } from "@/types";
 import { syncContactPreferences } from "@/lib/contacts/preference-sync";
 import { generateMatchEventForContact } from "@/lib/radar/engine";
 import { createNotification } from "@/lib/notifications/create";
 import { BRIDGE_REPLY_HINT } from "@/lib/whatsapp/reply-bridge";
+import { logListingsSent } from "@/lib/whatsapp/share-property-send";
 import { checkAccountPropertyLimit } from "@/lib/billing/gates";
 import {
   type CollectInputNodeConfig,
@@ -166,6 +173,63 @@ export function appendUnmatchedText(
  */
 export const REPROMPT_BODY_TEXT =
   "Sorry, I didn't quite catch that — please tap one of the options below 👇";
+
+/**
+ * Bare acknowledgements — "ok", "thanks", a thumbs-up. A customer who
+ * has just been told we'll come back to them in two days says one of
+ * these to close the exchange politely; answering it with "Sorry, I
+ * didn't quite catch that" turns their courtesy into a bot error and
+ * reopens a conversation they had ended.
+ *
+ * Deliberately narrow: only a message that is NOTHING but an
+ * acknowledgement qualifies. "ok but what about the price" carries a
+ * question and must still reach the fallback policy.
+ */
+const ACKNOWLEDGEMENTS = new Set([
+  "k",
+  "ok",
+  "ok ok",
+  "okay",
+  "okey",
+  "okie",
+  "okk",
+  "ok ji",
+  "alright",
+  "all right",
+  "sure",
+  "fine",
+  "great",
+  "good",
+  "cool",
+  "nice",
+  "noted",
+  "got it",
+  "understood",
+  "thanks",
+  "thank you",
+  "thanks a lot",
+  "thank u",
+  "thx",
+  "ty",
+  "sari",
+  "seri",
+  "theek hai",
+  "thik hai",
+  "acha",
+  "achha",
+]);
+
+export function isAcknowledgementOnly(text: string): boolean {
+  const stripped = (text ?? "")
+    .replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}\uFE0F]/gu, " ")
+    .replace(/[.!,\s]+/g, " ")
+    .trim()
+    .toLowerCase();
+  // Emoji-only ("👍") — the original text had content, the stripped
+  // form has none.
+  if (!stripped) return (text ?? "").trim().length > 0;
+  return ACKNOWLEDGEMENTS.has(stripped);
+}
 
 /**
  * Case-insensitive contains/exact match against a list of keywords.
@@ -456,6 +520,55 @@ async function contactBudgetText(
   return min && min > 0 ? `${min} to ${max}` : `up to ${max}`;
 }
 
+/**
+ * Property ids this contact has already been shown — the share ledger
+ * (property_shares, written by every send path) plus anything they
+ * explicitly rejected in listing feedback. Bounded by the contact, so
+ * the set is small; the filter is applied in memory rather than as an
+ * `.in()` filter, which would put the whole list in the query URL.
+ */
+async function alreadyOfferedPropertyIds(
+  db: AdminClient,
+  run: FlowRunRow,
+): Promise<Set<string>> {
+  if (!run.contact_id) return new Set();
+  const [shared, rejected] = await Promise.all([
+    db
+      .from("property_shares")
+      .select("property_id")
+      .eq("account_id", run.account_id)
+      .eq("contact_id", run.contact_id),
+    db
+      .from("listing_feedback")
+      .select("property_id")
+      .eq("account_id", run.account_id)
+      .eq("contact_id", run.contact_id)
+      .eq("verdict", "rejected"),
+  ]);
+  const ids = new Set<string>();
+  for (const row of [...(shared.data ?? []), ...(rejected.data ?? [])]) {
+    const id = (row as { property_id: string | null }).property_id;
+    if (id) ids.add(id);
+  }
+  return ids;
+}
+
+/** The run's contact row, for the checks that need stored preferences.
+ *  Null when the run has no contact or the row has gone. */
+async function loadRunContact(
+  db: AdminClient,
+  run: FlowRunRow,
+): Promise<Contact | null> {
+  if (!run.contact_id) return null;
+  const { data } = await db
+    .from("contacts")
+    .select("*")
+    .eq("id", run.contact_id)
+    .eq("account_id", run.account_id)
+    .maybeSingle();
+  return (data as Contact | null) ?? null;
+}
+
 /** What the run remembers about the listings it last put in the chat,
  *  so a reply of "2" can be resolved back to a property. */
 export interface ShownListing {
@@ -596,11 +709,19 @@ async function fetchAndFormatPropertyListings(
     throw new Error(`Property query failed: ${error.message}`);
   }
 
+  // Never re-offer a listing this contact has already been sent, by the
+  // bot or by an agent: re-sending it reads as nobody having kept track
+  // of what went out. Same ledger the alert and follow-up paths use.
+  const excluded = await alreadyOfferedPropertyIds(db, run);
+  const fresh = ((properties ?? []) as ListingRow[]).filter(
+    (p) => !excluded.has(p.id),
+  );
+
   const intro = cfg.intro_text
     ? interpolateVars(cfg.intro_text, run.vars)
     : "🏡 *Available Properties*\n";
 
-  if (!properties || properties.length === 0) {
+  if (fresh.length === 0) {
     return { text: (
       cfg.empty_text ??
       `${intro}\n\nSorry, no matching properties are currently available. Our team will reach out when something suitable is listed.`
@@ -617,7 +738,7 @@ async function fetchAndFormatPropertyListings(
 
   const { withinBudget, aboveBudget } = splitByBudget(
     preferLocality(
-      properties as ListingRow[],
+      fresh,
       typeof run.vars?.locality === "string" ? run.vars.locality : null,
     ),
     budgetText,
@@ -1377,6 +1498,16 @@ async function advanceFromNodeKey(
         // Remember what was numbered, so the next reply of "2" resolves
         // to a property instead of being reprompted as unrecognised.
         shownCount = shown.length;
+        // The ledger is what stops the next run re-offering these.
+        if (run.contact_id && shown.length > 0) {
+          await logListingsSent(
+            db,
+            run.account_id,
+            run.user_id,
+            run.contact_id,
+            shown.map((l) => l.id),
+          );
+        }
         const withListings = { ...run.vars, [SHOWN_LISTINGS_VAR]: shown };
         await db.from("flow_runs").update({ vars: withListings }).eq("id", run.id);
         run.vars = withListings;
@@ -1402,6 +1533,47 @@ async function advanceFromNodeKey(
       continue;
     }
     if (node.node_type === "collect_input") {
+      // We may already hold this answer — from an earlier funnel run, a
+      // call, or the preference flow. Asking again is the moment a lead
+      // decides nobody is keeping a record. Say back what we have,
+      // invite a correction, and move on.
+      const known = knownBriefValue(
+        await loadRunContact(db, run),
+        (node.config as unknown as CollectInputNodeConfig).var_key,
+      );
+      if (known) {
+        const cfgKnown = node.config as unknown as CollectInputNodeConfig;
+        const alreadyConfirmed = run.vars?.[BRIEF_CONFIRMED_VAR] === true;
+        const newVars = {
+          ...run.vars,
+          [cfgKnown.var_key]: known.value,
+          [BRIEF_CONFIRMED_VAR]: true,
+        };
+        await db.from("flow_runs").update({ vars: newVars }).eq("id", run.id);
+        run.vars = newVars;
+        if (!alreadyConfirmed) {
+          try {
+            await engineSendText({
+              accountId: run.account_id,
+              userId: run.user_id,
+              conversationId: run.conversation_id!,
+              contactId: run.contact_id!,
+              text: buildKnownBriefNote([known.label]),
+            });
+          } catch (err) {
+            await logEvent(db, run.id, "error", node.node_key, {
+              reason: "known_brief_send_failed",
+              detail: err instanceof Error ? err.message : String(err),
+            });
+          }
+        }
+        await logEvent(db, run.id, "node_entered", node.node_key, {
+          reason: "collect_input_skipped_known",
+          var_key: cfgKnown.var_key,
+        });
+        currentKey = cfgKnown.next_node_key;
+        continue;
+      }
       // Send the prompt and suspend. Customer's next TEXT reply will
       // wake us up via handleReplyForActiveRun's collect_input branch.
       const cfg = node.config as unknown as CollectInputNodeConfig;
@@ -1699,6 +1871,16 @@ async function handleReplyForActiveRun(
   const currentNode = nodes.get(run.current_node_key) ?? null;
   if (!currentNode) {
     await endRun(db, run.id, "failed", "current_node_not_found");
+    return { consumed: true, flow_run_id: run.id, outcome: "no_match" };
+  }
+
+  // A bare "ok" / "thanks" closes an exchange; it is not an answer and
+  // not a mistake. Consume it silently rather than capturing it as the
+  // customer's budget or apologising for not understanding it.
+  if (message.kind === "text" && isAcknowledgementOnly(message.text)) {
+    await logEvent(db, run.id, "node_entered", currentNode.node_key, {
+      reason: "acknowledgement_ignored",
+    });
     return { consumed: true, flow_run_id: run.id, outcome: "no_match" };
   }
 
