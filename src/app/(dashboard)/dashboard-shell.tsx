@@ -9,6 +9,7 @@ import { Header } from "@/components/layout/header";
 import { useOnboarding } from "@/hooks/useOnboarding";
 import { OnboardingWizard } from "@/components/onboarding/onboarding-wizard";
 import { SetupChecklist } from "@/components/onboarding/setup-checklist";
+import { TeamMemberWelcome } from "@/components/onboarding/team-member-welcome";
 import { TopupModalProvider } from "@/components/layout/topup-modal-context";
 import { CreditTopup } from "@/components/settings/CreditTopup";
 import { BugReportSheet } from '@/components/support/bug-report-sheet';
@@ -193,6 +194,16 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
           onSkipEmailLeads={skipEmailLeads}
         />
       )}
+
+      {profile?.account_id &&
+        profile.account_role &&
+        profile.account_role !== "owner" && (
+          <TeamMemberWelcome
+            accountId={profile.account_id}
+            userId={profile.id}
+            role={profile.account_role}
+          />
+        )}
 
       <CreditTopup />
       <CopilotWidget />

@@ -37,6 +37,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useAuth } from '@/hooks/use-auth';
+import { CONVOREAL_QUICK_START_GUIDE_URL } from '@/lib/beta/invites';
 
 type InviteRole = 'admin' | 'coordinator' | 'agent' | 'viewer';
 
@@ -172,7 +173,11 @@ export function InviteMemberDialog({
     // for users in multi-team contexts where "our ConvoReal account"
     // wouldn't be enough to disambiguate.
     const accountName = result?.accountName ?? 'our ConvoReal account';
-    const message = `Join ${accountName} on ConvoReal using this link (valid for ${result?.expiresInDays} days): ${url}`;
+    const message = [
+      `Join ${accountName} on ConvoReal using this link (valid for ${result?.expiresInDays} days).`,
+      `Quick-start guide: ${CONVOREAL_QUICK_START_GUIDE_URL}`,
+      url,
+    ].join('\n\n');
     return `https://wa.me/?text=${encodeURIComponent(message)}`;
   }
 
