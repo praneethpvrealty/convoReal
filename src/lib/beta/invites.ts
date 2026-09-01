@@ -27,6 +27,9 @@ export { hashInviteToken };
 const CODE_ALPHABET = '23456789BCDFGHJKMNPQRSTVWXYZ';
 const CODE_LENGTH = 4;
 
+export const CONVOREAL_QUICK_START_GUIDE_URL =
+  'https://www.convoreal.com/guides/convoreal-quick-start-guide.pdf';
+
 export interface GeneratedBetaInvite {
   /** Plaintext token — goes in the link, never persisted. */
   token: string;
@@ -112,6 +115,8 @@ export function betaInviteShareMessage(args: {
     'Your owners and buyers get their own free Portfolio too — they watch interest and matches themselves; every deal still runs through you.',
     '',
     "This is the AI era of real estate — the Engine is what turns a broker into a professional consultant. Don't get left behind.",
+    '',
+    `See how it works before you claim: ${CONVOREAL_QUICK_START_GUIDE_URL}`,
     '',
     `Claim the seat, import your buyer list, and see what matches by tomorrow. ${scarcity}`,
     args.url,
