@@ -56,7 +56,8 @@ const EXPIRY_OPTIONS: { value: string; label: string }[] = [
 ];
 
 const ROLE_DESCRIPTIONS: Record<InviteRole, string> = {
-  admin: 'Can invite teammates, manage settings, send messages, and edit data.',
+  admin:
+    'Can invite teammates, manage settings, send messages, and edit data.',
   coordinator:
     'Maintains inventory, contacts, and portal listings, and can reply to any unassigned conversation. No settings or member access.',
   agent:
@@ -191,24 +192,21 @@ export function InviteMemberDialog({
         onOpenChange(next);
       }}
     >
-      <DialogContent className="border-slate-700 bg-slate-900 sm:max-w-md">
+      <DialogContent className="bg-slate-900 border-slate-700 sm:max-w-md">
         {result ? (
           <>
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2 text-white">
-                <Sparkles className="text-primary size-4" />
+                <Sparkles className="size-4 text-primary" />
                 Invite created
               </DialogTitle>
               <DialogDescription className="text-slate-400">
-                Share this link with your new teammate. They&apos;ll be able to
-                sign up (or sign in) and join the account as{' '}
-                <span className="font-medium text-slate-300">
-                  {result.role}
-                </span>
+                Share this link with your new teammate. They&apos;ll be able
+                to sign up (or sign in) and join the account as{' '}
+                <span className="font-medium text-slate-300">{result.role}</span>
                 . The link is valid for{' '}
                 <span className="font-medium text-slate-300">
-                  {result.expiresInDays} day
-                  {result.expiresInDays === 1 ? '' : 's'}
+                  {result.expiresInDays} day{result.expiresInDays === 1 ? '' : 's'}
                 </span>
                 .
               </DialogDescription>
@@ -220,7 +218,7 @@ export function InviteMemberDialog({
                 <Input
                   readOnly
                   value={result.url}
-                  className="border-slate-700 bg-slate-800 font-mono text-xs text-white"
+                  className="bg-slate-800 border-slate-700 text-white font-mono text-xs"
                   onFocus={(e) => e.currentTarget.select()}
                 />
                 <Button
@@ -242,9 +240,9 @@ export function InviteMemberDialog({
                 <strong className="font-semibold text-amber-100">
                   Save this link now.
                 </strong>{' '}
-                We never store the plaintext — once you close this dialog the
-                URL is gone. To re-share, revoke this invite and create a new
-                one.
+                We never store the plaintext — once you close this dialog
+                the URL is gone. To re-share, revoke this invite and create
+                a new one.
               </div>
 
               {/* Anchor styled with `buttonVariants` rather than wrapping
@@ -267,7 +265,7 @@ export function InviteMemberDialog({
               </a>
             </div>
 
-            <DialogFooter className="border-slate-700 bg-slate-900">
+            <DialogFooter className="bg-slate-900 border-slate-700">
               <Button
                 onClick={() => onOpenChange(false)}
                 className="bg-primary hover:bg-primary/90 text-primary-foreground"
@@ -279,12 +277,10 @@ export function InviteMemberDialog({
         ) : (
           <>
             <DialogHeader>
-              <DialogTitle className="text-white">
-                Invite a teammate
-              </DialogTitle>
+              <DialogTitle className="text-white">Invite a teammate</DialogTitle>
               <DialogDescription className="text-slate-400">
-                Generate a one-time invite link. Share it via WhatsApp, Slack,
-                or any channel you like — no email service required.
+                Generate a one-time invite link. Share it via WhatsApp,
+                Slack, or any channel you like — no email service required.
               </DialogDescription>
             </DialogHeader>
 
@@ -295,7 +291,7 @@ export function InviteMemberDialog({
                   value={role}
                   onValueChange={(v) => v && setRole(v as InviteRole)}
                 >
-                  <SelectTrigger className="w-full border-slate-700 bg-slate-800 text-white">
+                  <SelectTrigger className="w-full bg-slate-800 border-slate-700 text-white">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -312,8 +308,11 @@ export function InviteMemberDialog({
 
               <div className="space-y-2">
                 <Label className="text-slate-300">Link valid for</Label>
-                <Select value={expiry} onValueChange={(v) => v && setExpiry(v)}>
-                  <SelectTrigger className="w-full border-slate-700 bg-slate-800 text-white">
+                <Select
+                  value={expiry}
+                  onValueChange={(v) => v && setExpiry(v)}
+                >
+                  <SelectTrigger className="w-full bg-slate-800 border-slate-700 text-white">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -336,7 +335,7 @@ export function InviteMemberDialog({
                   value={label}
                   onChange={(e) => setLabel(e.target.value)}
                   maxLength={MAX_LABEL_LEN}
-                  className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
+                  className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
                 />
                 <p className="text-xs text-slate-500">
                   Helps you remember who you sent the link to in the pending
@@ -345,7 +344,7 @@ export function InviteMemberDialog({
               </div>
             </div>
 
-            <DialogFooter className="border-slate-700 bg-slate-900">
+            <DialogFooter className="bg-slate-900 border-slate-700">
               <Button
                 variant="outline"
                 onClick={() => onOpenChange(false)}
