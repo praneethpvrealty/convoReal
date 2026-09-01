@@ -28,11 +28,12 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ArrowRight, ShieldCheck } from 'lucide-react';
+import { ArrowRight, BookOpen, ShieldCheck } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
 import { WaitlistForm } from '@/components/beta/waitlist-form';
+import { CONVOREAL_QUICK_START_GUIDE_URL } from '@/lib/beta/invites';
 
 interface PeekOk {
   ok: true;
@@ -67,7 +68,7 @@ type PeekResult = PeekOk | PeekFail;
 function daysUntil(iso: string): number {
   return Math.max(
     0,
-    Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000),
+    Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000)
   );
 }
 
@@ -82,7 +83,7 @@ export default function BetaInvitePage() {
     (async () => {
       try {
         const res = await fetch(
-          `/api/beta-invites/${encodeURIComponent(token)}/peek`,
+          `/api/beta-invites/${encodeURIComponent(token)}/peek`
         );
         const data = (await res.json()) as PeekResult;
         if (!cancelled) setPeek(data);
@@ -111,7 +112,7 @@ export default function BetaInvitePage() {
             <span className="font-bold">Convo</span>
             <span className="text-slate-400">Real</span>
           </p>
-          <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-slate-500">
+          <p className="font-mono text-[10px] tracking-[0.16em] text-slate-500 uppercase">
             Private beta
           </p>
         </header>
@@ -134,14 +135,14 @@ function SeatPass({ peek, token }: { peek: PeekOk; token: string }) {
     <main className="flex flex-col gap-7">
       <article className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60">
         <div className="relative p-6">
-          <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-primary">
+          <p className="text-primary font-mono text-[10px] tracking-[0.2em] uppercase">
             Invitation
           </p>
 
-          <p className="mt-5 font-mono text-[10px] uppercase tracking-[0.16em] text-slate-500">
+          <p className="mt-5 font-mono text-[10px] tracking-[0.16em] text-slate-500 uppercase">
             Allotted to you by
           </p>
-          <h1 className="mt-1 text-2xl font-semibold leading-tight text-white">
+          <h1 className="mt-1 text-2xl leading-tight font-semibold text-white">
             {inviter}
             {peek.inviter_account ? (
               <span className="block text-sm font-normal text-slate-400">
@@ -151,31 +152,31 @@ function SeatPass({ peek, token }: { peek: PeekOk; token: string }) {
           </h1>
 
           <div className="mt-6 flex items-baseline gap-2.5 border-t border-slate-800/70 pt-5">
-            <span className="text-6xl font-bold leading-none tabular-nums text-white">
+            <span className="text-6xl leading-none font-bold text-white tabular-nums">
               {String(peek.seat_number).padStart(3, '0')}
             </span>
-            <span className="text-sm tabular-nums text-slate-400">
+            <span className="text-sm text-slate-400 tabular-nums">
               of {peek.account_cap}
             </span>
           </div>
           <p className="mt-3 text-sm text-slate-400">
-            ConvoReal opens to {peek.account_cap} property consultants this month. This
-            is one of them.
+            ConvoReal opens to {peek.account_cap} property consultants this
+            month. This is one of them.
           </p>
 
           <div
             aria-hidden
-            className="absolute right-5 top-5 flex size-20 -rotate-12 flex-col items-center justify-center rounded-full border border-primary/60 text-center font-mono text-[9px] uppercase leading-relaxed tracking-[0.11em] text-primary"
+            className="border-primary/60 text-primary absolute top-5 right-5 flex size-20 -rotate-12 flex-col items-center justify-center rounded-full border text-center font-mono text-[9px] leading-relaxed tracking-[0.11em] uppercase"
           >
             Held for
-            <b className="block text-lg font-bold leading-tight">{days}</b>
+            <b className="block text-lg leading-tight font-bold">{days}</b>
             days
           </div>
         </div>
 
         <dl className="grid grid-cols-2 gap-4 border-t border-dashed border-slate-800 bg-slate-950/60 px-6 py-4">
           <div>
-            <dt className="font-mono text-[9px] uppercase tracking-[0.14em] text-slate-500">
+            <dt className="font-mono text-[9px] tracking-[0.14em] text-slate-500 uppercase">
               Expires
             </dt>
             <dd className="mt-1 font-mono text-sm text-amber-400">
@@ -187,10 +188,10 @@ function SeatPass({ peek, token }: { peek: PeekOk; token: string }) {
             </dd>
           </div>
           <div>
-            <dt className="font-mono text-[9px] uppercase tracking-[0.14em] text-slate-500">
+            <dt className="font-mono text-[9px] tracking-[0.14em] text-slate-500 uppercase">
               Seats left
             </dt>
-            <dd className="mt-1 font-mono text-sm tabular-nums text-slate-300">
+            <dd className="mt-1 font-mono text-sm text-slate-300 tabular-nums">
               {Math.max(0, peek.account_cap - peek.seats_taken)}
             </dd>
           </div>
@@ -199,41 +200,43 @@ function SeatPass({ peek, token }: { peek: PeekOk; token: string }) {
 
       <section className="grid gap-6 border-y border-slate-800/70 py-6 sm:grid-cols-2">
         <div>
-          <h2 className="font-mono text-[9px] uppercase tracking-[0.16em] text-slate-500">
+          <h2 className="font-mono text-[9px] tracking-[0.16em] text-slate-500 uppercase">
             What you get
           </h2>
           <ul className="mt-3 flex flex-col gap-3 text-sm text-slate-300">
             <Bullet>
-              <b className="text-white">Every feature, free</b> through the
-              beta — inbox, inventory, matching, campaigns.
+              <b className="text-white">Every feature, free</b> through the beta
+              — inbox, inventory, matching, campaigns.
             </Bullet>
             <Bullet>
-              <b className="text-white">A direct line</b> to the people
-              building it, not a ticket queue.
+              <b className="text-white">A direct line</b> to the people building
+              it, not a ticket queue.
             </Bullet>
             <Bullet>
               <b className="text-white">Five seats of your own</b> to hand to
               consultants you rate.
             </Bullet>
             <Bullet>
-              <b className="text-white">A free Portfolio for your owners &amp;
-              buyers</b> — they track interest and matches themselves; every
-              deal still runs through you.
+              <b className="text-white">
+                A free Portfolio for your owners &amp; buyers
+              </b>{' '}
+              — they track interest and matches themselves; every deal still
+              runs through you.
             </Bullet>
           </ul>
         </div>
         <div>
-          <h2 className="font-mono text-[9px] uppercase tracking-[0.16em] text-slate-500">
+          <h2 className="font-mono text-[9px] tracking-[0.16em] text-slate-500 uppercase">
             What we ask
           </h2>
           <ul className="mt-3 flex flex-col gap-3 text-sm text-slate-300">
             <Bullet warm>
-              <b className="text-white">Use it for real work.</b> Real
-              listings, real buyers — a demo account teaches us nothing.
+              <b className="text-white">Use it for real work.</b> Real listings,
+              real buyers — a demo account teaches us nothing.
             </Bullet>
             <Bullet warm>
-              <b className="text-white">Tell us what breaks.</b> There&apos;s
-              a Help &amp; feedback button on every screen.
+              <b className="text-white">Tell us what breaks.</b> There&apos;s a
+              Help &amp; feedback button on every screen.
             </Bullet>
             <Bullet warm>
               <b className="text-white">Stay a month.</b> Long enough for the
@@ -245,15 +248,24 @@ function SeatPass({ peek, token }: { peek: PeekOk; token: string }) {
 
       <div className="flex flex-col gap-3">
         <p className="text-center text-sm leading-relaxed text-slate-300">
-          The AI era of real estate is here — this Engine is what turns a
-          broker into a{' '}
-          <b className="text-white">professional consultant</b>. Don&apos;t get
-          left behind.
+          The AI era of real estate is here — this Engine is what turns a broker
+          into a <b className="text-white">professional consultant</b>.
+          Don&apos;t get left behind.
         </p>
         <Link href={`/signup?beta=${encodeURIComponent(token)}`}>
           <Button className="h-12 w-full text-base font-semibold">
             Claim seat {String(peek.seat_number).padStart(3, '0')}
             <ArrowRight className="ml-1.5 size-4" />
+          </Button>
+        </Link>
+        <Link
+          href={CONVOREAL_QUICK_START_GUIDE_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <Button variant="outline" className="h-11 w-full">
+            <BookOpen className="mr-1.5 size-4" />
+            Read the quick-start guide
           </Button>
         </Link>
         <p className="flex items-center justify-center gap-1.5 text-center text-xs text-slate-500">
@@ -277,7 +289,7 @@ function Bullet({
     <li className="relative pl-4 leading-relaxed">
       <span
         aria-hidden
-        className={`absolute left-0 top-2 size-1.5 rounded-full ${
+        className={`absolute top-2 left-0 size-1.5 rounded-full ${
           warm ? 'bg-amber-500' : 'bg-primary'
         }`}
       />
@@ -300,7 +312,7 @@ const DEAD_END_COPY: Record<
     tag: 'Already claimed',
     title: 'Someone got here first.',
     body: () =>
-      "This link has already been claimed. If that was you, sign in instead. If it was forwarded to you, leave your number — forwarded invitations are how we find most of the people we actually want.",
+      'This link has already been claimed. If that was you, sign in instead. If it was forwarded to you, leave your number — forwarded invitations are how we find most of the people we actually want.',
   },
   revoked: {
     tag: 'Invitation withdrawn',
@@ -329,10 +341,10 @@ function DeadEnd({ peek }: { peek: PeekFail }) {
 
   return (
     <main className="flex flex-col gap-5 rounded-xl border border-slate-800 bg-slate-900/60 p-6">
-      <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-amber-400">
+      <p className="font-mono text-[10px] tracking-[0.16em] text-amber-400 uppercase">
         {copy.tag}
       </p>
-      <h1 className="text-2xl font-semibold leading-tight text-white">
+      <h1 className="text-2xl leading-tight font-semibold text-white">
         {copy.title}
       </h1>
       <p className="text-sm leading-relaxed text-slate-300">
@@ -343,7 +355,7 @@ function DeadEnd({ peek }: { peek: PeekFail }) {
 
       {typeof peek.seats_taken === 'number' &&
       typeof peek.account_cap === 'number' ? (
-        <p className="border-t border-slate-800/70 pt-4 font-mono text-xs tabular-nums text-slate-500">
+        <p className="border-t border-slate-800/70 pt-4 font-mono text-xs text-slate-500 tabular-nums">
           {peek.seats_taken} of {peek.account_cap} seats claimed
         </p>
       ) : null}

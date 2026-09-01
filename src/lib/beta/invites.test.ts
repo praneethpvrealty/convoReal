@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
 import {
+  CONVOREAL_QUICK_START_GUIDE_URL,
   betaInviteShareMessage,
   betaInviteUrl,
   betaInviteWhatsAppUrl,
@@ -143,6 +144,26 @@ describe('betaInviteShareMessage', () => {
     expect(msg).toContain('free Portfolio');
     expect(msg).toContain('import your buyer list');
     expect(msg).toContain('turns a broker into a professional consultant');
+  });
+
+  it('shares the quick-start PDF before the claim link', () => {
+    const msg = betaInviteShareMessage({
+      url,
+      expiryDays: 14,
+    });
+
+    expect(msg).toContain(CONVOREAL_QUICK_START_GUIDE_URL);
+    expect(msg.indexOf(CONVOREAL_QUICK_START_GUIDE_URL)).toBeLessThan(
+      msg.indexOf(url)
+    );
+    expect(msg.trimEnd().split('\n').pop()).toBe(url);
+  });
+
+  it('publishes the PDF at the shared guide URL', () => {
+    const guide = readFileSync('public/guides/convoreal-quick-start-guide.pdf');
+
+    expect(guide.subarray(0, 5).toString()).toBe('%PDF-');
+    expect(guide.byteLength).toBeGreaterThan(50_000);
   });
 
   it('quotes remaining seats when they are known', () => {

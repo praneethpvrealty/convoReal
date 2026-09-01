@@ -31,6 +31,7 @@ import {
   FileCheck2,
   Forward,
   Bot,
+  BookOpen,
   Compass,
   Copy,
   KeyRound,
@@ -59,6 +60,7 @@ import {
 import type { TemplatePayload } from '@/lib/whatsapp/template-validators';
 import type { MessageTemplate } from '@/types';
 import type { OnboardingStatus } from '@/hooks/useOnboarding';
+import { CONVOREAL_QUICK_START_GUIDE_URL } from '@/lib/beta/invites';
 
 interface Props {
   status: OnboardingStatus;
@@ -142,6 +144,13 @@ function StepWelcome({ onNext }: { onNext: () => void }) {
 
       <Button className="w-full gap-2" onClick={onNext}>
         Start setup — takes a few minutes <ArrowRight className="h-4 w-4" />
+      </Button>
+      <Button
+        variant="outline"
+        className="w-full gap-2 border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white"
+        onClick={() => window.open(CONVOREAL_QUICK_START_GUIDE_URL, '_blank')}
+      >
+        <BookOpen className="h-4 w-4" /> Read or share the quick-start PDF
       </Button>
     </div>
   );
