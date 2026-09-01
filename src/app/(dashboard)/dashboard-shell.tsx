@@ -1,29 +1,39 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useState } from "react";
-import { usePathname } from "next/navigation";
-import { AuthProvider, useAuth } from "@/hooks/use-auth";
-import { LocaleProvider } from "@/hooks/use-locale";
-import { Sidebar } from "@/components/layout/sidebar";
-import { Header } from "@/components/layout/header";
-import { useOnboarding } from "@/hooks/useOnboarding";
-import { OnboardingWizard } from "@/components/onboarding/onboarding-wizard";
-import { SetupChecklist } from "@/components/onboarding/setup-checklist";
-import { TopupModalProvider } from "@/components/layout/topup-modal-context";
-import { CreditTopup } from "@/components/settings/CreditTopup";
+import { useCallback, useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
+import { AuthProvider, useAuth } from '@/hooks/use-auth';
+import { LocaleProvider } from '@/hooks/use-locale';
+import { Sidebar } from '@/components/layout/sidebar';
+import { Header } from '@/components/layout/header';
+import { useOnboarding } from '@/hooks/useOnboarding';
+import { OnboardingWizard } from '@/components/onboarding/onboarding-wizard';
+import { SetupChecklist } from '@/components/onboarding/setup-checklist';
+import { TeamMemberWelcome } from '@/components/onboarding/team-member-welcome';
+import { TopupModalProvider } from '@/components/layout/topup-modal-context';
+import { CreditTopup } from '@/components/settings/CreditTopup';
 import { BugReportSheet } from '@/components/support/bug-report-sheet';
-import { CopilotProvider } from "@/components/copilot/copilot-context";
-import { CopilotWidget } from "@/components/copilot/copilot-widget";
-import { TourOverlay } from "@/components/copilot/tour-overlay";
-import { ConvoRealLoader } from "@/components/ui/convoreal-loader";
-import { BRANDING } from "@/config/branding";
+import { CopilotProvider } from '@/components/copilot/copilot-context';
+import { CopilotWidget } from '@/components/copilot/copilot-widget';
+import { TourOverlay } from '@/components/copilot/tour-overlay';
+import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
+import { BRANDING } from '@/config/branding';
 
 // Auth-gated dashboard shell. Extracted from the layout so the layout
 // itself can stay a server component and export metadata (noindex) —
 // client components can't export Next's metadata object.
 
 function DashboardShellInner({ children }: { children: React.ReactNode }) {
-  const { user, loading, profile, profileLoading, profileError, isAccountArchived, signOut, refreshProfile } = useAuth();
+  const {
+    user,
+    loading,
+    profile,
+    profileLoading,
+    profileError,
+    isAccountArchived,
+    signOut,
+    refreshProfile,
+  } = useAuth();
 
   // Sidebar drawer state — only used on mobile. On lg+ the sidebar is
   // always visible and this stays at `false` (ignored by the component).
@@ -43,44 +53,54 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
   } = useOnboarding();
   const pathname = usePathname();
   const showChecklist =
-    pathname === "/dashboard" && !!status && dismissed && !allDone;
+    pathname === '/dashboard' && !!status && dismissed && !allDone;
 
   useEffect(() => {
     console.log('[SHELL GATE] evaluating profile:', {
       loading,
       profileLoading,
       user: !!user,
-      profile: profile ? { full_name: profile.full_name, email: profile.email } : null,
+      profile: profile
+        ? { full_name: profile.full_name, email: profile.email }
+        : null,
     });
 
     if (!loading && !user) {
-      window.location.href = "/login";
+      window.location.href = '/login';
     } else if (!loading && !profileLoading && user) {
       if (profileError) {
         // A failed fetch is not the same as "no profile row" — redirecting
         // here is what caused the /dashboard <-> /profile-setup loop (see
         // profileError doc in use-auth.tsx). Stay put; the render below
         // shows a retry state instead.
-        console.warn('[SHELL GATE] profile fetch failed, holding on dashboard for retry...');
+        console.warn(
+          '[SHELL GATE] profile fetch failed, holding on dashboard for retry...'
+        );
       } else if (!profile) {
         console.warn('[SHELL GATE] profile not found, redirecting to setup...');
-        window.location.href = "/profile-setup";
+        window.location.href = '/profile-setup';
       } else {
-        const hasMissingName = !profile.full_name || profile.full_name.trim() === "";
-        const hasMissingEmail = !profile.email || profile.email.trim() === "";
+        const hasMissingName =
+          !profile.full_name || profile.full_name.trim() === '';
+        const hasMissingEmail = !profile.email || profile.email.trim() === '';
         if (hasMissingName || hasMissingEmail) {
-          console.warn('[SHELL GATE] profile incomplete, redirecting to setup...', {
-            hasMissingName,
-            hasMissingEmail,
-          });
-          window.location.href = "/profile-setup";
+          console.warn(
+            '[SHELL GATE] profile incomplete, redirecting to setup...',
+            {
+              hasMissingName,
+              hasMissingEmail,
+            }
+          );
+          window.location.href = '/profile-setup';
         } else if (!user.phone || !user.phone_confirmed_at) {
           // ConvoReal is WhatsApp-based: every account needs an
           // OTP-verified WhatsApp number. Checked on auth.users, so
           // it's once per ACCOUNT — a Google sign-in whose account
           // already verified is never asked again.
-          console.warn('[SHELL GATE] WhatsApp number unverified, redirecting to verify-phone...');
-          window.location.href = "/verify-phone";
+          console.warn(
+            '[SHELL GATE] WhatsApp number unverified, redirecting to verify-phone...'
+          );
+          window.location.href = '/verify-phone';
         }
       }
     }
@@ -122,82 +142,113 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
 
   return (
     <CopilotProvider openSidebar={() => setSidebarOpen(true)}>
-    <div className="flex h-screen overflow-hidden bg-[#070b15] relative">
-      {/* Premium ambient background glows */}
-      <div className="absolute -top-60 -left-60 w-[600px] h-[600px] bg-primary/18 rounded-full blur-[150px] pointer-events-none" />
-      <div className="absolute top-1/4 right-1/4 w-[600px] h-[600px] bg-primary/10 rounded-full blur-[140px] pointer-events-none" />
-      <div className="absolute bottom-[-100px] left-1/3 w-[500px] h-[500px] bg-indigo-500/10 rounded-full blur-[120px] pointer-events-none" />
+      <div className="relative flex h-screen overflow-hidden bg-[#070b15]">
+        {/* Premium ambient background glows */}
+        <div className="bg-primary/18 pointer-events-none absolute -top-60 -left-60 h-[600px] w-[600px] rounded-full blur-[150px]" />
+        <div className="bg-primary/10 pointer-events-none absolute top-1/4 right-1/4 h-[600px] w-[600px] rounded-full blur-[140px]" />
+        <div className="pointer-events-none absolute bottom-[-100px] left-1/3 h-[500px] w-[500px] rounded-full bg-indigo-500/10 blur-[120px]" />
 
-      <Sidebar open={sidebarOpen} onClose={closeSidebar} />
-      <div className="flex flex-1 flex-col overflow-hidden relative z-10">
-        <Header onOpenSidebar={() => setSidebarOpen(true)} />
-        {/* Thinner horizontal padding on mobile so cards have room to breathe. */}
-        <main className={`flex-1 overflow-y-auto p-4 sm:p-6 ${isAccountArchived ? 'pointer-events-none select-none opacity-40' : ''}`}>
-          {showChecklist && status && (
-            <SetupChecklist
-              status={status}
-              emailLeadsSkipped={emailLeadsSkipped}
-              onResume={reopen}
-            />
-          )}
-          {children}
-        </main>
-      </div>
+        <Sidebar open={sidebarOpen} onClose={closeSidebar} />
+        <div className="relative z-10 flex flex-1 flex-col overflow-hidden">
+          <Header onOpenSidebar={() => setSidebarOpen(true)} />
+          {/* Thinner horizontal padding on mobile so cards have room to breathe. */}
+          <main
+            className={`flex-1 overflow-y-auto p-4 sm:p-6 ${isAccountArchived ? 'pointer-events-none opacity-40 select-none' : ''}`}
+          >
+            {showChecklist && status && (
+              <SetupChecklist
+                status={status}
+                emailLeadsSkipped={emailLeadsSkipped}
+                onResume={reopen}
+              />
+            )}
+            {children}
+          </main>
+        </div>
 
-      {/* Beta bug channel. Hidden on an archived workspace, where every
+        {/* Beta bug channel. Hidden on an archived workspace, where every
           other control is disabled too. */}
-      {!isAccountArchived && <BugReportSheet />}
+        {!isAccountArchived && <BugReportSheet />}
 
-      {/* Archived Account Overlay — rendered above everything when the
+        {/* Archived Account Overlay — rendered above everything when the
           super-admin has archived this workspace. All content is blurred
           and non-interactive; only the sign-out button is functional. */}
-      {isAccountArchived && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm">
-          <div className="mx-4 max-w-md w-full rounded-2xl border border-amber-500/30 bg-slate-900/95 shadow-2xl p-8 flex flex-col items-center text-center gap-5">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-amber-500/15 border border-amber-500/30">
-              <svg className="h-8 w-8 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                  d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-              </svg>
+        {isAccountArchived && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm">
+            <div className="mx-4 flex w-full max-w-md flex-col items-center gap-5 rounded-2xl border border-amber-500/30 bg-slate-900/95 p-8 text-center shadow-2xl">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full border border-amber-500/30 bg-amber-500/15">
+                <svg
+                  className="h-8 w-8 text-amber-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1.5}
+                    d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
+                  />
+                </svg>
+              </div>
+              <div>
+                <h2 className="mb-2 text-xl font-bold text-white">
+                  Workspace Archived
+                </h2>
+                <p className="text-sm leading-relaxed text-slate-400">
+                  This workspace has been archived by the administrator due to
+                  an inactive or expired subscription. All your data is safe and
+                  preserved.
+                </p>
+              </div>
+              <div className="w-full space-y-1.5 rounded-xl border border-slate-700 bg-slate-800/60 p-4 text-left">
+                <p className="text-xs font-semibold text-slate-300">
+                  To reactivate your workspace:
+                </p>
+                <ul className="list-none space-y-1 text-xs text-slate-400">
+                  <li>• Renew or upgrade your subscription plan</li>
+                  <li>
+                    • Contact support at{' '}
+                    <span className="text-primary font-medium">
+                      {BRANDING.supportEmail}
+                    </span>
+                  </li>
+                  <li>• Reference your account email to speed up resolution</li>
+                </ul>
+              </div>
+              <button
+                onClick={signOut}
+                className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm font-medium text-slate-300 transition-colors hover:bg-slate-700 hover:text-white"
+              >
+                Sign Out
+              </button>
             </div>
-            <div>
-              <h2 className="text-xl font-bold text-white mb-2">Workspace Archived</h2>
-              <p className="text-sm text-slate-400 leading-relaxed">
-                This workspace has been archived by the administrator due to an inactive or expired subscription.
-                All your data is safe and preserved.
-              </p>
-            </div>
-            <div className="w-full rounded-xl border border-slate-700 bg-slate-800/60 p-4 text-left space-y-1.5">
-              <p className="text-xs font-semibold text-slate-300">To reactivate your workspace:</p>
-              <ul className="text-xs text-slate-400 space-y-1 list-none">
-                <li>• Renew or upgrade your subscription plan</li>
-                <li>• Contact support at <span className="text-primary font-medium">{BRANDING.supportEmail}</span></li>
-                <li>• Reference your account email to speed up resolution</li>
-              </ul>
-            </div>
-            <button
-              onClick={signOut}
-              className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 transition-colors px-4 py-2.5 text-sm font-medium text-slate-300 hover:text-white"
-            >
-              Sign Out
-            </button>
           </div>
-        </div>
-      )}
+        )}
 
-      {shouldShow && status && (
-        <OnboardingWizard
-          status={status}
-          onDismiss={dismiss}
-          onRefresh={refresh}
-          onSkipEmailLeads={skipEmailLeads}
-        />
-      )}
+        {shouldShow && status && (
+          <OnboardingWizard
+            status={status}
+            onDismiss={dismiss}
+            onRefresh={refresh}
+            onSkipEmailLeads={skipEmailLeads}
+          />
+        )}
 
-      <CreditTopup />
-      <CopilotWidget />
-      <TourOverlay />
-    </div>
+        {profile?.account_id &&
+          profile.account_role &&
+          profile.account_role !== 'owner' && (
+            <TeamMemberWelcome
+              accountId={profile.account_id}
+              userId={profile.id}
+              role={profile.account_role}
+            />
+          )}
+
+        <CreditTopup />
+        <CopilotWidget />
+        <TourOverlay />
+      </div>
     </CopilotProvider>
   );
 }
