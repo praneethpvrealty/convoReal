@@ -571,6 +571,7 @@ export async function POST(request: Request) {
       locality_place_id,
       locality_canonical,
       interested_contact_ids,
+      allow_probable_duplicate,
     } = body;
 
     // Validation
@@ -734,6 +735,49 @@ export async function POST(request: Request) {
         }
       } catch (geoErr) {
         console.warn("[POST /api/properties] Geocode fallback failed:", geoErr);
+      }
+    }
+
+    if (!allow_probable_duplicate && insertData.latitude !== null && insertData.longitude !== null) {
+      const { assessPropertyDuplicate } = await import("@/lib/inventory/property-duplicates");
+      const box = boundingBox(insertData.latitude, insertData.longitude, 0.1);
+      const { data: nearbyRows, error: nearbyError } = await ctx.supabase
+        .from("properties")
+        .select("id, property_code, title, type, listing_type, project, area_sqft, land_area, price, floor_number, location, latitude, longitude")
+        .eq("account_id", ctx.accountId)
+        .gte("latitude", box.minLat)
+        .lte("latitude", box.maxLat)
+        .gte("longitude", box.minLng)
+        .lte("longitude", box.maxLng)
+        .limit(20);
+
+      if (nearbyError) {
+        console.error("[POST /api/properties] Duplicate candidate lookup failed:", nearbyError);
+      } else {
+        const candidates = (nearbyRows ?? [])
+          .map((candidate) => {
+            if (candidate.latitude == null || candidate.longitude == null) return null;
+            const assessment = assessPropertyDuplicate(
+              { ...insertData, latitude: insertData.latitude as number, longitude: insertData.longitude as number },
+              { ...candidate, latitude: Number(candidate.latitude), longitude: Number(candidate.longitude) }
+            );
+            return assessment ? { ...candidate, ...assessment } : null;
+          })
+          .filter((candidate): candidate is NonNullable<typeof candidate> => candidate !== null)
+          .sort((left, right) => right.score - left.score || left.distanceMeters - right.distanceMeters)
+          .slice(0, 5);
+
+        if (candidates.length > 0) {
+          return NextResponse.json(
+            {
+              error: "A nearby listing may already represent this property.",
+              code: "PROBABLE_PROPERTY_DUPLICATE",
+              radiusMeters: 100,
+              candidates,
+            },
+            { status: 409 }
+          );
+        }
       }
     }
 

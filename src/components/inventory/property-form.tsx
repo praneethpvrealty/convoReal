@@ -127,6 +127,17 @@ interface PropertyFormProps {
   initialTab?: 'details' | 'matches';
 }
 
+interface PropertyDuplicateCandidate {
+  id: string;
+  property_code?: string | null;
+  title: string;
+  location?: string | null;
+  distanceMeters: number;
+  confidence: 'high' | 'possible' | 'nearby';
+  score: number;
+  signals: string[];
+}
+
 function compressImageOnClient(file: File): Promise<Blob> {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -175,6 +186,8 @@ export function PropertyForm({
   const documentInputRef = useRef<HTMLInputElement>(null);
 
   const [viewMode, setViewMode] = useState(viewOnly);
+  const [duplicateCandidates, setDuplicateCandidates] = useState<PropertyDuplicateCandidate[]>([]);
+  const [pendingCreatePayload, setPendingCreatePayload] = useState<Record<string, unknown> | null>(null);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const galleryTouchXRef = useRef<number | null>(null);
 
@@ -182,6 +195,8 @@ export function PropertyForm({
     if (open) {
       setViewMode(viewOnly);
       setActiveImageIndex(0);
+      setDuplicateCandidates([]);
+      setPendingCreatePayload(null);
     }
   }, [open, viewOnly, property]);
 
@@ -2557,6 +2572,15 @@ export function PropertyForm({
 
         if (!response.ok) {
           const errData = await response.json();
+          if (
+            response.status === 409 &&
+            errData.code === 'PROBABLE_PROPERTY_DUPLICATE' &&
+            Array.isArray(errData.candidates)
+          ) {
+            setDuplicateCandidates(errData.candidates);
+            setPendingCreatePayload({ ...payload, user_id: user.id, account_id: accountId });
+            return;
+          }
           throw new Error(errData.error || 'Failed to create property');
         }
       }
@@ -2567,6 +2591,31 @@ export function PropertyForm({
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'An error occurred while saving';
       toast.error(message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function createNearbyListingAnyway() {
+    if (!pendingCreatePayload) return;
+    setSaving(true);
+    try {
+      const response = await fetch('/api/properties', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...pendingCreatePayload, allow_probable_duplicate: true }),
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        throw new Error(body?.error || 'Failed to create property');
+      }
+      setDuplicateCandidates([]);
+      setPendingCreatePayload(null);
+      toast.success('Separate property listing created');
+      onSaved();
+      onOpenChange(false);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to create property');
     } finally {
       setSaving(false);
     }
@@ -6668,6 +6717,83 @@ export function PropertyForm({
           </div>
         </Tabs>
         {/* Share Document Portal Modal */}
+      <Dialog
+        open={duplicateCandidates.length > 0}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen && !saving) {
+            setDuplicateCandidates([]);
+            setPendingCreatePayload(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-xl border-amber-500/30 bg-slate-950 text-white">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="size-5 text-amber-400" />
+              Possible duplicate listing
+            </DialogTitle>
+            <DialogDescription className="text-slate-400">
+              The new map pin is within 100 metres of existing inventory. Review these listings before creating another one.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[45vh] space-y-3 overflow-y-auto pr-1">
+            {duplicateCandidates.map((candidate) => (
+              <div key={candidate.id} className="rounded-xl border border-slate-800 bg-slate-900 p-3.5">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-bold text-white">{candidate.title}</p>
+                    <p className="mt-0.5 text-xs text-slate-400">
+                      {candidate.property_code || 'Existing listing'} · {candidate.distanceMeters} m away
+                    </p>
+                  </div>
+                  <Badge className={candidate.confidence === 'high'
+                    ? 'border-red-500/30 bg-red-500/10 text-red-300'
+                    : candidate.confidence === 'possible'
+                      ? 'border-amber-500/30 bg-amber-500/10 text-amber-300'
+                      : 'border-sky-500/30 bg-sky-500/10 text-sky-300'}>
+                    {candidate.confidence === 'high' ? 'High probability' : candidate.confidence === 'possible' ? 'Possible duplicate' : 'Nearby property'}
+                  </Badge>
+                </div>
+                {candidate.location && <p className="mt-2 text-xs text-slate-500">{candidate.location}</p>}
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {candidate.signals.map((signal) => (
+                    <span key={signal} className="rounded bg-slate-800 px-2 py-1 text-[10px] font-medium text-slate-300">
+                      {signal}
+                    </span>
+                  ))}
+                </div>
+                <a
+                  href={`/inventory?propertyId=${encodeURIComponent(candidate.id)}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline"
+                >
+                  <ExternalLink className="size-3" /> Review listing
+                </a>
+              </div>
+            ))}
+          </div>
+          <div className="flex flex-col-reverse gap-2 border-t border-slate-800 pt-4 sm:flex-row sm:justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={saving}
+              onClick={() => {
+                setDuplicateCandidates([]);
+                setPendingCreatePayload(null);
+              }}
+              className="border-slate-700 text-slate-300"
+            >
+              Go back and compare
+            </Button>
+            <Button type="button" disabled={saving} onClick={createNearbyListingAnyway}>
+              {saving && <Loader2 className="mr-1.5 size-3.5 animate-spin" />}
+              Confirm separate property
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={shareDocDialogOpen} onOpenChange={setShareDocDialogOpen}>
         <DialogContent className="bg-slate-900 border-slate-700 text-slate-200 sm:max-w-md max-h-[85vh] flex flex-col p-6 overflow-y-auto">
           <DialogHeader className="pb-3 border-b border-slate-800">
