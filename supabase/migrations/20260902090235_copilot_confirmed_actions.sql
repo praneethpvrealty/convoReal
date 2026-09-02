@@ -25,6 +25,10 @@ CREATE INDEX IF NOT EXISTS idx_copilot_action_executions_entity
     created_at DESC
   );
 
+CREATE INDEX IF NOT EXISTS idx_copilot_action_executions_actor
+  ON public.copilot_action_executions (actor_user_id)
+  WHERE actor_user_id IS NOT NULL;
+
 ALTER TABLE public.copilot_action_executions ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS copilot_action_executions_select
@@ -34,7 +38,7 @@ CREATE POLICY copilot_action_executions_select
   FOR SELECT
   TO authenticated
   USING (
-    auth.uid() IS NOT NULL
+    (SELECT auth.uid()) IS NOT NULL
     AND public.is_account_member(account_id)
   );
 
@@ -49,7 +53,7 @@ CREATE POLICY appointments_insert
   FOR INSERT
   TO authenticated
   WITH CHECK (
-    auth.uid() IS NOT NULL
+    (SELECT auth.uid()) IS NOT NULL
     AND public.is_account_member(
       account_id,
       'agent'::public.account_role_enum
@@ -62,14 +66,14 @@ CREATE POLICY appointments_update
   FOR UPDATE
   TO authenticated
   USING (
-    auth.uid() IS NOT NULL
+    (SELECT auth.uid()) IS NOT NULL
     AND public.is_account_member(
       account_id,
       'agent'::public.account_role_enum
     )
   )
   WITH CHECK (
-    auth.uid() IS NOT NULL
+    (SELECT auth.uid()) IS NOT NULL
     AND public.is_account_member(
       account_id,
       'agent'::public.account_role_enum
@@ -82,7 +86,7 @@ CREATE POLICY appointments_delete
   FOR DELETE
   TO authenticated
   USING (
-    auth.uid() IS NOT NULL
+    (SELECT auth.uid()) IS NOT NULL
     AND public.is_account_member(
       account_id,
       'agent'::public.account_role_enum
