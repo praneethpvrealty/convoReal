@@ -19,6 +19,11 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { PLAN_CONFIG, PLAN_ORDER } from '@/lib/billing/plan-config';
+import {
+  activeEntityQuery,
+  insertEntityReference,
+  type EntityReference,
+} from '@/lib/copilot/entities';
 import { TOURS } from '@/lib/copilot/tours';
 import { MESSAGES } from '@/lib/i18n/messages';
 import {
@@ -82,6 +87,10 @@ import {
   HIDE_CONFIRM_MESSAGE,
   MAX_PINNED_PER_CONVERSATION,
 } from '@/lib/whatsapp/message-state';
+import {
+  activeCopilotEntityQuery,
+  insertCopilotEntity,
+} from '../../mobile/lib/copilot-entities';
 
 function mobileSource(relativePath: string): string {
   return readFileSync(join(process.cwd(), 'mobile', relativePath), 'utf8');
@@ -108,6 +117,37 @@ function stringLiterals(block: string): string[] {
     block.matchAll(/'((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)"/g)
   ).map((m) => (m[1] ?? m[2]).replace(/\\'/g, "'").replace(/\\"/g, '"'));
 }
+
+describe('mobile Copilot entity tokens mirror the web composer', () => {
+  const selected: EntityReference[] = [
+    {
+      kind: 'property',
+      id: '11111111-1111-4111-8111-111111111111',
+      label: 'JP Nagar Plot',
+    },
+  ];
+
+  it.each([
+    'Open #JP Nag',
+    'Message @',
+    'View &Site visit',
+    'No entity token',
+    'Open #JP Nagar Plot ',
+  ])('parses %s identically', (input) => {
+    expect(activeCopilotEntityQuery(input, selected)).toEqual(
+      activeEntityQuery(input, selected)
+    );
+  });
+
+  it('inserts the same canonical token', () => {
+    const input = 'Please open #jp';
+    const webActive = activeEntityQuery(input, selected)!;
+    const mobileActive = activeCopilotEntityQuery(input, selected)!;
+    expect(insertCopilotEntity(input, mobileActive, selected[0])).toBe(
+      insertEntityReference(input, webActive, selected[0])
+    );
+  });
+});
 
 describe('mobile/lib/plan-meta.ts mirrors plan-config', () => {
   const source = mobileSource('lib/plan-meta.ts');
