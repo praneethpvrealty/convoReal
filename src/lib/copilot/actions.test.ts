@@ -20,6 +20,11 @@ const secondProperty = {
   id: '44444444-4444-4444-8444-444444444444',
   label: 'Indiranagar Flat',
 };
+const contact = {
+  kind: 'contact' as const,
+  id: '55555555-5555-4555-8555-555555555555',
+  label: 'Alice',
+};
 const actionId = '33333333-3333-4333-8333-333333333333';
 
 describe('Copilot actions', () => {
@@ -106,6 +111,19 @@ describe('Copilot actions', () => {
     expect(
       resolveCopilotAction('Who shared #JP Nagar Plot last?', [property])
     ).toBeNull();
+  });
+
+  it('does not treat generic sends for other entities as property shares', () => {
+    expect(resolveCopilotAction('Send @Alice a message', [contact])).toBeNull();
+    expect(
+      resolveCopilotAction('Send the reminder for &JP Nagar property visit', [
+        event,
+      ])
+    ).toBeNull();
+    expect(resolveCopilotAction('Share the property', [])).toEqual({
+      kind: 'guidance',
+      reply: 'Select one property with #, then ask me to share it.',
+    });
   });
 
   it('validates the execution payload', () => {

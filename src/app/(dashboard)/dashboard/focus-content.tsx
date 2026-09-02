@@ -13,7 +13,7 @@
  * ordered so the mobile Focus screen shows the same three.
  */
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import {
@@ -46,6 +46,7 @@ import type {
   FocusSnapshot,
   FocusTask,
 } from "@/lib/focus/types"
+import { COPILOT_APPOINTMENT_COMPLETED_EVENT } from "@/lib/copilot/actions"
 
 type SectionId = "tasks" | "journeys" | "requests"
 
@@ -99,6 +100,21 @@ export default function FocusContent() {
     queryFn: fetchFocus,
     enabled: Boolean(accountId),
   })
+
+  useEffect(() => {
+    const refreshFocus = () => {
+      void queryClient.invalidateQueries({ queryKey: ["focus", accountId] })
+    }
+    window.addEventListener(
+      COPILOT_APPOINTMENT_COMPLETED_EVENT,
+      refreshFocus,
+    )
+    return () =>
+      window.removeEventListener(
+        COPILOT_APPOINTMENT_COMPLETED_EVENT,
+        refreshFocus,
+      )
+  }, [accountId, queryClient])
 
   const snapshot = focusQuery.data
   const toggle = (id: SectionId) =>

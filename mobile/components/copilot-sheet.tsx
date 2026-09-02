@@ -293,10 +293,16 @@ export function CopilotSheet({
         actionState: 'completed',
         actionOutcome: result.outcome,
       });
-      void queryClient.invalidateQueries({ queryKey: ['appointments'] });
-      void queryClient.invalidateQueries({
-        queryKey: ['appointment', action.entity.id],
-      });
+      void Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['appointments'] }),
+        queryClient.invalidateQueries({
+          queryKey: ['appointment', action.entity.id],
+        }),
+        queryClient.invalidateQueries({ queryKey: ['overview'] }),
+        queryClient.invalidateQueries({ queryKey: ['focus'] }),
+        queryClient.invalidateQueries({ queryKey: ['contact-appointments'] }),
+        queryClient.invalidateQueries({ queryKey: ['home-widget'] }),
+      ]);
       haptic.success();
     } catch (error) {
       updateActionTurn(action.id, {

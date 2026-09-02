@@ -44,6 +44,7 @@ import { daysAgoStart, startOfLocalDay } from '@/lib/dashboard/date-utils'
 import { hasPhone } from '@/lib/contacts/reachability'
 import type { Contact } from '@/types'
 import { resolveRequirementSource } from '@/lib/requirements/profiles'
+import { COPILOT_APPOINTMENT_COMPLETED_EVENT } from '@/lib/copilot/actions'
 
 const HOUR_MS = 3_600_000
 
@@ -229,6 +230,40 @@ export default function TodayPage({ embedded = false }: TodayPageProps = {}) {
     // as the pipelines page's fetchCurrency effect.
     if (accountId) Promise.resolve().then(() => loadAll())
   }, [accountId, loadAll])
+
+  useEffect(() => {
+    const removeCompletedAppointment = (event: Event) => {
+      const appointmentId = (event as CustomEvent<{ appointmentId?: string }>)
+        .detail?.appointmentId
+      if (!appointmentId) return
+      setAgenda((current) =>
+        current
+          ? {
+              ...current,
+              appointments: current.appointments.filter(
+                (appointment) => appointment.id !== appointmentId,
+              ),
+            }
+          : current,
+      )
+      setCompleting((current) => {
+        const key = `appointment-${appointmentId}`
+        if (!current.has(key)) return current
+        const next = new Set(current)
+        next.delete(key)
+        return next
+      })
+    }
+    window.addEventListener(
+      COPILOT_APPOINTMENT_COMPLETED_EVENT,
+      removeCompletedAppointment,
+    )
+    return () =>
+      window.removeEventListener(
+        COPILOT_APPOINTMENT_COMPLETED_EVENT,
+        removeCompletedAppointment,
+      )
+  }, [])
 
   // Insights refetch on range change and on manual refresh (refreshedAt
   // bumps whenever loadAll runs). A stale-guard drops out-of-order

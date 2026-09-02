@@ -123,7 +123,16 @@ export function resolveCopilotAction(
   entities: EntityReference[]
 ): CopilotActionResolution | null {
   const complete = requestsCompletion(message);
-  const share = requestsShare(message);
+  const hasSelectedProperty = entities.some(
+    (entity) => entity.kind === 'property'
+  );
+  const hasSelectedEvent = entities.some((entity) => entity.kind === 'event');
+  const namesProperty = /\b(?:property|properties|listing|listings)\b/i.test(
+    message
+  );
+  const share =
+    requestsShare(message) &&
+    (hasSelectedProperty || (namesProperty && !hasSelectedEvent));
   if (!complete && !share) return null;
   if (complete && share) {
     return {

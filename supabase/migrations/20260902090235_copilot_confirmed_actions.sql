@@ -2,7 +2,7 @@ CREATE TABLE IF NOT EXISTS public.copilot_action_executions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   account_id UUID NOT NULL REFERENCES public.accounts(id) ON DELETE CASCADE,
   actor_user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
-  idempotency_key UUID NOT NULL,
+  idempotency_key UUID NOT NULL UNIQUE,
   action_type TEXT NOT NULL CHECK (action_type IN ('complete_event')),
   entity_type TEXT NOT NULL CHECK (entity_type IN ('appointment')),
   entity_id UUID NOT NULL,
@@ -10,8 +10,7 @@ CREATE TABLE IF NOT EXISTS public.copilot_action_executions (
   outcome TEXT NOT NULL CHECK (outcome IN ('applied', 'already_completed')),
   before_state JSONB NOT NULL DEFAULT '{}'::jsonb,
   after_state JSONB NOT NULL DEFAULT '{}'::jsonb,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE (account_id, idempotency_key)
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_copilot_action_executions_account_created
@@ -125,29 +124,23 @@ BEGIN
     RAISE EXCEPTION 'Unsupported source platform' USING ERRCODE = '22023';
   END IF;
 
-  SELECT *
-  INTO v_appointment
-  FROM public.appointments
-  WHERE id = p_appointment_id
-    AND public.is_account_member(
-      account_id,
-      'agent'::public.account_role_enum
-    )
-  FOR UPDATE;
-
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'Calendar event not found' USING ERRCODE = 'P0002';
-  END IF;
-
-  -- A retry of the same confirmed proposal must return its original result,
-  -- even if another workflow changed the appointment afterwards.
+  -- Resolve a successful retry before touching the source row. The audit row
+  -- deliberately has no appointment FK, so a confirmed result remains
+  -- replayable after the appointment is deleted. Membership is still checked
+  -- before returning any tenant data.
   SELECT *
   INTO v_execution
   FROM public.copilot_action_executions
-  WHERE account_id = v_appointment.account_id
-    AND idempotency_key = p_idempotency_key;
+  WHERE idempotency_key = p_idempotency_key;
 
   IF FOUND THEN
+    IF public.is_account_member(
+      v_execution.account_id,
+      'agent'::public.account_role_enum
+    ) IS NOT TRUE THEN
+      RAISE EXCEPTION 'Calendar event not found' USING ERRCODE = 'P0002';
+    END IF;
+
     IF v_execution.action_type IS DISTINCT FROM 'complete_event'
       OR v_execution.entity_type IS DISTINCT FROM 'appointment'
       OR v_execution.entity_id IS DISTINCT FROM p_appointment_id THEN
@@ -163,6 +156,20 @@ BEGIN
       'replayed', TRUE,
       'executed_at', v_execution.created_at
     );
+  END IF;
+
+  SELECT *
+  INTO v_appointment
+  FROM public.appointments
+  WHERE id = p_appointment_id
+    AND public.is_account_member(
+      account_id,
+      'agent'::public.account_role_enum
+    )
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Calendar event not found' USING ERRCODE = 'P0002';
   END IF;
 
   IF v_appointment.status = 'cancelled' THEN
@@ -202,17 +209,24 @@ BEGIN
     ),
     jsonb_build_object('status', 'completed')
   )
-  ON CONFLICT (account_id, idempotency_key) DO NOTHING
+  ON CONFLICT (idempotency_key) DO NOTHING
   RETURNING * INTO v_execution;
 
   IF v_execution.id IS NULL THEN
     SELECT *
     INTO v_execution
     FROM public.copilot_action_executions
-    WHERE account_id = v_appointment.account_id
-      AND idempotency_key = p_idempotency_key;
+    WHERE idempotency_key = p_idempotency_key;
 
-    IF v_execution.action_type IS DISTINCT FROM 'complete_event'
+    IF public.is_account_member(
+      v_execution.account_id,
+      'agent'::public.account_role_enum
+    ) IS NOT TRUE THEN
+      RAISE EXCEPTION 'Calendar event not found' USING ERRCODE = 'P0002';
+    END IF;
+
+    IF v_execution.account_id IS DISTINCT FROM v_appointment.account_id
+      OR v_execution.action_type IS DISTINCT FROM 'complete_event'
       OR v_execution.entity_type IS DISTINCT FROM 'appointment'
       OR v_execution.entity_id IS DISTINCT FROM p_appointment_id THEN
       RAISE EXCEPTION 'Idempotency key was already used for another action'
