@@ -55,6 +55,7 @@ import {
   eventTypeMeta,
   memberInitials,
 } from "@/components/calendar/event-types";
+import { COPILOT_APPOINTMENT_COMPLETED_EVENT } from "@/lib/copilot/actions";
 
 const EMPTY_EXTRAS: Record<EventFieldKey, string> = { agenda: "", minutes: "", outcome: "" };
 
@@ -230,6 +231,38 @@ export default function CalendarPage() {
       loadData();
     }
   }, [accountId, loadData]);
+
+  useEffect(() => {
+    const syncCompletedAppointment = (event: Event) => {
+      const appointmentId = (event as CustomEvent<{ appointmentId?: string }>)
+        .detail?.appointmentId;
+      if (!appointmentId) return;
+      setAppointments((current) =>
+        current.map((appointment) =>
+          appointment.id === appointmentId
+            ? { ...appointment, status: "completed" }
+            : appointment
+        )
+      );
+      setSelectedAppt((current) =>
+        current?.id === appointmentId
+          ? { ...current, status: "completed" }
+          : current
+      );
+      setApptStatus((current) =>
+        selectedAppt?.id === appointmentId ? "completed" : current
+      );
+    };
+    window.addEventListener(
+      COPILOT_APPOINTMENT_COMPLETED_EVENT,
+      syncCompletedAppointment
+    );
+    return () =>
+      window.removeEventListener(
+        COPILOT_APPOINTMENT_COMPLETED_EVENT,
+        syncCompletedAppointment
+      );
+  }, [selectedAppt?.id]);
 
   // Team roster for lanes, assignee select, and initials badges.
   useEffect(() => {

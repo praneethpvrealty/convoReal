@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import * as Linking from 'expo-linking';
 import { Link, Stack, router, useLocalSearchParams } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -102,7 +102,11 @@ async function fetchProperty(id: string): Promise<Property | null> {
 
 export default function PropertyDetailScreen() {
   const { colors, dark, fonts: f } = useTheme();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, share } = useLocalSearchParams<{
+    id: string;
+    share?: string | string[];
+  }>();
+  const shareRequest = Array.isArray(share) ? share[0] : share;
   // Viewers read the dashboard and nothing else (AGENTS.md §8.2); the
   // API enforces it too, this just keeps the buttons honest.
   const canEdit = useAuthStore((s) => s.profile?.account_role) !== 'viewer';
@@ -113,6 +117,7 @@ export default function PropertyDetailScreen() {
   // a conditional return (hook count would change between renders).
   const insets = useSafeAreaInsets();
   const pagerRef = useRef<ScrollView>(null);
+  const openedShareRequestRef = useRef<string | null>(null);
   const [activeImage, setActiveImage] = useState(0);
   const [viewerOpen, setViewerOpen] = useState(false);
   const [selectedMatchIds, setSelectedMatchIds] = useState<string[]>([]);
@@ -128,6 +133,17 @@ export default function PropertyDetailScreen() {
     enabled: Boolean(id),
     staleTime: 60_000,
   });
+
+  // A confirmed Copilot property action lands here with a unique share
+  // request. Open the existing recipient/message flow once; that flow keeps
+  // the final outbound send behind its own explicit confirmation.
+  useEffect(() => {
+    if (!property || !shareRequest || !canEdit) return;
+    const requestKey = `${property.id}:${shareRequest}`;
+    if (openedShareRequestRef.current === requestKey) return;
+    openedShareRequestRef.current = requestKey;
+    setShareTo([]);
+  }, [canEdit, property, shareRequest]);
 
   // A gated listing's photos live in the guarded bucket, so the gallery
   // is not `property.images` — those stream through the authenticated

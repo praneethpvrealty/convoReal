@@ -10,13 +10,18 @@
 import { useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import {
+  CalendarCheck2,
+  CheckCircle2,
   Compass,
   LifeBuoy,
   Lightbulb,
+  Loader2,
   Send,
+  Share2,
   Sparkles,
   ThumbsDown,
   ThumbsUp,
+  TriangleAlert,
   X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -31,6 +36,13 @@ import {
   type EntitySuggestion,
 } from '@/lib/copilot/entities';
 import { CopilotEntityPicker } from './copilot-entity-picker';
+import {
+  COPILOT_APPOINTMENT_COMPLETED_EVENT,
+  type CopilotActionExecutionResult,
+  type CopilotActionProposal,
+} from '@/lib/copilot/actions';
+
+type ActionState = 'pending' | 'running' | 'completed' | 'cancelled' | 'failed';
 
 interface ChatTurn {
   role: 'user' | 'assistant';
@@ -48,6 +60,10 @@ interface ChatTurn {
   question?: string;
   /** Set once a support ticket was filed from this turn. */
   supportRef?: string;
+  action?: CopilotActionProposal;
+  actionState?: ActionState;
+  actionOutcome?: CopilotActionExecutionResult['outcome'];
+  actionError?: string;
 }
 
 const SUGGESTIONS = [
@@ -74,6 +90,7 @@ export function CopilotPanel() {
   const [supportDest, setSupportDest] = useState('');
   const [supportBusy, setSupportBusy] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const executingActionIdsRef = useRef(new Set<string>());
   const activeEntity = activeEntityQuery(input, entities);
 
   useEffect(() => {
@@ -94,6 +111,92 @@ export function CopilotPanel() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ cacheId, vote }),
     }).catch(() => {});
+  };
+
+  const updateActionTurn = (
+    actionId: string,
+    update: Partial<
+      Pick<ChatTurn, 'actionState' | 'actionOutcome' | 'actionError'>
+    >
+  ) => {
+    setTurns((current) =>
+      current.map((turn) =>
+        turn.action?.id === actionId ? { ...turn, ...update } : turn
+      )
+    );
+  };
+
+  const cancelAction = (actionId: string) => {
+    if (executingActionIdsRef.current.has(actionId)) return;
+    updateActionTurn(actionId, {
+      actionState: 'cancelled',
+      actionError: undefined,
+    });
+  };
+
+  const confirmAction = async (actionId: string) => {
+    const turn = turns.find((item) => item.action?.id === actionId);
+    const action = turn?.action;
+    if (
+      !action ||
+      turn.actionState === 'running' ||
+      turn.actionState === 'completed' ||
+      turn.actionState === 'cancelled'
+    ) {
+      return;
+    }
+    if (executingActionIdsRef.current.has(actionId)) return;
+    executingActionIdsRef.current.add(actionId);
+
+    if (action.type === 'share_property') {
+      updateActionTurn(action.id, { actionState: 'completed' });
+      closePanel();
+      router.push(action.navigateTo);
+      return;
+    }
+
+    updateActionTurn(action.id, {
+      actionState: 'running',
+      actionError: undefined,
+    });
+    try {
+      const response = await fetch('/api/copilot/actions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          actionId: action.id,
+          type: action.type,
+          entityId: action.entity.id,
+          platform: 'web',
+        }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        data?: CopilotActionExecutionResult;
+        error?: string;
+      };
+      if (!response.ok || !payload.data) {
+        throw new Error(payload.error || 'Could not complete the event');
+      }
+      updateActionTurn(action.id, {
+        actionState: 'completed',
+        actionOutcome: payload.data.outcome,
+      });
+      window.dispatchEvent(
+        new CustomEvent(COPILOT_APPOINTMENT_COMPLETED_EVENT, {
+          detail: { appointmentId: payload.data.entityId },
+        })
+      );
+    } catch (error) {
+      updateActionTurn(action.id, {
+        actionState: 'failed',
+        actionError:
+          error instanceof Error
+            ? error.message
+            : 'Could not complete the event',
+      });
+    } finally {
+      executingActionIdsRef.current.delete(action.id);
+    }
   };
 
   const fileSupportTicket = async (turnIndex: number) => {
@@ -174,6 +277,7 @@ export function CopilotPanel() {
         navigateTo?: string;
         cacheId?: string;
         unsupported?: boolean;
+        action?: CopilotActionProposal;
       } = await res.json();
       setTurns((t) => [
         ...t,
@@ -183,6 +287,8 @@ export function CopilotPanel() {
           cacheId: data.cacheId,
           unsupported: data.unsupported,
           question: message,
+          action: data.action,
+          actionState: data.action ? 'pending' : undefined,
         },
       ]);
       if (data.tourId) {
@@ -301,6 +407,74 @@ export function CopilotPanel() {
               >
                 {turn.text}
               </div>
+              {turn.role === 'assistant' && turn.action && (
+                <div className="mt-2 rounded-xl border border-slate-700 bg-slate-900/70 p-3">
+                  <div className="flex items-start gap-2.5">
+                    <span className="bg-primary/15 text-primary flex h-8 w-8 shrink-0 items-center justify-center rounded-lg">
+                      {turn.action.type === 'complete_event' ? (
+                        <CalendarCheck2 className="h-4 w-4" />
+                      ) : (
+                        <Share2 className="h-4 w-4" />
+                      )}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-xs font-bold text-white">
+                        {turn.action.title}
+                      </span>
+                      <span className="mt-1 block text-[11px] leading-relaxed text-slate-400">
+                        {turn.action.description}
+                      </span>
+                    </span>
+                  </div>
+
+                  {turn.actionState === 'completed' ? (
+                    <p className="mt-2 flex items-start gap-1.5 text-[11px] text-emerald-400">
+                      <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                      {turn.action.type === 'share_property'
+                        ? 'The property share flow is ready. Nothing was sent automatically.'
+                        : turn.actionOutcome === 'already_completed'
+                          ? 'This event was already completed. No duplicate change was made.'
+                          : 'Done — the calendar event is marked completed.'}
+                    </p>
+                  ) : turn.actionState === 'cancelled' ? (
+                    <p className="mt-2 text-[11px] text-slate-500">
+                      Cancelled — nothing changed.
+                    </p>
+                  ) : (
+                    <>
+                      {turn.actionState === 'failed' && (
+                        <p className="mt-2 flex items-start gap-1.5 text-[11px] text-rose-400">
+                          <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                          {turn.actionError || 'Could not run this action.'}
+                        </p>
+                      )}
+                      <div className="mt-3 flex gap-2">
+                        <button
+                          type="button"
+                          disabled={turn.actionState === 'running'}
+                          onClick={() => void confirmAction(turn.action!.id)}
+                          className="bg-primary text-primary-foreground flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-bold disabled:opacity-50"
+                        >
+                          {turn.actionState === 'running' && (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          )}
+                          {turn.actionState === 'failed'
+                            ? 'Try again'
+                            : turn.action.confirmLabel}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={turn.actionState === 'running'}
+                          onClick={() => cancelAction(turn.action!.id)}
+                          className="rounded-lg border border-slate-700 px-3 py-1.5 text-[11px] font-semibold text-slate-400 disabled:opacity-50"
+                        >
+                          {t('common.cancel')}
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
               {/* Closes the loop on a "we can't do that" answer: the
                   request was logged for the product team. */}
               {turn.role === 'assistant' && turn.unsupported && (

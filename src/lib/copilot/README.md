@@ -15,6 +15,26 @@ full contact numbers. Selected `{ kind, id, label }` references are authorized
 again by `POST /api/copilot` before deterministic navigation. The trigram-backed
 search fields are defined in migration `20260902021006_copilot_entity_search`.
 
+## Confirmed actions
+
+Staff with agent-or-higher access can ask to mark one selected `&` calendar
+event completed or continue to sharing one selected `#` property. These are
+deterministic intents in `actions.ts`; free-form model output can never create a
+write proposal. Every proposal shows its exact target and requires a separate
+confirm tap. Viewers receive guidance without an action.
+
+Calendar completion calls `POST /api/copilot/actions`. Migration
+`20260902090235_copilot_confirmed_actions` installs the narrowly scoped RPC,
+rechecks membership at execution time, locks the event, rejects cancelled
+events, and records the before/after state in an append-only execution ledger.
+The proposal UUID is the idempotency key, so retries return the original result
+without a duplicate logical write.
+
+Property sharing is a confirmed navigation handoff, not a send action. Web and
+mobile open their existing share composer with the selected property; the user
+still chooses recipients/channel and confirms the actual outbound message in
+that flow.
+
 ## Platform awareness (mobile)
 
 The Expo app calls the same `/api/copilot` route with `platform:
