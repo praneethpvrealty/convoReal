@@ -122,14 +122,19 @@ export function resolveCopilotAction(
   message: string,
   entities: EntityReference[]
 ): CopilotActionResolution | null {
-  const complete = requestsCompletion(message);
+  const requestedCompletion = requestsCompletion(message);
   const hasSelectedProperty = entities.some(
     (entity) => entity.kind === 'property'
   );
   const hasSelectedEvent = entities.some((entity) => entity.kind === 'event');
+  const namesEvent =
+    /\b(?:calendar|event|events|appointment|appointments|visit|visits)\b/i.test(
+      message
+    );
   const namesProperty = /\b(?:property|properties|listing|listings)\b/i.test(
     message
   );
+  const complete = requestedCompletion && (hasSelectedEvent || namesEvent);
   const share =
     requestsShare(message) &&
     (hasSelectedProperty || (namesProperty && !hasSelectedEvent));

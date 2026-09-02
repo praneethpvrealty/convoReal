@@ -113,6 +113,18 @@ describe('Copilot actions', () => {
     ).toBeNull();
   });
 
+  it('leaves non-calendar completion requests to the normal help path', () => {
+    expect(resolveCopilotAction('Complete my profile', [])).toBeNull();
+    expect(
+      resolveCopilotAction('Finish setting up #JP Nagar Plot', [property])
+    ).toBeNull();
+    expect(resolveCopilotAction('Complete the calendar event', [])).toEqual({
+      kind: 'guidance',
+      reply:
+        'Select one calendar event with &, then ask me to mark it completed.',
+    });
+  });
+
   it('does not treat generic sends for other entities as property shares', () => {
     expect(resolveCopilotAction('Send @Alice a message', [contact])).toBeNull();
     expect(
