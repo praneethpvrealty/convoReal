@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 
 import { BottomSheet, sheetScrollArea } from '@/components/sheet';
+import { CopilotEntityPicker } from '@/components/copilot-entity-picker';
 import { TourBodyText } from '@/components/copilot-tour';
 import { useAuthStore } from '@/lib/auth-store';
 import { useT } from '@/lib/use-t';
@@ -23,6 +24,13 @@ import {
   type CopilotAnswer,
   type CopilotCoverage,
 } from '@/lib/copilot';
+import {
+  activeCopilotEntityQuery,
+  copilotEntitySymbol,
+  insertCopilotEntity,
+  type CopilotEntityReference,
+  type CopilotEntitySuggestion,
+} from '@/lib/copilot-entities';
 import { MOBILE_TOURS } from '@/lib/copilot-tours';
 import { friendlyError } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
@@ -72,6 +80,7 @@ export function CopilotSheet({
 
   const [turns, setTurns] = useState<SheetTurn[]>([]);
   const [input, setInput] = useState('');
+  const [entities, setEntities] = useState<CopilotEntityReference[]>([]);
   const [busy, setBusy] = useState(false);
   const [showGuides, setShowGuides] = useState(true);
   const [supportFor, setSupportFor] = useState<number | null>(null);
@@ -81,6 +90,7 @@ export function CopilotSheet({
   const [supportDest, setSupportDest] = useState('');
   const [supportBusy, setSupportBusy] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
+  const activeEntity = activeCopilotEntityQuery(input, entities);
 
   useEffect(() => {
     const timer = setTimeout(
@@ -153,9 +163,16 @@ export function CopilotSheet({
       .slice(-6)
       .map((t) => ({ role: t.role, text: t.text }));
     setTurns((t) => [...t, { role: 'user', text: message }]);
+    const messageEntities = entities;
+    setEntities([]);
     setBusy(true);
     try {
-      const answer = await askCopilot({ message, pathname, history });
+      const answer = await askCopilot({
+        message,
+        pathname,
+        history,
+        entities: messageEntities,
+      });
       setTurns((t) => [
         ...t,
         { role: 'assistant', text: answer.reply, answer, question: message },
@@ -172,6 +189,31 @@ export function CopilotSheet({
     } finally {
       setBusy(false);
     }
+  };
+
+  const updateInput = (value: string) => {
+    setInput(value);
+    setEntities((current) =>
+      current.filter((entity) =>
+        value
+          .toLocaleLowerCase()
+          .includes(
+            `${copilotEntitySymbol(entity.kind)}${entity.label}`.toLocaleLowerCase()
+          )
+      )
+    );
+  };
+
+  const selectEntity = (entity: CopilotEntitySuggestion) => {
+    if (!activeEntity) return;
+    haptic.tap();
+    setInput((value) => insertCopilotEntity(value, activeEntity, entity));
+    setEntities((current) => [
+      ...current.filter(
+        (item) => !(item.kind === entity.kind && item.id === entity.id)
+      ),
+      { kind: entity.kind, id: entity.id, label: entity.label },
+    ]);
   };
 
   const actionChip = (label: string, icon: keyof typeof Ionicons.glyphMap, onPress: () => void) => (
@@ -470,38 +512,74 @@ export function CopilotSheet({
         ) : null}
       </ScrollView>
 
+      {activeEntity ? (
+        <CopilotEntityPicker active={activeEntity} onSelect={selectEntity} />
+      ) : null}
+
       <View style={[styles.composer, { borderTopColor: colors.border }]}>
-        <TextInput
-          value={input}
-          onChangeText={setInput}
-          placeholder={t('copilot.placeholder')}
-          placeholderTextColor={colors.textFaint}
-          maxLength={500}
-          accessibilityLabel="Ask the helper"
-          onSubmitEditing={() => void send(input)}
-          returnKeyType="send"
-          style={[
-            styles.input,
-            {
-              fontFamily: f.regular,
-              color: colors.text,
-              borderColor: colors.border,
-              backgroundColor: colors.surfaceSunken,
-            },
-          ]}
-        />
-        <Pressable
-          onPress={() => void send(input)}
-          disabled={busy || !input.trim()}
-          accessibilityRole="button"
-          accessibilityLabel="Send"
-          style={[
-            styles.sendBtn,
-            { backgroundColor: colors.primary, opacity: busy || !input.trim() ? 0.4 : 1 },
-          ]}
-        >
-          <Ionicons name="send" size={16} color={colors.onPrimary} />
-        </Pressable>
+        {entities.length > 0 ? (
+          <View style={styles.entityChips}>
+            {entities.map((entity) => (
+              <Pressable
+                key={`${entity.kind}:${entity.id}`}
+                onPress={() => {
+                  const token = `${copilotEntitySymbol(entity.kind)}${entity.label}`;
+                  updateInput(input.replace(token, '').replace(/\s{2,}/g, ' '));
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={`Remove ${entity.label}`}
+                style={[
+                  styles.entityChip,
+                  { backgroundColor: colors.primarySoft },
+                ]}
+              >
+                <Text
+                  numberOfLines={1}
+                  style={[
+                    styles.entityChipLabel,
+                    { color: colors.primary, fontFamily: f.semibold },
+                  ]}
+                >
+                  {copilotEntitySymbol(entity.kind)}{entity.label}
+                </Text>
+                <Ionicons name="close" size={13} color={colors.primary} />
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
+        <View style={styles.composerRow}>
+          <TextInput
+            value={input}
+            onChangeText={updateInput}
+            placeholder="Ask… Use # properties, @ contacts, & events"
+            placeholderTextColor={colors.textFaint}
+            maxLength={500}
+            accessibilityLabel="Ask the helper"
+            onSubmitEditing={() => void send(input)}
+            returnKeyType="send"
+            style={[
+              styles.input,
+              {
+                fontFamily: f.regular,
+                color: colors.text,
+                borderColor: colors.border,
+                backgroundColor: colors.surfaceSunken,
+              },
+            ]}
+          />
+          <Pressable
+            onPress={() => void send(input)}
+            disabled={busy || !input.trim()}
+            accessibilityRole="button"
+            accessibilityLabel="Send"
+            style={[
+              styles.sendBtn,
+              { backgroundColor: colors.primary, opacity: busy || !input.trim() ? 0.4 : 1 },
+            ]}
+          >
+            <Ionicons name="send" size={16} color={colors.onPrimary} />
+          </Pressable>
+        </View>
       </View>
     </BottomSheet>
   );
@@ -585,13 +663,23 @@ const styles = StyleSheet.create({
   guideTitle: { fontSize: 13.5 },
   guideDesc: { fontSize: 12, marginTop: 1 },
   composer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
     borderTopWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.sm + 2,
+    gap: spacing.sm,
   },
+  composerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  entityChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 5 },
+  entityChip: {
+    maxWidth: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+  },
+  entityChipLabel: { maxWidth: 250, fontSize: 11.5 },
   input: {
     flex: 1,
     borderWidth: 1,

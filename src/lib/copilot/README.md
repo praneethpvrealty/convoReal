@@ -6,6 +6,15 @@ subscribers — no credit burn. See
 [`docs/GUIDE_MOBILE_APPLICATION_PORTABILITY.md`](../../../docs/GUIDE_MOBILE_APPLICATION_PORTABILITY.md)
 for the web/native split.
 
+## Entity references
+
+Staff can type `#` for properties, `@` for contacts, and `&` for calendar
+events. Both clients call `GET /api/copilot/entities`; the route applies the
+caller's RLS and account scope, returns a bounded ranked list, and never sends
+full contact numbers. Selected `{ kind, id, label }` references are authorized
+again by `POST /api/copilot` before deterministic navigation. The trigram-backed
+search fields are defined in migration `20260902021006_copilot_entity_search`.
+
 ## Platform awareness (mobile)
 
 The Expo app calls the same `/api/copilot` route with `platform:

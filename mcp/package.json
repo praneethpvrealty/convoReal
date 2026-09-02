@@ -10,7 +10,7 @@
     "convoreal-mcp-server": "dist/index.js"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.0.0"
   },
   "scripts": {
     "build": "tsc",

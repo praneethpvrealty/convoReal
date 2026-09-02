@@ -15,10 +15,17 @@
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { runInNewContext } from 'node:vm';
 
 import { describe, expect, it } from 'vitest';
+import * as ts from 'typescript';
 
 import { PLAN_CONFIG, PLAN_ORDER } from '@/lib/billing/plan-config';
+import {
+  activeEntityQuery,
+  insertEntityReference,
+  type EntityReference,
+} from '@/lib/copilot/entities';
 import { TOURS } from '@/lib/copilot/tours';
 import { MESSAGES } from '@/lib/i18n/messages';
 import {
@@ -87,6 +94,29 @@ function mobileSource(relativePath: string): string {
   return readFileSync(join(process.cwd(), 'mobile', relativePath), 'utf8');
 }
 
+function mobileCopilotEntityComposer(): {
+  activeCopilotEntityQuery: (
+    input: string,
+    selected?: EntityReference[]
+  ) => ReturnType<typeof activeEntityQuery>;
+  insertCopilotEntity: typeof insertEntityReference;
+} {
+  const output = ts.transpileModule(mobileSource('lib/copilot-entities.ts'), {
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2022,
+    },
+  }).outputText;
+  const sandboxModule = { exports: {} };
+  runInNewContext(output, {
+    module: sandboxModule,
+    exports: sandboxModule.exports,
+  });
+  return sandboxModule.exports as ReturnType<
+    typeof mobileCopilotEntityComposer
+  >;
+}
+
 /** The `[ ... ]` body of an `export const <name> = [ ... ];` block. */
 function constBody(source: string, name: string): string {
   const start = source.indexOf(`export const ${name}`);
@@ -108,6 +138,38 @@ function stringLiterals(block: string): string[] {
     block.matchAll(/'((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)"/g)
   ).map((m) => (m[1] ?? m[2]).replace(/\\'/g, "'").replace(/\\"/g, '"'));
 }
+
+describe('mobile Copilot entity tokens mirror the web composer', () => {
+  const mobile = mobileCopilotEntityComposer();
+  const selected: EntityReference[] = [
+    {
+      kind: 'property',
+      id: '11111111-1111-4111-8111-111111111111',
+      label: 'JP Nagar Plot',
+    },
+  ];
+
+  it.each([
+    'Open #JP Nag',
+    'Message @',
+    'View &Site visit',
+    'No entity token',
+    'Open #JP Nagar Plot ',
+  ])('parses %s identically', (input) => {
+    expect(mobile.activeCopilotEntityQuery(input, selected)).toEqual(
+      activeEntityQuery(input, selected)
+    );
+  });
+
+  it('inserts the same canonical token', () => {
+    const input = 'Please open #jp';
+    const webActive = activeEntityQuery(input, selected)!;
+    const mobileActive = mobile.activeCopilotEntityQuery(input, selected)!;
+    expect(mobile.insertCopilotEntity(input, mobileActive, selected[0])).toBe(
+      insertEntityReference(input, webActive, selected[0])
+    );
+  });
+});
 
 describe('mobile/lib/plan-meta.ts mirrors plan-config', () => {
   const source = mobileSource('lib/plan-meta.ts');

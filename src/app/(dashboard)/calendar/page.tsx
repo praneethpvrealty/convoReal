@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -57,6 +57,11 @@ import {
 } from "@/components/calendar/event-types";
 
 const EMPTY_EXTRAS: Record<EventFieldKey, string> = { agenda: "", minutes: "", outcome: "" };
+
+function formatDateTimeLocal(d: Date) {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
 interface Todo {
   id: string;
@@ -125,6 +130,8 @@ export default function CalendarPage() {
   const [memberFilter, setMemberFilter] = useState<string>("all");
 
   const searchParams = useSearchParams();
+  const requestedEventId = searchParams.get("eventId");
+  const openedEventIdRef = useRef<string | null>(null);
   const [todoFilter, setTodoFilter] = useState<"all" | "priority">("all");
 
   useEffect(() => {
@@ -363,11 +370,6 @@ export default function CalendarPage() {
     setCurrentDate(new Date());
   };
 
-  const formatDateTimeLocal = (d: Date) => {
-    const pad = (n: number) => String(n).padStart(2, "0");
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  };
-
   // Appointment modal edit/create
   const openNewApptModal = (date?: Date, assignedTo?: string) => {
     setSelectedAppt(null);
@@ -392,7 +394,7 @@ export default function CalendarPage() {
     setIsApptModalOpen(true);
   };
 
-  const openEditApptModal = (appt: CalendarEvent) => {
+  const openEditApptModal = useCallback((appt: CalendarEvent) => {
     setSelectedAppt(appt);
     setApptTitle(appt.title);
     setApptDesc(appt.description || "");
@@ -417,7 +419,16 @@ export default function CalendarPage() {
     setApptStartTime(formatDateTimeLocal(new Date(appt.start_time)));
     setApptEndTime(formatDateTimeLocal(new Date(appt.end_time)));
     setIsApptModalOpen(true);
-  };
+  }, []);
+
+  useEffect(() => {
+    if (!requestedEventId || openedEventIdRef.current === requestedEventId) return;
+    const appointment = appointments.find((item) => item.id === requestedEventId);
+    if (!appointment) return;
+    openedEventIdRef.current = requestedEventId;
+    setCurrentDate(new Date(appointment.start_time));
+    openEditApptModal(appointment);
+  }, [appointments, openEditApptModal, requestedEventId]);
 
   const saveAppointment = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -163,7 +163,7 @@ Web (`src/`) and mobile (`mobile/`) are two surfaces of one product, not two pro
 
 | Layer             | Technology                                                      | Notes                                                                                     |
 | ----------------- | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| Runtime           | Node.js >= 20                                                   | `engines` in `package.json`; CI runs Node 20                                              |
+| Runtime           | Node.js >= 22                                                   | `engines` in `package.json`; CI runs Node 22                                              |
 | App server        | Next.js 16.2.6 (App Router)                                     | `next.config.ts` at project root                                                          |
 | Language          | TypeScript ^6                                                   | `tsconfig.json` strict mode, `@/` alias                                                   |
 | React             | 19.2.4                                                          | Server components by default                                                              |
@@ -692,7 +692,7 @@ Meta Cloud API
 
 ## 12. Testing
 
-- **Framework**: Vitest.
+- **Framework**: Vitest on Node 22+.
 - **Unit tests**: `src/**/*.test.ts` / `src/**/*.test.tsx`. Run with `npm test`. They use dummy secrets and do not touch the network.
 - **Integration tests**: `src/**/*.integration.test.ts`. Run with `npm run test:integration`. They hit the live Supabase project using `SUPABASE_SERVICE_ROLE_KEY` and skip if credentials are absent.
 - **Mobile tests**: `mobile/lib/**/*.test.ts`. Run with `cd mobile && npm test` (separate Vitest config and dependency tree). Pure logic only — modules that import Supabase, Expo or React Native have no runtime under a plain Node runner.
