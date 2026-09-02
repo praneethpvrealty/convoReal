@@ -31,6 +31,7 @@ import {
   ThumbsUp,
   Lock,
   Tag,
+  Copy,
   Users,
   ShieldCheck,
 } from 'lucide-react';
@@ -78,6 +79,7 @@ interface PropertyListProps {
   loading: boolean;
   onView: (property: Property) => void;
   onEdit: (property: Property) => void;
+  onDuplicate?: (property: Property) => Promise<void>;
   onDelete: (property: Property) => void;
   onTogglePublish: (property: Property) => Promise<void>;
   onToggleStar?: (property: Property) => Promise<void>;
@@ -115,6 +117,7 @@ export function PropertyList({
   loading,
   onView,
   onEdit,
+  onDuplicate,
   onDelete,
   onTogglePublish,
   onToggleStar,
@@ -160,6 +163,17 @@ export function PropertyList({
     }
   }
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
+
+  async function handleDuplicate(property: Property) {
+    if (!onDuplicate || duplicatingId) return;
+    setDuplicatingId(property.id);
+    try {
+      await onDuplicate(property);
+    } finally {
+      setDuplicatingId(null);
+    }
+  }
 
   // Format currency helper (Lakhs and Crores standard for real estate)
   function formatPrice(amount: number) {
@@ -302,7 +316,7 @@ export function PropertyList({
                   type="button"
                   onClick={() => onToggleSelected(property.id)}
                   title="Select for bulk tagging"
-                  className="absolute top-2 left-2 z-10 rounded-full bg-slate-950/70 p-1 text-slate-300 hover:text-white cursor-pointer"
+                  className="absolute top-2 left-2 z-10 cursor-pointer rounded-full bg-slate-950/70 p-1 text-slate-300 hover:text-white"
                 >
                   {selectedIds?.includes(property.id) ? (
                     <CheckSquare className="text-primary size-4" />
@@ -1235,6 +1249,34 @@ export function PropertyList({
                       </TooltipTrigger>
                       <TooltipContent side="top">
                         Edit property details
+                      </TooltipContent>
+                    </Tooltip>
+                  )}
+                  {canEdit && onDuplicate && (
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={duplicatingId === property.id}
+                            onClick={() => handleDuplicate(property)}
+                            className="h-8 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white"
+                          />
+                        }
+                      >
+                        <>
+                          {duplicatingId === property.id ? (
+                            <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+                          ) : (
+                            <Copy className="mr-1.5 size-3.5" />
+                          )}{' '}
+                          Duplicate
+                        </>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">
+                        Copy the details into a new listing (photos excluded)
                       </TooltipContent>
                     </Tooltip>
                   )}

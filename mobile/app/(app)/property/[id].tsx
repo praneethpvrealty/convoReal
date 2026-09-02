@@ -157,7 +157,8 @@ export default function PropertyDetailScreen() {
   const isLand = isLandType(propertyType);
   const isApartment = isApartmentType(propertyType);
   const showBedsBaths = hasBedsBaths(propertyType);
-  const showCommercialBuildingFields = hasCommercialBuildingFields(propertyType);
+  const showCommercialBuildingFields =
+    hasCommercialBuildingFields(propertyType);
   const place = [property.location, property.sublocality, property.city]
     .filter(Boolean)
     .join(', ');
@@ -292,7 +293,9 @@ export default function PropertyDetailScreen() {
     !isApartment && property.dimensions
       ? { label: 'Dimensions', value: property.dimensions }
       : null,
-    !isApartment && frontage ? { label: 'Frontage', value: `${frontage} Feet` } : null,
+    !isApartment && frontage
+      ? { label: 'Frontage', value: `${frontage} Feet` }
+      : null,
     !isApartment && depth ? { label: 'Depth', value: `${depth} Feet` } : null,
     !isApartment && property.road_width
       ? {
@@ -597,7 +600,10 @@ export default function PropertyDetailScreen() {
                     key={i}
                     style={[
                       styles.planCard,
-                      { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+                      {
+                        backgroundColor: colors.glass,
+                        borderColor: colors.glassBorder,
+                      },
                     ]}
                   >
                     <Image
@@ -607,17 +613,27 @@ export default function PropertyDetailScreen() {
                     />
                     <Text
                       numberOfLines={1}
-                      style={{ fontSize: 12, fontFamily: f.bold, color: colors.text }}
+                      style={{
+                        fontSize: 12,
+                        fontFamily: f.bold,
+                        color: colors.text,
+                      }}
                     >
                       {fp.floor || `${isLand ? 'Sketch' : 'Floor'} ${i + 1}`}
                     </Text>
                     {fp.area_sqft || fp.notes ? (
                       <Text
                         numberOfLines={1}
-                        style={{ fontSize: 11, fontFamily: f.regular, color: colors.textMuted }}
+                        style={{
+                          fontSize: 11,
+                          fontFamily: f.regular,
+                          color: colors.textMuted,
+                        }}
                       >
                         {[
-                          fp.area_sqft ? `${fp.area_sqft.toLocaleString('en-IN')} Sq.Ft.` : '',
+                          fp.area_sqft
+                            ? `${fp.area_sqft.toLocaleString('en-IN')} Sq.Ft.`
+                            : '',
                           fp.notes,
                         ]
                           .filter(Boolean)
@@ -1110,7 +1126,7 @@ export default function PropertyDetailScreen() {
  */
 function ActionRail({ property }: { property: Property }) {
   const { colors, fonts: f } = useTheme();
-  const [busy, setBusy] = useState<'archive' | 'delete' | null>(null);
+  const [busy, setBusy] = useState<'archive' | 'delete' | 'duplicate' | null>(null);
   const [sharing, setSharing] = useState(false);
   const [flyerOpen, setFlyerOpen] = useState(false);
   const archived = property.status === 'Archived';
@@ -1198,6 +1214,47 @@ function ActionRail({ property }: { property: Property }) {
     }
   }
 
+  async function doDuplicate() {
+    setBusy('duplicate');
+    try {
+      const copy = await apiFetch<{ id: string }>(
+        `/api/properties/${property.id}/duplicate`,
+        { method: 'POST' }
+      );
+      haptic.success();
+      queryClient.invalidateQueries({ queryKey: ['properties'] });
+      router.push(`/(app)/property-edit?id=${copy.id}`);
+    } catch (e) {
+      haptic.warn();
+      show({
+        title: 'Could not duplicate',
+        message: friendlyError(
+          e instanceof ApiError ? e.message : 'Try again.'
+        ),
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  function confirmDuplicate() {
+    show({
+      title: 'Duplicate this listing?',
+      message:
+        'Creates an unpublished copy of the details — useful for another unit in the same society. Photos, documents and videos are not copied.',
+      actions: [
+        { label: 'Cancel', variant: 'muted', onPress: close },
+        {
+          label: 'Duplicate',
+          onPress: () => {
+            close();
+            doDuplicate();
+          },
+        },
+      ],
+    });
+  }
+
   const actions = [
     {
       key: 'edit',
@@ -1207,6 +1264,12 @@ function ActionRail({ property }: { property: Property }) {
         haptic.tap();
         router.push(`/(app)/property-edit?id=${property.id}`);
       },
+    },
+    {
+      key: 'duplicate',
+      icon: 'copy-outline' as const,
+      label: 'Duplicate',
+      onPress: confirmDuplicate,
     },
     {
       key: 'share',
@@ -1493,18 +1556,30 @@ function MatchesSection({
         <View
           style={[
             styles.audienceBanner,
-            { backgroundColor: colors.primarySoft, borderColor: colors.primary },
+            {
+              backgroundColor: colors.primarySoft,
+              borderColor: colors.primary,
+            },
           ]}
         >
           <Ionicons name="checkmark-circle" size={18} color={colors.primary} />
           <View style={{ flex: 1, gap: 2 }}>
-            <Text style={{ fontSize: 13, fontFamily: f.bold, color: colors.text }}>
+            <Text
+              style={{ fontSize: 13, fontFamily: f.bold, color: colors.text }}
+            >
               {appliedAudience.ids.length} contact
               {appliedAudience.ids.length === 1 ? '' : 's'} from{' '}
               {audienceListingLabel(appliedAudience.listing)} selected
             </Text>
-            <Text style={{ fontSize: 11.5, lineHeight: 16, color: colors.textMuted }}>
-              Everyone who enquired about or viewed that listing is ticked below.
+            <Text
+              style={{
+                fontSize: 11.5,
+                lineHeight: 16,
+                color: colors.textMuted,
+              }}
+            >
+              Everyone who enquired about or viewed that listing is ticked
+              below.
               {appliedAudience.unreachable > 0
                 ? ` ${appliedAudience.unreachable} skipped — no WhatsApp number.`
                 : ''}
@@ -1521,7 +1596,13 @@ function MatchesSection({
             accessibilityLabel="Undo the listing audience selection"
             hitSlop={8}
           >
-            <Text style={{ fontSize: 11.5, fontFamily: f.bold, color: colors.primary }}>
+            <Text
+              style={{
+                fontSize: 11.5,
+                fontFamily: f.bold,
+                color: colors.primary,
+              }}
+            >
               Undo
             </Text>
           </Pressable>
@@ -1541,9 +1622,15 @@ function MatchesSection({
             { backgroundColor: colors.glass, borderColor: colors.glassBorder },
           ]}
         >
-          <Ionicons name="people-circle-outline" size={18} color={colors.primary} />
+          <Ionicons
+            name="people-circle-outline"
+            size={18}
+            color={colors.primary}
+          />
           <View style={{ flex: 1, gap: 1 }}>
-            <Text style={{ fontSize: 13, fontFamily: f.bold, color: colors.text }}>
+            <Text
+              style={{ fontSize: 13, fontFamily: f.bold, color: colors.text }}
+            >
               Share with a listing&apos;s audience
             </Text>
             <Text style={{ fontSize: 11.5, color: colors.textMuted }}>
@@ -1771,7 +1858,9 @@ function MatchesSection({
                       ]}
                     >
                       <Ionicons
-                        name={shared ? 'refresh-outline' : 'paper-plane-outline'}
+                        name={
+                          shared ? 'refresh-outline' : 'paper-plane-outline'
+                        }
                         size={15}
                         color={colors.primary}
                       />
