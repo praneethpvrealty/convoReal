@@ -1121,7 +1121,12 @@ export default function PropertyDetailScreen() {
         property={property}
         contacts={shareTo ?? undefined}
         visible={shareTo !== null}
-        onClose={() => setShareTo(null)}
+        onClose={() => {
+          setShareTo(null);
+          if (shareRequest) {
+            router.replace(`/(app)/property/${property.id}`);
+          }
+        }}
         onShared={(ids) => {
           setSelectedMatchIds((prev) =>
             prev.filter((contactId) => !ids.includes(contactId))

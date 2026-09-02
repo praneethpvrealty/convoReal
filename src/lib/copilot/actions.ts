@@ -102,6 +102,15 @@ function namesExistingEventTarget(message: string): boolean {
   );
 }
 
+function referencesSelectedEventTarget(message: string): boolean {
+  return (
+    /\b(?:complete|finish)\s+(?:the\s+)?&/i.test(message) ||
+    /\b(?:mark|set)\s+(?:the\s+)?&[\s\S]{0,240}\b(?:complete|completed|done|finished)\b/i.test(
+      message
+    )
+  );
+}
+
 function requestsShare(message: string): boolean {
   const directShare =
     /^\s*(?:\d+\s*[.)-]\s*)?(?:please\s+)?(?:open\s*(?:\/|and)\s*)?(?:share|send|forward)\b/i.test(
@@ -149,7 +158,8 @@ export function resolveCopilotAction(
   );
   const complete =
     requestedCompletion &&
-    (hasSelectedEvent || namesExistingEventTarget(message));
+    (referencesSelectedEventTarget(message) ||
+      namesExistingEventTarget(message));
   const share =
     requestsShare(message) &&
     (hasSelectedProperty || (namesProperty && !hasSelectedEvent));
