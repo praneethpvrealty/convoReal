@@ -11,8 +11,7 @@ ALTER TABLE public.properties
       coalesce(city, '') || ' ' ||
       coalesce(project, '') || ' ' ||
       coalesce(type, '') || ' ' ||
-      coalesce(listing_type, '') || ' ' ||
-      coalesce(tags_text, '')
+      coalesce(listing_type, '')
     )
   ) STORED;
 
