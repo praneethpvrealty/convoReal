@@ -517,6 +517,28 @@ export default function InventoryPage() {
     }
   }
 
+  async function handleDuplicateClick(property: Property) {
+    try {
+      const response = await fetch(`/api/properties/${property.id}/duplicate`, {
+        method: 'POST',
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Failed to duplicate property');
+      }
+      toast.success('Listing duplicated — photos were not copied');
+      refreshInventory();
+      setSelectedProperty(payload);
+      setFormViewOnly(false);
+      setFormInitialTab('details');
+      setFormOpen(true);
+    } catch (err: unknown) {
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to duplicate property'
+      );
+    }
+  }
+
   // Handle add click
   function handleAddClick() {
     setSelectedProperty(null);
@@ -1090,14 +1112,14 @@ export default function InventoryPage() {
                 setSearch(e.target.value);
               }}
               placeholder="e.g. residential properties > 10 Cr, 3 BHK villa"
-              className="h-9 border-slate-700 bg-slate-800 pl-9 pr-9 text-white placeholder:text-slate-500"
+              className="h-9 border-slate-700 bg-slate-800 pr-9 pl-9 text-white placeholder:text-slate-500"
             />
             {search && (
               <button
                 type="button"
                 onClick={clearSearchQuery}
                 aria-label="Clear inventory search query"
-                className="text-slate-400 hover:text-white absolute right-2.5 top-1/2 -translate-y-1/2"
+                className="absolute top-1/2 right-2.5 -translate-y-1/2 text-slate-400 hover:text-white"
               >
                 <X className="size-3.5" />
               </button>
@@ -1292,14 +1314,14 @@ export default function InventoryPage() {
                   setSearch(e.target.value);
                 }}
                 placeholder="e.g. residential properties > 10 Cr"
-                className="h-10 border-slate-700 bg-slate-800 pl-9 pr-9 text-white placeholder:text-slate-500"
+                className="h-10 border-slate-700 bg-slate-800 pr-9 pl-9 text-white placeholder:text-slate-500"
               />
               {search && (
                 <button
                   type="button"
                   onClick={clearSearchQuery}
                   aria-label="Clear mobile inventory search query"
-                  className="text-slate-400 hover:text-white absolute right-2.5 top-1/2 -translate-y-1/2"
+                  className="absolute top-1/2 right-2.5 -translate-y-1/2 text-slate-400 hover:text-white"
                 >
                   <X className="size-3.5" />
                 </button>
@@ -1423,6 +1445,7 @@ export default function InventoryPage() {
             loading={loading}
             onView={handleViewClick}
             onEdit={handleEditClick}
+            onDuplicate={handleDuplicateClick}
             onDelete={handleDeleteClick}
             onTogglePublish={handleTogglePublish}
             onToggleStar={handleToggleStar}
