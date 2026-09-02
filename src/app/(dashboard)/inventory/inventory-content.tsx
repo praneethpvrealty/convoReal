@@ -101,7 +101,7 @@ export default function InventoryPage() {
   const [search, setSearch] = useState(initialSearch);
   const [debouncedSearch, setDebouncedSearch] = useState(initialSearch);
   const [page, setPage] = useState(initialPage);
-  const [hasAutoOpened, setHasAutoOpened] = useState(false);
+  const [autoOpenedKey, setAutoOpenedKey] = useState<string | null>(null);
 
   // Tiered location search: picking a locality shows exact matches first,
   // then properties within radiusKm sorted by distance.
@@ -362,22 +362,34 @@ export default function InventoryPage() {
     }
   }, [page, searchParams, router]);
 
-  // Automatically open property form modal if propertyId is specified in query parameters.
-  // The id is read from the live URL (window.location) as well as useSearchParams: on
-  // cached/prerendered page loads useSearchParams can hydrate with empty params, which left
-  // deep links (e.g. the "View it in your dashboard" link from the WhatsApp chatbot) silently
-  // landing on the list instead of opening the property. Opening always goes through a fresh
-  // fetch so it works even when the property is not on the currently loaded page.
   useEffect(() => {
-    if (hasAutoOpened) return;
-    const pid =
-      searchParams?.get('propertyId') ||
-      (typeof window !== 'undefined'
-        ? new URLSearchParams(window.location.search).get('propertyId')
-        : null);
-    if (!pid) return;
+    const liveParams =
+      typeof window !== 'undefined'
+        ? new URLSearchParams(window.location.search)
+        : null;
+    const sharePid =
+      searchParams?.get('sharePropertyId') ||
+      liveParams?.get('sharePropertyId');
+    const viewPid =
+      searchParams?.get('propertyId') || liveParams?.get('propertyId');
+    const pid = sharePid || viewPid;
+    if (!pid) {
+      if (autoOpenedKey) setAutoOpenedKey(null);
+      return;
+    }
+    const mode = sharePid ? 'share' : 'view';
+    const actionId =
+      searchParams?.get('copilotAction') ||
+      liveParams?.get('copilotAction') ||
+      '';
+    const requestKey = `${mode}:${pid}:${actionId}`;
+    if (autoOpenedKey === requestKey) return;
+    setAutoOpenedKey(requestKey);
 
-    setHasAutoOpened(true);
+    if (mode === 'share' && !canEdit) {
+      toast.error('You need agent access to share a property.');
+      return;
+    }
 
     const loadAndOpen = async () => {
       let prop = properties.find(
@@ -396,16 +408,21 @@ export default function InventoryPage() {
         }
       }
       if (prop) {
-        setSelectedProperty(prop);
-        setFormViewOnly(true);
-        setFormOpen(true);
+        if (mode === 'share') {
+          setShareProperty(prop);
+          setShareOpen(true);
+        } else {
+          setSelectedProperty(prop);
+          setFormViewOnly(true);
+          setFormOpen(true);
+        }
       } else {
         toast.error('Could not open that property. It may have been removed.');
       }
     };
 
-    loadAndOpen();
-  }, [searchParams, properties, hasAutoOpened]);
+    void loadAndOpen();
+  }, [searchParams, properties, autoOpenedKey, canEdit]);
 
   // Keep active modal property states in sync with the fetched properties list.
   // Compares by `updated_at`, not object identity — every fetchProperties()
@@ -573,6 +590,26 @@ export default function InventoryPage() {
   function handleShareClick(property: Property) {
     setShareProperty(property);
     setShareOpen(true);
+  }
+
+  function handleShareOpenChange(open: boolean) {
+    setShareOpen(open);
+    if (!open) {
+      const params = new URLSearchParams(
+        typeof window !== 'undefined'
+          ? window.location.search
+          : searchParams?.toString() || ''
+      );
+      const consumedCopilotHandoff =
+        params.has('sharePropertyId') || params.has('copilotAction');
+      if (consumedCopilotHandoff) {
+        params.delete('sharePropertyId');
+        params.delete('copilotAction');
+        const queryString = params.toString();
+        replaceUrl(router, `/inventory${queryString ? `?${queryString}` : ''}`);
+      }
+      setShareProperty(null);
+    }
   }
 
   // Handle email share click
@@ -1508,7 +1545,7 @@ export default function InventoryPage() {
       {/* Share Property Dialog */}
       <PropertyShareDialog
         open={shareOpen}
-        onOpenChange={setShareOpen}
+        onOpenChange={handleShareOpenChange}
         property={shareProperty}
         onSaved={() => refreshInventory()}
         onPromote={META_ADS_ENABLED ? handlePromoteClick : undefined}

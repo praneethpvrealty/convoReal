@@ -20,8 +20,10 @@ import {
   askCopilot,
   appHrefForWebRoute,
   createSupportTicket,
+  executeCopilotAction,
   sendCopilotFeedback,
   type CopilotAnswer,
+  type CopilotActionExecutionResult,
   type CopilotCoverage,
 } from '@/lib/copilot';
 import {
@@ -34,7 +36,15 @@ import {
 import { MOBILE_TOURS } from '@/lib/copilot-tours';
 import { friendlyError } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
+import { queryClient } from '@/lib/query';
 import { radius, spacing, useTheme } from '@/lib/theme';
+
+type ActionState =
+  | 'pending'
+  | 'running'
+  | 'completed'
+  | 'cancelled'
+  | 'failed';
 
 // ------------------------------------------------------------------
 // The helper chat, mobile edition. Same brain as the web panel (the
@@ -56,6 +66,9 @@ interface SheetTurn {
   supportRef?: string;
   supportChannel?: 'whatsapp' | 'email';
   voted?: 'up' | 'down';
+  actionState?: ActionState;
+  actionOutcome?: CopilotActionExecutionResult['outcome'];
+  actionError?: string;
 }
 
 const SUGGESTIONS = [
@@ -90,6 +103,7 @@ export function CopilotSheet({
   const [supportDest, setSupportDest] = useState('');
   const [supportBusy, setSupportBusy] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
+  const executingActionIdsRef = useRef(new Set<string>());
   const activeEntity = activeCopilotEntityQuery(input, entities);
 
   useEffect(() => {
@@ -216,6 +230,93 @@ export function CopilotSheet({
     ]);
   };
 
+  const updateActionTurn = (
+    actionId: string,
+    update: Partial<
+      Pick<SheetTurn, 'actionState' | 'actionOutcome' | 'actionError'>
+    >
+  ) => {
+    setTurns((current) =>
+      current.map((turn) =>
+        turn.answer?.action?.id === actionId ? { ...turn, ...update } : turn
+      )
+    );
+  };
+
+  const cancelAction = (actionId: string) => {
+    if (executingActionIdsRef.current.has(actionId)) return;
+    haptic.tap();
+    updateActionTurn(actionId, {
+      actionState: 'cancelled',
+      actionError: undefined,
+    });
+  };
+
+  const confirmAction = async (actionId: string) => {
+    const turn = turns.find((item) => item.answer?.action?.id === actionId);
+    const action = turn?.answer?.action;
+    if (
+      !action ||
+      turn.actionState === 'running' ||
+      turn.actionState === 'completed' ||
+      turn.actionState === 'cancelled'
+    ) {
+      return;
+    }
+    if (executingActionIdsRef.current.has(actionId)) return;
+    executingActionIdsRef.current.add(actionId);
+
+    if (action.type === 'share_property') {
+      const destination = appHrefForWebRoute(action.navigateTo);
+      if (!destination) {
+        executingActionIdsRef.current.delete(action.id);
+        updateActionTurn(action.id, {
+          actionState: 'failed',
+          actionError: 'Could not open the property share flow.',
+        });
+        return;
+      }
+      haptic.tap();
+      updateActionTurn(action.id, { actionState: 'completed' });
+      onClose();
+      setTimeout(() => router.push(destination as Href), 200);
+      return;
+    }
+
+    updateActionTurn(action.id, {
+      actionState: 'running',
+      actionError: undefined,
+    });
+    try {
+      const result = await executeCopilotAction(action);
+      updateActionTurn(action.id, {
+        actionState: 'completed',
+        actionOutcome: result.outcome,
+      });
+      void Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['appointments'] }),
+        queryClient.invalidateQueries({
+          queryKey: ['appointment', action.entity.id],
+        }),
+        queryClient.invalidateQueries({ queryKey: ['overview'] }),
+        queryClient.invalidateQueries({ queryKey: ['focus'] }),
+        queryClient.invalidateQueries({ queryKey: ['contact-appointments'] }),
+        queryClient.invalidateQueries({ queryKey: ['home-widget'] }),
+      ]);
+      haptic.success();
+    } catch (error) {
+      updateActionTurn(action.id, {
+        actionState: 'failed',
+        actionError: friendlyError(
+          error instanceof Error ? error.message : String(error)
+        ),
+      });
+      haptic.warn();
+    } finally {
+      executingActionIdsRef.current.delete(action.id);
+    }
+  };
+
   const actionChip = (label: string, icon: keyof typeof Ionicons.glyphMap, onPress: () => void) => (
     <Pressable
       onPress={onPress}
@@ -287,6 +388,162 @@ export function CopilotSheet({
                   boldColor={turn.role === 'user' ? colors.onPrimary : colors.text}
                 />
               </View>
+
+              {turn.role === 'assistant' && a?.action ? (
+                <View
+                  style={[
+                    styles.actionCard,
+                    {
+                      backgroundColor: colors.surface,
+                      borderColor: colors.glassBorder,
+                    },
+                  ]}
+                >
+                  <View style={styles.actionHeader}>
+                    <View
+                      style={[
+                        styles.actionIcon,
+                        { backgroundColor: colors.primarySoft },
+                      ]}
+                    >
+                      <Ionicons
+                        name={
+                          a.action.type === 'complete_event'
+                            ? 'calendar-outline'
+                            : 'share-social-outline'
+                        }
+                        size={17}
+                        color={colors.primary}
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        style={[
+                          styles.actionTitle,
+                          { color: colors.text, fontFamily: f.bold },
+                        ]}
+                      >
+                        {a.action.title}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.actionDescription,
+                          { color: colors.textMuted, fontFamily: f.regular },
+                        ]}
+                      >
+                        {a.action.description}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {turn.actionState === 'completed' ? (
+                    <View style={styles.actionResult}>
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={16}
+                        color={colors.success}
+                      />
+                      <Text
+                        style={[
+                          styles.actionResultText,
+                          { color: colors.success, fontFamily: f.semibold },
+                        ]}
+                      >
+                        {a.action.type === 'share_property'
+                          ? 'The property share flow is ready. Nothing was sent automatically.'
+                          : turn.actionOutcome === 'already_completed'
+                            ? 'This event was already completed. No duplicate change was made.'
+                            : 'Done — the calendar event is marked completed.'}
+                      </Text>
+                    </View>
+                  ) : turn.actionState === 'cancelled' ? (
+                    <Text
+                      style={[
+                        styles.actionResultText,
+                        { color: colors.textFaint, fontFamily: f.medium },
+                      ]}
+                    >
+                      Cancelled — nothing changed.
+                    </Text>
+                  ) : (
+                    <>
+                      {turn.actionState === 'failed' ? (
+                        <View style={styles.actionResult}>
+                          <Ionicons
+                            name="warning-outline"
+                            size={16}
+                            color={colors.danger}
+                          />
+                          <Text
+                            style={[
+                              styles.actionResultText,
+                              { color: colors.danger, fontFamily: f.medium },
+                            ]}
+                          >
+                            {turn.actionError || 'Could not run this action.'}
+                          </Text>
+                        </View>
+                      ) : null}
+                      <View style={styles.actionButtons}>
+                        <Pressable
+                          onPress={() => void confirmAction(a.action!.id)}
+                          disabled={turn.actionState === 'running'}
+                          accessibilityRole="button"
+                          style={[
+                            styles.actionConfirm,
+                            {
+                              backgroundColor: colors.primary,
+                              opacity: turn.actionState === 'running' ? 0.5 : 1,
+                            },
+                          ]}
+                        >
+                          {turn.actionState === 'running' ? (
+                            <Ionicons
+                              name="sync"
+                              size={14}
+                              color={colors.onPrimary}
+                            />
+                          ) : null}
+                          <Text
+                            style={[
+                              styles.actionButtonLabel,
+                              { color: colors.onPrimary, fontFamily: f.bold },
+                            ]}
+                          >
+                            {turn.actionState === 'failed'
+                              ? 'Try again'
+                              : a.action.confirmLabel}
+                          </Text>
+                        </Pressable>
+                        <Pressable
+                          onPress={() => cancelAction(a.action!.id)}
+                          disabled={turn.actionState === 'running'}
+                          accessibilityRole="button"
+                          style={[
+                            styles.actionCancel,
+                            {
+                              borderColor: colors.border,
+                              opacity: turn.actionState === 'running' ? 0.5 : 1,
+                            },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.actionButtonLabel,
+                              {
+                                color: colors.textMuted,
+                                fontFamily: f.semibold,
+                              },
+                            ]}
+                          >
+                            {t('common.cancel')}
+                          </Text>
+                        </Pressable>
+                      </View>
+                    </>
+                  )}
+                </View>
+              ) : null}
 
               {turn.role === 'assistant' && a ? (
                 <View style={styles.actions}>
@@ -649,6 +906,48 @@ const styles = StyleSheet.create({
   },
   supportSendLabel: { fontSize: 12.5 },
   feedbackRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  actionCard: {
+    alignSelf: 'stretch',
+    borderWidth: 1,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    gap: spacing.sm,
+  },
+  actionHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+  },
+  actionIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: radius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionTitle: { fontSize: 13.5 },
+  actionDescription: { marginTop: 3, fontSize: 11.5, lineHeight: 16 },
+  actionResult: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
+  actionResultText: { flex: 1, fontSize: 11.5, lineHeight: 16 },
+  actionButtons: { flexDirection: 'row', gap: spacing.sm },
+  actionConfirm: {
+    minHeight: 36,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.md,
+  },
+  actionCancel: {
+    minHeight: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.md,
+  },
+  actionButtonLabel: { fontSize: 12 },
   guides: { gap: spacing.sm, marginTop: spacing.sm },
   guidesLabel: { fontSize: 10, letterSpacing: 1.2 },
   guideRow: {

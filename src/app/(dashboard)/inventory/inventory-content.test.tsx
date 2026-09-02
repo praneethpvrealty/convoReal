@@ -137,7 +137,23 @@ vi.mock('@/components/inventory/promote-property-dialog', () => ({
 }));
 
 vi.mock('@/components/inventory/property-share-dialog', () => ({
-  PropertyShareDialog: () => null,
+  PropertyShareDialog: ({
+    open,
+    property,
+    onOpenChange,
+  }: {
+    open: boolean;
+    property: { id: string; title: string } | null;
+    onOpenChange: (open: boolean) => void;
+  }) =>
+    open && property ? (
+      <div data-testid="property-share-dialog">
+        {property.id}:{property.title}
+        <button type="button" onClick={() => onOpenChange(false)}>
+          Close share
+        </button>
+      </div>
+    ) : null,
 }));
 
 vi.mock('@/components/inventory/gate-requests-drawer', () => ({
@@ -165,6 +181,20 @@ function renderInventory() {
 
 function mockPropertiesFetch(fetchMock: ReturnType<typeof vi.fn>) {
   return fetchMock.mockImplementation(async (url: string) => {
+    if (url === '/api/properties/property-1') {
+      return {
+        ok: true,
+        json: async () => ({
+          id: 'property-1',
+          account_id: 'acct-search-test',
+          title: 'Maple Villa',
+          status: 'Available',
+          listing_type: 'Sell',
+          features: [],
+          images: [],
+        }),
+      };
+    }
     if (url.startsWith('/api/properties')) {
       return {
         ok: true,
@@ -212,6 +242,10 @@ const propertiesCalls = (fetchMock: ReturnType<typeof vi.fn>) =>
 beforeEach(() => {
   searchParams.delete('search');
   searchParams.delete('page');
+  searchParams.delete('propertyId');
+  searchParams.delete('sharePropertyId');
+  searchParams.delete('copilotAction');
+  window.history.replaceState(null, '', '/inventory');
   localStorage.clear();
 });
 
@@ -282,5 +316,32 @@ describe('inventory search clear controls', () => {
     fireEvent.click(mobileClearButton);
 
     expect(mobileInput.value).toBe('');
+  });
+});
+
+describe('Copilot property share handoff', () => {
+  it('opens the existing share dialog and consumes its action URL on close', async () => {
+    searchParams.set('sharePropertyId', 'property-1');
+    searchParams.set('copilotAction', '33333333-3333-4333-8333-333333333333');
+    window.history.replaceState(
+      null,
+      '',
+      '/inventory?sharePropertyId=property-1&copilotAction=33333333-3333-4333-8333-333333333333'
+    );
+    const replaceState = vi.spyOn(window.history, 'replaceState');
+    const fetchMock = vi.fn();
+    mockPropertiesFetch(fetchMock);
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderInventory();
+
+    expect(
+      (await screen.findByTestId('property-share-dialog')).textContent
+    ).toContain('property-1:Maple Villa');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close share' }));
+
+    expect(replaceState).toHaveBeenLastCalledWith(null, '', '/inventory');
+    expect(window.location.search).toBe('');
   });
 });

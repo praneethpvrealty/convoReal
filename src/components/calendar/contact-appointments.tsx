@@ -24,6 +24,7 @@ import {
   EVENT_TYPES,
   type EventTypeKey,
 } from "@/components/calendar/event-types";
+import { COPILOT_APPOINTMENT_COMPLETED_EVENT } from "@/lib/copilot/actions";
 
 interface AppointmentRow {
   id: string;
@@ -68,6 +69,30 @@ export function ContactAppointments({ contactId }: { contactId: string }) {
   useEffect(() => {
     Promise.resolve().then(() => load());
   }, [load]);
+
+  useEffect(() => {
+    const markCompleted = (event: Event) => {
+      const appointmentId = (event as CustomEvent<{ appointmentId?: string }>)
+        .detail?.appointmentId;
+      if (!appointmentId) return;
+      setRows((current) =>
+        current.map((appointment) =>
+          appointment.id === appointmentId
+            ? { ...appointment, status: "completed" }
+            : appointment,
+        ),
+      );
+    };
+    window.addEventListener(
+      COPILOT_APPOINTMENT_COMPLETED_EVENT,
+      markCompleted,
+    );
+    return () =>
+      window.removeEventListener(
+        COPILOT_APPOINTMENT_COMPLETED_EVENT,
+        markCompleted,
+      );
+  }, []);
 
   const upcoming = rows
     .filter((r) => r.status === "scheduled" && !isPast(new Date(r.start_time)))

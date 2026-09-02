@@ -21,6 +21,34 @@ export interface CopilotTurn {
 
 export type CopilotCoverage = 'full' | 'web_only' | 'partial' | 'none';
 
+interface CopilotActionBase {
+  id: string;
+  title: string;
+  description: string;
+  confirmLabel: string;
+}
+
+export type CopilotActionProposal =
+  | (CopilotActionBase & {
+      type: 'complete_event';
+      entity: CopilotEntityReference & { kind: 'event' };
+    })
+  | (CopilotActionBase & {
+      type: 'share_property';
+      entity: CopilotEntityReference & { kind: 'property' };
+      navigateTo: string;
+    });
+
+export interface CopilotActionExecutionResult {
+  actionId: string;
+  type: 'complete_event';
+  entityId: string;
+  status: 'completed';
+  outcome: 'applied' | 'already_completed';
+  replayed: boolean;
+  executedAt: string;
+}
+
 export interface CopilotAnswer {
   reply: string;
   tourId?: string;
@@ -30,6 +58,7 @@ export interface CopilotAnswer {
   cacheId?: string;
   coverage?: CopilotCoverage;
   webUrl?: string;
+  action?: CopilotActionProposal;
 }
 
 /**
@@ -80,9 +109,15 @@ const APP_HREF: Record<string, string> = {
 
 export function appHrefForWebRoute(route: string | undefined): string | null {
   if (route?.startsWith('/inventory?')) {
-    const propertyId = new URLSearchParams(route.split('?')[1]).get(
-      'propertyId'
-    );
+    const params = new URLSearchParams(route.split('?')[1]);
+    const sharePropertyId = params.get('sharePropertyId');
+    if (sharePropertyId) {
+      const actionId = params.get('copilotAction') ?? '1';
+      return `/(app)/property/${encodeURIComponent(
+        sharePropertyId
+      )}?share=${encodeURIComponent(actionId)}`;
+    }
+    const propertyId = params.get('propertyId');
     if (propertyId) return `/(app)/property/${encodeURIComponent(propertyId)}`;
   }
   if (route?.startsWith('/contacts?')) {
@@ -96,6 +131,24 @@ export function appHrefForWebRoute(route: string | undefined): string | null {
     }
   }
   return (route && APP_HREF[route]) || null;
+}
+
+export async function executeCopilotAction(
+  action: Extract<CopilotActionProposal, { type: 'complete_event' }>
+): Promise<CopilotActionExecutionResult> {
+  const response = await apiFetch<{ data: CopilotActionExecutionResult }>(
+    '/api/copilot/actions',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        actionId: action.id,
+        type: action.type,
+        entityId: action.entity.id,
+        platform: 'mobile',
+      }),
+    }
+  );
+  return response.data;
 }
 
 export async function askCopilot(args: {

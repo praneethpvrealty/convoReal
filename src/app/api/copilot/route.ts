@@ -9,6 +9,7 @@ import { answerQuestion } from '@/lib/copilot/engine';
 import { logCopilotEvent } from '@/lib/copilot/events';
 import { readChatRequest } from '@/lib/copilot/request';
 import { authorizeEntityReferences } from '@/lib/copilot/entity-search';
+import { hasMinOrgRole } from '@/lib/auth/roles';
 
 /**
  * POST /api/copilot — in-app helper chat for agency staff.
@@ -49,6 +50,8 @@ export async function POST(req: NextRequest) {
       accountId: ctx.accountId,
       ...parsed,
       entities,
+      canExecuteActions:
+        !ctx.isReadOnly && hasMinOrgRole(ctx.orgRole, 'org_agent'),
     });
     logCopilotEvent({
       accountId: ctx.accountId,

@@ -23,6 +23,11 @@ import {
   requestedEntityNavigation,
   type EntityReference,
 } from './entities';
+import {
+  buildCopilotActionProposal,
+  resolveCopilotAction,
+  type CopilotActionProposal,
+} from './actions';
 
 /**
  * The helper's answer engine, shared by all three surfaces: the staff
@@ -63,6 +68,7 @@ export interface AnswerRequest {
    *  team. Only meaningful for the agent audience. */
   platform?: CopilotPlatform;
   entities?: EntityReference[];
+  canExecuteActions?: boolean;
 }
 
 export interface AnswerResult {
@@ -76,6 +82,7 @@ export interface AnswerResult {
   coverage?: MobileCoverage;
   /** Desktop link for coverage 'web_only' answers. */
   webUrl?: string;
+  action?: CopilotActionProposal;
 }
 
 const NO_AI_REPLY: Record<Audience, string> = {
@@ -111,6 +118,37 @@ export async function answerQuestion(
   const platform: CopilotPlatform =
     audience === 'agent' ? (req.platform ?? 'web') : 'web';
   const mobile = platform === 'mobile';
+
+  if (audience === 'agent') {
+    const requestedAction = resolveCopilotAction(message, req.entities ?? []);
+    if (requestedAction?.kind === 'guidance') {
+      return {
+        reply: requestedAction.reply,
+        ...(mobile ? { coverage: 'full' as const } : {}),
+      };
+    }
+    if (requestedAction?.kind === 'proposal') {
+      if (!req.canExecuteActions) {
+        return {
+          reply:
+            'You have view-only access. An agent, coordinator, leader, or manager can confirm this action.',
+          ...(mobile ? { coverage: 'full' as const } : {}),
+        };
+      }
+      const action = buildCopilotActionProposal(
+        requestedAction,
+        globalThis.crypto.randomUUID()
+      );
+      return {
+        reply:
+          action.type === 'complete_event'
+            ? 'I found the calendar event. Review the change before I apply it.'
+            : 'I found the property. Review the handoff before I open sharing.',
+        action,
+        ...(mobile ? { coverage: 'full' as const } : {}),
+      };
+    }
+  }
 
   const navigationEntity = requestedEntityNavigation(
     message,

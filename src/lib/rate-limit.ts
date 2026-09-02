@@ -280,6 +280,9 @@ export const RATE_LIMITS = {
    *  normally use a handful of reads per search; this ceiling bounds
    *  scripted contact/inventory enumeration without slowing typing. */
   copilotEntitySearch: { limit: 120, windowMs: 60_000 },
+  /** Confirmed Copilot writes. Each request is also idempotent in the
+   *  database; this bounds fresh action IDs from a stuck or scripted client. */
+  copilotAction: { limit: 12, windowMs: 60_000 },
   /** Portfolio helper chat, per portal user per day. Owners and
    *  buyers have no account to bound, so the daily backstop is
    *  per-person and tighter than a whole agency's: a portal user with

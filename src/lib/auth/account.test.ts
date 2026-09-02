@@ -41,6 +41,7 @@ const activeProfile = {
   account_role: 'owner',
   org_role: 'org_manager',
   team_id: null,
+  is_read_only: false,
   account: { id: 'acc-1', name: 'Acme Realty', status: 'active' },
 };
 
@@ -75,6 +76,19 @@ describe('getCurrentAccount — archived account block', () => {
     const ctx = await getCurrentAccount();
     expect(ctx.accountId).toBe('acc-1');
     expect(ctx.account.name).toBe('Acme Realty');
+    expect(ctx.isReadOnly).toBe(false);
+  });
+
+  it('surfaces the legacy read-only capability independently of org role', async () => {
+    h.state.profile = {
+      ...activeProfile,
+      account_role: 'agent',
+      org_role: 'org_agent',
+      is_read_only: true,
+    };
+    const ctx = await getCurrentAccount();
+    expect(ctx.orgRole).toBe('org_agent');
+    expect(ctx.isReadOnly).toBe(true);
   });
 
   it('throws AccountArchivedError for an archived account', async () => {
