@@ -595,11 +595,19 @@ export default function InventoryPage() {
   function handleShareOpenChange(open: boolean) {
     setShareOpen(open);
     if (!open) {
-      const params = new URLSearchParams(searchParams?.toString() || '');
-      params.delete('sharePropertyId');
-      params.delete('copilotAction');
-      const queryString = params.toString();
-      pushUrl(router, `/inventory${queryString ? `?${queryString}` : ''}`);
+      const params = new URLSearchParams(
+        typeof window !== 'undefined'
+          ? window.location.search
+          : searchParams?.toString() || ''
+      );
+      const consumedCopilotHandoff =
+        params.has('sharePropertyId') || params.has('copilotAction');
+      if (consumedCopilotHandoff) {
+        params.delete('sharePropertyId');
+        params.delete('copilotAction');
+        const queryString = params.toString();
+        replaceUrl(router, `/inventory${queryString ? `?${queryString}` : ''}`);
+      }
       setShareProperty(null);
     }
   }
