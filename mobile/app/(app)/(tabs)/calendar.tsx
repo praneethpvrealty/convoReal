@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
-import { Link } from 'expo-router';
+import { Link, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -87,19 +87,41 @@ async function fetchMonth(month: Date): Promise<Appointment[]> {
   return (data ?? []) as Appointment[];
 }
 
+async function fetchAppointment(id: string): Promise<Appointment | null> {
+  const { data, error } = await supabase
+    .from('appointments')
+    .select(
+      '*, contact:contacts(id, name, phone, name_tag), property:properties(id, title, location, sublocality)'
+    )
+    .eq('id', id)
+    .maybeSingle();
+  if (error) throw error;
+  return data as Appointment | null;
+}
+
 export default function CalendarScreen() {
   const { colors, fonts: f } = useTheme();
   const insets = useSafeAreaInsets();
   const today = new Date();
+  const params = useLocalSearchParams<{ eventId?: string | string[] }>();
+  const eventId = Array.isArray(params.eventId)
+    ? params.eventId[0]
+    : params.eventId;
   const [month, setMonth] = useState(() => monthStart(today));
   const [selected, setSelected] = useState<Date>(today);
   const [detail, setDetail] = useState<Appointment | null>(null);
+  const [dismissedEventId, setDismissedEventId] = useState<string | null>(null);
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['appointments', month.getFullYear(), month.getMonth()],
     queryFn: () => fetchMonth(month),
   });
   const todosQuery = useQuery({ queryKey: ['todos'], queryFn: fetchTodos });
+  const requestedEvent = useQuery({
+    queryKey: ['appointment', eventId],
+    queryFn: () => fetchAppointment(eventId!),
+    enabled: !!eventId,
+  });
   const pull = usePullRefresh(() =>
     Promise.all([refetch(), todosQuery.refetch()])
   );
@@ -132,6 +154,12 @@ export default function CalendarScreen() {
   }, [month]);
 
   const dayAppointments = byDay.get(dayKey(selected)) ?? [];
+
+  const requestedDetail =
+    eventId && dismissedEventId !== eventId
+      ? (requestedEvent.data ?? null)
+      : null;
+  const openedDetail = detail ?? requestedDetail;
 
   function shiftMonth(delta: number) {
     haptic.tap();
@@ -369,9 +397,12 @@ export default function CalendarScreen() {
       {/* Keyed so the notes draft belongs to one event: without it the
           sheet keeps its state when a different event is opened. */}
       <AppointmentDetail
-        key={detail?.id ?? 'none'}
-        appointment={detail}
-        onClose={() => setDetail(null)}
+        key={openedDetail?.id ?? 'none'}
+        appointment={openedDetail}
+        onClose={() => {
+          setDetail(null);
+          setDismissedEventId(eventId ?? null);
+        }}
       />
     </View>
   );

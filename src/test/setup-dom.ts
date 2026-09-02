@@ -3,10 +3,9 @@
 // environment, so the fast suite is unaffected.
 //
 // happy-dom rather than jsdom: jsdom 30 pulls undici 8, which calls
-// worker_threads.markAsUncloneable — a Node 22 API. CI runs Node 20
-// (and package.json engines allows it), so jsdom failed there while
-// passing on a newer local Node. happy-dom has no undici dependency,
-// so the environment no longer depends on the Node version.
+// worker_threads.markAsUncloneable — a Node 22 API. happy-dom keeps
+// this environment smaller and avoids coupling component tests to
+// undici internals.
 //
 // A DOM environment implements the DOM but not the browser APIs that
 // depend on layout. A component observing its own size throws on mount

@@ -23,6 +23,14 @@ import { cn } from '@/lib/utils';
 import { TOURS } from '@/lib/copilot/tours';
 import { useCopilot } from './copilot-context';
 import { useT } from '@/hooks/use-locale';
+import {
+  activeEntityQuery,
+  entitySymbolForKind,
+  insertEntityReference,
+  type EntityReference,
+  type EntitySuggestion,
+} from '@/lib/copilot/entities';
+import { CopilotEntityPicker } from './copilot-entity-picker';
 
 interface ChatTurn {
   role: 'user' | 'assistant';
@@ -56,6 +64,7 @@ export function CopilotPanel() {
 
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   const [input, setInput] = useState('');
+  const [entities, setEntities] = useState<EntityReference[]>([]);
   const [busy, setBusy] = useState(false);
   const [showGuides, setShowGuides] = useState(true);
   const [supportFor, setSupportFor] = useState<number | null>(null);
@@ -65,6 +74,7 @@ export function CopilotPanel() {
   const [supportDest, setSupportDest] = useState('');
   const [supportBusy, setSupportBusy] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const activeEntity = activeEntityQuery(input, entities);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
@@ -131,6 +141,8 @@ export function CopilotPanel() {
     const message = raw.trim();
     if (!message || busy) return;
     setInput('');
+    const messageEntities = entities;
+    setEntities([]);
     setShowGuides(false);
     setTurns((t) => [...t, { role: 'user', text: message }]);
     setBusy(true);
@@ -142,6 +154,7 @@ export function CopilotPanel() {
           message,
           pathname,
           history: turns.slice(-6),
+          entities: messageEntities,
         }),
       });
       if (res.status === 429) {
@@ -191,6 +204,30 @@ export function CopilotPanel() {
     }
   };
 
+  const updateInput = (value: string) => {
+    setInput(value);
+    setEntities((current) =>
+      current.filter((entity) =>
+        value
+          .toLocaleLowerCase()
+          .includes(
+            `${entitySymbolForKind(entity.kind)}${entity.label}`.toLocaleLowerCase()
+          )
+      )
+    );
+  };
+
+  const selectEntity = (entity: EntitySuggestion) => {
+    if (!activeEntity) return;
+    setInput((value) => insertEntityReference(value, activeEntity, entity));
+    setEntities((current) => [
+      ...current.filter(
+        (item) => !(item.kind === entity.kind && item.id === entity.id)
+      ),
+      { kind: entity.kind, id: entity.id, label: entity.label },
+    ]);
+  };
+
   return (
     <div
       role="dialog"
@@ -199,7 +236,7 @@ export function CopilotPanel() {
         'fixed z-[60] flex flex-col overflow-hidden border border-slate-800 bg-slate-950/95 shadow-2xl shadow-black/50 backdrop-blur-xl',
         // Mobile: bottom sheet. Desktop: floating card above the button.
         'inset-x-0 bottom-0 max-h-[80vh] rounded-t-2xl',
-        'sm:inset-x-auto sm:right-5 sm:bottom-24 sm:max-h-[70vh] sm:w-[360px] sm:rounded-2xl'
+        'sm:inset-x-auto sm:right-5 sm:bottom-24 sm:max-h-[78vh] sm:w-[440px] sm:rounded-2xl'
       )}
     >
       {/* Header */}
@@ -416,31 +453,56 @@ export function CopilotPanel() {
         )}
       </div>
 
-      {/* Composer */}
-      <form
-        className="flex shrink-0 items-center gap-2 border-t border-slate-800/80 p-3"
-        onSubmit={(e) => {
-          e.preventDefault();
-          void send(input);
-        }}
-      >
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder={t('copilot.placeholder')}
-          maxLength={500}
-          aria-label="Ask the helper"
-          className="focus:border-primary/50 h-10 flex-1 rounded-xl border border-slate-800 bg-slate-900/60 px-3 text-sm text-white placeholder:text-slate-500 focus:outline-none"
-        />
-        <button
-          type="submit"
-          disabled={busy || !input.trim()}
-          aria-label="Send"
-          className="bg-primary text-primary-foreground hover:bg-primary/90 flex h-10 w-10 items-center justify-center rounded-xl disabled:opacity-40"
+      {activeEntity && (
+        <CopilotEntityPicker active={activeEntity} onSelect={selectEntity} />
+      )}
+
+      <div className="shrink-0 border-t border-slate-800/80 p-3">
+        {entities.length > 0 && (
+          <div className="mb-2 flex flex-wrap gap-1.5">
+            {entities.map((entity) => (
+              <button
+                key={`${entity.kind}:${entity.id}`}
+                type="button"
+                onClick={() => {
+                  const token = `${entitySymbolForKind(entity.kind)}${entity.label}`;
+                  updateInput(input.replace(token, '').replace(/\s{2,}/g, ' '));
+                }}
+                className="bg-primary/10 text-primary flex max-w-full items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold"
+              >
+                <span className="truncate">
+                  {entitySymbolForKind(entity.kind)}{entity.label}
+                </span>
+                <X className="h-3 w-3 shrink-0" />
+              </button>
+            ))}
+          </div>
+        )}
+        <form
+          className="flex items-center gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void send(input);
+          }}
         >
-          <Send className="h-4 w-4" />
-        </button>
-      </form>
+          <input
+            value={input}
+            onChange={(e) => updateInput(e.target.value)}
+            placeholder="Ask anything… Use # properties, @ contacts, & events"
+            maxLength={500}
+            aria-label="Ask the helper"
+            className="focus:border-primary/50 h-10 flex-1 rounded-xl border border-slate-800 bg-slate-900/60 px-3 text-sm text-white placeholder:text-slate-500 focus:outline-none"
+          />
+          <button
+            type="submit"
+            disabled={busy || !input.trim()}
+            aria-label="Send"
+            className="bg-primary text-primary-foreground hover:bg-primary/90 flex h-10 w-10 items-center justify-center rounded-xl disabled:opacity-40"
+          >
+            <Send className="h-4 w-4" />
+          </button>
+        </form>
+      </div>
     </div>
   );
 }

@@ -8,6 +8,11 @@
 // ------------------------------------------------------------------
 
 import { apiFetch } from './api';
+import type {
+  CopilotEntityReference,
+  CopilotEntitySuggestion,
+  CopilotEntitySymbol,
+} from './copilot-entities';
 
 export interface CopilotTurn {
   role: 'user' | 'assistant';
@@ -74,6 +79,22 @@ const APP_HREF: Record<string, string> = {
 };
 
 export function appHrefForWebRoute(route: string | undefined): string | null {
+  if (route?.startsWith('/inventory?')) {
+    const propertyId = new URLSearchParams(route.split('?')[1]).get(
+      'propertyId'
+    );
+    if (propertyId) return `/(app)/property/${encodeURIComponent(propertyId)}`;
+  }
+  if (route?.startsWith('/contacts?')) {
+    const contactId = new URLSearchParams(route.split('?')[1]).get('contactId');
+    if (contactId) return `/(app)/contact/${encodeURIComponent(contactId)}`;
+  }
+  if (route?.startsWith('/calendar?')) {
+    const eventId = new URLSearchParams(route.split('?')[1]).get('eventId');
+    if (eventId) {
+      return `/(app)/(tabs)/calendar?eventId=${encodeURIComponent(eventId)}`;
+    }
+  }
   return (route && APP_HREF[route]) || null;
 }
 
@@ -81,6 +102,7 @@ export async function askCopilot(args: {
   message: string;
   pathname: string;
   history: CopilotTurn[];
+  entities?: CopilotEntityReference[];
 }): Promise<CopilotAnswer> {
   return apiFetch<CopilotAnswer>('/api/copilot', {
     method: 'POST',
@@ -89,8 +111,20 @@ export async function askCopilot(args: {
       pathname: webPathnameFor(args.pathname),
       history: args.history.slice(-6),
       platform: 'mobile',
+      entities: args.entities ?? [],
     }),
   });
+}
+
+export async function searchCopilotEntities(
+  symbol: CopilotEntitySymbol,
+  query: string
+): Promise<CopilotEntitySuggestion[]> {
+  const params = new URLSearchParams({ symbol, q: query });
+  const response = await apiFetch<{ data: CopilotEntitySuggestion[] }>(
+    `/api/copilot/entities?${params}`
+  );
+  return response.data;
 }
 
 /** Adoption beacon — tours run entirely on-device, so without this a
@@ -106,7 +140,10 @@ export function trackCopilotTour(
 }
 
 /** Fire-and-forget 👍/👎 — feedback must never interrupt the chat. */
-export function sendCopilotFeedback(cacheId: string, vote: 'up' | 'down'): void {
+export function sendCopilotFeedback(
+  cacheId: string,
+  vote: 'up' | 'down'
+): void {
   void apiFetch('/api/copilot/feedback', {
     method: 'POST',
     body: JSON.stringify({ cacheId, vote }),

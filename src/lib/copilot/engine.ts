@@ -17,6 +17,12 @@ import {
 import { chunkRefs, selectChunks } from './retrieval';
 import { getTour, tourSupportsMobile, tourWebEntryRoute } from './tours';
 import { logUnmetRequest, sanitizeCapability } from './unmet';
+import {
+  entityHref,
+  entitySymbolForKind,
+  requestedEntityNavigation,
+  type EntityReference,
+} from './entities';
 
 /**
  * The helper's answer engine, shared by all three surfaces: the staff
@@ -56,6 +62,7 @@ export interface AnswerRequest {
    *  so the app can offer a tour, a desktop link, or the support
    *  team. Only meaningful for the agent audience. */
   platform?: CopilotPlatform;
+  entities?: EntityReference[];
 }
 
 export interface AnswerResult {
@@ -104,6 +111,18 @@ export async function answerQuestion(
   const platform: CopilotPlatform =
     audience === 'agent' ? (req.platform ?? 'web') : 'web';
   const mobile = platform === 'mobile';
+
+  const navigationEntity = requestedEntityNavigation(
+    message,
+    req.entities ?? []
+  );
+  if (navigationEntity) {
+    return {
+      reply: `Opening ${entitySymbolForKind(navigationEntity.kind)}${navigationEntity.label}.`,
+      navigateTo: entityHref(navigationEntity.kind, navigationEntity.id),
+      ...(mobile ? { coverage: 'full' as const } : {}),
+    };
+  }
 
   const logUnmet = (capability: string | undefined | null) => {
     const clean = sanitizeCapability(capability);

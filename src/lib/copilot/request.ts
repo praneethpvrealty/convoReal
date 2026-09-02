@@ -1,4 +1,5 @@
 import type { ChatTurn } from './engine';
+import { readEntityReferences, type EntityReference } from './entities';
 import { parsePlatform, type CopilotPlatform } from './platform';
 
 /**
@@ -17,6 +18,7 @@ export interface ParsedChatRequest {
   pathname: string;
   history: ChatTurn[];
   platform: CopilotPlatform;
+  entities: EntityReference[];
 }
 
 function sanitizeHistory(raw: unknown): ChatTurn[] {
@@ -41,6 +43,7 @@ export function readChatRequest(
     pathname?: unknown;
     history?: unknown;
     platform?: unknown;
+    entities?: unknown;
   };
   const message = typeof b.message === 'string' ? b.message.trim() : '';
   if (!message || message.length > MAX_MESSAGE_CHARS) {
@@ -54,5 +57,6 @@ export function readChatRequest(
         : '/',
     history: sanitizeHistory(b.history),
     platform: parsePlatform(b.platform),
+    entities: readEntityReferences(b.entities),
   };
 }

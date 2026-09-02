@@ -8,6 +8,7 @@ import {
 import { answerQuestion } from '@/lib/copilot/engine';
 import { logCopilotEvent } from '@/lib/copilot/events';
 import { readChatRequest } from '@/lib/copilot/request';
+import { authorizeEntityReferences } from '@/lib/copilot/entity-search';
 
 /**
  * POST /api/copilot — in-app helper chat for agency staff.
@@ -42,10 +43,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: parsed.error }, { status: 400 });
     }
 
+    const entities = await authorizeEntityReferences(ctx, parsed.entities);
     const result = await answerQuestion({
       audience: 'agent',
       accountId: ctx.accountId,
       ...parsed,
+      entities,
     });
     logCopilotEvent({
       accountId: ctx.accountId,
