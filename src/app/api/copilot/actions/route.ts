@@ -1,5 +1,9 @@
 import { NextResponse } from 'next/server';
-import { requireOrgRole, toErrorResponse } from '@/lib/auth/account';
+import {
+  ForbiddenError,
+  requireOrgRole,
+  toErrorResponse,
+} from '@/lib/auth/account';
 import {
   readCopilotActionExecutionRequest,
   type CopilotActionExecutionResult,
@@ -46,6 +50,11 @@ function normalizeResult(raw: unknown): CopilotActionExecutionResult | null {
 export async function POST(request: Request) {
   try {
     const ctx = await requireOrgRole('org_agent');
+    if (ctx.isReadOnly) {
+      throw new ForbiddenError(
+        'Read-only members cannot execute Copilot actions.'
+      );
+    }
     const limit = await checkRateLimit(
       `copilot:action:${ctx.userId}`,
       RATE_LIMITS.copilotAction

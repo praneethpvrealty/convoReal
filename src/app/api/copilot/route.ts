@@ -50,7 +50,8 @@ export async function POST(req: NextRequest) {
       accountId: ctx.accountId,
       ...parsed,
       entities,
-      canExecuteActions: hasMinOrgRole(ctx.orgRole, 'org_agent'),
+      canExecuteActions:
+        !ctx.isReadOnly && hasMinOrgRole(ctx.orgRole, 'org_agent'),
     });
     logCopilotEvent({
       accountId: ctx.accountId,

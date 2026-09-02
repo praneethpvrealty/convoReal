@@ -7,6 +7,7 @@ const { requireOrgRole, rpc, checkRateLimit } = vi.hoisted(() => ({
 }));
 
 vi.mock('@/lib/auth/account', () => ({
+  ForbiddenError: class ForbiddenError extends Error {},
   requireOrgRole,
   toErrorResponse: (error: unknown) =>
     Response.json(
@@ -49,6 +50,7 @@ beforeEach(() => {
   requireOrgRole.mockResolvedValue({
     userId: 'user-1',
     accountId: 'account-1',
+    isReadOnly: false,
     supabase: { rpc },
   });
   checkRateLimit.mockResolvedValue({ success: true });
@@ -94,6 +96,22 @@ describe('POST /api/copilot/actions', () => {
     const response = await post({ type: 'delete_event' });
 
     expect(response.status).toBe(400);
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it('rejects legacy read-only agents before executing the RPC', async () => {
+    requireOrgRole.mockResolvedValue({
+      userId: 'viewer-1',
+      accountId: 'account-1',
+      orgRole: 'org_agent',
+      isReadOnly: true,
+      supabase: { rpc },
+    });
+
+    const response = await post();
+
+    expect(response.status).toBe(403);
+    expect(checkRateLimit).not.toHaveBeenCalled();
     expect(rpc).not.toHaveBeenCalled();
   });
 

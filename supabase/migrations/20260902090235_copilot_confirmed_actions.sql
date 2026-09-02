@@ -57,6 +57,13 @@ CREATE POLICY appointments_insert
       account_id,
       'agent'::public.account_role_enum
     )
+    AND EXISTS (
+      SELECT 1
+      FROM public.profiles AS p
+      WHERE p.user_id = (SELECT auth.uid())
+        AND p.account_id = appointments.account_id
+        AND p.is_read_only IS NOT TRUE
+    )
   );
 
 DROP POLICY IF EXISTS appointments_update ON public.appointments;
@@ -70,12 +77,26 @@ CREATE POLICY appointments_update
       account_id,
       'agent'::public.account_role_enum
     )
+    AND EXISTS (
+      SELECT 1
+      FROM public.profiles AS p
+      WHERE p.user_id = (SELECT auth.uid())
+        AND p.account_id = appointments.account_id
+        AND p.is_read_only IS NOT TRUE
+    )
   )
   WITH CHECK (
     (SELECT auth.uid()) IS NOT NULL
     AND public.is_account_member(
       account_id,
       'agent'::public.account_role_enum
+    )
+    AND EXISTS (
+      SELECT 1
+      FROM public.profiles AS p
+      WHERE p.user_id = (SELECT auth.uid())
+        AND p.account_id = appointments.account_id
+        AND p.is_read_only IS NOT TRUE
     )
   );
 
@@ -90,6 +111,13 @@ CREATE POLICY appointments_delete
       account_id,
       'agent'::public.account_role_enum
     )
+    AND EXISTS (
+      SELECT 1
+      FROM public.profiles AS p
+      WHERE p.user_id = (SELECT auth.uid())
+        AND p.account_id = appointments.account_id
+        AND p.is_read_only IS NOT TRUE
+    )
   );
 
 REVOKE ALL ON TABLE public.appointments FROM anon, authenticated;
@@ -98,8 +126,9 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.appointments
 
 -- SECURITY DEFINER is intentional: authenticated clients can read this ledger
 -- but cannot forge, update, or delete entries. The function exposes one fixed
--- transition, scopes the locked row through is_account_member(), uses an empty
--- search_path, and is executable only by authenticated users.
+-- transition, rejects read-only profiles, scopes the locked row through
+-- is_account_member(), uses an empty search_path, and is executable only by
+-- authenticated users.
 CREATE OR REPLACE FUNCTION public.complete_copilot_appointment(
   p_appointment_id UUID,
   p_idempotency_key UUID,
@@ -114,10 +143,21 @@ DECLARE
   v_actor UUID := auth.uid();
   v_appointment public.appointments%ROWTYPE;
   v_execution public.copilot_action_executions%ROWTYPE;
+  v_is_read_only BOOLEAN;
   v_outcome TEXT;
 BEGIN
   IF v_actor IS NULL THEN
     RAISE EXCEPTION 'Authentication required' USING ERRCODE = '42501';
+  END IF;
+
+  SELECT p.is_read_only
+  INTO v_is_read_only
+  FROM public.profiles AS p
+  WHERE p.user_id = v_actor;
+
+  IF NOT FOUND OR v_is_read_only IS NOT FALSE THEN
+    RAISE EXCEPTION 'Read-only members cannot execute Copilot actions'
+      USING ERRCODE = '42501';
   END IF;
 
   IF p_platform NOT IN ('web', 'mobile') THEN
