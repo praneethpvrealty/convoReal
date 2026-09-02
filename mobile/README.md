@@ -6,7 +6,9 @@ This directory is a self-contained npm project inside the monorepo — see the
 plan's "Repository Strategy" section for why the app lives here and not in a
 separate repo.
 
-## Current state (Phase 1 complete + rich UI pass)
+## Current state (Phase 1 complete; Phases 2–4 substantially shipped)
+
+Status re-audited against the codebase on 2 September 2026.
 
 - ✅ **WhatsApp OTP sign-in** (primary) — `signInWithOtp({ phone,
   shouldCreateUser: false })` delivered over WhatsApp by the existing
@@ -29,10 +31,12 @@ separate repo.
 - ✅ Contacts with classification colors, call + WhatsApp deep links, and a
   detail card with edit mode; search covers names, phones, tags, notes,
   company and requirements (web parity).
-- ✅ **Property inventory** — list via the web's `GET /api/properties`
+- ✅ **Property inventory and editing** — list via the web's `GET /api/properties`
   (inherits its natural-language + geo search), listing-type filters,
   infinite scroll, image cards; detail screen with photo pager, specs
-  grid, features, owner link and Google Maps.
+  grid, features, owner link and Google Maps. The native edit flow covers
+  listing details, amenities, ownership, photos, videos, floor plans and
+  commercial tenancy data while preserving web/API validation.
 - ✅ **Location suite (mobile-first)** — "Near me" GPS radius search
   (2/5/10/25 km chips, distance badges + exact/nearby tiers from the
   API), Google locality autocomplete in the search box (same
@@ -52,13 +56,22 @@ separate repo.
   24-hour service window. Text-header templates only in v1.
 - ✅ **Overview dashboard** — today's unread/messages/appointments, pipeline
   value, hot leads, available listings (RLS-scoped count queries).
-- ✅ **Broadcasts (view)** — campaign list with live delivery/read progress
-  (auto-polls while sending) and a per-recipient detail with status
-  filters. Note: RLS is user-scoped — you see campaigns you created.
+- ✅ **Broadcasts** — campaign list with live delivery/read progress
+  (auto-polls while sending), per-recipient status filters, and native
+  compose/send for approved templates with all-contacts or tag-based
+  audiences. CSV upload and custom-field audience filters remain web-only.
+  Note: RLS is user-scoped — you see campaigns you created.
 - ✅ **Automations & Flows** — toggle your automations on/off (via the
   validating API route) and see flow statuses; builders stay web-only.
 - ✅ **Journeys (read-only)** — every buyer's per-property stage list from
   the same rows the web mind map renders; canvas stays web-only.
+- ✅ **Optional biometric app lock** — Face ID/fingerprint enrollment and
+  unlock gate, backed by the device's native authentication APIs.
+- 🟡 **Push-notification foundation** — permission handling, Expo device-token
+  registration, server-side storage/delivery and invalid-token cleanup are
+  implemented. Remote push requires an installed EAS build; notification-tap
+  routing is still pending, and iOS delivery awaits valid signing/APNs
+  credentials.
 - ✅ **Full dark-mode support** across every screen (system scheme).
 - ✅ **Design language: "aurora glass"** (spec:
   `docs/design/GLASS_UI_IMPLEMENTATION_SPEC.md`, mockups:
@@ -76,9 +89,10 @@ separate repo.
   deal closes Won, branded app icon/splash
   (`node scripts/generate-icons.js` — still the old forest palette;
   regenerate when rebranding the launcher).
-- ⏳ Next: pending outbox (offline queue), push notifications (needs
-  `device_push_tokens` + worker dispatch — not yet in the web repo),
-  media-header templates, property editing, broadcast composing, biometrics.
+- ⏳ **Remaining roadmap gaps:** pending-message outbox for offline sends;
+  media-header template sending; push-notification tap deep links;
+  multi-account switching; formal cross-device/store release checks; and
+  iOS signing/APNs, TestFlight and App Store release completion.
 
 ## Running it
 
@@ -89,14 +103,16 @@ cp .env.example .env   # fill in Supabase URL/anon key + web app base URL
 npm start              # scan the QR code with Expo Go on Android
 ```
 
-Expo Go is enough for everything in Phase 1–2. The project tracks the
+Expo Go is enough for non-push development in Phases 1–2. The project tracks the
 **latest stable SDK (57)** — the same one the current Expo Go supports.
 Caveat learned the hard way: the Play Store sometimes serves a stale
 Expo Go build; if the app under Settings shows a "Supported SDK" older
 than 57, install the latest Expo Go APK directly from
-[expo.dev/go](https://expo.dev/go). Remote push notifications (Phase 3)
-will require an EAS development build — Expo Go dropped remote push
-support on Android in SDK 53+.
+[expo.dev/go](https://expo.dev/go). Remote push notifications require an
+installed EAS development, preview or production build — Expo Go dropped
+remote push support on Android in SDK 53+. Android preview builds are
+available; iOS builds remain blocked until signing/APNs credentials are
+configured in EAS.
 
 - `npm run typecheck` — TypeScript
 - `npm run lint` — expo lint
