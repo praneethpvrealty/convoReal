@@ -15,8 +15,10 @@
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { runInNewContext } from 'node:vm';
 
 import { describe, expect, it } from 'vitest';
+import * as ts from 'typescript';
 
 import { PLAN_CONFIG, PLAN_ORDER } from '@/lib/billing/plan-config';
 import {
@@ -87,13 +89,32 @@ import {
   HIDE_CONFIRM_MESSAGE,
   MAX_PINNED_PER_CONVERSATION,
 } from '@/lib/whatsapp/message-state';
-import {
-  activeCopilotEntityQuery,
-  insertCopilotEntity,
-} from '../../mobile/lib/copilot-entities';
 
 function mobileSource(relativePath: string): string {
   return readFileSync(join(process.cwd(), 'mobile', relativePath), 'utf8');
+}
+
+function mobileCopilotEntityComposer(): {
+  activeCopilotEntityQuery: (
+    input: string,
+    selected?: EntityReference[]
+  ) => ReturnType<typeof activeEntityQuery>;
+  insertCopilotEntity: typeof insertEntityReference;
+} {
+  const output = ts.transpileModule(mobileSource('lib/copilot-entities.ts'), {
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2022,
+    },
+  }).outputText;
+  const sandboxModule = { exports: {} };
+  runInNewContext(output, {
+    module: sandboxModule,
+    exports: sandboxModule.exports,
+  });
+  return sandboxModule.exports as ReturnType<
+    typeof mobileCopilotEntityComposer
+  >;
 }
 
 /** The `[ ... ]` body of an `export const <name> = [ ... ];` block. */
@@ -119,6 +140,7 @@ function stringLiterals(block: string): string[] {
 }
 
 describe('mobile Copilot entity tokens mirror the web composer', () => {
+  const mobile = mobileCopilotEntityComposer();
   const selected: EntityReference[] = [
     {
       kind: 'property',
@@ -134,7 +156,7 @@ describe('mobile Copilot entity tokens mirror the web composer', () => {
     'No entity token',
     'Open #JP Nagar Plot ',
   ])('parses %s identically', (input) => {
-    expect(activeCopilotEntityQuery(input, selected)).toEqual(
+    expect(mobile.activeCopilotEntityQuery(input, selected)).toEqual(
       activeEntityQuery(input, selected)
     );
   });
@@ -142,8 +164,8 @@ describe('mobile Copilot entity tokens mirror the web composer', () => {
   it('inserts the same canonical token', () => {
     const input = 'Please open #jp';
     const webActive = activeEntityQuery(input, selected)!;
-    const mobileActive = activeCopilotEntityQuery(input, selected)!;
-    expect(insertCopilotEntity(input, mobileActive, selected[0])).toBe(
+    const mobileActive = mobile.activeCopilotEntityQuery(input, selected)!;
+    expect(mobile.insertCopilotEntity(input, mobileActive, selected[0])).toBe(
       insertEntityReference(input, webActive, selected[0])
     );
   });
