@@ -118,6 +118,9 @@ describe('Copilot actions', () => {
     expect(
       resolveCopilotAction('Finish setting up #JP Nagar Plot', [property])
     ).toBeNull();
+    expect(
+      resolveCopilotAction('Finish setting up an appointment reminder', [])
+    ).toBeNull();
     expect(resolveCopilotAction('Complete the calendar event', [])).toEqual({
       kind: 'guidance',
       reply:

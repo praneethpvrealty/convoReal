@@ -85,6 +85,23 @@ function requestsCompletion(message: string): boolean {
   );
 }
 
+function namesExistingEventTarget(message: string): boolean {
+  const unsupportedSuffix =
+    '(?!\\s+(?:reminder|setup|settings|configuration)\\b)';
+  const target =
+    '(?:(?:the|this|that|my)\\s+)?(?:calendar\\s+)?(?:event|appointment|visit)s?\\b';
+  return (
+    new RegExp(
+      `\\b(?:complete|finish)\\s+${target}${unsupportedSuffix}`,
+      'i'
+    ).test(message) ||
+    new RegExp(
+      `\\b(?:mark|set)\\s+${target}${unsupportedSuffix}[\\s\\S]{0,120}\\b(?:complete|completed|done|finished)\\b`,
+      'i'
+    ).test(message)
+  );
+}
+
 function requestsShare(message: string): boolean {
   const directShare =
     /^\s*(?:\d+\s*[.)-]\s*)?(?:please\s+)?(?:open\s*(?:\/|and)\s*)?(?:share|send|forward)\b/i.test(
@@ -127,14 +144,12 @@ export function resolveCopilotAction(
     (entity) => entity.kind === 'property'
   );
   const hasSelectedEvent = entities.some((entity) => entity.kind === 'event');
-  const namesEvent =
-    /\b(?:calendar|event|events|appointment|appointments|visit|visits)\b/i.test(
-      message
-    );
   const namesProperty = /\b(?:property|properties|listing|listings)\b/i.test(
     message
   );
-  const complete = requestedCompletion && (hasSelectedEvent || namesEvent);
+  const complete =
+    requestedCompletion &&
+    (hasSelectedEvent || namesExistingEventTarget(message));
   const share =
     requestsShare(message) &&
     (hasSelectedProperty || (namesProperty && !hasSelectedEvent));
