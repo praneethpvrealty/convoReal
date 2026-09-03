@@ -1,8 +1,37 @@
 import { describe, expect, it } from 'vitest';
 import {
+  listingTypesFromCurrentTurn,
   mergedListingTypes,
   sanitizeListingTypes,
 } from './preference-extraction';
+
+describe('listingTypesFromCurrentTurn', () => {
+  it('lets the buyer replace a rental enquiry with a purchase requirement', () => {
+    expect(
+      listingTypesFromCurrentTurn(
+        'Hi, not interested in renting. Are there commercial properties for sale?'
+      )
+    ).toEqual(['Sale']);
+  });
+
+  it('keeps both only when the current message genuinely asks for both', () => {
+    expect(
+      listingTypesFromCurrentTurn('Show me properties to buy or rent')
+    ).toEqual(['Sale', 'Rent']);
+  });
+
+  it('understands an explicit either-or correction', () => {
+    expect(
+      listingTypesFromCurrentTurn('I want to buy instead of rent')
+    ).toEqual(['Sale']);
+  });
+
+  it('does not invent an intent from an unrelated requirement update', () => {
+    expect(
+      listingTypesFromCurrentTurn('Commercial property in Jayanagar')
+    ).toBeNull();
+  });
+});
 
 describe('mergedListingTypes', () => {
   it('keeps a stated intent the extraction has nothing to say about', () => {

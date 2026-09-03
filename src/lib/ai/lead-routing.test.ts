@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import {
   routeLeadMessage,
+  isBuyerRequirementMessage,
   standsDownFromQualification,
   LEAD_ROUTE_EXPLANATIONS,
 } from './lead-routing';
@@ -15,6 +16,12 @@ import {
 // sending.
 
 describe('routeLeadMessage', () => {
+  it('keeps a rent-to-sale correction out of the generic keyword flow', () => {
+    const text =
+      'Hi, not interested in renting. Are there commercial properties for sale?';
+    expect(routeLeadMessage(text)).toBe('qualification');
+    expect(isBuyerRequirementMessage(text)).toBe(true);
+  });
   it('sends a photo request to the photos, not the ladder', () => {
     expect(routeLeadMessage('Sir can I get images  images')).toBe(
       'photo_request'
