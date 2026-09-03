@@ -711,7 +711,7 @@ const REAL_ESTATE_ONBOARDING: FlowTemplate = {
       node_key: "post_listings",
       node_type: "send_buttons",
       config: {
-        text: "Interested in any of these? *Reply with its number* (e.g. 2) and I'll have our specialist send photos, full details and arrange a site visit. 👇",
+        text: "Interested in any of these? *Reply with its number* (e.g. 2) to open its full details. I'll also notify our consultant to call you and arrange a site visit. 👇",
         buttons: [
           {
             reply_id: "explore_more",
