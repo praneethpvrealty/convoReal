@@ -17,6 +17,9 @@ import {
   matchListingSelection,
   resolveInterestTarget,
   buildHandoffBrief,
+  buildListingInterestReply,
+  buildPostListingsPrompt,
+  effectiveBudgetText,
   preferLocality,
   type ShownListing,
   type ListingRow,
@@ -470,16 +473,32 @@ describe("splitByBudget", () => {
       5,
     );
     expect(withinBudget.map((p) => p.id)).toEqual(["c"]);
-    expect(aboveBudget.map((p) => p.id)).toEqual(["b", "a"]);
+    expect(aboveBudget).toHaveLength(0);
   });
 
-  it("puts the nearest stretch first, not the most expensive listing in stock", () => {
+  it("allows only a small stretch above the confirmed budget", () => {
     const { aboveBudget } = splitByBudget(
-      [row("dear", 500_000_000), row("near", 25_000_000)],
+      [row("dear", 500_000_000), row("near", 21_000_000)],
       "1-2cr",
       5,
     );
-    expect(aboveBudget[0].id).toBe("near");
+    expect(aboveBudget.map((p) => p.id)).toEqual(["near"]);
+  });
+
+  it("holds the next budget range back and drops far higher prices", () => {
+    const { withinBudget, aboveBudget, nextBudget } = splitByBudget(
+      [
+        row("fit", 150_000_000),
+        row("stretch", 160_000_000),
+        row("next", 180_000_000),
+        row("far", 280_000_000),
+      ],
+      "up to 150000000",
+      5,
+    );
+    expect(withinBudget.map((p) => p.id)).toEqual(["fit"]);
+    expect(aboveBudget.map((p) => p.id)).toEqual(["stretch"]);
+    expect(nextBudget.map((p) => p.id)).toEqual(["next"]);
   });
 
   it("never spends a slot on a stretch listing while in-budget stock remains", () => {
@@ -508,6 +527,31 @@ describe("splitByBudget", () => {
   it("is a no-op when the budget text means nothing", () => {
     const rows = [row("a", 320_000_000)];
     expect(splitByBudget(rows, "not sure yet", 5).withinBudget).toHaveLength(1);
+  });
+});
+
+describe("effectiveBudgetText", () => {
+  it("uses the newly confirmed contact budget over a stale active-flow value", () => {
+    expect(effectiveBudgetText("up to 150000000", "₹61 Cr")).toBe(
+      "up to 150000000",
+    );
+  });
+
+  it("falls back to the flow value before the contact has confirmed one", () => {
+    expect(effectiveBudgetText(null, "₹15 Cr")).toBe("₹15 Cr");
+  });
+});
+
+describe("buildPostListingsPrompt", () => {
+  it("offers the next budget range only when matching inventory exists there", () => {
+    const text = buildPostListingsPrompt(2);
+    expect(text).toContain("Reply with its number");
+    expect(text).toContain("2 properties in the next budget range");
+    expect(text).toContain("Would you like to explore them?");
+  });
+
+  it("does not tease a higher budget range when none is available", () => {
+    expect(buildPostListingsPrompt(0)).not.toContain("next budget range");
   });
 });
 
@@ -546,6 +590,24 @@ describe("matchListingSelection", () => {
 
   it("is inert when no listings were shown", () => {
     expect(matchListingSelection("2", [])).toBeNull();
+  });
+});
+
+describe("buildListingInterestReply", () => {
+  it("acknowledges the property, links its details and promises the callback", () => {
+    const text = buildListingInterestReply({
+      n: 5,
+      id: "p5",
+      title: "Commercial Building on 6600 Sq.Ft. Plot at BSK",
+      code: "PROP-1062",
+      url: "https://aryavartaventures.convoreal.com/?property_id=PROP-1062&v=c1",
+    });
+
+    expect(text).toContain("Commercial Building on 6600 Sq.Ft. Plot at BSK (PROP-1062)");
+    expect(text).toContain("View photos and full property details");
+    expect(text).toContain("property_id=PROP-1062");
+    expect(text).toContain("consultants has been notified");
+    expect(text).toContain("will call you shortly");
   });
 });
 
@@ -598,6 +660,17 @@ describe("buildHandoffBrief", () => {
 
   it("skips what the funnel never got", () => {
     expect(buildHandoffBrief({ budget: "1-2cr" })).toBe("Budget: 1-2cr");
+  });
+
+  it("includes the selected property's direct link for the consultant", () => {
+    expect(
+      buildHandoffBrief({
+        interested_property: "BSK commercial building (PROP-1062)",
+        interested_property_link: "https://example.com/?property_id=PROP-1062",
+      }),
+    ).toBe(
+      "Interested in: BSK commercial building (PROP-1062) · Property link: https://example.com/?property_id=PROP-1062",
+    );
   });
 
   it("ignores engine bookkeeping and blank answers", () => {
@@ -668,7 +741,7 @@ describe('splitByBudget in a rental context', () => {
       'rent',
     );
     expect(withinBudget.map((p) => p.id)).toEqual(['cheap']);
-    expect(aboveBudget.map((p) => p.id)).toEqual(['dear']);
+    expect(aboveBudget).toHaveLength(0);
   });
 
   it('without the context every listing is above a Rs 45 ceiling', () => {
