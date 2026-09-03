@@ -58,7 +58,10 @@ import { createNotification } from "@/lib/notifications/create";
 import { BRIDGE_REPLY_HINT } from "@/lib/whatsapp/reply-bridge";
 import { logListingsSent } from "@/lib/whatsapp/share-property-send";
 import { grantAlertsConsent } from "./alerts-subscribe";
-import { accountShowcaseBrowseUrl } from "@/lib/showcase/account-showcase-url";
+import {
+  accountPropertyShowcaseUrl,
+  accountShowcaseBrowseUrl,
+} from "@/lib/showcase/account-showcase-url";
 import { checkAccountPropertyLimit } from "@/lib/billing/gates";
 import {
   type CollectInputNodeConfig,
@@ -487,8 +490,8 @@ export function preferLocality<T extends { sublocality?: string | null; location
 /**
  * Orders a category's listings against the budget the funnel already
  * collected. In-budget first, newest first as before; the remaining
- * slots go to the cheapest listings above the ceiling, so what follows
- * is the nearest stretch rather than the most expensive thing in stock.
+ * slots may use only the nearest 10% stretch above the ceiling. A
+ * separate next band is held back until the buyer asks to explore it.
  *
  * No budget on the run (or an unparseable one) keeps the previous
  * newest-first behaviour untouched.
@@ -502,16 +505,32 @@ export function splitByBudget(
   /** Decides what an unqualified figure means — "35 to 40" is thousands
    *  a month to a renter and lakh to a buyer. */
   context?: BudgetContext,
-): { withinBudget: ListingRow[]; aboveBudget: ListingRow[] } {
+): {
+  withinBudget: ListingRow[];
+  aboveBudget: ListingRow[];
+  nextBudget: ListingRow[];
+} {
   const { max } = budgetText ? parseBudgetText(budgetText, context) : { max: null };
   if (max == null) {
-    return { withinBudget: properties.slice(0, limit), aboveBudget: [] };
+    return {
+      withinBudget: properties.slice(0, limit),
+      aboveBudget: [],
+      nextBudget: [],
+    };
   }
 
   const within = properties.filter((p) => p.price != null && p.price > 0 && p.price <= max);
+  const stretchCeiling = max * 1.1;
+  const nextBandCeiling = max * 1.35;
   const above = properties
-    .filter((p) => p.price != null && p.price > max)
+    .filter((p) => p.price != null && p.price > max && p.price <= stretchCeiling)
     .sort((a, b) => (a.price ?? 0) - (b.price ?? 0));
+  const nextBudget = properties
+    .filter(
+      (p) => p.price != null && p.price > stretchCeiling && p.price <= nextBandCeiling,
+    )
+    .sort((a, b) => (a.price ?? 0) - (b.price ?? 0))
+    .slice(0, limit);
   // Price-on-request listings can't be judged against a budget, so they
   // sit with the in-budget group rather than being dropped.
   const unpriced = properties.filter((p) => p.price == null || p.price <= 0);
@@ -520,7 +539,15 @@ export function splitByBudget(
   return {
     withinBudget,
     aboveBudget: above.slice(0, Math.max(0, limit - withinBudget.length)),
+    nextBudget,
   };
+}
+
+export function effectiveBudgetText(
+  confirmedContactBudget: string | null,
+  flowRunBudget: string | null,
+): string | null {
+  return confirmedContactBudget || flowRunBudget;
 }
 
 /**
@@ -600,11 +627,72 @@ export interface ShownListing {
   id: string;
   title: string;
   code: string | null;
+  url?: string;
 }
 
 /** Run var holding the last listing set. Underscored: engine
  *  bookkeeping, not a customer-captured answer. */
 export const SHOWN_LISTINGS_VAR = "__shown_listings";
+export const SELECTED_LISTING_VAR = "__selected_listing";
+export const NEXT_BUDGET_LISTINGS_VAR = "__next_budget_listings";
+export const EXPLORE_NEXT_BUDGET_REPLY_ID = "explore_next_budget";
+
+export function buildPostListingsPrompt(nextBudgetCount: number): string {
+  const lines = [
+    "Interested in any of these? *Reply with its number* (e.g. 2) to open its full details. I'll also notify our consultant to call you and arrange a site visit. 👇",
+  ];
+  if (nextBudgetCount > 0) {
+    lines.push(
+      "",
+      `If none of these suits you, I also have ${nextBudgetCount} ${nextBudgetCount === 1 ? "property" : "properties"} in the next budget range. Would you like to explore them?`,
+    );
+  }
+  return lines.join("\n");
+}
+
+export function buildListingInterestReply(pick: ShownListing): string {
+  const label = pick.code ? `${pick.title} (${pick.code})` : pick.title;
+  return [
+    `🙏 *Thank you!* You've selected *${label}*.`,
+    ...(pick.url ? ["", `🔗 View photos and full property details: ${pick.url}`] : []),
+    "",
+    "One of our consultants has been notified and will call you shortly to answer your questions and arrange a site visit.",
+  ].join("\n");
+}
+
+function selectedListingFromVars(
+  vars: Record<string, unknown> | null | undefined,
+): ShownListing | null {
+  const value = vars?.[SELECTED_LISTING_VAR];
+  if (!value || typeof value !== "object") return null;
+  const candidate = value as Partial<ShownListing>;
+  if (
+    typeof candidate.n !== "number" ||
+    typeof candidate.id !== "string" ||
+    typeof candidate.title !== "string"
+  ) {
+    return null;
+  }
+  return {
+    n: candidate.n,
+    id: candidate.id,
+    title: candidate.title,
+    code: typeof candidate.code === "string" ? candidate.code : null,
+    url: typeof candidate.url === "string" ? candidate.url : undefined,
+  };
+}
+
+function nextBudgetListingsFromVars(
+  vars: Record<string, unknown> | null | undefined,
+): ListingRow[] {
+  const value = vars?.[NEXT_BUDGET_LISTINGS_VAR];
+  if (!Array.isArray(value)) return [];
+  return value.filter((candidate): candidate is ListingRow => {
+    if (!candidate || typeof candidate !== "object") return false;
+    const row = candidate as Partial<ListingRow>;
+    return typeof row.id === "string" && typeof row.title === "string";
+  });
+}
 
 /**
  * Resolves a reply like "2", "no 2" or "#2" against the listings last
@@ -668,9 +756,25 @@ async function recordListingInterest(
     selection: pick.n,
   });
 
+  let selectedUrl = pick.url;
+  if (!selectedUrl) {
+    try {
+      selectedUrl = await accountPropertyShowcaseUrl(
+        db,
+        run.account_id,
+        { id: pick.id, property_code: pick.code },
+        run.contact_id,
+      );
+    } catch {
+      selectedUrl = undefined;
+    }
+  }
+  const selected = { ...pick, url: selectedUrl };
   const vars = {
     ...run.vars,
     interested_property: pick.code ? `${pick.title} (${pick.code})` : pick.title,
+    interested_property_link: selectedUrl,
+    [SELECTED_LISTING_VAR]: selected,
   };
   await db.from("flow_runs").update({ vars }).eq("id", run.id);
   run.vars = vars;
@@ -739,7 +843,11 @@ async function fetchAndFormatPropertyListings(
   db: AdminClient,
   run: FlowRunRow,
   cfg: SendPropertyListingsNodeConfig,
-): Promise<{ text: string; shown: ShownListing[] }> {
+): Promise<{
+  text: string;
+  shown: ShownListing[];
+  nextBudget: ListingRow[];
+}> {
   const limit = Math.max(1, Math.min(cfg.limit ?? 5, 10));
   // Over-fetch so the budget the lead already gave can pick which of
   // these fill the slots, rather than whichever happen to be newest.
@@ -786,21 +894,28 @@ async function fetchAndFormatPropertyListings(
   const browseLine = await showcaseBrowseLine(db, run);
 
   if (fresh.length === 0) {
-    return { text: withBrowseLine((
-      cfg.empty_text ??
-      `${intro}\n\nSorry, no matching properties are currently available. Our team will reach out when something suitable is listed.`
-    ), browseLine), shown: [] };
+    return {
+      text: withBrowseLine(
+        cfg.empty_text ??
+          `${intro}\n\nSorry, no matching properties are currently available. Our team will reach out when something suitable is listed.`,
+        browseLine,
+      ),
+      shown: [],
+      nextBudget: [],
+    };
   }
 
   // A lead who typed their budget at a buttons step instead of the
   // question never sets vars.budget — that text lands on the contact as
   // an unmatched reply. Falling back to the extracted pref_budget_max
   // means the answer still counts, wherever they happened to give it.
-  const budgetText =
-    (typeof run.vars?.budget === "string" && run.vars.budget) ||
-    (await contactBudgetText(db, run));
+  const confirmedContactBudget = await contactBudgetText(db, run);
+  const budgetText = effectiveBudgetText(
+    confirmedContactBudget,
+    typeof run.vars?.budget === "string" ? run.vars.budget : null,
+  );
 
-  const { withinBudget, aboveBudget } = splitByBudget(
+  const { withinBudget, aboveBudget, nextBudget } = splitByBudget(
     preferLocality(
       fresh,
       typeof run.vars?.locality === "string" ? run.vars.locality : null,
@@ -811,8 +926,21 @@ async function fetchAndFormatPropertyListings(
   );
   const shown = [...withinBudget, ...aboveBudget];
 
+  if (shown.length === 0) {
+    return {
+      text: withBrowseLine(
+        cfg.empty_text ??
+          "🔍 *Nothing close to your confirmed budget is available right now.*\n\nOur team will reach out when a suitable property is listed.",
+        browseLine,
+      ),
+      shown: [],
+      nextBudget,
+    };
+  }
+
   const currency = "₹";
   const lines: (string | null)[] = [intro, ""];
+  const shownListings: ShownListing[] = [];
 
   for (let i = 0; i < shown.length; i++) {
     const p = shown[i];
@@ -842,8 +970,12 @@ async function fetchAndFormatPropertyListings(
       .filter(Boolean)
       .join(" | ");
 
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "";
-    const showcaseLink = `${siteUrl}/?property_id=${p.id}`;
+    const showcaseLink = await accountPropertyShowcaseUrl(
+      db,
+      run.account_id,
+      p,
+      run.contact_id,
+    );
 
     lines.push(`${idx}. *${p.title}* — ${p.location}`);
     if (specs) lines.push(`   ${specs}`);
@@ -851,6 +983,13 @@ async function fetchAndFormatPropertyListings(
     if (p.property_code) lines.push(`   Code: ${p.property_code}`);
     lines.push(`   🔗 ${showcaseLink}`);
     lines.push("");
+    shownListings.push({
+      n: idx,
+      id: p.id,
+      title: p.title,
+      code: p.property_code ?? null,
+      url: showcaseLink,
+    });
   }
 
   // The cap covers the invitation too: appending after the slice could
@@ -864,13 +1003,87 @@ async function fetchAndFormatPropertyListings(
         .slice(0, bodyBudget),
       browseLine,
     ),
-    shown: shown.map((p, i) => ({
-      n: i + 1,
-      id: p.id,
-      title: p.title,
-      code: p.property_code ?? null,
-    })),
+    shown: shownListings,
+    nextBudget,
   };
+}
+
+async function sendNextBudgetListings(
+  db: AdminClient,
+  run: FlowRunRow,
+  properties: ListingRow[],
+): Promise<void> {
+  const shown: ShownListing[] = [];
+  const lines = [
+    `Here ${properties.length === 1 ? "is" : "are"} ${properties.length} ${properties.length === 1 ? "option" : "options"} in the next budget range:`,
+    "",
+  ];
+
+  for (let i = 0; i < properties.length; i += 1) {
+    const property = properties[i];
+    const url = await accountPropertyShowcaseUrl(
+      db,
+      run.account_id,
+      property,
+      run.contact_id,
+    );
+    const price = property.price
+      ? property.price >= 10_000_000
+        ? `₹${(property.price / 10_000_000).toFixed(2).replace(/\.?0+$/, "")} Cr`
+        : `₹${(property.price / 100_000).toFixed(2).replace(/\.?0+$/, "")}L`
+      : "Price on request";
+    const specs = [
+      property.type,
+      property.area_sqft ? `${property.area_sqft} sqft` : null,
+    ]
+      .filter(Boolean)
+      .join(" | ");
+    lines.push(`*${i + 1}. ${property.title}*`);
+    if (specs) lines.push(specs);
+    lines.push(
+      `📍 ${property.location ?? "Location available on request"}`,
+      `Price: ${price}`,
+      url,
+      "",
+    );
+    shown.push({
+      n: i + 1,
+      id: property.id,
+      title: property.title,
+      code: property.property_code,
+      url,
+    });
+  }
+  lines.push(
+    "Interested in one? Reply with its number to open the full details, and our consultant will call you shortly.",
+  );
+
+  const { whatsapp_message_id } = await engineSendText({
+    accountId: run.account_id,
+    userId: run.user_id,
+    conversationId: run.conversation_id!,
+    contactId: run.contact_id!,
+    text: lines.filter(Boolean).join("\n").slice(0, 4000),
+  });
+  await logListingsSent(
+    db,
+    run.account_id,
+    run.user_id,
+    run.contact_id!,
+    shown.map((listing) => listing.id),
+  );
+  const vars = {
+    ...run.vars,
+    [SHOWN_LISTINGS_VAR]: shown,
+    [NEXT_BUDGET_LISTINGS_VAR]: [],
+  };
+  await db.from("flow_runs").update({ vars }).eq("id", run.id);
+  run.vars = vars;
+  await logEvent(db, run.id, "message_sent", run.current_node_key, {
+    reason: "next_budget_listings_sent",
+    whatsapp_message_id,
+    listing_count: shown.length,
+  });
 }
 
 async function logEvent(
@@ -1016,15 +1229,39 @@ async function sendButtonsAndSuspend(
   bodyOverride?: string,
 ): Promise<{ outcome: "advanced"; node_key: string }> {
   const cfg = node.config as unknown as SendButtonsNodeConfig;
+  const nextBudget = nextBudgetListingsFromVars(run.vars);
+  const buttons =
+    !bodyOverride && nextBudget.length > 0
+      ? [
+          {
+            id: EXPLORE_NEXT_BUDGET_REPLY_ID,
+            title: "Next Budget Range",
+          },
+          ...cfg.buttons
+            .filter((button) => /agent|talk|contact/i.test(button.title))
+            .slice(0, 2)
+            .map((button) => ({
+              id: button.reply_id,
+              title: button.title,
+            })),
+        ]
+      : cfg.buttons.map((button) => ({
+          id: button.reply_id,
+          title: button.title,
+        }));
   const { whatsapp_message_id } = await engineSendInteractiveButtons({
     accountId: run.account_id,
     userId: run.user_id,
     conversationId: run.conversation_id!,
     contactId: run.contact_id!,
-    bodyText: bodyOverride ?? cfg.text,
+    bodyText:
+      bodyOverride ??
+      (nextBudget.length > 0
+        ? buildPostListingsPrompt(nextBudget.length)
+        : cfg.text),
     headerText: bodyOverride ? undefined : cfg.header_text,
     footerText: cfg.footer_text,
-    buttons: cfg.buttons.map((b) => ({ id: b.reply_id, title: b.title })),
+    buttons,
   });
   await logEvent(db, run.id, "message_sent", node.node_key, {
     node_type: "send_buttons",
@@ -1098,6 +1335,7 @@ const BRIEF_VAR_LABELS: [key: string, label: string][] = [
   ["budget", "Budget"],
   ["locality", "Area"],
   ["interested_property", "Interested in"],
+  ["interested_property_link", "Property link"],
   ["email", "Email"],
 ];
 
@@ -1501,6 +1739,7 @@ async function advanceFromNodeKey(
     }
     if (node.node_type === "send_message") {
       const cfg = node.config as unknown as SendMessageNodeConfig;
+      const selectedListing = selectedListingFromVars(run.vars);
       // Written before the confirmation goes out, so the message and
       // the record can never disagree about what the lead agreed to.
       // When the write does not land, the confirmation is not sent
@@ -1529,8 +1768,16 @@ async function advanceFromNodeKey(
           contactId: run.contact_id!,
           text: subscribeFailed
             ? SUBSCRIBE_UNCONFIRMED_TEXT
-            : interpolateVars(cfg.text, run.vars, accountMeta),
+            : selectedListing
+              ? buildListingInterestReply(selectedListing)
+              : interpolateVars(cfg.text, run.vars, accountMeta),
         });
+        if (selectedListing) {
+          const nextVars = { ...run.vars };
+          delete nextVars[SELECTED_LISTING_VAR];
+          await db.from("flow_runs").update({ vars: nextVars }).eq("id", run.id);
+          run.vars = nextVars;
+        }
         await logEvent(db, run.id, "message_sent", node.node_key, {
           node_type: "send_message",
           whatsapp_message_id,
@@ -1581,7 +1828,8 @@ async function advanceFromNodeKey(
       const cfg = node.config as unknown as import("./types").SendPropertyListingsNodeConfig;
       let shownCount = 0;
       try {
-        const { text: listingsText, shown } = await fetchAndFormatPropertyListings(db, run, cfg);
+        const { text: listingsText, shown, nextBudget } =
+          await fetchAndFormatPropertyListings(db, run, cfg);
         const { whatsapp_message_id } = await engineSendText({
           accountId: run.account_id,
           userId: run.user_id,
@@ -1602,7 +1850,11 @@ async function advanceFromNodeKey(
             shown.map((l) => l.id),
           );
         }
-        const withListings = { ...run.vars, [SHOWN_LISTINGS_VAR]: shown };
+        const withListings = {
+          ...run.vars,
+          [SHOWN_LISTINGS_VAR]: shown,
+          [NEXT_BUDGET_LISTINGS_VAR]: nextBudget,
+        };
         await db.from("flow_runs").update({ vars: withListings }).eq("id", run.id);
         run.vars = withListings;
         await logEvent(db, run.id, "message_sent", node.node_key, {
@@ -1989,22 +2241,44 @@ async function handleReplyForActiveRun(
     return { consumed: true, flow_run_id: run.id, outcome: "no_match" };
   }
 
-  // A bare "ok" / "thanks" closes an exchange; it is not an answer and
-  // not a mistake. Consume it silently rather than capturing it as the
-  // customer's budget or apologising for not understanding it.
-  if (message.kind === "text" && isAcknowledgementOnly(message.text)) {
-    await logEvent(db, run.id, "node_entered", currentNode.node_key, {
-      reason: "acknowledgement_ignored",
-    });
-    return { consumed: true, flow_run_id: run.id, outcome: "no_match" };
-  }
-
   // Two ways a reply can advance:
   //   1. Interactive button/list tap on a send_buttons/send_list node.
   //   2. Text reply on a collect_input node — capture into vars.
   //
   // Everything else falls through to the fallback policy below.
   let matched: string | null = null;
+  const nextBudget = nextBudgetListingsFromVars(run.vars);
+  const requestsNextBudget =
+    currentNode.node_type === "send_buttons" &&
+    nextBudget.length > 0 &&
+    ((message.kind === "interactive_reply" &&
+      message.reply_id === EXPLORE_NEXT_BUDGET_REPLY_ID) ||
+      (message.kind === "text" &&
+        /^(?:yes|sure|next|show|explore)(?:\s+(?:them|more|next))?[.!]?$/i.test(
+          message.text.trim(),
+        )));
+  if (requestsNextBudget) {
+    try {
+      await sendNextBudgetListings(db, run, nextBudget);
+    } catch (err) {
+      await logEvent(db, run.id, "error", currentNode.node_key, {
+        reason: "next_budget_listings_send_failed",
+        detail: err instanceof Error ? err.message : String(err),
+      });
+    }
+    return { consumed: true, flow_run_id: run.id, outcome: "advanced" };
+  }
+
+  // A bare "ok" / "thanks" closes an exchange; it is not an answer and
+  // not a mistake. Consume it silently rather than capturing it as the
+  // customer's budget or apologising for not understanding it. Check the
+  // next-budget invitation first because "yes" and "sure" are valid answers.
+  if (message.kind === "text" && isAcknowledgementOnly(message.text)) {
+    await logEvent(db, run.id, "node_entered", currentNode.node_key, {
+      reason: "acknowledgement_ignored",
+    });
+    return { consumed: true, flow_run_id: run.id, outcome: "no_match" };
+  }
   if (
     message.kind === "interactive_reply" &&
     (currentNode.node_type === "send_buttons" ||
