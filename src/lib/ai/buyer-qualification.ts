@@ -20,6 +20,7 @@ import { sendTextMessage } from '@/lib/whatsapp/meta-api';
 import {
   buildPreferenceSourceText,
   extractContactPreferences,
+  listingTypesFromCurrentTurn,
   preferenceSourceHash,
   EMPTY_PREFERENCES,
   type ExtractedPreferences,
@@ -46,6 +47,7 @@ import { sendRequirementReview } from '@/lib/whatsapp/requirement-review';
 import { logListingsSent } from '@/lib/whatsapp/share-property-send';
 import { visibleTagSuggestions } from '@/lib/contact-preferences';
 import { resolveRequirementSource } from '@/lib/requirements/profiles';
+import { claimBuyerConsentAsk } from '@/lib/buyer/consent-ask';
 import type { Contact, Property } from '@/types';
 
 export type QualifierField = 'type' | 'intent' | 'budget' | 'location';
@@ -337,6 +339,24 @@ function typeLabel(prefs: ExtractedPreferences): string {
   return category ? `${category} property` : 'property';
 }
 
+function qualifiedMatchesOpening(
+  contactName: string | null | undefined,
+  prefs: ExtractedPreferences,
+  count: number
+): string {
+  const deal =
+    prefs.listing_types.length === 1
+      ? prefs.listing_types[0] === 'Sale'
+        ? ' for sale'
+        : prefs.listing_types[0] === 'Rent'
+          ? ' for rent'
+          : ''
+      : '';
+  return count === 1
+    ? `Thanks ${firstName(contactName)} — here's one matching ${typeLabel(prefs)}${deal} 👇`
+    : `Thanks ${firstName(contactName)} — here are ${count} matching ${typeLabel(prefs)} options${deal} 👇`;
+}
+
 export function buildQualifierQuestion(
   field: QualifierField,
   prefs: ExtractedPreferences,
@@ -351,6 +371,18 @@ export function buildQualifierQuestion(
   }
 
   if (field === 'budget') {
+    if (
+      prefs.listing_types.includes('Sale') &&
+      !prefs.listing_types.includes('Rent')
+    ) {
+      return `Certainly — I've understood you're looking for ${typeLabel(prefs)} for purchase, not rent. What budget range are you working with?`;
+    }
+    if (
+      prefs.listing_types.includes('Rent') &&
+      !prefs.listing_types.includes('Sale')
+    ) {
+      return `Noted — you're looking for ${typeLabel(prefs)} to rent. What monthly rent budget are you working with?`;
+    }
     return `Noted — ${typeLabel(prefs)}. What budget range are you working with?`;
   }
 
@@ -570,7 +602,12 @@ export function buildQualificationReply(
         contactId,
         // Only when the listings jumped the queue: a ladder that
         // finished on its own has nothing left to ask.
-        shortCircuit && laddered ? buildFollowUpQuestion(laddered) : null
+        shortCircuit && laddered ? buildFollowUpQuestion(laddered) : null,
+        qualifiedMatchesOpening(
+          contactName,
+          prefs,
+          Math.min(matches.length, MAX_MATCHES_SENT)
+        )
       ),
       sentPropertyIds: matches
         .slice(0, MAX_MATCHES_SENT)
@@ -795,6 +832,23 @@ export function mergeKnownPreferences(
       extracted.suggested_tags,
       known.suggested_tags
     ),
+  };
+}
+
+export function mergeCurrentTurnPreferences(
+  extracted: ExtractedPreferences,
+  known: ExtractedPreferences,
+  currentText: string
+): ExtractedPreferences {
+  const merged = mergeKnownPreferences(extracted, known);
+  const currentIntent = listingTypesFromCurrentTurn(currentText);
+  return {
+    ...merged,
+    listing_types:
+      currentIntent ??
+      (known.listing_types.length > 0
+        ? [...known.listing_types]
+        : merged.listing_types),
   };
 }
 
@@ -1071,13 +1125,14 @@ export async function processBuyerQualificationMessage(
     let prefs = prefsFromContact(contact);
     if (hash !== contact.pref_source_hash) {
       await softBurn(accountId);
-      const extracted = mergeKnownPreferences(
+      const extracted = mergeCurrentTurnPreferences(
         applySizeAnchor(
           await extractContactPreferences(sourceText),
           sizeSignal,
           sizeAnchorSqft
         ),
-        prefs
+        prefs,
+        text
       );
 
       // The message added nothing the contact didn't already say — it's
@@ -1249,6 +1304,29 @@ export async function processBuyerQualificationMessage(
       accessToken,
       phoneNumberId
     );
+
+    if (outcome.sentPropertyIds.length > 0 && configOwnerUserId) {
+      try {
+        const consentAsk = await claimBuyerConsentAsk(
+          db,
+          accountId,
+          contact,
+          null,
+          outcome.sentPropertyIds.length
+        );
+        if (consentAsk) {
+          await reply(
+            consentAsk,
+            contactRecord,
+            conversation,
+            accessToken,
+            phoneNumberId
+          );
+        }
+      } catch (err) {
+        console.error('[buyer-qualification] consent ask failed:', err);
+      }
+    }
 
     // What went out is recorded where it was decided, so a later
     // shortlist — days or weeks on, past any message window — knows

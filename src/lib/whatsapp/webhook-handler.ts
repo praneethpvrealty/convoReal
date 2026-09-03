@@ -96,12 +96,10 @@ import {
 // would silently stop working for every translated template.
 import { matchTemplateButton } from '@/lib/whatsapp/template-copy';
 import { accountPropertyShowcaseUrl } from '@/lib/showcase/account-showcase-url';
-import type { Contact } from '@/types';
 import {
   hasRecentAgentReply,
   standDownActiveFlowRuns,
 } from '@/lib/whatsapp/agent-takeover';
-import { claimBuyerConsentAsk } from '@/lib/buyer/consent-ask';
 import {
   claimOwnerConsentAsk,
   CONSENT_BUTTONS as OWNER_CONSENT_BUTTONS,
@@ -126,6 +124,7 @@ import {
   sendSubjectPhotos,
 } from '@/lib/ai/photo-request';
 import { parseOrdinalReferences } from '@/lib/ai/shortlist-reference';
+import { isBuyerRequirementMessage } from '@/lib/ai/lead-routing';
 import {
   buildEnquiryAckText,
   buildEnquiryRejectText,
@@ -1601,6 +1600,11 @@ async function processMessage(
 
   // An inbound reply makes an unset buyer HOT. Portal imports, property
   // matching and outbound messages never reach this branch.
+  const buyerRequirementMessage =
+    !ownerCheck.isOwner &&
+    message.type === 'text' &&
+    isBuyerRequirementMessage(contentText);
+
   if (!ownerCheck.isOwner) {
     await maybeAutoHeatContact({
       db: supabaseAdmin(),
@@ -2976,7 +2980,8 @@ async function processMessage(
     userId: configOwnerUserId,
     contactId: contactRecord.id,
     conversationId: conversation.id,
-    allowEntry: !isPropertyOwnerSender && !agentHandling,
+    allowEntry:
+      !isPropertyOwnerSender && !agentHandling && !buyerRequirementMessage,
     message: interactiveReplyId
       ? {
           kind: 'interactive_reply',
@@ -3055,6 +3060,7 @@ async function processMessage(
   // on it rather than guessing or going quiet.
   if (
     !flowConsumed &&
+    !buyerRequirementMessage &&
     !ownerCheck.isOwner &&
     !isPropertyOwnerSender &&
     message.type === 'text' &&
@@ -3185,43 +3191,6 @@ async function processMessage(
         .select('id');
     }
     return;
-  }
-
-  // The buyer — or a lead who has only ever enquired about one listing
-  // — just messaged us, so their 24-hour window is open: the
-  // one moment the alerts question can be asked free-form, needing no
-  // template and no category. Soliciting an opt-in is Marketing by
-  // Meta's test, so this is the only compliant place to ask — and it
-  // reaches every buyer who ever replies, not just whoever happens to
-  // be mid-chat when the daily digest runs.
-  //
-  // Not while an agent is mid-conversation, though: asking "want
-  // alerts?" in the middle of a price negotiation is the bot talking
-  // over the person actually closing the deal. It waits for a quieter
-  // message — the buyer is never asked twice, so nothing is lost.
-  if (!ownerCheck.isOwner && !isPropertyOwnerSender && !agentHandling) {
-    try {
-      const consentAsk = await claimBuyerConsentAsk(
-        supabaseAdmin(),
-        accountId,
-        contactRecord as unknown as Contact,
-        null,
-        1
-      );
-      if (consentAsk) {
-        await sendWhatsAppMessageAndPersist({
-          accountId,
-          userId: configOwnerUserId,
-          contactId: contactRecord.id,
-          conversationId: conversation.id,
-          kind: 'text',
-          senderType: 'bot',
-          text: consentAsk,
-        });
-      }
-    } catch (err) {
-      console.error('[buyer-consent] ask failed (non-fatal):', err);
-    }
   }
 
   const automationTriggers: (

@@ -32,6 +32,7 @@ import {
   shortlistAlreadySent,
   buildShortlistStandsReply,
   mergeKnownPreferences,
+  mergeCurrentTurnPreferences,
   prefsFromContact,
   buildEnquiryBudgetDisparityReply,
 } from './buyer-qualification';
@@ -75,6 +76,40 @@ function match(overrides: Partial<Property>): RankedPropertyMatch {
 }
 
 describe('portal enquiry context', () => {
+  it("replaces stale rental intent with the buyer's current sale request", () => {
+    const known = prefs({
+      property_categories: ['commercial'],
+      listing_types: ['Rent'],
+    });
+    const cumulativeExtraction = prefs({
+      property_categories: ['commercial'],
+      listing_types: ['Sale', 'Rent'],
+    });
+
+    const merged = mergeCurrentTurnPreferences(
+      cumulativeExtraction,
+      known,
+      'Hi, not interested in renting. Are there commercial properties for sale?'
+    );
+
+    expect(merged.listing_types).toEqual(['Sale']);
+    expect(buildQualifierQuestion('budget', merged)).toContain(
+      'for purchase, not rent'
+    );
+  });
+
+  it('does not revive old rent intent on the next budget answer', () => {
+    const known = prefs({ listing_types: ['Sale'] });
+    const cumulativeExtraction = prefs({ listing_types: ['Sale', 'Rent'] });
+
+    expect(
+      mergeCurrentTurnPreferences(
+        cumulativeExtraction,
+        known,
+        'Budget is around 12 Cr'
+      ).listing_types
+    ).toEqual(['Sale']);
+  });
   it('treats the original property type and explicit CRM fields as answered', () => {
     const saved = prefsFromContact({
       id: 'simon',
@@ -557,6 +592,7 @@ describe('buildQualificationReply', () => {
     );
     expect(out.missing).toBeNull();
     expect(out.reply).toContain('Farm Land in Devanahalli');
+    expect(out.reply).toContain('for sale');
   });
 
   it('promises a callback rather than sending nothing when the ladder is answered but inventory has no fit', () => {

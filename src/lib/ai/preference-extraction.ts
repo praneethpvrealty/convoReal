@@ -1,5 +1,8 @@
 import { generateJson } from './gemini';
-import { normalizePropertyType, PROPERTY_TYPE_VALUES } from '@/lib/property-types';
+import {
+  normalizePropertyType,
+  PROPERTY_TYPE_VALUES,
+} from '@/lib/property-types';
 
 /**
  * AI extraction of structured buyer preferences from a contact's
@@ -18,7 +21,12 @@ export const PROPERTY_CATEGORY_VALUES = [
 
 export type PropertyCategory = (typeof PROPERTY_CATEGORY_VALUES)[number];
 
-export const LISTING_TYPE_VALUES = ['Sale', 'Rent', 'JV/JD', 'Built to Suit'] as const;
+export const LISTING_TYPE_VALUES = [
+  'Sale',
+  'Rent',
+  'JV/JD',
+  'Built to Suit',
+] as const;
 
 export type ListingType = (typeof LISTING_TYPE_VALUES)[number];
 
@@ -49,6 +57,40 @@ export function mergedListingTypes(
   stored: readonly string[] | null | undefined
 ): string[] {
   return extracted.length > 0 ? [...extracted] : [...(stored ?? [])];
+}
+
+export function listingTypesFromCurrentTurn(
+  text: string | null | undefined
+): ListingType[] | null {
+  const value = (text || '').trim();
+  if (!value) return null;
+
+  const rejectsRent =
+    /\b(?:not interested in|not looking (?:to|for)|do not want|don't want|no longer|instead of|rather than)\s+(?:rent(?:ing|al)?|(?:to\s+)?lease|leasing)\b/i.test(
+      value
+    );
+  const rejectsSale =
+    /\b(?:not interested in|not looking (?:to|for)|do not want|don't want|no longer|instead of|rather than)\s+(?:buy(?:ing)?|purchas(?:e|ing)|sale)\b/i.test(
+      value
+    );
+  const wantsRent =
+    /\b(?:rent(?:ing|al)?|lease|leasing|tenant|to let)\b/i.test(value) &&
+    !rejectsRent;
+  const wantsSale =
+    /\b(?:buy(?:ing)?|purchas(?:e|ing)|sale|ownership)\b/i.test(value) &&
+    !rejectsSale;
+  const wantsJv =
+    /\b(?:jv|jd|joint venture|joint development|revenue share)\b/i.test(value);
+  const wantsBuiltToSuit = /\b(?:built to suit|build to suit|bts)\b/i.test(
+    value
+  );
+
+  const result: ListingType[] = [];
+  if (wantsSale) result.push('Sale');
+  if (wantsRent) result.push('Rent');
+  if (wantsJv) result.push('JV/JD');
+  if (wantsBuiltToSuit) result.push('Built to Suit');
+  return result.length > 0 ? result : null;
 }
 
 export interface ExtractedPreferences {
@@ -122,7 +164,10 @@ export function normalizeSuggestedTags(vals: string[]): string[] {
 function parseJsonLenient(raw: string): Record<string, unknown> {
   let cleaned = raw.trim();
   if (cleaned.startsWith('```')) {
-    cleaned = cleaned.replace(/^```(json)?/, '').replace(/```$/, '').trim();
+    cleaned = cleaned
+      .replace(/^```(json)?/, '')
+      .replace(/```$/, '')
+      .trim();
   }
   try {
     return JSON.parse(cleaned) as Record<string, unknown>;
@@ -146,7 +191,8 @@ function toStringArray(val: unknown): string[] {
 
 function toNumberOrNull(val: unknown): number | null {
   if (typeof val === 'number' && isFinite(val)) return val;
-  if (typeof val === 'string' && val.trim() && !isNaN(Number(val))) return Number(val);
+  if (typeof val === 'string' && val.trim() && !isNaN(Number(val)))
+    return Number(val);
   return null;
 }
 
@@ -155,7 +201,9 @@ function toNumberOrNull(val: unknown): number | null {
  * requirements and notes. Throws on API/parse failure — callers decide
  * whether to retry or leave the previous extraction in place.
  */
-export async function extractContactPreferences(sourceText: string): Promise<ExtractedPreferences> {
+export async function extractContactPreferences(
+  sourceText: string
+): Promise<ExtractedPreferences> {
   const text = sourceText.trim();
   if (!text) return EMPTY_PREFERENCES;
 
@@ -164,7 +212,7 @@ export async function extractContactPreferences(sourceText: string): Promise<Ext
     'Extract their property-buying preferences as a JSON object with this exact structure:\n' +
     '{\n' +
     `  "property_types": Array of SPECIFIC property types the contact wants, each exactly one of: ${PROPERTY_TYPE_VALUES.map((v) => `'${v}'`).join(', ')}. Empty array if no specific type is stated.,\n` +
-    '  "property_categories": Array of BROAD categories the contact wants, each exactly one of: \'residential\', \'commercial\', \'industrial\', \'agricultural\', \'plot\'. Fill this when the text states a category (e.g. "looking for commercial") — also derive it from any specific types you listed (e.g. \'Flat/ Apartment\' implies \'residential\'). Empty array if nothing about type/category is stated.,\n' +
+    "  \"property_categories\": Array of BROAD categories the contact wants, each exactly one of: 'residential', 'commercial', 'industrial', 'agricultural', 'plot'. Fill this when the text states a category (e.g. \"looking for commercial\") — also derive it from any specific types you listed (e.g. 'Flat/ Apartment' implies 'residential'). Empty array if nothing about type/category is stated.,\n" +
     '  "bhk_min": Minimum bedroom count wanted (numeric, e.g. "2 or 3 BHK" -> 2, "3BHK" -> 3) or null,\n' +
     '  "bhk_max": Maximum bedroom count wanted (e.g. "2 or 3 BHK" -> 3, "3BHK" -> 3) or null,\n' +
     '  "budget_min": Minimum budget in INR (e.g. "above 1 Cr" -> 10000000, "80L to 1.2Cr" -> 8000000) or null,\n' +
@@ -184,18 +232,24 @@ export async function extractContactPreferences(sourceText: string): Promise<Ext
     "2b. A bare number with NO unit means different things for rent and for purchase, and you must use the surrounding context to decide. For a RENTAL (monthly rent, 'rent', 'lease', 'to let'): a bare figure under 1000 is thousands per month — 'Budget 35 to 40' -> budget_min 35000, budget_max 40000; 'rent 18000' is already rupees -> 18000. For a PURCHASE: a bare figure up to 60 means crores — '1-2' -> 10000000 to 20000000, '60' -> 600000000; a bare figure between 61 and 999 means lakh — 'budget 80' -> 8000000. Use ONE unit for the whole range, chosen from the larger figure: '55 to 65' is 5500000 to 6500000, never 55 crore to 65 lakh. Never read a bare number as literal rupees when it is plainly a budget: nobody is buying a house for 35 rupees.\n" +
     "3. 'X BHK' means bhk_min = bhk_max = X unless a range is given.\n" +
     "3b. Plot sizes: 'AxB' or 'A by B' site dimensions multiply to square feet ('30x40' -> 1200, '50x80' -> 4000). Convert units: 1 acre = 43560 sqft, 1 gunta = 1089 sqft, 1 cent = 435.6 sqft, 1 sq yard = 9 sqft. A single stated size ('30x40 site', '1200 sqft') means land_area_min_sqft = land_area_max_sqft = that size. Relative words with no figure ('smaller', 'lesser dimensions', 'bigger plot') stay null — do NOT invent a number.\n" +
-    "4. Only extract what the CONTACT wants. Ignore details about properties they already own or sold, meeting logistics, or agent chatter.\n" +
+    '4. Only extract what the CONTACT wants. Ignore details about properties they already own or sold, meeting logistics, or agent chatter.\n' +
     "5. Distinguish wanted vs rejected: 'not interested in commercial' must NOT add 'commercial' to property_categories; 'avoid Whitefield' goes to excluded_areas.\n" +
-    "6. Set fields to null / empty array when genuinely not stated. Do NOT guess.\n" +
+    '6. Set fields to null / empty array when genuinely not stated. Do NOT guess.\n' +
     "7. A named project/society/building (e.g. 'Purva Vantage', 'Prestige Lakeside') goes in \"projects\", NOT \"areas\". A locality/neighbourhood (e.g. 'HSR Layout', 'Sarjapur Road') goes in \"areas\".\n" +
     '8. Output MUST be valid JSON.';
 
-  const raw = await generateJson(`Extract buying preferences from:\n\n"${text}"`, systemInstruction);
+  const raw = await generateJson(
+    `Extract buying preferences from:\n\n"${text}"`,
+    systemInstruction
+  );
   const parsed = parseJsonLenient(raw);
 
   const propertyTypes = toStringArray(parsed.property_types)
     .map((t) => normalizePropertyType(t))
-    .filter((t): t is string => !!t && (PROPERTY_TYPE_VALUES as readonly string[]).includes(t));
+    .filter(
+      (t): t is string =>
+        !!t && (PROPERTY_TYPE_VALUES as readonly string[]).includes(t)
+    );
 
   const categories = toStringArray(parsed.property_categories)
     .map((c) => c.toLowerCase())
@@ -203,8 +257,10 @@ export async function extractContactPreferences(sourceText: string): Promise<Ext
       (PROPERTY_CATEGORY_VALUES as readonly string[]).includes(c)
     );
 
-  const listingTypes = toStringArray(parsed.listing_types)
-    .filter((t): t is ListingType => (LISTING_TYPE_VALUES as readonly string[]).includes(t));
+  const listingTypes = toStringArray(parsed.listing_types).filter(
+    (t): t is ListingType =>
+      (LISTING_TYPE_VALUES as readonly string[]).includes(t)
+  );
 
   return {
     property_types: [...new Set(propertyTypes)],
@@ -220,7 +276,9 @@ export async function extractContactPreferences(sourceText: string): Promise<Ext
     projects: [...new Set(toStringArray(parsed.projects))],
     min_roi: toNumberOrNull(parsed.min_roi),
     listing_types: [...new Set(listingTypes)],
-    suggested_tags: normalizeSuggestedTags(toStringArray(parsed.suggested_tags)),
+    suggested_tags: normalizeSuggestedTags(
+      toStringArray(parsed.suggested_tags)
+    ),
   };
 }
 

@@ -138,6 +138,49 @@ beforeEach(() => {
 });
 
 describe('processBuyerQualificationMessage — free-text requirement updates', () => {
+  it('serves the rent-to-sale correction instead of restarting onboarding', async () => {
+    extractContactPreferences.mockResolvedValue({
+      ...fullPrefs,
+      property_categories: ['commercial'],
+      listing_types: ['Sale', 'Rent'],
+      budget_max: null,
+      areas: [],
+    });
+    queues.contacts = [
+      contactRow({
+        name: 'Sulekha',
+        requirements: 'Commercial office space for rent in Jayanagar',
+        pref_property_categories: ['commercial'],
+        pref_listing_types: ['Rent'],
+      }),
+    ];
+
+    const handled = await processBuyerQualificationMessage(
+      'Hi, not interested in renting. Are there commercial properties for sale?',
+      { id: 'c1', phone: '919000000000', name: 'Sulekha' },
+      { id: 'conv-1' },
+      'acct-1',
+      'token',
+      'phone-id',
+      'owner-1'
+    );
+
+    expect(handled).toBe(true);
+    expect(recordLearnedFacts).toHaveBeenCalledWith(
+      expect.objectContaining({
+        facts: expect.arrayContaining([
+          { field: 'pref_listing_types', value: ['Sale'] },
+        ]),
+      })
+    );
+    expect(sendTextMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: expect.stringContaining('for purchase, not rent'),
+      })
+    );
+    expect(rankPropertiesForContact).not.toHaveBeenCalled();
+  });
+
   it('answers in a bot-heavy thread, which the old bot-message cap silenced', async () => {
     // Re-engagement threads carry dozens of bot messages by design;
     // counting them muted the reply exactly where a typed "budget is

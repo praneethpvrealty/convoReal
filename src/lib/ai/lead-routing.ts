@@ -24,7 +24,7 @@
 import { requestsHumanContact } from '@/lib/ai/lead-question';
 import { requestsPropertyPhotos } from '@/lib/ai/photo-request';
 import { parseOrdinalReferences } from '@/lib/ai/shortlist-reference';
-import { carriesRequirementSignal } from '@/lib/ai/buyer-qualification';
+import { carriesRequirementSignal } from '@/lib/ai/requirement-signal';
 import { isDirectPropertyInterest } from '@/lib/whatsapp/property-interest';
 import { isPropertyDisinterest } from '@/lib/whatsapp/property-disinterest';
 
@@ -98,6 +98,12 @@ export function routeLeadMessage(text?: string | null): LeadRoute {
 /** True when the ladder must stand down and let another handler reply. */
 export function standsDownFromQualification(text?: string | null): boolean {
   return routeLeadMessage(text) !== 'qualification';
+}
+
+export function isBuyerRequirementMessage(text?: string | null): boolean {
+  return (
+    routeLeadMessage(text) === 'qualification' && carriesRequirementSignal(text)
+  );
 }
 
 /** What each route does, for the dev simulator's routing panel. */
