@@ -9,6 +9,8 @@ import { useAuth } from "@/hooks/use-auth";
 import { useTotalUnread } from "@/hooks/use-total-unread";
 import { useT } from "@/hooks/use-locale";
 import type { MessageKey } from "@/lib/i18n/messages";
+import { COPILOT_ENABLED } from "@/lib/copilot/config";
+import { useCopilot } from "@/components/copilot/copilot-context";
 import { SidebarCreditWidget } from "@/components/layout/SidebarCreditWidget";
 import { FavoritesCard } from "@/components/layout/favorites-card";
 import { ConvoRealMark } from "@/components/brand/mark";
@@ -21,6 +23,7 @@ import {
   Radio,
   Megaphone,
   Settings,
+  Sparkles,
   Shield,
   User,
   UserCog,
@@ -103,7 +106,6 @@ interface NavItem {
    */
   beta?: boolean;
 }
-
 const navItems: NavItem[] = [
   { href: "/dashboard", labelKey: "nav.dashboard", icon: LayoutDashboard },
   { href: "/inbox", labelKey: "nav.inbox", icon: MessageSquare },
@@ -139,6 +141,7 @@ const ACCOUNT_SHARING_FLAG = "account_sharing";
 export function Sidebar({ open = false, onClose }: SidebarProps) {
   const pathname = usePathname();
   const t = useT();
+  const { openPanel } = useCopilot();
   const { profile, profileLoading, account, accountRole, signOut } = useAuth();
   const totalUnread = useTotalUnread();
   // Match the settings page's check: only treat the flag as enabled
@@ -236,6 +239,25 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
         <div className="flex-1 min-h-0 overflow-y-auto relative z-10">
         <nav className="px-3 py-4">
           <ul className="flex flex-col gap-1">
+            {COPILOT_ENABLED && (
+              <li>
+                <button
+                  type="button"
+                  onClick={() => {
+                    openPanel();
+                    onClose?.();
+                  }}
+                  data-tour="copilot-sidebar"
+                  className="flex w-full items-center gap-3 rounded-xl border border-primary/25 bg-primary/10 px-3 py-2.5 text-left text-sm font-semibold text-white shadow-md shadow-primary/5 transition-all duration-300 hover:bg-primary/15 lg:py-2"
+                >
+                  <Sparkles className="h-4 w-4 shrink-0 text-primary" />
+                  <span className="flex-1 truncate">{t("copilot.assistant")}</span>
+                  <span className="rounded-full border border-primary/30 bg-primary/10 px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-wider text-primary">
+                    AI
+                  </span>
+                </button>
+              </li>
+            )}
             {navItems.map((item) => {
               const isActive =
                 pathname === item.href ||
