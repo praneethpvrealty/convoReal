@@ -7,7 +7,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useT } from "@/hooks/use-locale";
 import { LanguageToggle } from "@/components/layout/language-toggle";
 import { useTheme } from "@/hooks/use-theme";
-import { LogOut, Menu, Moon, Settings as SettingsIcon, Sun, User, Search, Loader2 } from "lucide-react";
+import { LogOut, Menu, Moon, Settings as SettingsIcon, Sparkles, Sun, User, Search, Loader2 } from "lucide-react";
 import {
   Avatar,
   AvatarFallback,
@@ -30,6 +30,8 @@ import { formatCurrency } from "@/lib/currency-utils";
 import { CreditMeter } from "@/components/layout/CreditMeter";
 import { NotificationBell } from "@/components/layout/notification-bell";
 import { NameTagBadge } from "@/components/contacts/name-tag-badge";
+import { COPILOT_ENABLED } from "@/lib/copilot/config";
+import { useCopilot } from "@/components/copilot/copilot-context";
 
 // Only sections whose name differs from their slug need an entry. The rest
 // are derived, so a screen added tomorrow is titled correctly instead of
@@ -52,7 +54,6 @@ export function getPageTitle(pathname: string): string {
       .join(" ")
   );
 }
-
 interface HeaderProps {
   /** Wired to the shell's drawer state. Used only on mobile — the
    *  hamburger button is hidden on lg+. */
@@ -63,6 +64,7 @@ export function Header({ onOpenSidebar }: HeaderProps) {
   const pathname = usePathname();
   const { profile, signOut } = useAuth();
   const { mode, setMode } = useTheme();
+  const { openPanel } = useCopilot();
   const t = useT();
   const title = getPageTitle(pathname);
   const supabase = createClient();
@@ -312,6 +314,19 @@ export function Header({ onOpenSidebar }: HeaderProps) {
       </Dialog>
 
       <div className="flex items-center gap-3">
+        {COPILOT_ENABLED && (
+          <button
+            type="button"
+            onClick={openPanel}
+            aria-label={t("copilot.open")}
+            title={t("copilot.assistant")}
+            className="flex h-8 items-center gap-1.5 rounded-md border border-primary/25 bg-primary/10 px-2.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/20 hover:text-white"
+          >
+            <Sparkles className="size-4" />
+            <span className="hidden xl:inline">{t("copilot.assistant")}</span>
+          </button>
+        )}
+
         <button
           type="button"
           onClick={() => setMode(mode === "dark" ? "light" : "dark")}

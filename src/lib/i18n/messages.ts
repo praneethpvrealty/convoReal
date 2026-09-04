@@ -94,6 +94,7 @@ export const EN = {
   'contacts.allProjects': 'All projects',
   'contacts.projectFilter': 'Filter by project',
 
+  'copilot.assistant': 'AI Assistant',
   'copilot.title': 'Helper',
   'copilot.greeting':
     'Hi! I can show you around or answer questions about ConvoReal. 👋',

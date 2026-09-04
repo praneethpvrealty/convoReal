@@ -14,8 +14,8 @@ import { Sparkles, X } from "lucide-react";
 import { useCopilot } from "./copilot-context";
 import { CopilotPanel } from "./copilot-panel";
 import { useCopilotNudges } from "@/hooks/useCopilotNudges";
-
-const COPILOT_ENABLED = process.env.NEXT_PUBLIC_COPILOT_ENABLED !== "false";
+import { useT } from "@/hooks/use-locale";
+import { COPILOT_ENABLED } from "@/lib/copilot/config";
 /** Auto-hide the bubble after this long (counts as shown, not
  *  dismissed-forever — the 24h global cooldown still applies). */
 const NUDGE_AUTO_HIDE_MS = 20_000;
@@ -24,6 +24,7 @@ export function CopilotWidget() {
   const { panelOpen, openPanel, tourStatus, startTour } = useCopilot();
   const { nudge, dismiss, accept } = useCopilotNudges();
   const router = useRouter();
+  const t = useT();
 
   // Auto-hide: dismissing clears the nudge in the hook, so the bubble
   // needs no visibility state of its own.
@@ -50,7 +51,7 @@ export function CopilotWidget() {
     <>
       {/* Nudge bubble */}
       {nudge && !panelOpen && (
-        <div className="fixed bottom-24 right-5 z-[60] w-[min(280px,calc(100vw-40px))] rounded-2xl rounded-br-sm border border-slate-700 bg-slate-950/95 p-3.5 shadow-2xl shadow-black/50 backdrop-blur-xl">
+        <div className="fixed bottom-32 right-4 z-[60] w-[min(280px,calc(100vw-32px))] rounded-2xl rounded-br-sm border border-slate-700 bg-slate-950/95 p-3.5 shadow-2xl shadow-black/50 backdrop-blur-xl">
           <button
             type="button"
             onClick={dismiss}
@@ -79,11 +80,13 @@ export function CopilotWidget() {
         <button
           type="button"
           onClick={openPanel}
-          aria-label="Help & guides"
+          aria-label={t("copilot.open")}
+          title={t("copilot.assistant")}
           data-tour="copilot-button"
-          className="fixed bottom-5 right-5 z-[60] flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-primary to-indigo-650 text-white shadow-lg shadow-primary/30 transition-transform hover:scale-105 active:scale-95"
+          className="fixed bottom-16 right-4 z-[60] flex h-12 items-center justify-center gap-2 rounded-full bg-gradient-to-br from-primary to-indigo-650 px-4 text-sm font-bold text-white shadow-lg shadow-primary/30 transition-transform hover:scale-105 active:scale-95"
         >
           <Sparkles className="h-5 w-5" />
+          <span>{t("copilot.assistant")}</span>
         </button>
       )}
 
