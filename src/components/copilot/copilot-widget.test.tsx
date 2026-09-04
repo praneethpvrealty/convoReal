@@ -45,7 +45,8 @@ describe('CopilotWidget', () => {
 
     const launcher = screen.getByRole('button', { name: 'Open the helper' });
     expect(launcher.textContent).toContain('AI Assistant');
-    expect(launcher.className).toContain('bottom-16');
+    expect(launcher.className).toContain('bottom-40');
+    expect(launcher.className).toContain('md:bottom-16');
     expect(launcher.className).toContain('right-4');
     expect(launcher.className).not.toContain('bottom-5');
   });

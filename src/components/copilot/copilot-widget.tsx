@@ -51,7 +51,7 @@ export function CopilotWidget() {
     <>
       {/* Nudge bubble */}
       {nudge && !panelOpen && (
-        <div className="fixed bottom-32 right-4 z-[60] w-[min(280px,calc(100vw-32px))] rounded-2xl rounded-br-sm border border-slate-700 bg-slate-950/95 p-3.5 shadow-2xl shadow-black/50 backdrop-blur-xl">
+        <div className="fixed bottom-56 right-4 z-[60] w-[min(280px,calc(100vw-32px))] rounded-2xl rounded-br-sm border border-slate-700 bg-slate-950/95 p-3.5 shadow-2xl shadow-black/50 backdrop-blur-xl md:bottom-32">
           <button
             type="button"
             onClick={dismiss}
@@ -83,7 +83,7 @@ export function CopilotWidget() {
           aria-label={t("copilot.open")}
           title={t("copilot.assistant")}
           data-tour="copilot-button"
-          className="fixed bottom-16 right-4 z-[60] flex h-12 items-center justify-center gap-2 rounded-full bg-gradient-to-br from-primary to-indigo-650 px-4 text-sm font-bold text-white shadow-lg shadow-primary/30 transition-transform hover:scale-105 active:scale-95"
+          className="fixed bottom-40 right-4 z-[60] flex h-12 items-center justify-center gap-2 rounded-full bg-gradient-to-br from-primary to-indigo-650 px-4 text-sm font-bold text-white shadow-lg shadow-primary/30 transition-transform hover:scale-105 active:scale-95 md:bottom-16"
         >
           <Sparkles className="h-5 w-5" />
           <span>{t("copilot.assistant")}</span>

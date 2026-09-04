@@ -189,6 +189,7 @@ const HI: Catalogue = {
     'आपकी लोकेशन नहीं मिली — लोकेशन की अनुमति देकर फिर कोशिश करें।',
   'contacts.allProjects': 'सभी प्रोजेक्ट',
   'contacts.projectFilter': 'प्रोजेक्ट से फ़िल्टर करें',
+  'copilot.assistant': 'एआई सहायक',
   'copilot.title': 'हेल्पर',
   'copilot.greeting':
     'नमस्ते! मैं आपको ऐप घुमा सकता हूँ या ConvoReal के बारे में सवालों के जवाब दे सकता हूँ। 👋',
@@ -277,6 +278,7 @@ const KN: Catalogue = {
     'ನಿಮ್ಮ ಸ್ಥಳ ಸಿಗಲಿಲ್ಲ — ಸ್ಥಳದ ಅನುಮತಿ ನೀಡಿ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.',
   'contacts.allProjects': 'ಎಲ್ಲ ಪ್ರಾಜೆಕ್ಟ್\u200cಗಳು',
   'contacts.projectFilter': 'ಪ್ರಾಜೆಕ್ಟ್ ಮೂಲಕ ಫಿಲ್ಟರ್',
+  'copilot.assistant': 'ಎಐ ಸಹಾಯಕ',
   'copilot.title': 'ಹೆಲ್ಪರ್',
   'copilot.greeting':
     'ನಮಸ್ಕಾರ! ನಾನು ಆ್ಯಪ್ ತೋರಿಸಬಲ್ಲೆ ಅಥವಾ ConvoReal ಬಗ್ಗೆ ಪ್ರಶ್ನೆಗಳಿಗೆ ಉತ್ತರಿಸಬಲ್ಲೆ. 👋',
@@ -369,6 +371,7 @@ const TA: Catalogue = {
     'உங்கள் இருப்பிடம் கிடைக்கவில்லை — இருப்பிட அனுமதி வழங்கி மீண்டும் முயற்சிக்கவும்.',
   'contacts.allProjects': 'எல்லா ப்ராஜெக்ட்களும்',
   'contacts.projectFilter': 'ப்ராஜெக்ட் வாரியாக வடிகட்டு',
+  'copilot.assistant': 'AI உதவியாளர்',
   'copilot.title': 'ஹெல்பர்',
   'copilot.greeting':
     'வணக்கம்! நான் ஆப்பை சுற்றிக் காட்டவோ, ConvoReal பற்றிய கேள்விகளுக்கு பதிலளிக்கவோ முடியும். 👋',
@@ -457,6 +460,7 @@ const TE: Catalogue = {
     'మీ లొకేషన్ దొరకలేదు — లొకేషన్ అనుమతి ఇచ్చి మళ్లీ ప్రయత్నించండి.',
   'contacts.allProjects': 'అన్ని ప్రాజెక్టులు',
   'contacts.projectFilter': 'ప్రాజెక్ట్ ద్వారా ఫిల్టర్',
+  'copilot.assistant': 'ఏఐ సహాయకుడు',
   'copilot.title': 'హెల్పర్',
   'copilot.greeting':
     'నమస్తే! నేను యాప్ చూపించగలను లేదా ConvoReal గురించి ప్రశ్నలకు సమాధానం ఇవ్వగలను. 👋',
@@ -548,6 +552,7 @@ const ML: Catalogue = {
     'നിങ്ങളുടെ ലൊക്കേഷൻ കിട്ടിയില്ല — ലൊക്കേഷൻ അനുമതി നൽകി വീണ്ടും ശ്രമിക്കുക.',
   'contacts.allProjects': 'എല്ലാ പ്രോജക്ടുകളും',
   'contacts.projectFilter': 'പ്രോജക്ട് പ്രകാരം ഫിൽട്ടർ',
+  'copilot.assistant': 'എഐ സഹായി',
   'copilot.title': 'ഹെൽപ്പർ',
   'copilot.greeting':
     'നമസ്കാരം! എനിക്ക് ആപ്പ് ചുറ്റിക്കാണിക്കാം, ConvoReal-നെക്കുറിച്ചുള്ള ചോദ്യങ്ങൾക്ക് ഉത്തരം നൽകാം. 👋',
@@ -636,6 +641,7 @@ const MR: Catalogue = {
     'तुमचे लोकेशन मिळाले नाही — लोकेशन परवानगी देऊन पुन्हा प्रयत्न करा.',
   'contacts.allProjects': 'सर्व प्रोजेक्ट',
   'contacts.projectFilter': 'प्रोजेक्टनुसार फिल्टर',
+  'copilot.assistant': 'एआय सहाय्यक',
   'copilot.title': 'हेल्पर',
   'copilot.greeting':
     'नमस्कार! मी तुम्हाला अ\u200dॅप दाखवू शकतो किंवा ConvoReal बद्दलच्या प्रश्नांची उत्तरे देऊ शकतो. 👋',
