@@ -1,16 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
 
-/**
- * Regression test for a production incident: the cron queried
- * `messages.contact_id` and `messages.direction` to see whether a buyer
- * had replied to a share — neither column exists on `messages` (contact
- * linkage lives on `conversations.contact_id`, and replies are identified
- * by `sender_type = 'customer'`). Every run logged a Postgres error
- * ("column messages.contact_id does not exist") and silently skipped the
- * reply check for every pending share. Fixed by reading
- * `conversations.last_customer_message_at` instead.
- */
-
 const sendWhatsAppMessageAndPersistMock = vi.fn().mockResolvedValue(undefined);
 
 vi.mock('@/lib/whatsapp/meta-api-dispatcher', () => ({
