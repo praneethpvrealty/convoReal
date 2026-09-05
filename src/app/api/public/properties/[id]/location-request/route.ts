@@ -273,6 +273,7 @@ export async function POST(
             await admin.from('messages').insert({
               conversation_id: conversationId,
               sender_type: 'bot',
+              private: true,
               content_type: 'text',
               content_text: inboxText,
               message_id: `location-request-${locRequest.id}`,

@@ -12,8 +12,10 @@
 // content however they asked for it.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Property } from '@/types';
+import type { Contact, Property } from '@/types';
 import { buildInventorySummary } from '@/lib/inventory-summary-builder';
+import { attachInquiredListingTypes } from '@/lib/contacts/inquired-intent';
+import { MATCHING_CONTACT_COLUMNS } from '@/lib/v1/projections';
 import { accountShowcaseBase } from '@/lib/showcase/account-showcase-url';
 import { matchTemplateButton } from '@/lib/whatsapp/template-copy';
 
@@ -52,7 +54,7 @@ export type TemplateQuickReply =
  * details" reaches the same handler as the tap.
  */
 export function parseTemplateQuickReply(
-  text: string | null | undefined,
+  text: string | null | undefined
 ): TemplateQuickReply | null {
   switch (matchTemplateButton(text)) {
     case 'send_more_details':
@@ -77,7 +79,7 @@ export function parseTemplateQuickReply(
 export async function lastSharedPropertyId(
   db: SupabaseClient,
   accountId: string,
-  contactId: string,
+  contactId: string
 ): Promise<string | null> {
   const { data } = await db
     .from('property_shares')
@@ -106,6 +108,7 @@ export const SITE_VISIT_ACK_TEXT =
 export async function buildFullListMessage(
   db: SupabaseClient,
   accountId: string,
+  contactId?: string
 ): Promise<string | null> {
   const { data } = await db
     .from('properties')
@@ -115,8 +118,52 @@ export async function buildFullListMessage(
     .eq('status', 'Available')
     .order('created_at', { ascending: false })
     .limit(60);
-  const properties = (data || []) as Property[];
+  let properties = (data || []) as Property[];
   if (properties.length === 0) return null;
-  const portalUrl = await accountShowcaseBase(db, accountId);
-  return buildInventorySummary(properties, { portalUrl });
+  let contact: Contact | null = null;
+  if (contactId) {
+    const [contactResult, feedbackResult] = await Promise.all([
+      db
+        .from('contacts')
+        .select(`${MATCHING_CONTACT_COLUMNS}, last_inquired_property_id`)
+        .eq('account_id', accountId)
+        .eq('id', contactId)
+        .eq('status', 'active')
+        .maybeSingle(),
+      db
+        .from('listing_feedback')
+        .select('property_id')
+        .eq('account_id', accountId)
+        .eq('contact_id', contactId)
+        .eq('verdict', 'rejected'),
+    ]);
+    if (contactResult.data) {
+      [contact] = await attachInquiredListingTypes(db, accountId, [
+        contactResult.data as unknown as Contact,
+      ]);
+    }
+    if (!feedbackResult.error) {
+      const rejected = new Set(
+        (feedbackResult.data ?? []).map((row) => row.property_id)
+      );
+      properties = properties.filter((property) => !rejected.has(property.id));
+    }
+  }
+  if (properties.length === 0 && !contact) return null;
+  const basePortalUrl = await accountShowcaseBase(db, accountId);
+  let portalUrl = basePortalUrl;
+  if (contactId) {
+    try {
+      const tracked = new URL(basePortalUrl);
+      tracked.searchParams.set('v', contactId);
+      portalUrl = tracked.toString();
+    } catch {
+      portalUrl = basePortalUrl;
+    }
+  }
+  return buildInventorySummary(properties, {
+    portalUrl,
+    contact,
+    recipientName: contact?.name,
+  });
 }

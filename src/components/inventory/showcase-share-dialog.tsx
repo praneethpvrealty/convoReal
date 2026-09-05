@@ -35,14 +35,16 @@ import type {
   ShareCategory,
   ShareScope,
 } from '@/lib/inventory/showcase-share-link';
-import { buildInventorySummary } from '@/lib/inventory-summary-builder';
+import {
+  buildInventorySummary,
+  categoryForType,
+} from '@/lib/inventory-summary-builder';
 import { filterPropertiesBySearch } from '@/lib/inventory/search-filter';
 import { buildShowcaseShareLink } from '@/lib/inventory/showcase-share-link';
 import { formatShareAmount } from '@/lib/share-message-builder';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import {
   buildInventoryUpdateTemplatePayload,
-  buildInventoryUpdateParams,
   INVENTORY_UPDATE_TEMPLATE_NAME,
 } from '@/lib/whatsapp/inventory-update-template';
 
@@ -51,6 +53,21 @@ interface PickerContact {
   name: string | null;
   phone: string | null;
   name_tag?: string | null;
+}
+
+interface PersonalizedShareSummary {
+  summary: string;
+  template_params: [string, string, string];
+  match_count: number;
+}
+
+interface ShareSummaryResponse {
+  data: {
+    summary: string;
+    count: number;
+    template_params: [string, string, string];
+    personalized: Record<string, PersonalizedShareSummary>;
+  };
 }
 
 interface ShowcaseShareDialogProps {
@@ -283,8 +300,14 @@ Best regards`;
   } | null>(null);
   const summaryMessage =
     summaryDraft?.base === autoSummary ? summaryDraft.text : autoSummary;
+  const hasCustomSummary = summaryDraft?.base === autoSummary;
 
-  const scopeCount = scopeProperties?.length ?? 0;
+  const scopeCount =
+    scope === 'all' && shareCategory !== 'All'
+      ? (scopeProperties ?? []).filter(
+          (property) => categoryForType(property.type) === shareCategory
+        ).length
+      : (scopeProperties?.length ?? 0);
   const scopeSummaryLabel =
     scope === 'search'
       ? `${scopeCount} matching “${trimmedSearch}”`
@@ -410,10 +433,35 @@ Best regards`;
     return url.toString();
   };
 
-  const buildMessage = (link: string, name?: string | null) => {
+  const fetchShareSummaries = async (contactIds: string[]) => {
+    const query = new URLSearchParams({
+      scope,
+      category: shareCategory,
+      search: trimmedSearch,
+      ids: (scopeProperties ?? [])
+        .map((property) => property.property_code || property.id)
+        .join(','),
+      portal_url: generatedLink,
+    });
+    if (contactIds.length > 0) query.set('contact_ids', contactIds.join(','));
+    const response = await fetch(`/api/inventory/share-summary?${query}`);
+    const body = (await response.json()) as ShareSummaryResponse & {
+      error?: string;
+    };
+    if (!response.ok) throw new Error(body.error || 'Could not rank listings');
+    return body.data;
+  };
+
+  const buildMessage = (
+    link: string,
+    name?: string | null,
+    summaryOverride?: string
+  ) => {
     const firstName = name?.trim().split(/\s+/)[0] || 'there';
     if (messageMode === 'list') {
-      return summaryMessage.replace(generatedLink, link);
+      return (summaryOverride ?? summaryMessage)
+        .replace(generatedLink, link)
+        .replace('Hi there!', `Hi ${firstName}!`);
     }
     return pitchMessage
       .replaceAll('{portalUrl}', link)
@@ -439,9 +487,23 @@ Best regards`;
     try {
       const contact =
         selectedContacts.length === 1 ? selectedContacts[0] : null;
+      let personalized: PersonalizedShareSummary | undefined;
+      if (contact && messageMode === 'list' && !hasCustomSummary) {
+        try {
+          personalized = (await fetchShareSummaries([contact.id])).personalized[
+            contact.id
+          ];
+        } catch (error) {
+          console.error('[showcase-share] personalized list failed:', error);
+        }
+      }
       await navigator.clipboard.writeText(
         contact
-          ? buildMessage(personalizedLink(contact.id), contact.name)
+          ? buildMessage(
+              personalizedLink(contact.id),
+              contact.name,
+              personalized?.summary
+            )
           : previewMessage
       );
       setCopiedMessage(true);
@@ -476,7 +538,7 @@ Best regards`;
     }
   };
 
-  const handleWhatsApp = () => {
+  const handleWhatsApp = async () => {
     // No recipient → WhatsApp opens its own chat picker, so the message
     // can go to a group or broadcast list.
     if (sendableContacts.length === 0) {
@@ -488,7 +550,21 @@ Best regards`;
     }
     // Personal WhatsApp can only open one chat at a time.
     for (const contact of sendableContacts.slice(0, 1)) {
-      const message = buildMessage(personalizedLink(contact.id), contact.name);
+      let personalized: PersonalizedShareSummary | undefined;
+      if (messageMode === 'list' && !hasCustomSummary) {
+        try {
+          personalized = (await fetchShareSummaries([contact.id])).personalized[
+            contact.id
+          ];
+        } catch (error) {
+          console.error('[showcase-share] personalized list failed:', error);
+        }
+      }
+      const message = buildMessage(
+        personalizedLink(contact.id),
+        contact.name,
+        personalized?.summary
+      );
       const phone = (contact.phone || '').replace(/\D/g, '');
       window.open(
         `https://wa.me/${phone}?text=${encodeURIComponent(message)}`,
@@ -505,14 +581,17 @@ Best regards`;
   const handleEngineSend = async () => {
     if (!engineTemplate || !accountId || sendableContacts.length === 0) return;
     setSendingEngine(true);
-    const [residential, commercial, farmAndLand] = buildInventoryUpdateParams(
-      scopeProperties ?? []
-    );
     let sent = 0;
     const failures: string[] = [];
     try {
+      const summaries = await fetchShareSummaries(
+        sendableContacts.map((contact) => contact.id)
+      );
       for (const contact of sendableContacts) {
         const firstName = contact.name?.trim().split(/\s+/)[0] || 'there';
+        const [residential, commercial, farmAndLand] =
+          summaries.personalized[contact.id]?.template_params ??
+          summaries.template_params;
         // Dynamic URL-button suffix → tracked, personalised portal open.
         const buttonParams: Record<number, string> = {};
         (engineTemplate.buttons ?? []).forEach((btn, idx) => {
@@ -551,6 +630,9 @@ Best regards`;
           console.error('[showcase-share] Engine send failed:', err);
         }
       }
+    } catch (error) {
+      console.error('[showcase-share] ranking request failed:', error);
+      toast.error('Could not prepare the inventory update. Please try again.');
     } finally {
       setSendingEngine(false);
     }
@@ -1037,7 +1119,7 @@ Best regards`;
                   </Button>
                 )}
                 <Button
-                  onClick={handleWhatsApp}
+                  onClick={() => void handleWhatsApp()}
                   variant={engineTemplateApproved ? 'outline' : 'default'}
                   className={
                     engineTemplateApproved

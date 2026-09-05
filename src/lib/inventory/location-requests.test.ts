@@ -63,45 +63,25 @@ describe('buildRevealMessage', () => {
     expect(msg).toContain('48 hours');
   });
 
-  it('carries the property details and the map pin below the link', () => {
+  it('keeps the exact address and map pin behind the expiring link', () => {
     const msg = buildRevealMessage({
       requesterName: 'Rahul',
       propertyTitle: 'Villa in Whitefield',
       revealLink: 'https://app.convoreal.com/reveal/abc123',
-      details: '🏡 *Villa in Whitefield*\n💰 *₹2.4 Cr*',
-      mapUrl: 'https://www.google.com/maps/search/?api=1&query=12.9348,77.6189',
+      summary: 'Villa · 3 BHK · ₹2.4 Cr',
     });
-    expect(msg).toContain('💰 *₹2.4 Cr*');
-    expect(msg).toContain('🗺 Map pin: https://www.google.com/maps/search/');
-    expect(msg.indexOf('/reveal/abc123')).toBeLessThan(
-      msg.indexOf('🗺 Map pin:')
-    );
-  });
-
-  it('never overruns the WhatsApp text limit, keeping the link', () => {
-    const msg = buildRevealMessage({
-      requesterName: 'Rahul',
-      propertyTitle: 'Villa in Whitefield',
-      revealLink: 'https://app.convoreal.com/reveal/abc123',
-      details: Array.from(
-        { length: 400 },
-        (_, i) => `\u2728 Feature line ${i}`
-      ).join('\n'),
-      mapUrl: 'https://www.google.com/maps/search/?api=1&query=12.9348,77.6189',
-    });
-    expect(msg.length).toBeLessThanOrEqual(4096);
+    expect(msg).toContain('Villa · 3 BHK · ₹2.4 Cr');
     expect(msg).toContain('/reveal/abc123');
-    expect(msg).toContain('\u{1F5FA} Map pin:');
-    expect(msg).toContain('\u2728 Feature line 0');
+    expect(msg).not.toContain('12.9348');
+    expect(msg).not.toContain('google.com/maps');
   });
 
-  it('omits the details and map lines when there are none', () => {
+  it('omits the summary when there are no safe listing facts', () => {
     const msg = buildRevealMessage({
       requesterName: 'Rahul',
       propertyTitle: 'Villa in Whitefield',
       revealLink: 'https://app.convoreal.com/reveal/abc123',
-      details: null,
-      mapUrl: null,
+      summary: null,
     });
     expect(msg).not.toContain('Map pin:');
     expect(msg).not.toContain('\n\n\n');

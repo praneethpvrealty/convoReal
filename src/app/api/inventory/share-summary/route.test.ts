@@ -54,7 +54,15 @@ async function callGet(query: string) {
     new Request(`http://test/api/inventory/share-summary${query}`)
   );
   return (await response.json()) as {
-    data: { summary: string; count: number; template_params: string[] };
+    data: {
+      summary: string;
+      count: number;
+      template_params: string[];
+      personalized: Record<
+        string,
+        { summary: string; template_params: string[]; match_count: number }
+      >;
+    };
   };
 }
 
@@ -79,8 +87,11 @@ describe('/api/inventory/share-summary', () => {
   it('keeps only the named category', async () => {
     getCurrentAccount.mockResolvedValue(accountWith(rows));
     const body = await callGet('?scope=all&category=Commercial');
+    expect(body.data.count).toBe(1);
     expect(body.data.summary).toContain('*COMMERCIAL*');
     expect(body.data.summary).not.toContain('*RESIDENTIAL*');
+    expect(body.data.template_params[0]).toContain('no published options');
+    expect(body.data.template_params[1]).toContain('Shop on 27th Main');
   });
 
   it('applies the search scope instead of the category', async () => {
@@ -113,8 +124,60 @@ describe('/api/inventory/share-summary', () => {
       const [residential, commercial, farmAndLand] = body.data.template_params;
       expect(residential).toContain('Villa in Whitefield');
       expect(commercial).toContain('Shop on 27th Main');
-      expect(farmAndLand).toContain('fresh stock');
+      expect(farmAndLand).toContain('no published options');
     });
+  });
+
+  it('returns contact-ranked summaries and removes rejected listings', async () => {
+    const propertyQuery = {
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      order: vi.fn().mockResolvedValue({ data: rows, error: null }),
+    };
+    const thenable = (data: unknown[]) => ({
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      in: vi.fn().mockReturnThis(),
+      then(resolve: (value: { data: unknown[]; error: null }) => void) {
+        resolve({ data, error: null });
+      },
+    });
+    const contactQuery = thenable([
+      {
+        id: 'contact-1',
+        user_id: 'user-1',
+        phone: '+919999999999',
+        name: 'Rahul Sharma',
+        classification: 'Buyer',
+        property_interests: ['Residential House'],
+        areas_of_interest: ['Whitefield'],
+        requirement_active: true,
+      },
+    ]);
+    const feedbackQuery = thenable([
+      { contact_id: 'contact-1', property_id: 'p2' },
+    ]);
+    getCurrentAccount.mockResolvedValue({
+      accountId: 'acc-1',
+      supabase: {
+        from: vi.fn((table: string) => {
+          if (table === 'properties') return propertyQuery;
+          if (table === 'contacts') return contactQuery;
+          return feedbackQuery;
+        }),
+        rpc: vi.fn().mockResolvedValue({ data: [], error: null }),
+      },
+    });
+
+    const body = await callGet(
+      '?scope=all&portal_url=https://acme.test/&contact_ids=contact-1'
+    );
+    const ranked = body.data.personalized['contact-1'];
+    expect(ranked.summary).toContain('Hi Rahul!');
+    expect(ranked.summary).toContain('Villa in Whitefield');
+    expect(ranked.summary).not.toContain('Shop on 27th Main');
+    expect(ranked.summary).toContain('v=contact-1');
+    expect(ranked.match_count).toBe(1);
   });
 
   it('refuses an unauthenticated caller', async () => {

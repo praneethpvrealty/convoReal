@@ -59,10 +59,7 @@ import {
 import { createNotification } from '@/lib/notifications/create';
 import { resolveChannels } from '@/lib/notifications/preferences';
 import type { MessageTemplate, Property } from '@/types';
-import {
-  buildRevealDetails,
-  buildRevealTemplateFacts,
-} from '@/lib/share-message-builder';
+import { buildRevealTemplateFacts } from '@/lib/share-message-builder';
 
 export const CONSENT_TIMEOUT_MS = 2 * 60 * 60 * 1000;
 export const REVEAL_TOKEN_TTL_MS = 48 * 60 * 60 * 1000;
@@ -139,58 +136,24 @@ export function buildSeekerRedirectMessage(propertyTitle: string): string {
   );
 }
 
-/** Meta's free-form text limit. A reveal that overruns it is rejected
- *  with an error the template fallback does not recognise as a closed
- *  window, so the seeker would get nothing at all — and the request is
- *  already stamped approved by then. The link is what must survive, so
- *  the details block is what gives way. */
-const WHATSAPP_TEXT_LIMIT = 4096;
-
-/** The details block trimmed to whatever the rest of the message leaves
- *  free, dropped entirely when that is too little to be worth reading.
- *  Trimming happens at a line boundary so the block never ends mid-fact. */
-function fitRevealDetails(args: RevealMessageArgs): string | null {
-  const details = args.details?.trim();
-  if (!details) return null;
-  const withoutDetails = buildRevealMessage({ ...args, details: null });
-  const budget = WHATSAPP_TEXT_LIMIT - withoutDetails.length - '\n\n'.length;
-  if (details.length <= budget) return details;
-  const lines = details.split('\n');
-  const kept: string[] = [];
-  let used = 0;
-  for (const line of lines) {
-    const cost = kept.length === 0 ? line.length : line.length + 1;
-    if (used + cost > budget) break;
-    kept.push(line);
-    used += cost;
-  }
-  return kept.length > 1 ? kept.join('\n') : null;
-}
-
 export interface RevealMessageArgs {
   requesterName: string;
   propertyTitle: string;
   revealLink: string;
   scope?: 'location' | 'listing';
-  /** The property block from `buildRevealDetails` — the specs and the
-   *  exact address, so the seeker has the property in WhatsApp itself
-   *  and not only behind the link. */
-  details?: string | null;
-  /** Placed last: WhatsApp previews the FIRST url in a message, and the
-   *  preview belongs to the reveal link. */
-  mapUrl?: string | null;
+  /** Non-sensitive listing facts. Exact address and map data remain
+   *  behind the expiring, access-controlled reveal URL. */
+  summary?: string | null;
 }
 
 export function buildRevealMessage(args: RevealMessageArgs): string {
-  const mapLine = args.mapUrl ? `🗺 Map pin: ${args.mapUrl}` : null;
-  const detailsBlock = fitRevealDetails(args);
+  const summary = args.summary?.trim();
   if (args.scope === 'listing') {
     return [
       `🔓 *Access Approved — ${args.propertyTitle}*\n\n` +
         `Hi ${args.requesterName}, the owner has approved your request to view this listing.`,
-      detailsBlock,
-      `🏡 Full details, photos, address & map pin: ${args.revealLink}`,
-      mapLine,
+      summary ? `📐 ${summary}` : null,
+      `🏡 Open the secure link for full details, photos, address and map pin: ${args.revealLink}`,
       `🔒 The owner has asked that these details stay between us — please don't forward the link or the photos. ` +
         `Every photo carries your reference so we can honour that.\n\n` +
         `⏳ This link is valid for 7 days.`,
@@ -201,9 +164,8 @@ export function buildRevealMessage(args: RevealMessageArgs): string {
   return [
     `📍 *Exact Location — ${args.propertyTitle}*\n\n` +
       `Hi ${args.requesterName}, your location request was approved.`,
-    detailsBlock,
-    `🗺 Address, map pin & full photos: ${args.revealLink}`,
-    mapLine,
+    summary ? `📐 ${summary}` : null,
+    `🗺 Open the secure link for the address, map pin and full photos: ${args.revealLink}`,
     `⏳ This link is valid for 48 hours.`,
   ]
     .filter(Boolean)
@@ -318,7 +280,9 @@ function resolveTemplateBodyText(bodyTemplateText: string, params: string[]) {
  * mark the reveal as sent otherwise.
  */
 /** How many distinct `{{n}}` placeholders a template body declares. */
-export function templateParamCount(bodyText: string | null | undefined): number {
+export function templateParamCount(
+  bodyText: string | null | undefined
+): number {
   return new Set(
     [...(bodyText ?? '').matchAll(/\{\{(\d+)\}\}/g)].map((m) => m[1])
   ).size;
@@ -347,8 +311,7 @@ async function sendRevealToSeeker(
       propertyTitle,
       revealLink: shareLink,
       scope: request.scope,
-      details: details?.body ?? null,
-      mapUrl: details?.mapUrl ?? null,
+      summary: details?.specs ?? null,
     })
   );
   if (freeform.success) return true;
@@ -395,8 +358,7 @@ async function sendRevealToSeeker(
   const params = buildLocationRevealParams(
     request.requester_name,
     propertyTitle,
-    details?.specs,
-    details?.address
+    details?.specs
   ).slice(0, declaredParams);
   const bodyParams = truncateParametersToBudget(template.body_text, [
     ...params,
@@ -958,23 +920,15 @@ async function mintListingGrant(
 }
 
 /**
- * What an approved reveal carries about the property: the multi-line
- * block for the free-form message, and the same facts flattened onto
- * single lines for the template path, which cannot take a newline.
+ * Non-sensitive listing facts carried beside an approved reveal link.
+ * Exact address and map data stay behind the expiring token.
  */
 interface RevealDetails {
-  body: string;
-  mapUrl: string | null;
   specs: string;
-  address: string;
 }
 
 /**
- * The property block that travels with an approved reveal. Approval is
- * what lifts the guard, so this is read straight from the row and is
- * deliberately unmasked — and it goes out on the account's own WhatsApp
- * number like every other Engine send, never from the approver's
- * personal phone.
+ * The safe property summary that travels beside an approved reveal.
  */
 async function loadRevealDetails(
   admin: SupabaseClient,
@@ -994,9 +948,8 @@ async function loadRevealDetails(
     return null;
   }
   const property = data as unknown as Property;
-  const { body, mapUrl } = buildRevealDetails({ property });
-  const { specs, address } = buildRevealTemplateFacts({ property });
-  return { body, mapUrl, specs, address };
+  const { specs } = buildRevealTemplateFacts({ property });
+  return { specs };
 }
 
 /**
