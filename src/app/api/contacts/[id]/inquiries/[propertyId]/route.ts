@@ -5,6 +5,12 @@ import {
   rateLimitResponse,
   RATE_LIMITS,
 } from '@/lib/rate-limit';
+import {
+  buildPropertyInterestFollowUpMessage,
+  sendPropertyInterestFollowUp,
+  type PropertyInterestFollowUpTarget,
+} from '@/lib/whatsapp/property-interest-followup';
+import type { Contact, Property } from '@/types';
 
 // DELETE /api/contacts/[id]/inquiries/[propertyId]
 //
@@ -19,6 +25,125 @@ import {
 // filed against the wrong listing.
 
 type RouteParams = { params: Promise<{ id: string; propertyId: string }> };
+
+async function loadInterestTarget(
+  supabase: Awaited<ReturnType<typeof requireRole>>['supabase'],
+  accountId: string,
+  contactId: string,
+  propertyId: string
+): Promise<PropertyInterestFollowUpTarget | null> {
+  const [contactResult, propertyResult, inquiryResult] = await Promise.all([
+    supabase
+      .from('contacts')
+      .select('id, name, phone, last_inquired_property_id')
+      .eq('id', contactId)
+      .eq('account_id', accountId)
+      .maybeSingle(),
+    supabase
+      .from('properties')
+      .select('*')
+      .eq('id', propertyId)
+      .eq('account_id', accountId)
+      .maybeSingle(),
+    supabase
+      .from('contact_property_inquiries')
+      .select('property_id')
+      .eq('contact_id', contactId)
+      .eq('property_id', propertyId)
+      .maybeSingle(),
+  ]);
+  if (contactResult.error) throw contactResult.error;
+  if (propertyResult.error) throw propertyResult.error;
+  if (inquiryResult.error) throw inquiryResult.error;
+  if (!contactResult.data || !propertyResult.data) return null;
+  if (
+    !inquiryResult.data &&
+    contactResult.data.last_inquired_property_id !== propertyId
+  ) {
+    return null;
+  }
+  return {
+    contact: contactResult.data as Pick<Contact, 'id' | 'name' | 'phone'>,
+    property: propertyResult.data as Property,
+  };
+}
+
+export async function GET(_request: NextRequest, { params }: RouteParams) {
+  try {
+    const { id: contactId, propertyId } = await params;
+    const ctx = await requireRole('agent');
+    const target = await loadInterestTarget(
+      ctx.supabase,
+      ctx.accountId,
+      contactId,
+      propertyId
+    );
+    if (!target) {
+      return NextResponse.json(
+        { error: 'Interested property not found' },
+        { status: 404 }
+      );
+    }
+    const message = await buildPropertyInterestFollowUpMessage({
+      db: ctx.supabase,
+      accountId: ctx.accountId,
+      target,
+    });
+    return NextResponse.json({
+      data: { message, phone: target.contact.phone },
+    });
+  } catch (err) {
+    console.error(
+      '[GET /api/contacts/[id]/inquiries/[propertyId]] Unexpected error:',
+      err
+    );
+    return toErrorResponse(err);
+  }
+}
+
+export async function POST(_request: NextRequest, { params }: RouteParams) {
+  try {
+    const { id: contactId, propertyId } = await params;
+    const ctx = await requireRole('agent');
+    const limit = await checkRateLimit(
+      `contact:inquiry-followup:${ctx.userId}`,
+      RATE_LIMITS.adminAction
+    );
+    if (!limit.success) return rateLimitResponse(limit);
+
+    const target = await loadInterestTarget(
+      ctx.supabase,
+      ctx.accountId,
+      contactId,
+      propertyId
+    );
+    if (!target) {
+      return NextResponse.json(
+        { error: 'Interested property not found' },
+        { status: 404 }
+      );
+    }
+    const result = await sendPropertyInterestFollowUp({
+      db: ctx.supabase,
+      accountId: ctx.accountId,
+      userId: ctx.userId,
+      target,
+    });
+    if (!result.success) {
+      return NextResponse.json(
+        { error: result.error || 'Could not send the check-in' },
+        { status: 409 }
+      );
+    }
+    return NextResponse.json({ data: result });
+  } catch (err) {
+    console.error(
+      '[POST /api/contacts/[id]/inquiries/[propertyId]] Unexpected error:',
+      err
+    );
+    return toErrorResponse(err);
+  }
+}
 
 export async function DELETE(_request: NextRequest, { params }: RouteParams) {
   try {

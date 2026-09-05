@@ -1,6 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
-import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
 import { useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -8,6 +7,7 @@ import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { apiFetch, ApiError } from '@/lib/api';
 import { PropertyShareSheet } from '@/components/property-share-sheet';
+import { PropertyInterestFollowUpSheet } from '@/components/property-interest-follow-up-sheet';
 import { BottomSheet } from '@/components/sheet';
 import { Avatar, EmptyState, PrimaryButton, SearchBar, SectionLabel, Tag, TextField } from '@/components/ui';
 import { useAuthStore } from '@/lib/auth-store';
@@ -160,6 +160,7 @@ export function InterestedProperties({ contact }: { contact: Contact }) {
   const accountId = useAuthStore((s) => s.profile?.account_id);
   const [picking, setPicking] = useState(false);
   const [sharing, setSharing] = useState<Property | null>(null);
+  const [followingUp, setFollowingUp] = useState<Property | null>(null);
   const { show, close, dialogProps } = useAppDialog();
 
   const { data: props } = useQuery({
@@ -319,6 +320,17 @@ export function InterestedProperties({ contact }: { contact: Contact }) {
                 hitSlop={10}
                 onPress={() => {
                   haptic.tap();
+                  setFollowingUp(p);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={`Check whether ${contact.name || contact.phone} is still interested in ${p.title}`}
+              >
+                <Ionicons name="chatbubble-ellipses-outline" size={18} color={colors.primary} />
+              </Pressable>
+              <Pressable
+                hitSlop={10}
+                onPress={() => {
+                  haptic.tap();
                   setSharing(p);
                 }}
                 accessibilityRole="button"
@@ -350,6 +362,19 @@ export function InterestedProperties({ contact }: { contact: Contact }) {
           contact={contact}
           visible={sharing !== null}
           onClose={() => setSharing(null)}
+        />
+      ) : null}
+      {followingUp ? (
+        <PropertyInterestFollowUpSheet
+          visible={followingUp !== null}
+          onClose={() => setFollowingUp(null)}
+          contact={contact}
+          property={followingUp}
+          onSent={() => {
+            queryClient.invalidateQueries({ queryKey: ['interested-properties', contact.id] });
+            queryClient.invalidateQueries({ queryKey: ['contact-notes', contact.id] });
+            queryClient.invalidateQueries({ queryKey: ['conversations'] });
+          }}
         />
       ) : null}
     </View>
