@@ -121,6 +121,7 @@ import { OwnerDetailsRequestDialog } from '@/components/contacts/owner-details-r
 import { ContactRequirementsDialog } from '@/components/contacts/contact-requirements-dialog';
 import { MoveToEngineDialog } from '@/components/contacts/move-to-engine-dialog';
 import { ShareInventoryDialog } from '@/components/contacts/share-inventory-dialog';
+import { PropertyInterestFollowUpDialog } from '@/components/contacts/property-interest-follow-up-dialog';
 import { SearchablePropertySelect } from '@/components/ui/searchable-property-select';
 import { isLocationGuarded } from '@/lib/inventory/location-guard';
 
@@ -169,6 +170,9 @@ export function ContactDetailView({
   // Properties row can drive it, not just the last-inquired one, so it
   // holds the property rather than a bare open flag.
   const [shareProperty, setShareProperty] = useState<Property | null>(null);
+  const [followUpProperty, setFollowUpProperty] = useState<Property | null>(
+    null
+  );
   const [logShareOpen, setLogShareOpen] = useState(false);
   const [greetingsOpen, setGreetingsOpen] = useState(false);
   const [moveToEngineOpen, setMoveToEngineOpen] = useState(false);
@@ -2937,6 +2941,18 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                                       <Button
                                         size="sm"
                                         variant="ghost"
+                                        onClick={() =>
+                                          setFollowUpProperty(prop)
+                                        }
+                                        className="hover:text-primary h-7 w-7 p-0 text-slate-400 hover:bg-slate-800"
+                                        aria-label={`Check whether ${contact?.name || contact?.phone || 'this contact'} is still interested`}
+                                        title={`Check whether ${contact?.name || contact?.phone || 'this contact'} is still interested`}
+                                      >
+                                        <MessageSquarePlus className="size-3" />
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
                                         onClick={() => setShareProperty(prop)}
                                         className="hover:text-primary h-7 w-7 p-0 text-slate-400 hover:bg-slate-800"
                                         title={`Send these details to ${contact?.name || contact?.phone || 'this contact'}`}
@@ -3683,6 +3699,24 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                 }}
                 property={shareProperty}
                 preSelectedContactId={contactId || undefined}
+              />
+            )}
+
+            {followUpProperty && contactId && contact && (
+              <PropertyInterestFollowUpDialog
+                open={followUpProperty !== null}
+                onOpenChange={(next) => {
+                  if (!next) setFollowUpProperty(null);
+                }}
+                contactId={contactId}
+                contactName={contact.name || ''}
+                contactPhone={contact.phone}
+                property={followUpProperty}
+                onSent={() => {
+                  fetchPropertyMessageStatus();
+                  fetchNotes();
+                  onUpdated();
+                }}
               />
             )}
 
