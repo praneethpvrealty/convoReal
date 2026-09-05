@@ -125,6 +125,7 @@ export function buildInventorySummary(
     "Hi there! Here's a quick summary of the properties currently available with us:",
     sections.join('\n\n'),
     `Full details, photos & inquiries:\n${portalUrl}`,
+    'For individual photos and complete details, reply with the category and numbers — for example: commercial 3,9.',
     'Reply here for site visits, documents, or the best price on any of these.',
   ].join('\n\n');
 }
