@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { Property } from '@/types';
+import type { Contact, Property } from '@/types';
 import {
   buildInventorySummary,
   buildSummaryLine,
@@ -51,16 +51,21 @@ describe('buildSummaryLine', () => {
         bedrooms: 2.5,
         sublocality: 'Kannamangala',
         city: 'Bangalore',
-      }),
+      })
     );
     expect(line).toBe(
-      '*Sumadhura Eden Garden* | Apartment | 1,380 Sq.Ft. | ₹1.70 Cr | 2.5 BHK | Kannamangala',
+      '*Sumadhura Eden Garden* | Apartment | 1,380 Sq.Ft. | ₹1.70 Cr | 2.5 BHK | Kannamangala'
     );
   });
 
   it('omits missing segments instead of leaving empty pipes', () => {
     const line = buildSummaryLine(
-      prop({ title: 'Golden City', type: 'Residential Land/ Plot', land_area: 1500, land_area_unit: 'Sq.Ft.' }),
+      prop({
+        title: 'Golden City',
+        type: 'Residential Land/ Plot',
+        land_area: 1500,
+        land_area_unit: 'Sq.Ft.',
+      })
     );
     expect(line).toBe('*Golden City* | Plot | 1,500 Sq.Ft.');
     expect(line).not.toContain('||');
@@ -68,12 +73,23 @@ describe('buildSummaryLine', () => {
 
   it('shows monthly rent for rent listings and rental income + ROI for sale listings', () => {
     const rent = buildSummaryLine(
-      prop({ title: 'Office A', type: 'Commercial Office Space', listing_type: 'Rent', rent_per_month: 250000 }),
+      prop({
+        title: 'Office A',
+        type: 'Commercial Office Space',
+        listing_type: 'Rent',
+        rent_per_month: 250000,
+      })
     );
     expect(rent).toContain('₹2.50 Lakhs/mo rent');
 
     const invest = buildSummaryLine(
-      prop({ title: 'Shop B', type: 'Commercial Shop', price: 20000000, rental_income: 120000, roi: 7.2 }),
+      prop({
+        title: 'Shop B',
+        type: 'Commercial Shop',
+        price: 20000000,
+        rental_income: 120000,
+        roi: 7.2,
+      })
     );
     expect(invest).toContain('₹2 Cr');
     expect(invest).toContain('Rental ₹1.20 Lakhs/mo');
@@ -83,10 +99,30 @@ describe('buildSummaryLine', () => {
 
 describe('buildInventorySummary', () => {
   const properties = [
-    prop({ title: 'Villa One', type: 'Villa', price: 60000000, sublocality: 'Kannamangala' }),
-    prop({ title: 'Plot One', type: 'Residential Land/ Plot', price: 4400000, sublocality: 'Bangalore South' }),
-    prop({ title: 'Office One', type: 'Commercial Office Space', price: 14500000, sublocality: 'KR Puram' }),
-    prop({ title: 'Farm One', type: 'Agricultural Land', price: 30000000, sublocality: 'Devanahalli' }),
+    prop({
+      title: 'Villa One',
+      type: 'Villa',
+      price: 60000000,
+      sublocality: 'Kannamangala',
+    }),
+    prop({
+      title: 'Plot One',
+      type: 'Residential Land/ Plot',
+      price: 4400000,
+      sublocality: 'Bangalore South',
+    }),
+    prop({
+      title: 'Office One',
+      type: 'Commercial Office Space',
+      price: 14500000,
+      sublocality: 'KR Puram',
+    }),
+    prop({
+      title: 'Farm One',
+      type: 'Agricultural Land',
+      price: 30000000,
+      sublocality: 'Devanahalli',
+    }),
   ];
 
   it('groups listings under category headers in fixed order with per-section numbering', () => {
@@ -105,7 +141,10 @@ describe('buildInventorySummary', () => {
   });
 
   it('filters to a single category when asked', () => {
-    const msg = buildInventorySummary(properties, { portalUrl: PORTAL, category: 'Commercial' });
+    const msg = buildInventorySummary(properties, {
+      portalUrl: PORTAL,
+      category: 'Commercial',
+    });
     expect(msg).toContain('*COMMERCIAL*');
     expect(msg).not.toContain('*RESIDENTIAL*');
     expect(msg).not.toContain('Villa One');
@@ -113,9 +152,12 @@ describe('buildInventorySummary', () => {
 
   it('caps each section and reports the overflow', () => {
     const many = Array.from({ length: 12 }, (_, i) =>
-      prop({ title: `Villa ${i}`, type: 'Villa', price: 10000000 }),
+      prop({ title: `Villa ${i}`, type: 'Villa', price: 10000000 })
     );
-    const msg = buildInventorySummary(many, { portalUrl: PORTAL, maxPerCategory: 10 });
+    const msg = buildInventorySummary(many, {
+      portalUrl: PORTAL,
+      maxPerCategory: 10,
+    });
     expect(msg).toContain('10. *Villa 9*');
     expect(msg).not.toContain('Villa 10');
     expect(msg).toContain('_+2 more Residential listings on the portal_');
@@ -124,7 +166,65 @@ describe('buildInventorySummary', () => {
   it('returns empty string when nothing matches', () => {
     expect(buildInventorySummary([], { portalUrl: PORTAL })).toBe('');
     expect(
-      buildInventorySummary(properties, { portalUrl: PORTAL, category: 'Agricultural', maxPerCategory: 10 }),
+      buildInventorySummary(properties, {
+        portalUrl: PORTAL,
+        category: 'Agricultural',
+        maxPerCategory: 10,
+      })
     ).toContain('Farm One');
+  });
+
+  it('does not produce a blank contact message when every option is excluded', () => {
+    const buyer = {
+      id: 'contact-1',
+      user_id: 'user-1',
+      phone: '+919999999999',
+      name: 'Rahul',
+    } as Contact;
+    expect(
+      buildInventorySummary([], {
+        portalUrl: PORTAL,
+        contact: buyer,
+        recipientName: buyer.name,
+      })
+    ).toContain('There are no published options');
+  });
+
+  it('personalizes the greeting and puts requirement matches first', () => {
+    const buyer = {
+      id: 'contact-1',
+      user_id: 'user-1',
+      phone: '+919999999999',
+      name: 'Rahul Sharma',
+      property_interests: ['Commercial Office Space'],
+      areas_of_interest: ['KR Puram'],
+      requirement_active: true,
+    } as Contact;
+    const msg = buildInventorySummary(properties, {
+      portalUrl: PORTAL,
+      contact: buyer,
+      recipientName: buyer.name,
+    });
+    expect(msg).toContain('Hi Rahul!');
+    expect(msg).toContain('strongest match');
+    expect(msg.indexOf('*COMMERCIAL*')).toBeLessThan(
+      msg.indexOf('*RESIDENTIAL*')
+    );
+  });
+
+  it('preserves an explicit hand-picked order', () => {
+    const first = prop({ title: 'Older Pick', updated_at: '2025-01-01' });
+    const second = prop({
+      title: 'Newer Starred Pick',
+      is_starred: true,
+      updated_at: '2026-01-01',
+    });
+    const msg = buildInventorySummary([first, second], {
+      portalUrl: PORTAL,
+      preserveOrder: true,
+    });
+    expect(msg.indexOf('Older Pick')).toBeLessThan(
+      msg.indexOf('Newer Starred Pick')
+    );
   });
 });

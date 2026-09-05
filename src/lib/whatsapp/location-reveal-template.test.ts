@@ -34,19 +34,18 @@ describe('buildLocationRevealTemplatePayload', () => {
 });
 
 describe('buildLocationRevealParams', () => {
-  it('uses the first name, property title, specs and address', () => {
+  it('uses the first name, title and specs but keeps location behind the link', () => {
     expect(
       buildLocationRevealParams(
         'Rahul Sharma',
         'Villa in Whitefield',
-        'Villa · 3 BHK · 2400 sqft · ₹2.4 Cr',
-        '12, 5th Main, HSR Layout'
+        'Villa · 3 BHK · 2400 sqft · ₹2.4 Cr'
       )
     ).toEqual([
       'Rahul',
       'Villa in Whitefield',
       'Villa · 3 BHK · 2400 sqft · ₹2.4 Cr',
-      '12, 5th Main, HSR Layout',
+      'Available only through the secure link',
     ]);
   });
 
@@ -55,29 +54,24 @@ describe('buildLocationRevealParams', () => {
       'there',
       'the property',
       'Full details on the link below',
-      'Address on the link below',
+      'Available only through the secure link',
     ]);
-    expect(buildLocationRevealParams('  ', '', '  ', '')).toEqual([
+    expect(buildLocationRevealParams('  ', '', '  ')).toEqual([
       'there',
       'the property',
       'Full details on the link below',
-      'Address on the link below',
+      'Available only through the secure link',
     ]);
   });
 
-  // Meta rejects a parameter containing a newline, and a stored address
-  // routinely has one. Every param must survive as a single line.
+  // Meta rejects a parameter containing a newline. Every dynamic param
+  // must survive as a single line.
   it('flattens newlines out of every param', () => {
-    const params = buildLocationRevealParams(
-      'Rahul',
-      'Villa',
-      'Villa\n3 BHK',
-      '12, 5th Main\nHSR Layout\nBengaluru'
-    );
+    const params = buildLocationRevealParams('Rahul', 'Villa', 'Villa\n3 BHK');
     for (const p of params) {
       expect(p).not.toMatch(/[\n\r\t]/);
     }
-    expect(params[3]).toBe('12, 5th Main HSR Layout Bengaluru');
+    expect(params[3]).toBe('Available only through the secure link');
   });
 
   it('fills every placeholder the template body declares', () => {
@@ -88,7 +82,7 @@ describe('buildLocationRevealParams', () => {
       [...payload.body_text.matchAll(/\{\{(\d+)\}\}/g)].map((m) => m[1])
     );
     expect(placeholders.size).toBe(
-      buildLocationRevealParams('A', 'B', 'C', 'D').length
+      buildLocationRevealParams('A', 'B', 'C').length
     );
     expect(payload.sample_values?.body).toHaveLength(placeholders.size);
   });

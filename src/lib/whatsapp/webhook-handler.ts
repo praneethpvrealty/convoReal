@@ -2307,7 +2307,11 @@ async function processMessage(
     }
 
     if (templateQuickReply === 'inventory_full_list') {
-      const fullList = await buildFullListMessage(admin, accountId);
+      const fullList = await buildFullListMessage(
+        admin,
+        accountId,
+        contactRecord.id
+      );
       await sendWhatsAppMessageAndPersist({
         accountId,
         userId: configOwnerUserId,

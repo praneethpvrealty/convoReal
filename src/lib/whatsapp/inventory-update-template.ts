@@ -8,12 +8,21 @@
 // /api/whatsapp/templates/submit; pure functions so the exact payload
 // and parameters are unit-testable.
 
-import type { Property } from '@/types';
+import type { Contact, Property } from '@/types';
 import type { TemplatePayload } from '@/lib/whatsapp/template-validators';
-import { DEFAULT_LANGUAGE, metaLanguageCode, type LanguageCode } from '@/lib/languages';
-import { templateBody, templateFooter, templateButtonLabel } from '@/lib/whatsapp/template-copy';
+import {
+  DEFAULT_LANGUAGE,
+  metaLanguageCode,
+  type LanguageCode,
+} from '@/lib/languages';
+import {
+  templateBody,
+  templateFooter,
+  templateButtonLabel,
+} from '@/lib/whatsapp/template-copy';
 import { formatShareAmount } from '@/lib/share-message-builder';
 import { categoryForType } from '@/lib/inventory-summary-builder';
+import { rankInventoryProperties } from '@/lib/inventory/top-properties';
 
 export const INVENTORY_UPDATE_TEMPLATE_NAME = 'inventory_update';
 
@@ -24,7 +33,9 @@ const PARAM_MAX_LENGTH = 200;
 
 export function sanitizeTemplateParam(value: string): string {
   const clean = value.replace(/\s+/g, ' ').trim();
-  return clean.length > PARAM_MAX_LENGTH ? `${clean.slice(0, PARAM_MAX_LENGTH - 1)}…` : clean;
+  return clean.length > PARAM_MAX_LENGTH
+    ? `${clean.slice(0, PARAM_MAX_LENGTH - 1)}…`
+    : clean;
 }
 
 /**
@@ -35,7 +46,7 @@ export function sanitizeTemplateParam(value: string): string {
  */
 export function buildInventoryUpdateTemplatePayload(
   origin: string,
-  language: LanguageCode = DEFAULT_LANGUAGE,
+  language: LanguageCode = DEFAULT_LANGUAGE
 ): TemplatePayload {
   return {
     name: INVENTORY_UPDATE_TEMPLATE_NAME,
@@ -47,8 +58,14 @@ export function buildInventoryUpdateTemplatePayload(
       // Quick replies first (Meta: QR block cannot follow CTA buttons).
       // A tap opens the 24h service window → the full digest / copilot
       // conversation continues free-form inside ConvoReal.
-      { type: 'QUICK_REPLY', text: templateButtonLabel('inventory_full_list', language) },
-      { type: 'QUICK_REPLY', text: templateButtonLabel('site_visit', language) },
+      {
+        type: 'QUICK_REPLY',
+        text: templateButtonLabel('inventory_full_list', language),
+      },
+      {
+        type: 'QUICK_REPLY',
+        text: templateButtonLabel('site_visit', language),
+      },
       {
         type: 'URL',
         text: templateButtonLabel('browse_showcase', language),
@@ -78,15 +95,53 @@ function itemLabel(p: Property): string {
     if (price) bits.push(price);
     if (p.roi && p.roi > 0) bits.push(`ROI ${p.roi}%`);
   }
-  return bits.length > 0 ? `${p.title.trim()} (${bits.join(' · ')})` : p.title.trim();
+  return bits.length > 0
+    ? `${p.title.trim()} (${bits.join(' · ')})`
+    : p.title.trim();
 }
 
-function categoryLine(list: Property[]): string {
-  if (list.length === 0) return 'fresh stock arriving — ask me for a preview';
-  const shown = list.slice(0, 2).map(itemLabel).join(', ');
-  const more = list.length - Math.min(list.length, 2);
-  const counted = `${list.length} option${list.length === 1 ? '' : 's'} — ${shown}`;
-  return sanitizeTemplateParam(more > 0 ? `${counted} +${more} more` : counted);
+function categoryLine(
+  list: Property[],
+  matchedPropertyIds: Set<string>,
+  personalized: boolean
+): string {
+  if (list.length === 0) return 'no published options right now';
+  const matches = personalized
+    ? list.filter((property) => matchedPropertyIds.has(property.id))
+    : list;
+  if (personalized && matches.length === 0) {
+    const shown = list.slice(0, 2).map(itemLabel).join(', ');
+    const remaining = list.length - Math.min(list.length, 2);
+    return sanitizeTemplateParam(
+      `${list.length} available — no close match; top available: ${shown}${remaining > 0 ? ` +${remaining} more` : ''}`
+    );
+  }
+  const shown = matches.slice(0, 2).map(itemLabel).join(', ');
+  const lead = personalized
+    ? `${matches.length} match${matches.length === 1 ? '' : 'es'} from ${list.length} available`
+    : `${list.length} option${list.length === 1 ? '' : 's'}`;
+  const counted = `${lead} — ${shown}`;
+  const hiddenMatches = matches.length - Math.min(matches.length, 2);
+  const otherOptions = list.length - matches.length;
+  const personalizedTrailer = [
+    hiddenMatches > 0
+      ? `+${hiddenMatches} more match${hiddenMatches === 1 ? '' : 'es'}`
+      : '',
+    otherOptions > 0
+      ? `${otherOptions} other option${otherOptions === 1 ? '' : 's'}`
+      : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  const remaining = list.length - Math.min(list.length, 2);
+  const more = personalized
+    ? personalizedTrailer
+      ? ` ${personalizedTrailer}`
+      : ''
+    : remaining > 0
+      ? ` +${remaining} more`
+      : '';
+  return sanitizeTemplateParam(`${counted}${more}`);
 }
 
 /**
@@ -95,15 +150,24 @@ function categoryLine(list: Property[]): string {
  */
 export function buildInventoryUpdateParams(
   properties: Property[],
+  contact?: Contact | null,
+  { preserveOrder = false }: { preserveOrder?: boolean } = {}
 ): [residential: string, commercial: string, farmAndLand: string] {
+  const ranking = rankInventoryProperties(properties, contact, {
+    preserveOrder,
+  });
   const residential: Property[] = [];
   const commercial: Property[] = [];
   const farmAndLand: Property[] = [];
-  for (const p of properties) {
+  for (const p of ranking.properties) {
     const cat = categoryForType(p.type);
     if (cat === 'Residential') residential.push(p);
     else if (cat === 'Commercial') commercial.push(p);
     else farmAndLand.push(p);
   }
-  return [categoryLine(residential), categoryLine(commercial), categoryLine(farmAndLand)];
+  return [
+    categoryLine(residential, ranking.matchedPropertyIds, ranking.personalized),
+    categoryLine(commercial, ranking.matchedPropertyIds, ranking.personalized),
+    categoryLine(farmAndLand, ranking.matchedPropertyIds, ranking.personalized),
+  ];
 }

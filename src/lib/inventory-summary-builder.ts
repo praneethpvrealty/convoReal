@@ -4,13 +4,23 @@
 // rent & ROI when available. Pure functions so the exact message a
 // receiver sees is unit-testable.
 
-import type { Property } from '@/types';
+import type { Contact, Property } from '@/types';
 import { CATEGORY_SUBTYPES } from '@/lib/search-parser';
 import { formatShareAmount } from '@/lib/share-message-builder';
+import { rankInventoryProperties } from '@/lib/inventory/top-properties';
 
-export type SummaryCategory = 'Residential' | 'Commercial' | 'Agricultural' | 'Other';
+export type SummaryCategory =
+  | 'Residential'
+  | 'Commercial'
+  | 'Agricultural'
+  | 'Other';
 
-const CATEGORY_ORDER: SummaryCategory[] = ['Residential', 'Commercial', 'Agricultural', 'Other'];
+const CATEGORY_ORDER: SummaryCategory[] = [
+  'Residential',
+  'Commercial',
+  'Agricultural',
+  'Other',
+];
 
 // Raw property types are verbose ("Residential Land/ Plot") — WhatsApp
 // lines read better with the short labels agents actually use.
@@ -30,7 +40,9 @@ const TYPE_SHORT_LABELS: Record<string, string> = {
   'Agricultural Land': 'Agri Land',
 };
 
-export function categoryForType(type: string | null | undefined): SummaryCategory {
+export function categoryForType(
+  type: string | null | undefined
+): SummaryCategory {
   if (type) {
     // "Farm House" is listed under both Residential and Agricultural —
     // CATEGORY_ORDER makes Residential win, matching the showcase filter.
@@ -91,14 +103,30 @@ export interface InventorySummaryOptions {
   category?: 'All' | 'Residential' | 'Commercial' | 'Agricultural';
   /** Listings per section before the "+N more" trailer (default 10). */
   maxPerCategory?: number;
+  /** Contact whose current brief should put the strongest matches first. */
+  contact?: Contact | null;
+  /** Name used only for the greeting; internal name tags never reach it. */
+  recipientName?: string | null;
+  /** Keep an agent's explicit hand-picked sequence unchanged. */
+  preserveOrder?: boolean;
 }
 
 export function buildInventorySummary(
   properties: Property[],
-  { portalUrl, category = 'All', maxPerCategory = 10 }: InventorySummaryOptions,
+  {
+    portalUrl,
+    category = 'All',
+    maxPerCategory = 10,
+    contact,
+    recipientName,
+    preserveOrder = false,
+  }: InventorySummaryOptions
 ): string {
+  const ranking = rankInventoryProperties(properties, contact, {
+    preserveOrder,
+  });
   const grouped = new Map<SummaryCategory, Property[]>();
-  for (const p of properties) {
+  for (const p of ranking.properties) {
     const cat = categoryForType(p.type);
     if (category !== 'All' && cat !== category) continue;
     const list = grouped.get(cat) || [];
@@ -106,23 +134,57 @@ export function buildInventorySummary(
     grouped.set(cat, list);
   }
 
+  const categoryOrder = [...CATEGORY_ORDER];
+  if (ranking.personalized && ranking.matchCount > 0) {
+    const firstMatchIndex = new Map<SummaryCategory, number>();
+    ranking.properties.forEach((property, index) => {
+      if (!ranking.matchedPropertyIds.has(property.id)) return;
+      const cat = categoryForType(property.type);
+      if (!firstMatchIndex.has(cat)) firstMatchIndex.set(cat, index);
+    });
+    categoryOrder.sort((a, b) => {
+      const aIndex = firstMatchIndex.get(a);
+      const bIndex = firstMatchIndex.get(b);
+      if (aIndex !== undefined || bIndex !== undefined) {
+        if (aIndex === undefined) return 1;
+        if (bIndex === undefined) return -1;
+        if (aIndex !== bIndex) return aIndex - bIndex;
+      }
+      return CATEGORY_ORDER.indexOf(a) - CATEGORY_ORDER.indexOf(b);
+    });
+  }
+
   const sections: string[] = [];
-  for (const cat of CATEGORY_ORDER) {
+  for (const cat of categoryOrder) {
     const list = grouped.get(cat);
     if (!list?.length) continue;
     const shown = list.slice(0, maxPerCategory);
     const lines = shown.map((p, i) => `${i + 1}. ${buildSummaryLine(p)}`);
     if (list.length > shown.length) {
-      lines.push(`_+${list.length - shown.length} more ${cat} listings on the portal_`);
+      lines.push(
+        `_+${list.length - shown.length} more ${cat} listings on the portal_`
+      );
     }
     sections.push(`*${cat.toUpperCase()}*\n${lines.join('\n')}`);
   }
 
-  if (sections.length === 0) return '';
+  const firstName = recipientName?.trim().split(/\s+/)[0];
+  const greeting = firstName ? `Hi ${firstName}!` : 'Hi there!';
+  if (sections.length === 0) {
+    return contact
+      ? `*INVENTORY UPDATE* 🏠\n\n${greeting} There are no published options in this selection that I should resend to you right now. I will share fresh matches as soon as they become available.`
+      : '';
+  }
+
+  const intro = ranking.personalized
+    ? ranking.matchCount > 0
+      ? `${greeting} Here are our live listings. I have put the ${ranking.matchCount} strongest match${ranking.matchCount === 1 ? '' : 'es'} for your saved requirement first.`
+      : `${greeting} I could not find a close match to your saved requirement yet, so here are the current available options.`
+    : `${greeting} Here's a quick summary of the properties currently available with us:`;
 
   return [
     '*INVENTORY UPDATE* 🏠',
-    "Hi there! Here's a quick summary of the properties currently available with us:",
+    intro,
     sections.join('\n\n'),
     `Full details, photos & inquiries:\n${portalUrl}`,
     'For individual photos and complete details, reply with the category and numbers — for example: commercial 3,9.',

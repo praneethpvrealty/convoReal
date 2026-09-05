@@ -52,6 +52,19 @@ interface EngineTemplate {
   buttons: { type: string; url?: string }[] | null;
 }
 
+interface PersonalizedShareSummary {
+  summary: string;
+  template_params: [string, string, string];
+  match_count: number;
+}
+
+interface ShareSummaryData {
+  summary: string;
+  count: number;
+  template_params: [string, string, string];
+  personalized: Record<string, PersonalizedShareSummary>;
+}
+
 const MAX_PICKED = 25;
 const CATEGORIES: ShareCategory[] = [
   'All',
@@ -150,17 +163,20 @@ export function ShowcaseShareSheet({
   // The digest is a business rule, so the phone asks the server for it
   // rather than carrying a second copy of the builder (AGENTS.md §2.8).
   const digest = useQuery({
-    queryKey: ['inventory-share-summary', scope, category, trimmedSearch, pickedIds, link],
+    queryKey: [
+      'inventory-share-summary',
+      scope,
+      category,
+      trimmedSearch,
+      pickedIds,
+      link,
+    ],
     // Fetched for both modes: the Engine send needs the template's body
     // params even when the agent is looking at the short pitch.
     enabled: visible && link.length > 0,
     queryFn: () =>
       apiFetch<{
-        data: {
-          summary: string;
-          count: number;
-          template_params: [string, string, string];
-        };
+        data: ShareSummaryData;
       }>(
         `/api/inventory/share-summary?${new URLSearchParams({
           scope,
@@ -198,6 +214,7 @@ export function ShowcaseShareSheet({
   const autoDigest = digest.data?.summary ?? '';
   const digestText =
     digestDraft?.base === autoDigest ? digestDraft.text : autoDigest;
+  const hasCustomDigest = digestDraft?.base === autoDigest;
   const message = messageMode === 'list' ? digestText : pitch;
 
   const scopeLabel =
@@ -219,15 +236,36 @@ export function ShowcaseShareSheet({
     return tracked.includes('?') ? query : `?v=${contactId}`;
   }
 
-  function messageFor(url: string, name?: string | null) {
+  function messageFor(
+    url: string,
+    name?: string | null,
+    sourceMessage = message
+  ) {
     const greeting = name?.trim().split(/\s+/)[0];
     // The digest already carries the scoped link; swap it for the
     // recipient's tracked one rather than appending a second copy.
     const body =
       messageMode === 'list'
-        ? message.replaceAll(link, url)
-        : message.replaceAll('{portalUrl}', url);
-    return greeting ? body.replace(/^Hi!/, `Hi ${greeting}!`) : body;
+        ? sourceMessage.replaceAll(link, url)
+        : sourceMessage.replaceAll('{portalUrl}', url);
+    return greeting
+      ? body
+          .replace(/^Hi!/, `Hi ${greeting}!`)
+          .replace('Hi there!', `Hi ${greeting}!`)
+      : body;
+  }
+
+  async function loadShareSummaries(contactIds: string[]) {
+    return apiFetch<{ data: ShareSummaryData }>(
+      `/api/inventory/share-summary?${new URLSearchParams({
+        scope,
+        category,
+        search: trimmedSearch,
+        ids: pickedIds,
+        portal_url: link,
+        contact_ids: contactIds.join(','),
+      }).toString()}`
+    ).then((response) => response.data);
   }
 
   function closeSheet() {
@@ -278,14 +316,24 @@ export function ShowcaseShareSheet({
     await Share.share({ message: messageFor(anonymous), url: anonymous });
   }
 
-  function personalWhatsApp(contacts: Contact[]) {
+  async function personalWhatsApp(contacts: Contact[]) {
     const [first, ...rest] = contacts.filter((c) => c.phone);
     if (!first) return;
     haptic.send();
     void logShowcaseShare(first);
     const url = withShowcaseVisitor(link, first.id);
+    let personalized: PersonalizedShareSummary | undefined;
+    if (messageMode === 'list' && !hasCustomDigest) {
+      try {
+        personalized = (await loadShareSummaries([first.id])).personalized[
+          first.id
+        ];
+      } catch {
+        // The generic digest is already loaded and remains safe to send.
+      }
+    }
     void Linking.openURL(
-      `https://wa.me/${(first.phone ?? '').replace(/\D/g, '')}?text=${encodeURIComponent(messageFor(url, first.name))}`
+      `https://wa.me/${(first.phone ?? '').replace(/\D/g, '')}?text=${encodeURIComponent(messageFor(url, first.name, personalized?.summary))}`
     );
     if (rest.length > 0) {
       show({
@@ -304,6 +352,16 @@ export function ShowcaseShareSheet({
     setSending(true);
     const failed: string[] = [];
     let sent = 0;
+    let personalized: Record<string, PersonalizedShareSummary> = {};
+    if (messageMode === 'list' && !hasCustomDigest) {
+      try {
+        personalized = (
+          await loadShareSummaries(contacts.map((contact) => contact.id))
+        ).personalized;
+      } catch {
+        // Continue with the generic digest rather than blocking the send.
+      }
+    }
     for (const contact of contacts) {
       try {
         const thread = await findContactThread(contact.id);
@@ -312,7 +370,10 @@ export function ShowcaseShareSheet({
           continue;
         }
         const url = withShowcaseVisitor(link, contact.id);
-        await sendTextMessage(thread, messageFor(url, contact.name));
+        await sendTextMessage(
+          thread,
+          messageFor(url, contact.name, personalized[contact.id]?.summary)
+        );
         sent += 1;
       } catch (error) {
         failed.push(
@@ -340,11 +401,12 @@ export function ShowcaseShareSheet({
    *  it is the one path that reaches a shut 24-hour window. */
   async function sendViaEngine(contacts: Contact[]) {
     const engine = template.data;
-    const params = digest.data?.template_params;
-    if (!engine || !params) {
+    const fallbackParams = digest.data?.template_params;
+    if (!engine || !fallbackParams) {
       show({
         title: 'Still preparing',
-        message: 'The inventory snapshot is still loading — try again in a moment.',
+        message:
+          'The inventory snapshot is still loading — try again in a moment.',
         actions: [{ label: 'OK', variant: 'primary', onPress: close }],
       });
       return;
@@ -352,12 +414,23 @@ export function ShowcaseShareSheet({
     setSending(true);
     const failed: string[] = [];
     let sent = 0;
+    let summaries: ShareSummaryData | null = null;
+    try {
+      summaries = await loadShareSummaries(
+        contacts.map((contact) => contact.id)
+      );
+    } catch {
+      // Use the already-loaded generic parameters if ranking is unavailable.
+    }
     for (const contact of contacts) {
       if (!contact.phone) {
         failed.push(contact.name || 'contact with no number');
         continue;
       }
       try {
+        const params =
+          summaries?.personalized[contact.id]?.template_params ??
+          fallbackParams;
         // Dynamic URL-button suffix → a tracked, personalised open.
         const buttonParams: Record<number, string> = {};
         (engine.buttons ?? []).forEach((button, index) => {
@@ -449,17 +522,16 @@ export function ShowcaseShareSheet({
     if (contacts.length === 0) return;
     show({
       title: `Send to ${contacts.length} ${contacts.length === 1 ? 'contact' : 'contacts'}`,
-      message:
-        templateApproved
-          ? 'Engine sends the approved inventory update from your business number and reaches contacts whose 24-hour window has closed. ConvoReal sends this exact message into open threads only. WhatsApp opens one chat from your personal number.'
-          : 'ConvoReal sends from your business number, so replies land in your Inbox. WhatsApp opens one chat from your personal number.',
+      message: templateApproved
+        ? 'Engine sends the approved inventory update from your business number and reaches contacts whose 24-hour window has closed. ConvoReal sends this exact message into open threads only. WhatsApp opens one chat from your personal number.'
+        : 'ConvoReal sends from your business number, so replies land in your Inbox. WhatsApp opens one chat from your personal number.',
       actions: [
         { label: 'Cancel', variant: 'muted', onPress: close },
         {
           label: 'WhatsApp',
           onPress: () => {
             close();
-            personalWhatsApp(contacts);
+            void personalWhatsApp(contacts);
           },
         },
         {
@@ -489,11 +561,7 @@ export function ShowcaseShareSheet({
   const rows = properties.data?.data ?? [];
 
   return (
-    <BottomSheet
-      visible={visible}
-      onClose={closeSheet}
-      title="Share showcase"
-    >
+    <BottomSheet visible={visible} onClose={closeSheet} title="Share showcase">
       <ScrollView
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
@@ -523,7 +591,9 @@ export function ShowcaseShareSheet({
         </Text>
 
         <SectionLabel text="2 · What they see" />
-        <View style={{ flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' }}>
+        <View
+          style={{ flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' }}
+        >
           <FilterChip
             label="Whole showcase"
             active={scope === 'all'}
@@ -567,7 +637,9 @@ export function ShowcaseShareSheet({
             />
             <View style={{ maxHeight: 260 }}>
               {properties.isPending ? (
-                <View style={{ paddingVertical: spacing.xl, alignItems: 'center' }}>
+                <View
+                  style={{ paddingVertical: spacing.xl, alignItems: 'center' }}
+                >
                   <ActivityIndicator color={colors.primary} />
                 </View>
               ) : properties.isError ? (
@@ -627,11 +699,16 @@ export function ShowcaseShareSheet({
                             </Text>
                             <Text
                               numberOfLines={1}
-                              style={{ fontSize: 11.5, color: colors.textMuted }}
+                              style={{
+                                fontSize: 11.5,
+                                color: colors.textMuted,
+                              }}
                             >
                               {[
                                 property.location,
-                                property.price ? formatInr(property.price) : null,
+                                property.price
+                                  ? formatInr(property.price)
+                                  : null,
                               ]
                                 .filter(Boolean)
                                 .join(' · ')}
@@ -710,7 +787,9 @@ export function ShowcaseShareSheet({
             ]}
           >
             <Ionicons name="link-outline" size={16} color={colors.text} />
-            <Text style={{ fontSize: 13, fontFamily: f.bold, color: colors.text }}>
+            <Text
+              style={{ fontSize: 13, fontFamily: f.bold, color: colors.text }}
+            >
               Copy link
             </Text>
           </Pressable>
@@ -725,7 +804,9 @@ export function ShowcaseShareSheet({
             ]}
           >
             <Ionicons name="share-outline" size={16} color={colors.text} />
-            <Text style={{ fontSize: 13, fontFamily: f.bold, color: colors.text }}>
+            <Text
+              style={{ fontSize: 13, fontFamily: f.bold, color: colors.text }}
+            >
               Share…
             </Text>
           </Pressable>
@@ -735,11 +816,25 @@ export function ShowcaseShareSheet({
           <View
             style={[
               styles.notice,
-              { borderColor: colors.primary, backgroundColor: colors.primarySoft },
+              {
+                borderColor: colors.primary,
+                backgroundColor: colors.primarySoft,
+              },
             ]}
           >
-            <Ionicons name="sparkles-outline" size={16} color={colors.primary} />
-            <Text style={{ flex: 1, fontSize: 11.5, color: colors.text, lineHeight: 16 }}>
+            <Ionicons
+              name="sparkles-outline"
+              size={16}
+              color={colors.primary}
+            />
+            <Text
+              style={{
+                flex: 1,
+                fontSize: 11.5,
+                color: colors.text,
+                lineHeight: 16,
+              }}
+            >
               {template.data.status === 'PENDING'
                 ? 'Inventory update template submitted — Engine sending unlocks once Meta approves it.'
                 : `Meta rejected the inventory update template. Resubmit to send from your business number.`}
@@ -759,7 +854,13 @@ export function ShowcaseShareSheet({
             ]}
           >
             <Ionicons name="send-outline" size={16} color={colors.primary} />
-            <Text style={{ fontSize: 13, fontFamily: f.bold, color: colors.primary }}>
+            <Text
+              style={{
+                fontSize: 13,
+                fontFamily: f.bold,
+                color: colors.primary,
+              }}
+            >
               {template.data ? 'Resubmit template' : 'Set up Engine sending'}
             </Text>
           </Pressable>

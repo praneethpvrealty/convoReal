@@ -9,15 +9,22 @@
 // unit-testable.
 
 import type { TemplatePayload } from '@/lib/whatsapp/template-validators';
-import { DEFAULT_LANGUAGE, metaLanguageCode, type LanguageCode } from '@/lib/languages';
-import { templateBody, templateButtonLabel } from '@/lib/whatsapp/template-copy';
+import {
+  DEFAULT_LANGUAGE,
+  metaLanguageCode,
+  type LanguageCode,
+} from '@/lib/languages';
+import {
+  templateBody,
+  templateButtonLabel,
+} from '@/lib/whatsapp/template-copy';
 import { sanitizeTemplateParam } from '@/lib/whatsapp/inventory-update-template';
 
 export const LOCATION_REVEAL_TEMPLATE_NAME = 'location_reveal';
 
 export function buildLocationRevealTemplatePayload(
   origin: string,
-  language: LanguageCode = DEFAULT_LANGUAGE,
+  language: LanguageCode = DEFAULT_LANGUAGE
 ): TemplatePayload {
   return {
     name: LOCATION_REVEAL_TEMPLATE_NAME,
@@ -40,7 +47,7 @@ export function buildLocationRevealTemplatePayload(
         'Rahul',
         'Villa in Whitefield',
         'Villa · 3 BHK · 2400 sqft · East facing · ₹2.4 Cr',
-        '12, 5th Main, HSR Layout, Bengaluru',
+        'Available only through the secure link',
       ],
     },
   };
@@ -48,25 +55,24 @@ export function buildLocationRevealTemplatePayload(
 
 /**
  * Body params {{1}}..{{4}}: first name, property title, the one-line
- * specs, the address. Every param is guaranteed non-empty (Meta rejects
+ * specs, the secure-location notice. Every param is guaranteed non-empty (Meta rejects
  * empty values) and single-line (Meta rejects a newline inside one —
  * `sanitizeTemplateParam` collapses whitespace to enforce it).
  *
- * The specs and address arrive already flattened from
+ * The specs and location notice arrive already flattened from
  * `buildRevealTemplateFacts`; the fallbacks here are the last line of
  * defence for a caller that has no property row to read.
  */
 export function buildLocationRevealParams(
   requesterName: string | null | undefined,
   propertyTitle: string,
-  specs?: string | null,
-  address?: string | null
-): [name: string, title: string, specs: string, address: string] {
+  specs?: string | null
+): [name: string, title: string, specs: string, locationAccess: string] {
   const firstName = requesterName?.trim().split(/\s+/)[0] || 'there';
   return [
     sanitizeTemplateParam(firstName),
     sanitizeTemplateParam(propertyTitle.trim() || 'the property'),
     sanitizeTemplateParam(specs?.trim() || 'Full details on the link below'),
-    sanitizeTemplateParam(address?.trim() || 'Address on the link below'),
+    'Available only through the secure link',
   ];
 }
