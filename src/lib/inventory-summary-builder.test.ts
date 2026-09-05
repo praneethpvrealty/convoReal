@@ -101,6 +101,7 @@ describe('buildInventorySummary', () => {
     expect(msg).toContain('2. *Plot One*');
     expect(msg).toContain('1. *Office One*'); // numbering restarts per section
     expect(msg).toContain(PORTAL);
+    expect(msg).toContain('commercial 3,9');
   });
 
   it('filters to a single category when asked', () => {
