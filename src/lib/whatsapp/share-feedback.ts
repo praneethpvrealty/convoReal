@@ -39,21 +39,23 @@ export async function processShareFeedbackFollowups(
 
   for (const share of shares) {
     // Check if the contact has sent any message since the share was created
-    const { data: replies, error: replyError } = await db
-      .from('messages')
-      .select('id')
+    const { data: conversation, error: replyError } = await db
+      .from('conversations')
+      .select('last_customer_message_at')
       .eq('account_id', share.account_id)
       .eq('contact_id', share.contact_id)
-      .eq('direction', 'inbound')
-      .gte('created_at', share.created_at)
-      .limit(1);
+      .maybeSingle();
 
     if (replyError) {
       console.error(`[share-feedback] Failed to check replies for share ${share.id}:`, replyError);
       continue;
     }
 
-    if (replies && replies.length > 0) {
+    const hasReplied =
+      !!conversation?.last_customer_message_at &&
+      conversation.last_customer_message_at >= share.created_at;
+
+    if (hasReplied) {
       // Client responded, skip feedback
       await db
         .from('property_shares')
