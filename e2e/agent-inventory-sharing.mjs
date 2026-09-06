@@ -725,13 +725,21 @@ try {
             () =>
               document.querySelectorAll('.showcase-listing-card').length >= 3
           );
-          await visitor.evaluate(() => {
-            const catalog = document.querySelector('.showcase-map-layout');
-            window.scrollTo(
-              0,
-              catalog.getBoundingClientRect().top + window.scrollY + 120
-            );
+          const scrollDistance = await visitor.evaluate(() => {
+            const catalog = document
+              .querySelector('.showcase-map-layout')
+              .getBoundingClientRect();
+            const map = document
+              .querySelector('.showcase-map-aside')
+              .getBoundingClientRect();
+            const distance = (catalog.height - map.height) / 3;
+            window.scrollTo(0, catalog.top + window.scrollY - 80 + distance);
+            return distance;
           });
+          must(
+            'catalog has enough listings to verify map scrolling',
+            scrollDistance > 10
+          );
           await visitor.waitForFunction(
             () =>
               Math.abs(
@@ -740,7 +748,10 @@ try {
                   .getBoundingClientRect().top - 80
               ) < 2
           );
-          await visitor.evaluate(() => window.scrollBy(0, 100));
+          await visitor.evaluate(
+            (distance) => window.scrollBy(0, distance),
+            scrollDistance
+          );
           await visitor.waitForFunction(
             () =>
               Math.abs(
