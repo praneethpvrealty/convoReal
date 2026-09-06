@@ -489,6 +489,7 @@ export function ShowcaseSettingsPanel() {
         description="Choose the presentation used by the company link and your branded web address. Personal agent links keep each agent's own selection."
       >
         <ShowcasePresentationControls
+          previewUrl={businessUrl || companyUrl || undefined}
           title="Company listing style"
           description="This design applies to all published company inventory on mobile and desktop."
           value={form.showcaseStyle}

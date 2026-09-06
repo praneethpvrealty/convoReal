@@ -48,3 +48,21 @@ describe('parsePublicProfilePatch', () => {
     });
   });
 });
+
+it.each(['warm-editorial', 'map-discovery', 'quiet-luxury'])(
+  'accepts agency design %s',
+  (showcaseStyle) => {
+    expect(parsePublicProfilePatch({ showcaseStyle })).toEqual({
+      ok: true,
+      value: { showcaseStyle },
+    });
+  }
+);
+it('rejects unknown designs and malformed motion choices', () => {
+  expect(
+    parsePublicProfilePatch({ showcaseStyle: 'not-a-style' })
+  ).toMatchObject({ ok: false });
+  expect(parsePublicProfilePatch({ showcase3dEnabled: 'yes' })).toMatchObject({
+    ok: false,
+  });
+});

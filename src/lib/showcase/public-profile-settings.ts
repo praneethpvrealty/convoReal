@@ -1,8 +1,12 @@
+import { SHOWCASE_STYLES, type ShowcaseStyle } from './style';
+
 export const PUBLIC_PROFILE_DESCRIPTION_MAX = 600;
 export const PUBLIC_PROFILE_LIST_MAX = 12;
 export const PUBLIC_PROFILE_ITEM_MAX = 80;
 
 export type PublicProfilePatch = {
+  showcaseStyle?: ShowcaseStyle;
+  showcase3dEnabled?: boolean;
   description?: string | null;
   areasServed?: string[] | null;
   propertyExpertise?: string[] | null;
@@ -68,6 +72,20 @@ export function parsePublicProfilePatch(body: unknown): ParseResult {
     const parsed = parseList(input[inputKey], label);
     if (typeof parsed === 'string') return { ok: false, error: parsed };
     value[outputKey] = parsed;
+  }
+
+  if (Object.hasOwn(input, 'showcaseStyle')) {
+    if (
+      typeof input.showcaseStyle !== 'string' ||
+      !SHOWCASE_STYLES.includes(input.showcaseStyle as ShowcaseStyle)
+    )
+      return { ok: false, error: 'Choose a valid showcase design' };
+    value.showcaseStyle = input.showcaseStyle as ShowcaseStyle;
+  }
+  if (Object.hasOwn(input, 'showcase3dEnabled')) {
+    if (typeof input.showcase3dEnabled !== 'boolean')
+      return { ok: false, error: 'Invalid showcase motion setting' };
+    value.showcase3dEnabled = input.showcase3dEnabled;
   }
 
   if (Object.keys(value).length === 0) {

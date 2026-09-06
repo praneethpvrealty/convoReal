@@ -101,6 +101,7 @@ export function PropertyMapView({
   center,
   onOpen,
   currency,
+  appearance = 'dark',
 }: {
   properties: Property[];
   loading: boolean;
@@ -108,6 +109,7 @@ export function PropertyMapView({
   center: { latitude: number; longitude: number } | null;
   onOpen: (property: Property) => void;
   currency: string;
+  appearance?: 'dark' | 'light';
 }) {
   const t = useT();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -140,11 +142,11 @@ export function PropertyMapView({
               ? { lat: center.latitude, lng: center.longitude }
               : { lat: 20.5937, lng: 78.9629 },
             zoom: center ? 13 : 5,
-            styles: DARK_MAP_STYLES,
+            styles: appearance === 'light' ? [] : DARK_MAP_STYLES,
             disableDefaultUI: true,
             zoomControl: true,
             clickableIcons: false,
-            backgroundColor: '#0f172a',
+            backgroundColor: appearance === 'light' ? '#f7fafc' : '#0f172a',
           });
         }
         setStatus('ready');
@@ -185,7 +187,7 @@ export function PropertyMapView({
           'gap:5px',
           'padding:4px 10px',
           'border-radius:999px',
-          `background:${muted ? '#334155' : '#7C3AED'}`,
+          `background:${muted ? '#334155' : appearance === 'light' ? '#1453ff' : '#7C3AED'}`,
           'border:1.5px solid rgba(255,255,255,0.9)',
           `color:${muted ? '#94a3b8' : '#ffffff'}`,
           'font:700 11px system-ui,sans-serif',
@@ -238,7 +240,7 @@ export function PropertyMapView({
       map.setCenter({ lat: center.latitude, lng: center.longitude });
       map.setZoom(13);
     }
-  }, [status, pinned, center, currency]);
+  }, [status, pinned, center, currency, appearance]);
 
   if (!BROWSER_KEY) {
     return (

@@ -1,7 +1,15 @@
 import { useQuery } from '@tanstack/react-query';
 import { Stack } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  Linking,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 
 import { ConvoRealLoader } from '@/components/loader';
 import { Banner, PrimaryButton, SectionLabel } from '@/components/ui';
@@ -10,15 +18,19 @@ import { useAuthStore } from '@/lib/auth-store';
 import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
+import { getShowcaseUrl } from '@/lib/welcome-message';
+import type { ShowcaseStyle } from '@shared/lib/showcase/style';
 import { radius, spacing, useTheme } from '@/lib/theme';
 
 type PublicProfileSettings = {
+  showcase_style: ShowcaseStyle;
   public_business_description: string | null;
   public_areas_served: string[] | null;
   public_property_expertise: string[] | null;
 };
 
 const EMPTY: PublicProfileSettings = {
+  showcase_style: 'gallery',
   public_business_description: null,
   public_areas_served: null,
   public_property_expertise: null,
@@ -39,7 +51,7 @@ async function fetchPublicProfile(
   const { data, error } = await supabase
     .from('showcase_settings')
     .select(
-      'public_business_description, public_areas_served, public_property_expertise'
+      'public_business_description, public_areas_served, public_property_expertise, showcase_style'
     )
     .eq('account_id', accountId)
     .maybeSingle();
@@ -97,6 +109,9 @@ function PublicProfileForm({
   const [expertise, setExpertise] = useState(
     (initial.public_property_expertise ?? []).join(', ')
   );
+  const [showcaseStyle, setShowcaseStyle] = useState<ShowcaseStyle>(
+    initial.showcase_style
+  );
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{
     kind: 'error' | 'success';
@@ -111,6 +126,7 @@ function PublicProfileForm({
       await apiFetch('/api/showcase/public-profile', {
         method: 'PATCH',
         body: JSON.stringify({
+          showcaseStyle,
           description: description.trim() || null,
           areasServed: parseList(areas),
           propertyExpertise: parseList(expertise),
@@ -141,6 +157,97 @@ function PublicProfileForm({
     >
       <Stack.Screen
         options={{ headerShown: true, title: 'Public business profile' }}
+      />
+      <SectionLabel text="Agency showcase design" />
+      <Text style={[styles.intro, { color: colors.textMuted }]}>
+        Choose the design visitors see on your agency showcase, on desktop and
+        mobile.
+      </Text>
+      {(
+        [
+          {
+            value: 'warm-editorial',
+            label: 'Warm editorial',
+            detail: 'Ivory, forest green and large photos',
+            background: '#f7f5ef',
+            accent: '#244b3b',
+          },
+          {
+            value: 'map-discovery',
+            label: 'Map-led discovery',
+            detail: 'Bright listings and publicly shared map locations',
+            background: '#ffffff',
+            accent: '#1453ff',
+          },
+          {
+            value: 'quiet-luxury',
+            label: 'Quiet luxury',
+            detail: 'Charcoal, brass and spacious property cards',
+            background: '#202420',
+            accent: '#bea775',
+          },
+        ] as const
+      ).map((design) => (
+        <Pressable
+          key={design.value}
+          accessibilityRole="radio"
+          accessibilityLabel={design.label}
+          accessibilityState={{
+            checked: showcaseStyle === design.value,
+            disabled: !canEdit || saving,
+          }}
+          disabled={!canEdit || saving}
+          onPress={() => setShowcaseStyle(design.value)}
+          style={[
+            styles.design,
+            {
+              borderColor:
+                showcaseStyle === design.value
+                  ? colors.primary
+                  : colors.glassBorder,
+              backgroundColor: colors.glass,
+            },
+          ]}
+        >
+          <View style={[styles.swatch, { backgroundColor: design.background }]}>
+            <View
+              style={{
+                width: 24,
+                height: 24,
+                borderRadius: 6,
+                backgroundColor: design.accent,
+              }}
+            />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: colors.text, fontWeight: '700' }}>
+              {design.label}
+            </Text>
+            <Text style={[styles.hint, { color: colors.textMuted }]}>
+              {design.detail}
+            </Text>
+          </View>
+          {showcaseStyle === design.value && (
+            <Text style={{ color: colors.primary }}>Selected</Text>
+          )}
+        </Pressable>
+      ))}
+      <PrimaryButton
+        label="Preview selected design"
+        icon="eye-outline"
+        disabled={loadFailed || !accountId}
+        onPress={async () => {
+          try {
+            const url = new URL(await getShowcaseUrl());
+            url.searchParams.set('preview_style', showcaseStyle);
+            await Linking.openURL(url.toString());
+          } catch {
+            setMessage({
+              kind: 'error',
+              text: 'Could not open the showcase preview.',
+            });
+          }
+        }}
       />
       <SectionLabel text="Showcase About section" />
       <Text style={[styles.intro, { color: colors.textMuted }]}>
@@ -232,6 +339,22 @@ function Field({
 }
 
 const styles = StyleSheet.create({
+  design: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderRadius: 12,
+    minHeight: 76,
+  },
+  swatch: {
+    width: 52,
+    height: 52,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   container: {
     width: '100%',
     maxWidth: 720,

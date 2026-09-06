@@ -78,3 +78,36 @@ describe('PATCH /api/showcase/public-profile', () => {
     expect(upsert).not.toHaveBeenCalled();
   });
 });
+
+it('saves design only to the authenticated agency, ignoring a supplied account ID', async () => {
+  checkRateLimit.mockResolvedValue({ success: true });
+  upsert.mockReturnValue({
+    select: () => ({
+      single: async () => ({
+        data: { showcase_style: 'quiet-luxury' },
+        error: null,
+      }),
+    }),
+  });
+  requireRole.mockResolvedValue({
+    accountId: 'agency-a',
+    userId: 'admin-a',
+    supabase: { from: () => ({ upsert }) },
+  });
+  const response = await PATCH(
+    request({
+      accountId: 'agency-b',
+      showcaseStyle: 'quiet-luxury',
+      showcase3dEnabled: false,
+    })
+  );
+  expect(response.status).toBe(200);
+  expect(upsert).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      account_id: 'agency-a',
+      showcase_style: 'quiet-luxury',
+      showcase_3d_enabled: false,
+    }),
+    { onConflict: 'account_id' }
+  );
+});
