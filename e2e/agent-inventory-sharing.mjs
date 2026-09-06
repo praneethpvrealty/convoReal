@@ -494,6 +494,11 @@ try {
         name: /^Shortlist /,
       });
       await shortlistButtons.first().waitFor({ timeout: 60000 });
+      await visitorPage.waitForFunction(
+        () =>
+          document.querySelectorAll('button[aria-label^="Shortlist "]')
+            .length === 2
+      );
       for (const property of [directSource, contactShareSource]) {
         await visitorPage
           .getByRole('button', {
