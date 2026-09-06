@@ -1,6 +1,15 @@
 import type { Property } from '@/types';
 import { propertyMapPin } from '@/lib/maps/map-links';
 
+export function publicMapAreaLabel(
+  property: Pick<Property, 'sublocality' | 'city' | 'state'>
+): string {
+  return [property.sublocality, property.city, property.state]
+    .map((part) => part?.trim())
+    .filter(Boolean)
+    .join(', ');
+}
+
 export function publicMapProperties(properties: Property[]): Property[] {
   return properties.flatMap((property) => {
     if (
@@ -21,10 +30,7 @@ export function publicMapAreas(
 ): Array<{ label: string; count: number }> {
   const areas = new Map<string, { label: string; count: number }>();
   for (const property of properties) {
-    const label = [property.sublocality, property.city, property.state]
-      .map((part) => part?.trim())
-      .filter(Boolean)
-      .join(', ');
+    const label = publicMapAreaLabel(property);
     if (!label) continue;
     const key = label.toLocaleLowerCase('en-IN');
     const area = areas.get(key);

@@ -200,6 +200,7 @@ try {
         title: `Direct agent share ${stamp}`,
         description: 'E2E direct inventory share',
         location: 'Indiranagar, Bengaluru',
+        sublocality: 'Indiranagar',
         city: 'Bengaluru',
         state: 'Karnataka',
         listing_type: 'Sale',
@@ -215,6 +216,7 @@ try {
         title: `Contact inventory share ${stamp}`,
         description: 'E2E contact-level inventory share',
         location: 'Koramangala, Bengaluru',
+        sublocality: 'Koramangala',
         city: 'Bengaluru',
         state: 'Karnataka',
         listing_type: 'Sale',
@@ -675,14 +677,6 @@ try {
           path: `test-results/showcase-designs/${style}-${width}-enquiry.png`,
         });
         await visitor.keyboard.press('Escape');
-        for (const property of [directSource, contactShareSource]) {
-          await visitor
-            .getByRole('button', {
-              name: `Shortlist ${property.title}`,
-              exact: true,
-            })
-            .click();
-        }
         if (style === 'map-discovery' && width === 320) {
           await visitor
             .getByRole('button', { name: 'Map', exact: true })
@@ -703,7 +697,13 @@ try {
             `public locality map renders at ${width}px`,
             mapSource &&
               new URL(mapSource).searchParams.get('q') ===
-                'Bengaluru, Karnataka'
+                'Koramangala, Bengaluru, Karnataka'
+          );
+          must(
+            `latest shortlist focuses the map at ${width}px`,
+            await mapPanel
+              .getByText('Pinned from shortlist', { exact: true })
+              .isVisible()
           );
           must(
             `area map identifies approximate locations at ${width}px`,
@@ -714,11 +714,42 @@ try {
               )
               .isVisible()
           );
+          if (width === 1280) {
+            await mapPanel
+              .getByRole('button', { name: 'Close map', exact: true })
+              .click();
+            await visitor
+              .getByRole('button', { name: 'Show map', exact: true })
+              .waitFor();
+            must(
+              'closing the map restores a third desktop property column',
+              (await visitor
+                .locator('.showcase-listing-grid')
+                .evaluate(
+                  (grid) =>
+                    getComputedStyle(grid).gridTemplateColumns.split(' ').length
+                )) === 3
+            );
+            await visitor
+              .getByRole('button', { name: 'Show map', exact: true })
+              .click();
+            await visitor
+              .getByRole('region', { name: 'Property locations' })
+              .waitFor();
+          }
         }
         await visitor.screenshot({
           path: `test-results/showcase-designs/${style}-${width}.png`,
           fullPage: true,
         });
+        for (const property of [directSource, contactShareSource]) {
+          await visitor
+            .getByRole('button', {
+              name: `Shortlist ${property.title}`,
+              exact: true,
+            })
+            .click();
+        }
         if (style === 'map-discovery' && width === 1280) {
           await visitor.goto(`${BASE}/?account_id=${agentA.accountId}`);
           await visitor.waitForFunction(

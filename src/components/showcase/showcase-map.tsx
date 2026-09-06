@@ -2,9 +2,13 @@
 
 import dynamic from 'next/dynamic';
 import { useMemo, useState } from 'react';
-import { MapPin } from 'lucide-react';
+import { MapPin, X } from 'lucide-react';
 import type { Property } from '@/types';
-import { publicMapAreas, publicMapProperties } from '@/lib/showcase/public-map';
+import {
+  publicMapAreaLabel,
+  publicMapAreas,
+  publicMapProperties,
+} from '@/lib/showcase/public-map';
 import { Button } from '@/components/ui/button';
 
 const PropertyMapView = dynamic(
@@ -19,18 +23,65 @@ export function ShowcaseMap({
   properties,
   currency,
   onOpen,
+  shortlistedPropertyIds,
+  onClose,
 }: {
   properties: Property[];
   currency: string;
   onOpen: (property: Property) => void;
+  shortlistedPropertyIds: string[];
+  onClose: () => void;
 }) {
   const mapped = useMemo(() => publicMapProperties(properties), [properties]);
   const areas = useMemo(() => publicMapAreas(properties), [properties]);
-  const [areaLabel, setAreaLabel] = useState('');
+  const shortlistedAreas = useMemo(
+    () =>
+      publicMapAreas(
+        properties.filter((property) =>
+          shortlistedPropertyIds.includes(property.id)
+        )
+      ),
+    [properties, shortlistedPropertyIds]
+  );
+  const latestShortlisted = (() => {
+    for (
+      let index = shortlistedPropertyIds.length - 1;
+      index >= 0;
+      index -= 1
+    ) {
+      const property = properties.find(
+        (item) => item.id === shortlistedPropertyIds[index]
+      );
+      const label = property ? publicMapAreaLabel(property) : '';
+      if (property && label) return { id: property.id, areaLabel: label };
+    }
+    return null;
+  })();
+  const shortlistedExact = latestShortlisted
+    ? mapped.find((property) => property.id === latestShortlisted.id)
+    : undefined;
+  const shortlistedArea = latestShortlisted
+    ? areas.find(
+        (item) =>
+          item.label.toLocaleLowerCase('en-IN') ===
+          latestShortlisted.areaLabel.toLocaleLowerCase('en-IN')
+      )
+    : undefined;
+  const [areaLabel, setAreaLabel] = useState(shortlistedArea?.label ?? '');
+  const [pinnedAreaLabel, setPinnedAreaLabel] = useState(
+    shortlistedExact ? '' : (shortlistedArea?.label ?? '')
+  );
+  const [focusedId, setFocusedId] = useState(shortlistedExact?.id ?? '');
+  const [mapMode, setMapMode] = useState<'area' | 'exact'>(
+    shortlistedExact || (mapped.length > 0 && !shortlistedArea)
+      ? 'exact'
+      : 'area'
+  );
   const area = areas.find((item) => item.label === areaLabel) ?? areas[0];
-  const [focusedId, setFocusedId] = useState('');
-  const focused =
-    mapped.find((property) => property.id === focusedId) ?? mapped[0];
+  const showArea = mapMode === 'area';
+  const focused = showArea
+    ? undefined
+    : (mapped.find((property) => property.id === focusedId) ?? mapped[0]);
   return (
     <section
       aria-label="Property locations"
@@ -41,22 +92,45 @@ export function ShowcaseMap({
           <MapPin className="size-4" />
           Explore locations
         </h2>
-        <span className="text-xs">
-          {focused
-            ? `${mapped.length} on map`
-            : `${areas.length} ${areas.length === 1 ? 'area' : 'areas'}`}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs">
+            {focused
+              ? `${mapped.length} on map`
+              : `${areas.length} ${areas.length === 1 ? 'area' : 'areas'}`}
+          </span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-9"
+            aria-label="Close map"
+            title="Close map"
+            onClick={onClose}
+          >
+            <X className="size-4" />
+          </Button>
+        </div>
       </div>
       {!focused && area ? (
         <>
           <div className="px-4 pb-3">
+            {pinnedAreaLabel === area.label && (
+              <p className="bg-primary/10 text-primary mb-2 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold">
+                <MapPin className="size-3" />
+                Pinned from shortlist
+              </p>
+            )}
             <label className="text-xs font-medium">
               Area on map
               <select
                 aria-label="Area on map"
                 className="mt-1 min-h-11 w-full rounded-lg border bg-transparent px-3 text-sm"
                 value={area.label}
-                onChange={(event) => setAreaLabel(event.target.value)}
+                onChange={(event) => {
+                  setAreaLabel(event.target.value);
+                  setPinnedAreaLabel('');
+                  setMapMode('area');
+                }}
               >
                 {areas.map((item) => (
                   <option key={item.label} value={item.label}>
@@ -66,6 +140,32 @@ export function ShowcaseMap({
                 ))}
               </select>
             </label>
+            {shortlistedAreas.length > 0 && (
+              <div
+                className="mt-3 flex flex-wrap items-center gap-2"
+                aria-label="Shortlisted areas"
+              >
+                <span className="text-xs font-medium">Shortlisted areas</span>
+                {shortlistedAreas.map((item) => (
+                  <button
+                    key={item.label}
+                    type="button"
+                    className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                      area.label === item.label
+                        ? 'border-primary bg-primary text-primary-foreground'
+                        : 'hover:border-primary'
+                    }`}
+                    onClick={() => {
+                      setAreaLabel(item.label);
+                      setPinnedAreaLabel(item.label);
+                      setMapMode('area');
+                    }}
+                  >
+                    {item.label} · {item.count}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <iframe
             title={`Area map: ${area.label}`}
@@ -98,7 +198,10 @@ export function ShowcaseMap({
                 aria-label="Property on map"
                 className="mt-1 min-h-11 w-full rounded-lg border bg-transparent px-3 text-sm"
                 value={focused.id}
-                onChange={(event) => setFocusedId(event.target.value)}
+                onChange={(event) => {
+                  setFocusedId(event.target.value);
+                  setMapMode('exact');
+                }}
               >
                 {mapped.map((property) => (
                   <option key={property.id} value={property.id}>

@@ -1,9 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import type { Property } from '@/types';
-import { publicMapAreas, publicMapProperties } from './public-map';
+import {
+  publicMapAreaLabel,
+  publicMapAreas,
+  publicMapProperties,
+} from './public-map';
 
 const property = { id: 'home', latitude: 12.97, longitude: 77.59 } as Property;
 describe('public showcase map', () => {
+  it('builds a public area label without using a street address', () => {
+    expect(
+      publicMapAreaLabel({
+        sublocality: ' HBR Layout ',
+        city: 'Bengaluru',
+        state: 'Karnataka',
+      })
+    ).toBe('HBR Layout, Bengaluru, Karnataka');
+  });
   it('excludes guarded and teaser listings even if coordinates are present', () => {
     expect(
       publicMapProperties([
