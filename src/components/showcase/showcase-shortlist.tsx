@@ -33,6 +33,7 @@ export function ShowcaseShortlist(props: ShowcaseShortlistProps) {
     <>
       {!open && (
         <div
+          data-showcase-shortlist
           className="fixed inset-x-4 bottom-4 z-40 mx-auto flex max-w-lg flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-700 bg-slate-950/95 p-3 shadow-xl backdrop-blur"
           style={{ marginBottom: 'env(safe-area-inset-bottom)' }}
         >
