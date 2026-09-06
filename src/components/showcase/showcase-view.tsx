@@ -1858,7 +1858,7 @@ export function ShowcaseView({
             <Button variant={!mapView ? 'default' : 'outline'} aria-pressed={!mapView} onClick={() => setMapView(false)}>List</Button>
             <Button variant={mapView ? 'default' : 'outline'} aria-pressed={mapView} onClick={() => setMapView(true)}>Map</Button>
           </div>
-        )
+        )}
         <div className={showcaseStyle === 'map-discovery' ? 'showcase-map-layout' : undefined} data-map-view={mapView ? 'map' : 'list'}>
         {/* Listings Result Grid */}
         {filteredProperties.length === 0 ? (
@@ -2153,7 +2153,7 @@ export function ShowcaseView({
           <aside className="showcase-map-aside">
             <ShowcaseMap properties={filteredProperties} currency={settings?.currency || 'INR'} onOpen={openPropertyModal} />
           </aside>
-        )
+        )}
         </div>
         {/* CTA Requirements Ingestion Banner */}
         <div className="relative overflow-hidden bg-gradient-to-r from-slate-900/40 via-indigo-950/10 to-slate-900/20 border border-slate-900/60 rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur-xl hover:border-slate-800/80 transition-all duration-500 mt-12">
