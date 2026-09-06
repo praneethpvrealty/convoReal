@@ -279,9 +279,12 @@
   }
 }
 
-.showcase-surface[data-showcase-design] [class*='from-slate-'] {
+.showcase-surface[data-showcase-design] .showcase-main > [class*='from-slate-'] {
   background-image: none;
   background-color: var(--showcase-panel);
+}
+.showcase-surface[data-showcase-design] .showcase-listing-image > .pointer-events-none {
+  display: none;
 }
 .showcase-surface[data-showcase-design] > header > div > div:first-child {
   min-width: 0;
