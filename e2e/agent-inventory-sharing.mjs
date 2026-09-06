@@ -461,7 +461,10 @@ try {
         })
         .click();
       const dialog = page.getByRole('dialog');
-      await dialog.getByText('Inventory Agent B', { exact: true }).waitFor();
+      await dialog
+        .getByText('Inventory Agent B', { exact: true })
+        .first()
+        .waitFor();
       must(
         `inventory import dialog shows accepted agent at ${width}px`,
         await dialog.getByText('In inventory', { exact: true }).isVisible()
