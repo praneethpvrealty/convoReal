@@ -87,6 +87,11 @@ export function betaInviteShareMessage(args: {
   url: string;
   inviterName?: string | null;
   inviteeName?: string | null;
+  inviteePhone?: string | null;
+  inventoryPreview?: {
+    propertyCount: number;
+    consultantNames: string[];
+  } | null;
   seatsRemaining?: number | null;
   expiryDays: number;
 }): string {
@@ -107,8 +112,23 @@ export function betaInviteShareMessage(args: {
       ? `Only ${args.seatsRemaining} of 100 seats left — your link dies in ${args.expiryDays} days:`
       : `Only 100 property consultants get in this month — your link dies in ${args.expiryDays} days:`;
 
+  const preview = args.inventoryPreview;
+  const consultantNames = preview?.consultantNames ?? [];
+  const consultants =
+    consultantNames.length > 0
+      ? ` by ${new Intl.ListFormat('en', { style: 'long', type: 'conjunction' }).format(consultantNames)}`
+      : '';
+  const inventoryBenefit =
+    preview && preview.propertyCount > 0
+      ? `Good news: ${preview.propertyCount} ${preview.propertyCount === 1 ? 'property from your inventory is' : 'properties from your inventory are'} already listed in ConvoReal${consultants}. Verify the same WhatsApp number that received this invite to bring ${preview.propertyCount === 1 ? 'it' : 'them'} into your own login automatically.`
+      : args.inviteePhone
+        ? 'Important: when ConvoReal asks for WhatsApp verification, use the same mobile number that received this invite. That is how any inventory other consultants have attributed to you is found and brought into your login.'
+        : 'When ConvoReal asks for WhatsApp verification, use your main business mobile number. That is how any inventory other consultants have attributed to you is found and brought into your login.';
+
   return [
     opener,
+    '',
+    inventoryBenefit,
     '',
     'It runs my whole business on WhatsApp: every enquiry becomes a contact by itself, inventory matches itself to my buyers, and owners get updates without me typing a word.',
     '',

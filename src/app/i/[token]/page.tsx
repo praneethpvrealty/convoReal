@@ -44,6 +44,9 @@ interface PeekOk {
   seats_taken: number;
   account_cap: number;
   seat_number: number;
+  phone_bound: boolean;
+  inventory_count: number;
+  inventory_consultants: string[];
 }
 
 type FailReason =
@@ -130,6 +133,11 @@ export default function BetaInvitePage() {
 function SeatPass({ peek, token }: { peek: PeekOk; token: string }) {
   const inviter = peek.inviter_name?.trim() || 'The ConvoReal team';
   const days = daysUntil(peek.expires_at);
+  const consultantNames = peek.inventory_consultants ?? [];
+  const consultants =
+    consultantNames.length > 0
+      ? ` by ${new Intl.ListFormat('en', { style: 'long', type: 'conjunction' }).format(consultantNames)}`
+      : '';
 
   return (
     <main className="flex flex-col gap-7">
@@ -197,6 +205,33 @@ function SeatPass({ peek, token }: { peek: PeekOk; token: string }) {
           </div>
         </dl>
       </article>
+
+      {peek.inventory_count > 0 ? (
+        <section className="border-primary/30 bg-primary/5 rounded-xl border p-5">
+          <p className="text-primary font-mono text-[10px] tracking-[0.16em] uppercase">
+            Your inventory is waiting
+          </p>
+          <h2 className="mt-2 text-xl font-semibold text-white">
+            {peek.inventory_count}{' '}
+            {peek.inventory_count === 1 ? 'property is' : 'properties are'}
+            already in ConvoReal
+          </h2>
+          <p className="mt-2 text-sm leading-relaxed text-slate-300">
+            These listings were attributed to you{consultants}. Verify the same
+            WhatsApp number that received this invitation and they will be
+            brought into your login automatically.
+          </p>
+        </section>
+      ) : (
+        <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 text-sm leading-relaxed text-slate-300">
+          <b className="text-white">Use your main WhatsApp number.</b>{' '}
+          {peek.phone_bound
+            ? 'Verify the same number that received this invitation.'
+            : 'Enter it when ConvoReal asks for WhatsApp verification.'}{' '}
+          That is how inventory other consultants have attributed to you is
+          found and brought into your login.
+        </section>
+      )}
 
       <section className="grid gap-6 border-y border-slate-800/70 py-6 sm:grid-cols-2">
         <div>
@@ -270,8 +305,8 @@ function SeatPass({ peek, token }: { peek: PeekOk; token: string }) {
         </Link>
         <p className="flex items-center justify-center gap-1.5 text-center text-xs text-slate-500">
           <ShieldCheck className="size-3.5 shrink-0" />
-          Takes about two minutes. You&apos;ll verify your WhatsApp number —
-          that&apos;s how enquiries reach you.
+          Takes about two minutes. Verify the same WhatsApp number that received
+          this invite so your attributed inventory is linked correctly.
         </p>
       </div>
     </main>

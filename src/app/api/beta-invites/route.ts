@@ -21,6 +21,7 @@ import { NextResponse } from 'next/server';
 import type { PostgrestError } from '@supabase/supabase-js';
 
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
+import { safeSourceInventoryPreview } from '@/lib/agents/source-inventory-preview';
 import { inviteBaseUrl } from '@/lib/auth/invite-base-url';
 import {
   betaInviteShareMessage,
@@ -33,6 +34,7 @@ import {
   RATE_LIMITS,
 } from '@/lib/rate-limit';
 import { toAuthPhone } from '@/lib/whatsapp/phone-utils';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 
 const MAX_LABEL_LEN = 80;
 
@@ -164,14 +166,16 @@ export async function POST(request: Request) {
       inviteBaseUrl(request, 'POST /api/beta-invites')
     );
 
-    const [{ data: program }, { data: profile }] = await Promise.all([
-      ctx.supabase.rpc('beta_program_public'),
-      ctx.supabase
-        .from('profiles')
-        .select('full_name')
-        .eq('user_id', ctx.userId)
-        .maybeSingle(),
-    ]);
+    const [{ data: program }, { data: profile }, inventoryPreview] =
+      await Promise.all([
+        ctx.supabase.rpc('beta_program_public'),
+        ctx.supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('user_id', ctx.userId)
+          .maybeSingle(),
+        safeSourceInventoryPreview(supabaseAdmin(), inviteePhone),
+      ]);
 
     const prog = program as BetaProgram | null;
     const seatsRemaining = prog
@@ -195,6 +199,8 @@ export async function POST(request: Request) {
         url,
         inviterName: profile?.full_name || null,
         inviteeName: label,
+        inviteePhone,
+        inventoryPreview,
         seatsRemaining,
         expiryDays,
       }),
