@@ -144,6 +144,42 @@ describe('betaInviteShareMessage', () => {
     expect(msg).toContain('free Portfolio');
     expect(msg).toContain('import your buyer list');
     expect(msg).toContain('turns a broker into a professional consultant');
+    expect(msg).toContain('use your main business mobile number');
+  });
+
+  it('promotes inventory already attributed to the invited phone', () => {
+    const msg = betaInviteShareMessage({
+      url,
+      inviterName: 'Praneeth',
+      inviteePhone: '+919900277111',
+      inventoryPreview: {
+        propertyCount: 12,
+        consultantNames: ['Aryavarta Realty', 'ABC Properties'],
+      },
+      expiryDays: 14,
+    });
+
+    expect(msg).toContain(
+      '12 properties from your inventory are already listed in ConvoReal by Aryavarta Realty and ABC Properties'
+    );
+    expect(msg).toContain(
+      'Verify the same WhatsApp number that received this invite'
+    );
+    expect(msg).toContain('bring them into your own login automatically');
+  });
+
+  it('tells a phone-bound invitee to verify the same number even without a current match', () => {
+    const msg = betaInviteShareMessage({
+      url,
+      inviteePhone: '+919900277111',
+      inventoryPreview: { propertyCount: 0, consultantNames: [] },
+      expiryDays: 14,
+    });
+
+    expect(msg).toContain(
+      'use the same mobile number that received this invite'
+    );
+    expect(msg).toContain('inventory other consultants have attributed to you');
   });
 
   it('shares the quick-start PDF before the claim link', () => {

@@ -13,6 +13,7 @@ import { NextResponse } from 'next/server';
 import type { PostgrestError } from '@supabase/supabase-js';
 
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
+import { safeSourceInventoryPreview } from '@/lib/agents/source-inventory-preview';
 import { inviteBaseUrl } from '@/lib/auth/invite-base-url';
 import {
   betaInviteShareMessage,
@@ -24,6 +25,7 @@ import {
   rateLimitResponse,
   RATE_LIMITS,
 } from '@/lib/rate-limit';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 
 interface BetaProgram {
   account_cap: number;
@@ -90,14 +92,16 @@ export async function POST(
       token,
       inviteBaseUrl(request, 'POST /api/beta-invites/[id]')
     );
-    const [{ data: program }, { data: profile }] = await Promise.all([
-      ctx.supabase.rpc('beta_program_public'),
-      ctx.supabase
-        .from('profiles')
-        .select('full_name')
-        .eq('user_id', ctx.userId)
-        .maybeSingle(),
-    ]);
+    const [{ data: program }, { data: profile }, inventoryPreview] =
+      await Promise.all([
+        ctx.supabase.rpc('beta_program_public'),
+        ctx.supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('user_id', ctx.userId)
+          .maybeSingle(),
+        safeSourceInventoryPreview(supabaseAdmin(), rotated.invitee_phone),
+      ]);
     const prog = program as BetaProgram | null;
     const expiryDays = Math.max(
       1,
@@ -115,6 +119,8 @@ export async function POST(
         url,
         inviterName: profile?.full_name || null,
         inviteeName: rotated.label,
+        inviteePhone: rotated.invitee_phone,
+        inventoryPreview,
         seatsRemaining: prog
           ? Math.max(0, prog.account_cap - prog.seats_taken)
           : null,
