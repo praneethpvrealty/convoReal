@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { randomBytes } from 'node:crypto';
+import { mkdir } from 'node:fs/promises';
 import { launch, login, BASE } from './support/browser.mjs';
 import { check } from './support/assert.mjs';
 
@@ -596,6 +597,120 @@ try {
     }
   } finally {
     await showcaseBrowser.browser.close();
+  }
+
+  const designsBrowser = await launch();
+  try {
+    await login(designsBrowser.page);
+    const visitor = await designsBrowser.browser.newPage();
+    const { data: otherBefore, error: beforeError } = await admin
+      .from('showcase_settings')
+      .select('showcase_style')
+      .eq('account_id', agentB.accountId)
+      .maybeSingle();
+    if (beforeError) throw beforeError;
+    await mkdir('test-results/showcase-designs', { recursive: true });
+    const showcaseUrl = `${BASE}/?account_id=${agentA.accountId}&ids=${directSource.id},${contactShareSource.id}`;
+    for (const style of ['warm-editorial', 'map-discovery', 'quiet-luxury']) {
+      const saved = await designsBrowser.page.request.patch(
+        `${BASE}/api/showcase/public-profile`,
+        {
+          data: {
+            showcaseStyle: style,
+            showcase3dEnabled: false,
+            accountId: agentB.accountId,
+          },
+        }
+      );
+      must(
+        `${style} saves for the authenticated agency`,
+        saved.ok(),
+        await saved.text()
+      );
+      for (const width of [1280, 320]) {
+        await visitor.setViewportSize({ width, height: 900 });
+        await visitor.goto(showcaseUrl, { waitUntil: 'domcontentloaded' });
+        await visitor
+          .locator(`[data-showcase-style="${style}"]`)
+          .waitFor({ timeout: 60000 });
+        await visitor.waitForFunction(
+          () =>
+            document.querySelectorAll('button[aria-label^="Shortlist "]')
+              .length === 2
+        );
+        must(
+          `${style} fits ${width}px`,
+          await visitor.evaluate(
+            () => document.documentElement.scrollWidth <= window.innerWidth
+          )
+        );
+        for (const property of [directSource, contactShareSource]) {
+          await visitor
+            .getByRole('button', {
+              name: `Shortlist ${property.title}`,
+              exact: true,
+            })
+            .click();
+        }
+        await visitor
+          .getByRole('button', { name: 'Enquire about selected', exact: true })
+          .click();
+        const dialog = visitor.getByRole('dialog');
+        await dialog
+          .getByRole('button', {
+            name: 'Send enquiry for 2 properties',
+            exact: true,
+          })
+          .waitFor();
+        await visitor.screenshot({
+          path: `test-results/showcase-designs/${style}-${width}-enquiry.png`,
+        });
+        await visitor.keyboard.press('Escape');
+        for (const property of [directSource, contactShareSource]) {
+          await visitor
+            .getByRole('button', {
+              name: `Shortlist ${property.title}`,
+              exact: true,
+            })
+            .click();
+        }
+        if (style === 'map-discovery' && width === 320) {
+          await visitor
+            .getByRole('button', { name: 'Map', exact: true })
+            .click();
+          await visitor
+            .getByRole('region', { name: 'Property locations' })
+            .waitFor();
+        }
+        await visitor.screenshot({
+          path: `test-results/showcase-designs/${style}-${width}.png`,
+          fullPage: true,
+        });
+      }
+    }
+    await visitor.goto(`${showcaseUrl}&preview_style=warm-editorial`);
+    await visitor.locator('[data-showcase-style="warm-editorial"]').waitFor();
+    const { data: savedStyle } = await admin
+      .from('showcase_settings')
+      .select('showcase_style')
+      .eq('account_id', agentA.accountId)
+      .single();
+    must(
+      'preview does not replace the saved agency design',
+      savedStyle?.showcase_style === 'quiet-luxury'
+    );
+    const { data: otherAfter, error: afterError } = await admin
+      .from('showcase_settings')
+      .select('showcase_style')
+      .eq('account_id', agentB.accountId)
+      .maybeSingle();
+    if (afterError) throw afterError;
+    must(
+      'another agency keeps its own showcase design',
+      JSON.stringify(otherBefore) === JSON.stringify(otherAfter)
+    );
+  } finally {
+    await designsBrowser.browser.close();
   }
 
   console.log('agent inventory sharing E2E passed');

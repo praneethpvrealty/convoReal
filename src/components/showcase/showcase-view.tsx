@@ -63,9 +63,15 @@ import {
   matchesSelectedLocation,
 } from '@/lib/showcase/location-search';
 import { showcaseCardMotion } from '@/lib/showcase/card-motion';
-import { DEFAULT_SHOWCASE_STYLE, type ShowcaseStyle } from '@/lib/showcase/style';
+import {
+  DEFAULT_SHOWCASE_STYLE,
+  isAgencyShowcaseDesign,
+  type ShowcaseStyle,
+} from '@/lib/showcase/style';
 import { useShowcaseShortlist } from '@/hooks/use-showcase-shortlist';
 import { ShowcaseShortlist } from '@/components/showcase/showcase-shortlist';
+import { ShowcaseMap } from '@/components/showcase/showcase-map';
+import './showcase-designs.css';
 
 // Dwell-time cap for Pulse view_property events — a tab left open in the
 // background must not report hours of "viewing".
@@ -171,6 +177,9 @@ export function ShowcaseView({
   showcase3dEnabled = false,
 }: ShowcaseViewProps) {
   const shortlist = useShowcaseShortlist(accountId, properties);
+  const agencyDesign = isAgencyShowcaseDesign(showcaseStyle);
+  const motionEnabled = showcase3dEnabled && !agencyDesign;
+  const [mapView, setMapView] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   // A curated share (?ids=) pins the catalog to exactly the listings the
   // agent hand-picked, in their order, ignoring saved filters.
@@ -1073,7 +1082,7 @@ export function ShowcaseView({
 
   useEffect(() => {
     const deck = listingDeckRef.current;
-    if (!showcase3dEnabled || !deck || typeof window.matchMedia !== 'function') {
+    if (!motionEnabled || !deck || typeof window.matchMedia !== 'function') {
       return;
     }
 
@@ -1156,7 +1165,7 @@ export function ShowcaseView({
       mobile.removeEventListener('change', scheduleUpdate);
       reducedMotion.removeEventListener('change', scheduleUpdate);
     };
-  }, [filteredProperties, interestStatus, showcase3dEnabled]);
+  }, [filteredProperties, interestStatus, motionEnabled]);
 
   const addLocation = (location: string) => {
     setSelectedLocations((current) =>
@@ -1447,7 +1456,8 @@ export function ShowcaseView({
   return (
     <div
       data-showcase-style={showcaseStyle}
-      data-showcase-3d={showcase3dEnabled ? 'true' : 'false'}
+      data-showcase-3d={motionEnabled ? 'true' : 'false'}
+      data-showcase-design={agencyDesign ? showcaseStyle : undefined}
       className={`showcase-surface min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-primary selection:text-white relative overflow-hidden ${shortlist.selected.length && !isAgentMode ? 'pb-24' : ''}`}
     >
       {/* Decorative Radial Background Lights */}
@@ -1466,7 +1476,7 @@ export function ShowcaseView({
             </span>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="showcase-header-actions flex items-center gap-4">
             {displayPhone && (
               <a
                 href={`tel:${displayPhone.replace(/\s+/g, '')}`}
@@ -1498,14 +1508,14 @@ export function ShowcaseView({
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-10 z-10">
+      <main className="showcase-main flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-10 z-10">
         
         {/* Hero Section */}
         <div className="showcase-hero text-center max-w-3xl mx-auto mb-12 animate-fade-in">
           <h1 className="text-4xl sm:text-5xl font-black text-white tracking-tight leading-tight">
-            {hero?.title || 'Discover Your Dream'}{' '}
+            {hero?.title || (agencyDesign ? showcaseStyle === 'quiet-luxury' ? 'Exceptional places.' : showcaseStyle === 'map-discovery' ? 'Explore properties.' : 'Find a place' : 'Discover Your Dream')}{' '}
             <span className="bg-gradient-to-r from-primary via-indigo-400 to-primary/80 bg-clip-text text-transparent">
-              {hero?.highlight || 'Properties & Spaces'}
+              {hero?.highlight || (agencyDesign ? showcaseStyle === 'quiet-luxury' ? 'Considered living.' : showcaseStyle === 'map-discovery' ? 'Find your location.' : 'to call yours.' : 'Properties & Spaces')}
             </span>
           </h1>
           <p className="mt-4 text-sm sm:text-base text-slate-400 font-medium leading-relaxed">
@@ -1528,6 +1538,7 @@ export function ShowcaseView({
 
         <section
           aria-labelledby="business-profile-heading"
+          data-showcase-about
           className="mb-12 rounded-3xl border border-slate-900/70 bg-slate-900/30 p-6 text-left shadow-xl backdrop-blur-xl sm:p-8"
         >
           <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr] lg:items-start">
@@ -1651,7 +1662,7 @@ export function ShowcaseView({
           )}
 
         {/* Next-step CTAs — get alerted on hot deals, or list your own property */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8 animate-fade-in">
+        <div className="showcase-secondary-promos grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8 animate-fade-in">
           <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
             <div className="size-11 rounded-xl bg-primary/15 flex items-center justify-center text-primary shrink-0">
               <Bell className="size-5" />
@@ -1842,6 +1853,13 @@ export function ShowcaseView({
           </div>
         </div>
 
+        {showcaseStyle === 'map-discovery' && (
+          <div className="showcase-map-toggle mb-4 flex gap-2" aria-label="Property view">
+            <Button variant={!mapView ? 'default' : 'outline'} aria-pressed={!mapView} onClick={() => setMapView(false)}>List</Button>
+            <Button variant={mapView ? 'default' : 'outline'} aria-pressed={mapView} onClick={() => setMapView(true)}>Map</Button>
+          </div>
+        )
+        <div className={showcaseStyle === 'map-discovery' ? 'showcase-map-layout' : undefined} data-map-view={mapView ? 'map' : 'list'}>
         {/* Listings Result Grid */}
         {filteredProperties.length === 0 ? (
           <div className="flex flex-col items-center justify-center text-center py-20 border border-dashed border-slate-900 rounded-3xl bg-slate-900/10">
@@ -1939,6 +1957,8 @@ export function ShowcaseView({
                       {property.type}
                     </div>
 
+                    {agencyDesign && !isAgentMode && <Button type="button" variant="outline" aria-label={`Shortlist ${property.title}`} aria-pressed={shortlist.ids.includes(property.id)} title={shortlist.ids.includes(property.id) ? 'Remove from shortlist' : 'Shortlist property'} className="showcase-photo-shortlist absolute right-3 top-3 size-11 rounded-xl" onClick={(event) => { event.stopPropagation(); shortlist.toggle(property.id); }}>{shortlist.ids.includes(property.id) ? <BookmarkCheck className="size-5" /> : <Bookmark className="size-5" />}</Button>}
+
                     <div className="showcase-card-position" aria-hidden="true">
                       <span>{String(propertyIndex + 1).padStart(2, '0')}</span>
                       <span className="showcase-card-position-divider">/</span>
@@ -1956,6 +1976,21 @@ export function ShowcaseView({
                   {/* Body Content */}
                   <div className="showcase-listing-body flex-1 p-5 flex flex-col justify-between">
                     <div>
+                      {agencyDesign && <div className="mb-3">                          <span className="showcase-listing-price text-lg font-black text-white leading-tight">
+                            {property.listing_type === 'Rent' || property.listing_type === 'Built to Suit' ? (
+                              <span>{formatPrice(property.rent_per_month || 0)}/mo</span>
+                            ) : property.listing_type === 'JV/JD' ? (
+                              <span>
+                                {property.owner_share_percent && property.builder_share_percent
+                                  ? `${property.owner_share_percent}:${property.builder_share_percent} share`
+                                  : 'Enquire'}
+                              </span>
+                            ) : property.teaser_gated ? (
+                              <span>{property.price_band || 'On request'}</span>
+                            ) : (
+                              formatPrice(property.price)
+                            )}
+                          </span></div>}
                       <div className="flex items-center justify-between mb-1 gap-2">
                         <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest truncate">
                           {property.project ? `🏢 ${property.project}` : ''}
@@ -2019,7 +2054,7 @@ export function ShowcaseView({
                     </div>
 
                     <div>
-                      {!isAgentMode && (
+                      {!isAgentMode && !agencyDesign && (
                         <Button
                           type="button"
                           variant="outline"
@@ -2034,7 +2069,7 @@ export function ShowcaseView({
                       )}
                       {/* Quick rating bar — hidden in agent mode */}
                       {!isAgentMode && (
-                      <div className="border-b border-slate-900/60 pb-3 mb-3">
+                      <div className="showcase-card-rating border-b border-slate-900/60 pb-3 mb-3">
                         <PropertyRatingBar
                           compact
                           value={ratings[property.id]?.rating ?? null}
@@ -2047,8 +2082,8 @@ export function ShowcaseView({
                       )}
 
                       {/* Price & Primary CTA */}
-                      <div className="flex items-center justify-between mt-2 pt-2 gap-2">
-                        <div className="flex flex-col">
+                      <div className="showcase-card-actions flex items-center justify-between mt-2 pt-2 gap-2">
+                        <div className="showcase-card-footer-price flex flex-col">
                           <span className="text-[10px] font-bold text-slate-550 uppercase tracking-wider">
                             {property.listing_type === 'Rent' || property.listing_type === 'Built to Suit'
                               ? 'Rent'
@@ -2114,6 +2149,12 @@ export function ShowcaseView({
           </div>
         )}
 
+        {showcaseStyle === 'map-discovery' && (
+          <aside className="showcase-map-aside">
+            <ShowcaseMap properties={filteredProperties} currency={settings?.currency || 'INR'} onOpen={openPropertyModal} />
+          </aside>
+        )
+        </div>
         {/* CTA Requirements Ingestion Banner */}
         <div className="relative overflow-hidden bg-gradient-to-r from-slate-900/40 via-indigo-950/10 to-slate-900/20 border border-slate-900/60 rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur-xl hover:border-slate-800/80 transition-all duration-500 mt-12">
           {/* Decorative glows */}
@@ -2181,6 +2222,7 @@ export function ShowcaseView({
       </footer>
       {!isAgentMode && !selectedProperty && !requirementsModalOpen && (
         <ShowcaseShortlist
+          showcaseStyle={showcaseStyle}
           properties={shortlist.selected}
           accountId={accountId}
           referrerContactId={referrerContactId}

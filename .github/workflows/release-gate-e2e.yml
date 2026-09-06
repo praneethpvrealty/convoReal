@@ -56,6 +56,13 @@ jobs:
           exit 1
       - run: npm run test:e2e:contact-followup
       - run: npm run test:e2e:agent-inventory-sharing
+      - name: Upload showcase design evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: showcase-designs-${{ github.run_id }}
+          path: test-results/showcase-designs/
+          retention-days: 7
 
   production-ai-billing:
     name: Production AI credits and errors

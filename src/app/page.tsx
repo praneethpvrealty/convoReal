@@ -34,7 +34,11 @@ import {
 } from '@/lib/seo/jsonld';
 import { buildPublicBusinessProfile } from '@/lib/seo/business-profile';
 import { BRANDING } from '@/config/branding';
-import { resolveShowcasePresentation } from '@/lib/showcase/style';
+import {
+  resolveShowcasePresentation,
+  SHOWCASE_STYLES,
+  type ShowcaseStyle,
+} from '@/lib/showcase/style';
 
 const DEFAULT_METADATA: Metadata = {
   title: `${BRANDING.name} — AI-Powered WhatsApp Deal Engine & Property Portals`,
@@ -49,6 +53,7 @@ const DEFAULT_METADATA: Metadata = {
 interface PageProps {
   searchParams: Promise<{
     account_id?: string;
+    preview_style?: string;
     ref?: string;
     agent_id?: string;
     property_id?: string;
@@ -470,6 +475,12 @@ export default async function RootPage({ searchParams }: PageProps) {
     ? profiles.find((profile) => profile.user_id === filterUserId)
     : null;
   const presentation = resolveShowcasePresentation(settings, agentProfile);
+  if (
+    resolvedParams.preview_style &&
+    SHOWCASE_STYLES.includes(resolvedParams.preview_style as ShowcaseStyle)
+  ) {
+    presentation.style = resolvedParams.preview_style as ShowcaseStyle;
+  }
 
   const proto = reqHeaders.get('x-forwarded-proto') || 'https';
   const origin = host

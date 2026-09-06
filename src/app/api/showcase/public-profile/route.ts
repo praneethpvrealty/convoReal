@@ -28,6 +28,10 @@ export async function PATCH(request: NextRequest) {
       account_id: ctx.accountId,
       updated_at: new Date().toISOString(),
     };
+    if (parsed.value.showcaseStyle !== undefined)
+      update.showcase_style = parsed.value.showcaseStyle;
+    if (parsed.value.showcase3dEnabled !== undefined)
+      update.showcase_3d_enabled = parsed.value.showcase3dEnabled;
     if (parsed.value.description !== undefined) {
       update.public_business_description = parsed.value.description;
     }
@@ -42,7 +46,7 @@ export async function PATCH(request: NextRequest) {
       .from('showcase_settings')
       .upsert(update, { onConflict: 'account_id' })
       .select(
-        'public_business_description, public_areas_served, public_property_expertise, updated_at'
+        'public_business_description, public_areas_served, public_property_expertise, showcase_style, showcase_3d_enabled, updated_at'
       )
       .single();
     if (error) throw error;

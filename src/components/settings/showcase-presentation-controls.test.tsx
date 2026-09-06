@@ -22,11 +22,13 @@ describe('ShowcasePresentationControls', () => {
     );
 
     expect(
-      screen.getByRole('button', { name: /Gallery/ }).getAttribute('aria-pressed')
+      screen
+        .getByRole('button', { name: /Gallery/ })
+        .getAttribute('aria-pressed')
     ).toBe('true');
     fireEvent.click(screen.getByRole('button', { name: /Spotlight/ }));
     expect(onValueChange).toHaveBeenCalledWith('spotlight');
-    expect(screen.getAllByRole('button')).toHaveLength(5);
+    expect(screen.getAllByRole('button')).toHaveLength(8);
   });
 
   it('turns responsive 3D transitions off', () => {
@@ -47,4 +49,30 @@ describe('ShowcasePresentationControls', () => {
     );
     expect(onThreeDimensionalChange).toHaveBeenCalledWith(false);
   });
+});
+
+it('previews the selected design without changing the saved agency settings', () => {
+  const onValueChange = vi.fn();
+  const onMotionChange = vi.fn();
+  render(
+    <ShowcasePresentationControls
+      title="Agency design"
+      description="Choose"
+      value="warm-editorial"
+      threeDimensional={false}
+      onValueChange={onValueChange}
+      onThreeDimensionalChange={onMotionChange}
+      previewUrl="https://agency.convoreal.com/?ref=agency-a"
+    />
+  );
+  expect(
+    screen
+      .getByRole('link', { name: 'Preview selected design' })
+      .getAttribute('href')
+  ).toBe(
+    'https://agency.convoreal.com/?ref=agency-a&preview_style=warm-editorial'
+  );
+  fireEvent.click(screen.getByRole('button', { name: /Map-led discovery/ }));
+  expect(onValueChange).toHaveBeenCalledWith('map-discovery');
+  expect(onMotionChange).toHaveBeenCalledWith(false);
 });

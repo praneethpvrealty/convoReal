@@ -13,9 +13,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  isAgencyShowcaseDesign,
+  type ShowcaseStyle,
+} from '@/lib/showcase/style';
 import { getShowcaseSessionKey } from '@/lib/pulse/session-key';
 
 interface ShowcaseShortlistProps {
+  showcaseStyle?: ShowcaseStyle;
   properties: Property[];
   accountId: string;
   referrerContactId?: string;
@@ -34,6 +39,11 @@ export function ShowcaseShortlist(props: ShowcaseShortlistProps) {
       {!open && (
         <div
           data-showcase-shortlist
+          data-showcase-design={
+            isAgencyShowcaseDesign(props.showcaseStyle)
+              ? props.showcaseStyle
+              : undefined
+          }
           className="fixed inset-x-4 bottom-4 z-40 mx-auto flex max-w-lg flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-700 bg-slate-950/95 p-3 shadow-xl backdrop-blur"
           style={{ marginBottom: 'env(safe-area-inset-bottom)' }}
         >
@@ -58,6 +68,7 @@ export function ShowcaseShortlist(props: ShowcaseShortlistProps) {
 }
 
 function ShortlistEnquiry({
+  showcaseStyle,
   properties,
   accountId,
   referrerContactId,
@@ -125,7 +136,12 @@ function ShortlistEnquiry({
         if (!next && !pending) onClose();
       }}
     >
-      <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-lg">
+      <DialogContent
+        data-showcase-design={
+          isAgencyShowcaseDesign(showcaseStyle) ? showcaseStyle : undefined
+        }
+        className="max-h-[85dvh] overflow-y-auto sm:max-w-lg"
+      >
         <DialogHeader>
           <DialogTitle>
             {sentCount ? 'Enquiry sent' : 'Your shortlist'}
