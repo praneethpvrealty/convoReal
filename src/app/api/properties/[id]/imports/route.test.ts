@@ -79,12 +79,10 @@ beforeEach(() => {
   state.copies = { data: [], error: null };
   state.profiles = { data: [], error: null };
   state.calls = [];
-  state.admin
-    .mockReset()
-    .mockReturnValue({
-      from: (table: string) =>
-        query(table, table === 'properties' ? state.copies : state.profiles),
-    });
+  state.admin.mockReset().mockReturnValue({
+    from: (table: string) =>
+      query(table, table === 'properties' ? state.copies : state.profiles),
+  });
 });
 
 describe('property import visibility', () => {
