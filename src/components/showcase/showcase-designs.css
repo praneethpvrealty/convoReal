@@ -20,6 +20,10 @@
   --primary: #1453ff;
   --primary-hover: #1243c9;
 }
+.showcase-surface[data-showcase-design='map-discovery'] {
+  overflow-x: clip;
+  overflow-y: visible;
+}
 [data-showcase-design='quiet-luxury'] {
   --showcase-canvas: #202420;
   --showcase-panel: #282e28;
@@ -244,6 +248,8 @@
   .showcase-map-aside {
     position: sticky;
     top: 5rem;
+    max-height: calc(100dvh - 6rem);
+    overflow-y: auto;
   }
   .showcase-map-toggle {
     display: none;
@@ -279,11 +285,15 @@
   }
 }
 
-.showcase-surface[data-showcase-design] .showcase-main > [class*='from-slate-'] {
+.showcase-surface[data-showcase-design]
+  .showcase-main
+  > [class*='from-slate-'] {
   background-image: none;
   background-color: var(--showcase-panel);
 }
-.showcase-surface[data-showcase-design] .showcase-listing-image > .pointer-events-none {
+.showcase-surface[data-showcase-design]
+  .showcase-listing-image
+  > .pointer-events-none {
   display: none;
 }
 .showcase-surface[data-showcase-design] > header > div > div:first-child {

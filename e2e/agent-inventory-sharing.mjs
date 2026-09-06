@@ -645,6 +645,15 @@ try {
           )
         );
         for (const property of [directSource, contactShareSource]) {
+          must(
+            `${style} bookmark has a Shortlist hover label`,
+            (await visitor
+              .getByRole('button', {
+                name: `Shortlist ${property.title}`,
+                exact: true,
+              })
+              .getAttribute('title')) === 'Shortlist'
+          );
           await visitor
             .getByRole('button', {
               name: `Shortlist ${property.title}`,
@@ -682,10 +691,66 @@ try {
             .getByRole('region', { name: 'Property locations' })
             .waitFor();
         }
+        if (style === 'map-discovery') {
+          const mapPanel = visitor.getByRole('region', {
+            name: 'Property locations',
+          });
+          await mapPanel.getByLabel('Area on map', { exact: true }).waitFor();
+          const mapSource = await mapPanel
+            .locator('iframe')
+            .getAttribute('src');
+          must(
+            `public locality map renders at ${width}px`,
+            mapSource &&
+              new URL(mapSource).searchParams.get('q') ===
+                'Bengaluru, Karnataka'
+          );
+          must(
+            `area map identifies approximate locations at ${width}px`,
+            await mapPanel
+              .getByText(
+                'Area overview only. Exact property locations are shared on request.',
+                { exact: true }
+              )
+              .isVisible()
+          );
+        }
         await visitor.screenshot({
           path: `test-results/showcase-designs/${style}-${width}.png`,
           fullPage: true,
         });
+        if (style === 'map-discovery' && width === 1280) {
+          await visitor.goto(`${BASE}/?account_id=${agentA.accountId}`);
+          await visitor.waitForFunction(
+            () =>
+              document.querySelectorAll('.showcase-listing-card').length >= 3
+          );
+          await visitor.evaluate(() => {
+            const catalog = document.querySelector('.showcase-map-layout');
+            window.scrollTo(
+              0,
+              catalog.getBoundingClientRect().top + window.scrollY + 120
+            );
+          });
+          await visitor.waitForFunction(
+            () =>
+              Math.abs(
+                document
+                  .querySelector('.showcase-map-aside')
+                  .getBoundingClientRect().top - 80
+              ) < 2
+          );
+          await visitor.evaluate(() => window.scrollBy(0, 100));
+          await visitor.waitForFunction(
+            () =>
+              Math.abs(
+                document
+                  .querySelector('.showcase-map-aside')
+                  .getBoundingClientRect().top - 80
+              ) < 2
+          );
+          must('map follows desktop scrolling below the header', true);
+        }
       }
     }
     await visitor.goto(`${showcaseUrl}&preview_style=warm-editorial`);
