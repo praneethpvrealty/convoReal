@@ -3,6 +3,7 @@ import { supabaseAdmin } from "@/lib/automations/admin-client";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { normalizePhoneWithCountryCode } from "@/lib/whatsapp/phone-utils";
 import { findOrCreateContact } from "@/lib/contacts/find-or-create";
+import { MAX_SHORTLIST_PROPERTIES, parseInquiryPropertyIds } from "@/lib/showcase/shortlist";
 
 const INQUIRY_SESSION_LIMIT = { limit: 5, windowMs: 60_000 };
 const INQUIRY_ACCOUNT_LIMIT = { limit: 60, windowMs: 60_000 };
@@ -12,7 +13,16 @@ const MAX_MESSAGE_LEN = 2000;
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { phone, email, propertyId, propertyTitle, propertyCode, accountId, referrerContactId, sessionKey } = body;
+    const { phone, email, accountId, referrerContactId, sessionKey } = body;
+    let { propertyId, propertyTitle, propertyCode } = body;
+    const isShortlist = body.propertyIds !== undefined;
+    const propertyIds = isShortlist ? parseInquiryPropertyIds(body.propertyIds) : null;
+    if (isShortlist && (!propertyIds || body.propertyId !== undefined)) {
+      return NextResponse.json({ error: `Select between 1 and ${MAX_SHORTLIST_PROPERTIES} properties for your enquiry.` }, { status: 400 });
+    }
+    if (isShortlist && (typeof body.name !== 'string' || !body.name.trim() || typeof phone !== 'string' || (email !== undefined && typeof email !== 'string') || (body.message !== undefined && typeof body.message !== 'string'))) {
+      return NextResponse.json({ error: 'Enter your name and a valid mobile number.' }, { status: 400 });
+    }
     const isAiAgent = body.source === "ai_agent";
     const channelLabel = isAiAgent ? "AI Agent" : "Website";
     const name = typeof body.name === "string" ? body.name.slice(0, MAX_NAME_LEN) : body.name;
@@ -65,7 +75,7 @@ export async function POST(request: Request) {
     // 1. Fetch account owner_user_id to use as user_id for contact notes & default tasks
     const { data: account, error: accountError } = await admin
       .from("accounts")
-      .select("owner_user_id")
+      .select("owner_user_id, status")
       .eq("id", accountId)
       .maybeSingle();
 
@@ -78,12 +88,40 @@ export async function POST(request: Request) {
     }
 
     const systemUserId = account.owner_user_id;
+    let shortlistProperties: Array<{ id: string; title: string; property_code: string | null; user_id: string }> = [];
+    if (propertyIds) {
+      if (account.status === 'archived') return NextResponse.json({ error: 'This showcase is unavailable.' }, { status: 400 });
+      const { data: listed, error: listedError } = await admin
+        .from('properties')
+        .select('id, title, property_code, user_id')
+        .eq('account_id', accountId)
+        .eq('is_published', true)
+        .eq('status', 'Available')
+        .in('id', propertyIds);
+      if (listedError) throw listedError;
+      if (!listed || listed.length !== propertyIds.length) {
+        return NextResponse.json({ error: 'Some selected properties are no longer available. Refresh the showcase and review your shortlist before trying again.' }, { status: 409 });
+      }
+      shortlistProperties = propertyIds.map((id) => listed.find((property) => property.id === id)!);
+      propertyId = shortlistProperties[0].id;
+      propertyTitle = `${shortlistProperties.length} shortlisted ${shortlistProperties.length === 1 ? 'property' : 'properties'}`;
+      propertyCode = undefined;
+      if (referrerContactId) {
+        const { data: referrer, error: referrerError } = await admin.from('contacts').select('id').eq('account_id', accountId).eq('id', referrerContactId).maybeSingle();
+        if (referrerError) throw referrerError;
+        if (!referrer) return NextResponse.json({ error: 'Invalid enquiry referral.' }, { status: 400 });
+      }
+    }
+    const shortlistSummary = shortlistProperties.map((property, index) => `${index + 1}. ${property.title}${property.property_code ? ` (${property.property_code})` : ''} [${property.id}]`).join('\n');
 
     // Resolve the managing agent of the property if propertyId is provided
     let targetAgentUserId = systemUserId;
+    if (shortlistProperties.length && shortlistProperties.every((property) => property.user_id === shortlistProperties[0].user_id)) {
+      targetAgentUserId = shortlistProperties[0].user_id || systemUserId;
+    }
     let resolvedReferrerContactId = referrerContactId || null;
 
-    if (propertyId) {
+    if (propertyId && !isShortlist) {
       const { data: propData } = await admin
         .from("properties")
         .select("user_id")
@@ -136,6 +174,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Failed to process inquiry" }, { status: 500 });
     }
 
+    if (shortlistProperties.length) {
+      const { error: inquiryError } = await admin.from('contact_property_inquiries').upsert(
+        shortlistProperties.map((property) => ({ account_id: accountId, contact_id: contactId, property_id: property.id, inquiry_source: 'Website Shortlist' })),
+        { onConflict: 'contact_id,property_id', ignoreDuplicates: true }
+      );
+      if (inquiryError) throw inquiryError;
+    }
+
     // Retroactive stitching: this visitor just revealed who they are, so
     // their earlier "Anonymous Guest" Pulse events from the same browser
     // session (tracked via the same showcase_session_key in localStorage)
@@ -157,6 +203,7 @@ export async function POST(request: Request) {
 
     // 3. Add inquiry details as a contact note
     let noteText = `${channelLabel} Inquiry received:\n`;
+    if (shortlistSummary) noteText += `• Selected properties:\n${shortlistSummary}\n`;
     if (propertyTitle) {
       noteText += `• Interested in Property: ${propertyTitle}\n`;
     }
@@ -184,6 +231,7 @@ export async function POST(request: Request) {
       ]);
 
     if (noteError) {
+      if (isShortlist) throw noteError;
       console.error("[POST /api/public/inquiry] Contact note creation failed:", noteError);
       // Don't fail the whole request if note fails, but log it
     }
@@ -196,7 +244,7 @@ export async function POST(request: Request) {
           account_id: accountId,
           user_id: targetAgentUserId,
           title: `New ${channelLabel} Inquiry - @${name || phone}`,
-          description: `Visitor ${name || ""} (${phone}) inquired about property: "${propertyTitle || "Unknown"}"${propertyCode ? ` (${propertyCode})` : ""}. Review contact and follow up.`,
+          description: `Visitor ${name || ""} (${phone}) inquired about property: "${propertyTitle || "Unknown"}"${propertyCode ? ` (${propertyCode})` : ""}.${shortlistSummary ? `\n${shortlistSummary}\n` : ' '}Review contact and follow up.`,
           due_date: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // due in 1 day
           priority: "high",
           completed: false,
@@ -246,6 +294,7 @@ export async function POST(request: Request) {
       if (conversationId) {
         // Formulate inbox message text
         let inboxText = `📩 *${channelLabel} Inquiry Received*\n\n`;
+        if (shortlistSummary) inboxText += `🏘️ *Selected properties*:\n${shortlistSummary}\n\n`;
         if (propertyTitle) {
           inboxText += `🏡 *Property*: ${propertyTitle}${propertyCode ? ` (${propertyCode})` : ""}\n`;
         }
