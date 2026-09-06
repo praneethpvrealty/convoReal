@@ -1957,7 +1957,7 @@ export function ShowcaseView({
                       {property.type}
                     </div>
 
-                    {agencyDesign && !isAgentMode && <Button type="button" variant="outline" aria-label={`Shortlist ${property.title}`} aria-pressed={shortlist.ids.includes(property.id)} title={shortlist.ids.includes(property.id) ? 'Remove from shortlist' : 'Shortlist property'} className="showcase-photo-shortlist absolute right-3 top-3 size-11 rounded-xl" onClick={(event) => { event.stopPropagation(); shortlist.toggle(property.id); }}>{shortlist.ids.includes(property.id) ? <BookmarkCheck className="size-5" /> : <Bookmark className="size-5" />}</Button>}
+                    {agencyDesign && !isAgentMode && <Button type="button" variant="outline" aria-label={`Shortlist ${property.title}`} aria-pressed={shortlist.ids.includes(property.id)} title={shortlist.ids.includes(property.id) ? 'Remove from shortlist' : 'Shortlist'} className="showcase-photo-shortlist absolute right-3 top-3 size-11 rounded-xl" onClick={(event) => { event.stopPropagation(); shortlist.toggle(property.id); }}>{shortlist.ids.includes(property.id) ? <BookmarkCheck className="size-5" /> : <Bookmark className="size-5" />}</Button>}
 
                     <div className="showcase-card-position" aria-hidden="true">
                       <span>{String(propertyIndex + 1).padStart(2, '0')}</span>
