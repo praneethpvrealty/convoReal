@@ -480,6 +480,12 @@ try {
   try {
     const visitorPage = showcaseBrowser.page;
     const selectedIds = [directSource.id, contactShareSource.id];
+    const { error: visibilityError } = await admin
+      .from('properties')
+      .update({ showcase_visibility: 'open' })
+      .eq('account_id', agentA.accountId)
+      .in('id', selectedIds);
+    if (visibilityError) throw visibilityError;
     const showcaseUrl = `${BASE}/?account_id=${agentA.accountId}&ids=${selectedIds.join(',')}`;
     for (const width of [1280, 320]) {
       await visitorPage.setViewportSize({ width, height: 850 });
@@ -488,8 +494,14 @@ try {
         name: /^Shortlist /,
       });
       await shortlistButtons.first().waitFor({ timeout: 60000 });
-      await shortlistButtons.nth(0).click();
-      await shortlistButtons.nth(1).click();
+      for (const property of [directSource, contactShareSource]) {
+        await visitorPage
+          .getByRole('button', {
+            name: `Shortlist ${property.title}`,
+            exact: true,
+          })
+          .click();
+      }
       await visitorPage.reload({ waitUntil: 'domcontentloaded' });
       const enquire = visitorPage.getByRole('button', {
         name: 'Enquire about selected',
@@ -532,6 +544,13 @@ try {
         })
         .click();
       const inquiryResponse = await responsePromise;
+      const submittedIds = inquiryResponse.request().postDataJSON().propertyIds;
+      must(
+        `enquiry submits the selected property IDs at ${width}px`,
+        submittedIds.length === selectedIds.length &&
+          selectedIds.every((id) => submittedIds.includes(id)),
+        JSON.stringify({ expected: selectedIds, submitted: submittedIds })
+      );
       const inquiry = await inquiryResponse.json();
       must(
         `shortlist enquiry succeeds at ${width}px`,
