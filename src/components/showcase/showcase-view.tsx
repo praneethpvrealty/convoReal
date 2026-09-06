@@ -180,6 +180,7 @@ export function ShowcaseView({
   const agencyDesign = isAgencyShowcaseDesign(showcaseStyle);
   const motionEnabled = showcase3dEnabled && !agencyDesign;
   const [mapView, setMapView] = useState(false);
+  const [mapPanelOpen, setMapPanelOpen] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   // A curated share (?ids=) pins the catalog to exactly the listings the
   // agent hand-picked, in their order, ignoring saved filters.
@@ -1856,10 +1857,18 @@ export function ShowcaseView({
         {showcaseStyle === 'map-discovery' && (
           <div className="showcase-map-toggle mb-4 flex gap-2" aria-label="Property view">
             <Button variant={!mapView ? 'default' : 'outline'} aria-pressed={!mapView} onClick={() => setMapView(false)}>List</Button>
-            <Button variant={mapView ? 'default' : 'outline'} aria-pressed={mapView} onClick={() => setMapView(true)}>Map</Button>
+            <Button variant={mapView ? 'default' : 'outline'} aria-pressed={mapView} onClick={() => { setMapPanelOpen(true); setMapView(true); }}>Map</Button>
           </div>
         )}
-        <div className={showcaseStyle === 'map-discovery' ? 'showcase-map-layout' : undefined} data-map-view={mapView ? 'map' : 'list'}>
+        {showcaseStyle === 'map-discovery' && !mapPanelOpen && (
+          <div className="mb-4 flex justify-end">
+            <Button type="button" variant="outline" onClick={() => setMapPanelOpen(true)}>
+              <MapPin className="mr-2 size-4" />
+              Show map
+            </Button>
+          </div>
+        )}
+        <div className={showcaseStyle === 'map-discovery' && mapPanelOpen ? 'showcase-map-layout' : undefined} data-map-view={mapView ? 'map' : 'list'}>
         {/* Listings Result Grid */}
         {filteredProperties.length === 0 ? (
           <div className="flex flex-col items-center justify-center text-center py-20 border border-dashed border-slate-900 rounded-3xl bg-slate-900/10">
@@ -2149,9 +2158,19 @@ export function ShowcaseView({
           </div>
         )}
 
-        {showcaseStyle === 'map-discovery' && (
+        {showcaseStyle === 'map-discovery' && mapPanelOpen && (
           <aside className="showcase-map-aside">
-            <ShowcaseMap properties={filteredProperties} currency={settings?.currency || 'INR'} onOpen={openPropertyModal} />
+            <ShowcaseMap
+              key={shortlist.ids.join(':')}
+              properties={filteredProperties}
+              currency={settings?.currency || 'INR'}
+              onOpen={openPropertyModal}
+              shortlistedPropertyIds={shortlist.ids}
+              onClose={() => {
+                setMapPanelOpen(false);
+                setMapView(false);
+              }}
+            />
           </aside>
         )}
         </div>
