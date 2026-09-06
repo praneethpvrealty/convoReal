@@ -742,6 +742,11 @@ try {
           path: `test-results/showcase-designs/${style}-${width}.png`,
           fullPage: true,
         });
+        if (style === 'map-discovery' && width === 320) {
+          await visitor
+            .getByRole('button', { name: 'List', exact: true })
+            .click();
+        }
         for (const property of [directSource, contactShareSource]) {
           await visitor
             .getByRole('button', {
