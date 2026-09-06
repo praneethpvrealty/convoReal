@@ -476,6 +476,95 @@ try {
     await browser.close();
   }
 
+  const showcaseBrowser = await launch();
+  try {
+    const visitorPage = showcaseBrowser.page;
+    const selectedIds = [directSource.id, contactShareSource.id];
+    const showcaseUrl = `${BASE}/?account_id=${agentA.accountId}&ids=${selectedIds.join(',')}`;
+    for (const width of [1280, 320]) {
+      await visitorPage.setViewportSize({ width, height: 850 });
+      await visitorPage.goto(showcaseUrl, { waitUntil: 'domcontentloaded' });
+      const shortlistButtons = visitorPage.getByRole('button', {
+        name: /^Shortlist /,
+      });
+      await shortlistButtons.first().waitFor({ timeout: 60000 });
+      await shortlistButtons.nth(0).click();
+      await shortlistButtons.nth(1).click();
+      await visitorPage.reload({ waitUntil: 'domcontentloaded' });
+      const enquire = visitorPage.getByRole('button', {
+        name: 'Enquire about selected',
+        exact: true,
+      });
+      await enquire.waitFor({ timeout: 60000 });
+      const bounds = await enquire.boundingBox();
+      must(
+        `shortlist action fits ${width}px screen`,
+        bounds && bounds.x >= 0 && bounds.x + bounds.width <= width
+      );
+      await enquire.click();
+      const dialog = visitorPage.getByRole('dialog');
+      await dialog
+        .getByLabel('Your name', { exact: true })
+        .fill(`Shortlist visitor ${width} ${stamp}`);
+      await dialog
+        .getByLabel('Mobile number', { exact: true })
+        .fill(
+          `+9197${width === 320 ? '32' : '12'}${String(Date.now()).slice(-6)}`
+        );
+      const responsePromise = visitorPage.waitForResponse(
+        (response) =>
+          response.url().includes('/api/public/inquiry') &&
+          response.request().method() === 'POST'
+      );
+      await dialog
+        .getByRole('button', {
+          name: 'Send enquiry for 2 properties',
+          exact: true,
+        })
+        .click();
+      const inquiryResponse = await responsePromise;
+      const inquiry = await inquiryResponse.json();
+      must(
+        `shortlist enquiry succeeds at ${width}px`,
+        inquiryResponse.ok() && inquiry.success === true,
+        JSON.stringify(inquiry)
+      );
+      await dialog.getByText('Enquiry sent', { exact: true }).waitFor();
+      const { data: links, error: linksError } = await admin
+        .from('contact_property_inquiries')
+        .select('property_id')
+        .eq('account_id', agentA.accountId)
+        .eq('contact_id', inquiry.contactId);
+      if (linksError) throw linksError;
+      must(
+        `both shortlisted properties are linked at ${width}px`,
+        selectedIds.every((id) => links.some((row) => row.property_id === id))
+      );
+      const { data: conversation } = await admin
+        .from('conversations')
+        .select('id')
+        .eq('account_id', agentA.accountId)
+        .eq('contact_id', inquiry.contactId)
+        .single();
+      const { data: messages } = await admin
+        .from('messages')
+        .select('content_text')
+        .eq('conversation_id', conversation.id);
+      must(
+        `one inbox enquiry contains both properties at ${width}px`,
+        messages.length === 1 &&
+          selectedIds.every((id) => messages[0].content_text.includes(id))
+      );
+      await dialog.getByRole('button', { name: 'Continue browsing' }).click();
+      must(
+        `successful enquiry clears shortlist at ${width}px`,
+        (await enquire.count()) === 0
+      );
+    }
+  } finally {
+    await showcaseBrowser.browser.close();
+  }
+
   console.log('agent inventory sharing E2E passed');
 } finally {
   await cleanup();

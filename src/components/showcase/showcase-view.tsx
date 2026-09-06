@@ -37,6 +37,8 @@ import {
   Home,
   Play,
   Download,
+  Bookmark,
+  BookmarkCheck,
 } from 'lucide-react';
 import type { Property, ShowcaseSettings, AgencyService, AgencyArticle } from '@/types';
 import { BRANDING } from '@/config/branding';
@@ -62,6 +64,8 @@ import {
 } from '@/lib/showcase/location-search';
 import { showcaseCardMotion } from '@/lib/showcase/card-motion';
 import { DEFAULT_SHOWCASE_STYLE, type ShowcaseStyle } from '@/lib/showcase/style';
+import { useShowcaseShortlist } from '@/hooks/use-showcase-shortlist';
+import { ShowcaseShortlist } from '@/components/showcase/showcase-shortlist';
 
 // Dwell-time cap for Pulse view_property events — a tab left open in the
 // background must not report hours of "viewing".
@@ -166,6 +170,7 @@ export function ShowcaseView({
   showcaseStyle = DEFAULT_SHOWCASE_STYLE,
   showcase3dEnabled = false,
 }: ShowcaseViewProps) {
+  const shortlist = useShowcaseShortlist(accountId, properties);
   const [searchQuery, setSearchQuery] = useState('');
   // A curated share (?ids=) pins the catalog to exactly the listings the
   // agent hand-picked, in their order, ignoring saved filters.
@@ -1443,7 +1448,7 @@ export function ShowcaseView({
     <div
       data-showcase-style={showcaseStyle}
       data-showcase-3d={showcase3dEnabled ? 'true' : 'false'}
-      className="showcase-surface min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-primary selection:text-white relative overflow-hidden"
+      className={`showcase-surface min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-primary selection:text-white relative overflow-hidden ${shortlist.selected.length && !isAgentMode ? 'pb-24' : ''}`}
     >
       {/* Decorative Radial Background Lights */}
       <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-primary/8 rounded-full blur-[130px] pointer-events-none" />
@@ -2014,6 +2019,19 @@ export function ShowcaseView({
                     </div>
 
                     <div>
+                      {!isAgentMode && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          aria-label={`Shortlist ${property.title}`}
+                          aria-pressed={shortlist.ids.includes(property.id)}
+                          onClick={() => shortlist.toggle(property.id)}
+                          className="mb-3 min-h-11 w-full gap-2"
+                        >
+                          {shortlist.ids.includes(property.id) ? <BookmarkCheck className="size-4" /> : <Bookmark className="size-4" />}
+                          {shortlist.ids.includes(property.id) ? 'Shortlisted' : 'Shortlist'}
+                        </Button>
+                      )}
                       {/* Quick rating bar — hidden in agent mode */}
                       {!isAgentMode && (
                       <div className="border-b border-slate-900/60 pb-3 mb-3">
@@ -2161,6 +2179,18 @@ export function ShowcaseView({
           </div>
         </div>
       </footer>
+      {!isAgentMode && !selectedProperty && !requirementsModalOpen && (
+        <ShowcaseShortlist
+          properties={shortlist.selected}
+          accountId={accountId}
+          referrerContactId={referrerContactId}
+          name={visitorName}
+          phone={visitorPhone}
+          email={visitorEmail}
+          onRemove={shortlist.toggle}
+          onClear={shortlist.clear}
+        />
+      )}
          {/* Property Detail Modal.
              Mobile/tablet: the card takes its natural height and the overlay
              itself scrolls — centering a taller-than-viewport card with
@@ -2989,6 +3019,19 @@ export function ShowcaseView({
                 />
 
                 {/* Interest rating bar inside Modal — hidden in agent mode */}
+                {!isAgentMode && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    aria-label={`Shortlist ${selectedProperty.title}`}
+                    aria-pressed={shortlist.ids.includes(selectedProperty.id)}
+                    onClick={() => shortlist.toggle(selectedProperty.id)}
+                    className="min-h-11 w-full gap-2"
+                  >
+                    {shortlist.ids.includes(selectedProperty.id) ? <BookmarkCheck className="size-4" /> : <Bookmark className="size-4" />}
+                    {shortlist.ids.includes(selectedProperty.id) ? 'Shortlisted' : 'Shortlist this property'}
+                  </Button>
+                )}
                 {!isAgentMode && (
                 <PropertyRatingBar
                   value={ratings[selectedProperty.id]?.rating ?? null}
