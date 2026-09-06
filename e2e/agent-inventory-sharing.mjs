@@ -279,6 +279,22 @@ try {
   );
 
   const pendingId = shared.body.data.id;
+  const pendingActivity = await authenticatedRequest(
+    agentA,
+    'GET',
+    `/api/properties/${directSource.id}/imports`
+  );
+  must(
+    'source agent sees the recipient awaiting review',
+    pendingActivity.status === 200 &&
+      pendingActivity.body.data.some(
+        (row) =>
+          row.id === pendingId &&
+          row.status === 'Pending review' &&
+          row.agentName === 'Inventory Agent B'
+      ),
+    JSON.stringify(pendingActivity)
+  );
   const { data: pending } = await admin
     .from('properties')
     .select(
@@ -393,6 +409,69 @@ try {
       liveCopy?.source_property_id === directSource.id,
     JSON.stringify(liveCopy)
   );
+
+  const agentClient = createClient(url, anonKey, {
+    auth: { persistSession: false },
+  });
+  const { data: signedIn, error: signInError } =
+    await agentClient.auth.signInWithPassword({
+      email: agentA.email,
+      password,
+    });
+  if (signInError) throw signInError;
+  const mobileActivityResponse = await fetch(
+    `${BASE}/api/properties/${directSource.id}/imports`,
+    {
+      headers: { Authorization: `Bearer ${signedIn.session.access_token}` },
+    }
+  );
+  const mobileActivity = await mobileActivityResponse.json();
+  must(
+    'mobile bearer session sees the approved import',
+    mobileActivityResponse.ok &&
+      mobileActivity.data.some(
+        (row) => row.id === pendingId && row.status === 'In inventory'
+      )
+  );
+  const forbiddenResponse = await fetch(
+    `${BASE}/api/properties/${pendingId}/imports`,
+    {
+      headers: { Authorization: `Bearer ${signedIn.session.access_token}` },
+    }
+  );
+  must(
+    'source agent cannot inspect a recipient’s private listing activity',
+    forbiddenResponse.status === 404
+  );
+  await agentClient.auth.signOut();
+
+  process.env.E2E_EMAIL = agentA.email;
+  process.env.E2E_PASSWORD = agentA.password;
+  process.env.E2E_ACCOUNT_ID = agentA.accountId;
+  const { browser, page } = await launch();
+  try {
+    await login(page);
+    await page.goto(`${BASE}/inventory`);
+    for (const width of [1280, 390]) {
+      await page.setViewportSize({ width, height: 850 });
+      await page
+        .getByRole('button', {
+          name: `See who added ${directSource.title} to their inventory`,
+          exact: true,
+        })
+        .click();
+      const dialog = page.getByRole('dialog');
+      await dialog.getByText('Inventory Agent B', { exact: true }).waitFor();
+      must(
+        `inventory import dialog shows accepted agent at ${width}px`,
+        await dialog.getByText('In inventory', { exact: true }).isVisible()
+      );
+      await page.keyboard.press('Escape');
+      await dialog.waitFor({ state: 'hidden' });
+    }
+  } finally {
+    await browser.close();
+  }
 
   console.log('agent inventory sharing E2E passed');
 } finally {

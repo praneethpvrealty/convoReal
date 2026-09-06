@@ -29,6 +29,7 @@ import { GateRequestsSheet } from '@/components/gate-requests-sheet';
 import { EnterRow, PressScale } from '@/components/motion';
 import { PortalDriftPanel } from '@/components/portal-drift-panel';
 import { PropertyApprovals } from '@/components/property-approvals';
+import { PropertyImportsSheet } from '@/components/property-imports-sheet';
 import { PropertyFiltersSheet } from '@/components/property-filters-sheet';
 import { ShowcaseShareSheet } from '@/components/showcase-share-sheet';
 import {
@@ -192,6 +193,7 @@ export default function PropertiesScreen() {
     );
   }
   const [sharePicker, setSharePicker] = useState(false);
+  const [importsProperty, setImportsProperty] = useState<Property | null>(null);
   const { dialogProps } = useAppDialog();
   const [geoError, setGeoError] = useState<string | null>(null);
   const debounced = useDebounced(search.trim());
@@ -581,6 +583,7 @@ export default function PropertiesScreen() {
               <EnterRow index={index}>
                 <PropertyCard
                   property={item}
+                  onViewImports={() => setImportsProperty(item)}
                   gateStats={gateStats}
                   compact={columnCount > 1}
                   selecting={selecting}
@@ -602,6 +605,14 @@ export default function PropertiesScreen() {
         onTagged={() => setSelectedIds([])}
       />
       <AppDialog {...dialogProps} />
+      {importsProperty && (
+        <PropertyImportsSheet
+          key={importsProperty.id}
+          propertyId={importsProperty.id}
+          propertyTitle={importsProperty.title}
+          onClose={() => setImportsProperty(null)}
+        />
+      )}
       <PropertyFiltersSheet
         visible={filtersOpen}
         onClose={() => setFiltersOpen(false)}
@@ -899,6 +910,7 @@ function LocalitySearchBox() {
  */
 function PropertyCard({
   property,
+  onViewImports,
   gateStats,
   compact,
   selecting,
@@ -907,6 +919,7 @@ function PropertyCard({
   onStartSelecting,
 }: {
   property: Property;
+  onViewImports: () => void;
   gateStats?: GateStatsMap;
   compact: boolean;
   selecting: boolean;
@@ -1092,6 +1105,27 @@ function PropertyCard({
             />
           </Pressable>
         ) : null}
+        <Pressable
+          onPress={(event) => {
+            event.stopPropagation();
+            onViewImports();
+          }}
+          disabled={selecting}
+          accessibilityRole="button"
+          accessibilityLabel={`See who added ${property.title} to their inventory`}
+          style={{
+            minHeight: 44,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: spacing.sm,
+            opacity: selecting ? 0.5 : 1,
+          }}
+        >
+          <Ionicons name="people-outline" size={16} color={colors.primary} />
+          <Text style={{ color: colors.primary, fontSize: 12 }}>
+            Added to inventories
+          </Text>
+        </Pressable>
         <View style={styles.specRow}>
           {property.bedrooms ? (
             <SpecPill icon="bed-outline" label={`${property.bedrooms} Beds`} />

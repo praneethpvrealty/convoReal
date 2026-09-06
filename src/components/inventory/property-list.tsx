@@ -51,6 +51,7 @@ import {
 } from '@/lib/inventory/photo-sources';
 import { PORTALS, type PortalKey } from '@/lib/portals/post-kit';
 import { CheckSquare, Square } from 'lucide-react';
+import { PropertyImportsDialog } from '@/components/inventory/property-imports-dialog';
 
 const highlightIcons: Record<string, string> = {
   School: '🏫',
@@ -138,6 +139,7 @@ export function PropertyList({
   currency = 'INR',
 }: PropertyListProps) {
   const router = useRouter();
+  const [importsProperty, setImportsProperty] = useState<Property | null>(null);
   // Keyed by listing, not a single id: approving publishes the listing,
   // syncs the catalog and notifies the owner, so a reviewer works down
   // the queue while the first one is still running. A single decidingId
@@ -282,6 +284,14 @@ export function PropertyList({
 
   return (
     <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+      {importsProperty && (
+        <PropertyImportsDialog
+          key={importsProperty.id}
+          propertyId={importsProperty.id}
+          propertyTitle={importsProperty.title}
+          onClose={() => setImportsProperty(null)}
+        />
+      )}
       {properties.map((property) => {
         const TypeIcon = getTypeIcon(property.type);
         const verdict = deciding.get(property.id);
@@ -572,6 +582,14 @@ export function PropertyList({
                   </button>
                 )}
 
+                <button
+                  type="button"
+                  onClick={() => setImportsProperty(property)}
+                  aria-label={`See who added ${property.title} to their inventory`}
+                  className="text-primary mb-3 flex min-h-11 items-center gap-2 text-xs font-medium hover:underline"
+                >
+                  <Users className="size-4" /> Added to inventories
+                </button>
                 <div className="mb-4 flex items-center justify-between">
                   <div className="text-lg font-black text-white">
                     {property.listing_type === 'Rent' ||
