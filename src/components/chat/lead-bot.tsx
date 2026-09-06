@@ -195,7 +195,10 @@ export function LeadBot({
   }
 
   return (
-    <div className="fixed right-4 bottom-4 z-50 flex flex-col items-end gap-3 print:hidden">
+    <div
+      data-floating-lead-bot
+      className="fixed right-4 bottom-4 z-50 flex flex-col items-end gap-3 print:hidden"
+    >
       {open && (
         <div className="animate-zoom-in w-[min(22rem,calc(100vw-2rem))] rounded-2xl border border-slate-800 bg-slate-950/95 p-4 shadow-2xl backdrop-blur-xl">
           <div className="mb-3 flex items-start justify-between gap-2">

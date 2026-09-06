@@ -1210,3 +1210,7 @@ html[data-mode="light"][data-theme="verdant"] {
     scroll-behavior: auto;
   }
 }
+
+body:has([data-showcase-shortlist]) [data-floating-lead-bot] {
+  bottom: calc(9rem + env(safe-area-inset-bottom, 0px));
+}

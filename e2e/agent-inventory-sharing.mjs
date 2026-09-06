@@ -501,6 +501,15 @@ try {
         `shortlist action fits ${width}px screen`,
         bounds && bounds.x >= 0 && bounds.x + bounds.width <= width
       );
+      const assistant = visitorPage.locator('[data-floating-lead-bot]');
+      if (await assistant.isVisible()) {
+        const assistantBounds = await assistant.boundingBox();
+        must(
+          `assistant stays above shortlist action at ${width}px`,
+          assistantBounds &&
+            assistantBounds.y + assistantBounds.height <= bounds.y
+        );
+      }
       await enquire.click();
       const dialog = visitorPage.getByRole('dialog');
       await dialog
