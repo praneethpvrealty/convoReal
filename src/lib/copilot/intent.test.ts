@@ -34,6 +34,11 @@ describe('matchTourIntent', () => {
     'why is my credit balance low',
     'hello',
     'tell me a joke',
+    'How do I share a freshly added property?',
+    'Send a new property to the audience of an existing property',
+    'How do I edit a new property?',
+    'How do I share a property listing?',
+    'I need to send Property details of a freshly added property to audience of an existing property. How can I do it?',
     '',
   ])('ambiguous or unrelated "%s" → null', (message) => {
     expect(matchTourIntent(message)).toBeNull();
