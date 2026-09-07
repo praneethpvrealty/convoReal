@@ -41,7 +41,6 @@ import { friendlyError } from '@/lib/errors';
 import { chatListTime, formatInr } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
 import { listingPrice } from '@/lib/listing-price';
-import { propertyAvailabilityWhatsAppUrl } from '@shared/lib/inventory/availability-check';
 import {
   audienceListingLabel,
   fetchListingAudience,
@@ -60,7 +59,10 @@ import {
   inquiredPropertyLabel,
   type PropertyMatch,
 } from '@/lib/property-matches';
-import { propertyDetailPrimaryAction } from '@/lib/property-detail-primary-action';
+import {
+  propertyAvailabilityWhatsAppUrl,
+  propertyDetailPrimaryAction,
+} from '@/lib/property-detail-primary-action';
 import { rentalYieldPercent } from '@/lib/rental-yield';
 import {
   hasBedsBaths,
