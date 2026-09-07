@@ -116,6 +116,7 @@ import { FloorPlansEditor, type FloorPlanDraft } from '@/components/inventory/fl
 import { isGuardedType, isLocationGuarded } from '@/lib/inventory/location-guard';
 import { rentalYieldPercent, yieldApplies } from '@/lib/inventory/rental-yield';
 import { contactHandle, hasPhone } from '@/lib/contacts/reachability';
+import { propertyAvailabilityWhatsAppUrl } from '@/lib/inventory/availability-check';
 
 interface PropertyFormProps {
   open: boolean;
@@ -3453,10 +3454,12 @@ export function PropertyForm({
                   {/* 9. OWNER DETAILS */}
                   {(() => {
                     const owner = property?.owner || contacts.find((c) => c.id === ownerContactId);
-                    if (!owner) return null;
+                    if (!owner || !property) return null;
                     return (
                       <div className="space-y-2">
-                        <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Owner Contact Info</h4>
+                        <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                          {property.listing_source === 'agent' ? 'Agent Contact Info' : 'Owner Contact Info'}
+                        </h4>
                         <div className="p-4 rounded-xl border border-slate-800 bg-slate-950/20 flex items-center justify-between gap-4">
                           <div className="flex items-center gap-3">
                             <div className="h-10 w-10 rounded-full bg-slate-800/80 border border-slate-700 flex items-center justify-center text-sm font-semibold text-slate-200">
@@ -3475,12 +3478,12 @@ export function PropertyForm({
                           </div>
                           {hasPhone(owner) && (
                             <a
-                              href={`https://wa.me/${owner.phone.replace(/[^0-9]/g, '')}`}
+                              href={propertyAvailabilityWhatsAppUrl(owner.phone, property, owner.name)}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-800 bg-slate-950 hover:bg-slate-900 text-slate-200 font-semibold px-3 py-1.5 text-xs transition-colors shrink-0"
                             >
-                              <span>WhatsApp</span>
+                              <span>Check availability</span>
                               <span className="text-emerald-400">●</span>
                             </a>
                           )}

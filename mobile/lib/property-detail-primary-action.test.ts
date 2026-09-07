@@ -26,4 +26,18 @@ describe('propertyDetailPrimaryAction', () => {
       })
     ).toEqual({ kind: 'maps', label: 'Open Maps', icon: 'map-outline' });
   });
+
+  it('offers an availability check when the owner or referring agent is reachable', () => {
+    expect(
+      propertyDetailPrimaryAction({
+        selectedCount: 0,
+        ownerPhone: true,
+        hasMapLocation: true,
+      })
+    ).toEqual({
+      kind: 'availability',
+      label: 'Check availability',
+      icon: 'logo-whatsapp',
+    });
+  });
 });

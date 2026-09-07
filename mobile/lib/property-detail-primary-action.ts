@@ -1,6 +1,10 @@
 export type PropertyDetailPrimaryAction =
   | { kind: 'share'; label: string; icon: 'paper-plane' }
-  | { kind: 'whatsapp'; label: 'WhatsApp'; icon: 'logo-whatsapp' }
+  | {
+      kind: 'availability';
+      label: 'Check availability';
+      icon: 'logo-whatsapp';
+    }
   | { kind: 'maps'; label: 'Open Maps'; icon: 'map-outline' };
 
 export function propertyDetailPrimaryAction(args: {
@@ -16,7 +20,11 @@ export function propertyDetailPrimaryAction(args: {
     };
   }
   if (args.ownerPhone) {
-    return { kind: 'whatsapp', label: 'WhatsApp', icon: 'logo-whatsapp' };
+    return {
+      kind: 'availability',
+      label: 'Check availability',
+      icon: 'logo-whatsapp',
+    };
   }
   if (args.hasMapLocation) {
     return { kind: 'maps', label: 'Open Maps', icon: 'map-outline' };

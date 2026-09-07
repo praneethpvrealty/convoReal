@@ -41,6 +41,7 @@ import { friendlyError } from '@/lib/errors';
 import { chatListTime, formatInr } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
 import { listingPrice } from '@/lib/listing-price';
+import { propertyAvailabilityWhatsAppUrl } from '@shared/lib/inventory/availability-check';
 import {
   audienceListingLabel,
   fetchListingAudience,
@@ -1083,9 +1084,14 @@ export default function PropertyDetailScreen() {
                 setShareTo(selectedContacts);
                 return;
               }
-              if (primaryAction.kind === 'whatsapp' && ownerPhone) {
+              if (primaryAction.kind === 'availability' && ownerPhone) {
+                haptic.send();
                 void Linking.openURL(
-                  `https://wa.me/${ownerPhone.replace(/\D/g, '')}`
+                  propertyAvailabilityWhatsAppUrl(
+                    ownerPhone,
+                    property,
+                    property.owner?.name
+                  )
                 );
                 return;
               }
