@@ -27,6 +27,57 @@ beforeEach(() => {
 });
 
 describe('Copilot confirmed action integration', () => {
+  it.each(['web', 'mobile'] as const)(
+    'answers the reported audience-sharing question on %s without an add tour',
+    async (platform) => {
+      const answer = await answerQuestion({
+        audience: 'agent',
+        message:
+          'I need to send Property details of a freshly added property to audience of an existing property. How can I do it?',
+        pathname: '/inbox',
+        history: [],
+        accountId: 'account-1',
+        platform,
+      });
+
+      expect(answer.reply).toContain("Share with a listing's audience");
+      expect(answer.reply).toContain('enquired');
+      expect(answer.reply).toContain('preview');
+      expect(answer.reply).toContain(
+        platform === 'mobile' ? 'matching contacts' : 'Engine'
+      );
+      expect(answer.tourId).toBeUndefined();
+      expect(answer.action).toBeUndefined();
+      expect(answer.webUrl).toBeUndefined();
+      expect(answer.coverage).toBe(platform === 'mobile' ? 'full' : undefined);
+      expect(embedText).not.toHaveBeenCalled();
+      expect(generateJson).not.toHaveBeenCalled();
+    }
+  );
+
+  it.each([
+    'Share the new property with people who enquired about the old listing',
+    'Send #JP Nagar Plot to the audience of #Indiranagar Flat',
+    'How can I forward the property to contacts who viewed another listing?',
+  ])('keeps audience selection in the composer for "%s"', async (message) => {
+    const answer = await answerQuestion({
+      audience: 'agent',
+      message,
+      pathname: '/inventory',
+      history: [],
+      accountId: 'account-1',
+      entities: [
+        property,
+        { ...property, id: event.id, label: 'Indiranagar Flat' },
+      ],
+      canExecuteActions: true,
+    });
+    expect(answer.reply).toContain('Choose the existing listing');
+    expect(answer.action).toBeUndefined();
+    expect(answer.navigateTo).toBeUndefined();
+    expect(generateJson).not.toHaveBeenCalled();
+  });
+
   it('creates a mobile confirmation without invoking the model', async () => {
     const answer = await answerQuestion({
       audience: 'agent',

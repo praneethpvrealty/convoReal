@@ -1,6 +1,10 @@
 import { embedText, generateJson } from '@/lib/ai/gemini';
 import type { Audience } from './chunks';
-import { cannedTourReply, matchTourIntent } from './intent';
+import {
+  cannedTourReply,
+  isListingAudienceShare,
+  matchTourIntent,
+} from './intent';
 import { buildCopilotSystemPrompt, isAllowedRoute } from './knowledge';
 import {
   parseCoverage,
@@ -120,6 +124,23 @@ export async function answerQuestion(
   const mobile = platform === 'mobile';
 
   if (audience === 'agent') {
+    if (
+      isListingAudienceShare(
+        message,
+        req.entities?.some((entity) => entity.kind === 'property')
+      )
+    ) {
+      return {
+        reply: [
+          mobile
+            ? 'Open the newly added property in Properties, expand its matching contacts list, and tap "Share with a listing\'s audience".'
+            : 'In Inventory, open Share for the newly added property, choose "Send from Engine", then "Select Contacts & Share on WhatsApp" and "Share with a listing\'s audience".',
+          'Choose the existing listing whose audience you want; this selects reachable contacts who enquired about it or had tracked showcase views.',
+          'Review the selected recipients, continue to sharing, and preview the new property message and showcase link before confirming the send.',
+        ].join(' '),
+        ...(mobile ? { coverage: 'full' as const } : {}),
+      };
+    }
     const requestedAction = resolveCopilotAction(message, req.entities ?? []);
     if (requestedAction?.kind === 'guidance') {
       return {

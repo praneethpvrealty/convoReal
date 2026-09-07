@@ -35,6 +35,13 @@ mobile open their existing share composer with the selected property; the user
 still chooses recipients/channel and confirms the actual outbound message in
 that flow.
 
+Sharing a new listing with an existing listing's audience is resolved before
+generic share actions, tours, and the answer cache. The helper gives the existing
+platform-specific audience-picker steps, explains that the audience comes from
+enquiries and tracked showcase views, and leaves recipient review and sending
+in the share composer. Mentioning an already-added property does not start the
+Add Property tour.
+
 ## Platform awareness (mobile)
 
 The Expo app calls the same `/api/copilot` route with `platform:

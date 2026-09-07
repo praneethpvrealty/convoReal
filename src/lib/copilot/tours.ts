@@ -120,10 +120,10 @@ export const TOURS: Tour[] = [
     title: 'Add a property',
     description: 'List a new property with price, location and photos',
     triggers: [
-      /add.{0,20}(property|listing|flat|plot|villa|house)/i,
-      /(property|listing|makaan|ghar).{0,20}(add|create|list|kaise|kese|dalu|dalo|jodo)/i,
+      /\b(?:add|create|list)\b.{0,20}\b(property|listing|flat|plot|villa|house)\b/i,
+      /\b(property|listing|makaan|ghar)\b.{0,20}\b(add|create|list|dalu|dalo|jodo)\b/i,
       /nay[ai] (property|listing)/i,
-      /new (property|listing)/i,
+      /^\s*new (property|listing)\s*[?.!]?\s*$/i,
     ],
     steps: [
       {
