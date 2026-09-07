@@ -276,16 +276,19 @@ export function TourBodyText({
   color,
   boldColor,
   fontSize = 13.5,
+  selectable = false,
 }: {
   text: string;
   color: string;
   boldColor: string;
   fontSize?: number;
+  selectable?: boolean;
 }) {
   const { fonts: f } = useTheme();
   const parts = text.split('**');
   return (
     <Text
+      selectable={selectable}
       style={{
         fontSize,
         lineHeight: fontSize * 1.45,

@@ -35,6 +35,10 @@ mobile open their existing share composer with the selected property; the user
 still chooses recipients/channel and confirms the actual outbound message in
 that flow.
 
+Chat messages stay selectable and provide a per-message Copy control on web and
+mobile. Mobile desktop handoffs use an external browser surface so ConvoReal's
+Android App Links cannot route the desktop-only URL back into the native app.
+
 Sharing a new listing with an existing listing's audience is resolved before
 generic share actions, tours, and the answer cache. The helper gives the existing
 platform-specific audience-picker steps, explains that the audience comes from

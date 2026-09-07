@@ -11,8 +11,10 @@ import { useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   CalendarCheck2,
+  Check,
   CheckCircle2,
   Compass,
+  Copy,
   LifeBuoy,
   Lightbulb,
   Loader2,
@@ -89,6 +91,7 @@ export function CopilotPanel() {
   );
   const [supportDest, setSupportDest] = useState('');
   const [supportBusy, setSupportBusy] = useState(false);
+  const [copiedTurn, setCopiedTurn] = useState<number | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const executingActionIdsRef = useRef(new Set<string>());
   const activeEntity = activeEntityQuery(input, entities);
@@ -323,6 +326,25 @@ export function CopilotPanel() {
     );
   };
 
+  const copyTurn = async (turnIndex: number, text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      textarea.remove();
+    }
+    setCopiedTurn(turnIndex);
+    window.setTimeout(() => {
+      setCopiedTurn((current) => (current === turnIndex ? null : current));
+    }, 1500);
+  };
+
   const selectEntity = (entity: EntitySuggestion) => {
     if (!activeEntity) return;
     setInput((value) => insertEntityReference(value, activeEntity, entity));
@@ -399,7 +421,7 @@ export function CopilotPanel() {
             >
               <div
                 className={cn(
-                  'rounded-xl px-3 py-2 text-sm',
+                  'rounded-xl px-3 py-2 text-sm select-text',
                   turn.role === 'user'
                     ? 'bg-primary text-primary-foreground rounded-br-sm'
                     : 'rounded-tl-sm bg-slate-900 text-slate-200'
@@ -407,6 +429,27 @@ export function CopilotPanel() {
               >
                 {turn.text}
               </div>
+              <button
+                type="button"
+                onClick={() => void copyTurn(i, turn.text)}
+                aria-label={
+                  copiedTurn === i ? t('copilot.copied') : t('copilot.copy')
+                }
+                className={cn(
+                  'mt-0.5 flex items-center gap-1 px-1 py-0.5 text-[10px] transition-colors',
+                  turn.role === 'user' ? 'ml-auto' : '',
+                  copiedTurn === i
+                    ? 'text-emerald-400'
+                    : 'text-slate-500 hover:text-slate-300'
+                )}
+              >
+                {copiedTurn === i ? (
+                  <Check className="h-3 w-3" />
+                ) : (
+                  <Copy className="h-3 w-3" />
+                )}
+                {copiedTurn === i ? t('copilot.copied') : t('copilot.copy')}
+              </button>
               {turn.role === 'assistant' && turn.action && (
                 <div className="mt-2 rounded-xl border border-slate-700 bg-slate-900/70 p-3">
                   <div className="flex items-start gap-2.5">
@@ -645,7 +688,8 @@ export function CopilotPanel() {
                 className="bg-primary/10 text-primary flex max-w-full items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold"
               >
                 <span className="truncate">
-                  {entitySymbolForKind(entity.kind)}{entity.label}
+                  {entitySymbolForKind(entity.kind)}
+                  {entity.label}
                 </span>
                 <X className="h-3 w-3 shrink-0" />
               </button>
