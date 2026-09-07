@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import * as Linking from 'expo-linking';
+import * as Clipboard from 'expo-clipboard';
 import { router, usePathname, type Href } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -15,6 +15,7 @@ import { BottomSheet, sheetScrollArea } from '@/components/sheet';
 import { CopilotEntityPicker } from '@/components/copilot-entity-picker';
 import { TourBodyText } from '@/components/copilot-tour';
 import { useAuthStore } from '@/lib/auth-store';
+import { openCopilotDesktopWeb } from '@/lib/copilot-links';
 import { useT } from '@/lib/use-t';
 import {
   askCopilot,
@@ -102,6 +103,7 @@ export function CopilotSheet({
   );
   const [supportDest, setSupportDest] = useState('');
   const [supportBusy, setSupportBusy] = useState(false);
+  const [copiedTurn, setCopiedTurn] = useState<number | null>(null);
   const scrollRef = useRef<ScrollView>(null);
   const executingActionIdsRef = useRef(new Set<string>());
   const activeEntity = activeCopilotEntityQuery(input, entities);
@@ -331,6 +333,23 @@ export function CopilotSheet({
     </Pressable>
   );
 
+  const copyTurn = async (turnIndex: number, text: string) => {
+    await Clipboard.setStringAsync(text);
+    haptic.tap();
+    setCopiedTurn(turnIndex);
+    setTimeout(() => {
+      setCopiedTurn((current) => (current === turnIndex ? null : current));
+    }, 1500);
+  };
+
+  const openDesktopWeb = async (url?: string) => {
+    try {
+      await openCopilotDesktopWeb(url);
+    } catch {
+      haptic.warn();
+    }
+  };
+
   return (
     <BottomSheet visible={visible} onClose={onClose} title={t('copilot.title')}>
       <ScrollView
@@ -386,8 +405,33 @@ export function CopilotSheet({
                   text={turn.text}
                   color={turn.role === 'user' ? colors.onPrimary : colors.text}
                   boldColor={turn.role === 'user' ? colors.onPrimary : colors.text}
+                  selectable
                 />
               </View>
+
+              <Pressable
+                onPress={() => void copyTurn(i, turn.text)}
+                accessibilityRole="button"
+                accessibilityLabel={copiedTurn === i ? t('copilot.copied') : t('copilot.copy')}
+                style={styles.copyAction}
+              >
+                <Ionicons
+                  name={copiedTurn === i ? 'checkmark' : 'copy-outline'}
+                  size={13}
+                  color={copiedTurn === i ? colors.success : colors.textFaint}
+                />
+                <Text
+                  style={[
+                    styles.copyLabel,
+                    {
+                      color: copiedTurn === i ? colors.success : colors.textFaint,
+                      fontFamily: f.medium,
+                    },
+                  ]}
+                >
+                  {copiedTurn === i ? t('copilot.copied') : t('copilot.copy')}
+                </Text>
+              </Pressable>
 
               {turn.role === 'assistant' && a?.action ? (
                 <View
@@ -554,7 +598,7 @@ export function CopilotSheet({
                     : null}
                   {coverage === 'web_only'
                     ? actionChip(t('copilot.openDesktop'), 'laptop-outline', () => {
-                        void Linking.openURL(a.webUrl ?? 'https://www.convoreal.com');
+                        void openDesktopWeb(a.webUrl);
                       })
                     : null}
                   {!a.tourId && coverage !== 'web_only' && appHref
@@ -853,6 +897,14 @@ const styles = StyleSheet.create({
   userBubble: { alignSelf: 'flex-end', maxWidth: '88%', borderBottomRightRadius: 4 },
   userWrap: { alignItems: 'flex-end', gap: 4 },
   assistantWrap: { alignItems: 'flex-start', gap: 4 },
+  copyAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+  },
+  copyLabel: { fontSize: 10.5 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   chip: {
     borderWidth: 1,
