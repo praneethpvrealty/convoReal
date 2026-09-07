@@ -59,7 +59,10 @@ import {
   inquiredPropertyLabel,
   type PropertyMatch,
 } from '@/lib/property-matches';
-import { propertyDetailPrimaryAction } from '@/lib/property-detail-primary-action';
+import {
+  propertyAvailabilityWhatsAppUrl,
+  propertyDetailPrimaryAction,
+} from '@/lib/property-detail-primary-action';
 import { rentalYieldPercent } from '@/lib/rental-yield';
 import {
   hasBedsBaths,
@@ -1083,9 +1086,14 @@ export default function PropertyDetailScreen() {
                 setShareTo(selectedContacts);
                 return;
               }
-              if (primaryAction.kind === 'whatsapp' && ownerPhone) {
+              if (primaryAction.kind === 'availability' && ownerPhone) {
+                haptic.send();
                 void Linking.openURL(
-                  `https://wa.me/${ownerPhone.replace(/\D/g, '')}`
+                  propertyAvailabilityWhatsAppUrl(
+                    ownerPhone,
+                    property,
+                    property.owner?.name
+                  )
                 );
                 return;
               }
