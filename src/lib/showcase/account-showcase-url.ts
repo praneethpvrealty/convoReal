@@ -193,3 +193,30 @@ export async function accountPropertyShowcaseUrl(
     ? `${url}&v=${encodeURIComponent(visitorContactId)}`
     : url;
 }
+
+export function attributePropertyShowcaseLinks(
+  message: string,
+  property: ShowcaseLinkProperty,
+  visitorContactId: string,
+): string {
+  const propertyRefs = new Set(
+    [property.id, property.property_code].filter(
+      (value): value is string => Boolean(value),
+    ),
+  );
+
+  return message.replace(/https?:\/\/[^\s<>"']+/g, (rawUrl) => {
+    const [, urlText, punctuation = ''] = rawUrl.match(/^(.*?)([),.!?]*)$/) ?? [];
+    if (!urlText) return rawUrl;
+
+    try {
+      const url = new URL(urlText);
+      const propertyRef = url.searchParams.get('property_id');
+      if (!propertyRef || !propertyRefs.has(propertyRef)) return rawUrl;
+      url.searchParams.set('v', visitorContactId);
+      return `${url.toString()}${punctuation}`;
+    } catch {
+      return rawUrl;
+    }
+  });
+}

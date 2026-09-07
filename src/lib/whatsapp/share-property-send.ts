@@ -16,6 +16,7 @@ import {
 import {
   accountBrandImage,
   accountBrandName,
+  attributePropertyShowcaseLinks,
 } from '@/lib/showcase/account-showcase-url';
 import type { MessageTemplate, Property } from '@/types';
 
@@ -220,7 +221,7 @@ export async function sendPropertyToContact(opts: {
       userId,
       contactId,
       kind: 'text',
-      text: message,
+      text: attributePropertyShowcaseLinks(message, property, contactId),
       senderType: 'agent',
     });
     if (res.success) {

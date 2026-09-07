@@ -149,6 +149,26 @@ describe('share-property — channel selection', () => {
     expect(dispatcherCalls[0]).toMatchObject({ kind: 'text', text: 'Hi! Check this out.' });
   });
 
+  it('attributes the free-form showcase link to the recipient for Pulse', async () => {
+    primeLookups({ windowOpen: true });
+    ctxQueues.properties = [
+      { data: { ...PROPERTY, property_code: 'PROP-1154' }, error: null },
+    ];
+
+    await POST(
+      request({
+        ...shareBody(),
+        message:
+          'Photos & full details:\nhttps://aryavartaventures.convoreal.com/?property_id=PROP-1154',
+      }),
+    );
+
+    expect(dispatcherCalls[0]).toMatchObject({
+      kind: 'text',
+      text: expect.stringContaining(`property_id=PROP-1154&v=${CONTACT.id}`),
+    });
+  });
+
   it('leads the free-form share with the listing photo, then the message', async () => {
     primeLookups({ windowOpen: true });
     ctxQueues.properties = [
