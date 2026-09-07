@@ -18,7 +18,10 @@ import {
 } from '@/lib/share-message-builder';
 
 function siteUrl(): string {
-  return (process.env.NEXT_PUBLIC_SITE_URL || BRANDING.websiteUrl).replace(/\/$/, '');
+  return (process.env.NEXT_PUBLIC_SITE_URL || BRANDING.websiteUrl).replace(
+    /\/$/,
+    ''
+  );
 }
 
 /**
@@ -33,7 +36,7 @@ function siteUrl(): string {
  */
 async function accountSubdomain(
   db: SupabaseClient,
-  accountId: string,
+  accountId: string
 ): Promise<string | null> {
   const { data, error } = await db
     .from('showcase_settings')
@@ -57,7 +60,7 @@ async function accountSubdomain(
  */
 export async function accountBrandName(
   db: SupabaseClient,
-  accountId: string,
+  accountId: string
 ): Promise<string | null> {
   try {
     const { data, error } = await db
@@ -91,7 +94,7 @@ export async function accountBrandName(
  */
 export async function accountBrandImage(
   db: SupabaseClient,
-  accountId: string,
+  accountId: string
 ): Promise<string | null> {
   try {
     const { data, error } = await db
@@ -120,13 +123,13 @@ export async function accountBrandImage(
  */
 export async function accountShowcaseBase(
   db: SupabaseClient,
-  accountId: string,
+  accountId: string
 ): Promise<string> {
   try {
     return showcaseBaseUrl(
       siteUrl(),
       await accountSubdomain(db, accountId),
-      accountId,
+      accountId
     );
   } catch {
     return siteUrl();
@@ -141,7 +144,7 @@ export async function accountShowcaseBase(
 export async function accountShowcaseBrowseUrl(
   db: SupabaseClient,
   accountId: string,
-  visitorContactId?: string | null,
+  visitorContactId?: string | null
 ): Promise<string> {
   const url = new URL(await accountShowcaseBase(db, accountId));
   if (visitorContactId) url.searchParams.set('v', visitorContactId);
@@ -162,14 +165,14 @@ export async function accountShowcaseBrowseUrl(
  */
 export async function accountShowcaseOrigin(
   db: SupabaseClient,
-  accountId: string,
+  accountId: string
 ): Promise<string> {
   try {
     const site = new URL(siteUrl());
     return showcaseOriginForHost(
       site.host,
       site.protocol,
-      await accountSubdomain(db, accountId),
+      await accountSubdomain(db, accountId)
     );
   } catch {
     return siteUrl();
@@ -185,11 +188,39 @@ export async function accountPropertyShowcaseUrl(
   db: SupabaseClient,
   accountId: string,
   property: ShowcaseLinkProperty,
-  visitorContactId?: string | null,
+  visitorContactId?: string | null
 ): Promise<string> {
   const base = await accountShowcaseBase(db, accountId);
   const url = propertyShowcaseUrl(base, property);
   return visitorContactId
     ? `${url}&v=${encodeURIComponent(visitorContactId)}`
     : url;
+}
+
+export function attributePropertyShowcaseLinks(
+  message: string,
+  property: ShowcaseLinkProperty,
+  visitorContactId: string
+): string {
+  const propertyRefs = new Set(
+    [property.id, property.property_code].filter((value): value is string =>
+      Boolean(value)
+    )
+  );
+
+  return message.replace(/https?:\/\/[^\s<>"']+/g, (rawUrl) => {
+    const [, urlText, punctuation = ''] =
+      rawUrl.match(/^(.*?)([),.!?]*)$/) ?? [];
+    if (!urlText) return rawUrl;
+
+    try {
+      const url = new URL(urlText);
+      const propertyRef = url.searchParams.get('property_id');
+      if (!propertyRef || !propertyRefs.has(propertyRef)) return rawUrl;
+      url.searchParams.set('v', visitorContactId);
+      return `${url.toString()}${punctuation}`;
+    } catch {
+      return rawUrl;
+    }
+  });
 }

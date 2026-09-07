@@ -21,10 +21,17 @@ let adminInserts: Array<{ table: string; row: unknown }>;
 let dispatcherCalls: Array<Record<string, unknown>>;
 let dispatcherResults: Array<{ success: boolean; error?: string }>;
 
-function makeDb(queues: () => Record<string, QueuedResponse[]>, inserts?: () => typeof adminInserts) {
+function makeDb(
+  queues: () => Record<string, QueuedResponse[]>,
+  inserts?: () => typeof adminInserts
+) {
   return {
     from(table: string) {
-      const response = (queues()[table] ?? []).shift() ?? { data: null, error: null, count: 0 };
+      const response = (queues()[table] ?? []).shift() ?? {
+        data: null,
+        error: null,
+        count: 0,
+      };
       const builder: {
         [k: string]: (...args: unknown[]) => unknown;
       } = {
@@ -47,7 +54,7 @@ function makeDb(queues: () => Record<string, QueuedResponse[]>, inserts?: () => 
         then: (resolve: unknown, reject: unknown) =>
           Promise.resolve(response).then(
             resolve as (v: unknown) => unknown,
-            reject as (v: unknown) => unknown,
+            reject as (v: unknown) => unknown
           ),
       };
       return builder;
@@ -62,24 +69,34 @@ vi.mock('@/lib/auth/account', () => ({
     userId: 'user-1',
   }),
   toErrorResponse: (err: unknown) =>
-    Response.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 }),
+    Response.json(
+      { error: err instanceof Error ? err.message : String(err) },
+      { status: 500 }
+    ),
 }));
 
 vi.mock('@/lib/rate-limit', () => ({
   checkRateLimit: () => ({ success: true }),
-  rateLimitResponse: () => Response.json({ error: 'rate limited' }, { status: 429 }),
+  rateLimitResponse: () =>
+    Response.json({ error: 'rate limited' }, { status: 429 }),
   RATE_LIMITS: { adminAction: {} },
 }));
 
 vi.mock('@supabase/supabase-js', () => ({
-  createClient: () => makeDb(() => adminQueues, () => adminInserts),
+  createClient: () =>
+    makeDb(
+      () => adminQueues,
+      () => adminInserts
+    ),
 }));
 
 vi.mock('@/lib/whatsapp/meta-api-dispatcher', () => ({
-  sendWhatsAppMessageAndPersist: vi.fn(async (args: Record<string, unknown>) => {
-    dispatcherCalls.push(args);
-    return dispatcherResults.shift() ?? { success: true, messageId: 'msg-1' };
-  }),
+  sendWhatsAppMessageAndPersist: vi.fn(
+    async (args: Record<string, unknown>) => {
+      dispatcherCalls.push(args);
+      return dispatcherResults.shift() ?? { success: true, messageId: 'msg-1' };
+    }
+  ),
 }));
 
 process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://test.supabase.co';
@@ -103,7 +120,9 @@ const APPROVED_TEMPLATE = {
   status: 'APPROVED',
   language: 'en_US',
   body_text: 'Hi {{1}}! New listing: {{2}} — {{3}} at {{4}}.',
-  buttons: [{ type: 'URL', text: 'View property', url: 'https://example.com/{{1}}' }],
+  buttons: [
+    { type: 'URL', text: 'View property', url: 'https://example.com/{{1}}' },
+  ],
 };
 
 function request(body: unknown) {
@@ -114,17 +133,29 @@ function request(body: unknown) {
 }
 
 function shareBody() {
-  return { contact_id: CONTACT.id, property_id: PROPERTY.id, message: 'Hi! Check this out.' };
+  return {
+    contact_id: CONTACT.id,
+    property_id: PROPERTY.id,
+    message: 'Hi! Check this out.',
+  };
 }
 
 /** Contact + property lookups succeed; window state is configurable. */
-function primeLookups({ windowOpen, conversation = 'conv-1' }: { windowOpen: boolean; conversation?: string | null }) {
+function primeLookups({
+  windowOpen,
+  conversation = 'conv-1',
+}: {
+  windowOpen: boolean;
+  conversation?: string | null;
+}) {
   ctxQueues = {
     contacts: [{ data: CONTACT, error: null }],
     properties: [{ data: PROPERTY, error: null }],
   };
   adminQueues = {
-    conversations: [{ data: conversation ? { id: conversation } : null, error: null }],
+    conversations: [
+      { data: conversation ? { id: conversation } : null, error: null },
+    ],
     messages: [{ count: windowOpen ? 1 : 0 }],
   };
 }
@@ -144,15 +175,48 @@ describe('share-property — channel selection', () => {
     const json = await res.json();
 
     expect(res.status).toBe(200);
-    expect(json.data).toMatchObject({ sent: true, channel: 'freeform', conversation_id: 'conv-1' });
+    expect(json.data).toMatchObject({
+      sent: true,
+      channel: 'freeform',
+      conversation_id: 'conv-1',
+    });
     expect(dispatcherCalls).toHaveLength(1);
-    expect(dispatcherCalls[0]).toMatchObject({ kind: 'text', text: 'Hi! Check this out.' });
+    expect(dispatcherCalls[0]).toMatchObject({
+      kind: 'text',
+      text: 'Hi! Check this out.',
+    });
+  });
+
+  it('attributes the free-form showcase link to the recipient for Pulse', async () => {
+    primeLookups({ windowOpen: true });
+    ctxQueues.properties = [
+      { data: { ...PROPERTY, property_code: 'PROP-1154' }, error: null },
+    ];
+
+    await POST(
+      request({
+        ...shareBody(),
+        message:
+          'Photos & full details:\nhttps://aryavartaventures.convoreal.com/?property_id=PROP-1154',
+      })
+    );
+
+    expect(dispatcherCalls[0]).toMatchObject({
+      kind: 'text',
+      text: expect.stringContaining(`property_id=PROP-1154&v=${CONTACT.id}`),
+    });
   });
 
   it('leads the free-form share with the listing photo, then the message', async () => {
     primeLookups({ windowOpen: true });
     ctxQueues.properties = [
-      { data: { ...PROPERTY, images: ['', ' ', 'property-images/acc-1/front.jpg'] }, error: null },
+      {
+        data: {
+          ...PROPERTY,
+          images: ['', ' ', 'property-images/acc-1/front.jpg'],
+        },
+        error: null,
+      },
     ];
     const res = await POST(request(shareBody()));
 
@@ -164,13 +228,19 @@ describe('share-property — channel selection', () => {
       mediaCaption: PROPERTY.title,
     });
     expect(String(dispatcherCalls[0].mediaLink)).toContain('front.jpg');
-    expect(dispatcherCalls[1]).toMatchObject({ kind: 'text', text: 'Hi! Check this out.' });
+    expect(dispatcherCalls[1]).toMatchObject({
+      kind: 'text',
+      text: 'Hi! Check this out.',
+    });
   });
 
   it('still sends the message when the photo will not go', async () => {
     primeLookups({ windowOpen: true });
     ctxQueues.properties = [
-      { data: { ...PROPERTY, images: ['property-images/acc-1/front.jpg'] }, error: null },
+      {
+        data: { ...PROPERTY, images: ['property-images/acc-1/front.jpg'] },
+        error: null,
+      },
     ];
     dispatcherResults = [{ success: false, error: 'media download failed' }];
     const res = await POST(request(shareBody()));
@@ -182,7 +252,9 @@ describe('share-property — channel selection', () => {
 
   it('sends the approved template outside the window, with the tracking URL button param', async () => {
     primeLookups({ windowOpen: false });
-    adminQueues.message_templates = [{ data: [APPROVED_TEMPLATE], error: null }];
+    adminQueues.message_templates = [
+      { data: [APPROVED_TEMPLATE], error: null },
+    ];
 
     const res = await POST(request(shareBody()));
     const json = await res.json();
@@ -198,7 +270,9 @@ describe('share-property — channel selection', () => {
       buttonParams: Record<number, string>;
     };
     expect(messageParams.body[0]).toBe('Rajath');
-    expect(messageParams.buttonParams[0]).toBe(`?property_id=${PROPERTY.id}&v=${CONTACT.id}`);
+    expect(messageParams.buttonParams[0]).toBe(
+      `?property_id=${PROPERTY.id}&v=${CONTACT.id}`
+    );
   });
 
   it('sends on the approved Utility row while the branded name is still under review', async () => {
@@ -209,8 +283,16 @@ describe('share-property — channel selection', () => {
     adminQueues.message_templates = [
       {
         data: [
-          { ...APPROVED_TEMPLATE, name: 'property_enquiry_info', status: 'PENDING' },
-          { ...APPROVED_TEMPLATE, name: 'property_enquiry_response', category: 'Utility' },
+          {
+            ...APPROVED_TEMPLATE,
+            name: 'property_enquiry_info',
+            status: 'PENDING',
+          },
+          {
+            ...APPROVED_TEMPLATE,
+            name: 'property_enquiry_response',
+            category: 'Utility',
+          },
         ],
         error: null,
       },
@@ -220,7 +302,9 @@ describe('share-property — channel selection', () => {
     const json = await res.json();
 
     expect(json.data).toMatchObject({ sent: true, channel: 'template' });
-    expect(dispatcherCalls[0]).toMatchObject({ templateName: 'property_enquiry_response' });
+    expect(dispatcherCalls[0]).toMatchObject({
+      templateName: 'property_enquiry_response',
+    });
   });
 
   it('stays on the Utility row when Meta approves the new name as Marketing', async () => {
@@ -231,8 +315,16 @@ describe('share-property — channel selection', () => {
     adminQueues.message_templates = [
       {
         data: [
-          { ...APPROVED_TEMPLATE, name: 'property_enquiry_info', category: 'Marketing' },
-          { ...APPROVED_TEMPLATE, name: 'property_enquiry_response', category: 'Utility' },
+          {
+            ...APPROVED_TEMPLATE,
+            name: 'property_enquiry_info',
+            category: 'Marketing',
+          },
+          {
+            ...APPROVED_TEMPLATE,
+            name: 'property_enquiry_response',
+            category: 'Utility',
+          },
         ],
         error: null,
       },
@@ -240,7 +332,9 @@ describe('share-property — channel selection', () => {
 
     await POST(request(shareBody()));
 
-    expect(dispatcherCalls[0]).toMatchObject({ templateName: 'property_enquiry_response' });
+    expect(dispatcherCalls[0]).toMatchObject({
+      templateName: 'property_enquiry_response',
+    });
   });
 
   it('moves to the branded template once Meta approves it as Utility', async () => {
@@ -248,8 +342,16 @@ describe('share-property — channel selection', () => {
     adminQueues.message_templates = [
       {
         data: [
-          { ...APPROVED_TEMPLATE, name: 'property_enquiry_info', category: 'Utility' },
-          { ...APPROVED_TEMPLATE, name: 'property_enquiry_response', category: 'Utility' },
+          {
+            ...APPROVED_TEMPLATE,
+            name: 'property_enquiry_info',
+            category: 'Utility',
+          },
+          {
+            ...APPROVED_TEMPLATE,
+            name: 'property_enquiry_response',
+            category: 'Utility',
+          },
         ],
         error: null,
       },
@@ -257,12 +359,16 @@ describe('share-property — channel selection', () => {
 
     await POST(request(shareBody()));
 
-    expect(dispatcherCalls[0]).toMatchObject({ templateName: 'property_enquiry_info' });
+    expect(dispatcherCalls[0]).toMatchObject({
+      templateName: 'property_enquiry_info',
+    });
   });
 
   it('falls back to the template when Meta rejects the free-form send as re-engagement', async () => {
     primeLookups({ windowOpen: true });
-    adminQueues.message_templates = [{ data: [APPROVED_TEMPLATE], error: null }];
+    adminQueues.message_templates = [
+      { data: [APPROVED_TEMPLATE], error: null },
+    ];
     dispatcherResults = [
       { success: false, error: '(#131047) Re-engagement message' },
       { success: true },
@@ -283,7 +389,11 @@ describe('share-property — channel selection', () => {
     const res = await POST(request(shareBody()));
     const json = await res.json();
 
-    expect(json.data).toMatchObject({ sent: false, template_status: 'NONE', conversation_id: 'conv-1' });
+    expect(json.data).toMatchObject({
+      sent: false,
+      template_status: 'NONE',
+      conversation_id: 'conv-1',
+    });
     expect(dispatcherCalls).toHaveLength(0);
   });
 
@@ -296,7 +406,10 @@ describe('share-property — channel selection', () => {
     const res = await POST(request(shareBody()));
     const json = await res.json();
 
-    expect(json.data).toMatchObject({ sent: false, template_status: 'PENDING' });
+    expect(json.data).toMatchObject({
+      sent: false,
+      template_status: 'PENDING',
+    });
     expect(dispatcherCalls).toHaveLength(0);
   });
 
@@ -315,7 +428,10 @@ describe('share-property — channel selection', () => {
     const res = await POST(request(shareBody()));
     const json = await res.json();
 
-    expect(json.data).toMatchObject({ sent: false, conversation_id: 'conv-new' });
+    expect(json.data).toMatchObject({
+      sent: false,
+      conversation_id: 'conv-new',
+    });
     expect(adminInserts).toHaveLength(1);
     expect(adminInserts[0]).toMatchObject({
       table: 'conversations',
@@ -351,7 +467,7 @@ describe('share-property — channel selection', () => {
       expect.objectContaining({
         table: 'property_shares',
         row: expect.objectContaining({ recipient_kind: 'agent' }),
-      }),
+      })
     );
   });
 
