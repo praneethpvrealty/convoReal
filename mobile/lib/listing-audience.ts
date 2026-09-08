@@ -1,4 +1,5 @@
 import { apiFetch } from '@/lib/api';
+import { setPropertyMatchAudienceOverlay } from '@/lib/property-matches';
 import type {
   AudienceContact,
   AudienceListing,
@@ -31,5 +32,11 @@ export async function fetchListingAudience(
   const { data } = await apiFetch<{ data: AudienceContact[] }>(
     `/api/properties/${propertyId}/audience`
   );
-  return data ?? [];
+  const audience = data ?? [];
+  // Historical engagement must remain actionable even when those contacts
+  // are not part of the current property's preference-ranked match list.
+  // The overlay is scoped to the active property-match query and lets the
+  // existing selection/share UI render the exact audience returned here.
+  setPropertyMatchAudienceOverlay(audience);
+  return audience;
 }

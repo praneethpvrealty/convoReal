@@ -33,8 +33,15 @@ export function filterAudienceListings(
 }
 
 /**
- * Which of an audience the match list can actually select: a member it
- * does not hold, or one with no WhatsApp number, cannot be shared with.
+ * Which audience members can actually be reached on WhatsApp.
+ *
+ * Historical listing audiences are intentionally independent of the
+ * current property's ranked match list. A contact can disappear from that
+ * list when the source listing/contact is archived or simply because they
+ * are not a preference match for the new property; that must not erase the
+ * fact that they engaged with the source listing. `fetchListingAudience`
+ * overlays those historical contacts into the current match query so the
+ * existing selection/share UI can still render and send them.
  */
 export function reachableAudienceIds(
   audience: AudienceContact[],
@@ -44,8 +51,7 @@ export function reachableAudienceIds(
   const ids: string[] = [];
   for (const member of audience) {
     const known = byId.get(member.contactId);
-    if (!known) continue;
-    if (!(known.phone || member.phone)) continue;
+    if (!(member.phone || known?.phone)) continue;
     ids.push(member.contactId);
   }
   return { ids, unreachable: audience.length - ids.length };
