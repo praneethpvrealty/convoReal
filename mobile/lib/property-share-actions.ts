@@ -81,6 +81,11 @@ const SHARE_CONCURRENCY = 4;
  *  giving up. The limiter's window is a minute, so one wait covers it. */
 const MAX_RETRY_WAIT_MS = 70_000;
 
+/** Small pause before retrying a transient fan-out failure. This gives
+ *  the first request time to finish server-side and write its share ledger
+ *  before we decide whether a retry is actually needed. */
+const TRANSIENT_RETRY_DELAY_MS = 1500;
+
 export interface EngineSendOutcome {
   sent: boolean;
   conversationId?: string;
@@ -163,11 +168,36 @@ async function attemptShare(
   }
 }
 
+async function recentlyConfirmedShares(
+  propertyId: string,
+  contactIds: string[],
+  sinceIso: string
+): Promise<Set<string>> {
+  const accountId = useAuthStore.getState().profile?.account_id;
+  if (!accountId || contactIds.length === 0) return new Set();
+  const { data, error } = await supabase
+    .from('property_shares')
+    .select('contact_id')
+    .eq('account_id', accountId)
+    .eq('property_id', propertyId)
+    .in('contact_id', contactIds)
+    .gte('created_at', sinceIso);
+  if (error) return new Set();
+  return new Set((data ?? []).map((row) => row.contact_id as string));
+}
+
 /**
  * Fan a share out to many contacts, a few at a time, reporting each
  * recipient's own verdict as it lands. Every contact gets their own
  * 24-hour-window check server-side, so a closed window for one must not
  * read as a failure for the rest.
+ *
+ * A mobile request can lose its HTTP response after WhatsApp has already
+ * accepted the message. The server writes `property_shares` only after a
+ * confirmed send, so reconcile against that ledger before calling anyone
+ * failed. Truly transient failures get one safe retry only when no ledger
+ * row exists, then are reconciled again. This avoids both false failures
+ * and duplicate sends.
  */
 export async function sendPropertyViaEngineMany(
   contacts: Contact[],
@@ -176,6 +206,7 @@ export async function sendPropertyViaEngineMany(
   onProgress?: (done: number, total: number) => void
 ): Promise<Map<string, EngineSendOutcome>> {
   const outcomes = new Map<string, EngineSendOutcome>();
+  const startedAt = new Date(Date.now() - 5000).toISOString();
   let next = 0;
   let done = 0;
   const worker = async () => {
@@ -193,5 +224,51 @@ export async function sendPropertyViaEngineMany(
   await Promise.all(
     Array.from({ length: Math.min(SHARE_CONCURRENCY, contacts.length) }, worker)
   );
+
+  const contactIds = contacts.map((contact) => contact.id);
+  const firstConfirmed = await recentlyConfirmedShares(
+    property.id,
+    contactIds,
+    startedAt
+  );
+  for (const id of firstConfirmed) {
+    const previous = outcomes.get(id);
+    if (!previous?.sent) outcomes.set(id, { ...previous, sent: true, timedOut: false });
+  }
+
+  const retryable = contacts.filter((contact) => {
+    const outcome = outcomes.get(contact.id);
+    return outcome && !outcome.sent && !outcome.templateStatus;
+  });
+  if (retryable.length > 0) {
+    await new Promise((resolve) => setTimeout(resolve, TRANSIENT_RETRY_DELAY_MS));
+    const confirmedBeforeRetry = await recentlyConfirmedShares(
+      property.id,
+      retryable.map((contact) => contact.id),
+      startedAt
+    );
+    for (const contact of retryable) {
+      if (confirmedBeforeRetry.has(contact.id)) {
+        const previous = outcomes.get(contact.id);
+        outcomes.set(contact.id, { ...previous, sent: true, timedOut: false });
+        continue;
+      }
+      outcomes.set(
+        contact.id,
+        await sendPropertyViaEngine(contact, property, messageFor(contact))
+      );
+    }
+  }
+
+  const finalConfirmed = await recentlyConfirmedShares(
+    property.id,
+    contactIds,
+    startedAt
+  );
+  for (const id of finalConfirmed) {
+    const previous = outcomes.get(id);
+    if (!previous?.sent) outcomes.set(id, { ...previous, sent: true, timedOut: false });
+  }
+
   return outcomes;
 }
