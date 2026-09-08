@@ -37,13 +37,22 @@ describe('audienceListingLabel', () => {
 });
 
 describe('reachableAudienceIds', () => {
-  it('keeps only members the match list can select', () => {
+  it('keeps historical audience members with their own WhatsApp number', () => {
     const { ids, unreachable } = reachableAudienceIds(
       [member({ contactId: 'c1' }), member({ contactId: 'c2' })],
       [{ id: 'c1', phone: '919000000001' }]
     );
+    expect(ids).toEqual(['c1', 'c2']);
+    expect(unreachable).toBe(0);
+  });
+
+  it('uses the loaded contact phone when the audience row has none', () => {
+    const { ids, unreachable } = reachableAudienceIds(
+      [member({ contactId: 'c1', phone: null })],
+      [{ id: 'c1', phone: '919000000001' }]
+    );
     expect(ids).toEqual(['c1']);
-    expect(unreachable).toBe(1);
+    expect(unreachable).toBe(0);
   });
 
   it('drops a member with no number on either side', () => {
