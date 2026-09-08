@@ -1,7 +1,9 @@
 import { apiFetch } from '@/lib/api';
+import { queryClient } from '@/lib/query';
 import type { Contact } from '@/lib/types';
 import type { MatchDetails } from '@shared/lib/matching';
 import type { InquiredProperty } from '@shared/lib/contacts/inquired-properties';
+import type { AudienceContact } from '@shared/lib/inventory/listing-audience';
 
 /**
  * Web parity: the Matching Contacts tab (src/components/inventory/
@@ -27,11 +29,66 @@ export function inquiredPropertyLabel(property: InquiredProperty): string {
   return property.property_code || property.title || 'Untitled listing';
 }
 
+/**
+ * A listing audience is historical engagement, not a preference match.
+ * Keep it as a short-lived overlay on the property that is currently open
+ * so audience members can be reviewed/selected even when they are absent
+ * from the server's ranked-match response (for example after archiving the
+ * source listing). The first property-match query to refresh after an
+ * audience pick owns the overlay; navigating to another property will not
+ * carry it across.
+ */
+let audienceOverlay: {
+  targetPropertyId: string | null;
+  contacts: AudienceContact[];
+} | null = null;
+
+export function setPropertyMatchAudienceOverlay(
+  contacts: AudienceContact[]
+): void {
+  audienceOverlay = {
+    targetPropertyId: null,
+    contacts: contacts.filter((contact) => Boolean(contact.phone)),
+  };
+  void queryClient.invalidateQueries({ queryKey: ['property-matches'] });
+}
+
+function audienceContactToMatch(member: AudienceContact): PropertyMatch {
+  return {
+    contact: {
+      id: member.contactId,
+      // Audience rows are already account-scoped and the share flow uses
+      // the contact id/phone/name; user_id is a DB-row field that is not
+      // consumed by this screen.
+      user_id: '',
+      phone: member.phone,
+      name: member.name ?? undefined,
+      name_tag: member.nameTag,
+      classification: member.classification as Contact['classification'],
+    },
+    score: 0,
+    details: {} as MatchDetails,
+    sharedAt: null,
+    inquiries: [],
+  };
+}
+
 export async function fetchPropertyMatches(
   propertyId: string
 ): Promise<PropertyMatch[]> {
   const { data } = await apiFetch<{ data: PropertyMatch[] }>(
     `/api/properties/${propertyId}/matches`
   );
-  return data ?? [];
+  const matches = data ?? [];
+
+  const overlay = audienceOverlay;
+  if (!overlay || overlay.contacts.length === 0) return matches;
+  if (overlay.targetPropertyId === null) overlay.targetPropertyId = propertyId;
+  if (overlay.targetPropertyId !== propertyId) return matches;
+
+  const known = new Set(matches.map((match) => match.contact.id));
+  const historical = overlay.contacts
+    .filter((member) => !known.has(member.contactId))
+    .map(audienceContactToMatch);
+  return [...matches, ...historical];
 }
