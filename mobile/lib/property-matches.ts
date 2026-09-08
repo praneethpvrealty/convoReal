@@ -54,17 +54,20 @@ export function setPropertyMatchAudienceOverlay(
 }
 
 function audienceContactToMatch(member: AudienceContact): PropertyMatch {
+  const now = new Date(0).toISOString();
   return {
     contact: {
       id: member.contactId,
       // Audience rows are already account-scoped and the share flow uses
-      // the contact id/phone/name; user_id is a DB-row field that is not
-      // consumed by this screen.
+      // the contact id/phone/name; user_id and timestamps are DB-row fields
+      // not consumed by this screen, but Contact requires them structurally.
       user_id: '',
       phone: member.phone,
       name: member.name ?? undefined,
       name_tag: member.nameTag,
       classification: member.classification as Contact['classification'],
+      created_at: now,
+      updated_at: now,
     },
     score: 0,
     details: {} as MatchDetails,
