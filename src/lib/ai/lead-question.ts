@@ -47,6 +47,8 @@ import {
 /** Same feature key and price the public Ask endpoint burns. */
 const AI_FEATURE = 'chatbot_auto_reply' as const;
 
+const INDIAN_SCRIPT_PATTERN = /[\u0900-\u0D7F]/u;
+
 /** What the lead hears when nobody but a human can answer. Deliberately
  *  promises a person, not a time — the agent decides that. */
 export const HANDOVER_TEXT =
@@ -60,6 +62,17 @@ export interface LeadAnswer {
   /** The matched deterministic intent, for logging. */
   intent?: string | null;
   appliedInstructionIds?: string[];
+}
+
+function requiresEnglishReply(question: string): boolean {
+  return /[A-Za-z]/.test(question) && !INDIAN_SCRIPT_PATTERN.test(question);
+}
+
+function replyMatchesQuestionLanguage(
+  question: string,
+  answer: string
+): boolean {
+  return !requiresEnglishReply(question) || !INDIAN_SCRIPT_PATTERN.test(answer);
 }
 
 /** The listing fields the final-price rung reads. Not part of QaProperty:
@@ -470,7 +483,10 @@ export async function answerLeadQuestion(args: {
   }
 
   try {
-    const prompt = `Property details:\n${buildPropertyContext(qaProperty)}\n\nBuyer's question: ${question}\n\nAnswer:`;
+    const languageConstraint = requiresEnglishReply(question)
+      ? 'The buyer wrote in English. Answer only in English; do not use any Indian-language script.'
+      : 'Answer in the same language and script as the buyer.';
+    const prompt = `Property details:\n${buildPropertyContext(qaProperty)}\n\nBuyer's question: ${question}\n\n${languageConstraint}\n\nAnswer:`;
     const instructionPrompt = botInstructionPrompt(args.botInstructions ?? []);
     const raw = await generateText(
       prompt,
@@ -486,7 +502,10 @@ export async function answerLeadQuestion(args: {
     const appliedInstructionIds = (args.botInstructions ?? []).map(
       (rule) => rule.id
     );
-    if (isNonAnswer(answer)) {
+    if (
+      isNonAnswer(answer) ||
+      !replyMatchesQuestionLanguage(question, answer)
+    ) {
       return {
         text: HANDOVER_TEXT,
         source: 'handover',

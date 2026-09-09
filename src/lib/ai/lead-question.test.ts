@@ -185,6 +185,23 @@ describe('answerLeadQuestion', () => {
     expect(res.text).toBe(HANDOVER_TEXT);
   });
 
+  it('never sends a Hindi answer to an English question', async () => {
+    vi.mocked(generateText).mockResolvedValue(
+      'मुझे यह विवरण अभी देखना होगा; मैं जल्द ही पुष्टि करके आपको सूचित करूँगा।'
+    );
+    const res = await answerLeadQuestion({
+      accountId: 'a1',
+      question: 'Which block',
+      property,
+    });
+    expect(res.source).toBe('handover');
+    expect(res.text).toBe(HANDOVER_TEXT);
+    expect(res.text).not.toMatch(/[\u0900-\u097F]/u);
+    expect(vi.mocked(generateText).mock.calls[0][0]).toContain(
+      'Answer only in English'
+    );
+  });
+
   it('hands over — without calling Gemini — when credits are short', async () => {
     vi.mocked(burnCredits).mockResolvedValue({ deficit: 2 } as never);
     const res = await answerLeadQuestion({
