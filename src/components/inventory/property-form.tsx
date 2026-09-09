@@ -113,6 +113,7 @@ import {
 } from '@/lib/inventory/property-options';
 import { DOCUMENT_SIZE_LIMIT } from '@/lib/inventory/documents';
 import { FloorPlansEditor, type FloorPlanDraft } from '@/components/inventory/floor-plans-editor';
+import { isPlanPdf, PLAN_IMAGE_MIME_TYPES } from '@/lib/inventory/floor-plans';
 import { isGuardedType, isLocationGuarded } from '@/lib/inventory/location-guard';
 import { rentalYieldPercent, yieldApplies } from '@/lib/inventory/rental-yield';
 import { contactHandle, hasPhone } from '@/lib/contacts/reachability';
@@ -1943,42 +1944,51 @@ export function PropertyForm({
     };
   }, [isLand, hasCommercialFields]);
 
-  // Shared by the floor-plan editor and the rent-roll rows: a plan is
-  // an ordinary property image, stored in the same bucket, so it can be
-  // rendered and shared everywhere a photo can.
+  // Images use the photo bucket; PDF land sketches use the document
+  // bucket so their MIME type is accepted and preserved.
   async function uploadPlanImage(file: File): Promise<string | null> {
     if (!accountId) {
       toast.error('Account not loaded, please try again.');
       return null;
     }
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error(`"${file.name}" is too large. Max size is 5MB.`);
+    const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+    const isImage = (PLAN_IMAGE_MIME_TYPES as readonly string[]).includes(file.type);
+    if (!isPdf && !isImage) {
+      toast.error('Sketches must be a PDF or image file.');
+      return null;
+    }
+    const sizeLimit = isPdf ? DOCUMENT_SIZE_LIMIT : 5 * 1024 * 1024;
+    if (file.size > sizeLimit) {
+      toast.error(
+        `"${file.name}" is too large. Max size is ${Math.round(sizeLimit / (1024 * 1024))}MB.`
+      );
       return null;
     }
     try {
       let uploadFile: File | Blob = file;
-      if (
-        file.type.startsWith('image/') &&
-        file.type !== 'image/svg+xml' &&
-        file.type !== 'image/gif'
-      ) {
+      let uploadContentType = file.type;
+      let extension = isPdf ? 'pdf' : file.type.split('/')[1];
+      if (isImage) {
         try {
           uploadFile = await compressImageOnClient(file);
+          uploadContentType = 'image/jpeg';
+          extension = 'jpg';
         } catch {
           // Fallback to the original if compression fails.
         }
       }
       const randomStr = Math.random().toString(36).substring(2, 7);
-      const path = `${accountId}/plan-${Date.now()}-${randomStr}.jpg`;
+      const bucket = isPdf ? 'property-documents' : 'property-images';
+      const path = `${accountId}/${isPdf ? 'sketch' : 'plan'}-${Date.now()}-${randomStr}.${extension}`;
       const { error } = await supabase.storage
-        .from('property-images')
+        .from(bucket)
         .upload(path, uploadFile, {
           cacheControl: '3600',
           upsert: true,
-          contentType: 'image/jpeg',
+          contentType: uploadContentType,
         });
       if (error) throw new Error(error.message);
-      return `property-images/${path}`;
+      return `${bucket}/${path}`;
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Plan or sketch upload failed');
       return null;
@@ -3305,13 +3315,20 @@ export function PropertyForm({
                               className="rounded-xl border border-slate-800 bg-slate-950/20 overflow-hidden hover:border-slate-700 transition-colors"
                             >
                               <div className="relative aspect-[4/3] bg-white">
-                                <NextImage
-                                  src={storagePublicUrl(fp.image)}
-                                  alt={fp.floor || `${isLand ? 'Land sketch' : 'Floor plan'} ${idx + 1}`}
-                                  fill
-                                  sizes="(max-width: 768px) 50vw, 33vw"
-                                  className="object-contain"
-                                />
+                                {isPlanPdf(fp.image) ? (
+                                  <div className="flex h-full flex-col items-center justify-center gap-2 bg-slate-100 text-rose-600">
+                                    <FileText className="size-9" />
+                                    <span className="text-[11px] font-bold">Open PDF</span>
+                                  </div>
+                                ) : (
+                                  <NextImage
+                                    src={storagePublicUrl(fp.image)}
+                                    alt={fp.floor || `${isLand ? 'Land sketch' : 'Floor plan'} ${idx + 1}`}
+                                    fill
+                                    sizes="(max-width: 768px) 50vw, 33vw"
+                                    className="object-contain"
+                                  />
+                                )}
                               </div>
                               <div className="p-2">
                                 <p className="text-xs font-bold text-white truncate">

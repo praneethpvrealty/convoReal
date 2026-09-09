@@ -29,6 +29,19 @@ export interface FloorPlan {
   page?: number | null;
 }
 
+export const PLAN_IMAGE_MIME_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+] as const;
+
+export function planMediaAccept(isLand: boolean): string {
+  return [
+    ...PLAN_IMAGE_MIME_TYPES,
+    ...(isLand ? ['application/pdf'] : []),
+  ].join(',');
+}
+
 const MAX_FLOORS = 60;
 const MAX_TEXT = 300;
 const MAX_PATH = 500;
@@ -83,6 +96,16 @@ export function plansWithImages(
 ): FloorPlan[] {
   if (!Array.isArray(plans)) return [];
   return plans.filter((p) => Boolean(p.image));
+}
+
+/** PDFs use a document card instead of being passed to an image renderer. */
+export function isPlanPdf(value: string | null | undefined): boolean {
+  if (!value) return false;
+  try {
+    return /\.pdf(?:$|[?#])/i.test(decodeURIComponent(value));
+  } catch {
+    return /\.pdf(?:$|[?#])/i.test(value);
+  }
 }
 
 /** A drawing pulled out of the source document, reduced to what

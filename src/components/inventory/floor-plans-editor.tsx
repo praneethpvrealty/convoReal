@@ -2,12 +2,20 @@
 
 import { useRef, useState } from 'react';
 import Image from 'next/image';
-import { Plus, Trash2, Upload, Loader2, LayoutPanelTop } from 'lucide-react';
+import {
+  FileText,
+  Plus,
+  Trash2,
+  Upload,
+  Loader2,
+  LayoutPanelTop,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { planMediaCopy } from '@/lib/inventory/plan-media-copy';
 import { storagePublicUrl } from '@/lib/storage/url';
+import { isPlanPdf, planMediaAccept } from '@/lib/inventory/floor-plans';
 
 export interface FloorPlanDraft {
   floor: string;
@@ -43,6 +51,7 @@ export function FloorPlansEditor({
   const inputRefs = useRef<Record<number, HTMLInputElement | null>>({});
   const newInputRef = useRef<HTMLInputElement | null>(null);
   const copy = planMediaCopy(isLand);
+  const acceptedFiles = planMediaAccept(isLand);
 
   const update = (idx: number, key: keyof FloorPlanDraft, v: string) =>
     onChange(value.map((p, i) => (i === idx ? { ...p, [key]: v } : p)));
@@ -89,7 +98,7 @@ export function FloorPlansEditor({
         <input
           ref={newInputRef}
           type="file"
-          accept="image/*"
+          accept={acceptedFiles}
           className="hidden"
           onChange={(event) => pickNew(event.target.files?.[0])}
         />
@@ -134,7 +143,12 @@ export function FloorPlansEditor({
 
           <div className="flex gap-3">
             <div className="relative size-20 shrink-0 overflow-hidden rounded-md border border-slate-700 bg-slate-950">
-              {plan.image ? (
+              {plan.image && isPlanPdf(plan.image) ? (
+                <div className="flex h-full flex-col items-center justify-center gap-1 text-rose-300">
+                  <FileText className="size-7" />
+                  <span className="text-[10px] font-bold">PDF</span>
+                </div>
+              ) : plan.image ? (
                 <Image
                   src={storagePublicUrl(plan.image)}
                   alt={plan.floor || `${copy.itemLabel} ${idx + 1}`}
@@ -188,7 +202,7 @@ export function FloorPlansEditor({
                     inputRefs.current[idx] = el;
                   }}
                   type="file"
-                  accept="image/*"
+                  accept={acceptedFiles}
                   className="hidden"
                   onChange={(e) => pick(idx, e.target.files?.[0])}
                 />
