@@ -20,8 +20,10 @@ export function propertyShareUrl(input: {
   accountId: string | null;
   property: Property;
   audience: ShareAudience;
+  offerInventoryOnboarding?: boolean;
 }): string {
   const base = showcaseBaseUrl(input.siteUrl, input.subdomain, input.accountId);
   const url = propertyShowcaseUrl(base, input.property);
-  return input.audience === 'agent' ? `${url}&mode=view` : url;
+  if (input.audience !== 'agent') return url;
+  return `${url}&mode=view${input.offerInventoryOnboarding ? '&onboard=1' : ''}`;
 }

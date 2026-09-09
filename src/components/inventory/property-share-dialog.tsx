@@ -176,6 +176,7 @@ export function PropertyShareDialog({
   // (greeting / templates / catalog card).
   const [audienceTab, setAudienceTab] = useState<'client' | 'agent' | 'engine'>('client');
   const [detailLevel, setDetailLevel] = useState<ShareDetailLevel>('standard');
+  const [offerInventoryOnboarding, setOfferInventoryOnboarding] = useState(false);
   // User edits to the composed message; null = follow the auto-generated
   // text. Reset whenever any composer input changes.
   const [messageDraft, setMessageDraft] = useState<string | null>(null);
@@ -484,11 +485,13 @@ export function PropertyShareDialog({
         ? showcaseOriginForHost(window.location.host, window.location.protocol, showcaseSubdomain)
         : '';
     const grantSuffix = grantToken ? `&g=${grantToken}` : '';
+    const onboardingSuffix =
+      audienceTab === 'agent' && offerInventoryOnboarding ? '&onboard=1' : '';
     const url =
       audienceTab === 'agent'
-        ? `${origin}/?property_id=${property.id}&mode=view${grantSuffix}`
+        ? `${origin}/?property_id=${property.id}&mode=view${onboardingSuffix}${grantSuffix}`
         : `${origin}/?property_id=${property.id}${grantSuffix}`;
-    return buildPropertyShareMessage({
+    const message = buildPropertyShareMessage({
       property,
       url,
       audience: audienceTab === 'agent' ? 'agent' : 'client',
@@ -498,12 +501,15 @@ export function PropertyShareDialog({
       agentName: profile?.full_name || undefined,
       agentPhone: profile?.phone || undefined,
     });
-  }, [property, audienceTab, detailLevel, messageStyle, currency, profile, showcaseSubdomain, grantToken]);
+    return offerInventoryOnboarding && audienceTab === 'agent'
+      ? `${message}\n\n♻️ Want to share this with your own name or agency? Open the property and tap “Request ConvoReal invite”. Once onboarded, it will be added to your inventory for review.`
+      : message;
+  }, [property, audienceTab, detailLevel, messageStyle, currency, profile, showcaseSubdomain, grantToken, offerInventoryOnboarding]);
 
   // Any composer input change discards manual edits back to auto text.
   useEffect(() => {
     setMessageDraft(null);
-  }, [audienceTab, detailLevel, messageStyle, property?.id, grantToken]);
+  }, [audienceTab, detailLevel, messageStyle, property?.id, grantToken, offerInventoryOnboarding]);
 
   const currentMessage = messageDraft ?? autoMessage;
 
@@ -572,10 +578,11 @@ export function PropertyShareDialog({
   const agentShowcaseUrl = useMemo(() => {
     if (!property) return '';
     const grantSuffix = grantToken ? `&g=${grantToken}` : '';
+    const onboardingSuffix = offerInventoryOnboarding ? '&onboard=1' : '';
     return typeof window !== 'undefined'
-      ? `${showcaseOriginForHost(window.location.host, window.location.protocol, showcaseSubdomain)}/?property_id=${property.id}&mode=view${grantSuffix}`
-      : `/?property_id=${property.id}&mode=view${grantSuffix}`;
-  }, [property, showcaseSubdomain, grantToken]);
+      ? `${showcaseOriginForHost(window.location.host, window.location.protocol, showcaseSubdomain)}/?property_id=${property.id}&mode=view${onboardingSuffix}${grantSuffix}`
+      : `/?property_id=${property.id}&mode=view${onboardingSuffix}${grantSuffix}`;
+  }, [property, showcaseSubdomain, grantToken, offerInventoryOnboarding]);
 
   // ── Send personally (tracked) ────────────────────────────────
   // Same property link tagged with ?v=<contactId>, so the recipient's
@@ -841,6 +848,7 @@ export function PropertyShareDialog({
       setFreshClassification('Buyer');
       setPersonalSearch('');
       setCopiedPersonalId(null);
+      setOfferInventoryOnboarding(false);
       setContacts([]); // Clear contacts so we don't show stale cached list
     }
   }, [open, preSelectedContactId]);
@@ -1643,6 +1651,32 @@ export function PropertyShareDialog({
                     ))}
                   </div>
                 </div>
+
+                {audienceTab === 'agent' && (
+                  <button
+                    type="button"
+                    onClick={() => setOfferInventoryOnboarding((value) => !value)}
+                    className={`flex w-full items-start gap-3 rounded-xl border p-3 text-left transition-all ${
+                      offerInventoryOnboarding
+                        ? 'border-primary/50 bg-primary/10'
+                        : 'border-slate-700 bg-slate-800/40 hover:border-slate-600'
+                    }`}
+                  >
+                    {offerInventoryOnboarding ? (
+                      <CheckSquare className="mt-0.5 size-4 shrink-0 text-primary" />
+                    ) : (
+                      <Square className="mt-0.5 size-4 shrink-0 text-slate-500" />
+                    )}
+                    <span>
+                      <span className="block text-[11px] font-bold text-slate-200">
+                        Let them add and re-share this listing
+                      </span>
+                      <span className="mt-0.5 block text-[10px] leading-relaxed text-slate-500">
+                        Adds a “Request ConvoReal invite” option. After onboarding with the same WhatsApp number, this property enters their Pending Review inventory with your source attribution.
+                      </span>
+                    </span>
+                  </button>
+                )}
 
                 {/* Editable message */}
                 <div className="space-y-2">

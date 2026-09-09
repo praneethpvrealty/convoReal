@@ -118,4 +118,73 @@ describe('syncAgentSourceInventoryWithAdmin', () => {
     expect(result).toEqual({ imported: 0, matched: 1 });
     expect(upsert).not.toHaveBeenCalled();
   });
+
+  it('imports a published property explicitly shared to the verified phone for review', async () => {
+    const inserted: Record<string, unknown>[] = [];
+    const source = {
+      id: 'property-shared',
+      account_id: 'sharing-account',
+      title: 'HSR Layout plot',
+      is_published: true,
+    };
+    const admin = {
+      rpc: vi.fn((name: string) =>
+        Promise.resolve({
+          data:
+            name === 'find_property_shares_for_phone'
+              ? [
+                  {
+                    property_id: 'property-shared',
+                    account_id: 'sharing-account',
+                  },
+                ]
+              : [],
+          error: null,
+        })
+      ),
+      from: vi.fn(() => {
+        let operation: 'source' | 'existing' | 'upsert' = 'source';
+        const query = {
+          select: (columns: string) => {
+            if (columns === 'source_property_id') operation = 'existing';
+            if (columns === 'id') operation = 'upsert';
+            return query;
+          },
+          in: () => query,
+          eq: () => query,
+          limit: () => query,
+          upsert: (rows: Record<string, unknown>[]) => {
+            inserted.push(...rows);
+            operation = 'upsert';
+            return query;
+          },
+          then: <R>(resolve: (value: unknown) => R | PromiseLike<R>) => {
+            const result =
+              operation === 'existing'
+                ? { data: [], error: null }
+                : operation === 'upsert'
+                  ? { data: [{ id: 'copy-shared' }], error: null }
+                  : { data: [source], error: null };
+            return Promise.resolve(result).then(resolve);
+          },
+        };
+        return query;
+      }),
+    } as unknown as SupabaseClient;
+
+    const result = await syncAgentSourceInventoryWithAdmin(admin, {
+      accountId: 'new-agent-account',
+      userId: 'new-agent-user',
+      phoneLast10: '9900277111',
+    });
+
+    expect(result).toEqual({ imported: 1, matched: 1 });
+    expect(inserted[0]).toMatchObject({
+      account_id: 'new-agent-account',
+      source_property_id: 'property-shared',
+      status: 'Pending Review',
+      is_published: false,
+      listing_source: 'agent',
+    });
+  });
 });

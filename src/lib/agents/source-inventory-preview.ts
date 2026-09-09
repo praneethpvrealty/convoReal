@@ -17,6 +17,11 @@ interface SourcePropertyRow {
   owner_contact_id: string;
 }
 
+interface SharedPropertyRow {
+  property_id: string;
+  account_id: string;
+}
+
 export interface SourceInventoryPreview {
   propertyCount: number;
   consultantNames: string[];
@@ -34,40 +39,67 @@ export async function readSourceInventoryPreview(
   const phoneLast10 = normalizePhone(phone).slice(-10);
   if (!phoneLast10) return EMPTY_SOURCE_INVENTORY_PREVIEW;
 
-  const { data: sourceContacts, error: contactsError } = await admin.rpc(
-    'find_agent_source_contacts',
-    { p_phone_last10: phoneLast10 }
-  );
+  const [sourceContactsResult, sharedPropertiesResult] = await Promise.all([
+    admin.rpc('find_agent_source_contacts', {
+      p_phone_last10: phoneLast10,
+    }),
+    admin.rpc('find_property_shares_for_phone', {
+      p_phone_last10: phoneLast10,
+    }),
+  ]);
+  const { data: sourceContacts, error: contactsError } = sourceContactsResult;
   if (contactsError) throw contactsError;
+  if (sharedPropertiesResult.error) throw sharedPropertiesResult.error;
 
   const contacts = ((sourceContacts ?? []) as SourceContactRow[]).slice(
     0,
     MAX_SOURCE_CONTACTS
   );
-  if (contacts.length === 0) return EMPTY_SOURCE_INVENTORY_PREVIEW;
+  const sharedProperties = (
+    (sharedPropertiesResult.data ?? []) as SharedPropertyRow[]
+  )
+    .filter(
+      (row) =>
+        typeof row.property_id === 'string' &&
+        typeof row.account_id === 'string'
+    )
+    .slice(0, MAX_SOURCE_PROPERTIES);
+  if (contacts.length === 0 && sharedProperties.length === 0) {
+    return EMPTY_SOURCE_INVENTORY_PREVIEW;
+  }
 
   const sourceAccountByContact = new Map(
     contacts.map((row) => [row.contact_id, row.account_id])
   );
-  const { data: propertyRows, error: propertiesError } = await admin
-    .from('properties')
-    .select('id, account_id, owner_contact_id')
-    .in('owner_contact_id', [...sourceAccountByContact.keys()])
-    .eq('listing_source', 'agent')
-    .is('source_property_id', null)
-    .limit(MAX_SOURCE_PROPERTIES);
-  if (propertiesError) throw propertiesError;
+  const propertyResult =
+    contacts.length > 0
+      ? await admin
+          .from('properties')
+          .select('id, account_id, owner_contact_id')
+          .in('owner_contact_id', [...sourceAccountByContact.keys()])
+          .eq('listing_source', 'agent')
+          .is('source_property_id', null)
+          .limit(MAX_SOURCE_PROPERTIES)
+      : { data: [], error: null };
+  if (propertyResult.error) throw propertyResult.error;
 
-  const properties = ((propertyRows ?? []) as SourcePropertyRow[]).filter(
+  const properties = ((propertyResult.data ?? []) as SourcePropertyRow[]).filter(
     (row) => sourceAccountByContact.get(row.owner_contact_id) === row.account_id
   );
-  if (properties.length === 0) return EMPTY_SOURCE_INVENTORY_PREVIEW;
+  const propertyAccountById = new Map<string, string>();
+  for (const property of properties) {
+    propertyAccountById.set(property.id, property.account_id);
+  }
+  for (const property of sharedProperties) {
+    propertyAccountById.set(property.property_id, property.account_id);
+  }
+  if (propertyAccountById.size === 0) return EMPTY_SOURCE_INVENTORY_PREVIEW;
 
   const propertyCountByAccount = new Map<string, number>();
-  for (const property of properties) {
+  for (const accountId of propertyAccountById.values()) {
     propertyCountByAccount.set(
-      property.account_id,
-      (propertyCountByAccount.get(property.account_id) ?? 0) + 1
+      accountId,
+      (propertyCountByAccount.get(accountId) ?? 0) + 1
     );
   }
 
@@ -93,7 +125,7 @@ export async function readSourceInventoryPreview(
     .slice(0, MAX_CONSULTANT_NAMES)
     .map((row) => row.name.trim());
 
-  return { propertyCount: properties.length, consultantNames };
+  return { propertyCount: propertyAccountById.size, consultantNames };
 }
 
 export async function safeSourceInventoryPreview(

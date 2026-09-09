@@ -61,6 +61,8 @@ interface PageProps {
     code?: string;
     invite?: string;
     mode?: string;
+    /** Enables the opt-in invite request on a co-broker share. */
+    onboard?: string;
     /** Visitor identity for Showcase Pulse tracking (per-contact share
      *  links append v=<contact_id>). Unlike ref=, it never filters the
      *  catalog — it only attributes engagement events. */
@@ -551,6 +553,7 @@ export default async function RootPage({ searchParams }: PageProps) {
         initialPropertyId={targetProperty?.id ?? initialPropertyId}
         initialCategory={resolvedParams.category}
         initialAgentMode={isAgentMode}
+        initialOnboardOffer={resolvedParams.onboard === '1'}
         visitorRef={resolvedParams.v}
         shareId={resolvedParams.s}
         shareGrantToken={shareGrant?.token}

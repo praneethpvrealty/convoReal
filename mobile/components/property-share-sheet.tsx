@@ -96,6 +96,7 @@ export function PropertyShareSheet({
   const [audience, setAudience] = useState<ShareAudience>('client');
   const [tone, setTone] = useState<ShareTone>('professional');
   const [detail, setDetail] = useState<ShareDetailLevel>('standard');
+  const [offerInventoryOnboarding, setOfferInventoryOnboarding] = useState(false);
   const [message, setMessage] = useState('');
   const [copied, setCopied] = useState<'link' | 'message' | null>(null);
   const [picker, setPicker] = useState<
@@ -134,6 +135,7 @@ export function PropertyShareSheet({
     accountId,
     property,
     audience,
+    offerInventoryOnboarding,
   });
 
   // Sign the message with the account's own name (Settings → profile),
@@ -152,8 +154,8 @@ export function PropertyShareSheet({
     : undefined;
 
   const generated = useMemo(
-    () =>
-      buildPropertyShareMessage({
+    () => {
+      const base = buildPropertyShareMessage({
         property,
         url,
         audience,
@@ -161,8 +163,12 @@ export function PropertyShareSheet({
         tone,
         agentName,
         agentPhone,
-      }),
-    [property, url, audience, detail, tone, agentName, agentPhone]
+      });
+      return offerInventoryOnboarding && audience === 'agent'
+        ? `${base}\n\n♻️ Want to share this with your own name or agency? Open the property and tap “Request ConvoReal invite”. Once onboarded, it will be added to your inventory for review.`
+        : base;
+    },
+    [property, url, audience, detail, tone, agentName, agentPhone, offerInventoryOnboarding]
   );
 
   // Picker changes re-draft (discarding edits, same as the web dialog).
@@ -639,6 +645,39 @@ export function PropertyShareSheet({
           ))}
         </View>
 
+        {audience === 'agent' ? (
+          <Pressable
+            onPress={() => setOfferInventoryOnboarding((value) => !value)}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: offerInventoryOnboarding }}
+            style={[
+              styles.notice,
+              {
+                borderColor: offerInventoryOnboarding
+                  ? colors.primary
+                  : colors.border,
+                backgroundColor: offerInventoryOnboarding
+                  ? colors.primarySoft
+                  : colors.surfaceSunken,
+              },
+            ]}
+          >
+            <Ionicons
+              name={offerInventoryOnboarding ? 'checkbox' : 'square-outline'}
+              size={20}
+              color={offerInventoryOnboarding ? colors.primary : colors.textMuted}
+            />
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 12.5, fontFamily: f.bold, color: colors.text }}>
+                Let them add and re-share this listing
+              </Text>
+              <Text style={{ marginTop: 2, fontSize: 11.5, lineHeight: 16, color: colors.textMuted }}>
+                Adds a ConvoReal invite request. Joining with the same WhatsApp number places this listing in Pending Review with your attribution.
+              </Text>
+            </View>
+          </Pressable>
+        ) : null}
+
         <SectionLabel text="Message — tap to edit" />
         <TextInput
           multiline
@@ -928,6 +967,14 @@ function AudienceCard({
 }
 
 const styles = StyleSheet.create({
+  notice: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    padding: spacing.md,
+  },
   audience: {
     flex: 1,
     gap: 3,

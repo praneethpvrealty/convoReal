@@ -39,6 +39,8 @@ import {
   Download,
   Bookmark,
   BookmarkCheck,
+  FolderInput,
+  UserPlus,
 } from 'lucide-react';
 import type { Property, ShowcaseSettings, AgencyService, AgencyArticle } from '@/types';
 import { BRANDING } from '@/config/branding';
@@ -110,6 +112,8 @@ interface ShowcaseViewProps {
   initialCategory?: string;
   /** ?mode=view (legacy: agent) resolved on the server so the first paint is already the clean listing view. */
   initialAgentMode?: boolean;
+  /** Sender opted to offer account onboarding and an attributed inventory copy. */
+  initialOnboardOffer?: boolean;
   /** Contact id from per-contact share links (?v=…) — Showcase Pulse
    *  attribution only, never filters the catalog. */
   visitorRef?: string;
@@ -164,6 +168,7 @@ export function ShowcaseView({
   initialPropertyId,
   initialCategory,
   initialAgentMode = false,
+  initialOnboardOffer = false,
   visitorRef,
   shareId,
   shareGrantToken,
@@ -2785,6 +2790,44 @@ export function ShowcaseView({
                     )}
                   </div>
                 </div>
+                )}
+
+                {isAgentMode && initialOnboardOffer && displayPhone && (
+                  <div className="rounded-xl border border-primary/30 bg-primary/10 p-3.5">
+                    <div className="flex items-start gap-2.5">
+                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/10">
+                        <FolderInput className="size-4 text-primary" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h5 className="text-[11px] font-extrabold uppercase tracking-wider text-primary">
+                          Share it with your branding
+                        </h5>
+                        <p className="mt-0.5 text-[11px] leading-relaxed text-slate-300">
+                          Request a ConvoReal invite. After you join with this WhatsApp number, the listing enters your Pending Review inventory with its source attribution intact.
+                        </p>
+                        <Button
+                          type="button"
+                          onClick={() => {
+                            const phone = displayPhone.replace(/\D/g, '');
+                            const title = selectedProperty?.title || 'this property';
+                            const code = selectedProperty?.property_code
+                              ? ` (${selectedProperty.property_code})`
+                              : '';
+                            const message = `Hi, I would like a ConvoReal invite so I can add and re-share ${title}${code} from my own inventory with my name or agency details.`;
+                            window.open(
+                              `https://wa.me/${phone}?text=${encodeURIComponent(message)}`,
+                              '_blank',
+                              'noopener'
+                            );
+                          }}
+                          className="mt-2 h-8 bg-primary px-3 text-[11px] font-bold text-primary-foreground hover:bg-primary-hover"
+                        >
+                          <UserPlus className="size-3.5" />
+                          Request ConvoReal Invite
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
                 )}
 
                 {/* Grid Technical Specifications */}

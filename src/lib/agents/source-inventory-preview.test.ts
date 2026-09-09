@@ -9,13 +9,18 @@ import {
 
 function previewClient() {
   return {
-    rpc: vi.fn().mockResolvedValue({
-      data: [
-        { contact_id: 'contact-a', account_id: 'account-a' },
-        { contact_id: 'contact-b', account_id: 'account-b' },
-      ],
-      error: null,
-    }),
+    rpc: vi.fn((name: string) =>
+      Promise.resolve({
+        data:
+          name === 'find_agent_source_contacts'
+            ? [
+                { contact_id: 'contact-a', account_id: 'account-a' },
+                { contact_id: 'contact-b', account_id: 'account-b' },
+              ]
+            : [],
+        error: null,
+      })
+    ),
     from: vi.fn((table: string) => {
       let selection = '';
       const query = {
@@ -89,6 +94,44 @@ describe('readSourceInventoryPreview', () => {
       EMPTY_SOURCE_INVENTORY_PREVIEW
     );
     expect(admin.rpc).not.toHaveBeenCalled();
+  });
+
+  it('includes explicitly shared properties in the invite preview', async () => {
+    const admin = {
+      rpc: vi.fn((name: string) =>
+        Promise.resolve({
+          data:
+            name === 'find_property_shares_for_phone'
+              ? [
+                  {
+                    property_id: 'property-shared',
+                    account_id: 'account-a',
+                  },
+                ]
+              : [],
+          error: null,
+        })
+      ),
+      from: vi.fn((table: string) => {
+        expect(table).toBe('accounts');
+        const query = {
+          select: () => query,
+          in: () =>
+            Promise.resolve({
+              data: [{ id: 'account-a', name: 'Alpha Properties' }],
+              error: null,
+            }),
+        };
+        return query;
+      }),
+    } as unknown as SupabaseClient;
+
+    await expect(
+      readSourceInventoryPreview(admin, '+919900277111')
+    ).resolves.toEqual({
+      propertyCount: 1,
+      consultantNames: ['Alpha Properties'],
+    });
   });
 
   it('degrades to an empty preview without blocking invite issuance', async () => {
