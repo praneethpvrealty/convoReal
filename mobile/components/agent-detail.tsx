@@ -46,6 +46,7 @@ export function AgentProperties({
   title?: string;
 }) {
   const { colors, fonts: f } = useTheme();
+  const [picking, setPicking] = useState(false);
   const { data: props } = useQuery({
     queryKey: ['agent-properties', contactId],
     queryFn: async () => {
@@ -60,10 +61,33 @@ export function AgentProperties({
   });
   const { show, close, dialogProps } = useAppDialog();
 
+  async function linkProperty(propertyId: string) {
+    const { data: linked, error } = await supabase
+      .from('properties')
+      .update({ owner_contact_id: contactId })
+      .eq('id', propertyId)
+      .select('id');
+    if (error || !linked?.length) {
+      haptic.warn();
+      show({
+        title: 'Could not link property',
+        message: error
+          ? friendlyError(error.message)
+          : 'That property is no longer there.',
+      });
+      return;
+    }
+    haptic.success();
+    setPicking(false);
+    queryClient.invalidateQueries({ queryKey: ['agent-properties', contactId] });
+    queryClient.invalidateQueries({ queryKey: ['agents-directory'] });
+    queryClient.invalidateQueries({ queryKey: ['properties'] });
+  }
+
   function confirmUnlink(p: Property) {
     show({
       title: 'Unlink this property?',
-      message: `"${p.title}" stays in inventory but is no longer showcased under this agent.`,
+      message: `"${p.title}" stays in inventory but will no longer be linked to this contact.`,
       actions: [
         { label: 'Cancel', variant: 'muted', onPress: close },
         {
@@ -98,11 +122,23 @@ export function AgentProperties({
   return (
     <View style={{ gap: spacing.sm }}>
       <AppDialog {...dialogProps} />
-      <SectionLabel text={`${title}${props ? ` (${props.length})` : ''}`} />
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <SectionLabel text={`${title}${props ? ` (${props.length})` : ''}`} />
+        <Pressable
+          onPress={() => setPicking(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Link property to this contact"
+          style={[styles.scheduleButton, { backgroundColor: colors.primarySoft }]}
+        >
+          <Ionicons name="link-outline" size={15} color={colors.primary} />
+          <Text style={{ fontSize: 12.5, fontFamily: f.bold, color: colors.primary }}>
+            Link property
+          </Text>
+        </Pressable>
+      </View>
       {!props || props.length === 0 ? (
         <Text style={{ fontSize: 12.5, color: colors.textFaint }}>
-          Nothing linked yet — set this agent as the owner contact on a property to showcase it
-          here.
+          Nothing linked yet — link a property this contact owns or manages.
         </Text>
       ) : (
         <View style={[styles.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
@@ -144,6 +180,14 @@ export function AgentProperties({
           ))}
         </View>
       )}
+      <PropertyPicker
+        visible={picking}
+        excludeIds={(props ?? []).map((p) => p.id)}
+        onClose={() => setPicking(false)}
+        onSelect={linkProperty}
+        title="Link property"
+        actionLabel="Link"
+      />
     </View>
   );
 }
@@ -387,11 +431,15 @@ export function PropertyPicker({
   excludeIds,
   onClose,
   onSelect,
+  title = 'Assign property',
+  actionLabel = 'Assign',
 }: {
   visible: boolean;
   excludeIds: string[];
   onClose: () => void;
   onSelect: (propertyId: string) => void;
+  title?: string;
+  actionLabel?: string;
 }) {
   const { colors, fonts: f } = useTheme();
   const [q, setQ] = useState('');
@@ -422,7 +470,7 @@ export function PropertyPicker({
   );
 
   return (
-    <BottomSheet visible={visible} onClose={onClose} title="Assign property">
+    <BottomSheet visible={visible} onClose={onClose} title={title}>
       <View style={{ paddingHorizontal: spacing.lg, gap: spacing.md, flexShrink: 1 }}>
         <SearchBar
           value={q}
@@ -453,7 +501,7 @@ export function PropertyPicker({
                   key={p.id}
                   onPress={() => onSelect(p.id)}
                   accessibilityRole="button"
-                  accessibilityLabel={`Assign ${p.title}`}
+                  accessibilityLabel={`${actionLabel} ${p.title}`}
                   style={[styles.pickerRow, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
                 >
                   {p.images?.[0] ? (
