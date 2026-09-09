@@ -89,24 +89,32 @@ export default async function HelpGuidePage({ params }: HelpGuidePageProps) {
                 {guide.readTime} read
               </span>
             </div>
-            <iframe
-              src={guide.pdfPath}
-              title={`${guide.title} PDF`}
-              className="hidden h-[760px] w-full bg-slate-950 lg:block"
-            />
-            <div className="p-6 text-center lg:hidden">
+            <div className="flex min-h-80 flex-col items-center justify-center p-8 text-center sm:p-12">
               <FileText className="mx-auto size-10 text-indigo-400" />
-              <p className="mt-3 text-sm text-slate-400">
-                Open the PDF for the best reading experience on mobile.
+              <h3 className="mt-4 text-xl font-black text-white">
+                Read the complete illustrated guide
+              </h3>
+              <p className="mt-3 max-w-md text-sm leading-relaxed text-slate-400">
+                Open the PDF in a new tab for the clearest reading experience on
+                web or mobile, or download a copy to share with your team.
               </p>
-              <a
-                href={guide.pdfPath}
-                target="_blank"
-                rel="noreferrer"
-                className="mt-4 inline-flex items-center gap-2 text-sm font-bold text-indigo-300"
-              >
-                Open guide <ArrowRight className="size-4" />
-              </a>
+              <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+                <a
+                  href={guide.pdfPath}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-indigo-500"
+                >
+                  Open guide <ArrowRight className="size-4" />
+                </a>
+                <a
+                  href={guide.pdfPath}
+                  download
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-950 px-5 py-3 text-sm font-bold text-slate-200 transition hover:border-slate-600 hover:bg-slate-800"
+                >
+                  <Download className="size-4" /> Download PDF
+                </a>
+              </div>
             </div>
           </section>
 
