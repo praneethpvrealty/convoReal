@@ -62,4 +62,12 @@ export const NOTIFICATION_EVENTS: NotificationEventDef[] = [
       'A colleague dictates an update for you ("send Sharan the outcome of the site visit"). WhatsApp is on by default — an update held back until the next digest has usually gone stale.',
     defaults: { app: true, whatsapp: true },
   },
+  {
+    key: 'portal_listing_expiry',
+    group: 'Inventory',
+    label: 'Portal listing expiry',
+    description:
+      'Missing expiry dates, renewal countdowns and overdue portal listings.',
+    defaults: { app: true, whatsapp: true },
+  },
 ];

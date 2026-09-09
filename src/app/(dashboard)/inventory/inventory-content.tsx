@@ -370,14 +370,17 @@ export default function InventoryPage() {
     const sharePid =
       searchParams?.get('sharePropertyId') ||
       liveParams?.get('sharePropertyId');
+    const portalPid =
+      searchParams?.get('portalPropertyId') ||
+      liveParams?.get('portalPropertyId');
     const viewPid =
       searchParams?.get('propertyId') || liveParams?.get('propertyId');
-    const pid = sharePid || viewPid;
+    const pid = sharePid || portalPid || viewPid;
     if (!pid) {
       if (autoOpenedKey) setAutoOpenedKey(null);
       return;
     }
-    const mode = sharePid ? 'share' : 'view';
+    const mode = sharePid ? 'share' : portalPid ? 'portal' : 'view';
     const actionId =
       searchParams?.get('copilotAction') ||
       liveParams?.get('copilotAction') ||
@@ -386,8 +389,12 @@ export default function InventoryPage() {
     if (autoOpenedKey === requestKey) return;
     setAutoOpenedKey(requestKey);
 
-    if (mode === 'share' && !canEdit) {
-      toast.error('You need agent access to share a property.');
+    if ((mode === 'share' || mode === 'portal') && !canEdit) {
+      toast.error(
+        mode === 'share'
+          ? 'You need agent access to share a property.'
+          : 'You need agent access to update portal listings.'
+      );
       return;
     }
 
@@ -411,6 +418,9 @@ export default function InventoryPage() {
         if (mode === 'share') {
           setShareProperty(prop);
           setShareOpen(true);
+        } else if (mode === 'portal') {
+          setPortalProperty(prop);
+          setPortalOpen(true);
         } else {
           setSelectedProperty(prop);
           setFormViewOnly(true);
@@ -609,6 +619,23 @@ export default function InventoryPage() {
         replaceUrl(router, `/inventory${queryString ? `?${queryString}` : ''}`);
       }
       setShareProperty(null);
+    }
+  }
+
+  function handlePortalOpenChange(open: boolean) {
+    setPortalOpen(open);
+    if (!open) {
+      const params = new URLSearchParams(
+        typeof window !== 'undefined'
+          ? window.location.search
+          : searchParams?.toString() || ''
+      );
+      if (params.has('portalPropertyId')) {
+        params.delete('portalPropertyId');
+        const queryString = params.toString();
+        replaceUrl(router, `/inventory${queryString ? `?${queryString}` : ''}`);
+      }
+      setPortalProperty(null);
     }
   }
 
@@ -1575,7 +1602,7 @@ export default function InventoryPage() {
       {/* Post to Portals Dialog */}
       <PortalPostDialog
         open={portalOpen}
-        onOpenChange={setPortalOpen}
+        onOpenChange={handlePortalOpenChange}
         property={portalProperty}
         currency={currency}
         onSaved={refreshInventory}

@@ -457,6 +457,11 @@ export function PortalPostDialog({
                     })}
                   </>
                 )}
+                {!activeListing.expires_on && (
+                  <span className="ml-1 text-amber-400">
+                    · expiry date missing — reminders need this
+                  </span>
+                )}
                 {activeListing.portal_listing_id ? (
                   <> · ad {activeListing.portal_listing_id}</>
                 ) : (
@@ -611,7 +616,7 @@ export function PortalPostDialog({
               <div className="space-y-1">
                 <Label className="flex items-center gap-1 text-[11px] font-semibold text-slate-300">
                   <CalendarClock className="size-3" />
-                  Expires on — WhatsApp reminder 3 days before
+                  Expires on — reminders 7, 3 and 1 days before
                 </Label>
                 <Input
                   type="date"

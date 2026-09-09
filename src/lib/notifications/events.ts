@@ -90,10 +90,20 @@ export const NOTIFICATION_EVENTS: NotificationEventDef[] = [
       'A visitor asks for the exact location of a guarded listing. WhatsApp includes Approve/Reject buttons.',
     defaults: { app: true, whatsapp: true },
   },
+  {
+    key: 'portal_listing_expiry',
+    group: 'Inventory',
+    label: 'Portal listing expiry',
+    description:
+      'Missing expiry dates, renewal countdowns and overdue portal listings.',
+    defaults: { app: true, whatsapp: true },
+  },
 ];
 
 const EVENT_BY_KEY = new Map(NOTIFICATION_EVENTS.map((e) => [e.key, e]));
 
-export function getNotificationEvent(key: string): NotificationEventDef | undefined {
+export function getNotificationEvent(
+  key: string
+): NotificationEventDef | undefined {
   return EVENT_BY_KEY.get(key);
 }

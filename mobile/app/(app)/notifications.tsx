@@ -15,19 +15,31 @@ import {
   type NotificationRow,
 } from '@/lib/use-notifications';
 
-const TYPE_ICONS: Record<string, React.ComponentProps<typeof Ionicons>['name']> = {
+const TYPE_ICONS: Record<
+  string,
+  React.ComponentProps<typeof Ionicons>['name']
+> = {
   new_message: 'chatbubbles-outline',
   appointment_booked: 'calendar-outline',
   appointment_reminder: 'alarm-outline',
   appointment_overdue: 'checkmark-done-outline',
   daily_digest: 'sunny-outline',
   location_request: 'location-outline',
+  portal_listing_expiry: 'time-outline',
 };
 
 /** Map a web deep link stored on the row to the mobile route. */
 function openTarget(n: NotificationRow) {
   if (n.type === 'location_request') {
     router.push('/(app)/dashboard');
+    return;
+  }
+  if (n.type === 'portal_listing_expiry') {
+    if (n.entity_type === 'property' && n.entity_id) {
+      router.push(`/(app)/property/${n.entity_id}`);
+    } else {
+      router.push('/(app)/(tabs)/properties');
+    }
     return;
   }
   if (n.entity_type === 'conversation' && n.entity_id) {
@@ -60,7 +72,9 @@ export default function NotificationsScreen() {
     <View style={{ flex: 1 }}>
       <Stack.Screen options={{ headerShown: true, title: 'Notifications' }} />
       {isLoading ? (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+        <View
+          style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}
+        >
           <ConvoRealLoader />
         </View>
       ) : items.length === 0 ? (
@@ -92,7 +106,12 @@ export default function NotificationsScreen() {
                   },
                 ]}
               >
-                <View style={[styles.iconWrap, { backgroundColor: colors.surfaceRaised }]}>
+                <View
+                  style={[
+                    styles.iconWrap,
+                    { backgroundColor: colors.surfaceRaised },
+                  ]}
+                >
                   <Ionicons
                     name={TYPE_ICONS[item.type] ?? 'notifications-outline'}
                     size={18}
@@ -101,13 +120,24 @@ export default function NotificationsScreen() {
                 </View>
                 <View style={{ flex: 1, gap: 2 }}>
                   <Text
-                    style={{ fontSize: 14, fontFamily: fresh ? f.bold : f.semibold, color: colors.text }}
+                    style={{
+                      fontSize: 14,
+                      fontFamily: fresh ? f.bold : f.semibold,
+                      color: colors.text,
+                    }}
                     numberOfLines={1}
                   >
                     {item.title}
                   </Text>
                   {item.body ? (
-                    <Text style={{ fontSize: 12.5, lineHeight: 17, color: colors.textMuted }} numberOfLines={2}>
+                    <Text
+                      style={{
+                        fontSize: 12.5,
+                        lineHeight: 17,
+                        color: colors.textMuted,
+                      }}
+                      numberOfLines={2}
+                    >
                       {item.body}
                     </Text>
                   ) : null}
