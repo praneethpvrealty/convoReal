@@ -4,6 +4,8 @@ import {
   sanitizeFloorPlanImage,
   plansWithImages,
   attachPlanImages,
+  isPlanPdf,
+  planMediaAccept,
   type FloorPlan,
 } from './floor-plans';
 
@@ -165,5 +167,29 @@ describe('plansWithImages', () => {
 
   it('tolerates a null column', () => {
     expect(plansWithImages(null)).toEqual([]);
+  });
+});
+
+describe('isPlanPdf', () => {
+  it('recognises stored and absolute PDF sketch paths', () => {
+    expect(isPlanPdf('property-documents/acc/sketch.pdf')).toBe(true);
+    expect(isPlanPdf('https://cdn.example.com/layout.PDF?download=1')).toBe(
+      true
+    );
+  });
+
+  it('leaves image plans with the image renderer', () => {
+    expect(isPlanPdf('property-images/acc/sketch.jpg')).toBe(false);
+    expect(isPlanPdf(null)).toBe(false);
+  });
+});
+
+describe('planMediaAccept', () => {
+  it('allows PDFs for land sketches', () => {
+    expect(planMediaAccept(true)).toContain('application/pdf');
+  });
+
+  it('keeps ordinary floor plans image-only', () => {
+    expect(planMediaAccept(false)).toBe('image/jpeg,image/png,image/webp');
   });
 });

@@ -13,6 +13,7 @@ import {
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { SectionLabel } from '@/components/ui';
 import { pickAndUploadFloorPlan } from '@/lib/floor-plan-upload';
+import { isPlanPdf } from '@/lib/floor-plans';
 import { haptic } from '@/lib/haptics';
 import { planMediaCopy } from '@/lib/plan-media-copy';
 import { storagePublicUrl } from '@/lib/storage-url';
@@ -141,6 +142,23 @@ export function PropertyFloorPlans({
             >
               {busyIdx === i ? (
                 <ActivityIndicator color={colors.primary} />
+              ) : plan.image && isPlanPdf(plan.image) ? (
+                <View style={styles.pdfThumb}>
+                  <Ionicons
+                    name="document-text"
+                    size={24}
+                    color={colors.primary}
+                  />
+                  <Text
+                    style={{
+                      fontSize: 9,
+                      fontFamily: f.bold,
+                      color: colors.primary,
+                    }}
+                  >
+                    PDF
+                  </Text>
+                </View>
               ) : plan.image ? (
                 <Image
                   source={{ uri: storagePublicUrl(plan.image) }}
@@ -244,6 +262,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   thumbImg: { width: '100%', height: '100%' },
+  pdfThumb: { alignItems: 'center', gap: 2 },
   input: {
     borderWidth: 1,
     borderRadius: radius.sm,

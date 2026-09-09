@@ -33,7 +33,7 @@ import { MatchTargetRow } from '@/components/match-target-row';
 import { propertyMapPin } from '@/lib/map-links';
 import { nativeMapsAvailable } from '@/lib/maps-support';
 import { openInMaps } from '@/lib/open-maps';
-import { plansWithImages } from '@/lib/floor-plans';
+import { isPlanPdf, plansWithImages } from '@/lib/floor-plans';
 import { storagePublicUrl } from '@/lib/storage-url';
 import { emptyPhotoLabel, internalPhotoSources } from '@/lib/photo-sources';
 import { usePhotoSources } from '@/lib/use-photo-source';
@@ -615,53 +615,91 @@ export default function PropertyDetailScreen() {
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={{ gap: spacing.sm }}
               >
-                {plansWithImages(property.floor_plans).map((fp, i) => (
-                  <View
-                    key={i}
-                    style={[
-                      styles.planCard,
-                      {
-                        backgroundColor: colors.glass,
-                        borderColor: colors.glassBorder,
-                      },
-                    ]}
-                  >
-                    <Image
-                      source={{ uri: storagePublicUrl(fp.image!) }}
-                      style={styles.planImg}
-                      resizeMode="contain"
-                    />
-                    <Text
-                      numberOfLines={1}
-                      style={{
-                        fontSize: 12,
-                        fontFamily: f.bold,
-                        color: colors.text,
-                      }}
+                {plansWithImages(property.floor_plans).map((fp, i) => {
+                  const mediaUrl = storagePublicUrl(fp.image!);
+                  const isPdf = isPlanPdf(fp.image);
+                  return (
+                    <Pressable
+                      key={i}
+                      onPress={
+                        isPdf ? () => void Linking.openURL(mediaUrl) : undefined
+                      }
+                      accessibilityRole={isPdf ? 'link' : undefined}
+                      accessibilityLabel={
+                        isPdf
+                          ? `Open ${fp.floor || `sketch ${i + 1}`} PDF`
+                          : undefined
+                      }
+                      style={[
+                        styles.planCard,
+                        {
+                          backgroundColor: colors.glass,
+                          borderColor: colors.glassBorder,
+                        },
+                      ]}
                     >
-                      {fp.floor || `${isLand ? 'Sketch' : 'Floor'} ${i + 1}`}
-                    </Text>
-                    {fp.area_sqft || fp.notes ? (
+                      {isPdf ? (
+                        <View
+                          style={[
+                            styles.planImg,
+                            styles.planPdf,
+                            { backgroundColor: colors.primarySoft },
+                          ]}
+                        >
+                          <Ionicons
+                            name="document-text"
+                            size={34}
+                            color={colors.primary}
+                          />
+                          <Text
+                            style={{
+                              fontSize: 11,
+                              fontFamily: f.bold,
+                              color: colors.primary,
+                            }}
+                          >
+                            Open PDF
+                          </Text>
+                        </View>
+                      ) : (
+                        <Image
+                          source={{ uri: mediaUrl }}
+                          style={styles.planImg}
+                          resizeMode="contain"
+                        />
+                      )}
                       <Text
                         numberOfLines={1}
                         style={{
-                          fontSize: 11,
-                          fontFamily: f.regular,
-                          color: colors.textMuted,
+                          fontSize: 12,
+                          fontFamily: f.bold,
+                          color: colors.text,
                         }}
                       >
-                        {[
-                          fp.area_sqft
-                            ? `${fp.area_sqft.toLocaleString('en-IN')} Sq.Ft.`
-                            : '',
-                          fp.notes,
-                        ]
-                          .filter(Boolean)
-                          .join(' · ')}
+                        {fp.floor || `${isLand ? 'Sketch' : 'Floor'} ${i + 1}`}
                       </Text>
-                    ) : null}
-                  </View>
-                ))}
+                      {fp.area_sqft || fp.notes ? (
+                        <Text
+                          numberOfLines={1}
+                          style={{
+                            fontSize: 11,
+                            fontFamily: f.regular,
+                            color: colors.textMuted,
+                          }}
+                        >
+                          {[
+                            fp.area_sqft
+                              ? `${fp.area_sqft.toLocaleString('en-IN')} Sq.Ft.`
+                              : '',
+                            fp.notes,
+                          ]
+                            .filter(Boolean)
+                            .join(' · ')}
+                        </Text>
+                      ) : null}
+                    </Pressable>
+                  );
+                })}
               </ScrollView>
             </Section>
           ) : null}
@@ -2217,6 +2255,11 @@ const styles = StyleSheet.create({
     height: 110,
     borderRadius: radius.sm,
     backgroundColor: '#fff',
+  },
+  planPdf: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
   },
   notesCard: {
     borderRadius: radius.md,
