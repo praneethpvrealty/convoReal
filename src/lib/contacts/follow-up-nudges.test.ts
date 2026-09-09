@@ -5,12 +5,14 @@ import type { Property } from '@/types';
 
 import {
   parseFollowUpReply,
+  buildFollowUpActionSections,
   buildFollowUpCardBody,
   buildFollowUpCheckinText,
   buildClosedWindowFollowUpTemplateSend,
   gatherFollowUpLeads,
   pickClosedWindowFollowUpTemplate,
   FOLLOWUP_CHECKIN_PREFIX,
+  FOLLOWUP_CONSIDERING_PREFIX,
   FOLLOWUP_SNOOZE_PREFIX,
   FOLLOWUP_COLD_PREFIX,
   FOLLOWUP_MAX_PER_RUN,
@@ -31,6 +33,9 @@ describe('parseFollowUpReply', () => {
     expect(
       parseFollowUpReply(`${FOLLOWUP_SNOOZE_PREFIX}${CONTACT_ID}`)?.action
     ).toBe('snooze');
+    expect(
+      parseFollowUpReply(`${FOLLOWUP_CONSIDERING_PREFIX}${CONTACT_ID}`)?.action
+    ).toBe('considering');
     expect(
       parseFollowUpReply(`${FOLLOWUP_COLD_PREFIX}${CONTACT_ID}`)?.action
     ).toBe('cold');
@@ -82,6 +87,33 @@ describe('buildFollowUpCardBody', () => {
     expect(body).toContain('quiet for 1 day.');
     expect(body).not.toContain('undefined');
     expect(body).not.toContain('null');
+  });
+});
+
+describe('buildFollowUpActionSections', () => {
+  it('offers all four dispositions through a WhatsApp list', () => {
+    const sections = buildFollowUpActionSections({
+      contactId: CONTACT_ID,
+      name: 'Hari',
+      phone: '+919945233018',
+      assignedAgentUserId: null,
+      daysSilent: 6,
+      propertyTitle: 'JP Nagar Plot',
+    });
+    expect(sections[0].rows).toHaveLength(4);
+    expect(sections[0].rows.map((row) => row.title)).toEqual([
+      '💬 Check in',
+      '🤔 Still considering',
+      '⏰ Snooze 3 days',
+      '❄️ Mark cold',
+    ]);
+    expect(sections[0].rows[1].id).toBe(
+      `${FOLLOWUP_CONSIDERING_PREFIX}${CONTACT_ID}`
+    );
+    for (const row of sections[0].rows) {
+      expect(row.title.length).toBeLessThanOrEqual(24);
+      expect(row.description.length).toBeLessThanOrEqual(72);
+    }
   });
 });
 

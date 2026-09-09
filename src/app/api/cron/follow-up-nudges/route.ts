@@ -6,7 +6,7 @@ import { sendClosingDealNudges } from '@/lib/journey/closing-nudges';
 /**
  * Follow-up radar cron — cards each account's routed agent on WhatsApp
  * about HOT leads gone quiet (48h+ silence), with Check in / Snooze /
- * Mark cold buttons. Per-lead state in follow_up_nudges caps this at
+ * Still considering / Mark cold dispositions. Per-lead state in follow_up_nudges caps this at
  * one card per lead per week, so reruns are no-ops.
  *
  * The same run sends the closing card: deals already at legal, which

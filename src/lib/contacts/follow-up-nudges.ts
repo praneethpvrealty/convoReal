@@ -8,11 +8,12 @@
 // card per quiet lead — the same shape as the enquiry card, because
 // that shape is what gets acted on:
 //
-//   💬 Check in     — the bot nudges the lead: free-form inside their
-//                     24-hour window, the approved enquiry_checkin
-//                     template outside it.
-//   ⏰ Snooze 3 days — the card comes back later.
-//   ❄️ Mark cold     — lead_temp = COLD; the radar drops them.
+//   💬 Check in        — the bot nudges the lead: free-form inside their
+//                        24-hour window, the approved enquiry_checkin
+//                        template outside it.
+//   🤔 Still considering — keep the lead HOT and check again in a week.
+//   ⏰ Snooze 3 days    — the card comes back later.
+//   ❄️ Mark cold        — lead_temp = COLD; the radar drops them.
 //
 // follow_up_nudges (migration 272) is the per-lead state that keeps
 // this from becoming spam: never more than one card per lead per
@@ -55,11 +56,13 @@ import {
 } from '@/lib/whatsapp/template-language';
 
 export const FOLLOWUP_CHECKIN_PREFIX = 'fup_checkin:';
+export const FOLLOWUP_CONSIDERING_PREFIX = 'fup_considering:';
 export const FOLLOWUP_SNOOZE_PREFIX = 'fup_snooze:';
 export const FOLLOWUP_COLD_PREFIX = 'fup_cold:';
 
 export const FOLLOWUP_SILENCE_HOURS = 48;
 export const FOLLOWUP_SNOOZE_DAYS = 3;
+export const FOLLOWUP_CONSIDERING_DAYS = 7;
 /** A check-in or an untouched card both hold the lead out of the radar
  *  this long, so the same person is never nudged about twice a week. */
 export const FOLLOWUP_RENUDGE_DAYS = 7;
@@ -71,7 +74,7 @@ const HOUR_MS = 3_600_000;
 const DAY_MS = 24 * HOUR_MS;
 
 export interface FollowUpAction {
-  action: 'checkin' | 'snooze' | 'cold';
+  action: 'checkin' | 'considering' | 'snooze' | 'cold';
   contactId: string;
 }
 
@@ -81,6 +84,7 @@ export function parseFollowUpReply(
   const id = (replyId || '').trim();
   const prefixes = [
     [FOLLOWUP_CHECKIN_PREFIX, 'checkin'],
+    [FOLLOWUP_CONSIDERING_PREFIX, 'considering'],
     [FOLLOWUP_SNOOZE_PREFIX, 'snooze'],
     [FOLLOWUP_COLD_PREFIX, 'cold'],
   ] as const;
@@ -125,8 +129,38 @@ export function buildFollowUpCardBody(lead: FollowUpLead): string {
     ...(lead.propertyTitle ? [`🏠 ${lead.propertyTitle}`] : []),
     `Hot lead — quiet for ${lead.daysSilent} day${lead.daysSilent === 1 ? '' : 's'}.`,
     '',
-    'Check in sends them a friendly nudge from the bot and reopens the conversation. Snooze brings this back in 3 days.',
+    'Choose an update below. Check in messages the client; Still considering keeps the lead hot without sending anything.',
   ].join('\n');
+}
+
+export function buildFollowUpActionSections(lead: FollowUpLead) {
+  return [
+    {
+      title: 'Update this lead',
+      rows: [
+        {
+          id: `${FOLLOWUP_CHECKIN_PREFIX}${lead.contactId}`,
+          title: '💬 Check in',
+          description: 'Send a friendly WhatsApp follow-up',
+        },
+        {
+          id: `${FOLLOWUP_CONSIDERING_PREFIX}${lead.contactId}`,
+          title: '🤔 Still considering',
+          description: 'Keep hot and check again in 7 days',
+        },
+        {
+          id: `${FOLLOWUP_SNOOZE_PREFIX}${lead.contactId}`,
+          title: '⏰ Snooze 3 days',
+          description: 'Bring this reminder back in 3 days',
+        },
+        {
+          id: `${FOLLOWUP_COLD_PREFIX}${lead.contactId}`,
+          title: '❄️ Mark cold',
+          description: 'Stop follow-up reminders for this lead',
+        },
+      ],
+    },
+  ];
 }
 
 /** What the bot says to the lead when the agent taps Check in inside
@@ -415,7 +449,12 @@ async function stampNudgeState(
   db: SupabaseClient,
   accountId: string,
   contactId: string,
-  patch: { last_nudged_at?: string; snoozed_until?: string | null },
+  patch: {
+    last_nudged_at?: string;
+    snoozed_until?: string | null;
+    agent_disposition?: 'checkin_sent' | 'considering' | 'snoozed' | 'cold';
+    disposition_updated_at?: string;
+  },
   alsoContactIds: string[] = []
 ): Promise<void> {
   const ids = [...new Set([contactId, ...alsoContactIds])];
@@ -472,22 +511,10 @@ export async function sendFollowUpNudges(
             : { toPhone: agent.phone }),
           kind: 'interactive',
           senderType: 'bot',
-          interactiveType: 'buttons',
+          interactiveType: 'list',
           interactiveBody: buildFollowUpCardBody(lead),
-          interactiveButtons: [
-            {
-              id: `${FOLLOWUP_CHECKIN_PREFIX}${lead.contactId}`,
-              title: '💬 Check in',
-            },
-            {
-              id: `${FOLLOWUP_SNOOZE_PREFIX}${lead.contactId}`,
-              title: '⏰ Snooze 3 days',
-            },
-            {
-              id: `${FOLLOWUP_COLD_PREFIX}${lead.contactId}`,
-              title: '❄️ Mark cold',
-            },
-          ],
+          interactiveButtonLabel: 'Update lead',
+          interactiveSections: buildFollowUpActionSections(lead),
         });
         if (!result.success) continue;
         nudges += 1;
@@ -585,19 +612,60 @@ export async function handleFollowUpReply(
       .update({ lead_temp: 'COLD', updated_at: new Date().toISOString() })
       .in('id', partyIds)
       .eq('account_id', accountId);
+    await stampNudgeState(
+      admin,
+      accountId,
+      action.contactId,
+      {
+        agent_disposition: 'cold',
+        disposition_updated_at: new Date().toISOString(),
+        snoozed_until: null,
+      },
+      partyIds
+    );
     await confirmToAgent(
       `❄️ Marked ${who} cold — the follow-up radar will leave them alone.`
     );
     return true;
   }
 
-  if (action.action === 'snooze') {
+  if (action.action === 'considering') {
+    const now = new Date();
     await stampNudgeState(
       admin,
       accountId,
       action.contactId,
       {
-        snoozed_until: addDays(new Date(), FOLLOWUP_SNOOZE_DAYS).toISOString(),
+        agent_disposition: 'considering',
+        disposition_updated_at: now.toISOString(),
+        snoozed_until: addDays(now, FOLLOWUP_CONSIDERING_DAYS).toISOString(),
+      },
+      partyIds
+    );
+    await admin.from('contact_notes').insert({
+      contact_id: action.contactId,
+      account_id: accountId,
+      user_id: configOwnerUserId,
+      note_text: lead.last_inquired_property_id
+        ? `🤔 Still considering the last enquired property. Follow-up held for ${FOLLOWUP_CONSIDERING_DAYS} days.`
+        : `🤔 Still considering. Follow-up held for ${FOLLOWUP_CONSIDERING_DAYS} days.`,
+    });
+    await confirmToAgent(
+      `🤔 Marked ${who} as still considering — kept HOT, no message sent, and the follow-up will return in ${FOLLOWUP_CONSIDERING_DAYS} days.`
+    );
+    return true;
+  }
+
+  if (action.action === 'snooze') {
+    const now = new Date();
+    await stampNudgeState(
+      admin,
+      accountId,
+      action.contactId,
+      {
+        agent_disposition: 'snoozed',
+        disposition_updated_at: now.toISOString(),
+        snoozed_until: addDays(now, FOLLOWUP_SNOOZE_DAYS).toISOString(),
       },
       partyIds
     );
@@ -671,12 +739,15 @@ export async function handleFollowUpReply(
   }
 
   if (sent) {
+    const now = new Date();
     await stampNudgeState(
       admin,
       accountId,
       action.contactId,
       {
-        snoozed_until: addDays(new Date(), FOLLOWUP_RENUDGE_DAYS).toISOString(),
+        agent_disposition: 'checkin_sent',
+        disposition_updated_at: now.toISOString(),
+        snoozed_until: addDays(now, FOLLOWUP_RENUDGE_DAYS).toISOString(),
       },
       partyIds
     );
