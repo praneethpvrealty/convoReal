@@ -2,30 +2,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useMemo, useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  Image,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { apiFetch, ApiError } from '@/lib/api';
 import { PropertyShareSheet } from '@/components/property-share-sheet';
 import { PropertyInterestFollowUpSheet } from '@/components/property-interest-follow-up-sheet';
 import { BottomSheet } from '@/components/sheet';
-import {
-  Avatar,
-  EmptyState,
-  PrimaryButton,
-  SearchBar,
-  SectionLabel,
-  Tag,
-  TextField,
-} from '@/components/ui';
+import { Avatar, EmptyState, PrimaryButton, SearchBar, SectionLabel, Tag, TextField } from '@/components/ui';
 import { useAuthStore } from '@/lib/auth-store';
 import { storagePublicUrl } from '@/lib/storage-url';
 import { friendlyError } from '@/lib/errors';
@@ -36,13 +20,7 @@ import { supabase } from '@/lib/supabase';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import { useCallLog } from '@/lib/use-call-log';
 import { openWelcomeWhatsApp } from '@/lib/welcome-message';
-import type {
-  Appointment,
-  Contact,
-  ContactNote,
-  Property,
-  Tag as TagRow,
-} from '@/lib/types';
+import type { Appointment, Contact, ContactNote, Property, Tag as TagRow } from '@/lib/types';
 import { contactHandle, hasPhone } from '@/lib/reachability';
 
 export async function openConversation(contactId: string) {
@@ -101,9 +79,7 @@ export function AgentProperties({
     }
     haptic.success();
     setPicking(false);
-    queryClient.invalidateQueries({
-      queryKey: ['agent-properties', contactId],
-    });
+    queryClient.invalidateQueries({ queryKey: ['agent-properties', contactId] });
     queryClient.invalidateQueries({ queryKey: ['agents-directory'] });
     queryClient.invalidateQueries({ queryKey: ['properties'] });
   }
@@ -135,9 +111,7 @@ export function AgentProperties({
               return;
             }
             haptic.success();
-            queryClient.invalidateQueries({
-              queryKey: ['agent-properties', contactId],
-            });
+            queryClient.invalidateQueries({ queryKey: ['agent-properties', contactId] });
             queryClient.invalidateQueries({ queryKey: ['agents-directory'] });
           },
         },
@@ -148,31 +122,16 @@ export function AgentProperties({
   return (
     <View style={{ gap: spacing.sm }}>
       <AppDialog {...dialogProps} />
-      <View
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}
-      >
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <SectionLabel text={`${title}${props ? ` (${props.length})` : ''}`} />
         <Pressable
           onPress={() => setPicking(true)}
           accessibilityRole="button"
           accessibilityLabel="Link property to this contact"
-          style={[
-            styles.scheduleButton,
-            { backgroundColor: colors.primarySoft },
-          ]}
+          style={[styles.scheduleButton, { backgroundColor: colors.primarySoft }]}
         >
           <Ionicons name="link-outline" size={15} color={colors.primary} />
-          <Text
-            style={{
-              fontSize: 12.5,
-              fontFamily: f.bold,
-              color: colors.primary,
-            }}
-          >
+          <Text style={{ fontSize: 12.5, fontFamily: f.bold, color: colors.primary }}>
             Link property
           </Text>
         </Pressable>
@@ -182,12 +141,7 @@ export function AgentProperties({
           Nothing linked yet — link a property this contact owns or manages.
         </Text>
       ) : (
-        <View
-          style={[
-            styles.card,
-            { backgroundColor: colors.glass, borderColor: colors.glassBorder },
-          ]}
-        >
+        <View style={[styles.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
           {props.map((p) => (
             <Pressable
               key={p.id}
@@ -197,52 +151,20 @@ export function AgentProperties({
               style={[styles.propertyRow, { borderTopColor: colors.border }]}
             >
               {p.images?.[0] ? (
-                <Image
-                  source={{ uri: storagePublicUrl(p.images[0]) }}
-                  style={styles.propertyThumb}
-                />
+                <Image source={{ uri: storagePublicUrl(p.images[0]) }} style={styles.propertyThumb} />
               ) : (
-                <View
-                  style={[
-                    styles.propertyThumb,
-                    {
-                      backgroundColor: colors.surfaceSunken,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    },
-                  ]}
-                >
-                  <Ionicons
-                    name="business-outline"
-                    size={20}
-                    color={colors.textFaint}
-                  />
+                <View style={[styles.propertyThumb, { backgroundColor: colors.surfaceSunken, alignItems: 'center', justifyContent: 'center' }]}>
+                  <Ionicons name="business-outline" size={20} color={colors.textFaint} />
                 </View>
               )}
               <View style={{ flex: 1, gap: 2 }}>
-                <Text
-                  style={{
-                    fontSize: 14,
-                    fontFamily: f.bold,
-                    color: colors.text,
-                  }}
-                  numberOfLines={1}
-                >
+                <Text style={{ fontSize: 14, fontFamily: f.bold, color: colors.text }} numberOfLines={1}>
                   {p.title}
                 </Text>
-                <Text
-                  style={{ fontSize: 12, color: colors.textMuted }}
-                  numberOfLines={1}
-                >
+                <Text style={{ fontSize: 12, color: colors.textMuted }} numberOfLines={1}>
                   {[p.location, p.status].filter(Boolean).join(' · ')}
                 </Text>
-                <Text
-                  style={{
-                    fontSize: 12.5,
-                    fontFamily: f.bold,
-                    color: colors.primary,
-                  }}
-                >
+                <Text style={{ fontSize: 12.5, fontFamily: f.bold, color: colors.primary }}>
                   {formatInr(p.price)}
                 </Text>
               </View>
@@ -252,11 +174,7 @@ export function AgentProperties({
                 accessibilityRole="button"
                 accessibilityLabel={`Unlink ${p.title}`}
               >
-                <Ionicons
-                  name="unlink-outline"
-                  size={18}
-                  color={colors.textMuted}
-                />
+                <Ionicons name="unlink-outline" size={18} color={colors.textMuted} />
               </Pressable>
             </Pressable>
           ))}
@@ -300,9 +218,7 @@ export function InterestedProperties({ contact }: { contact: Contact }) {
       const ids = Array.from(
         new Set(
           [
-            ...(inquiries ?? []).map(
-              (i: { property_id: string }) => i.property_id
-            ),
+            ...(inquiries ?? []).map((i: { property_id: string }) => i.property_id),
             contact.last_inquired_property_id,
           ].filter((v): v is string => Boolean(v))
         )
@@ -328,9 +244,7 @@ export function InterestedProperties({ contact }: { contact: Contact }) {
       .select('id');
     const updateError =
       assignError ??
-      (assigned?.length
-        ? null
-        : { message: 'That contact is no longer there.' });
+      (assigned?.length ? null : { message: 'That contact is no longer there.' });
     const { error: inqError } = await supabase
       .from('contact_property_inquiries')
       .upsert(
@@ -348,17 +262,12 @@ export function InterestedProperties({ contact }: { contact: Contact }) {
       );
     if (updateError || inqError) {
       haptic.warn();
-      show({
-        title: 'Could not assign',
-        message: friendlyError((updateError ?? inqError)!.message),
-      });
+      show({ title: 'Could not assign', message: friendlyError((updateError ?? inqError)!.message) });
       return;
     }
     haptic.success();
     setPicking(false);
-    queryClient.invalidateQueries({
-      queryKey: ['interested-properties', contact.id],
-    });
+    queryClient.invalidateQueries({ queryKey: ['interested-properties', contact.id] });
     queryClient.invalidateQueries({ queryKey: ['contact', contact.id] });
     queryClient.invalidateQueries({ queryKey: ['contacts'] });
   }
@@ -386,20 +295,14 @@ export function InterestedProperties({ contact }: { contact: Contact }) {
               show({
                 title: 'Could not remove',
                 message: friendlyError(
-                  e instanceof ApiError
-                    ? e.message
-                    : 'Pull to refresh and try again.'
+                  e instanceof ApiError ? e.message : 'Pull to refresh and try again.'
                 ),
               });
               return;
             }
             haptic.success();
-            queryClient.invalidateQueries({
-              queryKey: ['interested-properties', contact.id],
-            });
-            queryClient.invalidateQueries({
-              queryKey: ['contact', contact.id],
-            });
+            queryClient.invalidateQueries({ queryKey: ['interested-properties', contact.id] });
+            queryClient.invalidateQueries({ queryKey: ['contact', contact.id] });
             queryClient.invalidateQueries({ queryKey: ['contacts'] });
           },
         },
@@ -412,49 +315,24 @@ export function InterestedProperties({ contact }: { contact: Contact }) {
   return (
     <View style={{ gap: spacing.sm }}>
       <AppDialog {...dialogProps} />
-      <View
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}
-      >
-        <SectionLabel
-          text={`Interested properties${props ? ` (${props.length})` : ''}`}
-        />
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <SectionLabel text={`Interested properties${props ? ` (${props.length})` : ''}`} />
         <Pressable
           onPress={() => setPicking(true)}
           accessibilityRole="button"
           accessibilityLabel="Assign interest property"
-          style={[
-            styles.scheduleButton,
-            { backgroundColor: colors.primarySoft },
-          ]}
+          style={[styles.scheduleButton, { backgroundColor: colors.primarySoft }]}
         >
           <Ionicons name="add" size={15} color={colors.primary} />
-          <Text
-            style={{
-              fontSize: 12.5,
-              fontFamily: f.bold,
-              color: colors.primary,
-            }}
-          >
-            Assign
-          </Text>
+          <Text style={{ fontSize: 12.5, fontFamily: f.bold, color: colors.primary }}>Assign</Text>
         </Pressable>
       </View>
       {props && props.length === 0 ? (
         <Text style={{ fontSize: 12.5, color: colors.textFaint }}>
-          No interest properties yet — tap Assign to link a listing this contact
-          inquired about.
+          No interest properties yet — tap Assign to link a listing this contact inquired about.
         </Text>
       ) : (
-        <View
-          style={[
-            styles.card,
-            { backgroundColor: colors.glass, borderColor: colors.glassBorder },
-          ]}
-        >
+        <View style={[styles.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
           {(props ?? []).map((p) => (
             <Pressable
               key={p.id}
@@ -464,53 +342,21 @@ export function InterestedProperties({ contact }: { contact: Contact }) {
               style={[styles.propertyRow, { borderTopColor: colors.border }]}
             >
               {p.images?.[0] ? (
-                <Image
-                  source={{ uri: storagePublicUrl(p.images[0]) }}
-                  style={styles.propertyThumb}
-                />
+                <Image source={{ uri: storagePublicUrl(p.images[0]) }} style={styles.propertyThumb} />
               ) : (
-                <View
-                  style={[
-                    styles.propertyThumb,
-                    {
-                      backgroundColor: colors.surfaceSunken,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    },
-                  ]}
-                >
-                  <Ionicons
-                    name="business-outline"
-                    size={20}
-                    color={colors.textFaint}
-                  />
+                <View style={[styles.propertyThumb, { backgroundColor: colors.surfaceSunken, alignItems: 'center', justifyContent: 'center' }]}>
+                  <Ionicons name="business-outline" size={20} color={colors.textFaint} />
                 </View>
               )}
               <View style={{ flex: 1, gap: 2 }}>
-                <Text
-                  style={{
-                    fontSize: 14,
-                    fontFamily: f.bold,
-                    color: colors.text,
-                  }}
-                  numberOfLines={1}
-                >
+                <Text style={{ fontSize: 14, fontFamily: f.bold, color: colors.text }} numberOfLines={1}>
                   {p.property_code ? `[${p.property_code}] ` : ''}
                   {p.title}
                 </Text>
-                <Text
-                  style={{ fontSize: 12, color: colors.textMuted }}
-                  numberOfLines={1}
-                >
+                <Text style={{ fontSize: 12, color: colors.textMuted }} numberOfLines={1}>
                   {[p.location, p.status].filter(Boolean).join(' · ')}
                 </Text>
-                <Text
-                  style={{
-                    fontSize: 12.5,
-                    fontFamily: f.bold,
-                    color: colors.primary,
-                  }}
-                >
+                <Text style={{ fontSize: 12.5, fontFamily: f.bold, color: colors.primary }}>
                   {formatInr(p.price)}
                 </Text>
               </View>
@@ -523,11 +369,7 @@ export function InterestedProperties({ contact }: { contact: Contact }) {
                 accessibilityRole="button"
                 accessibilityLabel={`Check whether ${contact.name || contact.phone} is still interested in ${p.title}`}
               >
-                <Ionicons
-                  name="chatbubble-ellipses-outline"
-                  size={18}
-                  color={colors.primary}
-                />
+                <Ionicons name="chatbubble-ellipses-outline" size={18} color={colors.primary} />
               </Pressable>
               <Pressable
                 hitSlop={10}
@@ -538,11 +380,7 @@ export function InterestedProperties({ contact }: { contact: Contact }) {
                 accessibilityRole="button"
                 accessibilityLabel={`Send ${p.title} details to ${contact.name || contact.phone}`}
               >
-                <Ionicons
-                  name="share-social-outline"
-                  size={18}
-                  color={colors.primary}
-                />
+                <Ionicons name="share-social-outline" size={18} color={colors.primary} />
               </Pressable>
               <Pressable
                 hitSlop={10}
@@ -550,11 +388,7 @@ export function InterestedProperties({ contact }: { contact: Contact }) {
                 accessibilityRole="button"
                 accessibilityLabel={`Remove ${p.title}`}
               >
-                <Ionicons
-                  name="unlink-outline"
-                  size={18}
-                  color={colors.textMuted}
-                />
+                <Ionicons name="unlink-outline" size={18} color={colors.textMuted} />
               </Pressable>
             </Pressable>
           ))}
@@ -581,12 +415,8 @@ export function InterestedProperties({ contact }: { contact: Contact }) {
           contact={contact}
           property={followingUp}
           onSent={() => {
-            queryClient.invalidateQueries({
-              queryKey: ['interested-properties', contact.id],
-            });
-            queryClient.invalidateQueries({
-              queryKey: ['contact-notes', contact.id],
-            });
+            queryClient.invalidateQueries({ queryKey: ['interested-properties', contact.id] });
+            queryClient.invalidateQueries({ queryKey: ['contact-notes', contact.id] });
             queryClient.invalidateQueries({ queryKey: ['conversations'] });
           }}
         />
@@ -641,13 +471,7 @@ export function PropertyPicker({
 
   return (
     <BottomSheet visible={visible} onClose={onClose} title={title}>
-      <View
-        style={{
-          paddingHorizontal: spacing.lg,
-          gap: spacing.md,
-          flexShrink: 1,
-        }}
-      >
+      <View style={{ paddingHorizontal: spacing.lg, gap: spacing.md, flexShrink: 1 }}>
         <SearchBar
           value={q}
           onChangeText={setQ}
@@ -678,70 +502,28 @@ export function PropertyPicker({
                   onPress={() => onSelect(p.id)}
                   accessibilityRole="button"
                   accessibilityLabel={`${actionLabel} ${p.title}`}
-                  style={[
-                    styles.pickerRow,
-                    {
-                      backgroundColor: colors.glass,
-                      borderColor: colors.glassBorder,
-                    },
-                  ]}
+                  style={[styles.pickerRow, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
                 >
                   {p.images?.[0] ? (
-                    <Image
-                      source={{ uri: storagePublicUrl(p.images[0]) }}
-                      style={styles.propertyThumb}
-                    />
+                    <Image source={{ uri: storagePublicUrl(p.images[0]) }} style={styles.propertyThumb} />
                   ) : (
-                    <View
-                      style={[
-                        styles.propertyThumb,
-                        {
-                          backgroundColor: colors.surfaceSunken,
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        },
-                      ]}
-                    >
-                      <Ionicons
-                        name="business-outline"
-                        size={20}
-                        color={colors.textFaint}
-                      />
+                    <View style={[styles.propertyThumb, { backgroundColor: colors.surfaceSunken, alignItems: 'center', justifyContent: 'center' }]}>
+                      <Ionicons name="business-outline" size={20} color={colors.textFaint} />
                     </View>
                   )}
                   <View style={{ flex: 1, gap: 2 }}>
-                    <Text
-                      style={{
-                        fontSize: 14,
-                        fontFamily: f.bold,
-                        color: colors.text,
-                      }}
-                      numberOfLines={1}
-                    >
+                    <Text style={{ fontSize: 14, fontFamily: f.bold, color: colors.text }} numberOfLines={1}>
                       {p.property_code ? `[${p.property_code}] ` : ''}
                       {p.title}
                     </Text>
-                    <Text
-                      style={{ fontSize: 12, color: colors.textMuted }}
-                      numberOfLines={1}
-                    >
+                    <Text style={{ fontSize: 12, color: colors.textMuted }} numberOfLines={1}>
                       {[p.location, p.status].filter(Boolean).join(' · ')}
                     </Text>
-                    <Text
-                      style={{
-                        fontSize: 12.5,
-                        fontFamily: f.bold,
-                        color: colors.primary,
-                      }}
-                    >
+                    <Text style={{ fontSize: 12.5, fontFamily: f.bold, color: colors.primary }}>
                       {formatInr(p.price)}
                     </Text>
                   </View>
-                  <Ionicons
-                    name="add-circle"
-                    size={22}
-                    color={colors.primary}
-                  />
+                  <Ionicons name="add-circle" size={22} color={colors.primary} />
                 </Pressable>
               ))}
             </ScrollView>
@@ -772,10 +554,7 @@ export function ContactTags({ contactId }: { contactId: string }) {
     queryFn: async () => {
       const [allRes, linkedRes] = await Promise.all([
         supabase.from('tags').select('id, name, color').order('name'),
-        supabase
-          .from('contact_tags')
-          .select('tag_id')
-          .eq('contact_id', contactId),
+        supabase.from('contact_tags').select('tag_id').eq('contact_id', contactId),
       ]);
       if (allRes.error) throw allRes.error;
       if (linkedRes.error) throw linkedRes.error;
@@ -796,10 +575,7 @@ export function ContactTags({ contactId }: { contactId: string }) {
   // under the finger that just tapped it, and with the two-row clamp it
   // could disappear behind "Show more" mid-tap. A newly applied tag
   // moves to the front the next time the screen opens.
-  const [pinned, setPinned] = useState<{
-    contactId: string;
-    ids: Set<string>;
-  } | null>(null);
+  const [pinned, setPinned] = useState<{ contactId: string; ids: Set<string> } | null>(null);
   if (data && pinned?.contactId !== contactId) {
     // Adjusting state during render, not in an effect: React re-renders
     // this component before committing, so no extra frame and no
@@ -839,10 +615,7 @@ export function ContactTags({ contactId }: { contactId: string }) {
         .insert({ contact_id: contactId, tag_id: tagId });
       if (error) {
         haptic.warn();
-        show({
-          title: 'Could not update tags',
-          message: friendlyError(error.message),
-        });
+        show({ title: 'Could not update tags', message: friendlyError(error.message) });
         return;
       }
     }
@@ -857,9 +630,7 @@ export function ContactTags({ contactId }: { contactId: string }) {
   const collapsedH = (chipH || 33) * 2 + spacing.sm;
   const overflows = contentH > collapsedH + 1;
   const hiddenCount = overflows
-    ? Object.values(chipYs.current).filter(
-        (y) => y >= collapsedH - (chipH || 33) / 2
-      ).length
+    ? Object.values(chipYs.current).filter((y) => y >= collapsedH - (chipH || 33) / 2).length
     : 0;
 
   return (
@@ -872,19 +643,9 @@ export function ContactTags({ contactId }: { contactId: string }) {
         </Text>
       ) : (
         <>
-          <View
-            style={
-              !expanded
-                ? { maxHeight: collapsedH, overflow: 'hidden' }
-                : undefined
-            }
-          >
+          <View style={!expanded ? { maxHeight: collapsedH, overflow: 'hidden' } : undefined}>
             <View
-              style={{
-                flexDirection: 'row',
-                flexWrap: 'wrap',
-                gap: spacing.sm,
-              }}
+              style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}
               onLayout={(e) => setContentH(e.nativeEvent.layout.height)}
             >
               {orderedTags.map((t, i) => {
@@ -907,22 +668,13 @@ export function ContactTags({ contactId }: { contactId: string }) {
                       paddingHorizontal: 12,
                       paddingVertical: 7,
                       borderRadius: radius.full,
-                      backgroundColor: selected
-                        ? colors.primarySoft
-                        : colors.surface,
+                      backgroundColor: selected ? colors.primarySoft : colors.surface,
                       borderWidth: selected ? 1.5 : StyleSheet.hairlineWidth,
                       borderColor: selected ? colors.primary : colors.border,
                     }}
                   >
                     {t.color ? (
-                      <View
-                        style={{
-                          width: 8,
-                          height: 8,
-                          borderRadius: 4,
-                          backgroundColor: t.color,
-                        }}
-                      />
+                      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: t.color }} />
                     ) : null}
                     <Text
                       style={{
@@ -933,13 +685,7 @@ export function ContactTags({ contactId }: { contactId: string }) {
                     >
                       {t.name}
                     </Text>
-                    {selected ? (
-                      <Ionicons
-                        name="checkmark"
-                        size={13}
-                        color={colors.primary}
-                      />
-                    ) : null}
+                    {selected ? <Ionicons name="checkmark" size={13} color={colors.primary} /> : null}
                   </Pressable>
                 );
               })}
@@ -952,9 +698,7 @@ export function ContactTags({ contactId }: { contactId: string }) {
                 setExpanded(!expanded);
               }}
               accessibilityRole="button"
-              accessibilityLabel={
-                expanded ? 'Show fewer tags' : 'Show all tags'
-              }
+              accessibilityLabel={expanded ? 'Show fewer tags' : 'Show all tags'}
               accessibilityState={{ expanded }}
               style={{
                 flexDirection: 'row',
@@ -974,18 +718,8 @@ export function ContactTags({ contactId }: { contactId: string }) {
                 size={13}
                 color={colors.primary}
               />
-              <Text
-                style={{
-                  fontSize: 13,
-                  fontFamily: f.semibold,
-                  color: colors.primary,
-                }}
-              >
-                {expanded
-                  ? 'Show less'
-                  : hiddenCount > 0
-                    ? `${hiddenCount} more`
-                    : 'More'}
+              <Text style={{ fontSize: 13, fontFamily: f.semibold, color: colors.primary }}>
+                {expanded ? 'Show less' : hiddenCount > 0 ? `${hiddenCount} more` : 'More'}
               </Text>
             </Pressable>
           ) : null}
@@ -1038,10 +772,7 @@ export function AgentNotes({
     setSaving(false);
     if (error) {
       haptic.warn();
-      show({
-        title: 'Could not add note',
-        message: friendlyError(error.message),
-      });
+      show({ title: 'Could not add note', message: friendlyError(error.message) });
       return;
     }
     haptic.success();
@@ -1062,37 +793,19 @@ export function AgentNotes({
         onFocus={onComposerFocus}
       />
       <View testID="contact-notes-submit">
-        <PrimaryButton
-          label="Add note"
-          busy={saving}
-          disabled={!text.trim()}
-          onPress={addNote}
-        />
+        <PrimaryButton label="Add note" busy={saving} disabled={!text.trim()} onPress={addNote} />
       </View>
       {(notes ?? []).map((n) => (
         <View
           key={n.id}
-          style={[
-            styles.noteCard,
-            { backgroundColor: colors.glass, borderColor: colors.glassBorder },
-          ]}
+          style={[styles.noteCard, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
         >
-          <Text style={{ fontSize: 13.5, lineHeight: 19, color: colors.text }}>
-            {n.note_text}
-          </Text>
-          <Text style={{ fontSize: 11, color: colors.textFaint }}>
-            {chatListTime(n.created_at)}
-          </Text>
+          <Text style={{ fontSize: 13.5, lineHeight: 19, color: colors.text }}>{n.note_text}</Text>
+          <Text style={{ fontSize: 11, color: colors.textFaint }}>{chatListTime(n.created_at)}</Text>
         </View>
       ))}
       {notes && notes.length === 0 ? (
-        <Text
-          style={{
-            fontSize: 12.5,
-            color: colors.textFaint,
-            textAlign: 'center',
-          }}
-        >
+        <Text style={{ fontSize: 12.5, color: colors.textFaint, textAlign: 'center' }}>
           No notes recorded yet
         </Text>
       ) : null}
@@ -1100,10 +813,7 @@ export function AgentNotes({
   );
 }
 
-const EVENT_ICONS: Record<
-  string,
-  React.ComponentProps<typeof Ionicons>['name']
-> = {
+const EVENT_ICONS: Record<string, React.ComponentProps<typeof Ionicons>['name']> = {
   site_visit: 'location-outline',
   meeting: 'people-outline',
   call: 'call-outline',
@@ -1136,13 +846,9 @@ export function AgentSchedule({ contact }: { contact: Contact }) {
 
   const now = Date.now();
   const upcoming = (rows ?? [])
-    .filter(
-      (r) => r.status === 'scheduled' && new Date(r.start_time).getTime() >= now
-    )
+    .filter((r) => r.status === 'scheduled' && new Date(r.start_time).getTime() >= now)
     .sort((a, b) => a.start_time.localeCompare(b.start_time));
-  const history = (rows ?? [])
-    .filter((r) => !upcoming.includes(r))
-    .slice(0, 10);
+  const history = (rows ?? []).filter((r) => !upcoming.includes(r)).slice(0, 10);
 
   function statusColor(status: Appointment['status']) {
     if (status === 'completed') return colors.success;
@@ -1153,13 +859,8 @@ export function AgentSchedule({ contact }: { contact: Contact }) {
   function renderRow(appt: Appointment) {
     const when = new Date(appt.start_time);
     return (
-      <View
-        key={appt.id}
-        style={[styles.apptRow, { borderTopColor: colors.border }]}
-      >
-        <View
-          style={[styles.apptIcon, { backgroundColor: colors.surfaceSunken }]}
-        >
+      <View key={appt.id} style={[styles.apptRow, { borderTopColor: colors.border }]}>
+        <View style={[styles.apptIcon, { backgroundColor: colors.surfaceSunken }]}>
           <Ionicons
             name={EVENT_ICONS[appt.event_type ?? 'other'] ?? EVENT_ICONS.other}
             size={16}
@@ -1169,32 +870,16 @@ export function AgentSchedule({ contact }: { contact: Contact }) {
         <View style={{ flex: 1, gap: 2 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
             <Text
-              style={{
-                fontSize: 13.5,
-                fontFamily: f.bold,
-                color: colors.text,
-                flexShrink: 1,
-              }}
+              style={{ fontSize: 13.5, fontFamily: f.bold, color: colors.text, flexShrink: 1 }}
               numberOfLines={1}
             >
               {appt.title || 'Appointment'}
             </Text>
             <Tag label={appt.status} color={statusColor(appt.status)} />
           </View>
-          <Text
-            style={{ fontSize: 12, color: colors.textMuted }}
-            numberOfLines={1}
-          >
-            {when.toLocaleDateString([], {
-              weekday: 'short',
-              day: 'numeric',
-              month: 'short',
-            })}{' '}
-            ·{' '}
-            {when.toLocaleTimeString([], {
-              hour: '2-digit',
-              minute: '2-digit',
-            })}
+          <Text style={{ fontSize: 12, color: colors.textMuted }} numberOfLines={1}>
+            {when.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' })} ·{' '}
+            {when.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             {appt.location ? `  ·  ${appt.location}` : ''}
           </Text>
         </View>
@@ -1204,13 +889,7 @@ export function AgentSchedule({ contact }: { contact: Contact }) {
 
   return (
     <View style={{ gap: spacing.sm }}>
-      <View
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}
-      >
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <SectionLabel text="Schedule" />
         <Pressable
           onPress={() =>
@@ -1220,19 +899,10 @@ export function AgentSchedule({ contact }: { contact: Contact }) {
           }
           accessibilityRole="button"
           accessibilityLabel={`Schedule with ${contact.name || contactHandle(contact)}`}
-          style={[
-            styles.scheduleButton,
-            { backgroundColor: colors.primarySoft },
-          ]}
+          style={[styles.scheduleButton, { backgroundColor: colors.primarySoft }]}
         >
           <Ionicons name="add" size={15} color={colors.primary} />
-          <Text
-            style={{
-              fontSize: 12.5,
-              fontFamily: f.bold,
-              color: colors.primary,
-            }}
-          >
+          <Text style={{ fontSize: 12.5, fontFamily: f.bold, color: colors.primary }}>
             Schedule
           </Text>
         </Pressable>
@@ -1242,12 +912,7 @@ export function AgentSchedule({ contact }: { contact: Contact }) {
           No appointments with this contact yet.
         </Text>
       ) : (
-        <View
-          style={[
-            styles.card,
-            { backgroundColor: colors.glass, borderColor: colors.glassBorder },
-          ]}
-        >
+        <View style={[styles.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
           {upcoming.map(renderRow)}
           {history.map(renderRow)}
         </View>
@@ -1266,10 +931,7 @@ export function AgentRequirements({ agent }: { agent: Contact }) {
     setSaving(true);
     const { data: saved, error } = await supabase
       .from('contacts')
-      .update({
-        requirements: text.trim() || null,
-        updated_at: new Date().toISOString(),
-      })
+      .update({ requirements: text.trim() || null, updated_at: new Date().toISOString() })
       .eq('id', agent.id)
       .select('id');
     setSaving(false);
@@ -1351,34 +1013,15 @@ export function AgentDetail({ agent }: { agent: Contact }) {
       <View style={styles.header}>
         <Avatar name={agent.name || contactHandle(agent)} size={64} />
         <View style={{ flex: 1, gap: 4 }}>
-          <View
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: 6,
-              flexWrap: 'wrap',
-            }}
-          >
-            <Text
-              style={{
-                fontSize: 20,
-                fontFamily: f.extrabold,
-                color: colors.text,
-                letterSpacing: -0.3,
-              }}
-            >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            <Text style={{ fontSize: 20, fontFamily: f.extrabold, color: colors.text, letterSpacing: -0.3 }}>
               {name}
             </Text>
             {agent.name_tag ? <Tag label={agent.name_tag} /> : null}
             <Tag label="Agent" color={colors.readTick} />
           </View>
-          <Text
-            style={{ fontSize: 13, color: colors.textMuted }}
-            numberOfLines={1}
-          >
-            {[agent.company, agent.phone, agent.email]
-              .filter(Boolean)
-              .join(' · ')}
+          <Text style={{ fontSize: 13, color: colors.textMuted }} numberOfLines={1}>
+            {[agent.company, agent.phone, agent.email].filter(Boolean).join(' · ')}
           </Text>
         </View>
       </View>
@@ -1390,22 +1033,10 @@ export function AgentDetail({ agent }: { agent: Contact }) {
             onPress={a.onPress}
             accessibilityRole="button"
             accessibilityLabel={a.label}
-            style={[
-              styles.actionButton,
-              {
-                backgroundColor: colors.glass,
-                borderColor: colors.glassBorder,
-              },
-            ]}
+            style={[styles.actionButton, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
           >
             <Ionicons name={a.icon} size={19} color={colors.primary} />
-            <Text
-              style={{
-                fontSize: 12.5,
-                fontFamily: f.semibold,
-                color: colors.text,
-              }}
-            >
+            <Text style={{ fontSize: 12.5, fontFamily: f.semibold, color: colors.text }}>
               {a.label}
             </Text>
           </Pressable>
