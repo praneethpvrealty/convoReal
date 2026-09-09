@@ -196,6 +196,63 @@ function toNumberOrNull(val: unknown): number | null {
   return null;
 }
 
+const RATE_AMOUNT = String.raw`(?:₹\s*)?(\d[\d,]*(?:\.\d+)?)\s*(crores?|cr|lakhs?|lacs?|l|thousand|k)?`;
+const PER_SQFT = String.raw`(?:per\s*(?:sq(?:uare)?\s*\.?\s*(?:ft|feet)|sqft)|\/\s*(?:sq\s*\.?\s*ft|sqft)|psf)`;
+const RATE_RANGE_PATTERN = new RegExp(
+  String.raw`${RATE_AMOUNT}\s*(?:-|–|—|to)\s*${RATE_AMOUNT}\s*${PER_SQFT}`,
+  'i'
+);
+const SINGLE_RATE_PATTERN = new RegExp(
+  String.raw`${RATE_AMOUNT}\s*${PER_SQFT}`,
+  'i'
+);
+
+function rateAmount(value: string, unit: string | undefined): number | null {
+  const amount = Number(value.replace(/,/g, ''));
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+  const normalizedUnit = unit?.toLowerCase();
+  if (normalizedUnit === 'cr' || normalizedUnit?.startsWith('crore'))
+    return amount * 10_000_000;
+  if (
+    normalizedUnit === 'l' ||
+    normalizedUnit?.startsWith('lac') ||
+    normalizedUnit?.startsWith('lakh')
+  )
+    return amount * 100_000;
+  if (normalizedUnit === 'k' || normalizedUnit === 'thousand')
+    return amount * 1_000;
+  return amount;
+}
+
+export function budgetFromPerSqftRequirement(
+  text: string,
+  areaMinSqft: number | null,
+  areaMaxSqft: number | null
+): { recognized: boolean; min: number | null; max: number | null } {
+  const range = RATE_RANGE_PATTERN.exec(text);
+  const single = range ? null : SINGLE_RATE_PATTERN.exec(text);
+  const match = range ?? single;
+  if (!match) return { recognized: false, min: null, max: null };
+
+  const first = rateAmount(match[1], match[2]);
+  const second = range ? rateAmount(match[3], match[4]) : first;
+  if (first == null || second == null)
+    return { recognized: true, min: null, max: null };
+
+  const rateMin = Math.min(first, second);
+  const rateMax = Math.max(first, second);
+  const validAreaMin =
+    areaMinSqft != null && areaMinSqft > 0 ? areaMinSqft : null;
+  const validAreaMax =
+    areaMaxSqft != null && areaMaxSqft > 0 ? areaMaxSqft : null;
+
+  return {
+    recognized: true,
+    min: validAreaMin == null ? null : Math.round(rateMin * validAreaMin),
+    max: validAreaMax == null ? null : Math.round(rateMax * validAreaMax),
+  };
+}
+
 /**
  * Extracts structured real estate preferences from a contact's free-text
  * requirements and notes. Throws on API/parse failure — callers decide
@@ -230,6 +287,7 @@ export async function extractContactPreferences(
     "1. Convert Indian number formats: 'Crore'/'Cr' = 10000000, 'Lakh'/'L' = 100000, 'k' = 1000. '1.2cr' -> 12000000, '80L' -> 8000000, '₹90 lakh' -> 9000000.\n" +
     "2. A single budget figure with no qualifier (e.g. 'budget 1 Cr') means budget_max, leave budget_min null. '±'/'around'/'approx' also maps to budget_max.\n" +
     "2b. A bare number with NO unit means different things for rent and for purchase, and you must use the surrounding context to decide. For a RENTAL (monthly rent, 'rent', 'lease', 'to let'): a bare figure under 1000 is thousands per month — 'Budget 35 to 40' -> budget_min 35000, budget_max 40000; 'rent 18000' is already rupees -> 18000. For a PURCHASE: a bare figure up to 60 means crores — '1-2' -> 10000000 to 20000000, '60' -> 600000000; a bare figure between 61 and 999 means lakh — 'budget 80' -> 8000000. Use ONE unit for the whole range, chosen from the larger figure: '55 to 65' is 5500000 to 6500000, never 55 crore to 65 lakh. Never read a bare number as literal rupees when it is plainly a budget: nobody is buying a house for 35 rupees.\n" +
+    "2c. A price stated per square foot is a RATE, never the total budget. When both rate and area are stated, derive total budget_min as minimum rate × minimum area and budget_max as maximum rate × maximum area. Example: '3000 to 4000 sqft at 40k to 45k per sqft' -> budget_min 120000000 and budget_max 180000000. If the area is missing, leave both budget fields null.\n" +
     "3. 'X BHK' means bhk_min = bhk_max = X unless a range is given.\n" +
     "3b. Plot sizes: 'AxB' or 'A by B' site dimensions multiply to square feet ('30x40' -> 1200, '50x80' -> 4000). Convert units: 1 acre = 43560 sqft, 1 gunta = 1089 sqft, 1 cent = 435.6 sqft, 1 sq yard = 9 sqft. A single stated size ('30x40 site', '1200 sqft') means land_area_min_sqft = land_area_max_sqft = that size. Relative words with no figure ('smaller', 'lesser dimensions', 'bigger plot') stay null — do NOT invent a number.\n" +
     '4. Only extract what the CONTACT wants. Ignore details about properties they already own or sold, meeting logistics, or agent chatter.\n' +
@@ -262,15 +320,23 @@ export async function extractContactPreferences(
       (LISTING_TYPE_VALUES as readonly string[]).includes(t)
   );
 
+  const areaMin = toNumberOrNull(parsed.land_area_min_sqft);
+  const areaMax = toNumberOrNull(parsed.land_area_max_sqft);
+  const derivedBudget = budgetFromPerSqftRequirement(text, areaMin, areaMax);
+
   return {
     property_types: [...new Set(propertyTypes)],
     property_categories: [...new Set(categories)],
     bhk_min: toNumberOrNull(parsed.bhk_min),
     bhk_max: toNumberOrNull(parsed.bhk_max),
-    budget_min: toNumberOrNull(parsed.budget_min),
-    budget_max: toNumberOrNull(parsed.budget_max),
-    land_area_min_sqft: toNumberOrNull(parsed.land_area_min_sqft),
-    land_area_max_sqft: toNumberOrNull(parsed.land_area_max_sqft),
+    budget_min: derivedBudget.recognized
+      ? derivedBudget.min
+      : toNumberOrNull(parsed.budget_min),
+    budget_max: derivedBudget.recognized
+      ? derivedBudget.max
+      : toNumberOrNull(parsed.budget_max),
+    land_area_min_sqft: areaMin,
+    land_area_max_sqft: areaMax,
     areas: toStringArray(parsed.areas),
     excluded_areas: toStringArray(parsed.excluded_areas),
     projects: [...new Set(toStringArray(parsed.projects))],
@@ -293,7 +359,7 @@ export function preferenceSourceHash(sourceText: string): string {
   for (let i = 0; i < sourceText.length; i++) {
     hash = ((hash << 5) + hash + sourceText.charCodeAt(i)) | 0;
   }
-  return `v1:${(hash >>> 0).toString(36)}:${sourceText.length}`;
+  return `v2:${(hash >>> 0).toString(36)}:${sourceText.length}`;
 }
 
 /**

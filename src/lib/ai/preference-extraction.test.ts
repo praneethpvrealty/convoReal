@@ -1,9 +1,51 @@
 import { describe, expect, it } from 'vitest';
 import {
+  budgetFromPerSqftRequirement,
   listingTypesFromCurrentTurn,
   mergedListingTypes,
+  preferenceSourceHash,
   sanitizeListingTypes,
 } from './preference-extraction';
+
+describe('budgetFromPerSqftRequirement', () => {
+  it('derives a total budget band from the rate and area ranges', () => {
+    expect(
+      budgetFromPerSqftRequirement(
+        '3000sqft to 4000sqft within price range of 40k to 45k per sqft',
+        3000,
+        4000
+      )
+    ).toEqual({ recognized: true, min: 120_000_000, max: 180_000_000 });
+  });
+
+  it('supports formatted rupee rates and slash notation', () => {
+    expect(
+      budgetFromPerSqftRequirement(
+        'Need 2,000 to 2,500 sqft at ₹40,000–₹45,000/sq.ft',
+        2000,
+        2500
+      )
+    ).toEqual({ recognized: true, min: 80_000_000, max: 112_500_000 });
+  });
+
+  it('does not store a per-sqft rate as a total when area is unavailable', () => {
+    expect(
+      budgetFromPerSqftRequirement('Budget is 40k to 45k psf', null, null)
+    ).toEqual({ recognized: true, min: null, max: null });
+  });
+
+  it('leaves ordinary total budgets unchanged', () => {
+    expect(
+      budgetFromPerSqftRequirement('Budget is ₹12 Cr to ₹18 Cr', 3000, 4000)
+    ).toEqual({ recognized: false, min: null, max: null });
+  });
+});
+
+describe('preferenceSourceHash', () => {
+  it('invalidates earlier extraction results after the rate fix', () => {
+    expect(preferenceSourceHash('same requirement')).toMatch(/^v2:/);
+  });
+});
 
 describe('listingTypesFromCurrentTurn', () => {
   it('lets the buyer replace a rental enquiry with a purchase requirement', () => {
