@@ -125,7 +125,23 @@ vi.mock('@/components/inventory/property-map-view', () => ({
 }));
 
 vi.mock('@/components/inventory/portal-post-dialog', () => ({
-  PortalPostDialog: () => null,
+  PortalPostDialog: ({
+    open,
+    property,
+    onOpenChange,
+  }: {
+    open: boolean;
+    property: { id: string; title: string } | null;
+    onOpenChange: (open: boolean) => void;
+  }) =>
+    open && property ? (
+      <div data-testid="portal-post-dialog">
+        {property.id}:{property.title}
+        <button type="button" onClick={() => onOpenChange(false)}>
+          Close portals
+        </button>
+      </div>
+    ) : null,
 }));
 
 vi.mock('@/components/inventory/portal-sync-dialog', () => ({
@@ -244,6 +260,7 @@ beforeEach(() => {
   searchParams.delete('page');
   searchParams.delete('propertyId');
   searchParams.delete('sharePropertyId');
+  searchParams.delete('portalPropertyId');
   searchParams.delete('copilotAction');
   window.history.replaceState(null, '', '/inventory');
   localStorage.clear();
@@ -340,6 +357,32 @@ describe('Copilot property share handoff', () => {
     ).toContain('property-1:Maple Villa');
 
     fireEvent.click(screen.getByRole('button', { name: 'Close share' }));
+
+    expect(replaceState).toHaveBeenLastCalledWith(null, '', '/inventory');
+    expect(window.location.search).toBe('');
+  });
+});
+
+describe('portal expiry reminder handoff', () => {
+  it('opens the tracked property portal dialog and consumes the URL on close', async () => {
+    searchParams.set('portalPropertyId', 'property-1');
+    window.history.replaceState(
+      null,
+      '',
+      '/inventory?portalPropertyId=property-1'
+    );
+    const replaceState = vi.spyOn(window.history, 'replaceState');
+    const fetchMock = vi.fn();
+    mockPropertiesFetch(fetchMock);
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderInventory();
+
+    expect(
+      (await screen.findByTestId('portal-post-dialog')).textContent
+    ).toContain('property-1:Maple Villa');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close portals' }));
 
     expect(replaceState).toHaveBeenLastCalledWith(null, '', '/inventory');
     expect(window.location.search).toBe('');

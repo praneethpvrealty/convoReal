@@ -44,7 +44,8 @@ export type NotificationType =
   | 'teammate_update'
   | 'location_request'
   | 'subscription_extended'
-  | 'listing_interest';
+  | 'listing_interest'
+  | 'portal_listing_expiry';
 
 export interface NotificationChannels {
   inApp?: boolean;

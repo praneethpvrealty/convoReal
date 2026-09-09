@@ -25,6 +25,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { FlyerSheet } from '@/components/flyer-sheet';
 import { ListingAudienceSheet } from '@/components/listing-audience-sheet';
+import { PortalExpirySheet } from '@/components/portal-expiry-sheet';
 import { ConvoRealLoader } from '@/components/loader';
 import { PropertyShareSheet } from '@/components/property-share-sheet';
 import { FilterChip, SectionLabel, Tag, nameTagCap } from '@/components/ui';
@@ -1149,15 +1150,18 @@ export default function PropertyDetailScreen() {
 }
 
 /**
- * Web-parity quick actions. Post Ad stays web-only (the Chrome portal
- * extension); the flyer creator renders server-side via
- * POST /api/properties/[id]/flyer, so it works here too.
+ * Web-parity quick actions. Portal posting stays web-only (the Chrome
+ * extension), while expiry dates can be maintained here. The flyer creator
+ * renders server-side via POST /api/properties/[id]/flyer, so it works here too.
  */
 function ActionRail({ property }: { property: Property }) {
   const { colors, fonts: f } = useTheme();
-  const [busy, setBusy] = useState<'archive' | 'delete' | 'duplicate' | null>(null);
+  const [busy, setBusy] = useState<'archive' | 'delete' | 'duplicate' | null>(
+    null
+  );
   const [sharing, setSharing] = useState(false);
   const [flyerOpen, setFlyerOpen] = useState(false);
+  const [portalExpiryOpen, setPortalExpiryOpen] = useState(false);
   const archived = property.status === 'Archived';
   const { show, close, dialogProps } = useAppDialog();
 
@@ -1319,6 +1323,15 @@ function ActionRail({ property }: { property: Property }) {
       },
     },
     {
+      key: 'portals',
+      icon: 'time-outline' as const,
+      label: 'Portal dates',
+      onPress: () => {
+        haptic.tap();
+        setPortalExpiryOpen(true);
+      },
+    },
+    {
       key: 'archive',
       icon: 'file-tray-outline' as const,
       label: archived ? 'Unarchive' : 'Archive',
@@ -1344,6 +1357,11 @@ function ActionRail({ property }: { property: Property }) {
         property={property}
         visible={flyerOpen}
         onClose={() => setFlyerOpen(false)}
+      />
+      <PortalExpirySheet
+        propertyId={property.id}
+        visible={portalExpiryOpen}
+        onClose={() => setPortalExpiryOpen(false)}
       />
       {actions.map((a) => {
         const isBusy = busy === a.key;
