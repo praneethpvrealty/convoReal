@@ -11,6 +11,7 @@ import { radius, spacing, useTheme } from '@/lib/theme';
 import type { Contact } from '@/lib/types';
 import { useDebounced } from '@/lib/use-debounced';
 import { contactHandle } from '@/lib/reachability';
+import { rankContactSearchResults } from '@/lib/contact-search-rank';
 
 /**
  * Pick Engine contacts by name or phone — the same debounced `contacts`
@@ -104,13 +105,26 @@ export function ContactPickerSheet({
         digits.length >= 4
           ? `name.ilike.${term},name_tag.ilike.${term},phone.ilike.${term},phone.ilike.%${digits}%`
           : `name.ilike.${term},name_tag.ilike.${term},phone.ilike.${term}`;
-      const { data: rows } = await supabase
-        .from('contacts')
-        .select('id, name, name_tag, phone')
-        .eq('is_merged', false)
-        .or(or)
-        .limit(8);
-      const contacts = (rows ?? []) as Contact[];
+      const columns = 'id, name, name_tag, phone';
+      const [exactResult, broadResult] = await Promise.all([
+        supabase
+          .from('contacts')
+          .select(columns)
+          .eq('is_merged', false)
+          .ilike('name', debounced)
+          .limit(8),
+        supabase
+          .from('contacts')
+          .select(columns)
+          .eq('is_merged', false)
+          .or(or)
+          .limit(50),
+      ]);
+      const contacts = rankContactSearchResults(
+        [...(exactResult.data ?? []), ...(broadResult.data ?? [])] as Contact[],
+        debounced,
+        8,
+      );
 
       // Tag chips for the handful of rows on screen — the same
       // decoration the Contacts tab batches, so a picker row identifies

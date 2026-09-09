@@ -73,6 +73,7 @@ import {
 } from '@/lib/share-message-builder';
 import { MessageCircle, Mail, RotateCcw, User, Handshake, Megaphone, Image as ImageIcon } from 'lucide-react';
 import { hasPhone } from '@/lib/contacts/reachability';
+import { rankContactSearchResults } from '@/lib/contacts/contact-search-rank';
 
 /** A live grant as the list endpoint returns it, with the recipient
  *  joined when the grant was minted for a named contact. */
@@ -592,8 +593,11 @@ export function PropertyShareDialog({
         (audienceTab !== 'agent' || contact.classification === 'Agent')
     );
     if (!q) return reachable;
-    return reachable.filter(
-      (c) => (c.name || '').toLowerCase().includes(q) || (c.phone || '').includes(q),
+    return rankContactSearchResults(
+      reachable.filter(
+        (c) => (c.name || '').toLowerCase().includes(q) || (c.phone || '').includes(q),
+      ),
+      q,
     );
   }, [contacts, personalSearch, audienceTab]);
 

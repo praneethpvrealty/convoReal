@@ -45,6 +45,7 @@ import { fetchShowcaseSubdomain } from '@/lib/showcase-settings';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import type { Contact, Property } from '@/lib/types';
 import { contactHandle } from '@/lib/reachability';
+import { rankContactSearchResults } from '@/lib/contact-search-rank';
 
 const TONES: { value: ShareTone; label: string }[] = [
   { value: 'professional', label: '💼 Professional' },
@@ -475,15 +476,30 @@ export function PropertyShareSheet({
       digits.length >= 4
         ? `name.ilike.${term},name_tag.ilike.${term},phone.ilike.%${digits}%`
         : `name.ilike.${term},name_tag.ilike.${term}`;
-    const { data, error } = await supabase
-      .from('contacts')
-      .select('id, name, name_tag, phone, classification')
-      .eq('classification', 'Agent')
-      .eq('is_merged', false)
-      .or(or)
-      .limit(8);
-    if (error) throw error;
-    return (data ?? []) as Contact[];
+    const columns = 'id, name, name_tag, phone, classification';
+    const [exactResult, broadResult] = await Promise.all([
+      supabase
+        .from('contacts')
+        .select(columns)
+        .eq('classification', 'Agent')
+        .eq('is_merged', false)
+        .ilike('name', query)
+        .limit(8),
+      supabase
+        .from('contacts')
+        .select(columns)
+        .eq('classification', 'Agent')
+        .eq('is_merged', false)
+        .or(or)
+        .limit(50),
+    ]);
+    if (exactResult.error) throw exactResult.error;
+    if (broadResult.error) throw broadResult.error;
+    return rankContactSearchResults(
+      [...(exactResult.data ?? []), ...(broadResult.data ?? [])] as Contact[],
+      query,
+      8,
+    );
   }
 
   // One list for both props: a single preselected contact is just a
