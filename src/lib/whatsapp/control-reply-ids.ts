@@ -31,6 +31,7 @@ import { UPDATE_CHANNEL_REPLY_PREFIX } from '@/lib/voice/announcements';
 import {
   FOLLOWUP_CHECKIN_PREFIX,
   FOLLOWUP_COLD_PREFIX,
+  FOLLOWUP_CONSIDERING_PREFIX,
   FOLLOWUP_SNOOZE_PREFIX,
 } from '@/lib/contacts/follow-up-nudges';
 import { POST_CALL_OPEN_PREFIX } from '@/lib/outreach/dispatcher';
@@ -59,6 +60,7 @@ export const CONTROL_REPLY_PREFIXES = [
   // The follow-up radar card goes to the same recipient as the enquiry
   // card, so its taps face the same interception hazard.
   FOLLOWUP_CHECKIN_PREFIX,
+  FOLLOWUP_CONSIDERING_PREFIX,
   FOLLOWUP_SNOOZE_PREFIX,
   FOLLOWUP_COLD_PREFIX,
   // The post-call opener's quick reply — the tap that opens the
