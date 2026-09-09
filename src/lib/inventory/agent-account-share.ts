@@ -96,7 +96,7 @@ export async function shareInventoryWithAgent(
 
   const target = await lookupAgentShareTarget(ctx, contactId);
   const recipientName = target.contact.name || 'This agent';
-  if (!target.recipient || ids.length === 0) {
+  if (ids.length === 0) {
     return {
       registered: Boolean(target.recipient),
       recipientName,
@@ -115,6 +115,34 @@ export async function shareInventoryWithAgent(
   const sources = (sourceRows ?? []) as unknown as Record<string, unknown>[];
   if (sources.length !== ids.length) {
     throw new UserFacingError('One or more selected properties were not found');
+  }
+
+  const { error: shareLogError } = await ctx.supabase
+    .from('property_shares')
+    .upsert(
+      ids.map((propertyId) => ({
+        account_id: ctx.accountId,
+        property_id: propertyId,
+        contact_id: target.contact.id,
+        recipient_kind: 'agent',
+        channel: 'whatsapp',
+        created_by: ctx.userId,
+      })),
+      {
+        onConflict: 'account_id,property_id,contact_id',
+        ignoreDuplicates: true,
+      }
+    );
+  if (shareLogError) throw shareLogError;
+
+  if (!target.recipient) {
+    return {
+      registered: false,
+      recipientName,
+      sharedCount: 0,
+      alreadySharedCount: 0,
+      pending: [],
+    };
   }
 
   const { data: existingRows, error: existingError } = await target.admin

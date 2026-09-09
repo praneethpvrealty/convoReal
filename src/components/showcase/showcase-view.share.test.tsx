@@ -69,13 +69,15 @@ const settings = {
   id: 's1',
   account_id: 'acct-1',
   is_active: true,
+  contact_phone: '+919900277111',
 } as unknown as ShowcaseSettings;
 
 function renderAt(
   search: string,
   grantToken?: string,
   agentMode = false,
-  visitorRef?: string
+  visitorRef?: string,
+  onboardOffer = false
 ) {
   window.history.replaceState({}, '', `/${search}`);
   const writeText = vi.fn<(text: string) => Promise<void>>();
@@ -91,6 +93,7 @@ function renderAt(
       initialPropertyId={property.id}
       shareGrantToken={grantToken}
       initialAgentMode={agentMode}
+      initialOnboardOffer={onboardOffer}
       visitorRef={visitorRef}
       disableSavedState
     />
@@ -151,6 +154,15 @@ describe('showcase detail — share control', () => {
     renderAt('', undefined, true);
 
     expect(screen.queryByText(/get my share link/i)).toBeNull();
+  });
+
+  it('shows the invite request only when the sender offered inventory onboarding', () => {
+    renderAt('', undefined, true, 'contact-7', true);
+
+    expect(
+      screen.getByRole('button', { name: /request convoreal invite/i })
+    ).toBeTruthy();
+    expect(screen.getByText(/pending review inventory/i)).toBeTruthy();
   });
 
   it('never forwards the share grant that unmasked this visit', () => {

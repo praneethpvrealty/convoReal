@@ -47,6 +47,21 @@ describe('propertyShareUrl', () => {
     );
   });
 
+  it('carries the optional inventory onboarding offer for a co-broker', () => {
+    expect(
+      propertyShareUrl({
+        siteUrl: SITE,
+        subdomain: 'aryavartaventures',
+        accountId: ACCOUNT,
+        property,
+        audience: 'agent',
+        offerInventoryOnboarding: true,
+      })
+    ).toBe(
+      'https://aryavartaventures.convoreal.com/?property_id=PROP-1151&mode=view&onboard=1'
+    );
+  });
+
   it('falls back to the id for a listing with no code', () => {
     expect(
       propertyShareUrl({
