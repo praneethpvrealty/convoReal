@@ -31,6 +31,7 @@ describe('parseEventOutcome', () => {
       'Called him, he was busy',
       'Spoke to advocate',
       'Talked with client',
+      'You can close it. Advocate suggested informing the buyer about the facts.',
     ]) {
       expect(parseEventOutcome(text)?.status, text).toBe('completed');
     }
@@ -96,7 +97,9 @@ describe('parseEventOutcome — a bare "done"', () => {
     // "Can you get this done by 4" is asking for the meeting, not
     // closing it.
     expect(parseEventOutcome('Can you get this done by 4')).toBeNull();
-    expect(parseEventOutcome('Need the paperwork done before we meet')).toBeNull();
+    expect(
+      parseEventOutcome('Need the paperwork done before we meet')
+    ).toBeNull();
   });
 });
 
@@ -115,14 +118,30 @@ describe('parseEventOutcome — replies seen in production', () => {
     );
   });
 
+  it('closes the event instead of treating its outcome note as a client reply', () => {
+    const text =
+      'You can close it. Advocate suggested informing the buyer about the facts and, if required, asking for paper publication and indemnity of about 25% of the property value.';
+
+    expect(parseEventOutcome(text)).toEqual({
+      status: 'completed',
+      outcome: text,
+    });
+  });
+
   it('does not read "yesterday" as a reschedule', () => {
     // Only forward-looking words move an event. A visit that happened
     // yesterday is a report, not a request to move anything.
-    expect(parseEventOutcome('Met him yesterday, going well')?.status).toBe('completed');
-    expect(parseEventOutcome('Visited the site yesterday')?.status).toBe('completed');
+    expect(parseEventOutcome('Met him yesterday, going well')?.status).toBe(
+      'completed'
+    );
+    expect(parseEventOutcome('Visited the site yesterday')?.status).toBe(
+      'completed'
+    );
   });
 
   it('still yields to a reschedule that names a new time', () => {
-    expect(parseEventOutcome('Visited the site, but push it to tomorrow 4pm')).toBeNull();
+    expect(
+      parseEventOutcome('Visited the site, but push it to tomorrow 4pm')
+    ).toBeNull();
   });
 });

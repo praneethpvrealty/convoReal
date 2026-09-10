@@ -7,13 +7,21 @@ const updates: { table: string; patch: Record<string, unknown> }[] = [];
 let rowByTable: Record<string, Record<string, unknown> | null> = {};
 
 vi.mock('@/lib/calendar/event-parse', async () => {
-  const actual = await vi.importActual<typeof import('./event-parse')>('./event-parse');
-  return { ...actual, parseEventUpdate: (...a: unknown[]) => parseEventUpdate(...a) };
+  const actual =
+    await vi.importActual<typeof import('./event-parse')>('./event-parse');
+  return {
+    ...actual,
+    parseEventUpdate: (...a: unknown[]) => parseEventUpdate(...a),
+  };
 });
 
-vi.mock('@/lib/credits/burn', () => ({ burnCredits: (...a: unknown[]) => burnCredits(...a) }));
+vi.mock('@/lib/credits/burn', () => ({
+  burnCredits: (...a: unknown[]) => burnCredits(...a),
+}));
 
-vi.mock('@/lib/whatsapp/bot-message-target', () => ({ recordBotTarget: vi.fn(async () => {}) }));
+vi.mock('@/lib/whatsapp/bot-message-target', () => ({
+  recordBotTarget: vi.fn(async () => {}),
+}));
 
 vi.mock('@/lib/whatsapp/meta-api', () => ({
   sendTextMessage: (...a: unknown[]) => sendTextMessage(...a),
@@ -21,7 +29,9 @@ vi.mock('@/lib/whatsapp/meta-api', () => ({
   downloadMedia: vi.fn(),
 }));
 
-vi.mock('@/lib/notifications/create', () => ({ createNotification: vi.fn(async () => {}) }));
+vi.mock('@/lib/notifications/create', () => ({
+  createNotification: vi.fn(async () => {}),
+}));
 
 vi.mock('@/lib/automations/admin-client', () => ({
   supabaseAdmin: () => ({
@@ -37,7 +47,10 @@ vi.mock('@/lib/automations/admin-client', () => ({
           return builder;
         },
         eq: () => builder,
-        maybeSingle: async () => ({ data: rowByTable[table] ?? null, error: null }),
+        maybeSingle: async () => ({
+          data: rowByTable[table] ?? null,
+          error: null,
+        }),
         then: (resolve: (v: { data: unknown; error: null }) => unknown) =>
           resolve({ data: pendingPatch ? null : [], error: null }),
       });
@@ -121,6 +134,25 @@ describe('applySchedulingEdit', () => {
     expect(sent).not.toContain('Added to your calendar');
   });
 
+  it('closes an overdue event when the agent says to close it', async () => {
+    const instruction =
+      'You can close it. Advocate suggested informing the buyer about the facts and, if required, asking for paper publication and indemnity of about 25% of the property value.';
+    rowByTable.appointments = appointment({
+      start_time: '2026-07-20T11:30:00.000Z',
+      end_time: '2026-07-20T12:30:00.000Z',
+    });
+
+    expect(await applySchedulingEdit({ ...params, instruction })).toBe(
+      'edited'
+    );
+    expect(updates.find((u) => u.table === 'appointments')?.patch).toEqual({
+      status: 'completed',
+      outcome: instruction,
+    });
+    expect(parseEventUpdate).not.toHaveBeenCalled();
+    expect(burnCredits).not.toHaveBeenCalled();
+  });
+
   it('reports a finished event as stale rather than rewriting history', async () => {
     rowByTable.appointments = appointment({
       start_time: '2026-07-20T11:30:00.000Z',
@@ -150,7 +182,11 @@ describe('applySchedulingEdit', () => {
   });
 
   it('skips without touching the row when the reply is not a correction', async () => {
-    parseEventUpdate.mockResolvedValue({ intent: 'none', title: 'x', event_type: 'other' });
+    parseEventUpdate.mockResolvedValue({
+      intent: 'none',
+      title: 'x',
+      event_type: 'other',
+    });
     expect(await applySchedulingEdit(params)).toBe('skipped');
     expect(updates).toHaveLength(0);
   });
