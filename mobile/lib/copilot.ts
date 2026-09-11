@@ -59,6 +59,12 @@ export interface CopilotAnswer {
   coverage?: CopilotCoverage;
   webUrl?: string;
   action?: CopilotActionProposal;
+  links?: CopilotNavigationLink[];
+}
+
+export interface CopilotNavigationLink {
+  label: string;
+  navigateTo: string;
 }
 
 /**
@@ -112,6 +118,9 @@ export function appHrefForWebRoute(route: string | undefined): string | null {
     const params = new URLSearchParams(route.split('?')[1]);
     const sharePropertyId = params.get('sharePropertyId');
     if (sharePropertyId) {
+      if (params.get('shareAudience') === '1') {
+        return `/(app)/property/${encodeURIComponent(sharePropertyId)}?audience=1`;
+      }
       const actionId = params.get('copilotAction') ?? '1';
       return `/(app)/property/${encodeURIComponent(
         sharePropertyId
@@ -167,6 +176,20 @@ export async function askCopilot(args: {
       entities: args.entities ?? [],
     }),
   });
+}
+
+export async function transcribeCopilotAudio(audio: {
+  base64: string;
+  mimeType: string;
+}): Promise<string> {
+  const response = await apiFetch<{ data: { transcript: string } }>(
+    '/api/copilot/transcribe',
+    {
+      method: 'POST',
+      body: JSON.stringify({ audio }),
+    }
+  );
+  return response.data.transcript;
 }
 
 export async function searchCopilotEntities(

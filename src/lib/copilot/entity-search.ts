@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   entityHref,
   entityKindForSymbol,
+  propertyCodeFromMessage,
   sanitizeEntitySearchQuery,
   type EntityKind,
   type EntityReference,
@@ -357,4 +358,38 @@ export async function authorizeEntityReferences(
     const canonical = authorized.get(`${entity.kind}:${entity.id}`);
     return canonical ? [canonical] : [];
   });
+}
+
+export async function resolveMessageEntityReferences(
+  ctx: SearchContext,
+  message: string,
+  requested: EntityReference[]
+): Promise<EntityReference[]> {
+  const authorized = await authorizeEntityReferences(ctx, requested);
+  if (authorized.some((entity) => entity.kind === 'property')) {
+    return authorized;
+  }
+
+  const propertyCode = propertyCodeFromMessage(message);
+  if (!propertyCode) return authorized;
+
+  const { data, error } = await ctx.supabase
+    .from('properties')
+    .select('id, title, property_code')
+    .eq('account_id', ctx.accountId)
+    .ilike('property_code', propertyCode)
+    .limit(2);
+  if (error) throw new Error(error.message);
+  if (data?.length !== 1) return authorized;
+
+  const property = data[0];
+  const title = (property.title as string | null)?.trim();
+  return [
+    ...authorized,
+    {
+      kind: 'property',
+      id: property.id as string,
+      label: title ? `${propertyCode} — ${title}` : propertyCode,
+    },
+  ];
 }

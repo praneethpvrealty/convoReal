@@ -385,7 +385,11 @@ export default function InventoryPage() {
       searchParams?.get('copilotAction') ||
       liveParams?.get('copilotAction') ||
       '';
-    const requestKey = `${mode}:${pid}:${actionId}`;
+    const audience =
+      searchParams?.get('shareAudience') ||
+      liveParams?.get('shareAudience') ||
+      '';
+    const requestKey = `${mode}:${pid}:${actionId}:${audience}`;
     if (autoOpenedKey === requestKey) return;
     setAutoOpenedKey(requestKey);
 
@@ -611,10 +615,13 @@ export default function InventoryPage() {
           : searchParams?.toString() || ''
       );
       const consumedCopilotHandoff =
-        params.has('sharePropertyId') || params.has('copilotAction');
+        params.has('sharePropertyId') ||
+        params.has('copilotAction') ||
+        params.has('shareAudience');
       if (consumedCopilotHandoff) {
         params.delete('sharePropertyId');
         params.delete('copilotAction');
+        params.delete('shareAudience');
         const queryString = params.toString();
         replaceUrl(router, `/inventory${queryString ? `?${queryString}` : ''}`);
       }
@@ -1574,6 +1581,7 @@ export default function InventoryPage() {
         open={shareOpen}
         onOpenChange={handleShareOpenChange}
         property={shareProperty}
+        openListingAudience={searchParams?.get('shareAudience') === '1'}
         onSaved={() => refreshInventory()}
         onPromote={META_ADS_ENABLED ? handlePromoteClick : undefined}
       />

@@ -38,6 +38,8 @@ const SYMBOL_BY_KIND: Record<EntityKind, EntitySymbol> = {
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+const PROPERTY_CODE_PATTERN = /\bprop[\s_-]*(\d{1,6})\b/gi;
+
 export function entityKindForSymbol(symbol: string): EntityKind | null {
   return ENTITY_SYMBOLS.includes(symbol as EntitySymbol)
     ? KIND_BY_SYMBOL[symbol as EntitySymbol]
@@ -62,6 +64,15 @@ export function sanitizeEntitySearchQuery(value: string): string {
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 80);
+}
+
+export function propertyCodeFromMessage(message: string): string | null {
+  const codes = new Set(
+    [...message.matchAll(PROPERTY_CODE_PATTERN)].map(
+      (match) => `PROP-${match[1]}`
+    )
+  );
+  return codes.size === 1 ? [...codes][0] : null;
 }
 
 export function readEntityReferences(raw: unknown): EntityReference[] {

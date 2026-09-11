@@ -44,10 +44,13 @@ describe('Copilot confirmed action integration', () => {
       expect(answer.reply).toContain('enquired');
       expect(answer.reply).toContain('preview');
       expect(answer.reply).toContain(
-        platform === 'mobile' ? 'matching contacts' : 'Engine'
+        platform === 'mobile' ? 'Matching Contacts' : 'Engine'
       );
       expect(answer.tourId).toBeUndefined();
       expect(answer.action).toBeUndefined();
+      expect(answer.links).toEqual([
+        { label: 'Open Inventory', navigateTo: '/inventory' },
+      ]);
       expect(answer.webUrl).toBeUndefined();
       expect(answer.coverage).toBe(platform === 'mobile' ? 'full' : undefined);
       expect(embedText).not.toHaveBeenCalled();
@@ -75,7 +78,47 @@ describe('Copilot confirmed action integration', () => {
     expect(answer.reply).toContain('Choose the existing listing');
     expect(answer.action).toBeUndefined();
     expect(answer.navigateTo).toBeUndefined();
+    expect(answer.links).toEqual([
+      { label: 'Open Inventory', navigateTo: '/inventory' },
+    ]);
     expect(generateJson).not.toHaveBeenCalled();
+  });
+
+  it('links a named property directly to audience sharing', async () => {
+    const answer = await answerQuestion({
+      audience: 'agent',
+      message: 'Find the right audience for PROP-1633 and share the details',
+      pathname: '/inventory',
+      history: [],
+      accountId: 'account-1',
+      platform: 'mobile',
+      entities: [{ ...property, label: 'PROP-1633 — JP Nagar Plot' }],
+      canExecuteActions: true,
+    });
+
+    expect(answer.links).toEqual([
+      {
+        label: 'Open PROP-1633 audience sharing',
+        navigateTo: `/inventory?sharePropertyId=${property.id}&shareAudience=1`,
+      },
+    ]);
+    expect(answer.coverage).toBe('full');
+    expect(generateJson).not.toHaveBeenCalled();
+  });
+
+  it('does not offer a sharing link to a view-only member', async () => {
+    const answer = await answerQuestion({
+      audience: 'agent',
+      message: 'Share PROP-1633 with a listing audience',
+      pathname: '/inventory',
+      history: [],
+      accountId: 'account-1',
+      canExecuteActions: false,
+      entities: [{ ...property, label: 'PROP-1633 — JP Nagar Plot' }],
+    });
+
+    expect(answer.reply).toContain('view-only access');
+    expect(answer.links).toBeUndefined();
   });
 
   it('creates a mobile confirmation without invoking the model', async () => {

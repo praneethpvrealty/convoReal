@@ -157,13 +157,18 @@ vi.mock('@/components/inventory/property-share-dialog', () => ({
     open,
     property,
     onOpenChange,
+    openListingAudience,
   }: {
     open: boolean;
     property: { id: string; title: string } | null;
     onOpenChange: (open: boolean) => void;
+    openListingAudience?: boolean;
   }) =>
     open && property ? (
-      <div data-testid="property-share-dialog">
+      <div
+        data-testid="property-share-dialog"
+        data-open-listing-audience={String(Boolean(openListingAudience))}
+      >
         {property.id}:{property.title}
         <button type="button" onClick={() => onOpenChange(false)}>
           Close share
@@ -262,6 +267,7 @@ beforeEach(() => {
   searchParams.delete('sharePropertyId');
   searchParams.delete('portalPropertyId');
   searchParams.delete('copilotAction');
+  searchParams.delete('shareAudience');
   window.history.replaceState(null, '', '/inventory');
   localStorage.clear();
 });
@@ -360,6 +366,29 @@ describe('Copilot property share handoff', () => {
 
     expect(replaceState).toHaveBeenLastCalledWith(null, '', '/inventory');
     expect(window.location.search).toBe('');
+  });
+
+  it('opens the exact listing-audience selector from a Helper link', async () => {
+    searchParams.set('sharePropertyId', 'property-1');
+    searchParams.set('shareAudience', '1');
+    window.history.replaceState(
+      null,
+      '',
+      '/inventory?sharePropertyId=property-1&shareAudience=1'
+    );
+    const replaceState = vi.spyOn(window.history, 'replaceState');
+    const fetchMock = vi.fn();
+    mockPropertiesFetch(fetchMock);
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderInventory();
+
+    const dialog = await screen.findByTestId('property-share-dialog');
+    expect(dialog.dataset.openListingAudience).toBe('true');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close share' }));
+
+    expect(replaceState).toHaveBeenLastCalledWith(null, '', '/inventory');
   });
 });
 
