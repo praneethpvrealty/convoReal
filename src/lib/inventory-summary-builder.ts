@@ -35,6 +35,7 @@ const TYPE_SHORT_LABELS: Record<string, string> = {
   'Commercial Shop': 'Shop',
   'Commercial Showroom': 'Showroom',
   'Commercial Building': 'Commercial Bldg',
+  'Commercial Plot': 'Commercial Plot',
   'Commercial Land': 'Commercial Land',
   'Warehouse/ Godown': 'Warehouse',
   'Agricultural Land': 'Agri Land',

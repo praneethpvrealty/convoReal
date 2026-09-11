@@ -112,6 +112,9 @@ describe('propertyTypeAcknowledgement', () => {
     expect(propertyTypeAcknowledgement('pt_plot')).toBe(
       "Got it — I've changed the property type to residential plot and kept the rest of your search unchanged."
     );
+    expect(propertyTypeAcknowledgement('pt_commplot')).toBe(
+      "Got it — I've changed the property type to commercial plot and kept the rest of your search unchanged."
+    );
     expect(propertyTypeAcknowledgement('pt_forged')).toBeNull();
   });
 });

@@ -319,6 +319,17 @@ describe('mobile/lib/property-options.ts mirrors the web option catalog', () => 
   });
 });
 
+describe('mobile property editor field parity', () => {
+  const source = mobileSource('app/(app)/property-edit.tsx');
+
+  it('round-trips road width and its unit for non-apartment properties', () => {
+    expect(source).toContain("'dimensions, road_width, road_width_unit, facing_direction");
+    expect(source).toContain('road_width: isApartment ? null : num(roadWidth)');
+    expect(source).toContain("road_width_unit: isApartment ? null : roadWidthUnit || 'Feet'");
+    expect(source).toContain('label="Road width"');
+  });
+});
+
 describe('mobile/lib/consent.ts mirrors the alerts-consent wording', () => {
   // Consent is a compliance state. Two surfaces describing the same
   // state in different words — or warning differently before undoing a

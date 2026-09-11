@@ -9,7 +9,7 @@ export const PROPERTY_TYPE_VALUES = [
   "Residential Plot", "Residential Land",
   "Residential Land/ Plot", "Penthouse", "Studio Apartment", "Residential PG building",
   "PG/ Hostel", "Commercial Office Space", "Office in IT Park/ SEZ", "Commercial Shop",
-  "Commercial Showroom", "Commercial Building", "Commercial Land", "Warehouse/ Godown",
+  "Commercial Showroom", "Commercial Building", "Commercial Plot", "Commercial Land", "Warehouse/ Godown",
   "Industrial Land", "Industrial Building", "Industrial Shed", "Agricultural Land",
   "Farm House", "Others",
 ] as const;
@@ -27,6 +27,7 @@ export function normalizePropertyType(raw: string | null | undefined): string | 
   if (exact) return exact;
 
   const lower = trimmed.toLowerCase();
+  if (/\bcommercial\s+(?:corner\s+)?(?:plot|site)\b/.test(lower)) return "Commercial Plot";
   // Whole commercial buildings / mixed-use developments — must run
   // FIRST: their descriptions routinely mention the unit types inside
   // ("…with Hotel, Offices, Gym & Penthouse"), and any of those

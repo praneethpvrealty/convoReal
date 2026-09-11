@@ -26,6 +26,7 @@ export const CATEGORY_SUBTYPES: Record<string, string[]> = {
     "Commercial Shop",
     "Commercial Showroom",
     "Commercial Building",
+    "Commercial Plot",
     "Commercial Land",
     "Warehouse/ Godown",
     "Industrial Land",
@@ -243,10 +244,11 @@ export function parsePropertyQuery(searchQuery: string): ParsedQuery {
 
   const TYPE_RULES: Array<{ pattern: RegExp; types: string[] }> = [
     { pattern: /\bresidential\s+(?:land|plot)s?\b/i,        types: ['Residential Land/ Plot'] },
-    { pattern: /\bcommercial\s+(?:land|plot)s?\b/i,         types: ['Commercial Land'] },
+    { pattern: /\bcommercial\s+plots?\b/i,                 types: ['Commercial Plot'] },
+    { pattern: /\bcommercial\s+lands?\b/i,                 types: ['Commercial Land'] },
     { pattern: /\bindustrial\s+(?:land|plot)s?\b/i,         types: ['Industrial Land'] },
     { pattern: /\bagricultur(?:al|e)\s+(?:land|plot|farm)s?\b|\bagri[\s-]?(?:land|plot)s?\b|\bfarm[\s-]?lands?\b/i, types: ['Agricultural Land', 'Farm House'] },
-    { pattern: /\bplots?\b|\bland\b|\blands\b/i,            types: ['Residential Land/ Plot','Commercial Land','Industrial Land','Agricultural Land'] },
+    { pattern: /\bplots?\b|\bland\b|\blands\b/i,            types: ['Residential Land/ Plot','Commercial Plot','Commercial Land','Industrial Land','Agricultural Land'] },
     { pattern: /\bvillas?\b/i,                               types: ['Villa'] },
     { pattern: /\bpenthouse[s]?\b/i,                         types: ['Penthouse'] },
     { pattern: /\bstudio\b/i,                                types: ['Studio Apartment'] },
@@ -262,7 +264,7 @@ export function parsePropertyQuery(searchQuery: string): ParsedQuery {
     { pattern: /\bwarehouse[s]?\b|\bgodowns?\b/i,            types: ['Warehouse/ Godown'] },
     { pattern: /\bindustrial\s+(?:shed|building)s?\b/i,      types: ['Industrial Building','Industrial Shed'] },
     { pattern: /\bmixed[\s-]*use\b|\bcommercial\s+(?:building|complex|development)s?\b/i, types: ['Commercial Building'] },
-    { pattern: /\bcommercial\b/i,                            types: ['Commercial','Commercial Office Space','Office in IT Park/ SEZ','Commercial Shop','Commercial Showroom','Commercial Building','Commercial Land','Warehouse/ Godown','Industrial Land','Industrial Building','Industrial Shed'] },
+    { pattern: /\bcommercial\b/i,                            types: ['Commercial','Commercial Office Space','Office in IT Park/ SEZ','Commercial Shop','Commercial Showroom','Commercial Building','Commercial Plot','Commercial Land','Warehouse/ Godown','Industrial Land','Industrial Building','Industrial Shed'] },
     { pattern: /\bresidential\b/i,                           types: ['Residential','Flat/ Apartment','Residential House','Villa','Builder Floor Apartment','Residential Land/ Plot','Penthouse','Studio Apartment'] },
     { pattern: /\bagricultur(?:al|e)\b|\bagri\b/i,           types: ['Agricultural','Agricultural Land','Farm House'] },
   ];

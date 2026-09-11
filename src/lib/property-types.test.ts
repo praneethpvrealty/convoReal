@@ -17,10 +17,13 @@ describe('normalizePropertyType', () => {
     expect(normalizePropertyType('office space')).toBe('Commercial Office Space');
     expect(normalizePropertyType('showroom')).toBe('Commercial Showroom');
     expect(normalizePropertyType('commercial land')).toBe('Commercial Land');
+    expect(normalizePropertyType('prime corner commercial plot')).toBe('Commercial Plot');
+    expect(normalizePropertyType('commercial site for sale')).toBe('Commercial Plot');
     expect(normalizePropertyType('flat')).toBe('Flat/ Apartment');
   });
 
   it('includes Commercial Building in the canonical taxonomy', () => {
     expect(PROPERTY_TYPE_VALUES).toContain('Commercial Building');
+    expect(PROPERTY_TYPE_VALUES).toContain('Commercial Plot');
   });
 });

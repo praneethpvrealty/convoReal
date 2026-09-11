@@ -9,6 +9,7 @@ import {
 
 describe('property field visibility', () => {
   it('keeps rent-roll fields off vacant commercial and industrial land', () => {
+    expect(hasCommercialBuildingFields('Commercial Plot')).toBe(false);
     expect(hasCommercialBuildingFields('Commercial Land')).toBe(false);
     expect(hasCommercialBuildingFields('Industrial Land')).toBe(false);
     expect(hasCommercialBuildingFields('Commercial Building')).toBe(true);
@@ -32,6 +33,7 @@ describe('property field visibility', () => {
     expect(hasTotalFloors('Flat/ Apartment')).toBe(true);
     expect(hasTotalFloors('Residential PG building')).toBe(true);
     expect(hasTotalFloors('Agricultural Land')).toBe(false);
+    expect(hasTotalFloors('Commercial Plot')).toBe(false);
     expect(hasTotalFloors('')).toBe(false);
   });
 });

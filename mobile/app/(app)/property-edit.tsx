@@ -59,6 +59,7 @@ import type { FloorTenancy } from '@shared/lib/inventory/floor-tenancies';
 import { contactHandle, hasPhone } from '@/lib/reachability';
 
 const STATUSES = ['Available', 'Under Contract', 'Sold', 'Off Market', 'Archived'] as const;
+const ROAD_WIDTH_UNITS = ['Feet', 'Meters'];
 
 // String drafts of lib/inventory/floor-tenancies rows (web parity).
 interface TenancyDraft {
@@ -106,7 +107,7 @@ async function fetchProperty(id: string): Promise<Property | null> {
         'bedrooms, bathrooms, area_sqft, area_unit, total_floors, is_published, type, images, ' +
         'video_url, video_status, video_generated_at, youtube_video_id, youtube_status, youtube_error, ' +
         'location, sublocality, city, state, land_area, land_area_unit, super_built_area, ' +
-        'dimensions, facing_direction, google_map_link, showcase_visibility, features, nearby_highlights, tags, ' +
+        'dimensions, road_width, road_width_unit, facing_direction, google_map_link, showcase_visibility, features, nearby_highlights, tags, ' +
         'floor_tenancies, floor_plans, owner_contact_id, owner:contacts!properties_owner_contact_id_fkey(id, name, phone)'
     )
     .eq('id', id)
@@ -177,6 +178,10 @@ function EditForm({ property }: { property: Property }) {
   const [legalStatus, setLegalStatus] = useState(property.legal_status ?? '');
   const [conversionType, setConversionType] = useState(property.conversion_type ?? '');
   const [dimensions, setDimensions] = useState(property.dimensions ?? '');
+  const [roadWidth, setRoadWidth] = useState(
+    property.road_width != null ? String(property.road_width) : ''
+  );
+  const [roadWidthUnit, setRoadWidthUnit] = useState(property.road_width_unit || 'Feet');
   const [facing, setFacing] = useState(property.facing_direction ?? '');
   const [location, setLocation] = useState(property.location ?? '');
   const [sublocality, setSublocality] = useState(property.sublocality ?? '');
@@ -299,6 +304,8 @@ function EditForm({ property }: { property: Property }) {
       legal_status: isRawLand ? legalStatus || null : null,
       conversion_type: isRawLand ? conversionType || null : null,
       dimensions: isApartment ? null : dimensions.trim() || null,
+      road_width: isApartment ? null : num(roadWidth),
+      road_width_unit: isApartment ? null : roadWidthUnit || 'Feet',
       facing_direction: facing || null,
       location: location.trim() || null,
       sublocality: sublocality.trim() || null,
@@ -528,6 +535,28 @@ function EditForm({ property }: { property: Property }) {
             ) : null}
           </>
         )}
+
+        {!isApartment ? (
+          <View style={styles.row}>
+            <View style={{ flex: 1 }}>
+              <TextField
+                label="Road width"
+                value={roadWidth}
+                onChangeText={setRoadWidth}
+                keyboardType="numeric"
+                placeholder="e.g. 40"
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <ChipRow
+                label="Unit"
+                options={ROAD_WIDTH_UNITS}
+                value={roadWidthUnit}
+                onSelect={(value) => setRoadWidthUnit(value || 'Feet')}
+              />
+            </View>
+          </View>
+        ) : null}
 
         {showTotalFloors ? (
           <TextField

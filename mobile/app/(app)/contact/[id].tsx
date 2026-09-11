@@ -108,6 +108,7 @@ const PROPERTY_INTEREST_OPTIONS = [
   'Office in IT Park/ SEZ',
   'Commercial Showroom',
   'Commercial Building',
+  'Commercial Plot',
   'Commercial Land',
   'Warehouse/ Godown',
   'Industrial Land',
