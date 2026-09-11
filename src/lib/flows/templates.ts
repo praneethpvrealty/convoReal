@@ -565,7 +565,7 @@ const REAL_ESTATE_ONBOARDING: FlowTemplate = {
           "hunting as new properties come in, and the moment one fits what " +
           "you've told me, you'll hear about it here.",
         limit: 5,
-        filter_types: ["Commercial Land"],
+        filter_types: ["Commercial Plot", "Commercial Land"],
         filter_listing_type: "Sale",
         next_node_key: "post_listings",
         empty_next_node_key: "no_match_followup",

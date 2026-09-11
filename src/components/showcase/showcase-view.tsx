@@ -607,7 +607,7 @@ export function ShowcaseView({
 
   const isCommercialSelected = useMemo(() => {
     return reqCategories.some(cat => 
-      ['Commercial Building', 'Office Space', 'Shop/ Showroom', 'Warehouse', 'Commercial Land'].includes(cat)
+      ['Commercial Building', 'Office Space', 'Shop/ Showroom', 'Warehouse', 'Commercial Plot', 'Commercial Land'].includes(cat)
     );
   }, [reqCategories]);
 
@@ -949,6 +949,7 @@ export function ShowcaseView({
     if (!selectedProperty) return false;
     return [
       'Residential Land/ Plot',
+      'Commercial Plot',
       'Commercial Land',
       'Industrial Land',
       'Agricultural Land'
@@ -1895,6 +1896,7 @@ export function ShowcaseView({
               const mainImage = hasImages ? storagePublicUrl(property.images[0]) : null;
               const isLand = [
                 'Residential Land/ Plot',
+                'Commercial Plot',
                 'Commercial Land',
                 'Industrial Land',
                 'Agricultural Land',
@@ -3310,6 +3312,7 @@ export function ShowcaseView({
                     'Office Space',
                     'Shop/ Showroom',
                     'Warehouse',
+                    'Commercial Plot',
                     'Commercial Land'
                   ].map((cat) => {
                     const selected = reqCategories.includes(cat);

@@ -18,7 +18,7 @@ export const FLOW_CHECKBOX_MAX_ITEMS = 20;
 /**
  * The subset offered inside the WhatsApp preference Flow, capped by
  * FLOW_CHECKBOX_MAX_ITEMS — which is why it does not simply track the
- * in-app vocabulary below, now 27 long. The options reach the client as
+ * in-app vocabulary below. The options reach the client as
  * dynamic data (`${data.property_type_options}`), so an over-long list
  * risks failing in the buyer's WhatsApp client rather than at publish
  * time. Changing this list means republishing the Flow to Meta for
@@ -58,6 +58,7 @@ export const PROPERTY_INTEREST_OPTIONS = [
   'Office in IT Park/ SEZ',
   'Commercial Showroom',
   'Commercial Building',
+  'Commercial Plot',
   'Commercial Land',
   'Warehouse/ Godown',
   'Industrial Land',

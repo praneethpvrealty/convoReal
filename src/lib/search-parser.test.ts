@@ -127,6 +127,11 @@ describe('parsePropertyQuery', () => {
     expect(res.types).toContain('Flat/ Apartment');
   });
 
+  it('distinguishes a commercial plot from raw commercial land', () => {
+    expect(parsePropertyQuery('commercial plot in Banashankari').types).toContain('Commercial Plot');
+    expect(parsePropertyQuery('commercial land in Devanahalli').types).toContain('Commercial Land');
+  });
+
   it('should detect direct/owner listing source', () => {
     const direct = parsePropertyQuery('direct listing commercial > 10 cr');
     expect(direct.listingSource).toBe('owner');

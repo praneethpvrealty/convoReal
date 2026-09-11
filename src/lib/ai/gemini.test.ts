@@ -39,7 +39,18 @@ describe('Gemini AI WhatsApp Parsers', { timeout: 30000 }, () => {
         systemInstruction.includes('real estate data updater')
       ) {
         // Property Listing Parsing / Updating
-        if (userMessage.includes('Ramesh Sajepa')) {
+        if (userMessage.includes('Prime Corner Commercial Plot')) {
+          mockText = JSON.stringify({
+            title: 'Prime Corner Commercial Plot for Sale – Banashankari 6th Stage, 3rd Block',
+            price: 56000000,
+            location: 'Banashankari 6th Stage, 3rd Block',
+            type: 'Commercial Building',
+            land_area: 2400,
+            land_area_unit: 'Sq.Ft.',
+            features: [],
+            nearby_highlights: [],
+          });
+        } else if (userMessage.includes('Ramesh Sajepa')) {
           mockText = JSON.stringify({
             title: '3 BHK House in HSR Layout, 2nd Sector',
             price: 82000000,
@@ -217,6 +228,14 @@ Aryavarta Ventures`;
       expect(draft.owner_contact_name).toContain('Ramesh');
       expect(draft.owner_contact_role).toBe('Agent');
       expect(draft.owner_contact_phone).toContain('9876543210');
+    });
+
+    it('keeps an explicit commercial plot from being tagged as a building', async () => {
+      const draft = await parseListingFromImageOrText(
+        'Prime Corner Commercial Plot for Sale – Banashankari 6th Stage, 3rd Block'
+      );
+
+      expect(draft.type).toBe('Commercial Plot');
     });
 
     it('handles property updates with landmarks and amenities', async () => {

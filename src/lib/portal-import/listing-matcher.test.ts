@@ -89,6 +89,7 @@ describe('parser helpers', () => {
     expect(parsePortalStatus('This listing has Expired')).toBe('expired');
     expect(parsePortalStatus('Under Screening')).toBe('under_review');
     expect(inferPropertyType('Residential Plot in Sarjapur')).toBe('Residential Land/ Plot');
+    expect(inferPropertyType('Commercial Plot in Banashankari')).toBe('Commercial Plot');
     expect(inferPropertyType('3 BHK Flat for sale')).toBe('Flat/ Apartment');
     expect(extractLocation('3 BHK in HSR Layout, Bengaluru')).toEqual({ locality: 'HSR Layout', city: 'Bengaluru' });
   });

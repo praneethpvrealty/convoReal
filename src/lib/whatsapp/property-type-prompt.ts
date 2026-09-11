@@ -38,6 +38,7 @@ const OPTIONS: PropertyTypeOption[] = [
     description: 'Office, shop, showroom or building',
     types: ['Commercial Office Space', 'Commercial Shop'],
   },
+  { id: 'pt_commplot', title: 'Commercial Plot', types: ['Commercial Plot'] },
   { id: 'pt_commland', title: 'Commercial Land', types: ['Commercial Land'] },
   {
     id: 'pt_agri',

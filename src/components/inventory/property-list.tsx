@@ -52,6 +52,7 @@ import {
 import { PORTALS, type PortalKey } from '@/lib/portals/post-kit';
 import { CheckSquare, Square } from 'lucide-react';
 import { PropertyImportsDialog } from '@/components/inventory/property-imports-dialog';
+import { isLandType } from '@/lib/inventory/property-options';
 
 const highlightIcons: Record<string, string> = {
   School: '🏫',
@@ -303,12 +304,7 @@ export function PropertyList({
             ? cover.url
             : storagePublicUrl(cover.url)
           : null;
-        const isLand = [
-          'Residential Land/ Plot',
-          'Commercial Land',
-          'Industrial Land',
-          'Agricultural Land',
-        ].includes(property.type);
+        const isLand = isLandType(property.type);
 
         return (
           <div

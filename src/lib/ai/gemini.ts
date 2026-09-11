@@ -675,6 +675,11 @@ function detectCommercialBuilding(text: string | null | undefined): boolean {
   );
 }
 
+function detectCommercialPlot(text: string | null | undefined): boolean {
+  if (!text) return false;
+  return /\bcommercial\s+(?:corner\s+)?(?:plot|site)\b/i.test(text);
+}
+
 export interface ParsedPropertyDraft {
   title: string | null;
   price: number | null;
@@ -694,6 +699,7 @@ export interface ParsedPropertyDraft {
     | 'Commercial Shop'
     | 'Commercial Showroom'
     | 'Commercial Building'
+    | 'Commercial Plot'
     | 'Commercial Land'
     | 'Warehouse/ Godown'
     | 'Industrial Land'
@@ -971,7 +977,7 @@ export async function parseListingFromImageOrText(
     "  \"price\": Numeric TOTAL price in INR (e.g. if text says '1.2 Cr' or '120 Lakhs', price is 12000000) or null,\n" +
     "  \"price_per_sqft\": Numeric rate in INR per Sq.Ft. when the price is quoted per unit area (e.g. '10500 per sqft' -> 10500, '₹1.2 Cr per acre' -> 275.48) or null,\n" +
     '  "location": "Exact location or address or null",\n' +
-    "  \"type\": \"Must be exactly one of: 'Flat/ Apartment', 'Residential House', 'Villa', 'Builder Floor Apartment', 'Residential Land/ Plot', 'Penthouse', 'Studio Apartment', 'Residential PG building', 'PG/ Hostel', 'Commercial Office Space', 'Office in IT Park/ SEZ', 'Commercial Shop', 'Commercial Showroom', 'Commercial Building', 'Commercial Land', 'Warehouse/ Godown', 'Industrial Land', 'Industrial Building', 'Industrial Shed', 'Agricultural Land', 'Farm House', 'Others' or null\",\n" +
+    "  \"type\": \"Must be exactly one of: 'Flat/ Apartment', 'Residential House', 'Villa', 'Builder Floor Apartment', 'Residential Land/ Plot', 'Penthouse', 'Studio Apartment', 'Residential PG building', 'PG/ Hostel', 'Commercial Office Space', 'Office in IT Park/ SEZ', 'Commercial Shop', 'Commercial Showroom', 'Commercial Building', 'Commercial Plot', 'Commercial Land', 'Warehouse/ Godown', 'Industrial Land', 'Industrial Building', 'Industrial Shed', 'Agricultural Land', 'Farm House', 'Others' or null\",\n" +
     '  "sublocality": "Sublocality or neighborhood name or null",\n' +
     "  \"project\": \"Name of the apartment project, development or society this unit is in (e.g. 'Sattva Exotic', 'Prestige Lakeside Habitat') or null. This is the BUILDING's name, not the area — never copy the sublocality here, and leave it null for an independent house or a plot.\",\n" +
     '  "city": "City name (default \'Bangalore\')",\n' +
@@ -1012,7 +1018,7 @@ export async function parseListingFromImageOrText(
     "4. For Area vs Land Area: 'area_sqft' is the BUILT-UP / carpet / super built-up area of a structure (a flat's interior, a house's floor area, etc). 'land_area' (with 'land_area_unit') is the SITE/PLOT size the property sits on, or vacant land itself. If the input mentions a 'plot', 'site', or land size figure (e.g. '3870 sqft plot', '30x40 site'), put it in 'land_area', NOT 'area_sqft' — even when the listing is a house/villa built on that plot. Only put a figure in 'area_sqft' when it's explicitly described as built-up/carpet/floor area.\n" +
     "4a. A plot size given as dimensions ('Size - 60*40', '30 x 40', '40x60 site') is in FEET: record it in 'dimensions' AND set 'land_area' to the product in Sq.Ft. with 'land_area_unit' of 'Sq.Ft.' (e.g. '60*40' -> dimensions '60x40', land_area 2400).\n" +
     "4b. A price quoted per unit area ('10500 per sqft', '₹4,500/sq.ft.', '1.2 Cr per acre') is a RATE, not the total: put the rate converted to rupees per Sq.Ft. in 'price_per_sqft' and leave 'price' null unless a separate total amount is also stated. Never put a per-unit rate in 'price'.\n" +
-    "5. For vacant land/plot without building details (e.g., no bedrooms/bathrooms/apartment mention), map 'type' intelligently based on keywords to 'Residential Land/ Plot', 'Commercial Land', 'Industrial Land', or 'Agricultural Land'. For example, commercial plots go to 'Commercial Land'.\n" +
+    "5. For vacant land/plot without building details (e.g., no bedrooms/bathrooms/apartment mention), map 'type' intelligently based on keywords to 'Residential Land/ Plot', 'Commercial Plot', 'Commercial Land', 'Industrial Land', or 'Agricultural Land'. Use 'Commercial Plot' for a demarcated commercial plot/site in a layout and 'Commercial Land' for a raw commercial parcel.\n" +
     "6. For PG/Hostel listings: if the input mentions 'PG', 'paying guest', or 'hostel', map 'type' to 'PG/ Hostel' (or 'Residential PG building' if it's clearly a whole building run as a PG business, not a single room/bed being offered).\n" +
     '7. Set any fields that cannot be found or reasonably inferred to null.\n' +
     '8. For Amenities/Features: Extract any amenities, specifications, or internal/external building features of the property (such as wood flooring, modular kitchen, power backup, gym, pool, gated community, library, basement, water supply, fenced boundary, security, etc.) into the `features` array.\n' +
@@ -1064,7 +1070,9 @@ export async function parseListingFromImageOrText(
       // Deterministic backstop: strong whole-building signals in the raw
       // input win over a unit-level enum the model may have picked.
       type:
-        detectCommercialBuilding(text) || detectCommercialBuilding(parsed.title)
+        detectCommercialPlot(text) || detectCommercialPlot(parsed.title)
+          ? 'Commercial Plot'
+          : detectCommercialBuilding(text) || detectCommercialBuilding(parsed.title)
           ? 'Commercial Building'
           : (normalizePropertyType(parsed.type) as ParsedPropertyDraft['type']),
       sublocality: parsed.sublocality || null,
@@ -1131,7 +1139,7 @@ export async function updateListingDraft(
     "Handle updates to listing/owner contact details intelligently (e.g. if the user says 'contact name is Ramesh' or 'owner phone is 9876543210', update owner_contact_name or owner_contact_phone respectively).\n" +
     "A shared map pin arrives as a Google Maps URL or a bare coordinate pair (e.g. '12.8669,77.5565483'): set 'google_map_link' to the URL and never write coordinates into 'location' — the system reverse-geocodes the pin into an address.\n" +
     "Handle updates to location intelligently: if the user says 'location is X', 'Location - X', 'located in X', or similar, set the top-level 'location' field to X. 'location' is a required primary address field, separate from 'sublocality' — never leave it unset when the user has given any area/address text, even if you also record a more specific 'sublocality'.\n" +
-    "Handle updates to property type intelligently: if the user says 'type is X', 'Type - X', or describes the property category in any way, map it to the closest matching value from this exact list: 'Flat/ Apartment', 'Residential House', 'Villa', 'Builder Floor Apartment', 'Residential Land/ Plot', 'Penthouse', 'Studio Apartment', 'Residential PG building', 'PG/ Hostel', 'Commercial Office Space', 'Office in IT Park/ SEZ', 'Commercial Shop', 'Commercial Showroom', 'Commercial Building', 'Commercial Land', 'Warehouse/ Godown', 'Industrial Land', 'Industrial Building', 'Industrial Shed', 'Agricultural Land', 'Farm House', 'Others'. For example, 'Type - Residential old house' or 'its an old independent house' both map to 'Residential House'; 'PG for girls' or 'paying guest accommodation' maps to 'PG/ Hostel'. Never leave 'type' null when the user has specified any property category — always pick the closest match from the list above rather than leaving it unset.\n" +
+    "Handle updates to property type intelligently: if the user says 'type is X', 'Type - X', or describes the property category in any way, map it to the closest matching value from this exact list: 'Flat/ Apartment', 'Residential House', 'Villa', 'Builder Floor Apartment', 'Residential Land/ Plot', 'Penthouse', 'Studio Apartment', 'Residential PG building', 'PG/ Hostel', 'Commercial Office Space', 'Office in IT Park/ SEZ', 'Commercial Shop', 'Commercial Showroom', 'Commercial Building', 'Commercial Plot', 'Commercial Land', 'Warehouse/ Godown', 'Industrial Land', 'Industrial Building', 'Industrial Shed', 'Agricultural Land', 'Farm House', 'Others'. Use 'Commercial Plot' for a demarcated commercial plot/site and 'Commercial Land' for a raw commercial parcel. For example, 'Type - Residential old house' or 'its an old independent house' both map to 'Residential House'; 'PG for girls' or 'paying guest accommodation' maps to 'PG/ Hostel'. Never leave 'type' null when the user has specified any property category — always pick the closest match from the list above rather than leaving it unset.\n" +
     "Handle updates to bedrooms intelligently: 'X BHK' or 'X bhk' means bedrooms = X. Always update 'bedrooms' when a BHK count is given.\n" +
     "Handle updates to area intelligently: 'area_sqft' is the BUILT-UP/carpet area of a structure; 'land_area' (with 'land_area_unit') is the SITE/PLOT size. If the user gives a 'plot'/'site'/land size figure, set 'land_area', not 'area_sqft' — even for a house/villa on that plot.\n" +
     "A plot size given as dimensions ('Size - 60*40', '30 x 40') is in FEET: set 'dimensions' AND set 'land_area' to the product in Sq.Ft. with 'land_area_unit' of 'Sq.Ft.' (e.g. '60*40' -> dimensions '60x40', land_area 2400).\n" +
@@ -1170,9 +1178,11 @@ export async function updateListingDraft(
       // Same idea for 'type' — normalize whatever the model returned (or
       // fall back to the prior value) rather than letting it revert to
       // null when the user clearly specified a category.
-      type: normalizePropertyType(
-        parsed.type ?? currentDraft.type
-      ) as ParsedPropertyDraft['type'],
+      type: detectCommercialPlot(updateRequest) || detectCommercialPlot(parsed.title)
+        ? 'Commercial Plot'
+        : normalizePropertyType(
+            parsed.type ?? currentDraft.type
+          ) as ParsedPropertyDraft['type'],
       // Same idea for 'bedrooms' — fall back to extracting "X BHK" from
       // the raw correction text if the model didn't set it.
       bedrooms:
