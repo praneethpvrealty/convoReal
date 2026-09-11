@@ -8,6 +8,7 @@
 // ============================================================
 
 import { useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   CalendarCheck2,
@@ -546,7 +547,7 @@ export function CopilotPanel() {
             >
               <div
                 className={cn(
-                  'rounded-xl px-3 py-2 text-sm select-text',
+                  'rounded-xl px-3 py-2 text-sm leading-relaxed whitespace-pre-line select-text',
                   turn.role === 'user'
                     ? 'bg-primary text-primary-foreground rounded-br-sm'
                     : 'rounded-tl-sm bg-slate-900 text-slate-200'
@@ -577,20 +578,28 @@ export function CopilotPanel() {
               </button>
               {turn.role === 'assistant' && turn.links?.length ? (
                 <div className="mt-2 flex flex-wrap gap-2">
-                  {turn.links.map((link) => (
-                    <button
-                      key={`${link.label}:${link.navigateTo}`}
-                      type="button"
-                      onClick={() => {
-                        closePanel();
-                        router.push(link.navigateTo);
-                      }}
-                      className="bg-primary/15 text-primary hover:bg-primary/25 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-bold"
-                    >
-                      {link.label}
-                      <ArrowRight className="h-3 w-3" />
-                    </button>
-                  ))}
+                  {turn.links.map((link) =>
+                    link.navigateTo ? (
+                      <Link
+                        key={`${link.label}:${link.navigateTo}`}
+                        href={link.navigateTo}
+                        onClick={closePanel}
+                        className="bg-primary/15 text-primary hover:bg-primary/25 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-bold"
+                      >
+                        {link.label}
+                        <ArrowRight className="h-3 w-3" />
+                      </Link>
+                    ) : link.appUrl ? (
+                      <a
+                        key={`${link.label}:${link.appUrl}`}
+                        href={link.appUrl}
+                        className="bg-primary/15 text-primary hover:bg-primary/25 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-bold"
+                      >
+                        {link.label}
+                        <ArrowRight className="h-3 w-3" />
+                      </a>
+                    ) : null
+                  )}
                 </div>
               ) : null}
               {turn.role === 'assistant' && turn.action && (

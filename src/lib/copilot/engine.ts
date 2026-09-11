@@ -93,7 +93,8 @@ export interface AnswerResult {
 
 export interface CopilotNavigationLink {
   label: string;
-  navigateTo: string;
+  navigateTo?: string;
+  appUrl?: string;
 }
 
 const NO_AI_REPLY: Record<Audience, string> = {
@@ -154,22 +155,30 @@ export async function answerQuestion(
       const navigateTo = property
         ? `/inventory?sharePropertyId=${encodeURIComponent(property.id)}&shareAudience=1`
         : '/inventory';
+      const propertyTarget = propertyReference ?? 'the new property';
       return {
         reply: [
-          mobile
-            ? `In Properties, open ${property?.label ?? 'the new property'}, expand Matching Contacts, and tap "Share with a listing's audience".`
-            : `In Inventory, open Share for ${property?.label ?? 'the new property'}, then choose "Send from Engine" → "Select Contacts & Share on WhatsApp" → "Share with a listing's audience".`,
-          'Choose the existing listing whose audience you want; this selects reachable contacts who enquired about it or had tracked showcase views.',
-          'Review the selected recipients, continue to sharing, and preview the new property message and showcase link before confirming the send.',
-        ].join(' '),
-        links: [
-          {
-            label: property
-              ? `Open ${propertyReference} audience sharing`
-              : 'Open Inventory',
-            navigateTo,
-          },
-        ],
+          property
+            ? `${propertyTarget} is ready for audience sharing.`
+            : "You can share a new property with an existing listing's audience.",
+          '',
+          'Where to do it:',
+          '• Web: Inventory → Share → Select Contacts & Share → Listing audience',
+          `• Mobile app: Properties → ${propertyTarget} → Matching Contacts → Listing audience`,
+          '',
+          'Choose the existing listing. ConvoReal selects reachable contacts who enquired about it or viewed its showcase. Review the recipients and message before confirming. Nothing is sent automatically.',
+        ].join('\n'),
+        links: mobile
+          ? [{ label: 'Open in mobile app', navigateTo }]
+          : [
+              { label: 'Open on web', navigateTo },
+              {
+                label: 'Open in mobile app',
+                appUrl: property
+                  ? `convoreal:///property/${encodeURIComponent(property.id)}?audience=1`
+                  : 'convoreal:///properties',
+              },
+            ],
         ...(mobile ? { coverage: 'full' as const } : {}),
       };
     }

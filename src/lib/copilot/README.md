@@ -45,9 +45,10 @@ platform-specific audience-picker steps, explains that the audience comes from
 enquiries and tracked showcase views, and leaves recipient review and sending
 in the share composer. When the question contains exactly one `PROP-…` code, the
 API resolves it inside the caller's account and returns a structured link that
-opens that property's audience picker directly on web or mobile. View-only users
-receive role guidance without the link. Mentioning an already-added property does
-not start the Add Property tour.
+opens that property's audience picker directly. The answer names both the web and
+mobile app locations; web shows separate web and app links, while the app shows a
+native link. View-only users receive role guidance without the link. Mentioning an
+already-added property does not start the Add Property tour.
 
 The Helper composer also accepts voice instructions on web and mobile. Audio is
 sent to `POST /api/copilot/transcribe`, converted to text with the existing Gemini

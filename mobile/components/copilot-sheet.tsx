@@ -687,7 +687,7 @@ export function CopilotSheet({
                             onClose();
                             router.push(destination as Href);
                           },
-                          `${link.label}:${link.navigateTo}`
+                          `${link.label}:${link.navigateTo ?? link.appUrl}`
                         )
                       : null;
                   })}

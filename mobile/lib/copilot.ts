@@ -64,7 +64,8 @@ export interface CopilotAnswer {
 
 export interface CopilotNavigationLink {
   label: string;
-  navigateTo: string;
+  navigateTo?: string;
+  appUrl?: string;
 }
 
 /**
