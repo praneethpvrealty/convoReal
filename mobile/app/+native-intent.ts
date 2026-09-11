@@ -14,9 +14,16 @@ export function redirectSystemPath({ path }: { path: string; initial: boolean })
   try {
     const url = new URL(path, 'https://convoreal.com');
     const q = url.searchParams;
+    const audience =
+      q.get('audience') === '1' || q.get('shareAudience') === '1'
+        ? '?audience=1'
+        : '';
+
+    const sharePropertyId = q.get('sharePropertyId');
+    if (sharePropertyId) return `/property/${sharePropertyId}${audience}`;
 
     const propertyId = q.get('property_id') || q.get('propertyId');
-    if (propertyId) return `/property/${propertyId}`;
+    if (propertyId) return `/property/${propertyId}${audience}`;
 
     const contactId = q.get('contact_id') || q.get('contactId');
     if (contactId) return `/contact/${contactId}`;
@@ -35,7 +42,9 @@ export function redirectSystemPath({ path }: { path: string; initial: boolean })
     const propertyPath = p.match(
       /^\/property\/.*?([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i
     );
-    if (propertyPath) return `/property/${propertyPath[1].toLowerCase()}`;
+    if (propertyPath) {
+      return `/property/${propertyPath[1].toLowerCase()}${audience}`;
+    }
 
     if (p === '/inventory' || p === '/properties') return '/properties';
     if (p === '/pipelines' || p === '/deals') return '/deals';

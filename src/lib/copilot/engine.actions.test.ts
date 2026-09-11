@@ -40,17 +40,24 @@ describe('Copilot confirmed action integration', () => {
         platform,
       });
 
-      expect(answer.reply).toContain("Share with a listing's audience");
+      expect(answer.reply).toContain('Listing audience');
       expect(answer.reply).toContain('enquired');
-      expect(answer.reply).toContain('preview');
-      expect(answer.reply).toContain(
-        platform === 'mobile' ? 'Matching Contacts' : 'Engine'
-      );
+      expect(answer.reply).toContain('Nothing is sent automatically');
+      expect(answer.reply).toContain('Web: Inventory');
+      expect(answer.reply).toContain('Mobile app: Properties');
       expect(answer.tourId).toBeUndefined();
       expect(answer.action).toBeUndefined();
-      expect(answer.links).toEqual([
-        { label: 'Open Inventory', navigateTo: '/inventory' },
-      ]);
+      expect(answer.links).toEqual(
+        platform === 'mobile'
+          ? [{ label: 'Open in mobile app', navigateTo: '/inventory' }]
+          : [
+              { label: 'Open on web', navigateTo: '/inventory' },
+              {
+                label: 'Open in mobile app',
+                appUrl: 'convoreal:///properties',
+              },
+            ]
+      );
       expect(answer.webUrl).toBeUndefined();
       expect(answer.coverage).toBe(platform === 'mobile' ? 'full' : undefined);
       expect(embedText).not.toHaveBeenCalled();
@@ -79,7 +86,8 @@ describe('Copilot confirmed action integration', () => {
     expect(answer.action).toBeUndefined();
     expect(answer.navigateTo).toBeUndefined();
     expect(answer.links).toEqual([
-      { label: 'Open Inventory', navigateTo: '/inventory' },
+      { label: 'Open on web', navigateTo: '/inventory' },
+      { label: 'Open in mobile app', appUrl: 'convoreal:///properties' },
     ]);
     expect(generateJson).not.toHaveBeenCalled();
   });
@@ -98,12 +106,38 @@ describe('Copilot confirmed action integration', () => {
 
     expect(answer.links).toEqual([
       {
-        label: 'Open PROP-1633 audience sharing',
+        label: 'Open in mobile app',
         navigateTo: `/inventory?sharePropertyId=${property.id}&shareAudience=1`,
       },
     ]);
+    expect(answer.reply).toContain(
+      'Mobile app: Properties → PROP-1633 → Matching Contacts'
+    );
     expect(answer.coverage).toBe('full');
     expect(generateJson).not.toHaveBeenCalled();
+  });
+
+  it('offers separate web and app links for a named property on web', async () => {
+    const answer = await answerQuestion({
+      audience: 'agent',
+      message: 'Find the right audience for PROP-1633 and share the details',
+      pathname: '/inventory',
+      history: [],
+      accountId: 'account-1',
+      entities: [{ ...property, label: 'PROP-1633 — JP Nagar Plot' }],
+      canExecuteActions: true,
+    });
+
+    expect(answer.links).toEqual([
+      {
+        label: 'Open on web',
+        navigateTo: `/inventory?sharePropertyId=${property.id}&shareAudience=1`,
+      },
+      {
+        label: 'Open in mobile app',
+        appUrl: `convoreal:///property/${property.id}?audience=1`,
+      },
+    ]);
   });
 
   it('does not offer a sharing link to a view-only member', async () => {
