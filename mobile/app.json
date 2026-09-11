@@ -139,7 +139,7 @@
       [
         "expo-audio",
         {
-          "microphonePermission": "ConvoReal uses the microphone so you can speak instructions to the Helper and schedule appointments by voice."
+          "microphonePermission": "ConvoReal uses the microphone so you can schedule appointments by voice."
         }
       ],
       [
