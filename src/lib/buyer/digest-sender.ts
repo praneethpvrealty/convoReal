@@ -26,7 +26,6 @@ import {
   collapseToParties,
   loadContactParties,
 } from '@/lib/contacts/parties';
-import { BRANDING } from '@/config/branding';
 // The session-first / template-fallback ladder is persona-neutral —
 // reused rather than duplicated (it lives under den/ for historical
 // reasons; the Den was the first surface that needed it).
@@ -40,6 +39,7 @@ import {
 import {
   accountBrandImage,
   accountBrandName,
+  accountPropertiesShowcaseUrl,
 } from '@/lib/showcase/account-showcase-url';
 import { curateForBuyer, hasBuyerBrief } from './matches-ranking';
 import { attachInquiredListingTypes } from '@/lib/contacts/inquired-intent';
@@ -75,11 +75,6 @@ export interface AccountDigestSummary {
   skippedAlreadySent: number;
   skippedNoChannel: number;
   failed: number;
-}
-
-function portalUrl(): string {
-  const base = (process.env.NEXT_PUBLIC_SITE_URL || BRANDING.websiteUrl).replace(/\/$/, '');
-  return `${base}/buyer/login?next=/buyer/matches`;
 }
 
 function istDateString(now: Date): string {
@@ -227,7 +222,6 @@ async function runAccount(
   if (pool.length === 0) return summary;
 
   const digestDate = istDateString(now);
-  const url = portalUrl();
   const { data: accountRow } = await db
     .from('accounts')
     .select('name')
@@ -335,6 +329,12 @@ async function runAccount(
         accountBrandImage(db, accountId),
         accountBrandName(db, accountId),
       ]);
+      const showcaseUrl = await accountPropertiesShowcaseUrl(
+        db,
+        accountId,
+        matches.map((match) => match.property),
+        buyer.id,
+      );
       const headerImage = shareHeaderImage({ images: top.images, brandImage });
       const delivered = await sendDenNotification(db, {
         accountId,
@@ -342,7 +342,7 @@ async function runAccount(
         text: buildMatchDigestMessage({
           contactName: buyer.name,
           matches,
-          portalUrl: url,
+          portalUrl: showcaseUrl,
         }),
         templateName: PROPERTY_SHARE_TEMPLATE_NAMES,
         pickTemplate: (rows) =>

@@ -106,6 +106,7 @@ describe('buildMatchDigestMessage', () => {
     });
     expect(text).toContain('Hi there');
     expect(text).toContain('One new listing');
+    expect(text).toContain('View photos, location map, and full details');
   });
 
   it('prices a rental per month', () => {

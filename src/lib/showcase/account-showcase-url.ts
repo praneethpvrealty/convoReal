@@ -194,6 +194,36 @@ export async function accountPropertyShowcaseUrl(
     : url;
 }
 
+/**
+ * A hand-picked set of listings on the account's public showcase.
+ * One listing opens its detail view directly; several listings open a
+ * catalog scoped to only those results. Both variants retain visitor
+ * attribution for Showcase Pulse.
+ */
+export async function accountPropertiesShowcaseUrl(
+  db: SupabaseClient,
+  accountId: string,
+  properties: ShowcaseLinkProperty[],
+  visitorContactId?: string | null,
+): Promise<string> {
+  if (properties.length === 1) {
+    return accountPropertyShowcaseUrl(
+      db,
+      accountId,
+      properties[0],
+      visitorContactId,
+    );
+  }
+
+  const url = new URL(await accountShowcaseBase(db, accountId));
+  const ids = properties
+    .map((property) => property.property_code || property.id)
+    .filter(Boolean);
+  if (ids.length > 0) url.searchParams.set('ids', ids.join(','));
+  if (visitorContactId) url.searchParams.set('v', visitorContactId);
+  return url.toString();
+}
+
 export function attributePropertyShowcaseLinks(
   message: string,
   property: ShowcaseLinkProperty,

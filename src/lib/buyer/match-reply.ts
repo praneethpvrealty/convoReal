@@ -13,7 +13,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Contact, Property } from '@/types';
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import { BRANDING } from '@/config/branding';
+import { accountPropertiesShowcaseUrl } from '@/lib/showcase/account-showcase-url';
 import {
   curateForBuyer,
   hasBuyerBrief,
@@ -61,13 +61,6 @@ function pinEnquiredProperty(
     pinned,
     ...matches.filter((match) => match.property.id !== property.id),
   ].slice(0, MAX_DIGEST_MATCHES);
-}
-
-function portalUrl(): string {
-  const base = (
-    process.env.NEXT_PUBLIC_SITE_URL || BRANDING.websiteUrl
-  ).replace(/\/$/, '');
-  return `${base}/buyer/login?next=/buyer/matches`;
 }
 
 /**
@@ -143,10 +136,16 @@ export async function buildBuyerMatchReply(args: {
         : buildNoMatchesMessage(contact.name);
     }
 
+    const showcaseUrl = await accountPropertiesShowcaseUrl(
+      db,
+      args.accountId,
+      matches.map((match) => match.property),
+      contact.id,
+    );
     const digest = buildMatchDigestMessage({
       contactName: contact.name,
       matches,
-      portalUrl: portalUrl(),
+      portalUrl: showcaseUrl,
       enquiredPropertyId: availableEnquiry?.id,
     });
     return unavailableEnquiryTitle
