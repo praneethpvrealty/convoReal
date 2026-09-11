@@ -118,13 +118,17 @@ export function buildMatchDigestMessage(args: DigestMessageArgs): string {
       lines.push(`   ✓ ${match.reasons.slice(0, 3).join(' · ')}`);
     return lines.join('\n');
   });
+  const showcasePrompt =
+    matches.length === 1
+      ? 'View photos, location map, and full details:'
+      : 'See these properties and shortlist what you like:';
 
   return [
     heading,
     '',
     items.join('\n\n'),
     '',
-    `See them all and shortlist what you like:\n${args.portalUrl}`,
+    `${showcasePrompt}\n${args.portalUrl}`,
     '',
     'Reply STOP ALERTS to pause these.',
   ].join('\n');

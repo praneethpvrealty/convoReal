@@ -4,6 +4,7 @@ import {
   accountShowcaseBase,
   accountShowcaseBrowseUrl,
   accountPropertyShowcaseUrl,
+  accountPropertiesShowcaseUrl,
   attributePropertyShowcaseLinks,
 } from './account-showcase-url';
 
@@ -81,6 +82,43 @@ describe('accountPropertyShowcaseUrl', () => {
     });
     expect(url).toContain('property_id=prop-uuid');
     expect(url).not.toContain('v=');
+  });
+});
+
+describe('accountPropertiesShowcaseUrl', () => {
+  beforeEach(() => {
+    vi.stubEnv('NEXT_PUBLIC_SITE_URL', 'https://www.convoreal.com');
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('opens one listing directly on the public showcase', async () => {
+    const url = await accountPropertiesShowcaseUrl(
+      db('aryavartaventures'),
+      'acct-1',
+      [{ id: 'property-1', property_code: 'PROP-20' }],
+      'contact-9',
+    );
+    expect(url).toBe(
+      'https://aryavartaventures.convoreal.com/?property_id=PROP-20&v=contact-9',
+    );
+  });
+
+  it('limits the public showcase to the matched listings', async () => {
+    const url = await accountPropertiesShowcaseUrl(
+      db(null),
+      'acct-1',
+      [
+        { id: 'property-1', property_code: 'PROP-20' },
+        { id: 'property-2', property_code: 'PROP-21' },
+      ],
+      'contact-9',
+    );
+    expect(url).toContain('ref=acct-1');
+    expect(url).toContain('ids=PROP-20%2CPROP-21');
+    expect(url).toContain('v=contact-9');
+    expect(url).not.toContain('/buyer/login');
   });
 });
 

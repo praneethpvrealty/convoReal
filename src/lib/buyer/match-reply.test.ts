@@ -88,6 +88,7 @@ function dbForAvailableEnquiry(withBrief = true) {
         price: 42_000_000,
         status: 'Available',
         is_published: true,
+        property_code: 'PROP-HEBRON',
       },
       {
         id: 'alternative',
@@ -169,6 +170,9 @@ describe('buildBuyerMatchReply', () => {
 
     expect(reply).toContain('4 BHK Villa in Hebron Enclave');
     expect(reply).not.toContain('KR Puram Villa');
+    expect(reply).toContain('property_id=PROP-HEBRON');
+    expect(reply).toContain('v=simon');
+    expect(reply).not.toContain('/buyer/login');
   });
 
   it('explains that the enquired property is unavailable and keeps the search active', async () => {
