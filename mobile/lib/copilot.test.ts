@@ -4,7 +4,11 @@ const { apiFetch } = vi.hoisted(() => ({ apiFetch: vi.fn() }));
 
 vi.mock('./api', () => ({ apiFetch }));
 
-import { appHrefForWebRoute, executeCopilotAction } from './copilot';
+import {
+  appHrefForWebRoute,
+  executeCopilotAction,
+  transcribeCopilotAudio,
+} from './copilot';
 
 const action = {
   id: '33333333-3333-4333-8333-333333333333',
@@ -32,6 +36,14 @@ describe('mobile Copilot actions', () => {
     );
   });
 
+  it('maps audience sharing to the native listing-audience picker', () => {
+    expect(
+      appHrefForWebRoute(
+        '/inventory?sharePropertyId=22222222-2222-4222-8222-222222222222&shareAudience=1'
+      )
+    ).toBe('/(app)/property/22222222-2222-4222-8222-222222222222?audience=1');
+  });
+
   it('executes completion through the shared authenticated API', async () => {
     const result = {
       actionId: action.id,
@@ -52,6 +64,20 @@ describe('mobile Copilot actions', () => {
         type: action.type,
         entityId: action.entity.id,
         platform: 'mobile',
+      }),
+    });
+  });
+
+  it('transcribes a voice instruction without sending it', async () => {
+    apiFetch.mockResolvedValue({ data: { transcript: 'Open PROP-1633' } });
+
+    await expect(
+      transcribeCopilotAudio({ base64: 'AAAA', mimeType: 'audio/mp4' })
+    ).resolves.toBe('Open PROP-1633');
+    expect(apiFetch).toHaveBeenCalledWith('/api/copilot/transcribe', {
+      method: 'POST',
+      body: JSON.stringify({
+        audio: { base64: 'AAAA', mimeType: 'audio/mp4' },
       }),
     });
   });

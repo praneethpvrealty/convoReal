@@ -1,8 +1,16 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
+import {
+  RecordingPresets,
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync,
+  useAudioRecorder,
+} from 'expo-audio';
+import { File } from 'expo-file-system';
 import { router, usePathname, type Href } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -23,6 +31,7 @@ import {
   createSupportTicket,
   executeCopilotAction,
   sendCopilotFeedback,
+  transcribeCopilotAudio,
   type CopilotAnswer,
   type CopilotActionExecutionResult,
   type CopilotCoverage,
@@ -46,6 +55,7 @@ type ActionState =
   | 'completed'
   | 'cancelled'
   | 'failed';
+type VoicePhase = 'idle' | 'recording' | 'transcribing';
 
 // ------------------------------------------------------------------
 // The helper chat, mobile edition. Same brain as the web panel (the
@@ -91,6 +101,7 @@ export function CopilotSheet({
   const t = useT();
   const pathname = usePathname();
   const session = useAuthStore((s) => s.session);
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
 
   const [turns, setTurns] = useState<SheetTurn[]>([]);
   const [input, setInput] = useState('');
@@ -104,8 +115,11 @@ export function CopilotSheet({
   const [supportDest, setSupportDest] = useState('');
   const [supportBusy, setSupportBusy] = useState(false);
   const [copiedTurn, setCopiedTurn] = useState<number | null>(null);
+  const [voicePhase, setVoicePhase] = useState<VoicePhase>('idle');
+  const [voiceError, setVoiceError] = useState<string | null>(null);
   const scrollRef = useRef<ScrollView>(null);
   const executingActionIdsRef = useRef(new Set<string>());
+  const voicePrefixRef = useRef('');
   const activeEntity = activeCopilotEntityQuery(input, entities);
 
   useEffect(() => {
@@ -115,6 +129,13 @@ export function CopilotSheet({
     );
     return () => clearTimeout(timer);
   }, [turns, busy]);
+
+  useEffect(() => {
+    if (visible || voicePhase !== 'recording') return;
+    void recorder.stop().catch(() => {});
+    void setAudioModeAsync({ allowsRecording: false });
+    setVoicePhase('idle');
+  }, [recorder, visible, voicePhase]);
 
   const openSupport = (turnIndex: number) => {
     const phone = session?.user.phone;
@@ -232,6 +253,65 @@ export function CopilotSheet({
     ]);
   };
 
+  const startVoice = async () => {
+    setVoiceError(null);
+    try {
+      const { granted } = await requestRecordingPermissionsAsync();
+      if (!granted) {
+        setVoiceError(
+          'Microphone access is needed for voice instructions. Enable it in Settings and try again.'
+        );
+        return;
+      }
+      await setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true,
+      });
+      await recorder.prepareToRecordAsync();
+      voicePrefixRef.current = input.trim();
+      recorder.record();
+      haptic.tap();
+      setVoicePhase('recording');
+    } catch {
+      setVoicePhase('idle');
+      setVoiceError(
+        "Couldn't start the microphone — it may be in use by another app."
+      );
+    }
+  };
+
+  const stopVoice = async () => {
+    if (voicePhase !== 'recording') return;
+    setVoicePhase('transcribing');
+    setVoiceError(null);
+    haptic.send();
+    try {
+      await recorder.stop();
+      await setAudioModeAsync({ allowsRecording: false });
+      if (!recorder.uri) throw new Error('Recording unavailable.');
+      const base64 = await new File(recorder.uri).base64();
+      if (base64.length < 2000) {
+        throw new Error(
+          'That recording was too short. Tap the mic and try again.'
+        );
+      }
+      const transcript = await transcribeCopilotAudio({
+        base64,
+        mimeType: 'audio/mp4',
+      });
+      const prefix = voicePrefixRef.current;
+      updateInput(prefix ? `${prefix} ${transcript}` : transcript);
+      haptic.success();
+    } catch (error) {
+      haptic.warn();
+      setVoiceError(
+        friendlyError(error instanceof Error ? error.message : String(error))
+      );
+    } finally {
+      setVoicePhase('idle');
+    }
+  };
+
   const updateActionTurn = (
     actionId: string,
     update: Partial<
@@ -319,8 +399,14 @@ export function CopilotSheet({
     }
   };
 
-  const actionChip = (label: string, icon: keyof typeof Ionicons.glyphMap, onPress: () => void) => (
+  const actionChip = (
+    label: string,
+    icon: keyof typeof Ionicons.glyphMap,
+    onPress: () => void,
+    key?: string
+  ) => (
     <Pressable
+      key={key}
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={label}
@@ -591,6 +677,20 @@ export function CopilotSheet({
 
               {turn.role === 'assistant' && a ? (
                 <View style={styles.actions}>
+                  {(a.links ?? []).map((link) => {
+                    const destination = appHrefForWebRoute(link.navigateTo);
+                    return destination
+                      ? actionChip(
+                          link.label,
+                          'arrow-forward-outline',
+                          () => {
+                            onClose();
+                            router.push(destination as Href);
+                          },
+                          `${link.label}:${link.navigateTo}`
+                        )
+                      : null;
+                  })}
                   {a.tourId
                     ? actionChip(t('copilot.startTour'), 'navigate-outline', () => {
                         onStartTour(a.tourId!);
@@ -855,6 +955,7 @@ export function CopilotSheet({
             placeholder="Ask… Use # properties, @ contacts, & events"
             placeholderTextColor={colors.textFaint}
             maxLength={500}
+            editable={voicePhase === 'idle'}
             accessibilityLabel="Ask the helper"
             onSubmitEditing={() => void send(input)}
             returnKeyType="send"
@@ -869,6 +970,42 @@ export function CopilotSheet({
             ]}
           />
           <Pressable
+            onPress={() =>
+              voicePhase === 'recording' ? void stopVoice() : void startVoice()
+            }
+            disabled={busy || voicePhase === 'transcribing'}
+            accessibilityRole="button"
+            accessibilityLabel={
+              voicePhase === 'recording'
+                ? 'Stop voice instruction'
+                : 'Speak an instruction'
+            }
+            style={[
+              styles.voiceBtn,
+              {
+                borderColor:
+                  voicePhase === 'recording' ? colors.danger : colors.border,
+                backgroundColor:
+                  voicePhase === 'recording'
+                    ? colors.dangerSoft
+                    : colors.surfaceSunken,
+                opacity: busy || voicePhase === 'transcribing' ? 0.4 : 1,
+              },
+            ]}
+          >
+            {voicePhase === 'transcribing' ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <Ionicons
+                name={voicePhase === 'recording' ? 'stop' : 'mic-outline'}
+                size={17}
+                color={
+                  voicePhase === 'recording' ? colors.danger : colors.primary
+                }
+              />
+            )}
+          </Pressable>
+          <Pressable
             onPress={() => void send(input)}
             disabled={busy || !input.trim()}
             accessibilityRole="button"
@@ -881,6 +1018,34 @@ export function CopilotSheet({
             <Ionicons name="send" size={16} color={colors.onPrimary} />
           </Pressable>
         </View>
+        {voicePhase === 'recording' ? (
+          <Text
+            style={[
+              styles.voiceStatus,
+              { color: colors.danger, fontFamily: f.semibold },
+            ]}
+          >
+            Listening… tap stop when you finish.
+          </Text>
+        ) : voicePhase === 'transcribing' ? (
+          <Text
+            style={[
+              styles.voiceStatus,
+              { color: colors.primary, fontFamily: f.semibold },
+            ]}
+          >
+            Transcribing…
+          </Text>
+        ) : voiceError ? (
+          <Text
+            style={[
+              styles.voiceStatus,
+              { color: colors.danger, fontFamily: f.medium },
+            ]}
+          >
+            {voiceError}
+          </Text>
+        ) : null}
       </View>
     </BottomSheet>
   );
@@ -1039,6 +1204,15 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
     fontSize: 14,
   },
+  voiceBtn: {
+    width: 40,
+    height: 40,
+    borderWidth: 1,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  voiceStatus: { fontSize: 11.5 },
   sendBtn: {
     width: 40,
     height: 40,

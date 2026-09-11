@@ -16,6 +16,7 @@ import {
 
 interface ListingAudiencePickerProps {
   accountId: string | null;
+  initialOpen?: boolean;
   /** The contact rows the caller can already select by id. */
   loadedContacts: { id: string; phone?: string | null }[];
   onSelect: (
@@ -26,10 +27,11 @@ interface ListingAudiencePickerProps {
 
 export function ListingAudiencePicker({
   accountId,
+  initialOpen = false,
   loadedContacts,
   onSelect,
 }: ListingAudiencePickerProps) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(initialOpen);
   const [query, setQuery] = useState('');
   const [listings, setListings] = useState<AudienceListing[] | null>(null);
   const [loading, setLoading] = useState(false);

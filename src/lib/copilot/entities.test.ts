@@ -3,6 +3,7 @@ import {
   activeEntityQuery,
   entityHref,
   insertEntityReference,
+  propertyCodeFromMessage,
   readEntityReferences,
   requestedEntityNavigation,
   sanitizeEntitySearchQuery,
@@ -64,5 +65,17 @@ describe('Copilot entity references', () => {
     expect(entityHref(property.kind, property.id)).toContain(
       '/inventory?propertyId='
     );
+  });
+
+  it('finds one unambiguous property code in a natural request', () => {
+    expect(
+      propertyCodeFromMessage(
+        'How can I share PROP-1633 with the right audience?'
+      )
+    ).toBe('PROP-1633');
+    expect(propertyCodeFromMessage('Open prop 1633')).toBe('PROP-1633');
+    expect(
+      propertyCodeFromMessage('Compare PROP-1633 and PROP-1634')
+    ).toBeNull();
   });
 });

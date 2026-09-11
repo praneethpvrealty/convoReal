@@ -106,11 +106,14 @@ async function fetchProperty(id: string): Promise<Property | null> {
 
 export default function PropertyDetailScreen() {
   const { colors, dark, fonts: f } = useTheme();
-  const { id, share } = useLocalSearchParams<{
+  const { id, share, audience } = useLocalSearchParams<{
     id: string;
     share?: string | string[];
+    audience?: string | string[];
   }>();
   const shareRequest = Array.isArray(share) ? share[0] : share;
+  const audienceRequest =
+    (Array.isArray(audience) ? audience[0] : audience) === '1';
   // Viewers read the dashboard and nothing else (AGENTS.md §8.2); the
   // API enforces it too, this just keeps the buttons honest.
   const canEdit = useAuthStore((s) => s.profile?.account_role) !== 'viewer';
@@ -945,6 +948,7 @@ export default function PropertyDetailScreen() {
             selectedIds={selectedMatchIds}
             setSelectedIds={setSelectedMatchIds}
             onShare={setShareTo}
+            openListingAudience={audienceRequest}
           />
 
           {coords ? (
@@ -1460,6 +1464,7 @@ function MatchesSection({
   selectedIds,
   setSelectedIds,
   onShare,
+  openListingAudience,
 }: {
   matches: PropertyMatch[];
   isLoading: boolean;
@@ -1467,6 +1472,7 @@ function MatchesSection({
   selectedIds: string[];
   setSelectedIds: React.Dispatch<React.SetStateAction<string[]>>;
   onShare: (contacts: Contact[]) => void;
+  openListingAudience?: boolean;
 }) {
   const { colors, fonts: f } = useTheme();
   const [audience, setAudience] = useState<MatchAudience>('buyers');
@@ -1484,6 +1490,14 @@ function MatchesSection({
     unreachable: number;
   } | null>(null);
   const { show, dialogProps } = useAppDialog();
+  const openedListingAudienceRef = useRef(false);
+
+  useEffect(() => {
+    if (!openListingAudience || openedListingAudienceRef.current) return;
+    openedListingAudienceRef.current = true;
+    setExpanded(true);
+    setAudiencePickerOpen(true);
+  }, [openListingAudience]);
 
   const all = matches;
   const agentCount = all.filter(

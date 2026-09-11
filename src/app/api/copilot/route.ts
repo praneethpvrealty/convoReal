@@ -8,7 +8,7 @@ import {
 import { answerQuestion } from '@/lib/copilot/engine';
 import { logCopilotEvent } from '@/lib/copilot/events';
 import { readChatRequest } from '@/lib/copilot/request';
-import { authorizeEntityReferences } from '@/lib/copilot/entity-search';
+import { resolveMessageEntityReferences } from '@/lib/copilot/entity-search';
 import { hasMinOrgRole } from '@/lib/auth/roles';
 
 /**
@@ -44,7 +44,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: parsed.error }, { status: 400 });
     }
 
-    const entities = await authorizeEntityReferences(ctx, parsed.entities);
+    const entities = await resolveMessageEntityReferences(
+      ctx,
+      parsed.message,
+      parsed.entities
+    );
     const result = await answerQuestion({
       audience: 'agent',
       accountId: ctx.accountId,

@@ -96,6 +96,7 @@ interface PropertyShareDialogProps {
   property: Property | null;
   onSaved?: () => void;
   preSelectedContactId?: string;
+  openListingAudience?: boolean;
   /** When provided (Meta Ads enabled), shows a "Promote as WhatsApp Ad"
    *  action that opens the Click-to-WhatsApp Meta ad wizard. */
   onPromote?: (property: Property) => void;
@@ -118,6 +119,7 @@ export function PropertyShareDialog({
   property,
   onSaved,
   preSelectedContactId,
+  openListingAudience = false,
   onPromote,
 }: PropertyShareDialogProps) {
   const supabase = createClient();
@@ -832,7 +834,7 @@ export function PropertyShareDialog({
   // Reset dialog states only when open changes from false to true
   useEffect(() => {
     if (open) {
-      setBroadcastStep(preSelectedContactId ? 'matches' : 'link');
+      setBroadcastStep(preSelectedContactId || openListingAudience ? 'matches' : 'link');
       setSearchQuery('');
       setCopiedLink(false);
       setSelectedContactIds(preSelectedContactId ? [preSelectedContactId] : []);
@@ -851,7 +853,7 @@ export function PropertyShareDialog({
       setOfferInventoryOnboarding(false);
       setContacts([]); // Clear contacts so we don't show stale cached list
     }
-  }, [open, preSelectedContactId]);
+  }, [open, openListingAudience, preSelectedContactId]);
 
   // Track what was last fetched to prevent duplicate/infinite fetching
   const lastFetchedRef = useRef<{ accountId: string | null; propertyId: string | null }>({
@@ -2408,6 +2410,7 @@ export function PropertyShareDialog({
             <ListingAudiencePicker
               accountId={accountId}
               loadedContacts={contacts}
+              initialOpen={openListingAudience}
               onSelect={addContactsToSelection}
             />
 

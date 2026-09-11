@@ -11,6 +11,7 @@ import { useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   CalendarCheck2,
+  ArrowRight,
   Check,
   CheckCircle2,
   Compass,
@@ -18,12 +19,14 @@ import {
   LifeBuoy,
   Lightbulb,
   Loader2,
+  Mic,
   Send,
   Share2,
   Sparkles,
   ThumbsDown,
   ThumbsUp,
   TriangleAlert,
+  Square,
   X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -43,8 +46,11 @@ import {
   type CopilotActionExecutionResult,
   type CopilotActionProposal,
 } from '@/lib/copilot/actions';
+import type { CopilotNavigationLink } from '@/lib/copilot/engine';
+import { microphoneErrorMessage } from '@/components/calendar/mic-error';
 
 type ActionState = 'pending' | 'running' | 'completed' | 'cancelled' | 'failed';
+type VoicePhase = 'idle' | 'recording' | 'transcribing';
 
 interface ChatTurn {
   role: 'user' | 'assistant';
@@ -66,6 +72,7 @@ interface ChatTurn {
   actionState?: ActionState;
   actionOutcome?: CopilotActionExecutionResult['outcome'];
   actionError?: string;
+  links?: CopilotNavigationLink[];
 }
 
 const SUGGESTIONS = [
@@ -92,13 +99,29 @@ export function CopilotPanel() {
   const [supportDest, setSupportDest] = useState('');
   const [supportBusy, setSupportBusy] = useState(false);
   const [copiedTurn, setCopiedTurn] = useState<number | null>(null);
+  const [voicePhase, setVoicePhase] = useState<VoicePhase>('idle');
+  const [voiceError, setVoiceError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const executingActionIdsRef = useRef(new Set<string>());
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const voiceChunksRef = useRef<Blob[]>([]);
+  const voiceStreamRef = useRef<MediaStream | null>(null);
+  const discardVoiceRef = useRef(false);
+  const voicePrefixRef = useRef('');
   const activeEntity = activeEntityQuery(input, entities);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [turns, busy, panelOpen]);
+
+  useEffect(() => {
+    if (panelOpen) return;
+    discardVoiceRef.current = true;
+    if (recorderRef.current?.state === 'recording') recorderRef.current.stop();
+    voiceStreamRef.current?.getTracks().forEach((track) => track.stop());
+    voiceStreamRef.current = null;
+    setVoicePhase('idle');
+  }, [panelOpen]);
 
   if (!panelOpen) return null;
 
@@ -281,6 +304,7 @@ export function CopilotPanel() {
         cacheId?: string;
         unsupported?: boolean;
         action?: CopilotActionProposal;
+        links?: CopilotNavigationLink[];
       } = await res.json();
       setTurns((t) => [
         ...t,
@@ -292,6 +316,7 @@ export function CopilotPanel() {
           question: message,
           action: data.action,
           actionState: data.action ? 'pending' : undefined,
+          links: data.links,
         },
       ]);
       if (data.tourId) {
@@ -354,6 +379,106 @@ export function CopilotPanel() {
       ),
       { kind: entity.kind, id: entity.id, label: entity.label },
     ]);
+  };
+
+  const transcribeVoice = async (blob: Blob) => {
+    if (blob.size < 1000) {
+      setVoiceError('That recording was too short. Tap the mic and try again.');
+      setVoicePhase('idle');
+      return;
+    }
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () =>
+          resolve(String(reader.result).split(',')[1] ?? '');
+        reader.onerror = () =>
+          reject(new Error('Could not read the recording.'));
+        reader.readAsDataURL(blob);
+      });
+      const response = await fetch('/api/copilot/transcribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          audio: { base64, mimeType: blob.type || 'audio/webm' },
+        }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        data?: { transcript?: string };
+        error?: string;
+      };
+      if (!response.ok || !payload.data?.transcript) {
+        throw new Error(payload.error || 'Could not understand the recording.');
+      }
+      const prefix = voicePrefixRef.current;
+      updateInput(
+        prefix
+          ? `${prefix} ${payload.data.transcript}`
+          : payload.data.transcript
+      );
+      setVoiceError(null);
+    } catch (error) {
+      setVoiceError(
+        error instanceof Error
+          ? error.message
+          : 'Could not understand the recording.'
+      );
+    } finally {
+      setVoicePhase('idle');
+    }
+  };
+
+  const startVoice = async () => {
+    setVoiceError(null);
+    if (
+      typeof MediaRecorder === 'undefined' ||
+      !navigator.mediaDevices?.getUserMedia
+    ) {
+      setVoiceError('Voice input is not supported in this browser.');
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = [
+        'audio/webm;codecs=opus',
+        'audio/webm',
+        'audio/mp4',
+      ].find((type) => MediaRecorder.isTypeSupported(type));
+      const recorder = new MediaRecorder(
+        stream,
+        mimeType ? { mimeType } : undefined
+      );
+      voiceChunksRef.current = [];
+      voiceStreamRef.current = stream;
+      voicePrefixRef.current = input.trim();
+      discardVoiceRef.current = false;
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) voiceChunksRef.current.push(event.data);
+      };
+      recorder.onstop = () => {
+        stream.getTracks().forEach((track) => track.stop());
+        voiceStreamRef.current = null;
+        if (discardVoiceRef.current) return;
+        const blob = new Blob(voiceChunksRef.current, {
+          type: recorder.mimeType || 'audio/webm',
+        });
+        void transcribeVoice(blob);
+      };
+      recorderRef.current = recorder;
+      recorder.start();
+      setVoicePhase('recording');
+    } catch (error) {
+      voiceStreamRef.current?.getTracks().forEach((track) => track.stop());
+      voiceStreamRef.current = null;
+      setVoicePhase('idle');
+      setVoiceError(microphoneErrorMessage(error));
+    }
+  };
+
+  const stopVoice = () => {
+    if (recorderRef.current?.state !== 'recording') return;
+    setVoicePhase('transcribing');
+    recorderRef.current.stop();
   };
 
   return (
@@ -450,6 +575,24 @@ export function CopilotPanel() {
                 )}
                 {copiedTurn === i ? t('copilot.copied') : t('copilot.copy')}
               </button>
+              {turn.role === 'assistant' && turn.links?.length ? (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {turn.links.map((link) => (
+                    <button
+                      key={`${link.label}:${link.navigateTo}`}
+                      type="button"
+                      onClick={() => {
+                        closePanel();
+                        router.push(link.navigateTo);
+                      }}
+                      className="bg-primary/15 text-primary hover:bg-primary/25 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-bold"
+                    >
+                      {link.label}
+                      <ArrowRight className="h-3 w-3" />
+                    </button>
+                  ))}
+                </div>
+              ) : null}
               {turn.role === 'assistant' && turn.action && (
                 <div className="mt-2 rounded-xl border border-slate-700 bg-slate-900/70 p-3">
                   <div className="flex items-start gap-2.5">
@@ -706,11 +849,43 @@ export function CopilotPanel() {
           <input
             value={input}
             onChange={(e) => updateInput(e.target.value)}
+            disabled={voicePhase !== 'idle'}
             placeholder="Ask anything… Use # properties, @ contacts, & events"
             maxLength={500}
             aria-label="Ask the helper"
             className="focus:border-primary/50 h-10 flex-1 rounded-xl border border-slate-800 bg-slate-900/60 px-3 text-sm text-white placeholder:text-slate-500 focus:outline-none"
           />
+          <button
+            type="button"
+            onClick={() =>
+              voicePhase === 'recording' ? stopVoice() : void startVoice()
+            }
+            disabled={busy || voicePhase === 'transcribing'}
+            aria-label={
+              voicePhase === 'recording'
+                ? 'Stop voice instruction'
+                : 'Speak an instruction'
+            }
+            title={
+              voicePhase === 'recording'
+                ? 'Stop recording'
+                : 'Speak an instruction'
+            }
+            className={cn(
+              'flex h-10 w-10 items-center justify-center rounded-xl border disabled:opacity-40',
+              voicePhase === 'recording'
+                ? 'border-rose-500/50 bg-rose-500/15 text-rose-400'
+                : 'hover:border-primary/50 hover:text-primary border-slate-800 bg-slate-900/60 text-slate-400'
+            )}
+          >
+            {voicePhase === 'transcribing' ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : voicePhase === 'recording' ? (
+              <Square className="h-3.5 w-3.5 fill-current" />
+            ) : (
+              <Mic className="h-4 w-4" />
+            )}
+          </button>
           <button
             type="submit"
             disabled={busy || !input.trim()}
@@ -720,6 +895,19 @@ export function CopilotPanel() {
             <Send className="h-4 w-4" />
           </button>
         </form>
+        {voicePhase === 'recording' ? (
+          <p className="mt-1.5 text-[11px] font-medium text-rose-400">
+            Listening… tap stop when you finish.
+          </p>
+        ) : voicePhase === 'transcribing' ? (
+          <p className="text-primary mt-1.5 text-[11px] font-medium">
+            Transcribing…
+          </p>
+        ) : voiceError ? (
+          <p className="mt-1.5 text-[11px] font-medium text-rose-400">
+            {voiceError}
+          </p>
+        ) : null}
       </div>
     </div>
   );

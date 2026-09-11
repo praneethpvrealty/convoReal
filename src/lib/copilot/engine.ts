@@ -24,6 +24,7 @@ import { logUnmetRequest, sanitizeCapability } from './unmet';
 import {
   entityHref,
   entitySymbolForKind,
+  propertyCodeFromMessage,
   requestedEntityNavigation,
   type EntityReference,
 } from './entities';
@@ -87,6 +88,12 @@ export interface AnswerResult {
   /** Desktop link for coverage 'web_only' answers. */
   webUrl?: string;
   action?: CopilotActionProposal;
+  links?: CopilotNavigationLink[];
+}
+
+export interface CopilotNavigationLink {
+  label: string;
+  navigateTo: string;
 }
 
 const NO_AI_REPLY: Record<Audience, string> = {
@@ -130,14 +137,39 @@ export async function answerQuestion(
         req.entities?.some((entity) => entity.kind === 'property')
       )
     ) {
+      if (req.canExecuteActions === false) {
+        return {
+          reply:
+            'You have view-only access, so you cannot share a property with a listing audience. Ask an account owner or admin to change your role if you need to send property details.',
+          ...(mobile ? { coverage: 'full' as const } : {}),
+        };
+      }
+      const properties = (req.entities ?? []).filter(
+        (entity) => entity.kind === 'property'
+      );
+      const property = properties.length === 1 ? properties[0] : null;
+      const propertyReference = property
+        ? (propertyCodeFromMessage(message) ?? property.label)
+        : null;
+      const navigateTo = property
+        ? `/inventory?sharePropertyId=${encodeURIComponent(property.id)}&shareAudience=1`
+        : '/inventory';
       return {
         reply: [
           mobile
-            ? 'Open the newly added property in Properties, expand its matching contacts list, and tap "Share with a listing\'s audience".'
-            : 'In Inventory, open Share for the newly added property, choose "Send from Engine", then "Select Contacts & Share on WhatsApp" and "Share with a listing\'s audience".',
+            ? `In Properties, open ${property?.label ?? 'the new property'}, expand Matching Contacts, and tap "Share with a listing's audience".`
+            : `In Inventory, open Share for ${property?.label ?? 'the new property'}, then choose "Send from Engine" → "Select Contacts & Share on WhatsApp" → "Share with a listing's audience".`,
           'Choose the existing listing whose audience you want; this selects reachable contacts who enquired about it or had tracked showcase views.',
           'Review the selected recipients, continue to sharing, and preview the new property message and showcase link before confirming the send.',
         ].join(' '),
+        links: [
+          {
+            label: property
+              ? `Open ${propertyReference} audience sharing`
+              : 'Open Inventory',
+            navigateTo,
+          },
+        ],
         ...(mobile ? { coverage: 'full' as const } : {}),
       };
     }
