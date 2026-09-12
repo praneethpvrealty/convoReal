@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
 
 /**
  * The Engine fan-out behind the property share sheet. A 31-contact list
@@ -122,5 +123,18 @@ describe('rate-limited shares', () => {
     expect(call).toBe(2);
     expect(outcome.sent).toBe(true);
     vi.useRealTimers();
+  });
+});
+
+describe('property broadcast entry point', () => {
+  it('keeps the listing context and opens the multi-buyer picker', () => {
+    const source = readFileSync('components/property-share-sheet.tsx', 'utf8');
+    const nudge = source.slice(
+      source.indexOf("text: 'Send this property to several buyers"),
+      source.indexOf('skipLabel="Open WhatsApp without a contact"')
+    );
+
+    expect(nudge).toContain("setPicker('engine')");
+    expect(nudge).not.toContain("router.push('/(app)/broadcast-new')");
   });
 });
