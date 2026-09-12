@@ -98,10 +98,11 @@ export function reachTotals(digest: AgentInventoryDigest) {
 export function buildAgentReachSummaryLine(digest: AgentInventoryDigest): string {
   const totals = reachTotals(digest)
   const bits: string[] = []
-  if (totals.newDirectBuyers > 0) bits.push(plural(totals.newDirectBuyers, 'new direct buyer'))
+  if (totals.newDirectBuyers > 0)
+    bits.push(`${plural(totals.newDirectBuyers, 'new direct buyer')} received the listing`)
   if (totals.newIndirectBuyers > 0)
-    bits.push(`${plural(totals.newIndirectBuyers, 'new buyer')} via partner agents`)
-  bits.push(`${totals.directBuyers} direct / ${totals.indirectBuyers} indirect buyers so far`)
+    bits.push(`${plural(totals.newIndirectBuyers, 'new buyer')} received it via partner agents`)
+  bits.push(`${totals.directBuyers} direct / ${totals.indirectBuyers} indirect recipients so far`)
   return bits.join(' · ')
 }
 
@@ -124,7 +125,7 @@ export function buildDashboardPointerLine(siteUrl: string): string {
 export function buildAgentDigestNextStepLine(digest: AgentInventoryDigest): string {
   const totals = reachTotals(digest)
   return totals.newDirectBuyers + totals.newIndirectBuyers > 0
-    ? 'Reply to this message to get the new buyer details'
+    ? 'Reply to this message to see who received the listing'
     : 'Reply to this message for the per-listing breakdown'
 }
 
@@ -147,13 +148,13 @@ export function buildAgentInventoryDigestMessage(
     lines.push('', `*${p.title}*`)
     if (p.directBuyers > 0)
       lines.push(
-        `• ${plural(p.directBuyers, 'direct buyer')}${
+        `• sent directly to ${plural(p.directBuyers, 'buyer')}${
           p.newDirectBuyers > 0 ? ` (${p.newDirectBuyers} new)` : ''
         }`
       )
     if (p.indirectBuyers > 0)
       lines.push(
-        `• ${plural(p.indirectBuyers, 'buyer')} via partner agents${
+        `• sent to ${plural(p.indirectBuyers, 'buyer')} via partner agents${
           p.newIndirectBuyers > 0 ? ` (${p.newIndirectBuyers} new)` : ''
         }`
       )

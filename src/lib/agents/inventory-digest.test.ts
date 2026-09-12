@@ -57,9 +57,9 @@ describe('reachTotals / buildAgentReachSummaryLine', () => {
 
   it('mentions new buyers and cumulative reach in one line', () => {
     const line = buildAgentReachSummaryLine(d)
-    expect(line).toContain('2 new direct buyers')
-    expect(line).toContain('1 new buyer via partner agents')
-    expect(line).toContain('3 direct / 1 indirect buyers so far')
+    expect(line).toContain('2 new direct buyers received the listing')
+    expect(line).toContain('1 new buyer received it via partner agents')
+    expect(line).toContain('3 direct / 1 indirect recipients so far')
     expect(line).not.toMatch(/\n/)
   })
 
@@ -67,7 +67,7 @@ describe('reachTotals / buildAgentReachSummaryLine', () => {
     const line = buildAgentReachSummaryLine(
       digest([stats({ directBuyers: 4, indirectBuyers: 2 })])
     )
-    expect(line).toBe('4 direct / 2 indirect buyers so far')
+    expect(line).toBe('4 direct / 2 indirect recipients so far')
   })
 })
 
@@ -75,7 +75,7 @@ describe('buildAgentDigestNextStepLine', () => {
   it('asks for a reply and never carries a promotional CTA', () => {
     const withNew = buildAgentDigestNextStepLine(digest([stats({ newDirectBuyers: 2 })]))
     const withoutNew = buildAgentDigestNextStepLine(digest([stats({ directBuyers: 4 })]))
-    expect(withNew).toContain('new buyer details')
+    expect(withNew).toContain('who received the listing')
     expect(withoutNew).toContain('per-listing breakdown')
     for (const line of [withNew, withoutNew]) {
       expect(line).not.toMatch(/https?:\/\/|sign ?up/i)
@@ -101,9 +101,9 @@ describe('buildAgentInventoryDigestMessage', () => {
     )
     expect(msg).toContain('Hi Deepak')
     expect(msg).toContain('*Sunrise Villa*')
-    expect(msg).toContain('2 direct buyers (1 new)')
+    expect(msg).toContain('sent directly to 2 buyers (1 new)')
     expect(msg).toContain('*Lake View Plot*')
-    expect(msg).toContain('3 buyers via partner agents (2 new)')
+    expect(msg).toContain('sent to 3 buyers via partner agents (2 new)')
     expect(msg).toContain('shared with 2 partner agents')
     expect(msg).toContain('https://www.convoreal.com/signup')
     expect(msg).toContain('STOP UPDATES')
