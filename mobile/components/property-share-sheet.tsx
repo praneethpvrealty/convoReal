@@ -812,10 +812,11 @@ export function PropertyShareSheet({
                   : 'Sending from ConvoReal…'
                 : recipientName
                   ? `Send to ${recipientName}`
-                  : 'Send via ConvoReal WhatsApp'}
+                  : 'Broadcast this property'}
             </Text>
             <Text style={{ fontSize: 11.5, color: colors.textMuted }}>
-              Delivers from your business number and logs to the chat thread
+              Choose buyers; ConvoReal uses the approved property message
+              automatically
             </Text>
           </View>
           {engineSending ? (
@@ -876,15 +877,11 @@ export function PropertyShareSheet({
         onSelect={shareExternalWithContact}
         title="Share on WhatsApp"
         hint="Pick a contact to open WhatsApp addressed to them and log the share on their timeline. WhatsApp opens one chat at a time — to reach several people at once, use Send via ConvoReal WhatsApp above."
-        // Tapping leaves the share flow, so it closes the sheet rather
-        // than stacking the composer behind it.
+        // Keep the property draft in this sheet and switch directly to
+        // the multi-recipient Engine picker.
         nudge={{
-          text: 'Sending to a whole list? A Broadcast reaches everyone in one campaign, with delivery tracking.',
-          onPress: () => {
-            setPicker(null);
-            onClose();
-            router.push('/(app)/broadcast-new');
-          },
+          text: 'Send this property to several buyers from your business number. ConvoReal chooses the approved property message automatically.',
+          onPress: () => setPicker('engine'),
         }}
         skipLabel="Open WhatsApp without a contact"
         onSkip={shareExternalWithoutContact}
@@ -893,10 +890,10 @@ export function PropertyShareSheet({
         visible={picker === 'engine'}
         onClose={() => setPicker(null)}
         multiSelect
-        confirmLabel="Send"
+        confirmLabel="Broadcast"
         onSelectMany={sendViaConvoRealMany}
-        title="Send via ConvoReal WhatsApp"
-        hint="Pick everyone who should receive this listing from your business number. Search again to add more — your picks are kept."
+        title="Broadcast this property"
+        hint="Choose the buyers who should receive this listing. The property stays attached and ConvoReal handles the approved WhatsApp template automatically. Search again to add more — your picks are kept."
         busy={engineSending}
         busyLabel="Sending from ConvoReal…"
       />
