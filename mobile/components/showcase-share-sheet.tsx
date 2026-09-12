@@ -55,6 +55,7 @@ interface EngineTemplate {
 interface PersonalizedShareSummary {
   summary: string;
   template_params: [string, string, string];
+  selection_template_params: [string];
   match_count: number;
 }
 
@@ -62,6 +63,7 @@ interface ShareSummaryData {
   summary: string;
   count: number;
   template_params: [string, string, string];
+  selection_template_params: [string];
   personalized: Record<string, PersonalizedShareSummary>;
 }
 
@@ -188,9 +190,9 @@ export function ShowcaseShareSheet({
       ).then((response) => response.data),
   });
 
-  // The Engine channel: the inventory_update template goes out from the
-  // account's WhatsApp Business number, which reaches a contact whose
-  // 24-hour window is shut — the free-form ConvoReal channel cannot.
+  // The Engine channel: the scope-aware property-selection template goes
+  // out from the account's WhatsApp Business number, which reaches a contact
+  // whose 24-hour window is shut — the free-form ConvoReal channel cannot.
   const accountId = useAuthStore((state) => state.profile?.account_id);
   const template = useQuery({
     queryKey: ['inventory-update-template', accountId],
@@ -200,7 +202,7 @@ export function ShowcaseShareSheet({
         .from('message_templates')
         .select('name, language, status, buttons')
         .eq('account_id', accountId)
-        .eq('name', 'inventory_update')
+        .eq('name', 'property_selection_update')
         .order('last_submitted_at', { ascending: false, nullsFirst: false })
         .limit(1)
         .maybeSingle();
@@ -401,7 +403,7 @@ export function ShowcaseShareSheet({
    *  it is the one path that reaches a shut 24-hour window. */
   async function sendViaEngine(contacts: Contact[]) {
     const engine = template.data;
-    const fallbackParams = digest.data?.template_params;
+    const fallbackParams = digest.data?.selection_template_params;
     if (!engine || !fallbackParams) {
       show({
         title: 'Still preparing',
@@ -429,7 +431,7 @@ export function ShowcaseShareSheet({
       }
       try {
         const params =
-          summaries?.personalized[contact.id]?.template_params ??
+          summaries?.personalized[contact.id]?.selection_template_params ??
           fallbackParams;
         // Dynamic URL-button suffix → a tracked, personalised open.
         const buttonParams: Record<number, string> = {};
@@ -528,7 +530,7 @@ export function ShowcaseShareSheet({
       actions: [
         { label: 'Cancel', variant: 'muted', onPress: close },
         {
-          label: 'WhatsApp',
+          label: 'Personal WhatsApp',
           onPress: () => {
             close();
             void personalWhatsApp(contacts);

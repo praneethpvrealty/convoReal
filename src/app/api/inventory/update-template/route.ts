@@ -4,7 +4,7 @@ import { buildInventoryUpdateTemplatePayload } from '@/lib/whatsapp/inventory-up
 
 // GET /api/inventory/update-template
 //
-// The inventory_update template definition, for a surface that cannot
+// The property_selection_update template definition, for a surface that cannot
 // import the builder. Mobile fetches this and POSTs it to
 // /api/whatsapp/templates/submit — the same payload the web dialog
 // submits, so the two cannot register different templates under one

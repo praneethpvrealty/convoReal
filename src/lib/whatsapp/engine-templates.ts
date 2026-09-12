@@ -33,7 +33,7 @@ import {
 } from './location-request-templates';
 import {
   buildInventoryUpdateTemplatePayload,
-  INVENTORY_UPDATE_TEMPLATE_NAME,
+  PROPERTY_SELECTION_UPDATE_TEMPLATE_NAME,
 } from './inventory-update-template';
 import {
   buildEnquiryFollowupTemplatePayload,
@@ -142,7 +142,7 @@ export const ENGINE_TEMPLATES: EngineTemplateDef[] = [
       buildLocationOwnerDecisionTemplatePayload(language),
   },
   {
-    name: INVENTORY_UPDATE_TEMPLATE_NAME,
+    name: PROPERTY_SELECTION_UPDATE_TEMPLATE_NAME,
     copyKey: 'inventory_update',
     label: 'Inventory update',
     whyItMatters:
@@ -219,8 +219,7 @@ export const ENGINE_TEMPLATES: EngineTemplateDef[] = [
     label: 'Property Share Feedback',
     whyItMatters:
       'Asks a buyer for feedback 30 minutes after sharing a property to refine their requirements.',
-    build: (_origin, language) =>
-      buildShareFeedbackTemplatePayload(language),
+    build: (_origin, language) => buildShareFeedbackTemplatePayload(language),
   },
 ];
 
