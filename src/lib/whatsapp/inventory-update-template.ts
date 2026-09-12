@@ -1,4 +1,4 @@
-// The predefined "inventory_update" WhatsApp template + its per-send
+// The predefined "property_selection_update" WhatsApp template + its per-send
 // parameter builders. This is the Engine-native counterpart of the
 // showcase share dialog's inventory digest: instead of pasting the
 // digest into personal WhatsApp, the agent sends this pre-approved
@@ -24,18 +24,21 @@ import { formatShareAmount } from '@/lib/share-message-builder';
 import { categoryForType } from '@/lib/inventory-summary-builder';
 import { rankInventoryProperties } from '@/lib/inventory/top-properties';
 
-export const INVENTORY_UPDATE_TEMPLATE_NAME = 'inventory_update';
+export const PROPERTY_SELECTION_UPDATE_TEMPLATE_NAME =
+  'property_selection_update';
 
 // Meta rejects body parameters containing newlines, tabs, or 4+
 // consecutive spaces; the rendered body must also stay inside the
-// 1024-char cap, so each category line gets a hard budget.
+// 1024-char cap, so each parameter gets a hard budget.
 const PARAM_MAX_LENGTH = 200;
+const SELECTION_PARAM_MAX_LENGTH = 600;
 
-export function sanitizeTemplateParam(value: string): string {
+export function sanitizeTemplateParam(
+  value: string,
+  maxLength = PARAM_MAX_LENGTH
+): string {
   const clean = value.replace(/\s+/g, ' ').trim();
-  return clean.length > PARAM_MAX_LENGTH
-    ? `${clean.slice(0, PARAM_MAX_LENGTH - 1)}…`
-    : clean;
+  return clean.length > maxLength ? `${clean.slice(0, maxLength - 1)}…` : clean;
 }
 
 /**
@@ -49,7 +52,7 @@ export function buildInventoryUpdateTemplatePayload(
   language: LanguageCode = DEFAULT_LANGUAGE
 ): TemplatePayload {
   return {
-    name: INVENTORY_UPDATE_TEMPLATE_NAME,
+    name: PROPERTY_SELECTION_UPDATE_TEMPLATE_NAME,
     category: 'Marketing',
     language: metaLanguageCode(language),
     body_text: templateBody('inventory_update', language),
@@ -76,9 +79,7 @@ export function buildInventoryUpdateTemplatePayload(
     sample_values: {
       body: [
         'Praneeth',
-        '3 options — Golden City (Plot · ₹44.40 Lakhs), Sumadhura Eden Garden (2.5 BHK · ₹1.70 Cr) +1 more',
-        '2 options — Prestige Office (₹6.30 Lakhs/mo rent), Oval Reef Warehouse (₹9 Cr · ROI 6%)',
-        'Green Acres (4 Acres · ₹5.20 Cr)',
+        'Commercial: 2 options — Prestige Office (₹6.30 Lakhs/mo rent), Oval Reef Warehouse (₹9 Cr · ROI 6%)',
       ],
     },
   };
@@ -169,5 +170,55 @@ export function buildInventoryUpdateParams(
     categoryLine(residential, ranking.matchedPropertyIds, ranking.personalized),
     categoryLine(commercial, ranking.matchedPropertyIds, ranking.personalized),
     categoryLine(farmAndLand, ranking.matchedPropertyIds, ranking.personalized),
+  ];
+}
+
+/**
+ * Body param {{2}} of property_selection_update. Only categories present in
+ * the chosen share scope are named, so a commercial selection never mentions
+ * residential or farm inventory. The legacy three-param builder above stays
+ * in the API response for older mobile releases using inventory_update.
+ */
+export function buildPropertySelectionUpdateParams(
+  properties: Property[],
+  contact?: Contact | null,
+  { preserveOrder = false }: { preserveOrder?: boolean } = {}
+): [selection: string] {
+  const ranking = rankInventoryProperties(properties, contact, {
+    preserveOrder,
+  });
+  const groups: Record<
+    'Residential' | 'Commercial' | 'Farm & land',
+    Property[]
+  > = {
+    Residential: [],
+    Commercial: [],
+    'Farm & land': [],
+  };
+
+  for (const property of ranking.properties) {
+    const category = categoryForType(property.type);
+    if (category === 'Residential') groups.Residential.push(property);
+    else if (category === 'Commercial') groups.Commercial.push(property);
+    else groups['Farm & land'].push(property);
+  }
+
+  const selection = Object.entries(groups)
+    .filter(([, list]) => list.length > 0)
+    .map(
+      ([label, list]) =>
+        `${label}: ${categoryLine(
+          list,
+          ranking.matchedPropertyIds,
+          ranking.personalized
+        )}`
+    )
+    .join(' • ');
+
+  return [
+    sanitizeTemplateParam(
+      selection || 'No published options in this selection right now',
+      SELECTION_PARAM_MAX_LENGTH
+    ),
   ];
 }

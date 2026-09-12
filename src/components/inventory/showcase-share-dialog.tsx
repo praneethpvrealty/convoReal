@@ -45,7 +45,7 @@ import { formatShareAmount } from '@/lib/share-message-builder';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import {
   buildInventoryUpdateTemplatePayload,
-  INVENTORY_UPDATE_TEMPLATE_NAME,
+  PROPERTY_SELECTION_UPDATE_TEMPLATE_NAME,
 } from '@/lib/whatsapp/inventory-update-template';
 
 interface PickerContact {
@@ -58,6 +58,7 @@ interface PickerContact {
 interface PersonalizedShareSummary {
   summary: string;
   template_params: [string, string, string];
+  selection_template_params: [string];
   match_count: number;
 }
 
@@ -66,6 +67,7 @@ interface ShareSummaryResponse {
     summary: string;
     count: number;
     template_params: [string, string, string];
+    selection_template_params: [string];
     personalized: Record<string, PersonalizedShareSummary>;
   };
 }
@@ -318,9 +320,9 @@ Best regards`;
           : `${scopeCount} ${shareCategory} listings`;
 
   // ── Engine template ─────────────────────────────────────────────
-  // The inventory_update template lets the digest go out from the
-  // account's own WhatsApp Business number — replies land in the
-  // ConvoReal Inbox instead of the agent's personal WhatsApp.
+  // The scope-aware property-selection template lets the digest go out
+  // from the account's own WhatsApp Business number — replies land in
+  // the ConvoReal Inbox instead of the agent's personal WhatsApp.
   const [engineTemplate, setEngineTemplate] = useState<MessageTemplate | null>(
     null
   );
@@ -339,7 +341,7 @@ Best regards`;
       .from('message_templates')
       .select('*')
       .eq('account_id', accountId)
-      .eq('name', INVENTORY_UPDATE_TEMPLATE_NAME)
+      .eq('name', PROPERTY_SELECTION_UPDATE_TEMPLATE_NAME)
       .order('last_submitted_at', { ascending: false, nullsFirst: false })
       .limit(1)
       .maybeSingle();
@@ -589,9 +591,9 @@ Best regards`;
       );
       for (const contact of sendableContacts) {
         const firstName = contact.name?.trim().split(/\s+/)[0] || 'there';
-        const [residential, commercial, farmAndLand] =
-          summaries.personalized[contact.id]?.template_params ??
-          summaries.template_params;
+        const [selection] =
+          summaries.personalized[contact.id]?.selection_template_params ??
+          summaries.selection_template_params;
         // Dynamic URL-button suffix → tracked, personalised portal open.
         const buttonParams: Record<number, string> = {};
         (engineTemplate.buttons ?? []).forEach((btn, idx) => {
@@ -608,7 +610,7 @@ Best regards`;
               recipients: [
                 {
                   phone: contact.phone,
-                  params: [firstName, residential, commercial, farmAndLand],
+                  params: [firstName, selection],
                   ...(Object.keys(buttonParams).length > 0
                     ? { messageParams: { buttonParams } }
                     : {}),
@@ -1128,7 +1130,7 @@ Best regards`;
                   }
                 >
                   <Smartphone className="size-3.5" />
-                  WhatsApp
+                  Personal WhatsApp
                 </Button>
               </div>
 
@@ -1149,7 +1151,7 @@ Best regards`;
                       <p className="text-[11px] leading-relaxed text-slate-400">
                         {engineTemplate?.status === 'REJECTED'
                           ? `Meta rejected the template${engineTemplate.rejection_reason ? `: ${engineTemplate.rejection_reason}` : ''}.`
-                          : 'One-time setup: submit the ready-made inventory_update template for Meta approval. After that, updates go out from your business number — replies land in your Inbox instead of your personal WhatsApp.'}
+                          : 'One-time setup: submit the scope-aware property selection template for Meta approval. After that, updates go out from your business number — replies land in your Inbox instead of your personal WhatsApp.'}
                       </p>
                       <Button
                         size="sm"

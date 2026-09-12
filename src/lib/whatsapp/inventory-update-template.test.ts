@@ -3,8 +3,9 @@ import type { Contact, Property } from '@/types';
 import {
   buildInventoryUpdateTemplatePayload,
   buildInventoryUpdateParams,
+  buildPropertySelectionUpdateParams,
   sanitizeTemplateParam,
-  INVENTORY_UPDATE_TEMPLATE_NAME,
+  PROPERTY_SELECTION_UPDATE_TEMPLATE_NAME,
 } from './inventory-update-template';
 import { validateTemplatePayload } from './template-validators';
 
@@ -31,7 +32,7 @@ describe('buildInventoryUpdateTemplatePayload', () => {
       'https://www.convoreal.com'
     );
     expect(() => validateTemplatePayload(payload)).not.toThrow();
-    expect(payload.name).toBe(INVENTORY_UPDATE_TEMPLATE_NAME);
+    expect(payload.name).toBe(PROPERTY_SELECTION_UPDATE_TEMPLATE_NAME);
     expect(payload.category).toBe('Marketing');
   });
 
@@ -52,8 +53,8 @@ describe('buildInventoryUpdateTemplatePayload', () => {
       'https://www.convoreal.com'
     );
     const skeleton = payload.body_text.replace(/\{\{\d\}\}/g, '');
-    // name (~30) + three 200-char category lines
-    expect(skeleton.length + 30 + 3 * 200).toBeLessThanOrEqual(1024);
+    // name (~30) + one 600-char scope-aware selection line
+    expect(skeleton.length + 30 + 600).toBeLessThanOrEqual(1024);
   });
 });
 
@@ -139,5 +140,40 @@ describe('buildInventoryUpdateParams', () => {
     );
     expect(res).toContain('1 match from 2 available — HBR Villa');
     expect(res).toContain('1 other option');
+  });
+});
+
+describe('buildPropertySelectionUpdateParams', () => {
+  it('names only the categories present in the selected scope', () => {
+    const [selection] = buildPropertySelectionUpdateParams([
+      prop({
+        title: 'Thippasandra Main Road Building',
+        type: 'Commercial Building',
+        price: 150000000,
+        roi: 6.4,
+      }),
+      prop({
+        title: 'Commercial Corner Plot',
+        type: 'Commercial Plot',
+        price: 140000000,
+        roi: 3,
+      }),
+    ]);
+
+    expect(selection).toContain('Commercial: 2 options');
+    expect(selection).toContain('Thippasandra Main Road Building');
+    expect(selection).not.toContain('Residential');
+    expect(selection).not.toContain('Farm & land');
+  });
+
+  it('includes each non-empty category for a mixed hand-picked selection', () => {
+    const [selection] = buildPropertySelectionUpdateParams([
+      prop({ title: 'Golden City', type: 'Residential Land/ Plot' }),
+      prop({ title: 'Prestige Office', type: 'Commercial Office Space' }),
+    ]);
+
+    expect(selection).toContain('Residential:');
+    expect(selection).toContain('Commercial:');
+    expect(selection).not.toContain('Farm & land');
   });
 });

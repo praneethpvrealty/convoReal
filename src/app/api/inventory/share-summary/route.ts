@@ -7,7 +7,10 @@ import {
 import { rankInventoryProperties } from '@/lib/inventory/top-properties';
 import { attachInquiredListingTypes } from '@/lib/contacts/inquired-intent';
 import { MATCHING_CONTACT_COLUMNS } from '@/lib/v1/projections';
-import { buildInventoryUpdateParams } from '@/lib/whatsapp/inventory-update-template';
+import {
+  buildInventoryUpdateParams,
+  buildPropertySelectionUpdateParams,
+} from '@/lib/whatsapp/inventory-update-template';
 import {
   filterPropertiesBySearch,
   selectPinnedProperties,
@@ -39,8 +42,8 @@ function withVisitor(urlValue: string, contactId: string): string {
 // GET /api/inventory/share-summary?scope=&category=&search=&ids=&portal_url=&contact_ids=
 //
 // The WhatsApp-ready digest of the listings one share link opens, plus
-// the three body parameters the inventory_update template renders from
-// the same set,
+// the scope-aware property-selection parameter and legacy inventory_update
+// parameters rendered from the same set,
 // grouped by category with price, size, rent and ROI. The scope rules
 // are the same pure modules the web dialog builds its preview from
 // (AGENTS.md §2.8): the phone gets the digest by calling this rather
@@ -117,6 +120,7 @@ export async function GET(request: Request) {
       {
         summary: string;
         template_params: [string, string, string];
+        selection_template_params: [string];
         match_count: number;
       }
     > = {};
@@ -175,6 +179,10 @@ export async function GET(request: Request) {
               recipientName: contact.name,
             }),
             template_params: buildInventoryUpdateParams(eligible, contact),
+            selection_template_params: buildPropertySelectionUpdateParams(
+              eligible,
+              contact
+            ),
             match_count: rankInventoryProperties(eligible, contact).matchCount,
           };
         }
@@ -188,11 +196,15 @@ export async function GET(request: Request) {
           preserveOrder,
         }),
         count: shareProperties.length,
-        // Body params {{2}}..{{4}} of the inventory_update template, so a
-        // surface that cannot import the builder can still send it.
+        // Kept for older mobile releases that still send inventory_update.
         template_params: buildInventoryUpdateParams(shareProperties, null, {
           preserveOrder,
         }),
+        selection_template_params: buildPropertySelectionUpdateParams(
+          shareProperties,
+          null,
+          { preserveOrder }
+        ),
         personalized,
       },
     });

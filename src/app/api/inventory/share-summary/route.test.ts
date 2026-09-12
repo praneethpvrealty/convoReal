@@ -58,9 +58,15 @@ async function callGet(query: string) {
       summary: string;
       count: number;
       template_params: string[];
+      selection_template_params: string[];
       personalized: Record<
         string,
-        { summary: string; template_params: string[]; match_count: number }
+        {
+          summary: string;
+          template_params: string[];
+          selection_template_params: string[];
+          match_count: number;
+        }
       >;
     };
   };
@@ -92,6 +98,9 @@ describe('/api/inventory/share-summary', () => {
     expect(body.data.summary).not.toContain('*RESIDENTIAL*');
     expect(body.data.template_params[0]).toContain('no published options');
     expect(body.data.template_params[1]).toContain('Shop on 27th Main');
+    expect(body.data.selection_template_params[0]).toContain('Commercial:');
+    expect(body.data.selection_template_params[0]).not.toContain('Residential');
+    expect(body.data.selection_template_params[0]).not.toContain('Farm & land');
   });
 
   it('applies the search scope instead of the category', async () => {
@@ -177,6 +186,8 @@ describe('/api/inventory/share-summary', () => {
     expect(ranked.summary).toContain('Villa in Whitefield');
     expect(ranked.summary).not.toContain('Shop on 27th Main');
     expect(ranked.summary).toContain('v=contact-1');
+    expect(ranked.selection_template_params[0]).toContain('Residential:');
+    expect(ranked.selection_template_params[0]).not.toContain('Commercial:');
     expect(ranked.match_count).toBe(1);
   });
 

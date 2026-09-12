@@ -11,7 +11,7 @@ vi.mock('@/lib/auth/account', () => ({
 }));
 
 import { GET } from './route';
-import { INVENTORY_UPDATE_TEMPLATE_NAME } from '@/lib/whatsapp/inventory-update-template';
+import { PROPERTY_SELECTION_UPDATE_TEMPLATE_NAME } from '@/lib/whatsapp/inventory-update-template';
 
 describe('/api/inventory/update-template', () => {
   beforeEach(() => vi.clearAllMocks());
@@ -28,7 +28,7 @@ describe('/api/inventory/update-template', () => {
         buttons: { type: string; url?: string }[];
       };
     };
-    expect(body.data.name).toBe(INVENTORY_UPDATE_TEMPLATE_NAME);
+    expect(body.data.name).toBe(PROPERTY_SELECTION_UPDATE_TEMPLATE_NAME);
     expect(body.data.category).toBe('Marketing');
     const urlButton = body.data.buttons.find((b) => b.type === 'URL');
     expect(urlButton?.url).toContain('/{{1}}');
