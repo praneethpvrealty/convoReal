@@ -186,6 +186,7 @@ import {
   handleOwnerInboundMessage,
   type OwnedListing,
 } from '@/lib/owners/owner-reply';
+import { handleAgentInventoryDetailsRequest } from '@/lib/agents/inventory-reply';
 import { processListingVerification } from '@/lib/showcase/listing-verification';
 import { processRequirementReply } from '@/lib/requirements/respond';
 import {
@@ -3116,6 +3117,22 @@ async function processMessage(
   const flowConsumed = flowResult.consumed;
 
   const inboundText = contentText ?? message.text?.body ?? '';
+
+  if (
+    !flowConsumed &&
+    (message.type === 'text' || message.type === 'button')
+  ) {
+    const agentInventoryHandled = await handleAgentInventoryDetailsRequest({
+      db: supabaseAdmin(),
+      accountId,
+      userId: configOwnerUserId,
+      contactId: contactRecord.id,
+      contactName: contactRecord.name || null,
+      conversationId: conversation.id,
+      text: message.button?.text ?? inboundText,
+    });
+    if (agentInventoryHandled) return;
+  }
 
   if (
     !flowConsumed &&
