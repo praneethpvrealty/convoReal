@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/automations/admin-client";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { normalizePhoneWithCountryCode } from "@/lib/whatsapp/phone-utils";
-import { sendWhatsAppMessageAndPersist } from "@/lib/whatsapp/meta-api-dispatcher";
+import { notifyDocumentRequestOwner } from "@/lib/inventory/document-requests";
 
 // Per-IP and per-account caps that bound abuse even when the requester
 // rotates the phone number (the per-phone pending cap below is trivially
@@ -179,11 +179,12 @@ export async function POST(
             `👤 *Name*: ${requester_name.trim()}\n` +
             `📞 *Phone*: ${normalizedPhone}` +
             (requester_email ? `\n📧 *Email*: ${requester_email.trim()}` : "") +
-            `\n\n_Reply via the Engine dashboard to Approve or Reject this request._`;
+            `\n\n_Approve or reject from WhatsApp, the mobile Home approvals inbox, or the web dashboard._`;
 
           await admin.from("messages").insert({
             conversation_id: conversationId,
-            sender_type: "customer",
+            sender_type: "bot",
+            private: true,
             content_type: "text",
             content_text: inboxText,
             message_id: `doc-request-${docRequest.id}`,
@@ -209,46 +210,18 @@ export async function POST(
       }
     }
 
-    // 7. Send WhatsApp notification to the agent (fire-and-forget)
-    if (targetAgentUserId) {
-      (async () => {
-        try {
-          // Resolve the agent's phone via their profile → contact
-          const { data: agentProfile } = await admin
-            .from("profiles")
-            .select("email")
-            .eq("user_id", targetAgentUserId!)
-            .maybeSingle();
-
-          if (agentProfile?.email) {
-            const { data: agentContact } = await admin
-              .from("contacts")
-              .select("id, phone")
-              .eq("account_id", account_id)
-              .eq("email", agentProfile.email)
-              .maybeSingle();
-
-            if (agentContact?.phone) {
-              const notifText =
-                `📄 *New Document Request*\n` +
-                `Property: ${property.title}${property.property_code ? ` (${property.property_code})` : ""}\n` +
-                `From: ${requester_name.trim()} · ${normalizedPhone}\n\n` +
-                `Open your Engine dashboard to Approve or Reject this request.`;
-
-              await sendWhatsAppMessageAndPersist({
-                accountId: account_id,
-                userId: targetAgentUserId || undefined,
-                contactId: agentContact.id,
-                kind: "text",
-                senderType: "bot",
-                text: notifText,
-              });
-            }
-          }
-        } catch (err) {
-          console.error("[doc-request] Agent WA notification failed:", err);
-        }
-      })();
+    try {
+      await notifyDocumentRequestOwner(admin, {
+        id: docRequest.id,
+        property_id: propertyId,
+        account_id,
+        requester_name: requester_name.trim(),
+        requester_phone: normalizedPhone,
+        requester_email: requester_email?.trim()?.toLowerCase() || null,
+        status: 'pending',
+      });
+    } catch (error) {
+      console.error('[doc-request] Agent notification failed:', error);
     }
 
     return NextResponse.json({ success: true, requestId: docRequest.id });

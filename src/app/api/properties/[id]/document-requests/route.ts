@@ -3,6 +3,7 @@ import { requireRole, toErrorResponse } from "@/lib/auth/account";
 import { supabaseAdmin } from "@/lib/automations/admin-client";
 import { sendWhatsAppMessageAndPersist } from "@/lib/whatsapp/meta-api-dispatcher";
 import { normalizePhoneWithCountryCode } from "@/lib/whatsapp/phone-utils";
+import { decideDocumentRequest } from "@/lib/inventory/document-requests";
 
 // GET /api/properties/[id]/document-requests
 // List all document requests for a given property (auth required)
@@ -83,109 +84,19 @@ export async function PATCH(
       return NextResponse.json({ error: "This request has already been processed" }, { status: 409 });
     }
 
-    if (action === "reject") {
-      const { data: updated, error: updateErr } = await ctx.supabase
-        .from("property_document_requests")
-        .update({ status: "rejected" })
-        .eq("id", request_id)
-        .select()
-        .single();
-
-      if (updateErr) {
-        return NextResponse.json({ error: "Failed to reject request" }, { status: 500 });
-      }
-
-      return NextResponse.json({ data: updated });
-    }
-
-    // === Approval flow ===
-
-    // 1. Fetch property documents
     const admin = supabaseAdmin();
-    const { data: property } = await admin
-      .from("properties")
-      .select("id, title, property_code, documents")
-      .eq("id", propertyId)
-      .eq("account_id", ctx.accountId)
-      .maybeSingle();
-
-    if (!property) {
-      return NextResponse.json({ error: "Property not found" }, { status: 404 });
-    }
-
-    // 2. Generate a cryptographically secure share token
-    const rawToken = crypto.randomUUID().replace(/-/g, "") + crypto.randomUUID().replace(/-/g, "");
-    const shareToken = rawToken.substring(0, 48);
-    const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(); // 48h
-
-    // 3. Build the shareable link
-    const appBaseUrl =
-      process.env.NEXT_PUBLIC_APP_URL ||
-      process.env.NEXT_PUBLIC_SITE_URL ||
-      "https://app.convoreal.com";
-    const shareLink = `${appBaseUrl}/docs/${shareToken}`;
-
-    // 4. Update the document request row
-    const { data: updated, error: updateErr } = await ctx.supabase
-      .from("property_document_requests")
-      .update({
-        status: "approved",
-        share_token: shareToken,
-        share_token_expires_at: expiresAt,
-        access_password: access_password || null,
-      })
-      .eq("id", request_id)
-      .select()
-      .single();
-
-    if (updateErr) {
-      console.error("[PATCH doc-request] Update error:", updateErr);
-      return NextResponse.json({ error: "Failed to approve request" }, { status: 500 });
-    }
-
-    // 5. Send WhatsApp message to requester (fire-and-forget)
-    (async () => {
-      try {
-        const normalizedPhone = normalizePhoneWithCountryCode(docRequest.requester_phone);
-        if (!normalizedPhone) return;
-
-        const hasDocuments =
-          Array.isArray(property.documents) &&
-          property.documents.filter((d: string) => d?.trim()).length > 0;
-
-        const waText = hasDocuments
-          ? (access_password
-              ? `Hi ${docRequest.requester_name},\n\nHere is the link for the documents of the property *${property.title}* asked. Please use the password - *${access_password}* to open it.\n\n📂 *Download Link*: ${shareLink}\n\n_This link will expire in 48 hours._`
-              : `Hi ${docRequest.requester_name},\n\nYour request for property documents has been approved! 🎉\n\n` +
-                `📋 *Property*: ${property.title}${property.property_code ? ` (${property.property_code})` : ""}\n` +
-                `📂 *Download Documents*: ${shareLink}\n\n` +
-                `_This link will expire in 48 hours._`)
-          : `Hi ${docRequest.requester_name},\n\nThank you for your interest in ${property.title}.\n\n` +
-            `The documents for this property are being prepared. Our agent will share them with you shortly.\n\n` +
-            `Feel free to reach out for any queries.`;
-
-        await sendWhatsAppMessageAndPersist({
-          accountId: ctx.accountId,
-          userId: ctx.userId,
-          toPhone: normalizedPhone,
-          kind: "text",
-          senderType: "agent",
-          text: waText,
-        });
-
-        // Mark share_sent_at
-        await admin
-          .from("property_document_requests")
-          .update({ share_sent_at: new Date().toISOString() })
-          .eq("id", request_id);
-      } catch (err) {
-        console.error("[PATCH doc-request] WA send to requester failed:", err);
-      }
-    })();
+    const result = await decideDocumentRequest({
+      admin,
+      request: docRequest,
+      decision: action,
+      actorUserId: ctx.userId,
+      accessPassword: access_password,
+    });
 
     return NextResponse.json({
-      data: updated,
-      share_link: shareLink,
+      success: true,
+      share_link: result.shareLink,
+      delivered: result.delivered,
     });
   } catch (err) {
     return toErrorResponse(err);

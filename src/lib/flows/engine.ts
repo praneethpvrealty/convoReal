@@ -57,6 +57,7 @@ import { generateMatchEventForContact } from "@/lib/radar/engine";
 import { createNotification } from "@/lib/notifications/create";
 import { BRIDGE_REPLY_HINT } from "@/lib/whatsapp/reply-bridge";
 import { logListingsSent } from "@/lib/whatsapp/share-property-send";
+import { looksLikeQuestion } from '@/lib/ai/lead-question';
 import { grantAlertsConsent } from "./alerts-subscribe";
 import {
   accountPropertyShowcaseUrl,
@@ -454,6 +455,14 @@ export interface ListingRow {
   price: number | null;
   property_code: string | null;
   listing_type: string | null;
+  rental_income?: number | null;
+  roi?: number | null;
+  floor_tenancies?: Array<{
+    tenant_name?: string | null;
+    monthly_rent?: number | null;
+    lease_end?: string | null;
+    lock_in_months?: number | null;
+  }> | null;
 }
 
 /**
@@ -510,7 +519,9 @@ export function splitByBudget(
   aboveBudget: ListingRow[];
   nextBudget: ListingRow[];
 } {
-  const { max } = budgetText ? parseBudgetText(budgetText, context) : { max: null };
+  const { min, max } = budgetText
+    ? parseBudgetText(budgetText, context)
+    : { min: null, max: null };
   if (max == null) {
     return {
       withinBudget: properties.slice(0, limit),
@@ -519,7 +530,13 @@ export function splitByBudget(
     };
   }
 
-  const within = properties.filter((p) => p.price != null && p.price > 0 && p.price <= max);
+  const within = properties.filter(
+    (p) =>
+      p.price != null &&
+      p.price > 0 &&
+      p.price <= max &&
+      (min == null || p.price >= min)
+  );
   const stretchCeiling = max * 1.1;
   const nextBandCeiling = max * 1.35;
   const above = properties
@@ -861,7 +878,7 @@ async function fetchAndFormatPropertyListings(
   const pool = Math.min(limit * 6 + excluded.size, 200);
   let query = db
     .from("properties")
-    .select("id, title, location, type, bedrooms, area_sqft, price, property_code, listing_type")
+    .select("id, title, location, type, bedrooms, area_sqft, price, property_code, listing_type, rental_income, roi, floor_tenancies")
     .eq("account_id", run.account_id)
     .eq("is_published", true)
     .eq("status", "Available")
@@ -941,6 +958,9 @@ async function fetchAndFormatPropertyListings(
   const currency = "₹";
   const lines: (string | null)[] = [intro, ""];
   const shownListings: ShownListing[] = [];
+  const yieldingCategory = /rent\s*yield/i.test(
+    `${cfg.intro_text ?? ''} ${String(run.vars?.category ?? '')}`
+  );
 
   for (let i = 0; i < shown.length; i++) {
     const p = shown[i];
@@ -980,6 +1000,18 @@ async function fetchAndFormatPropertyListings(
     lines.push(`${idx}. *${p.title}* — ${p.location}`);
     if (specs) lines.push(`   ${specs}`);
     lines.push(`   Price: ${priceLabel}`);
+    if (yieldingCategory) {
+      if (p.rental_income) {
+        lines.push(`   Rent: ${currency}${p.rental_income.toLocaleString('en-IN')}/month`);
+      }
+      if (p.roi) lines.push(`   Yield: ${p.roi}%`);
+      const tenants = (p.floor_tenancies ?? [])
+        .map((row) => row.tenant_name?.trim())
+        .filter((name): name is string => Boolean(name));
+      if (tenants.length > 0) {
+        lines.push(`   Tenant${tenants.length === 1 ? '' : 's'}: ${tenants.slice(0, 3).join(', ')}${tenants.length > 3 ? ` +${tenants.length - 3}` : ''}`);
+      }
+    }
     if (p.property_code) lines.push(`   Code: ${p.property_code}`);
     lines.push(`   🔗 ${showcaseLink}`);
     lines.push("");
@@ -2360,7 +2392,7 @@ async function handleReplyForActiveRun(
     !matched &&
     message.kind === "text" &&
     run.contact_id &&
-    run.vars?.[BRIEF_CONFIRMED_VAR] === true
+    currentNode.node_type !== 'collect_input'
   ) {
     const context =
       run.vars?.[BUDGET_CONTEXT_VAR] === "rent" ? "rent" : "sale";
@@ -2405,6 +2437,10 @@ async function handleReplyForActiveRun(
       }
       return { consumed: true, flow_run_id: run.id, outcome: "no_match" };
     }
+  }
+
+  if (!matched && message.kind === 'text' && looksLikeQuestion(message.text)) {
+    return { consumed: false, flow_run_id: run.id, outcome: 'no_match' };
   }
 
   // A free-text reply the flow can't parse still carries intent —

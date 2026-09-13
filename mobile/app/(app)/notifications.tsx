@@ -25,12 +25,13 @@ const TYPE_ICONS: Record<
   appointment_overdue: 'checkmark-done-outline',
   daily_digest: 'sunny-outline',
   location_request: 'location-outline',
+  document_request: 'document-text-outline',
   portal_listing_expiry: 'time-outline',
 };
 
 /** Map a web deep link stored on the row to the mobile route. */
 function openTarget(n: NotificationRow) {
-  if (n.type === 'location_request') {
+  if (n.type === 'location_request' || n.type === 'document_request') {
     router.push('/(app)/dashboard');
     return;
   }

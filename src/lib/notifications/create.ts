@@ -43,6 +43,7 @@ export type NotificationType =
   | 'daily_digest'
   | 'teammate_update'
   | 'location_request'
+  | 'document_request'
   | 'subscription_extended'
   | 'listing_interest'
   | 'portal_listing_expiry';

@@ -12,6 +12,10 @@ import {
   FOLLOWUP_SNOOZE_PREFIX,
 } from '@/lib/contacts/follow-up-nudges';
 import { AGENT_MESSAGE_CONTACT_PREFIX } from '@/lib/calendar/agent-reminder-actions';
+import {
+  DOCUMENT_APPROVE_PREFIX,
+  DOCUMENT_REJECT_PREFIX,
+} from '@/lib/inventory/document-requests';
 
 describe('isEngineControlReplyId', () => {
   // Regression: tapping Approve on an owner-queue ping was relayed into
@@ -22,6 +26,8 @@ describe('isEngineControlReplyId', () => {
       OWNER_REJECT_PREFIX,
       CONSENT_APPROVE_PREFIX,
       CONSENT_DECLINE_PREFIX,
+      DOCUMENT_APPROVE_PREFIX,
+      DOCUMENT_REJECT_PREFIX,
     ]) {
       expect(
         isEngineControlReplyId(`${prefix}3f2c8a1e-4b6d-4f0a-9c2e-8d7b6a5f4e3d`),

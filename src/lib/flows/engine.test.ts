@@ -476,6 +476,15 @@ describe("splitByBudget", () => {
     expect(aboveBudget).toHaveLength(0);
   });
 
+  it("honours both ends of a stated budget range", () => {
+    const { withinBudget } = splitByBudget(
+      [row("too-low", 20_000_000), row("fit", 105_000_000)],
+      "10-15cr",
+      5,
+    );
+    expect(withinBudget.map((p) => p.id)).toEqual(["fit"]);
+  });
+
   it("allows only a small stretch above the confirmed budget", () => {
     const { aboveBudget } = splitByBudget(
       [row("dear", 500_000_000), row("near", 21_000_000)],
