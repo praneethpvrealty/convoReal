@@ -48,6 +48,8 @@ import { logListingsSent } from '@/lib/whatsapp/share-property-send';
 import { visibleTagSuggestions } from '@/lib/contact-preferences';
 import { resolveRequirementSource } from '@/lib/requirements/profiles';
 import { claimBuyerConsentAsk } from '@/lib/buyer/consent-ask';
+import { localityStems, textContainsLocality } from '@/lib/locality-match';
+import { normalizePropertyType } from '@/lib/property-types';
 import type { Contact, Property } from '@/types';
 
 export type QualifierField = 'type' | 'intent' | 'budget' | 'location';
@@ -73,6 +75,162 @@ export const MAX_MATCHES_SENT = 3;
 
 /** Localities offered as chips on the location question. */
 const MAX_AREA_SUGGESTIONS = 3;
+
+const BARE_LOCALITY_FIELDS = [
+  'locality_canonical',
+  'sublocality',
+  'project',
+] as const;
+
+type InventoryLocalityRow = Partial<
+  Record<(typeof BARE_LOCALITY_FIELDS)[number], string | null>
+> & { type?: string | null };
+
+type SectorCategory =
+  | 'residential'
+  | 'commercial'
+  | 'industrial'
+  | 'agricultural';
+
+function propertySector(type?: string | null): SectorCategory | null {
+  const normalized = normalizePropertyType(type)?.toLowerCase() || '';
+  if (!normalized) return null;
+  if (normalized.startsWith('commercial')) return 'commercial';
+  if (normalized.startsWith('industrial') || normalized.includes('warehouse'))
+    return 'industrial';
+  if (normalized.startsWith('agricultural') || normalized.startsWith('farm'))
+    return 'agricultural';
+  return 'residential';
+}
+
+function inventoryRowsForPreferences(
+  rows: InventoryLocalityRow[],
+  prefs: ExtractedPreferences
+): InventoryLocalityRow[] {
+  const sectorCategories = new Set<SectorCategory>();
+  for (const category of prefs.property_categories) {
+    if (
+      category === 'residential' ||
+      category === 'commercial' ||
+      category === 'industrial' ||
+      category === 'agricultural'
+    ) {
+      sectorCategories.add(category);
+    }
+  }
+  for (const type of prefs.property_types) {
+    const sector = propertySector(type);
+    if (sector) sectorCategories.add(sector);
+  }
+  if (sectorCategories.size === 0) return rows;
+
+  const relevant = rows.filter((row) => {
+    const sector = propertySector(row.type);
+    return sector ? sectorCategories.has(sector) : false;
+  });
+  return relevant.length > 0 ? relevant : rows;
+}
+
+function localityReplyCore(text: string): string | null {
+  const clean = text
+    .trim()
+    .replace(/[?.!]+$/g, '')
+    .trim();
+  const conversational = /^(?:what|how)\s+about\s+(.+)$/i.exec(clean)?.[1];
+  const withoutOptions = (conversational || clean)
+    .replace(/\s+(?:any\s+)?options?$/i, '')
+    .trim();
+  if (!withoutOptions || withoutOptions.split(/\s+/).length > 4) return null;
+  if (!/^[\p{L}\p{N}][\p{L}\p{N}\s.'&/-]*$/u.test(withoutOptions)) return null;
+  if (
+    /^(?:hi|hello|hey|ok(?:ay)?|thanks?|thank you|yes|no|sure|fine|done|good (?:morning|afternoon|evening)|more options?|other blocks?)$/i.test(
+      withoutOptions
+    )
+  )
+    return null;
+  return withoutOptions;
+}
+
+function withinOneEdit(left: string, right: string): boolean {
+  if (left === right) return true;
+  if (Math.abs(left.length - right.length) > 1) return false;
+
+  const [shorter, longer] =
+    left.length <= right.length ? [left, right] : [right, left];
+  let shortIndex = 0;
+  let longIndex = 0;
+  let edits = 0;
+  while (shortIndex < shorter.length && longIndex < longer.length) {
+    if (shorter[shortIndex] === longer[longIndex]) {
+      shortIndex += 1;
+      longIndex += 1;
+      continue;
+    }
+    edits += 1;
+    if (edits > 1) return false;
+    if (shorter.length === longer.length) shortIndex += 1;
+    longIndex += 1;
+  }
+  return edits + (longIndex < longer.length ? 1 : 0) <= 1;
+}
+
+function localityLabelsMatch(candidate: string, requested: string): boolean {
+  if (
+    textContainsLocality(candidate, requested) ||
+    textContainsLocality(requested, candidate)
+  )
+    return true;
+
+  const requestedStems = localityStems(requested);
+  const candidateStems = localityStems(candidate);
+  return (
+    requestedStems.length > 0 &&
+    requestedStems.every((requestedStem) =>
+      candidateStems.some(
+        (candidateStem) =>
+          Math.min(requestedStem.length, candidateStem.length) >= 5 &&
+          withinOneEdit(requestedStem, candidateStem)
+      )
+    )
+  );
+}
+
+export function resolveInventoryLocalityReply(
+  text: string,
+  rows: InventoryLocalityRow[]
+): string | null {
+  const requested = localityReplyCore(text);
+  if (!requested) return null;
+
+  for (const row of rows) {
+    for (const field of BARE_LOCALITY_FIELDS) {
+      const candidate = row[field]?.trim();
+      if (candidate && localityLabelsMatch(candidate, requested)) {
+        return candidate;
+      }
+    }
+  }
+  return null;
+}
+
+async function inventoryLocalityReply(
+  db: ReturnType<typeof supabaseAdmin>,
+  accountId: string,
+  text: string,
+  prefs: ExtractedPreferences
+): Promise<string | null> {
+  if (!localityReplyCore(text)) return null;
+  const { data } = await db
+    .from('properties')
+    .select('locality_canonical, sublocality, project, type')
+    .eq('account_id', accountId)
+    .eq('is_published', true)
+    .eq('status', 'Available');
+  return resolveInventoryLocalityReply(
+    text,
+    inventoryRowsForPreferences(data || [], prefs)
+  );
+}
 
 export { carriesRequirementSignal };
 
@@ -1099,9 +1257,25 @@ export async function processBuyerQualificationMessage(
     const awaitingAnswer =
       previous?.sender_type === 'bot' &&
       isQualifierQuestion(previous.content_text as string | null);
-    if (!awaitingAnswer && !carriesRequirementSignal(text)) return false;
+    const storedPreferences = prefsFromContact(contact);
+    const localityRefinement =
+      !awaitingAnswer && !carriesRequirementSignal(text)
+        ? await inventoryLocalityReply(db, accountId, text, storedPreferences)
+        : null;
+    if (
+      !awaitingAnswer &&
+      !carriesRequirementSignal(text) &&
+      !localityRefinement
+    )
+      return false;
 
-    const requirements = appendRequirement(contact.requirements, text);
+    const requirementTurn = localityRefinement
+      ? `Preferred location: ${localityRefinement}`
+      : text;
+    const requirements = appendRequirement(
+      contact.requirements,
+      requirementTurn
+    );
     const sourceText = buildPreferenceSourceText(
       requirements,
       contact.contact_notes
@@ -1122,10 +1296,10 @@ export async function processBuyerQualificationMessage(
         )
       : null;
 
-    let prefs = prefsFromContact(contact);
+    let prefs = storedPreferences;
     if (hash !== contact.pref_source_hash) {
       await softBurn(accountId);
-      const extracted = mergeCurrentTurnPreferences(
+      let extracted = mergeCurrentTurnPreferences(
         applySizeAnchor(
           await extractContactPreferences(sourceText),
           sizeSignal,
@@ -1134,6 +1308,9 @@ export async function processBuyerQualificationMessage(
         prefs,
         text
       );
+      if (localityRefinement) {
+        extracted = { ...extracted, areas: [localityRefinement] };
+      }
 
       // The message added nothing the contact didn't already say — it's
       // chatter ("ok", "call me"), not an answer. Don't file it as a

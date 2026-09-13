@@ -35,6 +35,7 @@ import {
   mergeCurrentTurnPreferences,
   prefsFromContact,
   buildEnquiryBudgetDisparityReply,
+  resolveInventoryLocalityReply,
 } from './buyer-qualification';
 import {
   EMPTY_PREFERENCES,
@@ -247,6 +248,31 @@ describe('carriesRequirementSignal', () => {
 
   it('rejects a bare locality — that only reads as an answer in context', () => {
     expect(carriesRequirementSignal('Devanahalli')).toBe(false);
+  });
+});
+
+describe('resolveInventoryLocalityReply', () => {
+  const inventory = [
+    {
+      locality_canonical: 'Domlur',
+      sublocality: 'Domlur',
+      project: null,
+    },
+  ];
+
+  it('resolves a bare locality and a one-character spelling variant', () => {
+    expect(resolveInventoryLocalityReply('Domlur', inventory)).toBe('Domlur');
+    expect(resolveInventoryLocalityReply('Domluru', inventory)).toBe('Domlur');
+    expect(
+      resolveInventoryLocalityReply('Domlur any options?', inventory)
+    ).toBe('Domlur');
+  });
+
+  it('does not mistake a generic follow-up for a locality', () => {
+    expect(
+      resolveInventoryLocalityReply('Any options??', inventory)
+    ).toBeNull();
+    expect(resolveInventoryLocalityReply('Thanks', inventory)).toBeNull();
   });
 });
 
