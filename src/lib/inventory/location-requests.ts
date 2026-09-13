@@ -586,7 +586,7 @@ export async function resolveOwnerWhatsAppContact(
   return { contactId: byPhone?.id ?? null, phone: profilePhone };
 }
 
-async function resolveOwnerUserId(
+export async function resolveOwnerUserId(
   admin: SupabaseClient,
   request: Pick<LocationRequestRow, 'account_id' | 'property_id'>
 ): Promise<string | null> {

@@ -171,6 +171,11 @@ import {
   handleLocationConsentReply,
   handleOwnerLocationReply,
 } from '@/lib/inventory/location-requests';
+import {
+  DOCUMENT_APPROVE_PREFIX,
+  DOCUMENT_REJECT_PREFIX,
+  handleDocumentDecisionReply,
+} from '@/lib/inventory/document-requests';
 import { isEngineControlReplyId } from '@/lib/whatsapp/control-reply-ids';
 import { UPDATE_CHANNEL_REPLY_PREFIX } from '@/lib/voice/announcements';
 import { handleUpdateChannelReply } from '@/lib/voice/update-channel-reply';
@@ -1505,6 +1510,18 @@ async function processMessage(
       interactiveReplyId.startsWith(OWNER_REJECT_PREFIX)
     ) {
       const handled = await handleOwnerLocationReply({
+        admin: supabaseAdmin(),
+        accountId,
+        replyId: interactiveReplyId,
+        senderPhone,
+      });
+      if (handled) return;
+    }
+    if (
+      interactiveReplyId.startsWith(DOCUMENT_APPROVE_PREFIX) ||
+      interactiveReplyId.startsWith(DOCUMENT_REJECT_PREFIX)
+    ) {
+      const handled = await handleDocumentDecisionReply({
         admin: supabaseAdmin(),
         accountId,
         replyId: interactiveReplyId,

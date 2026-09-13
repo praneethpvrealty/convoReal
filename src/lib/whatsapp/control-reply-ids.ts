@@ -36,6 +36,10 @@ import {
 } from '@/lib/contacts/follow-up-nudges';
 import { POST_CALL_OPEN_PREFIX } from '@/lib/outreach/dispatcher';
 import { AGENT_MESSAGE_CONTACT_PREFIX } from '@/lib/calendar/agent-reminder-actions';
+import {
+  DOCUMENT_APPROVE_PREFIX,
+  DOCUMENT_REJECT_PREFIX,
+} from '@/lib/inventory/document-requests';
 
 /** Prefixes whose replies are instructions to the Engine. Bare ids
  *  (no trailing payload) belong in EXACT_CONTROL_REPLY_IDS instead. */
@@ -44,6 +48,8 @@ export const CONTROL_REPLY_PREFIXES = [
   CONSENT_DECLINE_PREFIX,
   OWNER_APPROVE_PREFIX,
   OWNER_REJECT_PREFIX,
+  DOCUMENT_APPROVE_PREFIX,
+  DOCUMENT_REJECT_PREFIX,
   // The enquiry card goes to the routed agent, who on a small team is
   // the account owner — so its taps arrive from the very sender the
   // owner chatbot intercepts by design, exactly like the approvals

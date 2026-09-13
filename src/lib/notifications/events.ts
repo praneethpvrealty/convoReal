@@ -91,6 +91,14 @@ export const NOTIFICATION_EVENTS: NotificationEventDef[] = [
     defaults: { app: true, whatsapp: true },
   },
   {
+    key: 'document_request',
+    group: 'Showcase',
+    label: 'Document access requested',
+    description:
+      'A visitor asks for property documents. WhatsApp includes Approve/Reject buttons.',
+    defaults: { app: true, whatsapp: true },
+  },
+  {
     key: 'portal_listing_expiry',
     group: 'Inventory',
     label: 'Portal listing expiry',

@@ -10,8 +10,15 @@ import {
 } from 'react-native';
 
 import { HOME_WIDGET_QUERY_KEY, HomeWidgets } from '@/components/home-widgets';
-import { LOCATION_APPROVALS_QUERY_KEY, LocationApprovals } from '@/components/location-approvals';
+import {
+  LOCATION_APPROVALS_QUERY_KEY,
+  LocationApprovals,
+} from '@/components/location-approvals';
 import { PropertyApprovals } from '@/components/property-approvals';
+import {
+  DOCUMENT_APPROVALS_QUERY_KEY,
+  DocumentApprovals,
+} from '@/components/document-approvals';
 import { AnimatedCounter } from '@/components/motion';
 import { GradientHero, SectionLabel } from '@/components/ui';
 import { formatInr } from '@/lib/format';
@@ -35,7 +42,9 @@ interface Overview {
 }
 
 async function fetchOverview(): Promise<Overview> {
-  await apiFetch('/api/agents/inventory-sync', { method: 'POST' }).catch(() => null);
+  await apiFetch('/api/agents/inventory-sync', { method: 'POST' }).catch(
+    () => null
+  );
 
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
@@ -119,6 +128,9 @@ export default function DashboardScreen() {
       queryClient.invalidateQueries({
         queryKey: [LOCATION_APPROVALS_QUERY_KEY],
       }),
+      queryClient.invalidateQueries({
+        queryKey: [DOCUMENT_APPROVALS_QUERY_KEY],
+      }),
     ]);
   });
 
@@ -150,6 +162,8 @@ export default function DashboardScreen() {
       <HomeWidgets />
 
       <LocationApprovals />
+
+      <DocumentApprovals />
 
       <PropertyApprovals />
 
