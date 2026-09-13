@@ -206,6 +206,10 @@ export interface Deal {
   currency?: string | null;
   status: 'open' | 'won' | 'lost';
   expected_close_date?: string | null;
+  brokerage_type?: 'percentage' | 'fixed' | null;
+  brokerage_value?: number | null;
+  brokerage_amount?: number | null;
+  brokerage_paid_at?: string | null;
   contact?: Contact | null;
   property?: Property | null;
 }

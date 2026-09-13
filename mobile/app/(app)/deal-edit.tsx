@@ -34,6 +34,7 @@ import { radius, spacing, useTheme } from '@/lib/theme';
 import type { Contact, Deal, PipelineStage } from '@/lib/types';
 import { useDebounced } from '@/lib/use-debounced';
 import { contactHandle, hasPhone } from '@/lib/reachability';
+import { dealStatusForStage } from '@/lib/stage-semantics';
 
 /**
  * Web parity: the deal form (deal-form.tsx). Creating posts to
@@ -45,14 +46,6 @@ import { contactHandle, hasPhone } from '@/lib/reachability';
  * With `?id=`, the deal loads before the form mounts so every field
  * starts at its stored value — no prop-to-state effect to keep in sync.
  */
-
-/** Same status derivation the web form applies on save. */
-function statusForStage(stageName: string): Deal['status'] {
-  const n = stageName.toLowerCase();
-  if (n.includes('lost')) return 'lost';
-  if (n.includes('won')) return 'won';
-  return 'open';
-}
 
 function localDateString(d: Date): string {
   const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -218,7 +211,7 @@ function DealForm({
           notes: notes.trim() || null,
           expected_close_date: closeDate ? localDateString(closeDate) : null,
           property_id: property?.id ?? null,
-          status: statusForStage(selectedStage.name),
+          status: dealStatusForStage(selectedStage.name),
           stage_name: selectedStage.name,
         }),
       });

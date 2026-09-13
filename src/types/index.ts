@@ -732,6 +732,7 @@ export interface Deal {
   brokerage_type?: 'percentage' | 'fixed' | null;
   brokerage_value?: number | null;
   brokerage_amount?: number | null;
+  brokerage_paid_at?: string | null;
 }
 
 // ── Journey Mind Map (migration 131) ────────────────────────

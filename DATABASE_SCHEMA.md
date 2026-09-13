@@ -294,7 +294,7 @@ Used by `chatbot-engine.ts` to store half-parsed details from conversations whil
 
 #### 21. `deals`
 Engine sale opportunities.
-- `id`, `account_id`, `contact_id`, `stage_id`, `title`, `amount` (NUMERIC), `brokerage_percent` / `brokerage_amount`, `property_id` (UUID, FK -> `properties`).
+- `id`, `account_id`, `contact_id`, `stage_id`, `title`, `amount` (NUMERIC), `brokerage_percent` / `brokerage_amount`, `brokerage_paid_at`, `property_id` (UUID, FK -> `properties`).
 
 #### 22. Journey Mind Map (migrations 131 + 138)
 Per-(contact × property) funnel tracking behind the `/journey` canvas — records where every shared property/interested contact stands and where the dropped ones fell off.

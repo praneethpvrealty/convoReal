@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
-import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit';
+import {
+  checkRateLimit,
+  rateLimitResponse,
+  RATE_LIMITS,
+} from '@/lib/rate-limit';
+import { propertyStatusForPipelineStage } from '@/lib/pipelines/stage-semantics';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -12,20 +17,33 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     const limit = await checkRateLimit(
       `agent:updateDeal:${ctx.userId}`,
-      RATE_LIMITS.adminAction,
+      RATE_LIMITS.adminAction
     );
     if (!limit.success) return rateLimitResponse(limit);
 
     const body = await request.json().catch(() => null);
     if (!body) {
-      return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Invalid request body' },
+        { status: 400 }
+      );
     }
 
     const {
-      title, value, currency, contact_id, pipeline_id,
-      stage_id, assigned_to, notes, expected_close_date,
-      property_id, brokerage_type, brokerage_value,
-      brokerage_amount, status: dealStatus,
+      title,
+      value,
+      currency,
+      contact_id,
+      pipeline_id,
+      stage_id,
+      assigned_to,
+      notes,
+      expected_close_date,
+      property_id,
+      brokerage_type,
+      brokerage_value,
+      brokerage_amount,
+      status: dealStatus,
       stage_name,
     } = body;
 
@@ -34,15 +52,34 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     if (typeof value === 'number') updateData.value = value;
     if (typeof currency === 'string') updateData.currency = currency;
     if (typeof contact_id === 'string') updateData.contact_id = contact_id;
-    if (typeof pipeline_id === 'string') updateData.pipeline_id = pipeline_id.trim();
+    if (typeof pipeline_id === 'string')
+      updateData.pipeline_id = pipeline_id.trim();
     if (typeof stage_id === 'string') updateData.stage_id = stage_id.trim();
-    if (assigned_to !== undefined) updateData.assigned_to = typeof assigned_to === 'string' && assigned_to.trim() ? assigned_to.trim() : null;
-    if (notes !== undefined) updateData.notes = typeof notes === 'string' ? notes.trim() || null : null;
-    if (expected_close_date !== undefined) updateData.expected_close_date = typeof expected_close_date === 'string' ? expected_close_date || null : null;
-    if (property_id !== undefined) updateData.property_id = typeof property_id === 'string' && property_id.trim() ? property_id.trim() : null;
-    if (brokerage_type !== undefined) updateData.brokerage_type = typeof brokerage_type === 'string' ? brokerage_type : null;
-    if (typeof brokerage_value === 'number') updateData.brokerage_value = brokerage_value;
-    if (typeof brokerage_amount === 'number') updateData.brokerage_amount = brokerage_amount;
+    if (assigned_to !== undefined)
+      updateData.assigned_to =
+        typeof assigned_to === 'string' && assigned_to.trim()
+          ? assigned_to.trim()
+          : null;
+    if (notes !== undefined)
+      updateData.notes =
+        typeof notes === 'string' ? notes.trim() || null : null;
+    if (expected_close_date !== undefined)
+      updateData.expected_close_date =
+        typeof expected_close_date === 'string'
+          ? expected_close_date || null
+          : null;
+    if (property_id !== undefined)
+      updateData.property_id =
+        typeof property_id === 'string' && property_id.trim()
+          ? property_id.trim()
+          : null;
+    if (brokerage_type !== undefined)
+      updateData.brokerage_type =
+        typeof brokerage_type === 'string' ? brokerage_type : null;
+    if (typeof brokerage_value === 'number')
+      updateData.brokerage_value = brokerage_value;
+    if (typeof brokerage_amount === 'number')
+      updateData.brokerage_amount = brokerage_amount;
     if (typeof dealStatus === 'string') updateData.status = dealStatus;
 
     const { data: updated, error: updateErr } = await ctx.supabase
@@ -59,19 +96,18 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       console.error('[PUT /api/deals/[id]] Update error:', updateErr);
       return NextResponse.json(
         { error: updateErr.message ?? 'Failed to update deal' },
-        { status: 500 },
+        { status: 500 }
       );
     }
 
     // Sync property status based on stage
-    const effectivePropertyId = typeof property_id === 'string' && property_id.trim() ? property_id.trim() : null;
+    const effectivePropertyId =
+      typeof property_id === 'string' && property_id.trim()
+        ? property_id.trim()
+        : null;
     if (effectivePropertyId && typeof stage_name === 'string') {
-      let propertyStatus = 'Available';
-      if (stage_name === 'Negotiation/Token') {
-        propertyStatus = 'Under Contract';
-      } else if (stage_name === 'Closed Won') {
-        propertyStatus = 'Sold';
-      }
+      const propertyStatus =
+        propertyStatusForPipelineStage(stage_name) ?? 'Available';
       const { data: synced } = await ctx.supabase
         .from('properties')
         .update({ status: propertyStatus })
@@ -82,7 +118,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       if (!synced?.length) {
         console.warn(
           '[PUT /api/deals/[id]] Property status not synced:',
-          effectivePropertyId,
+          effectivePropertyId
         );
       }
     }
@@ -101,21 +137,27 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
     const limit = await checkRateLimit(
       `agent:dealStatus:${ctx.userId}`,
-      RATE_LIMITS.adminAction,
+      RATE_LIMITS.adminAction
     );
     if (!limit.success) return rateLimitResponse(limit);
 
     const body = await request.json().catch(() => null);
     if (!body) {
-      return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Invalid request body' },
+        { status: 400 }
+      );
     }
 
     const { status, target_stage_id, property_id, current_stage_name } = body;
 
-    if (typeof status !== 'string' || !['won', 'lost', 'open'].includes(status)) {
+    if (
+      typeof status !== 'string' ||
+      !['won', 'lost', 'open'].includes(status)
+    ) {
       return NextResponse.json(
         { error: "'status' must be 'won', 'lost', or 'open'" },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
@@ -138,24 +180,22 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       console.error('[PATCH /api/deals/[id]] Status update error:', updateErr);
       return NextResponse.json(
         { error: updateErr.message ?? 'Failed to update deal status' },
-        { status: 500 },
+        { status: 500 }
       );
     }
 
     // Sync property status
-    const propId = typeof property_id === 'string' && property_id.trim() ? property_id.trim() : null;
+    const propId =
+      typeof property_id === 'string' && property_id.trim()
+        ? property_id.trim()
+        : null;
     if (propId) {
-      let propertyStatus = 'Available';
-      if (status === 'won') {
-        propertyStatus = 'Sold';
-      } else if (status === 'lost') {
-        propertyStatus = 'Available';
-      } else {
-        // Reopened — check current stage
-        if (typeof current_stage_name === 'string' && current_stage_name === 'Negotiation/Token') {
-          propertyStatus = 'Under Contract';
-        }
-      }
+      const propertyStatus =
+        typeof current_stage_name === 'string'
+          ? (propertyStatusForPipelineStage(current_stage_name) ?? 'Available')
+          : status === 'won'
+            ? 'Sold'
+            : 'Available';
       const { data: synced } = await ctx.supabase
         .from('properties')
         .update({ status: propertyStatus })
@@ -164,7 +204,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       if (!synced?.length) {
         console.warn(
           '[PATCH /api/deals/[id]] Property status not synced:',
-          propId,
+          propId
         );
       }
     }
@@ -176,17 +216,14 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 }
 
 // DELETE /api/deals/[id] — delete a deal and reset linked property status.
-export async function DELETE(
-  _request: NextRequest,
-  { params }: RouteParams,
-) {
+export async function DELETE(_request: NextRequest, { params }: RouteParams) {
   try {
     const ctx = await requireRole('agent');
     const { id: dealId } = await params;
 
     const limit = await checkRateLimit(
       `agent:deleteDeal:${ctx.userId}`,
-      RATE_LIMITS.adminAction,
+      RATE_LIMITS.adminAction
     );
     if (!limit.success) return rateLimitResponse(limit);
 
@@ -207,7 +244,7 @@ export async function DELETE(
       console.error('[DELETE /api/deals/[id]] Delete error:', deleteErr);
       return NextResponse.json(
         { error: deleteErr.message ?? 'Failed to delete deal' },
-        { status: 500 },
+        { status: 500 }
       );
     }
 
@@ -225,7 +262,7 @@ export async function DELETE(
       if (!released?.length) {
         console.warn(
           '[DELETE /api/deals/[id]] Property not released:',
-          deal.property_id,
+          deal.property_id
         );
       }
     }

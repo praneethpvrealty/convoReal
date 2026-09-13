@@ -1961,7 +1961,8 @@ CREATE INDEX IF NOT EXISTS idx_deals_property ON deals(property_id);
 ALTER TABLE deals 
   ADD COLUMN IF NOT EXISTS brokerage_type TEXT CHECK (brokerage_type IN ('percentage', 'fixed')) DEFAULT 'percentage',
   ADD COLUMN IF NOT EXISTS brokerage_value NUMERIC(12,2) DEFAULT 0,
-  ADD COLUMN IF NOT EXISTS brokerage_amount NUMERIC(12,2) DEFAULT 0;
+  ADD COLUMN IF NOT EXISTS brokerage_amount NUMERIC(12,2) DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS brokerage_paid_at TIMESTAMPTZ;
 
 
 -- ============================================================
@@ -2922,3 +2923,32 @@ COMMENT ON COLUMN public.showcase_settings.showcase_style IS
   'Presentation style used by the company showcase page.';
 COMMENT ON COLUMN public.showcase_settings.showcase_3d_enabled IS
   'Enables responsive depth and flip transitions on the company showcase page.';
+
+CREATE OR REPLACE FUNCTION sync_deal_brokerage_paid_at()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+DECLARE
+  target_stage_name TEXT;
+BEGIN
+  SELECT LOWER(TRIM(name))
+  INTO target_stage_name
+  FROM pipeline_stages
+  WHERE id = NEW.stage_id;
+
+  IF target_stage_name = 'brokerage paid' THEN
+    NEW.brokerage_paid_at = COALESCE(NEW.brokerage_paid_at, NOW());
+  ELSIF TG_OP = 'UPDATE' AND NEW.stage_id IS DISTINCT FROM OLD.stage_id THEN
+    NEW.brokerage_paid_at = NULL;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS sync_deal_brokerage_paid_at_trigger ON deals;
+CREATE TRIGGER sync_deal_brokerage_paid_at_trigger
+  BEFORE INSERT OR UPDATE OF stage_id ON deals
+  FOR EACH ROW
+  EXECUTE FUNCTION sync_deal_brokerage_paid_at();

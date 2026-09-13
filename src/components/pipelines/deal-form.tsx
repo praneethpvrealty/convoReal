@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import { useState, useEffect, createElement } from "react";
-import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
-import { useAuth } from "@/hooks/use-auth";
+import { useState, useEffect, createElement } from 'react';
+import Link from 'next/link';
+import { createClient } from '@/lib/supabase/client';
+import { useAuth } from '@/hooks/use-auth';
 import type {
   Contact,
   Conversation,
@@ -12,27 +12,28 @@ import type {
   PipelineStage,
   Profile,
   Property,
-} from "@/types";
+} from '@/types';
 import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
-} from "@/components/ui/sheet";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { PriceHint } from "@/components/ui/price-hint";
+} from '@/components/ui/sheet';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { PriceHint } from '@/components/ui/price-hint';
+import { Check, X, Trash2, MessageSquare, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
+import { getCurrencyIcon } from '@/lib/currency-utils';
 import {
-  Check,
-  X,
-  Trash2,
-  MessageSquare,
-  Loader2,
-} from "lucide-react";
-import { toast } from "sonner";
-import { getCurrencyIcon } from "@/lib/currency-utils";
+  dealStatusForStage,
+  isBrokeragePaidStage,
+  isBrokeragePendingStage,
+  pipelineOutcomeForStage,
+  shouldCaptureBrokerage,
+} from '@/lib/pipelines/stage-semantics';
 
 interface DealFormProps {
   open: boolean;
@@ -56,17 +57,19 @@ export function DealForm({
   const supabase = createClient();
   const { accountId } = useAuth();
 
-  const [title, setTitle] = useState("");
-  const [value, setValue] = useState("");
-  const [currency, setCurrency] = useState("INR");
-  const [contactId, setContactId] = useState("");
-  const [stageId, setStageId] = useState("");
-  const [assignedTo, setAssignedTo] = useState("");
-  const [expectedCloseDate, setExpectedCloseDate] = useState("");
-  const [notes, setNotes] = useState("");
-  const [propertyId, setPropertyId] = useState("");
-  const [brokerageType, setBrokerageType] = useState<"percentage" | "fixed">("percentage");
-  const [brokerageValue, setBrokerageValue] = useState("");
+  const [title, setTitle] = useState('');
+  const [value, setValue] = useState('');
+  const [currency, setCurrency] = useState('INR');
+  const [contactId, setContactId] = useState('');
+  const [stageId, setStageId] = useState('');
+  const [assignedTo, setAssignedTo] = useState('');
+  const [expectedCloseDate, setExpectedCloseDate] = useState('');
+  const [notes, setNotes] = useState('');
+  const [propertyId, setPropertyId] = useState('');
+  const [brokerageType, setBrokerageType] = useState<'percentage' | 'fixed'>(
+    'percentage'
+  );
+  const [brokerageValue, setBrokerageValue] = useState('');
 
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -88,21 +91,23 @@ export function DealForm({
     setConfirmDelete(false);
     if (deal) {
       setTitle(deal.title);
-      setValue(String(deal.value ?? ""));
-      setCurrency(deal.currency || "INR");
+      setValue(String(deal.value ?? ''));
+      setCurrency(deal.currency || 'INR');
       // contact_id is nullable when the contact has been deleted
       // (migration 004: ON DELETE SET NULL). "" means "no selection".
-      setContactId(deal.contact_id ?? "");
+      setContactId(deal.contact_id ?? '');
       setStageId(deal.stage_id);
-      setAssignedTo(deal.assigned_to ?? "");
-      setExpectedCloseDate(deal.expected_close_date ?? "");
-      setNotes(deal.notes ?? "");
-      setPropertyId(deal.property_id ?? "");
-      setBrokerageType(deal.brokerage_type || "percentage");
-      setBrokerageValue(deal.brokerage_value ? String(deal.brokerage_value) : "");
+      setAssignedTo(deal.assigned_to ?? '');
+      setExpectedCloseDate(deal.expected_close_date ?? '');
+      setNotes(deal.notes ?? '');
+      setPropertyId(deal.property_id ?? '');
+      setBrokerageType(deal.brokerage_type || 'percentage');
+      setBrokerageValue(
+        deal.brokerage_value ? String(deal.brokerage_value) : ''
+      );
     } else {
-      setTitle("");
-      setValue("");
+      setTitle('');
+      setValue('');
       if (accountId) {
         supabase
           .from('showcase_settings')
@@ -113,20 +118,20 @@ export function DealForm({
             if (data?.currency) {
               setCurrency(data.currency);
             } else {
-              setCurrency("INR");
+              setCurrency('INR');
             }
           });
       } else {
-        setCurrency("INR");
+        setCurrency('INR');
       }
-      setContactId("");
-      setStageId(defaultStageId || stages[0]?.id || "");
-      setAssignedTo("");
-      setExpectedCloseDate("");
-      setNotes("");
-      setPropertyId("");
-      setBrokerageType("percentage");
-      setBrokerageValue("");
+      setContactId('');
+      setStageId(defaultStageId || stages[0]?.id || '');
+      setAssignedTo('');
+      setExpectedCloseDate('');
+      setNotes('');
+      setPropertyId('');
+      setBrokerageType('percentage');
+      setBrokerageValue('');
     }
   }, [open, deal, defaultStageId, stages, accountId, supabase]);
   /* eslint-enable react-hooks/set-state-in-effect */
@@ -137,9 +142,9 @@ export function DealForm({
     let cancelled = false;
     (async () => {
       const [c, p, prop] = await Promise.all([
-        supabase.from("contacts").select("*").order("name"),
-        supabase.from("profiles").select("*").order("full_name"),
-        supabase.from("properties").select("*").order("title"),
+        supabase.from('contacts').select('*').order('name'),
+        supabase.from('profiles').select('*').order('full_name'),
+        supabase.from('properties').select('*').order('title'),
       ]);
       if (cancelled) return;
       setContacts((c.data ?? []) as Contact[]);
@@ -163,10 +168,10 @@ export function DealForm({
     let cancelled = false;
     (async () => {
       const { data } = await supabase
-        .from("conversations")
-        .select("*")
-        .eq("contact_id", contactId)
-        .order("last_message_at", { ascending: false })
+        .from('conversations')
+        .select('*')
+        .eq('contact_id', contactId)
+        .order('last_message_at', { ascending: false })
         .limit(1)
         .maybeSingle();
       if (cancelled) return;
@@ -179,30 +184,29 @@ export function DealForm({
 
   async function handleSave() {
     if (!title.trim() || !contactId || !stageId) {
-      toast.error("Title, contact, and stage are required");
+      toast.error('Title, contact, and stage are required');
       return;
     }
     setSaving(true);
 
     const selectedStage = stages.find((s) => s.id === stageId);
-    const isNegotiationOrLater = selectedStage && ["Negotiation/Token", "Due Diligence/Contract", "Closed Won"].includes(selectedStage.name);
+    const isNegotiationOrLater = selectedStage
+      ? shouldCaptureBrokerage(selectedStage.name)
+      : false;
 
     const dealValue = parseFloat(value) || 0;
-    const brokValue = isNegotiationOrLater ? (parseFloat(brokerageValue) || 0) : null;
+    const brokValue = isNegotiationOrLater
+      ? parseFloat(brokerageValue) || 0
+      : null;
     const brokerageAmt = isNegotiationOrLater
-      ? (brokerageType === "percentage" ? (dealValue * (brokValue || 0)) / 100 : (brokValue || 0))
+      ? brokerageType === 'percentage'
+        ? (dealValue * (brokValue || 0)) / 100
+        : brokValue || 0
       : null;
 
-    let dealStatus: DealStatus = deal?.status || "open";
-    if (selectedStage) {
-      if (selectedStage.name.toLowerCase().includes("lost")) {
-        dealStatus = "lost";
-      } else if (selectedStage.name.toLowerCase().includes("won")) {
-        dealStatus = "won";
-      } else {
-        dealStatus = "open";
-      }
-    }
+    const dealStatus: DealStatus = selectedStage
+      ? dealStatusForStage(selectedStage.name)
+      : deal?.status || 'open';
 
     const payload = {
       title: title.trim(),
@@ -234,19 +238,21 @@ export function DealForm({
       });
 
       if (!res.ok) {
-        const data = await res.json().catch(() => ({ error: 'Failed to save deal' }));
+        const data = await res
+          .json()
+          .catch(() => ({ error: 'Failed to save deal' }));
         toast.error(data.error || 'Failed to save deal');
         setSaving(false);
         return;
       }
     } catch {
-      toast.error("Failed to save deal");
+      toast.error('Failed to save deal');
       setSaving(false);
       return;
     }
 
     setSaving(false);
-    toast.success(deal ? "Deal updated" : "Deal created");
+    toast.success(deal ? 'Deal updated' : 'Deal created');
     onOpenChange(false);
     onSaved();
   }
@@ -256,27 +262,48 @@ export function DealForm({
     setStatusAction(status);
 
     let targetStageId = deal.stage_id;
-    if (status === "lost") {
-      const lostStage = stages.find((s) => s.name.toLowerCase().includes("lost"));
+    if (status === 'lost') {
+      const lostStage = stages.find((s) =>
+        s.name.toLowerCase().includes('lost')
+      );
       if (lostStage) {
         targetStageId = lostStage.id;
       }
-    } else if (status === "won") {
-      const wonStage = stages.find((s) => s.name.toLowerCase().includes("won"));
+    } else if (status === 'won') {
+      const wonStage = stages.find((s) => s.name.toLowerCase().includes('won'));
       if (wonStage) {
         targetStageId = wonStage.id;
+      }
+    } else {
+      const currentStage = stages.find((s) => s.id === deal.stage_id);
+      if (currentStage && isBrokeragePaidStage(currentStage.name)) {
+        const pendingStage = stages.find((s) =>
+          isBrokeragePendingStage(s.name)
+        );
+        if (pendingStage) targetStageId = pendingStage.id;
+      } else if (
+        currentStage &&
+        pipelineOutcomeForStage(currentStage.name) !== 'active'
+      ) {
+        const lastActiveStage = [...stages]
+          .sort((a, b) => b.position - a.position)
+          .find((stage) => pipelineOutcomeForStage(stage.name) === 'active');
+        if (lastActiveStage) targetStageId = lastActiveStage.id;
       }
     }
 
     const activePropId = deal.property_id || propertyId;
     const targetStage = stages.find((s) => s.id === (targetStageId || stageId));
+    const effectiveStatus = targetStage
+      ? dealStatusForStage(targetStage.name)
+      : status;
 
     try {
       const res = await fetch(`/api/deals/${deal.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          status,
+          status: effectiveStatus,
           target_stage_id: targetStageId,
           property_id: activePropId || null,
           current_stage_name: targetStage?.name ?? null,
@@ -286,17 +313,21 @@ export function DealForm({
       setStatusAction(null);
 
       if (!res.ok) {
-        toast.error("Failed to update deal status");
+        toast.error('Failed to update deal status');
         return;
       }
     } catch {
       setStatusAction(null);
-      toast.error("Failed to update deal status");
+      toast.error('Failed to update deal status');
       return;
     }
 
     toast.success(
-      status === "won" ? "Marked as won" : status === "lost" ? "Marked as lost" : "Deal reopened",
+      status === 'won'
+        ? 'Marked as won'
+        : status === 'lost'
+          ? 'Marked as lost'
+          : 'Deal reopened'
     );
     onOpenChange(false);
     onSaved();
@@ -310,28 +341,28 @@ export function DealForm({
       const res = await fetch(`/api/deals/${deal.id}`, { method: 'DELETE' });
       setDeleting(false);
       if (!res.ok) {
-        toast.error("Failed to delete deal");
+        toast.error('Failed to delete deal');
         return;
       }
     } catch {
       setDeleting(false);
-      toast.error("Failed to delete deal");
+      toast.error('Failed to delete deal');
       return;
     }
 
-    toast.success("Deal deleted");
+    toast.success('Deal deleted');
     setConfirmDelete(false);
     onOpenChange(false);
     onSaved();
   }
 
-
   function formatCalculatedBrokerage() {
     const val = parseFloat(value) || 0;
     const brokVal = parseFloat(brokerageValue) || 0;
-    const amt = brokerageType === "percentage" ? (val * brokVal) / 100 : brokVal;
-    
-    if (currency === "INR") {
+    const amt =
+      brokerageType === 'percentage' ? (val * brokVal) / 100 : brokVal;
+
+    if (currency === 'INR') {
       if (amt >= 10000000) {
         const cr = amt / 10000000;
         return `₹${cr.toFixed(2).replace(/\.00$/, '')} Crore`;
@@ -340,9 +371,9 @@ export function DealForm({
         const lakhs = amt / 100000;
         return `₹${lakhs.toFixed(2).replace(/\.00$/, '')} Lakhs`;
       }
-      return new Intl.NumberFormat("en-IN", {
-        style: "currency",
-        currency: "INR",
+      return new Intl.NumberFormat('en-IN', {
+        style: 'currency',
+        currency: 'INR',
         maximumFractionDigits: 0,
       }).format(amt);
     }
@@ -357,22 +388,24 @@ export function DealForm({
   }
 
   const selectedStage = stages.find((s) => s.id === stageId);
-  const isNegotiationOrLater = selectedStage && ["Negotiation/Token", "Due Diligence/Contract", "Closed Won"].includes(selectedStage.name);
+  const isNegotiationOrLater = selectedStage
+    ? shouldCaptureBrokerage(selectedStage.name)
+    : false;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="bg-slate-900 border-slate-700 text-slate-200 sm:max-w-lg w-full p-0"
+        className="w-full border-slate-700 bg-slate-900 p-0 text-slate-200 sm:max-w-lg"
       >
         <div className="flex h-full flex-col">
           <SheetHeader className="border-b border-slate-700/50 p-4">
             <SheetTitle className="text-white">
-              {deal ? "Edit Deal" : "New Deal"}
+              {deal ? 'Edit Deal' : 'New Deal'}
             </SheetTitle>
           </SheetHeader>
 
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <div className="flex-1 space-y-4 overflow-y-auto p-4">
             <div className="grid gap-2">
               <Label className="text-slate-300">Title</Label>
               <Input
@@ -388,7 +421,7 @@ export function DealForm({
               <select
                 value={contactId}
                 onChange={(e) => setContactId(e.target.value)}
-                className="h-9 w-full rounded-lg border border-slate-700 bg-slate-800 px-2.5 text-sm text-white outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                className="focus:border-primary focus:ring-primary h-9 w-full rounded-lg border border-slate-700 bg-slate-800 px-2.5 text-sm text-white outline-none focus:ring-1"
               >
                 <option value="">Select a contact</option>
                 {contacts.map((c) => (
@@ -401,7 +434,7 @@ export function DealForm({
               {linkedConversation && (
                 <Link
                   href="/inbox"
-                  className="mt-1 inline-flex items-center gap-1.5 self-start rounded-md bg-primary/10 px-2 py-1 text-xs text-primary hover:bg-primary/20"
+                  className="bg-primary/10 text-primary hover:bg-primary/20 mt-1 inline-flex items-center gap-1.5 self-start rounded-md px-2 py-1 text-xs"
                 >
                   <MessageSquare className="h-3 w-3" />
                   Link to Conversation
@@ -414,7 +447,7 @@ export function DealForm({
               <select
                 value={propertyId}
                 onChange={(e) => setPropertyId(e.target.value)}
-                className="h-9 w-full rounded-lg border border-slate-700 bg-slate-800 px-2.5 text-sm text-white outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                className="focus:border-primary focus:ring-primary h-9 w-full rounded-lg border border-slate-700 bg-slate-800 px-2.5 text-sm text-white outline-none focus:ring-1"
               >
                 <option value="">No Property Link</option>
                 {properties.map((p) => (
@@ -430,7 +463,8 @@ export function DealForm({
                 <Label className="text-slate-300">Value</Label>
                 <div className="relative">
                   {createElement(getCurrencyIcon(currency), {
-                    className: "absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500"
+                    className:
+                      'absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500',
                   })}
                   <Input
                     type="number"
@@ -447,7 +481,7 @@ export function DealForm({
                 <select
                   value={currency}
                   onChange={(e) => setCurrency(e.target.value)}
-                  className="h-9 w-full rounded-lg border border-slate-700 bg-slate-800 px-2.5 text-sm text-white outline-none focus:border-primary"
+                  className="focus:border-primary h-9 w-full rounded-lg border border-slate-700 bg-slate-800 px-2.5 text-sm text-white outline-none"
                 >
                   <option value="INR">INR (₹)</option>
                   <option value="USD">USD ($)</option>
@@ -473,7 +507,7 @@ export function DealForm({
               <select
                 value={stageId}
                 onChange={(e) => setStageId(e.target.value)}
-                className="h-9 w-full rounded-lg border border-slate-700 bg-slate-800 px-2.5 text-sm text-white outline-none focus:border-primary"
+                className="focus:border-primary h-9 w-full rounded-lg border border-slate-700 bg-slate-800 px-2.5 text-sm text-white outline-none"
               >
                 {stages.map((s) => (
                   <option key={s.id} value={s.id}>
@@ -484,37 +518,43 @@ export function DealForm({
             </div>
 
             {isNegotiationOrLater && (
-              <div className="grid grid-cols-2 gap-3 border border-slate-800 rounded-lg p-3 bg-slate-950/40">
+              <div className="grid grid-cols-2 gap-3 rounded-lg border border-slate-800 bg-slate-950/40 p-3">
                 <div className="grid gap-2">
                   <Label className="text-slate-300">Brokerage Type</Label>
                   <select
                     value={brokerageType}
-                    onChange={(e) => setBrokerageType(e.target.value as "percentage" | "fixed")}
-                    className="h-9 w-full rounded-lg border border-slate-700 bg-slate-800 px-2.5 text-sm text-white outline-none focus:border-primary font-medium"
+                    onChange={(e) =>
+                      setBrokerageType(e.target.value as 'percentage' | 'fixed')
+                    }
+                    className="focus:border-primary h-9 w-full rounded-lg border border-slate-700 bg-slate-800 px-2.5 text-sm font-medium text-white outline-none"
                   >
                     <option value="percentage">Percentage (%)</option>
                     <option value="fixed">Fixed Value</option>
                   </select>
                 </div>
                 <div className="grid gap-2">
-                  <Label className="text-slate-300 font-medium">
-                    {brokerageType === "percentage" ? "Brokerage (%)" : "Brokerage Amount"}
+                  <Label className="font-medium text-slate-300">
+                    {brokerageType === 'percentage'
+                      ? 'Brokerage (%)'
+                      : 'Brokerage Amount'}
                   </Label>
                   <Input
                     type="number"
                     value={brokerageValue}
                     onChange={(e) => setBrokerageValue(e.target.value)}
-                    placeholder={brokerageType === "percentage" ? "2" : "0"}
+                    placeholder={brokerageType === 'percentage' ? '2' : '0'}
                     className="border-slate-700 bg-slate-800 text-white"
                   />
                 </div>
-                {brokerageValue && !isNaN(Number(brokerageValue)) && Number(brokerageValue) > 0 && (
-                  <div className="col-span-2 mt-1">
-                    <p className="text-[11px] text-primary font-semibold">
-                      Calculated Brokerage: {formatCalculatedBrokerage()}
-                    </p>
-                  </div>
-                )}
+                {brokerageValue &&
+                  !isNaN(Number(brokerageValue)) &&
+                  Number(brokerageValue) > 0 && (
+                    <div className="col-span-2 mt-1">
+                      <p className="text-primary text-[11px] font-semibold">
+                        Calculated Brokerage: {formatCalculatedBrokerage()}
+                      </p>
+                    </div>
+                  )}
               </div>
             )}
 
@@ -523,7 +563,7 @@ export function DealForm({
               <select
                 value={assignedTo}
                 onChange={(e) => setAssignedTo(e.target.value)}
-                className="h-9 w-full rounded-lg border border-slate-700 bg-slate-800 px-2.5 text-sm text-white outline-none focus:border-primary"
+                className="focus:border-primary h-9 w-full rounded-lg border border-slate-700 bg-slate-800 px-2.5 text-sm text-white outline-none"
               >
                 <option value="">Unassigned</option>
                 {profiles.map((p) => (
@@ -546,17 +586,17 @@ export function DealForm({
 
             {deal && (
               <div className="space-y-2 rounded-lg border border-slate-700 bg-slate-900/50 p-3">
-                <p className="text-xs font-medium uppercase tracking-wider text-slate-400">
+                <p className="text-xs font-medium tracking-wider text-slate-400 uppercase">
                   Status
                 </p>
                 <div className="flex gap-2">
                   <Button
                     type="button"
-                    onClick={() => handleStatusChange("won")}
-                    disabled={!!statusAction || deal.status === "won"}
-                    className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                    onClick={() => handleStatusChange('won')}
+                    disabled={!!statusAction || deal.status === 'won'}
+                    className="bg-primary text-primary-foreground hover:bg-primary/90 flex-1 disabled:opacity-50"
                   >
-                    {statusAction === "won" ? (
+                    {statusAction === 'won' ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
                       <>
@@ -567,11 +607,11 @@ export function DealForm({
                   </Button>
                   <Button
                     type="button"
-                    onClick={() => handleStatusChange("lost")}
-                    disabled={!!statusAction || deal.status === "lost"}
+                    onClick={() => handleStatusChange('lost')}
+                    disabled={!!statusAction || deal.status === 'lost'}
                     className="flex-1 bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
                   >
-                    {statusAction === "lost" ? (
+                    {statusAction === 'lost' ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
                       <>
@@ -581,11 +621,11 @@ export function DealForm({
                     )}
                   </Button>
                 </div>
-                {deal.status && deal.status !== "open" && (
+                {deal.status && deal.status !== 'open' && (
                   <Button
                     type="button"
                     variant="ghost"
-                    onClick={() => handleStatusChange("open")}
+                    onClick={() => handleStatusChange('open')}
                     disabled={!!statusAction}
                     className="w-full text-slate-400 hover:text-white"
                   >
@@ -608,9 +648,9 @@ export function DealForm({
               <Button
                 onClick={handleSave}
                 disabled={saving || !title.trim() || !contactId || !stageId}
-                className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
+                className="bg-primary text-primary-foreground hover:bg-primary/90 flex-1"
               >
-                {saving ? "Saving..." : deal ? "Save Changes" : "Create Deal"}
+                {saving ? 'Saving...' : deal ? 'Save Changes' : 'Create Deal'}
               </Button>
             </div>
 
@@ -633,7 +673,7 @@ export function DealForm({
                       disabled={deleting}
                       className="rounded bg-red-600 px-2 py-1 font-medium text-white hover:bg-red-700 disabled:opacity-50"
                     >
-                      {deleting ? "Deleting..." : "Confirm"}
+                      {deleting ? 'Deleting...' : 'Confirm'}
                     </button>
                   </div>
                 </div>

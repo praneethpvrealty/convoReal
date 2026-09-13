@@ -24,32 +24,24 @@ import {
 import { formatInr } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
+import {
+  dealStatusForStage,
+  isBrokeragePaidStage,
+  isBrokeragePendingStage,
+  pipelineOutcomeForStage,
+  propertyStatusForPipelineStage,
+  type PipelineOutcome,
+} from '@/lib/stage-semantics';
 import { supabase } from '@/lib/supabase';
 import { radius, spacing, useTheme, fonts } from '@/lib/theme';
 import type { Deal, Pipeline, PipelineStage } from '@/lib/types';
 import { usePullRefresh } from '@/lib/use-pull-refresh';
 
-/** Same status derivation the web kanban applies on stage move. */
-function statusForStage(stageName: string): Deal['status'] {
-  const n = stageName.toLowerCase();
-  if (n.includes('lost')) return 'lost';
-  if (n.includes('won')) return 'won';
-  return 'open';
-}
-
-/** Web parity: moving a deal also nudges the linked property's status. */
-function propertyStatusForStage(stageName: string): string | null {
-  const n = stageName.toLowerCase();
-  if (n.includes('lost')) return 'Available';
-  if (n.includes('won') || n.includes('closed')) return 'Sold';
-  if (n.includes('negotiation') || n.includes('token')) return 'Under Contract';
-  return null;
-}
-
 export default function DealsScreen() {
   const { colors, fonts: f } = useTheme();
   const [pipelineId, setPipelineId] = useState<string | null>(null);
   const [stageId, setStageId] = useState<string | null>(null);
+  const [outcomeView, setOutcomeView] = useState<PipelineOutcome>('active');
   const [movingDeal, setMovingDeal] = useState<Deal | null>(null);
   const [celebrating, setCelebrating] = useState(false);
 
@@ -102,17 +94,52 @@ export default function DealsScreen() {
   const pull = usePullRefresh(refetch);
   const { show, dialogProps } = useAppDialog();
 
-  const activeStage = stageId ?? stages?.[0]?.id ?? null;
+  const stageById = useMemo(
+    () => new Map((stages ?? []).map((stage) => [stage.id, stage])),
+    [stages]
+  );
+  const outcomeCounts = useMemo(() => {
+    const counts: Record<PipelineOutcome, number> = {
+      active: 0,
+      successful: 0,
+      lost: 0,
+    };
+    for (const deal of deals ?? []) {
+      const stage = stageById.get(deal.stage_id);
+      if (stage) counts[pipelineOutcomeForStage(stage.name)] += 1;
+    }
+    return counts;
+  }, [deals, stageById]);
+
+  const visibleStages = useMemo(
+    () =>
+      (stages ?? []).filter(
+        (stage) => pipelineOutcomeForStage(stage.name) === outcomeView
+      ),
+    [stages, outcomeView]
+  );
+  const activeStage =
+    visibleStages.find((stage) => stage.id === stageId)?.id ??
+    visibleStages[0]?.id ??
+    null;
   const stageDeals = useMemo(
     () => (deals ?? []).filter((d) => d.stage_id === activeStage),
     [deals, activeStage]
   );
   const stageValue = stageDeals.reduce((sum, d) => sum + (d.value ?? 0), 0);
+  const stageBrokerage = stageDeals.reduce(
+    (sum, deal) =>
+      sum + (deal.brokerage_amount ?? Number(deal.value ?? 0) * 0.02),
+    0
+  );
+  const selectedStage = (stages ?? []).find(
+    (stage) => stage.id === activeStage
+  );
 
   async function moveDeal(deal: Deal, stage: PipelineStage) {
     setMovingDeal(null);
-    const status = statusForStage(stage.name);
-    if (status === 'won') {
+    const status = dealStatusForStage(stage.name);
+    if (isBrokeragePaidStage(stage.name)) {
       haptic.success();
       setCelebrating(true);
     } else {
@@ -123,7 +150,7 @@ export default function DealsScreen() {
       .update({ stage_id: stage.id, status })
       .eq('id', deal.id)
       .select('id');
-    if (!error && !moved?.length) {
+    if (error || !moved?.length) {
       haptic.warn();
       show({
         title: 'Could not move deal',
@@ -132,7 +159,7 @@ export default function DealsScreen() {
       return;
     }
     if (!error && deal.property_id) {
-      const propertyStatus = propertyStatusForStage(stage.name);
+      const propertyStatus = propertyStatusForPipelineStage(stage.name);
       if (propertyStatus) {
         const { data: synced } = await supabase
           .from('properties')
@@ -146,7 +173,32 @@ export default function DealsScreen() {
         }
       }
     }
+    setOutcomeView(pipelineOutcomeForStage(stage.name));
+    setStageId(stage.id);
     queryClient.invalidateQueries({ queryKey: ['deals', activePipeline] });
+  }
+
+  async function reopenDeal(deal: Deal) {
+    const orderedStages = [...(stages ?? [])].sort(
+      (a, b) => a.position - b.position
+    );
+    const target =
+      orderedStages.find((stage) => isBrokeragePendingStage(stage.name)) ??
+      [...orderedStages]
+        .reverse()
+        .find(
+          (stage) =>
+            pipelineOutcomeForStage(stage.name) === 'successful' &&
+            !isBrokeragePaidStage(stage.name)
+        );
+    if (!target) {
+      show({
+        title: 'Could not reopen deal',
+        message: 'Add a Brokerage Pending stage and try again.',
+      });
+      return;
+    }
+    await moveDeal(deal, target);
   }
 
   return (
@@ -190,6 +242,7 @@ export default function DealsScreen() {
                   onPress={() => {
                     setPipelineId(p.id);
                     setStageId(null);
+                    setOutcomeView('active');
                   }}
                 />
               ))}
@@ -198,6 +251,29 @@ export default function DealsScreen() {
         </View>
       ) : null}
 
+      <View style={styles.outcomeRow}>
+        {(
+          [
+            ['active', 'Active'],
+            ['successful', 'Successful'],
+            ['lost', 'Lost'],
+          ] as const
+        ).map(([outcome, label]) => {
+          const count = outcomeCounts[outcome];
+          return (
+            <FilterChip
+              key={outcome}
+              label={`${label}${count ? ` (${count})` : ''}`}
+              active={outcome === outcomeView}
+              onPress={() => {
+                setOutcomeView(outcome);
+                setStageId(null);
+              }}
+            />
+          );
+        })}
+      </View>
+
       {/* Stage strip — the mobile take on kanban columns. */}
       <View style={styles.filtersRow}>
         <ScrollView
@@ -205,7 +281,7 @@ export default function DealsScreen() {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.filters}
         >
-          {(stages ?? []).map((s) => {
+          {visibleStages.map((s) => {
             const count = (deals ?? []).filter(
               (d) => d.stage_id === s.id
             ).length;
@@ -224,7 +300,9 @@ export default function DealsScreen() {
       {stageDeals.length > 0 ? (
         <Text style={[styles.stageSummary, { color: colors.textMuted }]}>
           {stageDeals.length} deal{stageDeals.length === 1 ? '' : 's'} ·{' '}
-          {formatInr(stageValue)}
+          {selectedStage && isBrokeragePaidStage(selectedStage.name)
+            ? `Brokerage received ${formatInr(stageBrokerage)}`
+            : formatInr(stageValue)}
         </Text>
       ) : null}
 
@@ -264,7 +342,9 @@ export default function DealsScreen() {
             <EnterRow index={index}>
               <DealCard
                 deal={item}
+                stage={selectedStage ?? null}
                 onMove={() => setMovingDeal(item)}
+                onReopen={() => void reopenDeal(item)}
                 onEdit={() =>
                   router.push({
                     pathname: '/(app)/deal-edit',
@@ -338,15 +418,20 @@ export default function DealsScreen() {
 
 function DealCard({
   deal,
+  stage,
   onMove,
+  onReopen,
   onEdit,
 }: {
   deal: Deal;
+  stage: PipelineStage | null;
   onMove: () => void;
+  onReopen: () => void;
   onEdit: () => void;
 }) {
   const { colors, fonts: f } = useTheme();
   const contactName = deal.contact?.name || deal.contact?.phone;
+  const brokeragePaid = stage ? isBrokeragePaidStage(stage.name) : false;
 
   return (
     <View
@@ -392,6 +477,23 @@ function DealCard({
           </Pressable>
         </Link>
       ) : null}
+
+      {brokeragePaid ? (
+        <View style={styles.receiptRow}>
+          <Ionicons name="checkmark-circle" size={15} color={colors.success} />
+          <Text style={{ fontSize: 12.5, color: colors.success }}>
+            Brokerage received ·{' '}
+            {formatInr(deal.brokerage_amount ?? Number(deal.value ?? 0) * 0.02)}
+            {deal.brokerage_paid_at
+              ? ` · ${new Date(deal.brokerage_paid_at).toLocaleDateString([], {
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric',
+                })}`
+              : ''}
+          </Text>
+        </View>
+      ) : null}
       {deal.property ? (
         <Link href={`/(app)/property/${deal.property_id}`} asChild>
           <Pressable style={styles.linkRow}>
@@ -422,13 +524,21 @@ function DealCard({
           <View />
         )}
         <Pressable
-          onPress={onMove}
+          onPress={brokeragePaid ? onReopen : onMove}
           hitSlop={8}
           accessibilityRole="button"
-          accessibilityLabel={`Move ${deal.title} to another stage`}
+          accessibilityLabel={
+            brokeragePaid
+              ? `Reopen ${deal.title}`
+              : `Move ${deal.title} to another stage`
+          }
           style={[styles.moveButton, { backgroundColor: colors.primarySoft }]}
         >
-          <Ionicons name="swap-horizontal" size={14} color={colors.primary} />
+          <Ionicons
+            name={brokeragePaid ? 'refresh' : 'swap-horizontal'}
+            size={14}
+            color={colors.primary}
+          />
           <Text
             style={{
               fontSize: 12.5,
@@ -436,7 +546,7 @@ function DealCard({
               color: colors.primary,
             }}
           >
-            Move stage
+            {brokeragePaid ? 'Reopen' : 'Move stage'}
           </Text>
         </Pressable>
       </View>
@@ -446,6 +556,12 @@ function DealCard({
 
 const styles = StyleSheet.create({
   header: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
+  outcomeRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+  },
   filtersRow: { height: 52, justifyContent: 'center' },
   filters: {
     gap: spacing.sm,
@@ -473,6 +589,7 @@ const styles = StyleSheet.create({
   },
   cardTitle: { flex: 1, fontSize: 15.5, fontFamily: fonts.bold },
   linkRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  receiptRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   cardBottom: {
     flexDirection: 'row',
     alignItems: 'center',
