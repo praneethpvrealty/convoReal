@@ -58,7 +58,12 @@ import {
 } from '@/lib/contact-filters';
 import { interestChipLabel, type InterestFilter } from '@/lib/contact-interest';
 import { friendlyError } from '@/lib/errors';
-import { chatListTime, cleanPhoneInput, formatBudgetRange } from '@/lib/format';
+import {
+  auditDate,
+  chatListTime,
+  cleanPhoneInput,
+  formatBudgetRange,
+} from '@/lib/format';
 import { haptic } from '@/lib/haptics';
 import { openContactChat } from '@/lib/open-chat';
 import { resolveRequirementSource } from '@/lib/requirements-profile';
@@ -271,6 +276,7 @@ async function fetchContacts(
       'id, phone, name, name_tag, email, company, classification, avatar_url, lead_temp, ' +
         'status, last_contacted_at, last_inquired_property_id, property_interests, ' +
         'areas_of_interest, min_budget, max_budget, no_budget, is_favorite, requirement_profiles' +
+        ', created_at, updated_at' +
         // An inner join rather than a fetch-then-`.in()`: a popular tag
         // holds more contacts than an id list can travel in a URL.
         (filters.tagId ? ', contact_tags!inner(tag_id)' : '')
@@ -1369,6 +1375,13 @@ function ContactRow({
             </Text>
           </View>
         ) : null}
+        <Text
+          style={{ fontSize: 10.5, color: colors.textFaint }}
+          numberOfLines={1}
+        >
+          Added {auditDate(contact.created_at)} · Modified{' '}
+          {auditDate(contact.updated_at)}
+        </Text>
       </View>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
         <Pressable

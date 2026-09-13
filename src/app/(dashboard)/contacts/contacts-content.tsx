@@ -113,6 +113,7 @@ import { STARRED_PROPERTY_CAP } from '@/lib/starred-properties';
 import { projectOptions } from '@/lib/contacts/contact-interest';
 import { useT } from '@/hooks/use-locale';
 import { localCache } from '@/lib/cache-store';
+import { formatAuditDate, formatAuditDateTime } from '@/lib/audit-timestamps';
 
 const PAGE_SIZE = 25;
 
@@ -1097,6 +1098,8 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
               ascending: true,
               nullsFirst: false,
             });
+          } else if (sortBy === 'updated_desc') {
+            query = query.order('updated_at', { ascending: false });
           } else {
             query = query.order('created_at', { ascending: false });
           }
@@ -2013,6 +2016,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
               </SelectTrigger>
               <SelectContent className="border-slate-700 bg-slate-900 text-slate-200">
                 <SelectItem value="created_desc">Newest Created</SelectItem>
+                <SelectItem value="updated_desc">Recently Modified</SelectItem>
                 <SelectItem value="name_asc">Name (A - Z)</SelectItem>
                 <SelectItem value="name_desc">Name (Z - A)</SelectItem>
                 <SelectItem value="last_contacted_desc">
@@ -2319,6 +2323,9 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                   </SelectTrigger>
                   <SelectContent className="border-slate-700 bg-slate-900 text-slate-200">
                     <SelectItem value="created_desc">Newest Created</SelectItem>
+                    <SelectItem value="updated_desc">
+                      Recently Modified
+                    </SelectItem>
                     <SelectItem value="name_asc">Name (A - Z)</SelectItem>
                     <SelectItem value="name_desc">Name (Z - A)</SelectItem>
                     <SelectItem value="last_contacted_desc">
@@ -2669,6 +2676,15 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                             ⭐ VIP
                           </span>
                         )}
+                      </div>
+                      <div
+                        className="flex flex-wrap gap-x-2 text-[10px] font-normal text-slate-500"
+                        title={`Added ${formatAuditDateTime(contact.created_at)} · Modified ${formatAuditDateTime(contact.updated_at)}`}
+                      >
+                        <span>Added {formatAuditDate(contact.created_at)}</span>
+                        <span>
+                          Modified {formatAuditDate(contact.updated_at)}
+                        </span>
                       </div>
                       {contact.lead_temp && (
                         <div className="mt-0.5">

@@ -12,6 +12,7 @@ export { BUDGET_STEPS, budgetStepLabel } from '@/lib/money-ladder';
 
 export type ContactSort =
   | 'created_desc'
+  | 'updated_desc'
   | 'name_asc'
   | 'name_desc'
   | 'last_contacted_desc'
@@ -36,9 +37,10 @@ export const EMPTY_FILTERS: ContactFilters = {
   sort: 'created_desc',
 };
 
-/** The six orders the web Filters drawer offers. */
+/** The orders the web Filters drawer offers. */
 export const SORT_OPTIONS: { key: ContactSort; label: string }[] = [
   { key: 'created_desc', label: 'Newest' },
+  { key: 'updated_desc', label: 'Recently modified' },
   { key: 'name_asc', label: 'Name A–Z' },
   { key: 'name_desc', label: 'Name Z–A' },
   { key: 'last_contacted_desc', label: 'Last contacted' },
@@ -63,6 +65,8 @@ export function sortColumn(sort: ContactSort): {
       return { column: 'max_budget', ascending: false };
     case 'max_budget_asc':
       return { column: 'max_budget', ascending: true };
+    case 'updated_desc':
+      return { column: 'updated_at', ascending: false };
     default:
       return { column: 'created_at', ascending: false };
   }

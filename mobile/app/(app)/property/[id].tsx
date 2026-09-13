@@ -39,7 +39,7 @@ import { emptyPhotoLabel, internalPhotoSources } from '@/lib/photo-sources';
 import { usePhotoSources } from '@/lib/use-photo-source';
 import { apiFetch, ApiError } from '@/lib/api';
 import { friendlyError } from '@/lib/errors';
-import { chatListTime, formatInr } from '@/lib/format';
+import { auditDateTime, chatListTime, formatInr } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
 import { listingPrice } from '@/lib/listing-price';
 import {
@@ -513,6 +513,10 @@ export default function PropertyDetailScreen() {
               {place}
             </Text>
           ) : null}
+          <Text style={{ fontSize: 11, color: colors.textFaint }}>
+            Added {auditDateTime(property.created_at)} · Modified{' '}
+            {auditDateTime(property.updated_at)}
+          </Text>
           <Text
             style={{
               fontSize: 24,

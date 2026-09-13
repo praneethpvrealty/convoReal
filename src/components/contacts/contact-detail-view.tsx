@@ -40,6 +40,7 @@ import {
 } from '@/components/contacts/log-call-prompt';
 import { contactFullName } from '@/lib/contacts/full-name';
 import { hasPhone } from '@/lib/contacts/reachability';
+import { formatAuditDateTime } from '@/lib/audit-timestamps';
 import { pruneAreasGeo } from '@/lib/contacts/area-geo';
 import {
   LANGUAGE_CODES,
@@ -1694,7 +1695,8 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                     )}
                   </SheetTitle>
                   <SheetDescription className="mt-0.5 text-xs text-slate-400">
-                    Contact details
+                    Added {formatAuditDateTime(contact.created_at)} · Modified{' '}
+                    {formatAuditDateTime(contact.updated_at)}
                   </SheetDescription>
                   <div className="mt-1.5 flex flex-wrap items-center gap-3 text-xs text-slate-400">
                     <a

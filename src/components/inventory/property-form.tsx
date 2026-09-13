@@ -81,6 +81,7 @@ import { ListingVideoCard } from '@/components/inventory/listing-video-card';
 import { LearningPanel } from '@/components/inventory/learning-panel';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import { formatCurrency } from '@/lib/currency-utils';
+import { formatAuditDateTime } from '@/lib/audit-timestamps';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 import { useTopupModal } from '@/components/layout/topup-modal-context';
 import type { Contact, MessageTemplate } from '@/types';
@@ -2693,6 +2694,11 @@ export function PropertyForm({
               </DialogTitle>
               <DialogDescription className="text-slate-400">
                 {viewMode ? 'View listing specifications, photos, maps, and inquiries.' : 'Configure listing specifications, location details, and matching preferences.'}
+                {property && (
+                  <span className="mt-1 block text-[11px] text-slate-500">
+                    Added {formatAuditDateTime(property.created_at)} · Modified {formatAuditDateTime(property.updated_at)}
+                  </span>
+                )}
               </DialogDescription>
             </DialogHeader>
 

@@ -16,6 +16,13 @@ import { attachInquiredListingTypes } from '@/lib/contacts/inquired-intent';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -146,6 +153,9 @@ export default function InventoryPage() {
   const [showcaseFilter] = useState('All');
   const [sourceFilter, setSourceFilter] = useState<'All' | 'Owner' | 'Agent'>(
     'All'
+  );
+  const [sortBy, setSortBy] = useState<'created_at' | 'updated_at'>(
+    'created_at'
   );
 
   // Modals state
@@ -283,6 +293,8 @@ export default function InventoryPage() {
         'listing_source',
         sourceFilter === 'Owner' ? 'owner' : 'agent'
       );
+    params.set('sort', sortBy);
+    params.set('order', 'desc');
     return params.toString();
   }, [
     page,
@@ -294,6 +306,7 @@ export default function InventoryPage() {
     statusFilter,
     showcaseFilter,
     sourceFilter,
+    sortBy,
     reviewTab,
   ]);
 
@@ -1230,6 +1243,21 @@ export default function InventoryPage() {
             )}
             {t('inventory.nearMe')}
           </button>
+          <Select
+            value={sortBy}
+            onValueChange={(value) => {
+              setSortBy(value === 'updated_at' ? 'updated_at' : 'created_at');
+              setPage(0);
+            }}
+          >
+            <SelectTrigger className="h-9 w-full border-slate-700 bg-slate-800 text-xs font-semibold text-white md:w-44">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="border-slate-700 bg-slate-900 text-slate-200">
+              <SelectItem value="created_at">Recently added</SelectItem>
+              <SelectItem value="updated_at">Recently modified</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         {(pickedPlace || nearMe) && (
