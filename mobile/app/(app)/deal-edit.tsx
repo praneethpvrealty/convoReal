@@ -34,7 +34,7 @@ import { radius, spacing, useTheme } from '@/lib/theme';
 import type { Contact, Deal, PipelineStage } from '@/lib/types';
 import { useDebounced } from '@/lib/use-debounced';
 import { contactHandle, hasPhone } from '@/lib/reachability';
-import { dealStatusForStage } from '@shared/lib/pipelines/stage-semantics';
+import { dealStatusForStage } from '@/lib/stage-semantics';
 
 /**
  * Web parity: the deal form (deal-form.tsx). Creating posts to

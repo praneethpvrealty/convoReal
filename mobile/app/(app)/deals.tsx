@@ -24,10 +24,6 @@ import {
 import { formatInr } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
-import { supabase } from '@/lib/supabase';
-import { radius, spacing, useTheme, fonts } from '@/lib/theme';
-import type { Deal, Pipeline, PipelineStage } from '@/lib/types';
-import { usePullRefresh } from '@/lib/use-pull-refresh';
 import {
   dealStatusForStage,
   isBrokeragePaidStage,
@@ -35,7 +31,11 @@ import {
   pipelineOutcomeForStage,
   propertyStatusForPipelineStage,
   type PipelineOutcome,
-} from '@shared/lib/pipelines/stage-semantics';
+} from '@/lib/stage-semantics';
+import { supabase } from '@/lib/supabase';
+import { radius, spacing, useTheme, fonts } from '@/lib/theme';
+import type { Deal, Pipeline, PipelineStage } from '@/lib/types';
+import { usePullRefresh } from '@/lib/use-pull-refresh';
 
 export default function DealsScreen() {
   const { colors, fonts: f } = useTheme();
