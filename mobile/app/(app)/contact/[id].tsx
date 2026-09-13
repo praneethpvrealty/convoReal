@@ -51,7 +51,12 @@ import {
 } from '@/lib/approve-contact';
 import { contactFullName } from '@/lib/contact-name';
 import { storagePublicUrl } from '@/lib/storage-url';
-import { cleanPhoneInput, formatBudgetRange, formatInr } from '@/lib/format';
+import {
+  auditDateTime,
+  cleanPhoneInput,
+  formatBudgetRange,
+  formatInr,
+} from '@/lib/format';
 import { friendlyError } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
 import { resolveRequirementSource } from '@/lib/requirements-profile';
@@ -152,7 +157,7 @@ async function fetchContact(id: string): Promise<Contact | null> {
         'requirement_profiles, ' +
         'preferred_update_channel, buyer_alerts_consent, buyer_alerts_consent_requested_at, ' +
         'property_interests, last_inquired_property_id, lead_portal, lead_portal_listing_id, ' +
-        'is_favorite, user_id'
+        'is_favorite, user_id, created_at, updated_at'
     )
     .eq('id', id)
     .maybeSingle();
@@ -586,6 +591,16 @@ function ContactCard({ contact }: { contact: Contact }) {
               value={contact.company}
             />
           ) : null}
+          <InfoRow
+            icon="calendar-outline"
+            label="Added"
+            value={auditDateTime(contact.created_at)}
+          />
+          <InfoRow
+            icon="time-outline"
+            label="Modified"
+            value={auditDateTime(contact.updated_at)}
+          />
           {budget ? (
             <InfoRow icon="cash-outline" label="Budget" value={budget} />
           ) : null}

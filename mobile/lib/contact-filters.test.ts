@@ -56,6 +56,10 @@ describe('sortColumn', () => {
       column: 'created_at',
       ascending: false,
     });
+    expect(sortColumn('updated_desc')).toEqual({
+      column: 'updated_at',
+      ascending: false,
+    });
     expect(sortColumn('name_asc')).toEqual({ column: 'name', ascending: true });
     expect(sortColumn('name_desc')).toEqual({
       column: 'name',

@@ -30,6 +30,32 @@ export function bubbleTime(iso: string): string {
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
+const AUDIT_DATE_OPTIONS: Intl.DateTimeFormatOptions = {
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+};
+
+export function auditDate(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime())
+    ? '—'
+    : date.toLocaleDateString('en-IN', AUDIT_DATE_OPTIONS);
+}
+
+export function auditDateTime(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime())
+    ? '—'
+    : date.toLocaleString('en-IN', {
+        ...AUDIT_DATE_OPTIONS,
+        hour: 'numeric',
+        minute: '2-digit',
+      });
+}
+
 /** Day-separator label inside a thread. */
 export function dayLabel(iso: string): string {
   const d = new Date(iso);

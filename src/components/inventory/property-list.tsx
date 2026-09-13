@@ -53,6 +53,7 @@ import { PORTALS, type PortalKey } from '@/lib/portals/post-kit';
 import { CheckSquare, Square } from 'lucide-react';
 import { PropertyImportsDialog } from '@/components/inventory/property-imports-dialog';
 import { isLandType } from '@/lib/inventory/property-options';
+import { formatAuditDate, formatAuditDateTime } from '@/lib/audit-timestamps';
 
 const highlightIcons: Record<string, string> = {
   School: '🏫',
@@ -586,6 +587,13 @@ export function PropertyList({
                 >
                   <Users className="size-4" /> Added to inventories
                 </button>
+                <div
+                  className="mb-3 flex flex-wrap gap-x-3 text-[10px] text-slate-500"
+                  title={`Added ${formatAuditDateTime(property.created_at)} · Modified ${formatAuditDateTime(property.updated_at)}`}
+                >
+                  <span>Added {formatAuditDate(property.created_at)}</span>
+                  <span>Modified {formatAuditDate(property.updated_at)}</span>
+                </div>
                 <div className="mb-4 flex items-center justify-between">
                   <div className="text-lg font-black text-white">
                     {property.listing_type === 'Rent' ||
