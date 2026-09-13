@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildRecordPatch } from './record-edit';
+import { buildRecordPatch, formatRecordUpdateResult } from './record-edit';
 
 describe('buildRecordPatch', () => {
   const property = {
@@ -75,5 +75,84 @@ describe('buildRecordPatch', () => {
   it('survives a non-object model response', () => {
     expect(buildRecordPatch('property', property, null)).toEqual({});
     expect(buildRecordPatch('property', property, 'oops')).toEqual({});
+  });
+
+  it('stores a WhatsApp tenant update in the structured floor rent roll', () => {
+    const floorTenancies = [
+      {
+        floor: 'Basement',
+        tenant_name: 'Cloth showroom',
+        monthly_rent: 100000,
+        lock_in_months: 60,
+        notes: '2 years remaining',
+      },
+      {
+        floor: 'Ground Floor',
+        tenant_name: 'ICICI Bank',
+        monthly_rent: 400000,
+        lock_in_months: 96,
+        notes: '4 years completed',
+      },
+      {
+        floor: '1st, 2nd and 3rd Floors',
+        tenant_name: 'Ladies PG',
+        monthly_rent: 400000,
+        lock_in_months: 60,
+      },
+    ];
+
+    const patch = buildRecordPatch(
+      'property',
+      { ...property, description: 'Existing description', floor_tenancies: [] },
+      { description: 'Existing description', floor_tenancies: floorTenancies }
+    );
+
+    expect(patch).not.toHaveProperty('description');
+    expect(patch.floor_tenancies).toEqual([
+      expect.objectContaining({
+        floor: 'Basement',
+        tenant_name: 'Cloth showroom',
+        monthly_rent: 100000,
+        lock_in_months: 60,
+        notes: '2 years remaining',
+      }),
+      expect.objectContaining({
+        floor: 'Ground Floor',
+        tenant_name: 'ICICI Bank',
+        monthly_rent: 400000,
+        lock_in_months: 96,
+        notes: '4 years completed',
+      }),
+      expect.objectContaining({
+        floor: '1st, 2nd and 3rd Floors',
+        tenant_name: 'Ladies PG',
+        monthly_rent: 400000,
+        lock_in_months: 60,
+      }),
+    ]);
+  });
+
+  it('does not clear a valid rent roll when the model returns malformed rows', () => {
+    const existing = [{ floor: 'Ground Floor', tenant_name: 'Bank', monthly_rent: 400000 }];
+    expect(buildRecordPatch('property', { ...property, floor_tenancies: existing }, {
+      floor_tenancies: ['not a tenancy row'],
+    })).toEqual({});
+  });
+
+  it('formats structured tenant updates as readable WhatsApp lines', () => {
+    expect(formatRecordUpdateResult({
+      floor_tenancies: [
+        {
+          floor: 'Ground Floor',
+          tenant_name: 'ICICI Bank',
+          monthly_rent: 400000,
+          lock_in_months: 96,
+          notes: '4 years completed',
+        },
+      ],
+    })).toEqual({
+      floor_tenancies:
+        '1 lease\n– Ground Floor · ICICI Bank · ₹4,00,000/month · 96-month lock-in · 4 years completed',
+    });
   });
 });
