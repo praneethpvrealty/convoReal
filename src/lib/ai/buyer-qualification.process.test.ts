@@ -138,6 +138,86 @@ beforeEach(() => {
 });
 
 describe('processBuyerQualificationMessage — free-text requirement updates', () => {
+  it('treats a bare live-inventory locality as a refinement and sends its matches', async () => {
+    queues.contacts = [
+      contactRow({
+        requirements: 'Residential plot or house in Koramangala',
+        pref_property_categories: ['residential'],
+        pref_listing_types: ['Sale'],
+        pref_budget_max: 20_000_000,
+        pref_areas: ['Koramangala'],
+      }),
+    ];
+    queues.messages = [
+      [
+        { sender_type: 'customer', content_text: 'Domluru' },
+        { sender_type: 'bot', content_text: 'Here are 3 matching options' },
+      ],
+    ];
+    queues.properties = [
+      [
+        {
+          locality_canonical: null,
+          sublocality: 'Domluru',
+          project: null,
+          type: 'Commercial Building',
+        },
+        {
+          locality_canonical: 'Domlur',
+          sublocality: 'Domlur',
+          project: null,
+          type: 'Residential Plot',
+        },
+      ],
+    ];
+    extractContactPreferences.mockResolvedValue({
+      ...fullPrefs,
+      property_categories: ['residential'],
+      areas: ['Koramangala', 'Domlur'],
+    });
+    rankPropertiesForContact.mockResolvedValue([
+      {
+        property: {
+          id: 'p-domlur',
+          title: 'Residential Plot in Domlur',
+          type: 'Residential Land/ Plot',
+          price: 18_000_000,
+          location: 'Domlur',
+          city: 'Bangalore',
+        },
+        score: 90,
+        details: {},
+      },
+    ]);
+
+    const handled = await processBuyerQualificationMessage(
+      'Domluru',
+      { id: 'c1', phone: '919000000000', name: 'Saurav' },
+      { id: 'conv-1' },
+      'acct-1',
+      'token',
+      'phone-id',
+      'owner-1'
+    );
+
+    expect(handled).toBe(true);
+    expect(extractContactPreferences).toHaveBeenCalledWith(
+      expect.stringContaining('Preferred location: Domlur')
+    );
+    expect(recordLearnedFacts).toHaveBeenCalledWith(
+      expect.objectContaining({
+        facts: expect.arrayContaining([
+          { field: 'pref_areas', value: ['Domlur'] },
+        ]),
+      })
+    );
+    expect(sendTextMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: expect.stringContaining('Residential Plot in Domlur'),
+      })
+    );
+  });
+
   it('serves the rent-to-sale correction instead of restarting onboarding', async () => {
     extractContactPreferences.mockResolvedValue({
       ...fullPrefs,
