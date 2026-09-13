@@ -19,7 +19,7 @@
 import { getShowcaseSessionKey } from './session-key';
 
 interface PulseEvent {
-  type: 'open' | 'view_property' | 'map_click' | 'gallery';
+  type: 'open' | 'view_property' | 'map_click' | 'gallery' | 'search';
   property_id?: string;
   metadata?: Record<string, unknown>;
 }
@@ -28,7 +28,11 @@ const FLUSH_AFTER = 5;
 const FLUSH_DELAY_MS = 3000;
 
 export interface ShowcaseTracker {
-  track: (type: PulseEvent['type'], propertyId?: string, metadata?: Record<string, unknown>) => void;
+  track: (
+    type: PulseEvent['type'],
+    propertyId?: string,
+    metadata?: Record<string, unknown>
+  ) => void;
   flush: () => void;
 }
 

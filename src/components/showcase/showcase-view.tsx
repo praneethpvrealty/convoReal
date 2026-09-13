@@ -568,9 +568,11 @@ export function ShowcaseView({
     if (!isStateLoadedRef.current || !searchQuery.trim()) return;
 
     const timer = setTimeout(() => {
+      const query = searchQuery.replace(/\s+/g, ' ').trim().slice(0, 160);
       trackPixelEvent('Search', {
-        search_string: searchQuery.trim(),
+        search_string: query,
       });
+      trackerRef.current?.track('search', undefined, { query });
     }, 1000);
 
     return () => clearTimeout(timer);

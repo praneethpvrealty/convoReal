@@ -97,6 +97,25 @@ describe('dedupeConsecutiveEvents', () => {
     expect(result.every((e) => e.repeatCount === 1)).toBe(true);
   });
 
+  it('keeps different search strings as separate activity', () => {
+    const feed = [
+      evt({
+        id: '2',
+        created_at: '2026-01-01T00:01:00Z',
+        event_type: 'search',
+        metadata: { query: 'Domlur commercial building' },
+      }),
+      evt({
+        id: '1',
+        created_at: '2026-01-01T00:00:00Z',
+        event_type: 'search',
+        metadata: { query: 'Indiranagar showroom' },
+      }),
+    ];
+
+    expect(dedupeConsecutiveEvents(feed)).toHaveLength(2);
+  });
+
   it('does not mutate the events it was given', () => {
     const source = evt({ id: '1', created_at: '2026-01-01T00:00:00Z' });
     dedupeConsecutiveEvents([

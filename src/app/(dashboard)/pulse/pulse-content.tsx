@@ -18,6 +18,7 @@ import {
   UserCheck,
   ArrowRight,
   ChevronDown,
+  Search,
 } from 'lucide-react';
 
 import { createClient } from '@/lib/supabase/client';
@@ -143,6 +144,8 @@ export default function PulsePage() {
         return <ImageIcon className="size-4 text-purple-400" />;
       case 'map_click':
         return <MapPin className="size-4 text-amber-400" />;
+      case 'search':
+        return <Search className="text-primary size-4" />;
       default:
         return <MousePointerClick className="size-4 text-slate-400" />;
     }
@@ -184,6 +187,18 @@ export default function PulsePage() {
             <strong className="text-slate-200">{propertyTitle}</strong>.
           </span>
         );
+      case 'search': {
+        const query =
+          typeof event.metadata.query === 'string' ? event.metadata.query : '';
+        return query ? (
+          <span>
+            Searched for{' '}
+            <strong className="text-slate-200">&ldquo;{query}&rdquo;</strong>.
+          </span>
+        ) : (
+          <span>Searched the showcase catalog.</span>
+        );
+      }
       default:
         return <span>Interacted with the showcase link.</span>;
     }
@@ -230,7 +245,8 @@ export default function PulsePage() {
 
   const filteredFeed = (feed ?? []).filter((evt) => {
     if (feedFilter === 'identified') return !!evt.contact;
-    if (feedFilter === 'property_views') return evt.event_type !== 'open';
+    if (feedFilter === 'property_views')
+      return evt.event_type === 'view_property';
     return true;
   });
   const dedupedFeed = dedupeConsecutiveEvents(filteredFeed);
@@ -252,8 +268,8 @@ export default function PulsePage() {
           </h1>
           <p className="mt-1.5 text-xs leading-relaxed font-medium text-slate-400 sm:text-sm">
             Live visitor analytics. Pulse tracks links shared over WhatsApp,
-            capturing opens, property image swipes, map clicks, and dwell times
-            to rank client interest.
+            capturing opens, searches, property image swipes, map clicks, and
+            dwell times to rank client interest.
           </p>
         </div>
         <Button

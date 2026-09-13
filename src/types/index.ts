@@ -362,7 +362,7 @@ export interface ShowcaseEvent {
   session_key: string;
   /** Share-instance token the visit arrived through (migration 173). */
   share_id?: string | null;
-  event_type: 'open' | 'view_property' | 'map_click' | 'gallery';
+  event_type: 'open' | 'view_property' | 'map_click' | 'gallery' | 'search';
   metadata: Record<string, unknown>;
   created_at: string;
 }

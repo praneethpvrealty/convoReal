@@ -19,7 +19,10 @@ let inserts: Array<{ table: string; rows: unknown }>;
 vi.mock('@supabase/supabase-js', () => ({
   createClient: () => ({
     from(table: string) {
-      const response = (queues[table] ?? []).shift() ?? { data: null, error: null };
+      const response = (queues[table] ?? []).shift() ?? {
+        data: null,
+        error: null,
+      };
       const builder: { [k: string]: (...args: unknown[]) => unknown } = {
         select: () => builder,
         eq: () => builder,
@@ -33,7 +36,7 @@ vi.mock('@supabase/supabase-js', () => ({
         then: (resolve: unknown, reject: unknown) =>
           Promise.resolve({ error: null }).then(
             resolve as (v: unknown) => unknown,
-            reject as (v: unknown) => unknown,
+            reject as (v: unknown) => unknown
           ),
       };
       return builder;
@@ -65,14 +68,55 @@ function beacon(extra: Record<string, unknown> = {}) {
   }) as never;
 }
 
-function insertedEvents(): Array<{ share_id: string | null }> {
+function insertedEvents(): Array<{
+  share_id: string | null;
+  event_type: string;
+  metadata: Record<string, unknown>;
+}> {
   const batch = inserts.find((i) => i.table === 'showcase_events');
-  return (batch?.rows ?? []) as Array<{ share_id: string | null }>;
+  return (batch?.rows ?? []) as Array<{
+    share_id: string | null;
+    event_type: string;
+    metadata: Record<string, unknown>;
+  }>;
 }
 
 beforeEach(() => {
   queues = { accounts: [{ data: { id: ACCOUNT }, error: null }] };
   inserts = [];
+});
+
+describe('showcase-events beacon — search activity', () => {
+  it('normalizes and stores a visitor search string', async () => {
+    const res = await POST(
+      beacon({
+        events: [
+          {
+            type: 'search',
+            metadata: { query: '  Domlur   commercial\n building  ' },
+          },
+        ],
+      })
+    );
+
+    expect(res.status).toBe(204);
+    expect(insertedEvents()).toHaveLength(1);
+    expect(insertedEvents()[0]).toMatchObject({
+      event_type: 'search',
+      metadata: { query: 'Domlur commercial building' },
+    });
+  });
+
+  it('drops a search event without a usable string', async () => {
+    const res = await POST(
+      beacon({
+        events: [{ type: 'search', metadata: { query: '   ' } }],
+      })
+    );
+
+    expect(res.status).toBe(204);
+    expect(insertedEvents()).toHaveLength(0);
+  });
 });
 
 describe('showcase-events beacon — share-instance stamping', () => {

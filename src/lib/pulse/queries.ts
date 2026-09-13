@@ -13,7 +13,12 @@ export interface PulseStats {
   uniqueSessions: number;
   avgDwellTimeSec: number;
   topProperties: Array<{
-    property: { id: string; title: string; property_code: string | null; price: number };
+    property: {
+      id: string;
+      title: string;
+      property_code: string | null;
+      price: number;
+    };
     viewsCount: number;
     uniqueViewsCount: number;
   }>;
@@ -22,6 +27,7 @@ export interface PulseStats {
 export interface HydratedShowcaseEvent extends Omit<ShowcaseEvent, 'metadata'> {
   metadata: {
     duration_ms?: number;
+    query?: string;
     [key: string]: unknown;
   };
   contact?: Contact | null;
@@ -33,7 +39,10 @@ export interface HydratedShowcaseEvent extends Omit<ShowcaseEvent, 'metadata'> {
 /** Aggregated in Postgres (migration 172) — counting opens, distinct
  *  sessions and dwell in the browser meant downloading every event row
  *  the account has ever logged, twice, with no upper bound. */
-export async function loadPulseStats(db: DB, accountId: string): Promise<PulseStats> {
+export async function loadPulseStats(
+  db: DB,
+  accountId: string
+): Promise<PulseStats> {
   const [statsRes, topRes] = await Promise.all([
     db.rpc('pulse_stats', { p_account_id: accountId }).maybeSingle(),
     db.rpc('pulse_top_properties', { p_account_id: accountId, p_limit: 5 }),
@@ -77,7 +86,9 @@ export async function loadPulseStats(db: DB, accountId: string): Promise<PulseSt
 export async function loadPulseFeed(db: DB): Promise<HydratedShowcaseEvent[]> {
   const { data, error } = await db
     .from('showcase_events')
-    .select('*, contact:contacts(*), property:properties(*), share:showcase_share_links(id, created_at)')
+    .select(
+      '*, contact:contacts(*), property:properties(*), share:showcase_share_links(id, created_at)'
+    )
     .order('created_at', { ascending: false })
     .limit(100);
 

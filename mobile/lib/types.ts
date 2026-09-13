@@ -364,7 +364,8 @@ export type ShowcaseEventType =
   | 'open'
   | 'view_property'
   | 'map_click'
-  | 'gallery';
+  | 'gallery'
+  | 'search';
 
 export interface ShowcaseEvent {
   id: string;
@@ -373,6 +374,6 @@ export interface ShowcaseEvent {
   session_key: string;
   share_id?: string | null;
   event_type: ShowcaseEventType;
-  metadata: { duration_ms?: number } & Record<string, unknown>;
+  metadata: { duration_ms?: number; query?: string } & Record<string, unknown>;
   created_at: string;
 }

@@ -46,8 +46,8 @@ import { usePullRefresh } from '@/lib/use-pull-refresh';
 
 /**
  * Web parity: the Showcase Pulse page. Live visitor analytics for the
- * links shared over WhatsApp — opens, property views, gallery swipes,
- * map taps and dwell times. Desktop lays the timeline and the top
+ * links shared over WhatsApp — opens, searches, property views, gallery
+ * swipes, map taps and dwell times. Desktop lays the timeline and the top
  * listings side by side; on a phone they stack, with the timeline as
  * the virtualized list underneath.
  */
@@ -100,7 +100,8 @@ export default function PulseScreen() {
   const events = useMemo(() => {
     const rows = (feed.data ?? []).filter((evt) => {
       if (filter === 'identified') return Boolean(evt.contact);
-      if (filter === 'property_views') return evt.event_type !== 'open';
+      if (filter === 'property_views')
+        return evt.event_type === 'view_property';
       return true;
     });
     return groupEventsByVisitor(dedupeConsecutiveEvents(rows));
@@ -116,7 +117,8 @@ export default function PulseScreen() {
     Promise.all([stats.refetch(), top.refetch(), feed.refetch()])
   );
   const statWidth = width < 500 ? '47%' : '30%';
-  const anyLoading = Boolean(accountId) && (stats.isLoading || top.isLoading || feed.isLoading);
+  const anyLoading =
+    Boolean(accountId) && (stats.isLoading || top.isLoading || feed.isLoading);
   const anyError = stats.isError || top.isError || feed.isError;
 
   return (
@@ -140,7 +142,8 @@ export default function PulseScreen() {
               style={{ fontSize: 13, lineHeight: 19, color: colors.textMuted }}
             >
               Live visitor analytics for the showcase links you share over
-              WhatsApp — opens, image swipes, map taps and dwell times.
+              WhatsApp — opens, searches, image swipes, map taps and dwell
+              times.
             </Text>
 
             <TourTarget id="pulse-feed">
@@ -169,9 +172,7 @@ export default function PulseScreen() {
             {anyLoading ? (
               <InlineStatus text="Loading engagement data…" loading />
             ) : anyError ? (
-              <InlineStatus
-                text="Some engagement data could not be loaded. Pull to retry."
-              />
+              <InlineStatus text="Some engagement data could not be loaded. Pull to retry." />
             ) : null}
 
             <SectionLabel text="Top listings" />
@@ -350,7 +351,9 @@ function InlineStatus({
       accessibilityLiveRegion="polite"
       style={[styles.status, { borderColor: colors.border }]}
     >
-      {loading ? <ActivityIndicator size="small" color={colors.primary} /> : null}
+      {loading ? (
+        <ActivityIndicator size="small" color={colors.primary} />
+      ) : null}
       <Text style={{ flex: 1, fontSize: 12, color: colors.textMuted }}>
         {text}
       </Text>
@@ -532,6 +535,10 @@ function VisitorActivityCard({
 function ActivityLine({ event }: { event: DedupedPulseEvent }) {
   const { colors } = useTheme();
   const what = event.property?.title ?? 'a property';
+  const searchQuery =
+    event.event_type === 'search' && typeof event.metadata.query === 'string'
+      ? event.metadata.query
+      : '';
   const dwell =
     event.event_type === 'view_property'
       ? formatDwellTime(event.metadata.duration_ms)
@@ -550,7 +557,13 @@ function ActivityLine({ event }: { event: DedupedPulseEvent }) {
         }}
       >
         {action}
-        {event.event_type === 'open' ? '' : ` ${what}`}
+        {event.event_type === 'open'
+          ? ''
+          : event.event_type === 'search'
+            ? searchQuery
+              ? ` “${searchQuery}”`
+              : ''
+            : ` ${what}`}
         {dwell ? ` · ${dwell}` : ''}
       </Text>
     </View>
@@ -585,6 +598,12 @@ function describe(
         icon: 'location-outline',
         tint: colors.warning,
         action: 'Tapped the map pin for',
+      };
+    case 'search':
+      return {
+        icon: 'search-outline',
+        tint: colors.primary,
+        action: 'Searched for',
       };
     default:
       return {
