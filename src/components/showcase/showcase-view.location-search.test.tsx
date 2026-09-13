@@ -2,12 +2,16 @@
 // @vitest-environment-options { "settings": { "disableIframePageLoading": true, "disableJavaScriptFileLoading": true, "disableCSSFileLoading": true } }
 
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 
 import type { Property, ShowcaseSettings } from '@/types';
 
+const { trackPulseEvent } = vi.hoisted(() => ({
+  trackPulseEvent: vi.fn(),
+}));
+
 vi.mock('@/lib/pulse/tracker', () => ({
-  createShowcaseTracker: () => ({ track: vi.fn(), flush: vi.fn() }),
+  createShowcaseTracker: () => ({ track: trackPulseEvent, flush: vi.fn() }),
 }));
 vi.mock('@/components/showcase/ask-property-chat', () => ({
   AskPropertyChat: () => null,
@@ -74,6 +78,8 @@ const properties = [
 ] as unknown as Property[];
 
 afterEach(() => {
+  vi.useRealTimers();
+  vi.clearAllMocks();
   cleanup();
   localStorage.clear();
 });
@@ -98,5 +104,29 @@ describe('showcase location picker', () => {
     expect(screen.getByRole('button', { name: 'Remove Koramangala' })).toBeTruthy();
     expect(screen.getByText('Koramangala Villa')).toBeTruthy();
     expect(screen.queryByText('Indiranagar Apartment')).toBeNull();
+  });
+
+  it('records the normalized property search in Showcase Pulse', () => {
+    vi.useFakeTimers();
+    render(
+      <ShowcaseView
+        properties={properties}
+        settings={settings}
+        accountId="account-1"
+        disableSavedState
+      />
+    );
+
+    fireEvent.change(
+      screen.getByPlaceholderText(
+        'Search properties — "2 BHK villa" or "price > 50 Cr"'
+      ),
+      { target: { value: '  Domlur   commercial building  ' } }
+    );
+    act(() => vi.advanceTimersByTime(1_000));
+
+    expect(trackPulseEvent).toHaveBeenCalledWith('search', undefined, {
+      query: 'Domlur commercial building',
+    });
   });
 });

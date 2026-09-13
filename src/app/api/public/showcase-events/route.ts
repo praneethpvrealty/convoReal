@@ -17,19 +17,40 @@ import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 function adminClient() {
   return createServiceClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 }
 
-const EVENT_TYPES = new Set(['open', 'view_property', 'map_click', 'gallery']);
+const EVENT_TYPES = new Set([
+  'open',
+  'view_property',
+  'map_click',
+  'gallery',
+  'search',
+]);
 const MAX_BATCH = 20;
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const BEACON_LIMIT = { limit: 60, windowMs: 60_000 };
 
 interface BeaconEvent {
   type?: string;
   property_id?: string;
   metadata?: Record<string, unknown>;
+}
+
+function sanitizeMetadata(event: BeaconEvent): Record<string, unknown> | null {
+  if (event.type === 'search') {
+    if (typeof event.metadata?.query !== 'string') return null;
+    const query = event.metadata.query
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 160);
+    return query ? { query } : null;
+  }
+
+  if (!event.metadata || typeof event.metadata !== 'object') return {};
+  return JSON.stringify(event.metadata).length <= 1000 ? event.metadata : {};
 }
 
 export async function POST(request: NextRequest) {
@@ -44,15 +65,25 @@ export async function POST(request: NextRequest) {
 
     const accountId = body?.account_id;
     const sessionKey = (body?.session_key || '').slice(0, 64);
-    const events = Array.isArray(body?.events) ? body!.events!.slice(0, MAX_BATCH) : [];
+    const events = Array.isArray(body?.events)
+      ? body!.events!.slice(0, MAX_BATCH)
+      : [];
 
-    if (!accountId || !UUID_RE.test(accountId) || !sessionKey || events.length === 0) {
+    if (
+      !accountId ||
+      !UUID_RE.test(accountId) ||
+      !sessionKey ||
+      events.length === 0
+    ) {
       // Beacons are fire-and-forget on the client — 204 either way keeps
       // the console clean; genuinely malformed input is just dropped.
       return new NextResponse(null, { status: 204 });
     }
 
-    const limit = await checkRateLimit(`showcase-beacon:${sessionKey}`, BEACON_LIMIT);
+    const limit = await checkRateLimit(
+      `showcase-beacon:${sessionKey}`,
+      BEACON_LIMIT
+    );
     if (!limit.success) return rateLimitResponse(limit);
 
     const db = adminClient();
@@ -93,29 +124,31 @@ export async function POST(request: NextRequest) {
 
     const rows = events
       .filter((e) => e && typeof e.type === 'string' && EVENT_TYPES.has(e.type))
-      .map((e) => ({
+      .map((e) => ({ event: e, metadata: sanitizeMetadata(e) }))
+      .filter(
+        (
+          entry
+        ): entry is { event: BeaconEvent; metadata: Record<string, unknown> } =>
+          entry.metadata !== null
+      )
+      .map(({ event, metadata }) => ({
         account_id: accountId,
         contact_id: contactId,
         property_id:
-          typeof e.property_id === 'string' && UUID_RE.test(e.property_id)
-            ? e.property_id
+          typeof event.property_id === 'string' &&
+          UUID_RE.test(event.property_id)
+            ? event.property_id
             : null,
         session_key: sessionKey,
         share_id: shareId,
-        event_type: e.type,
-        // Oversized metadata is dropped whole rather than truncated —
-        // slicing serialized JSON yields invalid JSON.
-        metadata:
-          e.metadata &&
-          typeof e.metadata === 'object' &&
-          JSON.stringify(e.metadata).length <= 1000
-            ? e.metadata
-            : {},
+        event_type: event.type,
+        metadata,
       }));
 
     if (rows.length > 0) {
       const { error } = await db.from('showcase_events').insert(rows);
-      if (error) console.error('[showcase-events] insert failed:', error.message);
+      if (error)
+        console.error('[showcase-events] insert failed:', error.message);
     }
 
     // Retroactive stitching: the session_key persists in the visitor's
@@ -130,7 +163,8 @@ export async function POST(request: NextRequest) {
         .eq('account_id', accountId)
         .eq('session_key', sessionKey)
         .is('contact_id', null);
-      if (error) console.error('[showcase-events] stitch failed:', error.message);
+      if (error)
+        console.error('[showcase-events] stitch failed:', error.message);
     }
 
     return new NextResponse(null, { status: 204 });

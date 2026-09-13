@@ -34,6 +34,9 @@ export function dedupeConsecutiveEvents(
     const prev = result[result.length - 1];
     const samePropertyId =
       (prev?.property_id ?? null) === (evt.property_id ?? null);
+    const sameSearchQuery =
+      evt.event_type !== 'search' ||
+      prev?.metadata.query === evt.metadata.query;
     const withinWindow =
       !!prev &&
       Math.abs(
@@ -45,6 +48,7 @@ export function dedupeConsecutiveEvents(
       prev.session_key === evt.session_key &&
       prev.event_type === evt.event_type &&
       samePropertyId &&
+      sameSearchQuery &&
       withinWindow
     ) {
       prev.repeatCount += 1;
