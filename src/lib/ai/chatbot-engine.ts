@@ -79,7 +79,11 @@ import {
 } from '@/lib/calendar/open-event-subject';
 import { recordBotTarget, resolveBotTarget, latestBotTarget, latestBotTargetForPrompt, clearBotTarget } from '@/lib/whatsapp/bot-message-target';
 import { resolveReplayTarget, replayText } from '@/lib/whatsapp/message-replay';
-import { applyRecordUpdate } from '@/lib/ai/record-edit';
+import {
+  applyRecordUpdate,
+  formatRecordUnchangedReply,
+  formatRecordUpdateFailureReply,
+} from '@/lib/ai/record-edit';
 import { matchProjectByName } from '@/lib/inventory/projects';
 import {
   isOwnerHelpCommand,
@@ -1288,7 +1292,7 @@ export async function processOwnerChatbotMessage(
           accountId,
           instruction: cleanedText,
         });
-        if (result && result !== 'stale') {
+        if (result && result !== 'stale' && result !== 'unchanged') {
           const label = editTarget.entityType === 'contact' ? 'Contact updated' : 'Listing updated';
           const lines = Object.entries(result).map(([k, v]) => `• ${k.replace(/_/g, ' ')}: ${v}`);
           const reply = [`✏️ *${label}*`, ...lines, '', '_Reply to this message again to make another change._'].join('\n');
@@ -1302,8 +1306,14 @@ export async function processOwnerChatbotMessage(
           });
           return true;
         }
+        if (result === 'unchanged') {
+          const reply = formatRecordUnchangedReply(editTarget.entityType);
+          const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+          await saveBotMessage(conversation.id, reply, sendRes.messageId);
+          return true;
+        }
         if (result === null) {
-          const reply = "🤔 I couldn't find a change to make from that. Tell me what to set, e.g. _\"change the price to 1.2 crore\"_.";
+          const reply = formatRecordUpdateFailureReply(editTarget.entityType);
           const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
           await saveBotMessage(conversation.id, reply, sendRes.messageId);
           return true;
