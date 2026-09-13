@@ -118,6 +118,20 @@ export function formatRecordUpdateResult(result: Record<string, unknown>): Recor
   return { ...result, floor_tenancies: summary };
 }
 
+export function formatRecordUnchangedReply(entityType: EditableEntity): string {
+  const label = entityType === 'contact' ? 'contact' : 'listing';
+  return [
+    `✅ No changes needed — this ${label} is already up to date.`,
+    '',
+    '_If you intended a different change, tell me what to set._',
+  ].join('\n');
+}
+
+export function formatRecordUpdateFailureReply(entityType: EditableEntity): string {
+  const label = entityType === 'contact' ? 'contact' : 'listing';
+  return `⚠️ I couldn't update this ${label} right now. Please try again in a moment.`;
+}
+
 export async function parseRecordUpdate(params: {
   entityType: EditableEntity;
   current: Record<string, unknown>;
@@ -154,14 +168,14 @@ export async function parseRecordUpdate(params: {
   }
 }
 
-/** Returns the applied patch, 'stale' when the row is gone, or null
- *  when nothing changed. */
+/** Returns the applied patch, 'stale' when the row is gone,
+ *  'unchanged' when the requested values already match, or null on failure. */
 export async function applyRecordUpdate(params: {
   entityType: EditableEntity;
   entityId: string;
   accountId: string;
   instruction: string;
-}): Promise<Record<string, unknown> | 'stale' | null> {
+}): Promise<Record<string, unknown> | 'stale' | 'unchanged' | null> {
   const admin = supabaseAdmin();
   const table = params.entityType === 'contact' ? 'contacts' : 'properties';
 
@@ -199,7 +213,7 @@ export async function applyRecordUpdate(params: {
       'rental_income' in patch ? patch.rental_income as number | null : row.rental_income as number | null
     );
   }
-  if (Object.keys(patch).length === 0) return null;
+  if (Object.keys(patch).length === 0) return 'unchanged';
 
   const { error: updErr } = await admin
     .from(table)
