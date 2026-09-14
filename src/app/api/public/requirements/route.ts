@@ -393,6 +393,7 @@ export async function POST(request: Request) {
               pref_projects: prefs.projects,
               pref_suggested_tags: prefs.suggested_tags,
               pref_min_roi: prefs.min_roi,
+              pref_requires_tenanted: prefs.requires_tenanted,
               // A tapped intent outranks the model's reading of a
               // note: extraction returns [] for a plain buyer by
               // design, and writing that back would erase the answer

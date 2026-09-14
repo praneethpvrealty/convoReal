@@ -77,7 +77,14 @@ function primarySummary(contact: Contact): string {
         : min
           ? `Above ${inr(min)}`
           : null;
-  return [types.slice(0, 2).join(' / '), areas.slice(0, 3).join(', '), budget]
+  return [
+    types.slice(0, 2).join(' / '),
+    areas.slice(0, 3).join(', '),
+    budget,
+    (source.requires_tenanted ?? source.pref_requires_tenanted)
+      ? 'Pre-leased only'
+      : null,
+  ]
     .filter(Boolean)
     .join(' · ');
 }
@@ -102,6 +109,7 @@ function profileSummary(profile: ContactRequirementProfile): string {
     profile.areas.slice(0, 3).join(', '),
     size,
     budget,
+    profile.requires_tenanted ? 'Pre-leased only' : null,
   ]
     .filter(Boolean)
     .join(' · ');

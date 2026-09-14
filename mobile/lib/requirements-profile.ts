@@ -55,6 +55,8 @@ export function contactForRequirementProfile(
     pref_projects: profile.projects,
     pref_min_roi: profile.min_roi,
     pref_listing_types: profile.listing_types,
+    requires_tenanted: null,
+    pref_requires_tenanted: profile.requires_tenanted ?? false,
     pref_extracted_at: profile.updated_at,
     contact_notes: [],
     requirement_profiles: [],

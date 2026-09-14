@@ -853,6 +853,7 @@ export function preferenceSignature(prefs: ExtractedPreferences): string {
     comparableList(prefs.excluded_areas),
     comparableList(prefs.projects),
     prefs.min_roi,
+    prefs.requires_tenanted,
     comparableList(prefs.listing_types),
   ]);
 }
@@ -882,6 +883,7 @@ export function preferenceFacts(
     { field: 'pref_projects', value: prefs.projects },
     { field: 'pref_listing_types', value: prefs.listing_types },
     { field: 'pref_min_roi', value: prefs.min_roi },
+    { field: 'pref_requires_tenanted', value: prefs.requires_tenanted },
     { field: 'pref_suggested_tags', value: prefs.suggested_tags },
   ];
 
@@ -947,6 +949,8 @@ export function prefsFromContact(contact: Contact): ExtractedPreferences {
       ? source.projects_of_interest
       : source.pref_projects || [],
     min_roi: source.min_roi ?? source.pref_min_roi ?? null,
+    requires_tenanted:
+      source.requires_tenanted ?? source.pref_requires_tenanted ?? false,
     listing_types: (source.pref_listing_types ||
       []) as ExtractedPreferences['listing_types'],
     suggested_tags: source.pref_suggested_tags || [],
@@ -985,6 +989,7 @@ export function mergeKnownPreferences(
     ),
     projects: arrayOrKnown(extracted.projects, known.projects),
     min_roi: extracted.min_roi ?? known.min_roi,
+    requires_tenanted: extracted.requires_tenanted || known.requires_tenanted,
     listing_types: arrayOrKnown(extracted.listing_types, known.listing_types),
     suggested_tags: arrayOrKnown(
       extracted.suggested_tags,

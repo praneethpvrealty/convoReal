@@ -80,6 +80,7 @@ export async function syncContactPreferences(
         pref_projects: prefs.projects,
         pref_suggested_tags: prefs.suggested_tags,
         pref_min_roi: prefs.min_roi,
+        pref_requires_tenanted: prefs.requires_tenanted,
         pref_listing_types: mergedListingTypes(
           prefs.listing_types,
           contact.pref_listing_types as string[] | null,

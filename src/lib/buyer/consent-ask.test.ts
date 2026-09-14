@@ -140,7 +140,7 @@ describe('claimBuyerConsentAsk', () => {
       3
     );
     expect(text).toContain('Ravi');
-    expect(text).toMatch(/START ALERTS/);
+    expect(text).toMatch(/Start Alerts/);
     expect(text).toMatch(/Acme/);
   });
 

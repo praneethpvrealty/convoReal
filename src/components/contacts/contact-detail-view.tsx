@@ -291,6 +291,7 @@ export function ContactDetailView({
     []
   );
   const [editMinRoi, setEditMinRoi] = useState('');
+  const [editRequiresTenanted, setEditRequiresTenanted] = useState(false);
   const [savingPreferences, setSavingPreferences] = useState(false);
   const [editDob, setEditDob] = useState('');
   const [editFeedbackStatus, setEditFeedbackStatus] = useState<
@@ -447,6 +448,9 @@ export function ContactDetailView({
         );
         setEditPropertyInterests(initialPropertyInterests);
         setEditMinRoi(data.min_roi ? String(data.min_roi) : '');
+        setEditRequiresTenanted(
+          data.requires_tenanted ?? data.pref_requires_tenanted ?? false
+        );
         setEditDob(data.dob ?? '');
         setEditFeedbackStatus(
           (data as Contact).feedback_status ?? 'not_requested'
@@ -1543,6 +1547,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
         areas_of_interest_geo: prunedAreasGeo,
         property_interests: editPropertyInterests,
         min_roi: editMinRoi ? Number(editMinRoi) : null,
+        requires_tenanted: editRequiresTenanted,
         updated_at: new Date().toISOString(),
       })
       .eq('id', contactId)
@@ -2718,6 +2723,23 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                           className="h-8 border-slate-700 bg-slate-800 text-xs text-white"
                         />
                       </div>
+
+                      <label className="flex items-start gap-2 rounded-md border border-slate-700 bg-slate-800/50 p-3 text-xs text-slate-300">
+                        <input
+                          type="checkbox"
+                          checked={editRequiresTenanted}
+                          onChange={(event) =>
+                            setEditRequiresTenanted(event.target.checked)
+                          }
+                          className="mt-0.5"
+                        />
+                        <span>
+                          <span className="block font-medium text-white">
+                            Already rented / pre-leased only
+                          </span>
+                          Exclude vacant properties from this buyer&apos;s matches.
+                        </span>
+                      </label>
 
                       <div className="space-y-1.5">
                         <Label className="text-xs font-semibold text-slate-400">

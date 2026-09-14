@@ -75,6 +75,21 @@ export function buildPreferenceFlowJson(): Record<string, unknown> {
           max_budget: { type: 'number', __example__: 20000000 },
           areas: { type: 'string', __example__: 'JP Nagar, Jayanagar' },
           min_roi: { type: 'number', __example__: 4.5 },
+          occupancy: { type: 'string', __example__: 'any' },
+          occupancy_options: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                id: { type: 'string' },
+                title: { type: 'string' },
+              },
+            },
+            __example__: [
+              { id: 'any', title: 'Any occupancy' },
+              { id: 'tenanted', title: 'Already rented / pre-leased' },
+            ],
+          },
           selected_property_types: {
             type: 'array',
             items: { type: 'string' },
@@ -115,6 +130,7 @@ export function buildPreferenceFlowJson(): Record<string, unknown> {
                 areas: '${data.areas}',
                 property_types: '${data.selected_property_types}',
                 min_roi: '${data.min_roi}',
+                occupancy: '${data.occupancy}',
               },
               children: [
                 {
@@ -153,6 +169,13 @@ export function buildPreferenceFlowJson(): Record<string, unknown> {
                   required: false,
                 },
                 {
+                  type: 'Dropdown',
+                  name: 'occupancy',
+                  label: 'Occupancy requirement',
+                  'data-source': '${data.occupancy_options}',
+                  required: true,
+                },
+                {
                   type: 'Footer',
                   label: 'Save preferences',
                   'on-click-action': {
@@ -164,6 +187,7 @@ export function buildPreferenceFlowJson(): Record<string, unknown> {
                       areas: '${form.areas}',
                       property_types: '${form.property_types}',
                       min_roi: '${form.min_roi}',
+                      occupancy: '${form.occupancy}',
                     },
                   },
                 },
@@ -190,6 +214,8 @@ export interface ContactPreferenceSource {
   areas_of_interest?: string[] | null
   property_interests?: string[] | null
   min_roi?: number | null
+  requires_tenanted?: boolean | null
+  pref_requires_tenanted?: boolean | null
   requirements?: string | null
   no_budget?: boolean | null
   requirement_profiles?: Contact['requirement_profiles']
@@ -229,6 +255,14 @@ export function buildPreferencePrefillData(
       ', '
     ),
     min_roi: source.min_roi ?? 0,
+    occupancy:
+      (source.requires_tenanted ?? source.pref_requires_tenanted ?? false)
+        ? 'tenanted'
+        : 'any',
+    occupancy_options: [
+      { id: 'any', title: 'Any occupancy' },
+      { id: 'tenanted', title: 'Already rented / pre-leased' },
+    ],
     selected_property_types: selectedPropertyTypes,
     property_type_options: PROPERTY_INTEREST_FLOW_OPTIONS,
   }
@@ -242,6 +276,7 @@ export interface PreferenceFormValues {
   areas?: string
   property_types?: string[]
   min_roi?: string
+  occupancy?: string
 }
 
 /**
@@ -263,6 +298,7 @@ export function parsePreferenceFormValues(
   readString('max_budget')
   readString('areas')
   readString('min_roi')
+  readString('occupancy')
 
   const types = raw.property_types
   if (Array.isArray(types)) {
@@ -277,6 +313,7 @@ export interface ContactPreferenceUpdate {
   areas_of_interest?: string[]
   property_interests?: string[]
   min_roi?: number | null
+  requires_tenanted?: boolean
   requirement_active?: boolean
 }
 
@@ -312,6 +349,8 @@ export function preferenceFormToContactUpdate(
   if (maxBudget !== undefined) update.max_budget = maxBudget
   const minRoi = parseNumericField(values.min_roi)
   if (minRoi !== undefined) update.min_roi = minRoi
+  if (values.occupancy === 'tenanted') update.requires_tenanted = true
+  if (values.occupancy === 'any') update.requires_tenanted = false
 
   if (values.areas !== undefined) {
     update.areas_of_interest = values.areas
@@ -371,6 +410,9 @@ export function summarizePreferenceUpdate(update: ContactPreferenceUpdate): stri
   }
   if (update.min_roi != null) {
     lines.push(`minimum ${update.min_roi}% ROI`)
+  }
+  if (update.requires_tenanted) {
+    lines.push('already rented / pre-leased only')
   }
 
   if (lines.length === 0) {

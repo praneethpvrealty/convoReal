@@ -29,10 +29,53 @@ import { sendRequirementReview } from '@/lib/whatsapp/requirement-review';
 import { isPlaceholderLeadName } from '@/lib/contacts/lead-placeholder';
 import { accountShowcaseBrowseUrl } from '@/lib/showcase/account-showcase-url';
 import type { Contact } from '@/types';
+import {
+  BUYER_CONSENT_BUTTONS,
+  claimBuyerConsentAsk,
+  shouldAskBuyerConsent,
+} from '@/lib/buyer/consent-ask';
 
 export interface PreferenceMatchFollowUpResult {
   matchCount: number;
   replySent: boolean;
+}
+
+async function sendBuyerConsentNudge(args: {
+  db: SupabaseClient;
+  accountId: string;
+  userId: string;
+  contact: Contact;
+  conversationId: string;
+  matchCount: number;
+}): Promise<void> {
+  if (!shouldAskBuyerConsent(args.contact)) return;
+
+  const { data: account } = await args.db
+    .from('accounts')
+    .select('name')
+    .eq('id', args.accountId)
+    .maybeSingle();
+  const body = await claimBuyerConsentAsk(
+    args.db,
+    args.accountId,
+    args.contact,
+    (account?.name as string | null) ?? null,
+    args.matchCount
+  );
+  if (!body) return;
+
+  await sendWhatsAppMessageAndPersist({
+    accountId: args.accountId,
+    userId: args.userId,
+    contactId: args.contact.id,
+    conversationId: args.conversationId,
+    kind: 'interactive',
+    interactiveType: 'buttons',
+    senderType: 'bot',
+    interactiveBody: body,
+    interactiveButtons: [...BUYER_CONSENT_BUTTONS],
+    customDbClient: args.db,
+  });
 }
 
 /**
@@ -109,7 +152,17 @@ export async function sendPreferenceMatchFollowUp(args: {
         conversationId,
         contact: contact as Contact,
       });
-      if (reviewed) return { matchCount: 0, replySent: true };
+      if (reviewed) {
+        await sendBuyerConsentNudge({
+          db,
+          accountId,
+          userId,
+          contact: contact as Contact,
+          conversationId,
+          matchCount: 0,
+        });
+        return { matchCount: 0, replySent: true };
+      }
     }
 
     const opening = args.acknowledgement
@@ -175,6 +228,17 @@ export async function sendPreferenceMatchFollowUp(args: {
           console.error('[preference-followup] radar event failed:', err);
         }
       );
+    }
+
+    if (contact && result.success) {
+      await sendBuyerConsentNudge({
+        db,
+        accountId,
+        userId,
+        contact: contact as Contact,
+        conversationId,
+        matchCount: matches.length,
+      });
     }
 
     return { matchCount: matches.length, replySent: result.success };

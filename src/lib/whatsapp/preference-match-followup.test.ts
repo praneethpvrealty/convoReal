@@ -6,6 +6,8 @@ const sendWhatsAppMessageAndPersist = vi.fn();
 const buildMatchesReply = vi.fn();
 const accountShowcaseBrowseUrl = vi.fn();
 const logListingsSent = vi.fn();
+const shouldAskBuyerConsent = vi.fn();
+const claimBuyerConsentAsk = vi.fn();
 
 vi.mock('@/lib/radar/engine', () => ({
   rankPropertiesForContact: (...args: unknown[]) =>
@@ -31,6 +33,15 @@ vi.mock('@/lib/whatsapp/meta-api-dispatcher', () => ({
 vi.mock('@/lib/showcase/account-showcase-url', () => ({
   accountShowcaseBrowseUrl: (...args: unknown[]) =>
     accountShowcaseBrowseUrl(...args),
+}));
+
+vi.mock('@/lib/buyer/consent-ask', () => ({
+  BUYER_CONSENT_BUTTONS: [
+    { id: 'buyer_alerts:start', title: 'Start Alerts' },
+    { id: 'buyer_alerts:stop', title: 'Stop Alerts' },
+  ],
+  shouldAskBuyerConsent: (...args: unknown[]) => shouldAskBuyerConsent(...args),
+  claimBuyerConsentAsk: (...args: unknown[]) => claimBuyerConsentAsk(...args),
 }));
 
 const sendListingFeedbackPrompt = vi.fn();
@@ -84,6 +95,8 @@ beforeEach(() => {
   accountShowcaseBrowseUrl.mockResolvedValue(
     'https://aryavarta.convoreal.com/?v=contact-1'
   );
+  shouldAskBuyerConsent.mockReturnValue(false);
+  claimBuyerConsentAsk.mockResolvedValue(null);
 });
 
 describe('sendPreferenceMatchFollowUp', () => {
@@ -252,6 +265,52 @@ describe('sendPreferenceMatchFollowUp', () => {
       includeFormRow?: boolean;
     };
     expect(call.includeFormRow).toBeUndefined();
+  });
+
+  it('nudges a pending buyer to enable realtime alerts after the matches', async () => {
+    rankPropertiesForContact.mockResolvedValue([aMatch]);
+    shouldAskBuyerConsent.mockReturnValue(true);
+    claimBuyerConsentAsk.mockResolvedValue('Keep watching for matching deals?');
+    const db = {
+      from: (table: string) =>
+        table === 'contacts'
+          ? {
+              select: () => ({
+                eq: () => ({
+                  eq: () => ({
+                    maybeSingle: async () => ({
+                      data: {
+                        id: 'contact-1',
+                        name: 'Asha Kumar',
+                        classification: 'Buyer',
+                      },
+                    }),
+                  }),
+                }),
+              }),
+            }
+          : {
+              select: () => ({
+                eq: () => ({
+                  maybeSingle: async () => ({ data: { name: 'PV Realty' } }),
+                }),
+              }),
+            },
+    } as never;
+
+    await sendPreferenceMatchFollowUp({ ...args(), db });
+
+    expect(sendWhatsAppMessageAndPersist).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        kind: 'interactive',
+        interactiveType: 'buttons',
+        interactiveBody: 'Keep watching for matching deals?',
+        interactiveButtons: [
+          { id: 'buyer_alerts:start', title: 'Start Alerts' },
+          { id: 'buyer_alerts:stop', title: 'Stop Alerts' },
+        ],
+      })
+    );
   });
 
   it('skips the feedback list when nothing was shown', async () => {

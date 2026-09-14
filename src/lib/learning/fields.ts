@@ -224,6 +224,14 @@ const POLICIES: FieldPolicy[] = [
     min: 1,
     max: 100,
   },
+  {
+    entity: 'contact',
+    field: 'pref_requires_tenanted',
+    column: 'pref_requires_tenanted',
+    label: 'Pre-leased only',
+    disposition: 'auto',
+    kind: 'boolean',
+  },
   // The suggestion column itself is bookkeeping: writing it attaches
   // nothing and changes no matching, so it applies on sight like the
   // rest of the extraction. What it feeds is the row below.

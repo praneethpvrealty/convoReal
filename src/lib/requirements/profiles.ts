@@ -52,6 +52,7 @@ export function createRequirementProfile(args: {
     excluded_areas: args.preferences.excluded_areas,
     projects: args.preferences.projects,
     min_roi: args.preferences.min_roi,
+    requires_tenanted: args.preferences.requires_tenanted,
     listing_types: args.preferences.listing_types,
     created_at: timestamp,
     updated_at: timestamp,
@@ -92,7 +93,8 @@ export function hasStructuredRequirement(
     preferences.budget_max ||
     preferences.land_area_min_sqft ||
     preferences.land_area_max_sqft ||
-    preferences.min_roi
+    preferences.min_roi ||
+    preferences.requires_tenanted
   );
 }
 
@@ -129,6 +131,7 @@ export function contactForRequirementProfile(
     max_budget: undefined,
     no_budget: false,
     min_roi: null,
+    requires_tenanted: null,
     areas_of_interest: [],
     areas_of_interest_geo: [],
     projects_of_interest: [],
@@ -145,6 +148,7 @@ export function contactForRequirementProfile(
     pref_excluded_areas: profile.excluded_areas,
     pref_projects: profile.projects,
     pref_min_roi: profile.min_roi,
+    pref_requires_tenanted: profile.requires_tenanted ?? false,
     pref_listing_types: profile.listing_types,
     pref_extracted_at: profile.updated_at,
     contact_notes: [],

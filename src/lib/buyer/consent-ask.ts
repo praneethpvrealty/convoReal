@@ -25,6 +25,11 @@ import {
 const BUYER_CLASSIFICATIONS = ['Buyer', 'Owner & Buyer'];
 const OWNER_CLASSIFICATIONS = ['Owner', 'Seller'];
 
+export const BUYER_CONSENT_BUTTONS = [
+  { id: 'buyer_alerts:start', title: 'Start Alerts' },
+  { id: 'buyer_alerts:stop', title: 'Stop Alerts' },
+] as const;
+
 /**
  * Which ask this contact is due, or null for none.
  *

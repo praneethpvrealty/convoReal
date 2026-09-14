@@ -30,7 +30,7 @@ export async function PUT(
       name, salutation, second_name, name_tag, phone, secondary_phones, email, company, classification, lead_temp,
       last_inquired_property_id, referrer, referrer_contact_id,
       min_budget, max_budget, no_budget, pref_listing_types, areas_of_interest, areas_of_interest_geo,
-      property_interests, min_roi, source, dob, feedback_status,
+      property_interests, min_roi, requires_tenanted, source, dob, feedback_status,
       strict_area_match, projects_of_interest, strict_project_match,
       preferred_update_channel,
       // Related entities
@@ -76,6 +76,7 @@ export async function PUT(
       areas_of_interest_geo: sanitizeAreasGeo(areas_of_interest_geo),
       property_interests: Array.isArray(property_interests) ? property_interests : [],
       min_roi: typeof min_roi === 'number' ? min_roi : null,
+      requires_tenanted: typeof requires_tenanted === 'boolean' ? requires_tenanted : null,
       source: typeof source === 'string' ? source.trim() || null : null,
       dob: typeof dob === 'string' && dob.trim() ? dob.trim() : null,
       feedback_status: typeof feedback_status === 'string' ? feedback_status : 'not_requested',

@@ -110,6 +110,7 @@ export interface ExtractedPreferences {
    *  (e.g. "Purva Vantage"), distinct from localities in `areas`. */
   projects: string[];
   min_roi: number | null;
+  requires_tenanted: boolean;
   listing_types: ListingType[];
   /** Short buyer-profile labels to SUGGEST as Engine tags (never
    *  auto-attached — an agent confirms each with a tap). */
@@ -129,6 +130,7 @@ export const EMPTY_PREFERENCES: ExtractedPreferences = {
   excluded_areas: [],
   projects: [],
   min_roi: null,
+  requires_tenanted: false,
   listing_types: [],
   suggested_tags: [],
 };
@@ -196,9 +198,10 @@ function toNumberOrNull(val: unknown): number | null {
   return null;
 }
 
-export function bhkRangeFromRequirement(
-  text: string
-): { min: number | null; max: number | null } {
+export function bhkRangeFromRequirement(text: string): {
+  min: number | null;
+  max: number | null;
+} {
   const values: number[] = [];
   const range = text.match(
     /\b(\d+(?:\.5)?)\s*(?:-|–|—|to)\s*(\d+(?:\.5)?)\s*-?\s*bhk\b/i
@@ -206,8 +209,8 @@ export function bhkRangeFromRequirement(
   if (range) values.push(Number(range[1]), Number(range[2]));
 
   values.push(
-    ...[...text.matchAll(/\b(\d+(?:\.5)?)\s*-?\s*bhk\b/gi)].map(
-      (match) => Number(match[1])
+    ...[...text.matchAll(/\b(\d+(?:\.5)?)\s*-?\s*bhk\b/gi)].map((match) =>
+      Number(match[1])
     )
   );
   const validValues = values.filter(
@@ -302,6 +305,7 @@ export async function extractContactPreferences(
     '  "excluded_areas": Array of localities the contact explicitly does NOT want (e.g. "not Jayanagar" -> ["Jayanagar"]). Empty array if none.,\n' +
     '  "projects": Array of SPECIFIC named projects/apartments/societies/buildings the contact wants (e.g. ["Purva Vantage", "DSR Rainbow Heights", "Meenakshi Classic"]). These are proper names of developments, NOT localities — put neighbourhoods/areas in "areas" instead. Keep the name as written; drop qualifiers like "(Sector 1)" or "last choice". Empty array if none named.,\n' +
     '  "min_roi": Minimum rental yield / ROI percentage wanted (e.g. "yield above 4%" -> 4) or null,\n' +
+    '  "requires_tenanted": true only when the buyer explicitly requires an already rented, currently tenanted, income-generating or pre-leased property; otherwise false,\n' +
     `  "listing_types": Array of deal type(s) the contact wants, each exactly one of: ${LISTING_TYPE_VALUES.map((v) => `'${v}'`).join(', ')}. 'Rent'/'tenant'/'to let' -> 'Rent'. 'Joint venture'/'joint development'/'JV'/'JD'/'revenue share'/'landowner looking for a builder' -> 'JV/JD'. 'Built to suit'/'BTS'/'lease to occupier' -> 'Built to Suit'. An explicit statement of buying — 'buy'/'buying'/'purchase'/'own' — DOES mean 'Sale'; what stays empty is silence. Leave empty if the contact states no deal type at all — do NOT assume 'Sale' by default.,\n` +
     '  "suggested_tags": Array of at most 3 SHORT, reusable buyer-profile labels an agent might tag this contact with, Title Case, each 2-24 chars (e.g. "Investor", "End User", "NRI", "First-Time Buyer", "Rental Income", "Urgent"). Only include labels clearly supported by the text (e.g. "for investment purposes" -> "Investor"; "will let out floors" -> "Rental Income"). Do NOT include locations, budgets, BHK, or property types — those are captured by the other fields. Empty array when nothing profile-like is stated.\n' +
     '}\n\n' +
@@ -366,6 +370,7 @@ export async function extractContactPreferences(
     excluded_areas: toStringArray(parsed.excluded_areas),
     projects: [...new Set(toStringArray(parsed.projects))],
     min_roi: toNumberOrNull(parsed.min_roi),
+    requires_tenanted: parsed.requires_tenanted === true,
     listing_types: [...new Set(listingTypes)],
     suggested_tags: normalizeSuggestedTags(
       toStringArray(parsed.suggested_tags)
@@ -384,7 +389,7 @@ export function preferenceSourceHash(sourceText: string): string {
   for (let i = 0; i < sourceText.length; i++) {
     hash = ((hash << 5) + hash + sourceText.charCodeAt(i)) | 0;
   }
-  return `v3:${(hash >>> 0).toString(36)}:${sourceText.length}`;
+  return `v4:${(hash >>> 0).toString(36)}:${sourceText.length}`;
 }
 
 /**

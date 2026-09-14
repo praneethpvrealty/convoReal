@@ -140,6 +140,7 @@ export interface ContactRequirementProfile {
   excluded_areas: string[];
   projects: string[];
   min_roi: number | null;
+  requires_tenanted?: boolean;
   listing_types: string[];
   created_at: string;
   updated_at: string;
@@ -240,6 +241,8 @@ export interface Contact {
   is_archived?: boolean;
   archived_at?: string | null;
   min_roi?: number | null;
+  /** Hard buyer constraint: only currently tenanted / pre-leased assets. */
+  requires_tenanted?: boolean | null;
   /** AI-extracted structured preferences (migration 092) — populated by
    *  /api/contacts/extract-preferences from requirements + notes text.
    *  Explicit fields above always win; these fill the gaps. */
@@ -258,6 +261,8 @@ export interface Contact {
    *  matches one is a strong, decisive signal in src/lib/matching.ts. */
   pref_projects?: string[] | null;
   pref_min_roi?: number | null;
+  /** AI-extracted form of a stated pre-leased / already-rented requirement. */
+  pref_requires_tenanted?: boolean | null;
   /** AI-suggested Engine tag labels (migration 150) — display-only until
    *  an agent confirms one, which creates/attaches a real tag. */
   pref_suggested_tags?: string[] | null;

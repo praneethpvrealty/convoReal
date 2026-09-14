@@ -155,10 +155,11 @@ describe('buildConsentRequestMessage', () => {
       agencyName: 'PV Realty',
     });
     expect(text).toContain('Hi Ravi');
-    expect(text).toContain('from PV Realty');
+    expect(text).toContain('PV Realty has');
     expect(text).toContain('3 listings that match');
-    expect(text).toContain('START ALERTS');
-    expect(text).toContain('STOP ALERTS');
+    expect(text).toContain('Start Alerts');
+    expect(text).toContain('Stop Alerts');
+    expect(text).toContain('below-market opportunities');
   });
 
   it('reads naturally with one match and no agency name', () => {

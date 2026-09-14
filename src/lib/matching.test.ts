@@ -796,6 +796,78 @@ describe('getMatchingContacts', () => {
     });
   });
 
+  describe('Tenanted-only matching', () => {
+    const buyer = createTestContact({
+      pref_property_categories: ['commercial'],
+      pref_requires_tenanted: true,
+      pref_extracted_at: new Date().toISOString(),
+    });
+
+    it('accepts a property with an explicit current tenant', () => {
+      const property = createTestProperty({
+        type: 'Commercial Office Space',
+        floor_tenancies: [
+          {
+            floor: 'Third floor',
+            area_sqft: 1391,
+            tenant_name: 'Acme Pvt Ltd',
+            monthly_rent: 90000,
+            advance: null,
+            lease_start: null,
+            lease_end: null,
+            lock_in_months: null,
+            maintenance: null,
+            notes: null,
+          },
+        ],
+      });
+
+      expect(getMatchingContacts(property, [buyer])).toHaveLength(1);
+    });
+
+    it('rejects a vacant listing even when projected rent and ROI are filled', () => {
+      const property = createTestProperty({
+        type: 'Commercial Office Space',
+        description: 'Available for rent or sale',
+        rental_income: 90000,
+        roi: 5.43,
+        floor_tenancies: [],
+      });
+
+      expect(getMatchingContacts(property, [buyer])).toHaveLength(0);
+    });
+
+    it('recognizes an existing free-text pre-leased requirement', () => {
+      const contact = createTestContact({
+        requirements:
+          'Interested only in an already rented out commercial property',
+        pref_property_categories: ['commercial'],
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const property = createTestProperty({
+        type: 'Commercial Office Space',
+        description: 'Pre-leased office asset for sale',
+      });
+
+      expect(getMatchingContacts(property, [contact])).toHaveLength(1);
+    });
+
+    it('lets an explicit Any occupancy choice clear an older text preference', () => {
+      const contact = createTestContact({
+        requirements: 'Previously asked for a pre-leased commercial property',
+        requires_tenanted: false,
+        pref_property_categories: ['commercial'],
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const vacant = createTestProperty({
+        type: 'Commercial Office Space',
+        description: 'Vacant and ready for occupation',
+      });
+
+      expect(getMatchingContacts(vacant, [contact])).toHaveLength(1);
+    });
+  });
+
   describe('Ranking', () => {
     it('ranks type+location+budget above type+budget above type-only', () => {
       const full = createTestContact({

@@ -59,7 +59,7 @@ describe('budgetFromPerSqftRequirement', () => {
 
 describe('preferenceSourceHash', () => {
   it('invalidates earlier extraction results after the rate fix', () => {
-    expect(preferenceSourceHash('same requirement')).toMatch(/^v3:/);
+    expect(preferenceSourceHash('same requirement')).toMatch(/^v4:/);
   });
 });
 

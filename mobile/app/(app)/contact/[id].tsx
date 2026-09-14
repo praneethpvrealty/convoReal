@@ -153,7 +153,7 @@ async function fetchContact(id: string): Promise<Contact | null> {
     .select(
       'id, phone, secondary_phones, name, salutation, name_tag, email, company, classification, ' +
         'avatar_url, min_budget, max_budget, no_budget, pref_listing_types, areas_of_interest, areas_of_interest_geo, ' +
-        'strict_area_match, min_roi, requirements, lead_temp, status, referrer, source, ' +
+        'strict_area_match, min_roi, requires_tenanted, pref_requires_tenanted, requirements, lead_temp, status, referrer, source, ' +
         'requirement_profiles, ' +
         'preferred_update_channel, buyer_alerts_consent, buyer_alerts_consent_requested_at, ' +
         'property_interests, last_inquired_property_id, lead_portal, lead_portal_listing_id, ' +
@@ -626,6 +626,13 @@ function ContactCard({ contact }: { contact: Contact }) {
               icon="trending-up-outline"
               label="Min ROI"
               value={`${contact.min_roi}%`}
+            />
+          ) : null}
+          {(contact.requires_tenanted ?? contact.pref_requires_tenanted) ? (
+            <InfoRow
+              icon="business-outline"
+              label="Occupancy"
+              value="Already rented / pre-leased only"
             />
           ) : null}
           {source?.requirements ? (
@@ -1308,6 +1315,9 @@ function ContactEditor({
   const [minRoi, setMinRoi] = useState(
     contact.min_roi != null ? String(contact.min_roi) : ''
   );
+  const [requiresTenanted, setRequiresTenanted] = useState(
+    contact.requires_tenanted ?? contact.pref_requires_tenanted ?? false
+  );
   const [updateChannel, setUpdateChannel] = useState<UpdateChannelValue | null>(
     contact.preferred_update_channel ?? null
   );
@@ -1380,6 +1390,7 @@ function ContactEditor({
         strict_area_match: strictArea,
         property_interests: propertyInterests,
         min_roi: parseAmount(minRoi),
+        requires_tenanted: requiresTenanted,
         preferred_update_channel: updateChannel,
       })
       .eq('id', contact.id)
@@ -1863,6 +1874,56 @@ function ContactEditor({
               placeholder="e.g. 4"
               keyboardType="decimal-pad"
             />
+
+            <Pressable
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: requiresTenanted }}
+              onPress={() => setRequiresTenanted((value) => !value)}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'flex-start',
+                gap: spacing.sm,
+                padding: spacing.md,
+                borderRadius: radius.md,
+                borderWidth: StyleSheet.hairlineWidth,
+                borderColor: requiresTenanted ? colors.primary : colors.border,
+                backgroundColor: requiresTenanted
+                  ? colors.primarySoft
+                  : colors.surface,
+              }}
+            >
+              <Ionicons
+                name={
+                  requiresTenanted
+                    ? 'checkbox-outline'
+                    : 'square-outline'
+                }
+                size={20}
+                color={requiresTenanted ? colors.primary : colors.textMuted}
+              />
+              <View style={{ flex: 1 }}>
+                <Text
+                  style={{
+                    fontFamily: f.semibold,
+                    fontSize: 14,
+                    color: colors.text,
+                  }}
+                >
+                  Already rented / pre-leased only
+                </Text>
+                <Text
+                  style={{
+                    marginTop: 3,
+                    fontFamily: f.regular,
+                    fontSize: 12,
+                    lineHeight: 17,
+                    color: colors.textMuted,
+                  }}
+                >
+                  Exclude vacant properties even when projected rent or ROI is available.
+                </Text>
+              </View>
+            </Pressable>
           </View>
         ) : null}
 

@@ -295,6 +295,7 @@ export async function PATCH(
         pref_projects: preferences.projects,
         pref_suggested_tags: preferences.suggested_tags,
         pref_min_roi: preferences.min_roi,
+        pref_requires_tenanted: preferences.requires_tenanted,
         pref_listing_types: preferences.listing_types,
         pref_source_hash: preferenceSourceHash(sourceText),
         pref_extracted_at: new Date().toISOString(),

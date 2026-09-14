@@ -143,17 +143,20 @@ export function buildConsentRequestMessage(args: {
   matchCount: number;
   agencyName?: string | null;
 }): string {
-  const who = args.agencyName?.trim() ? ` from ${args.agencyName.trim()}` : '';
-  const count =
-    args.matchCount === 1
-      ? 'a listing that matches'
-      : `${args.matchCount} listings that match`;
+  const agency = args.agencyName?.trim() || null;
+  const subject = agency || 'We';
+  const verb = agency ? 'has' : 'have';
+  const opening =
+    args.matchCount === 0
+      ? `${subject} ${verb} saved your requirement.`
+      : args.matchCount === 1
+        ? `${subject} ${verb} a listing that matches what you're looking for.`
+        : `${subject} ${verb} ${args.matchCount} listings that match what you're looking for.`;
   return (
     `Hi ${firstName(args.contactName)} 👋\n\n` +
-    `We${who} have ${count} what you're looking for. ` +
-    `Want them on WhatsApp as they come up?\n\n` +
-    `Reply *START ALERTS* and we'll send them.\n` +
-    `Reply *STOP ALERTS* and we won't ask again.`
+    `${opening} Would you like our matching engine to keep watching new inventory for you?\n\n` +
+    `With *Start Alerts*, every fresh listing is checked against your requirement as soon as it arrives—including urgent and below-market opportunities—so a suitable deal doesn't pass you by. We only send matching properties.\n\n` +
+    `Tap *Start Alerts* to enable it. You can choose *Stop Alerts* anytime.`
   );
 }
 
