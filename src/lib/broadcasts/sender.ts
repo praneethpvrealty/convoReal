@@ -22,8 +22,9 @@ export interface CustomFieldFilter {
 }
 
 export interface AudienceConfig {
-  type: 'all' | 'tags' | 'custom_field' | 'csv';
+  type: 'all' | 'tags' | 'contacts' | 'custom_field' | 'csv';
   tagIds?: string[];
+  contactIds?: string[];
   customField?: CustomFieldFilter;
   csvContacts?: { phone: string; name?: string }[];
   excludeTagIds?: string[];
@@ -162,6 +163,18 @@ export async function resolveAudienceOnServer(
       .from('contacts')
       .select('*')
       .eq('account_id', accountId);
+    if (error) throw new Error(`Failed to fetch contacts: ${error.message}`);
+    contacts = data ?? [];
+  } else if (
+    audience.type === 'contacts' &&
+    audience.contactIds &&
+    audience.contactIds.length > 0
+  ) {
+    const { data, error } = await supabase
+      .from('contacts')
+      .select('*')
+      .eq('account_id', accountId)
+      .in('id', audience.contactIds);
     if (error) throw new Error(`Failed to fetch contacts: ${error.message}`);
     contacts = data ?? [];
   } else if (

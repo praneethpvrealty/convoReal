@@ -206,6 +206,9 @@ export interface Deal {
   currency?: string | null;
   status: 'open' | 'won' | 'lost';
   expected_close_date?: string | null;
+  /** The day the deal actually closed, as opposed to the forecast in
+   *  `expected_close_date` (migration 20260914114500). */
+  actual_close_date?: string | null;
   brokerage_type?: 'percentage' | 'fixed' | null;
   brokerage_value?: number | null;
   brokerage_amount?: number | null;

@@ -45,7 +45,7 @@ export function DealInvoicesPanel({ dealId, canEdit }: DealInvoicesPanelProps) {
   const { data: invoices = [], isLoading } = useQuery({
     queryKey: ['deal-invoices', dealId],
     queryFn: async (): Promise<Invoice[]> => {
-      const response = await fetch(`/api/deals/${dealId}/invoices`);
+      const response = await fetch(`/api/deals/${dealId}/brokerage-invoices`);
       const json = await response.json();
       if (!response.ok)
         throw new Error(json?.error || 'Could not load invoices');
@@ -58,7 +58,7 @@ export function DealInvoicesPanel({ dealId, canEdit }: DealInvoicesPanelProps) {
 
   const createDraft = useMutation({
     mutationFn: async (): Promise<Invoice> => {
-      const response = await fetch(`/api/deals/${dealId}/invoices`, {
+      const response = await fetch(`/api/deals/${dealId}/brokerage-invoices`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),

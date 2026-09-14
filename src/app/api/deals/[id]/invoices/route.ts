@@ -1,234 +1,241 @@
-import { NextResponse } from 'next/server';
-
+import { NextRequest, NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
-import { buildPrefill, type PrefillContact } from '@/lib/invoices/prefill';
-import {
-  getOrCreateInvoiceSettings,
-  logInvoiceEvent,
-} from '@/lib/invoices/server';
-import type { InvoiceSide } from '@/lib/invoices/types';
 import {
   checkRateLimit,
   rateLimitResponse,
   RATE_LIMITS,
 } from '@/lib/rate-limit';
+import { supabaseAdmin } from '@/lib/supabase/admin';
+import {
+  INVOICE_BUCKET,
+  INVOICE_URL_TTL_SECONDS,
+  invoiceObjectPath,
+  isOwnedInvoicePath,
+  parseDealInvoices,
+  rejectInvoiceFile,
+  safeInvoiceFilename,
+  type DealInvoice,
+  type DealInvoiceLink,
+} from '@/lib/pipelines/deal-invoices';
 
-const SIDES: InvoiceSide[] = ['buyer', 'seller', 'both'];
+type RouteParams = { params: Promise<{ id: string }> };
 
-// GET /api/deals/[id]/invoices — every invoice raised against this deal.
-export async function GET(
-  _request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+/**
+ * Brokerage paperwork for one deal.
+ *
+ * The bucket is private (migration 20260914114500), so nothing here returns an
+ * object URL. Every read mints a short-lived signed link, and every
+ * write resolves the deal through the caller's own RLS client first —
+ * the service-role client only ever touches an object whose path is
+ * already proven to sit under this account's deal.
+ */
+
+async function loadDeal(
+  ctx: Awaited<ReturnType<typeof requireRole>>,
+  dealId: string
+): Promise<DealInvoice[] | null> {
+  const { data } = await ctx.supabase
+    .from('deals')
+    .select('id, invoices')
+    .eq('id', dealId)
+    .eq('account_id', ctx.accountId)
+    .maybeSingle();
+  if (!data) return null;
+  return parseDealInvoices(data.invoices);
+}
+
+async function withSignedUrls(
+  invoices: DealInvoice[]
+): Promise<DealInvoiceLink[]> {
+  if (invoices.length === 0) return [];
+  const { data } = await supabaseAdmin()
+    .storage.from(INVOICE_BUCKET)
+    .createSignedUrls(
+      invoices.map((i) => i.path),
+      INVOICE_URL_TTL_SECONDS
+    );
+  const byPath = new Map(
+    (data ?? []).map((row) => [row.path ?? '', row.signedUrl ?? null])
+  );
+  return invoices.map((invoice) => ({
+    ...invoice,
+    url: byPath.get(invoice.path) ?? null,
+  }));
+}
+
+/** Append and remove run inside one statement (migration
+ *  20260914121500): two agents attaching a file at the same moment
+ *  would otherwise each write back their own snapshot of the array,
+ *  and the later write would drop the earlier file while still
+ *  reporting success. Null means the deal is not the caller's. */
+async function mutateInvoices(
+  ctx: Awaited<ReturnType<typeof requireRole>>,
+  fn: 'deal_invoice_append' | 'deal_invoice_remove',
+  args: Record<string, unknown>
+): Promise<DealInvoice[] | null> {
+  const { data, error } = await ctx.supabase.rpc(fn, args);
+  if (error) throw error;
+  return data === null ? null : parseDealInvoices(data);
+}
+
+// GET /api/deals/[id]/invoices — list with freshly signed links.
+export async function GET(_request: NextRequest, { params }: RouteParams) {
   try {
-    const ctx = await requireRole('viewer');
+    const ctx = await requireRole('agent');
     const { id: dealId } = await params;
 
-    const { data, error } = await ctx.supabase
-      .from('invoices')
-      .select('*')
-      .eq('deal_id', dealId)
-      .eq('account_id', ctx.accountId)
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
+    const invoices = await loadDeal(ctx, dealId);
+    if (!invoices) {
+      return NextResponse.json({ error: 'Deal not found' }, { status: 404 });
     }
 
-    return NextResponse.json({ data: data ?? [] });
+    return NextResponse.json({ data: await withSignedUrls(invoices) });
   } catch (err) {
     return toErrorResponse(err);
   }
 }
 
-// POST /api/deals/[id]/invoices — raise a draft, prefilled from the deal.
-//
-// The whole point of the feature: the response should be something the
-// agent can issue without typing, so everything the Engine already knows
-// is assembled here rather than asked for.
-export async function POST(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+// POST /api/deals/[id]/invoices — attach one invoice (multipart).
+export async function POST(request: NextRequest, { params }: RouteParams) {
+  let ctx: Awaited<ReturnType<typeof requireRole>>;
+  try {
+    ctx = await requireRole('agent');
+  } catch (err) {
+    return toErrorResponse(err);
+  }
+
+  try {
+    const { id: dealId } = await params;
+
+    const limit = await checkRateLimit(
+      `agent:dealInvoiceUpload:${ctx.userId}`,
+      RATE_LIMITS.adminAction
+    );
+    if (!limit.success) return rateLimitResponse(limit);
+
+    const invoices = await loadDeal(ctx, dealId);
+    if (!invoices) {
+      return NextResponse.json({ error: 'Deal not found' }, { status: 404 });
+    }
+
+    const form = await request.formData().catch(() => null);
+    const file = form?.get('file');
+    if (!(file instanceof File)) {
+      return NextResponse.json({ error: 'No file provided.' }, { status: 400 });
+    }
+
+    const rejection = rejectInvoiceFile(file.type, file.size);
+    if (rejection) {
+      return NextResponse.json(
+        { error: rejection.error, code: rejection.code },
+        { status: rejection.status }
+      );
+    }
+
+    const label = form?.get('name');
+    const path = invoiceObjectPath(ctx.accountId, dealId, file.name);
+
+    const { error: uploadErr } = await supabaseAdmin()
+      .storage.from(INVOICE_BUCKET)
+      .upload(path, Buffer.from(await file.arrayBuffer()), {
+        contentType: file.type,
+        upsert: false,
+      });
+    if (uploadErr) {
+      console.error('[POST /api/deals/[id]/invoices] Upload error:', uploadErr);
+      return NextResponse.json(
+        { error: 'Could not upload the invoice.' },
+        { status: 500 }
+      );
+    }
+
+    const entry: DealInvoice = {
+      path,
+      name:
+        typeof label === 'string' && label.trim()
+          ? label.trim().slice(0, 120)
+          : safeInvoiceFilename(file.name),
+      size: file.size,
+      uploaded_at: new Date().toISOString(),
+      uploaded_by: ctx.userId,
+    };
+
+    const next = await mutateInvoices(ctx, 'deal_invoice_append', {
+      p_deal_id: dealId,
+      p_entry: entry,
+    });
+    if (!next) {
+      await supabaseAdmin()
+        .storage.from(INVOICE_BUCKET)
+        .remove([path])
+        .catch(() => undefined);
+      return NextResponse.json({ error: 'Deal not found' }, { status: 404 });
+    }
+
+    return NextResponse.json(
+      { data: await withSignedUrls(next) },
+      { status: 201 }
+    );
+  } catch (err) {
+    console.error('[POST /api/deals/[id]/invoices] failed:', err);
+    return NextResponse.json(
+      { error: 'Could not upload the invoice.' },
+      { status: 500 }
+    );
+  }
+}
+
+// DELETE /api/deals/[id]/invoices?path=... — detach one invoice.
+export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
     const ctx = await requireRole('agent');
     const { id: dealId } = await params;
 
     const limit = await checkRateLimit(
-      `invoiceCreate:${ctx.userId}`,
+      `agent:dealInvoiceDelete:${ctx.userId}`,
       RATE_LIMITS.adminAction
     );
     if (!limit.success) return rateLimitResponse(limit);
 
-    const body = (await request.json().catch(() => ({}))) ?? {};
-
-    const { data: deal, error: dealError } = await ctx.supabase
-      .from('deals')
-      .select(
-        'id, title, value, currency, brokerage_type, brokerage_value, contact_id, property_id'
-      )
-      .eq('id', dealId)
-      .eq('account_id', ctx.accountId)
-      .maybeSingle();
-
-    if (dealError) {
-      return NextResponse.json({ error: dealError.message }, { status: 400 });
+    const path = new URL(request.url).searchParams.get('path')?.trim() ?? '';
+    if (!isOwnedInvoicePath(path, ctx.accountId, dealId)) {
+      return NextResponse.json(
+        { error: 'That invoice does not belong to this deal.' },
+        { status: 400 }
+      );
     }
-    if (!deal) {
+
+    const invoices = await loadDeal(ctx, dealId);
+    if (!invoices) {
       return NextResponse.json({ error: 'Deal not found' }, { status: 404 });
     }
 
-    const settings = await getOrCreateInvoiceSettings(
-      ctx.supabase,
-      ctx.accountId
-    );
-
-    const [property, contact, existingInvoices] = await Promise.all([
-      deal.property_id
-        ? ctx.supabase
-            .from('properties')
-            .select('title, unit_no, location, city, property_code')
-            .eq('id', deal.property_id)
-            .eq('account_id', ctx.accountId)
-            .maybeSingle()
-            .then(({ data }) => data)
-        : Promise.resolve(null),
-      deal.contact_id
-        ? ctx.supabase
-            .from('contacts')
-            .select('salutation, name, second_name, email, phone')
-            .eq('id', deal.contact_id)
-            .eq('account_id', ctx.accountId)
-            .maybeSingle()
-            .then(({ data }) => data)
-        : Promise.resolve(null),
-      ctx.supabase
-        .from('invoices')
-        .select('side, share_percent, status')
-        .eq('deal_id', dealId)
-        .eq('account_id', ctx.accountId)
-        .then(({ data }) => data ?? []),
-    ]);
-
-    // Joint buyers are one customer. `contact_parties` (migration 288)
-    // already groups a husband and wife on one purchase, so the invoice
-    // is addressed to the party rather than to whichever of them the
-    // deal happens to point at.
-    let partyId: string | null = null;
-    let partyMembers: PrefillContact[] | null = null;
-    if (deal.contact_id) {
-      const { data: membership } = await ctx.supabase
-        .from('contact_party_members')
-        .select('party_id')
-        .eq('contact_id', deal.contact_id)
-        .eq('account_id', ctx.accountId)
-        .maybeSingle();
-
-      if (membership?.party_id) {
-        partyId = membership.party_id;
-        const { data: members } = await ctx.supabase
-          .from('contact_party_members')
-          .select(
-            'contact:contacts(salutation, name, second_name, email, phone)'
-          )
-          .eq('party_id', membership.party_id)
-          .eq('account_id', ctx.accountId);
-
-        partyMembers =
-          (members
-            ?.map((row) => row.contact)
-            .filter(Boolean) as unknown as PrefillContact[]) ?? null;
-      }
+    if (!invoices.some((invoice) => invoice.path === path)) {
+      return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
     }
 
-    // The customer's address is the one thing a CRM contact has never
-    // held, so the last invoice raised to this same customer is the best
-    // source for it.
-    const { data: previousInvoice } = deal.contact_id
-      ? await ctx.supabase
-          .from('invoices')
-          .select('bill_to, place_of_supply, place_of_supply_code')
-          .eq('contact_id', deal.contact_id)
-          .eq('account_id', ctx.accountId)
-          .not('issued_at', 'is', null)
-          .order('issued_at', { ascending: false })
-          .limit(1)
-          .maybeSingle()
-      : { data: null };
-
-    const side: InvoiceSide | undefined = SIDES.includes(body.side)
-      ? body.side
-      : undefined;
-
-    const sharePercent =
-      body.share_percent !== undefined &&
-      Number.isFinite(Number(body.share_percent))
-        ? Math.min(Math.max(Number(body.share_percent), 0.01), 100)
-        : undefined;
-
-    const prefill = buildPrefill({
-      deal,
-      property,
-      contact,
-      partyMembers,
-      settings,
-      previousInvoice,
-      existingInvoices,
-      side,
-      sharePercent,
-      invoiceDate:
-        typeof body.invoice_date === 'string' ? body.invoice_date : undefined,
+    const next = await mutateInvoices(ctx, 'deal_invoice_remove', {
+      p_deal_id: dealId,
+      p_path: path,
     });
-
-    const { data: invoice, error } = await ctx.supabase
-      .from('invoices')
-      .insert({
-        ...prefill,
-        account_id: ctx.accountId,
-        deal_id: dealId,
-        property_id: deal.property_id ?? null,
-        contact_id: deal.contact_id ?? null,
-        party_id: partyId,
-        status: 'draft',
-        signature: signatureFrom(settings),
-        created_by: ctx.userId,
-      })
-      .select('*')
-      .single();
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
+    if (!next) {
+      return NextResponse.json({ error: 'Deal not found' }, { status: 404 });
     }
 
-    await logInvoiceEvent({
-      accountId: ctx.accountId,
-      invoiceId: invoice.id,
-      event: 'created',
-      actorId: ctx.userId,
-      request,
-      metadata: { deal_id: dealId, side: invoice.side },
-    });
+    // The row no longer points at it; a stray object is a cleanup line,
+    // not a failed request.
+    const { error: removeErr } = await supabaseAdmin()
+      .storage.from(INVOICE_BUCKET)
+      .remove([path]);
+    if (removeErr) {
+      console.warn(
+        '[DELETE /api/deals/[id]/invoices] Object not removed:',
+        path
+      );
+    }
 
-    return NextResponse.json({ data: invoice }, { status: 201 });
+    return NextResponse.json({ data: await withSignedUrls(next) });
   } catch (err) {
     return toErrorResponse(err);
   }
-}
-
-/** The signature block as configured today, copied onto the draft so a
- *  later settings change does not restate who signed this one. */
-function signatureFrom(settings: {
-  signature_mode: string;
-  signatory_name: string | null;
-  signatory_designation: string | null;
-  signature_place: string | null;
-  signature_image_path: string | null;
-}) {
-  return {
-    mode: settings.signature_mode,
-    signatory_name: settings.signatory_name,
-    signatory_designation: settings.signatory_designation,
-    place: settings.signature_place,
-    image_path: settings.signature_image_path,
-  };
 }

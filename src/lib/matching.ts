@@ -3,6 +3,7 @@ import type { ContactParty } from '@/lib/contacts/parties';
 import { normalizePropertyType } from '@/lib/property-types';
 import { textContainsProject } from '@/lib/project-match';
 import { toSquareFeet } from '@/lib/area-units';
+import { resolveBudgetBound } from '@/lib/contacts/budget-amount';
 import {
   activeRequirementProfiles,
   contactForRequirementProfile,
@@ -597,14 +598,15 @@ const TENANCY_EVIDENCE_PATTERN =
 function withoutNegatedTenancyPhrases(text: string): string {
   return text
     .replace(
-      /\b(?:not|never)\s+(?:currently\s+)?(?:pre[ -]?leased|rented|leased|tenanted)\b/gi,
+      /\b(?:not|never)\s+(?:(?:a|an|the)\s+)?(?:currently\s+)?(?:(?:a|an|the)\s+)?(?:pre[ -]?leased|rented|leased|tenanted|income[ -]?generating(?:\s+(?:asset|building|property))?)\b/gi,
       ''
     )
     .replace(
-      /\b(?:former|formerly|previously)\s+(?:pre[ -]?leased|rented|leased|tenanted)(?:\s+(?:asset|building|property))?\b/gi,
+      /\b(?:former|formerly|previously)\s+(?:pre[ -]?leased|rented|leased|tenanted|income[ -]?generating)(?:\s+(?:asset|building|property))?\b/gi,
       ''
     )
-    .replace(/\b(?:no|without)\s+(?:current\s+)?tenants?\b/gi, '');
+    .replace(/\b(?:no|without)\s+(?:current\s+)?tenants?\b/gi, '')
+    .replace(/\bnon[ -]?(?:tenanted|leased)\b/gi, '');
 }
 
 export function isCurrentlyTenanted(property: Partial<Property>): boolean {
@@ -1078,16 +1080,18 @@ function matchContactsSingleProfile(
       sourceContact.max_budget != null && Number(sourceContact.max_budget) > 0
         ? Number(sourceContact.max_budget)
         : null;
-    let budgetMin =
-      explicitMin ??
-      (sourceContact.pref_budget_min != null
+    let budgetMin = resolveBudgetBound(
+      explicitMin,
+      sourceContact.pref_budget_min != null
         ? Number(sourceContact.pref_budget_min)
-        : null);
-    let budgetMax =
-      explicitMax ??
-      (sourceContact.pref_budget_max != null
+        : null
+    );
+    let budgetMax = resolveBudgetBound(
+      explicitMax,
+      sourceContact.pref_budget_max != null
         ? Number(sourceContact.pref_budget_max)
-        : null);
+        : null
+    );
     let maxIsCeiling = false;
     if (budgetMin === null && budgetMax === null && !hasExtraction) {
       const parsed = parseBudgetFromText(combinedText);
@@ -1215,6 +1219,7 @@ function matchContactsSingleProfile(
       projectMatch ||
       typeVerdict === 'match' ||
       typeVerdict === 'partial' ||
+      requiresTenanted ||
       (!hasTypePrefs &&
         (locationVerdict === 'match' || roiVerdict === 'match'));
     if (!qualifies) continue;
@@ -1241,6 +1246,11 @@ function matchContactsSingleProfile(
     else if (sizeVerdict === 'partial') score += 4;
 
     if (roiVerdict === 'match') score += 5;
+
+    // Current tenancy is a hard gate and makes an otherwise-empty brief feed
+    // eligible. Scale the ordinary score into the remaining 40 points so its
+    // type, locality, budget, size and BHK differences still determine order.
+    if (requiresTenanted) score = 60 + Math.max(0, score) * 0.4;
 
     score = Math.max(0, Math.min(100, score));
 

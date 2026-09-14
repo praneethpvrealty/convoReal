@@ -24,6 +24,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { PriceHint } from '@/components/ui/price-hint';
+import { DealInvoices } from '@/components/pipelines/deal-invoices';
 import {
   Check,
   X,
@@ -72,6 +73,7 @@ export function DealForm({
   const [stageId, setStageId] = useState('');
   const [assignedTo, setAssignedTo] = useState('');
   const [expectedCloseDate, setExpectedCloseDate] = useState('');
+  const [actualCloseDate, setActualCloseDate] = useState('');
   const [notes, setNotes] = useState('');
   const [propertyId, setPropertyId] = useState('');
   const [brokerageType, setBrokerageType] = useState<'percentage' | 'fixed'>(
@@ -107,6 +109,7 @@ export function DealForm({
       setStageId(deal.stage_id);
       setAssignedTo(deal.assigned_to ?? '');
       setExpectedCloseDate(deal.expected_close_date ?? '');
+      setActualCloseDate(deal.actual_close_date ?? '');
       setNotes(deal.notes ?? '');
       setPropertyId(deal.property_id ?? '');
       setBrokerageType(deal.brokerage_type || 'percentage');
@@ -136,6 +139,7 @@ export function DealForm({
       setStageId(defaultStageId || stages[0]?.id || '');
       setAssignedTo('');
       setExpectedCloseDate('');
+      setActualCloseDate('');
       setNotes('');
       setPropertyId('');
       setBrokerageType('percentage');
@@ -217,6 +221,7 @@ export function DealForm({
     const dealStatus: DealStatus = selectedStage
       ? dealStatusForStage(selectedStage.name)
       : deal?.status || 'open';
+    const isClosed = dealStatus !== 'open';
 
     const payload = {
       title: title.trim(),
@@ -228,6 +233,7 @@ export function DealForm({
       assigned_to: assignedTo || null,
       notes: notes.trim() || null,
       expected_close_date: expectedCloseDate || null,
+      actual_close_date: isClosed ? actualCloseDate || null : null,
       property_id: propertyId || null,
       brokerage_type: isNegotiationOrLater ? brokerageType : null,
       brokerage_value: brokValue,
@@ -402,6 +408,9 @@ export function DealForm({
   const isNegotiationOrLater = selectedStage
     ? shouldCaptureBrokerage(selectedStage.name)
     : false;
+  const isClosedStage = selectedStage
+    ? dealStatusForStage(selectedStage.name) !== 'open'
+    : false;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -522,11 +531,39 @@ export function DealForm({
               />
             </div>
 
+            {isClosedStage && (
+              <div className="grid gap-2">
+                <Label className="text-slate-300">Actual Close Date</Label>
+                <Input
+                  type="date"
+                  value={actualCloseDate}
+                  onChange={(e) => setActualCloseDate(e.target.value)}
+                  className="border-slate-700 bg-slate-800 text-white"
+                />
+                <p className="text-[11px] text-slate-500">
+                  The day the deal actually closed. Left empty it stays
+                  unrecorded — the expected date is not overwritten.
+                </p>
+              </div>
+            )}
+
             <div className="grid gap-2">
               <Label className="text-slate-300">Stage</Label>
               <select
                 value={stageId}
-                onChange={(e) => setStageId(e.target.value)}
+                onChange={(e) => {
+                  setStageId(e.target.value);
+                  const next = stages.find((s) => s.id === e.target.value);
+                  // Moving a deal to a closing stage almost always means
+                  // it closed today; the agent can still change it.
+                  if (
+                    next &&
+                    dealStatusForStage(next.name) !== 'open' &&
+                    !actualCloseDate
+                  ) {
+                    setActualCloseDate(new Date().toLocaleDateString('en-CA'));
+                  }
+                }}
                 className="focus:border-primary h-9 w-full rounded-lg border border-slate-700 bg-slate-800 px-2.5 text-sm text-white outline-none"
               >
                 {stages.map((s) => (
@@ -575,6 +612,17 @@ export function DealForm({
                       </p>
                     </div>
                   )}
+              </div>
+            )}
+
+            {deal ? (
+              <DealInvoices dealId={deal.id} />
+            ) : (
+              <div className="grid gap-2">
+                <Label className="text-slate-300">Invoices</Label>
+                <p className="text-xs text-slate-500">
+                  Create the deal first, then attach the brokerage invoice.
+                </p>
               </div>
             )}
 

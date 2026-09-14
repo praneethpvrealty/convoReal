@@ -261,7 +261,6 @@ async function runAccount(
     .order('created_at', { ascending: false })
     .limit(POOL_PER_ACCOUNT);
   const pool = (poolRows || []) as Property[];
-  if (pool.length === 0) return summary;
 
   const digestDate = istDateString(now);
   const { data: accountRow } = await db
@@ -290,16 +289,8 @@ async function runAccount(
 
     try {
       const ranked = curateForBuyer(pool, buyer, { limit: MAX_DIGEST_MATCHES * 3 });
-      if (ranked.length === 0) {
-        summary.skippedNoMatches++;
-        continue;
-      }
       const sentIds = sentIdsByBuyer.get(buyer.id) ?? new Set<string>();
       const matches = selectUnsentMatches(ranked, sentIds);
-      if (matches.length === 0) {
-        summary.skippedNoMatches++;
-        continue;
-      }
 
       const sessionOpen = sessionOpenByBuyer.get(buyer.id) ?? false;
 
@@ -337,6 +328,11 @@ async function runAccount(
           .eq('id', buyer.id)
           .eq('account_id', accountId);
         summary.consentRequested++;
+        continue;
+      }
+
+      if (matches.length === 0) {
+        summary.skippedNoMatches++;
         continue;
       }
 

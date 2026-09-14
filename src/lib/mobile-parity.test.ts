@@ -47,6 +47,10 @@ import {
 import { PROPERTY_TYPE_VALUES } from '@/lib/property-types';
 import { BUDGET_OPTIONS } from '@/lib/contacts/budget-options';
 import {
+  budgetToRupees,
+  rupeesToBudgetAmount,
+} from '@/lib/contacts/budget-amount';
+import {
   DEAL_DOCUMENT_CATEGORIES,
   INVOICE_STATUS_LABELS,
 } from '@/lib/invoices/types';
@@ -65,11 +69,9 @@ import {
   CONSENT_OVERRIDE_WARNING,
   CONSENT_STATES,
 } from '@/lib/contacts/alerts-consent';
-import {
-  GREETING_MESSAGE_MAX,
-  GREETING_TONES,
-} from '@/lib/greetings/generate';
+import { GREETING_MESSAGE_MAX, GREETING_TONES } from '@/lib/greetings/generate';
 import { OCCASIONS } from '@/lib/greetings/occasions';
+import { PERSONAL_GREETING_CARD_LABEL } from '@/lib/greetings/personal-share';
 import { priceInWords } from '@/lib/currency-utils';
 import { confidentialityNote } from '@/lib/share-message-builder';
 import {
@@ -328,9 +330,13 @@ describe('mobile property editor field parity', () => {
   const source = mobileSource('app/(app)/property-edit.tsx');
 
   it('round-trips road width and its unit for non-apartment properties', () => {
-    expect(source).toContain("'dimensions, road_width, road_width_unit, facing_direction");
+    expect(source).toContain(
+      "'dimensions, road_width, road_width_unit, facing_direction"
+    );
     expect(source).toContain('road_width: isApartment ? null : num(roadWidth)');
-    expect(source).toContain("road_width_unit: isApartment ? null : roadWidthUnit || 'Feet'");
+    expect(source).toContain(
+      "road_width_unit: isApartment ? null : roadWidthUnit || 'Feet'"
+    );
     expect(source).toContain('label="Road width"');
   });
 });
@@ -378,15 +384,19 @@ describe('mobile/lib/greetings.ts mirrors the greeting composer limits', () => {
   const source = mobileSource('lib/greetings.ts');
 
   it('caps the greeting at the same length the API enforces', () => {
-    expect(source).toContain(
-      `GREETING_MESSAGE_MAX = ${GREETING_MESSAGE_MAX}`
-    );
+    expect(source).toContain(`GREETING_MESSAGE_MAX = ${GREETING_MESSAGE_MAX}`);
   });
 
   it('offers the same tones the prompt builder accepts', () => {
     expect(stringLiteralsInConst(source, 'GREETING_TONES')).toEqual([
       ...GREETING_TONES,
     ]);
+  });
+
+  it('labels the personal WhatsApp card link the same way', () => {
+    expect(source).toContain(
+      `PERSONAL_GREETING_CARD_LABEL = '${PERSONAL_GREETING_CARD_LABEL}'`
+    );
   });
 
   it('does not copy the occasion catalog, which shifts every year', () => {
@@ -835,6 +845,40 @@ describe('mobile/lib/format.ts mirrors priceInWords', () => {
   });
 });
 
+describe('mobile/lib/budget-amount.ts mirrors the budget amount+unit split', () => {
+  // Both surfaces store rupees but capture an amount against a unit. A
+  // drift in the multipliers means "6 Crore" typed on one device is a
+  // different number of rupees than on the other.
+  const source = mobileSource('lib/budget-amount.ts');
+
+  it('uses the same multipliers', () => {
+    expect(source).toContain('rupee: 1');
+    expect(source).toContain('lakh: 100000');
+    expect(source).toContain('crore: 10000000');
+  });
+
+  it('offers the same units in the same order', () => {
+    expect(stringLiterals(constBody(source, 'BUDGET_UNIT_OPTIONS'))).toEqual([
+      'crore',
+      'Crore',
+      'lakh',
+      'Lakh',
+      'rupee',
+      '\u20b9',
+    ]);
+  });
+
+  it('agrees with the web conversion across the units', () => {
+    expect(budgetToRupees('6', 'crore')).toBe(60000000);
+    expect(budgetToRupees('45', 'lakh')).toBe(4500000);
+    expect(budgetToRupees('40000', 'rupee')).toBe(40000);
+    expect(rupeesToBudgetAmount(60000000)).toEqual({
+      amount: '6',
+      unit: 'crore',
+    });
+  });
+});
+
 describe('mobile/lib/money-ladder.ts mirrors the Contacts budget ladder', () => {
   // Both platforms filter by the same money bounds — contact budgets on
   // Contacts, asking price on Properties. A drift means the same row
@@ -1024,9 +1068,7 @@ describe('the contact form offers the same buy-or-rent choices on both surfaces'
       web.indexOf('id="cf-listing-intent"'),
       web.indexOf('{/* Budget Fields */}')
     );
-    const webValues = Array.from(
-      webBlock.matchAll(/<option value="([^"]*)"/g)
-    )
+    const webValues = Array.from(webBlock.matchAll(/<option value="([^"]*)"/g))
       .map((m) => m[1])
       .filter(Boolean);
 
@@ -1073,7 +1115,11 @@ describe('mobile/lib/showcase-scope.ts mirrors the showcase share link', () => {
 
   const cases = [
     { scope: 'all' as const, category: 'Commercial' as const },
-    { scope: 'search' as const, category: 'Commercial' as const, search: 'hsr' },
+    {
+      scope: 'search' as const,
+      category: 'Commercial' as const,
+      search: 'hsr',
+    },
     { scope: 'pick' as const, ids: ['CR-1', 'CR-2'] },
   ];
 

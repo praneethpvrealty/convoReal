@@ -726,6 +726,9 @@ export interface Deal {
   currency?: string;
   notes?: string;
   expected_close_date?: string;
+  /** The day the deal actually closed, as opposed to the forecast in
+   *  `expected_close_date` (migration 20260914114500). */
+  actual_close_date?: string | null;
   status?: DealStatus;
   created_at: string;
   updated_at?: string;
@@ -738,6 +741,9 @@ export interface Deal {
   brokerage_value?: number | null;
   brokerage_amount?: number | null;
   brokerage_paid_at?: string | null;
+  /** Brokerage paperwork. Written only by /api/deals/[id]/invoices;
+   *  read it through parseDealInvoices(). */
+  invoices?: unknown;
 }
 
 // ── Journey Mind Map (migration 131) ────────────────────────

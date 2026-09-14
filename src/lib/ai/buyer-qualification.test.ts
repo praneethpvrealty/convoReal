@@ -246,6 +246,23 @@ describe('carriesRequirementSignal', () => {
     expect(carriesRequirementSignal(null)).toBe(false);
   });
 
+  it('rejects a generic requirement questionnaire that mentions budget without stating one', () => {
+    const genericReply = `Hi 😊
+
+Thank you for your interest in exploring real estate opportunities!
+
+To help me understand your requirement and recommend the most relevant properties, could you please share:
+
+• Your Name
+• Preferred Location / Areas
+• Budget Range
+• Expected Purchase Timeline
+
+Based on your preferences, I’ll shortlist the right options for you.`;
+
+    expect(carriesRequirementSignal(genericReply)).toBe(false);
+  });
+
   it('rejects a bare locality — that only reads as an answer in context', () => {
     expect(carriesRequirementSignal('Devanahalli')).toBe(false);
   });

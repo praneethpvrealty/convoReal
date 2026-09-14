@@ -15,13 +15,13 @@ import type {
 } from './deal-workspace';
 
 export function fetchInvoices(dealId: string) {
-  return apiFetch<{ data: InvoiceRow[] }>(`/api/deals/${dealId}/invoices`).then(
+  return apiFetch<{ data: InvoiceRow[] }>(`/api/deals/${dealId}/brokerage-invoices`).then(
     (json) => json.data ?? []
   );
 }
 
 export function createInvoice(dealId: string) {
-  return apiFetch<{ data: InvoiceRow }>(`/api/deals/${dealId}/invoices`, {
+  return apiFetch<{ data: InvoiceRow }>(`/api/deals/${dealId}/brokerage-invoices`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({}),

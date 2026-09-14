@@ -43,4 +43,26 @@ describe('sendBuyerConsentRequest', () => {
       })
     );
   });
+
+  it('nudges for future alerts when there is no immediate match', async () => {
+    const db = { from: vi.fn() } as never;
+
+    await sendBuyerConsentRequest(db, {
+      accountId: 'account-1',
+      contactId: 'contact-1',
+      contactName: 'Dr K Bhagavan',
+      matchCount: 0,
+      agencyName: 'Aryavarta Ventures',
+    });
+
+    expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledWith(
+      expect.objectContaining({
+        interactiveBody: expect.stringContaining('keep watching'),
+        interactiveButtons: [
+          { id: 'buyer_alerts:start', title: 'Start Alerts' },
+          { id: 'buyer_alerts:stop', title: 'Stop Alerts' },
+        ],
+      })
+    );
+  });
 });

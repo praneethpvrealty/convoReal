@@ -112,6 +112,9 @@ describe('POST /api/greetings/generate', () => {
       },
     });
     expect(refundCredits).not.toHaveBeenCalled();
+    expect(generateAiImage).toHaveBeenCalledWith(
+      expect.objectContaining({ timeoutMs: 12_000 })
+    );
     errorSpy.mockRestore();
   });
 });

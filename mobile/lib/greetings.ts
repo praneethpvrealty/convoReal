@@ -11,6 +11,43 @@
 /** Mirrors GREETING_MESSAGE_MAX in src/lib/greetings/generate.ts. */
 export const GREETING_MESSAGE_MAX = 600;
 
+export const PERSONAL_GREETING_CARD_LABEL = 'View your greeting card:';
+
+const PLACEHOLDER_CONTACT_NAME =
+  /^(?:(?:portal|housing|99acres|magic\s*bricks|others)\s+(?:lead|user)|user|unknown|guest|customer|anonymous)$/i;
+
+function personalGreetingName(name?: string | null): string {
+  const trimmed = name?.trim() ?? '';
+  return !trimmed || PLACEHOLDER_CONTACT_NAME.test(trimmed) ? 'there' : trimmed;
+}
+
+export function buildPersonalGreetingMessage({
+  messageText,
+  contactName,
+  senderName,
+  cardUrl,
+}: {
+  messageText: string;
+  contactName?: string | null;
+  senderName?: string | null;
+  cardUrl?: string | null;
+}): string {
+  const lines = [
+    `Dear ${personalGreetingName(contactName)},`,
+    '',
+    messageText.trim(),
+    '',
+    'Warm regards,',
+    senderName?.trim() || 'Your property consultant',
+  ];
+
+  if (cardUrl) {
+    lines.push('', `${PERSONAL_GREETING_CARD_LABEL} ${cardUrl}`);
+  }
+
+  return lines.join('\n');
+}
+
 export const GREETING_TONES = ['warm', 'festive', 'formal'] as const;
 export type GreetingTone = (typeof GREETING_TONES)[number];
 
@@ -34,24 +71,34 @@ export interface UpcomingOccasion {
   daysUntil: number;
 }
 
-export type AudienceType = 'all' | 'tags';
+export type AudienceType = 'all' | 'tags' | 'contacts';
+export type GreetingAudience =
+  | { type: 'all' }
+  | { type: 'tags'; tagIds: string[] }
+  | { type: 'contacts'; contactIds: string[] };
 
 /** The audience payload POST /api/greetings/[id]/send expects. */
 export function buildGreetingAudience(
   type: AudienceType,
-  tagIds: string[]
-): { type: AudienceType; tagIds?: string[] } {
-  return type === 'tags' ? { type: 'tags', tagIds } : { type: 'all' };
+  tagIds: string[],
+  contactIds: string[] = []
+): GreetingAudience {
+  if (type === 'tags') return { type: 'tags', tagIds };
+  if (type === 'contacts') return { type: 'contacts', contactIds };
+  return { type: 'all' };
 }
 
-/** Whether the send button may fire: a tag audience needs a tag. */
+/** Whether the send button may fire: filtered audiences need a selection. */
 export function canSendGreeting(
   type: AudienceType,
   tagIds: string[],
-  templateStatus: string | null
+  templateStatus: string | null,
+  contactIds: string[] = []
 ): boolean {
   if (templateStatus !== 'APPROVED') return false;
-  return type === 'all' || tagIds.length > 0;
+  if (type === 'tags') return tagIds.length > 0;
+  if (type === 'contacts') return contactIds.length > 0;
+  return true;
 }
 
 /** How far away an occasion reads on the card. */

@@ -21,7 +21,7 @@ import type {
 } from './types';
 
 export const SIGNATURE_BUCKET = 'signatures';
-export const INVOICE_BUCKET = 'invoices';
+export const INVOICE_BUCKET = 'generated-invoices';
 export const DEAL_DOCUMENT_BUCKET = 'deal-documents';
 
 /** Signed URLs live an hour: long enough for Meta to fetch the document

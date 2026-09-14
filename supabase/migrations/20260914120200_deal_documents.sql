@@ -114,10 +114,15 @@ SET
   file_size_limit = EXCLUDED.file_size_limit,
   allowed_mime_types = EXCLUDED.allowed_mime_types;
 
+-- Named `generated-invoices`, not `invoices`: a separate feature already
+-- owns `deal-invoices` for invoice FILES an agent uploads against a deal.
+-- Two buckets a character apart is how the wrong one gets written to.
+-- This one holds only rendered copies of invoices the Engine generated,
+-- kept so a delivery channel has something to link.
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES (
-  'invoices',
-  'invoices',
+  'generated-invoices',
+  'generated-invoices',
   FALSE,
   10485760, -- 10 MB; a one-page invoice is a few KB
   ARRAY['application/pdf']

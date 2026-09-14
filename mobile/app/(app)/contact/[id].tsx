@@ -59,6 +59,13 @@ import {
 } from '@/lib/format';
 import { friendlyError } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
+import {
+  BUDGET_UNIT_OPTIONS,
+  budgetRangeError,
+  budgetToRupees,
+  rupeesToBudgetAmount,
+  type BudgetUnit,
+} from '@/lib/budget-amount';
 import { resolveRequirementSource } from '@/lib/requirements-profile';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
@@ -1290,11 +1297,15 @@ function ContactEditor({
   const [classification, setClassification] = useState<
     Classification | undefined
   >(contact.classification);
-  const [minBudget, setMinBudget] = useState(
-    source.pref_budget_min != null ? String(source.pref_budget_min) : ''
+  const initialMinBudget = rupeesToBudgetAmount(source.pref_budget_min);
+  const initialMaxBudget = rupeesToBudgetAmount(source.pref_budget_max);
+  const [minBudget, setMinBudget] = useState(initialMinBudget.amount);
+  const [minBudgetUnit, setMinBudgetUnit] = useState<BudgetUnit>(
+    initialMinBudget.unit
   );
-  const [maxBudget, setMaxBudget] = useState(
-    source.pref_budget_max != null ? String(source.pref_budget_max) : ''
+  const [maxBudget, setMaxBudget] = useState(initialMaxBudget.amount);
+  const [maxBudgetUnit, setMaxBudgetUnit] = useState<BudgetUnit>(
+    initialMaxBudget.unit
   );
   const [noBudget, setNoBudget] = useState(Boolean(source.no_budget));
   const [listingTypes, setListingTypes] = useState<string[]>(
@@ -1362,6 +1373,17 @@ function ContactEditor({
         continue;
       normalizedPhones.push(normalized);
     }
+    const minBudgetValue = noBudget
+      ? null
+      : budgetToRupees(minBudget, minBudgetUnit);
+    const maxBudgetValue = noBudget
+      ? null
+      : budgetToRupees(maxBudget, maxBudgetUnit);
+    const budgetError = budgetRangeError(minBudgetValue, maxBudgetValue);
+    if (budgetError) {
+      setError(budgetError);
+      return;
+    }
     setSaving(true);
     setError(null);
     const { data: saved, error: updateError } = await supabase
@@ -1376,8 +1398,8 @@ function ContactEditor({
         company: company.trim() || null,
         requirements: requirements.trim() || null,
         classification: classification ?? null,
-        min_budget: noBudget ? null : parseAmount(minBudget),
-        max_budget: noBudget ? null : parseAmount(maxBudget),
+        min_budget: minBudgetValue,
+        max_budget: maxBudgetValue,
         no_budget: noBudget,
         pref_listing_types: listingTypes,
         areas_of_interest: areas,
@@ -1772,29 +1794,37 @@ function ContactEditor({
               <View style={{ flexDirection: 'row', gap: spacing.md }}>
                 <View style={{ flex: 1, gap: spacing.xs }}>
                   <TextField
-                    label="Min budget (₹)"
+                    label="Min budget"
                     value={minBudget}
                     onChangeText={setMinBudget}
-                    placeholder="e.g. 5000000"
-                    keyboardType="number-pad"
+                    placeholder="e.g. 5"
+                    keyboardType="decimal-pad"
                   />
-                  {parseAmount(minBudget) ? (
+                  <BudgetUnitPicker
+                    value={minBudgetUnit}
+                    onChange={setMinBudgetUnit}
+                  />
+                  {budgetToRupees(minBudget, minBudgetUnit) ? (
                     <Text style={[styles.hint, { color: colors.textFaint }]}>
-                      {formatInr(parseAmount(minBudget))}
+                      {formatInr(budgetToRupees(minBudget, minBudgetUnit))}
                     </Text>
                   ) : null}
                 </View>
                 <View style={{ flex: 1, gap: spacing.xs }}>
                   <TextField
-                    label="Max budget (₹)"
+                    label="Max budget"
                     value={maxBudget}
                     onChangeText={setMaxBudget}
-                    placeholder="e.g. 8000000"
-                    keyboardType="number-pad"
+                    placeholder="e.g. 5"
+                    keyboardType="decimal-pad"
                   />
-                  {parseAmount(maxBudget) ? (
+                  <BudgetUnitPicker
+                    value={maxBudgetUnit}
+                    onChange={setMaxBudgetUnit}
+                  />
+                  {budgetToRupees(maxBudget, maxBudgetUnit) ? (
                     <Text style={[styles.hint, { color: colors.textFaint }]}>
-                      {formatInr(parseAmount(maxBudget))}
+                      {formatInr(budgetToRupees(maxBudget, maxBudgetUnit))}
                     </Text>
                   ) : null}
                 </View>
@@ -2036,6 +2066,50 @@ function AlertsConsentField({
         — set it here only for what they told you directly.
       </Text>
       <AppDialog {...dialogProps} />
+    </View>
+  );
+}
+
+function BudgetUnitPicker({
+  value,
+  onChange,
+}: {
+  value: BudgetUnit;
+  onChange: (unit: BudgetUnit) => void;
+}) {
+  const { colors, fonts: f } = useTheme();
+  return (
+    <View style={{ flexDirection: 'row', gap: spacing.xs }}>
+      {BUDGET_UNIT_OPTIONS.map((option) => {
+        const active = option.value === value;
+        return (
+          <Pressable
+            key={option.value}
+            onPress={() => onChange(option.value)}
+            accessibilityRole="radio"
+            accessibilityLabel={option.label}
+            accessibilityState={{ selected: active }}
+            style={{
+              paddingHorizontal: spacing.sm,
+              paddingVertical: spacing.xs,
+              borderRadius: radius.sm,
+              backgroundColor: active ? colors.primary : colors.surface,
+              borderWidth: active ? 0 : StyleSheet.hairlineWidth,
+              borderColor: colors.border,
+            }}
+          >
+            <Text
+              style={{
+                fontSize: 12.5,
+                fontFamily: f.medium,
+                color: active ? colors.onPrimary : colors.textMuted,
+              }}
+            >
+              {option.label}
+            </Text>
+          </Pressable>
+        );
+      })}
     </View>
   );
 }

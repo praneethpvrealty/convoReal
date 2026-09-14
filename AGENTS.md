@@ -496,7 +496,7 @@ Never echo the values. Two things this session's environment gets wrong in a way
 
 ### 7.1 Schema source
 
-- **Incremental migrations**: `supabase/migrations/NNN_description.sql` (186 files, numbered roughly 001–174 with some gaps and collisions — e.g. two `063_*` and two `173_*` files). Pick the next free number by listing the directory, and expect duplicates to already exist.
+- **Incremental migrations**: `supabase/migrations/`. Sequential prefixes through `293_` are frozen legacy history, with collisions already in it (two `063_*`, two `173_*`). **A new migration takes a 14-digit UTC timestamp prefix**, as `supabase migration new` produces — `20260914162029_budget_band_tag_sync.sql`. `src/lib/migrations/numbering.test.ts` fails the build on a fresh sequential number or a duplicate prefix.
 - **Consolidated seed**: `supabase/RUN_IN_SUPABASE_SQL_EDITOR.sql` — a single file intended to be run in the Supabase SQL Editor to set up/reset the schema.
 - **Schema documentation**: `DATABASE_SCHEMA.md` describes the major table groups.
 

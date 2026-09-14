@@ -245,6 +245,7 @@ export async function getBuyerMatchFeed(ctx: BuyerContext): Promise<BuyerMatchFe
           : match.property.location,
         location_privacy: undefined,
         notes: undefined,
+        tags: undefined,
         floor_tenancies: undefined,
         images: Array.isArray(match.property.images)
           ? match.property.images.map(storagePublicUrl)

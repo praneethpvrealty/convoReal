@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { auditDate, auditDateTime } from './format';
+import { auditDate, auditDateTime, parseDateOnly } from './format';
 
 describe('audit timestamps', () => {
   it('formats valid dates for record metadata', () => {
@@ -12,5 +12,20 @@ describe('audit timestamps', () => {
   it('uses a safe fallback for missing or invalid values', () => {
     expect(auditDate(undefined)).toBe('—');
     expect(auditDateTime('invalid')).toBe('—');
+  });
+});
+
+describe('parseDateOnly', () => {
+  it('reads a date column as the local calendar day it names', () => {
+    const d = parseDateOnly('2026-09-14');
+    expect(d?.getFullYear()).toBe(2026);
+    expect(d?.getMonth()).toBe(8);
+    expect(d?.getDate()).toBe(14);
+  });
+
+  it('returns null for an absent or unparseable value', () => {
+    expect(parseDateOnly(null)).toBeNull();
+    expect(parseDateOnly('')).toBeNull();
+    expect(parseDateOnly('not a date')).toBeNull();
   });
 });

@@ -15,6 +15,7 @@ import {
 
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { InlineDateTimePicker } from '@/components/datetime-field';
+import { DealInvoices } from '@/components/deal-invoices';
 import { ConvoRealLoader } from '@/components/loader';
 import {
   Avatar,
@@ -27,6 +28,7 @@ import {
   nameTagCap,
 } from '@/components/ui';
 import { ApiError, apiFetch } from '@/lib/api';
+import { parseDateOnly } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
@@ -135,9 +137,13 @@ function DealForm({
   );
   const [propertySearch, setPropertySearch] = useState('');
   const [closeDate, setCloseDate] = useState<Date | null>(
-    deal?.expected_close_date ? new Date(deal.expected_close_date) : null
+    parseDateOnly(deal?.expected_close_date)
   );
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [actualCloseDate, setActualCloseDate] = useState<Date | null>(
+    parseDateOnly(deal?.actual_close_date)
+  );
+  const [showActualDatePicker, setShowActualDatePicker] = useState(false);
   const [notes, setNotes] = useState(deal?.notes ?? '');
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -160,6 +166,10 @@ function DealForm({
     },
   });
   const activeStageId = stageId ?? stages?.[0]?.id ?? null;
+  const activeStage = (stages ?? []).find((s) => s.id === activeStageId);
+  const isClosedStage = activeStage
+    ? dealStatusForStage(activeStage.name) !== 'open'
+    : false;
 
   const { data: contactOptions } = useQuery({
     queryKey: ['contact-picker', debouncedContactSearch],
@@ -210,6 +220,10 @@ function DealForm({
           stage_id: selectedStage.id,
           notes: notes.trim() || null,
           expected_close_date: closeDate ? localDateString(closeDate) : null,
+          actual_close_date:
+            isClosedStage && actualCloseDate
+              ? localDateString(actualCloseDate)
+              : null,
           property_id: property?.id ?? null,
           status: dealStatusForStage(selectedStage.name),
           stage_name: selectedStage.name,
@@ -420,6 +434,11 @@ function DealForm({
               onPress={() => {
                 haptic.tap();
                 setStageId(s.id);
+                // Moving a deal to a closing stage almost always means
+                // it closed today; the agent can still change it.
+                if (dealStatusForStage(s.name) !== 'open' && !actualCloseDate) {
+                  setActualCloseDate(new Date());
+                }
               }}
             />
           ))}
@@ -483,6 +502,73 @@ function DealForm({
             onClose={() => setShowDatePicker(false)}
           />
         ) : null}
+
+        {isClosedStage ? (
+          <>
+            <Pressable
+              onPress={() => {
+                haptic.tap();
+                if (!actualCloseDate) setActualCloseDate(new Date());
+                setShowActualDatePicker((v) => !v);
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={
+                actualCloseDate
+                  ? 'Change actual close date'
+                  : 'Add actual close date'
+              }
+              style={[
+                styles.dateButton,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+              ]}
+            >
+              <Ionicons
+                name="checkmark-done-outline"
+                size={16}
+                color={colors.primary}
+              />
+              <Text
+                style={{
+                  flex: 1,
+                  fontSize: 14,
+                  fontFamily: f.semibold,
+                  color: colors.text,
+                }}
+              >
+                {actualCloseDate
+                  ? `Actually closed · ${actualCloseDate.toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' })}`
+                  : 'Actual close date'}
+              </Text>
+              {actualCloseDate ? (
+                <Pressable
+                  onPress={() => {
+                    setActualCloseDate(null);
+                    setShowActualDatePicker(false);
+                  }}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel="Clear actual close date"
+                >
+                  <Ionicons
+                    name="close-circle"
+                    size={18}
+                    color={colors.textFaint}
+                  />
+                </Pressable>
+              ) : null}
+            </Pressable>
+            {showActualDatePicker && actualCloseDate ? (
+              <InlineDateTimePicker
+                value={actualCloseDate}
+                mode="date"
+                onChange={setActualCloseDate}
+                onClose={() => setShowActualDatePicker(false)}
+              />
+            ) : null}
+          </>
+        ) : null}
+
+        {deal ? <DealInvoices dealId={deal.id} /> : null}
 
         <TextField
           placeholder="Notes (optional)"
