@@ -140,8 +140,8 @@ describe('closed-window follow-up template', () => {
     category: 'Utility',
     body_text: 'Hi {{1}} about {{3}}',
   };
-  const enquiryStatus = {
-    name: 'enquiry_status_notice',
+  const requirementReview = {
+    name: 'property_requirement_review',
     language: 'en_US',
     status: 'APPROVED',
     category: 'Utility',
@@ -150,7 +150,7 @@ describe('closed-window follow-up template', () => {
 
   it('uses the listing-specific template and its URL only when a listing exists', () => {
     const choice = pickClosedWindowFollowUpTemplate(
-      [journey, enquiryStatus],
+      [journey, requirementReview],
       true
     );
     expect(choice?.kind).toBe('journey_checkin');
@@ -172,19 +172,35 @@ describe('closed-window follow-up template', () => {
 
   it('uses the approved property-free Utility template when no listing can fill the URL button', () => {
     const choice = pickClosedWindowFollowUpTemplate(
-      [journey, enquiryStatus],
+      [journey, requirementReview],
       false
     );
-    expect(choice?.kind).toBe('enquiry_followup');
+    expect(choice?.kind).toBe('requirement_review');
     const send = buildClosedWindowFollowUpTemplateSend(choice!, {
       contactName: 'Santhosh Otageri',
       accountName: 'Aryavarta Ventures',
       contactId: CONTACT_ID,
       property: null,
     });
-    expect(send.templateName).toBe('enquiry_status_notice');
+    expect(send.templateName).toBe('property_requirement_review');
     expect(send.templateParams).toEqual(['Santhosh', 'Aryavarta Ventures']);
     expect(send.messageParams.buttonParams).toBeUndefined();
+  });
+
+  it('never claims a listing is unavailable when its check-in template is missing', () => {
+    const unavailableNotice = {
+      name: 'enquiry_status_notice',
+      language: 'en_US',
+      status: 'APPROVED',
+      category: 'Utility',
+      body_text: 'The listing is no longer available.',
+    };
+    expect(
+      pickClosedWindowFollowUpTemplate(
+        [requirementReview, unavailableNotice],
+        true
+      )
+    ).toBeNull();
   });
 
   it('never falls through to a pending or Marketing template outside the customer window', () => {
@@ -192,7 +208,7 @@ describe('closed-window follow-up template', () => {
       pickClosedWindowFollowUpTemplate(
         [
           { ...journey, status: 'PENDING' },
-          { ...enquiryStatus, category: 'Marketing' },
+          { ...requirementReview, category: 'Marketing' },
         ],
         true
       )
@@ -215,9 +231,9 @@ describe('gatherFollowUpLeads', () => {
     contact_party_members?: Record<string, unknown>[];
   };
 
-  /** Filters are pass-through except `.in('id', …)`, which the party
-   *  path uses to fetch members who fell outside the HOT filter — the
-   *  COLD spouse who is nonetheless the one who replied. */
+  /** Filters are pass-through except the fields exercised by these
+   *  tests: contact ids for party lookups and buyer classifications for
+   *  the reminder audience. */
   function db(tables: Tables) {
     return {
       from: (table: keyof Tables) => {
@@ -228,6 +244,8 @@ describe('gatherFollowUpLeads', () => {
           in: (column: string, value: unknown[]) => {
             if (column === 'id') {
               rows = rows.filter((r) => value.includes(r.id));
+            } else if (column === 'classification') {
+              rows = rows.filter((r) => value.includes(r.classification));
             }
             return chain;
           },
@@ -249,6 +267,7 @@ describe('gatherFollowUpLeads', () => {
     created_at: daysAgo(30),
     assigned_agent_id: null,
     last_inquired_property_id: null,
+    classification: 'Buyer',
     ...over,
   });
 
@@ -330,6 +349,22 @@ describe('gatherFollowUpLeads', () => {
     );
     expect(leads).toHaveLength(0);
   });
+
+  it.each(['Owner', 'Seller', 'Agent', 'Developer', 'Others'])(
+    'never cards a HOT %s as a buyer follow-up',
+    async (classification) => {
+      const leads = await gatherFollowUpLeads(
+        db({
+          contacts: [contact('1', { classification })],
+          follow_up_nudges: [],
+          properties: [],
+        }),
+        'acct-1',
+        NOW
+      );
+      expect(leads).toHaveLength(0);
+    }
+  );
 
   it('leaves a lead alone once the deal reaches legal', async () => {
     const leads = await gatherFollowUpLeads(
