@@ -10,6 +10,7 @@ import {
   ImageOff,
   Loader2,
   Maximize2,
+  MessageCircle,
   Minimize2,
   PartyPopper,
   Pencil,
@@ -34,6 +35,7 @@ import {
   upcomingOccasions,
 } from '@/lib/greetings/occasions';
 import type { OccasionGreeting } from '@/lib/greetings/types';
+import { buildPersonalGreetingMessage } from '@/lib/greetings/personal-share';
 import { storagePublicUrl } from '@/lib/storage/url';
 import { Button } from '@/components/ui/button';
 import { GatedButton } from '@/components/ui/gated-button';
@@ -715,10 +717,13 @@ function SendGreetingDialog({
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
-  const { accountId } = useAuth();
-  const [audienceType, setAudienceType] = useState<
-    'all' | 'tags' | 'contacts'
-  >('all');
+  const { accountId, profile, user } = useAuth();
+  const [sendChannel, setSendChannel] = useState<'engine' | 'personal'>(
+    'engine'
+  );
+  const [audienceType, setAudienceType] = useState<'all' | 'tags' | 'contacts'>(
+    'all'
+  );
   const [tagIds, setTagIds] = useState<string[]>([]);
   const [selectedContacts, setSelectedContacts] = useState<ContactRow[]>([]);
   const [contactSearch, setContactSearch] = useState('');
@@ -728,7 +733,7 @@ function SendGreetingDialog({
   const templateQuery = useQuery({
     queryKey: ['occasion-greeting-template'],
     queryFn: () => api<TemplateState>('/api/greetings/template'),
-    enabled: Boolean(greeting),
+    enabled: Boolean(greeting) && sendChannel === 'engine',
   });
 
   // Counted in SQL (migration 284), not with a client-side
@@ -737,7 +742,7 @@ function SendGreetingDialog({
     queryKey: ['contacts', 'consent-counts'],
     queryFn: async () =>
       (await api<{ granted: number }>('/api/contacts/consent-counts')).granted,
-    enabled: Boolean(greeting),
+    enabled: Boolean(greeting) && sendChannel === 'engine',
   });
 
   const tagsQuery = useQuery({
@@ -750,7 +755,8 @@ function SendGreetingDialog({
         .order('name');
       return (data ?? []) as TagRow[];
     },
-    enabled: Boolean(greeting) && Boolean(accountId),
+    enabled:
+      Boolean(greeting) && Boolean(accountId) && sendChannel === 'engine',
   });
 
   const contactsQuery = useQuery({
@@ -838,14 +844,52 @@ function SendGreetingDialog({
     onError: (err: Error) => toast.error(err.message),
   });
 
+  const openPersonalWhatsApp = () => {
+    const contact = selectedContacts[0];
+    const phone = contact?.phone?.replace(/\D/g, '') ?? '';
+    if (!greeting || !contact || !phone) return;
+
+    const message = buildPersonalGreetingMessage({
+      messageText: greeting.message_text,
+      contactName: contact.name,
+      senderName: profile?.full_name,
+      cardUrl: greeting.image_path
+        ? storagePublicUrl(greeting.image_path)
+        : null,
+    });
+    window.open(
+      `https://wa.me/${phone}?text=${encodeURIComponent(message)}`,
+      '_blank'
+    );
+
+    if (accountId && user?.id) {
+      const supabase = createClient();
+      void supabase.from('contact_notes').insert({
+        contact_id: contact.id,
+        account_id: accountId,
+        user_id: user.id,
+        note_text: `Opened ${greeting.occasion_label} greeting in personal WhatsApp.`,
+      });
+    }
+
+    toast.success(
+      `Opened personal WhatsApp for ${contact.name || contact.phone}.`
+    );
+    setSelectedContacts([]);
+    setContactSearch('');
+    onClose();
+  };
+
   const template = templateQuery.data;
   const approved = template?.status === 'APPROVED';
 
   const canSend =
-    approved &&
-    (audienceType === 'all' ||
-      (audienceType === 'tags' && tagIds.length > 0) ||
-      (audienceType === 'contacts' && selectedContacts.length > 0));
+    sendChannel === 'personal'
+      ? selectedContacts.length === 1 && Boolean(selectedContacts[0]?.phone)
+      : approved &&
+        (audienceType === 'all' ||
+          (audienceType === 'tags' && tagIds.length > 0) ||
+          (audienceType === 'contacts' && selectedContacts.length > 0));
 
   return (
     <Dialog
@@ -856,13 +900,44 @@ function SendGreetingDialog({
         <DialogHeader>
           <DialogTitle>Send “{greeting?.occasion_label}” greeting</DialogTitle>
           <DialogDescription>
-            Delivered as a WhatsApp template with your card image, addressed to
-            each client by name. Contacts who opted out (STOP ALERTS) are
-            excluded automatically.
+            {sendChannel === 'engine'
+              ? 'Delivered from your ConvoReal business number as an approved WhatsApp template. Contacts who opted out are excluded automatically.'
+              : 'Opens one personalized chat in your personal WhatsApp. You review and tap Send inside WhatsApp.'}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
-          {template && !approved && (
+          <div className="space-y-1.5">
+            <Label>Send from</Label>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant={sendChannel === 'engine' ? 'default' : 'outline'}
+                onClick={() => setSendChannel('engine')}
+              >
+                ConvoReal WhatsApp
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={sendChannel === 'personal' ? 'default' : 'outline'}
+                onClick={() => {
+                  setSendChannel('personal');
+                  setAudienceType('contacts');
+                  setSelectedContacts((contacts) => contacts.slice(0, 1));
+                }}
+              >
+                <MessageCircle className="h-3.5 w-3.5" />
+                Personal WhatsApp
+              </Button>
+            </div>
+            <p className="text-xs text-slate-500">
+              {sendChannel === 'engine'
+                ? 'Automated delivery supports all contacts, tags, or a selected group.'
+                : 'Personal WhatsApp opens one contact at a time and does not depend on a Meta template. Use it only with contacts who expect your message.'}
+            </p>
+          </div>
+          {sendChannel === 'engine' && template && !approved && (
             <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-300">
               {template.status === null && (
                 <>
@@ -903,35 +978,43 @@ function SendGreetingDialog({
             </div>
           )}
           <div className="space-y-1.5">
-            <Label>Audience</Label>
+            <Label>
+              {sendChannel === 'personal' ? 'Recipient' : 'Audience'}
+            </Label>
             <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant={audienceType === 'all' ? 'default' : 'outline'}
-                onClick={() => setAudienceType('all')}
-              >
-                All contacts
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant={audienceType === 'tags' ? 'default' : 'outline'}
-                onClick={() => setAudienceType('tags')}
-              >
-                By tags
-              </Button>
+              {sendChannel === 'engine' && (
+                <>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={audienceType === 'all' ? 'default' : 'outline'}
+                    onClick={() => setAudienceType('all')}
+                  >
+                    All contacts
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={audienceType === 'tags' ? 'default' : 'outline'}
+                    onClick={() => setAudienceType('tags')}
+                  >
+                    By tags
+                  </Button>
+                </>
+              )}
               <Button
                 type="button"
                 size="sm"
                 variant={audienceType === 'contacts' ? 'default' : 'outline'}
                 onClick={() => setAudienceType('contacts')}
               >
-                Select contacts
+                {sendChannel === 'personal'
+                  ? 'Choose contact'
+                  : 'Select contacts'}
               </Button>
             </div>
           </div>
-          {audienceType === 'tags' && (
+          {sendChannel === 'engine' && audienceType === 'tags' && (
             <div className="flex flex-wrap gap-1.5">
               {(tagsQuery.data ?? []).map((tag) => {
                 const active = tagIds.includes(tag.id);
@@ -967,7 +1050,11 @@ function SendGreetingDialog({
           {audienceType === 'contacts' && (
             <div className="space-y-2 rounded-lg border border-slate-800 bg-slate-900/40 p-3">
               <div className="flex items-center justify-between gap-3">
-                <Label htmlFor="gr-contact-search">Choose contacts</Label>
+                <Label htmlFor="gr-contact-search">
+                  {sendChannel === 'personal'
+                    ? 'Choose contact'
+                    : 'Choose contacts'}
+                </Label>
                 <span className="text-xs text-slate-400">
                   {selectedContacts.length} selected
                 </span>
@@ -1029,8 +1116,12 @@ function SendGreetingDialog({
                         onClick={() =>
                           setSelectedContacts((previous) =>
                             active
-                              ? previous.filter((item) => item.id !== contact.id)
-                              : [...previous, contact]
+                              ? previous.filter(
+                                  (item) => item.id !== contact.id
+                                )
+                              : sendChannel === 'personal'
+                                ? [contact]
+                                : [...previous, contact]
                           )
                         }
                         className={cn(
@@ -1068,28 +1159,30 @@ function SendGreetingDialog({
               )}
             </div>
           )}
-          <div className="space-y-1">
-            <label className="flex items-center gap-2 text-sm text-slate-300">
-              <input
-                type="checkbox"
-                checked={optedInOnly}
-                onChange={(e) => setOptedInOnly(e.target.checked)}
-                className="accent-primary h-4 w-4"
-              />
-              Only clients who explicitly opted in
-              {typeof optedInCountQuery.data === 'number' && (
-                <span className="text-xs text-slate-500">
-                  ({optedInCountQuery.data} opted in)
-                </span>
-              )}
-            </label>
-            <p className="text-xs text-slate-500">
-              Clients are asked to opt in the first time they message you on
-              WhatsApp, and portal enquiry forms record consent too. Without
-              this, the greeting goes to everyone except contacts who replied
-              STOP ALERTS.
-            </p>
-          </div>
+          {sendChannel === 'engine' && (
+            <div className="space-y-1">
+              <label className="flex items-center gap-2 text-sm text-slate-300">
+                <input
+                  type="checkbox"
+                  checked={optedInOnly}
+                  onChange={(e) => setOptedInOnly(e.target.checked)}
+                  className="accent-primary h-4 w-4"
+                />
+                Only clients who explicitly opted in
+                {typeof optedInCountQuery.data === 'number' && (
+                  <span className="text-xs text-slate-500">
+                    ({optedInCountQuery.data} opted in)
+                  </span>
+                )}
+              </label>
+              <p className="text-xs text-slate-500">
+                Clients are asked to opt in the first time they message you on
+                WhatsApp, and portal enquiry forms record consent too. Without
+                this, the greeting goes to everyone except contacts who replied
+                STOP ALERTS.
+              </p>
+            </div>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
@@ -1097,10 +1190,20 @@ function SendGreetingDialog({
           </Button>
           <Button
             disabled={!canSend || sendMutation.isPending}
-            onClick={() => sendMutation.mutate()}
+            onClick={() =>
+              sendChannel === 'personal'
+                ? openPersonalWhatsApp()
+                : sendMutation.mutate()
+            }
           >
-            <Send className="h-4 w-4" />
-            Send greeting
+            {sendChannel === 'personal' ? (
+              <MessageCircle className="h-4 w-4" />
+            ) : (
+              <Send className="h-4 w-4" />
+            )}
+            {sendChannel === 'personal'
+              ? 'Open personal WhatsApp'
+              : 'Send greeting'}
           </Button>
         </DialogFooter>
       </DialogContent>
