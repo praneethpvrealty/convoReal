@@ -47,6 +47,10 @@ import {
 import { PROPERTY_TYPE_VALUES } from '@/lib/property-types';
 import { BUDGET_OPTIONS } from '@/lib/contacts/budget-options';
 import {
+  budgetToRupees,
+  rupeesToBudgetAmount,
+} from '@/lib/contacts/budget-amount';
+import {
   DIGEST_PAUSE_COMMAND,
   DIGEST_RESUME_COMMAND,
   OWNER_DETAILS_SECTIONS,
@@ -827,6 +831,40 @@ describe('mobile/lib/format.ts mirrors priceInWords', () => {
     expect(priceInWords(8500000)).toBe('₹85 Lakhs');
     expect(priceInWords(45000)).toBe('₹45,000');
     expect(priceInWords('')).toBe('');
+  });
+});
+
+describe('mobile/lib/budget-amount.ts mirrors the budget amount+unit split', () => {
+  // Both surfaces store rupees but capture an amount against a unit. A
+  // drift in the multipliers means "6 Crore" typed on one device is a
+  // different number of rupees than on the other.
+  const source = mobileSource('lib/budget-amount.ts');
+
+  it('uses the same multipliers', () => {
+    expect(source).toContain('rupee: 1');
+    expect(source).toContain('lakh: 100000');
+    expect(source).toContain('crore: 10000000');
+  });
+
+  it('offers the same units in the same order', () => {
+    expect(stringLiterals(constBody(source, 'BUDGET_UNIT_OPTIONS'))).toEqual([
+      'crore',
+      'Crore',
+      'lakh',
+      'Lakh',
+      'rupee',
+      '\u20b9',
+    ]);
+  });
+
+  it('agrees with the web conversion across the units', () => {
+    expect(budgetToRupees('6', 'crore')).toBe(60000000);
+    expect(budgetToRupees('45', 'lakh')).toBe(4500000);
+    expect(budgetToRupees('40000', 'rupee')).toBe(40000);
+    expect(rupeesToBudgetAmount(60000000)).toEqual({
+      amount: '6',
+      unit: 'crore',
+    });
   });
 });
 
