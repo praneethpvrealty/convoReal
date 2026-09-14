@@ -555,6 +555,8 @@ export interface EventUpdateInput {
     end_time: string | null;
     location: string | null;
     agenda: string | null;
+    contact_name?: string | null;
+    property_hint?: string | null;
   };
   instruction: string;
   memberNames?: string[];

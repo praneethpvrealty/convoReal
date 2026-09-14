@@ -200,6 +200,91 @@ describe('Contextual schedule reply handling', () => {
   });
 
   describe('tryHandleOwnerScheduling contextual digest reply flow', () => {
+    it('targets the replacement event when one reply cancels an old event and adds the rescheduled one', async () => {
+      appointmentsTable = [
+        {
+          id: 'appt-old',
+          account_id: 'acc-1',
+          user_id: 'user-1',
+          assigned_to: 'user-1',
+          title: 'Meeting with property owner and KP Anand',
+          event_type: 'meeting',
+          start_time: new Date(Date.now() + 60 * 60_000).toISOString(),
+          status: 'scheduled',
+          contact_id: 'contact-naveen',
+          contact: { name: 'KP Anand' },
+        },
+      ];
+      messagesTable = [
+        {
+          message_id: 'wamid.reminder',
+          conversation_id: 'conv-1',
+          content_text: 'Meeting with property owner and KP Anand is still open.',
+        },
+      ];
+
+      const eventParseMock = await import('./event-parse');
+      const spy = vi.spyOn(eventParseMock, 'parseEventsFromInput').mockImplementation(async () => {
+        const drafts: ParsedEventDraft[] = [
+          {
+            intent: 'schedule',
+            title: 'Meeting with property owner Prabha and buyer KP Anand',
+            event_type: 'meeting',
+            start_time: '2026-09-15T12:00',
+            end_time: null,
+            duration_minutes: 60,
+            contact_name: 'KP Anand',
+            counterparty_name: null,
+            service_provider_role: null,
+            property_hint: 'Pebble Bay apartments',
+            assignee_name: null,
+            recipient_name: null,
+            location: "Mrs. Prabha's residence, Pebble Bay apartments, RMV layout",
+            priority: 'medium',
+            notes: null,
+            transcript: null,
+            day_of_week: null,
+          },
+        ];
+        Object.defineProperty(drafts, '_fullResult', {
+          value: {
+            drafts,
+            completedItems: [
+              {
+                id: 'appt-old',
+                type: 'appointment',
+                status: 'cancelled',
+                outcome: 'The meeting has been rescheduled.',
+              },
+            ],
+            updatedItems: [],
+            transcript: null,
+          },
+          enumerable: false,
+        });
+        return drafts;
+      });
+
+      await tryHandleOwnerScheduling({
+        message: { id: 'msg-reschedule', type: 'text', context: { id: 'wamid.reminder' } },
+        contentText: 'Our meeting has been rescheduled for tomorrow at 12 PM at Pebble Bay apartments',
+        contactRecord: { id: 'contact-agent', phone: '+919999988888' },
+        conversation: { id: 'conv-1' },
+        accountId: 'acc-1',
+        userId: 'user-1',
+        accessToken: 'meta-token',
+        phoneNumberId: 'pnid-1',
+      });
+
+      expect(recordBotTarget).toHaveBeenCalledTimes(1);
+      expect(recordBotTarget.mock.calls[0][0]).toMatchObject({
+        entityType: 'appointment',
+        entityId: 'appointments-inserted-id',
+      });
+
+      spy.mockRestore();
+    });
+
     it('marks call completed and adds follow-up meeting when replying to morning schedule digest', async () => {
       // 1. Setup existing appointment for today
       appointmentsTable = [

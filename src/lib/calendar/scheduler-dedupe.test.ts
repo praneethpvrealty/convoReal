@@ -228,4 +228,46 @@ describe('re-dictating an appointment', () => {
     expect(updates.filter((u) => u.table === 'appointments')).toEqual([]);
     expect(card()).toContain('✅ *Added to your calendar*');
   });
+
+  it('does not inherit the contact previous property when the message names a different unmatched property', async () => {
+    tables.contacts = [
+      {
+        id: 'contact-kp',
+        name: 'KP Anand',
+        phone: '+919876543210',
+        last_inquired_property_id: 'prop-old',
+      },
+    ];
+    tables.properties = [
+      {
+        id: 'prop-old',
+        property_code: 'PROP-1037',
+        title: '40x60 East Facing park facing Residential house',
+        location: 'RMV Layout',
+        sublocality: null,
+      },
+    ];
+    parseEventsFromInput.mockResolvedValue([
+      draft({
+        intent: 'schedule',
+        title: 'Meeting at Pebble Bay apartments',
+        start_time: '2026-09-15T12:00',
+        contact_name: 'KP Anand',
+        property_hint: 'Pebble Bay apartments',
+        location: "Mrs. Prabha's residence, Pebble Bay apartments, RMV layout",
+      }),
+    ]);
+
+    await tryHandleOwnerScheduling({
+      ...baseParams,
+      contentText:
+        "Meeting tomorrow at 12 PM at Mrs. Prabha's residence, Pebble Bay apartments, RMV layout with KP Anand",
+    });
+
+    const inserted = inserts.find((item) => item.table === 'appointments')?.row;
+    expect(inserted).toMatchObject({
+      contact_id: 'contact-kp',
+      property_id: null,
+    });
+  });
 });
