@@ -138,3 +138,15 @@ export function cleanPhoneInput(raw: string): string | null {
   }
   return phone;
 }
+
+/** Parse a `YYYY-MM-DD` column value as a LOCAL calendar day.
+ *
+ *  `new Date('2026-09-14')` is UTC midnight, which west of UTC renders
+ *  as the 13th — and saving the form would then write that earlier day
+ *  back. Splitting the parts keeps the day the database holds. */
+export function parseDateOnly(value: string | null | undefined): Date | null {
+  if (!value) return null;
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) return null;
+  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+}

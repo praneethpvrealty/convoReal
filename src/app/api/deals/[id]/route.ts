@@ -6,6 +6,12 @@ import {
   RATE_LIMITS,
 } from '@/lib/rate-limit';
 import { propertyStatusForPipelineStage } from '@/lib/pipelines/stage-semantics';
+import {
+  INVOICE_BUCKET,
+  isOwnedInvoicePath,
+  parseDealInvoices,
+} from '@/lib/pipelines/deal-invoices';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -39,6 +45,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       assigned_to,
       notes,
       expected_close_date,
+      actual_close_date,
       property_id,
       brokerage_type,
       brokerage_value,
@@ -67,6 +74,11 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       updateData.expected_close_date =
         typeof expected_close_date === 'string'
           ? expected_close_date || null
+          : null;
+    if (actual_close_date !== undefined)
+      updateData.actual_close_date =
+        typeof actual_close_date === 'string'
+          ? actual_close_date || null
           : null;
     if (property_id !== undefined)
       updateData.property_id =
@@ -227,10 +239,11 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
     );
     if (!limit.success) return rateLimitResponse(limit);
 
-    // Fetch the deal first to get the property_id for cleanup
+    // Fetch the deal first to get the property_id and the invoice
+    // objects for cleanup
     const { data: deal } = await ctx.supabase
       .from('deals')
-      .select('property_id')
+      .select('property_id, invoices')
       .eq('id', dealId)
       .single();
 
@@ -250,6 +263,24 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
 
     if (!deleted?.length) {
       return NextResponse.json({ error: 'Deal not found' }, { status: 404 });
+    }
+
+    // The row is gone, so nothing points at its invoices any more.
+    // Financial documents left behind in a private bucket are nobody's
+    // to find or delete later, so they go with the deal.
+    const orphaned = parseDealInvoices(deal?.invoices)
+      .map((invoice) => invoice.path)
+      .filter((path) => isOwnedInvoicePath(path, ctx.accountId, dealId));
+    if (orphaned.length > 0) {
+      const { error: removeErr } = await supabaseAdmin()
+        .storage.from(INVOICE_BUCKET)
+        .remove(orphaned);
+      if (removeErr) {
+        console.warn(
+          '[DELETE /api/deals/[id]] Invoice objects not removed:',
+          dealId
+        );
+      }
     }
 
     // Reset property status to Available if it was linked
