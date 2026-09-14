@@ -11,6 +11,43 @@
 /** Mirrors GREETING_MESSAGE_MAX in src/lib/greetings/generate.ts. */
 export const GREETING_MESSAGE_MAX = 600;
 
+export const PERSONAL_GREETING_CARD_LABEL = 'View your greeting card:';
+
+const PLACEHOLDER_CONTACT_NAME =
+  /^(?:(?:portal|housing|99acres|magic\s*bricks|others)\s+(?:lead|user)|user|unknown|guest|customer|anonymous)$/i;
+
+function personalGreetingName(name?: string | null): string {
+  const trimmed = name?.trim() ?? '';
+  return !trimmed || PLACEHOLDER_CONTACT_NAME.test(trimmed) ? 'there' : trimmed;
+}
+
+export function buildPersonalGreetingMessage({
+  messageText,
+  contactName,
+  senderName,
+  cardUrl,
+}: {
+  messageText: string;
+  contactName?: string | null;
+  senderName?: string | null;
+  cardUrl?: string | null;
+}): string {
+  const lines = [
+    `Dear ${personalGreetingName(contactName)},`,
+    '',
+    messageText.trim(),
+    '',
+    'Warm regards,',
+    senderName?.trim() || 'Your property consultant',
+  ];
+
+  if (cardUrl) {
+    lines.push('', `${PERSONAL_GREETING_CARD_LABEL} ${cardUrl}`);
+  }
+
+  return lines.join('\n');
+}
+
 export const GREETING_TONES = ['warm', 'festive', 'formal'] as const;
 export type GreetingTone = (typeof GREETING_TONES)[number];
 
