@@ -224,7 +224,7 @@ export const CALLBACK_HANDOVER_TEXT =
 export function requestsHumanContact(text?: string | null): boolean {
   const t = (text || '').trim().toLowerCase();
   if (!t) return false;
-  return /\b(call me|call back|call-back|callback|give me a (call|ring)|ring me|phone me|(please|pls|plz) call|(talk|speak) (to|with) (a |an )?(human|person|someone|somebody|agent|executive|team)|connect me)\b/.test(
+  return /\b(call me|call back|call-back|callback|give me a (call|ring)|ring me|phone me|(please|pls|plz) call|(talk(?:ing)?|speak(?:ing)?) (to|with) (a |an |the )?(human|person|someone|somebody|agent|executive|team|owner|seller)|connect me)\b/.test(
     t
   );
 }

@@ -109,7 +109,7 @@ const DATE_CUE =
   /\b(\d{1,2}(st|nd|rd|th)? (jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*|(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]* \d{1,2}(st|nd|rd|th)?|\d{1,2}\/\d{1,2}(\/\d{2,4})?|\d{1,2}-\d{1,2}-\d{2,4}|(mon|tues|wednes|thurs|fri|satur|sun)day)\b/i;
 
 const INBOUND_VISIT_REQUEST =
-  /\b(?:arrange|book|schedule|fix|set\s*up)\s+(?:a\s+|the\s+)?(?:(?:property|site)\s+)?visit\b|\b(?:want|would like|need|like)\s+to\s+(?:visit|view|see)\b|\bcan\s+(?:we|i)\s+(?:visit|view)\b/i;
+  /\b(?:arrange|book|schedule|fix|set\s*up)\s+(?:a\s+|the\s+)?(?:(?:property|site)\s+)?visit\b|\b(?:want|would like|need|like)\s+to\s+(?:visit|view|see)\b|\binterested\s+in\s+(?:visiting|viewing|seeing)\b|\bcan\s+(?:we|i)\s+(?:visit|view)\b/i;
 const VISIT_PROMPT = /property visit details|visit date and time|visit time|visit date/i;
 const VISIT_DATE_CUE =
   /\b(?:today|tomorrow|day after tomorrow|in\s+\d+\s+days?|(?:this|next|coming)\s+(?:mon|tue|wed|thu|fri|sat|sun)[a-z]*|(?:mon|tues|wednes|thurs|fri|satur|sun)day)\b|\b\d{1,2}(?:st|nd|rd|th)?\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b|\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{1,2}(?:st|nd|rd|th)?\b|\b\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?\b/i;

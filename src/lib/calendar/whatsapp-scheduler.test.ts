@@ -119,6 +119,7 @@ describe('looksLikeSchedulingText', () => {
 describe('inbound property visit dialogue', () => {
   it('recognizes Ramanathan\'s visit request without a date or time', () => {
     expect(isInboundVisitRequest('Arrange a visit pls')).toBe(true);
+    expect(isInboundVisitRequest('Interested in seeing the property')).toBe(true);
     expect(looksLikeSchedulingText('Arrange a visit pls')).toBe(true);
     expect(missingVisitDetails('Arrange a visit pls')).toEqual(['date', 'time']);
   });

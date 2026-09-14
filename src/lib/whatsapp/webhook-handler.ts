@@ -1334,7 +1334,8 @@ async function processMessage(
             ? { kind: 'ambiguous' as const, candidates: [] }
             : resolvePropertyReference(
                 contentText,
-                properties as PropertyInterestCandidate[]
+                properties as PropertyInterestCandidate[],
+                contactRecord.last_inquired_property_id
               );
 
         if (resolution.kind === 'match') {
@@ -1754,6 +1755,9 @@ async function processMessage(
     const admin = supabaseAdmin();
 
     if (enquiryPropertyId && enquiryPropertyTitle) {
+      const visitRequested = isInboundVisitRequest(contentText || '');
+      const ownerContactRequested = requestsHumanContact(contentText);
+      const actionRequested = visitRequested || ownerContactRequested;
       await sendWhatsAppMessageAndPersist({
         accountId,
         userId: configOwnerUserId,
@@ -1764,7 +1768,8 @@ async function processMessage(
         senderType: 'bot',
         text: buildPropertyInterestAck(
           contactRecord.name,
-          enquiryPropertyTitle
+          enquiryPropertyTitle,
+          { visitRequested, ownerContactRequested }
         ),
       });
 
@@ -1776,7 +1781,7 @@ async function processMessage(
           contactRecord.id,
           conversation.id,
           senderPhone,
-          { followUp: 'questions' }
+          { followUp: actionRequested ? 'none' : 'questions' }
         ),
         admin.from('contact_property_inquiries').upsert(
           {
@@ -1812,22 +1817,34 @@ async function processMessage(
         accountId,
         userId: assignedAgentUserId,
         type: 'listing_interest',
-        title: `${contactRecord.name || senderPhone} wants ${enquiryPropertyTitle}`,
+        title: actionRequested
+          ? `${contactRecord.name || senderPhone} needs follow-up for ${enquiryPropertyTitle}`
+          : `${contactRecord.name || senderPhone} wants ${enquiryPropertyTitle}`,
         body: shareSent
-          ? 'The exact property details were sent. Reply to answer any property-specific questions.'
+          ? actionRequested
+            ? [
+                visitRequested ? 'Site visit requested.' : '',
+                ownerContactRequested ? 'Owner conversation requested.' : '',
+                'The exact property details were sent; please coordinate the requested next step.',
+              ].filter(Boolean).join(' ')
+            : 'The exact property details were sent. Reply to answer any property-specific questions.'
           : 'The listing was matched, but the automatic details send failed. Please share it and follow up now.',
         entityType: 'conversation',
         entityId: conversation.id,
         link: `/inbox?conversation=${conversation.id}`,
         whatsappText: [
-          '🔥 *Specific property interest*',
+          actionRequested
+            ? '📅 *Property follow-up requested*'
+            : '🔥 *Specific property interest*',
           `👤 ${contactRecord.name || senderPhone}`,
           `🏠 ${enquiryPropertyTitle}`,
           '',
           (contentText || '').slice(0, 300),
           '',
           shareSent
-            ? 'The listing details have already been sent.'
+            ? actionRequested
+              ? 'The listing details have already been sent. Please coordinate the visit / owner conversation now.'
+              : 'The listing details have already been sent.'
             : '⚠️ The automatic details send failed — please share them now.',
           BRIDGE_REPLY_HINT,
         ].join('\n'),
@@ -3552,6 +3569,7 @@ interface ContactRow {
   phone: string;
   name: string;
   classification?: string;
+  last_inquired_property_id?: string | null;
   owner_digest_consent?: string | null;
   owner_digest_consent_requested_at?: string | null;
 }
