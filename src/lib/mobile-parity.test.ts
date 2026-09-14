@@ -64,11 +64,9 @@ import {
   CONSENT_OVERRIDE_WARNING,
   CONSENT_STATES,
 } from '@/lib/contacts/alerts-consent';
-import {
-  GREETING_MESSAGE_MAX,
-  GREETING_TONES,
-} from '@/lib/greetings/generate';
+import { GREETING_MESSAGE_MAX, GREETING_TONES } from '@/lib/greetings/generate';
 import { OCCASIONS } from '@/lib/greetings/occasions';
+import { PERSONAL_GREETING_CARD_LABEL } from '@/lib/greetings/personal-share';
 import { priceInWords } from '@/lib/currency-utils';
 import { confidentialityNote } from '@/lib/share-message-builder';
 import {
@@ -327,9 +325,13 @@ describe('mobile property editor field parity', () => {
   const source = mobileSource('app/(app)/property-edit.tsx');
 
   it('round-trips road width and its unit for non-apartment properties', () => {
-    expect(source).toContain("'dimensions, road_width, road_width_unit, facing_direction");
+    expect(source).toContain(
+      "'dimensions, road_width, road_width_unit, facing_direction"
+    );
     expect(source).toContain('road_width: isApartment ? null : num(roadWidth)');
-    expect(source).toContain("road_width_unit: isApartment ? null : roadWidthUnit || 'Feet'");
+    expect(source).toContain(
+      "road_width_unit: isApartment ? null : roadWidthUnit || 'Feet'"
+    );
     expect(source).toContain('label="Road width"');
   });
 });
@@ -377,15 +379,19 @@ describe('mobile/lib/greetings.ts mirrors the greeting composer limits', () => {
   const source = mobileSource('lib/greetings.ts');
 
   it('caps the greeting at the same length the API enforces', () => {
-    expect(source).toContain(
-      `GREETING_MESSAGE_MAX = ${GREETING_MESSAGE_MAX}`
-    );
+    expect(source).toContain(`GREETING_MESSAGE_MAX = ${GREETING_MESSAGE_MAX}`);
   });
 
   it('offers the same tones the prompt builder accepts', () => {
     expect(stringLiteralsInConst(source, 'GREETING_TONES')).toEqual([
       ...GREETING_TONES,
     ]);
+  });
+
+  it('labels the personal WhatsApp card link the same way', () => {
+    expect(source).toContain(
+      `PERSONAL_GREETING_CARD_LABEL = '${PERSONAL_GREETING_CARD_LABEL}'`
+    );
   });
 
   it('does not copy the occasion catalog, which shifts every year', () => {
@@ -1057,9 +1063,7 @@ describe('the contact form offers the same buy-or-rent choices on both surfaces'
       web.indexOf('id="cf-listing-intent"'),
       web.indexOf('{/* Budget Fields */}')
     );
-    const webValues = Array.from(
-      webBlock.matchAll(/<option value="([^"]*)"/g)
-    )
+    const webValues = Array.from(webBlock.matchAll(/<option value="([^"]*)"/g))
       .map((m) => m[1])
       .filter(Boolean);
 
@@ -1106,7 +1110,11 @@ describe('mobile/lib/showcase-scope.ts mirrors the showcase share link', () => {
 
   const cases = [
     { scope: 'all' as const, category: 'Commercial' as const },
-    { scope: 'search' as const, category: 'Commercial' as const, search: 'hsr' },
+    {
+      scope: 'search' as const,
+      category: 'Commercial' as const,
+      search: 'hsr',
+    },
     { scope: 'pick' as const, ids: ['CR-1', 'CR-2'] },
   ];
 
