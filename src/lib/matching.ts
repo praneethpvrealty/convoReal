@@ -597,7 +597,7 @@ const TENANCY_EVIDENCE_PATTERN =
 function withoutNegatedTenancyPhrases(text: string): string {
   return text
     .replace(
-      /\b(?:not|never)\s+(?:(?:a|an|the)\s+)?(?:currently\s+)?(?:pre[ -]?leased|rented|leased|tenanted|income[ -]?generating(?:\s+(?:asset|building|property))?)\b/gi,
+      /\b(?:not|never)\s+(?:(?:a|an|the)\s+)?(?:currently\s+)?(?:(?:a|an|the)\s+)?(?:pre[ -]?leased|rented|leased|tenanted|income[ -]?generating(?:\s+(?:asset|building|property))?)\b/gi,
       ''
     )
     .replace(
@@ -1230,11 +1230,6 @@ function matchContactsSingleProfile(
     // generic locality match so these land at the top of the list.
     if (projectMatch) score += 40;
 
-    // A verified current tenancy is the complete match for a buyer whose
-    // only hard requirement is a rent-producing asset. Keep it above the
-    // buyer-feed threshold even when no type, area or budget was supplied.
-    if (requiresTenanted) score += 65;
-
     if (locationVerdict === 'match') score += 30;
     else if (locationVerdict === 'partial') score += 12;
 
@@ -1248,6 +1243,11 @@ function matchContactsSingleProfile(
     else if (sizeVerdict === 'partial') score += 4;
 
     if (roiVerdict === 'match') score += 5;
+
+    // Current tenancy is a hard gate, not a reason to flatten every other
+    // ranking signal. Give a verified tenanted property the minimum buyer-feed
+    // score only when its ordinary preference score has not reached it.
+    if (requiresTenanted && score < 60) score = 60;
 
     score = Math.max(0, Math.min(100, score));
 

@@ -850,6 +850,21 @@ describe('getMatchingContacts', () => {
       expect(match?.score).toBeGreaterThanOrEqual(60);
     });
 
+    it('keeps ordinary preferences useful when tenancy is also required', () => {
+      const typedBuyer = createTestContact({
+        pref_property_categories: ['commercial'],
+        pref_requires_tenanted: true,
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const property = createTestProperty({
+        type: 'Commercial Office Space',
+        description: 'Pre-leased office asset for sale',
+      });
+
+      const [match] = getMatchingContacts(property, [typedBuyer]);
+      expect(match?.score).toBe(60);
+    });
+
     it('rejects a vacant listing even when projected rent and ROI are filled', () => {
       const property = createTestProperty({
         type: 'Commercial Office Space',
@@ -930,6 +945,14 @@ describe('getMatchingContacts', () => {
       ).toBe(false);
       expect(
         isCurrentlyTenanted({ description: 'Not an income-generating property' })
+      ).toBe(false);
+      expect(
+        isCurrentlyTenanted({ description: 'Not currently a pre-leased asset' })
+      ).toBe(false);
+      expect(
+        isCurrentlyTenanted({
+          description: 'Not currently an income-generating property',
+        })
       ).toBe(false);
     });
   });
