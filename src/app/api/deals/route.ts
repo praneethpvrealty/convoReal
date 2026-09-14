@@ -37,6 +37,7 @@ export async function POST(request: Request) {
       assigned_to,
       notes,
       expected_close_date,
+      actual_close_date,
       property_id,
       brokerage_type,
       brokerage_value,
@@ -83,6 +84,10 @@ export async function POST(request: Request) {
       expected_close_date:
         typeof expected_close_date === 'string'
           ? expected_close_date || null
+          : null,
+      actual_close_date:
+        typeof actual_close_date === 'string'
+          ? actual_close_date || null
           : null,
       property_id:
         typeof property_id === 'string' && property_id.trim()

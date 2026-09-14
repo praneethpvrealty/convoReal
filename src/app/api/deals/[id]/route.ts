@@ -39,6 +39,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       assigned_to,
       notes,
       expected_close_date,
+      actual_close_date,
       property_id,
       brokerage_type,
       brokerage_value,
@@ -67,6 +68,11 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       updateData.expected_close_date =
         typeof expected_close_date === 'string'
           ? expected_close_date || null
+          : null;
+    if (actual_close_date !== undefined)
+      updateData.actual_close_date =
+        typeof actual_close_date === 'string'
+          ? actual_close_date || null
           : null;
     if (property_id !== undefined)
       updateData.property_id =
