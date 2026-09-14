@@ -8,6 +8,10 @@ import {
   partyDisplayName,
 } from '@/lib/contacts/parties';
 import { resolveRequirementSource } from '@/lib/requirements/profiles';
+import {
+  deliverRealtimeBuyerAlerts,
+  enqueueRealtimeBuyerAlerts,
+} from '@/lib/buyer/realtime-alerts';
 
 // Lazy service-role client for callers that only hold an RLS-scoped
 // client (match_events has no member INSERT policy — writes are
@@ -170,13 +174,11 @@ export async function generateMatchEventForProperty(
       property as Property,
       eligibleContacts,
       parties
-    )
-      .filter((r) => r.score >= MIN_SCORE)
-      .slice(0, MAX_TARGETS);
+    ).filter((r) => r.score >= MIN_SCORE);
 
     if (results.length === 0) return;
 
-    const targets: MatchEventTarget[] = results.map((r) => ({
+    const targets: MatchEventTarget[] = results.slice(0, MAX_TARGETS).map((r) => ({
       id: r.contact.id,
       name:
         partyDisplayName(r.party ?? null, [
@@ -197,6 +199,14 @@ export async function generateMatchEventForProperty(
       { property_id: propertyId },
       targets
     );
+
+    await enqueueRealtimeBuyerAlerts(
+      db,
+      accountId,
+      property as Property,
+      results
+    );
+    await deliverRealtimeBuyerAlerts(db, accountId, { propertyId });
   } catch (err) {
     console.error('[radar] generateMatchEventForProperty failed:', err);
   }

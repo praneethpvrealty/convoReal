@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { requireRole, toErrorResponse } from "@/lib/auth/account";
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from "@/lib/rate-limit";
 import { autoSyncPropertyCatalogIfNeeded } from "@/lib/whatsapp/catalog-sync-helper";
@@ -836,15 +836,22 @@ export async function POST(request: Request) {
       console.error("[POST /api/properties] Auto-sync background error:", err);
     });
 
-    // Match Radar: surface matching buyers for the new listing
-    // (fire-and-forget; match_events INSERT needs the service role).
-    import("@/lib/radar/engine")
-      .then(({ generateMatchEventForProperty, radarAdminClient }) =>
-        generateMatchEventForProperty(radarAdminClient(), ctx.accountId, finalData.id)
-      )
-      .catch((err) => {
+    // Keep the response fast while ensuring the match-and-alert work is
+    // allowed to finish after this serverless request returns.
+    after(async () => {
+      try {
+        const { generateMatchEventForProperty, radarAdminClient } = await import(
+          "@/lib/radar/engine"
+        );
+        await generateMatchEventForProperty(
+          radarAdminClient(),
+          ctx.accountId,
+          finalData.id
+        );
+      } catch (err) {
         console.error("[POST /api/properties] Radar background error:", err);
-      });
+      }
+    });
 
     return NextResponse.json(finalData, { status: 201 });
   } catch (err) {
