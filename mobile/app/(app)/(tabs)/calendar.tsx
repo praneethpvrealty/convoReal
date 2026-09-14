@@ -22,7 +22,10 @@ import { BottomSheet, sheetScrollArea } from '@/components/sheet';
 import { EmptyState, FilterChip } from '@/components/ui';
 import { apiFetch, ApiError } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
-import { buildUpcomingCalendarItems } from '@/lib/calendar-upcoming';
+import {
+  buildUpcomingCalendarItems,
+  loadEveryPage,
+} from '@/lib/calendar-upcoming';
 import { haptic } from '@/lib/haptics';
 import { openContactChat } from '@/lib/open-chat';
 import { queryClient } from '@/lib/query';
@@ -104,17 +107,20 @@ async function fetchUpcomingAppointments(now: Date): Promise<Appointment[]> {
   const tomorrow = new Date(now);
   tomorrow.setDate(tomorrow.getDate() + 1);
   tomorrow.setHours(0, 0, 0, 0);
-  const { data, error } = await supabase
-    .from('appointments')
-    .select(
-      '*, contact:contacts(id, name, phone, name_tag), property:properties(id, title, location, sublocality)'
-    )
-    .eq('status', 'scheduled')
-    .gte('start_time', tomorrow.toISOString())
-    .order('start_time', { ascending: true })
-    .limit(20);
-  if (error) throw error;
-  return (data ?? []) as Appointment[];
+  return loadEveryPage(async (from, to) => {
+    const { data, error } = await supabase
+      .from('appointments')
+      .select(
+        '*, contact:contacts(id, name, phone, name_tag), property:properties(id, title, location, sublocality)'
+      )
+      .eq('status', 'scheduled')
+      .gte('start_time', tomorrow.toISOString())
+      .order('start_time', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, to);
+    if (error) throw error;
+    return (data ?? []) as Appointment[];
+  });
 }
 
 export default function CalendarScreen() {

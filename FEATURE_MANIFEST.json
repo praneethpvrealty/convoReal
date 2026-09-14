@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "features": [
+    {
+      "id": "calendar",
+      "name": "Calendar, appointments and to-dos",
+      "surfaces": ["web", "mobile", "whatsapp"],
+      "invariants": [
+        {
+          "id": "CAL-001",
+          "rule": "The calendar keeps the selected-day agenda visible and also makes every future scheduled appointment and every future dated open task discoverable.",
+          "tests": [
+            {
+              "file": "mobile/lib/calendar-upcoming.test.ts",
+              "case": "[CAL-001]"
+            }
+          ],
+          "guards": [".github/workflows/eas-update.yml"]
+        },
+        {
+          "id": "CAL-002",
+          "rule": "Upcoming appointments and tasks are chronological and are not repeated in the selected-day agenda or the general to-do list.",
+          "tests": [
+            {
+              "file": "mobile/lib/calendar-upcoming.test.ts",
+              "case": "[CAL-002]"
+            }
+          ]
+        },
+        {
+          "id": "CAL-003",
+          "rule": "Repeating or correcting the same scheduling instruction updates one appointment and produces one confirmation; it never creates a duplicate event.",
+          "tests": [
+            {
+              "file": "src/lib/calendar/scheduler-dedupe.test.ts",
+              "case": "[CAL-003]"
+            },
+            {
+              "file": "src/lib/calendar/event-dedupe.test.ts",
+              "case": "[CAL-003]"
+            }
+          ]
+        },
+        {
+          "id": "CAL-004",
+          "rule": "A named person resolves only to the strongest unique contact match. Ambiguous names remain unlinked instead of being guessed.",
+          "tests": [
+            {
+              "file": "src/lib/calendar/event-parse.test.ts",
+              "case": "[CAL-004]"
+            }
+          ]
+        },
+        {
+          "id": "CAL-005",
+          "rule": "Every explicitly named external attendee, including the property owner, is retained in the appointment audience so each eligible person receives timely reminders.",
+          "tests": [
+            {
+              "file": "src/lib/calendar/scheduler-dedupe.test.ts",
+              "case": "[CAL-005]"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

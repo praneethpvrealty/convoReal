@@ -1,6 +1,7 @@
 import { Alert } from 'react-native';
 
 import { openContactChat } from '@/lib/open-chat';
+import { loadEveryPage } from '@/lib/calendar-upcoming';
 import { buildTodoParticipantCheckIn } from '@/lib/todo-check-in';
 import { sortTodos as sortTodosImpl } from '@/lib/todo-sort';
 import { supabase } from '@/lib/supabase';
@@ -106,21 +107,25 @@ async function resolveCompletionIntent(
 }
 
 export async function fetchTodos(): Promise<Todo[]> {
-  const { data, error } = await supabase
-    .from('todos')
-    .select(
-      '*, contact:contacts(id, name, phone), property:properties(id, title)'
-    )
-    .order('created_at', { ascending: true })
-    .limit(200);
-  if (error) throw error;
-
   type Row = Omit<Todo, 'contact' | 'property'> & {
     contact: Todo['contact'] | Todo['contact'][] | null;
     property: Todo['property'] | Todo['property'][] | null;
   };
 
-  return ((data ?? []) as unknown as Row[]).map((row) => ({
+  const rows = await loadEveryPage<Row>(async (from, to) => {
+    const { data, error } = await supabase
+      .from('todos')
+      .select(
+        '*, contact:contacts(id, name, phone), property:properties(id, title)'
+      )
+      .order('created_at', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, to);
+    if (error) throw error;
+    return (data ?? []) as unknown as Row[];
+  });
+
+  return rows.map((row) => ({
     ...row,
     contact: one(row.contact),
     property: one(row.property),

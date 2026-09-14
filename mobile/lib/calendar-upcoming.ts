@@ -17,6 +17,19 @@ export type UpcomingCalendarItem<
   | { kind: 'appointment'; dueAt: number; appointment: A }
   | { kind: 'todo'; dueAt: number; todo: T };
 
+export async function loadEveryPage<T>(
+  loadPage: (from: number, to: number) => Promise<T[]>,
+  pageSize = 500
+): Promise<T[]> {
+  const rows: T[] = [];
+
+  for (let from = 0; ; from += pageSize) {
+    const page = await loadPage(from, from + pageSize - 1);
+    rows.push(...page);
+    if (page.length < pageSize) return rows;
+  }
+}
+
 function localDayKey(date: Date): string {
   return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
 }

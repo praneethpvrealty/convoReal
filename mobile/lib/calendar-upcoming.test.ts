@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildUpcomingCalendarItems } from './calendar-upcoming';
+import { buildUpcomingCalendarItems, loadEveryPage } from './calendar-upcoming';
 
 const now = new Date(2026, 8, 14, 9, 0);
 
 describe('buildUpcomingCalendarItems', () => {
-  it('combines future appointments and dated tasks chronologically', () => {
+  it('[CAL-001] combines future appointments and dated tasks chronologically', () => {
     const items = buildUpcomingCalendarItems(
       [
         {
@@ -37,7 +37,7 @@ describe('buildUpcomingCalendarItems', () => {
     ).toEqual(['todo-1', 'appointment-1', 'appointment-2']);
   });
 
-  it('omits today, closed items, undated tasks, and the selected future day', () => {
+  it('[CAL-002] omits today, closed items, undated tasks, and the selected future day', () => {
     const selected = new Date(2026, 8, 15, 8, 0);
     const items = buildUpcomingCalendarItems(
       [
@@ -84,5 +84,22 @@ describe('buildUpcomingCalendarItems', () => {
     expect(
       items[0]?.kind === 'appointment' ? items[0].appointment.id : null
     ).toBe('later');
+  });
+
+  it('[CAL-001] loads every calendar page without a hidden item cap', async () => {
+    const rows = Array.from({ length: 1_025 }, (_, index) => index);
+    const pages: Array<[number, number]> = [];
+
+    const loaded = await loadEveryPage(async (from, to) => {
+      pages.push([from, to]);
+      return rows.slice(from, to + 1);
+    });
+
+    expect(loaded).toEqual(rows);
+    expect(pages).toEqual([
+      [0, 499],
+      [500, 999],
+      [1000, 1499],
+    ]);
   });
 });
