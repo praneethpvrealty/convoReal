@@ -1458,8 +1458,13 @@ export function ShowcaseView({
       }
     }
 
-    navigator.clipboard.writeText(url);
-    toast.success('Property link copied to clipboard!');
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success('Property link copied to clipboard!');
+    } catch (err) {
+      console.error('Clipboard write failed:', err);
+      toast.error('Could not copy link. Please copy it manually.');
+    }
   };
 
   return (
