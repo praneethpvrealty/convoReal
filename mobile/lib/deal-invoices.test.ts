@@ -18,6 +18,10 @@ describe('invoiceRejection', () => {
     expect(invoiceRejection('image/jpeg', 0)).toBe('That file is empty.');
   });
 
+  it('accepts a file whose size the picker did not report', () => {
+    expect(invoiceRejection('application/pdf', null)).toBeNull();
+  });
+
   it('refuses a file past the shared ceiling', () => {
     expect(invoiceRejection('image/jpeg', INVOICE_SIZE_LIMIT + 1)).toContain(
       '10 MB'

@@ -69,7 +69,10 @@ export function DealInvoices({ dealId }: { dealId: string }) {
     if (result.canceled || !result.assets?.length) return;
     const asset = result.assets[0];
     const mimeType = asset.mimeType || 'application/pdf';
-    const rejection = invoiceRejection(mimeType, asset.size ?? 0);
+    // Some document providers report no size at all. Treating that as
+    // zero rejected a perfectly good file as empty, so an unknown size
+    // is left to the server, which measures the bytes it receives.
+    const rejection = invoiceRejection(mimeType, asset.size ?? null);
     if (rejection) {
       show({ title: 'Cannot attach that', message: rejection });
       return;

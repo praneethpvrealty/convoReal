@@ -31,14 +31,19 @@ export interface DealInvoiceLink {
   url: string | null;
 }
 
-/** Why this file cannot be attached, or null when it can. */
+/** Why this file cannot be attached, or null when it can.
+ *
+ *  A null size means the picker did not report one — not that the file
+ *  is empty. The server measures the bytes it actually receives, so an
+ *  unknown size passes here rather than blocking a valid document. */
 export function invoiceRejection(
   mimeType: string,
-  size: number
+  size: number | null
 ): string | null {
   if (!(INVOICE_MIME_TYPES as readonly string[]).includes(mimeType)) {
     return 'Invoices must be a PDF, an image, or a Word/Excel file.';
   }
+  if (size === null) return null;
   if (size <= 0) return 'That file is empty.';
   if (size > INVOICE_SIZE_LIMIT) {
     return `Invoices can be up to ${Math.round(INVOICE_SIZE_LIMIT / (1024 * 1024))} MB.`;

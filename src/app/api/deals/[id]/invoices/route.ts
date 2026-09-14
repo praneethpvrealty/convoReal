@@ -63,19 +63,19 @@ async function withSignedUrls(
   }));
 }
 
-async function persist(
+/** Append and remove run inside one statement (migration
+ *  20260914121500): two agents attaching a file at the same moment
+ *  would otherwise each write back their own snapshot of the array,
+ *  and the later write would drop the earlier file while still
+ *  reporting success. Null means the deal is not the caller's. */
+async function mutateInvoices(
   ctx: Awaited<ReturnType<typeof requireRole>>,
-  dealId: string,
-  invoices: DealInvoice[]
-) {
-  const { data, error } = await ctx.supabase
-    .from('deals')
-    .update({ invoices })
-    .eq('id', dealId)
-    .eq('account_id', ctx.accountId)
-    .select('id');
+  fn: 'deal_invoice_append' | 'deal_invoice_remove',
+  args: Record<string, unknown>
+): Promise<DealInvoice[] | null> {
+  const { data, error } = await ctx.supabase.rpc(fn, args);
   if (error) throw error;
-  return Boolean(data?.length);
+  return data === null ? null : parseDealInvoices(data);
 }
 
 // GET /api/deals/[id]/invoices — list with freshly signed links.
@@ -160,8 +160,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       uploaded_by: ctx.userId,
     };
 
-    const next = [...invoices, entry];
-    if (!(await persist(ctx, dealId, next))) {
+    const next = await mutateInvoices(ctx, 'deal_invoice_append', {
+      p_deal_id: dealId,
+      p_entry: entry,
+    });
+    if (!next) {
       await supabaseAdmin()
         .storage.from(INVOICE_BUCKET)
         .remove([path])
@@ -207,12 +210,15 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Deal not found' }, { status: 404 });
     }
 
-    const next = invoices.filter((invoice) => invoice.path !== path);
-    if (next.length === invoices.length) {
+    if (!invoices.some((invoice) => invoice.path === path)) {
       return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
     }
 
-    if (!(await persist(ctx, dealId, next))) {
+    const next = await mutateInvoices(ctx, 'deal_invoice_remove', {
+      p_deal_id: dealId,
+      p_path: path,
+    });
+    if (!next) {
       return NextResponse.json({ error: 'Deal not found' }, { status: 404 });
     }
 

@@ -28,6 +28,7 @@ import {
   nameTagCap,
 } from '@/components/ui';
 import { ApiError, apiFetch } from '@/lib/api';
+import { parseDateOnly } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
@@ -136,11 +137,11 @@ function DealForm({
   );
   const [propertySearch, setPropertySearch] = useState('');
   const [closeDate, setCloseDate] = useState<Date | null>(
-    deal?.expected_close_date ? new Date(deal.expected_close_date) : null
+    parseDateOnly(deal?.expected_close_date)
   );
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [actualCloseDate, setActualCloseDate] = useState<Date | null>(
-    deal?.actual_close_date ? new Date(deal.actual_close_date) : null
+    parseDateOnly(deal?.actual_close_date)
   );
   const [showActualDatePicker, setShowActualDatePicker] = useState(false);
   const [notes, setNotes] = useState(deal?.notes ?? '');
