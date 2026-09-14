@@ -95,6 +95,21 @@ describe('findDuplicate', () => {
     expect(found).toBeNull();
   });
 
+  it('matches a repeated source message even when participant resolution changed', () => {
+    const transcript = 'Meeting with Prabha, KP Anand and Subramani tomorrow at noon.';
+    const found = findDuplicate(
+      { title: 'Meeting with owner Prabha and buyer KP Anand', when: monday10, contactId: 'wrong', transcript },
+      [{
+        id: 'existing',
+        title: 'Meeting with owner Prabha and buyer KP Anand',
+        when: monday16,
+        contact_id: 'correct',
+        transcript,
+      }]
+    );
+    expect(found?.id).toBe('existing');
+  });
+
   it('keeps a clashing liaison apart the same way', () => {
     const found = findDuplicate({ title: 'Sale deed meeting', when: monday10, liaisonId: 'l1' }, [
       { id: 'a', title: 'Sale deed meeting', when: monday16, liaison_id: 'l2' },

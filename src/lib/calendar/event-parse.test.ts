@@ -96,6 +96,27 @@ describe('resolveByName', () => {
     expect(resolveByName('Surya', contacts, (c) => c.name)?.id).toBe('1');
   });
 
+  it('prefers a complete name word over a longer unrelated prefix', () => {
+    const similar = [
+      { id: 'wrong', name: 'Prabhakar' },
+      { id: 'owner', name: 'Prabha Rao' },
+    ];
+    expect(resolveByName('Prabha', similar, (c) => c.name)?.id).toBe('owner');
+  });
+
+  it('returns null when the best name match is tied', () => {
+    const ambiguous = [
+      { id: 'one', name: 'Prabha Rao' },
+      { id: 'two', name: 'Prabha Reddy' },
+    ];
+    expect(resolveByName('Prabha', ambiguous, (c) => c.name)).toBeNull();
+  });
+
+  it('still accepts a shortened compound name when it is the only match', () => {
+    const liaisons = [{ id: 'one', name: 'KusumamuniRaju' }];
+    expect(resolveByName('Kusuma', liaisons, (c) => c.name)?.id).toBe('one');
+  });
+
   it('matches when query has extra words', () => {
     expect(resolveByName('snigdha from koramangala'.split(' from ')[0], contacts, (c) => c.name)?.id).toBe('3');
   });

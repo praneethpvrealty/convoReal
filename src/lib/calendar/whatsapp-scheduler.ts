@@ -991,7 +991,7 @@ export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): P
   const updatedItems = fullResult?.updatedItems || [];
 
   const completedBlocks: string[][] = [];
-  const updatedBlocks: string[][] = [];
+  const updatedBlocks: { row: CreatedRow; lines: string[] }[] = [];
   const affectedRows: CreatedRow[] = [];
 
   // 1. Process completed/cancelled items
@@ -1061,11 +1061,14 @@ export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): P
         if (!updErr) {
           affectedRows.push({ type: 'appointment', id: upd.id });
           const emoji = EVENT_TYPE_EMOJI[targetAppt?.event_type || 'other'] || '🗓';
-          updatedBlocks.push([
-            '✏️ *Updated on your calendar*',
-            `${emoji} ${targetAppt?.title || upd.title || 'Appointment'}`,
-            `🕐 ${whenLabel(startIso)}`,
-          ]);
+          updatedBlocks.push({
+            row: { type: 'appointment', id: upd.id },
+            lines: [
+              '✏️ *Updated on your calendar*',
+              `${emoji} ${targetAppt?.title || upd.title || 'Appointment'}`,
+              `🕐 ${whenLabel(startIso)}`,
+            ],
+          });
         }
       }
     } else if (upd.type === 'todo' && (upd.due_date || upd.start_time)) {
@@ -1079,11 +1082,14 @@ export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): P
           .eq('account_id', accountId);
         if (!todoErr) {
           affectedRows.push({ type: 'todo', id: upd.id });
-          updatedBlocks.push([
-            '✏️ *Task updated*',
-            `📝 ${targetTodo?.title || upd.title || 'Task'}`,
-            `🕐 Due ${whenLabel(dueIso)}`,
-          ]);
+          updatedBlocks.push({
+            row: { type: 'todo', id: upd.id },
+            lines: [
+              '✏️ *Task updated*',
+              `📝 ${targetTodo?.title || upd.title || 'Task'}`,
+              `🕐 Due ${whenLabel(dueIso)}`,
+            ],
+          });
         }
       }
     }
@@ -1130,9 +1136,14 @@ export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): P
     return false;
   }
 
+  const filedRows = filed.map((f) => f.row).filter((c): c is CreatedRow => c !== null);
+  const filedKeys = new Set(filedRows.map((row) => `${row.type}:${row.id}`));
+  const standaloneUpdatedBlocks = updatedBlocks.filter(
+    ({ row }) => !filedKeys.has(`${row.type}:${row.id}`)
+  );
   const confirmation = [
     ...completedBlocks.flatMap((b) => [...b, '']),
-    ...updatedBlocks.flatMap((b) => [...b, '']),
+    ...standaloneUpdatedBlocks.flatMap((b) => [...b.lines, '']),
     ...filed.flatMap((f) => [...f.lines, '']),
     '_Reply *today* anytime to see your day\'s schedule._',
   ].join('\n');
@@ -1145,7 +1156,6 @@ export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): P
     text: confirmation,
   });
 
-  const filedRows = filed.map((f) => f.row).filter((c): c is CreatedRow => c !== null);
   const editableRows = filedRows.length === 1 ? filedRows : [...affectedRows, ...filedRows];
   if (editableRows.length === 1) {
     await recordBotTarget({
@@ -1243,7 +1253,7 @@ async function existingAppointment(
   const day = istDayWindow(new Date(startIso));
   const { data, error } = await ctx.admin
     .from('appointments')
-    .select('id, title, start_time, contact_id, liaison_id, assigned_to, user_id')
+    .select('id, title, start_time, contact_id, liaison_id, transcript, assigned_to, user_id')
     .eq('account_id', ctx.accountId)
     .eq('status', 'scheduled')
     .gte('start_time', day.startIso)
@@ -1263,6 +1273,7 @@ async function existingAppointment(
       when: r.start_time as string,
       contact_id: (r.contact_id as string | null) ?? null,
       liaison_id: (r.liaison_id as string | null) ?? null,
+      transcript: (r.transcript as string | null) ?? null,
     }));
 }
 
@@ -1478,6 +1489,7 @@ async function fileDraft(draft: ParsedEventDraft, ctx: DraftFilingContext): Prom
         when: startIso,
         contactId: attendees[0]?.id || null,
         liaisonId: liaison?.id || null,
+        transcript,
       },
       await existingAppointment(ctx, startIso, assignedTo)
     );
@@ -1485,7 +1497,11 @@ async function fileDraft(draft: ParsedEventDraft, ctx: DraftFilingContext): Prom
     if (duplicate) {
       const { error: updateErr } = await ctx.admin
         .from('appointments')
-        .update({ ...fields, assigned_to: assignedTo })
+        .update({
+          ...fields,
+          contact_id: duplicate.contact_id || fields.contact_id,
+          assigned_to: assignedTo,
+        })
         .eq('id', duplicate.id)
         .eq('account_id', ctx.accountId);
       if (updateErr) {

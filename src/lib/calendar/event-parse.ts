@@ -623,27 +623,48 @@ export interface NamedRef {
 const MIN_FRAGMENT = 3;
 
 /**
- * A substring hit that starts where a word starts.
+ * A substring hit that is a complete word.
  *
  * Plain `includes` matched "Raj" against "Kusumaraju", filing an advocate's
  * meeting under an unrelated contact and — because the liaisons lookup only
  * runs when no contact matched — hiding the advocate we should have found
- * instead. Requiring the fragment to begin a word keeps every real partial
- * ("Kumar" in "Raj Kumar", a property code opening a label) and drops the
- * ones that merely happen to fall inside a longer name.
+ * instead. Requiring both word boundaries keeps real fragments ("Kumar" in
+ * "Raj Kumar") and drops prefixes that merely begin a different name.
  */
 function containsFragment(haystack: string, needle: string): boolean {
   if (needle.length < MIN_FRAGMENT) return false;
   for (let from = 0; ; ) {
     const at = haystack.indexOf(needle, from);
     if (at < 0) return false;
-    if (at === 0 || !/[a-z0-9]/i.test(haystack[at - 1])) return true;
+    const startsWord = at === 0 || !/[a-z0-9]/i.test(haystack[at - 1]);
+    const end = at + needle.length;
+    const endsWord = end === haystack.length || !/[a-z0-9]/i.test(haystack[end]);
+    if (startsWord && endsWord) return true;
     from = at + 1;
   }
 }
 
-/** Case-insensitive best match: exact > startsWith > word-boundary
- *  substring > all-words-included. Returns null rather than guessing badly. */
+function prefixEndsAtWord(longer: string, prefix: string): boolean {
+  if (!longer.startsWith(prefix)) return false;
+  return longer.length === prefix.length || !/[a-z0-9]/i.test(longer[prefix.length]);
+}
+
+function nameMatchScore(label: string, query: string): number {
+  if (label === query) return 5;
+  if (prefixEndsAtWord(label, query) || prefixEndsAtWord(query, label)) return 4;
+  if (containsFragment(label, query) || containsFragment(query, label)) return 3;
+
+  const words = query.split(/\s+/).filter((word) => word.length >= MIN_FRAGMENT);
+  if (words.length > 0 && words.every((word) => containsFragment(label, word))) return 2;
+
+  // Keep support for a shortened compound name such as "Kusuma" matching
+  // "KusumamuniRaju", but rank it below a complete word such as "Prabha Rao".
+  if (label.startsWith(query) || query.startsWith(label)) return 1;
+  return 0;
+}
+
+/** Case-insensitive best match: exact > complete-word prefix > complete-word
+ *  substring > all words > compound prefix. Tied best matches return null. */
 export function resolveByName<T extends { id: string }>(
   query: string | null,
   rows: T[],
@@ -655,21 +676,18 @@ export function resolveByName<T extends { id: string }>(
 
   let best: T | null = null;
   let bestScore = 0;
+  let tied = false;
   for (const row of rows) {
     const label = getLabel(row).toLowerCase();
     if (!label) continue;
-    let score = 0;
-    if (label === q) score = 4;
-    else if (label.startsWith(q) || q.startsWith(label)) score = 3;
-    else if (containsFragment(label, q) || containsFragment(q, label)) score = 2;
-    else {
-      const words = q.split(/\s+/).filter((w) => w.length >= MIN_FRAGMENT);
-      if (words.length > 0 && words.every((w) => containsFragment(label, w))) score = 1;
-    }
+    const score = nameMatchScore(label, q);
     if (score > bestScore) {
       best = row;
       bestScore = score;
+      tied = false;
+    } else if (score > 0 && score === bestScore && best?.id !== row.id) {
+      tied = true;
     }
   }
-  return best;
+  return tied ? null : best;
 }
