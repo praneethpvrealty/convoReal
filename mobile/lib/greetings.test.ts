@@ -2,10 +2,37 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildGreetingAudience,
+  buildPersonalGreetingMessage,
   canSendGreeting,
   occasionCountdown,
   templateBlockReason,
 } from './greetings';
+
+describe('buildPersonalGreetingMessage', () => {
+  it('creates a personalized message with a public greeting card link', () => {
+    expect(
+      buildPersonalGreetingMessage({
+        messageText: 'Happy Ganesh Chaturthi!',
+        contactName: 'Asha',
+        senderName: 'Praneeth',
+        cardUrl: 'https://example.com/card.png',
+      })
+    ).toBe(
+      'Dear Asha,\n\nHappy Ganesh Chaturthi!\n\nWarm regards,\nPraneeth\n\nView your greeting card: https://example.com/card.png'
+    );
+  });
+
+  it('uses safe fallbacks for missing and placeholder names', () => {
+    for (const contactName of [undefined, 'Housing Lead']) {
+      const message = buildPersonalGreetingMessage({
+        messageText: 'Best wishes',
+        contactName,
+      });
+      expect(message).toContain('Dear there,');
+      expect(message).toContain('Your property consultant');
+    }
+  });
+});
 
 describe('buildGreetingAudience', () => {
   it('drops the tag list for an all-contacts send', () => {
