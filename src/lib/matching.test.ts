@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getMatchingContacts } from './matching';
+import { getMatchingContacts, isCurrentlyTenanted } from './matching';
 import { rankProperties } from './radar/engine';
 import type { Contact, Property } from '@/types';
 
@@ -842,7 +842,7 @@ describe('getMatchingContacts', () => {
         requirements:
           'Interested only in an already rented out commercial property',
         pref_property_categories: ['commercial'],
-        pref_extracted_at: new Date().toISOString(),
+        pref_extracted_at: null,
       });
       const property = createTestProperty({
         type: 'Commercial Office Space',
@@ -865,6 +865,41 @@ describe('getMatchingContacts', () => {
       });
 
       expect(getMatchingContacts(vacant, [contact])).toHaveLength(1);
+    });
+
+    it('does not invert a negated legacy occupancy requirement', () => {
+      const contact = createTestContact({
+        requirements: 'Commercial office, not tenanted and not pre-leased',
+        pref_property_categories: ['commercial'],
+        pref_extracted_at: null,
+      });
+
+      expect(getMatchingContacts(createTestProperty({}), [contact])).toHaveLength(
+        1
+      );
+    });
+
+    it('trusts a completed false extraction over older positive wording', () => {
+      const contact = createTestContact({
+        requirements: 'Previously asked for a pre-leased asset',
+        pref_property_categories: ['commercial'],
+        pref_requires_tenanted: false,
+        pref_extracted_at: '2026-09-14T00:00:00Z',
+      });
+
+      expect(getMatchingContacts(createTestProperty({}), [contact])).toHaveLength(
+        1
+      );
+    });
+
+    it('does not treat negated or former listing copy as current tenancy', () => {
+      expect(
+        isCurrentlyTenanted({ description: 'Not currently tenanted' })
+      ).toBe(false);
+      expect(isCurrentlyTenanted({ title: 'Formerly tenanted asset' })).toBe(
+        false
+      );
+      expect(isCurrentlyTenanted({ notes: 'Not pre-leased' })).toBe(false);
     });
   });
 

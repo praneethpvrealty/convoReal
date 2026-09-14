@@ -48,7 +48,8 @@ const MATCH_PROPERTY_COLUMNS = [
   'city', 'state', 'project', 'bedrooms', 'bathrooms', 'area_sqft',
   'area_unit', 'land_area', 'land_area_unit', 'super_built_area',
   'facing_direction', 'features', 'nearby_highlights', 'rental_income',
-  'roi', 'property_code', 'images', 'created_at',
+  'roi', 'property_code', 'images', 'created_at', 'description', 'notes',
+  'tags', 'floor_tenancies',
 ].join(', ');
 
 export interface BuyerMatchCard {
@@ -243,6 +244,8 @@ export async function getBuyerMatchFeed(ctx: BuyerContext): Promise<BuyerMatchFe
           ? localityLabel(match.property)
           : match.property.location,
         location_privacy: undefined,
+        notes: undefined,
+        floor_tenancies: undefined,
         images: Array.isArray(match.property.images)
           ? match.property.images.map(storagePublicUrl)
           : match.property.images,

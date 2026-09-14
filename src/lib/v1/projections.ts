@@ -73,6 +73,10 @@ export const MATCHING_PROPERTY_COLUMNS = [
   'roi',
   'latitude',
   'longitude',
+  'description',
+  'notes',
+  'tags',
+  'floor_tenancies',
 ].join(', ');
 
 export const CONTACT_COLUMNS = [
