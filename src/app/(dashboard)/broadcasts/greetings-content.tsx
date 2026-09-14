@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useDeferredValue, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -62,6 +62,12 @@ interface TemplateState {
 interface TagRow {
   id: string;
   name: string;
+}
+
+interface ContactRow {
+  id: string;
+  name: string | null;
+  phone: string | null;
 }
 
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
@@ -710,8 +716,13 @@ function SendGreetingDialog({
 }) {
   const queryClient = useQueryClient();
   const { accountId } = useAuth();
-  const [audienceType, setAudienceType] = useState<'all' | 'tags'>('all');
+  const [audienceType, setAudienceType] = useState<
+    'all' | 'tags' | 'contacts'
+  >('all');
   const [tagIds, setTagIds] = useState<string[]>([]);
+  const [selectedContacts, setSelectedContacts] = useState<ContactRow[]>([]);
+  const [contactSearch, setContactSearch] = useState('');
+  const deferredContactSearch = useDeferredValue(contactSearch.trim());
   const [optedInOnly, setOptedInOnly] = useState(false);
 
   const templateQuery = useQuery({
@@ -742,6 +753,40 @@ function SendGreetingDialog({
     enabled: Boolean(greeting) && Boolean(accountId),
   });
 
+  const contactsQuery = useQuery({
+    queryKey: [
+      'occasion-greetings',
+      'contacts',
+      accountId,
+      deferredContactSearch,
+    ],
+    queryFn: async () => {
+      const supabase = createClient();
+      const term = `%${deferredContactSearch}%`;
+      const digits = deferredContactSearch.replace(/\D/g, '');
+      const or =
+        digits.length >= 4
+          ? `name.ilike.${term},phone.ilike.${term},phone.ilike.%${digits}%`
+          : `name.ilike.${term},phone.ilike.${term}`;
+      const { data, error } = await supabase
+        .from('contacts')
+        .select('id, name, phone')
+        .eq('account_id', accountId!)
+        .eq('is_merged', false)
+        .not('phone', 'is', null)
+        .or(or)
+        .order('name', { ascending: true, nullsFirst: false })
+        .limit(50);
+      if (error) throw error;
+      return (data ?? []) as ContactRow[];
+    },
+    enabled:
+      Boolean(greeting) &&
+      Boolean(accountId) &&
+      audienceType === 'contacts' &&
+      deferredContactSearch.length >= 2,
+  });
+
   const setupMutation = useMutation({
     mutationFn: () =>
       api<{ status: string | null }>('/api/greetings/template', {
@@ -770,7 +815,12 @@ function SendGreetingDialog({
             audience:
               audienceType === 'tags'
                 ? { type: 'tags', tagIds }
-                : { type: 'all' },
+                : audienceType === 'contacts'
+                  ? {
+                      type: 'contacts',
+                      contactIds: selectedContacts.map((contact) => contact.id),
+                    }
+                  : { type: 'all' },
             optedInOnly,
           }),
         }
@@ -781,6 +831,8 @@ function SendGreetingDialog({
       );
       queryClient.invalidateQueries({ queryKey: ['occasion-greetings'] });
       setTagIds([]);
+      setSelectedContacts([]);
+      setContactSearch('');
       onClose();
     },
     onError: (err: Error) => toast.error(err.message),
@@ -789,7 +841,11 @@ function SendGreetingDialog({
   const template = templateQuery.data;
   const approved = template?.status === 'APPROVED';
 
-  const canSend = approved && (audienceType === 'all' || tagIds.length > 0);
+  const canSend =
+    approved &&
+    (audienceType === 'all' ||
+      (audienceType === 'tags' && tagIds.length > 0) ||
+      (audienceType === 'contacts' && selectedContacts.length > 0));
 
   return (
     <Dialog
@@ -848,7 +904,7 @@ function SendGreetingDialog({
           )}
           <div className="space-y-1.5">
             <Label>Audience</Label>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button
                 type="button"
                 size="sm"
@@ -864,6 +920,14 @@ function SendGreetingDialog({
                 onClick={() => setAudienceType('tags')}
               >
                 By tags
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={audienceType === 'contacts' ? 'default' : 'outline'}
+                onClick={() => setAudienceType('contacts')}
+              >
+                Select contacts
               </Button>
             </div>
           </div>
@@ -897,6 +961,110 @@ function SendGreetingDialog({
                 <p className="text-xs text-slate-500">
                   No tags yet — tag contacts first, or send to all.
                 </p>
+              )}
+            </div>
+          )}
+          {audienceType === 'contacts' && (
+            <div className="space-y-2 rounded-lg border border-slate-800 bg-slate-900/40 p-3">
+              <div className="flex items-center justify-between gap-3">
+                <Label htmlFor="gr-contact-search">Choose contacts</Label>
+                <span className="text-xs text-slate-400">
+                  {selectedContacts.length} selected
+                </span>
+              </div>
+              {selectedContacts.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {selectedContacts.map((contact) => (
+                    <button
+                      key={contact.id}
+                      type="button"
+                      onClick={() =>
+                        setSelectedContacts((previous) =>
+                          previous.filter((item) => item.id !== contact.id)
+                        )
+                      }
+                      aria-label={`Remove ${contact.name || contact.phone}`}
+                      className="border-primary/40 bg-primary/10 rounded-full border px-2.5 py-1 text-xs text-white"
+                    >
+                      {contact.name || contact.phone} ×
+                    </button>
+                  ))}
+                </div>
+              )}
+              <Input
+                id="gr-contact-search"
+                value={contactSearch}
+                onChange={(event) => setContactSearch(event.target.value)}
+                placeholder="Search by name or phone"
+                autoComplete="off"
+              />
+              {deferredContactSearch.length < 2 ? (
+                <p className="text-xs text-slate-500">
+                  Type at least 2 characters to find contacts.
+                </p>
+              ) : contactsQuery.isFetching ? (
+                <div className="flex items-center gap-2 py-2 text-xs text-slate-500">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Searching contacts…
+                </div>
+              ) : contactsQuery.isError ? (
+                <p className="text-xs text-rose-400">
+                  Contacts could not be loaded. Try the search again.
+                </p>
+              ) : contactsQuery.data?.length === 0 ? (
+                <p className="text-xs text-slate-500">
+                  No contacts match “{deferredContactSearch}”.
+                </p>
+              ) : (
+                <div className="max-h-52 space-y-1 overflow-y-auto">
+                  {(contactsQuery.data ?? []).map((contact) => {
+                    const active = selectedContacts.some(
+                      (selected) => selected.id === contact.id
+                    );
+                    return (
+                      <button
+                        key={contact.id}
+                        type="button"
+                        aria-pressed={active}
+                        onClick={() =>
+                          setSelectedContacts((previous) =>
+                            active
+                              ? previous.filter((item) => item.id !== contact.id)
+                              : [...previous, contact]
+                          )
+                        }
+                        className={cn(
+                          'flex w-full items-center gap-2 rounded-lg border px-2.5 py-2 text-left transition-colors',
+                          active
+                            ? 'border-primary bg-primary/10'
+                            : 'border-slate-800 bg-slate-950/40 hover:border-slate-600'
+                        )}
+                      >
+                        <span
+                          aria-hidden
+                          className={cn(
+                            'flex h-4 w-4 shrink-0 items-center justify-center rounded border text-[10px]',
+                            active
+                              ? 'border-primary bg-primary text-primary-foreground'
+                              : 'border-slate-600'
+                          )}
+                        >
+                          {active ? '✓' : ''}
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block truncate text-sm text-white">
+                            {contact.name || contact.phone}
+                          </span>
+                          {contact.name && (
+                            <span className="block truncate text-xs text-slate-500">
+                              {contact.phone}
+                            </span>
+                          )}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
               )}
             </div>
           )}
