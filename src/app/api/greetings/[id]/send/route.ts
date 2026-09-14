@@ -18,9 +18,9 @@ import {
 import { accountBrandImage } from '@/lib/showcase/account-showcase-url';
 import { storagePublicUrl } from '@/lib/storage/url';
 import type { OccasionGreeting } from '@/lib/greetings/types';
+import { parseGreetingAudience } from '@/lib/greetings/audience';
 
 const INSERT_BATCH_SIZE = 200;
-const AUDIENCE_TYPES = new Set(['all', 'tags']);
 
 // POST /api/greetings/[id]/send — broadcast a greeting to the chosen
 // audience on the shared occasion_greeting template. The fan-out is a
@@ -58,27 +58,14 @@ export async function POST(
     const greeting = greetingRow as OccasionGreeting;
 
     const body = await request.json().catch(() => null);
-    const audience: AudienceConfig =
-      body?.audience && AUDIENCE_TYPES.has(body.audience.type)
-        ? {
-            type: body.audience.type,
-            tagIds: Array.isArray(body.audience.tagIds)
-              ? body.audience.tagIds
-              : undefined,
-            excludeTagIds: Array.isArray(body.audience.excludeTagIds)
-              ? body.audience.excludeTagIds
-              : undefined,
-          }
-        : { type: 'all' };
-    if (
-      audience.type === 'tags' &&
-      (!audience.tagIds || audience.tagIds.length === 0)
-    ) {
+    const parsedAudience = parseGreetingAudience(body?.audience);
+    if ('error' in parsedAudience) {
       return NextResponse.json(
-        { error: 'Pick at least one tag for a tag audience' },
+        { error: parsedAudience.error },
         { status: 400 }
       );
     }
+    const audience: AudienceConfig = parsedAudience.audience;
     const optedInOnly = body?.optedInOnly === true;
 
     const templateState = await ensureOccasionGreetingTemplate(ctx.accountId);

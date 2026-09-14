@@ -34,24 +34,34 @@ export interface UpcomingOccasion {
   daysUntil: number;
 }
 
-export type AudienceType = 'all' | 'tags';
+export type AudienceType = 'all' | 'tags' | 'contacts';
+export type GreetingAudience =
+  | { type: 'all' }
+  | { type: 'tags'; tagIds: string[] }
+  | { type: 'contacts'; contactIds: string[] };
 
 /** The audience payload POST /api/greetings/[id]/send expects. */
 export function buildGreetingAudience(
   type: AudienceType,
-  tagIds: string[]
-): { type: AudienceType; tagIds?: string[] } {
-  return type === 'tags' ? { type: 'tags', tagIds } : { type: 'all' };
+  tagIds: string[],
+  contactIds: string[] = []
+): GreetingAudience {
+  if (type === 'tags') return { type: 'tags', tagIds };
+  if (type === 'contacts') return { type: 'contacts', contactIds };
+  return { type: 'all' };
 }
 
-/** Whether the send button may fire: a tag audience needs a tag. */
+/** Whether the send button may fire: filtered audiences need a selection. */
 export function canSendGreeting(
   type: AudienceType,
   tagIds: string[],
-  templateStatus: string | null
+  templateStatus: string | null,
+  contactIds: string[] = []
 ): boolean {
   if (templateStatus !== 'APPROVED') return false;
-  return type === 'all' || tagIds.length > 0;
+  if (type === 'tags') return tagIds.length > 0;
+  if (type === 'contacts') return contactIds.length > 0;
+  return true;
 }
 
 /** How far away an occasion reads on the card. */

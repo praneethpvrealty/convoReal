@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
+import { ContactPickerSheet } from '@/components/contact-picker-sheet';
 import { BottomSheet } from '@/components/sheet';
 import {
   EmptyState,
@@ -44,6 +45,7 @@ import { supabase } from '@/lib/supabase';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import { useAppConfig } from '@/lib/use-app-config';
 import { usePullRefresh } from '@/lib/use-pull-refresh';
+import type { Contact } from '@/lib/types';
 
 interface OccasionOption {
   id: string;
@@ -699,6 +701,8 @@ function SendGreetingSheet({
   const dialog = useAppDialog();
   const [audienceType, setAudienceType] = useState<AudienceType>('all');
   const [tagIds, setTagIds] = useState<string[]>([]);
+  const [selectedContacts, setSelectedContacts] = useState<Contact[]>([]);
+  const [contactPickerOpen, setContactPickerOpen] = useState(false);
   const [optedInOnly, setOptedInOnly] = useState(false);
 
   const { data: template } = useQuery({
@@ -760,7 +764,11 @@ function SendGreetingSheet({
         {
           method: 'POST',
           body: JSON.stringify({
-            audience: buildGreetingAudience(audienceType, tagIds),
+            audience: buildGreetingAudience(
+              audienceType,
+              tagIds,
+              selectedContacts.map((contact) => contact.id)
+            ),
             optedInOnly,
           }),
         }
@@ -768,6 +776,8 @@ function SendGreetingSheet({
     onSuccess: ({ data }) => {
       queryClient.invalidateQueries({ queryKey: ['occasion-greetings'] });
       setTagIds([]);
+      setSelectedContacts([]);
+      setContactPickerOpen(false);
       onClose();
       dialog.show({
         title: 'Greeting on its way',
@@ -784,11 +794,18 @@ function SendGreetingSheet({
   );
 
   return (
-    <BottomSheet
-      visible={Boolean(greeting)}
-      onClose={onClose}
-      title={`Send "${greeting?.occasion_label ?? ''}"`}
-    >
+    <>
+      <BottomSheet
+        visible={Boolean(greeting)}
+        onClose={() => {
+          setAudienceType('all');
+          setTagIds([]);
+          setSelectedContacts([]);
+          setContactPickerOpen(false);
+          onClose();
+        }}
+        title={`Send "${greeting?.occasion_label ?? ''}"`}
+      >
       <ScrollView
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{ gap: spacing.md, paddingBottom: spacing.lg }}
@@ -817,7 +834,9 @@ function SendGreetingSheet({
         ) : null}
 
         <SectionLabel text="Audience" style={{ color: colors.textMuted }} />
-        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+        <View
+          style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}
+        >
           <FilterChip
             label="All contacts"
             active={audienceType === 'all'}
@@ -827,6 +846,14 @@ function SendGreetingSheet({
             label="By tag"
             active={audienceType === 'tags'}
             onPress={() => setAudienceType('tags')}
+          />
+          <FilterChip
+            label="Select contacts"
+            active={audienceType === 'contacts'}
+            onPress={() => {
+              setAudienceType('contacts');
+              setContactPickerOpen(true);
+            }}
           />
         </View>
         {audienceType === 'tags' ? (
@@ -848,6 +875,45 @@ function SendGreetingSheet({
               />
             ))}
           </View>
+        ) : null}
+
+        {audienceType === 'contacts' ? (
+          <Pressable
+            onPress={() => setContactPickerOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Choose greeting contacts"
+            style={{
+              padding: spacing.md,
+              borderRadius: radius.md,
+              borderWidth: 1,
+              borderColor: colors.glassBorder,
+              backgroundColor: colors.glass,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: spacing.sm,
+            }}
+          >
+            <Ionicons
+              name="people-outline"
+              size={20}
+              color={colors.primary}
+            />
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 13.5, color: colors.text }}>
+                {selectedContacts.length === 0
+                  ? 'Choose contacts'
+                  : `${selectedContacts.length} contact${selectedContacts.length === 1 ? '' : 's'} selected`}
+              </Text>
+              <Text style={{ fontSize: 11.5, color: colors.textFaint }}>
+                Search by name or phone
+              </Text>
+            </View>
+            <Ionicons
+              name="chevron-forward"
+              size={16}
+              color={colors.textFaint}
+            />
+          </Pressable>
         ) : null}
 
         <Pressable
@@ -878,14 +944,36 @@ function SendGreetingSheet({
           label="Send greeting"
           icon="send"
           disabled={
-            !canSendGreeting(audienceType, tagIds, template?.status ?? null)
+            !canSendGreeting(
+              audienceType,
+              tagIds,
+              template?.status ?? null,
+              selectedContacts.map((contact) => contact.id)
+            )
           }
           busy={sendMutation.isPending}
           onPress={() => sendMutation.mutate()}
         />
       </ScrollView>
-      <AppDialog {...dialog.dialogProps} />
-    </BottomSheet>
+        <AppDialog {...dialog.dialogProps} />
+      </BottomSheet>
+      {contactPickerOpen ? (
+        <ContactPickerSheet
+          visible
+          multiSelect
+          initialSelected={selectedContacts}
+          maxSelections={1000}
+          title="Select greeting contacts"
+          confirmLabel="Use"
+          hint="Search and select the contacts who should receive this greeting."
+          onClose={() => setContactPickerOpen(false)}
+          onSelectMany={(contacts) => {
+            setSelectedContacts(contacts);
+            setContactPickerOpen(false);
+          }}
+        />
+      ) : null}
+    </>
   );
 }
 

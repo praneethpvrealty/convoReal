@@ -18,6 +18,13 @@ describe('buildGreetingAudience', () => {
       tagIds: ['t1', 't2'],
     });
   });
+
+  it('carries explicit contact ids for a selected send', () => {
+    expect(buildGreetingAudience('contacts', [], ['c1', 'c2'])).toEqual({
+      type: 'contacts',
+      contactIds: ['c1', 'c2'],
+    });
+  });
 });
 
 describe('canSendGreeting', () => {
@@ -34,6 +41,11 @@ describe('canSendGreeting', () => {
   it('needs at least one tag for a tag send', () => {
     expect(canSendGreeting('tags', [], 'APPROVED')).toBe(false);
     expect(canSendGreeting('tags', ['t1'], 'APPROVED')).toBe(true);
+  });
+
+  it('needs at least one contact for a selected send', () => {
+    expect(canSendGreeting('contacts', [], 'APPROVED')).toBe(false);
+    expect(canSendGreeting('contacts', [], 'APPROVED', ['c1'])).toBe(true);
   });
 });
 
