@@ -60,12 +60,14 @@ describe('coerceEventDraft', () => {
       start_time: '2026-07-15T16:00',
       duration_minutes: 45.6,
       contact_name: ' Varun ',
+      participant_names: [' Varun ', 'Owner Rao', 'Varun', null],
       priority: 'HIGH',
     });
     expect(draft.intent).toBe('schedule');
     expect(draft.event_type).toBe('site_visit');
     expect(draft.duration_minutes).toBe(46);
     expect(draft.contact_name).toBe('Varun');
+    expect(draft.participant_names).toEqual(['Varun', 'Owner Rao']);
     expect(draft.priority).toBe('high');
   });
 
@@ -506,6 +508,7 @@ describe('counterparty capture', () => {
 
   it('defaults counterparty to null when the source has only one person', () => {
     expect(coerceEventDraft({ contact_name: 'Varun' }).counterparty_name).toBeNull();
+    expect(coerceEventDraft({ contact_name: 'Varun' }).participant_names).toEqual([]);
   });
 
   it('resolves the counterparty independently of the person being met', () => {
