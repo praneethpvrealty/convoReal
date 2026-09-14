@@ -455,12 +455,23 @@ export async function sendWhatsAppMessageAndPersist(
       throw new Error(`Contact phone invalid format: ${targetPhone}`)
     }
 
-    const { data: config, error: configErr } = await db
-      .from('whatsapp_config')
-      .select('*')
-      .eq('account_id', accountId)
-      .single()
-    if (configErr || !config) {
+    let config = null
+    let configErr: { message?: string } | null = null
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const result = await db
+        .from('whatsapp_config')
+        .select('*')
+        .eq('account_id', accountId)
+        .maybeSingle()
+      config = result.data
+      configErr = result.error
+      if (config) break
+    }
+    if (configErr) {
+      console.error('[meta-api-dispatcher] WhatsApp configuration lookup error:', configErr)
+      throw new Error('Could not load WhatsApp configuration. Please try again.')
+    }
+    if (!config) {
       throw new Error('WhatsApp not configured for this account')
     }
 

@@ -43,6 +43,7 @@ function makeDb(
     isDead?: boolean;
     isArchived?: boolean;
     contactLookupErrors?: number;
+    configLookupErrors?: number;
     journeyItems?: Row[];
     journeyEventInsertError?: { code?: string; message?: string };
   } = {},
@@ -57,6 +58,7 @@ function makeDb(
       ? new Date().toISOString()
       : overrides.lastInboundAt;
   let contactLookupCount = 0;
+  let configLookupCount = 0;
 
   function builder(table: string) {
     const filters: Record<string, unknown> = {};
@@ -82,6 +84,24 @@ function makeDb(
         return b;
       },
       maybeSingle: () => {
+        if (table === "whatsapp_config") {
+          configLookupCount += 1;
+          if (configLookupCount <= (overrides.configLookupErrors ?? 0)) {
+            return Promise.resolve({
+              data: null,
+              error: { code: "PGRST000", message: "transient connection error" },
+            });
+          }
+          return Promise.resolve({
+            data: {
+              account_id: ACCOUNT_ID,
+              integration_type: overrides.integrationType ?? "official_api",
+              phone_number_id: "phone-1",
+              access_token: encrypt("test-access-token"),
+            },
+            error: null,
+          });
+        }
         if (table === "accounts") {
           return Promise.resolve({
             data: { owner_user_id: OWNER_USER_ID },
@@ -142,17 +162,6 @@ function makeDb(
         return Promise.resolve({ data: null, error: null }).then(resolve);
       },
       single: () => {
-        if (table === "whatsapp_config") {
-          return Promise.resolve({
-            data: {
-              account_id: ACCOUNT_ID,
-              integration_type: overrides.integrationType ?? "official_api",
-              phone_number_id: "phone-1",
-              access_token: encrypt("test-access-token"),
-            },
-            error: null,
-          });
-        }
         if (table === "conversations") {
           const inserted = inserts.conversations.at(-1);
           return Promise.resolve({
@@ -377,6 +386,43 @@ describe("sendWhatsAppMessageAndPersist", () => {
 
     expect(result.success).toBe(true);
     expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries one transient WhatsApp configuration lookup failure before sending", async () => {
+    const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
+    const db = makeDb({ configLookupErrors: 1 });
+
+    const result = await sendWhatsAppMessageAndPersist({
+      accountId: ACCOUNT_ID,
+      contactId: CONTACT_ID,
+      kind: "text",
+      senderType: "agent",
+      text: "hello",
+      customDbClient: db,
+    });
+
+    expect(result.success).toBe(true);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not report a persistent configuration lookup failure as missing setup", async () => {
+    const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
+    const db = makeDb({ configLookupErrors: 2 });
+
+    const result = await sendWhatsAppMessageAndPersist({
+      accountId: ACCOUNT_ID,
+      contactId: CONTACT_ID,
+      kind: "text",
+      senderType: "agent",
+      text: "hello",
+      customDbClient: db,
+    });
+
+    expect(result).toEqual({
+      success: false,
+      error: "Could not load WhatsApp configuration. Please try again.",
+    });
+    expect(fetch).not.toHaveBeenCalled();
   });
 
   it("reuses an existing conversation without creating a new one", async () => {
