@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   FlatList,
   Image,
+  Linking,
   Modal,
   Pressable,
   RefreshControl,
@@ -31,6 +32,7 @@ import {
   GREETING_MESSAGE_MAX,
   GREETING_TONES,
   buildGreetingAudience,
+  buildPersonalGreetingMessage,
   canSendGreeting,
   occasionCountdown,
   templateBlockReason,
@@ -699,6 +701,11 @@ function SendGreetingSheet({
 }) {
   const { colors } = useTheme();
   const dialog = useAppDialog();
+  const profile = useAuthStore((s) => s.profile);
+  const userId = useAuthStore((s) => s.session?.user.id);
+  const [sendChannel, setSendChannel] = useState<'engine' | 'personal'>(
+    'engine'
+  );
   const [audienceType, setAudienceType] = useState<AudienceType>('all');
   const [tagIds, setTagIds] = useState<string[]>([]);
   const [selectedContacts, setSelectedContacts] = useState<Contact[]>([]);
@@ -709,7 +716,7 @@ function SendGreetingSheet({
     queryKey: ['occasion-greeting-template'],
     queryFn: async () =>
       (await apiFetch<{ data: TemplateState }>('/api/greetings/template')).data,
-    enabled: Boolean(greeting),
+    enabled: Boolean(greeting) && sendChannel === 'engine',
   });
 
   const { data: tags } = useQuery({
@@ -722,7 +729,7 @@ function SendGreetingSheet({
       if (error) throw error;
       return (data ?? []) as Tag[];
     },
-    enabled: Boolean(greeting),
+    enabled: Boolean(greeting) && sendChannel === 'engine',
   });
 
   // Counted in SQL (migration 284), not with a client-side
@@ -735,7 +742,7 @@ function SendGreetingSheet({
           '/api/contacts/consent-counts'
         )
       ).data.granted,
-    enabled: Boolean(greeting),
+    enabled: Boolean(greeting) && sendChannel === 'engine',
   });
 
   const setupMutation = useMutation({
@@ -788,6 +795,43 @@ function SendGreetingSheet({
       dialog.show({ title: 'Could not send', message: err.message }),
   });
 
+  const openPersonalWhatsApp = async () => {
+    const contact = selectedContacts[0];
+    const phone = contact?.phone?.replace(/\D/g, '') ?? '';
+    if (!greeting || !contact || !phone) return;
+
+    const message = buildPersonalGreetingMessage({
+      messageText: greeting.message_text,
+      contactName: contact.name,
+      senderName: profile?.full_name,
+      cardUrl: greeting.image_path
+        ? storagePublicUrl(greeting.image_path)
+        : null,
+    });
+
+    try {
+      await Linking.openURL(
+        `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
+      );
+      if (profile?.account_id && userId) {
+        void supabase.from('contact_notes').insert({
+          contact_id: contact.id,
+          account_id: profile.account_id,
+          user_id: userId,
+          note_text: `Opened ${greeting.occasion_label} greeting in personal WhatsApp.`,
+        });
+      }
+      setSelectedContacts([]);
+      setContactPickerOpen(false);
+      onClose();
+    } catch {
+      dialog.show({
+        title: 'Could not open WhatsApp',
+        message: 'Check that WhatsApp is installed and try again.',
+      });
+    }
+  };
+
   const blocked = templateBlockReason(
     template?.status ?? null,
     template?.rejectionReason
@@ -798,6 +842,7 @@ function SendGreetingSheet({
       <BottomSheet
         visible={Boolean(greeting)}
         onClose={() => {
+          setSendChannel('engine');
           setAudienceType('all');
           setTagIds([]);
           setSelectedContacts([]);
@@ -806,155 +851,217 @@ function SendGreetingSheet({
         }}
         title={`Send "${greeting?.occasion_label ?? ''}"`}
       >
-      <ScrollView
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{ gap: spacing.md, paddingBottom: spacing.lg }}
-      >
-        {template && blocked ? (
-          <View
-            style={{
-              padding: spacing.md,
-              borderRadius: radius.md,
-              backgroundColor: colors.warningSoft,
-              gap: spacing.sm,
-            }}
-          >
-            <Text style={{ fontSize: 12.5, color: colors.textMuted }}>
-              {blocked}
-            </Text>
-            {template.status === null ? (
-              <PrimaryButton
-                label="Set up greeting template"
-                icon="cloud-upload-outline"
-                busy={setupMutation.isPending}
-                onPress={() => setupMutation.mutate()}
-              />
-            ) : null}
-          </View>
-        ) : null}
-
-        <SectionLabel text="Audience" style={{ color: colors.textMuted }} />
-        <View
-          style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{ gap: spacing.md, paddingBottom: spacing.lg }}
         >
-          <FilterChip
-            label="All contacts"
-            active={audienceType === 'all'}
-            onPress={() => setAudienceType('all')}
-          />
-          <FilterChip
-            label="By tag"
-            active={audienceType === 'tags'}
-            onPress={() => setAudienceType('tags')}
-          />
-          <FilterChip
-            label="Select contacts"
-            active={audienceType === 'contacts'}
-            onPress={() => {
-              setAudienceType('contacts');
-              setContactPickerOpen(true);
-            }}
-          />
-        </View>
-        {audienceType === 'tags' ? (
+          <SectionLabel text="Send from" style={{ color: colors.textMuted }} />
           <View
             style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}
           >
-            {(tags ?? []).map((tag) => (
-              <FilterChip
-                key={tag.id}
-                label={tag.name}
-                active={tagIds.includes(tag.id)}
-                onPress={() =>
-                  setTagIds((prev) =>
-                    prev.includes(tag.id)
-                      ? prev.filter((id) => id !== tag.id)
-                      : [...prev, tag.id]
-                  )
-                }
-              />
-            ))}
+            <FilterChip
+              label="ConvoReal WhatsApp"
+              active={sendChannel === 'engine'}
+              onPress={() => setSendChannel('engine')}
+            />
+            <FilterChip
+              label="Personal WhatsApp"
+              active={sendChannel === 'personal'}
+              onPress={() => {
+                setSendChannel('personal');
+                setAudienceType('contacts');
+                setSelectedContacts((contacts) => contacts.slice(0, 1));
+              }}
+            />
           </View>
-        ) : null}
-
-        {audienceType === 'contacts' ? (
-          <Pressable
-            onPress={() => setContactPickerOpen(true)}
-            accessibilityRole="button"
-            accessibilityLabel="Choose greeting contacts"
-            style={{
-              padding: spacing.md,
-              borderRadius: radius.md,
-              borderWidth: 1,
-              borderColor: colors.glassBorder,
-              backgroundColor: colors.glass,
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: spacing.sm,
-            }}
-          >
-            <Ionicons
-              name="people-outline"
-              size={20}
-              color={colors.primary}
-            />
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 13.5, color: colors.text }}>
-                {selectedContacts.length === 0
-                  ? 'Choose contacts'
-                  : `${selectedContacts.length} contact${selectedContacts.length === 1 ? '' : 's'} selected`}
-              </Text>
-              <Text style={{ fontSize: 11.5, color: colors.textFaint }}>
-                Search by name or phone
-              </Text>
-            </View>
-            <Ionicons
-              name="chevron-forward"
-              size={16}
-              color={colors.textFaint}
-            />
-          </Pressable>
-        ) : null}
-
-        <Pressable
-          onPress={() => setOptedInOnly((v) => !v)}
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: spacing.sm,
-          }}
-        >
-          <Ionicons
-            name={optedInOnly ? 'checkbox' : 'square-outline'}
-            size={20}
-            color={optedInOnly ? colors.primary : colors.textFaint}
-          />
-          <Text style={{ fontSize: 13, color: colors.textMuted }}>
-            Only clients who explicitly opted in
-            {typeof optedInCount === 'number' ? ` (${optedInCount})` : ''}
+          <Text style={{ fontSize: 11.5, color: colors.textFaint }}>
+            {sendChannel === 'engine'
+              ? 'Automated delivery supports all contacts, tags, or a selected group.'
+              : 'Personal WhatsApp opens one contact at a time and does not depend on a Meta template. Review it, use only with contacts who expect it, and tap Send inside WhatsApp.'}
           </Text>
-        </Pressable>
-        <Text style={{ fontSize: 11.5, color: colors.textFaint }}>
-          Clients are asked to opt in the first time they message you on
-          WhatsApp. Without this, the greeting goes to everyone except contacts
-          who replied STOP ALERTS.
-        </Text>
 
-        <PrimaryButton
-          label="Send greeting"
-          icon="send"
-          disabled={
-            !canSendGreeting(
-              audienceType,
-              tagIds,
-              template?.status ?? null,
-              selectedContacts.map((contact) => contact.id)
-            )
-          }
-          busy={sendMutation.isPending}
-          onPress={() => sendMutation.mutate()}
-        />
-      </ScrollView>
+          {sendChannel === 'engine' && template && blocked ? (
+            <View
+              style={{
+                padding: spacing.md,
+                borderRadius: radius.md,
+                backgroundColor: colors.warningSoft,
+                gap: spacing.sm,
+              }}
+            >
+              <Text style={{ fontSize: 12.5, color: colors.textMuted }}>
+                {blocked}
+              </Text>
+              {template.status === null ? (
+                <PrimaryButton
+                  label="Set up greeting template"
+                  icon="cloud-upload-outline"
+                  busy={setupMutation.isPending}
+                  onPress={() => setupMutation.mutate()}
+                />
+              ) : null}
+            </View>
+          ) : null}
+
+          <SectionLabel
+            text={sendChannel === 'personal' ? 'Recipient' : 'Audience'}
+            style={{ color: colors.textMuted }}
+          />
+          <View
+            style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}
+          >
+            {sendChannel === 'engine' ? (
+              <>
+                <FilterChip
+                  label="All contacts"
+                  active={audienceType === 'all'}
+                  onPress={() => setAudienceType('all')}
+                />
+                <FilterChip
+                  label="By tag"
+                  active={audienceType === 'tags'}
+                  onPress={() => setAudienceType('tags')}
+                />
+              </>
+            ) : null}
+            <FilterChip
+              label={
+                sendChannel === 'personal'
+                  ? 'Choose contact'
+                  : 'Select contacts'
+              }
+              active={audienceType === 'contacts'}
+              onPress={() => {
+                setAudienceType('contacts');
+                setContactPickerOpen(true);
+              }}
+            />
+          </View>
+          {sendChannel === 'engine' && audienceType === 'tags' ? (
+            <View
+              style={{
+                flexDirection: 'row',
+                flexWrap: 'wrap',
+                gap: spacing.sm,
+              }}
+            >
+              {(tags ?? []).map((tag) => (
+                <FilterChip
+                  key={tag.id}
+                  label={tag.name}
+                  active={tagIds.includes(tag.id)}
+                  onPress={() =>
+                    setTagIds((prev) =>
+                      prev.includes(tag.id)
+                        ? prev.filter((id) => id !== tag.id)
+                        : [...prev, tag.id]
+                    )
+                  }
+                />
+              ))}
+            </View>
+          ) : null}
+
+          {audienceType === 'contacts' ? (
+            <Pressable
+              onPress={() => setContactPickerOpen(true)}
+              accessibilityRole="button"
+              accessibilityLabel={
+                sendChannel === 'personal'
+                  ? 'Choose greeting contact'
+                  : 'Choose greeting contacts'
+              }
+              style={{
+                padding: spacing.md,
+                borderRadius: radius.md,
+                borderWidth: 1,
+                borderColor: colors.glassBorder,
+                backgroundColor: colors.glass,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: spacing.sm,
+              }}
+            >
+              <Ionicons
+                name="people-outline"
+                size={20}
+                color={colors.primary}
+              />
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 13.5, color: colors.text }}>
+                  {selectedContacts.length === 0
+                    ? sendChannel === 'personal'
+                      ? 'Choose contact'
+                      : 'Choose contacts'
+                    : `${selectedContacts.length} contact${selectedContacts.length === 1 ? '' : 's'} selected`}
+                </Text>
+                <Text style={{ fontSize: 11.5, color: colors.textFaint }}>
+                  Search by name or phone
+                </Text>
+              </View>
+              <Ionicons
+                name="chevron-forward"
+                size={16}
+                color={colors.textFaint}
+              />
+            </Pressable>
+          ) : null}
+
+          {sendChannel === 'engine' ? (
+            <>
+              <Pressable
+                onPress={() => setOptedInOnly((v) => !v)}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: spacing.sm,
+                }}
+              >
+                <Ionicons
+                  name={optedInOnly ? 'checkbox' : 'square-outline'}
+                  size={20}
+                  color={optedInOnly ? colors.primary : colors.textFaint}
+                />
+                <Text style={{ fontSize: 13, color: colors.textMuted }}>
+                  Only clients who explicitly opted in
+                  {typeof optedInCount === 'number' ? ` (${optedInCount})` : ''}
+                </Text>
+              </Pressable>
+              <Text style={{ fontSize: 11.5, color: colors.textFaint }}>
+                Clients are asked to opt in the first time they message you on
+                WhatsApp. Without this, the greeting goes to everyone except
+                contacts who replied STOP ALERTS.
+              </Text>
+            </>
+          ) : null}
+
+          <PrimaryButton
+            label={
+              sendChannel === 'personal'
+                ? 'Open personal WhatsApp'
+                : 'Send greeting'
+            }
+            icon={sendChannel === 'personal' ? 'logo-whatsapp' : 'send'}
+            disabled={
+              sendChannel === 'personal'
+                ? selectedContacts.length !== 1 || !selectedContacts[0]?.phone
+                : !canSendGreeting(
+                    audienceType,
+                    tagIds,
+                    template?.status ?? null,
+                    selectedContacts.map((contact) => contact.id)
+                  )
+            }
+            busy={sendMutation.isPending}
+            onPress={() => {
+              if (sendChannel === 'personal') {
+                void openPersonalWhatsApp();
+              } else {
+                sendMutation.mutate();
+              }
+            }}
+          />
+        </ScrollView>
         <AppDialog {...dialog.dialogProps} />
       </BottomSheet>
       {contactPickerOpen ? (
@@ -962,10 +1069,18 @@ function SendGreetingSheet({
           visible
           multiSelect
           initialSelected={selectedContacts}
-          maxSelections={1000}
-          title="Select greeting contacts"
+          maxSelections={sendChannel === 'personal' ? 1 : 1000}
+          title={
+            sendChannel === 'personal'
+              ? 'Choose greeting contact'
+              : 'Select greeting contacts'
+          }
           confirmLabel="Use"
-          hint="Search and select the contacts who should receive this greeting."
+          hint={
+            sendChannel === 'personal'
+              ? 'Choose the contact whose chat should open in your personal WhatsApp.'
+              : 'Search and select the contacts who should receive this greeting.'
+          }
           onClose={() => setContactPickerOpen(false)}
           onSelectMany={(contacts) => {
             setSelectedContacts(contacts);
