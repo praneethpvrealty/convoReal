@@ -5,6 +5,7 @@ const burnCredits = vi.fn();
 const sendTextMessage = vi.fn();
 const updates: { table: string; patch: Record<string, unknown> }[] = [];
 let rowByTable: Record<string, Record<string, unknown> | null> = {};
+let rowsByTable: Record<string, Record<string, unknown>[]> = {};
 
 vi.mock('@/lib/calendar/event-parse', async () => {
   const actual =
@@ -52,7 +53,7 @@ vi.mock('@/lib/automations/admin-client', () => ({
           error: null,
         }),
         then: (resolve: (v: { data: unknown; error: null }) => unknown) =>
-          resolve({ data: pendingPatch ? null : [], error: null }),
+          resolve({ data: pendingPatch ? null : rowsByTable[table] || [], error: null }),
       });
       return builder;
     },
@@ -93,6 +94,7 @@ beforeEach(() => {
   burnCredits.mockReset().mockResolvedValue({ success: true });
   sendTextMessage.mockReset().mockResolvedValue({ messageId: 'wamid.reply' });
   rowByTable = { appointments: appointment(), profiles: null };
+  rowsByTable = {};
   parseEventUpdate.mockResolvedValue({
     intent: 'schedule',
     title: 'Meeting with KusumamuniRaju lawyer',
@@ -153,13 +155,66 @@ describe('applySchedulingEdit', () => {
     expect(burnCredits).not.toHaveBeenCalled();
   });
 
-  it('reports a finished event as stale rather than rewriting history', async () => {
+  it('reschedules an overdue appointment that is still open', async () => {
     rowByTable.appointments = appointment({
       start_time: '2026-07-20T11:30:00.000Z',
       end_time: '2026-07-20T12:30:00.000Z',
     });
-    expect(await applySchedulingEdit(params)).toBe('stale');
-    expect(updates).toHaveLength(0);
+    expect(await applySchedulingEdit(params)).toBe('edited');
+    expect(updates.find((u) => u.table === 'appointments')?.patch.start_time).toBe(
+      '2026-08-03T11:30:00.000Z'
+    );
+  });
+
+  it('removes an explicitly rejected property instead of retaining the old link', async () => {
+    rowByTable.appointments = appointment({
+      property_id: 'prop-wrong',
+      contact_id: 'contact-kp',
+    });
+    rowsByTable = {
+      contacts: [
+        {
+          id: 'contact-kp',
+          name: 'KP Anand',
+          phone: '+919876543211',
+          last_inquired_property_id: 'prop-wrong',
+        },
+      ],
+      properties: [
+        {
+          id: 'prop-wrong',
+          property_code: 'PROP-1037',
+          title: '40x60 East Facing park facing Residential house',
+          location: 'RMV Layout',
+          sublocality: null,
+        },
+      ],
+    };
+    parseEventUpdate.mockResolvedValue({
+      intent: 'schedule',
+      title: 'Meeting at Pebble Bay apartments',
+      event_type: 'meeting',
+      start_time: '2026-08-03T17:00',
+      end_time: null,
+      duration_minutes: null,
+      contact_name: 'KP Anand',
+      property_hint: 'Pebble Bay apartments',
+      location: "Mrs. Prabha's residence, Pebble Bay apartments, RMV layout",
+      priority: 'medium',
+      day_of_week: 'monday',
+    });
+
+    expect(
+      await applySchedulingEdit({
+        ...params,
+        instruction: "This isn't the 40x60 residential house; it is at Pebble Bay apartments",
+      })
+    ).toBe('edited');
+    expect(updates.find((u) => u.table === 'appointments')?.patch).toMatchObject({
+      contact_id: 'contact-kp',
+      property_id: null,
+      location: "Mrs. Prabha's residence, Pebble Bay apartments, RMV layout",
+    });
   });
 
   it('reports a cancelled event as stale', async () => {

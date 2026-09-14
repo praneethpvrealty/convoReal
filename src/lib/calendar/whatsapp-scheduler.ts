@@ -468,13 +468,15 @@ export interface SchedulingEditParams {
   now?: Date;
 }
 
-/** An appointment can still be corrected until it is over and while it
- *  is still on the books — a finished or cancelled event is history, so
- *  a correction becomes a new booking rather than a silent rewrite. */
-function isEditableAppointment(row: { status: string; end_time: string | null; start_time: string }, now: Date): boolean {
-  if (row.status !== 'scheduled') return false;
-  const ends = new Date(row.end_time || row.start_time).getTime();
-  return Number.isFinite(ends) && ends > now.getTime();
+/** Scheduled is the source of truth for editability. An overdue event is
+ *  deliberately still open so the owner can complete, cancel, reschedule,
+ *  or correct it from the reminder that offers those exact actions. */
+function isEditableAppointment(row: { status: string }): boolean {
+  return row.status === 'scheduled';
+}
+
+function hasPropertyCorrection(text: string): boolean {
+  return /\b(prop(?:erty)?[-\s#]*\d+|property|plot|site|house|home|apartment|flat|building|land|villa|layout)\b/i.test(text);
 }
 
 /**
@@ -561,7 +563,7 @@ export async function applySchedulingEdit(
   }
 
   if (target.entityType === 'appointment') {
-    if (!isEditableAppointment(row as { status: string; end_time: string | null; start_time: string }, now)) {
+    if (!isEditableAppointment(row as { status: string })) {
       return 'stale';
     }
   } else if (row.completed) {
@@ -579,10 +581,14 @@ export async function applySchedulingEdit(
     return 'skipped';
   }
 
-  const { data: members } = await admin
-    .from('profiles')
-    .select('user_id, full_name')
-    .eq('account_id', accountId);
+  const [{ data: members }, { data: contacts }, { data: properties }] = await Promise.all([
+    admin.from('profiles').select('user_id, full_name').eq('account_id', accountId),
+    admin.from('contacts').select('id, name, phone, last_inquired_property_id').eq('account_id', accountId),
+    admin.from('properties').select('id, title, property_code, location, sublocality').eq('account_id', accountId),
+  ]);
+
+  const currentContact = (contacts || []).find((contact) => contact.id === row.contact_id);
+  const currentProperty = (properties || []).find((property) => property.id === row.property_id);
 
   let draft: ParsedEventDraft;
   try {
@@ -594,6 +600,10 @@ export async function applySchedulingEdit(
         end_time: (row.end_time as string) ?? null,
         location: (row.location as string) ?? null,
         agenda: (row.agenda as string) ?? (row.description as string) ?? null,
+        contact_name: (currentContact?.name as string | null) ?? null,
+        property_hint: currentProperty
+          ? [currentProperty.property_code, currentProperty.title, currentProperty.location].filter(Boolean).join(' · ')
+          : null,
       },
       instruction,
       memberNames: (members || []).map((m) => m.full_name).filter(Boolean) as string[],
@@ -612,12 +622,26 @@ export async function applySchedulingEdit(
     endIso = new Date(new Date(startIso).getTime() + (draft.duration_minutes || 60) * 60 * 1000).toISOString();
   }
 
+  const resolvedContact = resolveByName(
+    draft.contact_name,
+    (contacts || []) as SchedulerContact[],
+    (contact) => contact.name || ''
+  );
+  const resolvedProperty = resolveByName(
+    draft.property_hint,
+    (properties || []) as SchedulerProperty[],
+    (property) => `${property.property_code || ''} ${property.title || ''} ${property.location || ''} ${property.sublocality || ''}`
+  );
+  const propertyWasCorrected = hasPropertyCorrection(instruction);
+
   const patch: Record<string, unknown> =
     target.entityType === 'appointment'
       ? {
           title: draft.title,
           event_type: draft.event_type,
           location: draft.location,
+          ...(resolvedContact ? { contact_id: resolvedContact.id } : {}),
+          ...(propertyWasCorrected ? { property_id: resolvedProperty?.id || null } : {}),
           ...(startIso
             ? {
                 start_time: startIso,
@@ -1121,16 +1145,14 @@ export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): P
     text: confirmation,
   });
 
-  const createdRows = [
-    ...affectedRows,
-    ...filed.map((f) => f.row).filter((c): c is CreatedRow => c !== null),
-  ];
-  if (createdRows.length === 1) {
+  const filedRows = filed.map((f) => f.row).filter((c): c is CreatedRow => c !== null);
+  const editableRows = filedRows.length === 1 ? filedRows : [...affectedRows, ...filedRows];
+  if (editableRows.length === 1) {
     await recordBotTarget({
       accountId,
       waMessageId: confirmationWamid,
-      entityType: createdRows[0].type,
-      entityId: createdRows[0].id,
+      entityType: editableRows[0].type,
+      entityId: editableRows[0].id,
       client: admin,
     });
   }
@@ -1375,16 +1397,15 @@ async function fileDraft(draft: ParsedEventDraft, ctx: DraftFilingContext): Prom
   }
 
   const memberRefs = ctx.members.map((m) => ({ id: m.user_id, full_name: m.full_name }));
-  const { contact, property } = autoLinkContactProperty(
-    resolveByName(draft.contact_name, ctx.contacts, (c) => c.name || ''),
-    resolveByName(
-      draft.property_hint,
-      ctx.properties,
-      (p) => `${p.property_code || ''} ${p.title || ''} ${p.location || ''} ${p.sublocality || ''}`
-    ),
-    ctx.contacts,
-    ctx.properties
+  const resolvedContact = resolveByName(draft.contact_name, ctx.contacts, (c) => c.name || '');
+  const resolvedProperty = resolveByName(
+    draft.property_hint,
+    ctx.properties,
+    (p) => `${p.property_code || ''} ${p.title || ''} ${p.location || ''} ${p.sublocality || ''}`
   );
+  const { contact, property } = draft.property_hint && !resolvedProperty
+    ? { contact: resolvedContact, property: null }
+    : autoLinkContactProperty(resolvedContact, resolvedProperty, ctx.contacts, ctx.properties);
   const assignee = resolveByName(draft.assignee_name, memberRefs, (m) => m.full_name || '');
 
   // Both parties to the conversation are attendees. The person being met is
