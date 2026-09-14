@@ -825,6 +825,72 @@ describe('getMatchingContacts', () => {
       expect(getMatchingContacts(property, [buyer])).toHaveLength(1);
     });
 
+    it('qualifies a verified tenant when occupancy is the only brief', () => {
+      const occupancyOnlyBuyer = createTestContact({
+        requires_tenanted: true,
+      });
+      const property = createTestProperty({
+        floor_tenancies: [
+          {
+            floor: 'Ground floor',
+            area_sqft: 1000,
+            tenant_name: 'Current Tenant',
+            monthly_rent: 75000,
+            advance: null,
+            lease_start: null,
+            lease_end: null,
+            lock_in_months: null,
+            maintenance: null,
+            notes: null,
+          },
+        ],
+      });
+
+      const [match] = getMatchingContacts(property, [occupancyOnlyBuyer]);
+      expect(match?.score).toBeGreaterThanOrEqual(60);
+    });
+
+    it('keeps ordinary preferences useful when tenancy is also required', () => {
+      const typedBuyer = createTestContact({
+        pref_property_categories: ['commercial'],
+        pref_requires_tenanted: true,
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const property = createTestProperty({
+        type: 'Commercial Office Space',
+        description: 'Pre-leased office asset for sale',
+      });
+
+      const [match] = getMatchingContacts(property, [typedBuyer]);
+      expect(match?.score).toBeGreaterThan(60);
+      expect(match?.score).toBeLessThan(100);
+    });
+
+    it('preserves BHK ranking differences below the tenancy threshold', () => {
+      const buyerWithBhk = createTestContact({
+        pref_property_categories: ['commercial'],
+        pref_bhk_min: 2,
+        pref_bhk_max: 2,
+        pref_requires_tenanted: true,
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const base = {
+        type: 'Commercial Office Space',
+        description: 'Pre-leased office asset for sale',
+      };
+
+      const [bhkMatch] = getMatchingContacts(
+        createTestProperty({ ...base, bedrooms: 2 }),
+        [buyerWithBhk]
+      );
+      const [bhkMismatch] = getMatchingContacts(
+        createTestProperty({ ...base, bedrooms: 1 }),
+        [buyerWithBhk]
+      );
+
+      expect(bhkMatch.score).toBeGreaterThan(bhkMismatch.score);
+    });
+
     it('rejects a vacant listing even when projected rent and ROI are filled', () => {
       const property = createTestProperty({
         type: 'Commercial Office Space',
@@ -900,6 +966,20 @@ describe('getMatchingContacts', () => {
         false
       );
       expect(isCurrentlyTenanted({ notes: 'Not pre-leased' })).toBe(false);
+      expect(
+        isCurrentlyTenanted({ description: 'Not a pre-leased property' })
+      ).toBe(false);
+      expect(
+        isCurrentlyTenanted({ description: 'Not an income-generating property' })
+      ).toBe(false);
+      expect(
+        isCurrentlyTenanted({ description: 'Not currently a pre-leased asset' })
+      ).toBe(false);
+      expect(
+        isCurrentlyTenanted({
+          description: 'Not currently an income-generating property',
+        })
+      ).toBe(false);
     });
   });
 
