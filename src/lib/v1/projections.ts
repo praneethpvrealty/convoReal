@@ -136,6 +136,8 @@ export const MATCHING_CONTACT_COLUMNS = [
   'pref_property_categories',
   'pref_property_types',
   'pref_min_roi',
+  'requires_tenanted',
+  'pref_requires_tenanted',
   'pref_extracted_at',
   'contact_notes(note_text)',
 ].join(', ');

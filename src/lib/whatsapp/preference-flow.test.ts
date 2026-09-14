@@ -124,11 +124,13 @@ describe("buildPreferencePrefillData", () => {
       areas_of_interest: ["JP Nagar", "Jayanagar"],
       property_interests: ["Vacant plot"],
       min_roi: 4.5,
+      requires_tenanted: true,
     });
     expect(data.min_budget).toBe(5000000);
     expect(data.max_budget).toBe(20000000);
     expect(data.areas).toBe("JP Nagar, Jayanagar");
     expect(data.min_roi).toBe(4.5);
+    expect(data.occupancy).toBe("tenanted");
     expect(data.selected_property_types).toEqual(["Vacant plot"]);
     expect(data.property_type_options).toEqual(PROPERTY_INTEREST_FLOW_OPTIONS);
   });
@@ -138,6 +140,7 @@ describe("buildPreferencePrefillData", () => {
     expect(data.min_budget).toBe(0);
     expect(data.max_budget).toBe(0);
     expect(data.min_roi).toBe(0);
+    expect(data.occupancy).toBe("any");
     expect(data.areas).toBe("");
     expect(data.selected_property_types).toEqual([]);
   });
@@ -158,6 +161,7 @@ describe("parsePreferenceFormValues", () => {
       areas: "JP Nagar",
       property_types: ["Vacant plot", 7, null],
       min_roi: "4.5",
+      occupancy: "tenanted",
       flow_token: "tok", // unrelated keys ignored
     });
     expect(values).toEqual({
@@ -165,6 +169,7 @@ describe("parsePreferenceFormValues", () => {
       areas: "JP Nagar",
       property_types: ["Vacant plot"],
       min_roi: "4.5",
+      occupancy: "tenanted",
     });
   });
 
@@ -182,6 +187,7 @@ describe("preferenceFormToContactUpdate", () => {
       areas: " JP Nagar , Jayanagar ,, ",
       property_types: ["Vacant plot", "Not a real option"],
       min_roi: "4.5%",
+      occupancy: "tenanted",
     });
     expect(update).toEqual({
       requirement_active: true,
@@ -190,6 +196,7 @@ describe("preferenceFormToContactUpdate", () => {
       areas_of_interest: ["JP Nagar", "Jayanagar"],
       property_interests: ["Vacant plot"],
       min_roi: 4.5,
+      requires_tenanted: true,
     });
   });
 
@@ -249,12 +256,14 @@ describe("summarizePreferenceUpdate", () => {
       areas_of_interest: ["JP Nagar"],
       property_interests: ["Vacant plot"],
       min_roi: 4.5,
+      requires_tenanted: true,
     });
     expect(text).toContain("₹50 Lakh");
     expect(text).toContain("₹2 Cr");
     expect(text).toContain("JP Nagar");
     expect(text).toContain("Vacant plot");
     expect(text).toContain("4.5%");
+    expect(text).toContain("already rented / pre-leased only");
   });
 
   it("falls back to a generic confirmation for an empty update", () => {

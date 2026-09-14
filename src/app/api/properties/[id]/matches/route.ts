@@ -14,7 +14,7 @@ const MATCH_CONTACT_COLUMNS =
   'areas_of_interest_geo, projects_of_interest, strict_project_match, strict_area_match, ' +
   'pref_property_types, pref_property_categories, pref_bhk_min, pref_bhk_max, ' +
   'pref_budget_min, pref_budget_max, pref_land_area_min_sqft, pref_land_area_max_sqft, pref_areas, pref_excluded_areas, pref_projects, ' +
-  'pref_min_roi, pref_listing_types, pref_extracted_at, contact_notes(note_text)';
+  'pref_min_roi, requires_tenanted, pref_requires_tenanted, pref_listing_types, pref_extracted_at, contact_notes(note_text)';
 
 // GET /api/properties/[id]/matches
 // Scored contact matches for one listing, ranked best-first. The engine

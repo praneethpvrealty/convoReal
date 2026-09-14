@@ -132,6 +132,7 @@ export function ContactForm({
   const [strictProjectMatch, setStrictProjectMatch] = useState(false);
   const [propertyInterests, setPropertyInterests] = useState<string[]>([]);
   const [minRoi, setMinRoi] = useState('');
+  const [requiresTenanted, setRequiresTenanted] = useState(false);
 
   const [tags, setTags] = useState<Tag[]>([]);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
@@ -261,6 +262,9 @@ export function ContactForm({
       );
       setPropertyInterests(initialPropertyInterests);
       setMinRoi(contact?.min_roi ? String(contact.min_roi) : '');
+      setRequiresTenanted(
+        contact?.requires_tenanted ?? contact?.pref_requires_tenanted ?? false
+      );
       setSource(contact?.source ?? '');
       setDob(contact?.dob ?? '');
       setFeedbackStatus(contact?.feedback_status ?? 'not_requested');
@@ -410,6 +414,7 @@ export function ContactForm({
           projectsOfInterest.length > 0 && strictProjectMatch,
         property_interests: propertyInterests,
         min_roi: minRoi ? Number(minRoi) : null,
+        requires_tenanted: requiresTenanted,
         source: source.trim() || null,
         dob: dob || null,
         feedback_status: feedbackStatus,
@@ -1026,6 +1031,23 @@ export function ContactForm({
                     className="focus-visible:ring-primary h-8.5 border-slate-700 bg-slate-800 text-xs text-white placeholder:text-slate-500 focus-visible:ring-1 focus-visible:ring-offset-0"
                   />
                 </div>
+
+                <label className="flex items-start gap-2 rounded-md border border-slate-700 bg-slate-800/50 p-3 text-xs text-slate-300">
+                  <input
+                    type="checkbox"
+                    checked={requiresTenanted}
+                    onChange={(event) =>
+                      setRequiresTenanted(event.target.checked)
+                    }
+                    className="mt-0.5"
+                  />
+                  <span>
+                    <span className="block font-medium text-white">
+                      Already rented / pre-leased only
+                    </span>
+                    Exclude vacant properties even when projected rent or ROI is available.
+                  </span>
+                </label>
 
                 {/* Areas of Interest */}
                 <div className="space-y-2">

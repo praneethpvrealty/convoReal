@@ -591,6 +591,29 @@ function parsePricePerSqftBudget(text: string): {
 
 // ── Main matcher ────────────────────────────────────────────────────
 
+export function isCurrentlyTenanted(property: Partial<Property>): boolean {
+  if (
+    property.floor_tenancies?.some((tenancy) =>
+      Boolean(tenancy.tenant_name?.trim())
+    )
+  ) {
+    return true;
+  }
+
+  const evidence = [
+    property.title,
+    property.description,
+    property.notes,
+    ...(property.tags || []),
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  return /\b(?:pre[ -]?leased|currently\s+(?:rented|leased|tenanted)|already\s+(?:rented|leased|tenanted)|rented\s+out|leased\s+out|tenanted\s+(?:asset|building|property)|income[ -]?generating\s+(?:asset|building|property))\b/i.test(
+    evidence
+  );
+}
+
 /**
  * Contacts matching a property, best first.
  *
@@ -677,6 +700,15 @@ function matchContactsSingleProfile(
     const combinedText =
       `${sourceContact.requirements || ''} ${notesText}`.toLowerCase();
     const hasExtraction = !!sourceContact.pref_extracted_at;
+
+    const inferredTenanted =
+      sourceContact.pref_requires_tenanted === true ||
+      /\b(?:already|currently)\s+(?:rented|leased|tenanted)\b|\b(?:pre[ -]?leased|tenanted|rented\s+out|leased\s+out|income[ -]?generating)\b/i.test(
+        combinedText
+      );
+    const requiresTenanted =
+      sourceContact.requires_tenanted ?? inferredTenanted;
+    if (requiresTenanted && !isCurrentlyTenanted(property)) continue;
 
     // ── Named-project match ───────────────────────────────────────
     // The buyer named specific projects/societies — agent-entered
@@ -1360,6 +1392,8 @@ function hasLegacyRequirementSignals(contact: Contact): boolean {
     hasNumeric(contact.pref_land_area_min_sqft) ||
     hasNumeric(contact.pref_land_area_max_sqft) ||
     hasNumeric(contact.pref_min_roi) ||
+    contact.requires_tenanted === true ||
+    contact.pref_requires_tenanted === true ||
     hasArray(contact.pref_listing_types) ||
     hasText(contact.pref_extracted_at || '')
   );
