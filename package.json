@@ -98,7 +98,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
     "happy-dom": "^20.14.0",
-    "husky": "^8.0.0",
+    "husky": "^9.1.7",
     "playwright": "^1.62.1",
     "prettier": "^3.9.6",
     "prettier-plugin-tailwindcss": "^0.8.1",
