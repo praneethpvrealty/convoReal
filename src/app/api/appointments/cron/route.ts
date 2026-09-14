@@ -9,6 +9,8 @@ import {
 import { sendPortalExpiryReminders } from '@/lib/portals/expiry-reminders'
 import { sendDueTodoReminders } from '@/lib/calendar/todo-reminders'
 import { deliverDeferredNotifications } from '@/lib/notifications/create'
+import { deliverRealtimeBuyerAlertsForConnectedAccounts } from '@/lib/buyer/realtime-alerts'
+import { supabaseAdmin } from '@/lib/supabase/admin'
 
 /**
  * Auth: constant-time check of the shared cron secret, supplied via the
@@ -44,6 +46,7 @@ export async function GET(request: Request) {
     await sendOverdueNudges()
     await sendDueTodoReminders()
     await deliverDeferredNotifications()
+    await deliverRealtimeBuyerAlertsForConnectedAccounts(supabaseAdmin())
     await sendPortalExpiryReminders()
     return NextResponse.json({ success: true })
   } catch (error) {

@@ -128,6 +128,19 @@ async function bulkAlreadySentPropertyIds(
     sent.add(row.property_id as string);
     byContact.set(contactId, sent);
   }
+
+  const { data: queuedRows } = await db
+    .from('buyer_alert_deliveries')
+    .select('contact_id, property_id')
+    .eq('account_id', accountId)
+    .in('contact_id', contactIds)
+    .in('status', ['pending', 'processing', 'delivered']);
+  for (const row of queuedRows || []) {
+    const contactId = row.contact_id as string;
+    const sent = byContact.get(contactId) ?? new Set<string>();
+    sent.add(row.property_id as string);
+    byContact.set(contactId, sent);
+  }
   return byContact;
 }
 

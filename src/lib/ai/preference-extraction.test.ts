@@ -1,11 +1,27 @@
 import { describe, expect, it } from 'vitest';
 import {
+  bhkRangeFromRequirement,
   budgetFromPerSqftRequirement,
   listingTypesFromCurrentTurn,
   mergedListingTypes,
   preferenceSourceHash,
   sanitizeListingTypes,
 } from './preference-extraction';
+
+describe('bhkRangeFromRequirement', () => {
+  it('extracts an either-or BHK requirement', () => {
+    expect(
+      bhkRangeFromRequirement('Looking for a 2 bhk or a 3bhk in Malleshwaram')
+    ).toEqual({ min: 2, max: 3 });
+  });
+
+  it('extracts a compact BHK range', () => {
+    expect(bhkRangeFromRequirement('Need a 2-3 BHK')).toEqual({
+      min: 2,
+      max: 3,
+    });
+  });
+});
 
 describe('budgetFromPerSqftRequirement', () => {
   it('derives a total budget band from the rate and area ranges', () => {
@@ -43,7 +59,7 @@ describe('budgetFromPerSqftRequirement', () => {
 
 describe('preferenceSourceHash', () => {
   it('invalidates earlier extraction results after the rate fix', () => {
-    expect(preferenceSourceHash('same requirement')).toMatch(/^v2:/);
+    expect(preferenceSourceHash('same requirement')).toMatch(/^v3:/);
   });
 });
 

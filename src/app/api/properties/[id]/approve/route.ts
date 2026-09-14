@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { requireRole, toErrorResponse } from "@/lib/auth/account";
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from "@/lib/rate-limit";
 import { autoSyncPropertyCatalogIfNeeded } from "@/lib/whatsapp/catalog-sync-helper";
@@ -103,15 +103,18 @@ export async function POST(
       }
     );
 
-    // Match Radar: an approved listing just went live — surface matching
-    // buyers (fire-and-forget).
-    import("@/lib/radar/engine")
-      .then(({ generateMatchEventForProperty, radarAdminClient }) =>
-        generateMatchEventForProperty(radarAdminClient(), ctx.accountId, id)
-      )
-      .catch((err) => {
+    // Match Radar + buyer alerts continue after the response without being
+    // abandoned when the serverless invocation completes.
+    after(async () => {
+      try {
+        const { generateMatchEventForProperty, radarAdminClient } = await import(
+          "@/lib/radar/engine"
+        );
+        await generateMatchEventForProperty(radarAdminClient(), ctx.accountId, id);
+      } catch (err) {
         console.error("[POST /api/properties/[id]/approve] Radar error:", err);
-      });
+      }
+    });
 
     // Send WhatsApp notification to the tagged owner contact (if any).
     // senderType 'bot' so it shows in the conversation thread without

@@ -196,6 +196,28 @@ function toNumberOrNull(val: unknown): number | null {
   return null;
 }
 
+export function bhkRangeFromRequirement(
+  text: string
+): { min: number | null; max: number | null } {
+  const values: number[] = [];
+  const range = text.match(
+    /\b(\d+(?:\.5)?)\s*(?:-|–|—|to)\s*(\d+(?:\.5)?)\s*-?\s*bhk\b/i
+  );
+  if (range) values.push(Number(range[1]), Number(range[2]));
+
+  values.push(
+    ...[...text.matchAll(/\b(\d+(?:\.5)?)\s*-?\s*bhk\b/gi)].map(
+      (match) => Number(match[1])
+    )
+  );
+  const validValues = values.filter(
+    (value) => Number.isFinite(value) && value > 0 && value <= 20
+  );
+
+  if (validValues.length === 0) return { min: null, max: null };
+  return { min: Math.min(...validValues), max: Math.max(...validValues) };
+}
+
 const RATE_AMOUNT = String.raw`(?:₹\s*)?(\d[\d,]*(?:\.\d+)?)\s*(crores?|cr|lakhs?|lacs?|l|thousand|k)?`;
 const PER_SQFT = String.raw`(?:per\s*(?:sq(?:uare)?\s*\.?\s*(?:ft|feet)|sqft)|\/\s*(?:sq\s*\.?\s*ft|sqft)|psf)`;
 const RATE_RANGE_PATTERN = new RegExp(
@@ -323,12 +345,15 @@ export async function extractContactPreferences(
   const areaMin = toNumberOrNull(parsed.land_area_min_sqft);
   const areaMax = toNumberOrNull(parsed.land_area_max_sqft);
   const derivedBudget = budgetFromPerSqftRequirement(text, areaMin, areaMax);
+  const fallbackBhk = bhkRangeFromRequirement(text);
+  const parsedBhkMin = toNumberOrNull(parsed.bhk_min);
+  const parsedBhkMax = toNumberOrNull(parsed.bhk_max);
 
   return {
     property_types: [...new Set(propertyTypes)],
     property_categories: [...new Set(categories)],
-    bhk_min: toNumberOrNull(parsed.bhk_min),
-    bhk_max: toNumberOrNull(parsed.bhk_max),
+    bhk_min: parsedBhkMin ?? fallbackBhk.min,
+    bhk_max: parsedBhkMax ?? fallbackBhk.max,
     budget_min: derivedBudget.recognized
       ? derivedBudget.min
       : toNumberOrNull(parsed.budget_min),
@@ -359,7 +384,7 @@ export function preferenceSourceHash(sourceText: string): string {
   for (let i = 0; i < sourceText.length; i++) {
     hash = ((hash << 5) + hash + sourceText.charCodeAt(i)) | 0;
   }
-  return `v2:${(hash >>> 0).toString(36)}:${sourceText.length}`;
+  return `v3:${(hash >>> 0).toString(36)}:${sourceText.length}`;
 }
 
 /**
