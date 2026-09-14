@@ -24,9 +24,17 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { PriceHint } from '@/components/ui/price-hint';
-import { Check, X, Trash2, MessageSquare, Loader2 } from 'lucide-react';
+import {
+  Check,
+  X,
+  Trash2,
+  MessageSquare,
+  Loader2,
+  FolderOpen,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { getCurrencyIcon } from '@/lib/currency-utils';
+import { brokerageAmount } from '@/lib/pipelines/brokerage';
 import {
   dealStatusForStage,
   isBrokeragePaidStage,
@@ -199,9 +207,11 @@ export function DealForm({
       ? parseFloat(brokerageValue) || 0
       : null;
     const brokerageAmt = isNegotiationOrLater
-      ? brokerageType === 'percentage'
-        ? (dealValue * (brokValue || 0)) / 100
-        : brokValue || 0
+      ? brokerageAmount({
+          dealValue,
+          type: brokerageType,
+          value: brokValue,
+        })
       : null;
 
     const dealStatus: DealStatus = selectedStage
@@ -357,10 +367,11 @@ export function DealForm({
   }
 
   function formatCalculatedBrokerage() {
-    const val = parseFloat(value) || 0;
-    const brokVal = parseFloat(brokerageValue) || 0;
-    const amt =
-      brokerageType === 'percentage' ? (val * brokVal) / 100 : brokVal;
+    const amt = brokerageAmount({
+      dealValue: value,
+      type: brokerageType,
+      value: brokerageValue,
+    });
 
     if (currency === 'INR') {
       if (amt >= 10000000) {
@@ -403,6 +414,15 @@ export function DealForm({
             <SheetTitle className="text-white">
               {deal ? 'Edit Deal' : 'New Deal'}
             </SheetTitle>
+            {deal && (
+              <Link
+                href={`/deals/${deal.id}`}
+                className="text-primary mt-1 inline-flex items-center gap-1.5 text-xs font-semibold hover:underline"
+              >
+                <FolderOpen className="h-3.5 w-3.5" />
+                Open deal folder — invoices &amp; documents
+              </Link>
+            )}
           </SheetHeader>
 
           <div className="flex-1 space-y-4 overflow-y-auto p-4">
