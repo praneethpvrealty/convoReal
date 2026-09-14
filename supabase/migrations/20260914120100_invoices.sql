@@ -268,7 +268,15 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION allocate_invoice_number(UUID, TEXT) FROM PUBLIC;
+-- `anon` has to be named explicitly. Supabase's default privileges grant
+-- EXECUTE on a new public function directly to anon and authenticated,
+-- and REVOKE ... FROM PUBLIC does not touch a grant made to a role by
+-- name — so revoking only PUBLIC leaves anon still able to call it
+-- (caught by the database linter after this first ran). The function
+-- refuses an unauthenticated caller anyway, because is_account_member()
+-- is false without an auth.uid(), but an RPC a signed-out visitor can
+-- reach is one guard away from being a problem.
+REVOKE ALL ON FUNCTION allocate_invoice_number(UUID, TEXT) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION allocate_invoice_number(UUID, TEXT) TO authenticated;
 
 COMMENT ON FUNCTION allocate_invoice_number(UUID, TEXT) IS
