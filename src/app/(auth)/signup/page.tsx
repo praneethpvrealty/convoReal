@@ -5,6 +5,11 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { recordSignupAttempt, signupGate } from "@/lib/auth/signup-attempt";
+import {
+  fetchSignupRefusalReason,
+  isOpaqueSignupError,
+  signupRefusalMessage,
+} from "@/lib/auth/signup-eligibility";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -129,12 +134,21 @@ function SignupPageInner() {
     });
 
     if (error) {
-      setError(error.message);
+      // handle_new_user() raises a specific message for each way the
+      // invite gate says no, and GoTrue replaces all of them with
+      // "Database error creating new user". Ask why, so the person is
+      // told their link expired rather than that the database broke.
+      const message = isOpaqueSignupError(error.message)
+        ? signupRefusalMessage(
+            await fetchSignupRefusalReason({ betaToken, teamToken: inviteToken })
+          )
+        : error.message;
+      setError(message);
       recordSignupAttempt({
         stage: "failed",
         gate,
         email,
-        errorMessage: error.message,
+        errorMessage: message,
       });
       setLoading(false);
       return;
