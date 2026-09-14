@@ -23,6 +23,7 @@ import {
 import { storagePublicUrl } from '@/lib/storage/url';
 
 const AI_FEATURE = 'greetings_generate' as const;
+const GREETING_CARD_TIMEOUT_MS = 12_000;
 
 // POST /api/greetings/generate — AI-compose an agency greeting for an
 // occasion, optionally with a festive card image stored in the public
@@ -99,6 +100,7 @@ export async function POST(request: NextRequest) {
           const dataUri = await generateAiImage({
             prompt: greetingImagePrompt(occasionLabel),
             provider: 'huggingface',
+            timeoutMs: GREETING_CARD_TIMEOUT_MS,
           });
           const match = /^data:([^;]+);base64,(.+)$/.exec(dataUri);
           if (match) {
