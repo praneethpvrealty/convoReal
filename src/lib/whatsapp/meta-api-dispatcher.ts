@@ -202,6 +202,16 @@ export interface DispatcherResult {
   error?: string
 }
 
+interface OutboundContact {
+  id: string
+  phone: string | null
+  name: string | null
+  salutation: string | null
+  chain_only: boolean
+  is_dead: boolean
+  is_archived: boolean
+}
+
 export async function sendWhatsAppMessageAndPersist(
   args: SendWhatsAppAndPersistArgs
 ): Promise<DispatcherResult> {
@@ -230,6 +240,7 @@ export async function sendWhatsAppMessageAndPersist(
     let resolvedContactId = contactId
     let resolvedConversationId = conversationId
     let targetPhone = toPhone
+    let resolvedContact: OutboundContact | null = null
 
     // 1. Resolve or Create Contact
     if (!resolvedContactId) {
@@ -254,6 +265,7 @@ export async function sendWhatsAppMessageAndPersist(
       if (existing) {
         resolvedContactId = existing.id
         targetPhone = existing.phone
+        resolvedContact = existing as OutboundContact
       } else {
         const { data: newContact, error: createError } = await db
           .from('contacts')
@@ -270,43 +282,47 @@ export async function sendWhatsAppMessageAndPersist(
           throw new Error(`Failed to find or create contact: ${createError?.message || 'Unknown error'}`)
         }
         resolvedContactId = newContact.id
+        resolvedContact = newContact as OutboundContact
       }
     } else {
-      if (!targetPhone) {
-        const { data: contact, error: contactErr } = await db
+      let contactErr: { message?: string } | null = null
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        const result = await db
           .from('contacts')
-          .select('phone')
+          .select('id, phone, name, salutation, chain_only, is_dead, is_archived')
           .eq('id', resolvedContactId)
           .eq('account_id', accountId)
           .maybeSingle()
-        if (contactErr || !contact) {
-          throw new Error('Contact not found for this account')
-        }
-        // Email-only contact (migration 253) — nothing to send to.
-        if (!contact.phone) {
-          throw new Error('This contact has no WhatsApp number')
-        }
-        targetPhone = contact.phone
+        resolvedContact = result.data as OutboundContact | null
+        contactErr = result.error
+        if (resolvedContact || !contactErr) break
       }
+      if (contactErr) {
+        console.error('[meta-api-dispatcher] contact lookup error:', contactErr)
+        throw new Error('Could not load contact. Please try again.')
+      }
+      if (!resolvedContact) {
+        throw new Error('Contact not found for this account')
+      }
+      targetPhone ||= resolvedContact.phone
+    }
+
+    if (!resolvedContact) {
+      throw new Error('Contact not found for this account')
+    }
+    // Email-only contact (migration 253) — nothing to send to.
+    if (!targetPhone) {
+      throw new Error('This contact has no WhatsApp number')
     }
 
     // Apply the explicitly selected client honorific at the final outbound
     // boundary so broadcasts, automations, inbox sends, media captions,
     // interactive messages and templates all behave consistently.
-    const { data: addressedContact, error: addressedContactError } = await db
-      .from('contacts')
-      .select('name, salutation')
-      .eq('id', resolvedContactId)
-      .eq('account_id', accountId)
-      .maybeSingle()
-    if (addressedContactError || !addressedContact) {
-      throw new Error('Contact not found for this account')
-    }
     const contactName =
-      typeof addressedContact.name === 'string' ? addressedContact.name : null
+      typeof resolvedContact.name === 'string' ? resolvedContact.name : null
     const contactSalutation =
-      addressedContact.salutation === 'Mr.' || addressedContact.salutation === 'Mrs.'
-        ? (addressedContact.salutation as ContactSalutation)
+      resolvedContact.salutation === 'Mr.' || resolvedContact.salutation === 'Mrs.'
+        ? (resolvedContact.salutation as ContactSalutation)
         : null
     args.text = applyContactSalutation(args.text, contactName, contactSalutation)
     args.interactiveBody = applyContactSalutation(
@@ -341,21 +357,10 @@ export async function sendWhatsAppMessageAndPersist(
     // agent answering a lead who called back is a deliberate personal
     // reply, not the automation this blocks.
     if (resolvedContactId && !(args.allowChainOnly && args.allowDeadContact)) {
-      const { data: gateRow } = await db
-        .from('contacts')
-        .select('chain_only, is_dead, is_archived')
-        .eq('id', resolvedContactId)
-        .eq('account_id', accountId)
-        .maybeSingle()
-      const gate = gateRow as {
-        chain_only?: boolean
-        is_dead?: boolean
-        is_archived?: boolean
-      } | null
-      if (!args.allowChainOnly && gate?.chain_only) {
+      if (!args.allowChainOnly && resolvedContact.chain_only) {
         throw new Error(CHAIN_ONLY_BLOCKED_MESSAGE)
       }
-      if (!args.allowDeadContact && (gate?.is_dead || gate?.is_archived)) {
+      if (!args.allowDeadContact && (resolvedContact.is_dead || resolvedContact.is_archived)) {
         throw new Error(DEAD_CONTACT_BLOCKED_MESSAGE)
       }
     }

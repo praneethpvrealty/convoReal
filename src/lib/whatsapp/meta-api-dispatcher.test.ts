@@ -42,6 +42,7 @@ function makeDb(
     chainOnly?: boolean;
     isDead?: boolean;
     isArchived?: boolean;
+    contactLookupErrors?: number;
     journeyItems?: Row[];
     journeyEventInsertError?: { code?: string; message?: string };
   } = {},
@@ -55,6 +56,7 @@ function makeDb(
     overrides.lastInboundAt === undefined
       ? new Date().toISOString()
       : overrides.lastInboundAt;
+  let contactLookupCount = 0;
 
   function builder(table: string) {
     const filters: Record<string, unknown> = {};
@@ -93,9 +95,19 @@ function makeDb(
           });
         }
         if (table === "contacts") {
+          contactLookupCount += 1;
+          if (contactLookupCount <= (overrides.contactLookupErrors ?? 0)) {
+            return Promise.resolve({
+              data: null,
+              error: { code: "PGRST000", message: "transient connection error" },
+            });
+          }
           return Promise.resolve({
             data: {
+              id: CONTACT_ID,
               phone: "+919876543210",
+              name: "Sajjen",
+              salutation: null,
               chain_only: overrides.chainOnly ?? false,
               is_dead: overrides.isDead ?? false,
               is_archived: overrides.isArchived ?? false,
@@ -348,6 +360,23 @@ describe("sendWhatsAppMessageAndPersist", () => {
     expect(accountsSpy.mock.calls.some(([table]) => table === "accounts")).toBe(
       false,
     );
+  });
+
+  it("retries one transient contact lookup failure before sending", async () => {
+    const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
+    const db = makeDb({ contactLookupErrors: 1 });
+
+    const result = await sendWhatsAppMessageAndPersist({
+      accountId: ACCOUNT_ID,
+      contactId: CONTACT_ID,
+      kind: "text",
+      senderType: "agent",
+      text: "hello",
+      customDbClient: db,
+    });
+
+    expect(result.success).toBe(true);
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 
   it("reuses an existing conversation without creating a new one", async () => {
