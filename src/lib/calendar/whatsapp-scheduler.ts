@@ -1326,6 +1326,7 @@ function appointmentCardLines(
     property: { title: string | null } | null;
     assignee: { id: string; full_name: string | null } | null;
     unknownProvider: string | null;
+    unresolvedParticipants: string[];
     selfUserId: string;
   }
 ): string[] {
@@ -1341,6 +1342,9 @@ function appointmentCardLines(
     p.assignee && p.assignee.id !== p.selfUserId ? `➡️ Assigned to ${p.assignee.full_name}` : null,
     p.unknownProvider
       ? `\n💡 ${p.unknownProvider} (${p.draft.service_provider_role}) isn't in your contacts or your liaisons directory. Add them under *Liaisons* to keep their number and fees to hand.`
+      : null,
+    p.unresolvedParticipants.length > 0
+      ? `\n⚠️ Not added to the reminder audience: ${p.unresolvedParticipants.join(', ')}. Check the spelling or add them under *Contacts*.`
       : null,
   ].filter((l): l is string => l !== null);
 }
@@ -1413,9 +1417,19 @@ async function fileDraft(draft: ParsedEventDraft, ctx: DraftFilingContext): Prom
   // arranged it usually IS a contact — linking only the former left the event
   // attached to nobody, so nobody got a client reminder.
   const counterparty = resolveByName(draft.counterparty_name, ctx.contacts, (c) => c.name || '');
-  const attendees = [contact, counterparty].filter(
+  const participantNames = (draft.participant_names || []).filter(
+    (name) => !/^(?:i|me|myself|user|the user|speaker)$/i.test(name.trim())
+  );
+  const resolvedParticipants = participantNames.map((name) => ({
+    name,
+    contact: resolveByName(name, ctx.contacts, (c) => c.name || ''),
+  }));
+  const attendees = [contact, counterparty, ...resolvedParticipants.map((item) => item.contact)].filter(
     (c, i, all): c is NonNullable<typeof c> => !!c && all.findIndex((o) => o?.id === c.id) === i
   );
+  const unresolvedParticipants = resolvedParticipants
+    .filter((item) => !item.contact)
+    .map((item) => item.name);
 
   // A lawyer, surveyor or khata agent belongs in the liaisons directory,
   // not in contacts, so a name that fails the contact lookup gets a
@@ -1494,6 +1508,7 @@ async function fileDraft(draft: ParsedEventDraft, ctx: DraftFilingContext): Prom
           property,
           assignee,
           unknownProvider,
+          unresolvedParticipants,
           selfUserId: ctx.userId,
         }),
         row: { type: 'appointment', id: duplicate.id },
@@ -1529,6 +1544,7 @@ async function fileDraft(draft: ParsedEventDraft, ctx: DraftFilingContext): Prom
         property,
         assignee,
         unknownProvider,
+        unresolvedParticipants,
         selfUserId: ctx.userId,
       }),
       row: createdAppt?.id ? { type: 'appointment', id: createdAppt.id as string } : null,

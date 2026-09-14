@@ -77,6 +77,7 @@ const draft = (over: Record<string, unknown> = {}) => ({
   duration_minutes: null,
   contact_name: null,
   counterparty_name: null,
+  participant_names: [],
   service_provider_role: null,
   property_hint: null,
   assignee_name: null,
@@ -269,5 +270,54 @@ describe('re-dictating an appointment', () => {
       contact_id: 'contact-kp',
       property_id: null,
     });
+  });
+
+  it('links every named external participant into the reminder audience', async () => {
+    tables.contacts = [
+      { id: 'contact-kp', name: 'KP Anand', phone: '+919876543210' },
+      { id: 'contact-subramani', name: 'Subramani', phone: '+919876543211' },
+      { id: 'contact-prabha', name: 'Prabha Rao', phone: '+919876543212' },
+    ];
+    parseEventsFromInput.mockResolvedValue([
+      draft({
+        intent: 'schedule',
+        title: 'Meeting with owner Prabha and buyer KP Anand',
+        start_time: '2026-09-15T12:00',
+        contact_name: 'KP Anand',
+        participant_names: ['KP Anand', 'Subramani', 'Prabha'],
+      }),
+    ]);
+
+    await tryHandleOwnerScheduling({
+      ...baseParams,
+      contentText: 'Meeting with Prabha, KP Anand and Subramani tomorrow at noon',
+    });
+
+    const inserted = inserts.find((item) => item.table === 'appointments')?.row;
+    expect(inserted).toMatchObject({
+      contact_id: 'contact-kp',
+      contact_ids: ['contact-kp', 'contact-subramani', 'contact-prabha'],
+    });
+    expect(card()).toContain('KP Anand, Subramani, Prabha Rao');
+  });
+
+  it('surfaces a named participant that cannot be matched', async () => {
+    tables.contacts = [{ id: 'contact-kp', name: 'KP Anand', phone: '+919876543210' }];
+    parseEventsFromInput.mockResolvedValue([
+      draft({
+        intent: 'schedule',
+        title: 'Meeting with buyer KP Anand and owner Prabha',
+        start_time: '2026-09-15T12:00',
+        contact_name: 'KP Anand',
+        participant_names: ['KP Anand', 'Prabha'],
+      }),
+    ]);
+
+    await tryHandleOwnerScheduling({
+      ...baseParams,
+      contentText: 'Meeting with KP Anand and Prabha tomorrow at noon',
+    });
+
+    expect(card()).toContain('Not added to the reminder audience: Prabha');
   });
 });

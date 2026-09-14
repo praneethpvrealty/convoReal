@@ -31,6 +31,8 @@ export interface ParsedEventDraft {
    *  arranging it rather than the person being met. Often the one who is
    *  already an Engine contact, so both get linked and both get reminded. */
   counterparty_name: string | null;
+  /** Every external contact explicitly named as part of the meeting audience. */
+  participant_names?: string[];
   /** The professional role attached to contact_name when there is one
    *  ("lawyer", "surveyor", "khata agent"). Marks them as someone who
    *  belongs in the liaisons directory rather than in contacts. */
@@ -96,6 +98,10 @@ export function coerceEventDraft(raw: unknown): ParsedEventDraft {
     typeof v === 'string' && v.trim().length > 0 ? v.trim() : null;
   const num = (v: unknown): number | null =>
     typeof v === 'number' && isFinite(v) && v > 0 ? Math.round(v) : null;
+  const strings = (v: unknown): string[] =>
+    Array.isArray(v)
+      ? [...new Set(v.filter((item): item is string => typeof item === 'string').map((item) => item.trim()).filter(Boolean))]
+      : [];
 
   const intentRaw = str(obj.intent)?.toLowerCase();
   const intent: ParsedEventDraft['intent'] =
@@ -114,6 +120,7 @@ export function coerceEventDraft(raw: unknown): ParsedEventDraft {
     duration_minutes: num(obj.duration_minutes),
     contact_name: str(obj.contact_name),
     counterparty_name: str(obj.counterparty_name),
+    participant_names: strings(obj.participant_names),
     service_provider_role: str(obj.service_provider_role),
     property_hint: str(obj.property_hint),
     assignee_name: str(obj.assignee_name),
@@ -381,6 +388,7 @@ function buildSystemPrompt(
     '  "duration_minutes": number or null,\n' +
     '  "contact_name": the client/lead person the event is with, or null,\n' +
     '  "counterparty_name": when the request came out of a conversation with someone, the OTHER person in it — the one arranging the meeting rather than the one being met ("Yes Sharan, its confirmed" -> "Sharan"). Null when there is no such person or they are the same as contact_name,\n' +
+    '  "participant_names": every explicitly named EXTERNAL contact who should be part of the event and receive reminders, including attendees, buyers, sellers and property owners. Include contact_name and counterparty_name too. Exclude the speaker ("I", "me", "User") and internal team members. Use [] when nobody is named,\n' +
     '  "service_provider_role": the professional role named alongside contact_name when there is one — "lawyer", "advocate", "surveyor", "architect", "CA", "khata agent", "registrar", "engineer", "contractor", "valuer" ("meeting with Kusuma lawyer" -> "lawyer"). Null when contact_name is a buyer, seller, owner or plain client,\n' +
     '  "property_hint": any property/project/locality identifying words, e.g. "18k sqft JP Nagar commercial", or null,\n' +
     '  "assignee_name": a TEAM member the speaker assigns this to ("ask Surya to...", "Surya should call..."), or null when the speaker will do it themselves,\n' +
@@ -429,7 +437,7 @@ const SCREENSHOT_INSTRUCTION =
   'This image is a screenshot, usually of a chat conversation. Read every message bubble in order and extract the ONE appointment the people in it agree on.\n' +
   'Right-aligned / green bubbles are the person who forwarded you this screenshot; left-aligned / grey bubbles are the other party. The event is between them.\n' +
   'The small clock times printed on each bubble (e.g. "11:49") are when the MESSAGE was sent — never treat them as the appointment time. Use only a day/time stated inside the message wording.\n' +
-  'Set contact_name to the person the appointment is WITH. When one name is the person being met and another is merely the person chatting, prefer the one being met, and put the person chatting in counterparty_name — both are attendees worth linking, and the one chatting is usually the one already in the contact database.\n' +
+  'Set contact_name to the person the appointment is WITH. When one name is the person being met and another is merely the person chatting, prefer the one being met, and put the person chatting in counterparty_name. Put every named external attendee, buyer, seller and owner in participant_names so none are dropped from reminders.\n' +
   'Put the conversation you read, as plain text, into "transcript".\n' +
   'If the thread never settles on a specific day or time, or is not about arranging a meeting at all, return intent "none" rather than guessing a slot.';
 

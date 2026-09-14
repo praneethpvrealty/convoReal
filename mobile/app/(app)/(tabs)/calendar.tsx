@@ -1190,6 +1190,12 @@ function AppointmentDetail({
   const meta = TYPE_META[appointment.event_type] ?? TYPE_META.other;
   const start = new Date(appointment.start_time);
   const effectiveStart = newStart ?? start;
+  const participantContacts = editContactIds
+    .map((id) => selectedContactsQuery.data?.find((contact) => contact.id === id))
+    .filter((contact): contact is Contact => !!contact);
+  if (participantContacts.length === 0 && appointment.contact) {
+    participantContacts.push(appointment.contact);
+  }
 
   function reset() {
     setRescheduling(false);
@@ -1693,19 +1699,19 @@ function AppointmentDetail({
             </Pressable>
           </>
         ))}
-        {!editingDetails && appointment.contact ? (
-          <Link href={`/(app)/contact/${appointment.contact.id}`} asChild>
-            <Pressable onPress={onClose}>
-              <DetailRow
-                icon="person-outline"
-                text={
-                  appointment.contact.name || appointment.contact.phone || ''
-                }
-                accent
-              />
-            </Pressable>
-          </Link>
-        ) : null}
+        {!editingDetails
+          ? participantContacts.map((contact, index) => (
+              <Link key={contact.id} href={`/(app)/contact/${contact.id}`} asChild>
+                <Pressable onPress={onClose}>
+                  <DetailRow
+                    icon={index === 0 ? "people-outline" : "person-outline"}
+                    text={`${index === 0 ? "Reminder audience: " : ""}${contact.name || contact.phone || ''}`}
+                    accent
+                  />
+                </Pressable>
+              </Link>
+            ))
+          : null}
         {!editingDetails && appointment.property ? (
           <Link href={`/(app)/property/${appointment.property.id}`} asChild>
             <Pressable onPress={onClose}>
