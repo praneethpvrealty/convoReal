@@ -45,11 +45,10 @@ import {
   pickJourneyCheckinTemplate,
 } from '@/lib/whatsapp/journey-checkin-template';
 import {
-  buildEnquiryFollowupParams,
-  ENQUIRY_FOLLOWUP_TEMPLATE_NAMES,
-  enquiryFollowupParamCount,
-  pickEnquiryFollowupTemplate,
-} from '@/lib/whatsapp/enquiry-followup-template';
+  buildRequirementReviewParams,
+  pickRequirementReviewTemplate,
+  REQUIREMENT_REVIEW_TEMPLATE_NAMES,
+} from '@/lib/whatsapp/requirement-review-template';
 import {
   narrowToLanguage,
   resolveSendLanguage,
@@ -69,6 +68,8 @@ export const FOLLOWUP_RENUDGE_DAYS = 7;
 /** Cards per account per run — past this the agent should be working
  *  the inbox, not archiving cards. */
 export const FOLLOWUP_MAX_PER_RUN = 3;
+
+const FOLLOWUP_BUYER_CLASSIFICATIONS = ['Buyer', 'Owner & Buyer'];
 
 const HOUR_MS = 3_600_000;
 const DAY_MS = 24 * HOUR_MS;
@@ -185,7 +186,7 @@ export interface ClosedWindowFollowUpTemplateRow {
 }
 
 export type ClosedWindowFollowUpTemplate = {
-  kind: 'journey_checkin' | 'enquiry_followup';
+  kind: 'journey_checkin' | 'requirement_review';
   template: ClosedWindowFollowUpTemplateRow;
 };
 
@@ -198,11 +199,12 @@ export function pickClosedWindowFollowUpTemplate(
     if (template?.category === 'Utility') {
       return { kind: 'journey_checkin', template };
     }
+    return null;
   }
 
-  const template = pickEnquiryFollowupTemplate(rows);
+  const template = pickRequirementReviewTemplate(rows);
   if (template?.category === 'Utility') {
-    return { kind: 'enquiry_followup', template };
+    return { kind: 'requirement_review', template };
   }
   return null;
 }
@@ -247,10 +249,10 @@ export function buildClosedWindowFollowUpTemplateSend(
     };
   }
 
-  const templateParams = buildEnquiryFollowupParams(
+  const templateParams = buildRequirementReviewParams(
     args.contactName,
     args.accountName
-  ).slice(0, enquiryFollowupParamCount(choice.template.name));
+  );
   return {
     templateName: choice.template.name,
     templateLanguage: choice.template.language || 'en_US',
@@ -279,6 +281,7 @@ export async function gatherFollowUpLeads(
     .eq('account_id', accountId)
     .eq('is_merged', false)
     .eq('lead_temp', 'HOT')
+    .in('classification', FOLLOWUP_BUYER_CLASSIFICATIONS)
     .in('status', ['active', 'pending_review']);
   if (!contacts?.length) return [];
 
@@ -549,7 +552,7 @@ export async function handleFollowUpReply(
 
   const { data: lead } = await admin
     .from('contacts')
-    .select('id, name, phone, last_inquired_property_id')
+    .select('id, name, phone, classification, last_inquired_property_id')
     .eq('id', action.contactId)
     .eq('account_id', accountId)
     .maybeSingle();
@@ -566,6 +569,12 @@ export async function handleFollowUpReply(
       text,
     });
   };
+  if (!FOLLOWUP_BUYER_CLASSIFICATIONS.includes(lead.classification || '')) {
+    await confirmToAgent(
+      `🛑 Nothing was sent — ${lead.name || lead.phone} is classified as ${lead.classification || 'a non-buyer'}, so this buyer follow-up is no longer valid.`
+    );
+    return true;
+  }
   // The tap acts on the deal, so it acts on everyone buying together.
   // Anything less and the other half of the couple keeps their own
   // radar state — snoozed here, carded tomorrow.
@@ -783,7 +792,7 @@ async function sendCheckinTemplate(args: {
     .eq('account_id', accountId)
     .in('name', [
       ...JOURNEY_CHECKIN_TEMPLATE_NAMES,
-      ...ENQUIRY_FOLLOWUP_TEMPLATE_NAMES,
+      ...REQUIREMENT_REVIEW_TEMPLATE_NAMES,
     ]);
   const choice = pickClosedWindowFollowUpTemplate(
     narrowToLanguage(
