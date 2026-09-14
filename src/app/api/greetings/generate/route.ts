@@ -20,7 +20,6 @@ import {
   normalizeGreetingText,
   type GreetingTone,
 } from '@/lib/greetings/generate';
-import { uploadGreetingImage } from '@/lib/storage/upload';
 import { storagePublicUrl } from '@/lib/storage/url';
 
 const AI_FEATURE = 'greetings_generate' as const;
@@ -103,6 +102,8 @@ export async function POST(request: NextRequest) {
           });
           const match = /^data:([^;]+);base64,(.+)$/.exec(dataUri);
           if (match) {
+            const { uploadGreetingImage } =
+              await import('@/lib/storage/upload');
             imagePath = await uploadGreetingImage(
               ctx.accountId,
               Buffer.from(match[2], 'base64'),
