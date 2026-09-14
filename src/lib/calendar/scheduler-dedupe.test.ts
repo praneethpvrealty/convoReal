@@ -230,7 +230,7 @@ describe('re-dictating an appointment', () => {
     expect(card()).toContain('✅ *Added to your calendar*');
   });
 
-  it('files a repeated reschedule as one update when participant resolution changes', async () => {
+  it('[CAL-003] files a repeated reschedule as one update when participant resolution changes', async () => {
     const transcript = 'Meeting with Prabha, KP Anand and Subramani tomorrow at noon.';
     tables.contacts = [
       { id: 'contact-prabhakar', name: 'Prabhakar', phone: '+919876543209' },
@@ -322,7 +322,7 @@ describe('re-dictating an appointment', () => {
     });
   });
 
-  it('links every named external participant into the reminder audience', async () => {
+  it('[CAL-005] links every named external participant into the reminder audience', async () => {
     tables.contacts = [
       { id: 'contact-kp', name: 'KP Anand', phone: '+919876543210' },
       { id: 'contact-subramani', name: 'Subramani', phone: '+919876543211' },

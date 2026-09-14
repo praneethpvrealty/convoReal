@@ -96,7 +96,7 @@ describe('resolveByName', () => {
     expect(resolveByName('Surya', contacts, (c) => c.name)?.id).toBe('1');
   });
 
-  it('prefers a complete name word over a longer unrelated prefix', () => {
+  it('[CAL-004] prefers a complete name word over a longer unrelated prefix', () => {
     const similar = [
       { id: 'wrong', name: 'Prabhakar' },
       { id: 'owner', name: 'Prabha Rao' },
@@ -104,7 +104,7 @@ describe('resolveByName', () => {
     expect(resolveByName('Prabha', similar, (c) => c.name)?.id).toBe('owner');
   });
 
-  it('returns null when the best name match is tied', () => {
+  it('[CAL-004] returns null when the best name match is tied', () => {
     const ambiguous = [
       { id: 'one', name: 'Prabha Rao' },
       { id: 'two', name: 'Prabha Reddy' },

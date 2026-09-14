@@ -95,7 +95,7 @@ describe('findDuplicate', () => {
     expect(found).toBeNull();
   });
 
-  it('matches a repeated source message even when participant resolution changed', () => {
+  it('[CAL-003] matches a repeated source message even when participant resolution changed', () => {
     const transcript = 'Meeting with Prabha, KP Anand and Subramani tomorrow at noon.';
     const found = findDuplicate(
       { title: 'Meeting with owner Prabha and buyer KP Anand', when: monday10, contactId: 'wrong', transcript },

@@ -2,6 +2,8 @@
 
 > This file is written for AI coding agents. It is a single source of truth for the project’s architecture, conventions, build/test commands, and security rules. Read it before editing code. If something here conflicts with project-specific docs, this file and the most specific doc (deepest path) win.
 
+User-facing product invariants live in `FEATURE_MANIFEST.json`. Read the applicable feature entry before changing behaviour, preserve every listed invariant, and keep its named regression cases executable. A feature change is incomplete when the manifest, implementation, and tests disagree.
+
 ## Important: This is NOT the stock Next.js you trained on
 
 Next.js 16 has breaking changes compared with older versions — APIs, file conventions, and behaviour differ from training data. Before writing code, read the relevant guide in `node_modules/next/dist/docs/` and heed any deprecation notices. Do not assume the patterns from Next.js 14/15 work unchanged.
