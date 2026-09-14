@@ -862,7 +862,33 @@ describe('getMatchingContacts', () => {
       });
 
       const [match] = getMatchingContacts(property, [typedBuyer]);
-      expect(match?.score).toBe(60);
+      expect(match?.score).toBeGreaterThan(60);
+      expect(match?.score).toBeLessThan(100);
+    });
+
+    it('preserves BHK ranking differences below the tenancy threshold', () => {
+      const buyerWithBhk = createTestContact({
+        pref_property_categories: ['commercial'],
+        pref_bhk_min: 2,
+        pref_bhk_max: 2,
+        pref_requires_tenanted: true,
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const base = {
+        type: 'Commercial Office Space',
+        description: 'Pre-leased office asset for sale',
+      };
+
+      const [bhkMatch] = getMatchingContacts(
+        createTestProperty({ ...base, bedrooms: 2 }),
+        [buyerWithBhk]
+      );
+      const [bhkMismatch] = getMatchingContacts(
+        createTestProperty({ ...base, bedrooms: 1 }),
+        [buyerWithBhk]
+      );
+
+      expect(bhkMatch.score).toBeGreaterThan(bhkMismatch.score);
     });
 
     it('rejects a vacant listing even when projected rent and ROI are filled', () => {

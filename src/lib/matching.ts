@@ -1244,10 +1244,10 @@ function matchContactsSingleProfile(
 
     if (roiVerdict === 'match') score += 5;
 
-    // Current tenancy is a hard gate, not a reason to flatten every other
-    // ranking signal. Give a verified tenanted property the minimum buyer-feed
-    // score only when its ordinary preference score has not reached it.
-    if (requiresTenanted && score < 60) score = 60;
+    // Current tenancy is a hard gate and makes an otherwise-empty brief feed
+    // eligible. Scale the ordinary score into the remaining 40 points so its
+    // type, locality, budget, size and BHK differences still determine order.
+    if (requiresTenanted) score = 60 + Math.max(0, score) * 0.4;
 
     score = Math.max(0, Math.min(100, score));
 
