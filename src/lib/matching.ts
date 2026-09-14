@@ -597,14 +597,15 @@ const TENANCY_EVIDENCE_PATTERN =
 function withoutNegatedTenancyPhrases(text: string): string {
   return text
     .replace(
-      /\b(?:not|never)\s+(?:currently\s+)?(?:pre[ -]?leased|rented|leased|tenanted)\b/gi,
+      /\b(?:not|never)\s+(?:(?:a|an|the)\s+)?(?:currently\s+)?(?:pre[ -]?leased|rented|leased|tenanted|income[ -]?generating(?:\s+(?:asset|building|property))?)\b/gi,
       ''
     )
     .replace(
-      /\b(?:former|formerly|previously)\s+(?:pre[ -]?leased|rented|leased|tenanted)(?:\s+(?:asset|building|property))?\b/gi,
+      /\b(?:former|formerly|previously)\s+(?:pre[ -]?leased|rented|leased|tenanted|income[ -]?generating)(?:\s+(?:asset|building|property))?\b/gi,
       ''
     )
-    .replace(/\b(?:no|without)\s+(?:current\s+)?tenants?\b/gi, '');
+    .replace(/\b(?:no|without)\s+(?:current\s+)?tenants?\b/gi, '')
+    .replace(/\bnon[ -]?(?:tenanted|leased)\b/gi, '');
 }
 
 export function isCurrentlyTenanted(property: Partial<Property>): boolean {
@@ -1215,6 +1216,7 @@ function matchContactsSingleProfile(
       projectMatch ||
       typeVerdict === 'match' ||
       typeVerdict === 'partial' ||
+      requiresTenanted ||
       (!hasTypePrefs &&
         (locationVerdict === 'match' || roiVerdict === 'match'));
     if (!qualifies) continue;
@@ -1227,6 +1229,11 @@ function matchContactsSingleProfile(
     // A named-project hit is the highest-intent signal — score it above a
     // generic locality match so these land at the top of the list.
     if (projectMatch) score += 40;
+
+    // A verified current tenancy is the complete match for a buyer whose
+    // only hard requirement is a rent-producing asset. Keep it above the
+    // buyer-feed threshold even when no type, area or budget was supplied.
+    if (requiresTenanted) score += 65;
 
     if (locationVerdict === 'match') score += 30;
     else if (locationVerdict === 'partial') score += 12;
