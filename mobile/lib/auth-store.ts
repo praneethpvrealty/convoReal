@@ -1,6 +1,7 @@
 import type { Session } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect } from 'react';
+import { AppState } from 'react-native';
 import { create } from 'zustand';
 
 import { asyncStoragePersister, queryClient } from './query';
@@ -26,15 +27,30 @@ export const useAuthStore = create<AuthState>((set) => ({
 /**
  * Mount once at the root. Restores the persisted session, follows auth
  * state changes, and loads the caller's profile (account scope).
+ *
+ * Supabase pauses token refresh while React Native is backgrounded. When
+ * the app returns to the foreground, re-read the canonical auth session
+ * as well as restarting refresh (see supabase.ts). This prevents a stale
+ * Zustand session from leaving protected screens visible after the stored
+ * refresh session has expired or been revoked while the app was asleep.
  */
 export function useAuthListener() {
   const setSession = useAuthStore((s) => s.setSession);
   const setProfile = useAuthStore((s) => s.setProfile);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    let cancelled = false;
+
+    const syncSession = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (cancelled) return;
       setSession(session);
-    });
+      if (!session) setProfile(null);
+    };
+
+    void syncSession();
 
     const {
       data: { subscription },
@@ -44,7 +60,16 @@ export function useAuthListener() {
         setProfile(null);
       }
     });
-    return () => subscription.unsubscribe();
+
+    const appStateSubscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void syncSession();
+    });
+
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+      appStateSubscription.remove();
+    };
   }, [setSession, setProfile]);
 
   const userId = useAuthStore((s) => s.session?.user.id);
@@ -75,14 +100,21 @@ export function isPhoneVerified(session: Session): boolean {
 }
 
 /**
- * Single sign-out path. Beyond ending the Supabase session it wipes the
- * TanStack Query cache — in memory and the plaintext AsyncStorage copy —
- * so Engine PII (contacts, phone numbers, message bodies, deals) never
- * outlives the signed-in user on the device.
+ * Single sign-out path. Clear the in-memory auth state immediately so
+ * Expo Router's protected layout can replace the current screen with the
+ * login screen without waiting for Supabase's SIGNED_OUT event. Beyond
+ * ending the Supabase session it wipes the TanStack Query cache — in
+ * memory and the plaintext AsyncStorage copy — so Engine PII (contacts,
+ * phone numbers, message bodies, deals) never outlives the signed-in user
+ * on the device.
  */
 export async function signOut(): Promise<void> {
-  await supabase.auth.signOut();
-  queryClient.clear();
-  await asyncStoragePersister.removeClient();
-  await AsyncStorage.removeItem('convoreal-query-cache');
+  useAuthStore.setState({ session: null, profile: null });
+  try {
+    await supabase.auth.signOut();
+  } finally {
+    queryClient.clear();
+    await asyncStoragePersister.removeClient();
+    await AsyncStorage.removeItem('convoreal-query-cache');
+  }
 }
