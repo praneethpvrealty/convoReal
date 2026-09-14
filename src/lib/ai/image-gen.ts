@@ -279,7 +279,10 @@ export async function generateAiImage(
     stabilityModel,
     timeoutMs,
   } = opts;
-  const signal = timeoutMs ? AbortSignal.timeout(timeoutMs) : undefined;
+  // Each provider attempt needs its own deadline. Reusing a signal after the
+  // primary provider times out would make every fallback abort immediately.
+  const providerSignal = () =>
+    timeoutMs ? AbortSignal.timeout(timeoutMs) : undefined;
   const geminiKey = process.env.GEMINI_API_KEY;
   const stabilityKey = process.env.STABILITY_API_KEY;
 
@@ -290,7 +293,7 @@ export async function generateAiImage(
       );
       throw statusError(IMAGE_PROVIDER_UNAVAILABLE, 500);
     }
-    return generateWithImagen(prompt, aspectRatio, geminiKey, signal);
+    return generateWithImagen(prompt, aspectRatio, geminiKey, providerSignal());
   }
 
   if (provider === 'stability') {
@@ -306,7 +309,7 @@ export async function generateAiImage(
         aspectRatio,
         stabilityKey,
         stabilityModel,
-        signal
+        providerSignal()
       );
     } catch (stErr) {
       if (geminiKey) {
@@ -314,7 +317,12 @@ export async function generateAiImage(
           '[image-gen] Stability path failed, falling back to Gemini:',
           (stErr as Error).message
         );
-        return generateWithImagen(prompt, aspectRatio, geminiKey, signal);
+        return generateWithImagen(
+          prompt,
+          aspectRatio,
+          geminiKey,
+          providerSignal()
+        );
       }
       throw stErr;
     }
@@ -330,14 +338,19 @@ export async function generateAiImage(
       );
       throw statusError(IMAGE_PROVIDER_UNAVAILABLE, 400);
     }
-    return await generateWithHuggingFace(prompt, hfToken, signal);
+    return await generateWithHuggingFace(prompt, hfToken, providerSignal());
   } catch (hfErr) {
     if (geminiKey) {
       console.warn(
         '[image-gen] Hugging Face path failed, falling back to Gemini:',
         (hfErr as Error).message
       );
-      return generateWithImagen(prompt, aspectRatio, geminiKey, signal);
+      return generateWithImagen(
+        prompt,
+        aspectRatio,
+        geminiKey,
+        providerSignal()
+      );
     }
     if (stabilityKey) {
       console.warn(
@@ -349,7 +362,7 @@ export async function generateAiImage(
         aspectRatio,
         stabilityKey,
         stabilityModel,
-        signal
+        providerSignal()
       );
     }
     throw hfErr;
