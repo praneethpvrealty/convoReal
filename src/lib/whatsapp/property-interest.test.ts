@@ -111,6 +111,40 @@ describe('resolvePropertyReference', () => {
       property: { id: 'akshay-acre' },
     });
   });
+
+  it('uses the persisted lead property for an anaphoric portal reply', () => {
+    expect(
+      resolvePropertyReference(
+        'Interested in seeing the property and talking to the owner',
+        [property()],
+        'akshay-acre'
+      )
+    ).toMatchObject({
+      kind: 'match',
+      matchedBy: 'context',
+      property: { id: 'akshay-acre' },
+    });
+  });
+
+  it('does not use stale context for a newly named unmatched property', () => {
+    expect(
+      resolvePropertyReference(
+        'Interested in the Whitefield property',
+        [property()],
+        'akshay-acre'
+      )
+    ).toEqual({ kind: 'unresolved' });
+  });
+
+  it('does not resolve contextual properties that are no longer available', () => {
+    expect(
+      resolvePropertyReference(
+        'Interested in seeing the property',
+        [property({ status: 'Sold' })],
+        'akshay-acre'
+      )
+    ).toEqual({ kind: 'unresolved' });
+  });
 });
 
 describe('WhatsApp catalog orders', () => {
@@ -142,5 +176,18 @@ describe('property interest replies', () => {
     ).toContain('1 Acre Commercial Land in Akshaya Nagar');
     expect(buildPropertyInterestQuestion()).toMatch(/specific questions/i);
     expect(buildPropertyInterestQuestion()).toMatch(/right agent/i);
+  });
+
+  it('responds to visit and owner requests without the generic question', () => {
+    const reply = buildPropertyInterestAck(
+      'Dr K Bhagavan',
+      'Prime Corner Commercial Plot',
+      { visitRequested: true, ownerContactRequested: true }
+    );
+
+    expect(reply).toContain('Certainly Dr Bhagavan');
+    expect(reply).toContain('site visit');
+    expect(reply).toContain('conversation with the owner');
+    expect(reply).toContain('preferred date and time');
   });
 });

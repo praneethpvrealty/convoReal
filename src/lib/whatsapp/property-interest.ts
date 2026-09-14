@@ -22,7 +22,11 @@ export type PropertyInterestCandidate = Pick<
 >;
 
 export type PropertyReferenceResolution<T extends PropertyInterestCandidate> =
-  | { kind: 'match'; matchedBy: 'code' | 'title' | 'natural'; property: T }
+  | {
+      kind: 'match';
+      matchedBy: 'code' | 'title' | 'natural' | 'context';
+      property: T;
+    }
   | { kind: 'ambiguous'; candidates: T[] }
   | { kind: 'unresolved' };
 
@@ -134,7 +138,8 @@ function exactTitleMatch<T extends PropertyInterestCandidate>(
 
 export function resolvePropertyReference<T extends PropertyInterestCandidate>(
   text: string,
-  candidates: T[]
+  candidates: T[],
+  contextPropertyId?: string | null
 ): PropertyReferenceResolution<T> {
   const value = (text || '').trim();
   if (!value || candidates.length === 0) return { kind: 'unresolved' };
@@ -191,7 +196,34 @@ export function resolvePropertyReference<T extends PropertyInterestCandidate>(
     .filter((entry): entry is { property: T; score: number } => entry !== null)
     .sort((a, b) => b.score - a.score);
 
-  if (ranked.length === 0) return { kind: 'unresolved' };
+  if (ranked.length === 0) {
+    // Portal and campaign leads are linked to a property before the first
+    // outreach is sent. Their reply is commonly just "the property" or
+    // "this listing", so there is deliberately no locality/title to rank.
+    // Use that persisted conversational subject only for an anaphoric reply;
+    // a new, unmatched locality must still go to an agent rather than being
+    // silently attached to an old listing.
+    const refersToConversationSubject =
+      /\b(?:the|this|that)\s+(?:property|listing|one)\b|\b(?:it|the same one)\b/i.test(
+        value
+      );
+    const contextualProperty = refersToConversationSubject
+      ? candidates.find(
+          (property) =>
+            property.id === contextPropertyId &&
+            property.is_published === true &&
+            property.status === 'Available'
+        )
+      : null;
+    if (contextualProperty) {
+      return {
+        kind: 'match',
+        matchedBy: 'context',
+        property: contextualProperty,
+      };
+    }
+    return { kind: 'unresolved' };
+  }
   const top = ranked.filter((entry) => entry.score === ranked[0].score);
   if (top.length > 1) {
     return {
@@ -207,13 +239,33 @@ export function resolvePropertyReference<T extends PropertyInterestCandidate>(
 }
 
 function firstName(name?: string | null): string {
-  return name?.trim().split(/\s+/)[0] || 'there';
+  const parts = name?.trim().split(/\s+/).filter(Boolean) || [];
+  if (parts.length === 0) return 'there';
+  if (/^(?:dr|mr|mrs|ms)\.?$/i.test(parts[0]) && parts.length > 1) {
+    return `${parts[0]} ${parts.at(-1)}`;
+  }
+  return parts[0];
+}
+
+export interface PropertyInterestActions {
+  ownerContactRequested?: boolean;
+  visitRequested?: boolean;
 }
 
 export function buildPropertyInterestAck(
   contactName: string | null | undefined,
-  propertyTitle: string
+  propertyTitle: string,
+  actions: PropertyInterestActions = {}
 ): string {
+  if (actions.visitRequested && actions.ownerContactRequested) {
+    return `Certainly ${firstName(contactName)} — I found the *${propertyTitle}* you enquired about. I'll share the property details now, and I've alerted our team to coordinate the site visit and your conversation with the owner. Please send your preferred date and time for the visit.`;
+  }
+  if (actions.visitRequested) {
+    return `Certainly ${firstName(contactName)} — I found the *${propertyTitle}* you enquired about. I'll share the property details now, and I've alerted our team to coordinate a site visit. Please send your preferred date and time.`;
+  }
+  if (actions.ownerContactRequested) {
+    return `Certainly ${firstName(contactName)} — I found the *${propertyTitle}* you enquired about. I'll share the property details now, and I've alerted our team to help connect you with the owner.`;
+  }
   return `Thanks ${firstName(contactName)} — yes, I found the *${propertyTitle}* you mean. Sharing the property details now 👇`;
 }
 

@@ -85,6 +85,7 @@ describe('requestsHumanContact', () => {
       'I want to talk to someone',
       'let me speak with an agent',
       'connect me to your team',
+      'Interested in talking to the owner',
     ]) {
       expect(requestsHumanContact(text), text).toBe(true);
     }
