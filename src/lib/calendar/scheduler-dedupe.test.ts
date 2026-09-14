@@ -230,6 +230,56 @@ describe('re-dictating an appointment', () => {
     expect(card()).toContain('✅ *Added to your calendar*');
   });
 
+  it('files a repeated reschedule as one update when participant resolution changes', async () => {
+    const transcript = 'Meeting with Prabha, KP Anand and Subramani tomorrow at noon.';
+    tables.contacts = [
+      { id: 'contact-prabhakar', name: 'Prabhakar', phone: '+919876543209' },
+      { id: 'contact-kp', name: 'KP Anand', phone: '+919876543210' },
+      { id: 'contact-subramani', name: 'Subramani', phone: '+919876543211' },
+      { id: 'contact-prabha', name: 'Prabha Rao', phone: '+919876543212' },
+    ];
+    tables.appointments = [scheduled({
+      title: 'Meeting with property owner Prabha and buyer KP Anand',
+      start_time: '2026-09-15T06:30:00.000Z',
+      contact_id: 'contact-kp',
+      transcript,
+    })];
+    const drafts = [
+      draft({
+        intent: 'schedule',
+        title: 'Meeting with property owner Prabha and buyer KP Anand',
+        start_time: '2026-09-15T12:00',
+        contact_name: 'Prabha',
+        participant_names: ['Prabha', 'KP Anand', 'Subramani'],
+        transcript,
+      }),
+    ];
+    Object.defineProperty(drafts, '_fullResult', {
+      value: {
+        drafts,
+        completedItems: [],
+        updatedItems: [{
+          id: 'appt-existing',
+          type: 'appointment',
+          start_time: '2026-09-15T12:00',
+        }],
+        transcript,
+      },
+    });
+    parseEventsFromInput.mockResolvedValue(drafts);
+
+    await tryHandleOwnerScheduling({ ...baseParams, contentText: transcript });
+
+    expect(inserts.filter((item) => item.table === 'appointments')).toEqual([]);
+    const appointmentUpdates = updates.filter((item) => item.table === 'appointments');
+    expect(appointmentUpdates.at(-1)?.row).toMatchObject({
+      contact_id: 'contact-kp',
+      contact_ids: ['contact-prabha', 'contact-kp', 'contact-subramani'],
+    });
+    expect(card()).not.toContain('✅ *Added to your calendar*');
+    expect(card().match(/✏️ \*Updated on your calendar\*/g)).toHaveLength(1);
+  });
+
   it('does not inherit the contact previous property when the message names a different unmatched property', async () => {
     tables.contacts = [
       {

@@ -97,6 +97,7 @@ export interface ExistingRow {
   when: string | null;
   contact_id?: string | null;
   liaison_id?: string | null;
+  transcript?: string | null;
 }
 
 export interface DuplicateQuery {
@@ -104,6 +105,16 @@ export interface DuplicateQuery {
   when: string | null;
   contactId?: string | null;
   liaisonId?: string | null;
+  transcript?: string | null;
+}
+
+function normalizedTranscript(value?: string | null): string {
+  return (value || '').trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+function sameTranscript(query: DuplicateQuery, row: ExistingRow): boolean {
+  const queryTranscript = normalizedTranscript(query.transcript);
+  return !!queryTranscript && queryTranscript === normalizedTranscript(row.transcript);
 }
 
 /** Two rows that each name a party, naming different ones, are about
@@ -145,7 +156,11 @@ export function findDuplicate(query: DuplicateQuery, rows: ExistingRow[]): Exist
     // An undated to-do only ever matches another undated one: giving a
     // repeat a due date is new information, not a duplicate.
     if (queryDay !== rowDay) continue;
-    if (partiesConflict(query, row)) continue;
+    // A repeated source message is the strongest idempotency key available
+    // for WhatsApp/voice-created rows. Participant extraction may improve or
+    // change between retries, so it must not turn the same request into a
+    // second event merely because the resolved primary contact changed.
+    if (!sameTranscript(query, row) && partiesConflict(query, row)) continue;
 
     const similarity = titleSimilarity(query.title, row.title);
     if (similarity < SAME_SUBJECT) continue;
