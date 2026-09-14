@@ -56,6 +56,13 @@ import {
 } from '@/components/ui/sheet';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
+import {
+  BUDGET_UNIT_OPTIONS,
+  budgetRangeError,
+  budgetToRupees,
+  rupeesToBudgetAmount,
+  type BudgetUnit,
+} from '@/lib/contacts/budget-amount';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PriceHint } from '@/components/ui/price-hint';
@@ -276,7 +283,11 @@ export function ContactDetailView({
   // Requirements for Agent/Owner/Seller/etc
   const [editRequirements, setEditRequirements] = useState('');
   const [editMinBudget, setEditMinBudget] = useState('');
+  const [editMinBudgetUnit, setEditMinBudgetUnit] =
+    useState<BudgetUnit>('crore');
   const [editMaxBudget, setEditMaxBudget] = useState('');
+  const [editMaxBudgetUnit, setEditMaxBudgetUnit] =
+    useState<BudgetUnit>('crore');
   const [editNoBudget, setEditNoBudget] = useState(false);
   const [editStrictAreaMatch, setEditStrictAreaMatch] = useState(false);
   const [editAreasOfInterest, setEditAreasOfInterest] = useState<string[]>([]);
@@ -401,20 +412,16 @@ export function ContactDetailView({
         setEditReferrerContactId(data.referrer_contact_id ?? null);
         const sourceContact = resolveRequirementSource(data);
         setEditRequirements(sourceContact.requirements ?? '');
-        setEditMinBudget(
-          sourceContact.pref_budget_min != null
-            ? String(sourceContact.pref_budget_min)
-            : sourceContact.min_budget != null
-              ? String(sourceContact.min_budget)
-              : ''
+        const minBudget = rupeesToBudgetAmount(
+          sourceContact.pref_budget_min ?? sourceContact.min_budget
         );
-        setEditMaxBudget(
-          sourceContact.pref_budget_max != null
-            ? String(sourceContact.pref_budget_max)
-            : sourceContact.max_budget != null
-              ? String(sourceContact.max_budget)
-              : ''
+        setEditMinBudget(minBudget.amount);
+        setEditMinBudgetUnit(minBudget.unit);
+        const maxBudget = rupeesToBudgetAmount(
+          sourceContact.pref_budget_max ?? sourceContact.max_budget
         );
+        setEditMaxBudget(maxBudget.amount);
+        setEditMaxBudgetUnit(maxBudget.unit);
         setEditNoBudget(Boolean(sourceContact.no_budget));
         setEditStrictAreaMatch(!!data.strict_area_match);
         const initialProjects = Array.from(
@@ -1530,14 +1537,25 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
 
   async function savePreferences() {
     if (!contactId) return;
+    const minBudget = editNoBudget
+      ? null
+      : budgetToRupees(editMinBudget, editMinBudgetUnit);
+    const maxBudget = editNoBudget
+      ? null
+      : budgetToRupees(editMaxBudget, editMaxBudgetUnit);
+    const rangeError = budgetRangeError(minBudget, maxBudget);
+    if (rangeError) {
+      toast.error(rangeError);
+      return;
+    }
     setSavingPreferences(true);
 
     const prunedAreasGeo = pruneAreasGeo(editAreasGeo, editAreasOfInterest);
     const { data: saved, error } = await supabase
       .from('contacts')
       .update({
-        min_budget: editMinBudget ? Number(editMinBudget) : null,
-        max_budget: editMaxBudget ? Number(editMaxBudget) : null,
+        min_budget: minBudget,
+        max_budget: maxBudget,
         no_budget: editNoBudget,
         strict_area_match: editStrictAreaMatch,
         projects_of_interest: editProjectsOfInterest,
@@ -2672,35 +2690,71 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                         </div>
                         <div className="grid grid-cols-2 gap-2">
                           <div>
-                            <Input
-                              type="number"
-                              disabled={editNoBudget}
-                              value={editMinBudget}
-                              onChange={(event) =>
-                                setEditMinBudget(event.target.value)
-                              }
-                              placeholder="Min budget"
-                              className="h-8 border-slate-700 bg-slate-800 text-xs text-white disabled:opacity-40"
-                            />
+                            <div className="flex gap-1">
+                              <Input
+                                type="number"
+                                disabled={editNoBudget}
+                                value={editMinBudget}
+                                onChange={(event) =>
+                                  setEditMinBudget(event.target.value)
+                                }
+                                placeholder="Min budget"
+                                className="h-8 flex-1 border-slate-700 bg-slate-800 text-xs text-white disabled:opacity-40"
+                              />
+                              <select
+                                disabled={editNoBudget}
+                                value={editMinBudgetUnit}
+                                onChange={(event) =>
+                                  setEditMinBudgetUnit(
+                                    event.target.value as BudgetUnit
+                                  )
+                                }
+                                className="focus:border-primary h-8 rounded-md border border-slate-700 bg-slate-800 px-1.5 text-xs text-white focus:outline-none disabled:opacity-40"
+                              >
+                                {BUDGET_UNIT_OPTIONS.map((option) => (
+                                  <option key={option.value} value={option.value}>
+                                    {option.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
                             <PriceHint
-                              value={editMinBudget}
+                              value={budgetToRupees(editMinBudget, editMinBudgetUnit)}
                               compact
                               className="block text-[10px]"
                             />
                           </div>
                           <div>
-                            <Input
-                              type="number"
-                              disabled={editNoBudget}
-                              value={editMaxBudget}
-                              onChange={(event) =>
-                                setEditMaxBudget(event.target.value)
-                              }
-                              placeholder="Max budget"
-                              className="h-8 border-slate-700 bg-slate-800 text-xs text-white disabled:opacity-40"
-                            />
+                            <div className="flex gap-1">
+                              <Input
+                                type="number"
+                                disabled={editNoBudget}
+                                value={editMaxBudget}
+                                onChange={(event) =>
+                                  setEditMaxBudget(event.target.value)
+                                }
+                                placeholder="Max budget"
+                                className="h-8 flex-1 border-slate-700 bg-slate-800 text-xs text-white disabled:opacity-40"
+                              />
+                              <select
+                                disabled={editNoBudget}
+                                value={editMaxBudgetUnit}
+                                onChange={(event) =>
+                                  setEditMaxBudgetUnit(
+                                    event.target.value as BudgetUnit
+                                  )
+                                }
+                                className="focus:border-primary h-8 rounded-md border border-slate-700 bg-slate-800 px-1.5 text-xs text-white focus:outline-none disabled:opacity-40"
+                              >
+                                {BUDGET_UNIT_OPTIONS.map((option) => (
+                                  <option key={option.value} value={option.value}>
+                                    {option.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
                             <PriceHint
-                              value={editMaxBudget}
+                              value={budgetToRupees(editMaxBudget, editMaxBudgetUnit)}
                               compact
                               className="block text-[10px]"
                             />

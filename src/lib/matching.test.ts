@@ -552,6 +552,30 @@ describe('getMatchingContacts', () => {
       expect(getMatchingContacts(property, [contact]).length).toBe(0);
     });
 
+    it('ignores a typed budget two orders of magnitude below the parse', () => {
+      // A ₹5-6 Cr buyer whose min_budget was typed as "6" meaning six
+      // crore. Six rupees as a floor let every cheap listing through.
+      const contact = createTestContact({
+        pref_property_types: ['Commercial Office'],
+        min_budget: 6,
+        max_budget: 50000000,
+        pref_budget_min: 50000000,
+        pref_budget_max: 60000000,
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const cheap = createTestProperty({
+        type: 'Commercial Office',
+        price: 19900000,
+      });
+      const inRange = createTestProperty({
+        type: 'Commercial Office',
+        price: 55000000,
+      });
+
+      expect(getMatchingContacts(cheap, [contact]).length).toBe(0);
+      expect(getMatchingContacts(inRange, [contact]).length).toBe(1);
+    });
+
     it('keeps near-miss budgets (within 10%) with a lower score', () => {
       const within = createTestContact({
         id: 'c-within',
