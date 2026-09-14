@@ -51,6 +51,8 @@ import {
   REPEAT_SUPPRESSION_DAYS,
   selectUnsentMatches,
 } from './digest';
+import { BUYER_CONSENT_BUTTONS } from './consent-ask';
+import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 
 /** Listings scored per account. Same cap as the portal feed. */
 const POOL_PER_ACCOUNT = 300;
@@ -63,6 +65,33 @@ const MAX_SENDS_PER_ACCOUNT = 50;
 // Wider than Radar's isRadarContactClassification on purpose: Radar
 // suggests names to an agent, this sends only what a contact asked for.
 const BUYER_CLASSIFICATIONS = ['Buyer', 'Owner & Buyer', 'Agent', 'Developer'];
+
+export async function sendBuyerConsentRequest(
+  db: SupabaseClient,
+  args: {
+    accountId: string;
+    contactId: string;
+    contactName?: string | null;
+    matchCount: number;
+    agencyName?: string | null;
+  }
+): Promise<boolean> {
+  const result = await sendWhatsAppMessageAndPersist({
+    accountId: args.accountId,
+    contactId: args.contactId,
+    kind: 'interactive',
+    interactiveType: 'buttons',
+    senderType: 'bot',
+    interactiveBody: buildConsentRequestMessage({
+      contactName: args.contactName,
+      matchCount: args.matchCount,
+      agencyName: args.agencyName,
+    }),
+    interactiveButtons: [...BUYER_CONSENT_BUTTONS],
+    customDbClient: db,
+  });
+  return result.success;
+}
 
 export interface AccountDigestSummary {
   accountId: string;
@@ -291,14 +320,12 @@ async function runAccount(
           summary.skippedNoChannel++;
           continue;
         }
-        const asked = await sendDenNotification(db, {
+        const asked = await sendBuyerConsentRequest(db, {
           accountId,
           contactId: buyer.id,
-          text: buildConsentRequestMessage({
-            contactName: buyer.name,
-            matchCount: matches.length,
-            agencyName,
-          }),
+          contactName: buyer.name,
+          matchCount: matches.length,
+          agencyName,
         });
         if (!asked) {
           summary.failed++;
