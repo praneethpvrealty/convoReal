@@ -591,6 +591,22 @@ function parsePricePerSqftBudget(text: string): {
 
 // ── Main matcher ────────────────────────────────────────────────────
 
+const TENANCY_EVIDENCE_PATTERN =
+  /\b(?:pre[ -]?leased|currently\s+(?:rented|leased|tenanted)|already\s+(?:rented|leased|tenanted)|rented\s+out|leased\s+out|tenanted\s+(?:asset|building|property)|income[ -]?generating\s+(?:asset|building|property))\b/i;
+
+function withoutNegatedTenancyPhrases(text: string): string {
+  return text
+    .replace(
+      /\b(?:not|never)\s+(?:currently\s+)?(?:pre[ -]?leased|rented|leased|tenanted)\b/gi,
+      ''
+    )
+    .replace(
+      /\b(?:former|formerly|previously)\s+(?:pre[ -]?leased|rented|leased|tenanted)(?:\s+(?:asset|building|property))?\b/gi,
+      ''
+    )
+    .replace(/\b(?:no|without)\s+(?:current\s+)?tenants?\b/gi, '');
+}
+
 export function isCurrentlyTenanted(property: Partial<Property>): boolean {
   if (
     property.floor_tenancies?.some((tenancy) =>
@@ -609,9 +625,7 @@ export function isCurrentlyTenanted(property: Partial<Property>): boolean {
     .filter(Boolean)
     .join(' ');
 
-  return /\b(?:pre[ -]?leased|currently\s+(?:rented|leased|tenanted)|already\s+(?:rented|leased|tenanted)|rented\s+out|leased\s+out|tenanted\s+(?:asset|building|property)|income[ -]?generating\s+(?:asset|building|property))\b/i.test(
-    evidence
-  );
+  return TENANCY_EVIDENCE_PATTERN.test(withoutNegatedTenancyPhrases(evidence));
 }
 
 /**
@@ -701,11 +715,11 @@ function matchContactsSingleProfile(
       `${sourceContact.requirements || ''} ${notesText}`.toLowerCase();
     const hasExtraction = !!sourceContact.pref_extracted_at;
 
-    const inferredTenanted =
-      sourceContact.pref_requires_tenanted === true ||
-      /\b(?:already|currently)\s+(?:rented|leased|tenanted)\b|\b(?:pre[ -]?leased|tenanted|rented\s+out|leased\s+out|income[ -]?generating)\b/i.test(
-        combinedText
-      );
+    const inferredTenanted = hasExtraction
+      ? sourceContact.pref_requires_tenanted === true
+      : TENANCY_EVIDENCE_PATTERN.test(
+          withoutNegatedTenancyPhrases(combinedText)
+        );
     const requiresTenanted =
       sourceContact.requires_tenanted ?? inferredTenanted;
     if (requiresTenanted && !isCurrentlyTenanted(property)) continue;

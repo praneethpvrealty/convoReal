@@ -37,6 +37,8 @@ export function hasBuyerBrief(contact: Contact): boolean {
     source.pref_bhk_min ||
     source.pref_bhk_max ||
     source.min_roi ||
+    source.requires_tenanted === true ||
+    source.pref_requires_tenanted === true ||
     source.requirements?.trim()
   );
 }

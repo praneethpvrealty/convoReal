@@ -189,6 +189,8 @@ describe('hasBuyerBrief', () => {
     );
     expect(hasBuyerBrief(buyer({ property_interests: ['Villa'] }))).toBe(true);
     expect(hasBuyerBrief(buyer({ min_roi: 6 }))).toBe(true);
+    expect(hasBuyerBrief(buyer({ requires_tenanted: true }))).toBe(true);
+    expect(hasBuyerBrief(buyer({ pref_requires_tenanted: true }))).toBe(true);
     expect(hasBuyerBrief(buyer({ requirements: 'corner plot' }))).toBe(true);
     expect(
       hasBuyerBrief(buyer({ projects_of_interest: ['Purva Westend'] }))
