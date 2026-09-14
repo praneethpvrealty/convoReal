@@ -22,6 +22,7 @@ import { BottomSheet, sheetScrollArea } from '@/components/sheet';
 import { EmptyState, FilterChip } from '@/components/ui';
 import { apiFetch, ApiError } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
+import { buildUpcomingCalendarItems } from '@/lib/calendar-upcoming';
 import { haptic } from '@/lib/haptics';
 import { openContactChat } from '@/lib/open-chat';
 import { queryClient } from '@/lib/query';
@@ -99,10 +100,27 @@ async function fetchAppointment(id: string): Promise<Appointment | null> {
   return data as Appointment | null;
 }
 
+async function fetchUpcomingAppointments(now: Date): Promise<Appointment[]> {
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  tomorrow.setHours(0, 0, 0, 0);
+  const { data, error } = await supabase
+    .from('appointments')
+    .select(
+      '*, contact:contacts(id, name, phone, name_tag), property:properties(id, title, location, sublocality)'
+    )
+    .eq('status', 'scheduled')
+    .gte('start_time', tomorrow.toISOString())
+    .order('start_time', { ascending: true })
+    .limit(20);
+  if (error) throw error;
+  return (data ?? []) as Appointment[];
+}
+
 export default function CalendarScreen() {
   const { colors, fonts: f } = useTheme();
   const insets = useSafeAreaInsets();
-  const today = new Date();
+  const [today] = useState(() => new Date());
   const params = useLocalSearchParams<{ eventId?: string | string[] }>();
   const eventId = Array.isArray(params.eventId)
     ? params.eventId[0]
@@ -117,13 +135,21 @@ export default function CalendarScreen() {
     queryFn: () => fetchMonth(month),
   });
   const todosQuery = useQuery({ queryKey: ['todos'], queryFn: fetchTodos });
+  const upcomingAppointmentsQuery = useQuery({
+    queryKey: ['appointments', 'upcoming', dayKey(today)],
+    queryFn: () => fetchUpcomingAppointments(today),
+  });
   const requestedEvent = useQuery({
     queryKey: ['appointment', eventId],
     queryFn: () => fetchAppointment(eventId!),
     enabled: !!eventId,
   });
   const pull = usePullRefresh(() =>
-    Promise.all([refetch(), todosQuery.refetch()])
+    Promise.all([
+      refetch(),
+      todosQuery.refetch(),
+      upcomingAppointmentsQuery.refetch(),
+    ])
   );
 
   const byDay = useMemo(() => {
@@ -154,6 +180,32 @@ export default function CalendarScreen() {
   }, [month]);
 
   const dayAppointments = byDay.get(dayKey(selected)) ?? [];
+  const upcomingItems = useMemo(
+    () =>
+      buildUpcomingCalendarItems(
+        upcomingAppointmentsQuery.data ?? [],
+        todosQuery.data ?? [],
+        today,
+        selected
+      ),
+    [upcomingAppointmentsQuery.data, todosQuery.data, today, selected]
+  );
+  const upcomingTodoIds = useMemo(
+    () =>
+      new Set(
+        upcomingItems
+          .filter((item) => item.kind === 'todo')
+          .map((item) => (item.kind === 'todo' ? item.todo.id : ''))
+      ),
+    [upcomingItems]
+  );
+  const remainingTodos = useMemo(
+    () =>
+      sortTodos(todosQuery.data ?? []).filter(
+        (todo) => !upcomingTodoIds.has(todo.id)
+      ),
+    [todosQuery.data, upcomingTodoIds]
+  );
 
   const requestedDetail =
     eventId && dismissedEventId !== eventId
@@ -371,10 +423,37 @@ export default function CalendarScreen() {
           ))
         )}
 
-        {/* To-dos (web parity: the calendar's task panel). Not tied to
-            the selected day — a flat list under the agenda, open tasks
-            first. Contact/property mentions stay a web smart-add
-            feature; rows created there still show their links here. */}
+        <Text style={[styles.dayLabel, { color: colors.textFaint }]}>Upcoming</Text>
+        {upcomingAppointmentsQuery.isLoading || todosQuery.isLoading ? (
+          <ConvoRealLoader
+            style={{ alignSelf: 'center', paddingVertical: 20 }}
+          />
+        ) : upcomingItems.length === 0 ? (
+          <Text style={{ fontSize: 13, color: colors.textMuted }}>
+            No upcoming appointments or dated tasks.
+          </Text>
+        ) : (
+          upcomingItems.map((item) =>
+            item.kind === 'appointment' ? (
+              <AppointmentCard
+                key={`appointment-${item.appointment.id}`}
+                appointment={item.appointment}
+                showDate
+                onPress={() => setDetail(item.appointment)}
+              />
+            ) : (
+              <TodoRow
+                key={`todo-${item.todo.id}`}
+                todo={item.todo}
+                now={today}
+              />
+            )
+          )
+        )}
+
+        {/* Future scheduled work is surfaced above with appointments.
+            This section keeps overdue, undated and completed tasks without
+            duplicating future dated tasks. */}
         <Text style={[styles.dayLabel, { color: colors.textFaint }]}>
           To-dos
         </Text>
@@ -383,12 +462,12 @@ export default function CalendarScreen() {
           <ConvoRealLoader
             style={{ alignSelf: 'center', paddingVertical: 20 }}
           />
-        ) : (todosQuery.data ?? []).length === 0 ? (
+        ) : remainingTodos.length === 0 ? (
           <Text style={{ fontSize: 13, color: colors.textMuted }}>
-            No tasks yet. Add one above — tasks sync with the web calendar.
+            No other tasks. Add one above — tasks sync with the web calendar.
           </Text>
         ) : (
-          sortTodos(todosQuery.data ?? []).map((todo) => (
+          remainingTodos.map((todo) => (
             <TodoRow key={todo.id} todo={todo} now={today} />
           ))
         )}
@@ -933,15 +1012,22 @@ function TodoRow({ todo, now }: { todo: Todo; now: Date }) {
 function AppointmentCard({
   appointment,
   onPress,
+  showDate = false,
 }: {
   appointment: Appointment;
   onPress: () => void;
+  showDate?: boolean;
 }) {
   const { colors, fonts: f } = useTheme();
   const meta = TYPE_META[appointment.event_type] ?? TYPE_META.other;
   const time = new Date(appointment.start_time).toLocaleTimeString([], {
     hour: '2-digit',
     minute: '2-digit',
+  });
+  const date = new Date(appointment.start_time).toLocaleDateString([], {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
   });
   const done = appointment.status !== 'scheduled';
 
@@ -974,7 +1060,7 @@ function AppointmentCard({
           style={{ fontSize: 12.5, color: colors.textMuted }}
           numberOfLines={1}
         >
-          {time} · {meta.label}
+          {showDate ? `${date} · ` : ''}{time} · {meta.label}
           {appointment.location ? ` · ${appointment.location}` : ''}
         </Text>
         {appointment.contact ? (
