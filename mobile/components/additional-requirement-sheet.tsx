@@ -20,6 +20,8 @@ interface SaveResult {
   };
 }
 
+const REQUIREMENT_SAVE_TIMEOUT_MS = 60_000;
+
 export function AdditionalRequirementSheet({
   visible,
   onClose,
@@ -56,6 +58,7 @@ export function AdditionalRequirementSheet({
         {
           method: 'POST',
           body: JSON.stringify({ text, source: 'personal_whatsapp' }),
+          timeoutMs: REQUIREMENT_SAVE_TIMEOUT_MS,
         }
       );
       setResult(response.data);

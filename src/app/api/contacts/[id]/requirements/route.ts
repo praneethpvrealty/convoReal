@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { after, NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import {
   buildPreferenceSourceText,
@@ -23,7 +23,20 @@ const MAX_PROFILES = 20;
 async function refreshMatches(accountId: string, contactId: string) {
   const db = radarAdminClient();
   const matches = await rankPropertiesForContact(db, accountId, contactId);
-  await generateMatchEventForContact(db, accountId, contactId);
+  // Event generation ranks the inventory again. Keep that second pass out of
+  // the save response: requirement extraction has already used the bulk of
+  // the mobile request budget, and making the user wait for duplicate work
+  // caused valid saves to be reported as network timeouts.
+  after(async () => {
+    try {
+      await generateMatchEventForContact(db, accountId, contactId);
+    } catch (error) {
+      console.error(
+        '[requirements] Deferred Match Radar refresh failed:',
+        error
+      );
+    }
+  });
   return matches.length;
 }
 

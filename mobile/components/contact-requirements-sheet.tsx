@@ -22,6 +22,10 @@ interface RequirementResult {
   };
 }
 
+// Requirement saves include an AI extraction pass before the database write.
+// They legitimately take longer than an ordinary API read on mobile data.
+const REQUIREMENT_SAVE_TIMEOUT_MS = 60_000;
+
 type ViewMode = 'overview' | 'add' | 'ask';
 
 function inr(value: number): string {
@@ -159,6 +163,7 @@ export function ContactRequirementsSheet({
             profile_id: profileId,
             text,
           }),
+          timeoutMs: REQUIREMENT_SAVE_TIMEOUT_MS,
         }
       );
       haptic.success();
@@ -191,6 +196,7 @@ export function ContactRequirementsSheet({
             text: addText,
             source: 'personal_whatsapp',
           }),
+          timeoutMs: REQUIREMENT_SAVE_TIMEOUT_MS,
         }
       );
       haptic.success();
