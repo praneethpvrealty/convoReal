@@ -185,6 +185,44 @@ describe('showcase detail — share control', () => {
     errorSpy.mockRestore();
   });
 
+  it('copies the sanitized link — never the raw address bar — when the Clipboard API is rejected', async () => {
+    // A recipient viewing through a grant (?g=) has that grant in their
+    // actual address bar. If the writeText rejection ever fell back to
+    // "copy the page URL yourself", it would be steering them at the
+    // one URL this whole file exists to keep from leaking.
+    const writeText = vi
+      .fn<(text: string) => Promise<void>>()
+      .mockRejectedValue(
+        new DOMException('Document is not focused.', 'NotAllowedError')
+      );
+    const successSpy = vi.spyOn(toast, 'success').mockImplementation(() => '');
+    let copiedValue: string | undefined;
+    document.execCommand = ((command: string) => {
+      if (command === 'copy') {
+        copiedValue =
+          document.activeElement instanceof HTMLTextAreaElement
+            ? document.activeElement.value
+            : undefined;
+      }
+      return true;
+    }) as typeof document.execCommand;
+    renderAt(`?g=${GRANT_TOKEN}&v=contact-9`, GRANT_TOKEN, false, undefined, false, writeText);
+
+    fireEvent.click(
+      screen.getByRole('button', { name: /share this property/i })
+    );
+
+    await waitFor(() => expect(successSpy).toHaveBeenCalled());
+    expect(copiedValue).toBeTruthy();
+    expect(copiedValue).not.toContain(GRANT_TOKEN);
+    expect(copiedValue).not.toContain('g=');
+    expect(copiedValue).not.toContain('v=contact-9');
+
+    successSpy.mockRestore();
+    // @ts-expect-error -- restoring happy-dom's default (unimplemented) execCommand
+    delete document.execCommand;
+  });
+
   it('never forwards the share grant that unmasked this visit', () => {
     const writeText = renderAt(`?g=${GRANT_TOKEN}&v=contact-9`, GRANT_TOKEN);
 
