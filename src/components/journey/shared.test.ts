@@ -49,16 +49,25 @@ function item(
 const STAGES = [stage('shared', 0), stage('visited', 1), stage('token', 2)];
 
 describe('journey overview loading', () => {
-  it('[JRN-001] paginates until every journey item is classified', () => {
+  it('[JRN-001] loads one SQL-aggregated row per journey subject', () => {
     const source = readFileSync(
       join(process.cwd(), 'src/components/journey/journey-overview.tsx'),
       'utf8'
     );
-    expect(source).toContain('.range(from, from + JOURNEY_PAGE_SIZE - 1)');
-    expect(source).toContain(
-      'if (page.length < JOURNEY_PAGE_SIZE) return rows'
-    );
+    expect(source).toContain("supabase.rpc('journey_overview_groups'");
+    expect(source).not.toContain('loadAllJourneyItems');
     expect(source).not.toContain('.limit(2000)');
+
+    const migration = readFileSync(
+      join(
+        process.cwd(),
+        'supabase/migrations/20260915024746_journey_overview_groups.sql'
+      ),
+      'utf8'
+    );
+    expect(migration).toContain('SECURITY DEFINER');
+    expect(migration).toContain('is_account_member(p_account_id)');
+    expect(migration).toContain('jsonb_agg(');
   });
 });
 

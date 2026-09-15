@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
@@ -44,6 +44,7 @@ import { supabase } from '@/lib/supabase';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import type {
   JourneyItem,
+  JourneyOverviewGroup,
   JourneyOverviewState,
   JourneyStage,
   JourneyStageNote,
@@ -52,13 +53,12 @@ import { usePullRefresh } from '@/lib/use-pull-refresh';
 
 type JourneyView = 'active' | 'closed' | 'archived';
 type JourneyMode = 'buyer' | 'property';
-const JOURNEY_PAGE_SIZE = 1000;
+const JOURNEY_BRANCH_PAGE_SIZE = 1000;
 
 interface JourneyGroup {
   subjectId: string;
   contact: JourneyItem['contact'];
   property: JourneyItem['property'];
-  items: JourneyItem[];
   captured: number;
   furthestStageIdx: number;
   lifecycleStatus: JourneyLifecycleStatus;
@@ -76,6 +76,7 @@ interface JourneyBucket {
 
 export default function JourneyScreen() {
   const { colors, fonts: f } = useTheme();
+  const queryClient = useQueryClient();
   const profile = useAuthStore((state) => state.profile);
   const accountId = profile?.account_id;
   const canEdit = Boolean(profile && profile.account_role !== 'viewer');
@@ -114,27 +115,16 @@ export default function JourneyScreen() {
     },
   });
 
-  const itemsQuery = useQuery({
-    queryKey: ['journey-items', accountId],
+  const summariesQuery = useQuery({
+    queryKey: ['journey-overview-groups', accountId, mode],
     enabled: Boolean(accountId),
     queryFn: async () => {
-      const rows: JourneyItem[] = [];
-      for (let from = 0; ; from += JOURNEY_PAGE_SIZE) {
-        const { data, error } = await supabase
-          .from('journey_items')
-          .select(
-            'id, contact_id, property_id, stage_id, status, drop_reason, hidden, updated_at, ' +
-              'contact:contacts(id, name, phone), property:properties(id, title, property_code, location)'
-          )
-          .eq('account_id', accountId!)
-          .order('updated_at', { ascending: false })
-          .order('id', { ascending: true })
-          .range(from, from + JOURNEY_PAGE_SIZE - 1);
-        if (error) throw error;
-        const page = (data ?? []) as unknown as JourneyItem[];
-        rows.push(...page);
-        if (page.length < JOURNEY_PAGE_SIZE) return rows;
-      }
+      const { data, error } = await supabase.rpc('journey_overview_groups', {
+        p_account_id: accountId!,
+        p_mode: mode,
+      });
+      if (error) throw error;
+      return (data ?? []) as JourneyOverviewGroup[];
     },
   });
 
@@ -165,8 +155,9 @@ export default function JourneyScreen() {
   const pull = usePullRefresh(async () => {
     await Promise.all([
       stagesQuery.refetch(),
-      itemsQuery.refetch(),
+      summariesQuery.refetch(),
       statesQuery.refetch(),
+      queryClient.invalidateQueries({ queryKey: ['journey-branch-items'] }),
     ]);
   });
 
@@ -188,53 +179,58 @@ export default function JourneyScreen() {
   );
 
   const groups = useMemo(() => {
-    const bySubject = new Map<string, JourneyGroup>();
-    for (const item of itemsQuery.data ?? []) {
-      if (mode === 'buyer' && contactId && item.contact_id !== contactId)
-        continue;
-      if (mode === 'property' && propertyId && item.property_id !== propertyId)
-        continue;
-      const subjectId = mode === 'buyer' ? item.contact_id : item.property_id;
-      const state = stateBySubject.get(subjectId);
-      let group = bySubject.get(subjectId);
-      if (!group) {
-        group = {
-          subjectId,
-          contact: mode === 'buyer' ? item.contact : null,
-          property: mode === 'property' ? item.property : null,
-          items: [],
-          captured: 0,
-          furthestStageIdx: -1,
+    return (summariesQuery.data ?? [])
+      .filter((row) => {
+        if (mode === 'buyer' && contactId) return row.subject_id === contactId;
+        if (mode === 'property' && propertyId)
+          return row.subject_id === propertyId;
+        return true;
+      })
+      .map((row): JourneyGroup => {
+        const state = stateBySubject.get(row.subject_id);
+        return {
+          subjectId: row.subject_id,
+          contact:
+            mode === 'buyer'
+              ? ({
+                  id: row.subject_id,
+                  name: row.contact_name,
+                  phone: row.contact_phone,
+                } as JourneyItem['contact'])
+              : null,
+          property:
+            mode === 'property'
+              ? {
+                  id: row.subject_id,
+                  title: row.property_title || 'Unknown property',
+                  property_code: row.property_code,
+                  location: row.property_location,
+                }
+              : null,
+          captured: Number(row.captured_count),
+          furthestStageIdx: stageIndexById.get(row.furthest_stage_id) ?? -1,
           lifecycleStatus: state?.lifecycle_status ?? 'active',
           closureReason: state?.closure_reason ?? null,
           archivedAt: state?.archived_at ?? null,
           sortOrder:
-            orderOverrides.get(subjectId) ??
+            orderOverrides.get(row.subject_id) ??
             state?.sort_order ??
             Number.MAX_SAFE_INTEGER,
         };
-        bySubject.set(subjectId, group);
-      }
-      if (item.hidden) group.captured += 1;
-      else group.items.push(item);
-      group.furthestStageIdx = Math.max(
-        group.furthestStageIdx,
-        stageIndexById.get(item.stage_id) ?? -1
+      })
+      .sort(
+        (left, right) =>
+          left.sortOrder - right.sortOrder ||
+          right.furthestStageIdx - left.furthestStageIdx
       );
-    }
-    return Array.from(bySubject.values()).sort(
-      (left, right) =>
-        left.sortOrder - right.sortOrder ||
-        right.furthestStageIdx - left.furthestStageIdx
-    );
   }, [
     contactId,
-    itemsQuery.data,
     mode,
     orderOverrides,
     propertyId,
     stageIndexById,
     stateBySubject,
+    summariesQuery.data,
   ]);
 
   const searchedGroups = useMemo(() => {
@@ -573,7 +569,7 @@ export default function JourneyScreen() {
   }
 
   const isLoading =
-    stagesQuery.isLoading || itemsQuery.isLoading || statesQuery.isLoading;
+    stagesQuery.isLoading || summariesQuery.isLoading || statesQuery.isLoading;
 
   return (
     <ScrollView
@@ -911,6 +907,11 @@ function DraggableJourneyCard({
   onAddNote: (item: JourneyItem, stage: JourneyStage) => void;
 }) {
   const { colors, fonts: f } = useTheme();
+  const branchItemsQuery = useQuery({
+    queryKey: ['journey-branch-items', mode, group.subjectId],
+    enabled: expanded,
+    queryFn: () => loadJourneyBranchItems(mode, group.subjectId),
+  });
   const drag = useSharedValue(0);
   const gesture = Gesture.Pan()
     .enabled(canEdit)
@@ -1007,8 +1008,19 @@ function DraggableJourneyCard({
         ) : null}
       </View>
 
+      {expanded && branchItemsQuery.isLoading ? (
+        <Text
+          style={[
+            styles.itemRow,
+            { borderTopColor: colors.border, color: colors.textFaint },
+          ]}
+        >
+          Loading journey details…
+        </Text>
+      ) : null}
+
       {expanded
-        ? group.items.map((item) => {
+        ? (branchItemsQuery.data ?? []).map((item) => {
             const itemStage = stageById.get(item.stage_id);
             const dropped = item.status === 'dropped';
             return (
@@ -1079,6 +1091,37 @@ function DraggableJourneyCard({
         : null}
     </Animated.View>
   );
+}
+
+async function loadJourneyBranchItems(
+  mode: JourneyMode,
+  subjectId: string
+): Promise<JourneyItem[]> {
+  const rows: JourneyItem[] = [];
+  let afterId: string | null = null;
+  for (;;) {
+    let query = supabase
+      .from('journey_items')
+      .select(
+        'id, contact_id, property_id, stage_id, status, drop_reason, hidden, updated_at, ' +
+          'contact:contacts(id, name, phone), property:properties(id, title, property_code, location)'
+      )
+      .eq('hidden', false)
+      .order('id', { ascending: true })
+      .limit(JOURNEY_BRANCH_PAGE_SIZE);
+    query =
+      mode === 'buyer'
+        ? query.eq('contact_id', subjectId)
+        : query.eq('property_id', subjectId);
+    if (afterId) query = query.gt('id', afterId);
+
+    const { data, error } = await query;
+    if (error) throw error;
+    const page = (data ?? []) as unknown as JourneyItem[];
+    rows.push(...page);
+    if (page.length < JOURNEY_BRANCH_PAGE_SIZE) return rows;
+    afterId = page[page.length - 1].id;
+  }
 }
 
 function groupTitle(group: JourneyGroup, mode: JourneyMode) {

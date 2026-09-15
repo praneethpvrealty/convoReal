@@ -192,6 +192,9 @@
               "file": "src/lib/mobile-parity.test.ts",
               "case": "[JRN-001]"
             }
+          ],
+          "guards": [
+            "supabase/migrations/20260915024746_journey_overview_groups.sql"
           ]
         },
         {
