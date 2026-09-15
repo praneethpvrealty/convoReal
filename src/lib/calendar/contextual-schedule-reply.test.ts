@@ -199,6 +199,18 @@ describe('Contextual schedule reply handling', () => {
     });
   });
 
+  /** The rescheduled meeting has to fall on a different day from the
+   *  one it replaces, which sits an hour from now. This was written as
+   *  a literal '2026-09-15T12:00' — fine until that date arrived, when
+   *  both events landed on the same day and the replacement stopped
+   *  reading as a separate event. Derived from the clock so it stays a
+   *  day out whenever the suite runs. */
+  const RESCHEDULED_START = (() => {
+    const d = new Date(Date.now() + 25 * 60 * 60_000);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T12:00`;
+  })();
+
   describe('tryHandleOwnerScheduling contextual digest reply flow', () => {
     it('targets the replacement event when one reply cancels an old event and adds the rescheduled one', async () => {
       appointmentsTable = [
@@ -230,7 +242,7 @@ describe('Contextual schedule reply handling', () => {
             intent: 'schedule',
             title: 'Meeting with property owner Prabha and buyer KP Anand',
             event_type: 'meeting',
-            start_time: '2026-09-15T12:00',
+            start_time: RESCHEDULED_START,
             end_time: null,
             duration_minutes: 60,
             contact_name: 'KP Anand',
