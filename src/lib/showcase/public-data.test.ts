@@ -9,6 +9,7 @@ const state = {
   accountName: 'Aryavarta Ventures',
   images: ['old.jpg'],
   catalogueFetches: 0,
+  catalogueError: null as Error | null,
 };
 
 vi.mock('@/lib/automations/admin-client', () => {
@@ -41,9 +42,11 @@ vi.mock('@/lib/automations/admin-client', () => {
         return Promise.resolve({
           data:
             table === 'properties'
-              ? [{ id: 'prop-1', images: state.images }]
+              ? state.catalogueError
+                ? null
+                : [{ id: 'prop-1', images: state.images }]
               : [],
-          error: null,
+          error: table === 'properties' ? state.catalogueError : null,
         }).then(resolve);
       },
     };
@@ -72,6 +75,7 @@ vi.mock('next/cache', () => {
 describe('cachedFetchShowcaseData', () => {
   beforeEach(() => {
     state.catalogueFetches = 0;
+    state.catalogueError = null;
   });
 
   it('serves repeat visits from cache while nothing changes', async () => {
@@ -120,5 +124,30 @@ describe('cachedFetchShowcaseData', () => {
 
     expect(state.catalogueFetches).toBe(2);
     expect(second.accountName).toBe('Aryavarta Ventures');
+  });
+
+  it('does not cache a failed catalogue query as an empty showcase', async () => {
+    state.catalogueError = new Error('database temporarily unavailable');
+    const consoleError = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    await expect(
+      cachedFetchShowcaseData('acc-transient-failure', false)
+    ).rejects.toThrow('Failed to load public showcase properties');
+
+    state.catalogueError = null;
+    const recovered = await cachedFetchShowcaseData(
+      'acc-transient-failure',
+      false
+    );
+
+    expect(state.catalogueFetches).toBe(2);
+    expect(recovered.properties).toHaveLength(1);
+    expect(consoleError).toHaveBeenCalledWith(
+      'Failed to load public showcase properties:',
+      expect.objectContaining({ accountId: 'acc-transient-failure' })
+    );
+    consoleError.mockRestore();
   });
 });
