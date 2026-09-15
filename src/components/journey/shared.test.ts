@@ -86,6 +86,20 @@ describe('journey overview loading', () => {
   });
 });
 
+describe('journey stage note visibility', () => {
+  const source = readFileSync(
+    join(process.cwd(), 'src/components/journey/journey-item-sheet.tsx'),
+    'utf8'
+  );
+
+  it('[JRN-004] offers notes at every stage and keeps the complete history', () => {
+    expect(source).toContain('const notesAtStage = stageNotes.filter');
+    expect(source).toContain('aria-label={`Add note at ${s.name}`}');
+    expect(source).not.toContain('canEdit && !future');
+    expect(source).toContain('stageNotes.map((note)');
+  });
+});
+
 describe('stageIndexOf', () => {
   it("[JRN-001] returns the stage's position in the ordered list", () => {
     expect(
