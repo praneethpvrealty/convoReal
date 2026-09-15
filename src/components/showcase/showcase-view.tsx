@@ -1458,8 +1458,27 @@ export function ShowcaseView({
       }
     }
 
-    navigator.clipboard.writeText(url);
-    toast.success('Property link copied to clipboard!');
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success('Property link copied to clipboard!');
+    } catch (err) {
+      console.error('Clipboard write failed:', err);
+      const textArea = document.createElement('textarea');
+      textArea.value = url;
+      textArea.style.position = 'fixed';
+      textArea.style.opacity = '0';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      const copied =
+        typeof document.execCommand === 'function' && document.execCommand('copy');
+      document.body.removeChild(textArea);
+      if (copied) {
+        toast.success('Property link copied to clipboard!');
+      } else {
+        toast.error('Could not copy the link. Please try again.');
+      }
+    }
   };
 
   return (

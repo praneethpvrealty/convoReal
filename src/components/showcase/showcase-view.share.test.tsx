@@ -14,7 +14,8 @@
 // ============================================================
 
 import { describe, it, expect, vi, beforeAll, afterEach } from 'vitest';
-import { render, cleanup, screen, fireEvent } from '@testing-library/react';
+import { render, cleanup, screen, fireEvent, waitFor } from '@testing-library/react';
+import { toast } from 'sonner';
 import type { Property, ShowcaseSettings } from '@/types';
 
 beforeAll(() => {
@@ -77,10 +78,12 @@ function renderAt(
   grantToken?: string,
   agentMode = false,
   visitorRef?: string,
-  onboardOffer = false
+  onboardOffer = false,
+  writeText: ReturnType<
+    typeof vi.fn<(text: string) => Promise<void>>
+  > = vi.fn().mockResolvedValue(undefined)
 ) {
   window.history.replaceState({}, '', `/${search}`);
-  const writeText = vi.fn<(text: string) => Promise<void>>();
   Object.defineProperty(navigator, 'clipboard', {
     value: { writeText },
     configurable: true,
@@ -163,6 +166,61 @@ describe('showcase detail — share control', () => {
       screen.getByRole('button', { name: /request convoreal invite/i })
     ).toBeTruthy();
     expect(screen.getByText(/pending review inventory/i)).toBeTruthy();
+  });
+
+  it('falls back to an error toast when the clipboard write is rejected', async () => {
+    const writeText = vi
+      .fn<(text: string) => Promise<void>>()
+      .mockRejectedValue(
+        new DOMException('Document is not focused.', 'NotAllowedError')
+      );
+    const errorSpy = vi.spyOn(toast, 'error').mockImplementation(() => '');
+    renderAt('', undefined, false, undefined, false, writeText);
+
+    fireEvent.click(
+      screen.getByRole('button', { name: /share this property/i })
+    );
+
+    await waitFor(() => expect(errorSpy).toHaveBeenCalled());
+    errorSpy.mockRestore();
+  });
+
+  it('copies the sanitized link — never the raw address bar — when the Clipboard API is rejected', async () => {
+    // A recipient viewing through a grant (?g=) has that grant in their
+    // actual address bar. If the writeText rejection ever fell back to
+    // "copy the page URL yourself", it would be steering them at the
+    // one URL this whole file exists to keep from leaking.
+    const writeText = vi
+      .fn<(text: string) => Promise<void>>()
+      .mockRejectedValue(
+        new DOMException('Document is not focused.', 'NotAllowedError')
+      );
+    const successSpy = vi.spyOn(toast, 'success').mockImplementation(() => '');
+    let copiedValue: string | undefined;
+    document.execCommand = ((command: string) => {
+      if (command === 'copy') {
+        copiedValue =
+          document.activeElement instanceof HTMLTextAreaElement
+            ? document.activeElement.value
+            : undefined;
+      }
+      return true;
+    }) as typeof document.execCommand;
+    renderAt(`?g=${GRANT_TOKEN}&v=contact-9`, GRANT_TOKEN, false, undefined, false, writeText);
+
+    fireEvent.click(
+      screen.getByRole('button', { name: /share this property/i })
+    );
+
+    await waitFor(() => expect(successSpy).toHaveBeenCalled());
+    expect(copiedValue).toBeTruthy();
+    expect(copiedValue).not.toContain(GRANT_TOKEN);
+    expect(copiedValue).not.toContain('g=');
+    expect(copiedValue).not.toContain('v=contact-9');
+
+    successSpy.mockRestore();
+    // @ts-expect-error -- restoring happy-dom's default (unimplemented) execCommand
+    delete document.execCommand;
   });
 
   it('never forwards the share grant that unmasked this visit', () => {
