@@ -204,7 +204,8 @@
             }
           ],
           "guards": [
-            "supabase/migrations/20260915010010_journey_overview_state.sql"
+            "supabase/migrations/20260915010010_journey_overview_state.sql",
+            "supabase/migrations/20260915015844_journey_table_privileges.sql"
           ]
         },
         {
@@ -231,7 +232,8 @@
             }
           ],
           "guards": [
-            "supabase/migrations/20260915010010_journey_overview_state.sql"
+            "supabase/migrations/20260915010010_journey_overview_state.sql",
+            "supabase/migrations/20260915015844_journey_table_privileges.sql"
           ]
         }
       ]
