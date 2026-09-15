@@ -167,6 +167,29 @@ async function postJourneyMutation(body: Record<string, unknown>) {
   }
 }
 
+const JOURNEY_PAGE_SIZE = 1000;
+
+async function loadAllJourneyItems(
+  supabase: ReturnType<typeof createClient>,
+  accountId: string,
+  select: string
+) {
+  const rows: JourneyItem[] = [];
+  for (let from = 0; ; from += JOURNEY_PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from('journey_items')
+      .select(select)
+      .eq('account_id', accountId)
+      .order('updated_at', { ascending: false })
+      .order('id', { ascending: true })
+      .range(from, from + JOURNEY_PAGE_SIZE - 1);
+    if (error) throw error;
+    const page = (data ?? []) as unknown as JourneyItem[];
+    rows.push(...page);
+    if (page.length < JOURNEY_PAGE_SIZE) return rows;
+  }
+}
+
 export function JourneyOverview({
   mode,
   stages,
@@ -230,23 +253,23 @@ export function JourneyOverview({
       mode === 'buyer'
         ? 'id, contact_id, property_id, stage_id, status, hidden, updated_at, contact:contacts(*)'
         : 'id, contact_id, property_id, stage_id, status, hidden, updated_at, property:properties(*)';
-    const [itemsResult, prioritiesResult, statesResponse] = await Promise.all([
-      supabase
-        .from('journey_items')
-        .select(select)
-        .eq('account_id', accountId)
-        .order('updated_at', { ascending: false })
-        .limit(2000),
-      supabase
-        .from('journey_priorities')
-        .select('subject_id, priority')
-        .eq('account_id', accountId)
-        .eq('mode', mode),
-      fetch(`/api/journey/overview?mode=${mode}`),
-    ]);
-
-    if (itemsResult.error) {
-      toast.error(`Failed to load journeys: ${itemsResult.error.message}`);
+    let items: JourneyItem[];
+    let prioritiesResult;
+    let statesResponse;
+    try {
+      [items, prioritiesResult, statesResponse] = await Promise.all([
+        loadAllJourneyItems(supabase, accountId, select),
+        supabase
+          .from('journey_priorities')
+          .select('subject_id, priority')
+          .eq('account_id', accountId)
+          .eq('mode', mode),
+        fetch(`/api/journey/overview?mode=${mode}`),
+      ]);
+    } catch (error) {
+      toast.error(
+        `Failed to load journeys: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
       setLoading(false);
       return;
     }
@@ -273,7 +296,7 @@ export function JourneyOverview({
       (statePayload?.data ?? []).map((row) => [row.subject_id, row])
     );
     const byId = new Map<string, JourneyGroup>();
-    for (const row of (itemsResult.data ?? []) as unknown as JourneyItem[]) {
+    for (const row of items) {
       const key = mode === 'buyer' ? row.contact_id : row.property_id;
       let group = byId.get(key);
       if (!group) {

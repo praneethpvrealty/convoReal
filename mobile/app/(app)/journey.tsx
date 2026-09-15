@@ -52,6 +52,7 @@ import { usePullRefresh } from '@/lib/use-pull-refresh';
 
 type JourneyView = 'active' | 'closed' | 'archived';
 type JourneyMode = 'buyer' | 'property';
+const JOURNEY_PAGE_SIZE = 1000;
 
 interface JourneyGroup {
   subjectId: string;
@@ -114,20 +115,26 @@ export default function JourneyScreen() {
   });
 
   const itemsQuery = useQuery({
-    queryKey: ['journey-items'],
+    queryKey: ['journey-items', accountId],
     enabled: Boolean(accountId),
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('journey_items')
-        .select(
-          'id, contact_id, property_id, stage_id, status, drop_reason, hidden, updated_at, ' +
-            'contact:contacts(id, name, phone), property:properties(id, title, property_code, location)'
-        )
-        .eq('account_id', accountId!)
-        .order('updated_at', { ascending: false })
-        .limit(2000);
-      if (error) throw error;
-      return data as unknown as JourneyItem[];
+      const rows: JourneyItem[] = [];
+      for (let from = 0; ; from += JOURNEY_PAGE_SIZE) {
+        const { data, error } = await supabase
+          .from('journey_items')
+          .select(
+            'id, contact_id, property_id, stage_id, status, drop_reason, hidden, updated_at, ' +
+              'contact:contacts(id, name, phone), property:properties(id, title, property_code, location)'
+          )
+          .eq('account_id', accountId!)
+          .order('updated_at', { ascending: false })
+          .order('id', { ascending: true })
+          .range(from, from + JOURNEY_PAGE_SIZE - 1);
+        if (error) throw error;
+        const page = (data ?? []) as unknown as JourneyItem[];
+        rows.push(...page);
+        if (page.length < JOURNEY_PAGE_SIZE) return rows;
+      }
     },
   });
 
@@ -148,7 +155,6 @@ export default function JourneyScreen() {
           'id, item_id, stage_id, stage_name, stage_color, note, created_by_name, created_at'
         )
         .eq('item_id', noteTarget!.item.id)
-        .eq('stage_id', noteTarget!.stage.id)
         .order('created_at', { ascending: false })
         .limit(50);
       if (error) throw error;
@@ -544,7 +550,7 @@ export default function JourneyScreen() {
   }
 
   async function saveNote() {
-    if (!noteTarget || !noteText.trim() || savingNote) return;
+    if (!canEdit || !noteTarget || !noteText.trim() || savingNote) return;
     setSavingNote(true);
     try {
       await addJourneyStageNote({
@@ -797,36 +803,49 @@ export default function JourneyScreen() {
           setNoteTarget(null);
           setNoteText('');
         }}
-        title={noteTarget ? `Note at ${noteTarget.stage.name}` : 'Stage note'}
+        title={
+          noteTarget
+            ? `Journey notes · ${noteTarget.stage.name}`
+            : 'Journey notes'
+        }
       >
         <ScrollView
           style={sheetScrollArea}
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={{ padding: spacing.lg, gap: spacing.md }}
         >
-          <TextInput
-            multiline
-            autoFocus
-            value={noteText}
-            maxLength={1000}
-            onChangeText={setNoteText}
-            placeholder="e.g. ₹1 lakh token paid"
-            placeholderTextColor={colors.textFaint}
-            style={[
-              styles.noteInput,
-              {
-                color: colors.text,
-                backgroundColor: colors.glass,
-                borderColor: colors.glassBorder,
-              },
-            ]}
-          />
-          <PrimaryButton
-            label="Save note"
-            busy={savingNote}
-            disabled={!noteText.trim()}
-            onPress={() => void saveNote()}
-          />
+          {canEdit ? (
+            <>
+              <TextInput
+                multiline
+                autoFocus
+                value={noteText}
+                maxLength={1000}
+                onChangeText={setNoteText}
+                placeholder={`Add note at ${noteTarget?.stage.name ?? 'this stage'}, e.g. ₹1 lakh token paid`}
+                placeholderTextColor={colors.textFaint}
+                style={[
+                  styles.noteInput,
+                  {
+                    color: colors.text,
+                    backgroundColor: colors.glass,
+                    borderColor: colors.glassBorder,
+                  },
+                ]}
+              />
+              <PrimaryButton
+                label="Save note"
+                busy={savingNote}
+                disabled={!noteText.trim()}
+                onPress={() => void saveNote()}
+              />
+            </>
+          ) : null}
+          {!notesQuery.isLoading && (notesQuery.data ?? []).length === 0 ? (
+            <Text style={{ fontSize: 13, color: colors.textFaint }}>
+              No stage notes yet.
+            </Text>
+          ) : null}
           {(notesQuery.data ?? []).map((note) => (
             <View
               key={note.id}
@@ -848,6 +867,7 @@ export default function JourneyScreen() {
                   color: colors.textFaint,
                 }}
               >
+                {note.stage_name} ·{' '}
                 {note.created_by_name ? `${note.created_by_name} · ` : ''}
                 {new Date(note.created_at).toLocaleDateString('en-IN')}
               </Text>
@@ -1040,10 +1060,10 @@ function DraggableJourneyCard({
                       : itemStage?.name || '—'}
                   </Text>
                 </Pressable>
-                {canEdit && itemStage ? (
+                {itemStage ? (
                   <Pressable
                     onPress={() => onAddNote(item, itemStage)}
-                    accessibilityLabel={`Add note at ${itemStage.name}`}
+                    accessibilityLabel={`${canEdit ? 'Add or view' : 'View'} notes at ${itemStage.name}`}
                     hitSlop={8}
                   >
                     <Ionicons

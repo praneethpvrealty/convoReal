@@ -190,6 +190,8 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
     expect(screen).toContain('group.furthestStageIdx = Math.max(');
     expect(screen).toContain('if (item.hidden) group.captured += 1');
     expect(screen).not.toContain(".eq('hidden', false)");
+    expect(screen).toContain('.range(from, from + JOURNEY_PAGE_SIZE - 1)');
+    expect(screen).not.toContain('.limit(2000)');
   });
 
   it('[JRN-002] keeps the same lifecycle statuses', () => {
@@ -203,7 +205,8 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
     expect(screen).toContain("profile.account_role !== 'viewer'");
     expect(screen).toContain('.enabled(canEdit)');
     expect(screen).toContain('{canEdit ? (');
-    expect(screen).toContain('{canEdit && itemStage ? (');
+    expect(screen).toContain('{itemStage ? (');
+    expect(screen).toContain("{canEdit ? 'Add or view' : 'View'} notes");
   });
 });
 

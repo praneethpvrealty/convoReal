@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 import { describe, expect, it, vi } from 'vitest';
 
 import type { JourneyItem, JourneyStage } from '@/types';
@@ -44,6 +47,20 @@ function item(
 }
 
 const STAGES = [stage('shared', 0), stage('visited', 1), stage('token', 2)];
+
+describe('journey overview loading', () => {
+  it('[JRN-001] paginates until every journey item is classified', () => {
+    const source = readFileSync(
+      join(process.cwd(), 'src/components/journey/journey-overview.tsx'),
+      'utf8'
+    );
+    expect(source).toContain('.range(from, from + JOURNEY_PAGE_SIZE - 1)');
+    expect(source).toContain(
+      'if (page.length < JOURNEY_PAGE_SIZE) return rows'
+    );
+    expect(source).not.toContain('.limit(2000)');
+  });
+});
 
 describe('stageIndexOf', () => {
   it("[JRN-001] returns the stage's position in the ordered list", () => {
