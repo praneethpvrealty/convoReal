@@ -2752,11 +2752,31 @@ export function ShowcaseView({
                           <Button
                             type="button"
                             size="sm"
-                            onClick={() => {
-                              navigator.clipboard.writeText(reshareLink).then(() => {
+                            onClick={async () => {
+                              try {
+                                await navigator.clipboard.writeText(reshareLink);
                                 setReshareCopied(true);
                                 setTimeout(() => setReshareCopied(false), 3000);
-                              });
+                              } catch (err) {
+                                console.error('Clipboard write failed:', err);
+                                const textArea = document.createElement('textarea');
+                                textArea.value = reshareLink;
+                                textArea.style.position = 'fixed';
+                                textArea.style.opacity = '0';
+                                document.body.appendChild(textArea);
+                                textArea.focus();
+                                textArea.select();
+                                const copied =
+                                  typeof document.execCommand === 'function' &&
+                                  document.execCommand('copy');
+                                document.body.removeChild(textArea);
+                                if (copied) {
+                                  setReshareCopied(true);
+                                  setTimeout(() => setReshareCopied(false), 3000);
+                                } else {
+                                  toast.error('Could not copy the link. Please try again.');
+                                }
+                              }
                             }}
                             className="h-8 px-3 bg-primary hover:bg-primary-hover text-primary-foreground text-[11px] font-bold shrink-0"
                           >
