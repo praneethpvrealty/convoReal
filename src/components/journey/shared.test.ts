@@ -68,6 +68,21 @@ describe('journey overview loading', () => {
     expect(migration).toContain('SECURITY DEFINER');
     expect(migration).toContain('is_account_member(p_account_id)');
     expect(migration).toContain('jsonb_agg(');
+
+    const contactScopeMigration = readFileSync(
+      join(
+        process.cwd(),
+        'supabase/migrations/20260915030559_journey_overview_contact_scope.sql'
+      ),
+      'utf8'
+    );
+    expect(contactScopeMigration).toContain(
+      "profile.org_role IN ('org_manager', 'org_coordinator')"
+    );
+    expect(contactScopeMigration).toContain(
+      'contacts.assigned_agent_id = (SELECT auth.uid())'
+    );
+    expect(contactScopeMigration).toContain('contacts.assigned_team_id = (');
   });
 });
 
