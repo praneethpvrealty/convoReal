@@ -799,17 +799,78 @@ export default function JourneyScreen() {
           setNoteTarget(null);
           setNoteText('');
         }}
-        title={
-          noteTarget
-            ? `Journey notes · ${noteTarget.stage.name}`
-            : 'Journey notes'
-        }
+        title="Journey stage notes"
       >
         <ScrollView
           style={sheetScrollArea}
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={{ padding: spacing.lg, gap: spacing.md }}
         >
+          {noteTarget ? (
+            <View style={{ gap: spacing.sm }}>
+              <Text
+                style={{
+                  fontSize: 11,
+                  fontFamily: f.bold,
+                  color: colors.textMuted,
+                  textTransform: 'uppercase',
+                }}
+              >
+                Note stage
+              </Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ gap: spacing.xs }}
+              >
+                {stages.map((stage) => {
+                  const selected = stage.id === noteTarget.stage.id;
+                  const stageColor = stage.color ?? colors.primary;
+                  return (
+                    <Pressable
+                      key={stage.id}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected }}
+                      onPress={() =>
+                        setNoteTarget((current) =>
+                          current ? { ...current, stage } : current
+                        )
+                      }
+                      style={[
+                        styles.noteStage,
+                        {
+                          backgroundColor: selected
+                            ? `${stageColor}22`
+                            : colors.glass,
+                          borderColor: selected
+                            ? stageColor
+                            : colors.glassBorder,
+                        },
+                      ]}
+                    >
+                      <View
+                        style={{
+                          width: 7,
+                          height: 7,
+                          borderRadius: 4,
+                          backgroundColor: stageColor,
+                        }}
+                      />
+                      <Text
+                        style={{
+                          fontSize: 12,
+                          fontFamily: selected ? f.bold : f.medium,
+                          color: selected ? colors.text : colors.textMuted,
+                        }}
+                      >
+                        {stage.name}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          ) : null}
           {canEdit ? (
             <>
               <TextInput
@@ -836,6 +897,18 @@ export default function JourneyScreen() {
                 onPress={() => void saveNote()}
               />
             </>
+          ) : null}
+          {(notesQuery.data ?? []).length > 0 ? (
+            <Text
+              style={{
+                fontSize: 11,
+                fontFamily: f.bold,
+                color: colors.textMuted,
+                textTransform: 'uppercase',
+              }}
+            >
+              Complete journey history
+            </Text>
           ) : null}
           {!notesQuery.isLoading && (notesQuery.data ?? []).length === 0 ? (
             <Text style={{ fontSize: 13, color: colors.textFaint }}>
@@ -1211,6 +1284,15 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     padding: spacing.md,
     textAlignVertical: 'top',
+  },
+  noteStage: {
+    minHeight: 34,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    borderWidth: 1,
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.md,
   },
   note: { borderWidth: 1, borderRadius: radius.md, padding: spacing.md },
 });

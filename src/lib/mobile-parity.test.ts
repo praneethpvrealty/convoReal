@@ -227,6 +227,14 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
     expect(screen).toContain('{itemStage ? (');
     expect(screen).toContain("{canEdit ? 'Add or view' : 'View'} notes");
   });
+
+  it('[JRN-004] offers every stage while retaining the complete note history', () => {
+    expect(screen).toContain('Journey stage notes');
+    expect(screen).toContain('stages.map((stage)');
+    expect(screen).toContain('current ? { ...current, stage } : current');
+    expect(screen).toContain('Complete journey history');
+    expect(screen).toContain('(notesQuery.data ?? []).map((note)');
+  });
 });
 
 describe('mobile conversation closure mirrors the web inbox', () => {

@@ -257,10 +257,18 @@
         },
         {
           "id": "JRN-004",
-          "rule": "Stage notes are append-only, account-scoped entries tied to one journey item and a stage snapshot, with author and creation time retained through closure, archival and later stage deletion.",
+          "rule": "Every configured stage can capture an append-only, account-scoped note before or after the stage is reached; the latest note stays visible in the stage rail and the complete history retains its stage snapshot, author and creation time through closure, archival and later stage deletion.",
           "tests": [
             {
               "file": "src/lib/journey/stage-notes.test.ts",
+              "case": "[JRN-004]"
+            },
+            {
+              "file": "src/components/journey/shared.test.ts",
+              "case": "[JRN-004]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
               "case": "[JRN-004]"
             }
           ],

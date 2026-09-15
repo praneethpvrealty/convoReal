@@ -500,9 +500,10 @@ export function JourneyItemSheet({
                 const passed = idx < reached;
                 const current = idx === reached;
                 const future = idx > reached;
-                const latestNote = stageNotes.find(
+                const notesAtStage = stageNotes.filter(
                   (note) => note.stage_id === s.id
                 );
+                const latestNote = notesAtStage[0];
                 return (
                   <div
                     key={s.id}
@@ -549,17 +550,21 @@ export function JourneyItemSheet({
                           {dropped ? 'dropped here' : 'current'}
                         </span>
                       )}
-                      {canEdit && !future && (
+                      {canEdit && (
                         <button
                           type="button"
+                          aria-label={`Add note at ${s.name}`}
                           onClick={() => {
                             setNoteStageId(noteStageId === s.id ? null : s.id);
                             setStageNote('');
                           }}
-                          className="hover:text-primary inline-flex items-center gap-1 text-[10px] font-semibold text-slate-500"
+                          className="hover:text-primary inline-flex shrink-0 items-center gap-1 text-[10px] font-semibold text-slate-500"
                         >
                           <NotebookPen className="h-3 w-3" />
                           Note
+                          {notesAtStage.length > 0
+                            ? ` (${notesAtStage.length})`
+                            : ''}
                         </button>
                       )}
                     </div>
