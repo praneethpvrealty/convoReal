@@ -194,7 +194,8 @@
             }
           ],
           "guards": [
-            "supabase/migrations/20260915024746_journey_overview_groups.sql"
+            "supabase/migrations/20260915024746_journey_overview_groups.sql",
+            "supabase/migrations/20260915030559_journey_overview_contact_scope.sql"
           ]
         },
         {
