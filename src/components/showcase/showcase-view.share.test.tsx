@@ -223,6 +223,70 @@ describe('showcase detail — share control', () => {
     delete document.execCommand;
   });
 
+  it('falls back to a manual copy when the co-broker reshare link cannot use the Clipboard API', async () => {
+    // The reshare-link "Copy" button used to fire
+    // navigator.clipboard.writeText(...).then(...) with no .catch — a
+    // rejection (e.g. NotAllowedError when the tab lost focus) became an
+    // unhandled promise rejection instead of falling back, unlike the
+    // main Share button just above it.
+    const writeText = vi
+      .fn<(text: string) => Promise<void>>()
+      .mockRejectedValue(
+        new DOMException('Document is not focused.', 'NotAllowedError')
+      );
+    const originalFetch = global.fetch;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) => {
+        const url = typeof input === 'string' ? input : input.toString();
+        if (url.includes('/reshare-link')) {
+          return Promise.resolve({
+            ok: true,
+            json: () =>
+              Promise.resolve({ link: 'https://www.convoreal.com/property/sarjapur-jv-land?ref=contact-9' }),
+          });
+        }
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ data: [] }) });
+      })
+    );
+    let copiedValue: string | undefined;
+    document.execCommand = ((command: string) => {
+      if (command === 'copy') {
+        copiedValue =
+          document.activeElement instanceof HTMLTextAreaElement
+            ? document.activeElement.value
+            : undefined;
+      }
+      return true;
+    }) as typeof document.execCommand;
+
+    try {
+      renderAt('', undefined, true, 'contact-9', false, writeText);
+
+      fireEvent.click(screen.getByRole('button', { name: /get my share link/i }));
+      fireEvent.change(screen.getByPlaceholderText('Your Name'), {
+        target: { value: 'Priya' },
+      });
+      fireEvent.change(screen.getByPlaceholderText('Your WhatsApp Number'), {
+        target: { value: '9900277111' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: /get my share link/i }));
+
+      const copyButton = await screen.findByRole('button', { name: /^copy$/i });
+      fireEvent.click(copyButton);
+
+      await waitFor(() => expect(copiedValue).toBeTruthy());
+      expect(copiedValue).toBe(
+        'https://www.convoreal.com/property/sarjapur-jv-land?ref=contact-9'
+      );
+      await screen.findByRole('button', { name: /copied!/i });
+    } finally {
+      vi.stubGlobal('fetch', originalFetch);
+      // @ts-expect-error -- restoring happy-dom's default (unimplemented) execCommand
+      delete document.execCommand;
+    }
+  });
+
   it('never forwards the share grant that unmasked this visit', () => {
     const writeText = renderAt(`?g=${GRANT_TOKEN}&v=contact-9`, GRANT_TOKEN);
 
