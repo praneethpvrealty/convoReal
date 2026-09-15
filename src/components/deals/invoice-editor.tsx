@@ -14,6 +14,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
+import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { GST_STATE_CODES } from '@/lib/invoices/gst';
 import { formatIndianDigits } from '@/lib/invoices/pdf-text';
@@ -43,6 +44,8 @@ export function InvoiceEditor({
   const [pan, setPan] = useState('');
   const [poNumber, setPoNumber] = useState('');
   const [placeCode, setPlaceCode] = useState('');
+  const [chargeGst, setChargeGst] = useState(false);
+  const [gstRate, setGstRate] = useState('18');
   const [particulars, setParticulars] = useState('');
   const [sac, setSac] = useState('');
   const [taxableValue, setTaxableValue] = useState('');
@@ -73,6 +76,8 @@ export function InvoiceEditor({
     setPan(invoice.bill_to?.pan ?? '');
     setPoNumber(invoice.bill_to?.po_number ?? '');
     setPlaceCode(invoice.place_of_supply_code ?? '');
+    setChargeGst(invoice.gst_mode !== 'nil');
+    setGstRate(String(invoice.gst_rate || 18));
     const line = invoice.line_items?.[0];
     setParticulars((line?.particulars ?? []).join('\n'));
     setSac(line?.sac ?? '');
@@ -91,6 +96,8 @@ export function InvoiceEditor({
           side,
           share_percent: Number(sharePercent) || 100,
           place_of_supply_code: placeCode,
+          gst_mode: chargeGst ? 'intra' : 'nil',
+          gst_rate: Number(gstRate) || 0,
           notes: notes.trim() || null,
           bill_to: {
             name: billToName,
@@ -263,6 +270,37 @@ export function InvoiceEditor({
                   </select>
                 </div>
               </div>
+            </div>
+
+            <div className="space-y-3 rounded-lg border border-slate-800 p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <Label htmlFor="charge-gst">Charge GST</Label>
+                  <p className="text-xs text-slate-500">
+                    {chargeGst
+                      ? 'Split into CGST + SGST within your state, IGST outside it.'
+                      : 'Raised without tax, with your exemption note printed.'}
+                  </p>
+                </div>
+                <Switch
+                  id="charge-gst"
+                  checked={chargeGst}
+                  onCheckedChange={setChargeGst}
+                />
+              </div>
+              {chargeGst && (
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <Label htmlFor="gst-rate">Rate (%)</Label>
+                    <Input
+                      id="gst-rate"
+                      type="number"
+                      value={gstRate}
+                      onChange={(e) => setGstRate(e.target.value)}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="space-y-3 rounded-lg border border-slate-800 p-3">

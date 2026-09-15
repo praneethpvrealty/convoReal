@@ -5,6 +5,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   View,
 } from 'react-native';
@@ -108,6 +109,8 @@ function InvoiceForm({
   const [amount, setAmount] = useState(
     String(invoice.line_items?.[0]?.taxable_value ?? '')
   );
+  const [chargeGst, setChargeGst] = useState(invoice.gst_mode !== 'nil');
+  const [gstRate, setGstRate] = useState(String(invoice.gst_rate || 18));
   const [notes, setNotes] = useState(invoice.notes ?? '');
 
   async function save() {
@@ -118,6 +121,8 @@ function InvoiceForm({
         invoice_date: invoiceDate,
         side,
         share_percent: Number(sharePercent) || 100,
+        gst_mode: chargeGst ? 'intra' : 'nil',
+        gst_rate: Number(gstRate) || 0,
         notes: notes.trim() || null,
         bill_to: {
           name,
@@ -239,6 +244,39 @@ function InvoiceForm({
         autoCapitalize="characters"
       />
 
+      <View style={styles.toggleRow}>
+        <View style={styles.toggleLabel}>
+          <Text
+            style={{ color: colors.text, fontFamily: f.semibold, fontSize: 14 }}
+          >
+            Charge GST
+          </Text>
+          <Text
+            style={[
+              styles.hint,
+              { color: colors.textFaint, fontFamily: f.regular },
+            ]}
+          >
+            {chargeGst
+              ? 'CGST + SGST within your state, IGST outside it.'
+              : 'Raised without tax, with your exemption note printed.'}
+          </Text>
+        </View>
+        <Switch
+          value={chargeGst}
+          onValueChange={setChargeGst}
+          trackColor={{ true: colors.primary }}
+        />
+      </View>
+      {chargeGst && (
+        <TextField
+          label="GST rate (%)"
+          value={gstRate}
+          onChangeText={setGstRate}
+          keyboardType="numeric"
+        />
+      )}
+
       <TextField label="SAC" value={sac} onChangeText={setSac} />
       <TextField
         label="Taxable value"
@@ -281,6 +319,13 @@ const styles = StyleSheet.create({
   body: { gap: spacing.md, paddingBottom: spacing.xl },
   hint: { fontSize: 12, lineHeight: 17 },
   sideRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm },
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+  },
+  toggleLabel: { flex: 1, gap: 2 },
   sideChip: {
     flex: 1,
     alignItems: 'center',

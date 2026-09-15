@@ -313,7 +313,7 @@ convoReal/
 │   ├── Dockerfile                # Multi-stage Alpine build
 │   ├── go.mod / go.sum           # Go 1.24.3, go-redis v9
 ├── supabase/
-│   ├── migrations/               # 186 numbered SQL migrations (001–174, with gaps/collisions)
+│   ├── migrations/               # 358 SQL migrations: 313 frozen sequential (001–293), 45 timestamped
 │   └── RUN_IN_SUPABASE_SQL_EDITOR.sql  # Consolidated schema seed
 ├── docs/                         # Deployment, scaling, integration and design guides
 ├── mobile/                       # Expo React Native app (own package.json + AGENTS.md)
@@ -323,11 +323,11 @@ convoReal/
 
 ### Codebase size (rough)
 
-- `src/app`: ~317 files — 60 `page.tsx` and 209 `route.ts`.
-- `src/components`: ~212 files.
-- `src/lib`: ~303 files.
-- `src/**/*.test.ts(x)`: ~118 test files.
-- `supabase/migrations`: 186 SQL files.
+- `src/app`: ~554 files — 72 `page.tsx` and 362 `route.ts`.
+- `src/components`: ~305 files.
+- `src/lib`: ~866 files.
+- `src/**/*.test.ts(x)`: ~458 test files.
+- `supabase/migrations`: 358 SQL files — 313 sequential, 45 timestamped (§7.1).
 
 These numbers drift with every feature. Re-count rather than trusting them if a decision depends on the exact figure.
 
