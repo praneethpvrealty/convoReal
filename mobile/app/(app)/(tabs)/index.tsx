@@ -36,6 +36,7 @@ import {
 import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
 import { useAuthStore } from '@/lib/auth-store';
 import { setConversationArchived } from '@/lib/conversation-actions';
+import { conversationCloseReasonLabel } from '@/lib/conversation-closure';
 import { resolveGreetingName } from '@/lib/display-name';
 import { haptic } from '@/lib/haptics';
 import type {
@@ -85,7 +86,9 @@ interface ActivityRow {
 async function fetchConversations(archived: boolean): Promise<Conversation[]> {
   const { data, error } = await supabase
     .from('conversations')
-    .select('*, contact:contacts(*), group:whatsapp_groups(id, subject, status)')
+    .select(
+      '*, contact:contacts(*), group:whatsapp_groups(id, subject, status)'
+    )
     .eq('is_archived', archived)
     // A conversation row can exist with no messages yet (e.g. an approve
     // flow opened it but the send was blocked by the 24-hour window) —
@@ -122,10 +125,13 @@ export default function InboxScreen() {
     enabled: Boolean(accountId) && filter === 'Active',
     staleTime: 60_000,
     queryFn: async () => {
-      const { data: rows, error } = await supabase.rpc('conversation_activity', {
-        p_account_id: accountId,
-        p_hours: 24,
-      });
+      const { data: rows, error } = await supabase.rpc(
+        'conversation_activity',
+        {
+          p_account_id: accountId,
+          p_hours: 24,
+        }
+      );
       if (error) throw error;
       return (rows ?? []) as ActivityRow[];
     },
@@ -164,7 +170,10 @@ export default function InboxScreen() {
   }, [accountId, userId]);
 
   const activityById = useMemo(
-    () => new Map((activity ?? []).map((r) => [r.conversation_id, r.message_count])),
+    () =>
+      new Map(
+        (activity ?? []).map((r) => [r.conversation_id, r.message_count])
+      ),
     [activity]
   );
 
@@ -178,8 +187,12 @@ export default function InboxScreen() {
         .filter((c) => needsReply(c) !== null)
         .sort(
           (a, b) =>
-            new Date(a.last_customer_message_at ?? a.last_message_at ?? 0).getTime() -
-            new Date(b.last_customer_message_at ?? b.last_message_at ?? 0).getTime()
+            new Date(
+              a.last_customer_message_at ?? a.last_message_at ?? 0
+            ).getTime() -
+            new Date(
+              b.last_customer_message_at ?? b.last_message_at ?? 0
+            ).getTime()
         );
     else if (filter === 'Unanswered')
       // Longest silence first: the lead who has ignored us for a week
@@ -194,16 +207,24 @@ export default function InboxScreen() {
     else if (filter === 'Active')
       list = list
         .filter((c) => activityById.has(c.id))
-        .sort((a, b) => (activityById.get(b.id) ?? 0) - (activityById.get(a.id) ?? 0));
-    else if (filter === 'Closed') list = list.filter((c) => c.status === 'closed');
+        .sort(
+          (a, b) =>
+            (activityById.get(b.id) ?? 0) - (activityById.get(a.id) ?? 0)
+        );
+    else if (filter === 'Closed')
+      list = list.filter((c) => c.status === 'closed');
     const q = search.trim().toLowerCase();
     if (q) {
-      list = list.filter(
-        (c) =>
+      list = list.filter((c) => {
+        const closeReason = conversationCloseReasonLabel(c.close_reason);
+        return (
           c.contact?.name?.toLowerCase().includes(q) ||
           c.contact?.phone?.includes(q) ||
-          c.last_message_text?.toLowerCase().includes(q)
-      );
+          c.last_message_text?.toLowerCase().includes(q) ||
+          closeReason?.toLowerCase().includes(q) ||
+          c.close_note?.toLowerCase().includes(q)
+        );
+      });
     }
     return list;
   }, [data, filter, search, activityById]);
@@ -533,6 +554,9 @@ function ConversationRow({
     : conversation.contact?.name || conversation.contact?.phone || 'Unknown';
   const unread = conversation.unread_count > 0;
   const reply = needsReply(conversation);
+  const closeReasonLabel = conversationCloseReasonLabel(
+    conversation.close_reason
+  );
   const swipeRef = useRef<Swipeable>(null);
 
   // Delivery ticks for the last message, WhatsApp-style — only when we
@@ -665,7 +689,7 @@ function ConversationRow({
             </View>
             <UnreadBadge count={conversation.unread_count} />
           </View>
-          {reply || activityCount != null ? (
+          {reply || closeReasonLabel || activityCount != null ? (
             <View style={styles.pillRow}>
               {reply ? (
                 <View
@@ -695,6 +719,30 @@ function ConversationRow({
                     ]}
                   >
                     {needsReplyLabel(reply)}
+                  </Text>
+                </View>
+              ) : null}
+              {closeReasonLabel ? (
+                <View
+                  style={[styles.pill, { backgroundColor: colors.surfaceWell }]}
+                >
+                  <Ionicons
+                    name="checkmark-done"
+                    size={11}
+                    color={colors.textMuted}
+                  />
+                  <Text
+                    numberOfLines={1}
+                    style={[
+                      styles.pillText,
+                      {
+                        maxWidth: 180,
+                        fontFamily: f.bold,
+                        color: colors.textMuted,
+                      },
+                    ]}
+                  >
+                    {closeReasonLabel}
                   </Text>
                 </View>
               ) : null}

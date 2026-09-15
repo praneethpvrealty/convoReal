@@ -61,6 +61,12 @@ import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import { isReengagementError } from '@/lib/whatsapp/customer-window';
 import { MoveToEngineDialog } from '@/components/contacts/move-to-engine-dialog';
 import { toast } from 'sonner';
+import { ConversationCloseDialog } from './conversation-close-dialog';
+import {
+  conversationCloseReasonLabel,
+  conversationStatusUpdate,
+  type ConversationCloseReason,
+} from '@/lib/conversations/closure';
 
 interface ReplyDraft {
   id: string;
@@ -199,6 +205,7 @@ export function MessageThread({
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
+  const [closeDialogOpen, setCloseDialogOpen] = useState(false);
   // A handed-over template opens the picker on arrival — the closed
   // window is exactly when the agent would otherwise hit a dead end.
   useEffect(() => {
@@ -630,8 +637,7 @@ export function MessageThread({
         // bubble into the note itself — left as a normal bubble it reads
         // as a message the contact received.
         const command = payload?.command as
-          | { ack?: string; applied?: boolean; noteSaved?: boolean }
-          | undefined;
+          { ack?: string; applied?: boolean; noteSaved?: boolean } | undefined;
         if (command?.ack) {
           if (command.applied) toast.success(command.ack);
           else toast.error(command.ack);
@@ -676,10 +682,15 @@ export function MessageThread({
     async (status: ConversationStatus) => {
       if (!conversation) return;
 
+      if (status === 'closed') {
+        setCloseDialogOpen(true);
+        return;
+      }
+
       const supabase = createClient();
       const { data: statusSaved } = await supabase
         .from('conversations')
-        .update({ status })
+        .update(conversationStatusUpdate(status))
         .eq('id', conversation.id)
         .select('id');
 
@@ -689,6 +700,28 @@ export function MessageThread({
       }
 
       onStatusChange(conversation.id, status);
+    },
+    [conversation, onStatusChange]
+  );
+
+  const handleCloseConversation = useCallback(
+    async (reason: ConversationCloseReason, note: string) => {
+      if (!conversation) return;
+
+      const supabase = createClient();
+      const { data: statusSaved, error } = await supabase
+        .from('conversations')
+        .update(conversationStatusUpdate('closed', reason, note))
+        .eq('id', conversation.id)
+        .select('id');
+
+      if (error || !statusSaved?.length) {
+        toast.error('Failed to close lead');
+        throw error ?? new Error('That conversation is no longer there.');
+      }
+
+      onStatusChange(conversation.id, 'closed');
+      toast.success('Lead closed');
     },
     [conversation, onStatusChange]
   );
@@ -1074,6 +1107,9 @@ export function MessageThread({
   const currentStatus = STATUS_OPTIONS.find(
     (s) => s.value === conversation.status
   );
+  const closeReasonLabel = conversationCloseReasonLabel(
+    conversation.close_reason
+  );
   const assignedAgentId = conversation.assigned_agent_id ?? null;
   const currentAssignee = profiles.find((p) => p.user_id === assignedAgentId);
   const assignLabel = assignedAgentId
@@ -1243,6 +1279,16 @@ export function MessageThread({
             </DropdownMenuContent>
           </DropdownMenu>
 
+          {closeReasonLabel && (
+            <Badge
+              variant="outline"
+              title={conversation.close_note ?? closeReasonLabel}
+              className="hidden max-w-44 truncate border-slate-700 text-[10px] text-slate-400 xl:inline-flex"
+            >
+              {closeReasonLabel}
+            </Badge>
+          )}
+
           {/* Assign dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger
@@ -1299,6 +1345,12 @@ export function MessageThread({
           </DropdownMenu>
         </div>
       </div>
+      <ConversationCloseDialog
+        open={closeDialogOpen}
+        contactName={displayName}
+        onOpenChange={setCloseDialogOpen}
+        onSubmit={handleCloseConversation}
+      />
 
       {/* Messages Area */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4">

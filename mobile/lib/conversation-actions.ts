@@ -1,6 +1,10 @@
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
 import type { ConversationStatus } from '@/lib/types';
+import {
+  conversationStatusUpdate,
+  type ConversationCloseReason,
+} from '@/lib/conversation-closure';
 
 // Conversation queue-state actions shared by the thread header menu and
 // the inbox swipe action. Mirror the web inbox: a plain update on the
@@ -15,11 +19,17 @@ function refresh(id?: string) {
 
 export async function setConversationStatus(
   id: string,
-  status: ConversationStatus
+  status: ConversationStatus,
+  reason?: ConversationCloseReason,
+  note?: string
 ): Promise<void> {
+  const update =
+    status === 'closed'
+      ? conversationStatusUpdate(status, reason!, note)
+      : conversationStatusUpdate(status);
   const { data, error } = await supabase
     .from('conversations')
-    .update({ status })
+    .update(update)
     .eq('id', id)
     .select('id');
   if (error) throw new Error(error.message);
@@ -27,7 +37,10 @@ export async function setConversationStatus(
   refresh(id);
 }
 
-export async function setConversationArchived(id: string, archived: boolean): Promise<void> {
+export async function setConversationArchived(
+  id: string,
+  archived: boolean
+): Promise<void> {
   const { data, error } = await supabase
     .from('conversations')
     .update({ is_archived: archived })

@@ -754,7 +754,12 @@ export async function sendWhatsAppMessageAndPersist(
     if (args.senderType === 'agent') {
       await db
         .from('conversations')
-        .update({ status: 'open' })
+        .update({
+          status: 'open',
+          close_reason: null,
+          close_note: null,
+          closed_at: null,
+        })
         .eq('id', resolvedConversationId)
         .eq('status', 'pending')
     }

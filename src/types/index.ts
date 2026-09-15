@@ -441,11 +441,24 @@ export interface CallLog {
 
 export type ConversationStatus = 'open' | 'pending' | 'closed';
 
+export type ConversationCloseReason =
+  | 'requirement_unmatched'
+  | 'not_responding'
+  | 'requirement_on_hold'
+  | 'budget_or_location_changed'
+  | 'completed_elsewhere'
+  | 'enquiry_resolved'
+  | 'duplicate_or_invalid'
+  | 'other';
+
 export interface Conversation {
   id: string;
   user_id: string;
   contact_id: string;
   status: ConversationStatus;
+  close_reason?: ConversationCloseReason | null;
+  close_note?: string | null;
+  closed_at?: string | null;
   assigned_agent_id?: string | null;
   /** Org hierarchy (migration 082) — routing-engine assignment fields. */
   assigned_team_id?: string | null;
