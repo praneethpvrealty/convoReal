@@ -11,12 +11,20 @@ function getResend(): Resend | null {
   return _resend
 }
 
+export interface EmailAttachment {
+  filename: string
+  content: Buffer
+}
+
 export interface SendEmailArgs {
   to: string | string[]
   subject: string
   html: string
   text?: string
   replyTo?: string
+  /** Files to attach. Resend caps a message at 40 MB including
+   *  attachments, which a one-page invoice is nowhere near. */
+  attachments?: EmailAttachment[]
 }
 
 export async function sendTransactionalEmail(args: SendEmailArgs): Promise<{
@@ -38,6 +46,10 @@ export async function sendTransactionalEmail(args: SendEmailArgs): Promise<{
       html: args.html,
       text: args.text,
       reply_to: args.replyTo,
+      attachments: args.attachments?.map((file) => ({
+        filename: file.filename,
+        content: file.content,
+      })),
     })
 
     if (error) {

@@ -173,6 +173,12 @@ export const AI_FEATURE_COSTS = {
    *  `contact_parse` because it runs at most once per thread per day
    *  and only on threads with something in them. */
   conversation_sweep_thread: 3,
+  /** One deal document read end to end (src/lib/invoices/document-extract.ts)
+   *  — an Aadhaar, a PAN card or a sale deed turned into proposed
+   *  invoice fields. Priced with `contact_parse` because the shape of
+   *  the work is the same, a single multimodal call over one document,
+   *  and refunded when the read fails. */
+  deal_document_extract: 5,
 } as const;
 
 export type AiFeatureKey = keyof typeof AI_FEATURE_COSTS;

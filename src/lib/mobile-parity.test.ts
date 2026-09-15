@@ -51,6 +51,11 @@ import {
   rupeesToBudgetAmount,
 } from '@/lib/contacts/budget-amount';
 import {
+  DEAL_DOCUMENT_CATEGORIES,
+  INVOICE_STATUS_LABELS,
+} from '@/lib/invoices/types';
+import { brokerageAmount } from '@/lib/pipelines/brokerage';
+import {
   DIGEST_PAUSE_COMMAND,
   DIGEST_RESUME_COMMAND,
   OWNER_DETAILS_SECTIONS,
@@ -1164,5 +1169,116 @@ describe('mobile/lib/showcase-scope.ts mirrors the showcase share link', () => {
     expect(link).toContain('v=contact-9');
     expect(mobile).toContain("withParam(url, 'mode', 'view')");
     expect(mobile).toContain("withParam(url, 'v', visitorId)");
+  });
+});
+
+describe('mobile/lib/deal-workspace.ts mirrors the invoicing vocabulary', () => {
+  // An invoice is a legal record, so the two surfaces must not disagree
+  // about what a status is called or which categories a document can be
+  // filed under — a "Paid" chip on one and "Settled" on the other is a
+  // support call about whether the money arrived.
+  const mobile = mobileSource('lib/deal-workspace.ts');
+
+  it('offers the same document categories, in the same order', () => {
+    for (const { value, label } of DEAL_DOCUMENT_CATEGORIES) {
+      expect(mobile, `mobile is missing the "${value}" category`).toContain(
+        `{ value: '${value}', label: '${label}' }`
+      );
+    }
+    const order = DEAL_DOCUMENT_CATEGORIES.map((c) =>
+      mobile.indexOf(`value: '${c.value}'`)
+    );
+    expect(order).toEqual([...order].sort((a, b) => a - b));
+  });
+
+  it('labels every invoice status identically', () => {
+    for (const [status, label] of Object.entries(INVOICE_STATUS_LABELS)) {
+      expect(mobile, `mobile is missing the "${status}" label`).toContain(
+        `${status}: '${label}'`
+      );
+    }
+  });
+
+  it('agrees on which files the extractor can read', () => {
+    // The web panel hides the button for anything else and the API
+    // refuses it; the phone must not offer what the server will reject.
+    for (const type of [
+      'application/pdf',
+      'image/jpeg',
+      'image/png',
+      'image/webp',
+    ]) {
+      expect(mobile).toContain(`'${type}'`);
+    }
+    expect(mobile).not.toContain("'image/heic',\n    'application/pdf'");
+  });
+
+  it('never names a field that could carry a full Aadhaar number', () => {
+    // [INV-006] The server strips it; the phone must not reintroduce a
+    // place to put one.
+    expect(mobile).toContain('aadhaar_last4');
+    expect(mobile).not.toMatch(/aadhaar_number|full_aadhaar/);
+  });
+
+  it('can review a draft before issuing it', () => {
+    // An invoice is immutable once issued, so a surface that offers
+    // Issue without an editor can only turn an imperfect prefill into
+    // an incorrect legal document. Mobile used to point at the web app.
+    const screen = mobileSource('app/(app)/deal/[id].tsx');
+    const editor = mobileSource('components/invoice-editor-sheet.tsx');
+
+    expect(screen).toContain('InvoiceEditorSheet');
+    expect(screen).toContain('label="Review"');
+    expect(screen).not.toContain('Review it on the web app');
+
+    // Every field the web editor exposes has to be reachable here too.
+    for (const field of [
+      'invoice_date',
+      'side',
+      'share_percent',
+      'bill_to',
+      'line_items',
+      'notes',
+    ]) {
+      expect(editor, `mobile cannot edit ${field}`).toContain(field);
+    }
+  });
+
+  it('edits through the shared API rather than its own rules', () => {
+    const api = mobileSource('lib/deal-workspace-api.ts');
+    expect(api).toContain('`/api/invoices/${invoiceId}`');
+    expect(api).toContain("method: 'PATCH'");
+  });
+
+  it('computes no invoice money of its own', () => {
+    // [INV-004] Every figure comes from the API. A local calculation
+    // here is how the two surfaces start quoting different brokerage.
+    expect(mobile).not.toMatch(/grand_total\s*=/);
+    expect(mobile).not.toMatch(/taxable_total\s*=/);
+    expect(mobile).not.toMatch(/\*\s*0\.0\d/);
+  });
+});
+
+describe('the mobile deals screen uses the shared brokerage rule', () => {
+  // The screen used to fall back to a flat 2% of the deal value, so its
+  // stage totals disagreed with the invoice raised off the same deal.
+  const mobile = mobileSource('app/(app)/deals.tsx');
+
+  it('no longer guesses a flat 2%', () => {
+    expect(mobile).not.toContain('* 0.02');
+  });
+
+  it('mirrors brokerageAmount: fixed wins, otherwise a percentage', () => {
+    expect(mobile).toContain("deal.brokerage_type === 'fixed'");
+    expect(mobile).toContain('(Number(deal.value ?? 0) * value) / 100');
+
+    // Same inputs, same answer on both surfaces.
+    expect(
+      brokerageAmount({
+        dealValue: 162000000,
+        type: 'percentage',
+        value: 0.7,
+      })
+    ).toBe(1134000);
   });
 });

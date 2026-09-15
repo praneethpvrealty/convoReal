@@ -4,7 +4,11 @@
     {
       "id": "calendar",
       "name": "Calendar, appointments and to-dos",
-      "surfaces": ["web", "mobile", "whatsapp"],
+      "surfaces": [
+        "web",
+        "mobile",
+        "whatsapp"
+      ],
       "invariants": [
         {
           "id": "CAL-001",
@@ -15,7 +19,9 @@
               "case": "[CAL-001]"
             }
           ],
-          "guards": [".github/workflows/eas-update.yml"]
+          "guards": [
+            ".github/workflows/eas-update.yml"
+          ]
         },
         {
           "id": "CAL-002",
@@ -58,6 +64,112 @@
             {
               "file": "src/lib/calendar/scheduler-dedupe.test.ts",
               "case": "[CAL-005]"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "invoicing",
+      "name": "Brokerage invoicing and the deal document folder",
+      "surfaces": [
+        "web",
+        "mobile",
+        "whatsapp"
+      ],
+      "invariants": [
+        {
+          "id": "INV-001",
+          "rule": "An invoice number is unique within its account and financial year and is never reused. A cancelled invoice keeps its number so the series has no gap, and an issued invoice never returns to draft.",
+          "tests": [
+            {
+              "file": "src/lib/invoices/financial-year.test.ts",
+              "case": "[INV-001]"
+            },
+            {
+              "file": "src/lib/invoices/server.test.ts",
+              "case": "[INV-001]"
+            }
+          ]
+        },
+        {
+          "id": "INV-002",
+          "rule": "An issued invoice prints the same content forever. Its issuer, customer and line items are snapshots, not joins, so editing the deal, contact or property it came from cannot change it; only a draft is editable.",
+          "tests": [
+            {
+              "file": "src/lib/invoices/pdf.test.ts",
+              "case": "[INV-002]"
+            },
+            {
+              "file": "src/lib/invoices/server.test.ts",
+              "case": "[INV-002]"
+            },
+            {
+              "file": "src/lib/invoices/prefill.test.ts",
+              "case": "[INV-002]"
+            }
+          ]
+        },
+        {
+          "id": "INV-003",
+          "rule": "Tax follows the place of supply: the same state charges CGST plus SGST in equal halves, a different state charges IGST at the full rate, and nil mode charges nothing and prints the exemption note. Known state codes override a stale stored mode.",
+          "tests": [
+            {
+              "file": "src/lib/invoices/gst.test.ts",
+              "case": "[INV-003]"
+            }
+          ]
+        },
+        {
+          "id": "INV-004",
+          "rule": "The billed amount is the deal value times the brokerage rate times this invoice's share, rounded to the rupee, and the same figure is shown on every surface. Totals are always recomputed server-side from the line items, never taken from the client.",
+          "tests": [
+            {
+              "file": "src/lib/pipelines/brokerage.test.ts",
+              "case": "[INV-004]"
+            },
+            {
+              "file": "src/lib/invoices/prefill.test.ts",
+              "case": "[INV-004]"
+            },
+            {
+              "file": "src/lib/invoices/words.test.ts",
+              "case": "[INV-004]"
+            },
+            {
+              "file": "src/lib/invoices/pdf.test.ts",
+              "case": "[INV-004]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[INV-004]"
+            }
+          ]
+        },
+        {
+          "id": "INV-005",
+          "rule": "A deal document is reachable only through an authenticated, account-scoped route that signs a short-lived URL. The deal-documents, invoices and signatures buckets are private and no listing ever returns an object URL.",
+          "tests": [
+            {
+              "file": "src/lib/invoices/server.test.ts",
+              "case": "[INV-005]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20260914120200_deal_documents.sql"
+          ]
+        },
+        {
+          "id": "INV-006",
+          "rule": "AI extraction proposes fields and never writes to an invoice by itself, and a full Aadhaar number is never stored: only the last four digits leave the file, enforced after the model returns rather than only asked for in the prompt.",
+          "tests": [
+            {
+              "file": "src/lib/invoices/document-extract.test.ts",
+              "case": "[INV-006]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[INV-006]"
             }
           ]
         }

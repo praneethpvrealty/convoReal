@@ -37,6 +37,23 @@ import { radius, spacing, useTheme, fonts } from '@/lib/theme';
 import type { Deal, Pipeline, PipelineStage } from '@/lib/types';
 import { usePullRefresh } from '@/lib/use-pull-refresh';
 
+/**
+ * What a deal's brokerage is worth.
+ *
+ * `brokerage_amount` is what the agent actually agreed; the fallback
+ * recomputes it from the rate rather than assuming a flat 2%, which is
+ * what this screen used to guess and what made its stage totals
+ * disagree with the invoice raised off the same deal. Mirrors
+ * `src/lib/pipelines/brokerage.ts` — guarded by mobile-parity.test.ts.
+ */
+function dealBrokerage(deal: Deal): number {
+  if (deal.brokerage_amount != null) return Number(deal.brokerage_amount);
+  const value = Number(deal.brokerage_value ?? 0);
+  if (value <= 0) return 0;
+  if (deal.brokerage_type === 'fixed') return value;
+  return (Number(deal.value ?? 0) * value) / 100;
+}
+
 export default function DealsScreen() {
   const { colors, fonts: f } = useTheme();
   const [pipelineId, setPipelineId] = useState<string | null>(null);
@@ -128,8 +145,7 @@ export default function DealsScreen() {
   );
   const stageValue = stageDeals.reduce((sum, d) => sum + (d.value ?? 0), 0);
   const stageBrokerage = stageDeals.reduce(
-    (sum, deal) =>
-      sum + (deal.brokerage_amount ?? Number(deal.value ?? 0) * 0.02),
+    (sum, deal) => sum + dealBrokerage(deal),
     0
   );
   const selectedStage = (stages ?? []).find(
@@ -483,7 +499,7 @@ function DealCard({
           <Ionicons name="checkmark-circle" size={15} color={colors.success} />
           <Text style={{ fontSize: 12.5, color: colors.success }}>
             Brokerage received ·{' '}
-            {formatInr(deal.brokerage_amount ?? Number(deal.value ?? 0) * 0.02)}
+            {formatInr(dealBrokerage(deal))}
             {deal.brokerage_paid_at
               ? ` · ${new Date(deal.brokerage_paid_at).toLocaleDateString([], {
                   day: 'numeric',
@@ -523,6 +539,20 @@ function DealCard({
         ) : (
           <View />
         )}
+        <Pressable
+          onPress={() => router.push(`/deal/${deal.id}`)}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={`Open the deal folder for ${deal.title}`}
+          style={[styles.moveButton, { backgroundColor: colors.primarySoft }]}
+        >
+          <Ionicons name="folder-open-outline" size={14} color={colors.primary} />
+          <Text
+            style={{ fontSize: 12.5, fontFamily: f.bold, color: colors.primary }}
+          >
+            Folder
+          </Text>
+        </Pressable>
         <Pressable
           onPress={brokeragePaid ? onReopen : onMove}
           hitSlop={8}
