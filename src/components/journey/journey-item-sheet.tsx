@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 /**
  * Side sheet for one journey item (a contact×property pair).
@@ -12,10 +12,10 @@
  * intent; it fetches nothing except the item's own timeline.
  */
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { formatDistanceToNow } from "date-fns";
-import { toast } from "sonner";
+import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { formatDistanceToNow } from 'date-fns';
+import { toast } from 'sonner';
 import {
   ArrowRight,
   Ban,
@@ -29,32 +29,33 @@ import {
   Home,
   MapPin,
   MessageSquare,
+  NotebookPen,
   Phone,
   RotateCcw,
   Trash2,
   UserRound,
   X,
-} from "lucide-react";
+} from 'lucide-react';
 
-import { cn } from "@/lib/utils";
-import { createClient } from "@/lib/supabase/client";
-import { useAuth } from "@/hooks/use-auth";
-import { resolveConversation } from "@/lib/conversations/resolve";
-import { buildCheckInMessage } from "@/lib/journey/checkin-message";
+import { cn } from '@/lib/utils';
+import { createClient } from '@/lib/supabase/client';
+import { useAuth } from '@/hooks/use-auth';
+import { resolveConversation } from '@/lib/conversations/resolve';
+import { buildCheckInMessage } from '@/lib/journey/checkin-message';
 import {
   accountBrandName,
   accountShowcaseBase,
-} from "@/lib/showcase/account-showcase-url";
+} from '@/lib/showcase/account-showcase-url';
 import {
   buildJourneyCheckinParams,
   journeyCheckinUrlSuffix,
   JOURNEY_CHECKIN_TEMPLATE_NAME,
-} from "@/lib/whatsapp/journey-checkin-template";
-import { describeEnquiredProperty } from "@/lib/whatsapp/enquiry-notice-template";
-import { propertyShowcaseUrl } from "@/lib/share-message-builder";
-import { formatCurrencyShort } from "@/lib/currency-utils";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+} from '@/lib/whatsapp/journey-checkin-template';
+import { describeEnquiredProperty } from '@/lib/whatsapp/enquiry-notice-template';
+import { propertyShowcaseUrl } from '@/lib/share-message-builder';
+import { formatCurrencyShort } from '@/lib/currency-utils';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Sheet,
   SheetContent,
@@ -62,40 +63,41 @@ import {
   SheetFooter,
   SheetHeader,
   SheetTitle,
-} from "@/components/ui/sheet";
+} from '@/components/ui/sheet';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from '@/components/ui/dropdown-menu';
 import type {
   Contact,
   JourneyEvent,
   JourneyItem,
   JourneyStage,
+  JourneyStageNote,
   Property,
-} from "@/types";
+} from '@/types';
 import {
   planEtaLabel,
   QUICK_DROP_REASONS,
   stageIndexOf,
   type JourneyMode,
-} from "./shared";
-import { Input } from "@/components/ui/input";
+} from './shared';
+import { Input } from '@/components/ui/input';
 
-const EVENT_LABELS: Record<JourneyEvent["event_type"], string> = {
-  added: "Added to journey",
-  advanced: "Advanced",
-  moved: "Moved",
-  dropped: "Dropped",
-  reactivated: "Reactivated",
-  hidden: "Hidden from map",
-  unhidden: "Shown on map",
-  planned: "Next step planned",
-  plan_cleared: "Plan cleared",
-  client_response: "Client responded",
-  outbound_whatsapp: "Sent via personal WhatsApp",
+const EVENT_LABELS: Record<JourneyEvent['event_type'], string> = {
+  added: 'Added to journey',
+  advanced: 'Advanced',
+  moved: 'Moved',
+  dropped: 'Dropped',
+  reactivated: 'Reactivated',
+  hidden: 'Hidden from map',
+  unhidden: 'Shown on map',
+  planned: 'Next step planned',
+  plan_cleared: 'Plan cleared',
+  client_response: 'Client responded',
+  outbound_whatsapp: 'Sent via personal WhatsApp',
 };
 
 export interface JourneyItemSheetProps {
@@ -148,13 +150,17 @@ export function JourneyItemSheet({
   const open = item !== null;
 
   const [events, setEvents] = useState<JourneyEvent[]>([]);
+  const [stageNotes, setStageNotes] = useState<JourneyStageNote[]>([]);
   const [loadingEvents, setLoadingEvents] = useState(false);
+  const [noteStageId, setNoteStageId] = useState<string | null>(null);
+  const [stageNote, setStageNote] = useState('');
+  const [savingNote, setSavingNote] = useState(false);
   const [dropFormOpen, setDropFormOpen] = useState(false);
-  const [dropReason, setDropReason] = useState("");
+  const [dropReason, setDropReason] = useState('');
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [planFormOpen, setPlanFormOpen] = useState(false);
-  const [planStageId, setPlanStageId] = useState("");
-  const [planDate, setPlanDate] = useState("");
+  const [planStageId, setPlanStageId] = useState('');
+  const [planDate, setPlanDate] = useState('');
   const [openingInbox, setOpeningInbox] = useState(false);
   const [showcaseBase, setShowcaseBase] = useState<string | null>(null);
   const [brandName, setBrandName] = useState<string | null>(null);
@@ -165,12 +171,15 @@ export function JourneyItemSheet({
   useEffect(() => {
     Promise.resolve().then(() => {
       setDropFormOpen(false);
-      setDropReason("");
+      setDropReason('');
       setConfirmRemove(false);
       setPlanFormOpen(false);
-      setPlanStageId("");
-      setPlanDate("");
+      setPlanStageId('');
+      setPlanDate('');
       setOpeningInbox(false);
+      setNoteStageId(null);
+      setStageNote('');
+      setSavingNote(false);
     });
   }, [item?.id]);
 
@@ -181,14 +190,23 @@ export function JourneyItemSheet({
     let cancelled = false;
     (async () => {
       setLoadingEvents(true);
-      const { data } = await supabase
-        .from("journey_events")
-        .select("*")
-        .eq("item_id", item.id)
-        .order("created_at", { ascending: false })
-        .limit(50);
+      const [{ data }, { data: notes }] = await Promise.all([
+        supabase
+          .from('journey_events')
+          .select('*')
+          .eq('item_id', item.id)
+          .order('created_at', { ascending: false })
+          .limit(50),
+        supabase
+          .from('journey_stage_notes')
+          .select('*')
+          .eq('item_id', item.id)
+          .order('created_at', { ascending: false })
+          .limit(100),
+      ]);
       if (!cancelled) {
         setEvents((data ?? []) as JourneyEvent[]);
+        setStageNotes((notes ?? []) as JourneyStageNote[]);
         setLoadingEvents(false);
       }
     })();
@@ -220,7 +238,7 @@ export function JourneyItemSheet({
 
   const stageName = useMemo(() => {
     const map = new Map(stages.map((s) => [s.id, s.name]));
-    return (id?: string | null) => (id ? map.get(id) ?? "?" : "?");
+    return (id?: string | null) => (id ? (map.get(id) ?? '?') : '?');
   }, [stages]);
 
   // The one question a stalled branch is asking: still in play, or
@@ -246,11 +264,11 @@ export function JourneyItemSheet({
   const sessionOpen = async (conversationId: string): Promise<boolean> => {
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const { count } = await supabase
-      .from("messages")
-      .select("id", { count: "exact", head: true })
-      .eq("conversation_id", conversationId)
-      .eq("sender_type", "customer")
-      .gte("created_at", since);
+      .from('messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('conversation_id', conversationId)
+      .eq('sender_type', 'customer')
+      .gte('created_at', since);
     return (count ?? 0) > 0;
   };
 
@@ -262,7 +280,7 @@ export function JourneyItemSheet({
     body: buildJourneyCheckinParams(
       contact?.name,
       brandName,
-      property ? describeEnquiredProperty(property) : "",
+      property ? describeEnquiredProperty(property) : ''
     ),
     ...(property && contact
       ? { urlSuffix: journeyCheckinUrlSuffix(property, contact.id) }
@@ -293,12 +311,12 @@ export function JourneyItemSheet({
         accountId: item.account_id,
         contactId: contact.id,
         userId: user?.id ?? null,
-        columns: "id",
-      },
+        columns: 'id',
+      }
     );
     if (!conversation) {
       setOpeningInbox(false);
-      toast.error(error?.message ?? "Could not open the chat thread");
+      toast.error(error?.message ?? 'Could not open the chat thread');
       return;
     }
     const open24h = await sessionOpen(conversation.id);
@@ -306,9 +324,42 @@ export function JourneyItemSheet({
       open24h
         ? `/inbox?c=${conversation.id}&draft=${encodeURIComponent(checkInMessage)}`
         : `/inbox?c=${conversation.id}&tpl=${encodeURIComponent(
-            JSON.stringify(templateIntent()),
-          )}`,
+            JSON.stringify(templateIntent())
+          )}`
     );
+  };
+
+  const saveStageNote = async () => {
+    if (!item || !noteStageId || !stageNote.trim() || savingNote) return;
+    setSavingNote(true);
+    try {
+      const response = await fetch('/api/journey/stage-notes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          item_id: item.id,
+          stage_id: noteStageId,
+          note: stageNote.trim(),
+        }),
+      });
+      const payload = (await response.json().catch(() => null)) as {
+        data?: JourneyStageNote;
+        error?: string;
+      } | null;
+      if (!response.ok || !payload?.data) {
+        throw new Error(payload?.error ?? 'Failed to add stage note');
+      }
+      setStageNotes((current) => [payload.data!, ...current]);
+      setStageNote('');
+      setNoteStageId(null);
+      toast.success('Stage note added');
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : 'Failed to add stage note'
+      );
+    } finally {
+      setSavingNote(false);
+    }
   };
 
   if (!item) {
@@ -319,13 +370,13 @@ export function JourneyItemSheet({
     );
   }
 
-  const dropped = item.status === "dropped";
+  const dropped = item.status === 'dropped';
   const reached = stageIndexOf(item, stages);
   const nextStage = stages[reached + 1];
   const title =
-    mode === "buyer"
-      ? item.property?.title ?? "Unknown property"
-      : item.contact?.name ?? item.contact?.phone ?? "Unknown contact";
+    mode === 'buyer'
+      ? (item.property?.title ?? 'Unknown property')
+      : (item.contact?.name ?? item.contact?.phone ?? 'Unknown contact');
 
   return (
     <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
@@ -335,23 +386,25 @@ export function JourneyItemSheet({
       >
         <SheetHeader className="border-b border-slate-800 px-5 py-4">
           <SheetTitle className="flex items-center gap-2 text-slate-100">
-            {mode === "buyer" ? (
+            {mode === 'buyer' ? (
               <Home className="h-4 w-4 shrink-0 text-slate-400" />
             ) : (
               <UserRound className="h-4 w-4 shrink-0 text-slate-400" />
             )}
             <span className="truncate">{title}</span>
             {dropped && (
-              <span className="shrink-0 rounded bg-red-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-red-300">
+              <span className="shrink-0 rounded bg-red-500/15 px-1.5 py-0.5 text-[10px] font-semibold tracking-wider text-red-300 uppercase">
                 Dropped
               </span>
             )}
           </SheetTitle>
           <SheetDescription className="text-[11px] text-slate-400">
-            {mode === "buyer" ? (
+            {mode === 'buyer' ? (
               <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
                 {item.property?.property_code && (
-                  <span className="font-mono">{item.property.property_code}</span>
+                  <span className="font-mono">
+                    {item.property.property_code}
+                  </span>
                 )}
                 {item.property?.location && (
                   <span className="inline-flex items-center gap-1">
@@ -388,7 +441,7 @@ export function JourneyItemSheet({
           {/* Talk to the contact — Engine inbox or their own WhatsApp */}
           {contact && (
             <div className="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2.5">
-              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+              <p className="mb-2 text-[11px] font-semibold tracking-wider text-slate-500 uppercase">
                 Contact
               </p>
               <div className="flex items-center gap-2">
@@ -413,7 +466,7 @@ export function JourneyItemSheet({
                   onClick={openInInbox}
                 >
                   <MessageSquare className="h-3.5 w-3.5" />
-                  {openingInbox ? "Opening…" : "Engine inbox"}
+                  {openingInbox ? 'Opening…' : 'Engine inbox'}
                 </Button>
                 {contact.phone && (
                   <Button
@@ -423,9 +476,9 @@ export function JourneyItemSheet({
                     onClick={() => {
                       logPersonalWhatsAppOpen();
                       window.open(
-                        `https://wa.me/${(contact.phone ?? "").replace(/\D/g, "")}?text=${encodeURIComponent(checkInMessage)}`,
-                        "_blank",
-                        "noopener,noreferrer",
+                        `https://wa.me/${(contact.phone ?? '').replace(/\D/g, '')}?text=${encodeURIComponent(checkInMessage)}`,
+                        '_blank',
+                        'noopener,noreferrer'
                       );
                     }}
                   >
@@ -439,7 +492,7 @@ export function JourneyItemSheet({
 
           {/* Stage progress rail */}
           <div>
-            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+            <p className="mb-2 text-[11px] font-semibold tracking-wider text-slate-500 uppercase">
               Journey progress
             </p>
             <div className="flex flex-col gap-1">
@@ -447,49 +500,104 @@ export function JourneyItemSheet({
                 const passed = idx < reached;
                 const current = idx === reached;
                 const future = idx > reached;
+                const latestNote = stageNotes.find(
+                  (note) => note.stage_id === s.id
+                );
                 return (
                   <div
                     key={s.id}
                     className={cn(
-                      "flex items-center gap-2 rounded-md px-2 py-1.5 text-xs",
-                      current &&
-                        (dropped ? "bg-red-500/10" : "bg-slate-800/70"),
+                      'rounded-md px-2 py-1.5 text-xs',
+                      current && (dropped ? 'bg-red-500/10' : 'bg-slate-800/70')
                     )}
                   >
-                    <span
-                      className={cn(
-                        "flex h-4 w-4 shrink-0 items-center justify-center rounded-full border",
-                        future
-                          ? "border-slate-700 bg-slate-900"
-                          : "border-transparent",
-                      )}
-                      style={
-                        future
-                          ? undefined
-                          : {
-                              backgroundColor:
-                                current && dropped ? "#ef4444" : s.color,
-                            }
-                      }
-                    >
-                      {passed && <Check className="h-2.5 w-2.5 text-slate-950" />}
-                      {current && dropped && (
-                        <Ban className="h-2.5 w-2.5 text-white" />
-                      )}
-                    </span>
-                    <span
-                      className={cn(
-                        "truncate",
-                        future ? "text-slate-600" : "text-slate-200",
-                        current && "font-bold",
-                      )}
-                    >
-                      {s.name}
-                    </span>
-                    {current && (
-                      <span className="ml-auto text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                        {dropped ? "dropped here" : "current"}
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={cn(
+                          'flex h-4 w-4 shrink-0 items-center justify-center rounded-full border',
+                          future
+                            ? 'border-slate-700 bg-slate-900'
+                            : 'border-transparent'
+                        )}
+                        style={
+                          future
+                            ? undefined
+                            : {
+                                backgroundColor:
+                                  current && dropped ? '#ef4444' : s.color,
+                              }
+                        }
+                      >
+                        {passed && (
+                          <Check className="h-2.5 w-2.5 text-slate-950" />
+                        )}
+                        {current && dropped && (
+                          <Ban className="h-2.5 w-2.5 text-white" />
+                        )}
                       </span>
+                      <span
+                        className={cn(
+                          'min-w-0 flex-1 truncate',
+                          future ? 'text-slate-600' : 'text-slate-200',
+                          current && 'font-bold'
+                        )}
+                      >
+                        {s.name}
+                      </span>
+                      {current && (
+                        <span className="text-[10px] font-semibold tracking-wide text-slate-400 uppercase">
+                          {dropped ? 'dropped here' : 'current'}
+                        </span>
+                      )}
+                      {canEdit && !future && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setNoteStageId(noteStageId === s.id ? null : s.id);
+                            setStageNote('');
+                          }}
+                          className="hover:text-primary inline-flex items-center gap-1 text-[10px] font-semibold text-slate-500"
+                        >
+                          <NotebookPen className="h-3 w-3" />
+                          Note
+                        </button>
+                      )}
+                    </div>
+                    {latestNote && (
+                      <p className="mt-1 ml-6 line-clamp-2 text-[11px] leading-4 text-slate-400">
+                        {latestNote.note}
+                      </p>
+                    )}
+                    {noteStageId === s.id && (
+                      <div className="mt-2 ml-6 rounded-lg border border-slate-700 bg-slate-950 p-2">
+                        <Textarea
+                          autoFocus
+                          value={stageNote}
+                          maxLength={1000}
+                          onChange={(event) => setStageNote(event.target.value)}
+                          placeholder={`Add a note at ${s.name}, e.g. ₹1 lakh token paid`}
+                          className="min-h-16 border-slate-700 bg-slate-900 text-xs"
+                        />
+                        <div className="mt-2 flex justify-end gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setNoteStageId(null);
+                              setStageNote('');
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            size="sm"
+                            disabled={savingNote || !stageNote.trim()}
+                            onClick={saveStageNote}
+                          >
+                            Save note
+                          </Button>
+                        </div>
+                      </div>
                     )}
                   </div>
                 );
@@ -499,7 +607,7 @@ export function JourneyItemSheet({
 
           {dropped && item.drop_reason && (
             <div className="rounded-lg border border-red-500/30 bg-red-500/5 px-3 py-2.5">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-red-300">
+              <p className="text-[11px] font-semibold tracking-wider text-red-300 uppercase">
                 Drop reason
               </p>
               <p className="mt-1 text-xs text-slate-300">{item.drop_reason}</p>
@@ -550,7 +658,7 @@ export function JourneyItemSheet({
 
                   {/* Planned next step — the ghost node on the map. */}
                   {item.planned_stage_id && !planFormOpen ? (
-                    <div className="flex items-center gap-2 rounded-lg border border-slate-700 border-dashed bg-slate-900/60 px-3 py-2">
+                    <div className="flex items-center gap-2 rounded-lg border border-dashed border-slate-700 bg-slate-900/60 px-3 py-2">
                       <CalendarClock className="h-3.5 w-3.5 shrink-0 text-slate-400" />
                       <div className="min-w-0 flex-1 text-xs">
                         <span className="font-semibold text-slate-200">
@@ -559,28 +667,31 @@ export function JourneyItemSheet({
                         {item.planned_at && (
                           <span
                             className={cn(
-                              "ml-1.5",
+                              'ml-1.5',
                               planEtaLabel(item.planned_at).overdue
-                                ? "font-semibold text-amber-400"
-                                : "text-slate-400",
+                                ? 'font-semibold text-amber-400'
+                                : 'text-slate-400'
                             )}
                           >
-                            {planEtaLabel(item.planned_at).text} ·{" "}
-                            {new Date(item.planned_at).toLocaleDateString("en-IN", {
-                              day: "numeric",
-                              month: "short",
-                            })}
+                            {planEtaLabel(item.planned_at).text} ·{' '}
+                            {new Date(item.planned_at).toLocaleDateString(
+                              'en-IN',
+                              {
+                                day: 'numeric',
+                                month: 'short',
+                              }
+                            )}
                           </span>
                         )}
                       </div>
                       <button
                         type="button"
                         onClick={() => {
-                          setPlanStageId(item.planned_stage_id ?? "");
-                          setPlanDate(item.planned_at ?? "");
+                          setPlanStageId(item.planned_stage_id ?? '');
+                          setPlanDate(item.planned_at ?? '');
                           setPlanFormOpen(true);
                         }}
-                        className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-slate-400 hover:text-white"
+                        className="shrink-0 text-[10px] font-semibold tracking-wide text-slate-400 uppercase hover:text-white"
                       >
                         Edit
                       </button>
@@ -600,8 +711,8 @@ export function JourneyItemSheet({
                       size="sm"
                       className="justify-start"
                       onClick={() => {
-                        setPlanStageId(stages[reached + 1]?.id ?? "");
-                        setPlanDate("");
+                        setPlanStageId(stages[reached + 1]?.id ?? '');
+                        setPlanDate('');
                         setPlanFormOpen(true);
                       }}
                     >
@@ -610,7 +721,7 @@ export function JourneyItemSheet({
                     </Button>
                   ) : (
                     <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
-                      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                      <p className="mb-2 text-[11px] font-semibold tracking-wider text-slate-400 uppercase">
                         Plan the next step
                       </p>
                       <div className="mb-2 flex flex-wrap gap-1.5">
@@ -620,10 +731,10 @@ export function JourneyItemSheet({
                             type="button"
                             onClick={() => setPlanStageId(s.id)}
                             className={cn(
-                              "inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[10px] font-medium transition-colors",
+                              'inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[10px] font-medium transition-colors',
                               planStageId === s.id
-                                ? "border-primary bg-primary/15 text-primary"
-                                : "border-slate-700 bg-slate-900 text-slate-400 hover:border-slate-500",
+                                ? 'border-primary bg-primary/15 text-primary'
+                                : 'border-slate-700 bg-slate-900 text-slate-400 hover:border-slate-500'
                             )}
                           >
                             <span
@@ -672,11 +783,11 @@ export function JourneyItemSheet({
                       onClick={() => setDropFormOpen(true)}
                     >
                       <Ban className="h-3.5 w-3.5" />
-                      Drop at {stages[reached]?.name ?? "current stage"}…
+                      Drop at {stages[reached]?.name ?? 'current stage'}…
                     </Button>
                   ) : (
                     <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
-                      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                      <p className="mb-2 text-[11px] font-semibold tracking-wider text-slate-400 uppercase">
                         Why is this being dropped?
                       </p>
                       <div className="mb-2 flex flex-wrap gap-1.5">
@@ -686,10 +797,10 @@ export function JourneyItemSheet({
                             type="button"
                             onClick={() => setDropReason(r)}
                             className={cn(
-                              "rounded-full border px-2 py-1 text-[10px] font-medium transition-colors",
+                              'rounded-full border px-2 py-1 text-[10px] font-medium transition-colors',
                               dropReason === r
-                                ? "border-red-400 bg-red-500/15 text-red-200"
-                                : "border-slate-700 bg-slate-900 text-slate-400 hover:border-slate-500",
+                                ? 'border-red-400 bg-red-500/15 text-red-200'
+                                : 'border-slate-700 bg-slate-900 text-slate-400 hover:border-slate-500'
                             )}
                           >
                             {r}
@@ -708,7 +819,7 @@ export function JourneyItemSheet({
                           size="sm"
                           onClick={() => {
                             setDropFormOpen(false);
-                            setDropReason("");
+                            setDropReason('');
                           }}
                         >
                           Cancel
@@ -732,15 +843,50 @@ export function JourneyItemSheet({
               ) : (
                 <Button size="sm" onClick={() => onReactivate(item)}>
                   <RotateCcw className="h-3.5 w-3.5" />
-                  Reactivate at {stages[reached]?.name ?? "current stage"}
+                  Reactivate at {stages[reached]?.name ?? 'current stage'}
                 </Button>
               )}
             </div>
           )}
 
+          {stageNotes.length > 0 && (
+            <div>
+              <p className="mb-2 text-[11px] font-semibold tracking-wider text-slate-500 uppercase">
+                Stage notes
+              </p>
+              <ol className="flex flex-col gap-2">
+                {stageNotes.map((note) => (
+                  <li
+                    key={note.id}
+                    className="rounded-md border border-slate-800/80 bg-slate-900/40 px-2.5 py-2"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-semibold text-slate-300">
+                        {stageName(note.stage_id)}
+                      </span>
+                      <span className="text-[10px] text-slate-600">
+                        {formatDistanceToNow(new Date(note.created_at), {
+                          addSuffix: true,
+                        })}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs whitespace-pre-wrap text-slate-300">
+                      {note.note}
+                    </p>
+                    {note.created_by_name && (
+                      <p className="mt-1 text-[10px] text-slate-600">
+                        Added by {note.created_by_name}
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
+
           {/* Timeline */}
           <div>
-            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+            <p className="mb-2 text-[11px] font-semibold tracking-wider text-slate-500 uppercase">
               Timeline
             </p>
             {loadingEvents ? (
@@ -758,28 +904,28 @@ export function JourneyItemSheet({
                     <div className="min-w-0 text-xs">
                       <span
                         className={cn(
-                          "font-semibold",
-                          ev.event_type === "dropped"
-                            ? "text-red-300"
-                            : ev.event_type === "reactivated"
-                              ? "text-emerald-300"
-                              : "text-slate-200",
+                          'font-semibold',
+                          ev.event_type === 'dropped'
+                            ? 'text-red-300'
+                            : ev.event_type === 'reactivated'
+                              ? 'text-emerald-300'
+                              : 'text-slate-200'
                         )}
                       >
                         {EVENT_LABELS[ev.event_type]}
                       </span>
-                      {(ev.event_type === "advanced" ||
-                        ev.event_type === "moved" ||
-                        ev.event_type === "planned") && (
+                      {(ev.event_type === 'advanced' ||
+                        ev.event_type === 'moved' ||
+                        ev.event_type === 'planned') && (
                         <span className="text-slate-400">
-                          {" "}
-                          {stageName(ev.from_stage_id)} →{" "}
+                          {' '}
+                          {stageName(ev.from_stage_id)} →{' '}
                           {stageName(ev.to_stage_id)}
                         </span>
                       )}
-                      {ev.event_type === "added" && ev.to_stage_id && (
+                      {ev.event_type === 'added' && ev.to_stage_id && (
                         <span className="text-slate-400">
-                          {" "}
+                          {' '}
                           at {stageName(ev.to_stage_id)}
                         </span>
                       )}
@@ -829,7 +975,11 @@ export function JourneyItemSheet({
                 <span className="text-xs text-slate-400">
                   Delete this branch and its history?
                 </span>
-                <Button variant="ghost" size="sm" onClick={() => setConfirmRemove(false)}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setConfirmRemove(false)}
+                >
                   Cancel
                 </Button>
                 <Button

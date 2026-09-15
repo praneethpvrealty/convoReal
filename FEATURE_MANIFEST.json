@@ -4,11 +4,7 @@
     {
       "id": "calendar",
       "name": "Calendar, appointments and to-dos",
-      "surfaces": [
-        "web",
-        "mobile",
-        "whatsapp"
-      ],
+      "surfaces": ["web", "mobile", "whatsapp"],
       "invariants": [
         {
           "id": "CAL-001",
@@ -19,9 +15,7 @@
               "case": "[CAL-001]"
             }
           ],
-          "guards": [
-            ".github/workflows/eas-update.yml"
-          ]
+          "guards": [".github/workflows/eas-update.yml"]
         },
         {
           "id": "CAL-002",
@@ -72,11 +66,7 @@
     {
       "id": "invoicing",
       "name": "Brokerage invoicing and the deal document folder",
-      "surfaces": [
-        "web",
-        "mobile",
-        "whatsapp"
-      ],
+      "surfaces": ["web", "mobile", "whatsapp"],
       "invariants": [
         {
           "id": "INV-001",
@@ -163,9 +153,7 @@
               "case": "[INV-005]"
             }
           ],
-          "guards": [
-            "supabase/migrations/20260914120200_deal_documents.sql"
-          ]
+          "guards": ["supabase/migrations/20260914120200_deal_documents.sql"]
         },
         {
           "id": "INV-006",
@@ -179,6 +167,71 @@
               "file": "src/lib/mobile-parity.test.ts",
               "case": "[INV-006]"
             }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "journeys",
+      "name": "Stage-grouped buyer and property journeys",
+      "surfaces": ["web", "mobile"],
+      "invariants": [
+        {
+          "id": "JRN-001",
+          "rule": "Journey search finds the subject by identifying details, including normalized mobile numbers, and every active journey is classified by the most advanced stage reached by any of its items.",
+          "tests": [
+            {
+              "file": "src/lib/journey/overview-state.test.ts",
+              "case": "[JRN-001]"
+            },
+            {
+              "file": "src/components/journey/shared.test.ts",
+              "case": "[JRN-001]"
+            }
+          ]
+        },
+        {
+          "id": "JRN-002",
+          "rule": "Closing a journey records a successful, paused or not-proceeding outcome plus a reason; archiving remains separate, and closed or archived journeys can be retrieved and reopened or restored.",
+          "tests": [
+            {
+              "file": "src/lib/journey/overview-state.test.ts",
+              "case": "[JRN-002]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[JRN-002]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20260915010010_journey_overview_state.sql"
+          ]
+        },
+        {
+          "id": "JRN-003",
+          "rule": "Manual drag order is saved per journey mode and cannot contain duplicate subjects.",
+          "tests": [
+            {
+              "file": "src/lib/journey/overview-state.test.ts",
+              "case": "[JRN-003]"
+            },
+            {
+              "file": "src/components/journey/shared.test.ts",
+              "case": "[JRN-003]"
+            }
+          ]
+        },
+        {
+          "id": "JRN-004",
+          "rule": "Stage notes are append-only, account-scoped entries tied to one journey item and one stage, with author and creation time retained through closure and archival.",
+          "tests": [
+            {
+              "file": "src/lib/journey/stage-notes.test.ts",
+              "case": "[JRN-004]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20260915010010_journey_overview_state.sql"
           ]
         }
       ]

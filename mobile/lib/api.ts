@@ -376,6 +376,50 @@ export function logPersonalWhatsAppJourneySend(args: {
   });
 }
 
+export function updateJourneyOverview(body: Record<string, unknown>) {
+  return apiFetch<{ ok: boolean }>('/api/journey/overview', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export function loadJourneyOverview(mode: 'buyer' | 'property') {
+  return apiFetch<{
+    data: {
+      subject_id: string;
+      lifecycle_status: 'active' | 'completed' | 'paused' | 'not_proceeding';
+      closure_reason?: string | null;
+      closed_at?: string | null;
+      archived_at?: string | null;
+      sort_order: number;
+    }[];
+  }>(`/api/journey/overview?mode=${mode}`);
+}
+
+export function addJourneyStageNote(args: {
+  itemId: string;
+  stageId: string;
+  note: string;
+}) {
+  return apiFetch<{
+    data: {
+      id: string;
+      item_id: string;
+      stage_id: string;
+      note: string;
+      created_by_name?: string | null;
+      created_at: string;
+    };
+  }>('/api/journey/stage-notes', {
+    method: 'POST',
+    body: JSON.stringify({
+      item_id: args.itemId,
+      stage_id: args.stageId,
+      note: args.note,
+    }),
+  });
+}
+
 /**
  * Send into a WhatsApp group — POST /api/whatsapp/groups/{id}/send.
  *

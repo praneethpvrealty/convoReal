@@ -96,6 +96,7 @@ import {
   HIDE_CONFIRM_MESSAGE,
   MAX_PINNED_PER_CONVERSATION,
 } from '@/lib/whatsapp/message-state';
+import { JOURNEY_LIFECYCLE_STATUSES } from '@/lib/journey/overview-state';
 
 function mobileSource(relativePath: string): string {
   return readFileSync(join(process.cwd(), 'mobile', relativePath), 'utf8');
@@ -174,6 +175,15 @@ describe('mobile Copilot entity tokens mirror the web composer', () => {
     const mobileActive = mobile.activeCopilotEntityQuery(input, selected)!;
     expect(mobile.insertCopilotEntity(input, mobileActive, selected[0])).toBe(
       insertEntityReference(input, webActive, selected[0])
+    );
+  });
+});
+
+describe('mobile journey lifecycle mirrors the web overview', () => {
+  it('[JRN-002] keeps the same lifecycle statuses', () => {
+    const source = mobileSource('lib/journey-overview.ts');
+    expect(stringLiteralsInConst(source, 'JOURNEY_LIFECYCLE_STATUSES')).toEqual(
+      JOURNEY_LIFECYCLE_STATUSES
     );
   });
 });

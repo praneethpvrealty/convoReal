@@ -91,11 +91,7 @@ export function conversationTitle(
 
 export type SenderType = 'customer' | 'agent' | 'bot';
 export type MessageStatus =
-  | 'sending'
-  | 'sent'
-  | 'delivered'
-  | 'read'
-  | 'failed';
+  'sending' | 'sent' | 'delivered' | 'read' | 'failed';
 
 export interface Message {
   id: string;
@@ -222,12 +218,7 @@ export interface Deal {
 // ------------------------------------------------------------------
 
 export type AppointmentType =
-  | 'site_visit'
-  | 'call'
-  | 'follow_up'
-  | 'document'
-  | 'meeting'
-  | 'other';
+  'site_visit' | 'call' | 'follow_up' | 'document' | 'meeting' | 'other';
 
 export interface Appointment {
   id: string;
@@ -257,11 +248,7 @@ export interface Appointment {
 // ------------------------------------------------------------------
 
 export type BroadcastStatus =
-  | 'draft'
-  | 'scheduled'
-  | 'sending'
-  | 'sent'
-  | 'failed';
+  'draft' | 'scheduled' | 'sending' | 'sent' | 'failed';
 
 export interface Broadcast {
   id: string;
@@ -343,6 +330,24 @@ export interface JourneyItem {
   } | null;
 }
 
+export interface JourneyOverviewState {
+  subject_id: string;
+  lifecycle_status: 'active' | 'completed' | 'paused' | 'not_proceeding';
+  closure_reason?: string | null;
+  closed_at?: string | null;
+  archived_at?: string | null;
+  sort_order: number;
+}
+
+export interface JourneyStageNote {
+  id: string;
+  item_id: string;
+  stage_id: string;
+  note: string;
+  created_by_name?: string | null;
+  created_at: string;
+}
+
 // ------------------------------------------------------------------
 // WhatsApp templates (message_templates, status APPROVED)
 // ------------------------------------------------------------------
@@ -364,11 +369,7 @@ export interface MessageTemplate {
 // ------------------------------------------------------------------
 
 export type ShowcaseEventType =
-  | 'open'
-  | 'view_property'
-  | 'map_click'
-  | 'gallery'
-  | 'search';
+  'open' | 'view_property' | 'map_click' | 'gallery' | 'search';
 
 export interface ShowcaseEvent {
   id: string;
