@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
-import { Link, Stack, useLocalSearchParams } from 'expo-router';
-import { useMemo } from 'react';
+import { Stack, useLocalSearchParams } from 'expo-router';
+import { useMemo, useState } from 'react';
 import {
   Linking,
   Pressable,
@@ -9,38 +9,87 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, {
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from 'react-native-reanimated';
 
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
-import { Avatar, EmptyState } from '@/components/ui';
+import { BottomSheet, sheetScrollArea } from '@/components/sheet';
+import { Avatar, EmptyState, PrimaryButton } from '@/components/ui';
+import {
+  addJourneyStageNote,
+  loadJourneyOverview,
+  logPersonalWhatsAppJourneySend,
+  updateJourneyOverview,
+} from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
-import { logPersonalWhatsAppJourneySend } from '@/lib/api';
 import { buildCheckInMessage } from '@/lib/checkin-message';
 import { haptic } from '@/lib/haptics';
+import {
+  CLOSED_JOURNEY_STATUS_LABELS,
+  JOURNEY_CLOSURE_REASONS,
+  type ClosedJourneyStatus,
+  type JourneyLifecycleStatus,
+} from '@/lib/journey-overview';
 import { openContactChat } from '@/lib/open-chat';
 import { contactPropertyShareUrl } from '@/lib/showcase-share';
 import { supabase } from '@/lib/supabase';
 import { radius, spacing, useTheme } from '@/lib/theme';
-import type { JourneyItem, JourneyStage } from '@/lib/types';
+import type {
+  JourneyItem,
+  JourneyOverviewState,
+  JourneyStage,
+  JourneyStageNote,
+} from '@/lib/types';
 import { usePullRefresh } from '@/lib/use-pull-refresh';
 
-/**
- * Read-only journey list: each contact with the properties on their
- * journey and the stage each has reached (same rows the web's mind map
- * renders — journey_items joined against journey_stages in memory,
- * exactly like journey-overview.tsx). The interactive canvas stays on
- * the web; advancing/dropping happens there.
- */
+type JourneyView = 'active' | 'closed' | 'archived';
+
+interface JourneyGroup {
+  subjectId: string;
+  contact: JourneyItem['contact'];
+  items: JourneyItem[];
+  furthestStageIdx: number;
+  lifecycleStatus: JourneyLifecycleStatus;
+  closureReason: string | null;
+  archivedAt: string | null;
+  sortOrder: number;
+}
+
+interface JourneyBucket {
+  key: string;
+  label: string;
+  color: string;
+  groups: JourneyGroup[];
+}
+
 export default function JourneyScreen() {
   const { colors, fonts: f } = useTheme();
-  const accountId = useAuthStore((s) => s.profile?.account_id);
+  const accountId = useAuthStore((state) => state.profile?.account_id);
   const { show, close, dialogProps } = useAppDialog();
-  // Optional deep-link filter — e.g. the agent switcher on the contact
-  // screen opens this list scoped to one contact.
   const { contactId } = useLocalSearchParams<{ contactId?: string }>();
+  const [view, setView] = useState<JourneyView>('active');
+  const [query, setQuery] = useState('');
+  const [closedBuckets, setClosedBuckets] = useState<Set<string>>(new Set());
+  const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
+  const [orderOverrides, setOrderOverrides] = useState<Map<string, number>>(
+    new Map()
+  );
+  const [noteTarget, setNoteTarget] = useState<{
+    item: JourneyItem;
+    stage: JourneyStage;
+  } | null>(null);
+  const [noteText, setNoteText] = useState('');
+  const [savingNote, setSavingNote] = useState(false);
 
-  const { data: stages } = useQuery({
+  const stagesQuery = useQuery({
     queryKey: ['journey-stages'],
     enabled: Boolean(accountId),
     queryFn: async () => {
@@ -53,11 +102,7 @@ export default function JourneyScreen() {
     },
   });
 
-  const {
-    data: items,
-    isLoading,
-    refetch,
-  } = useQuery({
+  const itemsQuery = useQuery({
     queryKey: ['journey-items'],
     enabled: Boolean(accountId),
     queryFn: async () => {
@@ -75,42 +120,194 @@ export default function JourneyScreen() {
       return data as unknown as JourneyItem[];
     },
   });
-  const pull = usePullRefresh(refetch);
 
+  const statesQuery = useQuery({
+    queryKey: ['journey-overview-states', 'buyer'],
+    enabled: Boolean(accountId),
+    queryFn: async () =>
+      (await loadJourneyOverview('buyer')).data as JourneyOverviewState[],
+  });
+
+  const notesQuery = useQuery({
+    queryKey: ['journey-stage-notes', noteTarget?.item.id],
+    enabled: Boolean(noteTarget),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('journey_stage_notes')
+        .select('id, item_id, stage_id, note, created_by_name, created_at')
+        .eq('item_id', noteTarget!.item.id)
+        .eq('stage_id', noteTarget!.stage.id)
+        .order('created_at', { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return (data ?? []) as JourneyStageNote[];
+    },
+  });
+
+  const pull = usePullRefresh(async () => {
+    await Promise.all([
+      stagesQuery.refetch(),
+      itemsQuery.refetch(),
+      statesQuery.refetch(),
+    ]);
+  });
+
+  const stages = useMemo(() => stagesQuery.data ?? [], [stagesQuery.data]);
   const stageById = useMemo(
-    () => new Map((stages ?? []).map((s) => [s.id, s])),
+    () => new Map(stages.map((stage) => [stage.id, stage])),
     [stages]
+  );
+  const stageIndexById = useMemo(
+    () => new Map(stages.map((stage, index) => [stage.id, index])),
+    [stages]
+  );
+  const stateBySubject = useMemo(
+    () =>
+      new Map(
+        (statesQuery.data ?? []).map((state) => [state.subject_id, state])
+      ),
+    [statesQuery.data]
   );
 
   const groups = useMemo(() => {
-    const byContact = new Map<
-      string,
-      { contact: JourneyItem['contact']; items: JourneyItem[] }
-    >();
-    for (const item of items ?? []) {
+    const byContact = new Map<string, JourneyGroup>();
+    for (const item of itemsQuery.data ?? []) {
       if (contactId && item.contact_id !== contactId) continue;
-      const key = item.contact_id;
-      if (!byContact.has(key)) {
-        byContact.set(key, { contact: item.contact, items: [] });
+      const state = stateBySubject.get(item.contact_id);
+      let group = byContact.get(item.contact_id);
+      if (!group) {
+        group = {
+          subjectId: item.contact_id,
+          contact: item.contact,
+          items: [],
+          furthestStageIdx: -1,
+          lifecycleStatus: state?.lifecycle_status ?? 'active',
+          closureReason: state?.closure_reason ?? null,
+          archivedAt: state?.archived_at ?? null,
+          sortOrder:
+            orderOverrides.get(item.contact_id) ??
+            state?.sort_order ??
+            Number.MAX_SAFE_INTEGER,
+        };
+        byContact.set(item.contact_id, group);
       }
-      byContact.get(key)!.items.push(item);
+      group.items.push(item);
+      group.furthestStageIdx = Math.max(
+        group.furthestStageIdx,
+        stageIndexById.get(item.stage_id) ?? -1
+      );
     }
-    return Array.from(byContact.values());
-  }, [items, contactId]);
+    return Array.from(byContact.values()).sort(
+      (left, right) =>
+        left.sortOrder - right.sortOrder ||
+        right.furthestStageIdx - left.furthestStageIdx
+    );
+  }, [
+    contactId,
+    itemsQuery.data,
+    orderOverrides,
+    stageIndexById,
+    stateBySubject,
+  ]);
 
-  /**
-   * The one question a stalled branch is asking — still in play, or
-   * park it? Both channels open with it already typed: the Engine
-   * inbox thread (business number, logged) or the agent's own
-   * WhatsApp. Web parity: the journey item sheet's Contact block.
-   */
+  const searchedGroups = useMemo(() => {
+    const term = query.trim().toLocaleLowerCase();
+    const digits = term.replace(/\D/g, '');
+    return groups.filter((group) => {
+      if (!term) return true;
+      const haystack = [group.contact?.name, group.contact?.phone]
+        .filter(Boolean)
+        .join(' ')
+        .toLocaleLowerCase();
+      return (
+        haystack.includes(term) ||
+        Boolean(digits && haystack.replace(/\D/g, '').includes(digits))
+      );
+    });
+  }, [groups, query]);
+
+  const viewGroups = useMemo(
+    () =>
+      searchedGroups.filter((group) => {
+        if (view === 'archived') return Boolean(group.archivedAt);
+        if (group.archivedAt) return false;
+        return view === 'closed'
+          ? group.lifecycleStatus !== 'active'
+          : group.lifecycleStatus === 'active';
+      }),
+    [searchedGroups, view]
+  );
+
+  const counts = useMemo(
+    () => ({
+      active: groups.filter(
+        (group) => !group.archivedAt && group.lifecycleStatus === 'active'
+      ).length,
+      closed: groups.filter(
+        (group) => !group.archivedAt && group.lifecycleStatus !== 'active'
+      ).length,
+      archived: groups.filter((group) => Boolean(group.archivedAt)).length,
+    }),
+    [groups]
+  );
+
+  const buckets = useMemo<JourneyBucket[]>(() => {
+    if (view === 'active') {
+      return stages
+        .map((stage, index) => ({
+          key: `stage:${stage.id}`,
+          label: stage.name,
+          color: stage.color ?? colors.primary,
+          groups: viewGroups.filter(
+            (group) => group.furthestStageIdx === index
+          ),
+        }))
+        .filter((bucket) => bucket.groups.length > 0);
+    }
+    if (view === 'closed') {
+      return (
+        ['completed', 'paused', 'not_proceeding'] as ClosedJourneyStatus[]
+      )
+        .map((status) => ({
+          key: `closed:${status}`,
+          label: CLOSED_JOURNEY_STATUS_LABELS[status],
+          color:
+            status === 'completed'
+              ? colors.success
+              : status === 'paused'
+                ? colors.warning
+                : colors.textFaint,
+          groups: viewGroups.filter(
+            (group) => group.lifecycleStatus === status
+          ),
+        }))
+        .filter((bucket) => bucket.groups.length > 0);
+    }
+    return viewGroups.length
+      ? [
+          {
+            key: 'archived',
+            label: 'Archived journeys',
+            color: colors.textFaint,
+            groups: viewGroups,
+          },
+        ]
+      : [];
+  }, [
+    colors.primary,
+    colors.success,
+    colors.textFaint,
+    colors.warning,
+    stages,
+    view,
+    viewGroups,
+  ]);
+
   async function askCheckIn(item: JourneyItem, stageLabel: string | undefined) {
     const contact = item.contact;
     if (!contact) return;
     haptic.tap();
     const name = contact.name || contact.phone || 'this contact';
-    // Best-effort: a link that won't resolve is dropped rather than
-    // holding up the nudge.
     const propertyUrl = item.property
       ? await contactPropertyShareUrl(contact, item.property).catch(() => null)
       : null;
@@ -130,7 +327,9 @@ export default function JourneyScreen() {
           label: 'ConvoReal',
           onPress: async () => {
             close();
-            const outcome = await openContactChat(contact, { draftText: message });
+            const outcome = await openContactChat(contact, {
+              draftText: message,
+            });
             if (!outcome.ok && outcome.error) {
               show({ title: 'Could not open thread', message: outcome.error });
             }
@@ -138,7 +337,7 @@ export default function JourneyScreen() {
         },
         ...(contact.phone
           ? [
-                {
+              {
                 label: 'WhatsApp',
                 variant: 'primary' as const,
                 onPress: () => {
@@ -159,10 +358,196 @@ export default function JourneyScreen() {
     });
   }
 
+  async function mutateGroup(
+    group: JourneyGroup,
+    action: 'archive' | 'restore' | 'reopen'
+  ) {
+    close();
+    try {
+      await updateJourneyOverview({
+        action,
+        mode: 'buyer',
+        subjectId: group.subjectId,
+      });
+      haptic.success();
+      await statesQuery.refetch();
+    } catch (error) {
+      haptic.warn();
+      show({
+        title: 'Could not update journey',
+        message: error instanceof Error ? error.message : 'Please try again.',
+      });
+    }
+  }
+
+  function chooseClosure(group: JourneyGroup, status: ClosedJourneyStatus) {
+    show({
+      title: CLOSED_JOURNEY_STATUS_LABELS[status],
+      message:
+        'Choose the clearest reason. It remains searchable in Closed journeys.',
+      actions: [
+        ...JOURNEY_CLOSURE_REASONS[status].map((reason) => ({
+          label: reason,
+          onPress: () => void closeGroup(group, status, reason),
+        })),
+        { label: 'Cancel', variant: 'muted', onPress: close },
+      ],
+    });
+  }
+
+  async function closeGroup(
+    group: JourneyGroup,
+    status: ClosedJourneyStatus,
+    reason: string
+  ) {
+    close();
+    try {
+      await updateJourneyOverview({
+        action: 'close',
+        mode: 'buyer',
+        subjectId: group.subjectId,
+        status,
+        reason,
+      });
+      haptic.success();
+      await statesQuery.refetch();
+    } catch (error) {
+      haptic.warn();
+      show({
+        title: 'Could not close journey',
+        message: error instanceof Error ? error.message : 'Please try again.',
+      });
+    }
+  }
+
+  function showGroupActions(group: JourneyGroup) {
+    if (group.archivedAt) {
+      show({
+        title: group.contact?.name || 'Journey actions',
+        actions: [
+          {
+            label: 'Restore from archive',
+            variant: 'primary',
+            onPress: () => void mutateGroup(group, 'restore'),
+          },
+          { label: 'Cancel', variant: 'muted', onPress: close },
+        ],
+      });
+      return;
+    }
+    if (group.lifecycleStatus !== 'active') {
+      show({
+        title: group.contact?.name || 'Journey actions',
+        message: group.closureReason ?? undefined,
+        actions: [
+          {
+            label: 'Reopen journey',
+            variant: 'primary',
+            onPress: () => void mutateGroup(group, 'reopen'),
+          },
+          {
+            label: 'Archive',
+            onPress: () => void mutateGroup(group, 'archive'),
+          },
+          { label: 'Cancel', variant: 'muted', onPress: close },
+        ],
+      });
+      return;
+    }
+    show({
+      title: group.contact?.name || 'Journey actions',
+      actions: [
+        {
+          label: 'Close with outcome',
+          variant: 'primary',
+          onPress: () =>
+            show({
+              title: 'How did this journey end?',
+              actions: [
+                {
+                  label: 'Completed successfully',
+                  onPress: () => chooseClosure(group, 'completed'),
+                },
+                {
+                  label: 'Paused — may return',
+                  onPress: () => chooseClosure(group, 'paused'),
+                },
+                {
+                  label: 'Not proceeding',
+                  onPress: () => chooseClosure(group, 'not_proceeding'),
+                },
+                { label: 'Cancel', variant: 'muted', onPress: close },
+              ],
+            }),
+        },
+        {
+          label: 'Archive',
+          onPress: () => void mutateGroup(group, 'archive'),
+        },
+        { label: 'Cancel', variant: 'muted', onPress: close },
+      ],
+    });
+  }
+
+  async function moveGroup(bucket: JourneyBucket, from: number, to: number) {
+    if (from === to) return;
+    const reordered = [...bucket.groups];
+    const [moved] = reordered.splice(from, 1);
+    reordered.splice(to, 0, moved);
+    setOrderOverrides((current) => {
+      const next = new Map(current);
+      reordered.forEach((group, index) => next.set(group.subjectId, index));
+      return next;
+    });
+    try {
+      await updateJourneyOverview({
+        action: 'reorder',
+        mode: 'buyer',
+        subjectIds: reordered.map((group) => group.subjectId),
+      });
+      haptic.success();
+      await statesQuery.refetch();
+    } catch (error) {
+      setOrderOverrides(new Map());
+      haptic.warn();
+      show({
+        title: 'Could not save order',
+        message: error instanceof Error ? error.message : 'Please try again.',
+      });
+    }
+  }
+
+  async function saveNote() {
+    if (!noteTarget || !noteText.trim() || savingNote) return;
+    setSavingNote(true);
+    try {
+      await addJourneyStageNote({
+        itemId: noteTarget.item.id,
+        stageId: noteTarget.stage.id,
+        note: noteText.trim(),
+      });
+      haptic.success();
+      setNoteText('');
+      await notesQuery.refetch();
+    } catch (error) {
+      haptic.warn();
+      show({
+        title: 'Could not save note',
+        message: error instanceof Error ? error.message : 'Please try again.',
+      });
+    } finally {
+      setSavingNote(false);
+    }
+  }
+
+  const isLoading =
+    stagesQuery.isLoading || itemsQuery.isLoading || statesQuery.isLoading;
+
   return (
     <ScrollView
       style={{ flex: 1 }}
       contentContainerStyle={styles.container}
+      keyboardShouldPersistTaps="handled"
       refreshControl={
         <RefreshControl
           refreshing={pull.refreshing}
@@ -171,128 +556,416 @@ export default function JourneyScreen() {
         />
       }
     >
-      <Stack.Screen
-        options={{
-          headerShown: true,
-          title: 'Journeys',
-        }}
-      />
+      <Stack.Screen options={{ headerShown: true, title: 'Journeys' }} />
 
-      <Text style={{ fontSize: 12.5, color: colors.textFaint }}>
-        Where every buyer stands, per property. Tap a property to ask whether
-        it's still in play. Advancing, dropping and the full mind-map canvas
-        live on the web's Journey page.
-      </Text>
+      <View style={styles.tabs}>
+        {(
+          [
+            ['active', 'Active'],
+            ['closed', 'Closed'],
+            ['archived', 'Archived'],
+          ] as const
+        ).map(([value, label]) => {
+          const selected = view === value;
+          return (
+            <Pressable
+              key={value}
+              onPress={() => setView(value)}
+              style={[
+                styles.tab,
+                {
+                  backgroundColor: selected ? colors.primary : colors.glass,
+                  borderColor: selected ? colors.primary : colors.glassBorder,
+                },
+              ]}
+            >
+              <Text
+                style={{
+                  fontSize: 12.5,
+                  fontFamily: f.bold,
+                  color: selected ? colors.onPrimary : colors.textMuted,
+                }}
+              >
+                {label} {counts[value]}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
 
-      {!isLoading && groups.length === 0 ? (
+      <View
+        style={[
+          styles.search,
+          { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+        ]}
+      >
+        <Ionicons name="search" size={17} color={colors.textFaint} />
+        <TextInput
+          value={query}
+          onChangeText={setQuery}
+          placeholder="Search name or mobile"
+          placeholderTextColor={colors.textFaint}
+          style={{ flex: 1, color: colors.text, fontSize: 14 }}
+        />
+        {query ? (
+          <Pressable
+            onPress={() => setQuery('')}
+            accessibilityLabel="Clear search"
+          >
+            <Ionicons name="close-circle" size={18} color={colors.textFaint} />
+          </Pressable>
+        ) : null}
+      </View>
+
+      {!isLoading && buckets.length === 0 ? (
         <EmptyState
           icon="map-outline"
-          title="No journeys yet"
+          title={query ? 'No matching journeys' : `No ${view} journeys`}
           subtitle={
-            contactId
-              ? 'No journey items for this contact yet.'
-              : 'Journeys are captured automatically when you share properties over WhatsApp.'
+            query
+              ? 'Try another name or mobile number.'
+              : view === 'active'
+                ? 'Journeys are captured when you share properties over WhatsApp.'
+                : 'Closed and archived journeys stay available here for later reference.'
           }
         />
       ) : (
-        groups.map((group) => {
-          const name = group.contact?.name || group.contact?.phone || 'Unknown';
+        buckets.map((bucket) => {
+          const open = query ? true : !closedBuckets.has(bucket.key);
           return (
             <View
-              key={group.items[0].id}
+              key={bucket.key}
               style={[
-                styles.card,
+                styles.bucket,
                 {
                   backgroundColor: colors.glass,
                   borderColor: colors.glassBorder,
                 },
               ]}
             >
-              <Link
-                href={`/(app)/contact/${group.items[0].contact_id}`}
-                asChild
+              <Pressable
+                onPress={() =>
+                  setClosedBuckets((current) => {
+                    const next = new Set(current);
+                    if (next.has(bucket.key)) next.delete(bucket.key);
+                    else next.add(bucket.key);
+                    return next;
+                  })
+                }
+                style={styles.bucketHeader}
               >
-                <Pressable style={styles.cardHeader}>
-                  <Avatar name={name} size={36} />
-                  <Text
-                    style={{
-                      flex: 1,
-                      fontSize: 15.5,
-                      fontFamily: f.bold,
-                      color: colors.text,
-                    }}
-                  >
-                    {name}
-                  </Text>
-                  <Text style={{ fontSize: 12, color: colors.textFaint }}>
-                    {group.items.length} propert
-                    {group.items.length === 1 ? 'y' : 'ies'}
-                  </Text>
-                </Pressable>
-              </Link>
-              {group.items.map((item) => {
-                const stage = stageById.get(item.stage_id);
-                const dropped = item.status === 'dropped';
-                const stageLabel = dropped ? undefined : stage?.name;
-                return (
-                  <Pressable
-                    key={item.id}
-                    onPress={() => void askCheckIn(item, stageLabel)}
-                    disabled={!item.contact}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Check in about ${item.property?.title ?? 'this property'}`}
-                    style={[styles.itemRow, { borderTopColor: colors.border }]}
-                  >
-                    <View
-                      style={{
-                        width: 8,
-                        height: 8,
-                        borderRadius: 4,
-                        backgroundColor: dropped
-                          ? colors.danger
-                          : stage?.color || colors.primary,
+                <Ionicons
+                  name={open ? 'chevron-down' : 'chevron-forward'}
+                  size={17}
+                  color={colors.textFaint}
+                />
+                <View
+                  style={{
+                    width: 9,
+                    height: 9,
+                    borderRadius: 5,
+                    backgroundColor: bucket.color,
+                  }}
+                />
+                <Text
+                  style={{
+                    flex: 1,
+                    fontSize: 14,
+                    fontFamily: f.bold,
+                    color: colors.text,
+                  }}
+                >
+                  {bucket.label}
+                </Text>
+                <Text style={{ fontSize: 12, color: colors.textMuted }}>
+                  {bucket.groups.length}
+                </Text>
+              </Pressable>
+              {open
+                ? bucket.groups.map((group, index) => (
+                    <DraggableJourneyCard
+                      key={group.subjectId}
+                      group={group}
+                      stage={stages[group.furthestStageIdx]}
+                      stageById={stageById}
+                      index={index}
+                      count={bucket.groups.length}
+                      expanded={openGroups.has(group.subjectId)}
+                      onToggle={() =>
+                        setOpenGroups((current) => {
+                          const next = new Set(current);
+                          if (next.has(group.subjectId))
+                            next.delete(group.subjectId);
+                          else next.add(group.subjectId);
+                          return next;
+                        })
+                      }
+                      onMove={(from, to) => void moveGroup(bucket, from, to)}
+                      onActions={() => showGroupActions(group)}
+                      onCheckIn={askCheckIn}
+                      onAddNote={(item, stage) => {
+                        setNoteTarget({ item, stage });
+                        setNoteText('');
                       }}
                     />
-                    <Text
-                      style={{
-                        flex: 1,
-                        fontSize: 13.5,
-                        color: dropped ? colors.textFaint : colors.text,
-                        textDecorationLine: dropped ? 'line-through' : 'none',
-                      }}
-                      numberOfLines={1}
-                    >
-                      {item.property?.title ?? 'Property'}
-                    </Text>
-                    <Text
-                      style={{
-                        fontSize: 11.5,
-                        fontFamily: f.bold,
-                        color: dropped
-                          ? colors.danger
-                          : (stage?.color ?? colors.textMuted),
-                      }}
-                    >
-                      {dropped
-                        ? item.drop_reason || 'Dropped'
-                        : (stage?.name ?? '—')}
-                    </Text>
-                    {item.contact ? (
-                      <Ionicons
-                        name="chatbubble-ellipses-outline"
-                        size={15}
-                        color={colors.textFaint}
-                      />
-                    ) : null}
-                  </Pressable>
-                );
-              })}
+                  ))
+                : null}
             </View>
           );
         })
       )}
+
+      <BottomSheet
+        visible={Boolean(noteTarget)}
+        onClose={() => {
+          setNoteTarget(null);
+          setNoteText('');
+        }}
+        title={noteTarget ? `Note at ${noteTarget.stage.name}` : 'Stage note'}
+      >
+        <ScrollView
+          style={sheetScrollArea}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{ padding: spacing.lg, gap: spacing.md }}
+        >
+          <TextInput
+            multiline
+            autoFocus
+            value={noteText}
+            maxLength={1000}
+            onChangeText={setNoteText}
+            placeholder="e.g. ₹1 lakh token paid"
+            placeholderTextColor={colors.textFaint}
+            style={[
+              styles.noteInput,
+              {
+                color: colors.text,
+                backgroundColor: colors.glass,
+                borderColor: colors.glassBorder,
+              },
+            ]}
+          />
+          <PrimaryButton
+            label="Save note"
+            busy={savingNote}
+            disabled={!noteText.trim()}
+            onPress={() => void saveNote()}
+          />
+          {(notesQuery.data ?? []).map((note) => (
+            <View
+              key={note.id}
+              style={[
+                styles.note,
+                {
+                  backgroundColor: colors.glass,
+                  borderColor: colors.glassBorder,
+                },
+              ]}
+            >
+              <Text style={{ fontSize: 13.5, color: colors.text }}>
+                {note.note}
+              </Text>
+              <Text
+                style={{
+                  marginTop: 4,
+                  fontSize: 10.5,
+                  color: colors.textFaint,
+                }}
+              >
+                {note.created_by_name ? `${note.created_by_name} · ` : ''}
+                {new Date(note.created_at).toLocaleDateString('en-IN')}
+              </Text>
+            </View>
+          ))}
+        </ScrollView>
+      </BottomSheet>
+
       <AppDialog {...dialogProps} />
     </ScrollView>
+  );
+}
+
+function DraggableJourneyCard({
+  group,
+  stage,
+  stageById,
+  index,
+  count,
+  expanded,
+  onToggle,
+  onMove,
+  onActions,
+  onCheckIn,
+  onAddNote,
+}: {
+  group: JourneyGroup;
+  stage?: JourneyStage;
+  stageById: Map<string, JourneyStage>;
+  index: number;
+  count: number;
+  expanded: boolean;
+  onToggle: () => void;
+  onMove: (from: number, to: number) => void;
+  onActions: () => void;
+  onCheckIn: (item: JourneyItem, stageLabel: string | undefined) => void;
+  onAddNote: (item: JourneyItem, stage: JourneyStage) => void;
+}) {
+  const { colors, fonts: f } = useTheme();
+  const drag = useSharedValue(0);
+  const gesture = Gesture.Pan()
+    .activateAfterLongPress(220)
+    .onUpdate((event) => {
+      drag.value = event.translationY;
+    })
+    .onEnd((event) => {
+      const offset = Math.round(event.translationY / 74);
+      const target = Math.max(0, Math.min(count - 1, index + offset));
+      if (target !== index) runOnJS(onMove)(index, target);
+      drag.value = withSpring(0, { damping: 18, stiffness: 240 });
+    });
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: drag.value }],
+    zIndex: drag.value === 0 ? 0 : 10,
+  }));
+  const name = group.contact?.name || group.contact?.phone || 'Unknown';
+  const lifecycleLabel =
+    group.lifecycleStatus === 'active'
+      ? null
+      : CLOSED_JOURNEY_STATUS_LABELS[group.lifecycleStatus];
+  const statusLabel = [stage?.name, lifecycleLabel].filter(Boolean).join(' · ');
+
+  return (
+    <Animated.View
+      style={[
+        styles.card,
+        { borderTopColor: colors.border, backgroundColor: colors.surfaceWell },
+        animatedStyle,
+      ]}
+    >
+      <View style={styles.cardHeader}>
+        <GestureDetector gesture={gesture}>
+          <Animated.View style={styles.dragHandle}>
+            <Ionicons name="reorder-three" size={22} color={colors.textFaint} />
+          </Animated.View>
+        </GestureDetector>
+        <Pressable onPress={onToggle} style={styles.cardIdentity}>
+          <Avatar name={name} size={34} />
+          <View style={{ flex: 1 }}>
+            <Text
+              numberOfLines={1}
+              style={{ fontSize: 15, fontFamily: f.bold, color: colors.text }}
+            >
+              {name}
+            </Text>
+            <Text
+              numberOfLines={1}
+              style={{ fontSize: 11.5, color: colors.textFaint }}
+            >
+              {group.contact?.phone}
+              {group.closureReason ? ` · ${group.closureReason}` : ''}
+            </Text>
+          </View>
+          {statusLabel ? (
+            <Text
+              numberOfLines={1}
+              style={{
+                maxWidth: 110,
+                fontSize: 10.5,
+                fontFamily: f.bold,
+                color: stage?.color ?? colors.textMuted,
+              }}
+            >
+              {statusLabel}
+            </Text>
+          ) : null}
+          <Ionicons
+            name={expanded ? 'chevron-up' : 'chevron-down'}
+            size={16}
+            color={colors.textFaint}
+          />
+        </Pressable>
+        <Pressable
+          onPress={onActions}
+          accessibilityLabel={`Actions for ${name}`}
+          hitSlop={8}
+        >
+          <Ionicons
+            name="ellipsis-vertical"
+            size={18}
+            color={colors.textMuted}
+          />
+        </Pressable>
+      </View>
+
+      {expanded
+        ? group.items.map((item) => {
+            const itemStage = stageById.get(item.stage_id);
+            const dropped = item.status === 'dropped';
+            return (
+              <View
+                key={item.id}
+                style={[styles.itemRow, { borderTopColor: colors.border }]}
+              >
+                <Pressable
+                  style={styles.itemMain}
+                  onPress={() =>
+                    void onCheckIn(item, dropped ? undefined : itemStage?.name)
+                  }
+                  disabled={!item.contact}
+                >
+                  <View
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: 4,
+                      backgroundColor: dropped
+                        ? colors.danger
+                        : itemStage?.color || colors.primary,
+                    }}
+                  />
+                  <Text
+                    numberOfLines={1}
+                    style={{
+                      flex: 1,
+                      fontSize: 13.5,
+                      color: dropped ? colors.textFaint : colors.text,
+                      textDecorationLine: dropped ? 'line-through' : 'none',
+                    }}
+                  >
+                    {item.property?.title ?? 'Property'}
+                  </Text>
+                  <Text
+                    style={{
+                      fontSize: 11,
+                      fontFamily: f.bold,
+                      color: dropped
+                        ? colors.danger
+                        : itemStage?.color || colors.textMuted,
+                    }}
+                  >
+                    {dropped
+                      ? item.drop_reason || 'Dropped'
+                      : itemStage?.name || '—'}
+                  </Text>
+                </Pressable>
+                {itemStage ? (
+                  <Pressable
+                    onPress={() => onAddNote(item, itemStage)}
+                    accessibilityLabel={`Add note at ${itemStage.name}`}
+                    hitSlop={8}
+                  >
+                    <Ionicons
+                      name="document-text-outline"
+                      size={17}
+                      color={colors.textMuted}
+                    />
+                  </Pressable>
+                ) : null}
+              </View>
+            );
+          })
+        : null}
+    </Animated.View>
   );
 }
 
@@ -302,23 +975,74 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     paddingBottom: spacing.xxl,
   },
-  card: {
+  tabs: { flexDirection: 'row', gap: spacing.xs },
+  tab: {
+    flex: 1,
+    minHeight: 38,
     borderWidth: 1,
-    borderRadius: radius.lg,
-    overflow: 'hidden',
+    borderRadius: radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  cardHeader: {
+  search: {
+    minHeight: 44,
+    borderWidth: 1,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.md,
-    padding: spacing.md,
+    gap: spacing.sm,
+  },
+  bucket: { borderWidth: 1, borderRadius: radius.lg, overflow: 'hidden' },
+  bucketHeader: {
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+  },
+  card: { borderTopWidth: StyleSheet.hairlineWidth },
+  cardHeader: {
+    minHeight: 68,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.sm,
+  },
+  dragHandle: {
+    width: 34,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cardIdentity: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
   },
   itemRow: {
+    minHeight: 48,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
     paddingHorizontal: spacing.md,
-    paddingVertical: 10,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
+  itemMain: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  noteInput: {
+    minHeight: 96,
+    borderWidth: 1,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    textAlignVertical: 'top',
+  },
+  note: { borderWidth: 1, borderRadius: radius.md, padding: spacing.md },
 });

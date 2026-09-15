@@ -209,10 +209,7 @@ export interface Contact {
   /** How announcements/reminders reach this contact; null = no stated
    *  preference, the sender's default applies. */
   preferred_update_channel?:
-    | 'whatsapp_text'
-    | 'whatsapp_audio'
-    | 'voice_call'
-    | null;
+    'whatsapp_text' | 'whatsapp_audio' | 'voice_call' | null;
   dob?: string | null;
   feedback_status?: 'not_requested' | 'requested' | 'collected';
   last_contacted_at?: string | null;
@@ -510,11 +507,7 @@ export type ContentType =
   /** Customer tapped a reply button or list row on a message we sent. */
   | 'interactive';
 export type MessageStatus =
-  | 'sending'
-  | 'sent'
-  | 'delivered'
-  | 'read'
-  | 'failed';
+  'sending' | 'sent' | 'delivered' | 'read' | 'failed';
 
 export interface Message {
   id: string;
@@ -787,10 +780,7 @@ export type JourneyItemStatus = 'active' | 'dropped';
 
 /** How a journey item landed on the map (migration 138). */
 export type JourneyItemSource =
-  | 'manual'
-  | 'whatsapp_share'
-  | 'chat_import'
-  | 'inquiry_import';
+  'manual' | 'whatsapp_share' | 'chat_import' | 'inquiry_import';
 
 /** One contact×property pair on the Journey mind map. `stage_id` is the
  *  FURTHEST stage reached; status 'dropped' means it exited at that
@@ -848,12 +838,19 @@ export interface JourneyEvent {
   created_at: string;
 }
 
+export interface JourneyStageNote {
+  id: string;
+  account_id: string;
+  item_id: string;
+  stage_id: string;
+  note: string;
+  created_by?: string | null;
+  created_by_name?: string | null;
+  created_at: string;
+}
+
 export type BroadcastStatus =
-  | 'draft'
-  | 'scheduled'
-  | 'sending'
-  | 'sent'
-  | 'failed';
+  'draft' | 'scheduled' | 'sending' | 'sent' | 'failed';
 export type RecipientStatus =
   | 'pending'
   | 'sent'
@@ -998,10 +995,7 @@ export interface WaitStepConfig {
 }
 
 export type ConditionSubject =
-  | 'contact_field'
-  | 'tag_presence'
-  | 'message_content'
-  | 'time_of_day';
+  'contact_field' | 'tag_presence' | 'message_content' | 'time_of_day';
 
 export interface ConditionStepConfig {
   subject: ConditionSubject;
@@ -1258,8 +1252,7 @@ export interface Property {
    *  (migration 130) — Engine-only, never shown on the public showcase.
    *  Shape: src/lib/inventory/floor-tenancies.ts FloorTenancy[]. */
   floor_tenancies?:
-    | import('@/lib/inventory/floor-tenancies').FloorTenancy[]
-    | null;
+    import('@/lib/inventory/floor-tenancies').FloorTenancy[] | null;
   /** Per-floor plan drawings (migration 285). Unlike floor_tenancies
    *  this applies to any property type.
    *  Shape: src/lib/inventory/floor-plans.ts FloorPlan[]. */
