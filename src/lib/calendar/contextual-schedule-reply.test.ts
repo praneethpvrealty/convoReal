@@ -209,7 +209,7 @@ describe('Contextual schedule reply handling', () => {
           assigned_to: 'user-1',
           title: 'Meeting with property owner and KP Anand',
           event_type: 'meeting',
-          start_time: new Date(Date.now() + 60 * 60_000).toISOString(),
+          start_time: '2026-09-14T09:00:00+05:30',
           status: 'scheduled',
           contact_id: 'contact-naveen',
           contact: { name: 'KP Anand' },
