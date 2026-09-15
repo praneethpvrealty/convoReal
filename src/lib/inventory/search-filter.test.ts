@@ -53,6 +53,19 @@ describe('filterPropertiesBySearch', () => {
       filterPropertiesBySearch(list, 'rent yielding').map((p) => p.title)
     ).toEqual(['Yielding']);
   });
+
+  it('matches the Commercial share-link category across its subtypes', () => {
+    const list = [
+      property({ title: 'Office', type: 'Commercial Office Space' }),
+      property({ title: 'Land', type: 'Commercial Land' }),
+      property({ title: 'Warehouse', type: 'Warehouse/ Godown' }),
+      property({ title: 'Home', type: 'Villa' }),
+    ];
+
+    expect(
+      filterPropertiesBySearch(list, 'Commercial').map((p) => p.title)
+    ).toEqual(['Office', 'Land', 'Warehouse']);
+  });
 });
 
 describe('selectPinnedProperties', () => {
