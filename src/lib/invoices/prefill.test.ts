@@ -123,15 +123,48 @@ describe('buildPrefill — the uploaded reference invoice', () => {
     expect(result.place_of_supply_code).toBe('29');
   });
 
-  it('drops the GST note when the account actually charges GST', () => {
+  it('charges GST when the account is registered', () => {
     const result = buildPrefill({
       ...REFERENCE_INPUT,
       settings: { ...SETTINGS, gst_mode: 'intra', gst_rate: 18 },
     });
-    expect(result.issuer.gst_note).toBeNull();
+    expect(result.gst_mode).toBe('intra');
     expect(result.cgst).toBe(51030);
     expect(result.sgst).toBe(51030);
     expect(result.grand_total).toBe(669060);
+  });
+
+  // [INV-003] The toggle moves both ways, so the note travels with every
+  // snapshot and the renderer decides whether to print it. Dropping it at
+  // creation would leave an invoice later switched to nil unexplained.
+  it('snapshots the exemption note even when the account charges GST', () => {
+    const result = buildPrefill({
+      ...REFERENCE_INPUT,
+      settings: { ...SETTINGS, gst_mode: 'intra', gst_rate: 18 },
+    });
+    expect(result.issuer.gst_note).toContain('below Rs.20 lakhs');
+  });
+
+  // [INV-003] A registered brokerage can still raise an exempt invoice.
+  it('turns GST off for one invoice without touching the account default', () => {
+    const registered = {
+      ...REFERENCE_INPUT,
+      settings: { ...SETTINGS, gst_mode: 'intra' as const, gst_rate: 18 },
+    };
+    const charged = buildPrefill(registered);
+    const exempt = recalculate({
+      line_items: charged.line_items,
+      gst_mode: 'nil',
+      gst_rate: 0,
+      issuer: charged.issuer,
+      place_of_supply_code: charged.place_of_supply_code,
+    });
+    expect(charged.grand_total).toBe(669060);
+    expect(exempt.gst_mode).toBe('nil');
+    expect(exempt.cgst).toBe(0);
+    expect(exempt.sgst).toBe(0);
+    expect(exempt.igst).toBe(0);
+    expect(exempt.grand_total).toBe(567000);
   });
 });
 
@@ -326,6 +359,22 @@ describe('recalculate', () => {
     expect(result.igst).toBe(18000);
     expect(result.cgst).toBe(0);
     expect(result.grand_total).toBe(118000);
+  });
+
+  // [INV-003] The toggle asks for GST; the state codes decide which kind.
+  // Storing the requested 'intra' beside IGST amounts would misreport the
+  // supply on every return filed off this row.
+  it('stores the mode that was actually charged, not the one requested', () => {
+    const result = recalculate({
+      line_items: [
+        { sl_no: 1, sac: '997212', particulars: [], taxable_value: 100000 },
+      ],
+      gst_mode: 'intra',
+      gst_rate: 18,
+      issuer: { legal_name: 'x', address_lines: [], state_code: '29' },
+      place_of_supply_code: '27',
+    });
+    expect(result.gst_mode).toBe('inter');
   });
 });
 

@@ -315,7 +315,10 @@ export function renderInvoicePdf(
   }
 
   // ---- Notes ------------------------------------------------------
-  if (issuer.gst_note) {
+  // The exemption note explains an invoice that carries no tax, so it
+  // follows this invoice's own posture rather than the account default
+  // it was drafted under — the GST toggle can move either way.
+  if (invoice.gst_mode === 'nil' && issuer.gst_note) {
     down(18);
     for (const line of wrapText(issuer.gst_note, 'regular', 8, CONTENT_WIDTH)) {
       page.text(line, MARGIN, at(), { size: 8 });

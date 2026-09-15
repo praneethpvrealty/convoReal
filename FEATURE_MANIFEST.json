@@ -112,10 +112,18 @@
         },
         {
           "id": "INV-003",
-          "rule": "Tax follows the place of supply: the same state charges CGST plus SGST in equal halves, a different state charges IGST at the full rate, and nil mode charges nothing and prints the exemption note. Known state codes override a stale stored mode.",
+          "rule": "Tax follows the place of supply: the same state charges CGST plus SGST in equal halves, a different state charges IGST at the full rate, and nil mode charges nothing and prints the exemption note. Known state codes override a stale stored mode, and the mode stored on the invoice is the one actually charged. Whether an invoice carries GST at all is a per-invoice toggle over the account default, so a registered brokerage can raise an exempt invoice and an unregistered one keeps its GST details ready; the exemption note is always snapshotted and printed only when that invoice charges no GST.",
           "tests": [
             {
               "file": "src/lib/invoices/gst.test.ts",
+              "case": "[INV-003]"
+            },
+            {
+              "file": "src/lib/invoices/prefill.test.ts",
+              "case": "[INV-003]"
+            },
+            {
+              "file": "src/lib/invoices/pdf.test.ts",
               "case": "[INV-003]"
             }
           ]

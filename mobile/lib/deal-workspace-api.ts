@@ -17,17 +17,20 @@ import type {
 } from './deal-workspace';
 
 export function fetchInvoices(dealId: string) {
-  return apiFetch<{ data: InvoiceRow[] }>(`/api/deals/${dealId}/brokerage-invoices`).then(
-    (json) => json.data ?? []
-  );
+  return apiFetch<{ data: InvoiceRow[] }>(
+    `/api/deals/${dealId}/brokerage-invoices`
+  ).then((json) => json.data ?? []);
 }
 
 export function createInvoice(dealId: string) {
-  return apiFetch<{ data: InvoiceRow }>(`/api/deals/${dealId}/brokerage-invoices`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({}),
-  }).then((json) => json.data);
+  return apiFetch<{ data: InvoiceRow }>(
+    `/api/deals/${dealId}/brokerage-invoices`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    }
+  ).then((json) => json.data);
 }
 
 export function invoiceAction(
@@ -102,6 +105,8 @@ export interface InvoiceDraftPatch {
   side?: InvoiceSide;
   share_percent?: number;
   place_of_supply_code?: string | null;
+  gst_mode?: 'nil' | 'intra' | 'inter';
+  gst_rate?: number;
   notes?: string | null;
   bill_to?: {
     name: string;

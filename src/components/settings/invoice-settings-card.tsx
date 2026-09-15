@@ -246,15 +246,15 @@ export function InvoiceSettingsCard() {
 
       <Section title="Tax">
         <div className="grid gap-3 sm:grid-cols-3">
-          <Field label="GST" id="gst_mode">
+          <Field label="New invoices" id="gst_mode">
             <select
               id="gst_mode"
               className="h-9 w-full rounded-md border border-slate-700 bg-slate-900 px-3 text-sm text-white"
               value={form.gst_mode}
               onChange={(e) => set('gst_mode', e.target.value)}
             >
-              <option value="nil">Not registered / NIL</option>
-              <option value="intra">Registered</option>
+              <option value="nil">Raise without GST</option>
+              <option value="intra">Charge GST</option>
             </select>
           </Field>
           <Field label="Rate (%)" id="gst_rate">
@@ -262,7 +262,6 @@ export function InvoiceSettingsCard() {
               id="gst_rate"
               type="number"
               value={form.gst_rate}
-              disabled={form.gst_mode === 'nil'}
               onChange={(e) => set('gst_rate', e.target.value)}
             />
           </Field>
@@ -270,24 +269,25 @@ export function InvoiceSettingsCard() {
             <Input
               id="gstin"
               value={form.gstin}
-              disabled={form.gst_mode === 'nil'}
               onChange={(e) => set('gstin', e.target.value)}
             />
           </Field>
         </div>
-        {form.gst_mode === 'nil' && (
-          <Field label="Exemption note printed on the invoice" id="gst_note">
-            <Textarea
-              id="gst_note"
-              rows={2}
-              value={form.gst_note}
-              onChange={(e) => set('gst_note', e.target.value)}
-            />
-          </Field>
-        )}
+        <Field label="Exemption note printed on the invoice" id="gst_note">
+          <Textarea
+            id="gst_note"
+            rows={2}
+            value={form.gst_note}
+            onChange={(e) => set('gst_note', e.target.value)}
+          />
+        </Field>
         <p className="text-[11px] text-slate-500">
-          Whether a supply is CGST+SGST or IGST is decided per invoice by
-          comparing your state with the place of supply.
+          This is only the starting position. Every draft carries its own Charge
+          GST toggle, so a registered brokerage can still raise an exempt
+          invoice and an unregistered one is ready the day it registers. Whether
+          tax lands as CGST+SGST or IGST is decided per invoice by comparing
+          your state with the place of supply, and the exemption note prints
+          only on an invoice raised without GST.
         </p>
       </Section>
 

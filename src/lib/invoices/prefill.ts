@@ -334,7 +334,7 @@ export function buildPrefill(input: PrefillInput): PrefilledInvoice {
     bank_account_number: settings.bank_account_number,
     bank_ifsc: settings.bank_ifsc,
     signatory_label: settings.signatory_label,
-    gst_note: settings.gst_mode === 'nil' ? settings.gst_note : null,
+    gst_note: settings.gst_note,
     terms: settings.terms,
   };
 
@@ -348,7 +348,7 @@ export function buildPrefill(input: PrefillInput): PrefilledInvoice {
     line_items: lineItems,
     place_of_supply: placeName || null,
     place_of_supply_code: placeCode || null,
-    gst_mode: settings.gst_mode,
+    gst_mode: tax.appliedMode,
     gst_rate: Number(settings.gst_rate) || 0,
     taxable_total: total,
     cgst: tax.cgst,
@@ -411,7 +411,13 @@ export function recalculate(draft: {
   place_of_supply_code?: string | null;
 }): Pick<
   PrefilledInvoice,
-  'taxable_total' | 'cgst' | 'sgst' | 'igst' | 'grand_total' | 'amount_in_words'
+  | 'gst_mode'
+  | 'taxable_total'
+  | 'cgst'
+  | 'sgst'
+  | 'igst'
+  | 'grand_total'
+  | 'amount_in_words'
 > {
   const total = taxableTotal(draft.line_items ?? []);
   const tax = computeTax({
@@ -422,6 +428,10 @@ export function recalculate(draft: {
     placeOfSupplyCode: draft.place_of_supply_code,
   });
   return {
+    // The stored mode is what was actually charged, not what was asked
+    // for: the toggle says whether to charge GST at all, and the state
+    // codes decide whether that lands as CGST+SGST or IGST.
+    gst_mode: tax.appliedMode,
     taxable_total: total,
     cgst: tax.cgst,
     sgst: tax.sgst,

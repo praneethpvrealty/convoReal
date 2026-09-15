@@ -190,7 +190,10 @@ describe('renderInvoicePdf', () => {
     expect(text).toContain('below Rs.20 lakhs');
   });
 
-  it('shows real rates and splits when the account charges GST', () => {
+  // [INV-003] The snapshot always carries the exemption note so the GST
+  // toggle can move either way; only an invoice raised without GST prints
+  // it. A taxed invoice claiming exemption would be a false statement.
+  it('shows real rates and splits when the invoice charges GST', () => {
     const text = asLatin1(
       renderInvoicePdf({
         ...REFERENCE,
@@ -200,12 +203,12 @@ describe('renderInvoicePdf', () => {
         sgst: 51030,
         igst: 0,
         grand_total: 669060,
-        issuer: { ...REFERENCE.issuer, gst_note: null },
       })
     );
     expect(text).toContain('CGST @ 9%');
     expect(text).toContain('SGST @ 9%');
     expect(text).toContain('6,69,060.00');
+    expect(text).not.toContain('below Rs.20 lakhs');
   });
 
   // [INV-002] Re-rendering a frozen snapshot must produce identical bytes,
