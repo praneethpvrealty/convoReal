@@ -187,6 +187,10 @@
             {
               "file": "src/components/journey/shared.test.ts",
               "case": "[JRN-001]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[JRN-001]"
             }
           ]
         },
@@ -224,7 +228,7 @@
         },
         {
           "id": "JRN-004",
-          "rule": "Stage notes are append-only, account-scoped entries tied to one journey item and one stage, with author and creation time retained through closure and archival.",
+          "rule": "Stage notes are append-only, account-scoped entries tied to one journey item and a stage snapshot, with author and creation time retained through closure, archival and later stage deletion.",
           "tests": [
             {
               "file": "src/lib/journey/stage-notes.test.ts",
@@ -233,7 +237,8 @@
           ],
           "guards": [
             "supabase/migrations/20260915010010_journey_overview_state.sql",
-            "supabase/migrations/20260915015844_journey_table_privileges.sql"
+            "supabase/migrations/20260915015844_journey_table_privileges.sql",
+            "supabase/migrations/20260915020826_journey_stage_note_integrity.sql"
           ]
         }
       ]

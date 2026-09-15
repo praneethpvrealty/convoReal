@@ -180,11 +180,30 @@ describe('mobile Copilot entity tokens mirror the web composer', () => {
 });
 
 describe('mobile journey lifecycle mirrors the web overview', () => {
+  const screen = mobileSource('app/(app)/journey.tsx');
+
+  it('[JRN-001] groups both buyer and property journeys at the furthest stage', () => {
+    expect(screen).toContain("type JourneyMode = 'buyer' | 'property'");
+    expect(screen).toContain(
+      "mode === 'buyer' ? item.contact_id : item.property_id"
+    );
+    expect(screen).toContain('group.furthestStageIdx = Math.max(');
+    expect(screen).toContain('if (item.hidden) group.captured += 1');
+    expect(screen).not.toContain(".eq('hidden', false)");
+  });
+
   it('[JRN-002] keeps the same lifecycle statuses', () => {
     const source = mobileSource('lib/journey-overview.ts');
     expect(stringLiteralsInConst(source, 'JOURNEY_LIFECYCLE_STATUSES')).toEqual(
       JOURNEY_LIFECYCLE_STATUSES
     );
+  });
+
+  it('[JRN-002] does not render mutation controls for viewer accounts', () => {
+    expect(screen).toContain("profile.account_role !== 'viewer'");
+    expect(screen).toContain('.enabled(canEdit)');
+    expect(screen).toContain('{canEdit ? (');
+    expect(screen).toContain('{canEdit && itemStage ? (');
   });
 });
 

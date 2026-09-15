@@ -51,11 +51,14 @@ import type {
 import { usePullRefresh } from '@/lib/use-pull-refresh';
 
 type JourneyView = 'active' | 'closed' | 'archived';
+type JourneyMode = 'buyer' | 'property';
 
 interface JourneyGroup {
   subjectId: string;
   contact: JourneyItem['contact'];
+  property: JourneyItem['property'];
   items: JourneyItem[];
+  captured: number;
   furthestStageIdx: number;
   lifecycleStatus: JourneyLifecycleStatus;
   closureReason: string | null;
@@ -72,9 +75,17 @@ interface JourneyBucket {
 
 export default function JourneyScreen() {
   const { colors, fonts: f } = useTheme();
-  const accountId = useAuthStore((state) => state.profile?.account_id);
+  const profile = useAuthStore((state) => state.profile);
+  const accountId = profile?.account_id;
+  const canEdit = Boolean(profile && profile.account_role !== 'viewer');
   const { show, close, dialogProps } = useAppDialog();
-  const { contactId } = useLocalSearchParams<{ contactId?: string }>();
+  const { contactId, propertyId } = useLocalSearchParams<{
+    contactId?: string;
+    propertyId?: string;
+  }>();
+  const [mode, setMode] = useState<JourneyMode>(() =>
+    propertyId ? 'property' : 'buyer'
+  );
   const [view, setView] = useState<JourneyView>('active');
   const [query, setQuery] = useState('');
   const [closedBuckets, setClosedBuckets] = useState<Set<string>>(new Set());
@@ -110,22 +121,21 @@ export default function JourneyScreen() {
         .from('journey_items')
         .select(
           'id, contact_id, property_id, stage_id, status, drop_reason, hidden, updated_at, ' +
-            'contact:contacts(id, name, phone), property:properties(id, title, property_code)'
+            'contact:contacts(id, name, phone), property:properties(id, title, property_code, location)'
         )
         .eq('account_id', accountId!)
-        .eq('hidden', false)
         .order('updated_at', { ascending: false })
-        .limit(500);
+        .limit(2000);
       if (error) throw error;
       return data as unknown as JourneyItem[];
     },
   });
 
   const statesQuery = useQuery({
-    queryKey: ['journey-overview-states', 'buyer'],
+    queryKey: ['journey-overview-states', mode],
     enabled: Boolean(accountId),
     queryFn: async () =>
-      (await loadJourneyOverview('buyer')).data as JourneyOverviewState[],
+      (await loadJourneyOverview(mode)).data as JourneyOverviewState[],
   });
 
   const notesQuery = useQuery({
@@ -134,7 +144,9 @@ export default function JourneyScreen() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('journey_stage_notes')
-        .select('id, item_id, stage_id, note, created_by_name, created_at')
+        .select(
+          'id, item_id, stage_id, stage_name, stage_color, note, created_by_name, created_at'
+        )
         .eq('item_id', noteTarget!.item.id)
         .eq('stage_id', noteTarget!.stage.id)
         .order('created_at', { ascending: false })
@@ -170,34 +182,41 @@ export default function JourneyScreen() {
   );
 
   const groups = useMemo(() => {
-    const byContact = new Map<string, JourneyGroup>();
+    const bySubject = new Map<string, JourneyGroup>();
     for (const item of itemsQuery.data ?? []) {
-      if (contactId && item.contact_id !== contactId) continue;
-      const state = stateBySubject.get(item.contact_id);
-      let group = byContact.get(item.contact_id);
+      if (mode === 'buyer' && contactId && item.contact_id !== contactId)
+        continue;
+      if (mode === 'property' && propertyId && item.property_id !== propertyId)
+        continue;
+      const subjectId = mode === 'buyer' ? item.contact_id : item.property_id;
+      const state = stateBySubject.get(subjectId);
+      let group = bySubject.get(subjectId);
       if (!group) {
         group = {
-          subjectId: item.contact_id,
-          contact: item.contact,
+          subjectId,
+          contact: mode === 'buyer' ? item.contact : null,
+          property: mode === 'property' ? item.property : null,
           items: [],
+          captured: 0,
           furthestStageIdx: -1,
           lifecycleStatus: state?.lifecycle_status ?? 'active',
           closureReason: state?.closure_reason ?? null,
           archivedAt: state?.archived_at ?? null,
           sortOrder:
-            orderOverrides.get(item.contact_id) ??
+            orderOverrides.get(subjectId) ??
             state?.sort_order ??
             Number.MAX_SAFE_INTEGER,
         };
-        byContact.set(item.contact_id, group);
+        bySubject.set(subjectId, group);
       }
-      group.items.push(item);
+      if (item.hidden) group.captured += 1;
+      else group.items.push(item);
       group.furthestStageIdx = Math.max(
         group.furthestStageIdx,
         stageIndexById.get(item.stage_id) ?? -1
       );
     }
-    return Array.from(byContact.values()).sort(
+    return Array.from(bySubject.values()).sort(
       (left, right) =>
         left.sortOrder - right.sortOrder ||
         right.furthestStageIdx - left.furthestStageIdx
@@ -205,7 +224,9 @@ export default function JourneyScreen() {
   }, [
     contactId,
     itemsQuery.data,
+    mode,
     orderOverrides,
+    propertyId,
     stageIndexById,
     stateBySubject,
   ]);
@@ -215,16 +236,21 @@ export default function JourneyScreen() {
     const digits = term.replace(/\D/g, '');
     return groups.filter((group) => {
       if (!term) return true;
-      const haystack = [group.contact?.name, group.contact?.phone]
-        .filter(Boolean)
-        .join(' ')
-        .toLocaleLowerCase();
+      const values =
+        mode === 'buyer'
+          ? [group.contact?.name, group.contact?.phone]
+          : [
+              group.property?.title,
+              group.property?.property_code,
+              group.property?.location,
+            ];
+      const haystack = values.filter(Boolean).join(' ').toLocaleLowerCase();
       return (
         haystack.includes(term) ||
         Boolean(digits && haystack.replace(/\D/g, '').includes(digits))
       );
     });
-  }, [groups, query]);
+  }, [groups, mode, query]);
 
   const viewGroups = useMemo(
     () =>
@@ -366,7 +392,7 @@ export default function JourneyScreen() {
     try {
       await updateJourneyOverview({
         action,
-        mode: 'buyer',
+        mode,
         subjectId: group.subjectId,
       });
       haptic.success();
@@ -404,7 +430,7 @@ export default function JourneyScreen() {
     try {
       await updateJourneyOverview({
         action: 'close',
-        mode: 'buyer',
+        mode,
         subjectId: group.subjectId,
         status,
         reason,
@@ -423,7 +449,7 @@ export default function JourneyScreen() {
   function showGroupActions(group: JourneyGroup) {
     if (group.archivedAt) {
       show({
-        title: group.contact?.name || 'Journey actions',
+        title: groupTitle(group, mode),
         actions: [
           {
             label: 'Restore from archive',
@@ -437,7 +463,7 @@ export default function JourneyScreen() {
     }
     if (group.lifecycleStatus !== 'active') {
       show({
-        title: group.contact?.name || 'Journey actions',
+        title: groupTitle(group, mode),
         message: group.closureReason ?? undefined,
         actions: [
           {
@@ -455,7 +481,7 @@ export default function JourneyScreen() {
       return;
     }
     show({
-      title: group.contact?.name || 'Journey actions',
+      title: groupTitle(group, mode),
       actions: [
         {
           label: 'Close with outcome',
@@ -490,7 +516,7 @@ export default function JourneyScreen() {
   }
 
   async function moveGroup(bucket: JourneyBucket, from: number, to: number) {
-    if (from === to) return;
+    if (!canEdit || from === to) return;
     const reordered = [...bucket.groups];
     const [moved] = reordered.splice(from, 1);
     reordered.splice(to, 0, moved);
@@ -502,7 +528,7 @@ export default function JourneyScreen() {
     try {
       await updateJourneyOverview({
         action: 'reorder',
-        mode: 'buyer',
+        mode,
         subjectIds: reordered.map((group) => group.subjectId),
       });
       haptic.success();
@@ -561,6 +587,48 @@ export default function JourneyScreen() {
       <View style={styles.tabs}>
         {(
           [
+            ['buyer', 'Buyer journeys'],
+            ['property', 'Property journeys'],
+          ] as const
+        ).map(([value, label]) => {
+          const selected = mode === value;
+          return (
+            <Pressable
+              key={value}
+              onPress={() => {
+                setMode(value);
+                setView('active');
+                setQuery('');
+                setOrderOverrides(new Map());
+                setOpenGroups(new Set());
+                setNoteTarget(null);
+                setNoteText('');
+              }}
+              style={[
+                styles.tab,
+                {
+                  backgroundColor: selected ? colors.glass : 'transparent',
+                  borderColor: selected ? colors.primary : colors.glassBorder,
+                },
+              ]}
+            >
+              <Text
+                style={{
+                  fontSize: 12.5,
+                  fontFamily: f.bold,
+                  color: selected ? colors.primary : colors.textMuted,
+                }}
+              >
+                {label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      <View style={styles.tabs}>
+        {(
+          [
             ['active', 'Active'],
             ['closed', 'Closed'],
             ['archived', 'Archived'],
@@ -603,7 +671,11 @@ export default function JourneyScreen() {
         <TextInput
           value={query}
           onChangeText={setQuery}
-          placeholder="Search name or mobile"
+          placeholder={
+            mode === 'buyer'
+              ? 'Search name or mobile'
+              : 'Search property, code or location'
+          }
           placeholderTextColor={colors.textFaint}
           style={{ flex: 1, color: colors.text, fontSize: 14 }}
         />
@@ -623,7 +695,9 @@ export default function JourneyScreen() {
           title={query ? 'No matching journeys' : `No ${view} journeys`}
           subtitle={
             query
-              ? 'Try another name or mobile number.'
+              ? mode === 'buyer'
+                ? 'Try another name or mobile number.'
+                : 'Try another property, code or location.'
               : view === 'active'
                 ? 'Journeys are captured when you share properties over WhatsApp.'
                 : 'Closed and archived journeys stay available here for later reference.'
@@ -688,6 +762,8 @@ export default function JourneyScreen() {
                       group={group}
                       stage={stages[group.furthestStageIdx]}
                       stageById={stageById}
+                      mode={mode}
+                      canEdit={canEdit}
                       index={index}
                       count={bucket.groups.length}
                       expanded={openGroups.has(group.subjectId)}
@@ -789,6 +865,8 @@ function DraggableJourneyCard({
   group,
   stage,
   stageById,
+  mode,
+  canEdit,
   index,
   count,
   expanded,
@@ -801,6 +879,8 @@ function DraggableJourneyCard({
   group: JourneyGroup;
   stage?: JourneyStage;
   stageById: Map<string, JourneyStage>;
+  mode: JourneyMode;
+  canEdit: boolean;
   index: number;
   count: number;
   expanded: boolean;
@@ -813,6 +893,7 @@ function DraggableJourneyCard({
   const { colors, fonts: f } = useTheme();
   const drag = useSharedValue(0);
   const gesture = Gesture.Pan()
+    .enabled(canEdit)
     .activateAfterLongPress(220)
     .onUpdate((event) => {
       drag.value = event.translationY;
@@ -827,7 +908,7 @@ function DraggableJourneyCard({
     transform: [{ translateY: drag.value }],
     zIndex: drag.value === 0 ? 0 : 10,
   }));
-  const name = group.contact?.name || group.contact?.phone || 'Unknown';
+  const name = groupTitle(group, mode);
   const lifecycleLabel =
     group.lifecycleStatus === 'active'
       ? null
@@ -843,11 +924,17 @@ function DraggableJourneyCard({
       ]}
     >
       <View style={styles.cardHeader}>
-        <GestureDetector gesture={gesture}>
-          <Animated.View style={styles.dragHandle}>
-            <Ionicons name="reorder-three" size={22} color={colors.textFaint} />
-          </Animated.View>
-        </GestureDetector>
+        {canEdit ? (
+          <GestureDetector gesture={gesture}>
+            <Animated.View style={styles.dragHandle}>
+              <Ionicons
+                name="reorder-three"
+                size={22}
+                color={colors.textFaint}
+              />
+            </Animated.View>
+          </GestureDetector>
+        ) : null}
         <Pressable onPress={onToggle} style={styles.cardIdentity}>
           <Avatar name={name} size={34} />
           <View style={{ flex: 1 }}>
@@ -861,7 +948,8 @@ function DraggableJourneyCard({
               numberOfLines={1}
               style={{ fontSize: 11.5, color: colors.textFaint }}
             >
-              {group.contact?.phone}
+              {groupSubtitle(group, mode)}
+              {group.captured ? ` · ${group.captured} captured` : ''}
               {group.closureReason ? ` · ${group.closureReason}` : ''}
             </Text>
           </View>
@@ -884,17 +972,19 @@ function DraggableJourneyCard({
             color={colors.textFaint}
           />
         </Pressable>
-        <Pressable
-          onPress={onActions}
-          accessibilityLabel={`Actions for ${name}`}
-          hitSlop={8}
-        >
-          <Ionicons
-            name="ellipsis-vertical"
-            size={18}
-            color={colors.textMuted}
-          />
-        </Pressable>
+        {canEdit ? (
+          <Pressable
+            onPress={onActions}
+            accessibilityLabel={`Actions for ${name}`}
+            hitSlop={8}
+          >
+            <Ionicons
+              name="ellipsis-vertical"
+              size={18}
+              color={colors.textMuted}
+            />
+          </Pressable>
+        ) : null}
       </View>
 
       {expanded
@@ -932,7 +1022,9 @@ function DraggableJourneyCard({
                       textDecorationLine: dropped ? 'line-through' : 'none',
                     }}
                   >
-                    {item.property?.title ?? 'Property'}
+                    {mode === 'buyer'
+                      ? item.property?.title || 'Property'
+                      : item.contact?.name || item.contact?.phone || 'Contact'}
                   </Text>
                   <Text
                     style={{
@@ -948,7 +1040,7 @@ function DraggableJourneyCard({
                       : itemStage?.name || '—'}
                   </Text>
                 </Pressable>
-                {itemStage ? (
+                {canEdit && itemStage ? (
                   <Pressable
                     onPress={() => onAddNote(item, itemStage)}
                     accessibilityLabel={`Add note at ${itemStage.name}`}
@@ -967,6 +1059,19 @@ function DraggableJourneyCard({
         : null}
     </Animated.View>
   );
+}
+
+function groupTitle(group: JourneyGroup, mode: JourneyMode) {
+  return mode === 'buyer'
+    ? group.contact?.name || group.contact?.phone || 'Unknown contact'
+    : group.property?.title || 'Unknown property';
+}
+
+function groupSubtitle(group: JourneyGroup, mode: JourneyMode) {
+  if (mode === 'buyer') return group.contact?.phone || '';
+  return [group.property?.property_code, group.property?.location]
+    .filter(Boolean)
+    .join(' · ');
 }
 
 const styles = StyleSheet.create({
