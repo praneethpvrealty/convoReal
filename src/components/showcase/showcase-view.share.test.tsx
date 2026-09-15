@@ -38,7 +38,11 @@ vi.mock('@/components/showcase/showcase-lead-bot', () => ({
 vi.mock('@/components/showcase/similar-properties', () => ({
   SimilarProperties: () => null,
 }));
+vi.mock('sonner', () => ({
+  toast: { success: vi.fn(), error: vi.fn() },
+}));
 
+import { toast } from 'sonner';
 import { ShowcaseView } from './showcase-view';
 
 const GRANT_TOKEN = 'g'.repeat(48);
@@ -163,6 +167,34 @@ describe('showcase detail — share control', () => {
       screen.getByRole('button', { name: /request convoreal invite/i })
     ).toBeTruthy();
     expect(screen.getByText(/pending review inventory/i)).toBeTruthy();
+  });
+
+  it('reports a copy failure instead of claiming success', async () => {
+    window.history.replaceState({}, '', '/');
+    const writeText = vi
+      .fn<(text: string) => Promise<void>>()
+      .mockRejectedValue(new DOMException('Document is not focused.', 'NotAllowedError'));
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText },
+      configurable: true,
+    });
+    render(
+      <ShowcaseView
+        properties={[property]}
+        settings={settings}
+        accountId="acct-1"
+        initialPropertyId={property.id}
+        disableSavedState
+      />
+    );
+
+    fireEvent.click(
+      screen.getByRole('button', { name: /share this property/i })
+    );
+
+    await vi.waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(toast.error).toHaveBeenCalled());
+    expect(toast.success).not.toHaveBeenCalled();
   });
 
   it('never forwards the share grant that unmasked this visit', () => {
