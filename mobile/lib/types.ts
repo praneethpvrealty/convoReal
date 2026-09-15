@@ -15,10 +15,16 @@
 import type {
   Contact,
   ContactRequirementProfile,
+  JourneyOverviewGroup,
   Property,
 } from '@shared/types';
 
-export type { Contact, ContactRequirementProfile, Property };
+export type {
+  Contact,
+  ContactRequirementProfile,
+  JourneyOverviewGroup,
+  Property,
+};
 
 export type ConversationStatus = 'open' | 'pending' | 'closed';
 

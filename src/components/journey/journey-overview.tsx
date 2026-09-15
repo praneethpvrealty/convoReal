@@ -62,7 +62,12 @@ import {
 import { readStored, writeStored } from '@/lib/safe-storage';
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
-import type { Contact, JourneyItem, JourneyStage, Property } from '@/types';
+import type {
+  Contact,
+  JourneyOverviewGroup,
+  JourneyStage,
+  Property,
+} from '@/types';
 import { CloseJourneyDialog } from './close-journey-dialog';
 import { JourneySection } from './journey-section';
 import { NewJourneyDialog } from './new-journey-dialog';
@@ -72,7 +77,6 @@ import {
   JOURNEY_SORT_LABELS,
   navigateJourney,
   sortJourneys,
-  stageIndexOf,
   type JourneyMode,
   type JourneyPriority,
   type JourneySort,
@@ -167,29 +171,6 @@ async function postJourneyMutation(body: Record<string, unknown>) {
   }
 }
 
-const JOURNEY_PAGE_SIZE = 1000;
-
-async function loadAllJourneyItems(
-  supabase: ReturnType<typeof createClient>,
-  accountId: string,
-  select: string
-) {
-  const rows: JourneyItem[] = [];
-  for (let from = 0; ; from += JOURNEY_PAGE_SIZE) {
-    const { data, error } = await supabase
-      .from('journey_items')
-      .select(select)
-      .eq('account_id', accountId)
-      .order('updated_at', { ascending: false })
-      .order('id', { ascending: true })
-      .range(from, from + JOURNEY_PAGE_SIZE - 1);
-    if (error) throw error;
-    const page = (data ?? []) as unknown as JourneyItem[];
-    rows.push(...page);
-    if (page.length < JOURNEY_PAGE_SIZE) return rows;
-  }
-}
-
 export function JourneyOverview({
   mode,
   stages,
@@ -249,16 +230,15 @@ export function JourneyOverview({
 
   const loadGroups = useCallback(async () => {
     if (!accountId) return;
-    const select =
-      mode === 'buyer'
-        ? 'id, contact_id, property_id, stage_id, status, hidden, updated_at, contact:contacts(*)'
-        : 'id, contact_id, property_id, stage_id, status, hidden, updated_at, property:properties(*)';
-    let items: JourneyItem[];
+    let summariesResult;
     let prioritiesResult;
     let statesResponse;
     try {
-      [items, prioritiesResult, statesResponse] = await Promise.all([
-        loadAllJourneyItems(supabase, accountId, select),
+      [summariesResult, prioritiesResult, statesResponse] = await Promise.all([
+        supabase.rpc('journey_overview_groups', {
+          p_account_id: accountId,
+          p_mode: mode,
+        }),
         supabase
           .from('journey_priorities')
           .select('subject_id, priority')
@@ -270,6 +250,12 @@ export function JourneyOverview({
       toast.error(
         `Failed to load journeys: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
+      setLoading(false);
+      return;
+    }
+
+    if (summariesResult.error) {
+      toast.error(`Failed to load journeys: ${summariesResult.error.message}`);
       setLoading(false);
       return;
     }
@@ -295,41 +281,46 @@ export function JourneyOverview({
     const states = new Map(
       (statePayload?.data ?? []).map((row) => [row.subject_id, row])
     );
-    const byId = new Map<string, JourneyGroup>();
-    for (const row of items) {
-      const key = mode === 'buyer' ? row.contact_id : row.property_id;
-      let group = byId.get(key);
-      if (!group) {
-        const state = states.get(key);
-        group = {
-          subjectId: key,
-          contact: mode === 'buyer' ? (row.contact ?? null) : null,
-          property: mode === 'buyer' ? null : (row.property ?? null),
-          active: 0,
-          dropped: 0,
-          captured: 0,
-          furthestStageIdx: -1,
-          lastUpdated: row.updated_at,
-          priority: priorities.get(key) ?? null,
+    const summaries = (summariesResult.data ?? []) as JourneyOverviewGroup[];
+    setGroups(
+      summaries.map((row) => {
+        const state = states.get(row.subject_id);
+        return {
+          subjectId: row.subject_id,
+          contact:
+            mode === 'buyer'
+              ? ({
+                  id: row.subject_id,
+                  name: row.contact_name,
+                  phone: row.contact_phone,
+                  name_tag: row.contact_name_tag,
+                } as Contact)
+              : null,
+          property:
+            mode === 'property'
+              ? ({
+                  id: row.subject_id,
+                  title: row.property_title,
+                  property_code: row.property_code,
+                  location: row.property_location,
+                } as Property)
+              : null,
+          active: Number(row.active_count),
+          dropped: Number(row.dropped_count),
+          captured: Number(row.captured_count),
+          furthestStageIdx: stages.findIndex(
+            (stage) => stage.id === row.furthest_stage_id
+          ),
+          lastUpdated: row.last_updated,
+          priority: priorities.get(row.subject_id) ?? null,
           lifecycleStatus: state?.lifecycle_status ?? 'active',
           closureReason: state?.closure_reason ?? null,
           closedAt: state?.closed_at ?? null,
           archivedAt: state?.archived_at ?? null,
           sortOrder: state?.sort_order ?? Number.MAX_SAFE_INTEGER,
         };
-        byId.set(key, group);
-      }
-      if (row.hidden) group.captured += 1;
-      else if (row.status === 'dropped') group.dropped += 1;
-      else group.active += 1;
-      group.furthestStageIdx = Math.max(
-        group.furthestStageIdx,
-        stageIndexOf(row, stages)
-      );
-      if (row.updated_at > group.lastUpdated)
-        group.lastUpdated = row.updated_at;
-    }
-    setGroups(Array.from(byId.values()));
+      })
+    );
     setLoading(false);
   }, [accountId, mode, stages, supabase]);
 

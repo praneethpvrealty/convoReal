@@ -851,6 +851,21 @@ export interface JourneyStageNote {
   created_at: string;
 }
 
+export interface JourneyOverviewGroup {
+  subject_id: string;
+  active_count: number;
+  dropped_count: number;
+  captured_count: number;
+  furthest_stage_id: string;
+  last_updated: string;
+  contact_name?: string | null;
+  contact_phone?: string | null;
+  contact_name_tag?: string | null;
+  property_title?: string | null;
+  property_code?: string | null;
+  property_location?: string | null;
+}
+
 export type BroadcastStatus =
   'draft' | 'scheduled' | 'sending' | 'sent' | 'failed';
 export type RecipientStatus =

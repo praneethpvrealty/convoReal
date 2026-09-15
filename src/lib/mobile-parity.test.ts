@@ -184,14 +184,12 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
 
   it('[JRN-001] groups both buyer and property journeys at the furthest stage', () => {
     expect(screen).toContain("type JourneyMode = 'buyer' | 'property'");
-    expect(screen).toContain(
-      "mode === 'buyer' ? item.contact_id : item.property_id"
-    );
-    expect(screen).toContain('group.furthestStageIdx = Math.max(');
-    expect(screen).toContain('if (item.hidden) group.captured += 1');
-    expect(screen).not.toContain(".eq('hidden', false)");
-    expect(screen).toContain('.range(from, from + JOURNEY_PAGE_SIZE - 1)');
+    expect(screen).toContain("supabase.rpc('journey_overview_groups'");
+    expect(screen).toContain('captured: Number(row.captured_count)');
+    expect(screen).toContain('stageIndexById.get(row.furthest_stage_id)');
     expect(screen).not.toContain('.limit(2000)');
+    expect(screen).not.toContain('JOURNEY_PAGE_SIZE');
+    expect(screen).toContain("query = query.gt('id', afterId)");
   });
 
   it('[JRN-002] keeps the same lifecycle statuses', () => {
