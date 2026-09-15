@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
+import { InvoiceEditorSheet } from '@/components/invoice-editor-sheet';
 import { EmptyState, FilterChip } from '@/components/ui';
 import { apiBase, authHeaders } from '@/lib/api';
 import {
@@ -86,6 +87,7 @@ function InvoicesTab({ dealId }: { dealId: string }) {
   const queryClient = useQueryClient();
   const dialog = useAppDialog();
   const [busy, setBusy] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const { data: invoices = [], isLoading } = useQuery({
     queryKey: ['deal-invoices', dealId],
@@ -99,14 +101,12 @@ function InvoicesTab({ dealId }: { dealId: string }) {
   async function create() {
     setBusy('new');
     try {
-      await createInvoice(dealId);
+      const draft = await createInvoice(dealId);
       await refresh();
       void haptic.success();
-      dialog.show({
-        title: 'Draft ready',
-        message:
-          'Filled in from the deal value and brokerage rate. Review it on the web app before issuing, or issue it here if it looks right.',
-      });
+      // Straight into the editor: an agent has to be able to correct
+      // the prefill before issuing makes it immutable.
+      setEditingId(draft.id);
     } catch (err) {
       dialog.show({
         title: 'Could not create',
@@ -220,14 +220,22 @@ function InvoicesTab({ dealId }: { dealId: string }) {
 
             <View style={styles.actions}>
               {invoice.status === 'draft' && (
-                <ActionButton
-                  label="Issue"
-                  icon="checkmark-circle-outline"
-                  busy={busy === invoice.id}
-                  onPress={() =>
-                    act(invoice, 'issue', {}, 'Issued and numbered')
-                  }
-                />
+                <>
+                  <ActionButton
+                    label="Review"
+                    icon="create-outline"
+                    busy={false}
+                    onPress={() => setEditingId(invoice.id)}
+                  />
+                  <ActionButton
+                    label="Issue"
+                    icon="checkmark-circle-outline"
+                    busy={busy === invoice.id}
+                    onPress={() =>
+                      act(invoice, 'issue', {}, 'Issued and numbered')
+                    }
+                  />
+                </>
               )}
               {invoice.status !== 'draft' && (
                 <ActionButton
@@ -293,6 +301,12 @@ function InvoicesTab({ dealId }: { dealId: string }) {
           </View>
         ))
       )}
+      <InvoiceEditorSheet
+        invoiceId={editingId}
+        visible={editingId !== null}
+        onClose={() => setEditingId(null)}
+        onSaved={refresh}
+      />
       <AppDialog {...dialog.dialogProps} />
     </ScrollView>
   );

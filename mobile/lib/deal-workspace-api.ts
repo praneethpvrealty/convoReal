@@ -11,7 +11,9 @@ import { apiFetch } from './api';
 import type {
   DealDocumentCategory,
   DealDocumentRow,
+  InvoiceDetail,
   InvoiceRow,
+  InvoiceSide,
 } from './deal-workspace';
 
 export function fetchInvoices(dealId: string) {
@@ -90,4 +92,47 @@ export async function uploadDealDocument(
     { method: 'POST', body: form, timeoutMs: 120_000 }
   );
   return data;
+}
+
+/** The draft fields the mobile editor can change. Mirrors what the web
+ *  editor sends; the server validates and re-derives every total, so
+ *  nothing here is trusted as money. */
+export interface InvoiceDraftPatch {
+  invoice_date?: string;
+  side?: InvoiceSide;
+  share_percent?: number;
+  place_of_supply_code?: string | null;
+  notes?: string | null;
+  bill_to?: {
+    name: string;
+    address_lines: string[];
+    gstin?: string | null;
+    pan?: string | null;
+    po_number?: string | null;
+  };
+  line_items?: Array<{
+    sac: string;
+    particulars: string[];
+    taxable_value: number;
+  }>;
+}
+
+export function fetchInvoice(invoiceId: string) {
+  return apiFetch<{ data: InvoiceDetail }>(`/api/invoices/${invoiceId}`).then(
+    (json) => json.data
+  );
+}
+
+export function updateInvoice(invoiceId: string, patch: InvoiceDraftPatch) {
+  return apiFetch<{ data: InvoiceDetail }>(`/api/invoices/${invoiceId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  }).then((json) => json.data);
+}
+
+export function deleteInvoice(invoiceId: string) {
+  return apiFetch<{ data: { id: string } }>(`/api/invoices/${invoiceId}`, {
+    method: 'DELETE',
+  });
 }

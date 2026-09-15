@@ -71,9 +71,15 @@ export async function POST(
 
     // Burned before the AI call, never after — the ordering the credit
     // engine requires. Refunded below if the read fails.
-    const burn = await burnCredits(ctx.accountId, FEATURE, COST, {
-      retryKey: `deal-doc-extract:${docId}`,
-    });
+    //
+    // No retry key. A key fixed to the document made a second attempt
+    // within 60 seconds free, but the failure path refunds regardless —
+    // so two failed reads burned once and refunded twice, minting the
+    // difference. Every attempt now burns and every refund matches a
+    // burn. A double submit costs twice, which the disabled button and
+    // the rate limit above already bound, and is the side to err on
+    // when the alternative is a wallet that grows by retrying.
+    const burn = await burnCredits(ctx.accountId, FEATURE, COST);
     if (!burn.success) {
       return NextResponse.json(
         {

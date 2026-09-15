@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Loader2, Receipt } from 'lucide-react';
+import { Loader2, Receipt, Trash2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -24,6 +24,8 @@ import type {
  */
 export function InvoiceSettingsCard() {
   const [saving, setSaving] = useState(false);
+  const [uploadingSignature, setUploadingSignature] = useState(false);
+  const signatureInput = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState({
     legal_name: '',
     address_lines: '',
@@ -61,6 +63,56 @@ export function InvoiceSettingsCard() {
       return json.data;
     },
   });
+
+  const { data: signature, refetch: refetchSignature } = useQuery({
+    queryKey: ['invoice-signature'],
+    queryFn: async (): Promise<{ url: string | null }> => {
+      const response = await fetch('/api/invoice-settings/signature');
+      const json = await response.json();
+      if (!response.ok) throw new Error(json?.error || 'Could not load');
+      return json.data;
+    },
+  });
+
+  async function uploadSignature(file: File) {
+    setUploadingSignature(true);
+    try {
+      const body = new FormData();
+      body.append('file', file);
+      const response = await fetch('/api/invoice-settings/signature', {
+        method: 'POST',
+        body,
+      });
+      const json = await response.json();
+      if (!response.ok) throw new Error(json?.error || 'Upload failed');
+      await refetchSignature();
+      set('signature_mode', 'image');
+      toast.success('Signature uploaded.');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Upload failed');
+    } finally {
+      setUploadingSignature(false);
+      if (signatureInput.current) signatureInput.current.value = '';
+    }
+  }
+
+  async function removeSignature() {
+    setUploadingSignature(true);
+    try {
+      const response = await fetch('/api/invoice-settings/signature', {
+        method: 'DELETE',
+      });
+      const json = await response.json();
+      if (!response.ok) throw new Error(json?.error || 'Could not remove');
+      await refetchSignature();
+      set('signature_mode', 'none');
+      toast.success('Signature removed. New invoices will print unsigned.');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not remove');
+    } finally {
+      setUploadingSignature(false);
+    }
+  }
 
   useEffect(() => {
     if (!settings) return;
@@ -340,21 +392,66 @@ export function InvoiceSettingsCard() {
             />
           </Field>
         </div>
-        <Field label="Signature type" id="signature_mode">
-          <select
-            id="signature_mode"
-            className="h-9 w-full rounded-md border border-slate-700 bg-slate-900 px-3 text-sm text-white"
-            value={form.signature_mode}
-            onChange={(e) => set('signature_mode', e.target.value)}
-          >
-            <option value="image">Electronic signature with audit trail</option>
-            <option value="none">Unsigned — I print and sign by hand</option>
-          </select>
+        <Field label="Scanned signature" id="signature_file">
+          <div className="flex flex-wrap items-center gap-3">
+            {signature?.url ? (
+              <span className="rounded-md border border-slate-700 bg-white p-2">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={signature.url}
+                  alt="Your signature"
+                  className="h-10 w-auto"
+                />
+              </span>
+            ) : (
+              <span className="text-xs text-slate-500">
+                None uploaded — invoices will print unsigned.
+              </span>
+            )}
+            <input
+              ref={signatureInput}
+              id="signature_file"
+              type="file"
+              className="hidden"
+              accept="image/png,image/jpeg,image/webp"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) void uploadSignature(file);
+              }}
+            />
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => signatureInput.current?.click()}
+              disabled={uploadingSignature}
+            >
+              {uploadingSignature ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Upload className="h-4 w-4" />
+              )}
+              {signature?.url ? 'Replace' : 'Upload'}
+            </Button>
+            {signature?.url && (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={removeSignature}
+                disabled={uploadingSignature}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
         </Field>
         <p className="text-[11px] text-slate-500">
-          An electronic signature records who issued each invoice, when, and a
-          SHA-256 of the exact document. A Class 3 DSC or Aadhaar eSign needs a
-          certificate from a licensed provider — see
+          An invoice is only marked signed when this image exists — without it
+          it prints &ldquo;computer-generated&rdquo; rather than claiming a
+          signature it does not have. Either way the audit trail records who
+          issued it, when, and a SHA-256 of the exact document. A Class 3 DSC or
+          Aadhaar eSign needs a certificate from a licensed provider — see
           docs/invoice-digital-signature.md.
         </p>
       </Section>

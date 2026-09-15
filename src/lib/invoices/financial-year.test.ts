@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -71,5 +74,42 @@ describe('date formatting', () => {
   it('returns empty rather than "Invalid Date" for junk', () => {
     expect(formatInvoiceDate('nonsense')).toBe('');
     expect(toDateOnly('nonsense')).toBe('');
+  });
+});
+
+describe('the database agrees with financialYearFor', () => {
+  // [INV-001] `issue_invoice()` derives the financial year in SQL,
+  // because allocation and assignment have to sit in one transaction.
+  // Two implementations of the same rule can drift, so these are the
+  // exact pairs checked against the live database when the migration
+  // was applied — if the TypeScript side ever moves, this fails and the
+  // SQL has to move with it.
+  const agreed: Array<[string, string]> = [
+    ['2026-03-31', '2025-26'],
+    ['2026-04-01', '2026-27'],
+    ['2026-09-08', '2026-27'],
+    ['2026-12-31', '2026-27'],
+    ['2027-01-15', '2026-27'],
+    ['2027-03-31', '2026-27'],
+    ['2027-04-01', '2027-28'],
+    ['2099-04-01', '2099-00'],
+  ];
+
+  it.each(agreed)('%s is %s on both sides', (date, expected) => {
+    expect(financialYearFor(date)).toBe(expected);
+  });
+
+  it('keeps the April boundary in the SQL too', () => {
+    const migration = readFileSync(
+      join(
+        process.cwd(),
+        'supabase/migrations/20260914174500_issue_invoice_atomic.sql'
+      ),
+      'utf8'
+    );
+    expect(migration).toContain(
+      'EXTRACT(MONTH FROM v_invoice.invoice_date) >= 4'
+    );
+    expect(migration).toContain('LPAD(');
   });
 });

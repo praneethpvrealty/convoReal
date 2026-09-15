@@ -69,6 +69,30 @@ export interface InvoiceRow {
   cancel_reason: string | null;
 }
 
+/** One invoice with the fields the editor needs. The list rows carry a
+ *  subset; this is what `GET /api/invoices/[id]` returns. */
+export interface InvoiceDetail extends InvoiceRow {
+  deal_id: string | null;
+  place_of_supply: string | null;
+  place_of_supply_code: string | null;
+  gst_rate: number;
+  notes: string | null;
+  amount_in_words: string | null;
+  bill_to: {
+    name?: string;
+    address_lines?: string[];
+    gstin?: string | null;
+    pan?: string | null;
+    po_number?: string | null;
+  } | null;
+  line_items: Array<{
+    sl_no: number;
+    sac: string;
+    particulars: string[];
+    taxable_value: number;
+  }>;
+}
+
 export interface DealDocumentRow {
   id: string;
   title: string;

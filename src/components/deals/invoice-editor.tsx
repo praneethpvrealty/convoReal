@@ -189,8 +189,9 @@ export function InvoiceEditor({
               />
               <p className="mt-1 text-xs text-slate-500">
                 50 bills half the brokerage to this side and leaves the rest for
-                the other. Changing this does not recalculate the amount below —
-                edit that directly.
+                the other. Changing this re-prices the line below from the deal;
+                to bill something else, edit the amount and leave the share
+                alone.
               </p>
             </div>
 

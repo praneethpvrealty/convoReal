@@ -25,7 +25,11 @@ export async function GET() {
   }
 }
 
-/** Only these may be written; anything else in the body is ignored. */
+/** Only these may be written; anything else in the body is ignored.
+ *  `signature_image_path` is deliberately absent: it is set only by the
+ *  upload route, which namespaces the object under the account. Taking
+ *  it as a free string here would let an admin point their letterhead at
+ *  any object in the shared signatures bucket. */
 const TEXT_FIELDS = [
   'legal_name',
   'rera_number',
@@ -41,7 +45,6 @@ const TEXT_FIELDS = [
   'bank_ifsc',
   'signatory_label',
   'terms',
-  'signature_image_path',
   'signatory_name',
   'signatory_designation',
   'signature_place',

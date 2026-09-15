@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   billToName,
+  repriceBrokerageLine,
   buildParticulars,
   buildPrefill,
   contactDisplayName,
@@ -65,6 +66,7 @@ const REFERENCE_INPUT: PrefillInput = {
     unit_no: '253',
     location: '24th Main Road, 5th Phase, J.P. Nagar',
     city: 'Bengaluru',
+    state: 'Karnataka',
     title: 'JP Nagar Independent House',
   },
   contact: { salutation: 'Mrs.', name: 'Pruthvi' },
@@ -324,5 +326,140 @@ describe('recalculate', () => {
     expect(result.igst).toBe(18000);
     expect(result.cgst).toBe(0);
     expect(result.grand_total).toBe(118000);
+  });
+});
+
+describe('place of supply follows the property, not the brokerage', () => {
+  // [INV-003] A Karnataka brokerage selling a Maharashtra property owes
+  // IGST. Reading the place of supply off the account — or off the
+  // customer's last invoice, which was a different property — bills
+  // CGST+SGST instead, and that is a correction the supplier has to file.
+  const gstRegistered = {
+    ...SETTINGS,
+    gst_mode: 'intra' as const,
+    gst_rate: 18,
+  };
+
+  it('charges IGST when the property is in another state', () => {
+    const result = buildPrefill({
+      ...REFERENCE_INPUT,
+      settings: gstRegistered,
+      property: {
+        unit_no: '12',
+        location: 'Hiranandani Gardens, Powai',
+        city: 'Mumbai',
+        state: 'Maharashtra',
+      },
+    });
+    expect(result.place_of_supply).toBe('Maharashtra');
+    expect(result.place_of_supply_code).toBe('27');
+    expect(result.igst).toBeGreaterThan(0);
+    expect(result.cgst).toBe(0);
+    expect(result.sgst).toBe(0);
+  });
+
+  it('still splits CGST+SGST for a property at home', () => {
+    const result = buildPrefill({
+      ...REFERENCE_INPUT,
+      settings: gstRegistered,
+    });
+    expect(result.place_of_supply).toBe('Karnataka');
+    expect(result.cgst).toBe(51030);
+    expect(result.sgst).toBe(51030);
+    expect(result.igst).toBe(0);
+  });
+
+  it('is not overridden by a previous invoice for a different property', () => {
+    const result = buildPrefill({
+      ...REFERENCE_INPUT,
+      settings: gstRegistered,
+      property: { unit_no: '12', city: 'Mumbai', state: 'Maharashtra' },
+      previousInvoice: {
+        bill_to: { name: 'Smt Pruthvi', address_lines: [] },
+        place_of_supply: 'Karnataka',
+        place_of_supply_code: '29',
+      },
+    });
+    expect(result.place_of_supply_code).toBe('27');
+    expect(result.igst).toBeGreaterThan(0);
+  });
+
+  it('falls back to the account state when the property records none', () => {
+    const result = buildPrefill({
+      ...REFERENCE_INPUT,
+      property: { unit_no: '253', city: 'Bengaluru', state: null },
+    });
+    expect(result.place_of_supply_code).toBe('29');
+  });
+
+  it('prints the property state in the address, not the brokerage state', () => {
+    const lines = buildParticulars(
+      SETTINGS,
+      { unit_no: '12', city: 'Mumbai', state: 'Maharashtra' },
+      'buyer'
+    );
+    expect(lines[lines.length - 1]).toBe('Mumbai, Maharashtra');
+  });
+});
+
+describe('repriceBrokerageLine', () => {
+  const deal = {
+    id: 'deal-1',
+    value: 162000000,
+    brokerage_type: 'percentage' as const,
+    brokerage_value: 0.7,
+  };
+  const half = [
+    {
+      sl_no: 1,
+      sac: '997212',
+      particulars: ['Real Estate Brokerage Services'],
+      taxable_value: 567000,
+    },
+  ];
+
+  // [INV-004] Moving the share has to move the money.
+  it('rebills the whole brokerage when the share goes to 100', () => {
+    expect(repriceBrokerageLine(half, deal, 100)[0].taxable_value).toBe(
+      1134000
+    );
+  });
+
+  it('rebills half when the share goes back to 50', () => {
+    const whole = [{ ...half[0], taxable_value: 1134000 }];
+    expect(repriceBrokerageLine(whole, deal, 50)[0].taxable_value).toBe(567000);
+  });
+
+  it("leaves the agent's own extra lines untouched", () => {
+    const withExtra = [
+      half[0],
+      {
+        sl_no: 2,
+        sac: '998599',
+        particulars: ['Advertising'],
+        taxable_value: 15000,
+      },
+    ];
+    const out = repriceBrokerageLine(withExtra, deal, 100);
+    expect(out[0].taxable_value).toBe(1134000);
+    expect(out[1].taxable_value).toBe(15000);
+  });
+
+  it('does nothing without a deal to price from', () => {
+    expect(repriceBrokerageLine(half, null, 100)).toEqual(half);
+  });
+
+  it('does nothing when the deal carries no brokerage rate', () => {
+    expect(
+      repriceBrokerageLine(
+        half,
+        { id: 'd', value: 1000, brokerage_value: 0 },
+        100
+      )
+    ).toEqual(half);
+  });
+
+  it('is a no-op on an empty invoice', () => {
+    expect(repriceBrokerageLine([], deal, 100)).toEqual([]);
   });
 });

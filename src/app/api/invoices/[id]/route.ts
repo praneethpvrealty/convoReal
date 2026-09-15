@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import { normaliseStateCode, stateNameForCode } from '@/lib/invoices/gst';
-import { recalculate } from '@/lib/invoices/prefill';
+import { recalculate, repriceBrokerageLine } from '@/lib/invoices/prefill';
 import { isEditable } from '@/lib/invoices/server';
 import type { Invoice, InvoiceLineItem } from '@/lib/invoices/types';
 import {
@@ -147,6 +147,33 @@ export async function PATCH(
 
     if (!Object.keys(update).length) {
       return NextResponse.json({ error: 'Nothing to update' }, { status: 400 });
+    }
+
+    // Changing the share has to change the money. The editor sends the
+    // line items it was showing, which still hold the old share's
+    // amount, so a bare merge would store "100%" next to a half-share
+    // figure. The share is the higher-level control, so when it moves
+    // the brokerage line is re-derived from the deal and wins over
+    // whatever the client sent.
+    const shareChanged =
+      update.share_percent !== undefined &&
+      Number(update.share_percent) !== Number(invoice.share_percent);
+
+    if (shareChanged && invoice.deal_id) {
+      const { data: deal } = await ctx.supabase
+        .from('deals')
+        .select('id, value, brokerage_type, brokerage_value')
+        .eq('id', invoice.deal_id)
+        .eq('account_id', ctx.accountId)
+        .maybeSingle();
+
+      if (deal) {
+        update.line_items = repriceBrokerageLine(
+          (update.line_items as InvoiceLineItem[]) ?? invoice.line_items ?? [],
+          deal,
+          Number(update.share_percent)
+        );
+      }
     }
 
     // Totals are never taken from the client. They are recomputed from

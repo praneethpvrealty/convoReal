@@ -95,7 +95,7 @@ export async function POST(
       deal.property_id
         ? ctx.supabase
             .from('properties')
-            .select('title, unit_no, location, city, property_code')
+            .select('title, unit_no, location, city, state, property_code')
             .eq('id', deal.property_id)
             .eq('account_id', ctx.accountId)
             .maybeSingle()

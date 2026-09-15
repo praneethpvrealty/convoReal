@@ -1202,7 +1202,12 @@ describe('mobile/lib/deal-workspace.ts mirrors the invoicing vocabulary', () => 
   it('agrees on which files the extractor can read', () => {
     // The web panel hides the button for anything else and the API
     // refuses it; the phone must not offer what the server will reject.
-    for (const type of ['application/pdf', 'image/jpeg', 'image/png', 'image/webp']) {
+    for (const type of [
+      'application/pdf',
+      'image/jpeg',
+      'image/png',
+      'image/webp',
+    ]) {
       expect(mobile).toContain(`'${type}'`);
     }
     expect(mobile).not.toContain("'image/heic',\n    'application/pdf'");
@@ -1213,6 +1218,36 @@ describe('mobile/lib/deal-workspace.ts mirrors the invoicing vocabulary', () => 
     // place to put one.
     expect(mobile).toContain('aadhaar_last4');
     expect(mobile).not.toMatch(/aadhaar_number|full_aadhaar/);
+  });
+
+  it('can review a draft before issuing it', () => {
+    // An invoice is immutable once issued, so a surface that offers
+    // Issue without an editor can only turn an imperfect prefill into
+    // an incorrect legal document. Mobile used to point at the web app.
+    const screen = mobileSource('app/(app)/deal/[id].tsx');
+    const editor = mobileSource('components/invoice-editor-sheet.tsx');
+
+    expect(screen).toContain('InvoiceEditorSheet');
+    expect(screen).toContain('label="Review"');
+    expect(screen).not.toContain('Review it on the web app');
+
+    // Every field the web editor exposes has to be reachable here too.
+    for (const field of [
+      'invoice_date',
+      'side',
+      'share_percent',
+      'bill_to',
+      'line_items',
+      'notes',
+    ]) {
+      expect(editor, `mobile cannot edit ${field}`).toContain(field);
+    }
+  });
+
+  it('edits through the shared API rather than its own rules', () => {
+    const api = mobileSource('lib/deal-workspace-api.ts');
+    expect(api).toContain('`/api/invoices/${invoiceId}`');
+    expect(api).toContain("method: 'PATCH'");
   });
 
   it('computes no invoice money of its own', () => {

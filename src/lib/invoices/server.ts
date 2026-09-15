@@ -165,22 +165,52 @@ export async function loadSignatureImage(
  * Always regenerated from the frozen snapshot rather than served from
  * storage, so a stored copy can never drift from the record.
  */
-export async function renderInvoice(invoice: Invoice): Promise<{
+export async function renderInvoice(
+  invoice: Invoice,
+  options: { signatureImage?: JpegImage | null } = {}
+): Promise<{
   pdf: Uint8Array;
   hash: string;
+  /** Whether a signature image was actually drawn on the page. The
+   *  caller needs this to decide whether the invoice may claim to be
+   *  signed — see `resolveSignatureImage`. */
+  signatureApplied: boolean;
 }> {
   const mode = invoice.signature?.mode;
   const signatureImage =
-    mode === 'image'
-      ? await loadSignatureImage(invoice.signature?.image_path)
-      : null;
+    options.signatureImage !== undefined
+      ? options.signatureImage
+      : mode === 'image'
+        ? await loadSignatureImage(invoice.signature?.image_path)
+        : null;
 
   const pdf = renderInvoicePdf(invoice, {
     signatureImage,
     reserveSignatureField: mode === 'dsc' || mode === 'esign',
   });
 
-  return { pdf, hash: hashInvoicePdf(pdf) };
+  return {
+    pdf,
+    hash: hashInvoicePdf(pdf),
+    signatureApplied: Boolean(signatureImage),
+  };
+}
+
+/**
+ * Whether this invoice can honestly say it was signed.
+ *
+ * `loadSignatureImage` returns null both when no signature has been
+ * uploaded and when the stored object cannot be read, and neither is a
+ * signature. Marking the invoice signed anyway prints "Electronically
+ * signed on <date>" over an empty line — an assertion about a legal
+ * document that nothing backs. So the image is resolved first and the
+ * signed state follows from it, not the other way round.
+ */
+export async function resolveSignatureImage(
+  invoice: Invoice
+): Promise<JpegImage | null> {
+  if (invoice.signature?.mode !== 'image') return null;
+  return loadSignatureImage(invoice.signature?.image_path);
 }
 
 /** Store a rendered copy so a delivery channel has something to link. */

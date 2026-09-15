@@ -2,10 +2,10 @@ import { NextResponse } from 'next/server';
 
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import {
-  allocateInvoiceNumber,
   canTransition,
   logInvoiceEvent,
   renderInvoice,
+  resolveSignatureImage,
 } from '@/lib/invoices/server';
 import type { Invoice } from '@/lib/invoices/types';
 import {
@@ -87,54 +87,53 @@ export async function POST(
       );
     }
 
-    const allocation = await allocateInvoiceNumber(
-      ctx.supabase,
-      ctx.accountId,
-      invoice.invoice_date
-    );
+    // Resolve the signature BEFORE issuing. An account can be in image
+    // mode with nothing uploaded, or with an object that no longer
+    // reads, and neither is a signature — stamping "Electronically
+    // signed" on either is an assertion about a legal document that
+    // nothing backs.
+    const signatureImage = await resolveSignatureImage(invoice);
+    const signedAt = signatureImage ? new Date().toISOString() : null;
 
-    const issuedAt = new Date().toISOString();
-    const numbered: Invoice = {
-      ...invoice,
-      invoice_number: allocation.invoiceNumber,
-      sequence_number: allocation.sequenceNumber,
-      financial_year: allocation.financialYear,
-      status: 'issued',
-      issued_at: issuedAt,
-      // An image signature is applied at the moment of issue; a DSC or
-      // eSign is applied afterwards by the provider, so those are not
-      // marked signed here.
-      signed_at: invoice.signature?.mode === 'image' ? issuedAt : null,
-    };
+    // Allocation and the draft→issued write happen inside one database
+    // transaction, so the settings-row lock is still held when the
+    // number is spent. Two agents pressing Issue together queue instead
+    // of both reading the same MAX and colliding on the unique index.
+    const { data: issued, error: issueError } = await ctx.supabase
+      .rpc('issue_invoice', {
+        p_invoice_id: id,
+        p_signed_at: signedAt,
+      })
+      .single();
+
+    if (issueError || !issued) {
+      return NextResponse.json(
+        {
+          error:
+            issueError?.message ?? 'This invoice was issued by someone else.',
+          code: 'INVOICE_ALREADY_ISSUED',
+        },
+        { status: 409 }
+      );
+    }
+
+    const numbered = issued as Invoice;
 
     // Hash what the customer will actually receive, so the stored hash
-    // and the served document can be compared later.
-    const { hash } = await renderInvoice(numbered);
+    // and the served document can be compared later. Written after the
+    // number exists, because the number is on the page.
+    const { hash } = await renderInvoice(numbered, { signatureImage });
 
     const { data, error } = await ctx.supabase
       .from('invoices')
-      .update({
-        invoice_number: numbered.invoice_number,
-        sequence_number: numbered.sequence_number,
-        financial_year: numbered.financial_year,
-        status: 'issued',
-        issued_at: issuedAt,
-        signed_at: numbered.signed_at,
-        document_hash: hash,
-      })
+      .update({ document_hash: hash })
       .eq('id', id)
       .eq('account_id', ctx.accountId)
-      // Guards against two requests issuing the same draft: the second
-      // matches no row, rather than overwriting the first one's number.
-      .eq('status', 'draft')
       .select('*')
       .single();
 
-    if (error || !data) {
-      return NextResponse.json(
-        { error: error?.message ?? 'This invoice was issued by someone else.' },
-        { status: 409 }
-      );
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
     await logInvoiceEvent({
@@ -145,7 +144,7 @@ export async function POST(
       request,
       documentHash: hash,
       metadata: {
-        invoice_number: allocation.invoiceNumber,
+        invoice_number: numbered.invoice_number,
         grand_total: invoice.grand_total,
       },
     });

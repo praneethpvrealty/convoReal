@@ -18,6 +18,7 @@ import { financialYearFor, toDateOnly } from './financial-year';
 import {
   computeTax,
   normaliseStateCode,
+  stateCodeForName,
   stateNameForCode,
   taxableTotal,
 } from './gst';
@@ -45,6 +46,9 @@ export interface PrefillProperty {
   unit_no?: string | null;
   location?: string | null;
   city?: string | null;
+  /** State name as stored on the property, e.g. "Karnataka". Decides
+   *  the place of supply, and through it CGST+SGST versus IGST. */
+  state?: string | null;
   property_code?: string | null;
 }
 
@@ -185,14 +189,15 @@ export function buildParticulars(
   const location = clean(property?.location);
   if (location) lines.push(location);
 
-  // The state comes from the account, so it may only be printed as part
-  // of the property's address when the property actually contributes one.
-  // Otherwise the supplier's own state would be stated as where the
-  // property is, which is a claim about the wrong thing entirely.
+  // The property's own state, falling back to the account's only when
+  // the property does not record one. Printing the supplier's state
+  // under a property in another state states the wrong thing, and this
+  // line is the address a buyer checks against their sale deed.
   const city = clean(property?.city);
   if (city) {
     const pincode = extractPincode(property?.location, property?.title);
-    const tail = [city, clean(settings.state_name)].filter(Boolean).join(', ');
+    const stateName = clean(property?.state) || clean(settings.state_name);
+    const tail = [city, stateName].filter(Boolean).join(', ');
     lines.push(pincode ? `${tail} - ${pincode}` : tail);
   }
 
@@ -289,16 +294,22 @@ export function buildPrefill(input: PrefillInput): PrefilledInvoice {
     phone: clean(contact?.phone) || null,
   };
 
-  // The supply happens where the property is, and a brokerage's
-  // properties are overwhelmingly in its own state — so the account's
-  // state is the right default, and a previous invoice to this customer
-  // is a better one.
+  // The supply happens where the PROPERTY is, so the property's own
+  // state decides it — not the customer's last invoice, which was for a
+  // different property, and not the brokerage's state, which is merely
+  // where most of its listings happen to be. Getting this wrong bills
+  // CGST+SGST on a supply that owed IGST, which is a correction the
+  // supplier has to file.
+  const propertyStateCode = stateCodeForName(property?.state);
   const placeCode = normaliseStateCode(
-    previousInvoice?.place_of_supply_code ?? settings.state_code
+    propertyStateCode ||
+      previousInvoice?.place_of_supply_code ||
+      settings.state_code
   );
   const placeName =
-    clean(previousInvoice?.place_of_supply) ||
     stateNameForCode(placeCode) ||
+    clean(property?.state) ||
+    clean(previousInvoice?.place_of_supply) ||
     clean(settings.state_name);
 
   const total = taxableTotal(lineItems);
@@ -347,6 +358,41 @@ export function buildPrefill(input: PrefillInput): PrefilledInvoice {
     amount_in_words: amountInWordsIndian(tax.grandTotal),
     currency: clean(deal.currency) || 'INR',
   };
+}
+
+/**
+ * Re-price the brokerage line after the share changes.
+ *
+ * `share_percent` is a control, not a label: moving a draft from 50% to
+ * 100% has to move the money too. Storing the new share beside the old
+ * half-share amount produces an invoice that says "100%" and bills half
+ * — which is exactly the kind of disagreement between a stated rate and
+ * a charged figure that a customer disputes.
+ *
+ * Only the first line is derived from the deal; anything an agent added
+ * below it (out-of-pocket costs, advertising) is theirs and is left
+ * alone.
+ */
+export function repriceBrokerageLine(
+  lineItems: InvoiceLineItem[],
+  deal: PrefillDeal | null | undefined,
+  sharePercent: number
+): InvoiceLineItem[] {
+  if (!deal || !lineItems?.length) return lineItems ?? [];
+
+  const amount = brokerageShare(
+    {
+      dealValue: deal.value,
+      type: deal.brokerage_type ?? 'percentage',
+      value: deal.brokerage_value,
+    },
+    sharePercent
+  );
+  if (amount <= 0) return lineItems;
+
+  return lineItems.map((item, index) =>
+    index === 0 ? { ...item, taxable_value: amount } : item
+  );
 }
 
 /**
