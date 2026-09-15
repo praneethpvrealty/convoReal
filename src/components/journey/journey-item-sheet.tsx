@@ -862,7 +862,7 @@ export function JourneyItemSheet({
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-[11px] font-semibold text-slate-300">
-                        {stageName(note.stage_id)}
+                        {note.stage_name || stageName(note.stage_id)}
                       </span>
                       <span className="text-[10px] text-slate-600">
                         {formatDistanceToNow(new Date(note.created_at), {

@@ -405,7 +405,9 @@ export function addJourneyStageNote(args: {
     data: {
       id: string;
       item_id: string;
-      stage_id: string;
+      stage_id: string | null;
+      stage_name: string;
+      stage_color?: string | null;
       note: string;
       created_by_name?: string | null;
       created_at: string;

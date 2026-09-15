@@ -42,7 +42,7 @@ export async function POST(request: Request) {
 
   const { data: stage } = await supabase
     .from('journey_stages')
-    .select('id')
+    .select('id, name, color')
     .eq('id', stageId)
     .eq('account_id', accountId)
     .maybeSingle();
@@ -66,12 +66,14 @@ export async function POST(request: Request) {
       account_id: accountId,
       item_id: itemId,
       stage_id: stageId,
+      stage_name: stage.name,
+      stage_color: stage.color,
       note,
       created_by: userId,
-      created_by_name: profile?.full_name || null,
+      created_by_name: profile?.full_name ?? null,
     })
     .select(
-      'id, account_id, item_id, stage_id, note, created_by, created_by_name, created_at'
+      'id, account_id, item_id, stage_id, stage_name, stage_color, note, created_by, created_by_name, created_at'
     )
     .single();
 
