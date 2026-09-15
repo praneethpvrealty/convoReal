@@ -190,9 +190,7 @@ describe('renderInvoicePdf', () => {
     expect(text).toContain('below Rs.20 lakhs');
   });
 
-  // [INV-003] The snapshot always carries the exemption note so the GST
-  // toggle can move either way; only an invoice raised without GST prints
-  // it. A taxed invoice claiming exemption would be a false statement.
+  // [INV-003] Only an invoice raised without GST prints the exemption note.
   it('shows real rates and splits when the invoice charges GST', () => {
     const text = asLatin1(
       renderInvoicePdf({

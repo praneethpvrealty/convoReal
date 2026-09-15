@@ -428,9 +428,6 @@ export function recalculate(draft: {
     placeOfSupplyCode: draft.place_of_supply_code,
   });
   return {
-    // The stored mode is what was actually charged, not what was asked
-    // for: the toggle says whether to charge GST at all, and the state
-    // codes decide whether that lands as CGST+SGST or IGST.
     gst_mode: tax.appliedMode,
     taxable_total: total,
     cgst: tax.cgst,

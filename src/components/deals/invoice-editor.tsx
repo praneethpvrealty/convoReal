@@ -97,7 +97,7 @@ export function InvoiceEditor({
           share_percent: Number(sharePercent) || 100,
           place_of_supply_code: placeCode,
           gst_mode: chargeGst ? 'intra' : 'nil',
-          gst_rate: chargeGst ? Number(gstRate) || 0 : 0,
+          gst_rate: Number(gstRate) || 0,
           notes: notes.trim() || null,
           bill_to: {
             name: billToName,

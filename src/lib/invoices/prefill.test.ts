@@ -134,9 +134,7 @@ describe('buildPrefill — the uploaded reference invoice', () => {
     expect(result.grand_total).toBe(669060);
   });
 
-  // [INV-003] The toggle moves both ways, so the note travels with every
-  // snapshot and the renderer decides whether to print it. Dropping it at
-  // creation would leave an invoice later switched to nil unexplained.
+  // [INV-003] The toggle moves both ways, so the note travels with every snapshot.
   it('snapshots the exemption note even when the account charges GST', () => {
     const result = buildPrefill({
       ...REFERENCE_INPUT,
@@ -361,9 +359,35 @@ describe('recalculate', () => {
     expect(result.grand_total).toBe(118000);
   });
 
+  // [INV-003] Toggling GST off must not destroy the rate it was charging.
+  it('keeps the rate it was charging when GST is switched off', () => {
+    const off = recalculate({
+      line_items: [
+        { sl_no: 1, sac: '997212', particulars: [], taxable_value: 100000 },
+      ],
+      gst_mode: 'nil',
+      gst_rate: 12,
+      issuer: { legal_name: 'x', address_lines: [], state_code: '29' },
+      place_of_supply_code: '29',
+    });
+    expect(off.gst_mode).toBe('nil');
+    expect(off.grand_total).toBe(100000);
+
+    const backOn = recalculate({
+      line_items: [
+        { sl_no: 1, sac: '997212', particulars: [], taxable_value: 100000 },
+      ],
+      gst_mode: 'intra',
+      gst_rate: 12,
+      issuer: { legal_name: 'x', address_lines: [], state_code: '29' },
+      place_of_supply_code: '29',
+    });
+    expect(backOn.cgst).toBe(6000);
+    expect(backOn.sgst).toBe(6000);
+    expect(backOn.grand_total).toBe(112000);
+  });
+
   // [INV-003] The toggle asks for GST; the state codes decide which kind.
-  // Storing the requested 'intra' beside IGST amounts would misreport the
-  // supply on every return filed off this row.
   it('stores the mode that was actually charged, not the one requested', () => {
     const result = recalculate({
       line_items: [

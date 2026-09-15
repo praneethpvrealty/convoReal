@@ -122,7 +122,7 @@ function InvoiceForm({
         side,
         share_percent: Number(sharePercent) || 100,
         gst_mode: chargeGst ? 'intra' : 'nil',
-        gst_rate: chargeGst ? Number(gstRate) || 0 : 0,
+        gst_rate: Number(gstRate) || 0,
         notes: notes.trim() || null,
         bill_to: {
           name,
