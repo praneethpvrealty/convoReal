@@ -2,6 +2,31 @@
   "schemaVersion": 1,
   "features": [
     {
+      "id": "inbox",
+      "name": "Shared WhatsApp inbox",
+      "surfaces": ["web", "mobile", "whatsapp"],
+      "invariants": [
+        {
+          "id": "INB-001",
+          "rule": "Closing a lead records a structured reason and optional note, Other requires an explanation, closed reasons remain searchable, and a new customer reply reopens the conversation and clears the closure details.",
+          "tests": [
+            {
+              "file": "src/lib/conversations/closure.test.ts",
+              "case": "[INB-001]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[INB-001]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20260915020752_conversation_closure_reasons.sql",
+            ".github/workflows/eas-update.yml"
+          ]
+        }
+      ]
+    },
+    {
       "id": "calendar",
       "name": "Calendar, appointments and to-dos",
       "surfaces": ["web", "mobile", "whatsapp"],

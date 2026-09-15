@@ -97,6 +97,7 @@ import {
   MAX_PINNED_PER_CONVERSATION,
 } from '@/lib/whatsapp/message-state';
 import { JOURNEY_LIFECYCLE_STATUSES } from '@/lib/journey/overview-state';
+import { CONVERSATION_CLOSE_REASONS } from '@/lib/conversations/closure';
 
 function mobileSource(relativePath: string): string {
   return readFileSync(join(process.cwd(), 'mobile', relativePath), 'utf8');
@@ -123,6 +124,26 @@ function mobileCopilotEntityComposer(): {
   return sandboxModule.exports as ReturnType<
     typeof mobileCopilotEntityComposer
   >;
+}
+
+function mobileConversationClosure(): {
+  CONVERSATION_CLOSE_REASONS: typeof CONVERSATION_CLOSE_REASONS;
+} {
+  const output = ts.transpileModule(
+    mobileSource('lib/conversation-closure.ts'),
+    {
+      compilerOptions: {
+        module: ts.ModuleKind.CommonJS,
+        target: ts.ScriptTarget.ES2022,
+      },
+    }
+  ).outputText;
+  const sandboxModule = { exports: {} };
+  runInNewContext(output, {
+    module: sandboxModule,
+    exports: sandboxModule.exports,
+  });
+  return sandboxModule.exports as ReturnType<typeof mobileConversationClosure>;
 }
 
 /** The `[ ... ]` body of an `export const <name> = [ ... ];` block. */
@@ -205,6 +226,25 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
     expect(screen).toContain('{canEdit ? (');
     expect(screen).toContain('{itemStage ? (');
     expect(screen).toContain("{canEdit ? 'Add or view' : 'View'} notes");
+  });
+});
+
+describe('mobile conversation closure mirrors the web inbox', () => {
+  it('[INB-001] keeps the same structured close reasons', () => {
+    expect(mobileConversationClosure().CONVERSATION_CLOSE_REASONS).toEqual(
+      CONVERSATION_CLOSE_REASONS
+    );
+  });
+
+  it('[INB-001] clears closure details on inbound customer replies', () => {
+    const webhook = readFileSync(
+      join(process.cwd(), 'src/lib/whatsapp/webhook-handler.ts'),
+      'utf8'
+    );
+    expect(webhook).toContain("status: 'open'");
+    expect(webhook).toContain('close_reason: null');
+    expect(webhook).toContain('close_note: null');
+    expect(webhook).toContain('closed_at: null');
   });
 });
 

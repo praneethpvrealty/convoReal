@@ -24,6 +24,7 @@ import { FavoriteButton } from "@/components/layout/favorite-button";
 import { NameTagBadge } from "@/components/contacts/name-tag-badge";
 import { MessageBubbleLoader } from "@/components/ui/message-bubble-loader";
 import { ConvoRealLoader } from "@/components/ui/convoreal-loader";
+import { conversationCloseReasonLabel } from "@/lib/conversations/closure";
 
 /** Strip WhatsApp formatting markers (*bold*, _italic_, ~strike~) for plain-text previews. */
 function stripWhatsAppFormatting(text: string | null | undefined): string {
@@ -362,7 +363,15 @@ export function ConversationList({
         const name = c.contact?.name?.toLowerCase() ?? "";
         const phone = c.contact?.phone?.toLowerCase() ?? "";
         const lastMsg = c.last_message_text?.toLowerCase() ?? "";
-        return name.includes(q) || phone.includes(q) || lastMsg.includes(q);
+        const closeReason = conversationCloseReasonLabel(c.close_reason)?.toLowerCase() ?? "";
+        const closeNote = c.close_note?.toLowerCase() ?? "";
+        return (
+          name.includes(q) ||
+          phone.includes(q) ||
+          lastMsg.includes(q) ||
+          closeReason.includes(q) ||
+          closeNote.includes(q)
+        );
       });
     }
 
@@ -554,6 +563,7 @@ function ConversationItem({
   const displayName = contact?.name || contact?.phone || "Unknown";
   const initials = displayName.charAt(0).toUpperCase();
   const reply = needsReply(conversation);
+  const closeReasonLabel = conversationCloseReasonLabel(conversation.close_reason);
 
   const handleClick = useCallback(() => {
     onSelect(conversation);
@@ -660,7 +670,7 @@ function ConversationItem({
               />
             </div>
           </div>
-          {(reply || activityCount != null) && (
+          {(reply || closeReasonLabel || activityCount != null) && (
             <div className="mt-1 flex items-center gap-1.5">
               {reply && (
                 <span
@@ -672,6 +682,14 @@ function ConversationItem({
                   )}
                 >
                   {needsReplyLabel(reply)}
+                </span>
+              )}
+              {closeReasonLabel && (
+                <span
+                  title={conversation.close_note ?? closeReasonLabel}
+                  className="inline-flex max-w-44 truncate rounded-full bg-slate-500/15 px-2 py-0.5 text-[10px] font-bold text-slate-400"
+                >
+                  {closeReasonLabel}
                 </span>
               )}
               {activityCount != null && (

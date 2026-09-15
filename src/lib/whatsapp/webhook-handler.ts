@@ -1451,6 +1451,10 @@ async function processMessage(
         : {
             unread_count: (conversation.unread_count || 0) + 1,
             awaiting_reply: true,
+            status: 'open',
+            close_reason: null,
+            close_note: null,
+            closed_at: null,
             last_customer_message_at: new Date(
               parseInt(message.timestamp) * 1000
             ).toISOString(),
@@ -1826,7 +1830,9 @@ async function processMessage(
                 visitRequested ? 'Site visit requested.' : '',
                 ownerContactRequested ? 'Owner conversation requested.' : '',
                 'The exact property details were sent; please coordinate the requested next step.',
-              ].filter(Boolean).join(' ')
+              ]
+                .filter(Boolean)
+                .join(' ')
             : 'The exact property details were sent. Reply to answer any property-specific questions.'
           : 'The listing was matched, but the automatic details send failed. Please share it and follow up now.',
         entityType: 'conversation',
@@ -3152,10 +3158,7 @@ async function processMessage(
 
   const inboundText = contentText ?? message.text?.body ?? '';
 
-  if (
-    !flowConsumed &&
-    (message.type === 'text' || message.type === 'button')
-  ) {
+  if (!flowConsumed && (message.type === 'text' || message.type === 'button')) {
     const agentInventoryHandled = await handleAgentInventoryDetailsRequest({
       db: supabaseAdmin(),
       accountId,
@@ -3298,7 +3301,7 @@ async function processMessage(
                 (contactRecord as { preferred_language?: string | null })
                   .preferred_language ?? null,
             }),
-          ])
+          ]);
           return answerLeadQuestion({
             accountId,
             question: inboundText,
@@ -3307,7 +3310,7 @@ async function processMessage(
             portalListings,
             botInstructions,
           });
-        }),
+        })
       );
       answer = mergeLeadAnswers(answers, subjects);
     }
@@ -3325,7 +3328,7 @@ async function processMessage(
     await markBotInstructionsFired(
       admin,
       accountId,
-      answer.appliedInstructionIds ?? [],
+      answer.appliedInstructionIds ?? []
     );
 
     if (answer.source === 'handover') {
