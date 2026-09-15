@@ -3,7 +3,13 @@ import { unstable_cache } from 'next/cache';
 import { supabaseAdmin } from '@/lib/automations/admin-client';
 import { toPublicListingView } from '@/lib/inventory/showcase-visibility';
 import type { GrantedReveals } from '@/lib/inventory/share-grants';
-import type { Project, Property, ShowcaseSettings, AgencyService, AgencyArticle } from '@/types';
+import type {
+  Project,
+  Property,
+  ShowcaseSettings,
+  AgencyService,
+  AgencyArticle,
+} from '@/types';
 import type { ShowcaseStyle } from '@/lib/showcase/style';
 
 export interface ShowcaseData {
@@ -36,6 +42,20 @@ export interface ShowcaseData {
   }>;
   services: AgencyService[];
   articles: AgencyArticle[];
+}
+
+function requireShowcaseProperties(
+  result: { data: Property[] | null; error: unknown },
+  accountId: string
+): Property[] {
+  if (result.error) {
+    console.error('Failed to load public showcase properties:', {
+      accountId,
+      error: result.error,
+    });
+    throw new Error('Failed to load public showcase properties');
+  }
+  return result.data ?? [];
 }
 
 export function resolveSubdomainFromHost(host: string): string | null {
@@ -215,7 +235,14 @@ export const cachedFetchProjectBySlug = cache(
 // aggregate read per render buys the whole catalogue staying fresh.
 const showcaseContentVersion = cache(async (accountId: string) => {
   const admin = supabaseAdmin();
-  const [propertiesResult, settingsResult, accountResult, servicesResult, articlesResult, profilesResult] = await Promise.all([
+  const [
+    propertiesResult,
+    settingsResult,
+    accountResult,
+    servicesResult,
+    articlesResult,
+    profilesResult,
+  ] = await Promise.all([
     admin
       .from('properties')
       .select('updated_at', { count: 'exact' })
@@ -272,40 +299,45 @@ const fetchShowcaseData = async (
   const admin = supabaseAdmin();
 
   if (isAgentMode) {
-    const [settingsResult, accountResult, propertiesResult, servicesResult, articlesResult] = await Promise.all(
-      [
-        admin
-          .from('showcase_settings')
-          .select('*')
-          .eq('account_id', accountId)
-          .maybeSingle(),
-        admin.from('accounts').select('name').eq('id', accountId).maybeSingle(),
-        admin
-          .from('properties')
-          .select('*')
-          .eq('account_id', accountId)
-          .eq('is_published', true)
-          .eq('status', 'Available')
-          .order('created_at', { ascending: false }),
-        admin
-          .from('agency_services')
-          .select('*')
-          .eq('account_id', accountId)
-          .eq('is_active', true)
-          .order('sort_order', { ascending: true }),
-        admin
-          .from('agency_articles')
-          .select('*')
-          .eq('account_id', accountId)
-          .eq('is_active', true)
-          .order('published_at', { ascending: false }),
-      ]
-    );
+    const [
+      settingsResult,
+      accountResult,
+      propertiesResult,
+      servicesResult,
+      articlesResult,
+    ] = await Promise.all([
+      admin
+        .from('showcase_settings')
+        .select('*')
+        .eq('account_id', accountId)
+        .maybeSingle(),
+      admin.from('accounts').select('name').eq('id', accountId).maybeSingle(),
+      admin
+        .from('properties')
+        .select('*')
+        .eq('account_id', accountId)
+        .eq('is_published', true)
+        .eq('status', 'Available')
+        .order('created_at', { ascending: false }),
+      admin
+        .from('agency_services')
+        .select('*')
+        .eq('account_id', accountId)
+        .eq('is_active', true)
+        .order('sort_order', { ascending: true }),
+      admin
+        .from('agency_articles')
+        .select('*')
+        .eq('account_id', accountId)
+        .eq('is_active', true)
+        .order('published_at', { ascending: false }),
+    ]);
+    const properties = requireShowcaseProperties(propertiesResult, accountId);
     return {
       settings: settingsResult.data || null,
       engineWhatsAppPhone: await engineWhatsAppPhone(admin, accountId),
       accountName: accountResult.data?.name || null,
-      properties: propertiesResult.data || [],
+      properties,
       agents: [],
       profiles: [],
       services: servicesResult.data || [],
@@ -342,7 +374,9 @@ const fetchShowcaseData = async (
       .eq('classification', 'Agent'),
     admin
       .from('profiles')
-      .select('user_id, full_name, email, avatar_url, showcase_style, showcase_3d_enabled')
+      .select(
+        'user_id, full_name, email, avatar_url, showcase_style, showcase_3d_enabled'
+      )
       .eq('account_id', accountId),
     admin
       .from('agency_services')
@@ -357,12 +391,13 @@ const fetchShowcaseData = async (
       .eq('is_active', true)
       .order('published_at', { ascending: false }),
   ]);
+  const properties = requireShowcaseProperties(propertiesResult, accountId);
 
   return {
     settings: settingsResult.data || null,
     engineWhatsAppPhone: await engineWhatsAppPhone(admin, accountId),
     accountName: accountResult.data?.name || null,
-    properties: propertiesResult.data || [],
+    properties,
     agents: agentsResult.data || [],
     profiles: profilesResult.data || [],
     services: servicesResult.data || [],
@@ -401,7 +436,7 @@ export async function cachedFetchShowcaseData(
   isAgentMode: boolean
 ): Promise<ShowcaseData> {
   const version = await showcaseContentVersion(accountId);
-  return unstable_cache(fetchShowcaseData, ['showcase-data', version], {
+  return unstable_cache(fetchShowcaseData, ['showcase-data-v2', version], {
     revalidate: 3600,
   })(accountId, isAgentMode);
 }
