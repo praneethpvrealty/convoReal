@@ -78,6 +78,7 @@ interface ShowcaseShareDialogProps {
   accountId: string | null;
   showcaseSettings: ShowcaseSettings | null;
   activeSearch?: string;
+  initialPickedIds?: string[];
 }
 
 const MAX_PICKED = 25;
@@ -117,8 +118,12 @@ export function ShowcaseShareDialog({
   accountId,
   showcaseSettings,
   activeSearch,
+  initialPickedIds,
 }: ShowcaseShareDialogProps) {
   const trimmedSearch = activeSearch?.trim() || '';
+  const initialPickedKey = (initialPickedIds ?? [])
+    .slice(0, MAX_PICKED)
+    .join(',');
 
   // Step 1 — WHO. Clients get the teaser showcase (masked address,
   // inquiry funnel); co-brokers get the complete clean view.
@@ -127,10 +132,12 @@ export function ShowcaseShareDialog({
   // Step 2 — WHAT. One scope at a time, so the link, the message and the
   // Engine snapshot can never describe different sets of listings.
   const [scope, setScope] = useState<ShareScope>(
-    trimmedSearch ? 'search' : 'all'
+    initialPickedKey ? 'pick' : trimmedSearch ? 'search' : 'all'
   );
   const [shareCategory, setShareCategory] = useState<ShareCategory>('All');
-  const [picked, setPicked] = useState<string[]>([]);
+  const [picked, setPicked] = useState<string[]>(() =>
+    initialPickedKey ? initialPickedKey.split(',') : []
+  );
   const [pickerSearch, setPickerSearch] = useState('');
 
   // Step 3 — HOW.
@@ -141,11 +148,6 @@ export function ShowcaseShareDialog({
   const [loadingContacts, setLoadingContacts] = useState(false);
   const [contactSearch, setContactSearch] = useState('');
   const [selectedContactIds, setSelectedContactIds] = useState<string[]>([]);
-
-  useEffect(() => {
-    if (!open) return;
-    setScope(trimmedSearch ? 'search' : 'all');
-  }, [open, trimmedSearch]);
 
   const defaultClientMessage = `Hi {name}! 👋
 

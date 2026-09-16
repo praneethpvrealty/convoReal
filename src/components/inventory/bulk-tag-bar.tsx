@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Loader2, Plus, Tag, X } from 'lucide-react';
+import { Loader2, Plus, Share2, Tag, X } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -24,10 +24,12 @@ export function BulkTagBar({
   selectedIds,
   onClear,
   onTagged,
+  onShare,
 }: {
   selectedIds: string[];
   onClear: () => void;
   onTagged: () => void;
+  onShare?: () => void;
 }) {
   const [value, setValue] = useState('');
   const [saving, setSaving] = useState(false);
@@ -99,6 +101,17 @@ export function BulkTagBar({
       <span className="text-xs font-bold text-white">
         {selectedIds.length} selected
       </span>
+
+      {onShare && (
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={onShare}
+          className="border-primary/40 text-primary hover:bg-primary/10 h-8 gap-1.5 text-xs"
+        >
+          <Share2 className="size-3.5" /> Share shortlist
+        </Button>
+      )}
 
       <div className="flex items-center gap-1.5">
         <Tag className="text-primary size-3.5" />

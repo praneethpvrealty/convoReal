@@ -27,6 +27,32 @@ const MIN_FUSED_REMAINDER = 4;
 
 const MIN_STEM_LENGTH = 2;
 
+export function normalizeLocalityLabel(label: string): string {
+  const tokens = label
+    .split(',')[0]
+    .replace(/[().]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(' ')
+    .filter(Boolean);
+  const normalized: string[] = [];
+
+  for (let index = 0; index < tokens.length; index += 1) {
+    if (/^[a-z]$/i.test(tokens[index]) && /^[a-z]$/i.test(tokens[index + 1] ?? '')) {
+      let initials = tokens[index];
+      while (/^[a-z]$/i.test(tokens[index + 1] ?? '')) {
+        index += 1;
+        initials += tokens[index];
+      }
+      normalized.push(initials);
+    } else {
+      normalized.push(tokens[index]);
+    }
+  }
+
+  return normalized.join(' ');
+}
+
 /** Distinctive tokens of a locality string, designators stripped. */
 export function localityStems(text: string): string[] {
   const stems: string[] = [];

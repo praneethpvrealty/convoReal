@@ -1531,6 +1531,15 @@ export default function InventoryPage() {
               setSelectedForTagging([]);
               refreshInventory();
             }}
+            onShare={() => {
+              if (selectedForTagging.length > 25) {
+                toast.error(
+                  'Choose no more than 25 properties for one shortlist'
+                );
+                return;
+              }
+              setShowcaseShareOpen(true);
+            }}
           />
 
           <PropertyList
@@ -1655,11 +1664,17 @@ export default function InventoryPage() {
 
       {/* Share Showcase Portal Dialog */}
       <ShowcaseShareDialog
+        key={
+          showcaseShareOpen
+            ? selectedForTagging.join(',') || 'showcase'
+            : 'closed'
+        }
         open={showcaseShareOpen}
         onOpenChange={setShowcaseShareOpen}
         accountId={accountId}
         showcaseSettings={showcaseSettings}
         activeSearch={search}
+        initialPickedIds={selectedForTagging}
       />
 
       {/* Delete Confirmation Modal */}

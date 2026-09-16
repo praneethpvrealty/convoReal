@@ -322,7 +322,7 @@ export function PropertyList({
                 <button
                   type="button"
                   onClick={() => onToggleSelected(property.id)}
-                  title="Select for bulk tagging"
+                  title="Select for shortlist or bulk tagging"
                   className="absolute top-2 left-2 z-10 cursor-pointer rounded-full bg-slate-950/70 p-1 text-slate-300 hover:text-white"
                 >
                   {selectedIds?.includes(property.id) ? (

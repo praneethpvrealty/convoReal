@@ -68,6 +68,7 @@ interface ShareSummaryData {
 }
 
 const MAX_PICKED = 25;
+const EMPTY_PICKED_PROPERTIES: Property[] = [];
 const CATEGORIES: ShareCategory[] = [
   'All',
   'Residential',
@@ -103,22 +104,27 @@ export function ShowcaseShareSheet({
   visible,
   onClose,
   activeSearch = '',
+  initialPicked,
 }: {
   visible: boolean;
   onClose: () => void;
   /** The Properties tab's current query, offered as a share scope. */
   activeSearch?: string;
+  initialPicked?: Property[];
 }) {
   const { colors, fonts: f } = useTheme();
   const { show, close, dialogProps } = useAppDialog();
   const trimmedSearch = activeSearch.trim();
+  const initialSelection = initialPicked ?? EMPTY_PICKED_PROPERTIES;
 
   const [audience, setAudience] = useState<'client' | 'agent'>('client');
   const [scope, setScope] = useState<ShareScope>(
-    trimmedSearch ? 'search' : 'all'
+    initialSelection.length > 0 ? 'pick' : trimmedSearch ? 'search' : 'all'
   );
   const [category, setCategory] = useState<ShareCategory>('All');
-  const [picked, setPicked] = useState<Property[]>([]);
+  const [picked, setPicked] = useState<Property[]>(() =>
+    initialSelection.slice(0, MAX_PICKED)
+  );
   const [pickerSearch, setPickerSearch] = useState('');
   const [clientMessage, setClientMessage] = useState(CLIENT_MESSAGE);
   const [brokerMessage, setBrokerMessage] = useState(BROKER_MESSAGE);
@@ -563,7 +569,11 @@ export function ShowcaseShareSheet({
   const rows = properties.data?.data ?? [];
 
   return (
-    <BottomSheet visible={visible} onClose={closeSheet} title="Share showcase">
+    <BottomSheet
+      visible={visible}
+      onClose={closeSheet}
+      title={initialSelection.length > 0 ? 'Share shortlist' : 'Share showcase'}
+    >
       <ScrollView
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}

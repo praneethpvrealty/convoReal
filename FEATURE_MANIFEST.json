@@ -254,6 +254,34 @@
       ]
     },
     {
+      "id": "property-inventory",
+      "name": "Property inventory discovery and shortlist sharing",
+      "surfaces": ["web", "mobile"],
+      "invariants": [
+        {
+          "id": "PRP-001",
+          "rule": "A locality selected from Google Places finds inventory stored under the equivalent undotted abbreviation, including J. P. Nagar to JP Nagar and B.T.M. Layout to BTM Layout.",
+          "tests": [
+            {
+              "file": "src/lib/locality-match.test.ts",
+              "case": "[PRP-001]"
+            }
+          ]
+        },
+        {
+          "id": "PRP-002",
+          "rule": "Agents can select up to 25 properties from inventory and open the existing hand-picked showcase share flow with that shortlist already selected on web and mobile.",
+          "tests": [
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[PRP-002]"
+            }
+          ],
+          "guards": [".github/workflows/eas-update.yml"]
+        }
+      ]
+    },
+    {
       "id": "journeys",
       "name": "Stage-grouped buyer and property journeys",
       "surfaces": ["web", "mobile"],
