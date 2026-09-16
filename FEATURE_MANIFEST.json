@@ -293,6 +293,16 @@
             }
           ],
           "guards": [".github/workflows/eas-update.yml"]
+        },
+        {
+          "id": "PRP-004",
+          "rule": "Visitors can clear every selected property at once from both the public showcase shortlist bar and its review dialog.",
+          "tests": [
+            {
+              "file": "src/components/showcase/showcase-shortlist.test.tsx",
+              "case": "[PRP-004]"
+            }
+          ]
         }
       ]
     },
