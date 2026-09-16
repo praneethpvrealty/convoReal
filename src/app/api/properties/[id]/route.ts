@@ -7,7 +7,10 @@ import { resolveCoordinatesFromMapLink } from "@/lib/maps/resolve-location";
 import { STARRED_PROPERTY_CAP } from "@/lib/starred-properties";
 import { sanitizeFloorTenancies } from "@/lib/inventory/floor-tenancies";
 import { sanitizeFloorPlans } from "@/lib/inventory/floor-plans";
-import { notifyBuyersOfSoldProperty } from "@/lib/whatsapp/sold-notification";
+import {
+  notifyBuyersOfPropertyStatus,
+  shouldNotifyBuyersOfPropertyStatus,
+} from "@/lib/whatsapp/sold-notification";
 import { isoDateOrNull } from "@/lib/inventory/iso-date";
 import {
   canViewExactLocation,
@@ -775,11 +778,12 @@ export async function PUT(
       console.error("[PUT /api/properties/[id]] Auto-sync background error:", err);
     });
 
-    // Freshly marked Sold — tell everyone who showed interest or received
-    // the listing over WhatsApp (fire-and-forget, never blocks the save).
-    if (updateData.status === "Sold" && existing.status !== "Sold") {
-      notifyBuyersOfSoldProperty(ctx.accountId, id).catch((err) => {
-        console.error("[PUT /api/properties/[id]] Sold notification background error:", err);
+    // Tell everyone who showed interest or received the listing when its
+    // buyer-visible lifecycle status changes. Internal moderation states
+    // deliberately stay private.
+    if (shouldNotifyBuyersOfPropertyStatus(existing.status, updateData.status)) {
+      notifyBuyersOfPropertyStatus(ctx.accountId, id, updateData.status).catch((err) => {
+        console.error("[PUT /api/properties/[id]] Property status notification background error:", err);
       });
     }
 

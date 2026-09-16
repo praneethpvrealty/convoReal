@@ -1,8 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import {
   buildSoldNotificationBody,
+  buildPropertyStatusNotificationBody,
   buildSoldPriceReply,
   dedupeAudience,
+  shouldNotifyBuyersOfPropertyStatus,
   SOLD_PRICE_BUTTON_PREFIX,
   SOLD_SIMILAR_BUTTON_PREFIX,
 } from './sold-notification';
@@ -13,6 +15,29 @@ describe('buildSoldNotificationBody', () => {
     expect(body).toContain('*3 BHK Villa in Whitefield*');
     expect(body).toContain('no longer available');
     expect(body).toContain('sold');
+  });
+});
+
+describe('property status notifications', () => {
+  it.each([
+    ['Available', 'available again', false],
+    ['Under Contract', 'under contract', false],
+    ['Sold', 'sold', true],
+    ['Archived', 'archived', false],
+    ['Off Market', 'off the market', false],
+  ] as const)('uses accurate copy for %s', (status, phrase, mentionsSold) => {
+    const body = buildPropertyStatusNotificationBody('JP Nagar Plot', status);
+    expect(body).toContain(`*New status:* ${status}`);
+    expect(body.toLowerCase()).toContain(phrase);
+    expect(body.toLowerCase().includes('sold')).toBe(mentionsSold);
+  });
+
+  it('notifies only on buyer-visible status transitions', () => {
+    expect(shouldNotifyBuyersOfPropertyStatus('Available', 'Under Contract')).toBe(true);
+    expect(shouldNotifyBuyersOfPropertyStatus('Under Contract', 'Available')).toBe(true);
+    expect(shouldNotifyBuyersOfPropertyStatus('Available', 'Available')).toBe(false);
+    expect(shouldNotifyBuyersOfPropertyStatus('Available', 'Pending Review')).toBe(false);
+    expect(shouldNotifyBuyersOfPropertyStatus('Available', 'Rejected')).toBe(false);
   });
 });
 

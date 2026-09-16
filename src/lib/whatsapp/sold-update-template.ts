@@ -9,6 +9,7 @@ import type { TemplatePayload } from '@/lib/whatsapp/template-validators';
 import { sanitizeTemplateParam } from '@/lib/whatsapp/inventory-update-template';
 
 export const SOLD_UPDATE_TEMPLATE_NAME = 'property_sold_update';
+export const PROPERTY_STATUS_UPDATE_TEMPLATE_NAME = 'property_status_update';
 
 export function buildSoldUpdateTemplatePayload(): TemplatePayload {
   return {
@@ -45,5 +46,49 @@ export function buildSoldUpdateParams(
   return [
     sanitizeTemplateParam(contactName?.trim() || 'there'),
     sanitizeTemplateParam(propertyTitle),
+  ];
+}
+
+export function buildPropertyStatusUpdateTemplatePayload(): TemplatePayload {
+  return {
+    name: PROPERTY_STATUS_UPDATE_TEMPLATE_NAME,
+    category: 'Utility',
+    language: 'en_US',
+    body_text: [
+      '🔔 *Update on a property you showed interest in*',
+      '',
+      'Hi {{1}}, the status of the property below has changed.',
+      '',
+      '*{{2}}*',
+      '',
+      '*New status:* {{3}}',
+      '*What this means:* {{4}}',
+      '',
+      'Tap below to explore similar properties.',
+    ].join('\n'),
+    footer_text: 'Reply STOP to unsubscribe',
+    buttons: [{ type: 'QUICK_REPLY', text: 'Find similar' }],
+    sample_values: {
+      body: [
+        'Gopi',
+        '40x60 Residential Plot in J. P. Nagar',
+        'Under Contract',
+        'The property may become available again if the transaction does not proceed.',
+      ],
+    },
+  };
+}
+
+export function buildPropertyStatusUpdateParams(
+  contactName: string | null | undefined,
+  propertyTitle: string,
+  status: string,
+  detail: string
+): string[] {
+  return [
+    sanitizeTemplateParam(contactName?.trim() || 'there'),
+    sanitizeTemplateParam(propertyTitle),
+    sanitizeTemplateParam(status),
+    sanitizeTemplateParam(detail),
   ];
 }
