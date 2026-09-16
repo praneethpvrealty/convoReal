@@ -207,6 +207,31 @@
       ]
     },
     {
+      "id": "listing-media",
+      "name": "Property listing media",
+      "surfaces": ["web", "mobile"],
+      "invariants": [
+        {
+          "id": "MED-001",
+          "rule": "Walkthrough uploads accept MP4 up to 16 MB on Starter and 100 MB on every paid plan. Large files upload directly to Supabase with resumable chunks, while the server authorizes the plan and verifies the completed account-scoped object before attaching it to a property.",
+          "tests": [
+            {
+              "file": "src/lib/inventory/property-video.test.ts",
+              "case": "[MED-001]"
+            },
+            {
+              "file": "src/app/api/properties/[id]/video-upload/route.test.ts",
+              "case": "[MED-001]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20260916050000_premium_property_video_100mb.sql",
+            ".github/workflows/eas-update.yml"
+          ]
+        }
+      ]
+    },
+    {
       "id": "journeys",
       "name": "Stage-grouped buyer and property journeys",
       "surfaces": ["web", "mobile"],
