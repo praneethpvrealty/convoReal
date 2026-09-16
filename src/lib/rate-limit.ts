@@ -113,10 +113,11 @@ function redisClient(): Redis | null {
       // sits there ready.
       maxRetriesPerRequest: 1,
       commandTimeout: 1000,
-      // Without this, commands issued while disconnected queue up
-      // silently and resolve minutes later — the request hangs instead
-      // of falling back.
-      enableOfflineQueue: false,
+      // Let the first command wait for the connection's ready event.
+      // commandTimeout and connectTimeout keep that queue bounded, so
+      // an outage still falls back instead of holding the request open.
+      enableOfflineQueue: true,
+      connectTimeout: 1000,
     });
     // ioredis emits 'error' on every reconnection attempt. Unhandled,
     // it takes the process down; the check path already reports the
@@ -132,10 +133,11 @@ function noteRedisUnavailable(err: unknown): void {
   const now = Date.now();
   if (now - _redisUnavailableLoggedAt < 60_000) return;
   _redisUnavailableLoggedAt = now;
-  console.error(
+  const detail = err instanceof Error ? err.message : String(err);
+  console.warn(
     '[rate-limit] Redis unavailable, falling back to the in-process counter. ' +
       'Limits are per-instance until it recovers.',
-    err
+    detail
   );
 }
 
