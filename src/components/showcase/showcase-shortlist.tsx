@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { BookmarkCheck, CheckCircle, X } from 'lucide-react';
+import { BookmarkCheck, CheckCircle, Trash2, X } from 'lucide-react';
 import type { Property } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -54,6 +54,16 @@ export function ShowcaseShortlist(props: ShowcaseShortlistProps) {
             <BookmarkCheck className="size-4" />
             {props.properties.length} shortlisted
           </span>
+          <Button
+            type="button"
+            variant="ghost"
+            className="min-h-11"
+            aria-label={`Clear all ${props.properties.length} shortlisted properties`}
+            onClick={props.onClear}
+          >
+            <Trash2 className="size-4" />
+            Clear all
+          </Button>
           <Button
             className="min-h-11 flex-1 whitespace-nowrap"
             onClick={() => setOpen(true)}
@@ -187,6 +197,22 @@ function ShortlistEnquiry({
                 </li>
               ))}
             </ul>
+            {properties.length > 0 && (
+              <Button
+                type="button"
+                variant="ghost"
+                className="min-h-11 w-full"
+                aria-label={`Clear all ${properties.length} shortlisted properties`}
+                disabled={pending}
+                onClick={() => {
+                  onClear();
+                  onClose();
+                }}
+              >
+                <Trash2 className="size-4" />
+                Clear all
+              </Button>
+            )}
             {!properties.length && (
               <p>
                 Your shortlist is empty. Close this window to choose properties.
