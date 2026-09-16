@@ -137,7 +137,7 @@ describe('backfillLocationFromMapLink', () => {
     });
   });
 
-  it('keeps a typed location and only fills the gaps around it', async () => {
+  it('keeps a typed location while reconciling its structured fields to the pin', async () => {
     mockResolve.mockResolvedValue(resolved);
     const draft = makeDraft({
       location: '17th Main, Jayanagar',
@@ -146,9 +146,36 @@ describe('backfillLocationFromMapLink', () => {
     });
     const result = await backfillLocationFromMapLink(draft);
     expect(result.location).toBe('17th Main, Jayanagar');
-    expect(result.city).toBe('Bangalore');
+    expect(result.city).toBe('Bengaluru');
     expect(result.sublocality).toBe('Anjanapura');
     expect(result.latitude).toBe(12.8669);
+  });
+
+  it('replaces a Bangalore fallback when the pin is in Tamil Nadu', async () => {
+    mockResolve.mockResolvedValue({
+      location: 'NH 48, Chennapalli',
+      sublocality: null,
+      city: 'Chennapalli',
+      state: 'Tamil Nadu',
+      latitude: 12.641,
+      longitude: 78.01,
+    });
+    const draft = makeDraft({
+      location: 'Hosur Krishnagiri National Highway',
+      city: 'Bangalore',
+      state: 'Karnataka',
+      google_map_link: 'https://maps.app.goo.gl/Fhx2tTxkgThQziZQ9',
+    });
+
+    const result = await backfillLocationFromMapLink(draft);
+
+    expect(result).toMatchObject({
+      location: 'Hosur Krishnagiri National Highway',
+      city: 'Chennapalli',
+      state: 'Tamil Nadu',
+      latitude: 12.641,
+      longitude: 78.01,
+    });
   });
 
   it('resolves a bare coordinate pair sent as the location', async () => {

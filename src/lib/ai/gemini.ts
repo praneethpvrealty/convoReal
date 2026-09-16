@@ -980,8 +980,8 @@ export async function parseListingFromImageOrText(
     "  \"type\": \"Must be exactly one of: 'Flat/ Apartment', 'Residential House', 'Villa', 'Builder Floor Apartment', 'Residential Land/ Plot', 'Penthouse', 'Studio Apartment', 'Residential PG building', 'PG/ Hostel', 'Commercial Office Space', 'Office in IT Park/ SEZ', 'Commercial Shop', 'Commercial Showroom', 'Commercial Building', 'Commercial Plot', 'Commercial Land', 'Warehouse/ Godown', 'Industrial Land', 'Industrial Building', 'Industrial Shed', 'Agricultural Land', 'Farm House', 'Others' or null\",\n" +
     '  "sublocality": "Sublocality or neighborhood name or null",\n' +
     "  \"project\": \"Name of the apartment project, development or society this unit is in (e.g. 'Sattva Exotic', 'Prestige Lakeside Habitat') or null. This is the BUILDING's name, not the area — never copy the sublocality here, and leave it null for an independent house or a plot.\",\n" +
-    '  "city": "City name (default \'Bangalore\')",\n' +
-    '  "state": "State name (default \'Karnataka\')",\n' +
+    '  "city": "City name when stated or unambiguously implied by the named location, otherwise null",\n' +
+    '  "state": "State name when stated or unambiguously implied by the named location, otherwise null. Never default to Karnataka",\n' +
     '  "bedrooms": Number of bedrooms (numeric) or null,\n' +
     '  "bathrooms": Number of bathrooms (numeric) or null,\n' +
     '  "area_sqft": Area in Sq.Ft. (numeric) or null,\n' +
@@ -1076,8 +1076,8 @@ export async function parseListingFromImageOrText(
           ? 'Commercial Building'
           : (normalizePropertyType(parsed.type) as ParsedPropertyDraft['type']),
       sublocality: parsed.sublocality || null,
-      city: parsed.city || 'Bangalore',
-      state: parsed.state || 'Karnataka',
+      city: parsed.city || null,
+      state: parsed.state || null,
       // Falls back to regex-extracting "X BHK" from the raw input text,
       // then from the model's own generated title, before giving up.
       bedrooms:

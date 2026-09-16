@@ -18,7 +18,7 @@
  * lookup volume, but not for bulk/high-volume use.
  */
 
-import { hasGoogleMapsKey, reverseGeocode } from "@/lib/maps/google-places";
+import { geocodeAddress, hasGoogleMapsKey, reverseGeocode } from "@/lib/maps/google-places";
 import {
   extractCoordinatesFromMapUrl,
   extractPlaceNameFromMapUrl,
@@ -174,8 +174,16 @@ export async function resolveLocationFromGoogleMapLink(
     // That name is what the lister actually pinned, so it wins over the
     // geocoder's locality — but the geocoder still supplies the parts.
     const placeName = extractPlaceNameFromMapUrl(resolvedUrl);
-    const geo = coords
-      ? await resolveLocationFromCoordinates(coords.latitude, coords.longitude)
+    const addressCoords =
+      !coords && placeName && hasGoogleMapsKey()
+        ? await geocodeAddress(placeName)
+        : null;
+    const resolvedCoords = coords || addressCoords;
+    const geo = resolvedCoords
+      ? await resolveLocationFromCoordinates(
+          resolvedCoords.latitude,
+          resolvedCoords.longitude
+        )
       : null;
 
     if (geo) {
@@ -192,8 +200,8 @@ export async function resolveLocationFromGoogleMapLink(
         sublocality: null,
         city: null,
         state: null,
-        latitude: coords?.latitude ?? null,
-        longitude: coords?.longitude ?? null,
+        latitude: resolvedCoords?.latitude ?? null,
+        longitude: resolvedCoords?.longitude ?? null,
       };
     }
 
