@@ -7,6 +7,13 @@ export interface PropertyVideoUploadSession {
   maxBytes: number;
 }
 
+export function propertyVideoUploadFingerprint(
+  path: string,
+  file: Pick<File, 'name' | 'size' | 'type'>
+): string {
+  return ['property-video', path, file.name, file.size, file.type].join(':');
+}
+
 export function uploadPropertyVideoResumable(
   file: File,
   session: PropertyVideoUploadSession,
@@ -17,6 +24,10 @@ export function uploadPropertyVideoResumable(
       endpoint: session.endpoint,
       retryDelays: [0, 3_000, 5_000, 10_000, 20_000],
       headers: { 'x-signature': session.token },
+      fingerprint: (candidate) =>
+        Promise.resolve(
+          propertyVideoUploadFingerprint(session.path, candidate)
+        ),
       uploadDataDuringCreation: true,
       removeFingerprintOnSuccess: true,
       chunkSize: 6 * 1024 * 1024,

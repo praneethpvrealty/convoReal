@@ -15,6 +15,13 @@ export function propertyVideoMaxMegabytes(maxBytes: number): number {
   return Math.round(maxBytes / (1024 * 1024));
 }
 
+export function rejectPropertyVideoPreflight(
+  mimeType: string | null | undefined,
+  size: number
+): PropertyVideoRejection | null {
+  return rejectPropertyVideo(mimeType, size, PROPERTY_VIDEO_PREMIUM_MAX_BYTES);
+}
+
 export type PropertyVideoRejection = {
   code: 'UNSUPPORTED_VIDEO_TYPE' | 'VIDEO_TOO_LARGE';
   error: string;

@@ -223,7 +223,7 @@
       "invariants": [
         {
           "id": "MED-001",
-          "rule": "Walkthrough uploads accept MP4 up to 16 MB on Starter and 100 MB on every paid plan. Large files upload directly to Supabase with resumable chunks, while the server authorizes the plan and verifies the completed account-scoped object before attaching it to a property.",
+          "rule": "Walkthrough uploads accept MP4 up to 16 MB on Starter and 100 MB on every paid plan. A failed preliminary limit lookup never makes the client deny a potentially eligible file; the upload-session endpoint authorizes the plan. Large files upload directly to Supabase with resumable chunks bound to the authorized object path, while the server verifies the completed account-scoped object before attaching it to a property.",
           "tests": [
             {
               "file": "src/lib/inventory/property-video.test.ts",
@@ -232,6 +232,18 @@
             {
               "file": "src/app/api/properties/[id]/video-upload/route.test.ts",
               "case": "[MED-001]"
+            },
+            {
+              "file": "src/lib/storage/property-video-resumable.test.ts",
+              "case": "propertyVideoUploadFingerprint"
+            },
+            {
+              "file": "mobile/lib/property-video.test.ts",
+              "case": "propertyVideoLimitCopy"
+            },
+            {
+              "file": "mobile/lib/property-video-upload.test.ts",
+              "case": "propertyVideoUploadFingerprint"
             }
           ],
           "guards": [

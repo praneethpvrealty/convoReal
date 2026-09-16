@@ -15,9 +15,8 @@ import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import {
-  PROPERTY_VIDEO_MAX_BYTES,
   propertyVideoMaxMegabytes,
-  rejectPropertyVideo,
+  rejectPropertyVideoPreflight,
 } from '@/lib/inventory/property-video';
 import {
   type PropertyVideoUploadSession,
@@ -55,7 +54,7 @@ export function ListingVideoCard({ propertyId }: { propertyId: string }) {
   const [submitting, setSubmitting] = useState(false);
   const [uploadingVideo, setUploadingVideo] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
-  const [videoMaxBytes, setVideoMaxBytes] = useState(PROPERTY_VIDEO_MAX_BYTES);
+  const [videoMaxBytes, setVideoMaxBytes] = useState<number | null>(null);
   const [uploadingYt, setUploadingYt] = useState(false);
   const [ytConnected, setYtConnected] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -159,7 +158,7 @@ export function ListingVideoCard({ propertyId }: { propertyId: string }) {
 
   const uploadWalkthrough = async (file: File | undefined) => {
     if (!file) return;
-    const rejection = rejectPropertyVideo(file.type, file.size, videoMaxBytes);
+    const rejection = rejectPropertyVideoPreflight(file.type, file.size);
     if (rejection) {
       toast.error(rejection.error);
       return;
@@ -256,7 +255,9 @@ export function ListingVideoCard({ propertyId }: { propertyId: string }) {
               : 'Upload walkthrough'}
         </Button>
         <span className="text-[11px] text-slate-500">
-          MP4, up to {propertyVideoMaxMegabytes(videoMaxBytes)} MB
+          {videoMaxBytes
+            ? `MP4, up to ${propertyVideoMaxMegabytes(videoMaxBytes)} MB`
+            : 'MP4 — limit checked for your plan'}
         </span>
         <input
           ref={fileInputRef}

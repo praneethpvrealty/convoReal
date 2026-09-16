@@ -13,6 +13,7 @@ import {
   type PropertyVideoUploadSession,
   uploadPropertyVideoResumable,
 } from '@/lib/property-video-upload';
+import { propertyVideoLimitCopy } from '@/lib/property-video';
 import { storagePublicUrl } from '@/lib/storage-url';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import type { Property } from '@/lib/types';
@@ -27,8 +28,6 @@ type VideoState = Pick<
   | 'youtube_error'
 >;
 
-const STARTER_VIDEO_MAX_BYTES = 16 * 1024 * 1024;
-
 export function PropertyVideoEditor({
   propertyId,
   initialState,
@@ -41,7 +40,7 @@ export function PropertyVideoEditor({
   const [state, setState] = useState(initialState);
   const [busy, setBusy] = useState<'upload' | 'remove' | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
-  const [videoMaxBytes, setVideoMaxBytes] = useState(STARTER_VIDEO_MAX_BYTES);
+  const [videoMaxBytes, setVideoMaxBytes] = useState<number | null>(null);
 
   useEffect(() => {
     apiFetch<{ maxBytes: number }>(`/api/properties/${propertyId}/video-upload`)
@@ -107,14 +106,6 @@ export function PropertyVideoEditor({
       });
       return;
     }
-    if (selectedSize > videoMaxBytes) {
-      show({
-        title: 'Video too large',
-        message: `Maximum size is ${Math.round(videoMaxBytes / (1024 * 1024))} MB.`,
-      });
-      return;
-    }
-
     setBusy('upload');
     setUploadProgress(0);
     haptic.tap();
@@ -246,7 +237,7 @@ export function PropertyVideoEditor({
                 ? 'Saved to YouTube and the property showcase'
                 : ready
                   ? 'Shown in the property showcase'
-                  : `Upload one MP4 up to ${Math.round(videoMaxBytes / (1024 * 1024))} MB`}
+                  : propertyVideoLimitCopy(videoMaxBytes)}
           </Text>
         </View>
         {ready ? (
