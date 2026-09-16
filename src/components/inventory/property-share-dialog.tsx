@@ -62,7 +62,10 @@ import {
   type InquiredProperty,
 } from '@/lib/contacts/inquired-properties';
 import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
-import { pickShareDialogTemplate } from '@/lib/whatsapp/property-share-template';
+import {
+  pickShareDialogTemplate,
+  propertyShareMapUrl,
+} from '@/lib/whatsapp/property-share-template';
 import {
   buildPropertyShareMessage,
   buildShareTargets,
@@ -1107,6 +1110,13 @@ export function PropertyShareDialog({
     return [...new Set(matches)].sort();
   }, [selectedTemplate]);
 
+  const hasDedicatedMapVariable = useMemo(
+    () => Boolean(selectedTemplate?.body_text.split(/\\n|\r?\n/).some(
+      (line) => /map/i.test(line) && /\{\{\d+\}\}/.test(line),
+    )),
+    [selectedTemplate],
+  );
+
   // Synchronize broadcast image when template is selected
   useEffect(() => {
     if (property) {
@@ -1135,6 +1145,10 @@ export function PropertyShareDialog({
           if (lowerLine.includes('hi ') || lowerLine.includes('hello ') || lowerLine.includes('dear ')) {
             guessedType = 'field';
             guessedValue = 'name';
+            resolved = true;
+          } else if (lowerLine.includes('map')) {
+            guessedType = 'static';
+            guessedValue = 'map';
             resolved = true;
           } else if (lowerLine.includes('location') || lowerLine.includes('address') || lowerLine.includes('📍')) {
             guessedType = 'static';
@@ -1242,6 +1256,7 @@ export function PropertyShareDialog({
     try {
       const selectedContacts = contacts.filter((c) => selectedContactIds.includes(c.id));
       const guarded = isLocationGuarded(property);
+      const mapUrl = propertyShareMapUrl(property);
       const fullLoc = [
         guarded ? '' : property.location.trim(),
         (property.sublocality || '').trim(),
@@ -1270,9 +1285,12 @@ export function PropertyShareDialog({
               else if (mapping.value === 'location') {
                 const locVal = property.sublocality || fullLoc || '';
                 val =
-                  property.google_map_link && !guarded
-                    ? `${locVal}\n🗺️ Google Maps Link: ${property.google_map_link}`
+                  mapUrl && !hasDedicatedMapVariable
+                    ? `${locVal} | Google Maps: ${mapUrl}`
                     : locVal;
+              }
+              else if (mapping.value === 'map') {
+                val = mapUrl || 'Available on request';
               }
               else if (mapping.value === 'area') {
                 const isLand = property.type.includes('Land') || property.type.includes('Plot');
@@ -2875,6 +2893,7 @@ export function PropertyShareDialog({
                                 <option value="static-title">Property Title</option>
                                 <option value="static-price">Price (Formatted)</option>
                                 <option value="static-location">Location / Area</option>
+                                <option value="static-map">Google Maps Link</option>
                                 <option value="static-area">Property Area / Size</option>
                                 <option value="static-highlights">Highlights / Amenities</option>
                                 <option value="static-agent">Agent Name</option>
@@ -2926,14 +2945,18 @@ export function PropertyShareDialog({
                               else if (mapping.value === 'price') val = formattedPrice || `[Price]`;
                               else if (mapping.value === 'location') {
                                 const guarded = isLocationGuarded(property);
+                                const mapUrl = propertyShareMapUrl(property);
                                 const locVal =
                                   property.sublocality ||
                                   (guarded ? localityLabel(property) : property.location) ||
                                   `[Location]`;
                                 val =
-                                  property.google_map_link && !guarded
-                                    ? `${locVal}\n🗺️ Google Maps Link: ${property.google_map_link}`
+                                  mapUrl && !hasDedicatedMapVariable
+                                    ? `${locVal} | Google Maps: ${mapUrl}`
                                     : locVal;
+                              }
+                              else if (mapping.value === 'map') {
+                                val = propertyShareMapUrl(property) || 'Available on request';
                               }
                               else if (mapping.value === 'area') {
                                 const isLand = property.type.includes('Land') || property.type.includes('Plot');

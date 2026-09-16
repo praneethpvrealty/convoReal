@@ -8,11 +8,13 @@ import {
   firstPropertyImage,
   pickPropertyShareTemplate,
   pickShareDialogTemplate,
+  propertyShareMapUrl,
   propertyShareParams,
   shareHeaderImage,
 } from './property-share-template';
 import { PROPERTY_ALERT_TEMPLATE_NAME } from './property-alert-template';
 import { PROPERTY_ENQUIRY_PHOTOS_TEMPLATE_NAME } from './property-enquiry-photos-template';
+import type { Property } from '@/types';
 
 const row = (name: string, category = 'Utility', status = 'APPROVED') => ({
   name,
@@ -200,14 +202,21 @@ describe('propertyShareParams', () => {
     area_sqft: 1779,
     sublocality: 'Hoodi',
     city: 'Bangalore',
-  } as never;
+    type: 'Apartment',
+    google_map_link: 'https://maps.app.goo.gl/example',
+  } as unknown as Property;
 
-  it('signs the current names with the brokerage as {{2}}', () => {
-    for (const name of [PHOTOS, TEXT]) {
-      const params = propertyShareParams(name, 'Gopi Krishnan', property, 'Aryavarta Ventures');
-      expect(params, name).toHaveLength(5);
-      expect(params[1], name).toBe('Aryavarta Ventures');
-    }
+  it('gives the current photo template a dedicated map parameter', () => {
+    const params = propertyShareParams(PHOTOS, 'Gopi Krishnan', property, 'Aryavarta Ventures');
+    expect(params).toHaveLength(6);
+    expect(params[1]).toBe('Aryavarta Ventures');
+    expect(params[5]).toBe('https://maps.app.goo.gl/example');
+  });
+
+  it('folds the map into the approved text template location immediately', () => {
+    const params = propertyShareParams(TEXT, 'Gopi Krishnan', property, 'Aryavarta Ventures');
+    expect(params).toHaveLength(5);
+    expect(params[4]).toContain('Google Maps: https://maps.app.goo.gl/example');
   });
 
   it('drops the brokerage for every predecessor', () => {
@@ -241,11 +250,26 @@ describe('propertyShareParams', () => {
   });
 
   it('never returns an empty param on either shape', () => {
-    const bare = { id: 'p', title: ' ', price: 0 } as never;
+    const bare = { id: 'p', title: ' ', price: 0, type: 'Apartment' } as never;
     for (const name of [TEXT, 'property_enquiry_response']) {
       for (const p of propertyShareParams(name, undefined, bare, null)) {
         expect(p.length, name).toBeGreaterThan(0);
       }
     }
+  });
+
+  it('does not expose a guarded property map in any template shape', () => {
+    const guarded = {
+      ...property,
+      type: 'Residential House',
+      location_privacy: 'locality',
+    } as Property;
+    expect(propertyShareMapUrl(guarded)).toBeNull();
+    expect(propertyShareParams(PHOTOS, 'Gopi', guarded, 'Aryavarta')[5]).toBe(
+      'Available on request',
+    );
+    expect(propertyShareParams(TEXT, 'Gopi', guarded, 'Aryavarta')[4]).not.toContain(
+      'maps.app.goo.gl',
+    );
   });
 });

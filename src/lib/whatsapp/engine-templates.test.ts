@@ -13,7 +13,7 @@ describe('missingEngineTemplates', () => {
     expect(missing.map((t) => t.name)).toEqual([
       'property_requirement_review',
       'listing_details_notice',
-      'listing_photos_notice',
+      'listing_photos_map_notice',
       'location_consent_request',
       'location_owner_decision',
       'property_selection_update',
@@ -33,7 +33,7 @@ describe('missingEngineTemplates', () => {
     // sending, its URL button just carries the dashboard host.
     expect(
       missingEngineTemplates(['property_enquiry_gallery']).map((t) => t.name)
-    ).toContain('listing_photos_notice');
+    ).toContain('listing_photos_map_notice');
   });
 
   it('offers the branded property-details template to an account still on the old one', () => {

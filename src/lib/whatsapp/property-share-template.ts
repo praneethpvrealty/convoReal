@@ -31,23 +31,30 @@ import type { ApprovedTemplateCandidate } from '@/lib/whatsapp/pick-approved-tem
 import { narrowToLanguage } from '@/lib/whatsapp/template-language';
 import type { LanguageCode } from '@/lib/languages';
 import { buildPropertyAlertParams } from '@/lib/whatsapp/property-alert-template';
+import { isLocationGuarded } from '@/lib/inventory/location-guard';
+import { propertyMapPin } from '@/lib/maps/map-links';
 import type { Property } from '@/types';
 
-/** Names whose body carries the brokerage as {{2}}. Everything older
- *  has four params and Meta rejects a send that hands it five. */
+/** Five-param revisions whose body carries the brokerage as {{2}}.
+ *  The current photo revision has a sixth map param and is handled
+ *  separately; older unsigned rows have four params. */
 const SIGNED_TEMPLATE_NAMES = new Set([
   PROPERTY_ALERT_TEMPLATE_NAMES[0],
-  PROPERTY_ENQUIRY_PHOTOS_TEMPLATE_NAMES[0],
+  'listing_photos_notice',
 ]);
+
+export function propertyShareMapUrl(property: Property): string | null {
+  if (isLocationGuarded(property)) return null;
+  return propertyMapPin(property)?.mapUrl ?? null;
+}
 
 /**
  * The body params for whichever template was picked.
  *
- * The signed revisions name the brokerage in their opening line; their
- * predecessors, all still approved and still sending, do not. Meta
- * rejects a send whose param count does not match the template, so the
- * count follows the NAME rather than what the caller would prefer to
- * send.
+ * The current photo revision carries a dedicated map variable. Its
+ * approved predecessors fold the same URL into their existing Location
+ * parameter so the fix works during review. Meta rejects a send whose
+ * param count does not match the template, so the count follows NAME.
  */
 export function propertyShareParams(
   templateName: string,
@@ -56,9 +63,15 @@ export function propertyShareParams(
   brandName?: string | null,
 ): string[] {
   const full = buildPropertyAlertParams(contactName, property, brandName);
+  const mapUrl = propertyShareMapUrl(property);
+  if (templateName === PROPERTY_ENQUIRY_PHOTOS_TEMPLATE_NAMES[0]) {
+    return [...full, mapUrl || 'Available on request'];
+  }
+
+  const location = mapUrl ? `${full[4]} | Google Maps: ${mapUrl}` : full[4];
   return SIGNED_TEMPLATE_NAMES.has(templateName)
-    ? [...full]
-    : [full[0], full[2], full[3], full[4]];
+    ? [full[0], full[1], full[2], full[3], location]
+    : [full[0], full[2], full[3], location];
 }
 
 /** Every name a property share might send under — the `.in()` list for
