@@ -322,6 +322,16 @@
             }
           ],
           "guards": [".github/workflows/eas-update.yml"]
+        },
+        {
+          "id": "PRP-006",
+          "rule": "When a buyer-visible property status changes, every interested or previously shared contact is told the exact new status; Under Contract is never described as Sold, while internal moderation statuses are not broadcast.",
+          "tests": [
+            {
+              "file": "src/lib/whatsapp/sold-notification.test.ts",
+              "case": "property status notifications"
+            }
+          ]
         }
       ]
     },

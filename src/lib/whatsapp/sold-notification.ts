@@ -21,7 +21,10 @@ import { buildMetaTemplatePayload } from '@/lib/whatsapp/template-components';
 import { normalizeStatus } from '@/lib/whatsapp/template-status-normalize';
 import { truncateParametersToBudget } from '@/lib/whatsapp/template-send-builder';
 import {
+  PROPERTY_STATUS_UPDATE_TEMPLATE_NAME,
   SOLD_UPDATE_TEMPLATE_NAME,
+  buildPropertyStatusUpdateParams,
+  buildPropertyStatusUpdateTemplatePayload,
   buildSoldUpdateTemplatePayload,
   buildSoldUpdateParams,
 } from '@/lib/whatsapp/sold-update-template';
@@ -30,13 +33,54 @@ import type { MessageTemplate } from '@/types';
 export const SOLD_PRICE_BUTTON_PREFIX = 'sold_price:';
 export const SOLD_SIMILAR_BUTTON_PREFIX = 'sold_similar:';
 
+export const BUYER_VISIBLE_PROPERTY_STATUSES = [
+  'Available',
+  'Under Contract',
+  'Sold',
+  'Archived',
+  'Off Market',
+] as const;
+
+export type BuyerVisiblePropertyStatus =
+  (typeof BUYER_VISIBLE_PROPERTY_STATUSES)[number];
+
 const SESSION_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 export function buildSoldNotificationBody(title: string): string {
+  return buildPropertyStatusNotificationBody(title, 'Sold');
+}
+
+const STATUS_DETAILS: Record<BuyerVisiblePropertyStatus, string> = {
+  Available: 'This property is available again.',
+  'Under Contract':
+    'This property is now under contract. It may become available again if the transaction does not proceed.',
+  Sold: 'This property is no longer available — it has been sold.',
+  Archived: 'This listing has been archived and is no longer active.',
+  'Off Market': 'This property has been taken off the market and is not currently available.',
+};
+
+export function shouldNotifyBuyersOfPropertyStatus(
+  previousStatus: string | null | undefined,
+  nextStatus: unknown
+): nextStatus is BuyerVisiblePropertyStatus {
+  return (
+    typeof nextStatus === 'string' &&
+    nextStatus !== previousStatus &&
+    BUYER_VISIBLE_PROPERTY_STATUSES.includes(
+      nextStatus as BuyerVisiblePropertyStatus
+    )
+  );
+}
+
+export function buildPropertyStatusNotificationBody(
+  title: string,
+  status: BuyerVisiblePropertyStatus
+): string {
   return (
     `🔔 *Update on a property you showed interest in*\n\n` +
     `*${title}*\n\n` +
-    `This property is no longer available — it has been sold.`
+    `*New status:* ${status}\n` +
+    STATUS_DETAILS[status]
   );
 }
 
@@ -103,22 +147,26 @@ function resolveTemplateBodyText(bodyTemplateText: string, params: string[]): st
 }
 
 /**
- * Returns the APPROVED property_sold_update template for the account, or
- * null when it isn't usable yet. When the account has no row for it at
- * all, auto-submits the predefined payload to Meta (fire-once seeding —
- * the first sale creates it, later sales send through it once approved).
- * PENDING/REJECTED/DRAFT rows are left alone so a rejection never loops.
+ * Returns the approved template for this status, or null when it is not
+ * usable yet. When the account has no row for it, auto-submits the
+ * predefined payload to Meta. Pending, rejected and draft rows are left
+ * alone so a rejection never loops.
  */
-async function ensureSoldUpdateTemplate(
-  accountId: string
+async function ensureStatusUpdateTemplate(
+  accountId: string,
+  status: BuyerVisiblePropertyStatus
 ): Promise<MessageTemplate | null> {
   const db = supabaseAdmin();
+  const templateName =
+    status === 'Sold'
+      ? SOLD_UPDATE_TEMPLATE_NAME
+      : PROPERTY_STATUS_UPDATE_TEMPLATE_NAME;
 
   const { data: latestRow } = await db
     .from('message_templates')
     .select('*')
     .eq('account_id', accountId)
-    .eq('name', SOLD_UPDATE_TEMPLATE_NAME)
+    .eq('name', templateName)
     .order('last_submitted_at', { ascending: false, nullsFirst: false })
     .limit(1)
     .maybeSingle();
@@ -145,7 +193,10 @@ async function ensureSoldUpdateTemplate(
       .maybeSingle();
     if (!account?.owner_user_id) return null;
 
-    const payload = buildSoldUpdateTemplatePayload();
+    const payload =
+      status === 'Sold'
+        ? buildSoldUpdateTemplatePayload()
+        : buildPropertyStatusUpdateTemplatePayload();
     const meta = await submitMessageTemplate({
       wabaId: config.waba_id as string,
       accessToken: decrypt(config.access_token as string),
@@ -169,42 +220,45 @@ async function ensureSoldUpdateTemplate(
     });
 
     console.log(
-      `[sold-notification] auto-submitted ${SOLD_UPDATE_TEMPLATE_NAME} template for account ${accountId} (status ${meta.status})`
+      `[property-status-notification] auto-submitted ${templateName} template for account ${accountId} (status ${meta.status})`
     );
   } catch (err) {
-    console.error('[sold-notification] template auto-submit failed:', err);
+    console.error('[property-status-notification] template auto-submit failed:', err);
   }
-  // Freshly submitted templates are PENDING — usable on a later sale.
+  // Freshly submitted templates are PENDING — usable on a later update.
   return null;
 }
 
 /**
  * Notifies every contact who showed interest in a property — or was sent
- * it over WhatsApp — that it has been sold, with buttons to check the
- * sold price or see similar listings. Interest sources: the inventory
+ * it over WhatsApp — when its buyer-visible lifecycle status changes.
+ * Sold notices can reveal the sold price; every status can find similar
+ * listings. Interest sources: the inventory
  * form's interested-contacts links (contacts.last_inquired_property_id),
  * showcase inquiries (contact_property_inquiries), and the WhatsApp
  * share ledger (property_shares).
  *
- * Template-first delivery: contacts almost never have an open 24-hour
- * service window when a listing sells, so the pre-approved
- * property_sold_update template is the default path (its quick-reply
- * payloads route taps exactly like the free-form buttons). An open
+ * Template-first delivery: contacts may not have an open 24-hour service
+ * window when a listing changes, so the applicable pre-approved template
+ * is the default path. Its quick-reply payloads route taps exactly like
+ * the free-form buttons. An open
  * window upgrades the send to the free-form interactive message. With
  * the window closed and no approved template, the contact is skipped —
  * and the template is auto-submitted for next time.
  */
-export async function notifyBuyersOfSoldProperty(
+export async function notifyBuyersOfPropertyStatus(
   accountId: string,
-  propertyId: string
+  propertyId: string,
+  status: BuyerVisiblePropertyStatus
 ): Promise<{ notified: number; viaTemplate: number; skipped: number; audience: number }> {
   const db = supabaseAdmin();
 
   const { data: property } = await db
     .from('properties')
-    .select('id, title, owner_contact_id')
+    .select('id, title, owner_contact_id, status')
     .eq('id', propertyId)
     .eq('account_id', accountId)
+    .eq('status', status)
     .maybeSingle();
 
   if (!property) return { notified: 0, viaTemplate: 0, skipped: 0, audience: 0 };
@@ -238,7 +292,7 @@ export async function notifyBuyersOfSoldProperty(
 
   if (audience.length === 0) return { notified: 0, viaTemplate: 0, skipped: 0, audience: 0 };
 
-  const template = await ensureSoldUpdateTemplate(accountId);
+  const template = await ensureStatusUpdateTemplate(accountId, status);
 
   const { data: contactRows } = await db
     .from('contacts')
@@ -252,11 +306,11 @@ export async function notifyBuyersOfSoldProperty(
     ((contactRows ?? []) as ContactLite[]).map((c) => [c.id, c.name])
   );
 
-  // Every language variant of the sold template, plus the account
+  // Every language variant of the applicable template, plus the account
   // fallback — read once, then picked per recipient below. The audience
-  // for one sale spans owner, enquirers and everyone the listing was
+  // for one update spans owner, enquirers and everyone the listing was
   // shared with, who do not share a language.
-  const { data: soldVariants } = template
+  const { data: statusVariants } = template
     ? await db
         .from('message_templates')
         .select('*')
@@ -267,11 +321,14 @@ export async function notifyBuyersOfSoldProperty(
   const accountLanguage = await accountDefaultLanguage(db, accountId);
 
   const title = (property.title as string) || 'Property';
-  const body = buildSoldNotificationBody(title);
-  const buttons = [
-    { id: `${SOLD_PRICE_BUTTON_PREFIX}${propertyId}`, title: 'Check sold price' },
-    { id: `${SOLD_SIMILAR_BUTTON_PREFIX}${propertyId}`, title: 'Find similar' },
-  ];
+  const body = buildPropertyStatusNotificationBody(title, status);
+  const buttons =
+    status === 'Sold'
+      ? [
+          { id: `${SOLD_PRICE_BUTTON_PREFIX}${propertyId}`, title: 'Check sold price' },
+          { id: `${SOLD_SIMILAR_BUTTON_PREFIX}${propertyId}`, title: 'Find similar' },
+        ]
+      : [{ id: `${SOLD_SIMILAR_BUTTON_PREFIX}${propertyId}`, title: 'Find similar' }];
 
   let notified = 0;
   let viaTemplate = 0;
@@ -305,16 +362,23 @@ export async function notifyBuyersOfSoldProperty(
     );
     const localised =
       pickTemplateForLanguage(
-        (soldVariants ?? []) as MessageTemplate[],
+        (statusVariants ?? []) as MessageTemplate[],
         language
       ) ?? template;
     if (isLanguageFallback(localised, language)) {
-      warnLanguageFallback('sold-notification', accountId, language, localised);
+      warnLanguageFallback('property-status-notification', accountId, language, localised);
     }
 
     const bodyParams = truncateParametersToBudget(
       localised.body_text,
-      buildSoldUpdateParams(nameById.get(contactId) ?? null, title)
+      status === 'Sold'
+        ? buildSoldUpdateParams(nameById.get(contactId) ?? null, title)
+        : buildPropertyStatusUpdateParams(
+            nameById.get(contactId) ?? null,
+            title,
+            status,
+            STATUS_DETAILS[status]
+          )
     );
     const result = await sendWhatsAppMessageAndPersist({
       accountId,
@@ -326,15 +390,18 @@ export async function notifyBuyersOfSoldProperty(
       templateParams: bodyParams,
       messageParams: {
         body: bodyParams,
-        // Quick-reply payloads — a tap routes through the same
-        // sold_price:/sold_similar: handlers as the free-form buttons.
-        buttonParams: {
-          0: `${SOLD_PRICE_BUTTON_PREFIX}${propertyId}`,
-          1: `${SOLD_SIMILAR_BUTTON_PREFIX}${propertyId}`,
-        },
+        // Quick-reply payloads route through the same handlers as the
+        // free-form buttons.
+        buttonParams:
+          status === 'Sold'
+            ? {
+                0: `${SOLD_PRICE_BUTTON_PREFIX}${propertyId}`,
+                1: `${SOLD_SIMILAR_BUTTON_PREFIX}${propertyId}`,
+              }
+            : { 0: `${SOLD_SIMILAR_BUTTON_PREFIX}${propertyId}` },
       },
       templateRow: localised,
-      text: resolveTemplateBodyText(template.body_text, bodyParams),
+      text: resolveTemplateBodyText(localised.body_text, bodyParams),
     });
     if (result.success) {
       notified++;
@@ -343,8 +410,12 @@ export async function notifyBuyersOfSoldProperty(
   }
 
   console.log(
-    `[sold-notification] property ${propertyId}: notified ${notified}/${audience.length} ` +
+    `[property-status-notification] property ${propertyId} → ${status}: notified ${notified}/${audience.length} ` +
       `(${viaTemplate} via template, ${skipped} skipped — window closed, template not approved yet)`
   );
   return { notified, viaTemplate, skipped, audience: audience.length };
+}
+
+export function notifyBuyersOfSoldProperty(accountId: string, propertyId: string) {
+  return notifyBuyersOfPropertyStatus(accountId, propertyId, 'Sold');
 }

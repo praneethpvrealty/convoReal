@@ -2,6 +2,9 @@ import { describe, it, expect } from 'vitest';
 import {
   buildSoldUpdateTemplatePayload,
   buildSoldUpdateParams,
+  buildPropertyStatusUpdateParams,
+  buildPropertyStatusUpdateTemplatePayload,
+  PROPERTY_STATUS_UPDATE_TEMPLATE_NAME,
   SOLD_UPDATE_TEMPLATE_NAME,
 } from './sold-update-template';
 import { validateTemplatePayload } from './template-validators';
@@ -26,6 +29,33 @@ describe('buildSoldUpdateTemplatePayload', () => {
     expect(payload.body_text).toContain('{{1}}');
     expect(payload.body_text).toContain('{{2}}');
     expect(payload.sample_values?.body).toHaveLength(2);
+  });
+});
+
+describe('buildPropertyStatusUpdateTemplatePayload', () => {
+  it('passes validation and keeps the status dynamic', () => {
+    const payload = buildPropertyStatusUpdateTemplatePayload();
+    expect(() => validateTemplatePayload(payload)).not.toThrow();
+    expect(payload.name).toBe(PROPERTY_STATUS_UPDATE_TEMPLATE_NAME);
+    expect(payload.body_text).toContain('{{3}}');
+    expect(payload.body_text).toContain('{{4}}');
+    expect(payload.buttons).toEqual([{ type: 'QUICK_REPLY', text: 'Find similar' }]);
+  });
+
+  it('builds name, property, status and detail params', () => {
+    expect(
+      buildPropertyStatusUpdateParams(
+        'Gopi',
+        'JP Nagar Plot',
+        'Under Contract',
+        'It may become available again.'
+      )
+    ).toEqual([
+      'Gopi',
+      'JP Nagar Plot',
+      'Under Contract',
+      'It may become available again.',
+    ]);
   });
 });
 
