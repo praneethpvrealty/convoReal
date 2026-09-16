@@ -63,10 +63,10 @@ export function LeadBot({
   const threadRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    threadRef.current?.scrollTo({
-      top: threadRef.current.scrollHeight,
-      behavior: 'smooth',
-    });
+    const thread = threadRef.current;
+    if (thread && typeof thread.scrollTo === 'function') {
+      thread.scrollTo({ top: thread.scrollHeight, behavior: 'smooth' });
+    }
   }, [messages, loading, chips]);
 
   function submit(e: React.FormEvent) {
