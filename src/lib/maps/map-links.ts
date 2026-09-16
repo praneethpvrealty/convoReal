@@ -123,11 +123,21 @@ export function extractMapLinkFromText(text: string | null | undefined): string 
   return coords ? googleMapsUrlForCoordinates(coords.latitude, coords.longitude) : null;
 }
 
-/** Reads the place name embedded in a canonical `/maps/place/<name>` URL. */
+/** Reads the place/address embedded in a canonical Maps URL. */
 export function extractPlaceNameFromMapUrl(url: string): string | null {
   const placeMatch = url.match(/\/maps\/place\/([^/@?]+)/);
-  if (!placeMatch) return null;
-  const placeName = decodeURIComponent(placeMatch[1].replace(/\+/g, " ")).trim();
+  let placeName: string | null = null;
+  if (placeMatch) {
+    placeName = decodeURIComponent(placeMatch[1].replace(/\+/g, " ")).trim();
+  } else {
+    try {
+      const parsed = new URL(url);
+      placeName = parsed.searchParams.get("query") || parsed.searchParams.get("q");
+      placeName = placeName?.replace(/\+/g, " ").trim() || null;
+    } catch {
+      placeName = null;
+    }
+  }
   // Guard against a bare coordinate pair, a plus code, or an empty
   // segment slipping through as a "place name".
   if (!placeName || parseCoordinatePair(placeName)) return null;

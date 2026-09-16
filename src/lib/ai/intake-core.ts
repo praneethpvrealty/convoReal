@@ -39,9 +39,10 @@ export function deriveDraftStatus(isValid: boolean): DraftStatus {
  * sent as the location itself.
  *
  * A pin is the most precise thing a lister gives us, so when the draft
- * has no location of its own the pin's city/state win over the parser's
- * defaults; when the lister did type an address, only the gaps are
- * filled. Never throws — a failed or timed-out lookup just leaves the
+ * has no location of its own the pin supplies it. The typed address is
+ * preserved, while its structured locality/city/state are reconciled to
+ * the pin because those fields drive sharing and matching. Never throws
+ * — a failed or timed-out lookup just leaves the
  * draft as-is so it doesn't block the WhatsApp reply.
  */
 export async function backfillLocationFromMapLink(draft: ParsedPropertyDraft): Promise<ParsedPropertyDraft> {
@@ -63,9 +64,9 @@ export async function backfillLocationFromMapLink(draft: ParsedPropertyDraft): P
   return {
     ...draft,
     location: fromPin ? derived.location : draft.location,
-    sublocality: draft.sublocality || derived.sublocality,
-    city: fromPin ? derived.city || draft.city : draft.city || derived.city,
-    state: fromPin ? derived.state || draft.state : draft.state || derived.state,
+    sublocality: derived.sublocality || draft.sublocality,
+    city: derived.city || draft.city,
+    state: derived.state || draft.state,
     latitude: draft.latitude ?? derived.latitude,
     longitude: draft.longitude ?? derived.longitude,
     google_map_link: draft.google_map_link || source,

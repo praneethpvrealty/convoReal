@@ -70,6 +70,14 @@ describe('extractPlaceNameFromMapUrl', () => {
     ).toBe('Jayanagar, Bengaluru, Karnataka');
   });
 
+  it('reads the textual address from a Maps q parameter', () => {
+    expect(
+      extractPlaceNameFromMapUrl(
+        'https://maps.google.com?q=NH+48,+Chennapalli,+Tamil+Nadu+635117,+India'
+      )
+    ).toBe('NH 48, Chennapalli, Tamil Nadu 635117, India');
+  });
+
   it('ignores coordinate pairs and plus codes posing as place names', () => {
     expect(
       extractPlaceNameFromMapUrl('https://www.google.com/maps/place/12.8669,77.5565483/@12.8,77.5,15z')
@@ -230,6 +238,57 @@ describe('resolveLocationFromGoogleMapLink', () => {
       longitude: 77.5565483,
     });
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('geocodes a textual address behind a short link before resolving its location parts', async () => {
+    process.env.GOOGLE_MAPS_API_KEY = 'test-key';
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce({
+        ok: true,
+        url: 'https://maps.google.com?q=NH+48,+Chennapalli,+Tamil+Nadu+635117,+India',
+        json: async () => ({}),
+      } as unknown as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        url: '',
+        json: async () => ({
+          status: 'OK',
+          results: [{
+            place_id: 'chennapalli',
+            formatted_address: 'NH 48, Chennapalli, Tamil Nadu 635117, India',
+            geometry: { location: { lat: 12.641, lng: 78.01 } },
+          }],
+        }),
+      } as unknown as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        url: '',
+        json: async () => ({
+          status: 'OK',
+          results: [{
+            place_id: 'chennapalli',
+            formatted_address: 'NH 48, Chennapalli, Tamil Nadu 635117, India',
+            address_components: [
+              { long_name: 'Chennapalli', types: ['locality'] },
+              { long_name: 'Tamil Nadu', types: ['administrative_area_level_1'] },
+            ],
+          }],
+        }),
+      } as unknown as Response);
+
+    const result = await resolveLocationFromGoogleMapLink(
+      'https://maps.app.goo.gl/Fhx2tTxkgThQziZQ9'
+    );
+
+    expect(result).toMatchObject({
+      location: 'NH 48, Chennapalli, Tamil Nadu 635117, India',
+      city: 'Chennapalli',
+      state: 'Tamil Nadu',
+      latitude: 12.641,
+      longitude: 78.01,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it('falls back to the embedded place name when geocoding yields nothing', async () => {

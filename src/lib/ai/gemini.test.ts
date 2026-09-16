@@ -236,6 +236,8 @@ Aryavarta Ventures`;
       );
 
       expect(draft.type).toBe('Commercial Plot');
+      expect(draft.city).toBeNull();
+      expect(draft.state).toBeNull();
     });
 
     it('handles property updates with landmarks and amenities', async () => {
