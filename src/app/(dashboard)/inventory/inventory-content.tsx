@@ -86,6 +86,8 @@ const EMPTY_BADGES: Record<string, PortalBadge[]> = {};
 const EMPTY_GATE_STATS: GateStatsMap = {};
 
 const EMPTY_COUNTS: Record<string, number> = {};
+const DEFAULT_NEAR_ME_RADIUS_KM = 5;
+const DEFAULT_LOCALITY_RADIUS_KM = 10;
 
 const EMPTY_STATS = {
   total: 0,
@@ -498,6 +500,7 @@ export default function InventoryPage() {
         setLocating(false);
         setPickedPlace(null);
         setLocationText('');
+        setRadiusKm(DEFAULT_NEAR_ME_RADIUS_KM);
         setNearMe({
           latitude: pos.coords.latitude,
           longitude: pos.coords.longitude,
@@ -1222,6 +1225,7 @@ export default function InventoryPage() {
                 setNearMe(null);
                 setPickedPlace(place);
                 setLocationText(place.name);
+                setRadiusKm(DEFAULT_LOCALITY_RADIUS_KM);
               }}
               placeholder="Filter by locality (Google Maps)"
             />
@@ -1439,6 +1443,7 @@ export default function InventoryPage() {
                     setNearMe(null);
                     setPickedPlace(place);
                     setLocationText(place.name);
+                    setRadiusKm(DEFAULT_LOCALITY_RADIUS_KM);
                   }}
                   placeholder="Filter by locality (Google Maps)"
                 />

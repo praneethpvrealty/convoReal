@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { usePropertySearch } from './property-search-store';
+import {
+  DEFAULT_LOCALITY_RADIUS_KM,
+  nearFromLocality,
+  usePropertySearch,
+} from './property-search-store';
 
 beforeEach(() => {
   usePropertySearch.setState({ near: null, locations: [] });
@@ -36,5 +40,21 @@ describe('property location filters', () => {
 
     usePropertySearch.getState().addLocation('Indiranagar');
     expect(usePropertySearch.getState().near).toBeNull();
+  });
+
+  it('[PRP-003] gives picked localities a corridor-friendly nearby radius', () => {
+    expect(
+      nearFromLocality({
+        place_id: 'bannerghatta',
+        label: 'Bannerghatta',
+        latitude: 12.8001,
+        longitude: 77.577,
+      })
+    ).toMatchObject({
+      place_id: 'bannerghatta',
+      label: 'Bannerghatta',
+      radiusKm: DEFAULT_LOCALITY_RADIUS_KM,
+    });
+    expect(DEFAULT_LOCALITY_RADIUS_KM).toBe(10);
   });
 });

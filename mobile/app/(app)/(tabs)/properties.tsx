@@ -22,7 +22,6 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-
 import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { GateRequestsSheet } from '@/components/gate-requests-sheet';
@@ -529,11 +528,11 @@ export default function PropertiesScreen() {
                   ? `None of your listings are within ${near.radiusKm} km of ${near.label}.`
                   : locations.length > 0
                     ? `No listings match ${locations.join(', ')}. Remove the location chip or include unavailable listings.`
-                  : activePropertyFilterCount(filters) > 0
-                    ? 'No listing matches every filter. Loosen one from the Filters chip.'
-                    : debounced || listing !== 'All'
-                      ? 'No listings match this search and filter. Same engine as the web inventory — areas, budgets and BHK counts only match what you actually have.'
-                      : 'Add properties from the web app or by messaging your WhatsApp lister.'
+                    : activePropertyFilterCount(filters) > 0
+                      ? 'No listing matches every filter. Loosen one from the Filters chip.'
+                      : debounced || listing !== 'All'
+                        ? 'No listings match this search and filter. Same engine as the web inventory — areas, budgets and BHK counts only match what you actually have.'
+                        : 'Add properties from the web app or by messaging your WhatsApp lister.'
               }
               action={
                 near && near.radiusKm < 25 ? (
@@ -753,9 +752,9 @@ function NearMeChip({
 
 /**
  * Search box that doubles as the web's LocalityAutocomplete: typing
- * queries /api/maps/autocomplete; picking a suggestion resolves
- * place-details and anchors a radius search. Free-text search still
- * works exactly as before (submit / just stop typing).
+ * queries /api/maps/autocomplete; tapping a suggestion resolves
+ * place-details and anchors a radius search. The trailing add button
+ * keeps the separate exact multi-location filter available.
  *
  * The panel floats over the results, so it closes whenever the keyboard
  * does — submit, a drag on the list, the Android back button — and it
@@ -794,6 +793,8 @@ function LocalitySearchBox() {
 
   async function pick(s: PlaceSuggestion) {
     haptic.tap();
+    setFocused(false);
+    Keyboard.dismiss();
     try {
       const { place } = await placeDetails(s.place_id, session.current);
       session.current = sessionToken(); // sessions are single-purchase
@@ -845,9 +846,18 @@ function LocalitySearchBox() {
               hitSlop={6}
               accessibilityRole="button"
               accessibilityLabel={`Remove ${location} location filter`}
-              style={[styles.locationChip, { backgroundColor: colors.primarySoft }]}
+              style={[
+                styles.locationChip,
+                { backgroundColor: colors.primarySoft },
+              ]}
             >
-              <Text style={{ fontSize: 12.5, fontFamily: f.semibold, color: colors.primary }}>
+              <Text
+                style={{
+                  fontSize: 12.5,
+                  fontFamily: f.semibold,
+                  color: colors.primary,
+                }}
+              >
                 {location}
               </Text>
               <Ionicons name="close" size={14} color={colors.primary} />
@@ -874,9 +884,9 @@ function LocalitySearchBox() {
               style={[styles.suggestionRow, { borderTopColor: colors.border }]}
             >
               <Pressable
-                onPress={() => add(s)}
+                onPress={() => pick(s)}
                 accessibilityRole="button"
-                accessibilityLabel={`Add ${s.main_text} location filter`}
+                accessibilityLabel={`Search near ${s.main_text}`}
                 style={styles.suggestionLocation}
               >
                 <Ionicons
@@ -905,16 +915,26 @@ function LocalitySearchBox() {
                 </View>
               </Pressable>
               <Pressable
-                onPress={() => pick(s)}
+                onPress={() => add(s)}
                 hitSlop={8}
                 accessibilityRole="button"
-                accessibilityLabel={`Search near ${s.main_text}`}
+                accessibilityLabel={`Add ${s.main_text} as an exact area filter`}
+                style={styles.suggestionAdd}
               >
                 <Ionicons
-                  name="navigate-outline"
-                  size={16}
-                  color={colors.textFaint}
+                  name="add-circle-outline"
+                  size={18}
+                  color={colors.primary}
                 />
+                <Text
+                  style={{
+                    fontSize: 11.5,
+                    fontFamily: f.semibold,
+                    color: colors.primary,
+                  }}
+                >
+                  Add
+                </Text>
               </Pressable>
             </View>
           ))}
@@ -1072,7 +1092,11 @@ function PropertyCard({
           accessibilityState={{ checked: selected }}
           style={[
             styles.shortlistBadge,
-            { backgroundColor: selected ? colors.primary : 'rgba(255,255,255,0.92)' },
+            {
+              backgroundColor: selected
+                ? colors.primary
+                : 'rgba(255,255,255,0.92)',
+            },
           ]}
         >
           <Ionicons
@@ -1267,8 +1291,25 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
-  suggestionLocation: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  locationChips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginTop: spacing.xs },
+  suggestionLocation: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  suggestionAdd: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingLeft: spacing.sm,
+  },
+  locationChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+    marginTop: spacing.xs,
+  },
   locationChip: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -8,6 +8,8 @@ import type { PickedLocality } from './types';
 
 export type ListingFilter = 'All' | 'Sale' | 'Rent' | 'JV/JD' | 'Built to Suit';
 
+export const DEFAULT_LOCALITY_RADIUS_KM = 10;
+
 /**
  * A near-search anchor: either a picked locality (autocomplete) or the
  * device's GPS fix ("Near me"). Feeds /api/properties `near_*` params.
@@ -59,20 +61,30 @@ export const usePropertySearch = create<PropertySearchState>((set) => ({
   addLocation: (label) =>
     set((state) => {
       const trimmed = label.trim();
-      if (!trimmed || state.locations.some((item) => item.toLowerCase() === trimmed.toLowerCase())) {
+      if (
+        !trimmed ||
+        state.locations.some(
+          (item) => item.toLowerCase() === trimmed.toLowerCase()
+        )
+      ) {
         return {};
       }
       return { locations: [...state.locations, trimmed], near: null };
     }),
   removeLocation: (label) =>
-    set((state) => ({ locations: state.locations.filter((item) => item !== label) })),
+    set((state) => ({
+      locations: state.locations.filter((item) => item !== label),
+    })),
   setRadius: (radiusKm) =>
     set((s) => (s.near ? { near: { ...s.near, radiusKm } } : {})),
   setIncludeUnavailable: (includeUnavailable) => set({ includeUnavailable }),
   setFilters: (filters) => set({ filters }),
 }));
 
-export function nearFromLocality(pick: PickedLocality, radiusKm = 5): NearAnchor {
+export function nearFromLocality(
+  pick: PickedLocality,
+  radiusKm = DEFAULT_LOCALITY_RADIUS_KM
+): NearAnchor {
   return {
     latitude: pick.latitude,
     longitude: pick.longitude,
