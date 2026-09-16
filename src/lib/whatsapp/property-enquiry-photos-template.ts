@@ -17,7 +17,7 @@ import {
 } from '@/lib/whatsapp/pick-approved-template';
 
 /**
- * Renamed once, for the same reason property_enquiry_info was:
+ * Renamed twice, without touching either approved predecessor:
  *
  *   property_enquiry_photos  → approved as Utility and still sending,
  *     but its URL button carries the DASHBOARD host, because the
@@ -31,11 +31,17 @@ import {
  * Meta classifies it Marketing it is simply never selected — see
  * pickPropertyPhotosTemplate. property_enquiry_info took exactly this
  * route and came back Utility with the subdomain intact.
+ *
+ *   listing_photos_notice → still approved and still sending, but its
+ *     five body variables have no dedicated map field. The map-aware
+ *     revision gets a fresh name so the working Utility row remains a
+ *     safe fallback throughout Meta review.
  */
-export const PROPERTY_ENQUIRY_PHOTOS_TEMPLATE_NAME = 'listing_photos_notice';
+export const PROPERTY_ENQUIRY_PHOTOS_TEMPLATE_NAME = 'listing_photos_map_notice';
 
 /** Earlier names, newest first. */
 export const LEGACY_PROPERTY_ENQUIRY_PHOTOS_TEMPLATE_NAMES = [
+  'listing_photos_notice',
   'property_enquiry_gallery',
   'property_enquiry_photos',
 ];
@@ -83,10 +89,10 @@ export function buildPropertyEnquiryPhotosTemplatePayload(
         example: '?property_id=abc&v=contact-id',
       },
     ],
-    // Body params {{1}}..{{5}} match buildPropertyAlertParams exactly
-    // (first name, brokerage, title, specs, locality), so both enquiry
-    // templates share one params builder — and propertyShareParams
-    // trims it for whichever predecessor is still sending.
+    // Body params {{1}}..{{6}} carry first name, brokerage, title,
+    // specs, locality and the map URL. propertyShareParams trims and
+    // folds the map into Location for approved predecessors while this
+    // revision is under review.
     sample_values: {
       body: [
         'Gopi',
@@ -94,6 +100,7 @@ export function buildPropertyEnquiryPhotosTemplatePayload(
         'Commercial Property for Sale in Hoodi, Bangalore',
         '₹32 Cr · 23,500 Sq.Ft.',
         'Hoodi, Bangalore',
+        'https://www.google.com/maps/search/?api=1&query=13.0108,77.7162',
       ],
     },
   };

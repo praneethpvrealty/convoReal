@@ -85,6 +85,7 @@ const PLACEHOLDER_MEANINGS: Record<EngineTemplateKey, string[]> = {
     'listing title',
     'price / size',
     'locality',
+    'Google Maps link',
   ],
   location_reveal: ['requester first name', 'listing title'],
   location_consent_request: [

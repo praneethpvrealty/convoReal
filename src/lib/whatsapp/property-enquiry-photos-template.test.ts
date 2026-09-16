@@ -37,14 +37,13 @@ describe('buildPropertyEnquiryPhotosTemplatePayload', () => {
     expect(payload.body_text).toMatch(/enquiry/i);
   });
 
-  it('uses the same {{1}}..{{4}} body params as property_enquiry_response', () => {
-    // Both enquiry templates share buildPropertyAlertParams — a param
-    // reorder in one without the other scrambles live sends.
+  it('adds the map after the shared property-detail params', () => {
     const photos = buildPropertyEnquiryPhotosTemplatePayload('https://www.convoreal.com');
     const details = buildPropertyAlertTemplatePayload('https://www.convoreal.com');
-    expect(photos.sample_values?.body).toEqual(details.sample_values?.body);
     const vars = (s: string) => [...s.matchAll(/\{\{(\d+)\}\}/g)].map((m) => m[1]).sort();
-    expect(vars(photos.body_text)).toEqual(vars(details.body_text));
+    expect(photos.sample_values?.body?.slice(0, 5)).toEqual(details.sample_values?.body);
+    expect(vars(photos.body_text)).toEqual(['1', '2', '3', '4', '5', '6']);
+    expect(photos.sample_values?.body?.[5]).toContain('google.com/maps');
   });
 
   it('orders the quick reply before the dynamic URL button', () => {

@@ -95,6 +95,8 @@ const PROPERTY = {
   listing_type: 'Sale',
   sublocality: 'HSR Layout Sector 2',
   city: 'Bangalore',
+  type: 'Commercial Office',
+  google_map_link: 'https://maps.app.goo.gl/example',
   images: [],
 };
 const APPROVED_TEMPLATE = {
@@ -218,7 +220,31 @@ describe('share-property — channel selection', () => {
       buttonParams: Record<number, string>;
     };
     expect(messageParams.body[0]).toBe('Rajath');
+    expect(messageParams.body[3]).toContain('Google Maps: https://maps.app.goo.gl/example');
     expect(messageParams.buttonParams[0]).toBe(`?property_id=${PROPERTY.id}&v=${CONTACT.id}`);
+  });
+
+  it('sends a dedicated map parameter with the new photo template', async () => {
+    primeLookups({ windowOpen: false });
+    ctxQueues.properties = [
+      { data: { ...PROPERTY, images: ['property-images/acc-1/front.jpg'] }, error: null },
+    ];
+    adminQueues.message_templates = [{
+      data: [{
+        ...APPROVED_TEMPLATE,
+        name: 'listing_photos_map_notice',
+        category: 'Utility',
+        header_type: 'image',
+        body_text: 'Hi {{1}}, from {{2}}. Property: {{3}} Details: {{4}} Location: {{5}} Google Maps: {{6}}',
+      }],
+      error: null,
+    }];
+
+    await POST(request(shareBody()));
+
+    const messageParams = dispatcherCalls[0].messageParams as { body: string[] };
+    expect(messageParams.body).toHaveLength(6);
+    expect(messageParams.body[5]).toBe('https://maps.app.goo.gl/example');
   });
 
   it('sends on the approved Utility row while the branded name is still under review', async () => {
