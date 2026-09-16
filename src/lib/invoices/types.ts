@@ -35,6 +35,25 @@ export const DEAL_DOCUMENT_CATEGORIES: ReadonlyArray<{
   { value: 'other', label: 'Other' },
 ];
 
+/** What the deal folder accepts. Must stay in step with the
+ *  `deal-documents` bucket's allowed_mime_types (migration
+ *  20260916041500) and with `mobile/lib/deal-documents.ts`. The Word and
+ *  Excel entries are what the retired `deal-invoices` bucket took: a
+ *  brokerage's own invoice is often an .xlsx workbook. */
+export const DEAL_DOCUMENT_MIME_TYPES = [
+  'application/pdf',
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/heic',
+  'image/heif',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-excel.sheet.macroenabled.12',
+] as const;
+
 export const INVOICE_STATUS_LABELS: Record<InvoiceStatus, string> = {
   draft: 'Draft',
   issued: 'Issued',

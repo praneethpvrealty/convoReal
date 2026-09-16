@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as DocumentPicker from 'expo-document-picker';
 import { File, Paths } from 'expo-file-system';
+import * as Linking from 'expo-linking';
 import * as Sharing from 'expo-sharing';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
@@ -32,6 +33,7 @@ import {
   createInvoice,
   deleteDealDocument,
   extractDocument,
+  fetchDealDocumentUrl,
   fetchDealDocuments,
   fetchInvoices,
   invoiceAction,
@@ -360,6 +362,20 @@ function DocumentsTab({ dealId }: { dealId: string }) {
     }
   }
 
+  async function openDocument(doc: DealDocumentRow) {
+    setBusy(`open:${doc.id}`);
+    try {
+      await Linking.openURL(await fetchDealDocumentUrl(dealId, doc.id));
+    } catch (err) {
+      dialog.show({
+        title: 'Could not open it',
+        message: friendlyError(errorText(err)),
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function read(doc: DealDocumentRow) {
     setBusy(doc.id);
     try {
@@ -452,6 +468,12 @@ function DocumentsTab({ dealId }: { dealId: string }) {
               </Text>
 
               <View style={styles.actions}>
+                <ActionButton
+                  label="Open"
+                  icon="open-outline"
+                  busy={busy === `open:${doc.id}`}
+                  onPress={() => openDocument(doc)}
+                />
                 {isReadable(doc.mime_type) && (
                   <ActionButton
                     label={doc.extracted ? 'Read again' : 'Read with AI'}

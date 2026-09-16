@@ -747,9 +747,6 @@ export interface Deal {
   brokerage_value?: number | null;
   brokerage_amount?: number | null;
   brokerage_paid_at?: string | null;
-  /** Brokerage paperwork. Written only by /api/deals/[id]/invoices;
-   *  read it through parseDealInvoices(). */
-  invoices?: unknown;
 }
 
 // ── Journey Mind Map (migration 131) ────────────────────────

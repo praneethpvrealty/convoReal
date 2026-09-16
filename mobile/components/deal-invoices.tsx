@@ -12,13 +12,18 @@ import {
 
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { SectionLabel } from '@/components/ui';
-import { apiFetch } from '@/lib/api';
 import {
-  INVOICE_MIME_TYPES,
-  invoiceRejection,
-  invoiceSizeLabel,
-  type DealInvoiceLink,
-} from '@/lib/deal-invoices';
+  DEAL_DOCUMENT_MIME_TYPES,
+  dealDocumentRejection,
+  documentSizeLabel,
+  type DealDocumentRow,
+} from '@/lib/deal-workspace';
+import {
+  deleteDealDocument,
+  fetchDealDocumentUrl,
+  fetchDealDocuments,
+  uploadDealDocument,
+} from '@/lib/deal-workspace-api';
 import { friendlyError } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
@@ -27,10 +32,10 @@ import { radius, spacing, useTheme } from '@/lib/theme';
 /**
  * Brokerage paperwork on the phone, mirroring the web's DealInvoices.
  *
- * The bucket is private, so unlike PropertyDocuments this never uploads
- * to storage directly: the file goes to /api/deals/[id]/invoices as
- * multipart and comes back with a short-lived signed link. Those links
- * expire, so the list is refetched rather than cached long.
+ * Invoice files are one category of the deal's document folder rather
+ * than a store of their own, so this reads and writes deal_documents.
+ * The bucket is private: nothing here holds a URL, and a link is minted
+ * per open and never cached.
  */
 export function DealInvoices({ dealId }: { dealId: string }) {
   const { colors, fonts: f } = useTheme();
@@ -38,14 +43,10 @@ export function DealInvoices({ dealId }: { dealId: string }) {
   const [removing, setRemoving] = useState<string | null>(null);
   const { show, close, dialogProps } = useAppDialog();
 
-  const queryKey = ['deal-invoices', dealId];
+  const queryKey = ['deal-documents', dealId, 'invoice'];
   const { data, isLoading } = useQuery({
     queryKey,
-    staleTime: 0,
-    queryFn: () =>
-      apiFetch<{ data: DealInvoiceLink[] }>(
-        `/api/deals/${dealId}/invoices`
-      ).then((res) => res.data ?? []),
+    queryFn: () => fetchDealDocuments(dealId, 'invoice'),
   });
   const invoices = data ?? [];
 
@@ -63,7 +64,7 @@ export function DealInvoices({ dealId }: { dealId: string }) {
       return;
     }
     const result = await DocumentPicker.getDocumentAsync({
-      type: [...INVOICE_MIME_TYPES],
+      type: [...DEAL_DOCUMENT_MIME_TYPES],
       copyToCacheDirectory: true,
     });
     if (result.canceled || !result.assets?.length) return;
@@ -72,7 +73,7 @@ export function DealInvoices({ dealId }: { dealId: string }) {
     // Some document providers report no size at all. Treating that as
     // zero rejected a perfectly good file as empty, so an unknown size
     // is left to the server, which measures the bytes it receives.
-    const rejection = invoiceRejection(mimeType, asset.size ?? null);
+    const rejection = dealDocumentRejection(mimeType, asset.size ?? null);
     if (rejection) {
       show({ title: 'Cannot attach that', message: rejection });
       return;
@@ -81,16 +82,15 @@ export function DealInvoices({ dealId }: { dealId: string }) {
     setBusy(true);
     haptic.tap();
     try {
-      const form = new FormData();
-      form.append('file', {
-        uri: asset.uri,
-        name: asset.name || 'invoice.pdf',
-        type: mimeType,
-      } as unknown as Blob);
-      await apiFetch(`/api/deals/${dealId}/invoices`, {
-        method: 'POST',
-        body: form,
-      });
+      await uploadDealDocument(
+        dealId,
+        {
+          uri: asset.uri,
+          name: asset.name || 'invoice.pdf',
+          mimeType,
+        },
+        'invoice'
+      );
       await queryClient.invalidateQueries({ queryKey });
       haptic.success();
     } catch (err) {
@@ -106,13 +106,23 @@ export function DealInvoices({ dealId }: { dealId: string }) {
     }
   }
 
-  async function remove(path: string) {
-    setRemoving(path);
+  async function open(doc: DealDocumentRow) {
     try {
-      await apiFetch(
-        `/api/deals/${dealId}/invoices?path=${encodeURIComponent(path)}`,
-        { method: 'DELETE' }
-      );
+      await Linking.openURL(await fetchDealDocumentUrl(dealId, doc.id));
+    } catch (err) {
+      show({
+        title: 'Could not open it',
+        message: friendlyError(
+          err instanceof Error ? err.message : String(err)
+        ),
+      });
+    }
+  }
+
+  async function remove(docId: string) {
+    setRemoving(docId);
+    try {
+      await deleteDealDocument(dealId, docId);
       await queryClient.invalidateQueries({ queryKey });
       haptic.success();
     } catch (err) {
@@ -128,10 +138,10 @@ export function DealInvoices({ dealId }: { dealId: string }) {
     }
   }
 
-  function confirmRemove(invoice: DealInvoiceLink) {
+  function confirmRemove(invoice: DealDocumentRow) {
     show({
       title: 'Remove this invoice?',
-      message: `“${invoice.name}” stops being attached to this deal, and the file is deleted.`,
+      message: `“${invoice.title}” stops being attached to this deal, and the file is deleted.`,
       actions: [
         { label: 'Cancel', variant: 'muted', onPress: close },
         {
@@ -139,7 +149,7 @@ export function DealInvoices({ dealId }: { dealId: string }) {
           variant: 'destructive',
           onPress: () => {
             close();
-            void remove(invoice.path);
+            void remove(invoice.id);
           },
         },
       ],
@@ -154,18 +164,16 @@ export function DealInvoices({ dealId }: { dealId: string }) {
         <ActivityIndicator size="small" color={colors.textFaint} />
       ) : invoices.length === 0 ? (
         <Text style={{ fontSize: 12.5, color: colors.textFaint }}>
-          No invoice attached yet. Add the brokerage invoice or its receipt.
+          No invoice attached yet. Add the brokerage invoice or its receipt — it
+          is filed in the deal&apos;s document folder.
         </Text>
       ) : (
         invoices.map((invoice) => (
           <Pressable
-            key={invoice.path}
-            onPress={() => {
-              if (invoice.url) void Linking.openURL(invoice.url);
-            }}
-            disabled={!invoice.url}
+            key={invoice.id}
+            onPress={() => void open(invoice)}
             accessibilityRole="button"
-            accessibilityLabel={`Open ${invoice.name}`}
+            accessibilityLabel={`Open ${invoice.title}`}
             style={[
               styles.row,
               {
@@ -174,11 +182,7 @@ export function DealInvoices({ dealId }: { dealId: string }) {
               },
             ]}
           >
-            <Ionicons
-              name="receipt-outline"
-              size={18}
-              color={colors.primary}
-            />
+            <Ionicons name="receipt-outline" size={18} color={colors.primary} />
             <Text
               numberOfLines={1}
               style={{
@@ -188,21 +192,21 @@ export function DealInvoices({ dealId }: { dealId: string }) {
                 color: colors.text,
               }}
             >
-              {invoice.name}
+              {invoice.title}
             </Text>
-            {invoice.size > 0 ? (
+            {(invoice.size_bytes ?? 0) > 0 ? (
               <Text style={{ fontSize: 11.5, color: colors.textFaint }}>
-                {invoiceSizeLabel(invoice.size)}
+                {documentSizeLabel(invoice.size_bytes ?? 0)}
               </Text>
             ) : null}
-            {removing === invoice.path ? (
+            {removing === invoice.id ? (
               <ActivityIndicator size="small" color={colors.textFaint} />
             ) : (
               <Pressable
                 onPress={() => confirmRemove(invoice)}
                 hitSlop={8}
                 accessibilityRole="button"
-                accessibilityLabel={`Remove ${invoice.name}`}
+                accessibilityLabel={`Remove ${invoice.title}`}
               >
                 <Ionicons name="close" size={17} color={colors.textFaint} />
               </Pressable>

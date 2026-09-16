@@ -171,7 +171,7 @@
         },
         {
           "id": "INV-005",
-          "rule": "A deal document is reachable only through an authenticated, account-scoped route that signs a short-lived URL. The deal-documents, invoices and signatures buckets are private and no listing ever returns an object URL.",
+          "rule": "A deal document is reachable only through an authenticated, account-scoped route that signs a short-lived URL. The deal-documents, generated-invoices and signatures buckets are private and no listing ever returns an object URL; the per-document route serves a redirect to the browser and the same signed link as JSON to the mobile app. Deleting a deal removes its stored objects, not only the rows that named them.",
           "tests": [
             {
               "file": "src/lib/invoices/server.test.ts",
@@ -191,6 +191,16 @@
             {
               "file": "src/lib/mobile-parity.test.ts",
               "case": "[INV-006]"
+            }
+          ]
+        },
+        {
+          "id": "INV-007",
+          "rule": "An invoice file attached to a deal has exactly one home: a deal_documents row with category 'invoice' in the deal-documents bucket. There is no second store, and the folder accepts every file type the retired one did — including Word and Excel, because a brokerage's own invoice is often a workbook. Web and mobile accept the same types.",
+          "tests": [
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[INV-007]"
             }
           ]
         }
