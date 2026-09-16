@@ -129,6 +129,38 @@ describe('applySchedulingEdit', () => {
     });
   });
 
+  it('[CAL-006] preserves the original time when a reply only corrects the event name', async () => {
+    rowByTable.appointments = appointment({
+      start_time: '2026-08-04T04:30:00.000Z',
+      end_time: '2026-08-04T05:30:00.000Z',
+    });
+    parseEventUpdate.mockResolvedValue({
+      intent: 'schedule',
+      title: 'Golden Anand regarding Varthur and Lotus Diagnostic building',
+      event_type: 'meeting',
+      start_time: '2026-08-04T04:30',
+      end_time: '2026-08-04T05:30',
+      duration_minutes: 60,
+      location: null,
+      priority: 'medium',
+      day_of_week: null,
+    });
+
+    expect(
+      await applySchedulingEdit({
+        ...params,
+        instruction: 'Golden Anand regarding Varthur and Lotus Diagnostic building',
+      })
+    ).toBe('edited');
+
+    const patch = updates.find((u) => u.table === 'appointments')!.patch;
+    expect(patch.title).toBe('Golden Anand regarding Varthur and Lotus Diagnostic building');
+    expect(patch).not.toHaveProperty('start_time');
+    expect(patch).not.toHaveProperty('end_time');
+    expect(patch).not.toHaveProperty('reminder_morning_sent');
+    expect(sendTextMessage.mock.calls[0][0].text).toContain('10:00 am');
+  });
+
   it('tells the user it was an update, not an add', async () => {
     await applySchedulingEdit(params);
     const sent = sendTextMessage.mock.calls[0][0].text as string;

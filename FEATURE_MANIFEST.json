@@ -85,6 +85,16 @@
               "case": "[CAL-005]"
             }
           ]
+        },
+        {
+          "id": "CAL-006",
+          "rule": "Correcting an appointment name, contact, property, or other non-time detail preserves its scheduled timestamp and reminder state.",
+          "tests": [
+            {
+              "file": "src/lib/calendar/scheduling-edit.test.ts",
+              "case": "[CAL-006]"
+            }
+          ]
         }
       ]
     },

@@ -479,6 +479,12 @@ function hasPropertyCorrection(text: string): boolean {
   return /\b(prop(?:erty)?[-\s#]*\d+|property|plot|site|house|home|apartment|flat|building|land|villa|layout)\b/i.test(text);
 }
 
+function hasScheduleTimeCorrection(text: string): boolean {
+  return /\b(today|tomorrow|tonight|morning|afternoon|evening|night|noon|midnight|day after tomorrow|next (?:week|month|mon|tue|wed|thu|fri|sat|sun)[a-z]*|this (?:mon|tue|wed|thu|fri|sat|sun)[a-z]*|(?:mon|tues|wednes|thurs|fri|satur|sun)day|\d{1,2}(?:st|nd|rd|th)?\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{1,2}(?:st|nd|rd|th)?|\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?|\d{1,2}(?::\d{2})?\s*(?:am|pm)|\d{1,2}:\d{2}|reschedul\w*|postpon\w*|change (?:the )?(?:date|time)|move (?:it|this|the (?:event|appointment|meeting|task))|shift (?:it|this|the (?:event|appointment|meeting|task)))\b/i.test(
+    text
+  );
+}
+
 /**
  * A quote-reply on a confirmation card ("change this to Monday 5pm").
  * Edits the row that card announced. Returns 'edited' when the row was
@@ -633,6 +639,8 @@ export async function applySchedulingEdit(
     (property) => `${property.property_code || ''} ${property.title || ''} ${property.location || ''} ${property.sublocality || ''}`
   );
   const propertyWasCorrected = hasPropertyCorrection(instruction);
+  const scheduleTimeWasCorrected = hasScheduleTimeCorrection(instruction);
+  const persistedStart = (row.start_time as string) ?? (row.due_date as string) ?? null;
 
   const patch: Record<string, unknown> =
     target.entityType === 'appointment'
@@ -642,7 +650,7 @@ export async function applySchedulingEdit(
           location: draft.location,
           ...(resolvedContact ? { contact_id: resolvedContact.id } : {}),
           ...(propertyWasCorrected ? { property_id: resolvedProperty?.id || null } : {}),
-          ...(startIso
+          ...(scheduleTimeWasCorrected && startIso
             ? {
                 start_time: startIso,
                 end_time: endIso || startIso,
@@ -659,7 +667,7 @@ export async function applySchedulingEdit(
       : {
           title: draft.title,
           priority: draft.priority,
-          ...(startIso ? { due_date: startIso } : {}),
+          ...(scheduleTimeWasCorrected && startIso ? { due_date: startIso } : {}),
         };
 
   const { error: updErr } = await admin
@@ -673,8 +681,9 @@ export async function applySchedulingEdit(
   }
 
   const emoji = EVENT_TYPE_EMOJI[draft.event_type] || '🗓';
-  const when = startIso
-    ? new Date(startIso).toLocaleString('en-IN', {
+  const displayedStart = scheduleTimeWasCorrected ? startIso : persistedStart;
+  const when = displayedStart
+    ? new Date(displayedStart).toLocaleString('en-IN', {
         timeZone: 'Asia/Kolkata',
         weekday: 'short',
         day: 'numeric',
