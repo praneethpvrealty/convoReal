@@ -1,17 +1,18 @@
 import { Ionicons } from '@expo/vector-icons';
+import { File } from 'expo-file-system';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { SectionLabel } from '@/components/ui';
 import { apiFetch, ApiError } from '@/lib/api';
-import {
-  attachmentFilename,
-  attachmentMimeType,
-  ATTACHMENT_SIZE_LIMITS,
-} from '@/lib/attachments';
+import { attachmentFilename, attachmentMimeType } from '@/lib/attachments';
 import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
+import {
+  type PropertyVideoUploadSession,
+  uploadPropertyVideoResumable,
+} from '@/lib/property-video-upload';
 import { storagePublicUrl } from '@/lib/storage-url';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import type { Property } from '@/lib/types';
@@ -26,6 +27,8 @@ type VideoState = Pick<
   | 'youtube_error'
 >;
 
+const STARTER_VIDEO_MAX_BYTES = 16 * 1024 * 1024;
+
 export function PropertyVideoEditor({
   propertyId,
   initialState,
@@ -37,6 +40,16 @@ export function PropertyVideoEditor({
   const { show, dialogProps } = useAppDialog();
   const [state, setState] = useState(initialState);
   const [busy, setBusy] = useState<'upload' | 'remove' | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [videoMaxBytes, setVideoMaxBytes] = useState(STARTER_VIDEO_MAX_BYTES);
+
+  useEffect(() => {
+    apiFetch<{ maxBytes: number }>(`/api/properties/${propertyId}/video-upload`)
+      .then((result) => {
+        if (Number.isFinite(result.maxBytes)) setVideoMaxBytes(result.maxBytes);
+      })
+      .catch(() => undefined);
+  }, [propertyId]);
 
   const ready = state.video_status === 'ready' && Boolean(state.video_url);
   const generated = ready && Boolean(state.video_generated_at);
@@ -79,6 +92,7 @@ export function PropertyVideoEditor({
       asset.mimeType,
       asset.fileName ?? asset.uri
     );
+    const selectedSize = asset.fileSize ?? new File(asset.uri).size;
     if (mimeType !== 'video/mp4') {
       show({
         title: 'MP4 required',
@@ -86,24 +100,48 @@ export function PropertyVideoEditor({
       });
       return;
     }
-    if (asset.fileSize && asset.fileSize > ATTACHMENT_SIZE_LIMITS.video) {
-      show({ title: 'Video too large', message: 'Maximum size is 16 MB.' });
+    if (!selectedSize || selectedSize <= 0) {
+      show({
+        title: 'Could not read video',
+        message: 'Choose the video again and retry.',
+      });
+      return;
+    }
+    if (selectedSize > videoMaxBytes) {
+      show({
+        title: 'Video too large',
+        message: `Maximum size is ${Math.round(videoMaxBytes / (1024 * 1024))} MB.`,
+      });
       return;
     }
 
-    const form = new FormData();
-    form.append('file', {
-      uri: asset.uri,
-      name: attachmentFilename(asset.fileName, asset.uri, mimeType),
-      type: mimeType,
-    } as unknown as Blob);
-
     setBusy('upload');
+    setUploadProgress(0);
     haptic.tap();
     try {
+      const sessionResponse = await apiFetch<{
+        data: PropertyVideoUploadSession;
+      }>(`/api/properties/${propertyId}/video-upload`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          mimeType,
+          size: selectedSize,
+        }),
+      });
+      const session = sessionResponse.data;
+      await uploadPropertyVideoResumable(
+        {
+          uri: asset.uri,
+          name: attachmentFilename(asset.fileName, asset.uri, mimeType),
+          type: mimeType,
+          size: selectedSize,
+        },
+        session,
+        setUploadProgress
+      );
       const response = await apiFetch<{ data: VideoState }>(
         `/api/properties/${propertyId}/video-upload`,
-        { method: 'POST', body: form }
+        { method: 'PATCH', body: JSON.stringify({ path: session.path }) }
       );
       setState(response.data);
       queryClient.invalidateQueries({ queryKey: ['property', propertyId] });
@@ -128,6 +166,7 @@ export function PropertyVideoEditor({
       });
     } finally {
       setBusy(null);
+      setUploadProgress(null);
     }
   }
 
@@ -207,7 +246,7 @@ export function PropertyVideoEditor({
                 ? 'Saved to YouTube and the property showcase'
                 : ready
                   ? 'Shown in the property showcase'
-                  : 'Upload one MP4 up to 16 MB'}
+                  : `Upload one MP4 up to ${Math.round(videoMaxBytes / (1024 * 1024))} MB`}
           </Text>
         </View>
         {ready ? (
@@ -242,7 +281,7 @@ export function PropertyVideoEditor({
             }}
           >
             {busy === 'upload'
-              ? 'Uploading…'
+              ? `Uploading${uploadProgress ? ` ${uploadProgress}%` : '…'}`
               : ready
                 ? 'Replace video'
                 : 'Upload video'}

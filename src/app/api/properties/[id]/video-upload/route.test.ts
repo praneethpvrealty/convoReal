@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 let role: 'agent' | 'viewer' = 'agent';
+let plan: 'starter' | 'solo_pro' = 'starter';
 let property: {
   id: string;
   video_url: string | null;
@@ -63,6 +64,10 @@ vi.mock('@/lib/rate-limit', () => ({
   rateLimitResponse: () => Response.json({ error: 'rate' }, { status: 429 }),
 }));
 
+vi.mock('@/lib/billing/gates', () => ({
+  getPlanLimits: async () => ({ plan }),
+}));
+
 vi.mock('@/lib/storage/upload', () => ({
   uploadPropertyVideo: async (
     accountId: string,
@@ -78,6 +83,11 @@ vi.mock('@/lib/supabase/admin', () => ({
   supabaseAdmin: () => ({
     storage: {
       from: () => ({
+        createSignedUploadUrl: async () => ({
+          data: { token: 'signed-token' },
+          error: null,
+        }),
+        list: async () => ({ data: [], error: null }),
         remove: async (paths: string[]) => {
           removed.push(paths);
           return { error: null };
@@ -96,7 +106,7 @@ vi.mock('@/lib/youtube/upload', () => ({
   },
 }));
 
-import { POST } from './route';
+import { POST, PUT } from './route';
 
 function fileOf(type: string, bytes: number) {
   return new File([new Uint8Array(bytes)], 'walkthrough.mp4', { type });
@@ -114,8 +124,21 @@ function upload(file?: File) {
   );
 }
 
+function startUpload(size: number, mimeType = 'video/mp4') {
+  return PUT(
+    new Request('http://test/api/properties/p-1/video-upload', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ size, mimeType }),
+    }),
+    { params: Promise.resolve({ id: 'p-1' }) }
+  );
+}
+
 beforeEach(() => {
   role = 'agent';
+  plan = 'starter';
+  process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://project-ref.supabase.co';
   property = {
     id: 'p-1',
     video_url: 'property-videos/acc-1/wa-old.mp4',
@@ -129,7 +152,7 @@ beforeEach(() => {
   queued.length = 0;
 });
 
-describe('POST /api/properties/[id]/video-upload', () => {
+describe('[MED-001] /api/properties/[id]/video-upload', () => {
   it('replaces the listing video and reuses the YouTube auto-upload queue', async () => {
     const response = await upload(fileOf('video/mp4', 2048));
     const body = await response.json();
@@ -157,11 +180,36 @@ describe('POST /api/properties/[id]/video-upload', () => {
     expect(uploaded).toHaveLength(0);
   });
 
-  it('rejects videos over the WhatsApp-compatible 16 MB limit', async () => {
+  it('rejects Starter videos over 16 MB', async () => {
     const response = await upload(fileOf('video/mp4', 16 * 1024 * 1024 + 1));
     expect(response.status).toBe(413);
     expect((await response.json()).code).toBe('VIDEO_TOO_LARGE');
     expect(uploaded).toHaveLength(0);
+  });
+
+  it('creates a resumable 100 MB upload session for a paid plan', async () => {
+    plan = 'solo_pro';
+    const response = await startUpload(100 * 1024 * 1024);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.data).toMatchObject({
+      endpoint:
+        'https://project-ref.storage.supabase.co/storage/v1/upload/resumable',
+      token: 'signed-token',
+      maxBytes: 100 * 1024 * 1024,
+    });
+    expect(body.data.path).toMatch(/^acc-1\/wa-.+\.mp4$/);
+  });
+
+  it('keeps resumable Starter uploads at 16 MB', async () => {
+    const response = await startUpload(16 * 1024 * 1024 + 1);
+    expect(response.status).toBe(413);
+    expect(await response.json()).toMatchObject({
+      code: 'VIDEO_TOO_LARGE',
+      maxMegabytes: 16,
+      plan: 'starter',
+    });
   });
 
   it('gates uploads to agents and above', async () => {
