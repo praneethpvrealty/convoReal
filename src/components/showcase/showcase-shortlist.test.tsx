@@ -74,6 +74,45 @@ it('persists selections per showcase and removes stale stored properties', () =>
   expect(readShortlistIds('{broken', ['one'])).toEqual([]);
 });
 
+it('[PRP-004] clears every selected property from the shortlist bar and storage', () => {
+  render(<Harness />);
+  fireEvent.click(screen.getByRole('button', { name: 'First home' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Second home' }));
+  fireEvent.click(
+    screen.getByRole('button', {
+      name: 'Clear all 2 shortlisted properties',
+    })
+  );
+  expect(screen.queryByText('2 shortlisted')).toBeNull();
+  expect(localStorage.getItem('showcase_shortlist:account')).toBe('[]');
+  expect(
+    screen
+      .getByRole('button', { name: 'First home' })
+      .getAttribute('aria-pressed')
+  ).toBe('false');
+  expect(
+    screen
+      .getByRole('button', { name: 'Second home' })
+      .getAttribute('aria-pressed')
+  ).toBe('false');
+});
+
+it('[PRP-004] clears every selected property from the shortlist review', () => {
+  render(<Harness />);
+  fireEvent.click(screen.getByRole('button', { name: 'First home' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Second home' }));
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Enquire about selected' })
+  );
+  fireEvent.click(
+    screen.getByRole('button', {
+      name: 'Clear all 2 shortlisted properties',
+    })
+  );
+  expect(screen.queryByText('Your shortlist')).toBeNull();
+  expect(localStorage.getItem('showcase_shortlist:account')).toBe('[]');
+});
+
 it('sends a single request for the selection and clears only after success', async () => {
   render(<Harness />);
   fireEvent.click(screen.getByRole('button', { name: 'First home' }));
