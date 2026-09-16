@@ -49,4 +49,36 @@ CREATE INDEX IF NOT EXISTS idx_deal_documents_deal_category
 
 -- ---- 2. Destructive half ------------------------------------
 -- Run only after this PR has merged.
+--
+-- The column is the only thing naming an uploaded invoice's object in
+-- the `deal-invoices` bucket, so dropping it while entries remain
+-- strands those files where nothing can find them. This database has
+-- none, but ConvoReal is self-hostable and another deployment may not
+-- be so lucky: refuse loudly rather than delete someone's paperwork.
+-- `npx tsx src/scripts/migrate-deal-invoices-to-documents.ts` copies the
+-- objects into the folder and writes the rows, after which this passes.
+DO $$
+DECLARE
+  v_pending INTEGER;
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'deals'
+      AND column_name = 'invoices'
+  ) THEN
+    EXECUTE $q$
+      SELECT COALESCE(SUM(jsonb_array_length(COALESCE(invoices, '[]'::jsonb))), 0)
+      FROM deals
+    $q$ INTO v_pending;
+
+    IF v_pending > 0 THEN
+      RAISE EXCEPTION
+        'deals.invoices still holds % uploaded invoice(s). Run src/scripts/migrate-deal-invoices-to-documents.ts first — dropping now would strand those files in the deal-invoices bucket.',
+        v_pending
+        USING ERRCODE = 'check_violation';
+    END IF;
+  END IF;
+END $$;
+
 ALTER TABLE deals DROP COLUMN IF EXISTS invoices;

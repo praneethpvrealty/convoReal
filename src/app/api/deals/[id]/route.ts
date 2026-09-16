@@ -245,11 +245,26 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
 
     // Read before the delete: deal_documents cascades with the deal, so
     // after it runs there is nothing left naming these objects.
-    const { data: docs } = await ctx.supabase
+    const { data: docs, error: docsErr } = await ctx.supabase
       .from('deal_documents')
       .select('storage_path')
       .eq('deal_id', dealId)
       .eq('account_id', ctx.accountId);
+
+    // Swallowing this would delete the deal, cascade the rows away and
+    // report success while the files — Aadhaars among them — stayed in
+    // the bucket with nothing left naming them. Stop instead: the deal
+    // is still here to try again.
+    if (docsErr) {
+      console.error('[DELETE /api/deals/[id]] Document lookup:', docsErr);
+      return NextResponse.json(
+        {
+          error:
+            "Could not read this deal's documents, so it was not deleted. Try again.",
+        },
+        { status: 500 }
+      );
+    }
 
     const { data: deleted, error: deleteErr } = await ctx.supabase
       .from('deals')
