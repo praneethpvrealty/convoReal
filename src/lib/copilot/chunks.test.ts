@@ -100,6 +100,33 @@ describe('knowledge chunk registry', () => {
     }
   });
 
+  it.each(SURFACES)(
+    'keeps every $audience page chunk routed to a real index page',
+    ({ audience, dir, prefix }) => {
+      for (const chunk of CHUNKS.filter(
+        (candidate) =>
+          candidate.kind === 'page' &&
+          !!candidate.route &&
+          audienceOf(candidate) === audience
+      )) {
+        const relativeRoute = prefix
+          ? chunk.route!.slice(prefix.length)
+          : chunk.route!;
+        const entryPage = path.join(
+          process.cwd(),
+          dir,
+          relativeRoute.replace(/^\//, ''),
+          'page.tsx'
+        );
+
+        expect(
+          fs.existsSync(entryPage),
+          `${chunk.id} allows navigation to ${chunk.route}, but that index page does not exist`
+        ).toBe(true);
+      }
+    }
+  );
+
   it('keeps keywords lowercase (lexical matching is lowercase)', () => {
     for (const chunk of CHUNKS) {
       for (const kw of chunk.keywords ?? []) {
