@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import {
@@ -78,6 +79,8 @@ interface ShowcaseShareDialogProps {
   accountId: string | null;
   showcaseSettings: ShowcaseSettings | null;
   activeSearch?: string;
+  activeSearchParams?: string;
+  activeSearchLabel?: string;
   initialPickedIds?: string[];
 }
 
@@ -118,9 +121,12 @@ export function ShowcaseShareDialog({
   accountId,
   showcaseSettings,
   activeSearch,
+  activeSearchParams,
+  activeSearchLabel,
   initialPickedIds,
 }: ShowcaseShareDialogProps) {
   const trimmedSearch = activeSearch?.trim() || '';
+  const hasActiveSearch = Boolean(trimmedSearch || activeSearchParams);
   const initialPickedKey = (initialPickedIds ?? [])
     .slice(0, MAX_PICKED)
     .join(',');
@@ -132,7 +138,7 @@ export function ShowcaseShareDialog({
   // Step 2 — WHAT. One scope at a time, so the link, the message and the
   // Engine snapshot can never describe different sets of listings.
   const [scope, setScope] = useState<ShareScope>(
-    initialPickedKey ? 'pick' : trimmedSearch ? 'search' : 'all'
+    initialPickedKey ? 'pick' : hasActiveSearch ? 'search' : 'all'
   );
   const [shareCategory, setShareCategory] = useState<ShareCategory>('All');
   const [picked, setPicked] = useState<string[]>(() =>
@@ -148,6 +154,18 @@ export function ShowcaseShareDialog({
   const [loadingContacts, setLoadingContacts] = useState(false);
   const [contactSearch, setContactSearch] = useState('');
   const [selectedContactIds, setSelectedContactIds] = useState<string[]>([]);
+
+  const shareInstance = useQuery({
+    queryKey: ['showcase-share-instance'],
+    enabled: open,
+    staleTime: Infinity,
+    gcTime: 0,
+    queryFn: async () => {
+      const response = await fetch('/api/showcase-shares', { method: 'POST' });
+      if (!response.ok) return null;
+      return ((await response.json()) as { data: { id: string } }).data.id;
+    },
+  });
 
   const defaultClientMessage = `Hi {name}! 👋
 
@@ -245,9 +263,44 @@ Best regards`;
     return filterPropertiesBySearch(properties, pickerSearch);
   }, [properties, pickerSearch]);
 
+  const searchResults = useQuery({
+    queryKey: ['inventory', 'showcase-share-results', activeSearchParams],
+    enabled: open && scope === 'search' && Boolean(activeSearchParams),
+    queryFn: async () => {
+      const params = new URLSearchParams(activeSearchParams);
+      params.set('page', '0');
+      params.set('limit', '100');
+      params.delete('exclude_archived');
+      params.set('status', 'Available');
+      params.set('is_published', 'true');
+
+      const firstResponse = await fetch(`/api/properties?${params}`);
+      if (!firstResponse.ok) throw new Error('Could not load search results');
+      const first = (await firstResponse.json()) as {
+        data: Property[];
+        pagination?: { totalPages: number };
+      };
+      const totalPages = first.pagination?.totalPages ?? 1;
+      if (totalPages <= 1) return first.data;
+
+      const remaining = await Promise.all(
+        Array.from({ length: totalPages - 1 }, async (_, index) => {
+          const pageParams = new URLSearchParams(params);
+          pageParams.set('page', String(index + 1));
+          const response = await fetch(`/api/properties?${pageParams}`);
+          if (!response.ok) throw new Error('Could not load search results');
+          return ((await response.json()) as { data: Property[] }).data;
+        })
+      );
+      return [first.data, ...remaining].flat();
+    },
+  });
+
   /** Exactly what the receiver will see, for every scope. */
   const scopeProperties = useMemo(() => {
     if (!properties) return null;
+    if (scope === 'search' && activeSearchParams)
+      return searchResults.data ?? null;
     if (scope === 'search')
       return filterPropertiesBySearch(properties, trimmedSearch);
     if (scope === 'pick') {
@@ -257,17 +310,30 @@ Best regards`;
         .filter((p): p is Property => Boolean(p));
     }
     return properties;
-  }, [properties, scope, trimmedSearch, picked]);
+  }, [
+    properties,
+    scope,
+    activeSearchParams,
+    searchResults.data,
+    trimmedSearch,
+    picked,
+  ]);
 
   const generatedLink = useMemo(() => {
     if (typeof window === 'undefined') return '';
+    if (
+      scope === 'search' &&
+      activeSearchParams &&
+      (!scopeProperties || scopeProperties.length === 0)
+    )
+      return '';
 
     const subdomain = showcaseSettings?.subdomain;
     const targetDomain = subdomain
       ? `${subdomain}.${getBaseHost()}`
       : window.location.host;
 
-    return buildShowcaseShareLink({
+    const link = buildShowcaseShareLink({
       baseUrl: `${window.location.protocol}//${targetDomain}`,
       accountId,
       includeRef: !subdomain,
@@ -277,14 +343,20 @@ Best regards`;
       ids: (scopeProperties ?? []).map((p) => p.property_code || p.id),
       audience,
     });
+    if (!shareInstance.data) return link;
+    const tracked = new URL(link);
+    tracked.searchParams.set('s', shareInstance.data);
+    return tracked.toString();
   }, [
     accountId,
     showcaseSettings,
     scope,
+    activeSearchParams,
     trimmedSearch,
     scopeProperties,
     shareCategory,
     audience,
+    shareInstance.data,
   ]);
 
   const autoSummary = useMemo(() => {
@@ -314,7 +386,7 @@ Best regards`;
       : (scopeProperties?.length ?? 0);
   const scopeSummaryLabel =
     scope === 'search'
-      ? `${scopeCount} matching “${trimmedSearch}”`
+      ? `${scopeCount} matching “${activeSearchLabel || trimmedSearch}”`
       : scope === 'pick'
         ? `${scopeCount} hand-picked`
         : shareCategory === 'All'
@@ -476,6 +548,7 @@ Best regards`;
     messageMode === 'list' ? summaryMessage : buildMessage(generatedLink);
 
   const handleCopyLink = async () => {
+    if (!generatedLink) return;
     try {
       await navigator.clipboard.writeText(generatedLink);
       setCopied(true);
@@ -488,6 +561,7 @@ Best regards`;
   };
 
   const handleCopyMessage = async () => {
+    if (!generatedLink) return;
     try {
       const contact =
         selectedContacts.length === 1 ? selectedContacts[0] : null;
@@ -524,6 +598,7 @@ Best regards`;
   };
 
   const handleShareMessage = async () => {
+    if (!generatedLink) return;
     try {
       if (navigator.share) {
         await navigator.share({
@@ -543,6 +618,7 @@ Best regards`;
   };
 
   const handleWhatsApp = async () => {
+    if (!generatedLink) return;
     // No recipient → WhatsApp opens its own chat picker, so the message
     // can go to a group or broadcast list.
     if (sendableContacts.length === 0) {
@@ -583,7 +659,13 @@ Best regards`;
   };
 
   const handleEngineSend = async () => {
-    if (!engineTemplate || !accountId || sendableContacts.length === 0) return;
+    if (
+      !generatedLink ||
+      !engineTemplate ||
+      !accountId ||
+      sendableContacts.length === 0
+    )
+      return;
     setSendingEngine(true);
     let sent = 0;
     const failures: string[] = [];
@@ -666,7 +748,9 @@ Best regards`;
     {
       key: 'search',
       label: 'Search results',
-      desc: trimmedSearch ? `“${trimmedSearch}”` : 'Search inventory first',
+      desc: hasActiveSearch
+        ? `“${activeSearchLabel || trimmedSearch}”`
+        : 'Search inventory first',
       icon: Filter,
     },
     {
@@ -741,7 +825,7 @@ Best regards`;
             {stepLabel(2, 'What they see')}
             <div className="grid grid-cols-3 gap-2">
               {scopeOptions.map((option) => {
-                const disabled = option.key === 'search' && !trimmedSearch;
+                const disabled = option.key === 'search' && !hasActiveSearch;
                 return (
                   <button
                     key={option.key}
@@ -884,6 +968,7 @@ Best regards`;
               />
               <Button
                 onClick={() => void handleCopyLink()}
+                disabled={!generatedLink}
                 className="bg-primary text-primary-foreground hover:bg-primary/90 flex h-9 shrink-0 items-center gap-1 px-3 text-xs font-semibold"
               >
                 {copied ? (
@@ -896,6 +981,7 @@ Best regards`;
               <Button
                 variant="outline"
                 onClick={() => window.open(generatedLink, '_blank')}
+                disabled={!generatedLink}
                 className="text-slate-350 flex h-9 shrink-0 items-center gap-1 border-slate-800 px-3 text-xs hover:bg-slate-800"
               >
                 <ExternalLink className="size-3.5" />
@@ -964,6 +1050,7 @@ Best regards`;
               <div className="flex gap-2">
                 <Button
                   onClick={() => void handleCopyMessage()}
+                  disabled={!generatedLink}
                   className="flex flex-1 items-center justify-center gap-2 bg-emerald-600 py-2.5 text-xs font-semibold text-white hover:bg-emerald-500"
                 >
                   {copiedMessage ? (
@@ -980,6 +1067,7 @@ Best regards`;
                 </Button>
                 <Button
                   onClick={() => void handleShareMessage()}
+                  disabled={!generatedLink}
                   variant="outline"
                   className="flex items-center justify-center gap-2 border-emerald-600 px-4 py-2.5 text-xs font-semibold text-emerald-400 hover:bg-emerald-600/20"
                 >
@@ -1107,7 +1195,11 @@ Best regards`;
                 {engineTemplateApproved && (
                   <Button
                     onClick={() => void handleEngineSend()}
-                    disabled={sendableContacts.length === 0 || sendingEngine}
+                    disabled={
+                      !generatedLink ||
+                      sendableContacts.length === 0 ||
+                      sendingEngine
+                    }
                     title="Send the inventory update template from your WhatsApp Business number — replies land in your Inbox"
                     className="bg-primary text-primary-foreground hover:bg-primary/90 flex flex-1 items-center justify-center gap-2 py-2.5 text-xs font-bold"
                   >
@@ -1124,6 +1216,7 @@ Best regards`;
                 )}
                 <Button
                   onClick={() => void handleWhatsApp()}
+                  disabled={!generatedLink}
                   variant={engineTemplateApproved ? 'outline' : 'default'}
                   className={
                     engineTemplateApproved

@@ -41,7 +41,7 @@ import {
   withShowcaseVisitor,
 } from '@/lib/showcase-share';
 import { radius, spacing, useTheme } from '@/lib/theme';
-import type { Contact, Property } from '@/lib/types';
+import type { Contact, PropertiesResponse, Property } from '@/lib/types';
 import { useDebounced } from '@/lib/use-debounced';
 import { getShowcaseUrl } from '@/lib/welcome-message';
 
@@ -104,22 +104,27 @@ export function ShowcaseShareSheet({
   visible,
   onClose,
   activeSearch = '',
+  activeSearchParams = '',
+  activeSearchLabel = '',
   initialPicked,
 }: {
   visible: boolean;
   onClose: () => void;
   /** The Properties tab's current query, offered as a share scope. */
   activeSearch?: string;
+  activeSearchParams?: string;
+  activeSearchLabel?: string;
   initialPicked?: Property[];
 }) {
   const { colors, fonts: f } = useTheme();
   const { show, close, dialogProps } = useAppDialog();
   const trimmedSearch = activeSearch.trim();
+  const hasActiveSearch = Boolean(trimmedSearch || activeSearchParams);
   const initialSelection = initialPicked ?? EMPTY_PICKED_PROPERTIES;
 
   const [audience, setAudience] = useState<'client' | 'agent'>('client');
   const [scope, setScope] = useState<ShareScope>(
-    initialSelection.length > 0 ? 'pick' : trimmedSearch ? 'search' : 'all'
+    initialSelection.length > 0 ? 'pick' : hasActiveSearch ? 'search' : 'all'
   );
   const [category, setCategory] = useState<ShareCategory>('All');
   const [picked, setPicked] = useState<Property[]>(() =>
@@ -140,7 +145,6 @@ export function ShowcaseShareSheet({
     () => picked.map((p) => p.property_code || p.id),
     [picked]
   );
-  const pickedIds = pickedKeys.join(',');
   const debounced = useDebounced(pickerSearch.trim());
   const baseUrl = useQuery({
     queryKey: ['showcase-url'],
@@ -153,6 +157,45 @@ export function ShowcaseShareSheet({
     enabled: visible && scope === 'pick',
     queryFn: () => fetchPropertyPage(0, debounced, 'All', null, false),
   });
+  const searchResults = useQuery({
+    queryKey: ['showcase-share-results', activeSearchParams],
+    enabled: visible && scope === 'search' && Boolean(activeSearchParams),
+    queryFn: async () => {
+      const baseParams = new URLSearchParams(activeSearchParams);
+      baseParams.set('page', '0');
+      baseParams.set('limit', '100');
+      baseParams.delete('exclude_archived');
+      baseParams.set('status', 'Available');
+      baseParams.set('is_published', 'true');
+      const first = await apiFetch<PropertiesResponse>(
+        `/api/properties?${baseParams.toString()}`
+      );
+      if (first.pagination.totalPages <= 1) return first.data;
+      const remaining = await Promise.all(
+        Array.from({ length: first.pagination.totalPages - 1 }, (_, index) => {
+          const params = new URLSearchParams(baseParams);
+          params.set('page', String(index + 1));
+          return apiFetch<PropertiesResponse>(
+            `/api/properties?${params.toString()}`
+          ).then((response) => response.data);
+        })
+      );
+      return [first.data, ...remaining].flat();
+    },
+  });
+
+  const searchKeys = useMemo(
+    () =>
+      (searchResults.data ?? []).map(
+        (property) => property.property_code || property.id
+      ),
+    [searchResults.data]
+  );
+  const scopeKeys =
+    scope === 'search' && activeSearchParams ? searchKeys : pickedKeys;
+  const scopeIds = scopeKeys.join(',');
+  const searchScopeReady =
+    scope !== 'search' || !activeSearchParams || searchKeys.length > 0;
 
   const pitch = audience === 'agent' ? brokerMessage : clientMessage;
   const setPitch = audience === 'agent' ? setBrokerMessage : setClientMessage;
@@ -163,10 +206,10 @@ export function ShowcaseShareSheet({
       scope,
       category,
       search: trimmedSearch,
-      ids: pickedKeys,
+      ids: scopeKeys,
       audience,
     });
-  }, [baseUrl.data, scope, category, trimmedSearch, pickedKeys, audience]);
+  }, [baseUrl.data, scope, category, trimmedSearch, scopeKeys, audience]);
 
   // The digest is a business rule, so the phone asks the server for it
   // rather than carrying a second copy of the builder (AGENTS.md §2.8).
@@ -176,12 +219,12 @@ export function ShowcaseShareSheet({
       scope,
       category,
       trimmedSearch,
-      pickedIds,
+      scopeIds,
       link,
     ],
     // Fetched for both modes: the Engine send needs the template's body
     // params even when the agent is looking at the short pitch.
-    enabled: visible && link.length > 0,
+    enabled: visible && link.length > 0 && searchScopeReady,
     queryFn: () =>
       apiFetch<{
         data: ShareSummaryData;
@@ -190,7 +233,7 @@ export function ShowcaseShareSheet({
           scope,
           category,
           search: trimmedSearch,
-          ids: pickedIds,
+          ids: scopeIds,
           portal_url: link,
         }).toString()}`
       ).then((response) => response.data),
@@ -227,14 +270,17 @@ export function ShowcaseShareSheet({
 
   const scopeLabel =
     scope === 'search'
-      ? `your search “${trimmedSearch}”`
+      ? `your search “${activeSearchLabel || trimmedSearch}”`
       : scope === 'pick'
         ? `${picked.length} hand-picked ${picked.length === 1 ? 'listing' : 'listings'}`
         : category === 'All'
           ? 'your whole showcase'
           : `${category} listings`;
 
-  const ready = link.length > 0 && (scope !== 'pick' || picked.length > 0);
+  const ready =
+    link.length > 0 &&
+    (scope !== 'pick' || picked.length > 0) &&
+    searchScopeReady;
 
   /** The template's URL button appends this to the app origin, so the
    *  suffix must carry the scope as well as the contact. */
@@ -269,7 +315,7 @@ export function ShowcaseShareSheet({
         scope,
         category,
         search: trimmedSearch,
-        ids: pickedIds,
+        ids: scopeIds,
         portal_url: link,
         contact_ids: contactIds.join(','),
       }).toString()}`
@@ -280,6 +326,16 @@ export function ShowcaseShareSheet({
     setPickerSearch('');
     setRecipients(false);
     onClose();
+  }
+
+  async function anonymousScopedLink() {
+    return applyShowcaseScope(await anonymousShowcaseShareUrl(), {
+      scope,
+      category,
+      search: trimmedSearch,
+      ids: scopeKeys,
+      audience,
+    });
   }
 
   function togglePicked(property: Property) {
@@ -302,7 +358,7 @@ export function ShowcaseShareSheet({
 
   async function copyLink() {
     haptic.tap();
-    await Clipboard.setStringAsync(link);
+    await Clipboard.setStringAsync(await anonymousScopedLink());
     show({
       title: 'Link copied',
       message: `It opens ${scopeLabel}.`,
@@ -314,13 +370,7 @@ export function ShowcaseShareSheet({
    *  still lets Pulse count the visits it brings in. */
   async function shareAnywhere() {
     haptic.tap();
-    const anonymous = applyShowcaseScope(await anonymousShowcaseShareUrl(), {
-      scope,
-      category,
-      search: trimmedSearch,
-      ids: pickedKeys,
-      audience,
-    });
+    const anonymous = await anonymousScopedLink();
     await Share.share({ message: messageFor(anonymous), url: anonymous });
   }
 
@@ -611,7 +661,7 @@ export function ShowcaseShareSheet({
             active={scope === 'all'}
             onPress={() => setScope('all')}
           />
-          {trimmedSearch ? (
+          {hasActiveSearch ? (
             <FilterChip
               label="Search results"
               active={scope === 'search'}

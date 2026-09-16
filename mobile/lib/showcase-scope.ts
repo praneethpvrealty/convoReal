@@ -18,16 +18,13 @@ function withParam(baseUrl: string, key: string, value: string): string {
 
 export type ShareScope = 'all' | 'search' | 'pick';
 export type ShareCategory =
-  | 'All'
-  | 'Residential'
-  | 'Commercial'
-  | 'Agricultural';
+  'All' | 'Residential' | 'Commercial' | 'Agricultural';
 
 export interface ShowcaseScopeOptions {
   scope: ShareScope;
   category?: ShareCategory;
   search?: string;
-  /** property_code (or id) per hand-picked listing, in display order. */
+  /** property_code (or id) per resolved or hand-picked listing, in display order. */
   ids?: readonly string[];
   audience: 'client' | 'agent';
   visitorId?: string;
@@ -48,7 +45,8 @@ export function applyShowcaseScope(
   let url = baseUrl;
 
   if (scope === 'search') {
-    if (search.trim()) url = withParam(url, 'search', search.trim());
+    if (ids.length > 0) url = withParam(url, 'ids', ids.join(','));
+    else if (search.trim()) url = withParam(url, 'search', search.trim());
   } else if (scope === 'pick') {
     if (ids.length > 0) url = withParam(url, 'ids', ids.join(','));
   } else if (category !== 'All') {
@@ -60,7 +58,6 @@ export function applyShowcaseScope(
 
   return url;
 }
-
 
 /** Tags any showcase link with the contact it is being sent to, so
  *  Pulse attributes their opens by name (v= attributes, never filters). */

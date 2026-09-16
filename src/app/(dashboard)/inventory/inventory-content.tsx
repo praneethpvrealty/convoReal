@@ -363,6 +363,42 @@ export default function InventoryPage() {
     placeholderData: (prev) => prev,
   });
 
+  const showcaseSearch = useMemo(() => {
+    const hasSearch = Boolean(
+      debouncedSearch.trim() ||
+      pickedPlace ||
+      nearMe ||
+      typeFilter !== 'All' ||
+      sourceFilter !== 'All'
+    );
+    if (!hasSearch) return { params: '', label: '' };
+
+    const params = new URLSearchParams(listParams);
+    params.delete('page');
+    params.delete('limit');
+    params.delete('exclude_archived');
+    params.set('status', 'Available');
+    params.set('is_published', 'true');
+
+    const labels = [
+      debouncedSearch.trim(),
+      pickedPlace ? `${pickedPlace.name} within ${radiusKm} km` : '',
+      nearMe ? `Near me within ${radiusKm} km` : '',
+    ].filter(Boolean);
+    return {
+      params: params.toString(),
+      label: labels.join(' · ') || 'Filtered inventory',
+    };
+  }, [
+    debouncedSearch,
+    listParams,
+    nearMe,
+    pickedPlace,
+    radiusKm,
+    sourceFilter,
+    typeFilter,
+  ]);
+
   const totalCount = propertiesQuery.data?.pagination?.total ?? 0;
   const totalPages = propertiesQuery.data?.pagination?.totalPages ?? 0;
   const loading = propertiesQuery.isPending;
@@ -1678,7 +1714,9 @@ export default function InventoryPage() {
         onOpenChange={setShowcaseShareOpen}
         accountId={accountId}
         showcaseSettings={showcaseSettings}
-        activeSearch={search}
+        activeSearch={debouncedSearch}
+        activeSearchParams={showcaseSearch.params}
+        activeSearchLabel={showcaseSearch.label}
         initialPickedIds={selectedForTagging}
       />
 

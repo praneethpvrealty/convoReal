@@ -33,6 +33,17 @@ describe('applyShowcaseScope', () => {
     expect(url).not.toContain('category=');
   });
 
+  it('pins the resolved results for a structured search', () => {
+    const url = applyShowcaseScope(base, {
+      scope: 'search',
+      search: 'J. P. Nagar',
+      ids: ['PROP-101', 'PROP-102'],
+      audience: 'client',
+    });
+    expect(url).toContain('ids=PROP-101%2CPROP-102');
+    expect(url).not.toContain('search=');
+  });
+
   it('pins a hand-picked set with ids, and omits it when empty', () => {
     expect(
       applyShowcaseScope(base, {
