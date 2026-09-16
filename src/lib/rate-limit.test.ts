@@ -161,19 +161,18 @@ describe("checkRateLimit — Redis-backed", () => {
     expect(ctorMock).toHaveBeenCalledOnce();
   });
 
-  it("fails fast rather than queueing commands while disconnected", async () => {
+  it("bounds the cold-start queue while Redis connects", async () => {
     evalMock.mockResolvedValue([1, 60_000]);
     await checkRateLimit("user:1", OPTS);
 
     const opts = ctorMock.mock.calls[0][1] as Record<string, unknown>;
-    // Without these a Redis blip holds the request open instead of
-    // falling through to the in-memory counter.
-    expect(opts.enableOfflineQueue).toBe(false);
+    expect(opts.enableOfflineQueue).toBe(true);
     expect(opts.commandTimeout).toBeGreaterThan(0);
+    expect(opts.connectTimeout).toBeGreaterThan(0);
   });
 
   it("falls back to the in-memory counter when Redis fails", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(console, "warn").mockImplementation(() => {});
     evalMock.mockRejectedValue(new Error("ECONNREFUSED"));
 
     // Still limits — just per-instance, which is where we were before.
@@ -184,7 +183,7 @@ describe("checkRateLimit — Redis-backed", () => {
   });
 
   it("logs a Redis outage once, not once per request", async () => {
-    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const spy = vi.spyOn(console, "warn").mockImplementation(() => {});
     evalMock.mockRejectedValue(new Error("ECONNREFUSED"));
 
     for (let i = 0; i < 5; i += 1) await checkRateLimit(`k${i}`, OPTS);
