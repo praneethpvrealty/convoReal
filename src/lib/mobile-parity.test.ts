@@ -104,6 +104,10 @@ function mobileSource(relativePath: string): string {
   return readFileSync(join(process.cwd(), 'mobile', relativePath), 'utf8');
 }
 
+function webSource(relativePath: string): string {
+  return readFileSync(join(process.cwd(), 'src', relativePath), 'utf8');
+}
+
 function mobileCopilotEntityComposer(): {
   activeCopilotEntityQuery: (
     input: string,
@@ -198,6 +202,22 @@ describe('mobile Copilot entity tokens mirror the web composer', () => {
     expect(mobile.insertCopilotEntity(input, mobileActive, selected[0])).toBe(
       insertEntityReference(input, webActive, selected[0])
     );
+  });
+});
+
+describe('property shortlist sharing remains available on both surfaces', () => {
+  it('[PRP-002] opens selected inventory directly as a hand-picked share', () => {
+    const mobileScreen = mobileSource('app/(app)/(tabs)/properties.tsx');
+    const mobileBar = mobileSource('components/bulk-tag-bar.tsx');
+    const webInventory = webSource(
+      'app/(dashboard)/inventory/inventory-content.tsx'
+    );
+    const webBar = webSource('components/inventory/bulk-tag-bar.tsx');
+
+    expect(mobileScreen).toContain('initialPicked={selectedProperties}');
+    expect(mobileBar).toContain('Share shortlist');
+    expect(webInventory).toContain('initialPickedIds={selectedForTagging}');
+    expect(webBar).toContain('Share shortlist');
   });
 });
 

@@ -36,10 +36,12 @@ export function BulkTagBar({
   selectedIds,
   onClear,
   onTagged,
+  onShare,
 }: {
   selectedIds: string[];
   onClear: () => void;
   onTagged: () => void;
+  onShare?: () => void;
 }) {
   const { colors, fonts: f } = useTheme();
   const insets = useSafeAreaInsets();
@@ -131,6 +133,32 @@ export function BulkTagBar({
         >
           {selectedIds.length} selected
         </Text>
+        {onShare ? (
+          <Pressable
+            onPress={() => {
+              haptic.tap();
+              onShare();
+            }}
+            accessibilityRole="button"
+            accessibilityLabel={`Share ${selectedIds.length} shortlisted listings`}
+            style={[styles.shareButton, { borderColor: colors.primary }]}
+          >
+            <Ionicons
+              name="share-social-outline"
+              size={15}
+              color={colors.primary}
+            />
+            <Text
+              style={{
+                fontSize: 14,
+                fontFamily: f.bold,
+                color: colors.primary,
+              }}
+            >
+              Share shortlist
+            </Text>
+          </Pressable>
+        ) : null}
         <Pressable
           onPress={() => {
             haptic.tap();
@@ -205,6 +233,15 @@ const styles = StyleSheet.create({
     gap: 7,
     borderRadius: radius.full,
     paddingHorizontal: 18,
+    paddingVertical: 10,
+  },
+  shareButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.full,
+    paddingHorizontal: 14,
     paddingVertical: 10,
   },
 });

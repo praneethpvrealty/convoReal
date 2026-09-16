@@ -8,6 +8,7 @@ import { boundingBox, haversineKm } from "@/lib/geo";
 import {
   LOCALITY_MATCH_FIELDS,
   localityStemProbe,
+  normalizeLocalityLabel,
   rowMatchesLocality,
 } from "@/lib/locality-match";
 import { geocodeAddress, hasGoogleMapsKey } from "@/lib/maps/google-places";
@@ -41,13 +42,6 @@ const GEOCODE_FALLBACK_CAP = 20;
 // in share percentages, not a sale amount — unless the query itself
 // asks for JV/JD listings.
 const JV_INTENT = /\bjv\b|\bjd\b|\bjoint\s*(?:venture|development)\b/i;
-
-/** PostgREST .or() filter values break on these characters — keep the
- *  locality's primary token only (e.g. "HSR Layout" from
- *  "HSR Layout, Bengaluru, Karnataka, India"). */
-function sanitizeLocalityLabel(label: string): string {
-  return label.split(",")[0].replace(/[(),.]/g, " ").replace(/\s+/g, " ").trim();
-}
 
 function localityOrFilter(locations: string[]): string {
   return locations
@@ -182,11 +176,11 @@ export async function GET(request: Request) {
       Math.max(0.5, parseFloat(searchParams.get("radius_km") || "") || DEFAULT_RADIUS_KM)
     );
     const nearPlaceId = searchParams.get("near_place_id")?.trim() || "";
-    const nearLabel = sanitizeLocalityLabel(searchParams.get("near_label") || "");
+    const nearLabel = normalizeLocalityLabel(searchParams.get("near_label") || "");
     const locations = [...new Set(
       searchParams
         .getAll("location")
-        .map(sanitizeLocalityLabel)
+        .map(normalizeLocalityLabel)
         .filter(Boolean)
         .map((location) => location.toLowerCase())
     )].slice(0, 8);

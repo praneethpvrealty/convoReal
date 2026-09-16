@@ -7,7 +7,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
 import { Link, router } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
   Image,
@@ -49,7 +49,6 @@ import {
   type PlaceSuggestion,
 } from '@/lib/api';
 import { auditDate, formatInr } from '@/lib/format';
-import { storagePublicUrl } from '@/lib/storage-url';
 import { useDebounced } from '@/lib/use-debounced';
 import { BulkTagBar } from '@/components/bulk-tag-bar';
 import { haptic } from '@/lib/haptics';
@@ -79,7 +78,6 @@ import {
 } from '@/lib/theme';
 import type { PropertiesResponse, Property } from '@/lib/types';
 import { usePullRefresh } from '@/lib/use-pull-refresh';
-import { contactHandle, hasPhone } from '@/lib/reachability';
 import { appendLocationFilters } from '@/lib/property-location-query';
 
 const LISTING_FILTERS: ListingFilter[] = [
@@ -91,6 +89,7 @@ const LISTING_FILTERS: ListingFilter[] = [
 ];
 const RADIUS_OPTIONS = [2, 5, 10, 25];
 const PAGE_SIZE = 20;
+const EMPTY_PROPERTIES: Property[] = [];
 
 /**
  * List served by the web's GET /api/properties. With a near anchor we
@@ -194,7 +193,7 @@ export default function PropertiesScreen() {
   }
   const [sharePicker, setSharePicker] = useState(false);
   const [importsProperty, setImportsProperty] = useState<Property | null>(null);
-  const { dialogProps } = useAppDialog();
+  const { show, dialogProps } = useAppDialog();
   const [geoError, setGeoError] = useState<string | null>(null);
   const debounced = useDebounced(search.trim());
 
@@ -239,7 +238,14 @@ export default function PropertiesScreen() {
   });
   const pull = usePullRefresh(refetch);
 
-  const properties = data?.pages.flatMap((p) => p.data) ?? [];
+  const properties = useMemo(
+    () => data?.pages.flatMap((page) => page.data) ?? EMPTY_PROPERTIES,
+    [data]
+  );
+  const selectedProperties = useMemo(
+    () => properties.filter((property) => selectedIds.includes(property.id)),
+    [properties, selectedIds]
+  );
   // While a new search resolves, `data` is the PREVIOUS result — don't
   // present its total as if it belonged to the current filters.
   const total = isPlaceholderData
@@ -513,6 +519,7 @@ export default function PropertiesScreen() {
                 debounced ||
                 listing !== 'All' ||
                 near ||
+                locations.length > 0 ||
                 activePropertyFilterCount(filters) > 0
                   ? 'No matches'
                   : 'No properties yet'
@@ -520,6 +527,8 @@ export default function PropertiesScreen() {
               subtitle={
                 near
                   ? `None of your listings are within ${near.radiusKm} km of ${near.label}.`
+                  : locations.length > 0
+                    ? `No listings match ${locations.join(', ')}. Remove the location chip or include unavailable listings.`
                   : activePropertyFilterCount(filters) > 0
                     ? 'No listing matches every filter. Loosen one from the Filters chip.'
                     : debounced || listing !== 'All'
@@ -603,6 +612,16 @@ export default function PropertiesScreen() {
         selectedIds={selectedIds}
         onClear={() => setSelectedIds([])}
         onTagged={() => setSelectedIds([])}
+        onShare={() => {
+          if (selectedIds.length > 25) {
+            show({
+              title: 'Choose up to 25 properties',
+              message: 'One shortlist can contain a maximum of 25 listings.',
+            });
+            return;
+          }
+          setSharePicker(true);
+        }}
       />
       <AppDialog {...dialogProps} />
       {importsProperty && (
@@ -623,9 +642,11 @@ export default function PropertiesScreen() {
         hasNear={Boolean(near)}
       />
       <ShowcaseShareSheet
+        key={sharePicker ? selectedIds.join(',') || 'showcase' : 'closed'}
         visible={sharePicker}
         onClose={() => setSharePicker(false)}
         activeSearch={search}
+        initialPicked={selectedProperties}
       />
     </View>
   );
@@ -1038,6 +1059,28 @@ function PropertyCard({
             <Ionicons name="star" size={13} color={colors.rating} />
           </View>
         ) : null}
+        <Pressable
+          onPress={(event) => {
+            event.stopPropagation();
+            if (selecting) onToggle();
+            else onStartSelecting();
+          }}
+          accessibilityRole="checkbox"
+          accessibilityLabel={`${selected ? 'Remove' : 'Add'} ${property.title} ${
+            selected ? 'from' : 'to'
+          } shortlist`}
+          accessibilityState={{ checked: selected }}
+          style={[
+            styles.shortlistBadge,
+            { backgroundColor: selected ? colors.primary : 'rgba(255,255,255,0.92)' },
+          ]}
+        >
+          <Ionicons
+            name={selected ? 'checkmark' : 'add'}
+            size={16}
+            color={selected ? colors.onPrimary : colors.primary}
+          />
+        </Pressable>
       </View>
 
       <View style={styles.cardBody}>
@@ -1294,11 +1337,21 @@ const styles = StyleSheet.create({
   statusText: { fontSize: 11.5, fontFamily: fonts.bold },
   starBadge: {
     position: 'absolute',
-    top: 10,
+    top: 48,
     right: 10,
     backgroundColor: 'rgba(255,255,255,0.92)',
     borderRadius: radius.full,
     padding: 6,
+  },
+  shortlistBadge: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   cardBody: { paddingHorizontal: 6, paddingTop: 10, paddingBottom: 4, gap: 4 },
   titleRow: {

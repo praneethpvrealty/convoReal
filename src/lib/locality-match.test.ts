@@ -2,9 +2,18 @@ import { describe, expect, it } from 'vitest';
 import {
   localityStems,
   localityStemProbe,
+  normalizeLocalityLabel,
   rowMatchesLocality,
   textContainsLocality,
 } from './locality-match';
+
+describe('normalizeLocalityLabel', () => {
+  it('[PRP-001] collapses dotted locality initials without changing ordinary words', () => {
+    expect(normalizeLocalityLabel('J. P. Nagar, Bengaluru')).toBe('JP Nagar');
+    expect(normalizeLocalityLabel('B.T.M. Layout')).toBe('BTM Layout');
+    expect(normalizeLocalityLabel('A Cross, Bengaluru')).toBe('A Cross');
+  });
+});
 
 describe('localityStems', () => {
   it('splits fused nagar suffixes', () => {
