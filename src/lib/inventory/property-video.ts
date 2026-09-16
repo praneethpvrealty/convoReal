@@ -1,5 +1,19 @@
-export const PROPERTY_VIDEO_MAX_BYTES = 16 * 1024 * 1024;
+import type { Plan } from '@/lib/billing/types';
+
+export const PROPERTY_VIDEO_STARTER_MAX_BYTES = 16 * 1024 * 1024;
+export const PROPERTY_VIDEO_PREMIUM_MAX_BYTES = 100 * 1024 * 1024;
+export const PROPERTY_VIDEO_MAX_BYTES = PROPERTY_VIDEO_STARTER_MAX_BYTES;
 export const PROPERTY_VIDEO_MIME_TYPE = 'video/mp4';
+
+export function propertyVideoMaxBytes(plan: Plan): number {
+  return plan === 'starter'
+    ? PROPERTY_VIDEO_STARTER_MAX_BYTES
+    : PROPERTY_VIDEO_PREMIUM_MAX_BYTES;
+}
+
+export function propertyVideoMaxMegabytes(maxBytes: number): number {
+  return Math.round(maxBytes / (1024 * 1024));
+}
 
 export type PropertyVideoRejection = {
   code: 'UNSUPPORTED_VIDEO_TYPE' | 'VIDEO_TOO_LARGE';
@@ -9,7 +23,8 @@ export type PropertyVideoRejection = {
 
 export function rejectPropertyVideo(
   mimeType: string | null | undefined,
-  size: number
+  size: number,
+  maxBytes = PROPERTY_VIDEO_STARTER_MAX_BYTES
 ): PropertyVideoRejection | null {
   const bareType = mimeType?.split(';')[0].trim().toLowerCase();
   if (bareType !== PROPERTY_VIDEO_MIME_TYPE) {
@@ -19,10 +34,10 @@ export function rejectPropertyVideo(
       status: 415,
     };
   }
-  if (size > PROPERTY_VIDEO_MAX_BYTES) {
+  if (size > maxBytes) {
     return {
       code: 'VIDEO_TOO_LARGE',
-      error: 'Video is too large. Maximum size is 16 MB.',
+      error: `Video is too large. Maximum size is ${propertyVideoMaxMegabytes(maxBytes)} MB.`,
       status: 413,
     };
   }

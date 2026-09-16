@@ -2,13 +2,32 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { CirclePlay, Clapperboard, ExternalLink, Loader2, RefreshCw, Sparkles, Upload } from 'lucide-react';
+import {
+  CirclePlay,
+  Clapperboard,
+  ExternalLink,
+  Loader2,
+  RefreshCw,
+  Sparkles,
+  Upload,
+} from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { rejectPropertyVideo } from '@/lib/inventory/property-video';
+import {
+  PROPERTY_VIDEO_MAX_BYTES,
+  propertyVideoMaxMegabytes,
+  rejectPropertyVideo,
+} from '@/lib/inventory/property-video';
+import {
+  type PropertyVideoUploadSession,
+  uploadPropertyVideoResumable,
+} from '@/lib/storage/property-video-resumable';
 import { storagePublicUrl } from '@/lib/storage/url';
-import { NARRATION_LANGUAGES, type NarrationLanguage } from '@/lib/video/listing-video';
+import {
+  NARRATION_LANGUAGES,
+  type NarrationLanguage,
+} from '@/lib/video/listing-video';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 
 interface VideoState {
@@ -35,6 +54,8 @@ export function ListingVideoCard({ propertyId }: { propertyId: string }) {
   const [language, setLanguage] = useState<NarrationLanguage>('en-IN');
   const [submitting, setSubmitting] = useState(false);
   const [uploadingVideo, setUploadingVideo] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [videoMaxBytes, setVideoMaxBytes] = useState(PROPERTY_VIDEO_MAX_BYTES);
   const [uploadingYt, setUploadingYt] = useState(false);
   const [ytConnected, setYtConnected] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -60,6 +81,12 @@ export function ListingVideoCard({ propertyId }: { propertyId: string }) {
 
   useEffect(() => {
     refresh();
+    fetch(`/api/properties/${propertyId}/video-upload`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (Number.isFinite(data?.maxBytes)) setVideoMaxBytes(data.maxBytes);
+      })
+      .catch(() => undefined);
     fetch('/api/youtube/config')
       .then((res) => res.json())
       .then((data) => setYtConnected(Boolean(data?.connected)))
@@ -95,9 +122,10 @@ export function ListingVideoCard({ propertyId }: { propertyId: string }) {
         body: JSON.stringify({ language }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || `Failed (HTTP ${res.status})`);
+      if (!res.ok)
+        throw new Error(data?.error || `Failed (HTTP ${res.status})`);
       toast.success(
-        `Video queued (${AI_FEATURE_COSTS.listing_video} cr) — usually ready in about a minute.`,
+        `Video queued (${AI_FEATURE_COSTS.listing_video} cr) — usually ready in about a minute.`
       );
       await refresh();
     } catch (err) {
@@ -110,13 +138,20 @@ export function ListingVideoCard({ propertyId }: { propertyId: string }) {
   const uploadToYouTube = async () => {
     setUploadingYt(true);
     try {
-      const res = await fetch(`/api/properties/${propertyId}/youtube-upload`, { method: 'POST' });
+      const res = await fetch(`/api/properties/${propertyId}/youtube-upload`, {
+        method: 'POST',
+      });
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || `Failed (HTTP ${res.status})`);
+      if (!res.ok)
+        throw new Error(data?.error || `Failed (HTTP ${res.status})`);
       toast.success('YouTube upload queued.');
       await refresh();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to queue the YouTube upload');
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : 'Failed to queue the YouTube upload'
+      );
     } finally {
       setUploadingYt(false);
     }
@@ -124,39 +159,65 @@ export function ListingVideoCard({ propertyId }: { propertyId: string }) {
 
   const uploadWalkthrough = async (file: File | undefined) => {
     if (!file) return;
-    const rejection = rejectPropertyVideo(file.type, file.size);
+    const rejection = rejectPropertyVideo(file.type, file.size, videoMaxBytes);
     if (rejection) {
       toast.error(rejection.error);
       return;
     }
 
     setUploadingVideo(true);
+    setUploadProgress(0);
     try {
-      const form = new FormData();
-      form.append('file', file);
+      const sessionResponse = await fetch(
+        `/api/properties/${propertyId}/video-upload`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mimeType: file.type, size: file.size }),
+        }
+      );
+      const sessionBody = await sessionResponse.json();
+      if (!sessionResponse.ok) {
+        throw new Error(
+          sessionBody?.error || `Failed (HTTP ${sessionResponse.status})`
+        );
+      }
+      const session = sessionBody.data as PropertyVideoUploadSession;
+      await uploadPropertyVideoResumable(file, session, setUploadProgress);
+
       const res = await fetch(`/api/properties/${propertyId}/video-upload`, {
-        method: 'POST',
-        body: form,
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: session.path }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || `Failed (HTTP ${res.status})`);
+      if (!res.ok)
+        throw new Error(data?.error || `Failed (HTTP ${res.status})`);
       setState(data.data as VideoState);
       toast.success(
         data.data?.youtube_status === 'queued'
           ? 'Walkthrough uploaded — YouTube upload queued.'
-          : 'Walkthrough uploaded to the property.',
+          : 'Walkthrough uploaded to the property.'
       );
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to upload walkthrough video');
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : 'Failed to upload walkthrough video'
+      );
     } finally {
       setUploadingVideo(false);
+      setUploadProgress(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
-  const busy = state?.video_status === 'queued' || state?.video_status === 'processing';
-  const ytBusy = state?.youtube_status === 'queued' || state?.youtube_status === 'uploading';
-  const videoReady = state?.video_status === 'ready' && Boolean(state.video_url);
+  const busy =
+    state?.video_status === 'queued' || state?.video_status === 'processing';
+  const ytBusy =
+    state?.youtube_status === 'queued' || state?.youtube_status === 'uploading';
+  const videoReady =
+    state?.video_status === 'ready' && Boolean(state.video_url);
   // Only worker renders stamp video_generated_at — its absence means the
   // agent supplied this video themselves (WhatsApp or an editor), so the
   // generator controls would overwrite real footage.
@@ -165,9 +226,9 @@ export function ListingVideoCard({ propertyId }: { propertyId: string }) {
   return (
     <div className="space-y-3 rounded-xl border border-slate-800 bg-slate-950/40 p-4">
       <div className="flex items-center gap-2">
-        <Clapperboard className="size-4 text-primary" />
+        <Clapperboard className="text-primary size-4" />
         <Label className="text-slate-300">Listing Video</Label>
-        <Sparkles className="size-3.5 text-primary/70" />
+        <Sparkles className="text-primary/70 size-3.5" />
       </div>
       <p className="text-xs text-slate-500">
         {isUploadedVideo
@@ -189,12 +250,14 @@ export function ListingVideoCard({ propertyId }: { propertyId: string }) {
             <Upload className="size-3.5" />
           )}
           {uploadingVideo
-            ? 'Uploading…'
+            ? `Uploading${uploadProgress ? ` ${uploadProgress}%` : '…'}`
             : videoReady
               ? 'Replace with walkthrough'
               : 'Upload walkthrough'}
         </Button>
-        <span className="text-[11px] text-slate-500">MP4, up to 16 MB</span>
+        <span className="text-[11px] text-slate-500">
+          MP4, up to {propertyVideoMaxMegabytes(videoMaxBytes)} MB
+        </span>
         <input
           ref={fileInputRef}
           type="file"
@@ -249,7 +312,9 @@ export function ListingVideoCard({ propertyId }: { propertyId: string }) {
             {busy || submitting ? (
               <>
                 <Loader2 className="size-3.5 animate-spin" />
-                {state?.video_status === 'processing' ? 'Rendering…' : 'Queued…'}
+                {state?.video_status === 'processing'
+                  ? 'Rendering…'
+                  : 'Queued…'}
               </>
             ) : state?.video_status === 'ready' ? (
               <>
@@ -281,7 +346,8 @@ export function ListingVideoCard({ propertyId }: { propertyId: string }) {
               </a>
             ) : ytBusy ? (
               <span className="inline-flex items-center gap-1.5 text-xs text-slate-400">
-                <Loader2 className="size-3 animate-spin" /> Uploading to YouTube…
+                <Loader2 className="size-3 animate-spin" /> Uploading to
+                YouTube…
               </span>
             ) : (
               <span className="text-xs text-slate-500">Not on YouTube yet</span>
@@ -302,7 +368,9 @@ export function ListingVideoCard({ propertyId }: { propertyId: string }) {
             </Button>
           </div>
           {state.youtube_status === 'failed' && state.youtube_error && (
-            <p className="text-xs text-red-400">YouTube upload failed: {state.youtube_error}</p>
+            <p className="text-xs text-red-400">
+              YouTube upload failed: {state.youtube_error}
+            </p>
           )}
         </div>
       )}

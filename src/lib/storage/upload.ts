@@ -164,8 +164,8 @@ export async function uploadGreetingImage(
 
 /**
  * Uploads a video buffer directly to the 'property-videos' Supabase storage bucket under the account's folder,
- * returning its bucket-relative object path. The bucket only accepts video/mp4
- * (20MB cap — the product/WhatsApp limit is 16MB).
+ * returning its bucket-relative object path. The bucket only accepts video/mp4.
+ * Account-plan limits are enforced before this service-role upload is called.
  */
 export async function uploadPropertyVideo(
   accountId: string,
