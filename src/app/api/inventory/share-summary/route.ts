@@ -99,7 +99,9 @@ export async function GET(request: Request) {
     const published = (data ?? []) as unknown as Property[];
     const scoped =
       scope === 'search'
-        ? filterPropertiesBySearch(published, search)
+        ? ids.length > 0
+          ? selectPinnedProperties(published, ids)
+          : filterPropertiesBySearch(published, search)
         : scope === 'pick'
           ? // An empty pick is an empty share, not the whole catalog —
             // selectPinnedProperties passes everything through for no keys.
@@ -108,7 +110,8 @@ export async function GET(request: Request) {
             : []
           : published;
 
-    const preserveOrder = scope === 'pick';
+    const preserveOrder =
+      scope === 'pick' || (scope === 'search' && ids.length > 0);
     const shareProperties =
       scope === 'all' && category !== 'All'
         ? scoped.filter(

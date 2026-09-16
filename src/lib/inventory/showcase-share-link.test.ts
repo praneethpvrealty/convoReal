@@ -11,11 +11,11 @@ const base = {
 describe('buildShowcaseShareLink', () => {
   it('carries the category only for a whole-showcase share', () => {
     expect(
-      buildShowcaseShareLink({ ...base, scope: 'all', category: 'Commercial' }),
+      buildShowcaseShareLink({ ...base, scope: 'all', category: 'Commercial' })
     ).toBe('https://acme.convoreal.com/?category=Commercial');
-    expect(buildShowcaseShareLink({ ...base, scope: 'all', category: 'All' })).toBe(
-      'https://acme.convoreal.com/',
-    );
+    expect(
+      buildShowcaseShareLink({ ...base, scope: 'all', category: 'All' })
+    ).toBe('https://acme.convoreal.com/');
   });
 
   it('replaces the category with the search string', () => {
@@ -29,6 +29,17 @@ describe('buildShowcaseShareLink', () => {
     expect(url).not.toContain('category=');
   });
 
+  it('pins the resolved results for a structured search', () => {
+    const url = buildShowcaseShareLink({
+      ...base,
+      scope: 'search',
+      search: 'J. P. Nagar',
+      ids: ['PROP-101', 'PROP-102'],
+    });
+    expect(url).toContain('ids=PROP-101%2CPROP-102');
+    expect(url).not.toContain('search=');
+  });
+
   it('pins a hand-picked set with ids', () => {
     const url = buildShowcaseShareLink({
       ...base,
@@ -40,7 +51,7 @@ describe('buildShowcaseShareLink', () => {
 
   it('omits ids when nothing is picked', () => {
     expect(buildShowcaseShareLink({ ...base, scope: 'pick', ids: [] })).toBe(
-      'https://acme.convoreal.com/',
+      'https://acme.convoreal.com/'
     );
   });
 

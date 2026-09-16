@@ -245,6 +245,41 @@ export default function PropertiesScreen() {
     () => properties.filter((property) => selectedIds.includes(property.id)),
     [properties, selectedIds]
   );
+  const showcaseSearch = useMemo(() => {
+    const hasSearch = Boolean(
+      debounced ||
+      listing !== 'All' ||
+      near ||
+      locations.length > 0 ||
+      activePropertyFilterCount(filters) > 0
+    );
+    if (!hasSearch) return { params: '', label: '' };
+
+    const params = buildPropertyParams(
+      0,
+      debounced,
+      listing,
+      near,
+      false,
+      filters,
+      locations
+    );
+    params.delete('page');
+    params.delete('limit');
+    params.delete('exclude_archived');
+    params.set('status', 'Available');
+    params.set('is_published', 'true');
+
+    const labels = [
+      debounced,
+      near ? `${near.label} within ${near.radiusKm} km` : '',
+      locations.length > 0 ? locations.join(', ') : '',
+    ].filter(Boolean);
+    return {
+      params: params.toString(),
+      label: labels.join(' · ') || 'Filtered inventory',
+    };
+  }, [debounced, filters, listing, locations, near]);
   // While a new search resolves, `data` is the PREVIOUS result — don't
   // present its total as if it belonged to the current filters.
   const total = isPlaceholderData
@@ -644,7 +679,9 @@ export default function PropertiesScreen() {
         key={sharePicker ? selectedIds.join(',') || 'showcase' : 'closed'}
         visible={sharePicker}
         onClose={() => setSharePicker(false)}
-        activeSearch={search}
+        activeSearch={debounced}
+        activeSearchParams={showcaseSearch.params}
+        activeSearchLabel={showcaseSearch.label}
         initialPicked={selectedProperties}
       />
     </View>

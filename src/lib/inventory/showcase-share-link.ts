@@ -1,5 +1,6 @@
 export type ShareScope = 'all' | 'search' | 'pick';
-export type ShareCategory = 'All' | 'Residential' | 'Commercial' | 'Agricultural';
+export type ShareCategory =
+  'All' | 'Residential' | 'Commercial' | 'Agricultural';
 
 export interface ShowcaseShareLinkOptions {
   /** Origin the showcase is served from, e.g. https://acme.convoreal.com */
@@ -10,7 +11,7 @@ export interface ShowcaseShareLinkOptions {
   scope: ShareScope;
   category?: ShareCategory;
   search?: string;
-  /** property_code (or id) per hand-picked listing, in display order. */
+  /** property_code (or id) per resolved or hand-picked listing, in display order. */
   ids?: string[];
   audience: 'client' | 'agent';
   /** Contact id, so Showcase Pulse attributes the visit by name. */
@@ -33,7 +34,8 @@ export function buildShowcaseShareLink({
   if (includeRef && accountId) url.searchParams.set('ref', accountId);
 
   if (scope === 'search') {
-    if (search.trim()) url.searchParams.set('search', search.trim());
+    if (ids.length > 0) url.searchParams.set('ids', ids.join(','));
+    else if (search.trim()) url.searchParams.set('search', search.trim());
   } else if (scope === 'pick') {
     if (ids.length > 0) url.searchParams.set('ids', ids.join(','));
   } else if (category !== 'All') {

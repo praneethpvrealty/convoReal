@@ -303,6 +303,25 @@
               "case": "[PRP-004]"
             }
           ]
+        },
+        {
+          "id": "PRP-005",
+          "rule": "Search-result showcase sharing recognises text, locality, radius and inventory filters on web and mobile, resolves them to the same available published listings, and preserves per-contact Showcase Pulse attribution.",
+          "tests": [
+            {
+              "file": "src/lib/inventory/showcase-share-link.test.ts",
+              "case": "pins the resolved results for a structured search"
+            },
+            {
+              "file": "src/app/api/inventory/share-summary/route.test.ts",
+              "case": "uses the resolved ids for a location or filtered search"
+            },
+            {
+              "file": "mobile/lib/showcase-scope.test.ts",
+              "case": "pins the resolved results for a structured search"
+            }
+          ],
+          "guards": [".github/workflows/eas-update.yml"]
         }
       ]
     },

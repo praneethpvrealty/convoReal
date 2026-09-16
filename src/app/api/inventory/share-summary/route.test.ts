@@ -111,6 +111,16 @@ describe('/api/inventory/share-summary', () => {
     expect(body.data.summary).not.toContain('Villa in Whitefield');
   });
 
+  it('uses the resolved ids for a location or filtered search', async () => {
+    getCurrentAccount.mockResolvedValue(accountWith(rows));
+    const body = await callGet(
+      '?scope=search&search=&ids=CR-2&portal_url=https://acme.test/%3Fids%3DCR-2'
+    );
+    expect(body.data.count).toBe(1);
+    expect(body.data.summary).toContain('Shop on 27th Main');
+    expect(body.data.summary).not.toContain('Villa in Whitefield');
+  });
+
   it('lists a hand-picked set in link order', async () => {
     getCurrentAccount.mockResolvedValue(accountWith(rows));
     const body = await callGet('?scope=pick&ids=CR-2');
