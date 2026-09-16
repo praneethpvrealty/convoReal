@@ -238,8 +238,8 @@
               "case": "propertyVideoUploadFingerprint"
             },
             {
-              "file": "mobile/lib/property-video-limits.test.ts",
-              "case": "property video preflight limit"
+              "file": "mobile/lib/property-video.test.ts",
+              "case": "propertyVideoLimitCopy"
             },
             {
               "file": "mobile/lib/property-video-upload.test.ts",

@@ -15,7 +15,6 @@ import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import {
-  PROPERTY_VIDEO_PREMIUM_MAX_BYTES,
   propertyVideoMaxMegabytes,
   rejectPropertyVideoPreflight,
 } from '@/lib/inventory/property-video';
@@ -55,9 +54,7 @@ export function ListingVideoCard({ propertyId }: { propertyId: string }) {
   const [submitting, setSubmitting] = useState(false);
   const [uploadingVideo, setUploadingVideo] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
-  const [videoMaxBytes, setVideoMaxBytes] = useState(
-    PROPERTY_VIDEO_PREMIUM_MAX_BYTES
-  );
+  const [videoMaxBytes, setVideoMaxBytes] = useState<number | null>(null);
   const [uploadingYt, setUploadingYt] = useState(false);
   const [ytConnected, setYtConnected] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -258,7 +255,9 @@ export function ListingVideoCard({ propertyId }: { propertyId: string }) {
               : 'Upload walkthrough'}
         </Button>
         <span className="text-[11px] text-slate-500">
-          MP4, up to {propertyVideoMaxMegabytes(videoMaxBytes)} MB
+          {videoMaxBytes
+            ? `MP4, up to ${propertyVideoMaxMegabytes(videoMaxBytes)} MB`
+            : 'MP4 — limit checked for your plan'}
         </span>
         <input
           ref={fileInputRef}
