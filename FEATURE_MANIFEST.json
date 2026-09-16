@@ -278,6 +278,21 @@
             }
           ],
           "guards": [".github/workflows/eas-update.yml"]
+        },
+        {
+          "id": "PRP-003",
+          "rule": "Selecting a Google Places suggestion starts a coordinate-based nearby search on web and mobile with a 10 km locality radius, while exact multi-area matching remains a separate explicit action.",
+          "tests": [
+            {
+              "file": "mobile/lib/property-search-store.test.ts",
+              "case": "[PRP-003]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[PRP-003]"
+            }
+          ],
+          "guards": [".github/workflows/eas-update.yml"]
         }
       ]
     },

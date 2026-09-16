@@ -221,6 +221,28 @@ describe('property shortlist sharing remains available on both surfaces', () => 
   });
 });
 
+describe('Google locality picks run the same nearby search on both surfaces', () => {
+  it('[PRP-003] makes the suggestion row geographic and keeps exact areas explicit', () => {
+    const mobileScreen = mobileSource('app/(app)/(tabs)/properties.tsx');
+    const mobileStore = mobileSource('lib/property-search-store.ts');
+    const webInventory = webSource(
+      'app/(dashboard)/inventory/inventory-content.tsx'
+    );
+
+    expect(mobileScreen).toContain('onPress={() => pick(s)}');
+    expect(mobileScreen).toContain('Search near ${s.main_text}');
+    expect(mobileScreen).toContain('onPress={() => add(s)}');
+    expect(mobileScreen).toContain(
+      'Add ${s.main_text} as an exact area filter'
+    );
+    expect(mobileStore).toContain('DEFAULT_LOCALITY_RADIUS_KM = 10');
+    expect(webInventory).toContain('DEFAULT_LOCALITY_RADIUS_KM = 10');
+    expect(
+      webInventory.match(/setRadiusKm\(DEFAULT_LOCALITY_RADIUS_KM\)/g)
+    ).toHaveLength(2);
+  });
+});
+
 describe('mobile journey lifecycle mirrors the web overview', () => {
   const screen = mobileSource('app/(app)/journey.tsx');
 
