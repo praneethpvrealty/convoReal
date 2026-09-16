@@ -4,6 +4,7 @@ import {
   PROPERTY_VIDEO_PREMIUM_MAX_BYTES,
   propertyVideoMaxBytes,
   rejectPropertyVideo,
+  rejectPropertyVideoPreflight,
 } from './property-video';
 
 describe('[MED-001] rejectPropertyVideo', () => {
@@ -48,5 +49,17 @@ describe('[MED-001] rejectPropertyVideo', () => {
 
   it('keeps Starter at 16 MB', () => {
     expect(propertyVideoMaxBytes('starter')).toBe(PROPERTY_VIDEO_MAX_BYTES);
+  });
+
+  it('lets the server authorize plan-specific sizes after a limit lookup failure', () => {
+    expect(
+      rejectPropertyVideoPreflight('video/mp4', PROPERTY_VIDEO_MAX_BYTES + 1)
+    ).toBeNull();
+    expect(
+      rejectPropertyVideoPreflight(
+        'video/mp4',
+        PROPERTY_VIDEO_PREMIUM_MAX_BYTES + 1
+      )
+    ).toMatchObject({ code: 'VIDEO_TOO_LARGE', status: 413 });
   });
 });
