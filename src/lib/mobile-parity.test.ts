@@ -52,6 +52,7 @@ import {
 } from '@/lib/contacts/budget-amount';
 import {
   DEAL_DOCUMENT_CATEGORIES,
+  DEAL_DOCUMENT_MIME_TYPES,
   INVOICE_STATUS_LABELS,
 } from '@/lib/invoices/types';
 import { brokerageAmount } from '@/lib/pipelines/brokerage';
@@ -1267,6 +1268,17 @@ describe('mobile/lib/deal-workspace.ts mirrors the invoicing vocabulary', () => 
       mobile.indexOf(`value: '${c.value}'`)
     );
     expect(order).toEqual([...order].sort((a, b) => a - b));
+  });
+
+  // [INV-007] A file the folder takes on one surface must not be refused
+  // on the other: the picker filters by this list before the upload is
+  // even attempted, so a drifted copy reads as "that file is invalid".
+  it('accepts the same file types as the web folder', () => {
+    for (const mime of DEAL_DOCUMENT_MIME_TYPES) {
+      expect(mobile, `mobile is missing the "${mime}" type`).toContain(
+        `'${mime}'`
+      );
+    }
   });
 
   it('labels every invoice status identically', () => {

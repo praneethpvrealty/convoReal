@@ -6,11 +6,7 @@ import {
   RATE_LIMITS,
 } from '@/lib/rate-limit';
 import { propertyStatusForPipelineStage } from '@/lib/pipelines/stage-semantics';
-import {
-  INVOICE_BUCKET,
-  isOwnedInvoicePath,
-  parseDealInvoices,
-} from '@/lib/pipelines/deal-invoices';
+import { DEAL_DOCUMENT_BUCKET } from '@/lib/invoices/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -243,9 +239,32 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
     // objects for cleanup
     const { data: deal } = await ctx.supabase
       .from('deals')
-      .select('property_id, invoices')
+      .select('property_id')
       .eq('id', dealId)
       .single();
+
+    // Read before the delete: deal_documents cascades with the deal, so
+    // after it runs there is nothing left naming these objects.
+    const { data: docs, error: docsErr } = await ctx.supabase
+      .from('deal_documents')
+      .select('storage_path')
+      .eq('deal_id', dealId)
+      .eq('account_id', ctx.accountId);
+
+    // Swallowing this would delete the deal, cascade the rows away and
+    // report success while the files — Aadhaars among them — stayed in
+    // the bucket with nothing left naming them. Stop instead: the deal
+    // is still here to try again.
+    if (docsErr) {
+      console.error('[DELETE /api/deals/[id]] Document lookup:', docsErr);
+      return NextResponse.json(
+        {
+          error:
+            "Could not read this deal's documents, so it was not deleted. Try again.",
+        },
+        { status: 500 }
+      );
+    }
 
     const { data: deleted, error: deleteErr } = await ctx.supabase
       .from('deals')
@@ -265,19 +284,27 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Deal not found' }, { status: 404 });
     }
 
-    // The row is gone, so nothing points at its invoices any more.
-    // Financial documents left behind in a private bucket are nobody's
-    // to find or delete later, so they go with the deal.
-    const orphaned = parseDealInvoices(deal?.invoices)
-      .map((invoice) => invoice.path)
-      .filter((path) => isOwnedInvoicePath(path, ctx.accountId, dealId));
+    // deal_documents rows cascade with the deal, but the objects they
+    // pointed at do not: a file left in a private bucket with no row
+    // naming it is nobody's to find or delete later. Paths are read
+    // before the cascade and scoped to this account and deal.
+    const orphaned = (docs ?? [])
+      .map((doc) => doc.storage_path)
+      .filter(
+        (path): path is string =>
+          typeof path === 'string' &&
+          !path.includes('..') &&
+          path.startsWith(`${DEAL_DOCUMENT_BUCKET}/${ctx.accountId}/${dealId}/`)
+      )
+      .map((path) => path.slice(DEAL_DOCUMENT_BUCKET.length + 1));
+
     if (orphaned.length > 0) {
       const { error: removeErr } = await supabaseAdmin()
-        .storage.from(INVOICE_BUCKET)
+        .storage.from(DEAL_DOCUMENT_BUCKET)
         .remove(orphaned);
       if (removeErr) {
         console.warn(
-          '[DELETE /api/deals/[id]] Invoice objects not removed:',
+          '[DELETE /api/deals/[id]] Deal document objects not removed:',
           dealId
         );
       }

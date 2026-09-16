@@ -11,7 +11,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 // short-lived URL — the same shape as the call-recording route. An
 // Aadhaar must never be reachable by URL alone.
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string; docId: string }> }
 ) {
   try {
@@ -47,6 +47,13 @@ export async function GET(
         { error: 'Document unavailable' },
         { status: 404 }
       );
+    }
+
+    // A browser follows the redirect straight from an anchor. The mobile
+    // app cannot: its request carries a bearer token, and Linking needs
+    // a URL it can hand to the OS, so it asks for the link itself.
+    if (new URL(request.url).searchParams.get('format') === 'json') {
+      return NextResponse.json({ data: { url } });
     }
 
     return NextResponse.redirect(url);

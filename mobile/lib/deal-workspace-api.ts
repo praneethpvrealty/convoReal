@@ -45,10 +45,22 @@ export function invoiceAction(
   });
 }
 
-export function fetchDealDocuments(dealId: string) {
+export function fetchDealDocuments(
+  dealId: string,
+  category?: DealDocumentCategory
+) {
+  const query = category ? `?category=${encodeURIComponent(category)}` : '';
   return apiFetch<{ data: DealDocumentRow[] }>(
-    `/api/deals/${dealId}/documents`
+    `/api/deals/${dealId}/documents${query}`
   ).then((json) => json.data ?? []);
+}
+
+/** A short-lived signed link to the stored file. The listing never
+ *  carries URLs, so this is minted per open and not cached. */
+export function fetchDealDocumentUrl(dealId: string, docId: string) {
+  return apiFetch<{ data: { url: string } }>(
+    `/api/deals/${dealId}/documents/${docId}?format=json`
+  ).then((json) => json.data.url);
 }
 
 export function extractDocument(dealId: string, docId: string) {

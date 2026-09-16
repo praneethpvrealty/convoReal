@@ -2,7 +2,10 @@ import { NextResponse } from 'next/server';
 
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import { DEAL_DOCUMENT_BUCKET } from '@/lib/invoices/server';
-import { DEAL_DOCUMENT_CATEGORIES } from '@/lib/invoices/types';
+import {
+  DEAL_DOCUMENT_CATEGORIES,
+  DEAL_DOCUMENT_MIME_TYPES,
+} from '@/lib/invoices/types';
 import { DOCUMENT_SIZE_LIMIT } from '@/lib/inventory/documents';
 import {
   checkRateLimit,
@@ -13,14 +16,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 
 const CATEGORIES = DEAL_DOCUMENT_CATEGORIES.map((c) => c.value) as string[];
 
-const ALLOWED_MIME_TYPES = [
-  'application/pdf',
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-  'image/heic',
-  'image/heif',
-];
+const ALLOWED_MIME_TYPES: readonly string[] = DEAL_DOCUMENT_MIME_TYPES;
 
 // GET /api/deals/[id]/documents — the deal's folder.
 //
@@ -29,19 +25,29 @@ const ALLOWED_MIME_TYPES = [
 // link. A listing that handed out URLs would put an Aadhaar behind
 // nothing but a guess.
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const ctx = await requireRole('viewer');
     const { id: dealId } = await params;
 
-    const { data, error } = await ctx.supabase
+    const category = new URL(request.url).searchParams.get('category');
+    if (category && !CATEGORIES.includes(category)) {
+      return NextResponse.json({ error: 'Unknown category' }, { status: 400 });
+    }
+
+    let query = ctx.supabase
       .from('deal_documents')
       .select('*')
       .eq('deal_id', dealId)
-      .eq('account_id', ctx.accountId)
-      .order('created_at', { ascending: false });
+      .eq('account_id', ctx.accountId);
+
+    if (category) query = query.eq('category', category);
+
+    const { data, error } = await query.order('created_at', {
+      ascending: false,
+    });
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 400 });
@@ -101,7 +107,8 @@ export async function POST(
     if (!ALLOWED_MIME_TYPES.includes(mimeType)) {
       return NextResponse.json(
         {
-          error: 'Upload a PDF or a photo (JPEG, PNG, WebP or HEIC).',
+          error:
+            'Upload a PDF, a photo (JPEG, PNG, WebP or HEIC), or a Word or Excel file.',
           code: 'UNSUPPORTED_TYPE',
         },
         { status: 415 }

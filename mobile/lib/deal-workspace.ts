@@ -104,6 +104,48 @@ export interface DealDocumentRow {
   created_at: string;
 }
 
+/** Mirrors DEAL_DOCUMENT_MIME_TYPES in src/lib/invoices/types.ts and the
+ *  `deal-documents` bucket; guarded by src/lib/mobile-parity.test.ts. */
+export const DEAL_DOCUMENT_MIME_TYPES = [
+  'application/pdf',
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/heic',
+  'image/heif',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-excel.sheet.macroenabled.12',
+] as const;
+
+export const DEAL_DOCUMENT_SIZE_LIMIT = 50 * 1024 * 1024;
+
+/** Why this file cannot be filed, or null when it can. A null size means
+ *  the picker did not report one — not that the file is empty; the
+ *  server measures the bytes it actually receives. */
+export function dealDocumentRejection(
+  mimeType: string,
+  size: number | null
+): string | null {
+  if (!(DEAL_DOCUMENT_MIME_TYPES as readonly string[]).includes(mimeType)) {
+    return 'Upload a PDF, a photo, or a Word or Excel file.';
+  }
+  if (size === null) return null;
+  if (size <= 0) return 'That file is empty.';
+  if (size > DEAL_DOCUMENT_SIZE_LIMIT) {
+    return `Files can be up to ${Math.round(DEAL_DOCUMENT_SIZE_LIMIT / (1024 * 1024))} MB.`;
+  }
+  return null;
+}
+
+export function documentSizeLabel(bytes: number): string {
+  if (bytes <= 0) return '';
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export function categoryLabel(category: DealDocumentCategory | string): string {
   return (
     DEAL_DOCUMENT_CATEGORIES.find((c) => c.value === category)?.label ??
