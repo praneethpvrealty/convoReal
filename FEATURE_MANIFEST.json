@@ -523,6 +523,7 @@
           ],
           "guards": [
             "supabase/migrations/20260917131000_requirement_account_shares.sql",
+            "supabase/migrations/20260917133000_requirement_account_share_indexes.sql",
             ".github/workflows/eas-update.yml"
           ]
         },
