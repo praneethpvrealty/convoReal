@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { buildAccountRequirementBrief } from './account-share';
@@ -46,10 +48,37 @@ describe('[REQ-001] direct account requirement sharing', () => {
 });
 
 describe('[REQ-002] saved requirement lifecycle', () => {
-  it('keeps primary and additional briefs as separate source records', () => {
-    expect(requirement.requirements).toBeTruthy();
-    expect(buildAccountRequirementBrief(requirement).requirements).toBe(
-      requirement.requirements
+  const route = readFileSync(
+    join(
+      process.cwd(),
+      'src/app/api/contacts/[id]/requirements/route.ts'
+    ),
+    'utf8'
+  );
+
+  it('deletes one additional profile without deleting the contact or siblings', () => {
+    expect(route).toContain(
+      'profiles.filter((profile) => profile.id !== profileId)'
     );
+    expect(route).toContain('requirement_profiles: remaining');
+    expect(route).not.toContain(".from('contacts')\n      .delete()");
+  });
+
+  it('clears only primary requirement fields when deleting the primary brief', () => {
+    const deletion = route.slice(route.indexOf('export async function DELETE'));
+    expect(deletion).toContain('requirements: null');
+    expect(deletion).toContain('requirement_active: profiles.length > 0');
+    expect(deletion).not.toContain('requirement_profiles: []');
+  });
+
+  it('keeps editing and deleting available on web and mobile', () => {
+    const surfaces = [
+      'src/components/contacts/contact-requirements-dialog.tsx',
+      'mobile/components/contact-requirements-sheet.tsx',
+    ].map((file) => readFileSync(join(process.cwd(), file), 'utf8'));
+    for (const surface of surfaces) {
+      expect(surface).toContain('Save changes');
+      expect(surface).toContain('Delete requirement');
+    }
   });
 });
