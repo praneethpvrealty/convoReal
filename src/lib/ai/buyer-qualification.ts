@@ -50,6 +50,7 @@ import { resolveRequirementSource } from '@/lib/requirements/profiles';
 import { claimBuyerConsentAsk } from '@/lib/buyer/consent-ask';
 import { localityStems, textContainsLocality } from '@/lib/locality-match';
 import { normalizePropertyType } from '@/lib/property-types';
+import { canonicalBengaluruZone } from '@/lib/bengaluru-zones';
 import type { Contact, Property } from '@/types';
 
 export type QualifierField = 'type' | 'intent' | 'budget' | 'location';
@@ -87,10 +88,7 @@ type InventoryLocalityRow = Partial<
 > & { type?: string | null };
 
 type SectorCategory =
-  | 'residential'
-  | 'commercial'
-  | 'industrial'
-  | 'agricultural';
+  'residential' | 'commercial' | 'industrial' | 'agricultural';
 
 function propertySector(type?: string | null): SectorCategory | null {
   const normalized = normalizePropertyType(type)?.toLowerCase() || '';
@@ -201,6 +199,8 @@ export function resolveInventoryLocalityReply(
 ): string | null {
   const requested = localityReplyCore(text);
   if (!requested) return null;
+  const zone = canonicalBengaluruZone(requested);
+  if (zone) return zone;
 
   for (const row of rows) {
     for (const field of BARE_LOCALITY_FIELDS) {
@@ -551,7 +551,7 @@ export function buildQualifierQuestion(
   const hint = areas.length
     ? ` We have options in ${areas.join(', ')} — or tell me the area you prefer.`
     : '';
-  return `Perfect — ${known}. Which area are you looking at?${hint}`;
+  return `Perfect — ${known}. Which area are you looking at?${hint} You can also say CBD, ORR, PBD East, South or North Bengaluru.`;
 }
 
 /**
@@ -571,7 +571,7 @@ export function buildFollowUpQuestion(field: QualifierField): string {
   if (field === 'budget') {
     return "One thing — what budget are you working with? I'll narrow these down.";
   }
-  return "One thing — which area suits you best? I'll narrow these down.";
+  return 'One thing — which area suits you best? You can name a locality or a market zone such as CBD, ORR, PBD East, South or North Bengaluru.';
 }
 
 /**
@@ -914,12 +914,16 @@ export function preferenceFacts(
  * as extracted pref_areas.
  */
 export function nextQualifierForContact(
-  contact: Contact
+  contact: Contact,
+  opts: { defaultBuying?: boolean } = {}
 ): QualifierField | null {
   const source = resolveRequirementSource(contact);
   const prefs = prefsFromContact(source);
   if (prefs.areas.length === 0 && (source.areas_of_interest?.length ?? 0) > 0) {
     prefs.areas = source.areas_of_interest as string[];
+  }
+  if (opts.defaultBuying && prefs.listing_types.length === 0) {
+    prefs.listing_types = ['Sale'];
   }
   const missing = nextQualifier(prefs);
   if (missing !== 'budget' || !source.no_budget) return missing;
@@ -1263,19 +1267,24 @@ export async function processBuyerQualificationMessage(
       previous?.sender_type === 'bot' &&
       isQualifierQuestion(previous.content_text as string | null);
     const storedPreferences = prefsFromContact(contact);
+    const zoneRefinement = canonicalBengaluruZone(
+      localityReplyCore(text) || ''
+    );
     const localityRefinement =
-      !awaitingAnswer && !carriesRequirementSignal(text)
+      !zoneRefinement && !awaitingAnswer && !carriesRequirementSignal(text)
         ? await inventoryLocalityReply(db, accountId, text, storedPreferences)
         : null;
     if (
       !awaitingAnswer &&
       !carriesRequirementSignal(text) &&
-      !localityRefinement
+      !localityRefinement &&
+      !zoneRefinement
     )
       return false;
 
-    const requirementTurn = localityRefinement
-      ? `Preferred location: ${localityRefinement}`
+    const resolvedLocation = zoneRefinement || localityRefinement;
+    const requirementTurn = resolvedLocation
+      ? `Preferred location: ${resolvedLocation}`
       : text;
     const requirements = appendRequirement(
       contact.requirements,
@@ -1313,8 +1322,8 @@ export async function processBuyerQualificationMessage(
         prefs,
         text
       );
-      if (localityRefinement) {
-        extracted = { ...extracted, areas: [localityRefinement] };
+      if (resolvedLocation) {
+        extracted = { ...extracted, areas: [resolvedLocation] };
       }
 
       // The message added nothing the contact didn't already say — it's

@@ -12,6 +12,7 @@ const {
   listingIntentAcknowledgement,
   sendListingIntentPrompt,
   handleListingIntentReply,
+  applyDefaultBuyingIntent,
   LISTING_INTENT_ID_PREFIX,
 } = await import('./listing-intent-prompt');
 
@@ -67,6 +68,19 @@ describe('buildListingIntentSections', () => {
 });
 
 describe('handleListingIntentReply', () => {
+  it('[INB-002] persists buying when the onboarding flow applies its default', async () => {
+    const { db, updates } = stubDb();
+    const applied = await applyDefaultBuyingIntent({
+      db,
+      accountId: 'acc',
+      contactId: 'c1',
+    });
+    expect(applied).toBe(true);
+    expect(updates).toEqual([
+      { table: 'contacts', patch: { pref_listing_types: ['Sale'] } },
+    ]);
+  });
+
   it('writes the tapped intent to the contact', async () => {
     const { db, updates } = stubDb();
     const handled = await handleListingIntentReply({
@@ -181,8 +195,12 @@ describe('a tapped intent reaches the matcher', () => {
     }) as Property;
 
   it('gates the half the lead did not ask for', () => {
-    expect(getMatchingContacts(flat('Rent'), [buyer(['Sale'])])).toHaveLength(0);
-    expect(getMatchingContacts(flat('Sale'), [buyer(['Sale'])])).toHaveLength(1);
+    expect(getMatchingContacts(flat('Rent'), [buyer(['Sale'])])).toHaveLength(
+      0
+    );
+    expect(getMatchingContacts(flat('Sale'), [buyer(['Sale'])])).toHaveLength(
+      1
+    );
   });
 
   it('keeps both halves open for the Either tap', () => {

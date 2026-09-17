@@ -10,12 +10,40 @@
  * that carry no place identity, and fold trailing plural "s".
  */
 
+import { bengaluruZoneLocalities } from '@/lib/bengaluru-zones';
+
 const DESIGNATOR_TOKENS = new Set([
-  'nagar', 'nagara', 'city', 'town', 'township', 'layout', 'colony',
-  'extension', 'extn', 'ext', 'enclave', 'residency', 'area', 'estate',
-  'industrial', 'phase', 'stage', 'block', 'sector', 'main', 'cross',
-  'road', 'rd', 'village', 'post', 'circle', 'junction', 'gate',
-  'taluk', 'hobli', 'district',
+  'nagar',
+  'nagara',
+  'city',
+  'town',
+  'township',
+  'layout',
+  'colony',
+  'extension',
+  'extn',
+  'ext',
+  'enclave',
+  'residency',
+  'area',
+  'estate',
+  'industrial',
+  'phase',
+  'stage',
+  'block',
+  'sector',
+  'main',
+  'cross',
+  'road',
+  'rd',
+  'village',
+  'post',
+  'circle',
+  'junction',
+  'gate',
+  'taluk',
+  'hobli',
+  'district',
 ]);
 
 // Designator suffixes commonly written both fused and separate
@@ -38,7 +66,10 @@ export function normalizeLocalityLabel(label: string): string {
   const normalized: string[] = [];
 
   for (let index = 0; index < tokens.length; index += 1) {
-    if (/^[a-z]$/i.test(tokens[index]) && /^[a-z]$/i.test(tokens[index + 1] ?? '')) {
+    if (
+      /^[a-z]$/i.test(tokens[index]) &&
+      /^[a-z]$/i.test(tokens[index + 1] ?? '')
+    ) {
       let initials = tokens[index];
       while (/^[a-z]$/i.test(tokens[index + 1] ?? '')) {
         index += 1;
@@ -60,7 +91,10 @@ export function localityStems(text: string): string[] {
     if (!token || DESIGNATOR_TOKENS.has(token)) continue;
     let stem = token;
     for (const suffix of FUSED_SUFFIXES) {
-      if (stem.length >= suffix.length + MIN_FUSED_REMAINDER && stem.endsWith(suffix)) {
+      if (
+        stem.length >= suffix.length + MIN_FUSED_REMAINDER &&
+        stem.endsWith(suffix)
+      ) {
         stem = stem.slice(0, -suffix.length);
         break;
       }
@@ -110,6 +144,21 @@ export function rowMatchesLocality(
     const value = row[field];
     return !!value && textContainsLocality(value, label);
   });
+}
+
+export function rowMatchesBengaluruZone(
+  row: Partial<
+    Record<(typeof LOCALITY_MATCH_FIELDS)[number], string | null>
+  > & {
+    city?: string | null;
+  },
+  zone: string
+): boolean {
+  const city = row.city?.trim().toLowerCase();
+  if (city && city !== 'bengaluru' && city !== 'bangalore') return false;
+  return bengaluruZoneLocalities(zone).some((locality) =>
+    rowMatchesLocality(row, locality)
+  );
 }
 
 /**

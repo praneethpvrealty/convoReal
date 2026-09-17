@@ -144,6 +144,15 @@ describe('budgetBandAcknowledgement', () => {
 });
 
 describe('sendBudgetBandPrompt', () => {
+  it('offers renting as an exception when buying was defaulted', () => {
+    const [section] = buildBudgetBandSections({ includeRentSwitch: true });
+    expect(section.rows).toContainEqual({
+      id: 'li_rent',
+      title: 'Renting instead',
+    });
+    expect(section.rows.length).toBeLessThanOrEqual(10);
+  });
+
   it('sends rent bands to a rent-only lead', async () => {
     const { db } = stubDb({ pref_listing_types: ['Rent'] });
 

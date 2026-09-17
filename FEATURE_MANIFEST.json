@@ -23,6 +23,38 @@
             "supabase/migrations/20260915020752_conversation_closure_reasons.sql",
             ".github/workflows/eas-update.yml"
           ]
+        },
+        {
+          "id": "INB-002",
+          "rule": "Buyer-alert onboarding assumes Buying when intent is unstated, persists that default, proceeds directly to sale budget bands, and offers Renting instead as an explicit exception.",
+          "tests": [
+            {
+              "file": "src/lib/whatsapp/alerts-onboarding.test.ts",
+              "case": "[INB-002]"
+            },
+            {
+              "file": "src/lib/whatsapp/listing-intent-prompt.test.ts",
+              "case": "[INB-002]"
+            },
+            {
+              "file": "src/lib/whatsapp/preference-tap-reply.test.ts",
+              "case": "[INB-002]"
+            }
+          ]
+        },
+        {
+          "id": "INB-003",
+          "rule": "Buyer locations accept Bengaluru real-estate market zones (CBD & Off-CBD, SBD, ORR and PBD East/South/North) plus directional zones, normalize Bangalore and Bengaluru spellings, and match inventory in member localities without leaking into unrelated zones.",
+          "tests": [
+            {
+              "file": "src/lib/locality-match.test.ts",
+              "case": "[INB-003]"
+            },
+            {
+              "file": "src/lib/matching.test.ts",
+              "case": "[INB-003]"
+            }
+          ]
         }
       ]
     },

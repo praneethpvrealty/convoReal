@@ -3,9 +3,38 @@ import {
   localityStems,
   localityStemProbe,
   normalizeLocalityLabel,
+  rowMatchesBengaluruZone,
   rowMatchesLocality,
   textContainsLocality,
 } from './locality-match';
+import {
+  canonicalBengaluruZone,
+  extractBengaluruZones,
+} from './bengaluru-zones';
+
+describe('Bengaluru zones', () => {
+  it('normalizes Bangalore and Bengaluru spellings', () => {
+    expect(canonicalBengaluruZone('South Bangalore')).toBe('South Bengaluru');
+    expect(canonicalBengaluruZone('north east Bengaluru zone')).toBe(
+      'North-East Bengaluru'
+    );
+    expect(canonicalBengaluruZone('CBD')).toBe('CBD & Off-CBD');
+    expect(canonicalBengaluruZone('Outer Ring Road')).toBe('ORR');
+    expect(canonicalBengaluruZone('PBD East')).toBe('PBD East');
+  });
+
+  it('extracts zones from a longer requirement', () => {
+    expect(
+      extractBengaluruZones('Looking in South Bangalore or East Bengaluru')
+    ).toEqual(['South Bengaluru', 'East Bengaluru']);
+    expect(
+      extractBengaluruZones('East Bengaluru, not South Bangalore')
+    ).toEqual(['East Bengaluru']);
+    expect(
+      extractBengaluruZones('CBD, ORR or PBD South are all acceptable')
+    ).toEqual(['CBD & Off-CBD', 'ORR', 'PBD South']);
+  });
+});
 
 describe('normalizeLocalityLabel', () => {
   it('[PRP-001] collapses dotted locality initials without changing ordinary words', () => {
@@ -24,7 +53,9 @@ describe('localityStems', () => {
   it('drops generic designator tokens', () => {
     expect(localityStems('Surya City')).toEqual(['surya']);
     expect(localityStems('HSR Layout')).toEqual(['hsr']);
-    expect(localityStems('Bommasandra Industrial Area')).toEqual(['bommasandra']);
+    expect(localityStems('Bommasandra Industrial Area')).toEqual([
+      'bommasandra',
+    ]);
   });
 
   it('keeps short names whole instead of over-stripping', () => {
@@ -39,28 +70,46 @@ describe('localityStems', () => {
 
 describe('textContainsLocality', () => {
   it('keeps plain substring matches', () => {
-    expect(textContainsLocality('Bommasandra Industrial Area, Karnataka', 'Bommasandra')).toBe(true);
+    expect(
+      textContainsLocality(
+        'Bommasandra Industrial Area, Karnataka',
+        'Bommasandra'
+      )
+    ).toBe(true);
   });
 
   it('matches Suryanagar against a Surya City address', () => {
-    expect(textContainsLocality('Surya City Layout, Chandapura', 'Suryanagar')).toBe(true);
+    expect(
+      textContainsLocality('Surya City Layout, Chandapura', 'Suryanagar')
+    ).toBe(true);
   });
 
   it('matches Surya City against a Suryanagar address', () => {
-    expect(textContainsLocality('Suryanagar, Anekal Taluk', 'Surya City')).toBe(true);
+    expect(textContainsLocality('Suryanagar, Anekal Taluk', 'Surya City')).toBe(
+      true
+    );
   });
 
   it('matches Electronic City against Electronics City Phase 1', () => {
-    expect(textContainsLocality('Neeladri Road, Electronics City Phase 1', 'Electronic City')).toBe(true);
+    expect(
+      textContainsLocality(
+        'Neeladri Road, Electronics City Phase 1',
+        'Electronic City'
+      )
+    ).toBe(true);
   });
 
   it('does not equate different localities sharing a designator', () => {
-    expect(textContainsLocality('Surya City Layout', 'Electronic City')).toBe(false);
+    expect(textContainsLocality('Surya City Layout', 'Electronic City')).toBe(
+      false
+    );
     expect(textContainsLocality('BTM Layout', 'HSR Layout')).toBe(false);
   });
 
   it('requires every stem of the label to be present', () => {
-    expect(textContainsLocality('Sarjapur Main Road', 'Sarjapur Attibele Road')).toBe(false);
+    expect(
+      textContainsLocality('Sarjapur Main Road', 'Sarjapur Attibele Road')
+    ).toBe(false);
   });
 
   it('is false for empty labels', () => {
@@ -96,7 +145,8 @@ describe('rowMatchesLocality', () => {
   // another part of the city.
   const koramangalaRow = {
     title: 'Residential House in Koramangala 7th phase, opposite to the park',
-    location: 'Plot 27, 20th Main, Phase VIII, KHB Colony, Bangalore, Karnataka',
+    location:
+      'Plot 27, 20th Main, Phase VIII, KHB Colony, Bangalore, Karnataka',
     sublocality: 'KHB Colony',
     locality_canonical: null,
     project: null,
@@ -107,13 +157,71 @@ describe('rowMatchesLocality', () => {
   });
 
   it('still matches on the other locality fields', () => {
-    expect(rowMatchesLocality({ sublocality: 'HSR Layout' }, 'HSR Layout')).toBe(true);
-    expect(rowMatchesLocality({ location: 'Surya City, Chandapura' }, 'Suryanagar')).toBe(true);
-    expect(rowMatchesLocality({ project: 'Prestige Falcon City' }, 'Falcon City')).toBe(true);
+    expect(
+      rowMatchesLocality({ sublocality: 'HSR Layout' }, 'HSR Layout')
+    ).toBe(true);
+    expect(
+      rowMatchesLocality({ location: 'Surya City, Chandapura' }, 'Suryanagar')
+    ).toBe(true);
+    expect(
+      rowMatchesLocality({ project: 'Prestige Falcon City' }, 'Falcon City')
+    ).toBe(true);
   });
 
   it('does not match an unrelated locality', () => {
     expect(rowMatchesLocality(koramangalaRow, 'Whitefield')).toBe(false);
-    expect(rowMatchesLocality({ title: null, location: null }, 'Koramangala')).toBe(false);
+    expect(
+      rowMatchesLocality({ title: null, location: null }, 'Koramangala')
+    ).toBe(false);
+  });
+});
+
+describe('rowMatchesBengaluruZone', () => {
+  it('[INB-003] expands broad Bengaluru zones into their member localities', () => {
+    expect(
+      rowMatchesBengaluruZone({ sublocality: 'JP Nagar' }, 'South Bangalore')
+    ).toBe(true);
+    expect(
+      rowMatchesBengaluruZone({ sublocality: 'HSR Layout' }, 'South Bengaluru')
+    ).toBe(true);
+    expect(
+      rowMatchesBengaluruZone({ sublocality: 'Whitefield' }, 'East Bangalore')
+    ).toBe(true);
+    expect(
+      rowMatchesBengaluruZone({ sublocality: 'Yelahanka' }, 'North Bengaluru')
+    ).toBe(true);
+  });
+
+  it('matches established Bengaluru business districts', () => {
+    expect(rowMatchesBengaluruZone({ sublocality: 'MG Road' }, 'CBD')).toBe(
+      true
+    );
+    expect(rowMatchesBengaluruZone({ sublocality: 'Bellandur' }, 'ORR')).toBe(
+      true
+    );
+    expect(
+      rowMatchesBengaluruZone({ sublocality: 'Whitefield' }, 'PBD East')
+    ).toBe(true);
+    expect(
+      rowMatchesBengaluruZone({ sublocality: 'Electronic City' }, 'PBD South')
+    ).toBe(true);
+    expect(
+      rowMatchesBengaluruZone({ sublocality: 'Devanahalli' }, 'PBD North')
+    ).toBe(true);
+  });
+
+  it('does not leak a locality into unrelated zones', () => {
+    expect(
+      rowMatchesBengaluruZone({ sublocality: 'Whitefield' }, 'West Bangalore')
+    ).toBe(false);
+  });
+
+  it('does not apply Bengaluru zones to another city with the same locality name', () => {
+    expect(
+      rowMatchesBengaluruZone(
+        { city: 'Chennai', sublocality: 'MG Road' },
+        'CBD'
+      )
+    ).toBe(false);
   });
 });

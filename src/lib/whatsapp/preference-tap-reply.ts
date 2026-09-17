@@ -30,7 +30,10 @@ import { accountShowcaseOrigin } from '@/lib/showcase/account-showcase-url';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { sendListingFeedbackPrompt } from '@/lib/whatsapp/listing-feedback';
 import { sendBudgetBandPrompt } from '@/lib/whatsapp/budget-band';
-import { sendListingIntentPrompt } from '@/lib/whatsapp/listing-intent-prompt';
+import {
+  applyDefaultBuyingIntent,
+  sendListingIntentPrompt,
+} from '@/lib/whatsapp/listing-intent-prompt';
 import { isPlaceholderLeadName } from '@/lib/contacts/lead-placeholder';
 import type { Contact } from '@/types';
 
@@ -108,29 +111,36 @@ export async function sendPreferenceTapReply(args: {
   const { db, accountId, userId, contactId, conversationId } = args;
 
   try {
-    const [{ data: contact }, matches] = await Promise.all([
-      db
-        .from('contacts')
-        .select('*, contact_notes(note_text)')
-        .eq('id', contactId)
-        .eq('account_id', accountId)
-        .maybeSingle(),
-      // strictArea for the same reason as the form follow-up: this goes
-      // straight to a buyer who named their area, so the loose 20km
-      // radius would surface listings they did not ask about.
-      rankPropertiesForContact(db, accountId, contactId, {
-        strictArea: true,
-        excludeAlreadySent: true,
-      }),
-    ]);
+    const { data: contact } = await db
+      .from('contacts')
+      .select('*, contact_notes(note_text)')
+      .eq('id', contactId)
+      .eq('account_id', accountId)
+      .maybeSingle();
     if (!contact)
       return { matchCount: 0, replySent: false, formOffered: false };
+
+    const hadMissingIntent =
+      nextQualifierForContact(contact as Contact) === 'intent';
+    const defaultedBuying = hadMissingIntent
+      ? await applyDefaultBuyingIntent({ db, accountId, contactId })
+      : false;
+
+    // strictArea for the same reason as the form follow-up: this goes
+    // straight to a buyer who named their area, so the loose 20km
+    // radius would surface listings they did not ask about.
+    const matches = await rankPropertiesForContact(db, accountId, contactId, {
+      strictArea: true,
+      excludeAlreadySent: true,
+    });
 
     const notes = ((contact as Contact).contact_notes ?? [])
       .map((n) => extractEnquiredPropertyFromNote(n.note_text))
       .filter(Boolean) as string[];
 
-    const missing = nextQualifierForContact(contact as Contact);
+    const missing = nextQualifierForContact(contact as Contact, {
+      defaultBuying: defaultedBuying,
+    });
     const baseUrl = await accountShowcaseOrigin(db, accountId);
     const contactName = (contact as Contact).name ?? null;
 
@@ -148,11 +158,15 @@ export async function sendPreferenceTapReply(args: {
       listings: buildListingLines(contactName, matches, baseUrl, contactId),
       question: tapRung
         ? tapRung === 'budget'
-          ? "Let's fine-tune it — pick your budget range below 👇"
+          ? defaultedBuying
+            ? "I'll assume you're buying. Pick your budget below, or choose Renting instead if needed 👇"
+            : "Let's fine-tune it — pick your budget range below 👇"
           : "Let's fine-tune it — buying or renting? Pick below 👇"
-        : missing
-          ? buildFollowUpQuestion(missing)
-          : null,
+        : defaultedBuying && missing
+          ? `I'll assume you're buying; reply “renting” if needed. ${buildFollowUpQuestion(missing)}`
+          : missing
+            ? buildFollowUpQuestion(missing)
+            : null,
     });
 
     const result = await sendWhatsAppMessageAndPersist({
@@ -198,16 +212,25 @@ export async function sendPreferenceTapReply(args: {
         }
       );
     } else if (tapRung && result.success) {
-      const sendRung =
-        tapRung === 'budget' ? sendBudgetBandPrompt : sendListingIntentPrompt;
-      formOffered = await sendRung({
-        db,
-        accountId,
-        userId,
-        contactId,
-        conversationId,
-        includeFormRow: true,
-      });
+      formOffered =
+        tapRung === 'budget'
+          ? await sendBudgetBandPrompt({
+              db,
+              accountId,
+              userId,
+              contactId,
+              conversationId,
+              includeFormRow: true,
+              includeRentSwitch: defaultedBuying,
+            })
+          : await sendListingIntentPrompt({
+              db,
+              accountId,
+              userId,
+              contactId,
+              conversationId,
+              includeFormRow: true,
+            });
     }
 
     return {

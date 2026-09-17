@@ -19,7 +19,10 @@ import {
 } from '@/lib/ai/buyer-qualification';
 import { sendPropertyTypePrompt } from '@/lib/whatsapp/property-type-prompt';
 import { sendBudgetBandPrompt } from '@/lib/whatsapp/budget-band';
-import { sendListingIntentPrompt } from '@/lib/whatsapp/listing-intent-prompt';
+import {
+  applyDefaultBuyingIntent,
+  sendListingIntentPrompt,
+} from '@/lib/whatsapp/listing-intent-prompt';
 import { sendPreferenceMatchFollowUp } from '@/lib/whatsapp/preference-match-followup';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import type { Contact } from '@/types';
@@ -66,13 +69,32 @@ export async function sendAlertsOnboarding(args: {
     }
 
     if (missing === 'intent') {
-      await sendListingIntentPrompt({
+      const defaulted = await applyDefaultBuyingIntent({
+        db,
+        accountId,
+        contactId,
+      });
+      if (!defaulted) {
+        await sendListingIntentPrompt({
+          db,
+          accountId,
+          userId,
+          contactId,
+          conversationId,
+          includeFormRow: true,
+        });
+        return;
+      }
+      await sendBudgetBandPrompt({
         db,
         accountId,
         userId,
         contactId,
         conversationId,
         includeFormRow: true,
+        includeRentSwitch: true,
+        bodyText:
+          "I'll assume you're buying. If you're renting instead, choose that below.\n\nWhat budget should I work with?",
       });
       return;
     }
@@ -103,7 +125,7 @@ export async function sendAlertsOnboarding(args: {
         kind: 'text',
         senderType: 'bot',
         text: args.acknowledgement
-          ? `${args.acknowledgement}\n\nWhich areas should I focus on?`
+          ? `${args.acknowledgement}\n\nWhich areas should I focus on? You can name a locality or say CBD, ORR, PBD East, South or North Bengaluru.`
           : buildFollowUpQuestion('location'),
         customDbClient: db,
       });

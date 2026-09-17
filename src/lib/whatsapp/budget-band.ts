@@ -13,6 +13,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import type { InteractiveListSection } from '@/lib/whatsapp/meta-api';
+import { RENTING_INTENT_ID } from '@/lib/whatsapp/listing-intent-prompt';
 
 /** Every id this module owns starts with this. */
 export const BUDGET_BAND_ID_PREFIX = 'bb_';
@@ -72,12 +73,19 @@ export function isRentOnlyIntent(
 export function buildBudgetBandSections(opts: {
   rentOnly?: boolean;
   includeFormRow?: boolean;
+  includeRentSwitch?: boolean;
 }): InteractiveListSection[] {
   const rows = (opts.rentOnly ? RENT_BANDS : SALE_BANDS).map((b) => ({
     id: b.id,
     title: b.title,
   }));
   rows.push({ id: NO_BUDGET_ID, title: 'No fixed budget' });
+  if (opts.includeRentSwitch) {
+    rows.push({
+      id: RENTING_INTENT_ID,
+      title: 'Renting instead',
+    });
+  }
   if (opts.includeFormRow) {
     rows.push({ id: 'lfb_form', title: 'Update preferences' });
   }
@@ -96,6 +104,7 @@ export async function sendBudgetBandPrompt(args: {
   conversationId: string;
   bodyText?: string;
   includeFormRow?: boolean;
+  includeRentSwitch?: boolean;
 }): Promise<boolean> {
   try {
     const { data: contact } = await args.db
@@ -122,6 +131,7 @@ export async function sendBudgetBandPrompt(args: {
           contact?.pref_listing_types as string[] | null
         ),
         includeFormRow: args.includeFormRow,
+        includeRentSwitch: args.includeRentSwitch,
       }),
       customDbClient: args.db,
     });

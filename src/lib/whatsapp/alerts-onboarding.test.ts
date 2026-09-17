@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const sendPropertyTypePrompt = vi.fn();
 const sendListingIntentPrompt = vi.fn();
+const applyDefaultBuyingIntent = vi.fn();
 const sendBudgetBandPrompt = vi.fn();
 const sendPreferenceMatchFollowUp = vi.fn();
 const sendWhatsAppMessageAndPersist = vi.fn();
@@ -14,6 +15,8 @@ vi.mock('@/lib/whatsapp/property-type-prompt', () => ({
 vi.mock('@/lib/whatsapp/listing-intent-prompt', () => ({
   sendListingIntentPrompt: (...args: unknown[]) =>
     sendListingIntentPrompt(...args),
+  applyDefaultBuyingIntent: (...args: unknown[]) =>
+    applyDefaultBuyingIntent(...args),
 }));
 
 vi.mock('@/lib/whatsapp/budget-band', () => ({
@@ -65,6 +68,7 @@ const args = (row: Record<string, unknown> | null) => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  applyDefaultBuyingIntent.mockResolvedValue(true);
 });
 
 describe('sendAlertsOnboarding', () => {
@@ -77,7 +81,28 @@ describe('sendAlertsOnboarding', () => {
     expect(sendBudgetBandPrompt).not.toHaveBeenCalled();
   });
 
-  it('asks buy-or-rent once the type is known', async () => {
+  it('[INB-002] defaults to buying and asks for budget once the type is known', async () => {
+    await sendAlertsOnboarding(
+      args({ id: 'c1', pref_property_types: ['Residential Land/ Plot'] })
+    );
+
+    expect(applyDefaultBuyingIntent).toHaveBeenCalledWith(
+      expect.objectContaining({ contactId: 'c1' })
+    );
+    expect(sendBudgetBandPrompt).toHaveBeenCalledWith(
+      expect.objectContaining({
+        contactId: 'c1',
+        includeFormRow: true,
+        includeRentSwitch: true,
+        bodyText: expect.stringContaining("assume you're buying"),
+      })
+    );
+    expect(sendListingIntentPrompt).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the buy-or-rent choice if saving the default fails', async () => {
+    applyDefaultBuyingIntent.mockResolvedValueOnce(false);
+
     await sendAlertsOnboarding(
       args({ id: 'c1', pref_property_types: ['Residential Land/ Plot'] })
     );
@@ -172,7 +197,7 @@ describe('sendAlertsOnboarding', () => {
 
     expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledWith(
       expect.objectContaining({
-        text: expect.stringContaining('Which areas should I focus on?'),
+        text: expect.stringContaining('CBD, ORR, PBD East'),
       })
     );
   });

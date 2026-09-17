@@ -25,6 +25,7 @@ vi.mock('@/lib/whatsapp/listing-feedback', () => ({
 
 const sendBudgetBandPrompt = vi.fn();
 const sendListingIntentPrompt = vi.fn();
+const applyDefaultBuyingIntent = vi.fn();
 
 vi.mock('@/lib/whatsapp/budget-band', () => ({
   sendBudgetBandPrompt: (...args: unknown[]) => sendBudgetBandPrompt(...args),
@@ -33,6 +34,8 @@ vi.mock('@/lib/whatsapp/budget-band', () => ({
 vi.mock('@/lib/whatsapp/listing-intent-prompt', () => ({
   sendListingIntentPrompt: (...args: unknown[]) =>
     sendListingIntentPrompt(...args),
+  applyDefaultBuyingIntent: (...args: unknown[]) =>
+    applyDefaultBuyingIntent(...args),
 }));
 
 const { sendPreferenceTapReply, buildPreferenceTapReply } =
@@ -159,6 +162,7 @@ beforeEach(() => {
   generateMatchEventForContact.mockResolvedValue(undefined);
   sendWhatsAppMessageAndPersist.mockResolvedValue({ success: true });
   sendListingFeedbackPrompt.mockResolvedValue(true);
+  applyDefaultBuyingIntent.mockResolvedValue(true);
 });
 
 describe('sendPreferenceTapReply', () => {
@@ -262,11 +266,9 @@ describe('sendPreferenceTapReply', () => {
     );
   });
 
-  it('offers the buy-or-rent list when intent is the missing rung', async () => {
-    // Same treatment as the band list one rung below: a lead with
-    // nothing to judge answers with a tap, not by typing.
+  it('[INB-002] defaults missing intent to buying and offers renting as the exception', async () => {
     rankPropertiesForContact.mockResolvedValue([]);
-    sendListingIntentPrompt.mockResolvedValue(true);
+    sendBudgetBandPrompt.mockResolvedValue(true);
 
     const result = await sendPreferenceTapReply(
       args({ ...contactRow, pref_listing_types: [] })
@@ -276,11 +278,29 @@ describe('sendPreferenceTapReply', () => {
     const { text } = sendWhatsAppMessageAndPersist.mock.calls[0][0] as {
       text: string;
     };
-    expect(text).toContain('buying or renting? Pick below');
-    expect(sendListingIntentPrompt).toHaveBeenCalledWith(
-      expect.objectContaining({ contactId: 'c1', includeFormRow: true })
+    expect(text).toContain("assume you're buying");
+    expect(sendBudgetBandPrompt).toHaveBeenCalledWith(
+      expect.objectContaining({
+        contactId: 'c1',
+        includeFormRow: true,
+        includeRentSwitch: true,
+      })
     );
-    expect(sendBudgetBandPrompt).not.toHaveBeenCalled();
+    expect(sendListingIntentPrompt).not.toHaveBeenCalled();
+  });
+
+  it('states the buying default when matching listings use the interactive slot', async () => {
+    rankPropertiesForContact.mockResolvedValue([aMatch]);
+
+    await sendPreferenceTapReply(
+      args({ ...contactRow, pref_listing_types: [] })
+    );
+
+    const { text } = sendWhatsAppMessageAndPersist.mock.calls[0][0] as {
+      text: string;
+    };
+    expect(text).toContain("assume you're buying");
+    expect(text).toContain('reply “renting” if needed');
   });
 
   it('keeps the typed budget question when listings occupy the interactive slot', async () => {
