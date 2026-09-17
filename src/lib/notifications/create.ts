@@ -46,7 +46,9 @@ export type NotificationType =
   | 'document_request'
   | 'subscription_extended'
   | 'listing_interest'
-  | 'portal_listing_expiry';
+  | 'portal_listing_expiry'
+  | 'requirement_shared'
+  | 'requirement_response';
 
 export interface NotificationChannels {
   inApp?: boolean;
