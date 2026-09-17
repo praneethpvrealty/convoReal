@@ -3,6 +3,7 @@ import {
   audienceListingLabel,
   filterAudienceListings,
   audienceReasonLabel,
+  enquiredAudienceContacts,
   mapAudienceContacts,
   mapAudienceListings,
   reachableAudienceIds,
@@ -82,6 +83,18 @@ describe('audienceReasonLabel', () => {
         member({ enquired: false, viewed: true, viewsCount: 1 })
       )
     ).toBe('Viewed');
+  });
+});
+
+describe('enquiredAudienceContacts', () => {
+  it('[PRP-007] keeps explicit enquiries and excludes view-only engagement', () => {
+    expect(
+      enquiredAudienceContacts([
+        member({ contactId: 'enquiry' }),
+        member({ contactId: 'both', viewed: true }),
+        member({ contactId: 'view', enquired: false, viewed: true }),
+      ]).map((contact) => contact.contactId)
+    ).toEqual(['enquiry', 'both']);
   });
 });
 

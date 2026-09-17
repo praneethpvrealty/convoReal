@@ -15,6 +15,7 @@ import type {
 export type { AudienceContact, AudienceListing };
 export {
   audienceListingLabel,
+  enquiredAudienceContacts,
   filterAudienceListings,
   reachableAudienceIds,
 } from '@/lib/listing-audience-select';
@@ -26,13 +27,19 @@ export async function fetchAudienceListings(): Promise<AudienceListing[]> {
   return data ?? [];
 }
 
-export async function fetchListingAudience(
+export async function fetchPropertyAudience(
   propertyId: string
 ): Promise<AudienceContact[]> {
   const { data } = await apiFetch<{ data: AudienceContact[] }>(
     `/api/properties/${propertyId}/audience`
   );
-  const audience = data ?? [];
+  return data ?? [];
+}
+
+export async function fetchListingAudience(
+  propertyId: string
+): Promise<AudienceContact[]> {
+  const audience = await fetchPropertyAudience(propertyId);
   // Historical engagement must remain actionable even when those contacts
   // are not part of the current property's preference-ranked match list.
   // The overlay is scoped to the active property-match query and lets the

@@ -14,6 +14,12 @@ export function audienceListingLabel(listing: AudienceListing): string {
   return listing.propertyCode || listing.title || 'Untitled listing';
 }
 
+export function enquiredAudienceContacts(
+  contacts: AudienceContact[]
+): AudienceContact[] {
+  return contacts.filter((contact) => contact.enquired);
+}
+
 /**
  * Narrow the picker to what an agent typed. An account with a hundred
  * engaged listings makes scrolling the wrong instrument — the listing
