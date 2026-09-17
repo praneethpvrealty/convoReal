@@ -275,6 +275,11 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
     expect(screen).toContain('Journey stage notes');
     expect(screen).toContain('stages.map((stage)');
     expect(screen).toContain('current ? { ...current, stage } : current');
+    expect(screen).toContain('const notesByStage = useMemo');
+    expect(screen).toContain('const latestNote = stageNotes[0]');
+    expect(screen).toContain('{latestNote.note}');
+    expect(screen).toContain('loadJourneyStageNotes(noteTarget!.item.id)');
+    expect(screen).toContain('.range(from, from + JOURNEY_NOTE_PAGE_SIZE - 1)');
     expect(screen).toContain('Complete journey history');
     expect(screen).toContain('(notesQuery.data ?? []).map((note)');
   });

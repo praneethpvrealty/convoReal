@@ -554,17 +554,17 @@ export function JourneyItemSheet({
                         <button
                           type="button"
                           aria-label={`Add note at ${s.name}`}
+                          title={`Add note at ${s.name}`}
                           onClick={() => {
                             setNoteStageId(noteStageId === s.id ? null : s.id);
                             setStageNote('');
                           }}
-                          className="hover:text-primary inline-flex shrink-0 items-center gap-1 text-[10px] font-semibold text-slate-500"
+                          className="hover:border-primary/60 hover:text-primary inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-700 bg-slate-900 px-2 py-1 text-[10px] font-semibold text-slate-400 transition-colors"
                         >
                           <NotebookPen className="h-3 w-3" />
-                          Note
                           {notesAtStage.length > 0
-                            ? ` (${notesAtStage.length})`
-                            : ''}
+                            ? `Add note · ${notesAtStage.length}`
+                            : 'Add note'}
                         </button>
                       )}
                     </div>
