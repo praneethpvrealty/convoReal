@@ -249,6 +249,13 @@ export async function getRequirementAccountShare(
     status: string | null;
   }>;
   responsePropertyIds: string[];
+  responseProperties: Array<{
+    id: string;
+    title: string;
+    location: string | null;
+    price: number | null;
+    status: string | null;
+  }>;
 }> {
   const admin = await lookupAdmin();
   const { data: share, error } = await admin
@@ -302,8 +309,34 @@ export async function getRequirementAccountShare(
   if (responseError) throw responseError;
   if (inventory.error) throw inventory.error;
 
+  const responsePropertyIds = (responseRows ?? []).map(
+    (response) => response.property_id as string
+  );
+  let responseProperties: Array<{
+    id: string;
+    title: string;
+    location: string | null;
+    price: number | null;
+    status: string | null;
+  }> = [];
+  if (responsePropertyIds.length > 0) {
+    const { data: rows, error: rowsError } = await admin
+      .from('properties')
+      .select('id, title, location, price, status')
+      .eq('account_id', share.recipient_account_id)
+      .in('id', responsePropertyIds);
+    if (rowsError) throw rowsError;
+    responseProperties = (rows ?? []).map((property) => ({
+      id: property.id as string,
+      title: (property.title as string) || 'Untitled property',
+      location: (property.location as string | null) ?? null,
+      price: numberOrNull(property.price as number | string | null),
+      status: (property.status as string | null) ?? null,
+    }));
+  }
+
   return {
-    share: toSummary(share, responseRows?.length ?? 0),
+    share: toSummary(share, responsePropertyIds.length),
     properties: (inventory.data ?? []).map((property) => ({
       id: property.id as string,
       title: (property.title as string) || 'Untitled property',
@@ -311,9 +344,8 @@ export async function getRequirementAccountShare(
       price: numberOrNull(property.price as number | string | null),
       status: (property.status as string | null) ?? null,
     })),
-    responsePropertyIds: (responseRows ?? []).map(
-      (response) => response.property_id as string
-    ),
+    responsePropertyIds,
+    responseProperties,
   };
 }
 
