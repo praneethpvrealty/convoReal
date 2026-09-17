@@ -114,7 +114,7 @@ export async function shareRequirementWithAgent(
     )
     .eq('id', requirementContactId)
     .eq('account_id', ctx.accountId)
-    .eq('classification', 'Buyer')
+    .in('classification', ['Buyer', 'Owner & Buyer'])
     .maybeSingle();
   if (requirementError) throw requirementError;
   if (!rawRequirement) throw new UserFacingError('Buyer requirement not found');
