@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { outgoingSignature, settlePending } from './pending-messages';
+import { outgoingSignature, restoreFailedDraft, settlePending } from './pending-messages';
 import type { Message } from '@/lib/types';
 
 /**
@@ -62,6 +62,16 @@ describe('settlePending', () => {
   it('returns the same array when nothing is pending, so the memo stays stable', () => {
     const empty: Message[] = [];
     expect(settlePending(empty, [msg({})])).toBe(empty);
+  });
+});
+
+describe('restoreFailedDraft', () => {
+  it('puts a failed send back into an empty composer', () => {
+    expect(restoreFailedDraft('', 'Please call me')).toBe('Please call me');
+  });
+
+  it('does not overwrite the next message typed while the send was pending', () => {
+    expect(restoreFailedDraft('One more detail', 'Please call me')).toBe('One more detail');
   });
 });
 
