@@ -26,6 +26,7 @@ import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { FlyerSheet } from '@/components/flyer-sheet';
 import { ListingAudienceSheet } from '@/components/listing-audience-sheet';
 import { PortalExpirySheet } from '@/components/portal-expiry-sheet';
+import { PropertyInterestFollowUpSheet } from '@/components/property-interest-follow-up-sheet';
 import { ConvoRealLoader } from '@/components/loader';
 import { PropertyShareSheet } from '@/components/property-share-sheet';
 import { FilterChip, SectionLabel, Tag, nameTagCap } from '@/components/ui';
@@ -44,6 +45,7 @@ import { haptic } from '@/lib/haptics';
 import { listingPrice } from '@/lib/listing-price';
 import {
   audienceListingLabel,
+  dialableAudiencePhone,
   enquiredAudienceContacts,
   fetchListingAudience,
   fetchPropertyAudience,
@@ -1227,9 +1229,12 @@ function EnquiredContactsSection({
 }) {
   const { colors, fonts: f } = useTheme();
   const [expanded, setExpanded] = useState(true);
+  const [messageContact, setMessageContact] =
+    useState<AudienceContact | null>(null);
 
   return (
-    <Section title="Enquired Contacts">
+    <>
+      <Section title="Enquired Contacts">
       <Pressable
         onPress={() => {
           haptic.tap();
@@ -1286,6 +1291,7 @@ function EnquiredContactsSection({
             const displayName =
               contact.name || contact.phone || 'Unnamed contact';
             const digits = (contact.phone ?? '').replace(/\D/g, '');
+            const dialPhone = dialableAudiencePhone(contact.phone);
             const followUpTitle = `Follow up — ${property.property_code || property.title}`;
             const followUpHref =
               `/(app)/appointment-new?contactId=${encodeURIComponent(contact.contactId)}` +
@@ -1352,13 +1358,13 @@ function EnquiredContactsSection({
                 {canAct ? (
                   <View style={styles.enquiryActions}>
                     <Pressable
-                      disabled={!digits}
-                      onPress={() => void Linking.openURL(`tel:${digits}`)}
+                      disabled={!dialPhone}
+                      onPress={() => void Linking.openURL(`tel:${dialPhone}`)}
                       accessibilityRole="button"
                       accessibilityLabel={`Call ${displayName}`}
                       style={[
                         styles.enquiryAction,
-                        !digits && { opacity: 0.4 },
+                        !dialPhone && { opacity: 0.4 },
                       ]}
                     >
                       <Ionicons
@@ -1383,8 +1389,12 @@ function EnquiredContactsSection({
                           `https://wa.me/${digits}?text=${encodeURIComponent(message)}`
                         )
                       }
+                      onLongPress={() => {
+                        haptic.tap();
+                        setMessageContact(contact);
+                      }}
                       accessibilityRole="button"
-                      accessibilityLabel={`Message ${displayName}`}
+                      accessibilityLabel={`Message ${displayName}. Long press to choose personal or business WhatsApp`}
                       style={[
                         styles.enquiryAction,
                         !digits && { opacity: 0.4 },
@@ -1433,7 +1443,25 @@ function EnquiredContactsSection({
           })}
         </View>
       ) : null}
-    </Section>
+      </Section>
+      {messageContact ? (
+        <PropertyInterestFollowUpSheet
+          visible
+          onClose={() => setMessageContact(null)}
+          contact={{
+            id: messageContact.contactId,
+            name: messageContact.name ?? undefined,
+            phone: messageContact.phone,
+          }}
+          property={property}
+          onSent={() => {
+            void queryClient.invalidateQueries({
+              queryKey: ['property-audience', property.id],
+            });
+          }}
+        />
+      ) : null}
+    </>
   );
 }
 

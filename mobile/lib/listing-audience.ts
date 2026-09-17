@@ -15,6 +15,7 @@ import type {
 export type { AudienceContact, AudienceListing };
 export {
   audienceListingLabel,
+  dialableAudiencePhone,
   enquiredAudienceContacts,
   filterAudienceListings,
   reachableAudienceIds,

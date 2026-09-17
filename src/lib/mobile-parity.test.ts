@@ -1442,5 +1442,10 @@ describe('[PRP-007] property enquiries remain actionable on web and mobile', () 
     }
     expect(mobile).toContain('eventType=follow_up');
     expect(web).toContain('ScheduleDialog');
+    expect(mobile).toContain('dialableAudiencePhone');
+    expect(web).toContain('dialableAudiencePhone');
+    expect(mobile).toContain('onLongPress');
+    expect(mobile).toContain('PropertyInterestFollowUpSheet');
+    expect(web).toContain('PropertyInterestFollowUpDialog');
   });
 });

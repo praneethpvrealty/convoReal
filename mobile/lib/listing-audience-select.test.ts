@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   audienceListingLabel,
+  dialableAudiencePhone,
   enquiredAudienceContacts,
   filterAudienceListings,
   reachableAudienceIds,
@@ -74,6 +75,14 @@ describe('enquiredAudienceContacts', () => {
         member({ contactId: 'view', enquired: false, viewed: true }),
       ]).map((contact) => contact.contactId)
     ).toEqual(['enquiry']);
+  });
+});
+
+describe('dialableAudiencePhone', () => {
+  it('[PRP-007] preserves or supplies the international dial prefix', () => {
+    expect(dialableAudiencePhone('+91 81235 81488')).toBe('+918123581488');
+    expect(dialableAudiencePhone('918123581488')).toBe('+918123581488');
+    expect(dialableAudiencePhone('8123581488')).toBe('+918123581488');
   });
 });
 

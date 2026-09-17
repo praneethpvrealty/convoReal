@@ -33,7 +33,7 @@ export function PropertyInterestFollowUpSheet({
 }: {
   visible: boolean;
   onClose: () => void;
-  contact: Contact;
+  contact: Pick<Contact, 'id' | 'name' | 'phone'>;
   property: Property;
   onSent: () => void;
 }) {
