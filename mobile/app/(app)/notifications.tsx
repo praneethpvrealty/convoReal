@@ -27,10 +27,22 @@ const TYPE_ICONS: Record<
   location_request: 'location-outline',
   document_request: 'document-text-outline',
   portal_listing_expiry: 'time-outline',
+  requirement_shared: 'swap-horizontal-outline',
+  requirement_response: 'home-outline',
 };
 
 /** Map a web deep link stored on the row to the mobile route. */
 function openTarget(n: NotificationRow) {
+  if (n.entity_type === 'requirement_account_share' && n.entity_id) {
+    router.push({
+      pathname: '/(app)/shared-requirement/[id]',
+      params: {
+        id: n.entity_id,
+        box: n.type === 'requirement_response' ? 'sent' : 'received',
+      },
+    });
+    return;
+  }
   if (n.type === 'location_request' || n.type === 'document_request') {
     router.push('/(app)/dashboard');
     return;
