@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNowStrict } from 'date-fns';
 import {
@@ -156,7 +156,7 @@ export function SharedRequirementsContent({
   const [box, setBox] = useState<Box>(initialBox);
   const [selectedId, setSelectedId] = useState<string | null>(initialShareId);
   const [search, setSearch] = useState('');
-  const [selectedProperties, setSelectedProperties] = useState<string[]>([]);
+  const [selectedProperties, setSelectedProperties] = useState<string[] | null>(null);
   const [note, setNote] = useState('');
 
   const list = useQuery({
@@ -180,9 +180,8 @@ export function SharedRequirementsContent({
     },
   });
 
-  useEffect(() => {
-    setSelectedProperties(detail.data?.responsePropertyIds ?? []);
-  }, [detail.data?.responsePropertyIds]);
+  const selectedPropertyIds =
+    selectedProperties ?? detail.data?.responsePropertyIds ?? [];
 
   const respond = useMutation({
     mutationFn: async () => {
@@ -194,7 +193,7 @@ export function SharedRequirementsContent({
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              property_ids: selectedProperties,
+              property_ids: selectedPropertyIds,
               note,
             }),
           }
@@ -280,6 +279,8 @@ export function SharedRequirementsContent({
               onClick={() => {
                 setBox(value);
                 setSelectedId(null);
+                setSelectedProperties(null);
+                setNote('');
               }}
               className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold capitalize transition-colors ${
                 box === value
@@ -336,7 +337,11 @@ export function SharedRequirementsContent({
             <button
               key={share.id}
               type="button"
-              onClick={() => setSelectedId(share.id)}
+              onClick={() => {
+                setSelectedId(share.id);
+                setSelectedProperties(null);
+                setNote('');
+              }}
               className="rounded-2xl border border-slate-800 bg-slate-900/50 p-4 text-left transition-colors hover:border-primary/40 hover:bg-slate-900"
             >
               <div className="flex items-start justify-between gap-3">
@@ -376,7 +381,13 @@ export function SharedRequirementsContent({
 
       <Dialog
         open={Boolean(selectedId)}
-        onOpenChange={(open) => !open && setSelectedId(null)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedId(null);
+            setSelectedProperties(null);
+            setNote('');
+          }
+        }}
       >
         <DialogContent className="max-h-[90vh] overflow-y-auto border-slate-800 bg-slate-900 text-white sm:max-w-2xl">
           <DialogHeader>
@@ -424,17 +435,21 @@ export function SharedRequirementsContent({
                   <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
                     {selected.properties.length ? (
                       selected.properties.map((property) => {
-                        const checked = selectedProperties.includes(property.id);
+                        const checked = selectedPropertyIds.includes(property.id);
                         return (
                           <button
                             key={property.id}
                             type="button"
                             onClick={() =>
-                              setSelectedProperties((current) =>
-                                current.includes(property.id)
-                                  ? current.filter((id) => id !== property.id)
-                                  : [...current, property.id]
-                              )
+                              setSelectedProperties((current) => {
+                                const values =
+                                  current ??
+                                  detail.data?.responsePropertyIds ??
+                                  [];
+                                return values.includes(property.id)
+                                  ? values.filter((id) => id !== property.id)
+                                  : [...values, property.id];
+                              })
                             }
                             className={`flex w-full items-start gap-3 rounded-xl border p-3 text-left ${
                               checked
@@ -494,7 +509,7 @@ export function SharedRequirementsContent({
                     <Button
                       onClick={() => respond.mutate()}
                       disabled={
-                        selectedProperties.length === 0 || respond.isPending
+                        selectedPropertyIds.length === 0 || respond.isPending
                       }
                     >
                       {respond.isPending ? (
@@ -502,8 +517,8 @@ export function SharedRequirementsContent({
                       ) : (
                         <Send className="size-4" />
                       )}
-                      Send {selectedProperties.length || ''} match
-                      {selectedProperties.length === 1 ? '' : 'es'}
+                      Send {selectedPropertyIds.length || ''} match
+                      {selectedPropertyIds.length === 1 ? '' : 'es'}
                     </Button>
                   </div>
                 </>
