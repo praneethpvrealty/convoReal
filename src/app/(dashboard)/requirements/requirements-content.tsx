@@ -1,7 +1,9 @@
 "use client"
 
 import { useState, useEffect, useCallback, useMemo } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { useQuery } from "@tanstack/react-query"
 import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/hooks/use-auth"
 import {
@@ -28,6 +30,7 @@ import {
   Plus,
   Power,
   ShieldCheck,
+  Inbox,
   X,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -137,6 +140,8 @@ export default function RequirementsPage() {
   const [includeLinks, setIncludeLinks] = useState(true)
   const [shareLinks, setShareLinks] = useState<Record<string, string>>({})
   const [mintingLinks, setMintingLinks] = useState(false)
+  const [inAppAgentId, setInAppAgentId] = useState("")
+  const [sharingInApp, setSharingInApp] = useState(false)
   const [parkingId, setParkingId] = useState<string | null>(null)
 
   // Add/edit requirements dialog. `editorContactId` is preset when a
@@ -262,6 +267,33 @@ export default function RequirementsPage() {
     }
   }, [shareIds, shareMode, includeLinks, data, shareLinks, toShareable])
 
+  const agentContacts = useMemo(
+    () =>
+      data
+        .filter((contact) => contact.classification === "Agent" && contact.phone)
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [data]
+  )
+
+  const inAppAgentStatus = useQuery({
+    queryKey: ["requirement-share-agent-status", inAppAgentId],
+    enabled: Boolean(shareIds && inAppAgentId),
+    retry: false,
+    queryFn: async () => {
+      const response = await fetch(
+        `/api/contacts/${inAppAgentId}/share-inventory`
+      )
+      const body = (await response.json().catch(() => ({}))) as {
+        data?: { registered: boolean; recipientName: string }
+        error?: string
+      }
+      if (!response.ok || !body.data) {
+        throw new Error(body.error || "Could not check this agent")
+      }
+      return body.data
+    },
+  })
+
   const shareText = useMemo(() => {
     if (!shareIds) return ""
     const rows = data
@@ -300,6 +332,59 @@ export default function RequirementsPage() {
   const sendShareOnWhatsApp = () => {
     if (!shareText) return
     window.open(`https://wa.me/?text=${encodeURIComponent(shareText)}`, "_blank")
+  }
+
+  const sendShareInApp = async () => {
+    if (!shareIds?.length || !inAppAgentId || sharingInApp) return
+    const buyerIds = data
+      .filter(
+        (contact) =>
+          shareIds.includes(contact.id) && contact.classification === "Buyer"
+      )
+      .map((contact) => contact.id)
+    if (buyerIds.length !== shareIds.length) {
+      toast.error("Direct account sharing is available for buyer requirements")
+      return
+    }
+
+    setSharingInApp(true)
+    try {
+      const results = await Promise.all(
+        buyerIds.map(async (contactId) => {
+          const response = await fetch("/api/requirement-account-shares", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contact_id: contactId,
+              recipient_contact_id: inAppAgentId,
+            }),
+          })
+          const body = (await response.json().catch(() => ({}))) as {
+            data?: { alreadyShared?: boolean }
+            error?: string
+          }
+          if (!response.ok) {
+            throw new Error(body.error || "Could not share requirement")
+          }
+          return body.data
+        })
+      )
+      const already = results.filter((result) => result?.alreadyShared).length
+      toast.success(
+        already === results.length
+          ? "This agent already has the selected requirement"
+          : `Shared ${results.length - already} requirement${
+              results.length - already === 1 ? "" : "s"
+            } in ConvoReal`
+      )
+      setShareIds(null)
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Could not share in ConvoReal"
+      )
+    } finally {
+      setSharingInApp(false)
+    }
   }
 
   const toggleSelected = (id: string) => {
@@ -539,13 +624,23 @@ export default function RequirementsPage() {
             Assimilation of client property preferences, priorities, and budgets parsed from conversations.
           </p>
         </div>
-        <Button
-          onClick={openAddRequirements}
-          className="bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold h-9 gap-1.5 cursor-pointer px-4 shrink-0 self-start md:self-auto"
-        >
-          <Plus className="size-3.5" />
-          Add Requirement
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            render={<Link href="/shared-requirements" prefetch={false} />}
+            className="h-9 gap-1.5 border-slate-700 text-xs font-bold text-slate-200"
+          >
+            <Inbox className="size-3.5" />
+            Shared Requirements
+          </Button>
+          <Button
+            onClick={openAddRequirements}
+            className="bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold h-9 gap-1.5 cursor-pointer px-4 shrink-0 self-start md:self-auto"
+          >
+            <Plus className="size-3.5" />
+            Add Requirement
+          </Button>
+        </div>
       </div>
 
       {/* Stats Board */}
@@ -1119,6 +1214,62 @@ export default function RequirementsPage() {
                 </p>
               </div>
               <Switch checked={includeLinks} onCheckedChange={setIncludeLinks} />
+            </div>
+
+            <div className="space-y-3 rounded-xl border border-primary/20 bg-primary/5 p-3">
+              <div>
+                <p className="text-xs font-bold text-slate-100">
+                  Share inside ConvoReal
+                </p>
+                <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
+                  Pick an Agent contact. If their verified number is linked to
+                  another ConvoReal account, the masked brief is delivered to
+                  their Shared Requirements inbox.
+                </p>
+              </div>
+              <select
+                value={inAppAgentId}
+                onChange={(event) => setInAppAgentId(event.target.value)}
+                className="h-9 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-xs text-slate-200"
+              >
+                <option value="">Select an agent</option>
+                {agentContacts.map((agent) => (
+                  <option key={agent.id} value={agent.id}>
+                    {agent.name || agent.phone} · {agent.phone}
+                  </option>
+                ))}
+              </select>
+              {inAppAgentId && inAppAgentStatus.isPending ? (
+                <p className="text-[11px] text-slate-500">
+                  Checking their ConvoReal account…
+                </p>
+              ) : inAppAgentStatus.data?.registered ? (
+                <p className="text-[11px] font-semibold text-emerald-400">
+                  ConvoReal account found. Buyer identity will remain hidden.
+                </p>
+              ) : inAppAgentId && inAppAgentStatus.isError ? (
+                <p className="text-[11px] text-amber-300">
+                  No separate ConvoReal account found. Use the WhatsApp link
+                  below.
+                </p>
+              ) : null}
+              <Button
+                type="button"
+                onClick={sendShareInApp}
+                disabled={
+                  !inAppAgentId ||
+                  inAppAgentStatus.data?.registered !== true ||
+                  sharingInApp
+                }
+                className="w-full"
+              >
+                {sharingInApp ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Inbox className="size-4" />
+                )}
+                Share in ConvoReal
+              </Button>
             </div>
 
             <div className="space-y-1.5">
