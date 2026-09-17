@@ -102,6 +102,17 @@ export function enquiredAudienceContacts(
   return contacts.filter((contact) => contact.enquired);
 }
 
+export function dialableAudiencePhone(phone: string | null): string {
+  if (!phone) return '';
+  const trimmed = phone.trim();
+  const digits = trimmed.replace(/\D/g, '');
+  if (!digits) return '';
+  if (trimmed.startsWith('+')) return `+${digits}`;
+  if (digits.startsWith('00')) return `+${digits.slice(2)}`;
+  if (digits.length === 10) return `+91${digits}`;
+  return digits.length >= 11 ? `+${digits}` : digits;
+}
+
 /**
  * Narrow the picker to what an agent typed. An account with a hundred
  * engaged listings makes scrolling the wrong instrument — the listing

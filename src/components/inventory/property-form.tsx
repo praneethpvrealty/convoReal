@@ -122,7 +122,9 @@ import { rentalYieldPercent, yieldApplies } from '@/lib/inventory/rental-yield';
 import { contactHandle, hasPhone } from '@/lib/contacts/reachability';
 import { propertyAvailabilityWhatsAppUrl } from '@/lib/inventory/availability-check';
 import { ScheduleDialog } from '@/components/calendar/schedule-dialog';
+import { PropertyInterestFollowUpDialog } from '@/components/contacts/property-interest-follow-up-dialog';
 import {
+  dialableAudiencePhone,
   enquiredAudienceContacts,
   type AudienceContact,
 } from '@/lib/inventory/listing-audience';
@@ -560,6 +562,7 @@ export function PropertyForm({
   const [loadingListingAudience, setLoadingListingAudience] = useState(false);
   const [listingAudienceError, setListingAudienceError] = useState(false);
   const [followUpContactId, setFollowUpContactId] = useState<string | null>(null);
+  const [messageContact, setMessageContact] = useState<AudienceContact | null>(null);
 
   // Contact document sharing modal states
   const [shareDocDialogOpen, setShareDocDialogOpen] = useState(false);
@@ -6294,7 +6297,7 @@ export function PropertyForm({
                           </a>
                           {canEdit && contact.phone ? (
                             <a
-                              href={`tel:${contact.phone.replace(/\D/g, '')}`}
+                              href={`tel:${dialableAudiencePhone(contact.phone)}`}
                               className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-semibold text-primary hover:bg-primary/10"
                             >
                               <Phone className="size-3.5" /> Call
@@ -6303,7 +6306,7 @@ export function PropertyForm({
                           {canEdit ? (
                             <button
                               type="button"
-                              onClick={() => handleGoToChat(contact.contactId)}
+                              onClick={() => setMessageContact(contact)}
                               className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-semibold text-primary hover:bg-primary/10"
                             >
                               <MessageSquare className="size-3.5" /> Message
@@ -6975,6 +6978,22 @@ export function PropertyForm({
         propertyId={property?.id ?? null}
         initialTitle={property ? `Follow up — ${property.property_code || property.title}` : undefined}
       />
+
+      {messageContact && property ? (
+        <PropertyInterestFollowUpDialog
+          open
+          onOpenChange={(next) => {
+            if (!next) setMessageContact(null);
+          }}
+          contactId={messageContact.contactId}
+          contactName={messageContact.name ?? ''}
+          contactPhone={messageContact.phone}
+          property={property}
+          onSent={() => {
+            void fetchListingEnquiries();
+          }}
+        />
+      ) : null}
 
       <Dialog open={shareDocDialogOpen} onOpenChange={setShareDocDialogOpen}>
         <DialogContent className="bg-slate-900 border-slate-700 text-slate-200 sm:max-w-md max-h-[85vh] flex flex-col p-6 overflow-y-auto">

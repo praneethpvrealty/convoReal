@@ -367,7 +367,7 @@
         },
         {
           "id": "PRP-007",
-          "rule": "Every saved property exposes its explicit enquired contacts separately from preference-ranked matches on web and mobile, excluding view-only engagement and providing direct contact, call, message and follow-up actions subject to the user's permissions.",
+          "rule": "Every saved property exposes its explicit enquired contacts separately from preference-ranked matches on web and mobile, excluding view-only engagement and providing direct contact, internationally prefixed calling, personal or business WhatsApp messaging, and follow-up actions subject to the user's permissions.",
           "tests": [
             {
               "file": "src/lib/inventory/listing-audience.test.ts",

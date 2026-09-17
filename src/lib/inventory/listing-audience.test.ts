@@ -3,6 +3,7 @@ import {
   audienceListingLabel,
   filterAudienceListings,
   audienceReasonLabel,
+  dialableAudiencePhone,
   enquiredAudienceContacts,
   mapAudienceContacts,
   mapAudienceListings,
@@ -95,6 +96,14 @@ describe('enquiredAudienceContacts', () => {
         member({ contactId: 'view', enquired: false, viewed: true }),
       ]).map((contact) => contact.contactId)
     ).toEqual(['enquiry', 'both']);
+  });
+});
+
+describe('dialableAudiencePhone', () => {
+  it('[PRP-007] preserves or supplies the international dial prefix', () => {
+    expect(dialableAudiencePhone('+91 81235 81488')).toBe('+918123581488');
+    expect(dialableAudiencePhone('918123581488')).toBe('+918123581488');
+    expect(dialableAudiencePhone('8123581488')).toBe('+918123581488');
   });
 });
 
