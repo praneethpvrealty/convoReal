@@ -10,6 +10,7 @@ import {
   Radar,
   Save,
   Send,
+  Trash2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -135,6 +136,7 @@ export function ContactRequirementsDialog({
   );
   const [addText, setAddText] = useState('');
   const [saving, setSaving] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const name = contact.name?.trim() || 'this buyer';
 
@@ -196,6 +198,54 @@ export function ContactRequirementsDialog({
       );
     } finally {
       setSaving(null);
+    }
+  }
+
+  async function deleteRequirement(
+    target: 'primary' | 'profile',
+    profileId?: string
+  ) {
+    const key = target === 'primary' ? 'primary' : profileId || 'profile';
+    if (saving || deleting) return;
+    if (
+      !window.confirm(
+        target === 'primary'
+          ? 'Delete this primary requirement? The buyer contact and additional requirements will remain.'
+          : 'Delete this saved requirement? The buyer contact and other requirements will remain.'
+      )
+    ) {
+      return;
+    }
+    setDeleting(key);
+    try {
+      const response = await fetch(
+        `/api/contacts/${contact.id}/requirements`,
+        {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            target,
+            profile_id: profileId,
+          }),
+        }
+      );
+      const body = (await response.json().catch(() => ({}))) as {
+        error?: string;
+      };
+      if (!response.ok) {
+        throw new Error(body.error || 'Could not delete the requirement');
+      }
+      toast.success('Requirement deleted');
+      onChanged();
+      onOpenChange(false);
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Could not delete the requirement'
+      );
+    } finally {
+      setDeleting(null);
     }
   }
 
@@ -356,20 +406,40 @@ export function ContactRequirementsDialog({
                   Structured now: {primarySummary(contact)}
                 </p>
               ) : null}
-              <Button
-                size="sm"
-                onClick={() => saveRequirement('primary', primaryText)}
-                disabled={!primaryText.trim() || saving !== null}
-              >
-                {saving === 'primary' ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  <Save className="size-4" />
-                )}
-                {saving === 'primary'
-                  ? 'Reading and matching…'
-                  : 'Save primary requirement'}
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => saveRequirement('primary', primaryText)}
+                  disabled={
+                    !primaryText.trim() || saving !== null || deleting !== null
+                  }
+                >
+                  {saving === 'primary' ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Save className="size-4" />
+                  )}
+                  {saving === 'primary'
+                    ? 'Reading and matching…'
+                    : 'Save primary requirement'}
+                </Button>
+                {contact.requirements?.trim() ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => deleteRequirement('primary')}
+                    disabled={saving !== null || deleting !== null}
+                    className="border-rose-500/30 text-rose-300 hover:bg-rose-500/10"
+                  >
+                    {deleting === 'primary' ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="size-4" />
+                    )}
+                    Delete
+                  </Button>
+                ) : null}
+              </div>
             </section>
 
             <section className="space-y-3">
@@ -414,31 +484,51 @@ export function ContactRequirementsDialog({
                       className="min-h-24 border-slate-700 bg-slate-900 text-white"
                       maxLength={4000}
                     />
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() =>
-                        saveRequirement(
-                          'profile',
-                          profileDrafts[profile.id] ?? profile.raw_text,
-                          profile.id
-                        )
-                      }
-                      disabled={
-                        !(
-                          profileDrafts[profile.id] ?? profile.raw_text
-                        ).trim() || saving !== null
-                      }
-                    >
-                      {saving === profile.id ? (
-                        <Loader2 className="size-4 animate-spin" />
-                      ) : (
-                        <Save className="size-4" />
-                      )}
-                      {saving === profile.id
-                        ? 'Reading and matching…'
-                        : 'Save changes'}
-                    </Button>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() =>
+                          saveRequirement(
+                            'profile',
+                            profileDrafts[profile.id] ?? profile.raw_text,
+                            profile.id
+                          )
+                        }
+                        disabled={
+                          !(
+                            profileDrafts[profile.id] ?? profile.raw_text
+                          ).trim() ||
+                          saving !== null ||
+                          deleting !== null
+                        }
+                      >
+                        {saving === profile.id ? (
+                          <Loader2 className="size-4 animate-spin" />
+                        ) : (
+                          <Save className="size-4" />
+                        )}
+                        {saving === profile.id
+                          ? 'Reading and matching…'
+                          : 'Save changes'}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() =>
+                          deleteRequirement('profile', profile.id)
+                        }
+                        disabled={saving !== null || deleting !== null}
+                        className="border-rose-500/30 text-rose-300 hover:bg-rose-500/10"
+                      >
+                        {deleting === profile.id ? (
+                          <Loader2 className="size-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="size-4" />
+                        )}
+                        Delete
+                      </Button>
+                    </div>
                   </div>
                 ))
               ) : (
