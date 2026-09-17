@@ -318,6 +318,7 @@ export default function RequirementsPage() {
     if (ids.length === 0) return
     setShareMode("masked")
     setShareCopied(false)
+    setInAppAgentId("")
     setShareIds(ids)
   }
 
