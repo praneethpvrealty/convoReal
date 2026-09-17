@@ -4,7 +4,11 @@
     {
       "id": "inbox",
       "name": "Shared WhatsApp inbox",
-      "surfaces": ["web", "mobile", "whatsapp"],
+      "surfaces": [
+        "web",
+        "mobile",
+        "whatsapp"
+      ],
       "invariants": [
         {
           "id": "INB-001",
@@ -61,7 +65,11 @@
     {
       "id": "calendar",
       "name": "Calendar, appointments and to-dos",
-      "surfaces": ["web", "mobile", "whatsapp"],
+      "surfaces": [
+        "web",
+        "mobile",
+        "whatsapp"
+      ],
       "invariants": [
         {
           "id": "CAL-001",
@@ -72,7 +80,9 @@
               "case": "[CAL-001]"
             }
           ],
-          "guards": [".github/workflows/eas-update.yml"]
+          "guards": [
+            ".github/workflows/eas-update.yml"
+          ]
         },
         {
           "id": "CAL-002",
@@ -133,7 +143,11 @@
     {
       "id": "invoicing",
       "name": "Brokerage invoicing and the deal document folder",
-      "surfaces": ["web", "mobile", "whatsapp"],
+      "surfaces": [
+        "web",
+        "mobile",
+        "whatsapp"
+      ],
       "invariants": [
         {
           "id": "INV-001",
@@ -220,7 +234,9 @@
               "case": "[INV-005]"
             }
           ],
-          "guards": ["supabase/migrations/20260914120200_deal_documents.sql"]
+          "guards": [
+            "supabase/migrations/20260914120200_deal_documents.sql"
+          ]
         },
         {
           "id": "INV-006",
@@ -251,7 +267,10 @@
     {
       "id": "listing-media",
       "name": "Property listing media",
-      "surfaces": ["web", "mobile"],
+      "surfaces": [
+        "web",
+        "mobile"
+      ],
       "invariants": [
         {
           "id": "MED-001",
@@ -288,7 +307,10 @@
     {
       "id": "property-inventory",
       "name": "Property inventory discovery and shortlist sharing",
-      "surfaces": ["web", "mobile"],
+      "surfaces": [
+        "web",
+        "mobile"
+      ],
       "invariants": [
         {
           "id": "PRP-001",
@@ -309,7 +331,9 @@
               "case": "[PRP-002]"
             }
           ],
-          "guards": [".github/workflows/eas-update.yml"]
+          "guards": [
+            ".github/workflows/eas-update.yml"
+          ]
         },
         {
           "id": "PRP-003",
@@ -324,7 +348,9 @@
               "case": "[PRP-003]"
             }
           ],
-          "guards": [".github/workflows/eas-update.yml"]
+          "guards": [
+            ".github/workflows/eas-update.yml"
+          ]
         },
         {
           "id": "PRP-004",
@@ -353,7 +379,9 @@
               "case": "pins the resolved results for a structured search"
             }
           ],
-          "guards": [".github/workflows/eas-update.yml"]
+          "guards": [
+            ".github/workflows/eas-update.yml"
+          ]
         },
         {
           "id": "PRP-006",
@@ -392,7 +420,10 @@
     {
       "id": "journeys",
       "name": "Stage-grouped buyer and property journeys",
-      "surfaces": ["web", "mobile"],
+      "surfaces": [
+        "web",
+        "mobile"
+      ],
       "invariants": [
         {
           "id": "JRN-001",
@@ -469,6 +500,44 @@
             "supabase/migrations/20260915010010_journey_overview_state.sql",
             "supabase/migrations/20260915015844_journey_table_privileges.sql",
             "supabase/migrations/20260915020826_journey_stage_note_integrity.sql"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "requirement-sharing",
+      "name": "Saved buyer requirements and verified agent sharing",
+      "surfaces": [
+        "web",
+        "mobile"
+      ],
+      "invariants": [
+        {
+          "id": "REQ-001",
+          "rule": "A buyer requirement shared to another ConvoReal account is delivered only to the registered account resolved from a saved Agent contact, carries a structurally masked brief without buyer identity or contact details, and accepts responses only from inventory owned by the recipient account.",
+          "tests": [
+            {
+              "file": "src/lib/requirements/account-share.test.ts",
+              "case": "[REQ-001]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20260917131000_requirement_account_shares.sql",
+            "supabase/migrations/20260917133000_requirement_account_share_indexes.sql",
+            ".github/workflows/eas-update.yml"
+          ]
+        },
+        {
+          "id": "REQ-002",
+          "rule": "Primary and additional saved buyer requirements remain independently editable and deletable on web and mobile; deleting one brief never deletes the buyer contact or unrelated saved briefs.",
+          "tests": [
+            {
+              "file": "src/lib/requirements/account-share.test.ts",
+              "case": "[REQ-002]"
+            }
+          ],
+          "guards": [
+            ".github/workflows/eas-update.yml"
           ]
         }
       ]

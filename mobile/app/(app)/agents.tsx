@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { Stack, router } from 'expo-router';
 import { useState } from 'react';
@@ -108,6 +109,23 @@ export default function AgentsScreen() {
           onChangeText={setSearch}
           placeholder="Search agents by name, company…"
         />
+        <PressScale
+          onPress={() => router.push('/(app)/shared-requirements')}
+          accessibilityRole="button"
+          accessibilityLabel="Open shared requirements"
+          contentStyle={[
+            styles.sharedButton,
+            {
+              borderColor: colors.primary,
+              backgroundColor: colors.primarySoft,
+            },
+          ]}
+        >
+          <Ionicons name="swap-horizontal-outline" size={18} color={colors.primary} />
+          <Text style={{ color: colors.primary, fontFamily: fonts.bold }}>
+            Shared requirements
+          </Text>
+        </PressScale>
       </View>
       {isLoading ? (
         <View>
@@ -265,6 +283,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
     paddingBottom: spacing.md,
+    gap: spacing.sm,
+  },
+  sharedButton: {
+    minHeight: 44,
+    paddingHorizontal: spacing.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
   },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   name: {
