@@ -19,6 +19,10 @@ import type { Message } from '@/lib/types';
 /** Types whose identity is the file, not the words around it. */
 const MEDIA_TYPES = new Set(['image', 'document', 'audio', 'video']);
 
+export function restoreFailedDraft(currentDraft: string, submittedDraft: string): string {
+  return currentDraft.trim() ? currentDraft : submittedDraft;
+}
+
 /**
  * What makes two outgoing messages "the same send".
  *
