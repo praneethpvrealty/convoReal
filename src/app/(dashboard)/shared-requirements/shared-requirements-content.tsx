@@ -259,8 +259,6 @@ export function SharedRequirementsContent({
   }, [list.data, search]);
 
   const selected = detail.data;
-  const responseSet = new Set(selected?.responsePropertyIds ?? []);
-
   return (
     <div className="flex flex-1 flex-col gap-6 p-4 md:p-6">
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
