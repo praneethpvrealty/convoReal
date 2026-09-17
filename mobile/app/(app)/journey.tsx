@@ -54,6 +54,7 @@ import { usePullRefresh } from '@/lib/use-pull-refresh';
 type JourneyView = 'active' | 'closed' | 'archived';
 type JourneyMode = 'buyer' | 'property';
 const JOURNEY_BRANCH_PAGE_SIZE = 1000;
+const JOURNEY_NOTE_PAGE_SIZE = 500;
 
 interface JourneyGroup {
   subjectId: string;
@@ -138,18 +139,7 @@ export default function JourneyScreen() {
   const notesQuery = useQuery({
     queryKey: ['journey-stage-notes', noteTarget?.item.id],
     enabled: Boolean(noteTarget),
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('journey_stage_notes')
-        .select(
-          'id, item_id, stage_id, stage_name, stage_color, note, created_by_name, created_at'
-        )
-        .eq('item_id', noteTarget!.item.id)
-        .order('created_at', { ascending: false })
-        .limit(50);
-      if (error) throw error;
-      return (data ?? []) as JourneyStageNote[];
-    },
+    queryFn: () => loadJourneyStageNotes(noteTarget!.item.id),
   });
 
   const pull = usePullRefresh(async () => {
@@ -162,6 +152,16 @@ export default function JourneyScreen() {
   });
 
   const stages = useMemo(() => stagesQuery.data ?? [], [stagesQuery.data]);
+  const notesByStage = useMemo(() => {
+    const grouped = new Map<string, JourneyStageNote[]>();
+    for (const note of notesQuery.data ?? []) {
+      if (!note.stage_id) continue;
+      const notes = grouped.get(note.stage_id) ?? [];
+      notes.push(note);
+      grouped.set(note.stage_id, notes);
+    }
+    return grouped;
+  }, [notesQuery.data]);
   const stageById = useMemo(
     () => new Map(stages.map((stage) => [stage.id, stage])),
     [stages]
@@ -818,14 +818,12 @@ export default function JourneyScreen() {
               >
                 Note stage
               </Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{ gap: spacing.xs }}
-              >
+              <View style={{ gap: spacing.xs }}>
                 {stages.map((stage) => {
                   const selected = stage.id === noteTarget.stage.id;
                   const stageColor = stage.color ?? colors.primary;
+                  const stageNotes = notesByStage.get(stage.id) ?? [];
+                  const latestNote = stageNotes[0];
                   return (
                     <Pressable
                       key={stage.id}
@@ -856,19 +854,41 @@ export default function JourneyScreen() {
                           backgroundColor: stageColor,
                         }}
                       />
-                      <Text
-                        style={{
-                          fontSize: 12,
-                          fontFamily: selected ? f.bold : f.medium,
-                          color: selected ? colors.text : colors.textMuted,
-                        }}
-                      >
-                        {stage.name}
-                      </Text>
+                      <View style={{ flex: 1, gap: 2 }}>
+                        <Text
+                          style={{
+                            fontSize: 12,
+                            fontFamily: selected ? f.bold : f.medium,
+                            color: selected ? colors.text : colors.textMuted,
+                          }}
+                        >
+                          {stage.name}
+                          {stageNotes.length > 0
+                            ? ` · ${stageNotes.length} ${stageNotes.length === 1 ? 'note' : 'notes'}`
+                            : ''}
+                        </Text>
+                        {latestNote ? (
+                          <Text
+                            numberOfLines={2}
+                            style={{
+                              fontSize: 11.5,
+                              lineHeight: 16,
+                              color: colors.textFaint,
+                            }}
+                          >
+                            {latestNote.note}
+                          </Text>
+                        ) : null}
+                      </View>
+                      <Ionicons
+                        name={selected ? 'radio-button-on' : 'radio-button-off'}
+                        size={16}
+                        color={selected ? stageColor : colors.textFaint}
+                      />
                     </Pressable>
                   );
                 })}
-              </ScrollView>
+              </View>
             </View>
           ) : null}
           {canEdit ? (
@@ -1197,6 +1217,27 @@ async function loadJourneyBranchItems(
   }
 }
 
+async function loadJourneyStageNotes(
+  itemId: string
+): Promise<JourneyStageNote[]> {
+  const rows: JourneyStageNote[] = [];
+  for (let from = 0; ; from += JOURNEY_NOTE_PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from('journey_stage_notes')
+      .select(
+        'id, item_id, stage_id, stage_name, stage_color, note, created_by_name, created_at'
+      )
+      .eq('item_id', itemId)
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .range(from, from + JOURNEY_NOTE_PAGE_SIZE - 1);
+    if (error) throw error;
+    const page = (data ?? []) as JourneyStageNote[];
+    rows.push(...page);
+    if (page.length < JOURNEY_NOTE_PAGE_SIZE) return rows;
+  }
+}
+
 function groupTitle(group: JourneyGroup, mode: JourneyMode) {
   return mode === 'buyer'
     ? group.contact?.name || group.contact?.phone || 'Unknown contact'
@@ -1286,13 +1327,14 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
   },
   noteStage: {
-    minHeight: 34,
+    minHeight: 48,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.xs,
+    gap: spacing.sm,
     borderWidth: 1,
-    borderRadius: radius.full,
-    paddingHorizontal: spacing.md,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
   },
   note: { borderWidth: 1, borderRadius: radius.md, padding: spacing.md },
 });

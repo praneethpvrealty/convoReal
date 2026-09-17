@@ -95,6 +95,7 @@ describe('journey stage note visibility', () => {
   it('[JRN-004] offers notes at every stage and keeps the complete history', () => {
     expect(source).toContain('const notesAtStage = stageNotes.filter');
     expect(source).toContain('aria-label={`Add note at ${s.name}`}');
+    expect(source).toContain('? `Add note · ${notesAtStage.length}`');
     expect(source).not.toContain('canEdit && !future');
     expect(source).toContain('stageNotes.map((note)');
   });
