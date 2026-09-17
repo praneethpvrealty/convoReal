@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 
+import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { BottomSheet, sheetScrollArea } from '@/components/sheet';
 import { SuccessSheet } from '@/components/success-sheet';
 import { Banner, PrimaryButton, TextField } from '@/components/ui';
@@ -134,10 +135,12 @@ export function ContactRequirementsSheet({
   );
   const [addText, setAddText] = useState('');
   const [saving, setSaving] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [delivery, setDelivery] = useState<'flow' | 'template' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const name = contact.name?.trim() || 'this buyer';
+  const { show, close, dialogProps } = useAppDialog();
 
   function closeSheet() {
     if (saving || sending) return;
@@ -181,6 +184,64 @@ export function ContactRequirementsSheet({
     } finally {
       setSaving(null);
     }
+  }
+
+  async function deleteRequirement(
+    target: 'primary' | 'profile',
+    profileId?: string
+  ) {
+    const key = target === 'primary' ? 'primary' : profileId || 'profile';
+    if (saving || deleting) return;
+    setDeleting(key);
+    setError(null);
+    try {
+      await apiFetch<{ data: { deleted: boolean } }>(
+        `/api/contacts/${contact.id}/requirements`,
+        {
+          method: 'DELETE',
+          body: JSON.stringify({
+            target,
+            profile_id: profileId,
+          }),
+          timeoutMs: REQUIREMENT_SAVE_TIMEOUT_MS,
+        }
+      );
+      haptic.success();
+      close();
+      onChanged();
+      onClose();
+    } catch (reason) {
+      haptic.warn();
+      close();
+      setError(
+        friendlyError(
+          reason instanceof Error
+            ? reason.message
+            : 'Could not delete the requirement'
+        )
+      );
+    } finally {
+      setDeleting(null);
+    }
+  }
+
+  function confirmDelete(
+    target: 'primary' | 'profile',
+    profileId?: string
+  ) {
+    show({
+      title: 'Delete requirement?',
+      message:
+        'Only this saved requirement will be removed. The buyer contact and other requirements will remain.',
+      actions: [
+        { label: 'Cancel', onPress: close },
+        {
+          label: 'Delete',
+          variant: 'destructive',
+          onPress: () => void deleteRequirement(target, profileId),
+        },
+      ],
+    });
   }
 
   async function addRequirement() {
@@ -398,9 +459,38 @@ export function ContactRequirementsSheet({
                 label="Save primary requirement"
                 icon="save-outline"
                 busy={saving === 'primary'}
-                disabled={!primaryText.trim() || saving !== null}
+                disabled={
+                  !primaryText.trim() ||
+                  saving !== null ||
+                  deleting !== null
+                }
                 onPress={() => saveRequirement('primary', primaryText)}
               />
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => confirmDelete('primary')}
+                disabled={saving !== null || deleting !== null}
+                style={{
+                  minHeight: 44,
+                  borderRadius: radius.md,
+                  borderWidth: 1,
+                  borderColor: colors.danger,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexDirection: 'row',
+                  gap: spacing.sm,
+                  opacity: saving === null && deleting === null ? 1 : 0.5,
+                }}
+              >
+                <Ionicons
+                  name={deleting === 'primary' ? 'hourglass-outline' : 'trash-outline'}
+                  size={18}
+                  color={colors.danger}
+                />
+                <Text style={{ color: colors.danger, fontFamily: f.bold }}>
+                  Delete requirement
+                </Text>
+              </Pressable>
             </View>
 
             <View style={{ gap: spacing.sm }}>
@@ -461,7 +551,8 @@ export function ContactRequirementsSheet({
                     busy={saving === profile.id}
                     disabled={
                       !(profileDrafts[profile.id] ?? profile.raw_text).trim() ||
-                      saving !== null
+                      saving !== null ||
+                      deleting !== null
                     }
                     onPress={() =>
                       saveRequirement(
@@ -471,6 +562,31 @@ export function ContactRequirementsSheet({
                       )
                     }
                   />
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => confirmDelete('profile', profile.id)}
+                    disabled={saving !== null || deleting !== null}
+                    style={{
+                      minHeight: 44,
+                      borderRadius: radius.md,
+                      borderWidth: 1,
+                      borderColor: colors.danger,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexDirection: 'row',
+                      gap: spacing.sm,
+                      opacity: saving === null && deleting === null ? 1 : 0.5,
+                    }}
+                  >
+                    <Ionicons
+                      name={deleting === profile.id ? 'hourglass-outline' : 'trash-outline'}
+                      size={18}
+                      color={colors.danger}
+                    />
+                    <Text style={{ color: colors.danger, fontFamily: f.bold }}>
+                      Delete requirement
+                    </Text>
+                  </Pressable>
                 </View>
               ))
             ) : (
@@ -598,6 +714,7 @@ export function ContactRequirementsSheet({
           </>
         )}
       </ScrollView>
+      <AppDialog {...dialogProps} />
     </BottomSheet>
   );
 }
