@@ -78,7 +78,8 @@ describe('[REQ-002] saved requirement lifecycle', () => {
     ].map((file) => readFileSync(join(process.cwd(), file), 'utf8'));
     for (const surface of surfaces) {
       expect(surface).toContain('Save changes');
-      expect(surface).toContain('Delete requirement');
+      expect(surface).toContain('deleteRequirement');
+      expect(surface).toContain('Delete');
     }
   });
 });
