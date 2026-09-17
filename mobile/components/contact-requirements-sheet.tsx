@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
+import { RequirementAgentShareSheet } from '@/components/requirement-agent-share-sheet';
 import { BottomSheet, sheetScrollArea } from '@/components/sheet';
 import { SuccessSheet } from '@/components/success-sheet';
 import { Banner, PrimaryButton, TextField } from '@/components/ui';
@@ -27,7 +28,7 @@ interface RequirementResult {
 // They legitimately take longer than an ordinary API read on mobile data.
 const REQUIREMENT_SAVE_TIMEOUT_MS = 60_000;
 
-type ViewMode = 'overview' | 'add' | 'ask';
+type ViewMode = 'overview' | 'add' | 'ask' | 'share';
 
 function inr(value: number): string {
   if (value >= 10_000_000) {
@@ -350,6 +351,20 @@ export function ContactRequirementsSheet({
     );
   }
 
+  if (view === 'share') {
+    return (
+      <RequirementAgentShareSheet
+        visible={visible}
+        buyer={contact}
+        onBack={() => {
+          setError(null);
+          setView('overview');
+        }}
+        onDone={onClose}
+      />
+    );
+  }
+
   return (
     <BottomSheet visible={visible} onClose={closeSheet} title={title}>
       <ScrollView
@@ -409,6 +424,12 @@ export function ContactRequirementsSheet({
                 disabled={!contact.phone}
                 onPress={() => setView('ask')}
               />
+              <ActionCard
+                icon="people-outline"
+                label="Share with agent"
+                detail="Send a masked brief to their ConvoReal account"
+                onPress={() => setView('share')}
+              />
             </View>
 
             <View
@@ -466,31 +487,37 @@ export function ContactRequirementsSheet({
                 }
                 onPress={() => saveRequirement('primary', primaryText)}
               />
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => confirmDelete('primary')}
-                disabled={saving !== null || deleting !== null}
-                style={{
-                  minHeight: 44,
-                  borderRadius: radius.md,
-                  borderWidth: 1,
-                  borderColor: colors.danger,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexDirection: 'row',
-                  gap: spacing.sm,
-                  opacity: saving === null && deleting === null ? 1 : 0.5,
-                }}
-              >
-                <Ionicons
-                  name={deleting === 'primary' ? 'hourglass-outline' : 'trash-outline'}
-                  size={18}
-                  color={colors.danger}
-                />
-                <Text style={{ color: colors.danger, fontFamily: f.bold }}>
-                  Delete requirement
-                </Text>
-              </Pressable>
+              {contact.requirements?.trim() ? (
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => confirmDelete('primary')}
+                  disabled={saving !== null || deleting !== null}
+                  style={{
+                    minHeight: 44,
+                    borderRadius: radius.md,
+                    borderWidth: 1,
+                    borderColor: colors.danger,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexDirection: 'row',
+                    gap: spacing.sm,
+                    opacity: saving === null && deleting === null ? 1 : 0.5,
+                  }}
+                >
+                  <Ionicons
+                    name={
+                      deleting === 'primary'
+                        ? 'hourglass-outline'
+                        : 'trash-outline'
+                    }
+                    size={18}
+                    color={colors.danger}
+                  />
+                  <Text style={{ color: colors.danger, fontFamily: f.bold }}>
+                    Delete requirement
+                  </Text>
+                </Pressable>
+              ) : null}
             </View>
 
             <View style={{ gap: spacing.sm }}>
