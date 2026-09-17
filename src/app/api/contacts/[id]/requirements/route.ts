@@ -349,3 +349,128 @@ export async function PATCH(
     return toErrorResponse(error);
   }
 }
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const ctx = await requireRole('agent');
+    const { id: contactId } = await params;
+    const body = (await request.json().catch(() => null)) as {
+      target?: unknown;
+      profile_id?: unknown;
+    } | null;
+    const target = body?.target === 'profile' ? 'profile' : 'primary';
+    const profileId =
+      typeof body?.profile_id === 'string' ? body.profile_id : '';
+
+    if (target === 'profile' && !profileId) {
+      return NextResponse.json(
+        { error: 'Requirement profile is required.' },
+        { status: 400 }
+      );
+    }
+
+    const { data: contact, error: contactError } = await ctx.supabase
+      .from('contacts')
+      .select(
+        'id, requirements, requirement_profiles, updated_at'
+      )
+      .eq('id', contactId)
+      .eq('account_id', ctx.accountId)
+      .maybeSingle();
+    if (contactError) throw contactError;
+    if (!contact) {
+      return NextResponse.json(
+        { error: 'Contact not found.' },
+        { status: 404 }
+      );
+    }
+
+    const profiles = (
+      Array.isArray(contact.requirement_profiles)
+        ? contact.requirement_profiles
+        : []
+    ) as ContactRequirementProfile[];
+    let update: Record<string, unknown>;
+
+    if (target === 'profile') {
+      if (!profiles.some((profile) => profile.id === profileId)) {
+        return NextResponse.json(
+          { error: 'Requirement profile not found.' },
+          { status: 404 }
+        );
+      }
+      const remaining = profiles.filter((profile) => profile.id !== profileId);
+      update = {
+        requirement_profiles: remaining,
+        requirement_active:
+          Boolean(contact.requirements?.trim()) || remaining.length > 0,
+        updated_at: new Date().toISOString(),
+      };
+    } else {
+      if (!contact.requirements?.trim()) {
+        return NextResponse.json(
+          { error: 'Primary requirement not found.' },
+          { status: 404 }
+        );
+      }
+      update = {
+        requirements: null,
+        pref_property_types: [],
+        pref_property_categories: [],
+        pref_bhk_min: null,
+        pref_bhk_max: null,
+        pref_budget_min: null,
+        pref_budget_max: null,
+        pref_land_area_min_sqft: null,
+        pref_land_area_max_sqft: null,
+        pref_areas: [],
+        pref_excluded_areas: [],
+        pref_projects: [],
+        pref_suggested_tags: [],
+        pref_min_roi: null,
+        pref_requires_tenanted: false,
+        pref_listing_types: [],
+        pref_source_hash: null,
+        pref_extracted_at: null,
+        requirement_active: profiles.length > 0,
+        updated_at: new Date().toISOString(),
+      };
+    }
+
+    const { data: saved, error: saveError } = await ctx.supabase
+      .from('contacts')
+      .update(update)
+      .eq('id', contactId)
+      .eq('account_id', ctx.accountId)
+      .eq('updated_at', contact.updated_at)
+      .select('id')
+      .maybeSingle();
+    if (saveError) throw saveError;
+    if (!saved) {
+      return NextResponse.json(
+        {
+          error:
+            'The contact changed while this requirement was being deleted. Please reopen Requirements and try again.',
+        },
+        { status: 409 }
+      );
+    }
+
+    const matchCount = await refreshMatches(ctx.accountId, contactId);
+    return NextResponse.json({
+      data: {
+        deleted: true,
+        target,
+        profile_id: target === 'profile' ? profileId : null,
+        match_count: matchCount,
+      },
+    });
+  } catch (error) {
+    console.error('[DELETE /api/contacts/[id]/requirements]', error);
+    return toErrorResponse(error);
+  }
+}
+
