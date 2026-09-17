@@ -89,7 +89,7 @@ import {
   type MessageReaction,
 } from '@/lib/types';
 import { dayLabel } from '@/lib/format';
-import { settlePending } from '@/lib/pending-messages';
+import { restoreFailedDraft, settlePending } from '@/lib/pending-messages';
 import { queryClient } from '@/lib/query';
 import { useCallLog } from '@/lib/use-call-log';
 import { supabase, uniqueChannel } from '@/lib/supabase';
@@ -979,10 +979,13 @@ function Composer({
 
   async function send() {
     haptic.send();
-    const ok = await sendText(draft, replyTo?.id);
+    const submittedDraft = draft;
+    setDraft('');
+    const ok = await sendText(submittedDraft, replyTo?.id);
     if (ok) {
-      setDraft('');
       onClearReply();
+    } else {
+      setDraft((current) => restoreFailedDraft(current, submittedDraft));
     }
   }
 
