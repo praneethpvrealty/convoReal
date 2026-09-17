@@ -19,6 +19,8 @@ import type { Contact, ContactRequirementProfile } from '@/types';
 
 /** Every id this module owns starts with this. */
 export const LISTING_INTENT_ID_PREFIX = 'li_';
+export const BUYING_INTENT_ID = 'li_sale';
+export const RENTING_INTENT_ID = 'li_rent';
 
 interface ListingIntentOption {
   id: string;
@@ -35,14 +37,14 @@ interface ListingIntentOption {
 // means to the matcher anyway — but it stops the ladder asking again.
 const OPTIONS: ListingIntentOption[] = [
   {
-    id: 'li_sale',
+    id: BUYING_INTENT_ID,
     title: 'Buying',
     description: 'Looking to purchase',
     types: ['Sale'],
     label: 'buying',
   },
   {
-    id: 'li_rent',
+    id: RENTING_INTENT_ID,
     title: 'Renting',
     description: 'Looking to lease',
     types: ['Rent'],
@@ -99,7 +101,7 @@ export async function sendListingIntentPrompt(args: {
       interactiveType: 'list',
       interactiveBody:
         args.bodyText ??
-        "Quick one so I send the right half of our list — are you looking to buy or to rent?",
+        'Quick one so I send the right half of our list — are you looking to buy or to rent?',
       interactiveButtonLabel: 'Buy or rent',
       interactiveSections: buildListingIntentSections({
         includeFormRow: args.includeFormRow,
@@ -127,6 +129,18 @@ export async function handleListingIntentReply(args: {
   const option = OPTION_BY_ID.get(args.replyId);
   if (!option) return false;
 
+  await applyListingIntentOption(args, option);
+  return true;
+}
+
+async function applyListingIntentOption(
+  args: {
+    db: SupabaseClient;
+    accountId: string;
+    contactId: string;
+  },
+  option: ListingIntentOption
+): Promise<boolean> {
   try {
     // The ladder reads the ACTIVE BRIEF, not the row: a contact whose
     // requirements text is empty answers out of requirement_profiles
@@ -163,12 +177,24 @@ export async function handleListingIntentReply(args: {
       .eq('id', args.contactId)
       .eq('account_id', args.accountId);
     if (error) throw error;
+    return true;
   } catch (err) {
     // The tap stays ours either way — falling through would hand an
     // intent id to handlers that cannot make sense of it. The ladder
     // re-asks on the next turn, which is the honest outcome of a write
     // that did not land.
     console.error('[listing-intent] contact update failed:', err);
+    return false;
   }
-  return true;
+}
+
+export async function applyDefaultBuyingIntent(args: {
+  db: SupabaseClient;
+  accountId: string;
+  contactId: string;
+}): Promise<boolean> {
+  return applyListingIntentOption(
+    args,
+    OPTION_BY_ID.get(BUYING_INTENT_ID) as ListingIntentOption
+  );
 }

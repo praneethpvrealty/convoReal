@@ -285,6 +285,15 @@ describe('resolveInventoryLocalityReply', () => {
     ).toBe('Domlur');
   });
 
+  it('normalizes Bengaluru zone replies without requiring an inventory label', () => {
+    expect(resolveInventoryLocalityReply('South bangalore', inventory)).toBe(
+      'South Bengaluru'
+    );
+    expect(resolveInventoryLocalityReply('north-east zone', inventory)).toBe(
+      'North-East Bengaluru'
+    );
+  });
+
   it('does not mistake a generic follow-up for a locality', () => {
     expect(
       resolveInventoryLocalityReply('Any options??', inventory)
@@ -974,6 +983,12 @@ describe('buildFollowUpQuestion', () => {
       expect(text).not.toContain('Got it');
       expect(text).not.toContain('Perfect —');
     }
+  });
+
+  it('lets the buyer answer with a locality or a Bengaluru zone', () => {
+    expect(buildFollowUpQuestion('location')).toContain('market zone');
+    expect(buildFollowUpQuestion('location')).toContain('CBD');
+    expect(buildFollowUpQuestion('location')).toContain('South');
   });
 });
 

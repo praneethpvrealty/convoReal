@@ -330,6 +330,109 @@ describe('getMatchingContacts', () => {
   });
 
   describe('Location refinement', () => {
+    it('[INB-003] matches broad Bengaluru zones while keeping other zones excluded', () => {
+      const southBuyer = createTestContact({
+        pref_property_types: ['Flat/ Apartment'],
+        pref_areas: ['South Bangalore'],
+        pref_extracted_at: new Date().toISOString(),
+        strict_area_match: true,
+      });
+      const southProperty = createTestProperty({
+        type: 'Flat/ Apartment',
+        location: 'JP Nagar, Bengaluru',
+        sublocality: 'JP Nagar',
+      });
+      const eastProperty = createTestProperty({
+        type: 'Flat/ Apartment',
+        location: 'Whitefield, Bengaluru',
+        sublocality: 'Whitefield',
+      });
+
+      const [match] = getMatchingContacts(southProperty, [southBuyer]);
+      expect(match?.details.location).toBe('match');
+      expect(getMatchingContacts(eastProperty, [southBuyer])).toHaveLength(0);
+    });
+
+    it('recognizes a zone stated only in an unextracted requirement', () => {
+      const southBuyer = createTestContact({
+        pref_property_types: ['Flat/ Apartment'],
+        requirements: 'Apartment in South Bangalore',
+      });
+      const property = createTestProperty({
+        type: 'Flat/ Apartment',
+        location: 'HSR Layout, Bengaluru',
+        sublocality: 'HSR Layout',
+      });
+
+      const [match] = getMatchingContacts(property, [southBuyer]);
+      expect(match?.details.location).toBe('match');
+    });
+
+    it('does not use a negated free-text zone', () => {
+      const buyer = createTestContact({
+        pref_property_types: ['Flat/ Apartment'],
+        requirements: 'East Bengaluru, not South Bangalore',
+      });
+      const property = createTestProperty({
+        type: 'Flat/ Apartment',
+        location: 'JP Nagar, Bengaluru',
+        sublocality: 'JP Nagar',
+      });
+
+      expect(getMatchingContacts(property, [buyer])).toHaveLength(0);
+    });
+
+    it('recognizes directional subzones independently', () => {
+      const northEastBuyer = createTestContact({
+        pref_property_types: ['Flat/ Apartment'],
+        pref_areas: ['North-East Bengaluru'],
+        pref_extracted_at: new Date().toISOString(),
+        strict_area_match: true,
+      });
+      const property = createTestProperty({
+        type: 'Flat/ Apartment',
+        location: 'Hennur, Bengaluru',
+        sublocality: 'Hennur',
+      });
+
+      const [match] = getMatchingContacts(property, [northEastBuyer]);
+      expect(match?.details.location).toBe('match');
+    });
+
+    it('matches inventory through real-estate business districts', () => {
+      const cbdBuyer = createTestContact({
+        pref_property_types: ['Commercial Office Space'],
+        pref_areas: ['CBD'],
+        pref_extracted_at: new Date().toISOString(),
+        strict_area_match: true,
+      });
+      const property = createTestProperty({
+        type: 'Commercial Office Space',
+        location: 'Lavelle Road, Bengaluru',
+        sublocality: 'Lavelle Road',
+      });
+
+      const [match] = getMatchingContacts(property, [cbdBuyer]);
+      expect(match?.details.location).toBe('match');
+    });
+
+    it('does not apply a Bengaluru CBD preference to another city', () => {
+      const cbdBuyer = createTestContact({
+        pref_property_types: ['Commercial Office Space'],
+        pref_areas: ['CBD'],
+        pref_extracted_at: new Date().toISOString(),
+        strict_area_match: true,
+      });
+      const property = createTestProperty({
+        type: 'Commercial Office Space',
+        city: 'Chennai',
+        location: 'MG Road, Chennai',
+        sublocality: 'MG Road',
+      });
+
+      expect(getMatchingContacts(property, [cbdBuyer])).toHaveLength(0);
+    });
+
     it('matches an area of interest against an internal property tag', () => {
       const contact = createTestContact({
         pref_property_types: ['Commercial Building'],
@@ -964,9 +1067,9 @@ describe('getMatchingContacts', () => {
         pref_extracted_at: null,
       });
 
-      expect(getMatchingContacts(createTestProperty({}), [contact])).toHaveLength(
-        1
-      );
+      expect(
+        getMatchingContacts(createTestProperty({}), [contact])
+      ).toHaveLength(1);
     });
 
     it('trusts a completed false extraction over older positive wording', () => {
@@ -977,9 +1080,9 @@ describe('getMatchingContacts', () => {
         pref_extracted_at: '2026-09-14T00:00:00Z',
       });
 
-      expect(getMatchingContacts(createTestProperty({}), [contact])).toHaveLength(
-        1
-      );
+      expect(
+        getMatchingContacts(createTestProperty({}), [contact])
+      ).toHaveLength(1);
     });
 
     it('does not treat negated or former listing copy as current tenancy', () => {
@@ -994,7 +1097,9 @@ describe('getMatchingContacts', () => {
         isCurrentlyTenanted({ description: 'Not a pre-leased property' })
       ).toBe(false);
       expect(
-        isCurrentlyTenanted({ description: 'Not an income-generating property' })
+        isCurrentlyTenanted({
+          description: 'Not an income-generating property',
+        })
       ).toBe(false);
       expect(
         isCurrentlyTenanted({ description: 'Not currently a pre-leased asset' })

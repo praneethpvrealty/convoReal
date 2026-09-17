@@ -9,6 +9,8 @@ import {
   contactForRequirementProfile,
   resolveRequirementSource,
 } from '@/lib/requirements/profiles';
+import { rowMatchesBengaluruZone } from '@/lib/locality-match';
+import { extractBengaluruZones } from '@/lib/bengaluru-zones';
 
 // Static geocoordinates for major Bangalore sublocalities used for proximity-based matching.
 const BANGALORE_LOCALITIES_COORDS: Record<
@@ -230,11 +232,7 @@ type SubtypeGroup =
   | 'other';
 
 type Category =
-  | 'residential'
-  | 'commercial'
-  | 'industrial'
-  | 'agricultural'
-  | 'plot';
+  'residential' | 'commercial' | 'industrial' | 'agricultural' | 'plot';
 
 const TYPE_TO_GROUP: Record<string, SubtypeGroup> = {
   'Flat/ Apartment': 'apartment',
@@ -950,16 +948,29 @@ function matchContactsSingleProfile(
     const aiAreas = (sourceContact.pref_areas || [])
       .map(cleanArea)
       .filter((a) => a && !isPlaceholderArea(a));
-    const wantedAreas = [...new Set([...explicitAreas, ...aiAreas])].filter(
-      (a) => !isNegated(combinedText, a)
-    );
+    const textZones = extractBengaluruZones(combinedText).map(cleanArea);
+    const zoneComparableText = combinedText.replace(/bangalore/g, 'bengaluru');
+    const wantedAreas = [
+      ...new Set([...explicitAreas, ...aiAreas, ...textZones]),
+    ].filter((a) => !isNegated(zoneComparableText, a));
     const excludedAreas = (sourceContact.pref_excluded_areas || [])
       .map(cleanArea)
       .filter(Boolean);
 
     const areaHitsProperty = (area: string) =>
       !!area &&
-      (propLoc.includes(area) ||
+      (rowMatchesBengaluruZone(
+        {
+          locality_canonical: property.locality_canonical,
+          sublocality: property.sublocality,
+          location: property.location,
+          project: property.project,
+          title: property.title,
+          city: property.city,
+        },
+        area
+      ) ||
+        propLoc.includes(area) ||
         propSub.includes(area) ||
         propProject.includes(area) ||
         propTags.some((tag) => tag.includes(area)));
@@ -1196,9 +1207,13 @@ function matchContactsSingleProfile(
 
     // ── 6. BHK fit ────────────────────────────────────────────────
     const bhkMin =
-      sourceContact.pref_bhk_min != null ? Number(sourceContact.pref_bhk_min) : null;
+      sourceContact.pref_bhk_min != null
+        ? Number(sourceContact.pref_bhk_min)
+        : null;
     const bhkMax =
-      sourceContact.pref_bhk_max != null ? Number(sourceContact.pref_bhk_max) : null;
+      sourceContact.pref_bhk_max != null
+        ? Number(sourceContact.pref_bhk_max)
+        : null;
     let bhkVerdict: MatchVerdict = 'unknown';
     let bhkDistance = 0;
     if (propBedrooms !== null && (bhkMin !== null || bhkMax !== null)) {
