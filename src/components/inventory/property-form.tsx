@@ -42,6 +42,8 @@ import {
   Smartphone,
   Star,
   MessageSquare,
+  Phone,
+  CalendarPlus,
   Search,
   X,
   MapPin,
@@ -119,6 +121,11 @@ import { isGuardedType, isLocationGuarded } from '@/lib/inventory/location-guard
 import { rentalYieldPercent, yieldApplies } from '@/lib/inventory/rental-yield';
 import { contactHandle, hasPhone } from '@/lib/contacts/reachability';
 import { propertyAvailabilityWhatsAppUrl } from '@/lib/inventory/availability-check';
+import { ScheduleDialog } from '@/components/calendar/schedule-dialog';
+import {
+  enquiredAudienceContacts,
+  type AudienceContact,
+} from '@/lib/inventory/listing-audience';
 
 interface PropertyFormProps {
   open: boolean;
@@ -549,6 +556,10 @@ export function PropertyForm({
   const [activeTab, setActiveTab] = useState('details');
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loadingContacts, setLoadingContacts] = useState(false);
+  const [listingAudience, setListingAudience] = useState<AudienceContact[]>([]);
+  const [loadingListingAudience, setLoadingListingAudience] = useState(false);
+  const [listingAudienceError, setListingAudienceError] = useState(false);
+  const [followUpContactId, setFollowUpContactId] = useState<string | null>(null);
 
   // Contact document sharing modal states
   const [shareDocDialogOpen, setShareDocDialogOpen] = useState(false);
@@ -708,6 +719,27 @@ export function PropertyForm({
     }
   }, [supabase, accountId]);
 
+  const fetchListingEnquiries = useCallback(async () => {
+    if (!property?.id) {
+      setListingAudience([]);
+      setListingAudienceError(false);
+      return;
+    }
+    setLoadingListingAudience(true);
+    setListingAudienceError(false);
+    try {
+      const response = await fetch(`/api/properties/${property.id}/audience`);
+      if (!response.ok) throw new Error('Failed to load enquiries');
+      const body = (await response.json()) as { data?: AudienceContact[] };
+      setListingAudience(body.data ?? []);
+    } catch (err) {
+      console.error('Failed to load property enquiries:', err);
+      setListingAudienceError(true);
+    } finally {
+      setLoadingListingAudience(false);
+    }
+  }, [property?.id]);
+
   const fetchTemplates = useCallback(async () => {
     setLoadingTemplates(true);
     try {
@@ -817,6 +849,7 @@ export function PropertyForm({
       fetchTemplates();
       fetchContactedStatus();
       fetchShareLog();
+      fetchListingEnquiries();
       // Load currency settings from showcase_settings
       if (accountId) {
         supabase
@@ -842,7 +875,7 @@ export function PropertyForm({
         setInterestedContactIds([]);
       }
     }
-  }, [open, fetchContacts, fetchTemplates, fetchContactedStatus, fetchShareLog, property, accountId, supabase, initialTab]);
+  }, [open, fetchContacts, fetchTemplates, fetchContactedStatus, fetchShareLog, fetchListingEnquiries, property, accountId, supabase, initialTab]);
 
   useEffect(() => {
     if (open && property && contacts && contacts.length > 0) {
@@ -924,6 +957,11 @@ export function PropertyForm({
       )
     );
   }, [displayedMatches, matchSearch]);
+
+  const enquiredContacts = useMemo(
+    () => enquiredAudienceContacts(listingAudience),
+    [listingAudience]
+  );
 
   const buyerMatchCount = matchedContacts.filter(
     ({ contact }) => contact.classification !== 'Agent'
@@ -2702,12 +2740,15 @@ export function PropertyForm({
               </DialogDescription>
             </DialogHeader>
 
-            <TabsList className="bg-slate-900 border border-slate-800 mb-3 w-fit">
+            <TabsList className="bg-slate-900 border border-slate-800 mb-3 w-fit max-w-full overflow-x-auto">
               <TabsTrigger value="details" className="data-[state=active]:bg-slate-800 data-[state=active]:text-primary text-slate-400 px-4 py-1.5 text-xs font-semibold">
                 Property Details
               </TabsTrigger>
               <TabsTrigger value="matches" className="data-[state=active]:bg-slate-800 data-[state=active]:text-primary text-slate-400 px-4 py-1.5 text-xs font-semibold">
                 Matching Contacts ({isEdit ? displayedMatches.length : 0})
+              </TabsTrigger>
+              <TabsTrigger value="enquiries" disabled={!isEdit} className="data-[state=active]:bg-slate-800 data-[state=active]:text-primary text-slate-400 px-4 py-1.5 text-xs font-semibold">
+                Enquired Contacts ({isEdit ? enquiredContacts.length : 0})
               </TabsTrigger>
             </TabsList>
           </div>
@@ -6180,6 +6221,111 @@ export function PropertyForm({
             )}
           </TabsContent>
 
+            <TabsContent value="enquiries" className="m-0 px-6 py-4 focus:outline-none flex flex-col flex-1 min-h-0">
+              <div className="rounded-xl border border-primary/25 bg-primary/5 p-3.5 mb-4 flex items-center gap-3">
+                <div className="size-9 rounded-full bg-primary text-primary-foreground flex items-center justify-center shrink-0">
+                  <MessageSquare className="size-4" />
+                </div>
+                <div>
+                  <div className="text-sm font-bold text-white">
+                    {loadingListingAudience
+                      ? 'Loading enquiries…'
+                      : `${enquiredContacts.length} contact${enquiredContacts.length === 1 ? '' : 's'} enquired`}
+                  </div>
+                  <div className="text-xs text-slate-400">
+                    Portal enquiries and contacts marked as directly interested
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3 overflow-y-auto pr-1 flex-1 min-h-[30vh]">
+                {loadingListingAudience ? (
+                  <div className="flex justify-center items-center py-12 text-slate-500">
+                    <Loader2 className="size-6 animate-spin text-primary mr-2" />
+                    Loading enquiries…
+                  </div>
+                ) : listingAudienceError ? (
+                  <div className="text-center py-12 border border-dashed border-rose-900/50 rounded-xl bg-rose-950/10">
+                    <AlertTriangle className="size-8 mx-auto text-rose-400 mb-2" />
+                    <p className="text-sm text-slate-300 font-medium">Could not load enquired contacts</p>
+                    <Button type="button" variant="outline" size="sm" onClick={fetchListingEnquiries} className="mt-3 border-slate-700">
+                      Try again
+                    </Button>
+                  </div>
+                ) : enquiredContacts.length === 0 ? (
+                  <div className="text-center py-12 border border-dashed border-slate-800 rounded-xl bg-slate-900/30">
+                    <MessageSquare className="size-8 mx-auto text-slate-600 mb-2" />
+                    <p className="text-sm text-slate-400 font-medium">No enquiries recorded yet</p>
+                    <p className="text-xs text-slate-550 mt-1">Portal leads and contacts marked as interested will appear here.</p>
+                  </div>
+                ) : (
+                  enquiredContacts.map((contact) => {
+                    const displayName = contact.name || contact.phone || 'Unnamed contact';
+                    return (
+                      <div key={contact.contactId} className="rounded-xl border border-slate-800 bg-slate-900 p-3.5">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h4 className="text-sm font-bold text-white truncate">{displayName}</h4>
+                              <NameTagBadge tag={contact.nameTag} />
+                              {contact.classification && (
+                                <Badge className="rounded px-1.5 py-0.5 text-[9px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                  {contact.classification}
+                                </Badge>
+                              )}
+                            </div>
+                            {contact.phone && <p className="text-xs text-slate-450 font-mono mt-0.5">{contact.phone}</p>}
+                            {contact.lastAt && (
+                              <p className="text-[10px] text-slate-500 mt-1">
+                                Last enquiry {formatAuditDateTime(contact.lastAt)}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="border-t border-slate-800 mt-3 pt-2 flex flex-wrap items-center gap-2">
+                          <a
+                            href={`/contacts?contactId=${encodeURIComponent(contact.contactId)}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-semibold text-slate-400 hover:bg-slate-800 hover:text-white"
+                          >
+                            <Eye className="size-3.5" /> View contact
+                          </a>
+                          {canEdit && contact.phone ? (
+                            <a
+                              href={`tel:${contact.phone.replace(/\D/g, '')}`}
+                              className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-semibold text-primary hover:bg-primary/10"
+                            >
+                              <Phone className="size-3.5" /> Call
+                            </a>
+                          ) : null}
+                          {canEdit ? (
+                            <button
+                              type="button"
+                              onClick={() => handleGoToChat(contact.contactId)}
+                              className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-semibold text-primary hover:bg-primary/10"
+                            >
+                              <MessageSquare className="size-3.5" /> Message
+                            </button>
+                          ) : null}
+                          {canEdit ? (
+                            <button
+                              type="button"
+                              onClick={() => setFollowUpContactId(contact.contactId)}
+                              className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary hover:bg-primary/20"
+                            >
+                              <CalendarPlus className="size-3.5" /> Follow up
+                            </button>
+                          ) : null}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </TabsContent>
+
             {/* MATCHING CONTACTS TAB */}
             <TabsContent value="matches" className="m-0 px-6 py-4 focus:outline-none flex flex-col flex-1 min-h-0">
               {!isEdit ? (
@@ -6819,6 +6965,16 @@ export function PropertyForm({
           </div>
         </DialogContent>
       </Dialog>
+
+      <ScheduleDialog
+        open={followUpContactId !== null}
+        onOpenChange={(next) => {
+          if (!next) setFollowUpContactId(null);
+        }}
+        contactId={followUpContactId}
+        propertyId={property?.id ?? null}
+        initialTitle={property ? `Follow up — ${property.property_code || property.title}` : undefined}
+      />
 
       <Dialog open={shareDocDialogOpen} onOpenChange={setShareDocDialogOpen}>
         <DialogContent className="bg-slate-900 border-slate-700 text-slate-200 sm:max-w-md max-h-[85vh] flex flex-col p-6 overflow-y-auto">

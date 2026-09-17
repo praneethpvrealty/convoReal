@@ -44,8 +44,11 @@ import { haptic } from '@/lib/haptics';
 import { listingPrice } from '@/lib/listing-price';
 import {
   audienceListingLabel,
+  enquiredAudienceContacts,
   fetchListingAudience,
+  fetchPropertyAudience,
   reachableAudienceIds,
+  type AudienceContact,
   type AudienceListing,
 } from '@/lib/listing-audience';
 import {
@@ -137,6 +140,12 @@ export default function PropertyDetailScreen() {
   const matchesQuery = useQuery({
     queryKey: ['property-matches', id],
     queryFn: () => fetchPropertyMatches(id),
+    enabled: Boolean(id),
+    staleTime: 60_000,
+  });
+  const audienceQuery = useQuery({
+    queryKey: ['property-audience', id],
+    queryFn: () => fetchPropertyAudience(id),
     enabled: Boolean(id),
     staleTime: 60_000,
   });
@@ -945,6 +954,14 @@ export default function PropertyDetailScreen() {
             </Section>
           ) : null}
 
+          <EnquiredContactsSection
+            contacts={enquiredAudienceContacts(audienceQuery.data ?? [])}
+            isLoading={audienceQuery.isLoading}
+            isError={audienceQuery.isError}
+            property={property}
+            canAct={canEdit}
+          />
+
           <MatchesSection
             matches={matchesQuery.data ?? []}
             isLoading={matchesQuery.isLoading}
@@ -1192,6 +1209,231 @@ export default function PropertyDetailScreen() {
         }}
       />
     </View>
+  );
+}
+
+function EnquiredContactsSection({
+  contacts,
+  isLoading,
+  isError,
+  property,
+  canAct,
+}: {
+  contacts: AudienceContact[];
+  isLoading: boolean;
+  isError: boolean;
+  property: Property;
+  canAct: boolean;
+}) {
+  const { colors, fonts: f } = useTheme();
+  const [expanded, setExpanded] = useState(true);
+
+  return (
+    <Section title="Enquired Contacts">
+      <Pressable
+        onPress={() => {
+          haptic.tap();
+          setExpanded((current) => !current);
+        }}
+        accessibilityRole="button"
+        accessibilityState={{ expanded }}
+        accessibilityLabel={
+          expanded ? 'Collapse enquired contacts' : 'Expand enquired contacts'
+        }
+        style={[
+          styles.matchSummary,
+          { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+        ]}
+      >
+        <View
+          style={[
+            styles.matchSummaryIcon,
+            { backgroundColor: colors.primarySoft },
+          ]}
+        >
+          <Ionicons name="hand-left-outline" size={18} color={colors.primary} />
+        </View>
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text
+            style={{ fontSize: 14, fontFamily: f.bold, color: colors.text }}
+          >
+            {isLoading
+              ? 'Loading enquiries…'
+              : `${contacts.length} contact${contacts.length === 1 ? '' : 's'} enquired`}
+          </Text>
+          <Text style={{ fontSize: 11.5, color: colors.textMuted }}>
+            {isError
+              ? 'Could not load enquiries — pull to refresh.'
+              : contacts.length > 0
+                ? 'Portal enquiries and contacts marked as interested'
+                : 'No enquiries recorded for this property yet'}
+          </Text>
+        </View>
+        <Ionicons
+          name={expanded ? 'chevron-up' : 'chevron-down'}
+          size={18}
+          color={colors.primary}
+        />
+      </Pressable>
+
+      {expanded && isLoading ? (
+        <ActivityIndicator size="small" color={colors.primary} />
+      ) : null}
+
+      {expanded && !isLoading && contacts.length > 0 ? (
+        <View style={{ gap: spacing.sm }}>
+          {contacts.map((contact) => {
+            const displayName =
+              contact.name || contact.phone || 'Unnamed contact';
+            const digits = (contact.phone ?? '').replace(/\D/g, '');
+            const followUpTitle = `Follow up — ${property.property_code || property.title}`;
+            const followUpHref =
+              `/(app)/appointment-new?contactId=${encodeURIComponent(contact.contactId)}` +
+              `&contactName=${encodeURIComponent(contact.name ?? '')}` +
+              `&contactPhone=${encodeURIComponent(contact.phone ?? '')}` +
+              `&eventType=follow_up&propertyId=${encodeURIComponent(property.id)}` +
+              `&title=${encodeURIComponent(followUpTitle)}`;
+            const message = `Hi ${contact.name?.split(/\s+/)[0] || 'there'}, following up on your enquiry for ${property.property_code || property.title}.`;
+
+            return (
+              <View
+                key={contact.contactId}
+                style={[
+                  styles.enquiryRow,
+                  {
+                    backgroundColor: colors.glass,
+                    borderColor: colors.glassBorder,
+                  },
+                ]}
+              >
+                <Pressable
+                  onPress={() =>
+                    router.push(`/(app)/contact/${contact.contactId}`)
+                  }
+                  accessibilityRole="button"
+                  accessibilityLabel={`View ${displayName} contact`}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 10,
+                  }}
+                >
+                  <Ionicons
+                    name="person-circle-outline"
+                    size={30}
+                    color={colors.primary}
+                  />
+                  <View style={{ flex: 1 }}>
+                    <Text
+                      style={{
+                        fontSize: 13.5,
+                        fontFamily: f.bold,
+                        color: colors.text,
+                      }}
+                    >
+                      {displayName}
+                    </Text>
+                    <Text style={{ fontSize: 11.5, color: colors.textMuted }}>
+                      {[
+                        contact.phone,
+                        contact.lastAt
+                          ? `Enquired ${chatListTime(contact.lastAt)}`
+                          : null,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </Text>
+                  </View>
+                  {contact.classification ? (
+                    <Tag label={contact.classification} />
+                  ) : null}
+                </Pressable>
+
+                {canAct ? (
+                  <View style={styles.enquiryActions}>
+                    <Pressable
+                      disabled={!digits}
+                      onPress={() => void Linking.openURL(`tel:${digits}`)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Call ${displayName}`}
+                      style={[
+                        styles.enquiryAction,
+                        !digits && { opacity: 0.4 },
+                      ]}
+                    >
+                      <Ionicons
+                        name="call-outline"
+                        size={15}
+                        color={colors.primary}
+                      />
+                      <Text
+                        style={{
+                          fontSize: 11.5,
+                          fontFamily: f.semibold,
+                          color: colors.primary,
+                        }}
+                      >
+                        Call
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      disabled={!digits}
+                      onPress={() =>
+                        void Linking.openURL(
+                          `https://wa.me/${digits}?text=${encodeURIComponent(message)}`
+                        )
+                      }
+                      accessibilityRole="button"
+                      accessibilityLabel={`Message ${displayName}`}
+                      style={[
+                        styles.enquiryAction,
+                        !digits && { opacity: 0.4 },
+                      ]}
+                    >
+                      <Ionicons
+                        name="logo-whatsapp"
+                        size={15}
+                        color={colors.primary}
+                      />
+                      <Text
+                        style={{
+                          fontSize: 11.5,
+                          fontFamily: f.semibold,
+                          color: colors.primary,
+                        }}
+                      >
+                        Message
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => router.push(followUpHref)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Schedule follow-up with ${displayName}`}
+                      style={styles.enquiryAction}
+                    >
+                      <Ionicons
+                        name="calendar-outline"
+                        size={15}
+                        color={colors.primary}
+                      />
+                      <Text
+                        style={{
+                          fontSize: 11.5,
+                          fontFamily: f.semibold,
+                          color: colors.primary,
+                        }}
+                      >
+                        Follow up
+                      </Text>
+                    </Pressable>
+                  </View>
+                ) : null}
+              </View>
+            );
+          })}
+        </View>
+      ) : null}
+    </Section>
   );
 }
 
@@ -2302,6 +2544,29 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  enquiryRow: {
+    gap: spacing.sm,
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: spacing.md,
+  },
+  enquiryActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(127,127,127,0.2)',
+    paddingTop: spacing.sm,
+  },
+  enquiryAction: {
+    minHeight: 34,
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    borderRadius: radius.full,
   },
   matchSearch: {
     minHeight: 42,

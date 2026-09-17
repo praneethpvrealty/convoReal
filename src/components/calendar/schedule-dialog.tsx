@@ -49,6 +49,7 @@ interface ScheduleDialogProps {
   onOpenChange: (open: boolean) => void;
   contactId?: string | null;
   propertyId?: string | null;
+  initialTitle?: string;
   onSuccess?: () => void;
 }
 
@@ -57,6 +58,7 @@ export function ScheduleDialog({
   onOpenChange,
   contactId,
   propertyId,
+  initialTitle,
   onSuccess,
 }: ScheduleDialogProps) {
   const supabase = createClient();
@@ -106,7 +108,7 @@ export function ScheduleDialog({
       loadOptions();
 
       // Reset form states
-      setTitle('');
+      setTitle(initialTitle ?? '');
       setSelectedContactIds(contactId ? [contactId] : []);
       setSelectedPropertyId(propertyId || '');
       setLocation('');
@@ -126,7 +128,7 @@ export function ScheduleDialog({
       setStartTime(formatDateTime(start));
       setEndTime(formatDateTime(end));
     }
-  }, [open, accountId, contactId, propertyId, loadOptions]);
+  }, [open, accountId, contactId, propertyId, initialTitle, loadOptions]);
 
   // Keep selection updated if contactId prop changes
   useEffect(() => {

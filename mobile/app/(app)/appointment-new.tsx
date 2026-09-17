@@ -25,7 +25,7 @@ import { supabase } from '@/lib/supabase';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import type { AppointmentType, Contact } from '@/lib/types';
 import { voiceHints, type VoicePrefill } from '@/lib/voice-event';
-import { contactHandle, hasPhone } from '@/lib/reachability';
+import { contactHandle } from '@/lib/reachability';
 
 const TYPES: { value: AppointmentType; label: string; icon: string }[] = [
   { value: 'site_visit', label: 'Site visit', icon: 'location-outline' },
@@ -44,10 +44,15 @@ export default function NewAppointmentScreen() {
     contactId?: string;
     contactName?: string;
     contactPhone?: string;
+    eventType?: string;
+    propertyId?: string;
+    title?: string;
   }>();
 
-  const [title, setTitle] = useState('');
-  const [eventType, setEventType] = useState<AppointmentType>('site_visit');
+  const [title, setTitle] = useState(params.title ?? '');
+  const [eventType, setEventType] = useState<AppointmentType>(
+    params.eventType === 'follow_up' ? 'follow_up' : 'site_visit'
+  );
   const [start, setStart] = useState(() => {
     const d = new Date();
     d.setHours(d.getHours() + 1, 0, 0, 0);
@@ -132,6 +137,7 @@ export default function NewAppointmentScreen() {
       event_type: eventType,
       contact_id: contact?.id ?? null,
       contact_ids: contact ? [contact.id] : [],
+      property_id: params.propertyId ?? null,
       ...(voice ? { source: 'voice', transcript: voice.transcript, description: voice.description } : {}),
     });
     setSaving(false);

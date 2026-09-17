@@ -364,6 +364,28 @@
               "case": "property status notifications"
             }
           ]
+        },
+        {
+          "id": "PRP-007",
+          "rule": "Every saved property exposes its explicit enquired contacts separately from preference-ranked matches on web and mobile, excluding view-only engagement and providing direct contact, call, message and follow-up actions subject to the user's permissions.",
+          "tests": [
+            {
+              "file": "src/lib/inventory/listing-audience.test.ts",
+              "case": "[PRP-007]"
+            },
+            {
+              "file": "mobile/lib/listing-audience-select.test.ts",
+              "case": "[PRP-007]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[PRP-007]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20260823120000_property_audience.sql",
+            ".github/workflows/eas-update.yml"
+          ]
         }
       ]
     },

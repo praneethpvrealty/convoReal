@@ -1419,3 +1419,28 @@ describe('the mobile deals screen uses the shared brokerage rule', () => {
     ).toBe(1134000);
   });
 });
+
+describe('[PRP-007] property enquiries remain actionable on web and mobile', () => {
+  const web = readFileSync(
+    join(process.cwd(), 'src/components/inventory/property-form.tsx'),
+    'utf8'
+  );
+  const mobile = mobileSource('app/(app)/property/[id].tsx');
+
+  it('shows explicit enquiries separately from preference matches', () => {
+    for (const source of [web, mobile]) {
+      expect(source).toContain('Enquired Contacts');
+      expect(source).toContain('enquiredAudienceContacts');
+      expect(source).toContain('Matching Contacts');
+    }
+  });
+
+  it('keeps contact, call, message and follow-up actions on both surfaces', () => {
+    for (const label of ['View contact', 'Call', 'Message', 'Follow up']) {
+      expect(web, `web lacks ${label}`).toContain(label);
+      expect(mobile, `mobile lacks ${label}`).toContain(label);
+    }
+    expect(mobile).toContain('eventType=follow_up');
+    expect(web).toContain('ScheduleDialog');
+  });
+});

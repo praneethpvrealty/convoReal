@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   audienceListingLabel,
+  enquiredAudienceContacts,
   filterAudienceListings,
   reachableAudienceIds,
 } from './listing-audience-select';
@@ -62,6 +63,17 @@ describe('reachableAudienceIds', () => {
     );
     expect(ids).toEqual([]);
     expect(unreachable).toBe(1);
+  });
+});
+
+describe('enquiredAudienceContacts', () => {
+  it('[PRP-007] does not mistake a tracked view for an enquiry', () => {
+    expect(
+      enquiredAudienceContacts([
+        member({ contactId: 'enquiry' }),
+        member({ contactId: 'view', enquired: false, viewed: true }),
+      ]).map((contact) => contact.contactId)
+    ).toEqual(['enquiry']);
   });
 });
 
