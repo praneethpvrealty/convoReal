@@ -2166,6 +2166,7 @@ async function processMessage(
       ownerUserId: configOwnerUserId,
       contact: { id: contactRecord.id, name: contactRecord.name },
       conversationId: conversation.id,
+      contextMessageId: message.context?.id ?? null,
       onTrack: progressAction === 'paperwork_on_track',
     });
     if (handledNotice) return;

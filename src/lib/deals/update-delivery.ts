@@ -331,8 +331,14 @@ export async function loadUpdateSources(
  * The tap reopens the 24-hour window, so the private link the template
  * could not carry goes now, free-form; the tap itself is recorded as
  * the acknowledgement and the agent is told what the buyer said.
- * Returns false when no template-delivered update is waiting for this
- * contact, so the closing-nudge handler gets its turn.
+ *
+ * The reply is matched to the message it quotes — Meta sends the
+ * original template's id as `context.id` — never to "the newest
+ * notice for this contact": a buyer with two notices open, or a
+ * notice and a closing nudge, must acknowledge the one they answered.
+ * Returns false when the quoted message is not a template-delivered
+ * update still waiting for its link, so the closing-nudge handler gets
+ * its turn.
  */
 export async function handleUpdateNoticeReply(args: {
   db: SupabaseClient;
@@ -340,9 +346,20 @@ export async function handleUpdateNoticeReply(args: {
   ownerUserId: string;
   contact: { id: string; name: string | null };
   conversationId: string;
+  contextMessageId: string | null;
   onTrack: boolean;
 }): Promise<boolean> {
   const { db, accountId } = args;
+  if (!args.contextMessageId) return false;
+
+  const { data: quoted } = await db
+    .from('messages')
+    .select('id')
+    .eq('account_id', accountId)
+    .eq('message_id', args.contextMessageId)
+    .maybeSingle();
+  if (!quoted) return false;
+
   const since = new Date(
     Date.now() - TEMPLATE_FOLLOW_UP_WINDOW_MS
   ).toISOString();
@@ -355,12 +372,11 @@ export async function handleUpdateNoticeReply(args: {
     )
     .eq('account_id', accountId)
     .eq('contact_id', args.contact.id)
+    .eq('message_id', (quoted as { id: string }).id)
     .eq('delivery_mode', 'template')
     .eq('status', 'sent')
     .is('link_delivered_at', null)
     .gte('created_at', since)
-    .order('created_at', { ascending: false })
-    .limit(1)
     .maybeSingle();
   if (!recipient) return false;
 

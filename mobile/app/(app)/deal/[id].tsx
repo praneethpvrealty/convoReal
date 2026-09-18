@@ -2190,6 +2190,7 @@ function UpdateComposer({
     supersedes?.visibility ?? 'buyer_side'
   );
   const [milestoneIds, setMilestoneIds] = useState<string[]>([]);
+  const [eventIds, setEventIds] = useState<string[]>([]);
   const [recipients, setRecipients] = useState<Record<string, UpdateChannel>>(
     {}
   );
@@ -2202,6 +2203,11 @@ function UpdateComposer({
     queryFn: () => fetchDealMilestones(dealId),
     enabled: Boolean(dealId),
   });
+  const { data: events = [] } = useQuery({
+    queryKey: ['deal-events', dealId],
+    queryFn: () => fetchDealEvents(dealId),
+    enabled: Boolean(dealId),
+  });
   const { data: stakeholders = [] } = useQuery({
     queryKey: ['deal-stakeholders', dealId],
     queryFn: () => fetchDealStakeholders(dealId),
@@ -2211,6 +2217,10 @@ function UpdateComposer({
   const quotable = milestones.filter((m) =>
     snapshotItemAllowed(visibility, m.visibility)
   );
+  const quotableEvents = events
+    .filter((e) => snapshotItemAllowed(visibility, e.visibility))
+    .filter((e) => e.event_type !== 'update_published')
+    .slice(0, 30);
   const eligible = stakeholders.filter((s) =>
     isEligibleRecipient(s, visibility)
   );
@@ -2222,7 +2232,7 @@ function UpdateComposer({
     milestone_ids: milestoneIds.filter((id) =>
       quotable.some((m) => m.id === id)
     ),
-    event_ids: [],
+    event_ids: eventIds.filter((id) => quotableEvents.some((e) => e.id === id)),
     supersedes_update_id: supersedes?.id ?? null,
     recipients: Object.entries(recipients)
       .filter(([id]) => eligible.some((s) => s.id === id))
@@ -2329,6 +2339,29 @@ function UpdateComposer({
             </Text>
           ) : null}
         </View>
+        {quotableEvents.length > 0 ? (
+          <>
+            <Text style={[styles.cardMeta, { color: colors.textMuted }]}>
+              Timeline entries to quote
+            </Text>
+            <View style={styles.chipRow}>
+              {quotableEvents.map((e) => (
+                <FilterChip
+                  key={e.id}
+                  label={e.title}
+                  active={eventIds.includes(e.id)}
+                  onPress={() =>
+                    setEventIds((ids) =>
+                      ids.includes(e.id)
+                        ? ids.filter((x) => x !== e.id)
+                        : [...ids, e.id]
+                    )
+                  }
+                />
+              ))}
+            </View>
+          </>
+        ) : null}
         <Text style={[styles.cardMeta, { color: colors.textMuted }]}>
           Recipients. The business number sends free-form inside their 24-hour
           window and the Purchase progress template to a buyer outside it. Your

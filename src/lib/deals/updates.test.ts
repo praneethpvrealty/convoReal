@@ -3,6 +3,7 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import { DEAL_SHARE_MAX_TTL_MS } from './share-links';
 import {
   buildUpdateSnapshot,
   engineDeliveryMode,
@@ -325,6 +326,42 @@ describe('[TXW-014] delivery is decided honestly and recorded separately', () =>
     expect(personalWhatsAppUrl('+91 90000 00019', 'hi there')).toBe(
       'https://wa.me/919000000019?text=hi%20there'
     );
+  });
+
+  it('stores the link TTL in a column wide enough for the 30-day choice', () => {
+    expect(DEAL_SHARE_MAX_TTL_MS).toBeGreaterThan(2 ** 31 - 1);
+    expect(migration).toContain('link_ttl_ms BIGINT');
+    const held = readFileSync(
+      join(
+        process.cwd(),
+        'supabase/migrations/20260918050100_transaction_workspace_update_events.sql'
+      ),
+      'utf8'
+    );
+    expect(held).toMatch(/ALTER COLUMN link_ttl_ms TYPE BIGINT/);
+  });
+
+  it('matches a template reply to the message it quotes, never to the newest notice', () => {
+    const delivery = readFileSync(
+      join(process.cwd(), 'src/lib/deals/update-delivery.ts'),
+      'utf8'
+    );
+    const handler = delivery.slice(
+      delivery.indexOf('export async function handleUpdateNoticeReply')
+    );
+    expect(handler).toContain('if (!args.contextMessageId) return false;');
+    expect(handler).toContain(".eq('message_id', args.contextMessageId)");
+    expect(handler).toContain(
+      ".eq('message_id', (quoted as { id: string }).id)"
+    );
+    expect(handler).not.toMatch(
+      /\.order\('created_at', \{ ascending: false \}\)\s*\.limit\(1\)/
+    );
+    const webhook = readFileSync(
+      join(process.cwd(), 'src/lib/whatsapp/webhook-handler.ts'),
+      'utf8'
+    );
+    expect(webhook).toContain('contextMessageId: message.context?.id ?? null');
   });
 
   it('records sent, opened and acknowledged as three columns', () => {

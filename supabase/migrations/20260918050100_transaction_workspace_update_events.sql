@@ -5,8 +5,16 @@
 -- insert as best-effort until then. Restates the Phase 2 widening so
 -- it is correct whether or not that migration has run.
 --
+-- Also widens deal_update_recipients.link_ttl_ms to BIGINT: the
+-- 30-day choice is 2,592,000,000 ms, past INTEGER's ceiling, and the
+-- first cut of the table was created with INTEGER. A type change on a
+-- live table is held to merge like the CHECK.
+--
 -- Idempotent — safe to run multiple times.
 -- ============================================================
+
+ALTER TABLE deal_update_recipients
+  ALTER COLUMN link_ttl_ms TYPE BIGINT;
 
 ALTER TABLE deal_events
   DROP CONSTRAINT IF EXISTS deal_events_event_type_check;

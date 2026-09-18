@@ -115,7 +115,7 @@ CREATE TABLE IF NOT EXISTS deal_update_recipients (
     CHECK (status IN ('pending', 'sent', 'failed')),
   message_id UUID REFERENCES messages(id) ON DELETE SET NULL,
   failed_reason TEXT,
-  link_ttl_ms INTEGER,
+  link_ttl_ms BIGINT,
   link_otp_required BOOLEAN NOT NULL DEFAULT FALSE,
   sent_at TIMESTAMPTZ,
   link_delivered_at TIMESTAMPTZ,

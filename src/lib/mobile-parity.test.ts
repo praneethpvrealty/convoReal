@@ -1705,6 +1705,10 @@ describe('[TXW] Phase 3 publishing ships on both surfaces', () => {
     );
     expect(webPanel).toContain('snapshotItemAllowed(visibility, m.visibility)');
     expect(mobileScreen).toContain(
+      'snapshotItemAllowed(visibility, e.visibility)'
+    );
+    expect(webPanel).toContain('snapshotItemAllowed(visibility, e.visibility)');
+    expect(mobileScreen).toContain(
       'supersedes_update_id: supersedes?.id ?? null'
     );
     expect(webPanel).toContain('supersedes_update_id: supersedes?.id ?? null');
