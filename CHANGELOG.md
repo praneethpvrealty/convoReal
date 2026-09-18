@@ -19,6 +19,12 @@ than a written entry. Newest first.
 
 #### 18 September 2026
 
+- **WhatsApp registration state now comes from Meta.** Saving a number without
+  a PIN used to record it as registered on trust, so a number Meta had never
+  registered (for example one whose display name was declined) showed
+  "Registered" while WhatsApp still said "Invite to WhatsApp". The save, the
+  Verify with Meta probe, and a saved-number switch now read Meta's platform
+  and display-name status, record the real state, and say what to fix.
 - **Saved WhatsApp numbers.** Settings → WhatsApp now keeps every Official API
   number an account has connected, with its encrypted token and Meta
   registration state, in a "Saved numbers" card. Switching the live number is

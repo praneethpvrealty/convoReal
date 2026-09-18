@@ -12,6 +12,10 @@ import {
   isPhoneNumberClaimedElsewhere,
   upsertNumberProfile,
 } from '@/lib/whatsapp/number-profiles'
+import {
+  assessRegistration,
+  fetchPhoneRegistrationState,
+} from '@/lib/whatsapp/registration-state'
 
 /**
  * Resolve the caller's account_id from their profile. Inlined here
@@ -310,8 +314,18 @@ export async function POST(request: Request) {
           console.error('Phone number /register failed:', registrationError)
         }
       } else if (!sameNumber) {
-        console.log('[whatsapp/config] No PIN provided — assuming number already registered.')
-        registeredAt = new Date().toISOString()
+        const assessment = assessRegistration(
+          await fetchPhoneRegistrationState({
+            phoneNumberId: phone_number_id,
+            accessToken: access_token,
+          }),
+        )
+        if (assessment && !assessment.registered) {
+          registeredAt = null
+          registrationError = assessment.reason
+        } else {
+          registeredAt = new Date().toISOString()
+        }
       }
 
       if (waba_id) {
