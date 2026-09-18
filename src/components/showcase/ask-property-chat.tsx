@@ -60,7 +60,7 @@ export function AskPropertyChat({
 
   const scrollToEnd = () => {
     requestAnimationFrame(() => {
-      threadRef.current?.scrollTo({ top: threadRef.current.scrollHeight, behavior: 'smooth' });
+      threadRef.current?.scrollTo?.({ top: threadRef.current.scrollHeight, behavior: 'smooth' });
     });
   };
 
