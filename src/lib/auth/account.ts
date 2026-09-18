@@ -137,6 +137,8 @@ export interface AccountContext {
   /** Legacy viewers share the org_agent role but retain this read-only
    *  capability flag. Mutation boundaries must check both values. */
   isReadOnly: boolean;
+  /** The language this user selected for the authenticated app UI. */
+  activeUiLanguage: LanguageCode;
   /** Lightweight account meta — id + name + outbound language default. */
   account: { id: string; name: string; defaultLanguage: LanguageCode };
 }
@@ -171,7 +173,7 @@ export async function getCurrentAccount(): Promise<AccountContext> {
   // rather than silently returning a half-populated profile.
   const { data, error } = await supabase
     .from("profiles")
-    .select("account_id, account_role, org_role, team_id, is_read_only, account:accounts!inner(id, name, status, default_language)")
+    .select("account_id, account_role, org_role, team_id, is_read_only, active_ui_language, account:accounts!inner(id, name, status, default_language)")
     .eq("user_id", user.id)
     .maybeSingle();
 
@@ -220,6 +222,7 @@ export async function getCurrentAccount(): Promise<AccountContext> {
     orgRole: data.org_role,
     teamId: data.team_id ?? null,
     isReadOnly: data.is_read_only ?? false,
+    activeUiLanguage: toLanguageCode(data.active_ui_language),
     account: {
       id: accountRow.id,
       name: accountRow.name,

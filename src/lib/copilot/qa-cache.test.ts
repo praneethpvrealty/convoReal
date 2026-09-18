@@ -255,6 +255,12 @@ describe('KB version', () => {
     expect(new Set(versions).size).toBe(3);
   });
 
+  it('differs per active UI language', () => {
+    expect(qaCache.kbVersionFor('agent', 'web', 'en')).not.toBe(
+      qaCache.kbVersionFor('agent', 'web', 'hi')
+    );
+  });
+
   it("queries and stores under the calling audience's version", async () => {
     h.state.rpcResponse = { data: [], error: null };
     await qaCache.lookupCachedAnswer(EMBEDDING, 'owner');
@@ -272,6 +278,26 @@ describe('KB version', () => {
     });
     expect(h.state.insertRows[0]).toMatchObject({
       kb_version: qaCache.kbVersionFor('owner'),
+    });
+  });
+
+  it('queries and stores under the calling language version', async () => {
+    h.state.rpcResponse = { data: [], error: null };
+    await qaCache.lookupCachedAnswer(EMBEDDING, 'agent', 'web', 'hi');
+    expect(
+      h.state.rpcCalls.find((c) => c.fn === 'match_copilot_qa')?.args
+        .p_kb_version
+    ).toBe(qaCache.kbVersionFor('agent', 'web', 'hi'));
+
+    await qaCache.storeAnswer({
+      question: 'groups kaise kaam karte hain?',
+      embedding: EMBEDDING,
+      reply: 'आप ConvoReal में WhatsApp समूह बना सकते हैं।',
+      sourceChunks: LIVE_CHUNKS,
+      language: 'hi',
+    });
+    expect(h.state.insertRows[0]).toMatchObject({
+      kb_version: qaCache.kbVersionFor('agent', 'web', 'hi'),
     });
   });
 });

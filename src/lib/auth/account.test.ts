@@ -42,6 +42,7 @@ const activeProfile = {
   org_role: 'org_manager',
   team_id: null,
   is_read_only: false,
+  active_ui_language: 'en',
   account: { id: 'acc-1', name: 'Acme Realty', status: 'active' },
 };
 
@@ -77,6 +78,19 @@ describe('getCurrentAccount — archived account block', () => {
     expect(ctx.accountId).toBe('acc-1');
     expect(ctx.account.name).toBe('Acme Realty');
     expect(ctx.isReadOnly).toBe(false);
+    expect(ctx.activeUiLanguage).toBe('en');
+  });
+
+  it('returns the active UI language with an English fallback', async () => {
+    h.state.profile = { ...activeProfile, active_ui_language: 'hi' };
+    await expect(getCurrentAccount()).resolves.toMatchObject({
+      activeUiLanguage: 'hi',
+    });
+
+    h.state.profile = { ...activeProfile, active_ui_language: null };
+    await expect(getCurrentAccount()).resolves.toMatchObject({
+      activeUiLanguage: 'en',
+    });
   });
 
   it('surfaces the legacy read-only capability independently of org role', async () => {
