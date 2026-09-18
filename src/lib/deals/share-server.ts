@@ -98,7 +98,8 @@ const DEAL_SELECT =
   'stakeholders:deal_stakeholders(id, side, contact_id, phone, email), ' +
   'milestones:deal_milestones(id, title, status, position, target_date, completed_at, visibility), ' +
   'events:deal_events(id, event_type, title, created_at, visibility), ' +
-  'documents:deal_documents(id, title, category, status, expires_at, superseded_by, mime_type, visibility)';
+  'documents:deal_documents(id, title, category, status, expires_at, superseded_by, mime_type, visibility), ' +
+  'updates:deal_updates(id, headline, body, snapshot, supersedes_update_id, published_by_name, created_at, visibility)';
 
 function one<T>(v: T | T[] | null | undefined): T | null {
   if (v === null || v === undefined) return null;
@@ -122,6 +123,7 @@ function toSource(row: Record<string, unknown>): ExternalDealSource {
     milestones: (row.milestones as ExternalDealSource['milestones']) ?? [],
     events: (row.events as ExternalDealSource['events']) ?? [],
     documents: (row.documents as ExternalDealSource['documents']) ?? [],
+    updates: (row.updates as ExternalDealSource['updates']) ?? [],
   };
 }
 
@@ -158,6 +160,51 @@ export async function loadShareSources(
     );
   }
   return { deal, siblings };
+}
+
+/** The recipient rows behind one link: which updates were addressed
+ *  to it and whether each has been opened or acknowledged. */
+export async function loadLinkRecipients(
+  admin: SupabaseClient,
+  link: Pick<DealShareLink, 'id' | 'account_id'>
+): Promise<
+  Array<{
+    id: string;
+    update_id: string;
+    opened_at: string | null;
+    acknowledged_at: string | null;
+  }>
+> {
+  const { data } = await admin
+    .from('deal_update_recipients')
+    .select('id, update_id, opened_at, acknowledged_at')
+    .eq('link_id', link.id)
+    .eq('account_id', link.account_id);
+  return (data ?? []) as Array<{
+    id: string;
+    update_id: string;
+    opened_at: string | null;
+    acknowledged_at: string | null;
+  }>;
+}
+
+/** Record the first open of an update through its recipient's link.
+ *  Opened is a fact about the link the notice pointed at; a second
+ *  open never moves the timestamp. */
+export async function markUpdateOpened(
+  admin: SupabaseClient,
+  link: Pick<DealShareLink, 'id' | 'account_id'>,
+  updateId: string
+): Promise<void> {
+  const { error } = await admin
+    .from('deal_update_recipients')
+    .update({ opened_at: new Date().toISOString() })
+    .eq('link_id', link.id)
+    .eq('account_id', link.account_id)
+    .eq('update_id', updateId)
+    .is('opened_at', null)
+    .select('id');
+  if (error) console.error('[deal-share] open tracking failed:', error.message);
 }
 
 export function clientIp(request: Request): string {

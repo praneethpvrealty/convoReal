@@ -28,7 +28,9 @@ export type DealEventType =
   | 'stakeholder_updated'
   | 'stakeholder_removed'
   | 'link_created'
-  | 'link_revoked';
+  | 'link_revoked'
+  | 'update_published'
+  | 'update_acknowledged';
 
 export type DealEventSource = 'web' | 'mobile' | 'api' | 'system';
 
@@ -66,6 +68,8 @@ export const DEAL_EVENT_LABELS: Record<DealEventType, string> = {
   stakeholder_removed: 'Stakeholder removed',
   link_created: 'Share link created',
   link_revoked: 'Share link revoked',
+  update_published: 'Update published',
+  update_acknowledged: 'Update acknowledged',
 };
 
 /** Event types the first migration's CHECK did not know; the routes
@@ -77,6 +81,13 @@ export const PHASE_2_EVENT_TYPES: readonly DealEventType[] = [
   'stakeholder_removed',
   'link_created',
   'link_revoked',
+];
+
+/** Event types the Phase 2 widening did not know; held to merge in
+ *  the same way. */
+export const PHASE_3_EVENT_TYPES: readonly DealEventType[] = [
+  'update_published',
+  'update_acknowledged',
 ];
 
 export function parseEventSource(v: unknown): DealEventSource {

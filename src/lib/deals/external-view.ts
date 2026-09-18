@@ -1,5 +1,6 @@
 import type { DealMilestoneStatus } from './milestones';
 import { isSamePerson, type DealStakeholder } from './stakeholders';
+import type { DealUpdateSnapshot, DealUpdateVisibility } from './updates';
 import {
   projectBundleForAudience,
   type Audience,
@@ -52,6 +53,27 @@ export interface ExternalDealSource {
     mime_type: string | null;
     visibility: DealVisibility;
   }[];
+  updates?: readonly {
+    id: string;
+    headline: string;
+    body: string | null;
+    snapshot: DealUpdateSnapshot;
+    supersedes_update_id: string | null;
+    published_by_name: string | null;
+    created_at: string;
+    visibility: DealUpdateVisibility;
+  }[];
+}
+
+export interface ExternalUpdateView {
+  id: string;
+  headline: string;
+  body: string | null;
+  snapshot: DealUpdateSnapshot;
+  supersedes_update_id: string | null;
+  superseded: boolean;
+  published_by_name: string | null;
+  created_at: string;
 }
 
 export interface ExternalDealView {
@@ -82,6 +104,7 @@ export interface ExternalDealView {
     superseded: boolean;
     mime_type: string | null;
   }>;
+  updates: ExternalUpdateView[];
 }
 
 export interface ExternalPortalView {
@@ -106,13 +129,16 @@ export function partiesFromStakeholders(
   };
 }
 
-type Tagged = VisibleItem & { kind: 'milestone' | 'event' | 'document' };
+type Tagged = VisibleItem & {
+  kind: 'milestone' | 'event' | 'document' | 'update';
+};
 
 function toProjectable(source: ExternalDealSource): ProjectableDeal {
   const items: Tagged[] = [
     ...source.milestones.map((m) => ({ ...m, kind: 'milestone' as const })),
     ...source.events.map((e) => ({ ...e, kind: 'event' as const })),
     ...source.documents.map((d) => ({ ...d, kind: 'document' as const })),
+    ...(source.updates ?? []).map((u) => ({ ...u, kind: 'update' as const })),
   ];
   return {
     id: source.id,
@@ -178,7 +204,32 @@ function toView(
         superseded: Boolean(d.superseded_by),
         mime_type: (d.mime_type as string | null) ?? null,
       })),
+    updates: projectUpdates(tagged),
   };
+}
+
+/** Updates the audience may see, newest first. An update that a later
+ *  visible update corrects is kept and marked, never hidden: the
+ *  snapshot is the record of what was said. */
+function projectUpdates(tagged: Tagged[]): ExternalUpdateView[] {
+  const rows = tagged.filter((i) => i.kind === 'update');
+  const supersededIds = new Set(
+    rows
+      .map((u) => u.supersedes_update_id as string | null)
+      .filter((id): id is string => Boolean(id))
+  );
+  return rows
+    .map((u) => ({
+      id: String(u.id),
+      headline: String(u.headline),
+      body: (u.body as string | null) ?? null,
+      snapshot: u.snapshot as DealUpdateSnapshot,
+      supersedes_update_id: (u.supersedes_update_id as string | null) ?? null,
+      superseded: supersededIds.has(String(u.id)),
+      published_by_name: (u.published_by_name as string | null) ?? null,
+      created_at: String(u.created_at),
+    }))
+    .sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
 }
 
 /**

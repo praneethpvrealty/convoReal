@@ -734,6 +734,57 @@
             "supabase/migrations/20260918030000_transaction_workspace_stakeholders.sql",
             "supabase/migrations/20260918030100_transaction_workspace_share_events.sql"
           ]
+        },
+        {
+          "id": "TXW-013",
+          "rule": "A published update is a durable snapshot: deal_updates is insert-only (SELECT/INSERT grants, published_by pinned to the caller, UPDATE and DELETE refused by trigger except the cascade from a deleted deal), its audience is never internal, it quotes only milestones and timeline entries every reader may already see, and a correction is a new update naming supersedes_update_id while the original stays. Both surfaces compose over the same routes with the same quoting rule.",
+          "tests": [
+            {
+              "file": "src/lib/deals/updates.test.ts",
+              "case": "[TXW-013]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[TXW-013]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20260918050000_transaction_workspace_updates.sql"
+          ]
+        },
+        {
+          "id": "TXW-014",
+          "rule": "Delivery is decided honestly and recorded separately: the business number sends free-form only inside the recipient's 24-hour window and the approved purchase_progress_notice template only to a buyer outside it, personal WhatsApp is a wa.me handoff the app never sends, and sent, opened and acknowledged are three timestamps on the recipient row that are never inferred from one another. Both surfaces name the same channels and stages.",
+          "tests": [
+            {
+              "file": "src/lib/deals/updates.test.ts",
+              "case": "[TXW-014]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[TXW-014]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20260918050000_transaction_workspace_updates.sql"
+          ]
+        },
+        {
+          "id": "TXW-015",
+          "rule": "Published updates reach a stakeholder only through the external view and the visibility resolver: a side sees its own and shared updates newest first, a corrected update stays visible and marked, and an acknowledgement is recorded against the recipient row addressed through the link that resolved, never against the update as a whole.",
+          "tests": [
+            {
+              "file": "src/lib/deals/external-view.test.ts",
+              "case": "[TXW-015]"
+            },
+            {
+              "file": "src/lib/deals/external-view.test.ts",
+              "case": "[TXW-010]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20260918050100_transaction_workspace_update_events.sql"
+          ]
         }
       ]
     }

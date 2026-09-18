@@ -4,8 +4,10 @@ import { buildExternalPortalView } from '@/lib/deals/external-view';
 import { verifyUnlock } from '@/lib/deals/share-links';
 import {
   clientIp,
+  loadLinkRecipients,
   loadShareSources,
   logShareAccess,
+  markUpdateOpened,
   resolveShareLink,
   trackShareView,
   unlockFromRequest,
@@ -44,13 +46,19 @@ export async function GET(
     if (resolved.state === 'dead') {
       await logShareAccess(admin, resolved.link, 'denied', request);
       return NextResponse.json(
-        { error: 'This link has expired or been withdrawn.', code: 'LINK_DEAD' },
+        {
+          error: 'This link has expired or been withdrawn.',
+          code: 'LINK_DEAD',
+        },
         { status: 410 }
       );
     }
 
     const { link, stakeholder } = resolved;
-    if (link.otp_required && !verifyUnlock(unlockFromRequest(request), link.id)) {
+    if (
+      link.otp_required &&
+      !verifyUnlock(unlockFromRequest(request), link.id)
+    ) {
       return NextResponse.json({
         data: {
           locked: true,
@@ -74,16 +82,33 @@ export async function GET(
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
+    const openedUpdate = new URL(request.url).searchParams.get('u');
     await Promise.all([
       trackShareView(admin, link),
       logShareAccess(admin, link, 'view', request),
+      openedUpdate ? markUpdateOpened(admin, link, openedUpdate) : null,
     ]);
+    const acknowledgements = (await loadLinkRecipients(admin, link)).map(
+      (r) => ({
+        update_id: r.update_id,
+        opened_at: r.opened_at,
+        acknowledged_at: r.acknowledged_at,
+      })
+    );
 
     return NextResponse.json({
-      data: { locked: false, expires_at: link.expires_at, ...view },
+      data: {
+        locked: false,
+        expires_at: link.expires_at,
+        acknowledgements,
+        ...view,
+      },
     });
   } catch (err) {
     console.error('[deal-share] view failed:', err);
-    return NextResponse.json({ error: 'Something went wrong' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Something went wrong' },
+      { status: 500 }
+    );
   }
 }

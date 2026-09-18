@@ -220,6 +220,7 @@ export type DealWorkspaceTab =
   | 'tasks'
   | 'documents'
   | 'stakeholders'
+  | 'updates'
   | 'invoices';
 
 /** Mirrored from src/components/deals/deal-workspace.tsx. */
@@ -233,6 +234,7 @@ export const DEAL_WORKSPACE_TABS: ReadonlyArray<{
   { id: 'tasks', label: 'Tasks' },
   { id: 'documents', label: 'Documents' },
   { id: 'stakeholders', label: 'Stakeholders' },
+  { id: 'updates', label: 'Updates' },
   { id: 'invoices', label: 'Invoices' },
 ];
 
@@ -311,7 +313,9 @@ export type DealEventType =
   | 'stakeholder_updated'
   | 'stakeholder_removed'
   | 'link_created'
-  | 'link_revoked';
+  | 'link_revoked'
+  | 'update_published'
+  | 'update_acknowledged';
 
 /** Mirrored from src/lib/deals/events.ts. */
 export const DEAL_EVENT_LABELS: Record<DealEventType, string> = {
@@ -332,6 +336,8 @@ export const DEAL_EVENT_LABELS: Record<DealEventType, string> = {
   stakeholder_removed: 'Stakeholder removed',
   link_created: 'Share link created',
   link_revoked: 'Share link revoked',
+  update_published: 'Update published',
+  update_acknowledged: 'Update acknowledged',
 };
 
 export interface DealEventRow {
@@ -524,4 +530,118 @@ export function shareLinkMessage(
   url: string
 ): string {
   return `Hi ${name}, here is your private link to the ${dealTitle} transaction: ${url}\nIt expires automatically. Please don't forward it.`;
+}
+
+// ------------------------------------------------------------------
+// Phase 3 — published updates. Mirrored from src/lib/deals/updates.ts;
+// guarded by src/lib/mobile-parity.test.ts.
+// ------------------------------------------------------------------
+
+export type DealUpdateVisibility = Exclude<DealVisibility, 'internal'>;
+
+export const DEAL_UPDATE_VISIBILITIES: readonly DealUpdateVisibility[] = [
+  'buyer_side',
+  'seller_side',
+  'all_stakeholders',
+];
+
+export type UpdateChannel =
+  'engine_whatsapp' | 'personal_whatsapp' | 'portal_only';
+
+export const UPDATE_CHANNELS: readonly UpdateChannel[] = [
+  'engine_whatsapp',
+  'personal_whatsapp',
+  'portal_only',
+];
+
+/** Mirrored from src/lib/deals/updates.ts. */
+export const UPDATE_CHANNEL_LABELS: Record<UpdateChannel, string> = {
+  engine_whatsapp: 'WhatsApp (business number)',
+  personal_whatsapp: 'WhatsApp (my phone)',
+  portal_only: 'Link only',
+};
+
+export type UpdateRecipientStage =
+  'pending' | 'sent' | 'opened' | 'acknowledged' | 'failed';
+
+/** Mirrored from src/lib/deals/updates.ts. */
+export const UPDATE_STAGE_LABELS: Record<UpdateRecipientStage, string> = {
+  pending: 'To hand over',
+  sent: 'Sent',
+  opened: 'Opened',
+  acknowledged: 'Acknowledged',
+  failed: 'Not delivered',
+};
+
+export interface DealUpdateRecipientRow {
+  id: string;
+  update_id: string;
+  stakeholder_id: string;
+  channel: UpdateChannel;
+  delivery_mode: 'free_form' | 'template' | 'handoff' | 'portal' | null;
+  status: 'pending' | 'sent' | 'failed';
+  failed_reason: string | null;
+  sent_at: string | null;
+  opened_at: string | null;
+  acknowledged_at: string | null;
+  acknowledged_via: 'portal' | 'whatsapp' | null;
+  stakeholder: { id: string; name: string; role: string; side: string } | null;
+  url?: string;
+  notice?: string;
+  handoff_url?: string;
+}
+
+export interface DealUpdateRow {
+  id: string;
+  headline: string;
+  body: string | null;
+  visibility: DealUpdateVisibility;
+  snapshot: {
+    progress: { total: number; done: number };
+    milestones: Array<{
+      id: string;
+      title: string;
+      status: DealMilestoneStatus;
+      target_date: string | null;
+    }>;
+    events: Array<{ id: string; title: string }>;
+  };
+  supersedes_update_id: string | null;
+  published_by_name: string | null;
+  created_at: string;
+  recipients: DealUpdateRecipientRow[];
+}
+
+/** Mirrors recipientStage on the server: the furthest fact leads, the
+ *  three stay separate on the row. */
+export function recipientStage(
+  r: Pick<DealUpdateRecipientRow, 'status' | 'opened_at' | 'acknowledged_at'>
+): UpdateRecipientStage {
+  if (r.acknowledged_at) return 'acknowledged';
+  if (r.opened_at) return 'opened';
+  if (r.status === 'failed') return 'failed';
+  if (r.status === 'sent') return 'sent';
+  return 'pending';
+}
+
+/** Mirrors sideCanSee for an update's audience: which stakeholders can
+ *  receive it. */
+export function isEligibleRecipient(
+  stakeholder: { side: DealSide },
+  visibility: DealUpdateVisibility
+): boolean {
+  if (stakeholder.side === 'internal') return false;
+  if (visibility === 'all_stakeholders') return true;
+  return visibility === `${stakeholder.side}_side`;
+}
+
+/** Mirrors snapshotItemAllowed: an item may be quoted only when every
+ *  side reading the update may already see it. */
+export function snapshotItemAllowed(
+  update: DealUpdateVisibility,
+  item: DealVisibility
+): boolean {
+  if (item === 'internal') return false;
+  if (item === 'all_stakeholders') return true;
+  return update === item;
 }

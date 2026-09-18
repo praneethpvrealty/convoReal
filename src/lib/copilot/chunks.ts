@@ -216,7 +216,7 @@ export const CHUNKS: KnowledgeChunk[] = [
     route: '/deals',
     title: 'Transactions — the closing record for a deal',
     kind: 'page',
-    body: 'One place per deal once a buyer is commercially active: overview and internal financials, an immutable timeline, a milestone checklist, tasks, the private document folder with lifecycle labels and expiry, stakeholders with private share links, and invoices. Milestones are separate from the pipeline stage. Financials never leave your account.',
+    body: 'One place per deal once a buyer is commercially active: overview and internal financials, an immutable timeline, a milestone checklist, tasks, the private document folder with lifecycle labels and expiry, stakeholders with private share links, published updates with per-recipient delivery, and invoices. Milestones are separate from the pipeline stage. Financials never leave your account.',
     keywords: [
       'transaction workspace',
       'deal room',
@@ -512,6 +512,22 @@ export const CHUNKS: KnowledgeChunk[] = [
       'seller side',
       'who can see',
       'watermark',
+    ],
+  },
+  {
+    id: 'deals.updates',
+    title: 'Publish an update to the buyer or seller',
+    kind: 'howto',
+    body: 'Open the transaction, go to Updates and tap Compose: write a headline, pick the milestones to quote, choose the audience and each recipient\u2019s channel, then Preview and Publish. Inside a recipient\u2019s 24-hour window the business number sends it; outside it a buyer gets the Purchase progress template and the link follows their reply. A published update is frozen; changes go out as a correction.',
+    keywords: [
+      'publish update',
+      'send update to buyer',
+      'send update to seller',
+      'progress update',
+      'correction',
+      'acknowledged',
+      'opened',
+      'purchase progress',
     ],
   },
   {

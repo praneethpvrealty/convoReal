@@ -180,6 +180,64 @@ const site20: ExternalDealSource = {
   documents: [],
 };
 
+const buyerUpdate = {
+  id: 'u1',
+  headline: 'Loan sanctioned',
+  body: null,
+  snapshot: {
+    property_label: 'Property No. 19',
+    stage: null,
+    progress: { total: 4, done: 1 },
+    milestones: [],
+    events: [],
+  },
+  supersedes_update_id: null,
+  published_by_name: 'Suresh',
+  created_at: '2026-09-12T00:00:00Z',
+  visibility: 'buyer_side' as const,
+};
+const buyerCorrection = {
+  ...buyerUpdate,
+  id: 'u2',
+  headline: 'Correction: loan sanction expected next week',
+  supersedes_update_id: 'u1',
+  created_at: '2026-09-13T00:00:00Z',
+};
+const sharedUpdate = {
+  ...buyerUpdate,
+  id: 'u3',
+  headline: 'Registration slot booked for the 24th',
+  created_at: '2026-09-14T00:00:00Z',
+  visibility: 'all_stakeholders' as const,
+};
+
+describe('[TXW-015] published updates reach the portal through the resolver', () => {
+  const withUpdates: ExternalDealSource = {
+    ...site19,
+    updates: [buyerUpdate, buyerCorrection, sharedUpdate],
+  };
+
+  it('shows a side only its updates, newest first, keeping a corrected one marked', () => {
+    const buyer = buildExternalPortalView({
+      stakeholder: adithi19,
+      deal: withUpdates,
+    });
+    expect(buyer!.deal.updates.map((u) => u.id)).toEqual(['u3', 'u2', 'u1']);
+    expect(buyer!.deal.updates.find((u) => u.id === 'u1')!.superseded).toBe(
+      true
+    );
+    expect(buyer!.deal.updates.find((u) => u.id === 'u2')!.superseded).toBe(
+      false
+    );
+    const seller = buildExternalPortalView({
+      stakeholder: seller19,
+      deal: withUpdates,
+    });
+    expect(seller!.deal.updates.map((u) => u.id)).toEqual(['u3']);
+    expect(JSON.stringify(seller)).not.toContain('Loan sanction');
+  });
+});
+
 describe('partiesFromStakeholders', () => {
   it('groups by side and leaves internal people out', () => {
     expect(partiesFromStakeholders([adithi19, seller19, broker])).toEqual({
