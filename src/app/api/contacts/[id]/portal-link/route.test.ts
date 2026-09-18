@@ -2,10 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * POST /api/contacts/[id]/portal-link — the agent's one-time assertion
- * that a portal ad IS one of their listings. property_portal_listings is
- * one-to-one per portal (migration 124), so the route refuses to point an
- * ad at a second listing, and asserting it settles every lead already
- * waiting on that ad rather than only the one under review.
+ * that a portal ad IS one of their listings. Each ad id stays one-to-one,
+ * while a property may retain several ids from the same portal. Asserting
+ * one settles every lead already waiting on that ad rather than only the
+ * one under review.
  */
 
 interface QueuedResponse {
@@ -15,6 +15,7 @@ interface QueuedResponse {
 
 let queues: Record<string, QueuedResponse[]>;
 let upserts: Array<{ table: string; row: unknown }>;
+let inserts: Array<{ table: string; row: unknown }>;
 let upsertOptions: unknown[];
 let updates: Array<{ table: string; row: unknown }>;
 let deletes: Array<{ table: string }>;
@@ -33,6 +34,10 @@ function makeDb() {
         in: () => builder,
         update: (row: unknown) => {
           updates.push({ table, row });
+          return builder;
+        },
+        insert: (row: unknown) => {
+          inserts.push({ table, row });
           return builder;
         },
         delete: () => {
@@ -101,6 +106,7 @@ const HOUSING_LEAD = {
 beforeEach(() => {
   queues = {};
   upserts = [];
+  inserts = [];
   upsertOptions = [];
   updates = [];
   deletes = [];
@@ -117,7 +123,12 @@ describe('POST /api/contacts/[id]/portal-link', () => {
     queues['properties'] = [
       { data: { id: 'p-1', title: 'Koramangala 4 BHK' } },
     ];
-    queues['property_portal_listings'] = [{ data: null }, { data: null }];
+    queues['property_portal_listings'] = [
+      { data: null },
+      { data: null },
+      { data: null },
+    ];
+    queues['property_portal_listing_aliases'] = [{ data: null }];
     queues['contact_property_inquiries'] = [{ data: null }];
 
     const res = await POST(makeRequest({ propertyId: 'p-1' }) as never, {
@@ -167,6 +178,7 @@ describe('POST /api/contacts/[id]/portal-link', () => {
         },
       },
     ];
+    queues['property_portal_listing_aliases'] = [{ data: null }];
 
     const res = await POST(makeRequest({ propertyId: 'p-2' }) as never, {
       params,
@@ -190,8 +202,8 @@ describe('POST /api/contacts/[id]/portal-link', () => {
     ];
     queues['property_portal_listings'] = [
       { data: { property_id: 'p-1' } },
-      { data: null },
     ];
+    queues['property_portal_listing_aliases'] = [{ data: null }];
     queues['contact_property_inquiries'] = [{ data: null }];
 
     const res = await POST(makeRequest({ propertyId: 'p-1' }) as never, {
@@ -241,7 +253,9 @@ describe('POST /api/contacts/[id]/portal-link', () => {
       },
       { data: [{ id: 'link-1' }] },
       { data: null },
+      { data: null },
     ];
+    queues['property_portal_listing_aliases'] = [{ data: null }];
     queues['contact_property_inquiries'] = [{ data: null }];
 
     const res = await POST(makeRequest({ propertyId: 'p-2' }) as never, {
@@ -258,6 +272,43 @@ describe('POST /api/contacts/[id]/portal-link', () => {
       table: 'property_portal_listings',
       row: { property_id: 'p-2', portal_listing_id: '20327451' },
     });
+  });
+
+  it('keeps a second ad id for the same property as an alias', async () => {
+    queues['contacts'] = [
+      { data: HOUSING_LEAD },
+      { data: [{ id: 'c-1' }] },
+      { data: [{ id: 'c-1' }] },
+    ];
+    queues['properties'] = [
+      { data: { id: 'p-1', title: 'Koramangala 4 BHK' } },
+    ];
+    queues['property_portal_listings'] = [
+      { data: null },
+      { data: { id: 'primary-link' } },
+    ];
+    queues['property_portal_listing_aliases'] = [
+      { data: null },
+      { data: null },
+    ];
+    queues['contact_property_inquiries'] = [{ data: null }];
+
+    const res = await POST(makeRequest({ propertyId: 'p-1' }) as never, {
+      params,
+    });
+
+    expect(res.status).toBe(200);
+    expect(inserts).toContainEqual({
+      table: 'property_portal_listing_aliases',
+      row: expect.objectContaining({
+        property_id: 'p-1',
+        portal: 'housing',
+        portal_listing_id: '20327451',
+      }),
+    });
+    expect(
+      upserts.filter((entry) => entry.table === 'property_portal_listings')
+    ).toHaveLength(0);
   });
 });
 

@@ -10,10 +10,10 @@ import { PORTAL_KEYS, type PortalKey } from '@/lib/portals/post-kit';
 // POST /api/contacts/[id]/portal-link   { propertyId }
 //
 // The agent's one-time assertion: "the Housing ad this lead came in on
-// IS this listing." It writes the pair into property_portal_listings,
-// which migration 124 keeps one-to-one per portal, and from then on the
-// lead webhook resolves every enquiry quoting that ad through it —
-// exactly, before any scoring runs.
+// IS this listing." It writes the first pair into property_portal_listings
+// and retains later ids for the same property/portal as aliases. Every ad
+// id remains one-to-one, while a reposted property can keep receiving
+// exact matches under its older ids instead of replacing one with another.
 //
 // Asserting it also settles the leads already waiting on that ad: every
 // contact in the account carrying the same portal reference is tagged to
@@ -79,7 +79,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         { status: 404 }
       );
 
-    // One ad, one listing. A second assertion pointing the same ad at a
+    // One ad id, one listing. A second assertion pointing the same ad at a
     // different property is a contradiction, not an update: the agent is
     // told which listing already owns it rather than having the first
     // answer silently replaced.
@@ -92,14 +92,38 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     // (migration 124) is status-agnostic, and the lead webhook resolves
     // the ad with a maybeSingle() that a second holder would break. So
     // the dead row releases the id here, and the assertion proceeds.
-    const { data: claimed, error: claimedErr } = await ctx.supabase
-      .from('property_portal_listings')
-      .select('id, property_id, status, properties(title)')
-      .eq('account_id', ctx.accountId)
-      .eq('portal', portal)
-      .eq('portal_listing_id', portalListingId)
-      .maybeSingle();
-    if (claimedErr) throw claimedErr;
+    const [primaryClaim, aliasClaim] = await Promise.all([
+      ctx.supabase
+        .from('property_portal_listings')
+        .select('id, property_id, status, properties(title)')
+        .eq('account_id', ctx.accountId)
+        .eq('portal', portal)
+        .eq('portal_listing_id', portalListingId)
+        .maybeSingle(),
+      ctx.supabase
+        .from('property_portal_listing_aliases')
+        .select('id, property_id, properties(title)')
+        .eq('account_id', ctx.accountId)
+        .eq('portal', portal)
+        .eq('portal_listing_id', portalListingId)
+        .maybeSingle(),
+    ]);
+    if (primaryClaim.error) throw primaryClaim.error;
+    if (aliasClaim.error) throw aliasClaim.error;
+    let claimed = primaryClaim.data;
+    const claimedAlias = aliasClaim.data;
+    if (claimedAlias && claimedAlias.property_id !== propertyId) {
+      const claimedTitle =
+        (claimedAlias.properties as { title?: string } | null)?.title ??
+        'another listing';
+      return NextResponse.json(
+        {
+          error: `${portal} ad ${portalListingId} is already mapped to "${claimedTitle}". Unmap it there first.`,
+          code: 'PORTAL_ID_TAKEN',
+        },
+        { status: 409 }
+      );
+    }
     if (claimed && claimed.property_id !== propertyId) {
       if (claimed.status === 'active') {
         const claimedTitle =
@@ -134,23 +158,42 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           { status: 409 }
         );
       }
+      claimed = null;
     }
 
-    const { error: linkErr } = await ctx.supabase
-      .from('property_portal_listings')
-      .upsert(
-        {
-          account_id: ctx.accountId,
-          property_id: propertyId,
-          user_id: ctx.userId,
-          portal,
-          portal_listing_id: portalListingId,
-          status: 'active',
-        },
-        { onConflict: 'property_id,portal' }
-      );
-    if (linkErr) {
-      return NextResponse.json({ error: linkErr.message }, { status: 500 });
+    if (!claimed && !claimedAlias) {
+      const { data: existing, error: existingErr } = await ctx.supabase
+        .from('property_portal_listings')
+        .select('id')
+        .eq('account_id', ctx.accountId)
+        .eq('property_id', propertyId)
+        .eq('portal', portal)
+        .maybeSingle();
+      if (existingErr) throw existingErr;
+
+      const link = existing
+        ? ctx.supabase.from('property_portal_listing_aliases').insert({
+            account_id: ctx.accountId,
+            property_id: propertyId,
+            user_id: ctx.userId,
+            portal,
+            portal_listing_id: portalListingId,
+          })
+        : ctx.supabase.from('property_portal_listings').upsert(
+            {
+              account_id: ctx.accountId,
+              property_id: propertyId,
+              user_id: ctx.userId,
+              portal,
+              portal_listing_id: portalListingId,
+              status: 'active',
+            },
+            { onConflict: 'property_id,portal' }
+          );
+      const { error: linkErr } = await link;
+      if (linkErr) {
+        return NextResponse.json({ error: linkErr.message }, { status: 500 });
+      }
     }
 
     // Every lead already waiting on this ad, the one under review

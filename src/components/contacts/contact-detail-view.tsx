@@ -480,13 +480,21 @@ export function ContactDetailView({
       // A mapped ad needs no assertion — the webhook resolved this lead
       // through it, and will resolve every later one the same way.
       if (data.lead_portal && data.lead_portal_listing_id) {
-        const { data: link } = await supabase
+        const { data: primaryLink } = await supabase
           .from('property_portal_listings')
           .select('property_id')
           .eq('portal', data.lead_portal)
           .eq('portal_listing_id', data.lead_portal_listing_id)
           .maybeSingle();
-        setPortalAdLink(link ?? null);
+        const { data: aliasLink } = primaryLink
+          ? { data: null }
+          : await supabase
+              .from('property_portal_listing_aliases')
+              .select('property_id')
+              .eq('portal', data.lead_portal)
+              .eq('portal_listing_id', data.lead_portal_listing_id)
+              .maybeSingle();
+        setPortalAdLink(primaryLink ?? aliasLink ?? null);
       } else {
         setPortalAdLink(null);
       }

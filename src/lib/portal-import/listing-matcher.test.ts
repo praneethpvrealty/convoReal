@@ -11,6 +11,7 @@ import {
   parsePortalStatus,
 } from './listing-parser';
 import {
+  excludeKnownPortalAliases,
   groupCrossPortalDuplicates,
   matchListing,
   scoreListingAgainstProperty,
@@ -200,6 +201,25 @@ describe('matchListing — dedup guarantees', () => {
     const cheaper = { ...inventory3bhk, id: 'p-cheap', price: 7_000_000 };
     const r = matchListing(listing({}), [cheaper], []);
     expect(r.bucket).not.toBe('auto_matched');
+  });
+});
+
+describe('excludeKnownPortalAliases', () => {
+  it('keeps retained alias ids out of primary portal-link refreshes', () => {
+    const rows = [
+      { portal: 'magicbricks', portal_listing_id: 'primary', property_id: 'p-1' },
+      { portal: 'magicbricks', portal_listing_id: 'alias', property_id: 'p-1' },
+      { portal: 'housing', portal_listing_id: 'alias', property_id: 'p-2' },
+    ];
+
+    expect(
+      excludeKnownPortalAliases(rows, [
+        {
+          portal: 'magicbricks',
+          portal_listing_id: 'alias',
+        },
+      ])
+    ).toEqual([rows[0], rows[2]]);
   });
 });
 

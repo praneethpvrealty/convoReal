@@ -7,7 +7,8 @@
 //
 // Buckets:
 //   linked       — portal listing id / URL already tied to a
-//                  property in property_portal_listings (tier 0).
+//                  property in the primary portal row or its retained
+//                  ad-id aliases (tier 0).
 //   auto_matched — high-confidence unique match; sync updates the
 //                  existing property's portal row, creates nothing.
 //   review       — plausible match(es); the agent picks in the UI.
@@ -34,6 +35,24 @@ export interface ExistingPortalLink {
   portal: string;
   portal_listing_id: string | null;
   listing_url: string | null;
+}
+
+type PortalIdentity = Pick<ExistingPortalLink, 'portal' | 'portal_listing_id'>;
+
+/** Alias ids resolve matches, but must never be upserted into the primary
+ * property/portal row during a sync refresh. */
+export function excludeKnownPortalAliases<T extends PortalIdentity>(
+  rows: T[],
+  aliases: PortalIdentity[]
+): T[] {
+  const aliasKeys = new Set(
+    aliases
+      .filter((alias) => alias.portal_listing_id)
+      .map((alias) => `${alias.portal}:${alias.portal_listing_id}`)
+  );
+  return rows.filter(
+    (row) => !aliasKeys.has(`${row.portal}:${row.portal_listing_id}`)
+  );
 }
 
 const STOP_TOKENS = new Set([

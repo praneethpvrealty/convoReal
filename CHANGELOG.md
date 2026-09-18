@@ -19,6 +19,10 @@ than a written entry. Newest first.
 
 #### 18 September 2026
 
+- **Retain every portal ad ID mapped to a property.** Reposted or refreshed ads
+  from the same portal no longer replace one another and reappear forever in
+  the mapping queue; all retained IDs continue to resolve future leads exactly.
+  **Migration required:** `20260918160000_portal_listing_aliases.sql`.
 - **Transaction Workspace (Phase 1).** A Journey converts into a deal's closing
   record: overview with internal-only financials, an immutable event timeline,
   reusable milestones kept separate from pipeline stage moves, deal-linked
