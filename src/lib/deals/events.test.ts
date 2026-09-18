@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import {
   DEAL_EVENT_LABELS,
   PHASE_2_EVENT_TYPES,
+  PHASE_3_EVENT_TYPES,
   parseEventSource,
   parseNoteInput,
 } from './events';
@@ -59,7 +60,7 @@ describe('[TXW-002] deal_events are immutable in the database', () => {
     const phase2 = readFileSync(
       join(
         process.cwd(),
-        'supabase/migrations/20260918030100_transaction_workspace_share_events.sql'
+        'supabase/migrations/20260918050100_transaction_workspace_update_events.sql'
       ),
       'utf8'
     );
@@ -79,7 +80,10 @@ describe('[TXW-002] deal_events are immutable in the database', () => {
       expect(latest.has(type), `${type} dropped`).toBe(true);
     for (const type of Object.keys(DEAL_EVENT_LABELS)) {
       expect(latest.has(type), type).toBe(true);
-      if (!first.has(type)) expect(PHASE_2_EVENT_TYPES).toContain(type);
+      if (!first.has(type))
+        expect([...PHASE_2_EVENT_TYPES, ...PHASE_3_EVENT_TYPES]).toContain(
+          type
+        );
     }
   });
 });
@@ -122,6 +126,9 @@ describe('every Transaction Workspace mutation refuses read-only members', () =>
     'src/app/api/deals/[id]/documents/route.ts',
     'src/app/api/deals/[id]/documents/[docId]/route.ts',
     'src/app/api/deal-groups/route.ts',
+    'src/app/api/deals/[id]/updates/route.ts',
+    'src/app/api/deals/[id]/updates/preview/route.ts',
+    'src/app/api/deals/[id]/updates/[updateId]/recipients/[recipientId]/route.ts',
     'src/app/api/todos/route.ts',
     'src/app/api/todos/[id]/route.ts',
   ];

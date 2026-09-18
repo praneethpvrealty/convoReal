@@ -10,7 +10,7 @@ feature (root `AGENTS.md` §2.8).
 This document records the decisions Phase 1 was built on. It is the
 reference for Help, for Copilot (the `deals.*` chunks in
 `src/lib/copilot/chunks.ts` are written from it), and for whoever picks
-up Phase 2.
+up the next phase.
 
 ## Decisions
 
@@ -101,14 +101,47 @@ Migrations: `20260918030000_transaction_workspace_stakeholders.sql`
 merge, and the routes that write those types treat a refused insert as
 best-effort until it lands).
 
-## Out of scope after Phase 2
+## Phase 3 — publishing updates
 
-Publishing composed updates as durable snapshots, WhatsApp delivery
-through approved templates, sent/opened/acknowledged tracking on an
-update, "selected people" visibility, PDF watermarking and WhatsApp OTP
-are Phase 3 and later.
+An update is what one side of the deal is told, in a fixed format, at a
+moment the agent chooses. It is composed from the milestones and
+timeline entries that side may already see, previewed per recipient,
+and published as a durable snapshot.
+
+| Decision                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | Why                                                                                                                                                                                                                                                                                                                                         |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **A published update is a durable snapshot.** `deal_updates` is insert-only in the database, exactly as `deal_events` is: SELECT/INSERT grants, an INSERT policy pinning `published_by` to the caller, and a trigger refusing UPDATE and DELETE except the cascade from a deleted deal. The headline, message and quoted items are frozen in `snapshot`. A correction is a new update naming `supersedes_update_id`; the original stays, marked.                                                                                          | What a buyer was told on the 18th must read the same on the 30th whatever the checklist looks like by then. A record that can be edited after the fact is not a record.                                                                                                                                                                     |
+| **An update never quotes what its audience may not see.** `snapshotItemAllowed` in `src/lib/deals/updates.ts`: every side that will read the update must already be allowed to see the item, so a buyer-side update quotes buyer-side and shared items and an update to both sides quotes only shared ones. The composer offers nothing else; the route refuses anything else. An update itself is never `internal`.                                                                                                                      | The visibility resolver is the boundary. Publishing is not a second door around it.                                                                                                                                                                                                                                                         |
+| **Three channels, one text.** `renderUpdateNotice` produces the notice once. The business number sends it free-form inside the recipient's 24-hour window; outside it, only the approved `purchase_progress_notice` template is honest, and only to the buyer whose purchase it is, with the headline as the current step — the private link then follows the moment they tap a reply, which reopens the window. Personal WhatsApp is a `wa.me` handoff the app never sends. "Link only" mints the link and leaves delivery to the agent. | AGENTS.md §2.7: a wrong template is worse than no message, and every template name is spent once. No new template is submitted for Phase 3; the seller side outside its window is told to use the agent's own phone. The tap handler runs ahead of the closing-nudge handler so a buyer's reply to a notice is not filed as a stall answer. |
+| **Sent, opened and acknowledged are three facts.** Each is a timestamp on `deal_update_recipients`, never inferred from another: sent is the Engine's send or the agent confirming a handoff, opened is the recipient's link resolving with the update named (`?u=`), acknowledged is their tap on the portal or their reply to the template. `recipientStage` picks the one to lead with; the row keeps all three.                                                                                                                       | A notice that was sent is not one that was read, and one that was read is not one the buyer agreed with. Collapsing them is how a broker ends up certain a client "knew".                                                                                                                                                                   |
+| **Per-recipient links, minted at publish.** Every recipient gets a fresh `deal_share_links` row addressed with the update id, so an open is attributable to that person and that update. The plaintext is returned once, in the publish response, for the handoff channels. The template path mints its link at tap time, since the template cannot carry a URL and a link nobody was sent should not exist.                                                                                                                              | Same token rules as Phase 2, TXW-009: hashed at rest, expiring, revocable, logged.                                                                                                                                                                                                                                                          |
+
+Surfaces: the Updates tab on web and mobile (compose, quote milestones
+and entries, choose audience and recipients with a channel each, preview
+per recipient, publish, hand over pending links, mark them sent, correct
+a published update) and the public portal, which shows the updates for
+the reader's side newest first with an Acknowledge action per update.
+
+Routes: `GET/POST /api/deals/[id]/updates`,
+`POST /api/deals/[id]/updates/preview`,
+`PATCH /api/deals/[id]/updates/[updateId]/recipients/[recipientId]`
+(`{ status: 'sent' }` for a handoff), and public
+`POST /api/public/deal-share/[token]/updates/[updateId]/ack`.
+
+Migrations: `20260918050000_transaction_workspace_updates.sql`
+(additive, applied at push) and
+`20260918050100_transaction_workspace_update_events.sql` (widens the
+`deal_events` CHECK with `update_published` and `update_acknowledged`;
+held to merge, best-effort writes until then).
+
+## Out of scope after Phase 3
+
+"Selected people" visibility (a link's side is still the unit), PDF
+watermarking (a dependency decision), WhatsApp OTP delivery (needs an
+AUTHENTICATION-category template that does not exist and would spend a
+name), and any new WhatsApp template for seller-side notices.
 
 ## Invariants
 
-`FEATURE_MANIFEST.json` → `transaction-workspace` (TXW-001 … TXW-012).
+`FEATURE_MANIFEST.json` → `transaction-workspace` (TXW-001 … TXW-015).
 Each names its executable regression cases.

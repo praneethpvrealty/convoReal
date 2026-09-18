@@ -25,6 +25,7 @@ import { DealMilestonesPanel } from './deal-milestones-panel';
 import { DealStakeholdersPanel } from './deal-stakeholders-panel';
 import { DealTasksPanel } from './deal-tasks-panel';
 import { DealTimelinePanel } from './deal-timeline-panel';
+import { DealUpdatesPanel } from './deal-updates-panel';
 
 type TabId =
   | 'overview'
@@ -33,6 +34,7 @@ type TabId =
   | 'tasks'
   | 'documents'
   | 'stakeholders'
+  | 'updates'
   | 'invoices';
 
 interface DealSummary {
@@ -65,6 +67,7 @@ export const DEAL_WORKSPACE_TABS: Array<{ id: TabId; label: string }> = [
   { id: 'tasks', label: 'Tasks' },
   { id: 'documents', label: 'Documents' },
   { id: 'stakeholders', label: 'Stakeholders' },
+  { id: 'updates', label: 'Updates' },
   { id: 'invoices', label: 'Invoices' },
 ];
 
@@ -252,6 +255,9 @@ export function DealWorkspace({ dealId }: { dealId: string }) {
           dealTitle={deal.title}
           canEdit={canEdit}
         />
+      )}
+      {tab === 'updates' && (
+        <DealUpdatesPanel dealId={dealId} canEdit={canEdit} />
       )}
       {tab === 'invoices' && (
         <DealInvoicesPanel dealId={dealId} canEdit={canEdit} />

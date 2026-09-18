@@ -21,7 +21,11 @@ import type {
   DealSide,
   DealStakeholderRow,
   DealTaskRow,
+  DealUpdateRecipientRow,
+  DealUpdateRow,
+  DealUpdateVisibility,
   DealVisibility,
+  UpdateChannel,
   InvoiceDetail,
   InvoiceRow,
   InvoiceSide,
@@ -412,5 +416,73 @@ export function setDealDocumentVisibility(
   return apiFetch<{ data: DealDocumentRow }>(
     `/api/deals/${dealId}/documents/${docId}`,
     { method: 'PATCH', ...json({ visibility }) }
+  ).then((r) => r.data);
+}
+
+// ------------------------------------------------------------------
+// Phase 3 — published updates.
+// ------------------------------------------------------------------
+
+export interface UpdateComposePayload {
+  headline: string;
+  body: string | null;
+  visibility: DealUpdateVisibility;
+  milestone_ids: string[];
+  event_ids: string[];
+  supersedes_update_id: string | null;
+  recipients: Array<{ stakeholder_id: string; channel: UpdateChannel }>;
+  ttl: DealShareTtlKey;
+  otp_required: boolean;
+}
+
+export interface UpdatePreviewRecipient {
+  stakeholder_id: string;
+  name: string;
+  channel: UpdateChannel;
+  eligible: boolean;
+  mode: string | null;
+  reason: string | null;
+  needs_email: boolean;
+  text: string;
+}
+
+export function fetchDealUpdates(dealId: string) {
+  return apiFetch<{ data: DealUpdateRow[] }>(
+    `/api/deals/${dealId}/updates`
+  ).then((r) => r.data ?? []);
+}
+
+export function previewDealUpdate(
+  dealId: string,
+  payload: UpdateComposePayload
+) {
+  return apiFetch<{ data: { recipients: UpdatePreviewRecipient[] } }>(
+    `/api/deals/${dealId}/updates/preview`,
+    { method: 'POST', ...json({ ...payload }) }
+  ).then((r) => r.data.recipients ?? []);
+}
+
+/** Plaintext links for handoff recipients come back exactly once, in
+ *  this response. */
+export function publishDealUpdate(
+  dealId: string,
+  payload: UpdateComposePayload
+) {
+  return apiFetch<{
+    data: { update: DealUpdateRow; recipients: DealUpdateRecipientRow[] };
+  }>(`/api/deals/${dealId}/updates`, {
+    method: 'POST',
+    ...json({ ...payload }),
+  }).then((r) => r.data);
+}
+
+export function markUpdateRecipientSent(
+  dealId: string,
+  updateId: string,
+  recipientId: string
+) {
+  return apiFetch<{ data: DealUpdateRecipientRow }>(
+    `/api/deals/${dealId}/updates/${updateId}/recipients/${recipientId}`,
+    { method: 'PATCH', ...json({ status: 'sent' }) }
   ).then((r) => r.data);
 }

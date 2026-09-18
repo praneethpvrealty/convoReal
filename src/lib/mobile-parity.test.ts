@@ -57,6 +57,10 @@ import {
 } from '@/lib/invoices/types';
 import { brokerageAmount } from '@/lib/pipelines/brokerage';
 import { DEAL_WORKSPACE_TABS } from '@/components/deals/deal-workspace';
+import {
+  UPDATE_CHANNEL_LABELS,
+  UPDATE_STAGE_LABELS,
+} from '@/lib/deals/updates';
 import { DEAL_DOCUMENT_STATUS_LABELS } from '@/lib/deals/documents';
 import { DEAL_EVENT_LABELS } from '@/lib/deals/events';
 import { TDS_STATUS_LABELS } from '@/lib/deals/financials';
@@ -1664,5 +1668,57 @@ describe('[TXW] Phase 2 collaboration ships on both surfaces', () => {
     expect(mobileScreen).not.toMatch(/\/api\/whatsapp\/send/);
     expect(webPanel).toContain('https://wa.me/');
     expect(webPanel).not.toMatch(/\/api\/whatsapp\/send/);
+  });
+});
+
+describe('[TXW] Phase 3 publishing ships on both surfaces', () => {
+  const mobileVocab = mobileSource('lib/deal-workspace.ts');
+  const mobileApi = mobileSource('lib/deal-workspace-api.ts');
+  const mobileScreen = mobileSource('app/(app)/deal/[id].tsx');
+  const webPanel = webSource('components/deals/deal-updates-panel.tsx');
+
+  it('[TXW-014] names every channel and delivery stage identically', () => {
+    for (const [channel, label] of Object.entries(UPDATE_CHANNEL_LABELS)) {
+      expect(
+        mobileVocab,
+        `mobile is missing the "${channel}" channel`
+      ).toContain(`${channel}: '${label}'`);
+    }
+    for (const [stage, label] of Object.entries(UPDATE_STAGE_LABELS)) {
+      expect(mobileVocab, `mobile is missing the "${stage}" stage`).toContain(
+        `${stage}: '${label}'`
+      );
+    }
+    expect(mobileVocab).toMatch(
+      /if \(r\.acknowledged_at\) return 'acknowledged';\s+if \(r\.opened_at\) return 'opened';\s+if \(r\.status === 'failed'\) return 'failed';\s+if \(r\.status === 'sent'\) return 'sent';\s+return 'pending';/
+    );
+  });
+
+  it('[TXW-013] composes over the same routes and quotes only what the audience may see', () => {
+    expect(mobileApi).toContain('`/api/deals/${dealId}/updates`');
+    expect(mobileApi).toContain('`/api/deals/${dealId}/updates/preview`');
+    expect(mobileApi).toContain(
+      '`/api/deals/${dealId}/updates/${updateId}/recipients/${recipientId}`'
+    );
+    expect(mobileScreen).toContain(
+      'snapshotItemAllowed(visibility, m.visibility)'
+    );
+    expect(webPanel).toContain('snapshotItemAllowed(visibility, m.visibility)');
+    expect(mobileScreen).toContain(
+      'supersedes_update_id: supersedes?.id ?? null'
+    );
+    expect(webPanel).toContain('supersedes_update_id: supersedes?.id ?? null');
+    expect(mobileVocab).toMatch(
+      /if \(item === 'internal'\) return false;\s+if \(item === 'all_stakeholders'\) return true;\s+return update === item;/
+    );
+  });
+
+  it('[TXW-014] hands personal WhatsApp over through the share sheet or wa.me, never by sending itself', () => {
+    expect(mobileScreen).toContain('Share.share({ message })');
+    expect(mobileScreen).toContain('markUpdateRecipientSent');
+    expect(webPanel).toContain('handoff_url');
+    expect(webPanel).toContain('Mark as sent');
+    expect(webPanel).not.toMatch(/\/api\/whatsapp\/send/);
+    expect(mobileScreen).not.toMatch(/\/api\/whatsapp\/send/);
   });
 });

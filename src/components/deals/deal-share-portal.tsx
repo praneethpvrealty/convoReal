@@ -1,13 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   CalendarClock,
   Check,
   FileText,
   Loader2,
   Lock,
+  Megaphone,
   ShieldCheck,
 } from 'lucide-react';
 
@@ -16,6 +17,7 @@ import { Input } from '@/components/ui/input';
 import type {
   ExternalDealView,
   ExternalPortalView,
+  ExternalUpdateView,
 } from '@/lib/deals/external-view';
 import { DEAL_MILESTONE_STATUS_LABELS } from '@/lib/deals/milestones';
 import {
@@ -24,11 +26,22 @@ import {
 } from '@/lib/deals/stakeholders';
 import { cn } from '@/lib/utils';
 
+interface Acknowledgement {
+  update_id: string;
+  opened_at: string | null;
+  acknowledged_at: string | null;
+}
+
 type PortalState =
   | { kind: 'loading' }
   | { kind: 'dead'; message: string }
   | { kind: 'locked'; stakeholderName: string; channel: 'email' | null }
-  | { kind: 'open'; view: ExternalPortalView; expiresAt: string };
+  | {
+      kind: 'open';
+      view: ExternalPortalView;
+      expiresAt: string;
+      acknowledgements: Acknowledgement[];
+    };
 
 interface DealSharePortalProps {
   token: string;
@@ -48,11 +61,16 @@ export function DealSharePortal({ token }: DealSharePortalProps) {
     }
   });
 
+  const openedUpdate =
+    typeof window === 'undefined'
+      ? null
+      : new URLSearchParams(window.location.search).get('u');
+
   const { data: state = { kind: 'loading' } as PortalState } = useQuery({
     queryKey: ['deal-share', token, unlock],
     queryFn: async (): Promise<PortalState> => {
       const response = await fetch(
-        `/api/public/deal-share/${encodeURIComponent(token)}`,
+        `/api/public/deal-share/${encodeURIComponent(token)}${openedUpdate ? `?u=${encodeURIComponent(openedUpdate)}` : ''}`,
         {
           headers: unlock ? { 'X-Deal-Unlock': unlock } : {},
           cache: 'no-store',
@@ -82,13 +100,20 @@ export function DealSharePortal({ token }: DealSharePortalProps) {
       const {
         locked: _l,
         expires_at,
+        acknowledgements,
         ...view
       } = json.data as ExternalPortalView & {
         locked: boolean;
         expires_at: string;
+        acknowledgements: Acknowledgement[];
       };
       void _l;
-      return { kind: 'open', view, expiresAt: expires_at };
+      return {
+        kind: 'open',
+        view,
+        expiresAt: expires_at,
+        acknowledgements: acknowledgements ?? [],
+      };
     },
     retry: false,
     staleTime: 0,
@@ -125,6 +150,8 @@ export function DealSharePortal({ token }: DealSharePortalProps) {
             view={state.view}
             expiresAt={state.expiresAt}
             unlock={unlock}
+            acknowledgements={state.acknowledgements}
+            highlight={openedUpdate}
           />
         )}
       </div>
@@ -266,11 +293,15 @@ function PortalBody({
   view,
   expiresAt,
   unlock,
+  acknowledgements,
+  highlight,
 }: {
   token: string;
   view: ExternalPortalView;
   expiresAt: string;
   unlock: string | null;
+  acknowledgements: Acknowledgement[];
+  highlight: string | null;
 }) {
   const role =
     STAKEHOLDER_ROLE_LABELS[view.stakeholder.role as StakeholderRole] ??
@@ -290,6 +321,15 @@ function PortalBody({
         </p>
       </header>
 
+      {view.deal.updates.length > 0 && (
+        <UpdatesSection
+          token={token}
+          updates={view.deal.updates}
+          acknowledgements={acknowledgements}
+          unlock={unlock}
+          highlight={highlight}
+        />
+      )}
       <DealSection token={token} deal={view.deal} unlock={unlock} />
       {view.bundle.map((sibling) => (
         <DealSection
@@ -301,6 +341,136 @@ function PortalBody({
         />
       ))}
     </>
+  );
+}
+
+function UpdatesSection({
+  token,
+  updates,
+  acknowledgements,
+  unlock,
+  highlight,
+}: {
+  token: string;
+  updates: ExternalUpdateView[];
+  acknowledgements: Acknowledgement[];
+  unlock: string | null;
+  highlight: string | null;
+}) {
+  const queryClient = useQueryClient();
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function acknowledge(updateId: string) {
+    setBusy(updateId);
+    setError(null);
+    try {
+      const response = await fetch(
+        `/api/public/deal-share/${encodeURIComponent(token)}/updates/${updateId}/ack`,
+        {
+          method: 'POST',
+          headers: unlock ? { 'X-Deal-Unlock': unlock } : {},
+        }
+      );
+      const json = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(json?.error || 'Could not record');
+      await queryClient.invalidateQueries({ queryKey: ['deal-share', token] });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not record');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <section className="space-y-3 rounded-xl border border-slate-800 bg-slate-900/60 p-5">
+      <div className="flex items-center gap-2">
+        <Megaphone className="h-4 w-4 text-emerald-300" />
+        <h2 className="text-sm font-semibold">Updates for you</h2>
+      </div>
+      {updates.map((u) => {
+        const mine = acknowledgements.find((a) => a.update_id === u.id);
+        return (
+          <article
+            key={u.id}
+            className={cn(
+              'rounded-lg border border-slate-800 bg-slate-950/50 p-4',
+              highlight === u.id && 'border-emerald-500/50',
+              u.superseded && 'opacity-60'
+            )}
+          >
+            <p className="text-[11px] text-slate-500">
+              {new Date(u.created_at).toLocaleDateString()}
+              {u.published_by_name ? ` · ${u.published_by_name}` : ''}
+              {u.superseded ? ' · corrected by a later update' : ''}
+              {u.supersedes_update_id ? ' · correction' : ''}
+            </p>
+            <h3 className="mt-1 font-semibold text-white">{u.headline}</h3>
+            {u.body && (
+              <p className="mt-2 text-sm whitespace-pre-line text-slate-300">
+                {u.body}
+              </p>
+            )}
+            {u.snapshot.milestones.length > 0 && (
+              <ul className="mt-2 space-y-0.5 text-sm text-slate-300">
+                {u.snapshot.milestones.map((m) => (
+                  <li key={m.id}>
+                    {m.status === 'completed'
+                      ? '✅'
+                      : m.status === 'in_progress'
+                        ? '🔄'
+                        : '⬜'}{' '}
+                    {m.title}
+                    {m.target_date && m.status !== 'completed' ? (
+                      <span className="text-slate-500">
+                        {' '}
+                        · by {m.target_date}
+                      </span>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {u.snapshot.events.length > 0 && (
+              <ul className="mt-2 space-y-0.5 text-sm text-slate-400">
+                {u.snapshot.events.map((e) => (
+                  <li key={e.id}>• {e.title}</li>
+                ))}
+              </ul>
+            )}
+            {mine && (
+              <div className="mt-3">
+                {mine.acknowledged_at ? (
+                  <p className="inline-flex items-center gap-1 text-xs text-emerald-300">
+                    <Check className="h-3.5 w-3.5" />
+                    Acknowledged{' '}
+                    {new Date(mine.acknowledged_at).toLocaleDateString()}
+                  </p>
+                ) : (
+                  <Button
+                    size="sm"
+                    onClick={() => acknowledge(u.id)}
+                    disabled={busy === u.id}
+                  >
+                    {busy === u.id ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Check className="h-4 w-4" />
+                    )}
+                    Acknowledge
+                  </Button>
+                )}
+              </div>
+            )}
+          </article>
+        );
+      })}
+      {error && <p className="text-sm text-rose-300">{error}</p>}
+      <p className="text-[11px] text-slate-500">
+        Each update is a record of what you were told at the time. A correction
+        is published as a new update and the original stays.
+      </p>
+    </section>
   );
 }
 

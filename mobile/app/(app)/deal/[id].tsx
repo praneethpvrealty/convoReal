@@ -41,6 +41,7 @@ import {
   DEAL_EVENT_LABELS,
   DEAL_MILESTONE_STATUS_LABELS,
   DEAL_SHARE_TTL_CHOICES,
+  DEAL_UPDATE_VISIBILITIES,
   DEAL_VISIBILITY_LABELS,
   DEAL_WORKSPACE_TABS,
   INVOICE_STATUS_LABELS,
@@ -48,9 +49,15 @@ import {
   STAKEHOLDER_ROLE_LABELS,
   STAKEHOLDER_SIDE_LABELS,
   TDS_STATUS_LABELS,
+  UPDATE_CHANNELS,
+  UPDATE_CHANNEL_LABELS,
+  UPDATE_STAGE_LABELS,
   defaultSideForRole,
+  isEligibleRecipient,
   linkState,
+  recipientStage,
   shareLinkMessage,
+  snapshotItemAllowed,
   type DealDocumentCategory,
   type DealDocumentRow,
   type DealDocumentStatus,
@@ -63,11 +70,15 @@ import {
   type DealSide,
   type DealStakeholderRow,
   type DealTaskRow,
+  type DealUpdateRecipientRow,
+  type DealUpdateRow,
+  type DealUpdateVisibility,
   type DealVisibility,
   type DealWorkspaceTab,
   type InvoiceRow,
   type StakeholderRole,
   type TdsStatus,
+  type UpdateChannel,
 } from '@/lib/deal-workspace';
 import {
   addCustomMilestone,
@@ -87,10 +98,15 @@ import {
   fetchDealShareAccess,
   fetchDealStakeholders,
   fetchDealTasks,
+  fetchDealUpdates,
   fetchInvoices,
   invoiceAction,
+  markUpdateRecipientSent,
+  previewDealUpdate,
+  publishDealUpdate,
   removeDealStakeholder,
   revokeDealShareLink,
+  type UpdatePreviewRecipient,
   setDealDocumentVisibility,
   setDealMilestoneVisibility,
   setDealTaskCompleted,
@@ -198,6 +214,7 @@ export default function DealWorkspaceScreen() {
             canEdit={canEdit}
           />
         )}
+        {tab === 'updates' && <UpdatesTab dealId={dealId} canEdit={canEdit} />}
         {tab === 'invoices' && <InvoicesTab dealId={dealId} />}
       </View>
     </>
@@ -1889,6 +1906,515 @@ function StakeholdersTab({
           </View>
         ))
       )}
+      <AppDialog {...dialog.dialogProps} />
+    </ScrollView>
+  );
+}
+
+function UpdatesTab({ dealId, canEdit }: { dealId: string; canEdit: boolean }) {
+  const { colors } = useTheme();
+  const queryClient = useQueryClient();
+  const dialog = useAppDialog();
+  const [composing, setComposing] = useState<DealUpdateRow | null | false>(
+    false
+  );
+  const [handoffs, setHandoffs] = useState<DealUpdateRecipientRow[]>([]);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const { data: updates = [], isLoading } = useQuery({
+    queryKey: ['deal-updates', dealId],
+    queryFn: () => fetchDealUpdates(dealId),
+    enabled: Boolean(dealId),
+  });
+
+  const refresh = () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['deal-updates', dealId] }),
+      queryClient.invalidateQueries({ queryKey: ['deal-events', dealId] }),
+      queryClient.invalidateQueries({
+        queryKey: ['deal-stakeholders', dealId],
+      }),
+    ]);
+
+  async function markSent(r: DealUpdateRecipientRow) {
+    setBusy(r.id);
+    try {
+      await markUpdateRecipientSent(dealId, r.update_id, r.id);
+      setHandoffs((rows) => rows.filter((x) => x.id !== r.id));
+      await refresh();
+      void haptic.success();
+    } catch (err) {
+      dialog.show({
+        title: 'Could not record',
+        message: friendlyError(errorText(err)),
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handOver(r: DealUpdateRecipientRow) {
+    const message = r.notice ?? r.url ?? '';
+    dialog.show({
+      title: r.stakeholder?.name ?? 'Recipient',
+      message: 'Hand the link over now — it will not be shown again.',
+      actions: [
+        {
+          label: 'Copy message',
+          onPress: async () => {
+            dialog.close();
+            await Clipboard.setStringAsync(message);
+          },
+        },
+        {
+          label: 'Share…',
+          onPress: async () => {
+            dialog.close();
+            await Share.share({ message });
+          },
+        },
+        {
+          label: 'Mark as sent',
+          onPress: () => {
+            dialog.close();
+            void markSent(r);
+          },
+        },
+        { label: 'Later', variant: 'muted' as const, onPress: dialog.close },
+      ],
+    });
+  }
+
+  if (isLoading) return <Loading />;
+
+  if (composing !== false) {
+    return (
+      <UpdateComposer
+        dealId={dealId}
+        supersedes={composing}
+        onCancel={() => setComposing(false)}
+        onPublished={async (recipients) => {
+          setComposing(false);
+          setHandoffs(
+            recipients.filter((r) => r.url && r.status === 'pending')
+          );
+          await refresh();
+        }}
+      />
+    );
+  }
+
+  return (
+    <ScrollView contentContainerStyle={styles.list}>
+      <Text style={[styles.cardMeta, { color: colors.textMuted }]}>
+        What each side has been told, frozen when it was published. A correction
+        is a new update that names the one it replaces.
+      </Text>
+      {canEdit ? (
+        <PrimaryButton
+          label="Compose update"
+          onPress={() => setComposing(null)}
+        />
+      ) : null}
+
+      {handoffs.length > 0 ? (
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: colors.surface, borderColor: colors.warning },
+          ]}
+        >
+          <Text style={[styles.cardTitle, { color: colors.text }]}>
+            Hand these over now
+          </Text>
+          <Text style={[styles.cardMeta, { color: colors.textMuted }]}>
+            The links will not be shown again.
+          </Text>
+          {handoffs.map((r) => (
+            <View key={r.id} style={styles.actions}>
+              <ActionButton
+                label={r.stakeholder?.name ?? 'Recipient'}
+                icon="share-outline"
+                busy={busy === r.id}
+                onPress={() => void handOver(r)}
+              />
+            </View>
+          ))}
+        </View>
+      ) : null}
+
+      {updates.length === 0 ? (
+        <EmptyState
+          icon="megaphone-outline"
+          title="Nothing published yet"
+          subtitle="Compose an update from the milestones a side may see."
+        />
+      ) : (
+        updates.map((u) => {
+          const superseded = updates.some(
+            (x) => x.supersedes_update_id === u.id
+          );
+          return (
+            <View
+              key={u.id}
+              style={[
+                styles.card,
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: colors.border,
+                  opacity: superseded ? 0.7 : 1,
+                },
+              ]}
+            >
+              <Text style={[styles.cardTitle, { color: colors.text }]}>
+                {u.supersedes_update_id ? 'Correction: ' : ''}
+                {u.headline}
+              </Text>
+              <Text style={[styles.cardMeta, { color: colors.textMuted }]}>
+                {DEAL_VISIBILITY_LABELS[u.visibility]} ·{' '}
+                {auditDateTime(u.created_at)}
+                {u.published_by_name ? ` · ${u.published_by_name}` : ''}
+                {superseded ? ' · corrected by a later update' : ''}
+              </Text>
+              {u.body ? (
+                <Text style={[styles.extractionValue, { color: colors.text }]}>
+                  {u.body}
+                </Text>
+              ) : null}
+              {u.snapshot.milestones.map((m) => (
+                <Text
+                  key={m.id}
+                  style={[styles.cardMeta, { color: colors.textMuted }]}
+                >
+                  {m.status === 'completed'
+                    ? '✅'
+                    : m.status === 'in_progress'
+                      ? '🔄'
+                      : '⬜'}{' '}
+                  {m.title}
+                </Text>
+              ))}
+              {u.recipients.map((r) => {
+                const stage = recipientStage(r);
+                return (
+                  <View key={r.id} style={styles.row}>
+                    <Text
+                      style={[
+                        styles.cardMeta,
+                        {
+                          flex: 1,
+                          color:
+                            stage === 'acknowledged'
+                              ? colors.success
+                              : stage === 'failed'
+                                ? colors.danger
+                                : colors.textMuted,
+                        },
+                      ]}
+                    >
+                      {r.stakeholder?.name ?? 'Recipient'} ·{' '}
+                      {UPDATE_STAGE_LABELS[stage]} ·{' '}
+                      {UPDATE_CHANNEL_LABELS[r.channel]}
+                      {r.failed_reason ? ` — ${r.failed_reason}` : ''}
+                    </Text>
+                    {canEdit &&
+                    stage === 'pending' &&
+                    (r.delivery_mode === 'handoff' ||
+                      r.delivery_mode === 'portal') ? (
+                      <ActionButton
+                        label="Mark sent"
+                        icon="checkmark-outline"
+                        busy={busy === r.id}
+                        onPress={() => void markSent(r)}
+                      />
+                    ) : null}
+                  </View>
+                );
+              })}
+              {canEdit && !superseded ? (
+                <View style={styles.actions}>
+                  <ActionButton
+                    label="Correct"
+                    icon="arrow-undo-outline"
+                    busy={false}
+                    onPress={() => setComposing(u)}
+                  />
+                </View>
+              ) : null}
+            </View>
+          );
+        })
+      )}
+      <AppDialog {...dialog.dialogProps} />
+    </ScrollView>
+  );
+}
+
+function previewLine(r: UpdatePreviewRecipient): string {
+  const head = [
+    r.name,
+    UPDATE_CHANNEL_LABELS[r.channel],
+    r.mode ? r.mode.replace('_', ' ') : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  const warnings = [
+    r.reason ? `⚠️ ${r.reason}` : null,
+    r.needs_email ? '⚠️ Needs an email for the one-time code.' : null,
+  ].filter(Boolean);
+  const body =
+    r.mode === 'template'
+      ? 'Their window is closed: the Purchase progress template goes with the headline as the current step, and the private link follows when they tap a reply.'
+      : r.text;
+  return [head, ...warnings, '', body].join('\n');
+}
+
+function UpdateComposer({
+  dealId,
+  supersedes,
+  onCancel,
+  onPublished,
+}: {
+  dealId: string;
+  supersedes: DealUpdateRow | null;
+  onCancel: () => void;
+  onPublished: (recipients: DealUpdateRecipientRow[]) => Promise<void>;
+}) {
+  const { colors } = useTheme();
+  const dialog = useAppDialog();
+  const [headline, setHeadline] = useState(
+    supersedes ? `Correction to: ${supersedes.headline}`.slice(0, 120) : ''
+  );
+  const [body, setBody] = useState('');
+  const [visibility, setVisibility] = useState<DealUpdateVisibility>(
+    supersedes?.visibility ?? 'buyer_side'
+  );
+  const [milestoneIds, setMilestoneIds] = useState<string[]>([]);
+  const [recipients, setRecipients] = useState<Record<string, UpdateChannel>>(
+    {}
+  );
+  const [ttl, setTtl] = useState<DealShareTtlKey>('7d');
+  const [otp, setOtp] = useState(false);
+  const [busy, setBusy] = useState<'preview' | 'publish' | null>(null);
+
+  const { data: milestones = [] } = useQuery({
+    queryKey: ['deal-milestones', dealId],
+    queryFn: () => fetchDealMilestones(dealId),
+    enabled: Boolean(dealId),
+  });
+  const { data: stakeholders = [] } = useQuery({
+    queryKey: ['deal-stakeholders', dealId],
+    queryFn: () => fetchDealStakeholders(dealId),
+    enabled: Boolean(dealId),
+  });
+
+  const quotable = milestones.filter((m) =>
+    snapshotItemAllowed(visibility, m.visibility)
+  );
+  const eligible = stakeholders.filter((s) =>
+    isEligibleRecipient(s, visibility)
+  );
+
+  const payload = () => ({
+    headline: headline.trim(),
+    body: body.trim() || null,
+    visibility,
+    milestone_ids: milestoneIds.filter((id) =>
+      quotable.some((m) => m.id === id)
+    ),
+    event_ids: [],
+    supersedes_update_id: supersedes?.id ?? null,
+    recipients: Object.entries(recipients)
+      .filter(([id]) => eligible.some((s) => s.id === id))
+      .map(([stakeholder_id, channel]) => ({ stakeholder_id, channel })),
+    ttl,
+    otp_required: otp,
+  });
+
+  async function preview() {
+    setBusy('preview');
+    try {
+      const rows = await previewDealUpdate(dealId, payload());
+      dialog.show({
+        title: 'Preview',
+        message:
+          rows.length === 0
+            ? 'No recipients selected — the update will only appear on existing links.'
+            : rows.map(previewLine).join('\n\n————\n\n'),
+      });
+    } catch (err) {
+      dialog.show({
+        title: 'Could not preview',
+        message: friendlyError(errorText(err)),
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function publish() {
+    setBusy('publish');
+    try {
+      const result = await publishDealUpdate(dealId, payload());
+      void haptic.success();
+      await onPublished(result.recipients ?? []);
+    } catch (err) {
+      dialog.show({
+        title: 'Could not publish',
+        message: friendlyError(errorText(err)),
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <ScrollView
+      contentContainerStyle={styles.list}
+      keyboardShouldPersistTaps="handled"
+    >
+      <View
+        style={[
+          styles.card,
+          { backgroundColor: colors.surface, borderColor: colors.border },
+        ]}
+      >
+        <TextField
+          label="Headline"
+          value={headline}
+          maxLength={120}
+          onChangeText={setHeadline}
+        />
+        <TextField
+          label="Message (optional)"
+          value={body}
+          multiline
+          maxLength={1500}
+          onChangeText={setBody}
+        />
+        <Text style={[styles.cardMeta, { color: colors.textMuted }]}>
+          Audience
+        </Text>
+        <View style={styles.chipRow}>
+          {DEAL_UPDATE_VISIBILITIES.map((v) => (
+            <FilterChip
+              key={v}
+              label={DEAL_VISIBILITY_LABELS[v]}
+              active={visibility === v}
+              onPress={() => setVisibility(v)}
+            />
+          ))}
+        </View>
+        <Text style={[styles.cardMeta, { color: colors.textMuted }]}>
+          Milestones to quote (only ones this audience may already see)
+        </Text>
+        <View style={styles.chipRow}>
+          {quotable.map((m) => (
+            <FilterChip
+              key={m.id}
+              label={m.title}
+              active={milestoneIds.includes(m.id)}
+              onPress={() =>
+                setMilestoneIds((ids) =>
+                  ids.includes(m.id)
+                    ? ids.filter((x) => x !== m.id)
+                    : [...ids, m.id]
+                )
+              }
+            />
+          ))}
+          {quotable.length === 0 ? (
+            <Text style={[styles.cardMeta, { color: colors.textFaint }]}>
+              No milestone is visible to this audience yet.
+            </Text>
+          ) : null}
+        </View>
+        <Text style={[styles.cardMeta, { color: colors.textMuted }]}>
+          Recipients. The business number sends free-form inside their 24-hour
+          window and the Purchase progress template to a buyer outside it. Your
+          own phone is a handoff the app never sends.
+        </Text>
+        {eligible.map((s) => (
+          <View key={s.id} style={styles.extractionRow}>
+            <View style={styles.row}>
+              <Switch
+                value={s.id in recipients}
+                onValueChange={(on) =>
+                  setRecipients((r) => {
+                    const next = { ...r };
+                    if (on)
+                      next[s.id] = s.phone ? 'engine_whatsapp' : 'portal_only';
+                    else delete next[s.id];
+                    return next;
+                  })
+                }
+              />
+              <Text style={[styles.cardTitle, { color: colors.text, flex: 1 }]}>
+                {s.name}
+              </Text>
+            </View>
+            {s.id in recipients ? (
+              <View style={styles.chipRow}>
+                {UPDATE_CHANNELS.filter(
+                  (c) => c === 'portal_only' || Boolean(s.phone)
+                ).map((c) => (
+                  <FilterChip
+                    key={c}
+                    label={UPDATE_CHANNEL_LABELS[c]}
+                    active={recipients[s.id] === c}
+                    onPress={() => setRecipients((r) => ({ ...r, [s.id]: c }))}
+                  />
+                ))}
+              </View>
+            ) : null}
+          </View>
+        ))}
+        {eligible.length === 0 ? (
+          <Text style={[styles.cardMeta, { color: colors.textFaint }]}>
+            Add a stakeholder on this side first.
+          </Text>
+        ) : null}
+        <Text style={[styles.cardMeta, { color: colors.textMuted }]}>
+          Links expire in
+        </Text>
+        <View style={styles.chipRow}>
+          {DEAL_SHARE_TTL_CHOICES.map((c) => (
+            <FilterChip
+              key={c.key}
+              label={c.label}
+              active={ttl === c.key}
+              onPress={() => setTtl(c.key)}
+            />
+          ))}
+        </View>
+        <View style={styles.row}>
+          <Switch value={otp} onValueChange={setOtp} />
+          <Text style={[styles.cardMeta, { color: colors.textMuted, flex: 1 }]}>
+            Require a one-time code on these links (needs an email for each
+            recipient)
+          </Text>
+        </View>
+        <View style={styles.actions}>
+          <ActionButton
+            label="Cancel"
+            icon="close-outline"
+            busy={false}
+            onPress={onCancel}
+          />
+          <ActionButton
+            label="Preview"
+            icon="eye-outline"
+            busy={busy === 'preview'}
+            onPress={() => void preview()}
+          />
+        </View>
+        <PrimaryButton
+          label="Publish"
+          busy={busy === 'publish'}
+          disabled={!headline.trim()}
+          onPress={() => void publish()}
+        />
+      </View>
       <AppDialog {...dialog.dialogProps} />
     </ScrollView>
   );
