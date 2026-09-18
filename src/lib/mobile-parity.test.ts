@@ -1449,3 +1449,17 @@ describe('[PRP-007] property enquiries remain actionable on web and mobile', () 
     expect(web).toContain('PropertyInterestFollowUpDialog');
   });
 });
+
+describe('[PRP-008] suggested portal mappings are confirmable on both surfaces', () => {
+  const web = webSource('components/contacts/unmapped-portal-ads.tsx');
+  const mobile = mobileSource('components/unmapped-portal-ads.tsx');
+
+  it('accepts the guessed property directly and keeps a change path', () => {
+    for (const source of [web, mobile]) {
+      expect(source).toContain('ad.guessedPropertyId');
+      expect(source).toContain('mapAd(ad, ad.guessedPropertyId!)');
+      expect(source).toContain('Accept');
+      expect(source).toContain('Change');
+    }
+  });
+});

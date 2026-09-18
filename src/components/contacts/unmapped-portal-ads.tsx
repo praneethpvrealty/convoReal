@@ -1,9 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Link as LinkIcon, Loader2 } from 'lucide-react';
+import { Check, Link as LinkIcon, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
+import { Button } from '@/components/ui/button';
 import { SearchablePropertySelect } from '@/components/ui/searchable-property-select';
 import { createClient } from '@/lib/supabase/client';
 import type { Property } from '@/types';
@@ -128,6 +129,27 @@ export function UnmappedPortalAds({ onMapped }: { onMapped: () => void }) {
                 <div className="flex items-center gap-1.5 text-xs text-slate-400">
                   <Loader2 className="text-primary size-3.5 animate-spin" />
                   Mapping…
+                </div>
+              ) : ad.guessedPropertyId ? (
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => mapAd(ad, ad.guessedPropertyId!)}
+                    aria-label={`Accept ${ad.guessedPropertyTitle ?? 'suggested property'} for ${ad.portal} ad ${ad.portalListingId}`}
+                  >
+                    <Check />
+                    Accept
+                  </Button>
+                  <SearchablePropertySelect
+                    properties={properties}
+                    value={null}
+                    onChange={(propertyId) =>
+                      propertyId && mapAd(ad, propertyId)
+                    }
+                    placeholder="Change mapping"
+                    className="min-w-0 flex-1"
+                  />
                 </div>
               ) : (
                 <SearchablePropertySelect

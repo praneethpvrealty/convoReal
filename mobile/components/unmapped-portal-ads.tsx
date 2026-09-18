@@ -137,22 +137,79 @@ export function UnmappedPortalAds() {
                 : 'No listing tagged'}
             </Text>
           </View>
-          <Pressable
-            onPress={() => {
-              haptic.tap();
-              setPicking(ad);
-            }}
-            disabled={busy !== null}
-            accessibilityRole="button"
-            accessibilityLabel={`Map ${ad.portal} ad ${ad.portalListingId} to a listing`}
-            style={[
-              styles.mapButton,
-              { borderColor: colors.primary, opacity: busy !== null ? 0.6 : 1 },
-            ]}
-          >
-            {busy === ad.portalListingId ? (
-              <ActivityIndicator size="small" color={colors.primary} />
-            ) : (
+          {busy === ad.portalListingId ? (
+            <ActivityIndicator size="small" color={colors.primary} />
+          ) : ad.guessedPropertyId ? (
+            <View style={styles.actions}>
+              <Pressable
+                onPress={() => mapAd(ad, ad.guessedPropertyId!)}
+                disabled={busy !== null}
+                accessibilityRole="button"
+                accessibilityLabel={`Accept ${ad.guessedPropertyTitle ?? 'suggested property'} for ${ad.portal} ad ${ad.portalListingId}`}
+                style={[
+                  styles.mapButton,
+                  {
+                    backgroundColor: colors.primary,
+                    borderColor: colors.primary,
+                    opacity: busy !== null ? 0.6 : 1,
+                  },
+                ]}
+              >
+                <Ionicons name="checkmark" size={14} color={colors.onPrimary} />
+                <Text
+                  style={{
+                    fontSize: 12,
+                    fontFamily: f.bold,
+                    color: colors.onPrimary,
+                  }}
+                >
+                  Accept
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  haptic.tap();
+                  setPicking(ad);
+                }}
+                disabled={busy !== null}
+                accessibilityRole="button"
+                accessibilityLabel={`Change the suggested property for ${ad.portal} ad ${ad.portalListingId}`}
+                style={[
+                  styles.mapButton,
+                  {
+                    borderColor: colors.primary,
+                    opacity: busy !== null ? 0.6 : 1,
+                  },
+                ]}
+              >
+                <Text
+                  style={{
+                    fontSize: 12,
+                    fontFamily: f.bold,
+                    color: colors.primary,
+                  }}
+                >
+                  Change
+                </Text>
+              </Pressable>
+            </View>
+          ) : (
+            <Pressable
+              onPress={() => {
+                haptic.tap();
+                setPicking(ad);
+              }}
+              disabled={busy !== null}
+              accessibilityRole="button"
+              accessibilityLabel={`Map ${ad.portal} ad ${ad.portalListingId} to a listing`}
+              style={[
+                styles.mapButton,
+                {
+                  borderColor: colors.primary,
+                  opacity: busy !== null ? 0.6 : 1,
+                },
+              ]}
+            >
               <Text
                 style={{
                   fontSize: 12,
@@ -162,8 +219,8 @@ export function UnmappedPortalAds() {
               >
                 Map
               </Text>
-            )}
-          </Pressable>
+            </Pressable>
+          )}
         </View>
       ))}
 
@@ -196,9 +253,16 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
   },
   mapButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
     borderRadius: radius.full,
     borderWidth: 1,
     paddingHorizontal: 14,
     paddingVertical: 6,
+  },
+  actions: {
+    alignItems: 'flex-end',
+    gap: spacing.xs,
   },
 });

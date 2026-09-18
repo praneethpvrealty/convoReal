@@ -414,6 +414,21 @@
             "supabase/migrations/20260823120000_property_audience.sql",
             ".github/workflows/eas-update.yml"
           ]
+        },
+        {
+          "id": "PRP-008",
+          "rule": "When an unmapped portal ad already has a guessed property, agents can accept that mapping in one tap on web and mobile, while retaining a separate path to choose a different property.",
+          "tests": [
+            {
+              "file": "src/components/contacts/unmapped-portal-ads.test.tsx",
+              "case": "[PRP-008] accepts the guessed property without reopening the picker"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[PRP-008]"
+            }
+          ],
+          "guards": [".github/workflows/eas-update.yml"]
         }
       ]
     },
