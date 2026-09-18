@@ -74,6 +74,10 @@ import {
   buildShareFeedbackTemplatePayload,
   SHARE_FEEDBACK_TEMPLATE_NAME,
 } from './share-feedback-template';
+import {
+  buildNumberChangeTemplatePayload,
+  NUMBER_CHANGE_TEMPLATE_NAME,
+} from './number-change-template';
 
 export interface EngineTemplateDef {
   name: string;
@@ -220,6 +224,14 @@ export const ENGINE_TEMPLATES: EngineTemplateDef[] = [
     whyItMatters:
       'Asks a buyer for feedback 30 minutes after sharing a property to refine their requirements.',
     build: (_origin, language) => buildShareFeedbackTemplatePayload(language),
+  },
+  {
+    name: NUMBER_CHANGE_TEMPLATE_NAME,
+    copyKey: 'contact_number_update',
+    label: 'Number change notice',
+    whyItMatters:
+      'Tells a contact the brokerage now messages from a different WhatsApp number after a switch in Settings, so the new number is saved and not ignored as unknown. Sent to contacts active in the last 7 days on request, and once ahead of any routine message for 7 days after the switch.',
+    build: (_origin, language) => buildNumberChangeTemplatePayload(language),
   },
 ];
 

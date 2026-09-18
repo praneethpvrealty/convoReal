@@ -832,6 +832,36 @@
               "case": "[WAN-003]"
             }
           ]
+        },
+        {
+          "id": "WAN-004",
+          "rule": "A switch of the live Official API number (profile activation or a save that replaces the number) records the previous display number and the switch time on whatsapp_config, and the number-change window is open for exactly seven days from that time. contact_number_update is a Utility engine template in every product language with one acknowledgement button, addressing the contact, the brokerage and the previous number.",
+          "tests": [
+            {
+              "file": "src/lib/whatsapp/number-change-template.test.ts",
+              "case": "[WAN-004]"
+            },
+            {
+              "file": "src/lib/whatsapp/number-change-notice.test.ts",
+              "case": "[WAN-004]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20260918200000_whatsapp_number_change_notices.sql"
+          ]
+        },
+        {
+          "id": "WAN-005",
+          "rule": "Each contact is told about the number change at most once per new number, whether by the notify-recent-contacts action or as the precursor the dispatcher sends ahead of any routine message inside the window: the ledger row is claimed before sending, released when the send is skipped or fails, and the notice goes free-form inside the contact's 24-hour window and by the approved template outside it, never by an unapproved template. The notice itself is never preceded by another notice.",
+          "tests": [
+            {
+              "file": "src/lib/whatsapp/number-change-notice.test.ts",
+              "case": "[WAN-005]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20260918200000_whatsapp_number_change_notices.sql"
+          ]
         }
       ]
     }

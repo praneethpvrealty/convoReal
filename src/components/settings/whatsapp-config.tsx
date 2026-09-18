@@ -32,6 +32,7 @@ import {
 } from '@/components/ui/accordion';
 import type { WhatsAppConfig as WhatsAppConfigType } from '@/types';
 import { WhatsAppNumberProfiles } from '@/components/settings/whatsapp-number-profiles';
+import { WhatsAppNumberChangeCard } from '@/components/settings/whatsapp-number-change-card';
 
 const MASKED_TOKEN = '••••••••••••••••';
 
@@ -918,6 +919,10 @@ export function WhatsAppConfig() {
             refreshToken={config?.updated_at ?? null}
             onSwitched={() => (accountId ? fetchConfig(accountId) : undefined)}
           />
+        )}
+
+        {integrationType === 'official_api' && config?.number_changed_at && (
+          <WhatsAppNumberChangeCard refreshToken={config.updated_at ?? null} />
         )}
 
         {/* API Credentials (Only shown for Official API) */}

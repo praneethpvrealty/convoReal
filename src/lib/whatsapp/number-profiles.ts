@@ -403,12 +403,24 @@ export async function activateNumberProfile(
     assessment && !assessment.registered ? assessment.reason : null;
 
   const activatedAt = now();
+  const numberChanged =
+    live != null &&
+    (live.integration_type || 'official_api') === 'official_api' &&
+    live.phone_number_id != null &&
+    live.phone_number_id !== profile.phone_number_id;
   const row = {
     ...liveConfigFromProfile(profile, phoneInfo, subscribedAppsAt, activatedAt),
     status: registered ? 'connected' : 'disconnected',
     connected_at: registered ? activatedAt : null,
     registered_at: registered ? (profile.registered_at ?? activatedAt) : null,
     last_registration_error: registrationError,
+    ...(numberChanged
+      ? {
+          previous_display_phone_number:
+            live.display_phone_number ?? live.phone_number_id,
+          number_changed_at: activatedAt,
+        }
+      : {}),
   };
 
   if (live) {

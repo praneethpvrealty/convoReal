@@ -19,6 +19,16 @@ than a written entry. Newest first.
 
 #### 18 September 2026
 
+- **Number-change notice.** A new Utility engine template,
+  `contact_number_update`, tells a contact that the brokerage now messages
+  from a different WhatsApp number. After a switch in Settings → WhatsApp the
+  connection tab shows a "Number changed" card for seven days: one tap sends
+  the notice to every contact active in the last N days (7 by default, up to 30) who has not been told, and for those seven days the first routine
+  message to any other contact is preceded once by the same notice. Free-form
+  inside the contact's 24-hour window, the approved template outside it; a
+  ledger keeps each contact to one notice per number. The template is offered
+  under "templates the Engine sends" in every product language.
+  **Migration required:** `20260918200000_whatsapp_number_change_notices.sql`.
 - **WhatsApp registration state now comes from Meta.** Saving a number without
   a PIN used to record it as registered on trust, so a number Meta had never
   registered (for example one whose display name was declined) showed
