@@ -1,9 +1,13 @@
 import { NextResponse } from 'next/server';
 
-import { canStakeholderOpenDocument } from '@/lib/deals/external-view';
+import {
+  canStakeholderOpenDocument,
+  stakeholderTwinOn,
+} from '@/lib/deals/external-view';
 import { verifyUnlock } from '@/lib/deals/share-links';
 import {
   clientIp,
+  loadShareSources,
   logShareAccess,
   resolveShareLink,
   unlockFromRequest,
@@ -50,20 +54,37 @@ export async function GET(
       return NextResponse.json({ error: 'Link expired' }, { status: 410 });
     }
     const { link, stakeholder } = resolved;
-    if (link.otp_required && !verifyUnlock(unlockFromRequest(request), link.id)) {
+    if (
+      link.otp_required &&
+      !verifyUnlock(unlockFromRequest(request), link.id)
+    ) {
       await logShareAccess(admin, link, 'document_denied', request, docId);
-      return NextResponse.json({ error: 'Verification required' }, { status: 401 });
+      return NextResponse.json(
+        { error: 'Verification required' },
+        { status: 401 }
+      );
     }
 
+    // The document may sit on the link's own deal or on a bundle
+    // sibling the stakeholder is the same person on — exactly the
+    // deals the view showed them. Anything else does not exist.
     const { data: doc } = await admin
       .from('deal_documents')
-      .select('id, title, storage_path, mime_type, visibility, superseded_by')
+      .select(
+        'id, deal_id, title, storage_path, mime_type, visibility, superseded_by'
+      )
       .eq('id', docId)
-      .eq('deal_id', link.deal_id)
       .eq('account_id', link.account_id)
       .maybeSingle();
+    let partyToDeal = Boolean(doc && doc.deal_id === link.deal_id);
+    if (doc && !partyToDeal) {
+      const sources = await loadShareSources(admin, link);
+      const sibling = sources?.siblings.find((s) => s.id === doc.deal_id);
+      partyToDeal = Boolean(sibling && stakeholderTwinOn(stakeholder, sibling));
+    }
     if (
       !doc ||
+      !partyToDeal ||
       !canStakeholderOpenDocument(stakeholder, {
         visibility: doc.visibility as DealVisibility,
       })
@@ -83,13 +104,16 @@ export async function GET(
         .from(DEAL_DOCUMENT_BUCKET)
         .download(objectPath);
       if (!file) {
-        return NextResponse.json({ error: 'Document unavailable' }, { status: 404 });
+        return NextResponse.json(
+          { error: 'Document unavailable' },
+          { status: 404 }
+        );
       }
       const stamped = await watermarkImage(
         Buffer.from(await file.arrayBuffer()),
         watermarkLabel({
           viewerLabel: stakeholder.name,
-          reference: `TXN ${link.deal_id.slice(0, 8).toUpperCase()}`,
+          reference: `TXN ${String(doc.deal_id).slice(0, 8).toUpperCase()}`,
         })
       );
       await logShareAccess(admin, link, 'document_view', request, docId);
@@ -104,12 +128,20 @@ export async function GET(
 
     const url = await signedUrlFor(DEAL_DOCUMENT_BUCKET, doc.storage_path, 60);
     if (!url) {
-      return NextResponse.json({ error: 'Document unavailable' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Document unavailable' },
+        { status: 404 }
+      );
     }
     await logShareAccess(admin, link, 'document_view', request, docId);
-    return NextResponse.redirect(url, { headers: { 'Cache-Control': 'private, no-store' } });
+    return NextResponse.redirect(url, {
+      headers: { 'Cache-Control': 'private, no-store' },
+    });
   } catch (err) {
     console.error('[deal-share] document failed:', err);
-    return NextResponse.json({ error: 'Something went wrong' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Something went wrong' },
+      { status: 500 }
+    );
   }
 }

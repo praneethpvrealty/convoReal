@@ -7,6 +7,7 @@ import {
   buildExternalPortalView,
   canStakeholderOpenDocument,
   partiesFromStakeholders,
+  stakeholderTwinOn,
   type ExternalDealSource,
 } from './external-view';
 import { STAKEHOLDER_HIDDEN_DEAL_FIELDS } from './financials';
@@ -238,6 +239,21 @@ describe('[TXW-010] the external view passes everything through the resolver', (
     expect(
       buildExternalPortalView({ stakeholder: broker, deal: site19 })
     ).toBeNull();
+  });
+
+  it('finds the same person on a bundle sibling, and nobody else', () => {
+    expect(stakeholderTwinOn(adithi19, site20)?.id).toBe('adithi-20');
+    expect(stakeholderTwinOn(seller19, site20)).toBeNull();
+    expect(stakeholderTwinOn(broker, site20)).toBeNull();
+    const documents = readFileSync(
+      join(
+        process.cwd(),
+        'src/app/api/public/deal-share/[token]/documents/[docId]/route.ts'
+      ),
+      'utf8'
+    );
+    expect(documents).toContain('stakeholderTwinOn(stakeholder, sibling)');
+    expect(documents).not.toMatch(/\.eq\('deal_id', link\.deal_id\)/);
   });
 
   it('re-checks a document at the byte boundary with the same rule', () => {

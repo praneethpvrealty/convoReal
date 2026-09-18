@@ -36,9 +36,14 @@ export async function POST(
     );
     if (!limit.success) return rateLimitResponse(limit);
 
-    const body = (await request.json().catch(() => null)) as { code?: unknown } | null;
+    const body = (await request.json().catch(() => null)) as {
+      code?: unknown;
+    } | null;
     if (!isValidOtpFormat(body?.code)) {
-      return NextResponse.json({ error: 'Enter the 6-digit code' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Enter the 6-digit code' },
+        { status: 400 }
+      );
     }
 
     const admin = supabaseAdmin();
@@ -64,20 +69,52 @@ export async function POST(
     ) {
       await logShareAccess(admin, link, 'otp_failed', request);
       return NextResponse.json(
-        { error: 'That code has expired. Request a new one.', code: 'OTP_EXPIRED' },
+        {
+          error: 'That code has expired. Request a new one.',
+          code: 'OTP_EXPIRED',
+        },
         { status: 410 }
       );
     }
 
-    const ok = otpMatches(body!.code as string, link.id, challenge.code_hash);
-    await admin
+    // Claim the attempt before checking the code: a compare-and-swap on
+    // the attempt count, so concurrent guesses cannot all read the same
+    // value and share one of the five tries. A claim that loses the
+    // race is refused rather than retried against a fresher count.
+    const { data: claimed, error: claimError } = await admin
       .from('deal_share_otp_challenges')
-      .update(
-        ok
-          ? { verified_at: new Date().toISOString(), attempts: challenge.attempts + 1 }
-          : { attempts: challenge.attempts + 1 }
-      )
-      .eq('id', challenge.id);
+      .update({ attempts: challenge.attempts + 1 })
+      .eq('id', challenge.id)
+      .eq('attempts', challenge.attempts)
+      .is('verified_at', null)
+      .select('id');
+    if (claimError || !claimed || claimed.length === 0) {
+      await logShareAccess(admin, link, 'otp_failed', request);
+      return NextResponse.json(
+        { error: 'Another check is in progress. Try again.', code: 'OTP_BUSY' },
+        { status: 409 }
+      );
+    }
+
+    const ok = otpMatches(body!.code as string, link.id, challenge.code_hash);
+    if (ok) {
+      const { data: verified } = await admin
+        .from('deal_share_otp_challenges')
+        .update({ verified_at: new Date().toISOString() })
+        .eq('id', challenge.id)
+        .is('verified_at', null)
+        .select('id');
+      if (!verified || verified.length === 0) {
+        await logShareAccess(admin, link, 'otp_failed', request);
+        return NextResponse.json(
+          {
+            error: 'That code has expired. Request a new one.',
+            code: 'OTP_EXPIRED',
+          },
+          { status: 410 }
+        );
+      }
+    }
 
     if (!ok) {
       await logShareAccess(admin, link, 'otp_failed', request);
@@ -98,6 +135,9 @@ export async function POST(
     return NextResponse.json({ data: unlock });
   } catch (err) {
     console.error('[deal-share] otp verify failed:', err);
-    return NextResponse.json({ error: 'Something went wrong' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Something went wrong' },
+      { status: 500 }
+    );
   }
 }

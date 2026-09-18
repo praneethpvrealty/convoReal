@@ -44,6 +44,7 @@ import {
   DEAL_VISIBILITY_LABELS,
   DEAL_WORKSPACE_TABS,
   INVOICE_STATUS_LABELS,
+  SHARE_ACCESS_LABELS,
   STAKEHOLDER_ROLE_LABELS,
   STAKEHOLDER_SIDE_LABELS,
   TDS_STATUS_LABELS,
@@ -56,6 +57,7 @@ import {
   type DealFinancialsRow,
   type DealMilestoneRow,
   type DealMilestoneStatus,
+  type DealShareAccessEvent,
   type DealShareLinkRow,
   type DealShareTtlKey,
   type DealSide,
@@ -82,6 +84,7 @@ import {
   fetchDealEvents,
   fetchDealFinancials,
   fetchDealMilestones,
+  fetchDealShareAccess,
   fetchDealStakeholders,
   fetchDealTasks,
   fetchInvoices,
@@ -1579,6 +1582,35 @@ function StakeholdersTab({
     }
   }
 
+  async function showAccessLog(link: DealShareLinkRow) {
+    setBusy(`log:${link.id}`);
+    try {
+      const rows = await fetchDealShareAccess(dealId, link.id);
+      dialog.show({
+        title: `Link ${link.token_prefix}…`,
+        message:
+          rows.length === 0
+            ? 'No opens yet.'
+            : rows
+                .map(
+                  (row) =>
+                    `${auditDateTime(row.created_at)} · ${
+                      SHARE_ACCESS_LABELS[row.event as DealShareAccessEvent] ??
+                      row.event
+                    }`
+                )
+                .join('\n'),
+      });
+    } catch (err) {
+      dialog.show({
+        title: 'Could not load the access log',
+        message: friendlyError(errorText(err)),
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function mintAndShare(s: DealStakeholderRow) {
     setBusy(`link:${s.id}`);
     try {
@@ -1833,6 +1865,12 @@ function StakeholdersTab({
                     {link.view_count === 1 ? '' : 's'}
                     {link.otp_required ? ' · code' : ''}
                   </Text>
+                  <ActionButton
+                    label="Log"
+                    icon="eye-outline"
+                    busy={busy === `log:${link.id}`}
+                    onPress={() => void showAccessLog(link)}
+                  />
                   {canEdit && state === 'active' ? (
                     <ActionButton
                       label="Revoke"

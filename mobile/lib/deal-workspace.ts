@@ -486,6 +486,26 @@ export type DealShareTtlKey = (typeof DEAL_SHARE_TTL_CHOICES)[number]['key'];
 
 export type DealShareLinkState = 'active' | 'expired' | 'revoked';
 
+export type DealShareAccessEvent =
+  | 'view'
+  | 'denied'
+  | 'otp_sent'
+  | 'otp_verified'
+  | 'otp_failed'
+  | 'document_view'
+  | 'document_denied';
+
+/** Mirrored from src/lib/deals/share-links.ts. */
+export const SHARE_ACCESS_LABELS: Record<DealShareAccessEvent, string> = {
+  view: 'Opened',
+  denied: 'Denied (link dead)',
+  otp_sent: 'Code sent',
+  otp_verified: 'Code verified',
+  otp_failed: 'Code failed',
+  document_view: 'Document opened',
+  document_denied: 'Document refused',
+};
+
 /** Mirrors linkState on the server: revoked wins, then expiry. */
 export function linkState(
   link: Pick<DealShareLinkRow, 'expires_at' | 'revoked_at'>,

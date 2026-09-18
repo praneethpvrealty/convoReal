@@ -207,9 +207,7 @@ export function buildExternalPortalView(args: {
   const bundle: ExternalDealView[] = [];
   for (const sibling of siblings) {
     if (sibling.id === deal.id) continue;
-    const twin = sibling.stakeholders.find(
-      (s) => s.side === stakeholder.side && isSamePerson(stakeholder, s)
-    );
+    const twin = stakeholderTwinOn(stakeholder, sibling);
     if (!twin) continue;
     const [projected] = projectBundleForAudience([toProjectable(sibling)], {
       kind: 'external',
@@ -229,6 +227,21 @@ export function buildExternalPortalView(args: {
     deal: toView(primary.deal, primary.items, deal),
     bundle,
   };
+}
+
+/** The stakeholder's own row on a bundle sibling — the same person, on
+ *  the same side — or null when they are not party to it. The view
+ *  uses this to decide which siblings to show; the document route uses
+ *  it to decide which siblings' documents may be fetched. */
+export function stakeholderTwinOn(
+  stakeholder: Pick<DealStakeholder, 'side' | 'contact_id' | 'phone' | 'email'>,
+  sibling: Pick<ExternalDealSource, 'stakeholders'>
+): ExternalDealSource['stakeholders'][number] | null {
+  return (
+    sibling.stakeholders.find(
+      (s) => s.side === stakeholder.side && isSamePerson(stakeholder, s)
+    ) ?? null
+  );
 }
 
 /** Whether one document may be fetched by this stakeholder. The same

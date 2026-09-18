@@ -75,6 +75,26 @@ export interface DealShareLink {
 
 export type DealShareLinkState = 'active' | 'expired' | 'revoked';
 
+export type DealShareAccessEvent =
+  | 'view'
+  | 'denied'
+  | 'otp_sent'
+  | 'otp_verified'
+  | 'otp_failed'
+  | 'document_view'
+  | 'document_denied';
+
+/** Mirrored in mobile/lib/deal-workspace.ts; guarded by mobile-parity.test.ts. */
+export const SHARE_ACCESS_LABELS: Record<DealShareAccessEvent, string> = {
+  view: 'Opened',
+  denied: 'Denied (link dead)',
+  otp_sent: 'Code sent',
+  otp_verified: 'Code verified',
+  otp_failed: 'Code failed',
+  document_view: 'Document opened',
+  document_denied: 'Document refused',
+};
+
 export function linkState(
   link: Pick<DealShareLink, 'expires_at' | 'revoked_at'>,
   now: Date = new Date()

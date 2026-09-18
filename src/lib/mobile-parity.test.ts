@@ -61,7 +61,10 @@ import { DEAL_DOCUMENT_STATUS_LABELS } from '@/lib/deals/documents';
 import { DEAL_EVENT_LABELS } from '@/lib/deals/events';
 import { TDS_STATUS_LABELS } from '@/lib/deals/financials';
 import { DEAL_MILESTONE_STATUS_LABELS } from '@/lib/deals/milestones';
-import { DEAL_SHARE_TTL_CHOICES } from '@/lib/deals/share-links';
+import {
+  DEAL_SHARE_TTL_CHOICES,
+  SHARE_ACCESS_LABELS,
+} from '@/lib/deals/share-links';
 import {
   STAKEHOLDER_ROLE_LABELS,
   STAKEHOLDER_SIDE_LABELS,
@@ -1643,6 +1646,17 @@ describe('[TXW] Phase 2 collaboration ships on both surfaces', () => {
     );
     expect(webPanel).toContain('It will not be shown again');
     expect(mobileScreen).toContain('it will not be shown again');
+  });
+
+  it('[TXW-009] shows the per-link access log with the same labels', () => {
+    for (const [event, label] of Object.entries(SHARE_ACCESS_LABELS)) {
+      expect(
+        mobileVocab,
+        `mobile is missing the "${event}" access label`
+      ).toContain(`${event}: '${label}'`);
+    }
+    expect(mobileScreen).toContain('fetchDealShareAccess(dealId, link.id)');
+    expect(webPanel).toContain('SHARE_ACCESS_LABELS');
   });
 
   it('[TXW-011] hands the link over through the share sheet or wa.me, never by sending itself', () => {

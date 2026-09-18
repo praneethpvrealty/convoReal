@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -131,5 +134,34 @@ describe('[TXW-011] one-time codes and unlocks', () => {
         NOW
       )
     ).toBe(false);
+  });
+});
+
+describe('[TXW-009] opens and attempts are counted once each', () => {
+  const read = (p: string) => readFileSync(join(process.cwd(), p), 'utf8');
+
+  it('bumps the view count in SQL, never from a stale row', () => {
+    const server = read('src/lib/deals/share-server.ts');
+    expect(server).toContain("admin.rpc('bump_deal_share_view'");
+    expect(server).not.toMatch(/view_count:\s*\(link\.view_count/);
+    const migration = read(
+      'supabase/migrations/20260918030200_deal_share_view_counter.sql'
+    );
+    expect(migration).toMatch(/SET view_count = view_count \+ 1/);
+    expect(migration).toMatch(
+      /REVOKE EXECUTE ON FUNCTION bump_deal_share_view\(UUID\) FROM PUBLIC, anon, authenticated/
+    );
+  });
+
+  it('[TXW-011] claims an OTP attempt atomically before checking the code', () => {
+    const route = read(
+      'src/app/api/public/deal-share/[token]/otp/verify/route.ts'
+    );
+    const claim = route.indexOf(".eq('attempts', challenge.attempts)");
+    const check = route.indexOf('otpMatches(');
+    expect(claim).toBeGreaterThan(-1);
+    expect(check).toBeGreaterThan(claim);
+    expect(route).toMatch(/claimed\.length === 0/);
+    expect(route.indexOf('signUnlock(link.id)')).toBeGreaterThan(check);
   });
 });

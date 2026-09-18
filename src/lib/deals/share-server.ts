@@ -80,17 +80,15 @@ export async function logShareAccess(
   if (error) console.error('[deal-share] access log failed:', error.message);
 }
 
+/** One open, counted once: the increment runs in SQL so concurrent
+ *  opens never carry the same stale count. */
 export async function trackShareView(
   admin: SupabaseClient,
-  link: Pick<DealShareLink, 'id' | 'view_count'>
+  link: Pick<DealShareLink, 'id'>
 ): Promise<void> {
-  const { error } = await admin
-    .from('deal_share_links')
-    .update({
-      view_count: (link.view_count ?? 0) + 1,
-      last_viewed_at: new Date().toISOString(),
-    })
-    .eq('id', link.id);
+  const { error } = await admin.rpc('bump_deal_share_view', {
+    p_link_id: link.id,
+  });
   if (error) console.error('[deal-share] view tracking failed:', error.message);
 }
 

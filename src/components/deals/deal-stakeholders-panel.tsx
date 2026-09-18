@@ -23,6 +23,8 @@ import {
   DEAL_SHARE_TTL_CHOICES,
   DEFAULT_DEAL_SHARE_TTL_KEY,
   linkState,
+  SHARE_ACCESS_LABELS,
+  type DealShareAccessEvent,
   type DealShareTtlKey,
 } from '@/lib/deals/share-links';
 import {
@@ -63,16 +65,6 @@ interface DealStakeholdersPanelProps {
   dealTitle: string;
   canEdit: boolean;
 }
-
-const ACCESS_LABELS: Record<string, string> = {
-  view: 'Opened',
-  denied: 'Denied (link dead)',
-  otp_sent: 'Code sent',
-  otp_verified: 'Code verified',
-  otp_failed: 'Code failed',
-  document_view: 'Document opened',
-  document_denied: 'Document refused',
-};
 
 async function call(path: string, init: RequestInit, failure: string) {
   const response = await fetch(path, {
@@ -540,7 +532,10 @@ export function DealStakeholdersPanel({
                                       {new Date(
                                         row.created_at
                                       ).toLocaleString()}{' '}
-                                      · {ACCESS_LABELS[row.event] ?? row.event}
+                                      ·{' '}
+                                      {SHARE_ACCESS_LABELS[
+                                        row.event as DealShareAccessEvent
+                                      ] ?? row.event}
                                     </li>
                                   ))
                                 )}
