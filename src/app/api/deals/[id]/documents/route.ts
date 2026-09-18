@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 
-import { requireRole, toErrorResponse } from '@/lib/auth/account';
+import {
+  requireRole,
+  requireWriteRole,
+  toErrorResponse,
+} from '@/lib/auth/account';
 import { parseEventSource, writeDealEvent } from '@/lib/deals/events';
 import { actorName } from '@/lib/deals/server';
 import { DEAL_DOCUMENT_BUCKET } from '@/lib/invoices/server';
@@ -68,7 +72,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const ctx = await requireRole('agent');
+    const ctx = await requireWriteRole('agent');
     const { id: dealId } = await params;
 
     const limit = await checkRateLimit(

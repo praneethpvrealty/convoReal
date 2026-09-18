@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-import { requireRole, toErrorResponse } from '@/lib/auth/account';
+import { requireWriteRole, toErrorResponse } from '@/lib/auth/account';
 import { parseEventSource, writeDealEvent } from '@/lib/deals/events';
 import {
   DEAL_MILESTONE_STATUS_LABELS,
@@ -21,7 +21,7 @@ type RouteParams = { params: Promise<{ id: string; milestoneId: string }> };
 // title, notes. Never the deal's stage: that is the board's job.
 export async function PATCH(request: Request, { params }: RouteParams) {
   try {
-    const ctx = await requireRole('agent');
+    const ctx = await requireWriteRole('agent');
     const { id: dealId, milestoneId } = await params;
 
     const limit = await checkRateLimit(
@@ -105,7 +105,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
 // stays comparable across deals.
 export async function DELETE(_request: Request, { params }: RouteParams) {
   try {
-    const ctx = await requireRole('agent');
+    const ctx = await requireWriteRole('agent');
     const { id: dealId, milestoneId } = await params;
 
     const deal = await loadDealHead(ctx, dealId);

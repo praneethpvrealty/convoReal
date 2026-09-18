@@ -1,3 +1,4 @@
+import { pipelineOutcomeForStage } from '@/lib/pipelines/stage-semantics';
 import type { JourneyStageKind } from '@/types';
 
 /**
@@ -15,7 +16,11 @@ export interface ConvertibleJourneyItem {
   stage_id: string;
   status: 'active' | 'dropped';
   contact: { name: string | null; phone: string | null } | null;
-  property: { title: string | null; unit_no?: string | null; price: number | null } | null;
+  property: {
+    title: string | null;
+    unit_no?: string | null;
+    price: number | null;
+  } | null;
 }
 
 export interface ConversionStage {
@@ -34,7 +39,9 @@ export function defaultStageForConversion(
   stages: readonly ConversionStage[],
   journeyStageKind: JourneyStageKind
 ): ConversionStage | null {
-  const ordered = [...stages].sort((a, b) => a.position - b.position);
+  const ordered = [...stages]
+    .filter((s) => pipelineOutcomeForStage(s.name) === 'active')
+    .sort((a, b) => a.position - b.position);
   if (ordered.length === 0) return null;
   if (journeyStageKind === 'closing' || journeyStageKind === 'won') {
     const closing = ordered.find((s) => {
@@ -52,11 +59,11 @@ export function defaultStageForConversion(
 }
 
 export function conversionTitle(item: ConvertibleJourneyItem): string {
-  const who = item.contact?.name?.trim() || item.contact?.phone?.trim() || 'Buyer';
-  const what =
-    item.property?.unit_no?.trim()
-      ? `Property No. ${item.property.unit_no.trim()}`
-      : item.property?.title?.trim() || 'Property';
+  const who =
+    item.contact?.name?.trim() || item.contact?.phone?.trim() || 'Buyer';
+  const what = item.property?.unit_no?.trim()
+    ? `Property No. ${item.property.unit_no.trim()}`
+    : item.property?.title?.trim() || 'Property';
   return `${who} — ${what}`.slice(0, 200);
 }
 
@@ -104,8 +111,14 @@ type ParseResult<T> = { ok: true; value: T } | { ok: false; error: string };
 
 export function parseConversionInput(
   raw: unknown
-): ParseResult<{ itemId: string; pipelineId: string | null; title: string | null; source: 'web' | 'mobile' }> {
-  if (!raw || typeof raw !== 'object') return { ok: false, error: 'item_id is required' };
+): ParseResult<{
+  itemId: string;
+  pipelineId: string | null;
+  title: string | null;
+  source: 'web' | 'mobile';
+}> {
+  if (!raw || typeof raw !== 'object')
+    return { ok: false, error: 'item_id is required' };
   const input = raw as Record<string, unknown>;
   const itemId = typeof input.item_id === 'string' ? input.item_id.trim() : '';
   if (!itemId) return { ok: false, error: 'item_id is required' };

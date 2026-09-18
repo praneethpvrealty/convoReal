@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { requireRole, toErrorResponse } from '@/lib/auth/account'
+import { requireWriteRole, toErrorResponse } from '@/lib/auth/account'
 
 export async function PUT(
   request: Request,
@@ -7,7 +7,7 @@ export async function PUT(
 ) {
   try {
     const { id } = await params
-    const { supabase, accountId } = await requireRole('agent')
+    const { supabase, accountId } = await requireWriteRole('agent')
 
     const body = await request.json()
     const { title, description, due_date, priority, completed, contact_id, property_id, deal_id } = body
@@ -47,7 +47,7 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params
-    const { supabase, accountId } = await requireRole('agent')
+    const { supabase, accountId } = await requireWriteRole('agent')
 
     const { data, error } = await supabase
       .from('todos')

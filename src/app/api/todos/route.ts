@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
-import { requireRole, toErrorResponse } from '@/lib/auth/account'
+import { requireRole, requireWriteRole, toErrorResponse } from '@/lib/auth/account'
 
 export async function GET(request: Request) {
   try {
-    const { supabase, accountId } = await requireRole('agent')
+    const { supabase, accountId } = await requireRole('viewer')
 
     const dealId = new URL(request.url).searchParams.get('deal_id')?.trim()
 
@@ -28,7 +28,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const { supabase, accountId, userId } = await requireRole('agent')
+    const { supabase, accountId, userId } = await requireWriteRole('agent')
 
     const body = await request.json()
     const { title, description, due_date, priority, contact_id, property_id, deal_id } = body

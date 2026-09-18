@@ -31,8 +31,12 @@ up Phase 2.
 ## What Phase 1 ships
 
 - **Conversion** — `POST /api/journey/convert-to-deal`. Picks the account's
-  first pipeline (seeding the default board if none exists), lands a
-  closing-stage journey on the board's negotiation/token stage, creates
+  first pipeline (seeding the default board service-side, pinned to the
+  caller's account, if none exists — creating a board is an admin write
+  under RLS and an agent's first conversion must not be blocked on it),
+  lands a closing-stage journey on the board's negotiation/token stage
+  and any other on the first _active_ stage (terminal stages are
+  skipped whatever the board order), creates
   the deal with the property price as value, instantiates the standard
   milestones, writes `converted_from_journey` on the deal timeline and
   `converted_to_deal` on the journey (best-effort until the second
@@ -75,5 +79,5 @@ and publish-as-snapshot are Phase 2 and 3. The Copilot chunk
 
 ## Invariants
 
-`FEATURE_MANIFEST.json` → `transaction-workspace` (TXW-001 … TXW-007).
+`FEATURE_MANIFEST.json` → `transaction-workspace` (TXW-001 … TXW-008).
 Each names its executable regression cases.

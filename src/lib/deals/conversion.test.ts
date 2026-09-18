@@ -44,6 +44,23 @@ describe('[TXW-001] journey → deal conversion', () => {
     expect(defaultStageForConversion(board, 'closing')?.id).toBe('a');
   });
 
+  it('skips terminal stages that a reordered board puts first', () => {
+    const board = [
+      { id: 'lost', name: 'Closed Lost', position: 0 },
+      { id: 'won', name: 'Deal Closed/Won', position: 1 },
+      { id: 'paid', name: 'Brokerage Paid', position: 2 },
+      { id: 'visit', name: 'Site Visit Scheduled', position: 3 },
+    ];
+    expect(defaultStageForConversion(board, 'prospecting')?.id).toBe('visit');
+    expect(defaultStageForConversion(board, 'closing')?.id).toBe('visit');
+    expect(
+      defaultStageForConversion(
+        [{ id: 'won', name: 'Deal Closed/Won', position: 0 }],
+        'closing'
+      )
+    ).toBeNull();
+  });
+
   it('builds the deal row with provenance and the property price as value', () => {
     expect(
       buildConversionDeal({
@@ -76,14 +93,26 @@ describe('[TXW-001] journey → deal conversion', () => {
         property: { title: 'JP Nagar plot', unit_no: null, price: null },
       })
     ).toBe('+919999999999 — JP Nagar plot');
-    expect(conversionTitle({ ...item, contact: null, property: null })).toBe('Buyer — Property');
+    expect(conversionTitle({ ...item, contact: null, property: null })).toBe(
+      'Buyer — Property'
+    );
   });
 
   it('parses the request body', () => {
-    expect(parseConversionInput({ item_id: ' item-1 ', source: 'mobile' })).toEqual({
+    expect(
+      parseConversionInput({ item_id: ' item-1 ', source: 'mobile' })
+    ).toEqual({
       ok: true,
-      value: { itemId: 'item-1', pipelineId: null, title: null, source: 'mobile' },
+      value: {
+        itemId: 'item-1',
+        pipelineId: null,
+        title: null,
+        source: 'mobile',
+      },
     });
-    expect(parseConversionInput({})).toEqual({ ok: false, error: 'item_id is required' });
+    expect(parseConversionInput({})).toEqual({
+      ok: false,
+      error: 'item_id is required',
+    });
   });
 });

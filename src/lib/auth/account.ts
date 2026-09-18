@@ -248,6 +248,21 @@ export async function requireRole(min: AccountRole): Promise<AccountContext> {
 }
 
 /**
+ * `requireRole` for a mutation. A legacy read-only member is stored as
+ * an `agent` with `is_read_only`, so the role check alone would let
+ * them write; every workspace mutation boundary refuses them here.
+ */
+export async function requireWriteRole(
+  min: AccountRole,
+): Promise<AccountContext> {
+  const ctx = await requireRole(min);
+  if (ctx.isReadOnly) {
+    throw new ForbiddenError("Read-only members cannot make changes.");
+  }
+  return ctx;
+}
+
+/**
  * Like `requireRole`, but against the org hierarchy (migration 082)
  * — the source of truth going forward. Use this in new code instead
  * of `requireRole`.

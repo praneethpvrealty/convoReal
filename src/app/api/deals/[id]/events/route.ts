@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 
-import { requireRole, toErrorResponse } from '@/lib/auth/account';
+import {
+  requireRole,
+  requireWriteRole,
+  toErrorResponse,
+} from '@/lib/auth/account';
 import { parseNoteInput, writeDealEvent } from '@/lib/deals/events';
 import { actorName, loadDealHead } from '@/lib/deals/server';
 import {
@@ -50,7 +54,7 @@ export async function GET(request: Request, { params }: RouteParams) {
 // recorded by the route that did the work.
 export async function POST(request: Request, { params }: RouteParams) {
   try {
-    const ctx = await requireRole('agent');
+    const ctx = await requireWriteRole('agent');
     const { id: dealId } = await params;
 
     const limit = await checkRateLimit(
@@ -74,9 +78,10 @@ export async function POST(request: Request, { params }: RouteParams) {
       accountId: ctx.accountId,
       dealId,
       eventType: 'note_added',
-      title: parsed.value.note.length > 120
-        ? `${parsed.value.note.slice(0, 117)}…`
-        : parsed.value.note,
+      title:
+        parsed.value.note.length > 120
+          ? `${parsed.value.note.slice(0, 117)}…`
+          : parsed.value.note,
       actorId: ctx.userId,
       actorName: await actorName(ctx.supabase, ctx.accountId, ctx.userId),
       source: parsed.value.source,
@@ -88,7 +93,10 @@ export async function POST(request: Request, { params }: RouteParams) {
         { status: 500 }
       );
     }
-    return NextResponse.json({ data: { id: outcome.eventId } }, { status: 201 });
+    return NextResponse.json(
+      { data: { id: outcome.eventId } },
+      { status: 201 }
+    );
   } catch (err) {
     return toErrorResponse(err);
   }

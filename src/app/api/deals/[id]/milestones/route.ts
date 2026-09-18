@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 
-import { requireRole, toErrorResponse } from '@/lib/auth/account';
+import {
+  requireRole,
+  requireWriteRole,
+  toErrorResponse,
+} from '@/lib/auth/account';
 import { parseEventSource, writeDealEvent } from '@/lib/deals/events';
 import { standardMilestoneRows } from '@/lib/deals/milestones';
 import { actorName, loadDealHead } from '@/lib/deals/server';
@@ -45,7 +49,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
 //   { title, target_date?, owner_id? }    — add one custom milestone
 export async function POST(request: Request, { params }: RouteParams) {
   try {
-    const ctx = await requireRole('agent');
+    const ctx = await requireWriteRole('agent');
     const { id: dealId } = await params;
 
     const limit = await checkRateLimit(

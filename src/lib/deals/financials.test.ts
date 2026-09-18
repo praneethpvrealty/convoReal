@@ -7,6 +7,7 @@ import {
   DEAL_FINANCIAL_FIELDS,
   INTERNAL_ONLY_DEAL_FIELDS,
   STAKEHOLDER_HIDDEN_DEAL_FIELDS,
+  TOKEN_FIELDS,
   containsInternalDealField,
   derivedToken,
   parseFinancialsPatch,
@@ -38,7 +39,11 @@ describe('[TXW-004] internal-only financial fields', () => {
     for (const field of STAKEHOLDER_HIDDEN_DEAL_FIELDS) {
       expect(projected, field).not.toHaveProperty(field);
     }
-    expect(projected).toEqual({ id: 'd1', title: 'Adithi — Site #19', value: 16200000 });
+    expect(projected).toEqual({
+      id: 'd1',
+      title: 'Adithi — Site #19',
+      value: 16200000,
+    });
   });
 
   it('every financial column is on both deny-lists, and notes only on the stakeholder one', () => {
@@ -59,10 +64,17 @@ describe('[TXW-004] internal-only financial fields', () => {
     const walk = (dir: string): string[] =>
       readdirSync(dir).flatMap((name) => {
         const p = join(dir, name);
-        return statSync(p).isDirectory() ? walk(p) : p.endsWith('.ts') ? [p] : [];
+        return statSync(p).isDirectory()
+          ? walk(p)
+          : p.endsWith('.ts')
+            ? [p]
+            : [];
       });
     for (const file of walk(publicDir)) {
-      expect(containsInternalDealField(readFileSync(file, 'utf8')), file).toEqual([]);
+      expect(
+        containsInternalDealField(readFileSync(file, 'utf8')),
+        file
+      ).toEqual([]);
     }
   });
 
@@ -77,7 +89,10 @@ describe('[TXW-004] internal-only financial fields', () => {
 describe('parseFinancialsPatch', () => {
   it('returns only the fields named, rounded to paise', () => {
     expect(
-      parseFinancialsPatch({ agreed_consideration: '16200000.456', tds_status: 'expected' }, 'deal')
+      parseFinancialsPatch(
+        { agreed_consideration: '16200000.456', tds_status: 'expected' },
+        'deal'
+      )
     ).toEqual({
       ok: true,
       value: { agreed_consideration: 16200000.46, tds_status: 'expected' },
@@ -89,7 +104,9 @@ describe('parseFinancialsPatch', () => {
       ok: false,
       error: 'Token amount must be a non-negative amount',
     });
-    expect(parseFinancialsPatch({ token_received_at: 'yesterday' }, 'deal')).toEqual({
+    expect(
+      parseFinancialsPatch({ token_received_at: 'yesterday' }, 'deal')
+    ).toEqual({
       ok: false,
       error: 'token_received_at must be YYYY-MM-DD',
     });
@@ -97,7 +114,10 @@ describe('parseFinancialsPatch', () => {
       ok: false,
       error: 'Unknown TDS status',
     });
-    expect(parseFinancialsPatch({}, 'deal')).toEqual({ ok: false, error: 'Nothing to update' });
+    expect(parseFinancialsPatch({}, 'deal')).toEqual({
+      ok: false,
+      error: 'Nothing to update',
+    });
   });
 
   it('[TXW-006] refuses token fields on a Den-linked deal', () => {
@@ -105,7 +125,9 @@ describe('parseFinancialsPatch', () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error).toMatch(/Token Safe/);
-    expect(parseFinancialsPatch({ agreed_consideration: 1 }, 'token_safe')).toEqual({
+    expect(
+      parseFinancialsPatch({ agreed_consideration: 1 }, 'token_safe')
+    ).toEqual({
       ok: true,
       value: { agreed_consideration: 1 },
     });
@@ -147,7 +169,10 @@ describe('[TXW-006] token source of truth', () => {
         funded_at: null,
       })
     ).toMatchObject({ source: 'token_safe', amount: null, status: 'proposed' });
-    expect(derivedToken(deal, null)).toMatchObject({ source: 'token_safe', amount: null });
+    expect(derivedToken(deal, null)).toMatchObject({
+      source: 'token_safe',
+      amount: null,
+    });
   });
 
   it('reads the deal columns for a non-Den deal', () => {
@@ -168,5 +193,25 @@ describe('[TXW-006] token source of truth', () => {
       reference: 'UTR9',
       status: null,
     });
+  });
+});
+
+describe('[TXW-006] Token Safe ownership is enforced below the API', () => {
+  const sql = readFileSync(
+    join(
+      process.cwd(),
+      'supabase/migrations/20260918010100_transaction_workspace_stage_events.sql'
+    ),
+    'utf8'
+  );
+
+  it('refuses token columns on a Den-linked deal by trigger', () => {
+    expect(sql).toMatch(
+      /CREATE TRIGGER enforce_deal_token_source_trigger\s+BEFORE INSERT OR UPDATE OF deal_room_id, token_amount, token_received_at, token_instrument_ref ON deals/
+    );
+    expect(sql).toMatch(/IF NEW\.deal_room_id IS NOT NULL AND \(/);
+    for (const column of TOKEN_FIELDS) {
+      expect(sql).toContain(`NEW.${column} IS NOT NULL`);
+    }
   });
 });

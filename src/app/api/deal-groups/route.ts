@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-import { requireRole, toErrorResponse } from '@/lib/auth/account';
+import { requireWriteRole, toErrorResponse } from '@/lib/auth/account';
 import { writeDealEvent } from '@/lib/deals/events';
 import { actorName } from '@/lib/deals/server';
 import {
@@ -14,7 +14,7 @@ import {
 // combined progress, never a parent.
 export async function POST(request: Request) {
   try {
-    const ctx = await requireRole('agent');
+    const ctx = await requireWriteRole('agent');
 
     const limit = await checkRateLimit(
       `agent:dealGroup:${ctx.userId}`,
@@ -37,7 +37,8 @@ export async function POST(request: Request) {
       ? Array.from(
           new Set(
             body.deal_ids.filter(
-              (id): id is string => typeof id === 'string' && id.trim().length > 0
+              (id): id is string =>
+                typeof id === 'string' && id.trim().length > 0
             )
           )
         )

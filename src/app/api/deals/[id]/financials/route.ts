@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 
-import { requireRole, toErrorResponse } from '@/lib/auth/account';
+import {
+  requireRole,
+  requireWriteRole,
+  toErrorResponse,
+} from '@/lib/auth/account';
 import { parseEventSource, writeDealEvent } from '@/lib/deals/events';
 import {
   DEAL_FINANCIAL_FIELDS,
@@ -20,7 +24,10 @@ type RouteParams = { params: Promise<{ id: string }> };
 
 const SELECT = ['id', 'deal_room_id', ...DEAL_FINANCIAL_FIELDS].join(', ');
 
-type FinancialsRow = DealFinancials & { id: string; deal_room_id: string | null };
+type FinancialsRow = DealFinancials & {
+  id: string;
+  deal_room_id: string | null;
+};
 
 async function loadFinancials(
   ctx: Awaited<ReturnType<typeof requireRole>>,
@@ -83,7 +90,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
 // are refused on a Den-linked deal; Token Safe owns them there.
 export async function PATCH(request: Request, { params }: RouteParams) {
   try {
-    const ctx = await requireRole('agent');
+    const ctx = await requireWriteRole('agent');
     const { id: dealId } = await params;
 
     const limit = await checkRateLimit(

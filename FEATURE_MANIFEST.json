@@ -569,7 +569,7 @@
       "invariants": [
         {
           "id": "TXW-001",
-          "rule": "Converting a journey item opens exactly one deal, preserves provenance through source_journey_item_id, lands on a non-terminal pipeline stage, and leaves the journey and its history untouched; converting again returns the same deal.",
+          "rule": "Converting a journey item opens exactly one deal, preserves provenance through source_journey_item_id, lands on the first active (never terminal) pipeline stage whatever the board order, seeds the default board service-side when the account has none, and leaves the journey and its history untouched; converting again returns the same deal.",
           "tests": [
             {
               "file": "src/lib/deals/conversion.test.ts",
@@ -644,7 +644,7 @@
         },
         {
           "id": "TXW-006",
-          "rule": "Token money has one source of truth per deal: a deal linked to an Owners Den room derives it from token_escrows and refuses token writes; any other deal records token/advance directly. Both surfaces hide the token fields when Token Safe owns them.",
+          "rule": "Token money has one source of truth per deal: a deal linked to an Owners Den room derives it from token_escrows and refuses token writes at the API and by database trigger; any other deal records token/advance directly. Both surfaces hide the token fields when Token Safe owns them.",
           "tests": [
             {
               "file": "src/lib/deals/financials.test.ts",
@@ -654,11 +654,14 @@
               "file": "src/lib/mobile-parity.test.ts",
               "case": "[TXW-006]"
             }
+          ],
+          "guards": [
+            "supabase/migrations/20260918010100_transaction_workspace_stage_events.sql"
           ]
         },
         {
           "id": "TXW-007",
-          "rule": "A deal document's status only moves forward (draft → reviewed → approved → executed); approved and executed documents are superseded by a newer upload and kept, never deleted; a superseded document cannot change; expiry is a date the workspace surfaces. Both surfaces label statuses identically.",
+          "rule": "A deal document's status only moves forward (draft → reviewed → approved → executed); approved and executed documents are superseded by a newer upload and kept, never deleted; a superseded document cannot change; all three rules hold at the API and by database trigger; expiry is a date the workspace surfaces. Both surfaces label statuses identically.",
           "tests": [
             {
               "file": "src/lib/deals/documents.test.ts",
@@ -670,7 +673,18 @@
             }
           ],
           "guards": [
-            "supabase/migrations/20260918010000_transaction_workspace.sql"
+            "supabase/migrations/20260918010000_transaction_workspace.sql",
+            "supabase/migrations/20260918010100_transaction_workspace_stage_events.sql"
+          ]
+        },
+        {
+          "id": "TXW-008",
+          "rule": "Every Transaction Workspace mutation (conversion, events, milestones, financials, documents, bundles, deal tasks) refuses read-only members through requireWriteRole, while reads remain available to viewers.",
+          "tests": [
+            {
+              "file": "src/lib/deals/events.test.ts",
+              "case": "refuses read-only members"
+            }
           ]
         }
       ]

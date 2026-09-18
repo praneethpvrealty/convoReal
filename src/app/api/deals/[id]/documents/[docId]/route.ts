@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 
-import { requireRole, toErrorResponse } from '@/lib/auth/account';
+import {
+  requireRole,
+  requireWriteRole,
+  toErrorResponse,
+} from '@/lib/auth/account';
 import {
   canDeleteDocument,
   canTransitionDocumentStatus,
@@ -77,7 +81,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string; docId: string }> }
 ) {
   try {
-    const ctx = await requireRole('agent');
+    const ctx = await requireWriteRole('agent');
     const { id: dealId, docId } = await params;
 
     const { data: doc } = await ctx.supabase
@@ -152,7 +156,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string; docId: string }> }
 ) {
   try {
-    const ctx = await requireRole('agent');
+    const ctx = await requireWriteRole('agent');
     const { id: dealId, docId } = await params;
 
     const body = (await request.json().catch(() => null)) as Record<

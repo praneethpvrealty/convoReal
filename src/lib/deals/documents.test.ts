@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -19,11 +22,21 @@ describe('[TXW-007] document lifecycle', () => {
 
   it('supersedes approved and executed papers instead of deleting them', () => {
     expect(canDeleteDocument({ status: null, superseded_by: null })).toBe(true);
-    expect(canDeleteDocument({ status: 'draft', superseded_by: null })).toBe(true);
-    expect(canDeleteDocument({ status: 'reviewed', superseded_by: null })).toBe(true);
-    expect(canDeleteDocument({ status: 'approved', superseded_by: null })).toBe(false);
-    expect(canDeleteDocument({ status: 'executed', superseded_by: null })).toBe(false);
-    expect(canDeleteDocument({ status: 'draft', superseded_by: 'newer' })).toBe(false);
+    expect(canDeleteDocument({ status: 'draft', superseded_by: null })).toBe(
+      true
+    );
+    expect(canDeleteDocument({ status: 'reviewed', superseded_by: null })).toBe(
+      true
+    );
+    expect(canDeleteDocument({ status: 'approved', superseded_by: null })).toBe(
+      false
+    );
+    expect(canDeleteDocument({ status: 'executed', superseded_by: null })).toBe(
+      false
+    );
+    expect(canDeleteDocument({ status: 'draft', superseded_by: 'newer' })).toBe(
+      false
+    );
   });
 
   it('classifies expiry against a date-only clock', () => {
@@ -39,10 +52,18 @@ describe('[TXW-007] document lifecycle', () => {
 describe('parseDocumentPatch', () => {
   it('accepts status, expiry and supersession', () => {
     expect(
-      parseDocumentPatch({ status: 'approved', expires_at: '2027-01-01', superseded_by: ' doc-2 ' })
+      parseDocumentPatch({
+        status: 'approved',
+        expires_at: '2027-01-01',
+        superseded_by: ' doc-2 ',
+      })
     ).toEqual({
       ok: true,
-      value: { status: 'approved', expires_at: '2027-01-01', superseded_by: 'doc-2' },
+      value: {
+        status: 'approved',
+        expires_at: '2027-01-01',
+        superseded_by: 'doc-2',
+      },
     });
     expect(parseDocumentPatch({ expires_at: '' })).toEqual({
       ok: true,
@@ -63,6 +84,43 @@ describe('parseDocumentPatch', () => {
       ok: false,
       error: 'superseded_by must name the replacing document',
     });
-    expect(parseDocumentPatch(null)).toEqual({ ok: false, error: 'Nothing to update' });
+    expect(parseDocumentPatch(null)).toEqual({
+      ok: false,
+      error: 'Nothing to update',
+    });
+  });
+});
+
+describe('[TXW-007] the lifecycle is enforced below the API', () => {
+  const sql = readFileSync(
+    join(
+      process.cwd(),
+      'supabase/migrations/20260918010100_transaction_workspace_stage_events.sql'
+    ),
+    'utf8'
+  );
+
+  it('installs a BEFORE UPDATE OR DELETE trigger on deal_documents', () => {
+    expect(sql).toMatch(
+      /CREATE TRIGGER enforce_deal_document_lifecycle_trigger\s+BEFORE UPDATE OR DELETE ON deal_documents/
+    );
+  });
+
+  it('refuses backward status moves, edits to superseded rows and locked deletes', () => {
+    expect(sql).toMatch(
+      /IF rank_to <= rank_from THEN\s+RAISE EXCEPTION 'Document status only moves forward'/
+    );
+    expect(sql).toMatch(
+      /IF OLD\.superseded_by IS NOT NULL THEN\s+RAISE EXCEPTION 'A superseded document cannot change'/
+    );
+    expect(sql).toMatch(
+      /OLD\.status IN \('approved', 'executed'\) THEN\s+RAISE EXCEPTION/
+    );
+  });
+
+  it('lets the cascade from a deleted deal through', () => {
+    expect(sql).toMatch(
+      /IF NOT EXISTS \(SELECT 1 FROM deals WHERE deals\.id = OLD\.deal_id\) THEN\s+RETURN OLD;/
+    );
   });
 });
