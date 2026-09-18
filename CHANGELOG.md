@@ -11,7 +11,7 @@ and polish.
 
 ## [Unreleased]
 
-### Merged 19 August – 18 September 2026 (#638–#896)
+### Merged 19 August – 18 September 2026 (#638–#904)
 
 This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
@@ -29,10 +29,42 @@ than a written entry. Newest first.
   live row every consumer reads. Web only for now — the WhatsApp connection
   screen has no mobile counterpart (see `FEATURE_ROADMAP.md`).
   **Migration required:** `20260918190000_whatsapp_number_profiles.sql`.
+- **Transaction Workspace (Phase 3): published updates.** From a deal's new
+  Updates tab, compose an update for the buyer side, the seller side or all
+  stakeholders from the milestones and timeline entries that side may already
+  see, preview it per recipient, and publish it as a durable snapshot: the
+  record cannot be edited afterwards, and a correction is a new update that
+  names the one it replaces. Each recipient is reached through the business
+  number (free-form inside their 24-hour window; the approved Purchase
+  progress template to a buyer outside it, with their private link following
+  their reply), through the agent's own WhatsApp as a hand-over the app never
+  sends, or by link only. Sent, opened and acknowledged are recorded
+  separately per recipient, and the stakeholder portal gains an Acknowledge
+  action. Web and mobile at parity. **Migration required:**
+  `20260918050000_transaction_workspace_updates.sql` and
+  `20260918050100_transaction_workspace_update_events.sql`. (#903)
+- Honor the Helper's active UI language (#902)
 - **Retain every portal ad ID mapped to a property.** Reposted or refreshed ads
   from the same portal no longer replace one another and reappear forever in
   the mapping queue; all retained IDs continue to resolve future leads exactly.
   **Migration required:** `20260918160000_portal_listing_aliases.sql`.
+- **Transaction Workspace (Phase 2): stakeholders and private links.** A deal
+  now lists its stakeholders (buyer, seller, advocate, banker, broker,
+  witness) by side, and each buyer- or seller-side person can be handed a
+  private link that shows only what their side may see: milestones, timeline
+  entries and documents each carry a visibility (internal only by default),
+  financials and internal notes never appear, and photos open with the
+  viewer's name watermarked. Links expire (24 hours, 7 or 30 days), can be
+  revoked, count every open in SQL, and log each open and document fetch;
+  a sensitive link can require a one-time code sent by email, checked at
+  most five times. Nobody outside the brokerage gets a login. Web and mobile
+  at parity, including the per-link access log. **Migration required:**
+  `20260918030000_transaction_workspace_stakeholders.sql`,
+  `20260918030200_deal_share_view_counter.sql` and
+  `20260918030100_transaction_workspace_share_events.sql`. (#900)
+- Make the audit timestamp test independent of the machine's timezone (#899)
+- Fail the build when CHANGELOG.md stops being readable text (#898)
+- Restore CHANGELOG.md as readable markdown (#897)
 - **Transaction Workspace (Phase 1).** A Journey converts into a deal's closing
   record: overview with internal-only financials, an immutable event timeline,
   reusable milestones kept separate from pipeline stage moves, deal-linked
