@@ -1,5 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
+import { isDealVisibility, type DealVisibility } from './visibility';
+
 /**
  * The Transaction Workspace timeline.
  *
@@ -21,7 +23,12 @@ export type DealEventType =
   | 'document_status_changed'
   | 'document_superseded'
   | 'group_changed'
-  | 'note_added';
+  | 'note_added'
+  | 'stakeholder_added'
+  | 'stakeholder_updated'
+  | 'stakeholder_removed'
+  | 'link_created'
+  | 'link_revoked';
 
 export type DealEventSource = 'web' | 'mobile' | 'api' | 'system';
 
@@ -36,6 +43,7 @@ export interface DealEvent {
   title: string;
   metadata: Record<string, unknown>;
   dedupe_key: string | null;
+  visibility: DealVisibility;
   created_at: string;
 }
 
@@ -53,7 +61,23 @@ export const DEAL_EVENT_LABELS: Record<DealEventType, string> = {
   document_superseded: 'Document superseded',
   group_changed: 'Bundle changed',
   note_added: 'Note',
+  stakeholder_added: 'Stakeholder added',
+  stakeholder_updated: 'Stakeholder updated',
+  stakeholder_removed: 'Stakeholder removed',
+  link_created: 'Share link created',
+  link_revoked: 'Share link revoked',
 };
+
+/** Event types the first migration's CHECK did not know; the routes
+ *  that write them treat a refused insert as best-effort until the
+ *  held migration lands. */
+export const PHASE_2_EVENT_TYPES: readonly DealEventType[] = [
+  'stakeholder_added',
+  'stakeholder_updated',
+  'stakeholder_removed',
+  'link_created',
+  'link_revoked',
+];
 
 export function parseEventSource(v: unknown): DealEventSource {
   return v === 'mobile' || v === 'api' ? v : 'web';
@@ -70,6 +94,7 @@ export interface WriteDealEventArgs {
   source?: DealEventSource;
   metadata?: Record<string, unknown>;
   dedupeKey?: string | null;
+  visibility?: DealVisibility;
 }
 
 export interface WriteDealEventResult {
@@ -90,6 +115,7 @@ export async function writeDealEvent({
   source = 'web',
   metadata,
   dedupeKey,
+  visibility = 'internal',
 }: WriteDealEventArgs): Promise<WriteDealEventResult> {
   const { data, error } = await db
     .from('deal_events')
@@ -103,12 +129,18 @@ export async function writeDealEvent({
       title: title.slice(0, 200),
       metadata: metadata ?? {},
       dedupe_key: dedupeKey ?? null,
+      visibility,
     })
     .select('id')
     .single();
 
   if (!error) {
-    return { ok: true, duplicate: false, eventId: data?.id ?? null, error: null };
+    return {
+      ok: true,
+      duplicate: false,
+      eventId: data?.id ?? null,
+      error: null,
+    };
   }
   if (error.code === '23505') {
     return { ok: true, duplicate: true, eventId: null, error: null };
@@ -118,15 +150,36 @@ export async function writeDealEvent({
 
 const NOTE_MAX = 2000;
 
-export function parseNoteInput(
-  raw: unknown
-): { ok: true; value: { note: string; source: DealEventSource } } | { ok: false; error: string } {
-  if (!raw || typeof raw !== 'object') return { ok: false, error: 'note is required' };
+export function parseNoteInput(raw: unknown):
+  | {
+      ok: true;
+      value: {
+        note: string;
+        source: DealEventSource;
+        visibility: DealVisibility;
+      };
+    }
+  | { ok: false; error: string } {
+  if (!raw || typeof raw !== 'object')
+    return { ok: false, error: 'note is required' };
   const input = raw as Record<string, unknown>;
   const note = typeof input.note === 'string' ? input.note.trim() : '';
   if (!note) return { ok: false, error: 'note is required' };
   if (note.length > NOTE_MAX) {
-    return { ok: false, error: `Note must be ${NOTE_MAX.toLocaleString()} characters or less` };
+    return {
+      ok: false,
+      error: `Note must be ${NOTE_MAX.toLocaleString()} characters or less`,
+    };
   }
-  return { ok: true, value: { note, source: parseEventSource(input.source) } };
+  let visibility: DealVisibility = 'internal';
+  if (input.visibility !== undefined) {
+    if (!isDealVisibility(input.visibility)) {
+      return { ok: false, error: 'Unknown visibility' };
+    }
+    visibility = input.visibility;
+  }
+  return {
+    ok: true,
+    value: { note, source: parseEventSource(input.source), visibility },
+  };
 }

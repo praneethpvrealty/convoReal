@@ -3,34 +3,55 @@ import { STAKEHOLDER_HIDDEN_DEAL_FIELDS } from './financials';
 /**
  * The one visibility resolver for the Transaction Workspace.
  *
- * Phase 1 has no external surface, but the rule ships now so Phase 2's
- * stakeholder links can only ever read through it. Every external
- * representation of a deal, a bundle, a milestone or an event passes
- * through `projectForAudience`; nothing else may build one.
+ * Every external representation of a deal, a bundle, a milestone, an
+ * event or a document passes through `projectForAudience`; nothing
+ * else may build one. The public deal-share routes are the only
+ * external surface and src/lib/deals/external-view.test.ts pins them
+ * to this module.
  *
  * Audiences:
  *   internal — a member of the account. Sees everything.
  *   external — one stakeholder on one side of one or more deals. Sees
  *              only the deals they are party to, only the fields that
- *              are not internal-only, and only the items whose
+ *              are not stakeholder-hidden, and only the items whose
  *              visibility includes their side.
  */
 
-export type DealSide = 'buyer' | 'seller';
+export type DealSide = 'buyer' | 'seller' | 'internal';
 
 export type DealVisibility =
-  | 'internal'
-  | 'buyer_side'
-  | 'seller_side'
-  | 'all_stakeholders';
+  'internal' | 'buyer_side' | 'seller_side' | 'all_stakeholders';
+
+export const DEAL_VISIBILITIES: readonly DealVisibility[] = [
+  'internal',
+  'buyer_side',
+  'seller_side',
+  'all_stakeholders',
+];
+
+/** Mirrored in mobile/lib/deal-workspace.ts; guarded by mobile-parity.test.ts. */
+export const DEAL_VISIBILITY_LABELS: Record<DealVisibility, string> = {
+  internal: 'Internal only',
+  buyer_side: 'Buyer side',
+  seller_side: 'Seller side',
+  all_stakeholders: 'All stakeholders',
+};
+
+export function isDealVisibility(v: unknown): v is DealVisibility {
+  return (
+    typeof v === 'string' &&
+    (DEAL_VISIBILITIES as readonly string[]).includes(v)
+  );
+}
 
 export type Audience =
-  | { kind: 'internal' }
-  | { kind: 'external'; side: DealSide; contactId: string };
+  { kind: 'internal' } | { kind: 'external'; side: DealSide; partyId: string };
 
+/** Who is party to a deal, by stakeholder id (or any stable id the
+ *  caller uses for a person). */
 export interface DealParties {
-  buyer_contact_ids: readonly string[];
-  seller_contact_ids: readonly string[];
+  buyer_party_ids: readonly string[];
+  seller_party_ids: readonly string[];
 }
 
 export interface VisibleItem {
@@ -38,12 +59,15 @@ export interface VisibleItem {
   [key: string]: unknown;
 }
 
-export function sideCanSee(side: DealSide, visibility: DealVisibility): boolean {
+export function sideCanSee(
+  side: DealSide,
+  visibility: DealVisibility
+): boolean {
   switch (visibility) {
     case 'internal':
       return false;
     case 'all_stakeholders':
-      return true;
+      return side === 'buyer' || side === 'seller';
     case 'buyer_side':
       return side === 'buyer';
     case 'seller_side':
@@ -53,12 +77,15 @@ export function sideCanSee(side: DealSide, visibility: DealVisibility): boolean 
 
 export function isPartyTo(audience: Audience, parties: DealParties): boolean {
   if (audience.kind === 'internal') return true;
+  if (audience.side === 'internal') return false;
   const ids =
-    audience.side === 'buyer' ? parties.buyer_contact_ids : parties.seller_contact_ids;
-  return ids.includes(audience.contactId);
+    audience.side === 'buyer'
+      ? parties.buyer_party_ids
+      : parties.seller_party_ids;
+  return ids.includes(audience.partyId);
 }
 
-function stripInternal<T extends Record<string, unknown>>(row: T): Partial<T> {
+function stripHidden<T extends Record<string, unknown>>(row: T): Partial<T> {
   const out: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(row)) {
     if (!STAKEHOLDER_HIDDEN_DEAL_FIELDS.includes(key)) out[key] = value;
@@ -92,7 +119,7 @@ export function projectDealForAudience(
   }
   if (!isPartyTo(audience, parties)) return null;
   return {
-    deal: stripInternal(row),
+    deal: stripHidden(row),
     items: items.filter((item) => sideCanSee(audience.side, item.visibility)),
   };
 }

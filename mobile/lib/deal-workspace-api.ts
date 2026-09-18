@@ -16,10 +16,16 @@ import type {
   DealFinancialsRow,
   DealMilestoneRow,
   DealMilestoneStatus,
+  DealShareLinkRow,
+  DealShareTtlKey,
+  DealSide,
+  DealStakeholderRow,
   DealTaskRow,
+  DealVisibility,
   InvoiceDetail,
   InvoiceRow,
   InvoiceSide,
+  StakeholderRole,
 } from './deal-workspace';
 
 export function fetchInvoices(dealId: string) {
@@ -304,5 +310,107 @@ export function convertJourneyItemToDeal(itemId: string) {
   return apiFetch<{ data: { id: string; existing: boolean } }>(
     '/api/journey/convert-to-deal',
     { method: 'POST', ...json({ item_id: itemId }) }
+  ).then((r) => r.data);
+}
+
+// ------------------------------------------------------------------
+// Phase 2 — stakeholders and share links.
+// ------------------------------------------------------------------
+
+export function fetchDealStakeholders(dealId: string) {
+  return apiFetch<{ data: DealStakeholderRow[] }>(
+    `/api/deals/${dealId}/stakeholders`
+  ).then((r) => r.data ?? []);
+}
+
+export function addDealStakeholder(
+  dealId: string,
+  input: {
+    name: string;
+    role: StakeholderRole;
+    side: DealSide;
+    phone: string | null;
+    email: string | null;
+  }
+) {
+  return apiFetch<{ data: DealStakeholderRow }>(
+    `/api/deals/${dealId}/stakeholders`,
+    {
+      method: 'POST',
+      ...json(input),
+    }
+  ).then((r) => r.data);
+}
+
+export function removeDealStakeholder(dealId: string, stakeholderId: string) {
+  return apiFetch<{ data: { id: string } }>(
+    `/api/deals/${dealId}/stakeholders/${stakeholderId}`,
+    { method: 'DELETE' }
+  );
+}
+
+/** The plaintext URL comes back exactly once, in this response. */
+export function createDealShareLink(
+  dealId: string,
+  input: { stakeholderId: string; ttl: DealShareTtlKey; otpRequired: boolean }
+) {
+  return apiFetch<{ data: DealShareLinkRow & { url: string } }>(
+    `/api/deals/${dealId}/share-links`,
+    {
+      method: 'POST',
+      ...json({
+        stakeholder_id: input.stakeholderId,
+        ttl: input.ttl,
+        otp_required: input.otpRequired,
+      }),
+    }
+  ).then((r) => r.data);
+}
+
+export function revokeDealShareLink(dealId: string, linkId: string) {
+  return apiFetch<{ data: { id: string } }>(
+    `/api/deals/${dealId}/share-links/${linkId}?source=mobile`,
+    { method: 'DELETE' }
+  );
+}
+
+export function fetchDealShareAccess(dealId: string, linkId: string) {
+  return apiFetch<{
+    data: Array<{ id: string; event: string; created_at: string }>;
+  }>(`/api/deals/${dealId}/share-links/${linkId}/access`).then(
+    (r) => r.data ?? []
+  );
+}
+
+export function setDealMilestoneVisibility(
+  dealId: string,
+  milestoneId: string,
+  visibility: DealVisibility
+) {
+  return apiFetch<{ data: DealMilestoneRow }>(
+    `/api/deals/${dealId}/milestones/${milestoneId}`,
+    { method: 'PATCH', ...json({ visibility }) }
+  ).then((r) => r.data);
+}
+
+export function addDealNoteWithVisibility(
+  dealId: string,
+  note: string,
+  visibility: DealVisibility
+) {
+  return apiFetch<{ data: { id: string } }>(`/api/deals/${dealId}/events`, {
+    method: 'POST',
+    ...json({ note, visibility }),
+  });
+}
+
+export function setDealDocumentVisibility(
+  dealId: string,
+  docId: string,
+  visibility: DealVisibility
+) {
+  return apiFetch<{ data: DealDocumentRow }>(
+    `/api/deals/${dealId}/documents/${docId}`,
+    { method: 'PATCH', ...json({ visibility }) }
   ).then((r) => r.data);
 }

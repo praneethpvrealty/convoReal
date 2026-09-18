@@ -9,11 +9,10 @@
  * this module can reach a stage.
  */
 
+import { isDealVisibility, type DealVisibility } from './visibility';
+
 export type DealMilestoneStatus =
-  | 'pending'
-  | 'in_progress'
-  | 'completed'
-  | 'skipped';
+  'pending' | 'in_progress' | 'completed' | 'skipped';
 
 export const DEAL_MILESTONE_STATUSES: readonly DealMilestoneStatus[] = [
   'pending',
@@ -69,6 +68,7 @@ export interface DealMilestone {
   completed_at: string | null;
   owner_id: string | null;
   notes: string | null;
+  visibility: DealVisibility;
   created_at: string;
   updated_at: string;
 }
@@ -139,6 +139,7 @@ export interface MilestonePatch {
   target_date?: string | null;
   owner_id?: string | null;
   notes?: string | null;
+  visibility?: DealVisibility;
 }
 
 type ParseResult<T> = { ok: true; value: T } | { ok: false; error: string };
@@ -191,6 +192,12 @@ export function parseMilestonePatch(raw: unknown): ParseResult<MilestonePatch> {
       return { ok: false, error: 'Notes must be 2,000 characters or less' };
     }
     patch.notes = notes || null;
+  }
+  if (input.visibility !== undefined) {
+    if (!isDealVisibility(input.visibility)) {
+      return { ok: false, error: 'Unknown visibility' };
+    }
+    patch.visibility = input.visibility;
   }
   if (Object.keys(patch).length === 0) {
     return { ok: false, error: 'Nothing to update' };

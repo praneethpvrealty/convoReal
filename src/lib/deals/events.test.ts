@@ -3,7 +3,12 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { DEAL_EVENT_LABELS, parseEventSource, parseNoteInput } from './events';
+import {
+  DEAL_EVENT_LABELS,
+  PHASE_2_EVENT_TYPES,
+  parseEventSource,
+  parseNoteInput,
+} from './events';
 
 const migration = readFileSync(
   join(
@@ -50,16 +55,31 @@ describe('[TXW-002] deal_events are immutable in the database', () => {
     );
   });
 
-  it('every event type the code can write is accepted by the CHECK', () => {
-    const check = migration.match(
+  it('every event type the code can write is accepted by a CHECK', () => {
+    const phase2 = readFileSync(
+      join(
+        process.cwd(),
+        'supabase/migrations/20260918030100_transaction_workspace_share_events.sql'
+      ),
+      'utf8'
+    );
+    const initial = migration.match(
       /event_type TEXT NOT NULL CHECK \(event_type IN \(([\s\S]*?)\)\)/
     );
-    expect(check).not.toBeNull();
-    const allowed = new Set(
-      Array.from(check![1].matchAll(/'([a-z_]+)'/g), (m) => m[1])
+    const widened = phase2.match(/CHECK \(event_type IN \(([\s\S]*?)\)\)/);
+    expect(initial).not.toBeNull();
+    expect(widened).not.toBeNull();
+    const first = new Set(
+      Array.from(initial![1].matchAll(/'([a-z_]+)'/g), (m) => m[1])
     );
+    const latest = new Set(
+      Array.from(widened![1].matchAll(/'([a-z_]+)'/g), (m) => m[1])
+    );
+    for (const type of first)
+      expect(latest.has(type), `${type} dropped`).toBe(true);
     for (const type of Object.keys(DEAL_EVENT_LABELS)) {
-      expect(allowed.has(type), type).toBe(true);
+      expect(latest.has(type), type).toBe(true);
+      if (!first.has(type)) expect(PHASE_2_EVENT_TYPES).toContain(type);
     }
   });
 });
@@ -70,7 +90,11 @@ describe('parseNoteInput', () => {
       parseNoteInput({ note: '  Seller wants Friday  ', source: 'mobile' })
     ).toEqual({
       ok: true,
-      value: { note: 'Seller wants Friday', source: 'mobile' },
+      value: {
+        note: 'Seller wants Friday',
+        source: 'mobile',
+        visibility: 'internal',
+      },
     });
     expect(parseNoteInput({ note: '' })).toEqual({
       ok: false,

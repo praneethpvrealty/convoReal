@@ -14,6 +14,10 @@ import {
 } from '@/lib/deals/documents';
 import { parseEventSource, writeDealEvent } from '@/lib/deals/events';
 import { actorName } from '@/lib/deals/server';
+import {
+  DEAL_VISIBILITY_LABELS,
+  type DealVisibility,
+} from '@/lib/deals/visibility';
 import { DEAL_DOCUMENT_BUCKET, signedUrlFor } from '@/lib/invoices/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 
@@ -204,6 +208,9 @@ export async function PATCH(
     if (parsed.value.expires_at !== undefined) {
       update.expires_at = parsed.value.expires_at;
     }
+    if (parsed.value.visibility !== undefined) {
+      update.visibility = parsed.value.visibility;
+    }
     if (parsed.value.superseded_by !== undefined) {
       if (parsed.value.superseded_by === docId) {
         return NextResponse.json(
@@ -259,7 +266,11 @@ export async function PATCH(
         },
       });
     }
-    if (update.status !== undefined || update.expires_at !== undefined) {
+    if (
+      update.status !== undefined ||
+      update.expires_at !== undefined ||
+      update.visibility !== undefined
+    ) {
       const to = update.status as DealDocumentStatus | undefined;
       await writeDealEvent({
         db: ctx.supabase,
@@ -268,7 +279,9 @@ export async function PATCH(
         eventType: 'document_status_changed',
         title: to
           ? `${doc.title}: ${DEAL_DOCUMENT_STATUS_LABELS[to]}`
-          : `${doc.title}: expiry ${update.expires_at ? `set to ${String(update.expires_at)}` : 'cleared'}`,
+          : update.visibility !== undefined
+            ? `${doc.title}: visibility ${DEAL_VISIBILITY_LABELS[update.visibility as DealVisibility]}`
+            : `${doc.title}: expiry ${update.expires_at ? `set to ${String(update.expires_at)}` : 'cleared'}`,
         actorId: ctx.userId,
         actorName: name,
         source,
@@ -277,6 +290,7 @@ export async function PATCH(
           from_status: fromStatus,
           to_status: to ?? fromStatus,
           expires_at: data.expires_at ?? null,
+          visibility: data.visibility ?? null,
         },
       });
     }

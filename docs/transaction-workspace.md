@@ -71,13 +71,44 @@ up Phase 2.
 | `20260918010000_transaction_workspace.sql`              | at push (purely additive) | `deal_groups`, `deal_events`, `deal_milestones`; new nullable columns on `deals`, `todos`, `deal_documents`; `transaction_workspace_index()`.               |
 | `20260918010100_transaction_workspace_stage_events.sql` | after merge               | Trigger on `deals` recording `stage_changed`; `journey_events` CHECK widened with `converted_to_deal`. Changes production behaviour, so it waits for green. |
 
-## Out of scope for this phase
+## Phase 2 — controlled collaboration
 
-Stakeholder links, per-recipient visibility, WhatsApp update delivery
-and publish-as-snapshot are Phase 2 and 3. The Copilot chunk
-`deals.limit-stakeholder-links` says so to the user.
+The people outside the brokerage see their side of the deal without
+ever getting a login.
+
+| Decision                                                                                                                                                                                                                                                                                                                                                                                          | Why                                                                                                                                                                                                                                                                                                                           |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **A stakeholder is a name, a role and a side.** `deal_stakeholders` holds buyer, seller, advocate, banker, broker, witness or other, on the buyer, seller or internal side, optionally linked to a contact.                                                                                                                                                                                       | Roles describe the person; the side decides what they see. An advocate can act for either side, so the form asks. Internal-side people use the workspace itself and never get a link.                                                                                                                                         |
+| **Links are per stakeholder, hashed, capped, revocable and logged.** `deal_share_links` stores only the SHA-256 of the token (as `account_invitations` does), expiry is 24 hours, 7 or 30 days and never more, revocation is a timestamp so the access log survives, and every open, code send, code check and document fetch is a row in `deal_share_access_log` with the client address hashed. | A database read never yields a usable URL; a lost phone is bounded by the expiry; the agent can see exactly who opened what.                                                                                                                                                                                                  |
+| **One resolver, one payload builder.** `src/lib/deals/external-view.ts` is the only code that builds an external representation, and it does so through `src/lib/deals/visibility.ts`. `external-view.test.ts` scans every route under `src/app/api/public/deal-share` and fails if one names a financial column, builds its own payload, or touches Supabase Auth.                               | Phase 1 wrote the cross-seller bundle test before any external surface existed; Phase 2 is the first consumer, and the test now guards a real door.                                                                                                                                                                           |
+| **Visibility lives on the row.** `deal_events`, `deal_milestones` and `deal_documents` each carry `visibility` (internal, buyer side, seller side, all stakeholders), default internal. An event's visibility is fixed at insert because the table is immutable; a note's is chosen when it is written.                                                                                           | Nothing filed before Phase 2 leaks by default, and "who can see this" is answered on the thing itself, not in a side table. "Selected people" is not modelled; a link's side is the unit.                                                                                                                                     |
+| **Bundles: the same person sees their siblings.** On a bundled deal the view includes sibling deals only where a stakeholder on that sibling is the same person (same contact, else same phone, else same email) on the same side.                                                                                                                                                                | Adithi on Sites #19 and #20 sees both; each seller sees one. The party id on a sibling is the matching stakeholder row there, never the primary deal's.                                                                                                                                                                       |
+| **OTP is a per-token challenge, never an account.** A sensitive link sets `otp_required`. The public route emails a six-digit code (Resend), stores only an HMAC of it bound to the link, allows five attempts in ten minutes, and on success returns a signed unlock for that link that lives thirty minutes in the stakeholder's browser session.                                               | Den and buyer verification create `auth.users` rows — the persona cost Phase 2 exists to avoid. The unlock is the whole of the stakeholder's identity and dies with the link. WhatsApp OTP delivery waits for Phase 3's template work; a stakeholder with no email cannot be given a code-protected link, and the UI says so. |
+| **Documents are re-checked at the byte boundary and photos are watermarked.** The document route re-validates the link, the unlock and the document's visibility with the same rule the view used, then streams a photo through `watermarkImage` with the stakeholder's name burned in.                                                                                                           | The view is a render; the bytes are the asset.                                                                                                                                                                                                                                                                                |
+| **PDFs are not stamped.** A PDF is handed over through a sixty-second signed URL, unwatermarked, and the fetch is logged.                                                                                                                                                                                                                                                                         | Nothing in the stack can write into an existing PDF — the invoice renderer builds PDFs from scratch and there is no PDF library in the dependency tree. Adding one is a dependency decision, recorded in `FEATURE_ROADMAP.md`, not something to slip into a feature PR.                                                       |
+| **The link is handed over by the agent, never sent by the app.** Web offers Copy and a `wa.me` handoff with a prefilled message; mobile offers Copy and the system share sheet.                                                                                                                                                                                                                   | Sending through the Engine number is Phase 3 and runs into the template-category rules; an agent-initiated message from their own WhatsApp does not.                                                                                                                                                                          |
+
+Surfaces: the Stakeholders tab on web and mobile (add, share link with
+expiry and code toggle, copy or hand over, revoke, per-link access
+log), visibility pickers on notes, milestones and documents on both,
+and the public portal at `/deal/[token]` (a browser-bound surface per
+§2.8) with the code gate.
+
+Migrations: `20260918030000_transaction_workspace_stakeholders.sql`
+(additive, applied at push) and
+`20260918030100_transaction_workspace_share_events.sql` (widens the
+`deal_events` CHECK with the stakeholder and link event types; held to
+merge, and the routes that write those types treat a refused insert as
+best-effort until it lands).
+
+## Out of scope after Phase 2
+
+Publishing composed updates as durable snapshots, WhatsApp delivery
+through approved templates, sent/opened/acknowledged tracking on an
+update, "selected people" visibility, PDF watermarking and WhatsApp OTP
+are Phase 3 and later.
 
 ## Invariants
 
-`FEATURE_MANIFEST.json` → `transaction-workspace` (TXW-001 … TXW-008).
+`FEATURE_MANIFEST.json` → `transaction-workspace` (TXW-001 … TXW-012).
 Each names its executable regression cases.

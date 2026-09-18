@@ -8,6 +8,8 @@
  * the lifecycle existed, or one nobody has classified yet.
  */
 
+import { isDealVisibility, type DealVisibility } from './visibility';
+
 export type DealDocumentStatus = 'draft' | 'reviewed' | 'approved' | 'executed';
 
 export const DEAL_DOCUMENT_STATUSES: readonly DealDocumentStatus[] = [
@@ -37,7 +39,9 @@ export function canTransitionDocumentStatus(
   to: DealDocumentStatus
 ): boolean {
   if (from === null) return true;
-  return DEAL_DOCUMENT_STATUSES.indexOf(to) > DEAL_DOCUMENT_STATUSES.indexOf(from);
+  return (
+    DEAL_DOCUMENT_STATUSES.indexOf(to) > DEAL_DOCUMENT_STATUSES.indexOf(from)
+  );
 }
 
 /** Approved and executed papers are superseded, never deleted. */
@@ -68,6 +72,7 @@ export interface DocumentPatch {
   status?: DealDocumentStatus;
   expires_at?: string | null;
   superseded_by?: string;
+  visibility?: DealVisibility;
 }
 
 type ParseResult<T> = { ok: true; value: T } | { ok: false; error: string };
@@ -96,9 +101,18 @@ export function parseDocumentPatch(raw: unknown): ParseResult<DocumentPatch> {
   if (input.superseded_by !== undefined) {
     const v = input.superseded_by;
     if (typeof v !== 'string' || !v.trim()) {
-      return { ok: false, error: 'superseded_by must name the replacing document' };
+      return {
+        ok: false,
+        error: 'superseded_by must name the replacing document',
+      };
     }
     patch.superseded_by = v.trim();
+  }
+  if (input.visibility !== undefined) {
+    if (!isDealVisibility(input.visibility)) {
+      return { ok: false, error: 'Unknown visibility' };
+    }
+    patch.visibility = input.visibility;
   }
   if (Object.keys(patch).length === 0) {
     return { ok: false, error: 'Nothing to update' };

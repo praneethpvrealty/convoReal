@@ -21,12 +21,15 @@ const site19: ProjectableDeal = {
   agreed_consideration: 16200000,
   registered_consideration: 14000000,
   notes: 'seller 19 will accept 1.58 if registration is this month',
-  parties: { buyer_contact_ids: [ADITHI], seller_contact_ids: [SELLER_19] },
+  parties: { buyer_party_ids: [ADITHI], seller_party_ids: [SELLER_19] },
   items: [
     { visibility: 'all_stakeholders', title: 'Legal documents collected' },
     { visibility: 'seller_side', title: 'Seller to produce mother deed' },
     { visibility: 'buyer_side', title: 'Loan sanction due' },
-    { visibility: 'internal', title: 'Seller anxious, push for registration date' },
+    {
+      visibility: 'internal',
+      title: 'Seller anxious, push for registration date',
+    },
   ],
 };
 
@@ -37,7 +40,7 @@ const site20: ProjectableDeal = {
   agreed_consideration: 15800000,
   registered_consideration: 13500000,
   notes: 'seller 20 has a competing offer',
-  parties: { buyer_contact_ids: [ADITHI], seller_contact_ids: [SELLER_20] },
+  parties: { buyer_party_ids: [ADITHI], seller_party_ids: [SELLER_20] },
   items: [
     { visibility: 'all_stakeholders', title: 'Seller documents under review' },
     { visibility: 'seller_side', title: 'Seller to clear khata' },
@@ -60,7 +63,7 @@ describe('[TXW-005] bundle isolation', () => {
     const view = projectBundleForAudience([site19, site20], {
       kind: 'external',
       side: 'seller',
-      contactId: SELLER_19,
+      partyId: SELLER_19,
     });
     expect(view.map((d) => d.deal.id)).toEqual(['deal-19']);
     const [only] = view;
@@ -80,7 +83,7 @@ describe('[TXW-005] bundle isolation', () => {
     const view = projectBundleForAudience([site19, site20], {
       kind: 'external',
       side: 'seller',
-      contactId: SELLER_20,
+      partyId: SELLER_20,
     });
     expect(view.map((d) => d.deal.id)).toEqual(['deal-20']);
     expect(JSON.stringify(view)).not.toContain('Site #19');
@@ -91,7 +94,7 @@ describe('[TXW-005] bundle isolation', () => {
     const view = projectBundleForAudience([site19, site20], {
       kind: 'external',
       side: 'buyer',
-      contactId: ADITHI,
+      partyId: ADITHI,
     });
     expect(view.map((d) => d.deal.id)).toEqual(['deal-19', 'deal-20']);
     expect(view[0].items.map((i) => i.title)).toEqual([
@@ -109,11 +112,15 @@ describe('[TXW-005] bundle isolation', () => {
       projectBundleForAudience([site19, site20], {
         kind: 'external',
         side: 'buyer',
-        contactId: 'contact-someone-else',
+        partyId: 'contact-someone-else',
       })
     ).toEqual([]);
     expect(
-      projectDealForAudience(site19, { kind: 'external', side: 'seller', contactId: ADITHI })
+      projectDealForAudience(site19, {
+        kind: 'external',
+        side: 'seller',
+        partyId: ADITHI,
+      })
     ).toBeNull();
   });
 

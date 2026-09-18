@@ -105,6 +105,7 @@ export interface DealDocumentRow {
   status: DealDocumentStatus | null;
   superseded_by: string | null;
   expires_at: string | null;
+  visibility: DealVisibility;
 }
 
 /** Mirrors DEAL_DOCUMENT_MIME_TYPES in src/lib/invoices/types.ts and the
@@ -213,7 +214,13 @@ export function extractionEntries(
 // ------------------------------------------------------------------
 
 export type DealWorkspaceTab =
-  'overview' | 'timeline' | 'milestones' | 'tasks' | 'documents' | 'invoices';
+  | 'overview'
+  | 'timeline'
+  | 'milestones'
+  | 'tasks'
+  | 'documents'
+  | 'stakeholders'
+  | 'invoices';
 
 /** Mirrored from src/components/deals/deal-workspace.tsx. */
 export const DEAL_WORKSPACE_TABS: ReadonlyArray<{
@@ -225,6 +232,7 @@ export const DEAL_WORKSPACE_TABS: ReadonlyArray<{
   { id: 'milestones', label: 'Milestones' },
   { id: 'tasks', label: 'Tasks' },
   { id: 'documents', label: 'Documents' },
+  { id: 'stakeholders', label: 'Stakeholders' },
   { id: 'invoices', label: 'Invoices' },
 ];
 
@@ -249,6 +257,7 @@ export interface DealMilestoneRow {
   target_date: string | null;
   completed_at: string | null;
   notes: string | null;
+  visibility: DealVisibility;
 }
 
 export type DealDocumentStatus = 'draft' | 'reviewed' | 'approved' | 'executed';
@@ -297,7 +306,12 @@ export type DealEventType =
   | 'document_status_changed'
   | 'document_superseded'
   | 'group_changed'
-  | 'note_added';
+  | 'note_added'
+  | 'stakeholder_added'
+  | 'stakeholder_updated'
+  | 'stakeholder_removed'
+  | 'link_created'
+  | 'link_revoked';
 
 /** Mirrored from src/lib/deals/events.ts. */
 export const DEAL_EVENT_LABELS: Record<DealEventType, string> = {
@@ -313,6 +327,11 @@ export const DEAL_EVENT_LABELS: Record<DealEventType, string> = {
   document_superseded: 'Document superseded',
   group_changed: 'Bundle changed',
   note_added: 'Note',
+  stakeholder_added: 'Stakeholder added',
+  stakeholder_updated: 'Stakeholder updated',
+  stakeholder_removed: 'Stakeholder removed',
+  link_created: 'Share link created',
+  link_revoked: 'Share link revoked',
 };
 
 export interface DealEventRow {
@@ -322,6 +341,7 @@ export interface DealEventRow {
   actor_name: string | null;
   title: string;
   metadata: Record<string, unknown>;
+  visibility: DealVisibility;
   created_at: string;
 }
 
@@ -380,4 +400,128 @@ export function financialsPatch(
     patch[key] = after[key] === '' ? null : after[key];
   }
   return patch;
+}
+
+// ------------------------------------------------------------------
+// Transaction Workspace Phase 2 — stakeholders, links, visibility.
+// Mirrored from src/lib/deals/{stakeholders,share-links,visibility}.ts;
+// guarded by src/lib/mobile-parity.test.ts.
+// ------------------------------------------------------------------
+
+export type DealVisibility =
+  'internal' | 'buyer_side' | 'seller_side' | 'all_stakeholders';
+
+/** Mirrored from src/lib/deals/visibility.ts. */
+export const DEAL_VISIBILITY_LABELS: Record<DealVisibility, string> = {
+  internal: 'Internal only',
+  buyer_side: 'Buyer side',
+  seller_side: 'Seller side',
+  all_stakeholders: 'All stakeholders',
+};
+
+export type DealSide = 'buyer' | 'seller' | 'internal';
+
+export type StakeholderRole =
+  'buyer' | 'seller' | 'advocate' | 'banker' | 'broker' | 'witness' | 'other';
+
+/** Mirrored from src/lib/deals/stakeholders.ts. */
+export const STAKEHOLDER_ROLE_LABELS: Record<StakeholderRole, string> = {
+  buyer: 'Buyer',
+  seller: 'Seller',
+  advocate: 'Advocate',
+  banker: 'Banker',
+  broker: 'Broker',
+  witness: 'Witness',
+  other: 'Other',
+};
+
+/** Mirrored from src/lib/deals/stakeholders.ts. */
+export const STAKEHOLDER_SIDE_LABELS: Record<DealSide, string> = {
+  buyer: 'Buyer side',
+  seller: 'Seller side',
+  internal: 'Internal',
+};
+
+/** Mirrored from src/lib/deals/stakeholders.ts. */
+export function defaultSideForRole(role: StakeholderRole): DealSide {
+  switch (role) {
+    case 'seller':
+      return 'seller';
+    case 'broker':
+      return 'internal';
+    default:
+      return 'buyer';
+  }
+}
+
+export interface DealShareLinkRow {
+  id: string;
+  token_prefix: string;
+  expires_at: string;
+  revoked_at: string | null;
+  otp_required: boolean;
+  view_count: number;
+  last_viewed_at: string | null;
+  created_at: string;
+}
+
+export interface DealStakeholderRow {
+  id: string;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  role: StakeholderRole;
+  side: DealSide;
+  links: DealShareLinkRow[];
+}
+
+/** Mirrored from src/lib/deals/share-links.ts. */
+export const DEAL_SHARE_TTL_CHOICES = [
+  { key: '24h', label: '24 hours' },
+  { key: '7d', label: '7 days' },
+  { key: '30d', label: '30 days' },
+] as const;
+
+export type DealShareTtlKey = (typeof DEAL_SHARE_TTL_CHOICES)[number]['key'];
+
+export type DealShareLinkState = 'active' | 'expired' | 'revoked';
+
+export type DealShareAccessEvent =
+  | 'view'
+  | 'denied'
+  | 'otp_sent'
+  | 'otp_verified'
+  | 'otp_failed'
+  | 'document_view'
+  | 'document_denied';
+
+/** Mirrored from src/lib/deals/share-links.ts. */
+export const SHARE_ACCESS_LABELS: Record<DealShareAccessEvent, string> = {
+  view: 'Opened',
+  denied: 'Denied (link dead)',
+  otp_sent: 'Code sent',
+  otp_verified: 'Code verified',
+  otp_failed: 'Code failed',
+  document_view: 'Document opened',
+  document_denied: 'Document refused',
+};
+
+/** Mirrors linkState on the server: revoked wins, then expiry. */
+export function linkState(
+  link: Pick<DealShareLinkRow, 'expires_at' | 'revoked_at'>,
+  now: Date = new Date()
+): DealShareLinkState {
+  if (link.revoked_at) return 'revoked';
+  if (new Date(link.expires_at) <= now) return 'expired';
+  return 'active';
+}
+
+/** The message the agent hands over on WhatsApp — the app never sends
+ *  it; the share sheet does. */
+export function shareLinkMessage(
+  name: string,
+  dealTitle: string,
+  url: string
+): string {
+  return `Hi ${name}, here is your private link to the ${dealTitle} transaction: ${url}\nIt expires automatically. Please don't forward it.`;
 }

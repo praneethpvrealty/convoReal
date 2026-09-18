@@ -531,7 +531,7 @@
     {
       "id": "transaction-workspace",
       "name": "Transaction Workspace — the closing record for a deal",
-      "surfaces": ["web", "mobile"],
+      "surfaces": ["web", "mobile", "stakeholder-link"],
       "invariants": [
         {
           "id": "TXW-001",
@@ -651,6 +651,88 @@
               "file": "src/lib/deals/events.test.ts",
               "case": "refuses read-only members"
             }
+          ]
+        },
+        {
+          "id": "TXW-009",
+          "rule": "A stakeholder is a name, a role and a side on one deal and never a login. A share link is minted per stakeholder for the buyer or seller side only, its token is stored as a SHA-256 hash and shown exactly once, it expires within 30 days, it can be revoked, and every open and document fetch is logged with a hashed address. Both surfaces name the same roles, sides and expiry choices.",
+          "tests": [
+            {
+              "file": "src/lib/deals/stakeholders.test.ts",
+              "case": "[TXW-009]"
+            },
+            {
+              "file": "src/lib/deals/share-links.test.ts",
+              "case": "[TXW-009]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[TXW-009]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20260918030000_transaction_workspace_stakeholders.sql"
+          ]
+        },
+        {
+          "id": "TXW-010",
+          "rule": "Every external representation of a deal — the portal view, a bundle sibling, a document fetch — is built by src/lib/deals/external-view.ts through the visibility resolver; a public deal-share route never selects a financial column, never builds its own payload, and re-checks document visibility at the byte boundary. Progress counts the whole checklist so a partial view is never presented as complete.",
+          "tests": [
+            {
+              "file": "src/lib/deals/external-view.test.ts",
+              "case": "[TXW-010]"
+            },
+            {
+              "file": "src/lib/deals/visibility.test.ts",
+              "case": "[TXW-005]"
+            }
+          ]
+        },
+        {
+          "id": "TXW-011",
+          "rule": "A sensitive link demands a per-token one-time code: six digits, hashed with the server key and bound to the link, at most five attempts, expiring in ten minutes; a successful check yields a signed unlock for that one link that expires in thirty minutes. No Supabase Auth user, session or cookie is ever created for a stakeholder, and the link itself is handed over by the agent through the share sheet or wa.me, never sent by the app.",
+          "tests": [
+            {
+              "file": "src/lib/deals/share-links.test.ts",
+              "case": "[TXW-011]"
+            },
+            {
+              "file": "src/lib/deals/external-view.test.ts",
+              "case": "[TXW-010]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[TXW-011]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20260918030000_transaction_workspace_stakeholders.sql"
+          ]
+        },
+        {
+          "id": "TXW-012",
+          "rule": "Every timeline entry, milestone and document carries a visibility that defaults to internal; an event's visibility is fixed at insert because deal_events is immutable; notes, milestones and documents offer the same four visibilities on both surfaces.",
+          "tests": [
+            {
+              "file": "src/lib/deals/events.test.ts",
+              "case": "parseNoteInput"
+            },
+            {
+              "file": "src/lib/deals/milestones.test.ts",
+              "case": "parseMilestonePatch"
+            },
+            {
+              "file": "src/lib/deals/documents.test.ts",
+              "case": "parseDocumentPatch"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[TXW-012]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20260918030000_transaction_workspace_stakeholders.sql",
+            "supabase/migrations/20260918030100_transaction_workspace_share_events.sql"
           ]
         }
       ]

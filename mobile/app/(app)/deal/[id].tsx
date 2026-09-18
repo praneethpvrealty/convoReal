@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as DocumentPicker from 'expo-document-picker';
 import { File, Paths } from 'expo-file-system';
+import * as Clipboard from 'expo-clipboard';
 import * as Linking from 'expo-linking';
 import * as Sharing from 'expo-sharing';
 import { Stack, useLocalSearchParams } from 'expo-router';
@@ -10,7 +11,9 @@ import {
   ActivityIndicator,
   Pressable,
   ScrollView,
+  Share,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   View,
@@ -37,25 +40,42 @@ import {
   DEAL_DOCUMENT_STATUS_LABELS,
   DEAL_EVENT_LABELS,
   DEAL_MILESTONE_STATUS_LABELS,
+  DEAL_SHARE_TTL_CHOICES,
+  DEAL_VISIBILITY_LABELS,
   DEAL_WORKSPACE_TABS,
   INVOICE_STATUS_LABELS,
+  SHARE_ACCESS_LABELS,
+  STAKEHOLDER_ROLE_LABELS,
+  STAKEHOLDER_SIDE_LABELS,
   TDS_STATUS_LABELS,
+  defaultSideForRole,
+  linkState,
+  shareLinkMessage,
   type DealDocumentCategory,
   type DealDocumentRow,
   type DealDocumentStatus,
   type DealFinancialsRow,
   type DealMilestoneRow,
   type DealMilestoneStatus,
+  type DealShareAccessEvent,
+  type DealShareLinkRow,
+  type DealShareTtlKey,
+  type DealSide,
+  type DealStakeholderRow,
   type DealTaskRow,
+  type DealVisibility,
   type DealWorkspaceTab,
   type InvoiceRow,
+  type StakeholderRole,
   type TdsStatus,
 } from '@/lib/deal-workspace';
 import {
   addCustomMilestone,
-  addDealNote,
+  addDealNoteWithVisibility,
+  addDealStakeholder,
   addDealTask,
   addStandardMilestones,
+  createDealShareLink,
   createInvoice,
   deleteDealDocument,
   extractDocument,
@@ -64,9 +84,15 @@ import {
   fetchDealEvents,
   fetchDealFinancials,
   fetchDealMilestones,
+  fetchDealShareAccess,
+  fetchDealStakeholders,
   fetchDealTasks,
   fetchInvoices,
   invoiceAction,
+  removeDealStakeholder,
+  revokeDealShareLink,
+  setDealDocumentVisibility,
+  setDealMilestoneVisibility,
   setDealTaskCompleted,
   updateDealDocument,
   updateDealFinancials,
@@ -165,18 +191,25 @@ export default function DealWorkspaceScreen() {
         {tab === 'documents' && (
           <DocumentsTab dealId={dealId} canEdit={canEdit} />
         )}
+        {tab === 'stakeholders' && (
+          <StakeholdersTab
+            dealId={dealId}
+            dealTitle={head?.title ?? 'this'}
+            canEdit={canEdit}
+          />
+        )}
         {tab === 'invoices' && <InvoicesTab dealId={dealId} />}
       </View>
     </>
   );
 }
 
-const FINANCIAL_FIELDS: Array<{
+const FINANCIAL_FIELDS: {
   key: keyof Omit<DealFinancialsRow, 'token_source' | 'token' | 'tds_status'>;
   label: string;
   kind: 'money' | 'date' | 'text' | 'multiline';
   token?: boolean;
-}> = [
+}[] = [
   { key: 'agreed_consideration', label: 'Agreed consideration', kind: 'money' },
   { key: 'registered_consideration', label: 'Registered value', kind: 'money' },
   { key: 'other_component', label: 'Other component', kind: 'money' },
@@ -364,6 +397,7 @@ function TimelineTab({
   const queryClient = useQueryClient();
   const dialog = useAppDialog();
   const [note, setNote] = useState('');
+  const [visibility, setVisibility] = useState<DealVisibility>('internal');
   const [saving, setSaving] = useState(false);
 
   const { data: events = [], isLoading } = useQuery({
@@ -377,7 +411,7 @@ function TimelineTab({
     if (!text) return;
     setSaving(true);
     try {
-      await addDealNote(dealId, text);
+      await addDealNoteWithVisibility(dealId, text, visibility);
       setNote('');
       await queryClient.invalidateQueries({
         queryKey: ['deal-events', dealId],
@@ -411,6 +445,7 @@ function TimelineTab({
             multiline
             onChangeText={setNote}
           />
+          <VisibilityChips value={visibility} onChange={setVisibility} />
           <PrimaryButton
             label="Add note"
             onPress={() => void add()}
@@ -498,11 +533,37 @@ function MilestonesTab({
     }
   }
 
+  function chooseVisibility(m: DealMilestoneRow) {
+    dialog.show({
+      title: `Who can see "${m.title}"?`,
+      message: 'Stakeholder links show only what their side may see.',
+      actions: [
+        ...(Object.keys(DEAL_VISIBILITY_LABELS) as DealVisibility[]).map(
+          (v) => ({
+            label: `${v === m.visibility ? '✓ ' : ''}${DEAL_VISIBILITY_LABELS[v]}`,
+            onPress: () => {
+              dialog.close();
+              void run(m.id, () => setDealMilestoneVisibility(dealId, m.id, v));
+            },
+          })
+        ),
+        { label: 'Cancel', variant: 'muted' as const, onPress: dialog.close },
+      ],
+    });
+  }
+
   function chooseStatus(m: DealMilestoneRow) {
     dialog.show({
       title: m.title,
       message: 'Completing a milestone never moves the pipeline stage.',
       actions: [
+        {
+          label: `Visibility: ${DEAL_VISIBILITY_LABELS[m.visibility ?? 'internal']}`,
+          onPress: () => {
+            dialog.close();
+            chooseVisibility(m);
+          },
+        },
         ...(Object.keys(DEAL_MILESTONE_STATUS_LABELS) as DealMilestoneStatus[])
           .filter((s) => s !== m.status)
           .map((s) => ({
@@ -600,6 +661,9 @@ function MilestonesTab({
                   <Text style={[styles.cardMeta, { color: colors.textMuted }]}>
                     {DEAL_MILESTONE_STATUS_LABELS[m.status]}
                     {m.target_date ? ` · due ${m.target_date}` : ''}
+                    {m.visibility && m.visibility !== 'internal'
+                      ? ` · ${DEAL_VISIBILITY_LABELS[m.visibility]}`
+                      : ''}
                   </Text>
                 </View>
               </Pressable>
@@ -1082,6 +1146,35 @@ function DocumentsTab({
     });
   }
 
+  function chooseDocVisibility(doc: DealDocumentRow) {
+    dialog.show({
+      title: `Who can open "${doc.title}"?`,
+      message:
+        'Photos carry the viewer\u2019s name as a watermark when opened through a link.',
+      actions: [
+        ...(Object.keys(DEAL_VISIBILITY_LABELS) as DealVisibility[]).map(
+          (v) => ({
+            label: `${v === doc.visibility ? '✓ ' : ''}${DEAL_VISIBILITY_LABELS[v]}`,
+            onPress: () => {
+              dialog.close();
+              setBusy(doc.id);
+              void setDealDocumentVisibility(dealId, doc.id, v)
+                .then(refresh)
+                .catch((err) =>
+                  dialog.show({
+                    title: 'Could not update',
+                    message: friendlyError(errorText(err)),
+                  })
+                )
+                .finally(() => setBusy(null));
+            },
+          })
+        ),
+        { label: 'Cancel', variant: 'muted' as const, onPress: dialog.close },
+      ],
+    });
+  }
+
   function chooseReplacement(doc: DealDocumentRow) {
     const candidates = documents.filter(
       (d) => d.id !== doc.id && !d.superseded_by
@@ -1282,6 +1375,14 @@ function DocumentsTab({
                   )}
                 {canEdit && !doc.superseded_by && (
                   <ActionButton
+                    label="Visibility"
+                    icon="eye-outline"
+                    busy={busy === doc.id}
+                    onPress={() => chooseDocVisibility(doc)}
+                  />
+                )}
+                {canEdit && !doc.superseded_by && (
+                  <ActionButton
                     label="Expiry"
                     icon="calendar-outline"
                     busy={busy === doc.id}
@@ -1402,6 +1503,391 @@ function DocumentsTab({
             </View>
           );
         })
+      )}
+      <AppDialog {...dialog.dialogProps} />
+    </ScrollView>
+  );
+}
+
+function VisibilityChips({
+  value,
+  onChange,
+}: {
+  value: DealVisibility;
+  onChange: (v: DealVisibility) => void;
+}) {
+  return (
+    <View style={styles.chipRow}>
+      {(Object.keys(DEAL_VISIBILITY_LABELS) as DealVisibility[]).map((v) => (
+        <FilterChip
+          key={v}
+          label={DEAL_VISIBILITY_LABELS[v]}
+          active={value === v}
+          onPress={() => onChange(v)}
+        />
+      ))}
+    </View>
+  );
+}
+
+function StakeholdersTab({
+  dealId,
+  dealTitle,
+  canEdit,
+}: {
+  dealId: string;
+  dealTitle: string;
+  canEdit: boolean;
+}) {
+  const { colors } = useTheme();
+  const queryClient = useQueryClient();
+  const dialog = useAppDialog();
+  const [busy, setBusy] = useState<string | null>(null);
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
+  const [role, setRole] = useState<StakeholderRole>('buyer');
+  const [side, setSide] = useState<DealSide>('buyer');
+  const [linkFor, setLinkFor] = useState<string | null>(null);
+  const [ttl, setTtl] = useState<DealShareTtlKey>('7d');
+  const [otp, setOtp] = useState(false);
+
+  const { data: stakeholders = [], isLoading } = useQuery({
+    queryKey: ['deal-stakeholders', dealId],
+    queryFn: () => fetchDealStakeholders(dealId),
+    enabled: Boolean(dealId),
+  });
+
+  const refresh = () =>
+    Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: ['deal-stakeholders', dealId],
+      }),
+      queryClient.invalidateQueries({ queryKey: ['deal-events', dealId] }),
+    ]);
+
+  async function run(key: string, action: () => Promise<unknown>) {
+    setBusy(key);
+    try {
+      await action();
+      await refresh();
+      void haptic.success();
+    } catch (err) {
+      dialog.show({
+        title: 'That did not work',
+        message: friendlyError(errorText(err)),
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function showAccessLog(link: DealShareLinkRow) {
+    setBusy(`log:${link.id}`);
+    try {
+      const rows = await fetchDealShareAccess(dealId, link.id);
+      dialog.show({
+        title: `Link ${link.token_prefix}…`,
+        message:
+          rows.length === 0
+            ? 'No opens yet.'
+            : rows
+                .map(
+                  (row) =>
+                    `${auditDateTime(row.created_at)} · ${
+                      SHARE_ACCESS_LABELS[row.event as DealShareAccessEvent] ??
+                      row.event
+                    }`
+                )
+                .join('\n'),
+      });
+    } catch (err) {
+      dialog.show({
+        title: 'Could not load the access log',
+        message: friendlyError(errorText(err)),
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function mintAndShare(s: DealStakeholderRow) {
+    setBusy(`link:${s.id}`);
+    try {
+      const link = await createDealShareLink(dealId, {
+        stakeholderId: s.id,
+        ttl,
+        otpRequired: otp,
+      });
+      await refresh();
+      setLinkFor(null);
+      void haptic.success();
+      const message = shareLinkMessage(s.name, dealTitle, link.url);
+      dialog.show({
+        title: 'Link created',
+        message: 'Copy it now — it will not be shown again.',
+        actions: [
+          {
+            label: 'Copy link',
+            onPress: async () => {
+              dialog.close();
+              await Clipboard.setStringAsync(link.url);
+            },
+          },
+          {
+            label: 'Share…',
+            onPress: async () => {
+              dialog.close();
+              await Share.share({ message });
+            },
+          },
+          { label: 'Done', variant: 'muted' as const, onPress: dialog.close },
+        ],
+      });
+    } catch (err) {
+      dialog.show({
+        title: 'Could not create the link',
+        message: friendlyError(errorText(err)),
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  if (isLoading) return <Loading />;
+
+  return (
+    <ScrollView
+      contentContainerStyle={styles.list}
+      keyboardShouldPersistTaps="handled"
+    >
+      <Text style={[styles.cardMeta, { color: colors.textMuted }]}>
+        Everyone on this transaction, by side. A buyer- or seller-side person
+        can be given a private link that shows only what their side may see.
+        Nobody gets a login.
+      </Text>
+
+      {canEdit ? (
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: colors.surface, borderColor: colors.border },
+          ]}
+        >
+          <TextField label="Name" value={name} onChangeText={setName} />
+          <Text style={[styles.cardMeta, { color: colors.textMuted }]}>
+            Role
+          </Text>
+          <View style={styles.chipRow}>
+            {(Object.keys(STAKEHOLDER_ROLE_LABELS) as StakeholderRole[]).map(
+              (r) => (
+                <FilterChip
+                  key={r}
+                  label={STAKEHOLDER_ROLE_LABELS[r]}
+                  active={role === r}
+                  onPress={() => {
+                    setRole(r);
+                    setSide(defaultSideForRole(r));
+                  }}
+                />
+              )
+            )}
+          </View>
+          <Text style={[styles.cardMeta, { color: colors.textMuted }]}>
+            Side
+          </Text>
+          <View style={styles.chipRow}>
+            {(Object.keys(STAKEHOLDER_SIDE_LABELS) as DealSide[]).map((sd) => (
+              <FilterChip
+                key={sd}
+                label={STAKEHOLDER_SIDE_LABELS[sd]}
+                active={side === sd}
+                onPress={() => setSide(sd)}
+              />
+            ))}
+          </View>
+          <TextField
+            label="WhatsApp number"
+            keyboardType="phone-pad"
+            value={phone}
+            onChangeText={setPhone}
+          />
+          <TextField
+            label="Email (needed for a code-protected link)"
+            keyboardType="email-address"
+            autoCapitalize="none"
+            value={email}
+            onChangeText={setEmail}
+          />
+          <PrimaryButton
+            label="Add stakeholder"
+            busy={busy === 'new'}
+            disabled={!name.trim()}
+            onPress={() =>
+              void run('new', async () => {
+                await addDealStakeholder(dealId, {
+                  name: name.trim(),
+                  role,
+                  side,
+                  phone: phone.trim() || null,
+                  email: email.trim() || null,
+                });
+                setName('');
+                setPhone('');
+                setEmail('');
+              })
+            }
+          />
+        </View>
+      ) : null}
+
+      {stakeholders.length === 0 ? (
+        <EmptyState
+          icon="people-outline"
+          title="No stakeholders yet"
+          subtitle=""
+        />
+      ) : (
+        stakeholders.map((s) => (
+          <View
+            key={s.id}
+            style={[
+              styles.card,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
+          >
+            <Text style={[styles.cardTitle, { color: colors.text }]}>
+              {s.name}
+            </Text>
+            <Text style={[styles.cardMeta, { color: colors.textMuted }]}>
+              {STAKEHOLDER_ROLE_LABELS[s.role]} ·{' '}
+              {STAKEHOLDER_SIDE_LABELS[s.side]}
+              {s.phone ? ` · +${s.phone}` : ''}
+              {s.email ? ` · ${s.email}` : ''}
+            </Text>
+            <View style={styles.actions}>
+              {canEdit && s.side !== 'internal' ? (
+                <ActionButton
+                  label="Share link"
+                  icon="link-outline"
+                  busy={busy === `link:${s.id}`}
+                  onPress={() => setLinkFor(linkFor === s.id ? null : s.id)}
+                />
+              ) : null}
+              {canEdit ? (
+                <ActionButton
+                  label="Remove"
+                  icon="trash-outline"
+                  busy={busy === s.id}
+                  onPress={() =>
+                    dialog.show({
+                      title: `Remove ${s.name}?`,
+                      message: 'Their links stop working immediately.',
+                      actions: [
+                        {
+                          label: 'Keep',
+                          variant: 'muted' as const,
+                          onPress: dialog.close,
+                        },
+                        {
+                          label: 'Remove',
+                          variant: 'destructive' as const,
+                          onPress: () => {
+                            dialog.close();
+                            void run(s.id, () =>
+                              removeDealStakeholder(dealId, s.id)
+                            );
+                          },
+                        },
+                      ],
+                    })
+                  }
+                />
+              ) : null}
+            </View>
+
+            {linkFor === s.id ? (
+              <View style={styles.extraction}>
+                <Text style={[styles.cardMeta, { color: colors.textMuted }]}>
+                  Expires in
+                </Text>
+                <View style={styles.chipRow}>
+                  {DEAL_SHARE_TTL_CHOICES.map((c) => (
+                    <FilterChip
+                      key={c.key}
+                      label={c.label}
+                      active={ttl === c.key}
+                      onPress={() => setTtl(c.key)}
+                    />
+                  ))}
+                </View>
+                <View style={styles.row}>
+                  <Switch
+                    value={otp}
+                    onValueChange={setOtp}
+                    disabled={!s.email}
+                  />
+                  <Text
+                    style={[
+                      styles.cardMeta,
+                      { color: colors.textMuted, flex: 1 },
+                    ]}
+                  >
+                    Require a one-time code
+                    {!s.email ? ' (add an email first)' : ''}
+                  </Text>
+                </View>
+                <PrimaryButton
+                  label="Create link"
+                  busy={busy === `link:${s.id}`}
+                  onPress={() => void mintAndShare(s)}
+                />
+              </View>
+            ) : null}
+
+            {(s.links ?? []).map((link: DealShareLinkRow) => {
+              const state = linkState(link);
+              return (
+                <View key={link.id} style={styles.row}>
+                  <Text
+                    style={[
+                      styles.cardMeta,
+                      {
+                        color:
+                          state === 'active'
+                            ? colors.success
+                            : colors.textFaint,
+                        flex: 1,
+                      },
+                    ]}
+                  >
+                    {state} · {link.token_prefix}… · {link.view_count} open
+                    {link.view_count === 1 ? '' : 's'}
+                    {link.otp_required ? ' · code' : ''}
+                  </Text>
+                  <ActionButton
+                    label="Log"
+                    icon="eye-outline"
+                    busy={busy === `log:${link.id}`}
+                    onPress={() => void showAccessLog(link)}
+                  />
+                  {canEdit && state === 'active' ? (
+                    <ActionButton
+                      label="Revoke"
+                      icon="ban-outline"
+                      busy={busy === link.id}
+                      onPress={() =>
+                        void run(link.id, () =>
+                          revokeDealShareLink(dealId, link.id)
+                        )
+                      }
+                    />
+                  ) : null}
+                </View>
+              );
+            })}
+          </View>
+        ))
       )}
       <AppDialog {...dialog.dialogProps} />
     </ScrollView>
