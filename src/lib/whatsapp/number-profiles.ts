@@ -407,7 +407,8 @@ export async function activateNumberProfile(
     live != null &&
     (live.integration_type || 'official_api') === 'official_api' &&
     live.phone_number_id != null &&
-    live.phone_number_id !== profile.phone_number_id;
+    live.phone_number_id !== profile.phone_number_id &&
+    Boolean(live.display_phone_number);
   const row = {
     ...liveConfigFromProfile(profile, phoneInfo, subscribedAppsAt, activatedAt),
     status: registered ? 'connected' : 'disconnected',
@@ -416,8 +417,7 @@ export async function activateNumberProfile(
     last_registration_error: registrationError,
     ...(numberChanged
       ? {
-          previous_display_phone_number:
-            live.display_phone_number ?? live.phone_number_id,
+          previous_display_phone_number: live.display_phone_number,
           number_changed_at: activatedAt,
         }
       : {}),

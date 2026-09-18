@@ -166,6 +166,13 @@ describe('[WAN-005] each contact is told once, by the channel their window allow
   it('does not send again when the ledger already holds the contact', async () => {
     queues.whatsapp_number_change_notices = [
       { data: null, error: { code: '23505', message: 'dup' } },
+      {
+        data: {
+          id: 'claim-0',
+          sent_at: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+        },
+      },
     ];
     const { send, sent } = sender();
     const outcome = await sendNumberChangeNotice(makeDb(), {
@@ -344,7 +351,78 @@ describe('[WAN-005] each contact is told once, by the channel their window allow
     expect(claim?.payload).toMatchObject({ trigger: 'precursor' });
   });
 
-  it('notifies the recent audience from the SQL function and stops at the first missing template', async () => {
+  it('waits for an in-flight claim from another sender instead of racing ahead of it', async () => {
+    queues.whatsapp_number_change_notices = [
+      { data: null, error: { code: '23505', message: 'dup' } },
+      {
+        data: {
+          id: 'claim-0',
+          sent_at: null,
+          created_at: new Date(NOW).toISOString(),
+        },
+      },
+      { data: { sent_at: null } },
+      { data: { sent_at: new Date(NOW + 1000).toISOString() } },
+    ];
+    let clock = NOW;
+    const { send, sent } = sender();
+
+    const outcome = await sendNumberChangeNotice(makeDb(), {
+      ...base,
+      trigger: 'precursor',
+      send,
+      sleep: async () => undefined,
+      now: () => (clock += 500),
+    });
+
+    expect(outcome).toEqual({ status: 'already' });
+    expect(sent).toHaveLength(0);
+    expect(
+      calls.filter(
+        (c) => c.table === 'whatsapp_number_change_notices' && c.op === 'select'
+      ).length
+    ).toBeGreaterThanOrEqual(3);
+  });
+
+  it('takes over a pending claim abandoned more than five minutes ago', async () => {
+    queues.whatsapp_number_change_notices = [
+      { data: null, error: { code: '23505', message: 'dup' } },
+      {
+        data: {
+          id: 'claim-stale',
+          sent_at: null,
+          created_at: new Date(NOW - 10 * 60 * 1000).toISOString(),
+        },
+      },
+      { data: null },
+      { data: { id: 'claim-2' } },
+      { data: [{ id: 'claim-2' }] },
+    ];
+    queues.conversations = [{ data: { id: 'conv-1' } }];
+    queues.messages = [{ data: { created_at: new Date().toISOString() } }];
+    const { send, sent } = sender();
+
+    const outcome = await sendNumberChangeNotice(makeDb(), {
+      ...base,
+      trigger: 'precursor',
+      send,
+      sleep: async () => undefined,
+      now: () => NOW,
+    });
+
+    expect(outcome).toEqual({
+      status: 'sent',
+      channel: 'freeform',
+      messageId: 'msg-1',
+    });
+    expect(sent).toHaveLength(1);
+    const takeover = calls.find(
+      (c) => c.table === 'whatsapp_number_change_notices' && c.op === 'delete'
+    );
+    expect(takeover?.filters).toContainEqual(['id', 'eq', 'claim-stale']);
+  });
+
+  it('notifies the recent audience from the SQL function and continues past contacts the template cannot reach', async () => {
     rpcResult = {
       data: [
         {
@@ -359,15 +437,31 @@ describe('[WAN-005] each contact is told once, by the channel their window allow
           preferred_language: 'hi',
           last_message_at: null,
         },
+        {
+          contact_id: 'c-3',
+          name: 'Ravi',
+          preferred_language: null,
+          last_message_at: null,
+        },
       ],
     };
     queues.whatsapp_number_change_notices = [
       { data: { id: 'claim-1' } },
       { data: [{ id: 'claim-1' }] },
       { data: { id: 'claim-2' } },
+      { data: null },
+      { data: { id: 'claim-3' } },
+      { data: [{ id: 'claim-3' }] },
     ];
-    queues.conversations = [{ data: { id: 'conv-1' } }, { data: null }];
-    queues.messages = [{ data: { created_at: new Date().toISOString() } }];
+    queues.conversations = [
+      { data: { id: 'conv-1' } },
+      { data: null },
+      { data: { id: 'conv-3' } },
+    ];
+    queues.messages = [
+      { data: { created_at: new Date().toISOString() } },
+      { data: { created_at: new Date().toISOString() } },
+    ];
     queues.message_templates = [{ data: [] }];
     const { send, sent } = sender();
 
@@ -390,13 +484,13 @@ describe('[WAN-005] each contact is told once, by the channel their window allow
       }),
     });
     expect(result).toEqual({
-      audience: 2,
-      sent: 1,
+      audience: 3,
+      sent: 2,
       viaTemplate: 0,
-      viaFreeform: 1,
+      viaFreeform: 2,
       skippedNoTemplate: 1,
       failed: 0,
     });
-    expect(sent).toHaveLength(1);
+    expect(sent).toHaveLength(2);
   });
 });

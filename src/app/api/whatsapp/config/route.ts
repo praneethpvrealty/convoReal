@@ -372,11 +372,11 @@ export async function POST(request: Request) {
       integration_type: intType,
       ...(intType === 'official_api' &&
       existing?.phone_number_id &&
+      existing.display_phone_number &&
       (existing.integration_type || 'official_api') === 'official_api' &&
       existing.phone_number_id !== phone_number_id
         ? {
-            previous_display_phone_number:
-              existing.display_phone_number || existing.phone_number_id,
+            previous_display_phone_number: existing.display_phone_number,
             number_changed_at: new Date().toISOString(),
           }
         : {}),

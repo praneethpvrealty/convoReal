@@ -34,7 +34,10 @@ import {
   CUSTOMER_WINDOW_EXPIRED_MESSAGE,
   isWithinCustomerWindow,
 } from '@/lib/whatsapp/customer-window'
-import { maybeSendNumberChangePrecursor } from '@/lib/whatsapp/number-change-notice'
+import {
+  maybeSendNumberChangePrecursor,
+  numberChangeWindow,
+} from '@/lib/whatsapp/number-change-notice'
 import { CHAIN_ONLY_BLOCKED_MESSAGE } from '@/lib/contacts/chain-only'
 import { DEAD_CONTACT_BLOCKED_MESSAGE } from '@/lib/contacts/lifecycle'
 import {
@@ -533,17 +536,23 @@ export async function sendWhatsAppMessageAndPersist(
     if (
       !args.numberChangeNotice &&
       config.integration_type !== 'sandbox' &&
-      resolvedContactId
+      resolvedContactId &&
+      numberChangeWindow(config).active
     ) {
-      await maybeSendNumberChangePrecursor(db, {
-        accountId,
-        contactId: resolvedContactId,
-        config,
-        send: (notice) =>
-          sendWhatsAppMessageAndPersist({ ...notice, customDbClient: args.customDbClient }),
-        allowDeadContact: args.allowDeadContact,
-        allowChainOnly: args.allowChainOnly,
-      })
+      // The ledger is admin-writable under RLS, and a caller's own
+      // client may be an agent's; the service client writes it with
+      // explicit account_id scoping, as every other guard here does.
+      await maybeSendNumberChangePrecursor(
+        defaultAdminClient() as unknown as SupabaseClient,
+        {
+          accountId,
+          contactId: resolvedContactId,
+          config,
+          send: sendWhatsAppMessageAndPersist,
+          allowDeadContact: args.allowDeadContact,
+          allowChainOnly: args.allowChainOnly,
+        },
+      )
     }
 
     // 4. Send Message with Variant Retry loop

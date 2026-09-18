@@ -23,6 +23,12 @@ export const RECENT_CONTACT_DAYS = 7;
 export const MAX_RECENT_CONTACT_DAYS = 30;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const PENDING_CLAIM_STALE_MS = 5 * 60 * 1000;
+const PENDING_CLAIM_WAIT_MS = 8000;
+const PENDING_CLAIM_POLL_MS = 400;
+
+const realSleep = (ms: number) =>
+  new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 export type NoticeSender = (
   args: SendWhatsAppAndPersistArgs
@@ -95,6 +101,81 @@ interface NoticeTemplateRow {
   body_text: string;
 }
 
+type ClaimResult = { claimId: string } | { already: true } | { failed: string };
+
+async function claimNotice(
+  db: SupabaseClient,
+  args: {
+    accountId: string;
+    contactId: string;
+    phoneNumberId: string;
+    previousNumber: string;
+    trigger: 'manual' | 'precursor';
+  },
+  sleep: (ms: number) => Promise<void>,
+  now: () => number
+): Promise<ClaimResult> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const { data: claim, error } = await db
+      .from('whatsapp_number_change_notices')
+      .insert({
+        account_id: args.accountId,
+        contact_id: args.contactId,
+        phone_number_id: args.phoneNumberId,
+        previous_display_phone_number: args.previousNumber,
+        trigger: args.trigger,
+        channel: 'pending',
+      })
+      .select('id')
+      .maybeSingle();
+    if (!error) {
+      return claim
+        ? { claimId: claim.id }
+        : { failed: 'Could not record the notice.' };
+    }
+    if (error.code !== '23505') return { failed: error.message };
+
+    const { data: existing } = await db
+      .from('whatsapp_number_change_notices')
+      .select('id, sent_at, created_at')
+      .eq('account_id', args.accountId)
+      .eq('contact_id', args.contactId)
+      .eq('phone_number_id', args.phoneNumberId)
+      .maybeSingle();
+    if (!existing) continue;
+    if (existing.sent_at) return { already: true };
+
+    const age = now() - new Date(existing.created_at).getTime();
+    if (age > PENDING_CLAIM_STALE_MS) {
+      await db
+        .from('whatsapp_number_change_notices')
+        .delete()
+        .eq('id', existing.id)
+        .eq('account_id', args.accountId);
+      continue;
+    }
+
+    const deadline = now() + PENDING_CLAIM_WAIT_MS;
+    let released = false;
+    while (now() < deadline) {
+      await sleep(PENDING_CLAIM_POLL_MS);
+      const { data: row } = await db
+        .from('whatsapp_number_change_notices')
+        .select('sent_at')
+        .eq('id', existing.id)
+        .eq('account_id', args.accountId)
+        .maybeSingle();
+      if (!row) {
+        released = true;
+        break;
+      }
+      if (row.sent_at) return { already: true };
+    }
+    if (!released) return { already: true };
+  }
+  return { already: true };
+}
+
 async function isConversationWindowOpen(
   db: SupabaseClient,
   accountId: string,
@@ -133,26 +214,19 @@ export async function sendNumberChangeNotice(
     accountLanguage?: LanguageCode;
     allowDeadContact?: boolean;
     allowChainOnly?: boolean;
+    sleep?: (ms: number) => Promise<void>;
+    now?: () => number;
   }
 ): Promise<NoticeOutcome> {
-  const { data: claim, error: claimError } = await db
-    .from('whatsapp_number_change_notices')
-    .insert({
-      account_id: args.accountId,
-      contact_id: args.contactId,
-      phone_number_id: args.phoneNumberId,
-      previous_display_phone_number: args.previousNumber,
-      trigger: args.trigger,
-      channel: 'pending',
-    })
-    .select('id')
-    .maybeSingle();
-  if (claimError) {
-    if (claimError.code === '23505') return { status: 'already' };
-    return { status: 'failed', reason: claimError.message };
-  }
-  if (!claim)
-    return { status: 'failed', reason: 'Could not record the notice.' };
+  const claimed = await claimNotice(
+    db,
+    args,
+    args.sleep ?? realSleep,
+    args.now ?? Date.now
+  );
+  if ('already' in claimed) return { status: 'already' };
+  if ('failed' in claimed) return { status: 'failed', reason: claimed.failed };
+  const claim = { id: claimed.claimId };
 
   const releaseClaim = async () => {
     await db
@@ -394,7 +468,6 @@ export async function notifyRecentContacts(args: {
       else result.viaFreeform++;
     } else if (outcome.status === 'skipped') {
       result.skippedNoTemplate++;
-      break;
     } else if (outcome.status === 'failed') {
       result.failed++;
     }
