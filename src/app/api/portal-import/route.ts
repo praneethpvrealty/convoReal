@@ -70,7 +70,7 @@ export async function POST(request: Request) {
     for (const raw of rawListings) byListingId.set(raw.listingId, raw);
     const parsed = [...byListingId.values()].map((raw) => parseHarvestedListing(portal, raw));
 
-    const [{ data: propertiesData, error: propError }, { data: linksData, error: linkError }, { data: stagedData, error: stagedError }] =
+    const [{ data: propertiesData, error: propError }, { data: linksData, error: linkError }, { data: aliasesData, error: aliasError }, { data: stagedData, error: stagedError }] =
       await Promise.all([
         ctx.supabase
           .from('properties')
@@ -82,16 +82,25 @@ export async function POST(request: Request) {
           .select('property_id, portal, portal_listing_id, listing_url')
           .eq('account_id', ctx.accountId),
         ctx.supabase
+          .from('property_portal_listing_aliases')
+          .select('property_id, portal, portal_listing_id')
+          .eq('account_id', ctx.accountId),
+        ctx.supabase
           .from('portal_import_items')
           .select('portal, portal_listing_id, matched_property_id, match_status')
           .eq('account_id', ctx.accountId),
       ]);
-    if (propError || linkError || stagedError) {
-      throw propError || linkError || stagedError;
+    if (propError || linkError || aliasError || stagedError) {
+      throw propError || linkError || aliasError || stagedError;
     }
 
     const properties = (propertiesData || []) as Property[];
-    const links = (linksData || []) as ExistingPortalLink[];
+    const links = [
+      ...((linksData || []) as ExistingPortalLink[]),
+      ...((aliasesData || []) as Omit<ExistingPortalLink, 'listing_url'>[]).map(
+        (alias) => ({ ...alias, listing_url: null })
+      ),
+    ];
     const committedByKey = new Map<string, string>();
     for (const row of stagedData || []) {
       if (row.matched_property_id && (row.match_status === 'imported' || row.match_status === 'linked' || row.match_status === 'auto_matched')) {

@@ -4,11 +4,7 @@
     {
       "id": "inbox",
       "name": "Shared WhatsApp inbox",
-      "surfaces": [
-        "web",
-        "mobile",
-        "whatsapp"
-      ],
+      "surfaces": ["web", "mobile", "whatsapp"],
       "invariants": [
         {
           "id": "INB-001",
@@ -65,11 +61,7 @@
     {
       "id": "calendar",
       "name": "Calendar, appointments and to-dos",
-      "surfaces": [
-        "web",
-        "mobile",
-        "whatsapp"
-      ],
+      "surfaces": ["web", "mobile", "whatsapp"],
       "invariants": [
         {
           "id": "CAL-001",
@@ -80,9 +72,7 @@
               "case": "[CAL-001]"
             }
           ],
-          "guards": [
-            ".github/workflows/eas-update.yml"
-          ]
+          "guards": [".github/workflows/eas-update.yml"]
         },
         {
           "id": "CAL-002",
@@ -143,11 +133,7 @@
     {
       "id": "invoicing",
       "name": "Brokerage invoicing and the deal document folder",
-      "surfaces": [
-        "web",
-        "mobile",
-        "whatsapp"
-      ],
+      "surfaces": ["web", "mobile", "whatsapp"],
       "invariants": [
         {
           "id": "INV-001",
@@ -234,9 +220,7 @@
               "case": "[INV-005]"
             }
           ],
-          "guards": [
-            "supabase/migrations/20260914120200_deal_documents.sql"
-          ]
+          "guards": ["supabase/migrations/20260914120200_deal_documents.sql"]
         },
         {
           "id": "INV-006",
@@ -267,10 +251,7 @@
     {
       "id": "listing-media",
       "name": "Property listing media",
-      "surfaces": [
-        "web",
-        "mobile"
-      ],
+      "surfaces": ["web", "mobile"],
       "invariants": [
         {
           "id": "MED-001",
@@ -307,10 +288,7 @@
     {
       "id": "property-inventory",
       "name": "Property inventory discovery and shortlist sharing",
-      "surfaces": [
-        "web",
-        "mobile"
-      ],
+      "surfaces": ["web", "mobile"],
       "invariants": [
         {
           "id": "PRP-001",
@@ -331,9 +309,7 @@
               "case": "[PRP-002]"
             }
           ],
-          "guards": [
-            ".github/workflows/eas-update.yml"
-          ]
+          "guards": [".github/workflows/eas-update.yml"]
         },
         {
           "id": "PRP-003",
@@ -348,9 +324,7 @@
               "case": "[PRP-003]"
             }
           ],
-          "guards": [
-            ".github/workflows/eas-update.yml"
-          ]
+          "guards": [".github/workflows/eas-update.yml"]
         },
         {
           "id": "PRP-004",
@@ -379,9 +353,7 @@
               "case": "pins the resolved results for a structured search"
             }
           ],
-          "guards": [
-            ".github/workflows/eas-update.yml"
-          ]
+          "guards": [".github/workflows/eas-update.yml"]
         },
         {
           "id": "PRP-006",
@@ -417,7 +389,7 @@
         },
         {
           "id": "PRP-008",
-          "rule": "When an unmapped portal ad already has a guessed property, agents can accept that mapping in one tap on web and mobile, while retaining a separate path to choose a different property.",
+          "rule": "When an unmapped portal ad already has a guessed property, agents can accept that mapping in one tap on web and mobile, while retaining a separate path to choose a different property; multiple ad IDs from the same portal may remain mapped to one property without replacing one another.",
           "tests": [
             {
               "file": "src/components/contacts/unmapped-portal-ads.test.tsx",
@@ -426,10 +398,15 @@
             {
               "file": "src/lib/mobile-parity.test.ts",
               "case": "[PRP-008]"
+            },
+            {
+              "file": "src/app/api/contacts/[id]/portal-link/route.test.ts",
+              "case": "keeps a second ad id for the same property as an alias"
             }
           ],
           "guards": [
-            ".github/workflows/eas-update.yml"
+            ".github/workflows/eas-update.yml",
+            "supabase/migrations/20260918160000_portal_listing_aliases.sql"
           ]
         }
       ]
@@ -437,10 +414,7 @@
     {
       "id": "journeys",
       "name": "Stage-grouped buyer and property journeys",
-      "surfaces": [
-        "web",
-        "mobile"
-      ],
+      "surfaces": ["web", "mobile"],
       "invariants": [
         {
           "id": "JRN-001",
@@ -524,10 +498,7 @@
     {
       "id": "requirement-sharing",
       "name": "Saved buyer requirements and verified agent sharing",
-      "surfaces": [
-        "web",
-        "mobile"
-      ],
+      "surfaces": ["web", "mobile"],
       "invariants": [
         {
           "id": "REQ-001",
@@ -553,19 +524,14 @@
               "case": "[REQ-002]"
             }
           ],
-          "guards": [
-            ".github/workflows/eas-update.yml"
-          ]
+          "guards": [".github/workflows/eas-update.yml"]
         }
       ]
     },
     {
       "id": "transaction-workspace",
       "name": "Transaction Workspace — the closing record for a deal",
-      "surfaces": [
-        "web",
-        "mobile"
-      ],
+      "surfaces": ["web", "mobile"],
       "invariants": [
         {
           "id": "TXW-001",

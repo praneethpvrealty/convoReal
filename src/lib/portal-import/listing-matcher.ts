@@ -7,7 +7,8 @@
 //
 // Buckets:
 //   linked       — portal listing id / URL already tied to a
-//                  property in property_portal_listings (tier 0).
+//                  property in the primary portal row or its retained
+//                  ad-id aliases (tier 0).
 //   auto_matched — high-confidence unique match; sync updates the
 //                  existing property's portal row, creates nothing.
 //   review       — plausible match(es); the agent picks in the UI.
