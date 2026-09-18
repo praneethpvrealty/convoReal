@@ -428,7 +428,9 @@
               "case": "[PRP-008]"
             }
           ],
-          "guards": [".github/workflows/eas-update.yml"]
+          "guards": [
+            ".github/workflows/eas-update.yml"
+          ]
         }
       ]
     },
@@ -553,6 +555,122 @@
           ],
           "guards": [
             ".github/workflows/eas-update.yml"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "transaction-workspace",
+      "name": "Transaction Workspace — the closing record for a deal",
+      "surfaces": [
+        "web",
+        "mobile"
+      ],
+      "invariants": [
+        {
+          "id": "TXW-001",
+          "rule": "Converting a journey item opens exactly one deal, preserves provenance through source_journey_item_id, lands on a non-terminal pipeline stage, and leaves the journey and its history untouched; converting again returns the same deal.",
+          "tests": [
+            {
+              "file": "src/lib/deals/conversion.test.ts",
+              "case": "[TXW-001]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[TXW-001]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20260918010000_transaction_workspace.sql"
+          ]
+        },
+        {
+          "id": "TXW-002",
+          "rule": "deal_events is insert-only: authenticated roles hold SELECT and INSERT alone, the INSERT policy pins actor_id to the caller, and a trigger refuses UPDATE and DELETE from every role except the cascade from a deleted deal. No client edits a timeline entry.",
+          "tests": [
+            {
+              "file": "src/lib/deals/events.test.ts",
+              "case": "[TXW-002]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[TXW-002]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20260918010000_transaction_workspace.sql"
+          ]
+        },
+        {
+          "id": "TXW-003",
+          "rule": "Milestones and pipeline stages are independent: completing, skipping or reopening a milestone never changes the deal's stage or the property's status, and a stage change never completes a milestone. Both surfaces label milestone statuses identically.",
+          "tests": [
+            {
+              "file": "src/lib/deals/milestones.test.ts",
+              "case": "[TXW-003]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[TXW-003]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20260918010100_transaction_workspace_stage_events.sql"
+          ]
+        },
+        {
+          "id": "TXW-004",
+          "rule": "Agreed consideration, registered consideration, other component, token, TDS, instrument references and brokerage received are internal-only: they are deny-listed from every external representation of a deal, never selected by /api/v1 or a public route, and never carried on a timeline event as a value.",
+          "tests": [
+            {
+              "file": "src/lib/deals/financials.test.ts",
+              "case": "[TXW-004]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[TXW-004]"
+            }
+          ]
+        },
+        {
+          "id": "TXW-005",
+          "rule": "An external audience over a bundle sees only the deals it is party to — a seller on one plot never sees the other plot's seller, terms, notes or side-only items — and a stranger sees nothing, not even an id. Every external projection passes through src/lib/deals/visibility.ts.",
+          "tests": [
+            {
+              "file": "src/lib/deals/visibility.test.ts",
+              "case": "[TXW-005]"
+            }
+          ]
+        },
+        {
+          "id": "TXW-006",
+          "rule": "Token money has one source of truth per deal: a deal linked to an Owners Den room derives it from token_escrows and refuses token writes; any other deal records token/advance directly. Both surfaces hide the token fields when Token Safe owns them.",
+          "tests": [
+            {
+              "file": "src/lib/deals/financials.test.ts",
+              "case": "[TXW-006]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[TXW-006]"
+            }
+          ]
+        },
+        {
+          "id": "TXW-007",
+          "rule": "A deal document's status only moves forward (draft → reviewed → approved → executed); approved and executed documents are superseded by a newer upload and kept, never deleted; a superseded document cannot change; expiry is a date the workspace surfaces. Both surfaces label statuses identically.",
+          "tests": [
+            {
+              "file": "src/lib/deals/documents.test.ts",
+              "case": "[TXW-007]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[TXW-007]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20260918010000_transaction_workspace.sql"
           ]
         }
       ]

@@ -10,7 +10,7 @@ export async function PUT(
     const { supabase, accountId } = await requireRole('agent')
 
     const body = await request.json()
-    const { title, description, due_date, priority, completed, contact_id, property_id } = body
+    const { title, description, due_date, priority, completed, contact_id, property_id, deal_id } = body
 
     const { data: todo, error } = await supabase
       .from('todos')
@@ -22,6 +22,7 @@ export async function PUT(
         completed: completed !== undefined ? completed : undefined,
         contact_id: contact_id !== undefined ? contact_id : undefined,
         property_id: property_id !== undefined ? property_id : undefined,
+        deal_id: deal_id !== undefined ? deal_id : undefined,
         updated_at: new Date().toISOString(),
       })
       .eq('id', id)

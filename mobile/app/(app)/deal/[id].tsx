@@ -12,39 +12,72 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { InvoiceEditorSheet } from '@/components/invoice-editor-sheet';
-import { EmptyState, FilterChip } from '@/components/ui';
-import { apiBase, authHeaders } from '@/lib/api';
 import {
+  EmptyState,
+  FilterChip,
+  PrimaryButton,
+  TextField,
+} from '@/components/ui';
+import { apiBase, authHeaders } from '@/lib/api';
+import { useAuthStore } from '@/lib/auth-store';
+import {
+  canDeleteDocument,
   categoryLabel,
   extractionEntries,
+  financialsPatch,
   isReadable,
+  nextDocumentStatuses,
   DEAL_DOCUMENT_CATEGORIES,
+  DEAL_DOCUMENT_STATUS_LABELS,
+  DEAL_EVENT_LABELS,
+  DEAL_MILESTONE_STATUS_LABELS,
+  DEAL_WORKSPACE_TABS,
   INVOICE_STATUS_LABELS,
+  TDS_STATUS_LABELS,
   type DealDocumentCategory,
   type DealDocumentRow,
+  type DealDocumentStatus,
+  type DealFinancialsRow,
+  type DealMilestoneRow,
+  type DealMilestoneStatus,
+  type DealTaskRow,
+  type DealWorkspaceTab,
   type InvoiceRow,
+  type TdsStatus,
 } from '@/lib/deal-workspace';
 import {
+  addCustomMilestone,
+  addDealNote,
+  addDealTask,
+  addStandardMilestones,
   createInvoice,
   deleteDealDocument,
   extractDocument,
   fetchDealDocumentUrl,
   fetchDealDocuments,
+  fetchDealEvents,
+  fetchDealFinancials,
+  fetchDealMilestones,
+  fetchDealTasks,
   fetchInvoices,
   invoiceAction,
+  setDealTaskCompleted,
+  updateDealDocument,
+  updateDealFinancials,
+  updateDealMilestone,
   uploadDealDocument,
 } from '@/lib/deal-workspace-api';
 import { friendlyError } from '@/lib/errors';
-import { auditDate, formatInr } from '@/lib/format';
+import { auditDate, auditDateTime, formatInr } from '@/lib/format';
+import { supabase } from '@/lib/supabase';
 import { haptic } from '@/lib/haptics';
 import { radius, spacing, useTheme, fonts } from '@/lib/theme';
-
-type TabId = 'invoices' | 'documents';
 
 /** `friendlyError` takes the message text, and a rejected fetch can throw
  *  anything — so narrow it once here rather than at every call site. */
@@ -52,35 +85,699 @@ function errorText(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
+interface DealHead {
+  id: string;
+  title: string;
+  contact_id: string | null;
+  property_id: string | null;
+  stage: { name: string } | { name: string }[] | null;
+}
+
+function one<T>(v: T | T[] | null | undefined): T | null {
+  if (v === null || v === undefined) return null;
+  return Array.isArray(v) ? (v[0] ?? null) : v;
+}
+
 export default function DealWorkspaceScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const dealId = typeof id === 'string' ? id : '';
   const { colors } = useTheme();
-  const [tab, setTab] = useState<TabId>('invoices');
+  const profile = useAuthStore((s) => s.profile);
+  const canEdit = Boolean(profile && profile.account_role !== 'viewer');
+  const [tab, setTab] = useState<DealWorkspaceTab>('overview');
+
+  const { data: head } = useQuery({
+    queryKey: ['deal-head', dealId],
+    enabled: Boolean(dealId),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('deals')
+        .select(
+          'id, title, contact_id, property_id, stage:pipeline_stages(name)'
+        )
+        .eq('id', dealId)
+        .maybeSingle();
+      if (error) throw error;
+      return (data as DealHead | null) ?? null;
+    },
+  });
 
   return (
     <>
-      <Stack.Screen options={{ title: 'Deal folder' }} />
+      <Stack.Screen options={{ title: head?.title ?? 'Transaction' }} />
       <View style={[styles.screen, { backgroundColor: colors.background }]}>
-        <View style={styles.tabs}>
-          <FilterChip
-            label="Invoices"
-            active={tab === 'invoices'}
-            onPress={() => setTab('invoices')}
-          />
-          <FilterChip
-            label="Documents"
-            active={tab === 'documents'}
-            onPress={() => setTab('documents')}
-          />
-        </View>
-        {tab === 'invoices' ? (
-          <InvoicesTab dealId={dealId} />
-        ) : (
-          <DocumentsTab dealId={dealId} />
+        {head ? (
+          <Text style={[styles.stageLine, { color: colors.textMuted }]}>
+            {one(head.stage)?.name ?? '—'}
+          </Text>
+        ) : null}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.tabs}
+        >
+          {DEAL_WORKSPACE_TABS.map((item) => (
+            <FilterChip
+              key={item.id}
+              label={item.label}
+              active={tab === item.id}
+              onPress={() => setTab(item.id)}
+            />
+          ))}
+        </ScrollView>
+        {tab === 'overview' && (
+          <FinancialsTab dealId={dealId} canEdit={canEdit} />
         )}
+        {tab === 'timeline' && (
+          <TimelineTab dealId={dealId} canEdit={canEdit} />
+        )}
+        {tab === 'milestones' && (
+          <MilestonesTab dealId={dealId} canEdit={canEdit} />
+        )}
+        {tab === 'tasks' && (
+          <TasksTab
+            dealId={dealId}
+            canEdit={canEdit}
+            contactId={head?.contact_id ?? null}
+            propertyId={head?.property_id ?? null}
+          />
+        )}
+        {tab === 'documents' && (
+          <DocumentsTab dealId={dealId} canEdit={canEdit} />
+        )}
+        {tab === 'invoices' && <InvoicesTab dealId={dealId} />}
       </View>
     </>
+  );
+}
+
+const FINANCIAL_FIELDS: Array<{
+  key: keyof Omit<DealFinancialsRow, 'token_source' | 'token' | 'tds_status'>;
+  label: string;
+  kind: 'money' | 'date' | 'text' | 'multiline';
+  token?: boolean;
+}> = [
+  { key: 'agreed_consideration', label: 'Agreed consideration', kind: 'money' },
+  { key: 'registered_consideration', label: 'Registered value', kind: 'money' },
+  { key: 'other_component', label: 'Other component', kind: 'money' },
+  {
+    key: 'brokerage_received_amount',
+    label: 'Brokerage received',
+    kind: 'money',
+  },
+  { key: 'token_amount', label: 'Token amount', kind: 'money', token: true },
+  {
+    key: 'token_received_at',
+    label: 'Token received on (YYYY-MM-DD)',
+    kind: 'date',
+    token: true,
+  },
+  {
+    key: 'token_instrument_ref',
+    label: 'Token instrument / UTR',
+    kind: 'text',
+    token: true,
+  },
+  { key: 'tds_amount', label: 'TDS amount', kind: 'money' },
+  {
+    key: 'payment_instrument_refs',
+    label: 'Payment instrument references',
+    kind: 'multiline',
+  },
+];
+
+function toDraft(f: DealFinancialsRow): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const field of FINANCIAL_FIELDS) {
+    const v = f[field.key];
+    out[field.key] = v === null || v === undefined ? '' : String(v);
+  }
+  out.tds_status = f.tds_status ?? '';
+  return out;
+}
+
+function FinancialsTab({
+  dealId,
+  canEdit,
+}: {
+  dealId: string;
+  canEdit: boolean;
+}) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['deal-financials', dealId],
+    queryFn: () => fetchDealFinancials(dealId),
+    enabled: Boolean(dealId),
+  });
+
+  if (isLoading || !data) return <Loading />;
+
+  // Keyed on the server row so a save (which replaces the query data)
+  // remounts the form with the fresh values — no effect needed.
+  return (
+    <FinancialsForm
+      key={JSON.stringify(data)}
+      dealId={dealId}
+      canEdit={canEdit}
+      data={data}
+    />
+  );
+}
+
+function FinancialsForm({
+  dealId,
+  canEdit,
+  data,
+}: {
+  dealId: string;
+  canEdit: boolean;
+  data: DealFinancialsRow;
+}) {
+  const { colors } = useTheme();
+  const queryClient = useQueryClient();
+  const dialog = useAppDialog();
+  const [draft, setDraft] = useState<Record<string, string>>(() =>
+    toDraft(data)
+  );
+  const [saving, setSaving] = useState(false);
+
+  const tokenSafe = data.token_source === 'token_safe';
+
+  async function save() {
+    const patch = financialsPatch(toDraft(data), draft, data.token_source);
+    if (Object.keys(patch).length === 0) return;
+    setSaving(true);
+    try {
+      const next = await updateDealFinancials(dealId, patch);
+      queryClient.setQueryData(['deal-financials', dealId], next);
+      await queryClient.invalidateQueries({
+        queryKey: ['deal-events', dealId],
+      });
+      void haptic.success();
+    } catch (err) {
+      dialog.show({
+        title: 'Could not save',
+        message: friendlyError(errorText(err)),
+      });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <ScrollView
+      contentContainerStyle={styles.list}
+      keyboardShouldPersistTaps="handled"
+    >
+      <Text style={[styles.cardMeta, { color: colors.textMuted }]}>
+        Internal record-keeping. Nothing here is shared outside your account.
+      </Text>
+      {tokenSafe ? (
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: colors.surface, borderColor: colors.border },
+          ]}
+        >
+          <Text style={[styles.cardTitle, { color: colors.text }]}>
+            Token — recorded in Token Safe
+          </Text>
+          <Text style={[styles.cardMeta, { color: colors.textMuted }]}>
+            {data.token.amount != null
+              ? `${formatInr(data.token.amount)} · ${data.token.received_at ?? ''}`
+              : data.token.status
+                ? `Escrow ${data.token.status}`
+                : 'Not yet'}
+            {data.token.reference ? ` · ${data.token.reference}` : ''}
+          </Text>
+        </View>
+      ) : null}
+      {FINANCIAL_FIELDS.filter((f) => !(tokenSafe && f.token)).map((field) => (
+        <TextField
+          key={field.key}
+          label={field.label}
+          value={draft[field.key] ?? ''}
+          editable={canEdit}
+          multiline={field.kind === 'multiline'}
+          keyboardType={field.kind === 'money' ? 'decimal-pad' : 'default'}
+          onChangeText={(text) =>
+            setDraft((d) => ({ ...d, [field.key]: text }))
+          }
+        />
+      ))}
+      <Text style={[styles.cardMeta, { color: colors.textMuted }]}>TDS</Text>
+      <View style={styles.chipRow}>
+        {(Object.keys(TDS_STATUS_LABELS) as TdsStatus[]).map((status) => (
+          <FilterChip
+            key={status}
+            label={TDS_STATUS_LABELS[status]}
+            active={draft.tds_status === status}
+            onPress={() =>
+              canEdit &&
+              setDraft((d) => ({
+                ...d,
+                tds_status: d.tds_status === status ? '' : status,
+              }))
+            }
+          />
+        ))}
+      </View>
+      {canEdit ? (
+        <PrimaryButton
+          label="Save financials"
+          onPress={() => void save()}
+          busy={saving}
+        />
+      ) : null}
+      <AppDialog {...dialog.dialogProps} />
+    </ScrollView>
+  );
+}
+
+function TimelineTab({
+  dealId,
+  canEdit,
+}: {
+  dealId: string;
+  canEdit: boolean;
+}) {
+  const { colors } = useTheme();
+  const queryClient = useQueryClient();
+  const dialog = useAppDialog();
+  const [note, setNote] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const { data: events = [], isLoading } = useQuery({
+    queryKey: ['deal-events', dealId],
+    queryFn: () => fetchDealEvents(dealId),
+    enabled: Boolean(dealId),
+  });
+
+  async function add() {
+    const text = note.trim();
+    if (!text) return;
+    setSaving(true);
+    try {
+      await addDealNote(dealId, text);
+      setNote('');
+      await queryClient.invalidateQueries({
+        queryKey: ['deal-events', dealId],
+      });
+      void haptic.success();
+    } catch (err) {
+      dialog.show({
+        title: 'Could not add',
+        message: friendlyError(errorText(err)),
+      });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (isLoading) return <Loading />;
+
+  return (
+    <ScrollView
+      contentContainerStyle={styles.list}
+      keyboardShouldPersistTaps="handled"
+    >
+      <Text style={[styles.cardMeta, { color: colors.textMuted }]}>
+        Every change, in order. Entries cannot be edited or removed.
+      </Text>
+      {canEdit ? (
+        <>
+          <TextField
+            placeholder="Add an internal note…"
+            value={note}
+            multiline
+            onChangeText={setNote}
+          />
+          <PrimaryButton
+            label="Add note"
+            onPress={() => void add()}
+            busy={saving}
+            disabled={!note.trim()}
+          />
+        </>
+      ) : null}
+      {events.length === 0 ? (
+        <EmptyState
+          icon="time-outline"
+          title="Nothing recorded yet"
+          subtitle=""
+        />
+      ) : (
+        events.map((ev) => {
+          const noteText =
+            ev.event_type === 'note_added' &&
+            typeof ev.metadata?.note === 'string'
+              ? ev.metadata.note
+              : null;
+          return (
+            <View
+              key={ev.id}
+              style={[
+                styles.card,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+              ]}
+            >
+              <Text style={[styles.cardTitle, { color: colors.text }]}>
+                {noteText ?? ev.title}
+              </Text>
+              <Text style={[styles.cardMeta, { color: colors.textMuted }]}>
+                {DEAL_EVENT_LABELS[ev.event_type] ?? ev.event_type}
+                {ev.actor_name ? ` · ${ev.actor_name}` : ''} ·{' '}
+                {auditDateTime(ev.created_at)}
+              </Text>
+            </View>
+          );
+        })
+      )}
+      <AppDialog {...dialog.dialogProps} />
+    </ScrollView>
+  );
+}
+
+function MilestonesTab({
+  dealId,
+  canEdit,
+}: {
+  dealId: string;
+  canEdit: boolean;
+}) {
+  const { colors } = useTheme();
+  const queryClient = useQueryClient();
+  const dialog = useAppDialog();
+  const [busy, setBusy] = useState<string | null>(null);
+  const [title, setTitle] = useState('');
+
+  const { data: milestones = [], isLoading } = useQuery({
+    queryKey: ['deal-milestones', dealId],
+    queryFn: () => fetchDealMilestones(dealId),
+    enabled: Boolean(dealId),
+  });
+
+  const refresh = () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['deal-milestones', dealId] }),
+      queryClient.invalidateQueries({ queryKey: ['deal-events', dealId] }),
+    ]);
+
+  async function run(key: string, action: () => Promise<unknown>) {
+    setBusy(key);
+    try {
+      await action();
+      await refresh();
+      void haptic.success();
+    } catch (err) {
+      dialog.show({
+        title: 'That did not work',
+        message: friendlyError(errorText(err)),
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  function chooseStatus(m: DealMilestoneRow) {
+    dialog.show({
+      title: m.title,
+      message: 'Completing a milestone never moves the pipeline stage.',
+      actions: [
+        ...(Object.keys(DEAL_MILESTONE_STATUS_LABELS) as DealMilestoneStatus[])
+          .filter((s) => s !== m.status)
+          .map((s) => ({
+            label: DEAL_MILESTONE_STATUS_LABELS[s],
+            onPress: () => {
+              dialog.close();
+              void run(m.id, () =>
+                updateDealMilestone(dealId, m.id, { status: s })
+              );
+            },
+          })),
+        { label: 'Cancel', variant: 'muted' as const, onPress: dialog.close },
+      ],
+    });
+  }
+
+  if (isLoading) return <Loading />;
+
+  const done = milestones.filter(
+    (m) => m.status === 'completed' || m.status === 'skipped'
+  ).length;
+
+  return (
+    <ScrollView
+      contentContainerStyle={styles.list}
+      keyboardShouldPersistTaps="handled"
+    >
+      {milestones.length === 0 ? (
+        <>
+          <EmptyState
+            icon="checkmark-done-outline"
+            title="No milestones yet"
+            subtitle="Token, legal, agreement, registration, handover — the standard closing checklist."
+          />
+          {canEdit ? (
+            <PrimaryButton
+              label="Add the standard checklist"
+              busy={busy === 'standard'}
+              onPress={() =>
+                void run('standard', () => addStandardMilestones(dealId))
+              }
+            />
+          ) : null}
+        </>
+      ) : (
+        <>
+          <Text style={[styles.cardMeta, { color: colors.textMuted }]}>
+            {done} / {milestones.length} done
+          </Text>
+          {milestones.map((m) => {
+            const isDone = m.status === 'completed' || m.status === 'skipped';
+            return (
+              <Pressable
+                key={m.id}
+                disabled={!canEdit || busy === m.id}
+                onPress={() => chooseStatus(m)}
+                style={[
+                  styles.card,
+                  styles.row,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                    opacity: isDone ? 0.7 : 1,
+                  },
+                ]}
+              >
+                <Ionicons
+                  name={
+                    m.status === 'completed'
+                      ? 'checkmark-circle'
+                      : m.status === 'skipped'
+                        ? 'remove-circle-outline'
+                        : m.status === 'in_progress'
+                          ? 'ellipse-outline'
+                          : 'ellipse-outline'
+                  }
+                  size={22}
+                  color={
+                    m.status === 'completed' ? colors.success : colors.textMuted
+                  }
+                />
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={[
+                      styles.cardTitle,
+                      {
+                        color: colors.text,
+                        textDecorationLine:
+                          m.status === 'completed' ? 'line-through' : 'none',
+                      },
+                    ]}
+                  >
+                    {m.title}
+                  </Text>
+                  <Text style={[styles.cardMeta, { color: colors.textMuted }]}>
+                    {DEAL_MILESTONE_STATUS_LABELS[m.status]}
+                    {m.target_date ? ` · due ${m.target_date}` : ''}
+                  </Text>
+                </View>
+              </Pressable>
+            );
+          })}
+          {canEdit ? (
+            <>
+              <TextField
+                placeholder="Custom milestone…"
+                value={title}
+                onChangeText={setTitle}
+              />
+              <PrimaryButton
+                label="Add milestone"
+                busy={busy === 'custom'}
+                disabled={!title.trim()}
+                onPress={() =>
+                  void run('custom', async () => {
+                    await addCustomMilestone(dealId, title.trim(), null);
+                    setTitle('');
+                  })
+                }
+              />
+            </>
+          ) : null}
+        </>
+      )}
+      <AppDialog {...dialog.dialogProps} />
+    </ScrollView>
+  );
+}
+
+function TasksTab({
+  dealId,
+  canEdit,
+  contactId,
+  propertyId,
+}: {
+  dealId: string;
+  canEdit: boolean;
+  contactId: string | null;
+  propertyId: string | null;
+}) {
+  const { colors } = useTheme();
+  const queryClient = useQueryClient();
+  const dialog = useAppDialog();
+  const [title, setTitle] = useState('');
+  const [priority, setPriority] = useState<DealTaskRow['priority']>('medium');
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const { data: tasks = [], isLoading } = useQuery({
+    queryKey: ['deal-tasks', dealId],
+    queryFn: () => fetchDealTasks(dealId),
+    enabled: Boolean(dealId),
+  });
+
+  const refresh = () =>
+    queryClient.invalidateQueries({ queryKey: ['deal-tasks', dealId] });
+
+  async function run(key: string, action: () => Promise<unknown>) {
+    setBusy(key);
+    try {
+      await action();
+      await refresh();
+      void haptic.success();
+    } catch (err) {
+      dialog.show({
+        title: 'That did not work',
+        message: friendlyError(errorText(err)),
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  if (isLoading) return <Loading />;
+
+  const ordered = [
+    ...tasks.filter((t) => !t.completed),
+    ...tasks.filter((t) => t.completed),
+  ];
+
+  return (
+    <ScrollView
+      contentContainerStyle={styles.list}
+      keyboardShouldPersistTaps="handled"
+    >
+      {canEdit ? (
+        <>
+          <TextField
+            placeholder="What needs doing?"
+            value={title}
+            onChangeText={setTitle}
+          />
+          <View style={styles.chipRow}>
+            {(['low', 'medium', 'high'] as const).map((p) => (
+              <FilterChip
+                key={p}
+                label={p}
+                active={priority === p}
+                onPress={() => setPriority(p)}
+              />
+            ))}
+          </View>
+          <PrimaryButton
+            label="Add task"
+            busy={busy === 'new'}
+            disabled={!title.trim()}
+            onPress={() =>
+              void run('new', async () => {
+                await addDealTask(dealId, {
+                  title: title.trim(),
+                  priority,
+                  dueDate: null,
+                  contactId,
+                  propertyId,
+                });
+                setTitle('');
+              })
+            }
+          />
+        </>
+      ) : null}
+      {ordered.length === 0 ? (
+        <EmptyState
+          icon="list-outline"
+          title="No tasks on this deal"
+          subtitle=""
+        />
+      ) : (
+        ordered.map((task) => (
+          <Pressable
+            key={task.id}
+            disabled={!canEdit || busy === task.id}
+            onPress={() =>
+              void run(task.id, () =>
+                setDealTaskCompleted(task.id, !task.completed)
+              )
+            }
+            style={[
+              styles.card,
+              styles.row,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.border,
+                opacity: task.completed ? 0.6 : 1,
+              },
+            ]}
+          >
+            <Ionicons
+              name={task.completed ? 'checkmark-circle' : 'ellipse-outline'}
+              size={22}
+              color={task.completed ? colors.success : colors.textMuted}
+            />
+            <View style={{ flex: 1 }}>
+              <Text
+                style={[
+                  styles.cardTitle,
+                  {
+                    color: colors.text,
+                    textDecorationLine: task.completed
+                      ? 'line-through'
+                      : 'none',
+                  },
+                ]}
+              >
+                {task.title}
+              </Text>
+              <Text style={[styles.cardMeta, { color: colors.textMuted }]}>
+                {task.priority} priority
+                {task.due_date ? ` · due ${auditDate(task.due_date)}` : ''}
+              </Text>
+            </View>
+          </Pressable>
+        ))
+      )}
+      <AppDialog {...dialog.dialogProps} />
+    </ScrollView>
   );
 }
 
@@ -314,13 +1011,21 @@ function InvoicesTab({ dealId }: { dealId: string }) {
   );
 }
 
-function DocumentsTab({ dealId }: { dealId: string }) {
+function DocumentsTab({
+  dealId,
+  canEdit,
+}: {
+  dealId: string;
+  canEdit: boolean;
+}) {
   const { colors } = useTheme();
   const queryClient = useQueryClient();
   const dialog = useAppDialog();
   const [category, setCategory] = useState<DealDocumentCategory>('identity');
   const [busy, setBusy] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [expiryFor, setExpiryFor] = useState<string | null>(null);
+  const [expiryText, setExpiryText] = useState('');
 
   const { data: documents = [], isLoading } = useQuery({
     queryKey: ['deal-documents', dealId],
@@ -329,7 +1034,78 @@ function DocumentsTab({ dealId }: { dealId: string }) {
   });
 
   const refresh = () =>
-    queryClient.invalidateQueries({ queryKey: ['deal-documents', dealId] });
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['deal-documents', dealId] }),
+      queryClient.invalidateQueries({ queryKey: ['deal-events', dealId] }),
+    ]);
+
+  async function patch(
+    doc: DealDocumentRow,
+    body: {
+      status?: DealDocumentStatus;
+      expires_at?: string | null;
+      superseded_by?: string;
+    }
+  ) {
+    setBusy(doc.id);
+    try {
+      await updateDealDocument(dealId, doc.id, body);
+      await refresh();
+      setExpiryFor(null);
+      void haptic.success();
+    } catch (err) {
+      dialog.show({
+        title: 'Could not update',
+        message: friendlyError(errorText(err)),
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  function chooseStatus(doc: DealDocumentRow) {
+    const options = nextDocumentStatuses(doc.status);
+    if (options.length === 0) return;
+    dialog.show({
+      title: doc.title,
+      message: 'Status only moves forward.',
+      actions: [
+        ...options.map((status) => ({
+          label: DEAL_DOCUMENT_STATUS_LABELS[status],
+          onPress: () => {
+            dialog.close();
+            void patch(doc, { status });
+          },
+        })),
+        { label: 'Cancel', variant: 'muted' as const, onPress: dialog.close },
+      ],
+    });
+  }
+
+  function chooseReplacement(doc: DealDocumentRow) {
+    const candidates = documents.filter(
+      (d) => d.id !== doc.id && !d.superseded_by
+    );
+    if (candidates.length === 0) {
+      dialog.show({ title: 'Upload the newer version first', message: '' });
+      return;
+    }
+    dialog.show({
+      title: `Supersede "${doc.title}"`,
+      message:
+        'Pick the document that replaces it. This one stays in the folder, marked.',
+      actions: [
+        ...candidates.map((d) => ({
+          label: d.title,
+          onPress: () => {
+            dialog.close();
+            void patch(doc, { superseded_by: d.id });
+          },
+        })),
+        { label: 'Cancel', variant: 'muted' as const, onPress: dialog.close },
+      ],
+    });
+  }
 
   async function pickAndUpload() {
     const picked = await DocumentPicker.getDocumentAsync({
@@ -427,18 +1203,20 @@ function DocumentsTab({ dealId }: { dealId: string }) {
         ))}
       </ScrollView>
 
-      <Pressable
-        onPress={pickAndUpload}
-        disabled={busy === 'upload'}
-        style={[styles.primaryButton, { backgroundColor: colors.primary }]}
-      >
-        {busy === 'upload' ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Ionicons name="cloud-upload-outline" size={18} color="#fff" />
-        )}
-        <Text style={styles.primaryButtonText}>Upload document</Text>
-      </Pressable>
+      {canEdit && (
+        <Pressable
+          onPress={pickAndUpload}
+          disabled={busy === 'upload'}
+          style={[styles.primaryButton, { backgroundColor: colors.primary }]}
+        >
+          {busy === 'upload' ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Ionicons name="cloud-upload-outline" size={18} color="#fff" />
+          )}
+          <Text style={styles.primaryButtonText}>Upload document</Text>
+        </Pressable>
+      )}
 
       {documents.length === 0 ? (
         <EmptyState
@@ -466,6 +1244,24 @@ function DocumentsTab({ dealId }: { dealId: string }) {
                   ? ` · ${Math.max(1, Math.round(doc.size_bytes / 1024))} KB`
                   : ''}
               </Text>
+              {(doc.status || doc.superseded_by || doc.expires_at) && (
+                <Text
+                  style={[
+                    styles.cardMeta,
+                    {
+                      color: doc.superseded_by
+                        ? colors.warning
+                        : colors.textMuted,
+                    },
+                  ]}
+                >
+                  {doc.status
+                    ? DEAL_DOCUMENT_STATUS_LABELS[doc.status]
+                    : 'Unlabelled'}
+                  {doc.superseded_by ? ' · Superseded' : ''}
+                  {doc.expires_at ? ` · Expires ${doc.expires_at}` : ''}
+                </Text>
+              )}
 
               <View style={styles.actions}>
                 <ActionButton
@@ -474,7 +1270,36 @@ function DocumentsTab({ dealId }: { dealId: string }) {
                   busy={busy === `open:${doc.id}`}
                   onPress={() => openDocument(doc)}
                 />
-                {isReadable(doc.mime_type) && (
+                {canEdit &&
+                  !doc.superseded_by &&
+                  nextDocumentStatuses(doc.status).length > 0 && (
+                    <ActionButton
+                      label="Status"
+                      icon="flag-outline"
+                      busy={busy === doc.id}
+                      onPress={() => chooseStatus(doc)}
+                    />
+                  )}
+                {canEdit && !doc.superseded_by && (
+                  <ActionButton
+                    label="Expiry"
+                    icon="calendar-outline"
+                    busy={busy === doc.id}
+                    onPress={() => {
+                      setExpiryFor(expiryFor === doc.id ? null : doc.id);
+                      setExpiryText(doc.expires_at ?? '');
+                    }}
+                  />
+                )}
+                {canEdit && !doc.superseded_by && documents.length > 1 && (
+                  <ActionButton
+                    label="Supersede"
+                    icon="swap-horizontal-outline"
+                    busy={busy === doc.id}
+                    onPress={() => chooseReplacement(doc)}
+                  />
+                )}
+                {canEdit && isReadable(doc.mime_type) && (
                   <ActionButton
                     label={doc.extracted ? 'Read again' : 'Read with AI'}
                     icon="sparkles-outline"
@@ -492,33 +1317,57 @@ function DocumentsTab({ dealId }: { dealId: string }) {
                     }
                   />
                 )}
-                <ActionButton
-                  label="Delete"
-                  icon="trash-outline"
-                  busy={busy === doc.id}
-                  onPress={() =>
-                    dialog.show({
-                      title: `Delete "${doc.title}"?`,
-                      message: 'This cannot be undone.',
-                      actions: [
-                        {
-                          label: 'Keep',
-                          onPress: dialog.close,
-                          variant: 'muted',
-                        },
-                        {
-                          label: 'Delete',
-                          variant: 'destructive',
-                          onPress: () => {
-                            dialog.close();
-                            void remove(doc);
+                {canEdit && canDeleteDocument(doc) && (
+                  <ActionButton
+                    label="Delete"
+                    icon="trash-outline"
+                    busy={busy === doc.id}
+                    onPress={() =>
+                      dialog.show({
+                        title: `Delete "${doc.title}"?`,
+                        message: 'This cannot be undone.',
+                        actions: [
+                          {
+                            label: 'Keep',
+                            onPress: dialog.close,
+                            variant: 'muted',
                           },
-                        },
-                      ],
-                    })
-                  }
-                />
+                          {
+                            label: 'Delete',
+                            variant: 'destructive',
+                            onPress: () => {
+                              dialog.close();
+                              void remove(doc);
+                            },
+                          },
+                        ],
+                      })
+                    }
+                  />
+                )}
               </View>
+
+              {expiryFor === doc.id && (
+                <View style={styles.extraction}>
+                  <TextInput
+                    value={expiryText}
+                    onChangeText={setExpiryText}
+                    placeholder="YYYY-MM-DD (blank to clear)"
+                    placeholderTextColor={colors.textFaint}
+                    style={[
+                      styles.expiryInput,
+                      { color: colors.text, borderColor: colors.border },
+                    ]}
+                  />
+                  <PrimaryButton
+                    label="Save expiry"
+                    busy={busy === doc.id}
+                    onPress={() =>
+                      void patch(doc, { expires_at: expiryText.trim() || null })
+                    }
+                  />
+                </View>
+              )}
 
               {doc.extraction_status === 'failed' && (
                 <Text style={[styles.cardMeta, { color: colors.danger }]}>
@@ -598,11 +1447,26 @@ function Loading() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
+  stageLine: {
+    fontFamily: fonts.medium,
+    fontSize: 12,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+  },
   tabs: {
     flexDirection: 'row',
     gap: spacing.sm,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
+  },
+  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  expiryInput: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 10,
+    fontFamily: fonts.regular,
+    fontSize: 14,
   },
   list: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xl * 2 },
   chipRow: { gap: spacing.sm, paddingBottom: spacing.sm },

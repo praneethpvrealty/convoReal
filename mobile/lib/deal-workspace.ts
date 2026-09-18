@@ -102,6 +102,9 @@ export interface DealDocumentRow {
   extracted: Record<string, unknown> | null;
   extraction_status: 'pending' | 'done' | 'failed' | null;
   created_at: string;
+  status: DealDocumentStatus | null;
+  superseded_by: string | null;
+  expires_at: string | null;
 }
 
 /** Mirrors DEAL_DOCUMENT_MIME_TYPES in src/lib/invoices/types.ts and the
@@ -202,4 +205,179 @@ export function extractionEntries(
       label: labels[key] ?? key,
       value: Array.isArray(value) ? value.join('\n') : String(value),
     }));
+}
+
+// ------------------------------------------------------------------
+// Transaction Workspace (Phase 1). Mirrored from src/lib/deals/*;
+// guarded by src/lib/mobile-parity.test.ts.
+// ------------------------------------------------------------------
+
+export type DealWorkspaceTab =
+  'overview' | 'timeline' | 'milestones' | 'tasks' | 'documents' | 'invoices';
+
+/** Mirrored from src/components/deals/deal-workspace.tsx. */
+export const DEAL_WORKSPACE_TABS: ReadonlyArray<{
+  id: DealWorkspaceTab;
+  label: string;
+}> = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'timeline', label: 'Timeline' },
+  { id: 'milestones', label: 'Milestones' },
+  { id: 'tasks', label: 'Tasks' },
+  { id: 'documents', label: 'Documents' },
+  { id: 'invoices', label: 'Invoices' },
+];
+
+export type DealMilestoneStatus =
+  'pending' | 'in_progress' | 'completed' | 'skipped';
+
+/** Mirrored from src/lib/deals/milestones.ts. */
+export const DEAL_MILESTONE_STATUS_LABELS: Record<DealMilestoneStatus, string> =
+  {
+    pending: 'Pending',
+    in_progress: 'In progress',
+    completed: 'Completed',
+    skipped: 'Skipped',
+  };
+
+export interface DealMilestoneRow {
+  id: string;
+  template_key: string | null;
+  title: string;
+  position: number;
+  status: DealMilestoneStatus;
+  target_date: string | null;
+  completed_at: string | null;
+  notes: string | null;
+}
+
+export type DealDocumentStatus = 'draft' | 'reviewed' | 'approved' | 'executed';
+
+/** Mirrored from src/lib/deals/documents.ts. */
+export const DEAL_DOCUMENT_STATUS_LABELS: Record<DealDocumentStatus, string> = {
+  draft: 'Draft',
+  reviewed: 'Reviewed',
+  approved: 'Approved',
+  executed: 'Executed',
+};
+
+const DOCUMENT_STATUS_ORDER: DealDocumentStatus[] = [
+  'draft',
+  'reviewed',
+  'approved',
+  'executed',
+];
+
+/** Forward only — mirrors canTransitionDocumentStatus on the server. */
+export function nextDocumentStatuses(
+  from: DealDocumentStatus | null
+): DealDocumentStatus[] {
+  if (from === null) return DOCUMENT_STATUS_ORDER;
+  return DOCUMENT_STATUS_ORDER.slice(DOCUMENT_STATUS_ORDER.indexOf(from) + 1);
+}
+
+/** Approved and executed papers are superseded, never deleted. */
+export function canDeleteDocument(doc: {
+  status: DealDocumentStatus | null;
+  superseded_by: string | null;
+}): boolean {
+  if (doc.superseded_by) return false;
+  return doc.status !== 'approved' && doc.status !== 'executed';
+}
+
+export type DealEventType =
+  | 'created'
+  | 'converted_from_journey'
+  | 'stage_changed'
+  | 'financials_updated'
+  | 'milestone_added'
+  | 'milestone_updated'
+  | 'task_added'
+  | 'document_added'
+  | 'document_status_changed'
+  | 'document_superseded'
+  | 'group_changed'
+  | 'note_added';
+
+/** Mirrored from src/lib/deals/events.ts. */
+export const DEAL_EVENT_LABELS: Record<DealEventType, string> = {
+  created: 'Deal created',
+  converted_from_journey: 'Converted from journey',
+  stage_changed: 'Stage changed',
+  financials_updated: 'Financials updated',
+  milestone_added: 'Milestone added',
+  milestone_updated: 'Milestone updated',
+  task_added: 'Task added',
+  document_added: 'Document added',
+  document_status_changed: 'Document status changed',
+  document_superseded: 'Document superseded',
+  group_changed: 'Bundle changed',
+  note_added: 'Note',
+};
+
+export interface DealEventRow {
+  id: string;
+  event_type: DealEventType;
+  source: 'web' | 'mobile' | 'api' | 'system';
+  actor_name: string | null;
+  title: string;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
+
+export type TdsStatus =
+  'not_applicable' | 'expected' | 'deducted' | 'deposited';
+
+/** Mirrored from src/lib/deals/financials.ts. */
+export const TDS_STATUS_LABELS: Record<TdsStatus, string> = {
+  not_applicable: 'Not applicable',
+  expected: 'Expected',
+  deducted: 'Deducted',
+  deposited: 'Deposited',
+};
+
+export interface DealFinancialsRow {
+  agreed_consideration: number | null;
+  registered_consideration: number | null;
+  other_component: number | null;
+  token_amount: number | null;
+  token_received_at: string | null;
+  token_instrument_ref: string | null;
+  tds_status: TdsStatus | null;
+  tds_amount: number | null;
+  payment_instrument_refs: string | null;
+  brokerage_received_amount: number | null;
+  token_source: 'deal' | 'token_safe';
+  token: {
+    source: 'deal' | 'token_safe';
+    amount: number | null;
+    received_at: string | null;
+    reference: string | null;
+    status: string | null;
+  };
+}
+
+export interface DealTaskRow {
+  id: string;
+  title: string;
+  due_date: string | null;
+  priority: 'low' | 'medium' | 'high';
+  completed: boolean;
+}
+
+/** Build the PATCH body for the financials form: only fields that
+ *  changed, blanks as null, and never a token field when Token Safe
+ *  owns it. The server validates every value again. */
+export function financialsPatch(
+  before: Record<string, string>,
+  after: Record<string, string>,
+  tokenSource: 'deal' | 'token_safe'
+): Record<string, string | null> {
+  const patch: Record<string, string | null> = {};
+  for (const key of Object.keys(after)) {
+    if (after[key] === (before[key] ?? '')) continue;
+    if (tokenSource === 'token_safe' && key.startsWith('token_')) continue;
+    patch[key] = after[key] === '' ? null : after[key];
+  }
+  return patch;
 }

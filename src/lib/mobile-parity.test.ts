@@ -56,6 +56,11 @@ import {
   INVOICE_STATUS_LABELS,
 } from '@/lib/invoices/types';
 import { brokerageAmount } from '@/lib/pipelines/brokerage';
+import { DEAL_WORKSPACE_TABS } from '@/components/deals/deal-workspace';
+import { DEAL_DOCUMENT_STATUS_LABELS } from '@/lib/deals/documents';
+import { DEAL_EVENT_LABELS } from '@/lib/deals/events';
+import { TDS_STATUS_LABELS } from '@/lib/deals/financials';
+import { DEAL_MILESTONE_STATUS_LABELS } from '@/lib/deals/milestones';
 import {
   DIGEST_PAUSE_COMMAND,
   DIGEST_RESUME_COMMAND,
@@ -1461,5 +1466,106 @@ describe('[PRP-008] suggested portal mappings are confirmable on both surfaces',
       expect(source).toContain('Accept');
       expect(source).toContain('Change');
     }
+  });
+});
+
+describe('[TXW] the Transaction Workspace ships on both surfaces', () => {
+  const mobileVocab = mobileSource('lib/deal-workspace.ts');
+  const mobileApi = mobileSource('lib/deal-workspace-api.ts');
+  const mobileScreen = mobileSource('app/(app)/deal/[id].tsx');
+  const mobileJourney = mobileSource('app/(app)/journey.tsx');
+  const webWorkspace = webSource('components/deals/deal-workspace.tsx');
+  const webJourneySheet = webSource(
+    'components/journey/journey-item-sheet.tsx'
+  );
+
+  it('offers the same tabs, in the same order', () => {
+    for (const tab of DEAL_WORKSPACE_TABS) {
+      expect(mobileVocab, `mobile is missing the "${tab.id}" tab`).toContain(
+        `{ id: '${tab.id}', label: '${tab.label}' }`
+      );
+    }
+    const order = DEAL_WORKSPACE_TABS.map((t) =>
+      mobileVocab.indexOf(`id: '${t.id}'`)
+    );
+    expect(order).toEqual([...order].sort((a, b) => a - b));
+    expect(webWorkspace).toContain('DEAL_WORKSPACE_TABS');
+  });
+
+  it('[TXW-003] labels every milestone status identically', () => {
+    for (const [status, label] of Object.entries(
+      DEAL_MILESTONE_STATUS_LABELS
+    )) {
+      expect(
+        mobileVocab,
+        `mobile is missing the "${status}" milestone label`
+      ).toContain(`${status}: '${label}'`);
+    }
+  });
+
+  it('[TXW-007] labels every document status identically and keeps them forward-only', () => {
+    for (const [status, label] of Object.entries(DEAL_DOCUMENT_STATUS_LABELS)) {
+      expect(
+        mobileVocab,
+        `mobile is missing the "${status}" document label`
+      ).toContain(`${status}: '${label}'`);
+    }
+    expect(mobileVocab).toContain(
+      "const DOCUMENT_STATUS_ORDER: DealDocumentStatus[] = [\n  'draft',\n  'reviewed',\n  'approved',\n  'executed',\n];"
+    );
+    expect(mobileVocab).toMatch(
+      /return doc\.status !== 'approved' && doc\.status !== 'executed';/
+    );
+    expect(mobileScreen).toContain('canDeleteDocument(doc)');
+    expect(mobileScreen).toContain('superseded_by');
+    expect(mobileScreen).toContain('expires_at');
+  });
+
+  it('[TXW-002] labels every timeline event identically and never edits one', () => {
+    for (const [type, label] of Object.entries(DEAL_EVENT_LABELS)) {
+      expect(
+        mobileVocab,
+        `mobile is missing the "${type}" event label`
+      ).toContain(`${type}: '${label}'`);
+    }
+    expect(mobileApi).toContain('`/api/deals/${dealId}/events`');
+    expect(mobileApi).not.toMatch(
+      /events\/\$\{[^}]*\}`,\s*\{\s*method: '(PATCH|PUT|DELETE)'/
+    );
+  });
+
+  it('[TXW-004] names the same TDS states and computes no money of its own', () => {
+    for (const [status, label] of Object.entries(TDS_STATUS_LABELS)) {
+      expect(
+        mobileVocab,
+        `mobile is missing the "${status}" TDS label`
+      ).toContain(`${status}: '${label}'`);
+    }
+    expect(mobileApi).toContain('`/api/deals/${dealId}/financials`');
+    expect(mobileVocab).not.toMatch(/agreed_consideration\s*[-+*/]/);
+  });
+
+  it('[TXW-006] hides the token fields when Token Safe owns them', () => {
+    expect(mobileVocab).toContain(
+      "tokenSource === 'token_safe' && key.startsWith('token_')"
+    );
+    expect(mobileScreen).toContain("data.token_source === 'token_safe'");
+  });
+
+  it('[TXW-001] converts a journey through the same route on both surfaces', () => {
+    expect(webJourneySheet).toContain("'/api/journey/convert-to-deal'");
+    expect(mobileApi).toContain("'/api/journey/convert-to-deal'");
+    expect(mobileJourney).toContain('convertJourneyItemToDeal');
+    expect(mobileJourney).toContain('Convert to deal');
+    expect(webJourneySheet).toContain('Convert to deal');
+  });
+
+  it('links deal tasks through the same to-do routes', () => {
+    expect(mobileApi).toContain(
+      '`/api/todos?deal_id=${encodeURIComponent(dealId)}`'
+    );
+    expect(webSource('components/deals/deal-tasks-panel.tsx')).toContain(
+      '`/api/todos?deal_id=${encodeURIComponent(dealId)}`'
+    );
   });
 });

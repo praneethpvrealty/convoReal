@@ -1,5 +1,5 @@
-import { redirect } from 'next/navigation';
+import { TransactionWorkspaceIndex } from '@/components/deals/transaction-workspace-index';
 
 export default function DealsIndexPage() {
-  redirect('/automations?tab=pipelines');
+  return <TransactionWorkspaceIndex />;
 }

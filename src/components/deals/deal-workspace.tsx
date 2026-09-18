@@ -3,7 +3,14 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Building2, Loader2, User } from 'lucide-react';
+import {
+  ArrowLeft,
+  Building2,
+  Layers,
+  Loader2,
+  User,
+  Waypoints,
+} from 'lucide-react';
 
 import { useAuth } from '@/hooks/use-auth';
 import { createClient } from '@/lib/supabase/client';
@@ -12,9 +19,14 @@ import { brokerageAmount } from '@/lib/pipelines/brokerage';
 import { cn } from '@/lib/utils';
 
 import { DealDocumentsPanel } from './deal-documents-panel';
+import { DealFinancialsPanel } from './deal-financials-panel';
 import { DealInvoicesPanel } from './deal-invoices-panel';
+import { DealMilestonesPanel } from './deal-milestones-panel';
+import { DealTasksPanel } from './deal-tasks-panel';
+import { DealTimelinePanel } from './deal-timeline-panel';
 
-type TabId = 'invoices' | 'documents';
+type TabId =
+  'overview' | 'timeline' | 'milestones' | 'tasks' | 'documents' | 'invoices';
 
 interface DealSummary {
   id: string;
@@ -25,6 +37,9 @@ interface DealSummary {
   brokerage_value: number | null;
   brokerage_amount: number | null;
   status: string;
+  source_journey_item_id: string | null;
+  deal_group_id: string | null;
+  deal_room_id: string | null;
   contact: {
     id: string;
     name: string | null;
@@ -32,12 +47,23 @@ interface DealSummary {
   } | null;
   property: { id: string; title: string | null; unit_no: string | null } | null;
   stage: { name: string } | null;
+  group: { id: string; name: string } | null;
 }
+
+/** Mirrored in mobile/app/(app)/deal/[id].tsx; guarded by mobile-parity.test.ts. */
+export const DEAL_WORKSPACE_TABS: Array<{ id: TabId; label: string }> = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'timeline', label: 'Timeline' },
+  { id: 'milestones', label: 'Milestones' },
+  { id: 'tasks', label: 'Tasks' },
+  { id: 'documents', label: 'Documents' },
+  { id: 'invoices', label: 'Invoices' },
+];
 
 export function DealWorkspace({ dealId }: { dealId: string }) {
   const supabase = createClient();
   const { accountId, isViewer, isReadOnly } = useAuth();
-  const [tab, setTab] = useState<TabId>('invoices');
+  const [tab, setTab] = useState<TabId>('overview');
 
   const canEdit = !isViewer && !isReadOnly;
 
@@ -48,9 +74,11 @@ export function DealWorkspace({ dealId }: { dealId: string }) {
         .from('deals')
         .select(
           'id, title, value, currency, brokerage_type, brokerage_value, brokerage_amount, status, ' +
+            'source_journey_item_id, deal_group_id, deal_room_id, ' +
             'contact:contacts(id, name, second_name), ' +
             'property:properties(id, title, unit_no), ' +
-            'stage:pipeline_stages(name)'
+            'stage:pipeline_stages(name), ' +
+            'group:deal_groups(id, name)'
         )
         .eq('id', dealId)
         .maybeSingle();
@@ -64,7 +92,7 @@ export function DealWorkspace({ dealId }: { dealId: string }) {
     return (
       <div className="flex items-center gap-2 p-8 text-sm text-slate-400">
         <Loader2 className="h-4 w-4 animate-spin" />
-        Loading deal…
+        Loading transaction…
       </div>
     );
   }
@@ -72,12 +100,11 @@ export function DealWorkspace({ dealId }: { dealId: string }) {
   if (!deal) {
     return (
       <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-8 text-center">
-        <p className="text-sm text-slate-300">This deal could not be found.</p>
-        <Link
-          href="/automations?tab=pipelines"
-          className="text-primary mt-3 inline-block text-sm"
-        >
-          Back to pipelines
+        <p className="text-sm text-slate-300">
+          This transaction could not be found.
+        </p>
+        <Link href="/deals" className="text-primary mt-3 inline-block text-sm">
+          Back to Transactions
         </Link>
       </div>
     );
@@ -95,20 +122,15 @@ export function DealWorkspace({ dealId }: { dealId: string }) {
     .filter(Boolean)
     .join(' ');
 
-  const tabs: Array<{ id: TabId; label: string }> = [
-    { id: 'invoices', label: 'Invoices' },
-    { id: 'documents', label: 'Documents' },
-  ];
-
   return (
     <div className="space-y-6">
       <div>
         <Link
-          href="/automations?tab=pipelines"
+          href="/deals"
           className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-400 hover:text-white"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
-          Pipelines
+          Transactions
         </Link>
         <h1 className="mt-2 text-2xl font-extrabold tracking-tight text-white sm:text-3xl">
           {deal.title}
@@ -120,10 +142,13 @@ export function DealWorkspace({ dealId }: { dealId: string }) {
             </span>
           )}
           {contactName && (
-            <span className="inline-flex items-center gap-1">
+            <Link
+              href={`/contacts?contact=${deal.contact?.id}`}
+              className="inline-flex items-center gap-1 hover:text-white"
+            >
               <User className="h-3.5 w-3.5" />
               {contactName}
-            </span>
+            </Link>
           )}
           {deal.property && (
             <Link
@@ -135,6 +160,25 @@ export function DealWorkspace({ dealId }: { dealId: string }) {
                 ? `Property No. ${deal.property.unit_no}`
                 : deal.property.title}
             </Link>
+          )}
+          {deal.source_journey_item_id && (
+            <Link
+              href={`/journey?item=${deal.source_journey_item_id}`}
+              className="inline-flex items-center gap-1 hover:text-white"
+              title="Opened from a journey; the journey keeps its own history."
+            >
+              <Waypoints className="h-3.5 w-3.5" />
+              From journey
+            </Link>
+          )}
+          {deal.group && (
+            <span
+              className="inline-flex items-center gap-1"
+              title="Part of a bundle of linked transactions."
+            >
+              <Layers className="h-3.5 w-3.5" />
+              {deal.group.name}
+            </span>
           )}
         </div>
       </div>
@@ -157,13 +201,13 @@ export function DealWorkspace({ dealId }: { dealId: string }) {
         />
       </div>
 
-      <div className="flex gap-2 border-b border-slate-800/80">
-        {tabs.map((item) => (
+      <div className="flex gap-2 overflow-x-auto border-b border-slate-800/80">
+        {DEAL_WORKSPACE_TABS.map((item) => (
           <button
             key={item.id}
             onClick={() => setTab(item.id)}
             className={cn(
-              'cursor-pointer border-b-2 px-4 py-2.5 text-sm font-semibold transition-all',
+              'cursor-pointer border-b-2 px-4 py-2.5 text-sm font-semibold whitespace-nowrap transition-all',
               tab === item.id
                 ? 'border-primary bg-primary/5 text-white'
                 : 'border-transparent text-slate-400 hover:text-white'
@@ -174,10 +218,28 @@ export function DealWorkspace({ dealId }: { dealId: string }) {
         ))}
       </div>
 
-      {tab === 'invoices' ? (
-        <DealInvoicesPanel dealId={dealId} canEdit={canEdit} />
-      ) : (
+      {tab === 'overview' && (
+        <DealFinancialsPanel dealId={dealId} canEdit={canEdit} />
+      )}
+      {tab === 'timeline' && (
+        <DealTimelinePanel dealId={dealId} canEdit={canEdit} />
+      )}
+      {tab === 'milestones' && (
+        <DealMilestonesPanel dealId={dealId} canEdit={canEdit} />
+      )}
+      {tab === 'tasks' && (
+        <DealTasksPanel
+          dealId={dealId}
+          contactId={deal.contact?.id ?? null}
+          propertyId={deal.property?.id ?? null}
+          canEdit={canEdit}
+        />
+      )}
+      {tab === 'documents' && (
         <DealDocumentsPanel dealId={dealId} canEdit={canEdit} />
+      )}
+      {tab === 'invoices' && (
+        <DealInvoicesPanel dealId={dealId} canEdit={canEdit} />
       )}
     </div>
   );

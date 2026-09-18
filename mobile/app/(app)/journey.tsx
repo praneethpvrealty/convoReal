@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
   Linking,
@@ -31,6 +31,7 @@ import {
 } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
 import { buildCheckInMessage } from '@/lib/checkin-message';
+import { convertJourneyItemToDeal } from '@/lib/deal-workspace-api';
 import { haptic } from '@/lib/haptics';
 import {
   CLOSED_JOURNEY_STATUS_LABELS,
@@ -82,6 +83,39 @@ export default function JourneyScreen() {
   const accountId = profile?.account_id;
   const canEdit = Boolean(profile && profile.account_role !== 'viewer');
   const { show, close, dialogProps } = useAppDialog();
+  const [convertingItemId, setConvertingItemId] = useState<string | null>(null);
+
+  function askConvert(item: JourneyItem) {
+    if (!canEdit || convertingItemId) return;
+    show({
+      title: 'Convert to deal?',
+      message:
+        'Opens the closing record — milestones, papers, tasks and money — and keeps this journey and its history as they are.',
+      actions: [
+        { label: 'Cancel', variant: 'muted', onPress: close },
+        {
+          label: 'Convert',
+          onPress: async () => {
+            close();
+            setConvertingItemId(item.id);
+            try {
+              const result = await convertJourneyItemToDeal(item.id);
+              void haptic.success();
+              router.push(`/deal/${result.id}`);
+            } catch (err) {
+              show({
+                title: 'Could not convert',
+                message: err instanceof Error ? err.message : String(err),
+              });
+            } finally {
+              setConvertingItemId(null);
+            }
+          },
+        },
+      ],
+    });
+  }
+
   const { contactId, propertyId } = useLocalSearchParams<{
     contactId?: string;
     propertyId?: string;
@@ -781,6 +815,7 @@ export default function JourneyScreen() {
                       onMove={(from, to) => void moveGroup(bucket, from, to)}
                       onActions={() => showGroupActions(group)}
                       onCheckIn={askCheckIn}
+                      onConvert={askConvert}
                       onAddNote={(item, stage) => {
                         setNoteTarget({ item, stage });
                         setNoteText('');
@@ -983,6 +1018,7 @@ function DraggableJourneyCard({
   onMove,
   onActions,
   onCheckIn,
+  onConvert,
   onAddNote,
 }: {
   group: JourneyGroup;
@@ -997,6 +1033,7 @@ function DraggableJourneyCard({
   onMove: (from: number, to: number) => void;
   onActions: () => void;
   onCheckIn: (item: JourneyItem, stageLabel: string | undefined) => void;
+  onConvert: (item: JourneyItem) => void;
   onAddNote: (item: JourneyItem, stage: JourneyStage) => void;
 }) {
   const { colors, fonts: f } = useTheme();
@@ -1165,6 +1202,19 @@ function DraggableJourneyCard({
                       : itemStage?.name || '—'}
                   </Text>
                 </Pressable>
+                {canEdit && !dropped ? (
+                  <Pressable
+                    onPress={() => onConvert(item)}
+                    accessibilityLabel="Convert to deal"
+                    hitSlop={8}
+                  >
+                    <Ionicons
+                      name="briefcase-outline"
+                      size={17}
+                      color={colors.textMuted}
+                    />
+                  </Pressable>
+                ) : null}
                 {itemStage ? (
                   <Pressable
                     onPress={() => onAddNote(item, itemStage)}
