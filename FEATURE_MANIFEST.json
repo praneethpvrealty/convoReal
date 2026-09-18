@@ -787,6 +787,39 @@
           ]
         }
       ]
+    },
+    {
+      "id": "whatsapp-numbers",
+      "name": "Saved WhatsApp numbers — switch the live number without a PIN",
+      "surfaces": ["web"],
+      "invariants": [
+        {
+          "id": "WAN-001",
+          "rule": "Every successful Official API save (settings form, guided setup, sandbox upgrade) records the number as a saved profile keyed by phone_number_id with its encrypted token and registration state; a re-save refreshes the same profile; a phone number saved by another account, live or not, cannot be claimed.",
+          "tests": [
+            {
+              "file": "src/lib/whatsapp/number-profiles.test.ts",
+              "case": "[WAN-001]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20260918190000_whatsapp_number_profiles.sql"
+          ]
+        },
+        {
+          "id": "WAN-002",
+          "rule": "whatsapp_config stays the single live number. Activating a saved profile keeps the outgoing number saved, copies the profile's credentials and registered_at into whatsapp_config after Meta accepts the saved token, never calls /register, and refuses to touch the live row when Meta rejects the token; the live profile cannot be deleted; summaries never carry a token.",
+          "tests": [
+            {
+              "file": "src/lib/whatsapp/number-profiles.test.ts",
+              "case": "[WAN-002]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20260918190000_whatsapp_number_profiles.sql"
+          ]
+        }
+      ]
     }
   ]
 }
