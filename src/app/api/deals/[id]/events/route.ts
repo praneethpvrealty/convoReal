@@ -86,6 +86,7 @@ export async function POST(request: Request, { params }: RouteParams) {
       actorName: await actorName(ctx.supabase, ctx.accountId, ctx.userId),
       source: parsed.value.source,
       metadata: { note: parsed.value.note },
+      visibility: parsed.value.visibility,
     });
     if (!outcome.ok) {
       return NextResponse.json(

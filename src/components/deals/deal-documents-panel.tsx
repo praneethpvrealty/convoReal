@@ -31,6 +31,11 @@ import {
   type DealDocumentCategory,
   type ExtractedDocumentFields,
 } from '@/lib/invoices/types';
+import {
+  DEAL_VISIBILITIES,
+  DEAL_VISIBILITY_LABELS,
+  type DealVisibility,
+} from '@/lib/deals/visibility';
 import { cn } from '@/lib/utils';
 
 type LifecycleDocument = DealDocument & {
@@ -38,6 +43,7 @@ type LifecycleDocument = DealDocument & {
   superseded_by: string | null;
   superseded_at: string | null;
   expires_at: string | null;
+  visibility: DealVisibility | null;
 };
 
 const EXTRACT_COST = AI_FEATURE_COSTS.deal_document_extract;
@@ -380,6 +386,25 @@ export function DealDocumentsPanel({
                             }
                           >
                             {DEAL_DOCUMENT_STATUS_LABELS[status]}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    {canEdit && !superseded && (
+                      <select
+                        aria-label="Visibility"
+                        className="h-8 rounded-md border border-slate-700 bg-slate-950 px-2 text-xs text-white"
+                        value={doc.visibility ?? 'internal'}
+                        disabled={busyId === doc.id}
+                        onChange={(e) =>
+                          void patchDoc(doc, {
+                            visibility: e.target.value as DealVisibility,
+                          })
+                        }
+                      >
+                        {DEAL_VISIBILITIES.map((v) => (
+                          <option key={v} value={v}>
+                            {DEAL_VISIBILITY_LABELS[v]}
                           </option>
                         ))}
                       </select>

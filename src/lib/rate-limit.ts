@@ -337,6 +337,13 @@ export const RATE_LIMITS = {
    *  single account, and setting it near the per-IP budget would let
    *  one abuser lock out that tenant's legitimate integrations. */
   publicCatalogAccount: { limit: 120, windowMs: 60_000 },
+  /** A stakeholder opening their transaction link, per IP. A human
+   *  refreshing a page and fetching a few documents; well under this. */
+  publicDealShare: { limit: 60, windowMs: 60_000 },
+  /** One-time code sends and checks on a transaction link, per IP.
+   *  Six digits and five attempts per challenge already bound guessing;
+   *  this bounds how many challenges one client can raise. */
+  publicDealShareOtp: { limit: 6, windowMs: 600_000 },
   /** `/api/v1/*` read+write, per API key. The consumer is an agent or
    *  an automation run, not a human clicking — a burst here is a tool
    *  loop fanning out over an inventory, which is legitimate. 120/min

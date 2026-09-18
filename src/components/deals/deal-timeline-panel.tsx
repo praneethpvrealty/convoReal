@@ -9,6 +9,11 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { DEAL_EVENT_LABELS, type DealEvent } from '@/lib/deals/events';
+import {
+  DEAL_VISIBILITIES,
+  DEAL_VISIBILITY_LABELS,
+  type DealVisibility,
+} from '@/lib/deals/visibility';
 
 interface DealTimelinePanelProps {
   dealId: string;
@@ -18,6 +23,7 @@ interface DealTimelinePanelProps {
 export function DealTimelinePanel({ dealId, canEdit }: DealTimelinePanelProps) {
   const queryClient = useQueryClient();
   const [note, setNote] = useState('');
+  const [visibility, setVisibility] = useState<DealVisibility>('internal');
   const [saving, setSaving] = useState(false);
 
   const { data: events = [], isLoading } = useQuery({
@@ -39,7 +45,7 @@ export function DealTimelinePanel({ dealId, canEdit }: DealTimelinePanelProps) {
       const response = await fetch(`/api/deals/${dealId}/events`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ note: text, source: 'web' }),
+        body: JSON.stringify({ note: text, source: 'web', visibility }),
       });
       const json = await response.json();
       if (!response.ok)
@@ -82,7 +88,19 @@ export function DealTimelinePanel({ dealId, canEdit }: DealTimelinePanelProps) {
             onChange={(e) => setNote(e.target.value)}
             className="border-slate-700 bg-slate-950"
           />
-          <div className="mt-2 flex justify-end">
+          <div className="mt-2 flex items-center justify-end gap-2">
+            <select
+              aria-label="Who can see this note"
+              className="h-8 rounded-md border border-slate-700 bg-slate-950 px-2 text-xs text-white"
+              value={visibility}
+              onChange={(e) => setVisibility(e.target.value as DealVisibility)}
+            >
+              {DEAL_VISIBILITIES.map((v) => (
+                <option key={v} value={v}>
+                  {DEAL_VISIBILITY_LABELS[v]}
+                </option>
+              ))}
+            </select>
             <Button
               size="sm"
               onClick={addNote}
@@ -135,6 +153,9 @@ export function DealTimelinePanel({ dealId, canEdit }: DealTimelinePanelProps) {
                   {DEAL_EVENT_LABELS[ev.event_type] ?? ev.event_type}
                   {ev.actor_name ? ` · ${ev.actor_name}` : ''}
                   {ev.source !== 'web' ? ` · ${ev.source}` : ''}
+                  {ev.visibility && ev.visibility !== 'internal'
+                    ? ` · ${DEAL_VISIBILITY_LABELS[ev.visibility]}`
+                    : ''}
                 </p>
               </li>
             );

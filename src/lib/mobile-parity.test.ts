@@ -61,6 +61,14 @@ import { DEAL_DOCUMENT_STATUS_LABELS } from '@/lib/deals/documents';
 import { DEAL_EVENT_LABELS } from '@/lib/deals/events';
 import { TDS_STATUS_LABELS } from '@/lib/deals/financials';
 import { DEAL_MILESTONE_STATUS_LABELS } from '@/lib/deals/milestones';
+import { DEAL_SHARE_TTL_CHOICES } from '@/lib/deals/share-links';
+import {
+  STAKEHOLDER_ROLE_LABELS,
+  STAKEHOLDER_SIDE_LABELS,
+  defaultSideForRole,
+  type StakeholderRole,
+} from '@/lib/deals/stakeholders';
+import { DEAL_VISIBILITY_LABELS } from '@/lib/deals/visibility';
 import {
   DIGEST_PAUSE_COMMAND,
   DIGEST_RESUME_COMMAND,
@@ -1567,5 +1575,80 @@ describe('[TXW] the Transaction Workspace ships on both surfaces', () => {
     expect(webSource('components/deals/deal-tasks-panel.tsx')).toContain(
       '`/api/todos?deal_id=${encodeURIComponent(dealId)}`'
     );
+  });
+});
+
+describe('[TXW] Phase 2 collaboration ships on both surfaces', () => {
+  const mobileVocab = mobileSource('lib/deal-workspace.ts');
+  const mobileApi = mobileSource('lib/deal-workspace-api.ts');
+  const mobileScreen = mobileSource('app/(app)/deal/[id].tsx');
+  const webPanel = webSource('components/deals/deal-stakeholders-panel.tsx');
+
+  it('[TXW-012] labels every visibility identically and offers it on notes, milestones and documents', () => {
+    for (const [v, label] of Object.entries(DEAL_VISIBILITY_LABELS)) {
+      expect(
+        mobileVocab,
+        `mobile is missing the "${v}" visibility label`
+      ).toContain(`${v}: '${label}'`);
+    }
+    expect(mobileScreen).toContain('VisibilityChips');
+    expect(mobileScreen).toContain('setDealMilestoneVisibility');
+    expect(mobileScreen).toContain('setDealDocumentVisibility');
+    expect(webSource('components/deals/deal-timeline-panel.tsx')).toContain(
+      'DEAL_VISIBILITIES'
+    );
+    expect(webSource('components/deals/deal-milestones-panel.tsx')).toContain(
+      'DEAL_VISIBILITIES'
+    );
+    expect(webSource('components/deals/deal-documents-panel.tsx')).toContain(
+      'DEAL_VISIBILITIES'
+    );
+  });
+
+  it('[TXW-009] names the same stakeholder roles and sides, with the same default side', () => {
+    for (const [role, label] of Object.entries(STAKEHOLDER_ROLE_LABELS)) {
+      expect(mobileVocab, `mobile is missing the "${role}" role`).toContain(
+        `${role}: '${label}'`
+      );
+    }
+    for (const [side, label] of Object.entries(STAKEHOLDER_SIDE_LABELS)) {
+      expect(mobileVocab, `mobile is missing the "${side}" side`).toContain(
+        `${side}: '${label}'`
+      );
+    }
+    expect(mobileVocab).toMatch(
+      /case 'seller':\s+return 'seller';\s+case 'broker':\s+return 'internal';\s+default:\s+return 'buyer';/
+    );
+    for (const role of Object.keys(
+      STAKEHOLDER_ROLE_LABELS
+    ) as StakeholderRole[]) {
+      expect(['buyer', 'seller', 'internal']).toContain(
+        defaultSideForRole(role)
+      );
+    }
+  });
+
+  it('[TXW-009] mints links with the same expiry choices and never shows the token twice', () => {
+    for (const choice of DEAL_SHARE_TTL_CHOICES) {
+      expect(mobileVocab).toContain(
+        `{ key: '${choice.key}', label: '${choice.label}' }`
+      );
+    }
+    expect(mobileApi).toContain('`/api/deals/${dealId}/share-links`');
+    expect(mobileApi).toContain(
+      '`/api/deals/${dealId}/share-links/${linkId}?source=mobile`'
+    );
+    expect(webPanel).toContain(
+      "'/share-links'".length > 0 ? '/share-links' : ''
+    );
+    expect(webPanel).toContain('It will not be shown again');
+    expect(mobileScreen).toContain('it will not be shown again');
+  });
+
+  it('[TXW-011] hands the link over through the share sheet or wa.me, never by sending itself', () => {
+    expect(mobileScreen).toContain('Share.share({ message })');
+    expect(mobileScreen).not.toMatch(/\/api\/whatsapp\/send/);
+    expect(webPanel).toContain('https://wa.me/');
+    expect(webPanel).not.toMatch(/\/api\/whatsapp\/send/);
   });
 });

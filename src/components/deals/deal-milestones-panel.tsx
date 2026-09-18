@@ -21,6 +21,11 @@ import {
   type DealMilestone,
   type DealMilestoneStatus,
 } from '@/lib/deals/milestones';
+import {
+  DEAL_VISIBILITIES,
+  DEAL_VISIBILITY_LABELS,
+  type DealVisibility,
+} from '@/lib/deals/visibility';
 import { cn } from '@/lib/utils';
 
 interface DealMilestonesPanelProps {
@@ -265,6 +270,23 @@ export function DealMilestonesPanel({
                       {DEAL_MILESTONE_STATUSES.map((s) => (
                         <option key={s} value={s}>
                           {DEAL_MILESTONE_STATUS_LABELS[s]}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      aria-label="Visibility"
+                      className="h-8 rounded-md border border-slate-700 bg-slate-950 px-2 text-xs text-white"
+                      value={m.visibility ?? 'internal'}
+                      disabled={busyId === m.id}
+                      onChange={(e) =>
+                        patch(m, {
+                          visibility: e.target.value as DealVisibility,
+                        })
+                      }
+                    >
+                      {DEAL_VISIBILITIES.map((v) => (
+                        <option key={v} value={v}>
+                          {DEAL_VISIBILITY_LABELS[v]}
                         </option>
                       ))}
                     </select>
