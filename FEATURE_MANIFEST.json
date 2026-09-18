@@ -417,7 +417,7 @@
         },
         {
           "id": "PRP-008",
-          "rule": "When an unmapped portal ad already has a guessed property, agents can accept that mapping in one tap on web and mobile, while retaining a separate path to choose a different property.",
+          "rule": "When an unmapped portal ad already has a guessed property, agents can accept that mapping in one tap on web and mobile, while retaining a separate path to choose a different property; multiple ad IDs from the same portal may remain mapped to one property without replacing one another.",
           "tests": [
             {
               "file": "src/components/contacts/unmapped-portal-ads.test.tsx",
@@ -426,10 +426,15 @@
             {
               "file": "src/lib/mobile-parity.test.ts",
               "case": "[PRP-008]"
+            },
+            {
+              "file": "src/app/api/contacts/[id]/portal-link/route.test.ts",
+              "case": "keeps a second ad id for the same property as an alias"
             }
           ],
           "guards": [
-            ".github/workflows/eas-update.yml"
+            ".github/workflows/eas-update.yml",
+            "supabase/migrations/20260918160000_portal_listing_aliases.sql"
           ]
         }
       ]

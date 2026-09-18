@@ -961,14 +961,27 @@ function PortalAdMapping({ contact }: { contact: Contact }) {
     queryKey: ['portal-ad-link', portal, listingId],
     enabled: Boolean(portal && listingId),
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data: primary, error } = await supabase
         .from('property_portal_listings')
         .select('property_id, properties(title)')
         .eq('portal', portal!)
         .eq('portal_listing_id', listingId!)
         .maybeSingle();
       if (error) throw error;
-      return data as {
+      if (primary) {
+        return primary as unknown as {
+          property_id: string;
+          properties: { title: string } | null;
+        };
+      }
+      const { data: alias, error: aliasError } = await supabase
+        .from('property_portal_listing_aliases')
+        .select('property_id, properties(title)')
+        .eq('portal', portal!)
+        .eq('portal_listing_id', listingId!)
+        .maybeSingle();
+      if (aliasError) throw aliasError;
+      return alias as {
         property_id: string;
         properties: { title: string } | null;
       } | null;

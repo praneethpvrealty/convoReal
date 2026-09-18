@@ -69,6 +69,7 @@ jobs:
               - '*.ts'
               - '*.mjs'
               - '*.json'
+              - 'CHANGELOG.md'
               - '.github/workflows/ci.yml'
             mobile:
               - 'mobile/**'

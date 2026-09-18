@@ -114,6 +114,18 @@ export async function resolvePropertyRefs(
       }
     }
 
+    const portalUnplaced = opaque.filter((v) => !resolved.has(v));
+    if (portalUnplaced.length > 0) {
+      const { data: aliasRows } = await db
+        .from('property_portal_listing_aliases')
+        .select('property_id, portal_listing_id')
+        .eq('account_id', accountId)
+        .in('portal_listing_id', portalUnplaced);
+      for (const row of aliasRows ?? []) {
+        record(row.portal_listing_id as string, row.property_id as string);
+      }
+    }
+
     // Titles only for whatever the portal lookup did not place.
     const unplaced = opaque.filter((v) => !resolved.has(v));
     if (unplaced.length > 0) {

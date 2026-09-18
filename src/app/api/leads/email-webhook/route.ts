@@ -618,13 +618,23 @@ export async function POST(request: Request) {
     const leadPortal = portalKeyFromSource(parsed.source);
     if (leadPortal && parsed.portalListingId) {
       try {
-        const { data: link } = await supabase
+        const { data: primaryLink } = await supabase
           .from('property_portal_listings')
           .select('property_id')
           .eq('account_id', accountId)
           .eq('portal', leadPortal)
           .eq('portal_listing_id', parsed.portalListingId)
           .maybeSingle();
+        const { data: aliasLink } = primaryLink?.property_id
+          ? { data: null }
+          : await supabase
+              .from('property_portal_listing_aliases')
+              .select('property_id')
+              .eq('account_id', accountId)
+              .eq('portal', leadPortal)
+              .eq('portal_listing_id', parsed.portalListingId)
+              .maybeSingle();
+        const link = primaryLink ?? aliasLink;
         if (link?.property_id) {
           matchedPropertyIds = [link.property_id];
           topMatchScore = EXACT_PORTAL_MATCH_SCORE;

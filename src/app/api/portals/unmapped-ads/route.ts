@@ -3,8 +3,8 @@ import { getCurrentAccount, toErrorResponse } from '@/lib/auth/account';
 
 // GET /api/portals/unmapped-ads
 //
-// The portal ads that have leads waiting and no property_portal_listings
-// row yet — the queue of first assertions. One row per ad, not per lead:
+// The portal ads that have leads waiting and neither a current portal row
+// nor a retained alias yet — the queue of first assertions. One row per ad:
 // an ad with nine enquiries is one decision.
 //
 // Every ad here is a mapping the Engine cannot make for the agent. Until
