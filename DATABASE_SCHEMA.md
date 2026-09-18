@@ -197,6 +197,17 @@ WhatsApp Cloud API access parameters.
 - `flows_private_key` / `flows_public_key` / `flows_key_registered_at`: RSA-2048 keypair for the native Meta Flows encrypted data-exchange endpoint (private key stored AES-256-GCM encrypted). (migration 125)
 - *Unique Constraint*: `UNIQUE(account_id)` (One configured number per company).
 
+#### 15a. `whatsapp_number_profiles` (migration 20260918190000)
+Every Official API number an account has saved, so a brokerage that owns more than one WhatsApp number can switch the live one without re-entering the token or the two-step PIN. `whatsapp_config` remains the single live number that every consumer reads; activating a profile copies it there (credentials plus `registered_at`), and the outgoing number is snapshotted back into its own profile first.
+- `id` (UUID, PK), `account_id` (UUID, FK -> `accounts`), `created_by` (UUID, FK -> `auth.users`).
+- `label` (TEXT): optional name shown in Settings; falls back to `verified_name` / `display_phone_number`.
+- `phone_number_id` (TEXT, UNIQUE across the instance — a number belongs to one brokerage, live or saved), `display_phone_number`, `verified_name`, `waba_id`.
+- `access_token` (TEXT, AES-256-GCM encrypted) / `verify_token` (TEXT, encrypted, nullable).
+- `catalog_id`, `auto_sync_catalog`.
+- `registered_at` / `subscribed_apps_at` / `last_registration_error`: Meta registration state carried across switches.
+- `last_activated_at` (TIMESTAMPTZ): last time this profile was the live number.
+- RLS: members read; admins insert/update/delete (same as `whatsapp_config`). Backfilled from every live Official API row at migration time.
+
 #### 15b. `whatsapp_meta_flows` (migration 125)
 Registry of native Meta WhatsApp Flows (form-screen flows) created per account via the Graph API. Distinct from the in-app chatbot flow builder tables (`flows` / `flow_runs`).
 - `id` (UUID, PK), `account_id` (UUID, FK -> `accounts`).

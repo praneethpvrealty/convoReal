@@ -19,6 +19,16 @@ than a written entry. Newest first.
 
 #### 18 September 2026
 
+- **Saved WhatsApp numbers.** Settings → WhatsApp now keeps every Official API
+  number an account has connected, with its encrypted token and Meta
+  registration state, in a "Saved numbers" card. Switching the live number is
+  one click: no token re-entry, no two-step PIN, no re-registration. Only one
+  number is live at a time; messages to the others are not delivered to
+  ConvoReal until they are switched back. A number saved by another account,
+  live or not, can no longer be claimed. `whatsapp_config` stays the single
+  live row every consumer reads. Web only for now — the WhatsApp connection
+  screen has no mobile counterpart (see `FEATURE_ROADMAP.md`).
+  **Migration required:** `20260918190000_whatsapp_number_profiles.sql`.
 - **Retain every portal ad ID mapped to a property.** Reposted or refreshed ads
   from the same portal no longer replace one another and reappear forever in
   the mapping queue; all retained IDs continue to resolve future leads exactly.

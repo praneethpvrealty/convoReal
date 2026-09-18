@@ -10,10 +10,14 @@ import { encrypt, decrypt } from '@/lib/whatsapp/encryption'
 import { getSandboxSystemConfig } from '@/lib/system-settings'
 import { normalizePhone } from '@/lib/whatsapp/phone-utils'
 import { supabaseAdmin } from '@/lib/supabase/admin'
+import {
+  isPhoneNumberClaimedElsewhere,
+  upsertNumberProfile,
+} from '@/lib/whatsapp/number-profiles'
 
 export async function POST(request: Request) {
   try {
-    const { supabase, accountId } = await getCurrentAccount()
+    const { supabase, accountId, userId } = await getCurrentAccount()
 
     // Load current config
     const { data: currentConfig } = await supabase
@@ -57,12 +61,11 @@ export async function POST(request: Request) {
     }
 
     // Check if another account already uses this phone_number_id
-    const { data: claimed } = await supabaseAdmin()
-      .from('whatsapp_config')
-      .select('account_id')
-      .eq('phone_number_id', phone_number_id.trim())
-      .neq('account_id', accountId)
-      .maybeSingle()
+    const claimed = await isPhoneNumberClaimedElsewhere(
+      supabaseAdmin(),
+      phone_number_id.trim(),
+      accountId,
+    )
 
     if (claimed) {
       return NextResponse.json(
@@ -177,6 +180,29 @@ export async function POST(request: Request) {
         { error: 'Failed to update configuration during migration.' },
         { status: 500 }
       )
+    }
+
+    try {
+      await upsertNumberProfile(supabase, {
+        accountId,
+        userId,
+        snapshot: {
+          phone_number_id: phone_number_id.trim(),
+          display_phone_number: phoneInfo?.display_phone_number || null,
+          verified_name: phoneInfo?.verified_name || null,
+          waba_id: waba_id?.trim() || null,
+          access_token: encryptedAccessToken,
+          verify_token: encryptedVerifyToken,
+          catalog_id: catalog_id?.trim() || null,
+          auto_sync_catalog: typeof auto_sync_catalog === 'boolean' ? auto_sync_catalog : false,
+          registered_at: registeredAt,
+          subscribed_apps_at: subscribedAppsAt,
+          last_registration_error: registrationError,
+        },
+        activatedAt: registrationError ? undefined : new Date().toISOString(),
+      })
+    } catch (profileError) {
+      console.error('[migrate] Error saving whatsapp_number_profiles row:', profileError)
     }
 
     // Optionally notify active leads about the new number

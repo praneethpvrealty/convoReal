@@ -608,6 +608,24 @@ export interface WhatsAppConfig {
   sandbox_message_limit?: number;
   migrated_from_sandbox_at?: string | null;
   migrated_sandbox_code?: string | null;
+  display_phone_number?: string | null;
+  updated_at?: string;
+}
+
+export interface WhatsAppNumberProfile {
+  id: string;
+  label: string;
+  phone_number_id: string;
+  display_phone_number: string | null;
+  verified_name: string | null;
+  waba_id: string | null;
+  catalog_id: string | null;
+  auto_sync_catalog: boolean;
+  registered_at: string | null;
+  last_registration_error: string | null;
+  last_activated_at: string | null;
+  created_at: string;
+  is_active: boolean;
 }
 
 export interface SandboxSenderMapping {

@@ -8,6 +8,10 @@ import {
 } from '@/lib/whatsapp/meta-api'
 import { encrypt, decrypt } from '@/lib/whatsapp/encryption'
 import { supabaseAdmin } from '@/lib/supabase/admin'
+import {
+  isPhoneNumberClaimedElsewhere,
+  upsertNumberProfile,
+} from '@/lib/whatsapp/number-profiles'
 
 /**
  * Resolve the caller's account_id from their profile. Inlined here
@@ -217,17 +221,18 @@ export async function POST(request: Request) {
     let subscribedAppsAt = null
 
     if (intType === 'official_api') {
-      // Reject if another account has already claimed this phone_number_id.
-      // Needs the service role: under RLS the caller's session can't see
-      // other accounts' rows, so the conflict would be invisible.
-      const { data: claimed, error: claimedError } = await supabaseAdmin()
-        .from('whatsapp_config')
-        .select('account_id')
-        .eq('phone_number_id', phone_number_id)
-        .neq('account_id', accountId)
-        .maybeSingle()
-
-      if (claimedError) {
+      // Reject if another account has already claimed this phone_number_id,
+      // live or as a saved profile. Needs the service role: under RLS the
+      // caller's session can't see other accounts' rows, so the conflict
+      // would be invisible.
+      let claimed = false
+      try {
+        claimed = await isPhoneNumberClaimedElsewhere(
+          supabaseAdmin(),
+          phone_number_id,
+          accountId,
+        )
+      } catch (claimedError) {
         console.error('Error checking phone_number_id ownership:', claimedError)
         return NextResponse.json(
           { error: 'Failed to validate configuration' },
@@ -385,6 +390,31 @@ export async function POST(request: Request) {
           { error: 'Failed to save configuration' },
           { status: 500 }
         )
+      }
+    }
+
+    if (intType === 'official_api' && encryptedAccessToken) {
+      try {
+        await upsertNumberProfile(supabase, {
+          accountId,
+          userId: user.id,
+          snapshot: {
+            phone_number_id,
+            display_phone_number: phoneInfo?.display_phone_number || null,
+            verified_name: phoneInfo?.verified_name || null,
+            waba_id: waba_id || null,
+            access_token: encryptedAccessToken,
+            verify_token: encryptedVerifyToken,
+            catalog_id: catalog_id || null,
+            auto_sync_catalog: typeof auto_sync_catalog === 'boolean' ? auto_sync_catalog : false,
+            registered_at: registrationError ? null : registeredAt,
+            subscribed_apps_at: subscribedAppsAt ?? null,
+            last_registration_error: registrationError,
+          },
+          activatedAt: registrationError ? undefined : new Date().toISOString(),
+        })
+      } catch (profileError) {
+        console.error('Error saving whatsapp_number_profiles row:', profileError)
       }
     }
 
