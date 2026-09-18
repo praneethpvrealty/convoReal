@@ -37,9 +37,6 @@ describe('ask property chat', () => {
 
     await screen.findByText(/yes, it is negotiable/i);
 
-    // Some environments (older WebViews, crawlers) attach the ref to an
-    // element with no `scrollTo` method — the bug reported in Sentry as
-    // "threadRef.current?.scrollTo is not a function".
     delete (Element.prototype as unknown as { scrollTo?: unknown }).scrollTo;
 
     expect(() => {
