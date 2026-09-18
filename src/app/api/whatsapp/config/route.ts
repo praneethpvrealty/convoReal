@@ -313,18 +313,26 @@ export async function POST(request: Request) {
             err instanceof Error ? err.message : 'Unknown Meta API error'
           console.error('Phone number /register failed:', registrationError)
         }
-      } else if (!sameNumber) {
+      } else {
         const assessment = assessRegistration(
           await fetchPhoneRegistrationState({
             phoneNumberId: phone_number_id,
             accessToken: access_token,
           }),
         )
-        if (assessment && !assessment.registered) {
+        if (assessment?.registered) {
+          registeredAt = sameNumber ? registeredAt : new Date().toISOString()
+        } else if (assessment) {
           registeredAt = null
           registrationError = assessment.reason
-        } else {
-          registeredAt = new Date().toISOString()
+        } else if (!sameNumber) {
+          const { data: priorProfile } = await supabase
+            .from('whatsapp_number_profiles')
+            .select('registered_at')
+            .eq('account_id', accountId)
+            .eq('phone_number_id', phone_number_id)
+            .maybeSingle()
+          registeredAt = priorProfile?.registered_at ?? null
         }
       }
 

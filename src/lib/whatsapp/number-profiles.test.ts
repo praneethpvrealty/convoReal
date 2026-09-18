@@ -359,6 +359,8 @@ describe('[WAN-002] switching numbers reuses the saved registration', () => {
     expect(configWrite?.payload).toMatchObject({
       phone_number_id: 'pn-sales',
       registered_at: null,
+      status: 'disconnected',
+      connected_at: null,
     });
     expect(
       (configWrite?.payload as { last_registration_error: string })
@@ -404,6 +406,7 @@ describe('[WAN-002] switching numbers reuses the saved registration', () => {
     expect(configWrite?.payload).toMatchObject({
       registered_at: salesProfile.registered_at,
       last_registration_error: null,
+      status: 'connected',
     });
     expect(result.registered).toBe(true);
   });

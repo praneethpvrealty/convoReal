@@ -405,6 +405,8 @@ export async function activateNumberProfile(
   const activatedAt = now();
   const row = {
     ...liveConfigFromProfile(profile, phoneInfo, subscribedAppsAt, activatedAt),
+    status: registered ? 'connected' : 'disconnected',
+    connected_at: registered ? activatedAt : null,
     registered_at: registered ? (profile.registered_at ?? activatedAt) : null,
     last_registration_error: registrationError,
   };

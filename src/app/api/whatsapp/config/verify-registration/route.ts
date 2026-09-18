@@ -140,17 +140,27 @@ export async function GET() {
         'The display name is not approved. Messaging may be limited until a name is approved in WhatsApp Manager.',
       )
     }
+    if (assessment.registered) {
+      lastRegistrationError = null
+      if (registeredAt == null) registeredAt = new Date().toISOString()
+    }
     const drifted =
-      (assessment.registered && config.registered_at == null) ||
-      (!assessment.registered && config.registered_at != null)
+      (registeredAt == null) !== (config.registered_at == null) ||
+      lastRegistrationError !== (config.last_registration_error ?? null) ||
+      (assessment.registered ? 'connected' : 'disconnected') !== config.status
     if (drifted) {
-      if (assessment.registered) registeredAt = new Date().toISOString()
+      const stamp = new Date().toISOString()
+      const patch = {
+        registered_at: registeredAt,
+        last_registration_error: lastRegistrationError,
+        updated_at: stamp,
+      }
       const { data: fixedConfig } = await supabase
         .from('whatsapp_config')
         .update({
-          registered_at: registeredAt,
-          last_registration_error: lastRegistrationError,
-          updated_at: new Date().toISOString(),
+          ...patch,
+          status: assessment.registered ? 'connected' : 'disconnected',
+          connected_at: assessment.registered ? (config.connected_at ?? stamp) : null,
         })
         .eq('account_id', accountId)
         .select('id')
@@ -162,11 +172,7 @@ export async function GET() {
         checks.locally_marked_registered = registeredAt != null
         await supabase
           .from('whatsapp_number_profiles')
-          .update({
-            registered_at: registeredAt,
-            last_registration_error: lastRegistrationError,
-            updated_at: new Date().toISOString(),
-          })
+          .update(patch)
           .eq('account_id', accountId)
           .eq('phone_number_id', config.phone_number_id)
           .select('id')
