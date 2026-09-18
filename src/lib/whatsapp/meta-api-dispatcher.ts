@@ -34,6 +34,10 @@ import {
   CUSTOMER_WINDOW_EXPIRED_MESSAGE,
   isWithinCustomerWindow,
 } from '@/lib/whatsapp/customer-window'
+import {
+  maybeSendNumberChangePrecursor,
+  numberChangeWindow,
+} from '@/lib/whatsapp/number-change-notice'
 import { CHAIN_ONLY_BLOCKED_MESSAGE } from '@/lib/contacts/chain-only'
 import { DEAD_CONTACT_BLOCKED_MESSAGE } from '@/lib/contacts/lifecycle'
 import {
@@ -191,6 +195,10 @@ export interface SendWhatsAppAndPersistArgs {
    *  is never downgraded: a real lead who also happens to seek stays a
    *  real lead. */
   createAsChainOnly?: boolean
+  /** Set only by the number-change notice itself, so the precursor the
+   *  dispatcher sends ahead of routine messages never precedes its own
+   *  send. */
+  numberChangeNotice?: boolean
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   customDbClient?: any
 }
@@ -519,6 +527,32 @@ export async function sendWhatsAppMessageAndPersist(
       if (!isWithinCustomerWindow(lastInbound?.created_at ?? null)) {
         throw new Error(CUSTOMER_WINDOW_EXPIRED_MESSAGE)
       }
+    }
+
+    // 3c. For seven days after the live number changed, the first
+    // message to each contact is preceded by the number-change notice,
+    // so a routine check-in does not arrive from a number they have
+    // never seen. Claimed in a ledger before sending, so it goes once.
+    if (
+      !args.numberChangeNotice &&
+      config.integration_type !== 'sandbox' &&
+      resolvedContactId &&
+      numberChangeWindow(config).active
+    ) {
+      // The ledger is admin-writable under RLS, and a caller's own
+      // client may be an agent's; the service client writes it with
+      // explicit account_id scoping, as every other guard here does.
+      await maybeSendNumberChangePrecursor(
+        defaultAdminClient() as unknown as SupabaseClient,
+        {
+          accountId,
+          contactId: resolvedContactId,
+          config,
+          send: sendWhatsAppMessageAndPersist,
+          allowDeadContact: args.allowDeadContact,
+          allowChainOnly: args.allowChainOnly,
+        },
+      )
     }
 
     // 4. Send Message with Variant Retry loop

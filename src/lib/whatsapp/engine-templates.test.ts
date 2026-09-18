@@ -25,6 +25,7 @@ describe('missingEngineTemplates', () => {
       'audio_announcement_notice',
       'post_call_options',
       'property_share_feedback',
+      'contact_number_update',
     ]);
   });
 

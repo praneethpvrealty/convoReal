@@ -307,6 +307,8 @@ describe('[WAN-002] switching numbers reuses the saved registration', () => {
       registered_at: salesProfile.registered_at,
       integration_type: 'official_api',
       status: 'connected',
+      previous_display_phone_number: '+91 88000 00002',
+      number_changed_at: NOW,
     });
     expect(
       calls.some((c) => c.table === 'whatsapp_config' && c.op === 'insert')
@@ -409,6 +411,39 @@ describe('[WAN-002] switching numbers reuses the saved registration', () => {
       status: 'connected',
     });
     expect(result.registered).toBe(true);
+  });
+
+  it('[WAN-004] records no switch when the outgoing number has no dialable display number', async () => {
+    queues.whatsapp_number_profiles = [
+      { data: salesProfile },
+      { data: null },
+      { data: { ...salesProfile, last_activated_at: NOW } },
+    ];
+    queues.whatsapp_config = [
+      { data: { ...liveRentals, display_phone_number: null } },
+      { data: [{ id: 'cfg-1' }] },
+    ];
+
+    await activateNumberProfile(makeDb(), {
+      accountId: 'acc-1',
+      userId: 'user-1',
+      profileId: 'prof-sales',
+      verify: async () => ({
+        id: 'pn-sales',
+        display_phone_number: '+91 88000 00001',
+      }),
+      subscribe: async () => undefined,
+      registrationState: cloudApiState,
+      now: () => NOW,
+    });
+
+    const configWrite = calls.find(
+      (c) => c.table === 'whatsapp_config' && c.op === 'update'
+    );
+    expect(configWrite?.payload).not.toHaveProperty('number_changed_at');
+    expect(configWrite?.payload).not.toHaveProperty(
+      'previous_display_phone_number'
+    );
   });
 
   it('inserts a live row when the account has none', async () => {

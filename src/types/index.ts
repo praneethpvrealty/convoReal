@@ -609,6 +609,8 @@ export interface WhatsAppConfig {
   migrated_from_sandbox_at?: string | null;
   migrated_sandbox_code?: string | null;
   display_phone_number?: string | null;
+  previous_display_phone_number?: string | null;
+  number_changed_at?: string | null;
   updated_at?: string;
 }
 

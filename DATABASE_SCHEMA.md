@@ -207,6 +207,13 @@ Every Official API number an account has saved, so a brokerage that owns more th
 - `registered_at` / `subscribed_apps_at` / `last_registration_error`: Meta registration state carried across switches.
 - `last_activated_at` (TIMESTAMPTZ): last time this profile was the live number.
 - RLS: members read; admins insert/update/delete (same as `whatsapp_config`). Backfilled from every live Official API row at migration time.
+- Related (migration 20260918200000): `whatsapp_config.previous_display_phone_number` / `number_changed_at` record the last switch of the live number; the number-change notice is offered and sent as a precursor for 7 days from `number_changed_at`.
+
+#### 15a-ii. `whatsapp_number_change_notices` (migration 20260918200000)
+Ledger of which contacts have been told that the brokerage messages from a new number — one row per `(account_id, contact_id, phone_number_id)` (UNIQUE), claimed before the send and deleted when the send is skipped or fails, so a contact receives the `contact_number_update` notice once per number whether it went by the "notify recent contacts" action or as the dispatcher's precursor.
+- `trigger` (TEXT): `'manual' | 'precursor'`. `channel` (TEXT): `'pending' | 'template' | 'freeform'`.
+- `message_id` (UUID, FK -> `messages`, SET NULL), `sent_at`, `previous_display_phone_number`.
+- `whatsapp_number_change_audience(p_account_id, p_since, p_phone_number_id)`: SECURITY DEFINER, guarded by `is_account_member()`; contacts with a conversation touched since `p_since`, not dead/archived/chain-only/merged, with no ledger row for that number. Capped at 500.
 
 #### 15b. `whatsapp_meta_flows` (migration 125)
 Registry of native Meta WhatsApp Flows (form-screen flows) created per account via the Graph API. Distinct from the in-app chatbot flow builder tables (`flows` / `flow_runs`).

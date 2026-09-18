@@ -213,7 +213,7 @@ export async function POST(request: Request) {
     // /register when the user didn't provide a PIN this time around.
     const { data: existing } = await supabase
       .from('whatsapp_config')
-      .select('id, registered_at, phone_number_id')
+      .select('id, registered_at, phone_number_id, display_phone_number, integration_type')
       .eq('account_id', accountId)
       .maybeSingle()
 
@@ -370,6 +370,16 @@ export async function POST(request: Request) {
       catalog_id: intType === 'official_api' ? (catalog_id || null) : null,
       auto_sync_catalog: intType === 'official_api' ? (typeof auto_sync_catalog === 'boolean' ? auto_sync_catalog : false) : false,
       integration_type: intType,
+      ...(intType === 'official_api' &&
+      existing?.phone_number_id &&
+      existing.display_phone_number &&
+      (existing.integration_type || 'official_api') === 'official_api' &&
+      existing.phone_number_id !== phone_number_id
+        ? {
+            previous_display_phone_number: existing.display_phone_number,
+            number_changed_at: new Date().toISOString(),
+          }
+        : {}),
     }
 
     if (existing) {

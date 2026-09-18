@@ -70,7 +70,9 @@ export type TemplateButtonAction =
   | 'browse_showcase'
   // Share Feedback
   | 'feedback_perfect'
-  | 'feedback_not_interested';
+  | 'feedback_not_interested'
+  // Number change notice
+  | 'acknowledge_update';
 
 type Localised = Record<LanguageCode, string>;
 
@@ -264,6 +266,15 @@ const BUTTON_LABELS: Record<TemplateButtonAction, Localised> = {
     ml: 'കാറ്റലോഗ് കാണുക',
     mr: 'कॅटलॉग पहा',
   },
+  acknowledge_update: {
+    en: 'Noted, thanks',
+    hi: 'ठीक है, धन्यवाद',
+    kn: 'ಸರಿ, ಧನ್ಯವಾದಗಳು',
+    ta: 'சரி, நன்றி',
+    te: 'సరే, ధన్యవాదాలు',
+    ml: 'ശരി, നന്ദി',
+    mr: 'ठीक आहे, धन्यवाद',
+  },
 };
 
 export function templateButtonLabel(
@@ -321,7 +332,8 @@ export type EngineTemplateKey =
   | 'audio_announcement'
   | 'post_call_options'
   | 'requirement_review'
-  | 'share_feedback';
+  | 'share_feedback'
+  | 'contact_number_update';
 
 interface TemplateCopy {
   body: string;
@@ -345,6 +357,71 @@ const TEMPLATE_COPY: Record<
   EngineTemplateKey,
   Partial<Record<LanguageCode, TemplateCopy>>
 > = {
+  contact_number_update: {
+    en: {
+      body: lines(
+        'Hi {{1}}, this is an account notice from {{2}}.',
+        '',
+        'Our WhatsApp number has changed. Messages sent to the previous number {{3}} will no longer be received.',
+        '',
+        'Please save this number to continue receiving updates on your enquiries. Reply here to confirm.'
+      ),
+    },
+    hi: {
+      body: lines(
+        'नमस्ते {{1}}, यह {{2}} की ओर से खाता सूचना है।',
+        '',
+        'हमारा WhatsApp नंबर बदल गया है। पुराने नंबर {{3}} पर भेजे गए संदेश अब प्राप्त नहीं होंगे।',
+        '',
+        'अपनी पूछताछ पर अपडेट पाते रहने के लिए कृपया इस नंबर को सेव करें। पुष्टि के लिए यहाँ उत्तर दें।'
+      ),
+    },
+    kn: {
+      body: lines(
+        'ನಮಸ್ಕಾರ {{1}}, ಇದು {{2}} ಇಂದ ಖಾತೆ ಸೂಚನೆ.',
+        '',
+        'ನಮ್ಮ WhatsApp ಸಂಖ್ಯೆ ಬದಲಾಗಿದೆ. ಹಿಂದಿನ ಸಂಖ್ಯೆ {{3}} ಗೆ ಕಳುಹಿಸಿದ ಸಂದೇಶಗಳು ಇನ್ನು ಮುಂದೆ ತಲುಪುವುದಿಲ್ಲ.',
+        '',
+        'ನಿಮ್ಮ ವಿಚಾರಣೆಗಳ ಅಪ್‌ಡೇಟ್‌ಗಳನ್ನು ಪಡೆಯುತ್ತಿರಲು ದಯವಿಟ್ಟು ಈ ಸಂಖ್ಯೆಯನ್ನು ಸೇವ್ ಮಾಡಿ. ದೃಢೀಕರಿಸಲು ಇಲ್ಲಿ ಉತ್ತರಿಸಿ.'
+      ),
+    },
+    ta: {
+      body: lines(
+        'வணக்கம் {{1}}, இது {{2}} இடமிருந்து கணக்கு அறிவிப்பு.',
+        '',
+        'எங்கள் WhatsApp எண் மாறிவிட்டது. முந்தைய எண் {{3}} க்கு அனுப்பப்படும் செய்திகள் இனி பெறப்படாது.',
+        '',
+        'உங்கள் விசாரணைகள் குறித்த புதுப்பிப்புகளைத் தொடர்ந்து பெற இந்த எண்ணைச் சேமிக்கவும். உறுதிப்படுத்த இங்கே பதிலளிக்கவும்.'
+      ),
+    },
+    te: {
+      body: lines(
+        'నమస్కారం {{1}}, ఇది {{2}} నుండి ఖాతా సూచన.',
+        '',
+        'మా WhatsApp నంబర్ మారింది. మునుపటి నంబర్ {{3}} కు పంపిన సందేశాలు ఇకపై అందవు.',
+        '',
+        'మీ విచారణలపై అప్‌డేట్‌లు పొందుతూ ఉండటానికి దయచేసి ఈ నంబర్‌ను సేవ్ చేయండి. నిర్ధారించడానికి ఇక్కడ ప్రత్యుత్తరం ఇవ్వండి.'
+      ),
+    },
+    ml: {
+      body: lines(
+        'നമസ്കാരം {{1}}, ഇത് {{2}} ൽ നിന്നുള്ള അക്കൗണ്ട് അറിയിപ്പാണ്.',
+        '',
+        'ഞങ്ങളുടെ WhatsApp നമ്പർ മാറി. മുൻ നമ്പർ {{3}} ലേക്ക് അയയ്ക്കുന്ന സന്ദേശങ്ങൾ ഇനി ലഭിക്കില്ല.',
+        '',
+        'നിങ്ങളുടെ അന്വേഷണങ്ങളുടെ അപ്ഡേറ്റുകൾ തുടർന്നും ലഭിക്കാൻ ഈ നമ്പർ സേവ് ചെയ്യുക. സ്ഥിരീകരിക്കാൻ ഇവിടെ മറുപടി നൽകുക.'
+      ),
+    },
+    mr: {
+      body: lines(
+        'नमस्कार {{1}}, ही {{2}} कडून खाते सूचना आहे.',
+        '',
+        'आमचा WhatsApp नंबर बदलला आहे. जुन्या नंबर {{3}} वर पाठवलेले संदेश आता मिळणार नाहीत.',
+        '',
+        'तुमच्या चौकशीचे अपडेट मिळत राहण्यासाठी कृपया हा नंबर सेव्ह करा. पुष्टी करण्यासाठी येथे उत्तर द्या.'
+      ),
+    },
+  },
   share_feedback: {
     en: {
       body: lines(
