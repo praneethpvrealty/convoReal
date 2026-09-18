@@ -33,6 +33,7 @@ import {
   resolveCopilotAction,
   type CopilotActionProposal,
 } from './actions';
+import { DEFAULT_LANGUAGE, type LanguageCode } from '@/lib/languages';
 
 /**
  * The helper's answer engine, shared by all three surfaces: the staff
@@ -72,6 +73,8 @@ export interface AnswerRequest {
    *  so the app can offer a tour, a desktop link, or the support
    *  team. Only meaningful for the agent audience. */
   platform?: CopilotPlatform;
+  /** Authenticated user's active app-interface language. */
+  language?: LanguageCode;
   entities?: EntityReference[];
   canExecuteActions?: boolean;
 }
@@ -129,6 +132,7 @@ export async function answerQuestion(
   const { audience, message, pathname, history, accountId } = req;
   const platform: CopilotPlatform =
     audience === 'agent' ? (req.platform ?? 'web') : 'web';
+  const language = req.language ?? DEFAULT_LANGUAGE;
   const mobile = platform === 'mobile';
 
   if (audience === 'agent') {
@@ -288,7 +292,12 @@ export async function answerQuestion(
   // cache failure falls through to the normal path below.
   const cacheable = isCacheableQuestion(message, history.length);
   if (cacheable && embedding) {
-    const entry = await lookupCachedAnswer(embedding, audience, platform);
+    const entry = await lookupCachedAnswer(
+      embedding,
+      audience,
+      platform,
+      language
+    );
     if (entry) {
       bumpHit(entry.id);
       // A cached "we don't do that" still counts as demand —
@@ -326,7 +335,7 @@ export async function answerQuestion(
 
   const raw = await generateJson(
     prompt,
-    buildCopilotSystemPrompt(pathname, chunks, audience, platform),
+    buildCopilotSystemPrompt(pathname, chunks, audience, platform, language),
     { feature: 'copilot' }
   );
   const parsed = parseModelJson(raw);
@@ -386,6 +395,7 @@ export async function answerQuestion(
       sourceChunks: chunkRefs(chunks),
       audience,
       platform,
+      language,
       coverage,
     });
   }

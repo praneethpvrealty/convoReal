@@ -10,6 +10,11 @@ import {
   type CopilotPlatform,
 } from './platform';
 import { TOURS } from './tours';
+import {
+  DEFAULT_LANGUAGE,
+  languageLabel,
+  type LanguageCode,
+} from '@/lib/languages';
 
 /**
  * Copilot system-prompt assembly.
@@ -84,8 +89,9 @@ const PERSONA: Record<Audience, string> = {
     'You are the friendly helper inside Portfolio, where someone LOOKING TO BUY follows their shortlist and matches. They are not an estate agent and do not use the agency software — never mention agent tools, dashboards or CRM features. Explain simply, no jargon.',
 };
 
-const LANGUAGE_RULE =
-  '- Reply in the SAME language the user wrote in — English, Hindi, Hinglish, or any other Indian language (Kannada, Telugu, Tamil, Malayalam, Marathi, Bengali, Gujarati, Punjabi…).';
+function languageRule(language: LanguageCode): string {
+  return `- Reply only in ${languageLabel(language)}, the user’s active interface language. Do not infer the reply language from the question or conversation history.`;
+}
 const LENGTH_RULE = '- Keep replies under 3 short sentences.';
 const UNSUPPORTED_RULE =
   '- If ConvoReal cannot do what the user wants, say so plainly in one sentence, then point them at the closest thing it CAN do. Never say a feature is coming, planned, or being built.';
@@ -101,14 +107,15 @@ const UNSUPPORTED_CONTRACT =
  */
 function buildAgentScaffold(
   pathname: string,
-  platform: CopilotPlatform
+  platform: CopilotPlatform,
+  language: LanguageCode
 ): string {
   const routes = allowedRoutes('agent');
   const mobile = platform === 'mobile';
   return [
     PERSONA.agent,
     'Rules:',
-    LANGUAGE_RULE,
+    languageRule(language),
     LENGTH_RULE,
     '- Never invent features. Only discuss ConvoReal using the knowledge below. If asked anything unrelated, politely steer back to ConvoReal.',
     UNSUPPORTED_RULE,
@@ -137,12 +144,16 @@ function buildAgentScaffold(
  * spotlight elements that only exist in the staff dashboard — so the
  * contract drops tourId entirely.
  */
-function buildPortalScaffold(pathname: string, audience: Audience): string {
+function buildPortalScaffold(
+  pathname: string,
+  audience: Audience,
+  language: LanguageCode
+): string {
   const routes = allowedRoutes(audience);
   return [
     PERSONA[audience],
     'Rules:',
-    LANGUAGE_RULE,
+    languageRule(language),
     LENGTH_RULE,
     '- Never invent features. Only discuss Portfolio using the knowledge below. If asked anything unrelated, politely steer back to Portfolio.',
     '- The agency handling their property is the answer to a lot of questions. When something is the agent’s job, say so warmly and suggest messaging them.',
@@ -163,22 +174,24 @@ function buildPortalScaffold(pathname: string, audience: Audience): string {
 export function buildCopilotScaffold(
   pathname: string,
   audience: Audience = 'agent',
-  platform: CopilotPlatform = 'web'
+  platform: CopilotPlatform = 'web',
+  language: LanguageCode = DEFAULT_LANGUAGE
 ): string {
   return audience === 'agent'
-    ? buildAgentScaffold(pathname, platform)
-    : buildPortalScaffold(pathname, audience);
+    ? buildAgentScaffold(pathname, platform, language)
+    : buildPortalScaffold(pathname, audience, language);
 }
 
 export function buildCopilotSystemPrompt(
   pathname: string,
   chunks: KnowledgeChunk[],
   audience: Audience = 'agent',
-  platform: CopilotPlatform = 'web'
+  platform: CopilotPlatform = 'web',
+  language: LanguageCode = DEFAULT_LANGUAGE
 ): string {
   const knowledge = chunks.map((c) => `[${c.title}] ${c.body}`).join('\n');
   return [
-    buildCopilotScaffold(pathname, audience, platform),
+    buildCopilotScaffold(pathname, audience, platform, language),
     '',
     'KNOWLEDGE (selected for this question — everything you may state as fact):',
     knowledge,

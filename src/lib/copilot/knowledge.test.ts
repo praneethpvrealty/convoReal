@@ -50,6 +50,15 @@ describe('copilot prompt scaffold', () => {
     expect(scaffold).toContain('Never say a feature is coming');
   });
 
+  it('pins replies to the active interface language', () => {
+    expect(buildCopilotScaffold('/contacts')).toContain(
+      'Reply only in English'
+    );
+    expect(buildCopilotScaffold('/contacts', 'agent', 'web', 'hi')).toContain(
+      'Reply only in Hindi'
+    );
+  });
+
   it('gives portals no tours and no tourId in the contract', () => {
     for (const audience of ['owner', 'buyer'] as const) {
       const scaffold = buildCopilotScaffold('/den', audience);

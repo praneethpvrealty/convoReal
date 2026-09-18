@@ -53,6 +53,7 @@ export async function POST(req: NextRequest) {
       audience: 'agent',
       accountId: ctx.accountId,
       ...parsed,
+      language: ctx.activeUiLanguage,
       entities,
       canExecuteActions:
         !ctx.isReadOnly && hasMinOrgRole(ctx.orgRole, 'org_agent'),

@@ -8,6 +8,7 @@ import {
   type MobileCoverage,
 } from './platform';
 import { getTour } from './tours';
+import { DEFAULT_LANGUAGE, type LanguageCode } from '@/lib/languages';
 
 /**
  * Self-learning Q&A cache for the copilot.
@@ -25,11 +26,12 @@ import { getTour } from './tours';
  * against the live corpus — editing one chunk retires only the
  * answers that used it.
  *
- * The table is shared by all three audiences, and the KB version is
- * what keeps them apart: staff, owners and buyers have different
- * scaffolds, so their hashes differ and match_copilot_qa can never
- * hand an owner an answer written for an agent. That partitioning is
- * a property of the data, not of a filter someone has to remember.
+ * The table is shared by every audience and UI language, and the KB
+ * version is what keeps them apart: each audience/platform/language
+ * scaffold hashes differently, so match_copilot_qa cannot hand an
+ * English user a Hindi answer or an owner an agent answer. That
+ * partitioning is a property of the data, not a filter a caller has
+ * to remember.
  *
  * Everything here is best-effort: any failure (table not migrated
  * yet, missing service key, embed error, network) resolves to null
@@ -56,10 +58,11 @@ const MATCH_COUNT = 3;
  */
 export function kbVersionFor(
   audience: Audience,
-  platform: CopilotPlatform = 'web'
+  platform: CopilotPlatform = 'web',
+  language: LanguageCode = DEFAULT_LANGUAGE
 ): string {
   return createHash('sha256')
-    .update(buildCopilotScaffold('/', audience, platform))
+    .update(buildCopilotScaffold('/', audience, platform, language))
     .digest('hex')
     .slice(0, 12);
 }
@@ -157,7 +160,8 @@ function sourceChunksCurrent(refs: ChunkRef[] | null): boolean {
 export async function lookupCachedAnswer(
   embedding: number[],
   audience: Audience = 'agent',
-  platform: CopilotPlatform = 'web'
+  platform: CopilotPlatform = 'web',
+  language: LanguageCode = DEFAULT_LANGUAGE
 ): Promise<CachedAnswer | null> {
   const db = cacheAdmin();
   if (!db) return null;
@@ -165,7 +169,7 @@ export async function lookupCachedAnswer(
   try {
     const { data, error } = await db.rpc('match_copilot_qa', {
       p_embedding: embedding,
-      p_kb_version: kbVersionFor(audience, platform),
+      p_kb_version: kbVersionFor(audience, platform, language),
       p_threshold: SIMILARITY_THRESHOLD,
       p_count: MATCH_COUNT,
     });
@@ -224,6 +228,7 @@ export async function storeAnswer(input: {
   sourceChunks: ChunkRef[];
   audience?: Audience;
   platform?: CopilotPlatform;
+  language?: LanguageCode;
   coverage?: MobileCoverage;
 }): Promise<string | null> {
   const db = cacheAdmin();
@@ -239,7 +244,11 @@ export async function storeAnswer(input: {
         navigate_to: input.navigateTo ?? null,
         unsupported_capability: input.unsupportedCapability ?? null,
         source_chunks: input.sourceChunks,
-        kb_version: kbVersionFor(input.audience ?? 'agent', input.platform),
+        kb_version: kbVersionFor(
+          input.audience ?? 'agent',
+          input.platform,
+          input.language
+        ),
         // Only mobile answers carry the column, so web caching keeps
         // working on databases that predate migration 244.
         ...(input.coverage ? { coverage: input.coverage } : {}),
