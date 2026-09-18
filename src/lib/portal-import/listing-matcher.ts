@@ -37,6 +37,24 @@ export interface ExistingPortalLink {
   listing_url: string | null;
 }
 
+type PortalIdentity = Pick<ExistingPortalLink, 'portal' | 'portal_listing_id'>;
+
+/** Alias ids resolve matches, but must never be upserted into the primary
+ * property/portal row during a sync refresh. */
+export function excludeKnownPortalAliases<T extends PortalIdentity>(
+  rows: T[],
+  aliases: PortalIdentity[]
+): T[] {
+  const aliasKeys = new Set(
+    aliases
+      .filter((alias) => alias.portal_listing_id)
+      .map((alias) => `${alias.portal}:${alias.portal_listing_id}`)
+  );
+  return rows.filter(
+    (row) => !aliasKeys.has(`${row.portal}:${row.portal_listing_id}`)
+  );
+}
+
 const STOP_TOKENS = new Set([
   'the', 'and', 'for', 'with', 'near', 'main', 'road', 'layout', 'nagar',
   'phase', 'stage', 'block', 'sector', 'extension', 'ext', 'cross',

@@ -22,6 +22,7 @@ import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 import { PORTAL_KEYS, type PortalKey } from '@/lib/portals/post-kit';
 import { parseHarvestedListing } from '@/lib/portal-import/listing-parser';
 import {
+  excludeKnownPortalAliases,
   groupCrossPortalDuplicates,
   matchListing,
   type ExistingPortalLink,
@@ -162,24 +163,27 @@ export async function POST(request: Request) {
     // Linked / auto-matched items refresh the existing portal link in
     // place. onConflict portal identity — the partial unique index —
     // makes a second property link for the same listing impossible.
-    const linkRefresh = (staged || [])
-      .filter((row) => row.matched_property_id)
-      .map((row) => {
-        const p = parsed.find((x) => x.portalListingId === row.portal_listing_id);
-        return {
-          account_id: ctx.accountId,
-          property_id: row.matched_property_id as string,
-          user_id: ctx.userId,
-          portal,
-          portal_listing_id: row.portal_listing_id,
-          listing_url: row.listing_url,
-          expires_on: row.expires_on,
-          status: p ? portalRowStatus(p) : 'active',
-          views: row.views,
-          responses: row.responses,
-          last_synced_at: new Date().toISOString(),
-        };
-      });
+    const linkRefresh = excludeKnownPortalAliases(
+      (staged || [])
+        .filter((row) => row.matched_property_id)
+        .map((row) => {
+          const p = parsed.find((x) => x.portalListingId === row.portal_listing_id);
+          return {
+            account_id: ctx.accountId,
+            property_id: row.matched_property_id as string,
+            user_id: ctx.userId,
+            portal,
+            portal_listing_id: row.portal_listing_id,
+            listing_url: row.listing_url,
+            expires_on: row.expires_on,
+            status: p ? portalRowStatus(p) : 'active',
+            views: row.views,
+            responses: row.responses,
+            last_synced_at: new Date().toISOString(),
+          };
+        }),
+      (aliasesData || []) as ExistingPortalLink[]
+    );
     if (linkRefresh.length > 0) {
       const { error: linkUpsertError } = await ctx.supabase
         .from('property_portal_listings')
