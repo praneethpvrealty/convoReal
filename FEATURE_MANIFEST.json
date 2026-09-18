@@ -818,6 +818,20 @@
           "guards": [
             "supabase/migrations/20260918190000_whatsapp_number_profiles.sql"
           ]
+        },
+        {
+          "id": "WAN-003",
+          "rule": "Registration state is read from Meta (platform_type CLOUD_API), never assumed: a save without a PIN, the Verify with Meta probe, and a profile switch all record registered_at as null with Meta's reason when Meta reports the number unregistered, and a declined display name is named as that reason. A number Meta exposes no platform for (test numbers) keeps its saved state.",
+          "tests": [
+            {
+              "file": "src/lib/whatsapp/registration-state.test.ts",
+              "case": "[WAN-003]"
+            },
+            {
+              "file": "src/lib/whatsapp/number-profiles.test.ts",
+              "case": "[WAN-003]"
+            }
+          ]
         }
       ]
     }

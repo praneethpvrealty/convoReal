@@ -6,6 +6,10 @@ import {
   verifyPhoneNumber,
   type MetaPhoneInfo,
 } from '@/lib/whatsapp/meta-api';
+import {
+  assessRegistration,
+  fetchPhoneRegistrationState,
+} from '@/lib/whatsapp/registration-state';
 
 export const NUMBER_PROFILE_LABEL_MAX = 60;
 
@@ -301,6 +305,8 @@ export interface ActivateNumberProfileResult {
   profile: NumberProfileSummary;
   already_active: boolean;
   waba_changed: boolean;
+  registered: boolean;
+  registration_error: string | null;
   phone_info: MetaPhoneInfo | null;
 }
 
@@ -312,11 +318,14 @@ export async function activateNumberProfile(
     profileId: string;
     verify?: typeof verifyPhoneNumber;
     subscribe?: typeof subscribeWabaToApp;
+    registrationState?: typeof fetchPhoneRegistrationState;
     now?: () => string;
   }
 ): Promise<ActivateNumberProfileResult> {
   const verify = args.verify ?? verifyPhoneNumber;
   const subscribe = args.subscribe ?? subscribeWabaToApp;
+  const registrationState =
+    args.registrationState ?? fetchPhoneRegistrationState;
   const now = args.now ?? (() => new Date().toISOString());
 
   const [profile, live] = await Promise.all([
@@ -329,6 +338,8 @@ export async function activateNumberProfile(
       profile: summarizeProfile(profile, live),
       already_active: true,
       waba_changed: false,
+      registered: profile.registered_at != null,
+      registration_error: profile.last_registration_error,
       phone_info: null,
     };
   }
@@ -379,13 +390,26 @@ export async function activateNumberProfile(
     }
   }
 
-  const activatedAt = now();
-  const row = liveConfigFromProfile(
-    profile,
-    phoneInfo,
-    subscribedAppsAt,
-    activatedAt
+  const assessment = assessRegistration(
+    await registrationState({
+      phoneNumberId: profile.phone_number_id,
+      accessToken,
+    })
   );
+  const registered = assessment
+    ? assessment.registered
+    : profile.registered_at != null;
+  const registrationError =
+    assessment && !assessment.registered ? assessment.reason : null;
+
+  const activatedAt = now();
+  const row = {
+    ...liveConfigFromProfile(profile, phoneInfo, subscribedAppsAt, activatedAt),
+    status: registered ? 'connected' : 'disconnected',
+    connected_at: registered ? activatedAt : null,
+    registered_at: registered ? (profile.registered_at ?? activatedAt) : null,
+    last_registration_error: registrationError,
+  };
 
   if (live) {
     const { data: updated, error } = await db
@@ -413,6 +437,8 @@ export async function activateNumberProfile(
         phoneInfo.display_phone_number || profile.display_phone_number,
       verified_name: phoneInfo.verified_name ?? profile.verified_name,
       subscribed_apps_at: subscribedAppsAt ?? profile.subscribed_apps_at,
+      registered_at: registered ? (profile.registered_at ?? activatedAt) : null,
+      last_registration_error: registrationError,
       last_activated_at: activatedAt,
       updated_at: activatedAt,
     })
@@ -434,6 +460,8 @@ export async function activateNumberProfile(
     }),
     already_active: false,
     waba_changed: (live?.waba_id ?? null) !== (profile.waba_id ?? null),
+    registered,
+    registration_error: registrationError,
     phone_info: phoneInfo,
   };
 }

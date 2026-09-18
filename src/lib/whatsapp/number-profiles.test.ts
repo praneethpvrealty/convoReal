@@ -127,6 +127,14 @@ const liveRentals = {
   last_registration_error: null,
 };
 
+const cloudApiState = async () => ({
+  status: 'CONNECTED',
+  platformType: 'CLOUD_API',
+  nameStatus: 'APPROVED',
+  verifiedName: 'PV Realty Sales',
+  pinEnabled: true,
+});
+
 beforeEach(() => {
   queues = {};
   calls = [];
@@ -266,6 +274,7 @@ describe('[WAN-002] switching numbers reuses the saved registration', () => {
       profileId: 'prof-sales',
       verify,
       subscribe,
+      registrationState: cloudApiState,
       now: () => NOW,
     });
 
@@ -314,6 +323,94 @@ describe('[WAN-002] switching numbers reuses the saved registration', () => {
     expect(result.profile).not.toHaveProperty('access_token');
   });
 
+  it('[WAN-003] switches to a number Meta reports unregistered, but records it as such instead of trusting the saved registered_at', async () => {
+    queues.whatsapp_number_profiles = [
+      { data: salesProfile },
+      { data: null },
+      { data: { ...salesProfile, registered_at: null } },
+    ];
+    queues.whatsapp_config = [
+      { data: liveRentals },
+      { data: [{ id: 'cfg-1' }] },
+    ];
+
+    const result = await activateNumberProfile(makeDb(), {
+      accountId: 'acc-1',
+      userId: 'user-1',
+      profileId: 'prof-sales',
+      verify: async () => ({
+        id: 'pn-sales',
+        display_phone_number: '+91 88000 00001',
+      }),
+      subscribe: async () => undefined,
+      registrationState: async () => ({
+        status: 'PENDING',
+        platformType: 'NOT_APPLICABLE',
+        nameStatus: 'DECLINED',
+        verifiedName: 'Aryavarta Realty',
+        pinEnabled: false,
+      }),
+      now: () => NOW,
+    });
+
+    const configWrite = calls.find(
+      (c) => c.table === 'whatsapp_config' && c.op === 'update'
+    );
+    expect(configWrite?.payload).toMatchObject({
+      phone_number_id: 'pn-sales',
+      registered_at: null,
+      status: 'disconnected',
+      connected_at: null,
+    });
+    expect(
+      (configWrite?.payload as { last_registration_error: string })
+        .last_registration_error
+    ).toContain('declined the display name');
+
+    const stamp = calls.find(
+      (c) => c.table === 'whatsapp_number_profiles' && c.op === 'update'
+    );
+    expect(stamp?.payload).toMatchObject({ registered_at: null });
+
+    expect(result.registered).toBe(false);
+    expect(result.registration_error).toContain('two-step PIN');
+  });
+
+  it('[WAN-003] keeps the saved registration when Meta exposes no platform (test numbers)', async () => {
+    queues.whatsapp_number_profiles = [
+      { data: salesProfile },
+      { data: null },
+      { data: { ...salesProfile, last_activated_at: NOW } },
+    ];
+    queues.whatsapp_config = [
+      { data: liveRentals },
+      { data: [{ id: 'cfg-1' }] },
+    ];
+
+    const result = await activateNumberProfile(makeDb(), {
+      accountId: 'acc-1',
+      userId: 'user-1',
+      profileId: 'prof-sales',
+      verify: async () => ({
+        id: 'pn-sales',
+        display_phone_number: 'pn-sales',
+      }),
+      subscribe: async () => undefined,
+      registrationState: async () => null,
+      now: () => NOW,
+    });
+
+    const configWrite = calls.find(
+      (c) => c.table === 'whatsapp_config' && c.op === 'update'
+    );
+    expect(configWrite?.payload).toMatchObject({
+      registered_at: salesProfile.registered_at,
+      last_registration_error: null,
+      status: 'connected',
+    });
+    expect(result.registered).toBe(true);
+  });
+
   it('inserts a live row when the account has none', async () => {
     queues.whatsapp_number_profiles = [{ data: salesProfile }, { data: null }];
     queues.whatsapp_config = [{ data: null }, { data: null }];
@@ -327,6 +424,7 @@ describe('[WAN-002] switching numbers reuses the saved registration', () => {
         display_phone_number: '+91 88000 00001',
       }),
       subscribe: async () => undefined,
+      registrationState: cloudApiState,
       now: () => NOW,
     });
 

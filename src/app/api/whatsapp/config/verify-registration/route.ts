@@ -5,6 +5,10 @@ import {
   getSubscribedApps,
   verifyPhoneNumber,
 } from '@/lib/whatsapp/meta-api'
+import {
+  assessRegistration,
+  fetchPhoneRegistrationState,
+} from '@/lib/whatsapp/registration-state'
 
 /**
  * GET /api/whatsapp/config/verify-registration
@@ -85,16 +89,22 @@ export async function GET() {
     config_exists: boolean
     token_decryptable: boolean
     phone_metadata_ok: boolean
+    registered_on_meta: boolean | null
+    display_name_approved: boolean | null
     waba_subscribed_to_app: boolean | null
     locally_marked_registered: boolean
   } = {
     config_exists: true,
     token_decryptable: true,
     phone_metadata_ok: false,
+    registered_on_meta: null,
+    display_name_approved: null,
     waba_subscribed_to_app: null,
     locally_marked_registered: config.registered_at != null,
   }
   const errors: string[] = []
+  let registeredAt: string | null = config.registered_at ?? null
+  let lastRegistrationError: string | null = config.last_registration_error ?? null
 
   // 1. Phone metadata
   try {
@@ -107,6 +117,67 @@ export async function GET() {
     errors.push(
       `Phone metadata check failed: ${err instanceof Error ? err.message : String(err)}`,
     )
+  }
+
+  // 1b. Meta's own registration state. platform_type is CLOUD_API only
+  //     once /register has succeeded; before that the number has no
+  //     WhatsApp account at all, whatever the local row says.
+  const assessment = assessRegistration(
+    await fetchPhoneRegistrationState({
+      phoneNumberId: config.phone_number_id,
+      accessToken,
+    }),
+  )
+  if (assessment) {
+    checks.registered_on_meta = assessment.registered
+    checks.display_name_approved = assessment.nameApproved
+    if (!assessment.registered) {
+      errors.push(assessment.reason ?? 'Meta reports this number is not registered.')
+      registeredAt = null
+      lastRegistrationError = assessment.reason
+    } else if (assessment.nameApproved === false) {
+      errors.push(
+        'The display name is not approved. Messaging may be limited until a name is approved in WhatsApp Manager.',
+      )
+    }
+    if (assessment.registered) {
+      lastRegistrationError = null
+      if (registeredAt == null) registeredAt = new Date().toISOString()
+    }
+    const drifted =
+      (registeredAt == null) !== (config.registered_at == null) ||
+      lastRegistrationError !== (config.last_registration_error ?? null) ||
+      (assessment.registered ? 'connected' : 'disconnected') !== config.status
+    if (drifted) {
+      const stamp = new Date().toISOString()
+      const patch = {
+        registered_at: registeredAt,
+        last_registration_error: lastRegistrationError,
+        updated_at: stamp,
+      }
+      const { data: fixedConfig } = await supabase
+        .from('whatsapp_config')
+        .update({
+          ...patch,
+          status: assessment.registered ? 'connected' : 'disconnected',
+          connected_at: assessment.registered ? (config.connected_at ?? stamp) : null,
+        })
+        .eq('account_id', accountId)
+        .select('id')
+      if (!fixedConfig?.length) {
+        errors.push(
+          'Could not update the stored registration state — an admin needs to run this check.',
+        )
+      } else {
+        checks.locally_marked_registered = registeredAt != null
+        await supabase
+          .from('whatsapp_number_profiles')
+          .update(patch)
+          .eq('account_id', accountId)
+          .eq('phone_number_id', config.phone_number_id)
+          .select('id')
+      }
+    }
   }
 
   // 2. WABA subscription — only meaningful if we have a waba_id
@@ -140,14 +211,15 @@ export async function GET() {
   const live =
     checks.phone_metadata_ok &&
     (checks.waba_subscribed_to_app ?? false) &&
-    checks.locally_marked_registered
+    checks.locally_marked_registered &&
+    checks.registered_on_meta !== false
 
   return NextResponse.json({
     live,
     checks,
     errors,
-    last_registration_error: config.last_registration_error ?? null,
-    registered_at: config.registered_at ?? null,
+    last_registration_error: lastRegistrationError,
+    registered_at: registeredAt,
     subscribed_apps_at: config.subscribed_apps_at ?? null,
   })
 }

@@ -36,6 +36,8 @@ interface ActivateResult {
   profile: WhatsAppNumberProfile;
   already_active: boolean;
   waba_changed: boolean;
+  registered: boolean;
+  registration_error: string | null;
   phone_info: { verified_name?: string; display_phone_number?: string } | null;
 }
 
@@ -99,6 +101,13 @@ export function WhatsAppNumberProfiles({
           toast.info(
             'This number belongs to a different WhatsApp Business Account. Sync templates before sending.',
             { duration: 10000 }
+          );
+        }
+        if (!result.registered) {
+          toast.warning(
+            result.registration_error ??
+              'Meta reports this number is not registered. Enter its two-step PIN below and save.',
+            { duration: 12000 }
           );
         }
       }
