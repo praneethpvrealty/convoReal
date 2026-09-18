@@ -3,9 +3,11 @@
 import { useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  CalendarClock,
   ExternalLink,
   FileText,
   Loader2,
+  Replace,
   Sparkles,
   Trash2,
   Upload,
@@ -16,11 +18,27 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 import {
+  canDeleteDocument,
+  canTransitionDocumentStatus,
+  DEAL_DOCUMENT_STATUSES,
+  DEAL_DOCUMENT_STATUS_LABELS,
+  documentExpiryState,
+  type DealDocumentStatus,
+} from '@/lib/deals/documents';
+import {
   DEAL_DOCUMENT_CATEGORIES,
   type DealDocument,
   type DealDocumentCategory,
   type ExtractedDocumentFields,
 } from '@/lib/invoices/types';
+import { cn } from '@/lib/utils';
+
+type LifecycleDocument = DealDocument & {
+  status: DealDocumentStatus | null;
+  superseded_by: string | null;
+  superseded_at: string | null;
+  expires_at: string | null;
+};
 
 const EXTRACT_COST = AI_FEATURE_COSTS.deal_document_extract;
 
@@ -64,9 +82,11 @@ export function DealDocumentsPanel({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [openExtraction, setOpenExtraction] = useState<string | null>(null);
 
+  const [supersedingId, setSupersedingId] = useState<string | null>(null);
+
   const { data: documents = [], isLoading } = useQuery({
     queryKey: ['deal-documents', dealId],
-    queryFn: async (): Promise<DealDocument[]> => {
+    queryFn: async (): Promise<LifecycleDocument[]> => {
       const response = await fetch(`/api/deals/${dealId}/documents`);
       const json = await response.json();
       if (!response.ok)
@@ -76,7 +96,32 @@ export function DealDocumentsPanel({
   });
 
   const refresh = () =>
-    queryClient.invalidateQueries({ queryKey: ['deal-documents', dealId] });
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['deal-documents', dealId] }),
+      queryClient.invalidateQueries({ queryKey: ['deal-events', dealId] }),
+    ]);
+
+  async function patchDoc(
+    doc: LifecycleDocument,
+    body: Record<string, unknown>
+  ) {
+    setBusyId(doc.id);
+    try {
+      const response = await fetch(`/api/deals/${dealId}/documents/${doc.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...body, source: 'web' }),
+      });
+      const json = await response.json();
+      if (!response.ok) throw new Error(json?.error || 'Could not update');
+      await refresh();
+      setSupersedingId(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not update');
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   async function upload(file: File) {
     setUploading(true);
@@ -124,7 +169,13 @@ export function DealDocumentsPanel({
     }
   }
 
-  async function remove(doc: DealDocument) {
+  async function remove(doc: LifecycleDocument) {
+    if (!canDeleteDocument(doc)) {
+      toast.error(
+        'This document is approved or executed. Upload the newer version and mark this one superseded instead.'
+      );
+      return;
+    }
     if (!window.confirm(`Delete "${doc.title}"? This cannot be undone.`))
       return;
     setBusyId(doc.id);
@@ -210,91 +261,232 @@ export function DealDocumentsPanel({
         </div>
       ) : (
         <div className="space-y-2">
-          {documents.map((doc) => (
-            <div
-              key={doc.id}
-              className="rounded-xl border border-slate-800 bg-slate-900/50 p-4"
-            >
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="truncate font-medium text-white">{doc.title}</p>
-                  <p className="text-xs text-slate-500">
-                    {DEAL_DOCUMENT_CATEGORIES.find(
-                      (c) => c.value === doc.category
-                    )?.label ?? doc.category}
-                    {doc.size_bytes
-                      ? ` · ${Math.max(1, Math.round(doc.size_bytes / 1024))} KB`
-                      : ''}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <a
-                    href={`/api/deals/${dealId}/documents/${doc.id}`}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    <Button size="sm" variant="outline">
-                      <ExternalLink className="h-4 w-4" />
-                      Open
-                    </Button>
-                  </a>
-                  {canEdit && READABLE.includes(doc.mime_type ?? '') && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => extract(doc)}
-                      disabled={busyId === doc.id}
-                      title={`Reads the document with AI — ${EXTRACT_COST} credits`}
-                    >
-                      {busyId === doc.id ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Sparkles className="h-4 w-4" />
+          {documents.map((doc) => {
+            const superseded = Boolean(doc.superseded_by);
+            const expiry = documentExpiryState(doc.expires_at);
+            const replacedBy = superseded
+              ? documents.find((d) => d.id === doc.superseded_by)
+              : null;
+            return (
+              <div
+                key={doc.id}
+                className={cn(
+                  'rounded-xl border border-slate-800 bg-slate-900/50 p-4',
+                  superseded && 'opacity-60'
+                )}
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p
+                      className={cn(
+                        'truncate font-medium text-white',
+                        superseded && 'line-through'
                       )}
-                      {doc.extracted ? 'Read again' : 'Read with AI'}
-                    </Button>
-                  )}
-                  {canEdit && (
+                    >
+                      {doc.title}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      {DEAL_DOCUMENT_CATEGORIES.find(
+                        (c) => c.value === doc.category
+                      )?.label ?? doc.category}
+                      {doc.size_bytes
+                        ? ` · ${Math.max(1, Math.round(doc.size_bytes / 1024))} KB`
+                        : ''}
+                    </p>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px]">
+                      {doc.status && (
+                        <span className="rounded-full border border-slate-700 px-2 py-0.5 text-slate-300">
+                          {DEAL_DOCUMENT_STATUS_LABELS[doc.status]}
+                        </span>
+                      )}
+                      {superseded && (
+                        <span className="rounded-full border border-amber-500/40 px-2 py-0.5 text-amber-300">
+                          Superseded
+                          {replacedBy ? ` by ${replacedBy.title}` : ''}
+                        </span>
+                      )}
+                      {expiry !== 'none' && !superseded && (
+                        <span
+                          className={cn(
+                            'inline-flex items-center gap-1 rounded-full border px-2 py-0.5',
+                            expiry === 'expired'
+                              ? 'border-rose-500/40 text-rose-300'
+                              : 'border-amber-500/40 text-amber-300'
+                          )}
+                        >
+                          <CalendarClock className="h-3 w-3" />
+                          {expiry === 'expired' ? 'Expired' : 'Expires'}{' '}
+                          {doc.expires_at}
+                        </span>
+                      )}
+                      {expiry === 'none' && doc.expires_at && !superseded && (
+                        <span className="text-slate-500">
+                          Expires {doc.expires_at}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <a
+                      href={`/api/deals/${dealId}/documents/${doc.id}`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      <Button size="sm" variant="outline">
+                        <ExternalLink className="h-4 w-4" />
+                        Open
+                      </Button>
+                    </a>
+                    {canEdit && READABLE.includes(doc.mime_type ?? '') && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => extract(doc)}
+                        disabled={busyId === doc.id}
+                        title={`Reads the document with AI — ${EXTRACT_COST} credits`}
+                      >
+                        {busyId === doc.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Sparkles className="h-4 w-4" />
+                        )}
+                        {doc.extracted ? 'Read again' : 'Read with AI'}
+                      </Button>
+                    )}
+                    {canEdit && !superseded && (
+                      <select
+                        aria-label="Document status"
+                        className="h-8 rounded-md border border-slate-700 bg-slate-950 px-2 text-xs text-white"
+                        value={doc.status ?? ''}
+                        disabled={busyId === doc.id}
+                        onChange={(e) => {
+                          const next = e.target.value as
+                            DealDocumentStatus | '';
+                          if (
+                            next &&
+                            canTransitionDocumentStatus(doc.status, next)
+                          ) {
+                            void patchDoc(doc, { status: next });
+                          }
+                        }}
+                      >
+                        <option value="">Unlabelled</option>
+                        {DEAL_DOCUMENT_STATUSES.map((status) => (
+                          <option
+                            key={status}
+                            value={status}
+                            disabled={
+                              !canTransitionDocumentStatus(doc.status, status)
+                            }
+                          >
+                            {DEAL_DOCUMENT_STATUS_LABELS[status]}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    {canEdit && !superseded && (
+                      <input
+                        type="date"
+                        aria-label="Expiry date"
+                        className="h-8 rounded-md border border-slate-700 bg-slate-950 px-2 text-xs text-white"
+                        value={doc.expires_at ?? ''}
+                        disabled={busyId === doc.id}
+                        onChange={(e) =>
+                          void patchDoc(doc, {
+                            expires_at: e.target.value || null,
+                          })
+                        }
+                      />
+                    )}
+                    {canEdit && !superseded && documents.length > 1 && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() =>
+                          setSupersedingId(
+                            supersedingId === doc.id ? null : doc.id
+                          )
+                        }
+                        disabled={busyId === doc.id}
+                        title="Mark this version replaced by a newer upload"
+                      >
+                        <Replace className="h-4 w-4" />
+                        Supersede
+                      </Button>
+                    )}
+                    {canEdit && canDeleteDocument(doc) && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => remove(doc)}
+                        disabled={busyId === doc.id}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                {supersedingId === doc.id && (
+                  <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-800 pt-3 text-xs">
+                    <span className="text-slate-400">Replaced by</span>
+                    <select
+                      className="h-8 rounded-md border border-slate-700 bg-slate-950 px-2 text-xs text-white"
+                      defaultValue=""
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          void patchDoc(doc, { superseded_by: e.target.value });
+                        }
+                      }}
+                    >
+                      <option value="">Choose the newer document…</option>
+                      {documents
+                        .filter((d) => d.id !== doc.id && !d.superseded_by)
+                        .map((d) => (
+                          <option key={d.id} value={d.id}>
+                            {d.title}
+                          </option>
+                        ))}
+                    </select>
                     <Button
                       size="sm"
                       variant="ghost"
-                      onClick={() => remove(doc)}
-                      disabled={busyId === doc.id}
+                      onClick={() => setSupersedingId(null)}
                     >
-                      <Trash2 className="h-4 w-4" />
+                      Cancel
                     </Button>
-                  )}
-                </div>
+                  </div>
+                )}
+
+                {doc.extraction_status === 'failed' && (
+                  <p className="mt-2 text-xs text-rose-300">
+                    Could not read this one. Your credits were refunded.
+                  </p>
+                )}
+
+                {doc.extracted && (
+                  <div className="mt-3 border-t border-slate-800 pt-3">
+                    <button
+                      type="button"
+                      className="text-primary text-xs font-semibold"
+                      onClick={() =>
+                        setOpenExtraction(
+                          openExtraction === doc.id ? null : doc.id
+                        )
+                      }
+                    >
+                      {openExtraction === doc.id ? 'Hide' : 'Show'} what the AI
+                      read
+                    </button>
+
+                    {openExtraction === doc.id && (
+                      <ExtractionReview extracted={doc.extracted} />
+                    )}
+                  </div>
+                )}
               </div>
-
-              {doc.extraction_status === 'failed' && (
-                <p className="mt-2 text-xs text-rose-300">
-                  Could not read this one. Your credits were refunded.
-                </p>
-              )}
-
-              {doc.extracted && (
-                <div className="mt-3 border-t border-slate-800 pt-3">
-                  <button
-                    type="button"
-                    className="text-primary text-xs font-semibold"
-                    onClick={() =>
-                      setOpenExtraction(
-                        openExtraction === doc.id ? null : doc.id
-                      )
-                    }
-                  >
-                    {openExtraction === doc.id ? 'Hide' : 'Show'} what the AI
-                    read
-                  </button>
-
-                  {openExtraction === doc.id && (
-                    <ExtractionReview extracted={doc.extracted} />
-                  )}
-                </div>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

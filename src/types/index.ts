@@ -747,6 +747,22 @@ export interface Deal {
   brokerage_value?: number | null;
   brokerage_amount?: number | null;
   brokerage_paid_at?: string | null;
+  /** Transaction Workspace (migration 20260918010000). Provenance,
+   *  bundle and Den linkage; the financial columns are internal only
+   *  and deny-listed in src/lib/deals/financials.ts. */
+  source_journey_item_id?: string | null;
+  deal_group_id?: string | null;
+  deal_room_id?: string | null;
+  agreed_consideration?: number | null;
+  registered_consideration?: number | null;
+  other_component?: number | null;
+  token_amount?: number | null;
+  token_received_at?: string | null;
+  token_instrument_ref?: string | null;
+  tds_status?: 'not_applicable' | 'expected' | 'deducted' | 'deposited' | null;
+  tds_amount?: number | null;
+  payment_instrument_refs?: string | null;
+  brokerage_received_amount?: number | null;
 }
 
 // ── Journey Mind Map (migration 131) ────────────────────────
@@ -832,7 +848,8 @@ export type JourneyEventType =
   | 'planned'
   | 'plan_cleared'
   | 'client_response'
-  | 'outbound_whatsapp';
+  | 'outbound_whatsapp'
+  | 'converted_to_deal';
 
 export interface JourneyEvent {
   id: string;

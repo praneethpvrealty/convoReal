@@ -48,9 +48,15 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       brokerage_amount,
       status: dealStatus,
       stage_name,
+      deal_group_id,
     } = body;
 
     const updateData: Record<string, unknown> = {};
+    if (deal_group_id !== undefined)
+      updateData.deal_group_id =
+        typeof deal_group_id === 'string' && deal_group_id.trim()
+          ? deal_group_id.trim()
+          : null;
     if (typeof title === 'string') updateData.title = title.trim();
     if (typeof value === 'number') updateData.value = value;
     if (typeof currency === 'string') updateData.currency = currency;

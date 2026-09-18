@@ -17,6 +17,7 @@ import { useRouter } from 'next/navigation';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
 import {
+  Briefcase,
   ArrowRight,
   Ban,
   Building2,
@@ -98,6 +99,7 @@ const EVENT_LABELS: Record<JourneyEvent['event_type'], string> = {
   plan_cleared: 'Plan cleared',
   client_response: 'Client responded',
   outbound_whatsapp: 'Sent via personal WhatsApp',
+  converted_to_deal: 'Converted to a deal',
 };
 
 export interface JourneyItemSheetProps {
@@ -164,6 +166,50 @@ export function JourneyItemSheet({
   const [openingInbox, setOpeningInbox] = useState(false);
   const [showcaseBase, setShowcaseBase] = useState<string | null>(null);
   const [brandName, setBrandName] = useState<string | null>(null);
+  const [linkedDealId, setLinkedDealId] = useState<string | null>(null);
+  const [converting, setConverting] = useState(false);
+
+  useEffect(() => {
+    if (!item) return;
+    let cancelled = false;
+    supabase
+      .from('deals')
+      .select('id')
+      .eq('source_journey_item_id', item.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!cancelled) setLinkedDealId(data?.id ?? null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [item, supabase]);
+
+  async function convertToDeal() {
+    if (!item) return;
+    setConverting(true);
+    try {
+      const response = await fetch('/api/journey/convert-to-deal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ item_id: item.id, source: 'web' }),
+      });
+      const json = await response.json();
+      if (!response.ok) throw new Error(json?.error || 'Could not convert');
+      const dealId: string = json.data.id;
+      setLinkedDealId(dealId);
+      toast.success(
+        json.data.existing
+          ? 'This journey already has a transaction.'
+          : 'Transaction opened.'
+      );
+      router.push(`/deals/${dealId}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not convert');
+    } finally {
+      setConverting(false);
+    }
+  }
 
   // Reset transient state whenever a different item opens. Deferred
   // setter (matches the repo-wide pattern) so the reset doesn't
@@ -489,6 +535,41 @@ export function JourneyItemSheet({
               </div>
             </div>
           )}
+
+          {/* Closing record — the Transaction Workspace for this pair */}
+          <div className="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2.5">
+            <p className="mb-2 text-[11px] font-semibold tracking-wider text-slate-500 uppercase">
+              Transaction
+            </p>
+            {linkedDealId ? (
+              <Button
+                size="sm"
+                variant="secondary"
+                className="w-full"
+                onClick={() => router.push(`/deals/${linkedDealId}`)}
+              >
+                <Briefcase className="h-3.5 w-3.5" />
+                Open transaction
+              </Button>
+            ) : (
+              <>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="w-full"
+                  disabled={!canEdit || converting || item.status === 'dropped'}
+                  onClick={convertToDeal}
+                >
+                  <Briefcase className="h-3.5 w-3.5" />
+                  {converting ? 'Opening…' : 'Convert to deal'}
+                </Button>
+                <p className="mt-1.5 text-[11px] text-slate-500">
+                  Opens the closing record — milestones, papers, tasks and money
+                  — and keeps this journey and its history as they are.
+                </p>
+              </>
+            )}
+          </div>
 
           {/* Stage progress rail */}
           <div>

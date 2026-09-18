@@ -11,6 +11,12 @@ import { apiFetch } from './api';
 import type {
   DealDocumentCategory,
   DealDocumentRow,
+  DealDocumentStatus,
+  DealEventRow,
+  DealFinancialsRow,
+  DealMilestoneRow,
+  DealMilestoneStatus,
+  DealTaskRow,
   InvoiceDetail,
   InvoiceRow,
   InvoiceSide,
@@ -152,4 +158,151 @@ export function deleteInvoice(invoiceId: string) {
   return apiFetch<{ data: { id: string } }>(`/api/invoices/${invoiceId}`, {
     method: 'DELETE',
   });
+}
+
+// ------------------------------------------------------------------
+// Transaction Workspace calls. Every rule lives server-side; the app
+// only renders what these return.
+// ------------------------------------------------------------------
+
+function json(body: Record<string, unknown>) {
+  return {
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...body, source: 'mobile' }),
+  };
+}
+
+export function fetchDealFinancials(dealId: string) {
+  return apiFetch<{ data: DealFinancialsRow }>(
+    `/api/deals/${dealId}/financials`
+  ).then((r) => r.data);
+}
+
+export function updateDealFinancials(
+  dealId: string,
+  patch: Record<string, string | null>
+) {
+  return apiFetch<{ data: DealFinancialsRow }>(
+    `/api/deals/${dealId}/financials`,
+    {
+      method: 'PATCH',
+      ...json(patch),
+    }
+  ).then((r) => r.data);
+}
+
+export function fetchDealEvents(dealId: string) {
+  return apiFetch<{ data: DealEventRow[] }>(`/api/deals/${dealId}/events`).then(
+    (r) => r.data ?? []
+  );
+}
+
+export function addDealNote(dealId: string, note: string) {
+  return apiFetch<{ data: { id: string } }>(`/api/deals/${dealId}/events`, {
+    method: 'POST',
+    ...json({ note }),
+  });
+}
+
+export function fetchDealMilestones(dealId: string) {
+  return apiFetch<{ data: DealMilestoneRow[] }>(
+    `/api/deals/${dealId}/milestones`
+  ).then((r) => r.data ?? []);
+}
+
+export function addStandardMilestones(dealId: string) {
+  return apiFetch<{ data: DealMilestoneRow[] }>(
+    `/api/deals/${dealId}/milestones`,
+    {
+      method: 'POST',
+      ...json({ template: 'standard' }),
+    }
+  );
+}
+
+export function addCustomMilestone(
+  dealId: string,
+  title: string,
+  targetDate: string | null
+) {
+  return apiFetch<{ data: DealMilestoneRow }>(
+    `/api/deals/${dealId}/milestones`,
+    {
+      method: 'POST',
+      ...json({ title, target_date: targetDate }),
+    }
+  );
+}
+
+export function updateDealMilestone(
+  dealId: string,
+  milestoneId: string,
+  patch: { status?: DealMilestoneStatus; target_date?: string | null }
+) {
+  return apiFetch<{ data: DealMilestoneRow }>(
+    `/api/deals/${dealId}/milestones/${milestoneId}`,
+    { method: 'PATCH', ...json(patch) }
+  ).then((r) => r.data);
+}
+
+export function fetchDealTasks(dealId: string) {
+  return apiFetch<DealTaskRow[]>(
+    `/api/todos?deal_id=${encodeURIComponent(dealId)}`
+  ).then((rows) => (Array.isArray(rows) ? rows : []));
+}
+
+export function addDealTask(
+  dealId: string,
+  input: {
+    title: string;
+    priority: DealTaskRow['priority'];
+    dueDate: string | null;
+    contactId: string | null;
+    propertyId: string | null;
+  }
+) {
+  return apiFetch<DealTaskRow>('/api/todos', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      title: input.title,
+      priority: input.priority,
+      due_date: input.dueDate,
+      contact_id: input.contactId,
+      property_id: input.propertyId,
+      deal_id: dealId,
+    }),
+  });
+}
+
+export function setDealTaskCompleted(taskId: string, completed: boolean) {
+  return apiFetch<DealTaskRow>(`/api/todos/${taskId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ completed }),
+  });
+}
+
+export function updateDealDocument(
+  dealId: string,
+  docId: string,
+  patch: {
+    status?: DealDocumentStatus;
+    expires_at?: string | null;
+    superseded_by?: string;
+  }
+) {
+  return apiFetch<{ data: DealDocumentRow }>(
+    `/api/deals/${dealId}/documents/${docId}`,
+    { method: 'PATCH', ...json(patch) }
+  ).then((r) => r.data);
+}
+
+/** Open the closing record for a journey item. Idempotent: returns the
+ *  existing transaction when the item already has one. */
+export function convertJourneyItemToDeal(itemId: string) {
+  return apiFetch<{ data: { id: string; existing: boolean } }>(
+    '/api/journey/convert-to-deal',
+    { method: 'POST', ...json({ item_id: itemId }) }
+  ).then((r) => r.data);
 }

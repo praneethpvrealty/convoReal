@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server';
 
-import { requireRole, toErrorResponse } from '@/lib/auth/account';
+import {
+  requireRole,
+  requireWriteRole,
+  toErrorResponse,
+} from '@/lib/auth/account';
+import { parseEventSource, writeDealEvent } from '@/lib/deals/events';
+import { actorName } from '@/lib/deals/server';
 import { DEAL_DOCUMENT_BUCKET } from '@/lib/invoices/server';
 import {
   DEAL_DOCUMENT_CATEGORIES,
@@ -66,7 +72,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const ctx = await requireRole('agent');
+    const ctx = await requireWriteRole('agent');
     const { id: dealId } = await params;
 
     const limit = await checkRateLimit(
@@ -173,6 +179,18 @@ export async function POST(
         .remove([objectPath]);
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
+
+    await writeDealEvent({
+      db: ctx.supabase,
+      accountId: ctx.accountId,
+      dealId,
+      eventType: 'document_added',
+      title: `Document added: ${title}`,
+      actorId: ctx.userId,
+      actorName: await actorName(ctx.supabase, ctx.accountId, ctx.userId),
+      source: parseEventSource(form.get('source')),
+      metadata: { document_id: data.id, category, title },
+    });
 
     return NextResponse.json({ data }, { status: 201 });
   } catch (err) {

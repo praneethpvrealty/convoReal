@@ -40,6 +40,7 @@ import { useCopilot } from "@/components/copilot/copilot-context";
 // /requirements are redirect-only shims onto a tab of another section, so
 // they are deliberately absent — the title comes from where you land.
 const pageTitleOverrides: Record<string, string> = {
+  "/deals": "Transactions",
   "/admin": "Admin Panel",
 };
 

@@ -38,6 +38,7 @@ import {
   propertyStatusForPipelineStage,
   shouldCaptureBrokerage,
 } from '@/lib/pipelines/stage-semantics';
+import { SPEC_DEFAULT_STAGES } from '@/lib/pipelines/default-stages';
 
 // Pipeline creation is admin-class (settings-tier write under
 // the new RLS); deal creation is operational and only requires
@@ -45,18 +46,6 @@ import {
 // not on different copy.
 
 // Seed stages for Real Estate Pipeline
-const SPEC_DEFAULT_STAGES = [
-  { name: 'New Inquiry', color: '#3b82f6', position: 0 }, // blue
-  { name: 'Profiling/Qualified', color: '#eab308', position: 1 }, // yellow
-  { name: 'Site Visit Scheduled', color: '#f97316', position: 2 }, // orange
-  { name: 'Negotiation/Token', color: '#8b5cf6', position: 3 }, // purple
-  { name: 'Due Diligence/Contract', color: '#06b6d4', position: 4 }, // cyan
-  { name: 'Deal Closed/Won', color: '#22c55e', position: 5 }, // green
-  { name: 'Brokerage Pending', color: '#f59e0b', position: 6 }, // amber
-  { name: 'Brokerage Paid', color: '#16a34a', position: 7 }, // green
-  { name: 'Closed Lost', color: '#ef4444', position: 8 }, // red
-];
-
 export default function PipelinesPage() {
   const supabase = createClient();
   const { user, accountId } = useAuth();

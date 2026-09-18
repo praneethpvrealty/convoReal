@@ -35,6 +35,7 @@ import {
   Home,
   Calendar,
   Landmark,
+  Briefcase,
 } from "lucide-react";
 import type { AccountRole } from "@/lib/auth/roles";
 
@@ -115,6 +116,7 @@ const navItems: NavItem[] = [
   { href: "/liaisons", labelKey: "nav.liaisons", icon: Landmark },
   { href: "/calendar", labelKey: "nav.calendar", icon: Calendar },
   { href: "/journey", labelKey: "nav.journey", icon: Waypoints, beta: true },
+  { href: "/deals", labelKey: "nav.transactions", icon: Briefcase },
   { href: "/automations", labelKey: "nav.automations", icon: Workflow },
   { href: "/broadcasts", labelKey: "nav.broadcasts", icon: Radio },
   // Meta Ads surfaces (incl. this nav item) only render when the feature is
