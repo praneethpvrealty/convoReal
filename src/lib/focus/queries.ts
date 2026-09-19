@@ -66,6 +66,7 @@ export async function loadJourneyCandidates(
       .from('journey_stages')
       .select('*')
       .eq('account_id', accountId)
+      .not('pipeline_stage_id', 'is', null)
       .order('position'),
     db
       .from('journey_priorities')

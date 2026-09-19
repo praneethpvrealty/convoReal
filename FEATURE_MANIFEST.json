@@ -572,7 +572,7 @@
         },
         {
           "id": "JRN-004",
-          "rule": "Every configured stage can capture an append-only, account-scoped note before or after the stage is reached; the latest note stays visible in the stage rail and the complete history retains its stage snapshot, author and creation time through closure, archival and later stage deletion.",
+          "rule": "Every mirrored pipeline stage can capture an append-only, account-scoped note before or after the stage is reached; the latest note stays visible in the stage rail and the complete history retains its stage snapshot, author and creation time through closure, archival and later stage deletion.",
           "tests": [
             {
               "file": "src/lib/journey/stage-notes.test.ts",
@@ -923,6 +923,30 @@
             }
           ],
           "guards": []
+        },
+        {
+          "id": "TXW-018",
+          "rule": "Journey stages are mirrors of the account's default pipeline stages (one journey stage per pipeline stage, same name, colour and order, kind derived from the stage name by the same words in SQL and TypeScript); there is one stage editor, the pipeline's, and a pipeline stage cannot be deleted while journey items sit on or plan for its mirror; a converted deal and its journey item stay on the same stage whichever side moved, with the journey keeping the move in its history; every journey move — web, mobile and the WhatsApp closing card — runs through one move function, and onto a mirrored stage it runs the same stage-move logic as the board (brokerage capture, closing record, property status) while a deal on another pipeline keeps its own stage; and moving a journey item into a closing or won stage opens its closing record on that very stage.",
+          "tests": [
+            {
+              "file": "src/lib/pipelines/stage-semantics.test.ts",
+              "case": "[TXW-018]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[TXW-018]"
+            },
+            {
+              "file": "src/lib/journey/move.test.ts",
+              "case": "[TXW-018]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20260919120000_journey_stages_mirror_pipeline.sql",
+            "supabase/migrations/20260919120050_journey_deal_sync_same_pipeline.sql",
+            "supabase/migrations/20260919120100_journey_stages_backfill.sql",
+            "supabase/migrations/20260919120200_pipeline_stage_delete_guard.sql"
+          ]
         }
       ]
     },

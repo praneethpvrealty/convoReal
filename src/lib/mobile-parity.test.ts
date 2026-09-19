@@ -13,7 +13,7 @@
  * the pre-commit hook already executes.
  */
 
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runInNewContext } from 'node:vm';
 
@@ -1807,7 +1807,11 @@ describe('[TXW-016] the transaction index reads the same on both surfaces', () =
       );
     }
     const dealRoute = webSource('app/api/deals/[id]/route.ts');
-    expect(dealRoute.match(/ensureClosingRecord\(\{/g)?.length).toBe(2);
+    expect(dealRoute).toContain('ensureClosingRecord({');
+    expect(dealRoute).toContain('await applyDealStageMove(ctx, {');
+    expect(webSource('lib/deals/stage-move.ts')).toContain(
+      'ensureClosingRecord({'
+    );
     expect(
       webSource('app/(dashboard)/pipelines/pipelines-content.tsx')
     ).toContain('`/api/deals/${dealId}`');
@@ -1877,5 +1881,248 @@ describe('[TXW-017] Deals is one surface with a board, journeys and records on b
     expect(webSidebar).toContain('href: "/deals"');
     expect(mobileMenu).toContain("label: 'Deals: journeys'");
     expect(mobileIntent).toContain("q.get('view') === 'journey'");
+  });
+});
+
+describe('[TXW-018] journey stages mirror the pipeline on every surface', () => {
+  const migration = readFileSync(
+    join(
+      process.cwd(),
+      'supabase/migrations/20260919120000_journey_stages_mirror_pipeline.sql'
+    ),
+    'utf8'
+  );
+  const webSemantics = webSource('lib/pipelines/stage-semantics.ts');
+  const mobileSemantics = mobileSource('lib/stage-semantics.ts');
+
+  it('derives the journey kind from the same stage words in SQL and TypeScript', () => {
+    for (const word of ['lost', 'won', 'registered', 'brokerage']) {
+      expect(migration).toContain(`'%${word}%'`);
+      expect(webSemantics).toContain(`'${word}'`);
+    }
+    for (const word of ['negotiation', 'token', 'due diligence', 'contract']) {
+      expect(migration).toContain(`'%${word}%'`);
+      expect(webSemantics).toContain(`'${word}'`);
+    }
+    expect(mobileSemantics).toContain(
+      'export function journeyStageKindForPipelineStage('
+    );
+    expect(mobileSemantics).toContain(
+      "if (outcome === 'successful') return 'won';"
+    );
+  });
+
+  it('reads mirrored stages through the one sync function on web and mobile', () => {
+    expect(webSource('lib/journey/capture.ts')).toContain(
+      '"sync_journey_stages_from_pipeline"'
+    );
+    expect(mobileSource('app/(app)/journey.tsx')).toContain(
+      "'sync_journey_stages_from_pipeline'"
+    );
+    expect(
+      webSource('app/(dashboard)/pipelines/pipelines-content.tsx')
+    ).toContain("'sync_journey_stages_from_pipeline'");
+    expect(
+      existsSync(
+        join(process.cwd(), 'src/components/journey/stage-editor-dialog.tsx')
+      )
+    ).toBe(false);
+  });
+
+  it('keeps a converted deal and its journey item on one stage from either side', () => {
+    expect(migration).toContain('AFTER UPDATE OF stage_id ON journey_items');
+    expect(migration).toContain('AFTER UPDATE OF stage_id ON deals');
+    expect(migration).toContain('pg_trigger_depth() > 1');
+  });
+
+  it('moves a journey item through one move function that runs the board stage-move logic', () => {
+    const move = webSource('lib/journey/move.ts');
+    expect(move).toContain(
+      "target.stage_kind === 'closing' || target.stage_kind === 'won'"
+    );
+    expect(move).toContain('needsBrokerageCapture(');
+    expect(move).toContain('await prepareDealStageMove(ctx, dealMove)');
+    expect(move).toContain('await convertJourneyItemToDeal(ctx, {');
+    expect(move).toContain('stageId: target.pipeline_stage_id');
+    expect(move).toContain('deal.pipeline_id === targetPipelineId');
+    expect(webSource('app/api/journey/move/route.ts')).toContain(
+      'await moveJourneyItem(ctx, {'
+    );
+    expect(webSource('lib/journey/closing-nudges.ts')).toContain(
+      'await moveJourneyItem('
+    );
+    expect(webSource('lib/journey/closing-nudges.ts')).not.toContain(
+      ".from('journey_items')\n      .update({\n        stage_id"
+    );
+    expect(webSource('app/api/journey/convert-to-deal/route.ts')).toContain(
+      'await convertJourneyItemToDeal(ctx, parsed.value)'
+    );
+    expect(
+      readFileSync(
+        join(
+          process.cwd(),
+          'supabase/migrations/20260919120050_journey_deal_sync_same_pipeline.sql'
+        ),
+        'utf8'
+      )
+    ).toContain('AND pipeline_id = v_pipeline');
+    const sameAccount = readFileSync(
+      join(
+        process.cwd(),
+        'supabase/migrations/20260919120050_journey_deal_sync_same_pipeline.sql'
+      ),
+      'utf8'
+    );
+    expect(
+      sameAccount.match(
+        /WHERE id = NEW\.source_journey_item_id AND account_id = NEW\.account_id;/g
+      )?.length
+    ).toBe(2);
+    expect(sameAccount).toContain(
+      'IF p_pipeline_id IS NOT NULL AND p_pipeline_id <> v_pipeline THEN'
+    );
+    const stageMove = webSource('lib/deals/stage-move.ts');
+    expect(stageMove.match(/\.eq\('account_id', accountId\)/g)?.length).toBe(3);
+    expect(
+      stageMove.match(/\.eq\('account_id', ctx\.accountId\)/g)?.length
+    ).toBe(1);
+    expect(sameAccount).toContain(
+      "PERFORM pg_advisory_xact_lock(hashtext('ensure_default_pipeline'), hashtext(p_account_id::text));"
+    );
+    expect(sameAccount).toContain(
+      'IF NOT EXISTS (SELECT 1 FROM pipeline_stages WHERE pipeline_id = v_id) THEN'
+    );
+    const moveSource = webSource('lib/journey/move.ts');
+    const itemUpdate = moveSource.indexOf(
+      ".from('journey_items')\n    .update({"
+    );
+    expect(itemUpdate).toBeGreaterThan(0);
+    expect(
+      moveSource.indexOf('await prepareDealStageMove(ctx, dealMove)')
+    ).toBeLessThan(itemUpdate);
+    expect(moveSource).not.toContain('applyDealStageMove(');
+    expect(moveSource.indexOf('await writeJourneyEvent({')).toBeGreaterThan(
+      itemUpdate
+    );
+    const stageMoveSource = webSource('lib/deals/stage-move.ts');
+    expect(
+      stageMoveSource.indexOf(
+        'const prepared = await prepareDealStageMove(ctx, input);'
+      )
+    ).toBeLessThan(
+      stageMoveSource.indexOf('updateData.stage_id = input.targetStageId')
+    );
+    expect(
+      readFileSync(
+        join(
+          process.cwd(),
+          'supabase/migrations/20260919120100_journey_stages_backfill.sql'
+        ),
+        'utf8'
+      )
+    ).toContain('AND fps.pipeline_id <> v_pipeline;');
+    expect(
+      moveSource.indexOf('await convertJourneyItemToDeal(ctx, {')
+    ).toBeLessThan(itemUpdate);
+    expect(moveSource).toMatch(
+      /if \(openedDealId\) \{\s+const \{ data: removed \} = await supabase\s+\.from\('deals'\)\s+\.delete\(\)/
+    );
+    expect(
+      webSource('app/(dashboard)/pipelines/pipelines-content.tsx')
+    ).not.toContain('p_pipeline_id: pipeline.id');
+  });
+
+  it('reads only mirrored stages wherever a next stage is chosen, and leaves no orphan behind', () => {
+    for (const file of [
+      'lib/journey/client-response.ts',
+      'lib/journey/closing-nudges.ts',
+      'lib/journey/past-enquiry.ts',
+      'lib/focus/queries.ts',
+      'lib/journey/capture.ts',
+    ]) {
+      const source = webSource(file);
+      const reads = source.match(
+        /\.from\(['"]journey_stages['"]\)\n\s+\.select\([^)]*\)\n(\s+\.(eq|in)\([^)]*\)\n)*\s+\.(not\('pipeline_stage_id', 'is', null\)|not\("pipeline_stage_id", "is", null\))/g
+      );
+      const lists = source.match(
+        /\.from\(['"]journey_stages['"]\)\n\s+\.select\([^)]*\)\n(\s+\.(eq|in)\([^)]*\)\n)*\s+\.order\(/g
+      );
+      expect(
+        reads?.length ?? 0,
+        `${file} lists unlinked stages`
+      ).toBeGreaterThanOrEqual(lists?.length ?? 0);
+    }
+    expect(mobileSource('lib/today.ts')).toContain(
+      ".in('stage_kind', PAST_ENQUIRY_STAGE_KINDS)\n    .not('pipeline_stage_id', 'is', null);"
+    );
+    const backfill = readFileSync(
+      join(
+        process.cwd(),
+        'supabase/migrations/20260919120100_journey_stages_backfill.sql'
+      ),
+      'utf8'
+    );
+    expect(backfill).not.toContain('journey_stage_notes');
+    expect(backfill.match(/AND ji\.account_id = acc\.id/g)?.length).toBe(2);
+    expect(
+      readFileSync(
+        join(
+          process.cwd(),
+          'supabase/migrations/20260919120200_pipeline_stage_delete_guard.sql'
+        ),
+        'utf8'
+      )
+    ).toContain('DELETE FROM journey_stages WHERE id = v_js;');
+  });
+
+  it('offers the same move and brokerage prompt on web and mobile', () => {
+    const section = webSource('components/journey/journey-section.tsx');
+    expect(section).toContain("fetch('/api/journey/move'");
+    expect(section).not.toContain("fetch('/api/journey/convert-to-deal'");
+    expect(section).not.toContain(
+      ".from('journey_items')\n        .update({\n          stage_id"
+    );
+    expect(section).toContain("json?.code === 'BROKERAGE_REQUIRED'");
+    expect(section).toContain('brokerage_type: brokerageType');
+    expect(section).toContain('brokerage_value: Number(brokerageValue)');
+    expect(mobileSource('lib/deal-workspace-api.ts')).toContain(
+      "'/api/journey/move'"
+    );
+    const mobileJourney = mobileSource('app/(app)/journey.tsx');
+    expect(mobileJourney).toContain(
+      'await moveJourneyItem(item.id, stage.id, brokerage);'
+    );
+    expect(mobileJourney).toContain("err.code === 'BROKERAGE_REQUIRED'");
+    expect(mobileJourney).toContain('brokerage_type: brokerageType');
+    expect(mobileJourney).toContain('brokerage_value: Number(brokerageValue)');
+    expect(mobileJourney).toContain('accessibilityLabel="Move to stage"');
+  });
+
+  it('refuses to delete a pipeline stage while journey items sit on its mirror', () => {
+    const guard = readFileSync(
+      join(
+        process.cwd(),
+        'supabase/migrations/20260919120200_pipeline_stage_delete_guard.sql'
+      ),
+      'utf8'
+    );
+    expect(guard).toContain('BEFORE DELETE ON pipeline_stages');
+    expect(guard).toContain('WHERE stage_id = v_js OR planned_stage_id = v_js');
+    expect(migration).toContain(
+      'REFERENCES pipeline_stages(id) ON DELETE SET NULL'
+    );
+    const settings = webSource('components/pipelines/pipeline-settings.tsx');
+    expect(settings).toContain('.from("journey_items")');
+    expect(settings).toContain('"Move journey items out of this stage first"');
+    const backfill = readFileSync(
+      join(
+        process.cwd(),
+        'supabase/migrations/20260919120100_journey_stages_backfill.sql'
+      ),
+      'utf8'
+    );
+    expect(backfill).toContain(
+      'WHERE account_id = acc.id AND pipeline_stage_id IS NOT NULL\n    ) THEN\n      CONTINUE;'
+    );
   });
 });

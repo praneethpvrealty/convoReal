@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   dealStatusForStage,
   isBrokeragePaidStage,
+  journeyStageKindForPipelineStage,
   needsBrokerageCapture,
   pipelineOutcomeForStage,
   startsClosingRecord,
@@ -33,6 +34,22 @@ describe('pipeline stage semantics', () => {
     expect(shouldCaptureBrokerage('Due Diligence/Contract')).toBe(true);
     expect(shouldCaptureBrokerage('Brokerage Paid')).toBe(true);
     expect(shouldCaptureBrokerage('New Inquiry')).toBe(false);
+  });
+
+  it('[TXW-018] gives every pipeline stage the journey kind the mirror uses', () => {
+    expect(journeyStageKindForPipelineStage('New Inquiry')).toBe('prospecting');
+    expect(journeyStageKindForPipelineStage('Site Visit Scheduled')).toBe(
+      'prospecting'
+    );
+    expect(journeyStageKindForPipelineStage('Negotiation/Token')).toBe(
+      'closing'
+    );
+    expect(journeyStageKindForPipelineStage('Due Diligence/Contract')).toBe(
+      'closing'
+    );
+    expect(journeyStageKindForPipelineStage('Deal Closed/Won')).toBe('won');
+    expect(journeyStageKindForPipelineStage('Brokerage Pending')).toBe('won');
+    expect(journeyStageKindForPipelineStage('Closed Lost')).toBe('lost');
   });
 
   it('[TXW-016] starts the closing record at the capture stage and never on a loss', () => {

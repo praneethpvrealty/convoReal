@@ -159,7 +159,8 @@ async function fetchPastEnquiryContacts(): Promise<Set<string>> {
   const { data: stages } = await supabase
     .from('journey_stages')
     .select('id')
-    .in('stage_kind', PAST_ENQUIRY_STAGE_KINDS);
+    .in('stage_kind', PAST_ENQUIRY_STAGE_KINDS)
+    .not('pipeline_stage_id', 'is', null);
   const stageIds = ((stages ?? []) as { id: string }[]).map((s) => s.id);
   if (!stageIds.length) return new Set();
 

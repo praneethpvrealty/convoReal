@@ -17,8 +17,8 @@
  * per-journey lives in JourneySection.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
   Building2,
@@ -41,11 +41,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { FavoriteButton } from "@/components/layout/favorite-button";
 import { dealsHref } from "@/lib/deals/routes";
+import { pushUrl } from "@/lib/navigation";
 import type { JourneyStage } from "@/types";
 import { ensureJourneyStages } from "@/lib/journey/capture";
 import { JourneySection } from "@/components/journey/journey-section";
 import { JourneyOverview } from "@/components/journey/journey-overview";
-import { StageEditorDialog } from "@/components/journey/stage-editor-dialog";
 import {
   navigateJourney,
   type JourneyMode,
@@ -58,6 +58,7 @@ export default function JourneyPage({
 }) {
   const supabase = createClient();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const { accountId } = useAuth();
   const canEdit = useCan("send-messages");
 
@@ -74,9 +75,7 @@ export default function JourneyPage({
   const [stages, setStages] = useState<JourneyStage[]>([]);
   const [stagesLoading, setStagesLoading] = useState(true);
   const [currency, setCurrency] = useState("INR");
-  const [stageEditorOpen, setStageEditorOpen] = useState(false);
 
-  const seedAttempted = useRef(false);
 
   useEffect(() => {
     if (!accountId) return;
@@ -94,30 +93,12 @@ export default function JourneyPage({
     };
   }, [accountId, supabase]);
 
-  const loadStages = useCallback(async () => {
-    const { data, error } = await supabase
-      .from("journey_stages")
-      .select("*")
-      .order("position");
-    if (error) {
-      console.error("Failed to load journey stages:", error.message);
-      return [];
-    }
-    return (data ?? []) as JourneyStage[];
-  }, [supabase]);
-
   useEffect(() => {
     if (!accountId) return;
     let cancelled = false;
     (async () => {
       setStagesLoading(true);
-      let list: JourneyStage[];
-      if (!seedAttempted.current) {
-        seedAttempted.current = true;
-        list = await ensureJourneyStages(accountId);
-      } else {
-        list = await loadStages();
-      }
+      const list = await ensureJourneyStages(accountId);
       if (!cancelled) {
         setStages(list);
         setStagesLoading(false);
@@ -126,11 +107,7 @@ export default function JourneyPage({
     return () => {
       cancelled = true;
     };
-  }, [accountId, loadStages]);
-
-  const refreshStages = useCallback(async () => {
-    setStages(await loadStages());
-  }, [loadStages]);
+  }, [accountId]);
 
   if (stagesLoading) {
     return (
@@ -218,10 +195,13 @@ export default function JourneyPage({
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setStageEditorOpen(true)}
+              title="Journey stages follow the Board's pipeline stages"
+              onClick={() =>
+                pushUrl(router, dealsHref("board", { settings: "1" }))
+              }
             >
               <SlidersHorizontal className="h-3.5 w-3.5" />
-              Customize stages
+              Stages follow the Board
             </Button>
           )}
         </div>
@@ -246,14 +226,6 @@ export default function JourneyPage({
           canEdit={canEdit}
         />
       )}
-
-      <StageEditorDialog
-        open={stageEditorOpen}
-        onOpenChange={setStageEditorOpen}
-        accountId={accountId}
-        stages={stages}
-        onChanged={refreshStages}
-      />
     </div>
   );
 }

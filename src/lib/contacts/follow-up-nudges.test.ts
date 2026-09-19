@@ -249,6 +249,14 @@ describe('gatherFollowUpLeads', () => {
             }
             return chain;
           },
+          not: (column: string, operator: string, value: unknown) => {
+            if (operator === 'is' && value === null) {
+              rows = rows.filter(
+                (r) => r[column] !== null && r[column] !== undefined
+              );
+            }
+            return chain;
+          },
         };
         (chain as { then: unknown }).then = (
           resolve: (v: { data: unknown }) => void
@@ -372,7 +380,13 @@ describe('gatherFollowUpLeads', () => {
         contacts: [contact('1'), contact('2')],
         follow_up_nudges: [],
         properties: [],
-        journey_stages: [{ id: 's-legal', name: 'Token & Legal' }],
+        journey_stages: [
+          {
+            id: 's-legal',
+            name: 'Token & Legal',
+            pipeline_stage_id: 'ps-legal',
+          },
+        ],
         journey_items: [{ contact_id: '1', stage_id: 's-legal' }],
       }),
       'acct-1',
@@ -392,7 +406,13 @@ describe('gatherFollowUpLeads', () => {
         ],
         follow_up_nudges: [],
         properties: [],
-        journey_stages: [{ id: 's-legal', name: 'Token & Legal' }],
+        journey_stages: [
+          {
+            id: 's-legal',
+            name: 'Token & Legal',
+            pipeline_stage_id: 'ps-legal',
+          },
+        ],
         journey_items: [{ contact_id: '1', stage_id: 's-legal' }],
       }),
       'acct-1',

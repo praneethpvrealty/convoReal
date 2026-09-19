@@ -820,6 +820,7 @@ export interface JourneyStage {
   color: string;
   position: number;
   stage_kind: JourneyStageKind;
+  pipeline_stage_id?: string | null;
   created_at: string;
   updated_at: string;
 }

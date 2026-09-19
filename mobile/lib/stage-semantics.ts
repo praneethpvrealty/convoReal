@@ -70,6 +70,18 @@ export function shouldCaptureBrokerage(stageName: string): boolean {
   );
 }
 
+export type JourneyStageKind = 'prospecting' | 'closing' | 'won' | 'lost';
+
+export function journeyStageKindForPipelineStage(
+  stageName: string
+): JourneyStageKind {
+  const outcome = pipelineOutcomeForStage(stageName);
+  if (outcome === 'lost') return 'lost';
+  if (outcome === 'successful') return 'won';
+  if (shouldCaptureBrokerage(stageName)) return 'closing';
+  return 'prospecting';
+}
+
 export function startsClosingRecord(stageName: string): boolean {
   return (
     shouldCaptureBrokerage(stageName) &&

@@ -34,6 +34,17 @@ import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
 import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { formatIndianDigits } from '@/lib/invoices/pdf-text';
+import { brokerageAmount, type BrokerageType } from '@/lib/pipelines/brokerage';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import { formatCurrencyShort } from '@/lib/currency-utils';
 import type {
@@ -103,6 +114,16 @@ export function JourneySection({
   const [scanningChat, setScanningChat] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
   const [notesCount, setNotesCount] = useState(0);
+  const [brokeragePrompt, setBrokeragePrompt] = useState<{
+    item: JourneyItem;
+    toStageId: string;
+    eventType: 'advanced' | 'moved';
+    stageName: string;
+    dealValue: number;
+  } | null>(null);
+  const [brokerageType, setBrokerageType] =
+    useState<BrokerageType>('percentage');
+  const [brokerageValue, setBrokerageValue] = useState('');
 
   // ── Load subject + items ─────────────────────────────────────
   const loadJourney = useCallback(async () => {
@@ -333,37 +354,55 @@ export function JourneySection({
     handleAddItems,
   ]);
 
+  // Every stage move goes through the journey move route: when the
+  // stage mirrors a pipeline stage, the item's deal follows through the
+  // same logic as the board (brokerage, closing record, property
+  // status), and a move into the closing stretch opens the deal there.
   const moveItem = useCallback(
     async (
       item: JourneyItem,
       toStageId: string,
-      eventType: 'advanced' | 'moved'
+      eventType: 'advanced' | 'moved',
+      brokerage?: { brokerage_type: BrokerageType; brokerage_value: number }
     ) => {
-      const { data: updated, error } = await supabase
-        .from('journey_items')
-        .update({
+      setBrokeragePrompt(null);
+      const res = await fetch('/api/journey/move', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          item_id: item.id,
           stage_id: toStageId,
-          status: 'active',
-          drop_reason: null,
-          dropped_at: null,
-          // Any stage move consumes the plan — it was for the next
-          // step, and a stale ghost would just lie on the map.
-          planned_stage_id: null,
-          planned_at: null,
-        })
-        .eq('id', item.id)
-        .select('id');
-      if (error || !updated?.length) {
-        toast.error(
-          `Failed to move: ${error?.message ?? 'that item is no longer there'}`
-        );
+          event_type: eventType,
+          ...brokerage,
+          source: 'web',
+        }),
+      });
+      const json = (await res.json().catch(() => null)) as {
+        error?: string;
+        code?: string;
+        data?: { stage_name?: string; deal_value?: number };
+      } | null;
+      if (res.status === 409 && json?.code === 'BROKERAGE_REQUIRED') {
+        setBrokerageType('percentage');
+        setBrokerageValue('');
+        setBrokeragePrompt({
+          item,
+          toStageId,
+          eventType,
+          stageName: json.data?.stage_name ?? '',
+          dealValue: json.data?.deal_value ?? 0,
+        });
         return false;
       }
-      await logEvent(item.id, eventType, item.stage_id, toStageId);
+      if (!res.ok) {
+        toast.error(`Failed to move: ${json?.error ?? 'try again'}`);
+        await refresh();
+        return false;
+      }
       await refresh();
       return true;
     },
-    [supabase, logEvent, refresh]
+    [refresh]
   );
 
   const handleAdvance = useCallback(
@@ -802,6 +841,100 @@ export function JourneySection({
         onShowAll={handleShowAll}
         onRemove={handleRemove}
       />
+
+      <Dialog
+        open={brokeragePrompt !== null}
+        onOpenChange={(open) => !open && setBrokeragePrompt(null)}
+      >
+        <DialogContent className="border-slate-700 bg-slate-900 text-slate-200 sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-white">
+              Enter brokerage details
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-3">
+            <p className="text-xs text-slate-400">
+              Moving to{' '}
+              <span className="text-primary font-semibold">
+                {brokeragePrompt?.stageName}
+              </span>{' '}
+              starts the closing stretch. Record the brokerage rate or amount
+              first, as the pipeline board does.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-2">
+                <Label htmlFor="jrn-brokerage-type" className="text-slate-300">
+                  Brokerage type
+                </Label>
+                <select
+                  id="jrn-brokerage-type"
+                  value={brokerageType}
+                  onChange={(e) =>
+                    setBrokerageType(e.target.value as BrokerageType)
+                  }
+                  className="h-9 w-full rounded-md border border-slate-700 bg-slate-950 px-3 text-sm text-white"
+                >
+                  <option value="percentage">Percentage (%)</option>
+                  <option value="fixed">Fixed amount</option>
+                </select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="jrn-brokerage-value" className="text-slate-300">
+                  {brokerageType === 'percentage'
+                    ? 'Brokerage (%)'
+                    : 'Brokerage amount'}
+                </Label>
+                <Input
+                  id="jrn-brokerage-value"
+                  type="number"
+                  min="0"
+                  value={brokerageValue}
+                  onChange={(e) => setBrokerageValue(e.target.value)}
+                  placeholder={brokerageType === 'percentage' ? '2' : '0'}
+                  className="border-slate-700 bg-slate-950 text-white"
+                />
+              </div>
+            </div>
+            {Number(brokerageValue) > 0 && brokeragePrompt && (
+              <p className="text-primary text-[11px] font-semibold">
+                Calculated brokerage: Rs.{' '}
+                {formatIndianDigits(
+                  brokerageAmount({
+                    dealValue: brokeragePrompt.dealValue,
+                    type: brokerageType,
+                    value: brokerageValue,
+                  }),
+                  0
+                )}
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBrokeragePrompt(null)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={!(Number(brokerageValue) > 0)}
+              onClick={() =>
+                brokeragePrompt &&
+                void moveItem(
+                  brokeragePrompt.item,
+                  brokeragePrompt.toStageId,
+                  brokeragePrompt.eventType,
+                  {
+                    brokerage_type: brokerageType,
+                    brokerage_value: Number(brokerageValue),
+                  }
+                ).then((moved) => {
+                  if (moved) toast.success(`Moved to ${brokeragePrompt.stageName}`);
+                })
+              }
+            >
+              Save and move
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

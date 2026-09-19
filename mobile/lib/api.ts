@@ -8,7 +8,11 @@ export class ApiError extends Error {
     message: string,
     /** Seconds the server asked us to wait, from a 429's Retry-After.
      *  A refusal that names its own reset is a wait, not a failure. */
-    readonly retryAfterSeconds?: number
+    readonly retryAfterSeconds?: number,
+    /** The route's own `code`, when a refusal is one the caller can
+     *  answer (a 409 BROKERAGE_REQUIRED asks for a figure, not a retry). */
+    readonly code?: string,
+    readonly data?: unknown
   ) {
     super(message);
     this.name = 'ApiError';
@@ -214,6 +218,8 @@ export async function apiFetch<T>(
   if (!res.ok) {
     const body = (await res.json().catch(() => null)) as {
       error?: string;
+      code?: string;
+      data?: unknown;
       retry_after_seconds?: number;
     } | null;
     const retryAfter =
@@ -221,7 +227,11 @@ export async function apiFetch<T>(
     throw new ApiError(
       res.status,
       body?.error ?? `Request failed (${res.status})`,
-      Number.isFinite(retryAfter) && retryAfter ? Number(retryAfter) : undefined
+      Number.isFinite(retryAfter) && retryAfter
+        ? Number(retryAfter)
+        : undefined,
+      typeof body?.code === 'string' ? body.code : undefined,
+      body?.data
     );
   }
   // 204 No Content (e.g. DELETE /api/properties/[id]) has an empty body —

@@ -166,7 +166,54 @@ carry their query across (`src/lib/deals/routes.ts`); Automations keeps
 Flows and Analytics only. Mobile mirrors it with Board and Records
 segments on the Deals screen and a Journey button in its header.
 
+## One stage vocabulary
+
+`journey_stages.pipeline_stage_id` links every journey stage to a
+pipeline stage. `sync_journey_stages_from_pipeline(account, pipeline)`
+(`20260919120000_journey_stages_mirror_pipeline.sql`) upserts one
+journey stage per stage of the account's default pipeline, creating the
+default board when there is none, and both surfaces read stages through
+it; `journey_stages_for_account` is the unguarded twin for the service
+role. The kind (prospecting, closing, won, lost) comes from the stage
+name by the same words as `journeyStageKindForPipelineStage`. Two
+triggers keep a converted deal and its journey item on one stage from
+either side. Every journey move — the web journey and the mobile
+journey through `POST /api/journey/move`, the WhatsApp closing card's
+advance button directly — runs `moveJourneyItem`
+(`src/lib/journey/move.ts`): when the target mirrors a pipeline stage,
+the item's deal follows through `applyDealStageMove`
+(`src/lib/deals/stage-move.ts`), the same logic the deal PATCH runs for
+the board — brokerage capture (a 409 `BROKERAGE_REQUIRED` pauses the
+move for the same prompt on web and mobile; the closing card cannot
+prompt, so its record opens unpriced), closing record, property status
+— and a move into a closing or won stage opens the deal on that very
+stage through `convertJourneyItemToDeal`. What must exist before
+either side moves is written first (`prepareDealStageMove`: brokerage
+and closing record, both idempotent; or the new deal on the target
+stage), then the journey item's own update moves a converted deal
+through the trigger in the same statement, the requested journey event
+is written once with its actor and reason, and a freshly opened deal is
+removed again if the item update fails. The board's deal PATCH follows
+the same order, so a deal never moves without its record. A deal on a
+pipeline other
+than the mirrored one keeps its own stage, in the move function and in
+the journey→deal trigger (`…120050`, which also confines the deal→journey
+trigger to the deal's own account). The journey's own stage editor is
+gone; the Board's pipeline settings are the one editor, and the
+journey's "Stages follow the Board" button opens them. A pipeline stage
+cannot be deleted while journey items sit on or plan for its mirror
+(`…120200`, a BEFORE DELETE guard; the settings dialog checks first); a
+mirror with no items goes with its stage, and a stage note keeps its
+own name and colour snapshot. Every reader that picks a "next stage"
+(`client-response.ts`, `closing-nudges.ts`, `past-enquiry.ts`,
+`focus/queries.ts`, mobile `today.ts`) reads mirrored rows only. The
+held backfill (`…120100`) aligns converted items to their deals within
+the account (one on another board lands on the mirrored stage of the
+same kind), re-points the rest by stage kind, skips an account whose
+pipeline has no stages, and then removes every legacy stage, so no
+unlinked stage is left for a lookup to find.
+
 ## Invariants
 
-`FEATURE_MANIFEST.json` → `transaction-workspace` (TXW-001 … TXW-017).
+`FEATURE_MANIFEST.json` → `transaction-workspace` (TXW-001 … TXW-018).
 Each names its executable regression cases.

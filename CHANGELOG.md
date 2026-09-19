@@ -19,6 +19,21 @@ than a written entry. Newest first.
 
 #### 19 September 2026
 
+- **Deals: one stage vocabulary for the journey and the board.** Journey
+  stages are now mirrors of the pipeline's stages, so a buyer's map and
+  the Kanban read the same names in the same order, and the journey's
+  separate stage editor is gone in favour of the Board's pipeline
+  settings. A converted deal and its journey branch stay on the same
+  stage whichever one you move, and moving a branch into Negotiation/
+  Token or later opens its closing record on that stage, asking for the
+  brokerage first exactly as the board does — on the web journey, on
+  the mobile journey (a new "Move to stage" action per branch) and from
+  the WhatsApp closing card. A pipeline stage with journey items on it
+  can no longer be deleted. **Migration required:**
+  `20260919120000_journey_stages_mirror_pipeline.sql` and
+  `20260919120200_pipeline_stage_delete_guard.sql`, then
+  `20260919120050_journey_deal_sync_same_pipeline.sql` and
+  `20260919120100_journey_stages_backfill.sql` once the app is updated.
 - **Deals: the closing record starts itself.** Moving a deal into
   Negotiation/Token or any later stage (except Closed Lost) now seeds
   the standard milestones on the spot, whether the move comes from the

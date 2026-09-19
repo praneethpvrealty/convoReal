@@ -24,7 +24,6 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { addDays, format } from 'date-fns';
 
 import type { ParsedClientReply } from '@/lib/ai/gemini';
-import { DEFAULT_JOURNEY_STAGES } from '@/components/journey/shared';
 import {
   matchContactByExactName,
   matchContactByName,
@@ -424,23 +423,18 @@ async function loadStages(
       .from('journey_stages')
       .select('id, name, position')
       .eq('account_id', accountId)
+      .not('pipeline_stage_id', 'is', null)
       .order('position');
     return (data ?? []) as StageRow[];
   };
   let stages = await load();
   if (stages.length === 0) {
-    const { error } = await db.from('journey_stages').insert(
-      DEFAULT_JOURNEY_STAGES.map((s, idx) => ({
-        account_id: accountId,
-        name: s.name,
-        color: s.color,
-        position: idx,
-        stage_kind: s.kind,
-      }))
-    );
+    const { error } = await db.rpc('journey_stages_for_account', {
+      p_account_id: accountId,
+    });
     if (error)
       console.error(
-        '[client-response] journey stage seed failed:',
+        '[client-response] journey stage mirror failed:',
         error.message
       );
     stages = await load();
@@ -1947,6 +1941,7 @@ async function applyTimelineChoice(
       .from('journey_stages')
       .select('id, name, position')
       .eq('account_id', accountId)
+      .not('pipeline_stage_id', 'is', null)
       .order('position');
     const stages = (stageRows ?? []) as StageRow[];
     const idx = stages.findIndex((s) => s.id === item.stage_id);

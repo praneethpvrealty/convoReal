@@ -22,8 +22,15 @@ import Animated, {
 
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { BottomSheet, sheetScrollArea } from '@/components/sheet';
-import { Avatar, EmptyState, PrimaryButton } from '@/components/ui';
 import {
+  Avatar,
+  EmptyState,
+  FilterChip,
+  PrimaryButton,
+  TextField,
+} from '@/components/ui';
+import {
+  ApiError,
   addJourneyStageNote,
   loadJourneyOverview,
   logPersonalWhatsAppJourneySend,
@@ -31,7 +38,11 @@ import {
 } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
 import { buildCheckInMessage } from '@/lib/checkin-message';
-import { convertJourneyItemToDeal } from '@/lib/deal-workspace-api';
+import {
+  convertJourneyItemToDeal,
+  moveJourneyItem,
+} from '@/lib/deal-workspace-api';
+import { formatInr } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
 import {
   CLOSED_JOURNEY_STATUS_LABELS,
@@ -93,6 +104,62 @@ export function JourneyBody() {
   const canEdit = Boolean(profile && profile.account_role !== 'viewer');
   const { show, close, dialogProps } = useAppDialog();
   const [convertingItemId, setConvertingItemId] = useState<string | null>(null);
+  const [moveTarget, setMoveTarget] = useState<JourneyItem | null>(null);
+  const [brokeragePrompt, setBrokeragePrompt] = useState<{
+    item: JourneyItem;
+    stage: JourneyStage;
+    dealValue: number;
+  } | null>(null);
+  const [brokerageType, setBrokerageType] = useState<'percentage' | 'fixed'>(
+    'percentage'
+  );
+  const [brokerageValue, setBrokerageValue] = useState('');
+
+  // The same move the web journey makes: a mirrored stage moves the
+  // item's deal through the board's logic, and the route pauses for
+  // the brokerage exactly as the board does.
+  async function moveItem(
+    item: JourneyItem,
+    stage: JourneyStage,
+    brokerage?: {
+      brokerage_type: 'percentage' | 'fixed';
+      brokerage_value: number;
+    }
+  ) {
+    setMoveTarget(null);
+    setBrokeragePrompt(null);
+    try {
+      await moveJourneyItem(item.id, stage.id, brokerage);
+    } catch (err) {
+      if (
+        err instanceof ApiError &&
+        err.status === 409 &&
+        err.code === 'BROKERAGE_REQUIRED'
+      ) {
+        const data = err.data as { deal_value?: number } | null;
+        setBrokerageType('percentage');
+        setBrokerageValue('');
+        setBrokeragePrompt({
+          item,
+          stage,
+          dealValue: Number(data?.deal_value ?? 0) || 0,
+        });
+        return;
+      }
+      void haptic.warn();
+      show({
+        title: 'Could not move',
+        message: err instanceof Error ? err.message : String(err),
+      });
+      return;
+    }
+    void haptic.success();
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['journey-branch-items'] }),
+      queryClient.invalidateQueries({ queryKey: ['journey-overview-groups'] }),
+      queryClient.invalidateQueries({ queryKey: ['transaction-index'] }),
+    ]);
+  }
 
   function askConvert(item: JourneyItem) {
     if (!canEdit || convertingItemId) return;
@@ -147,12 +214,20 @@ export function JourneyBody() {
   const [savingNote, setSavingNote] = useState(false);
 
   const stagesQuery = useQuery({
-    queryKey: ['journey-stages'],
+    queryKey: ['journey-stages', accountId],
     enabled: Boolean(accountId),
     queryFn: async () => {
+      const synced = await supabase.rpc('sync_journey_stages_from_pipeline', {
+        p_account_id: accountId!,
+        p_pipeline_id: null,
+      });
+      if (!synced.error && Array.isArray(synced.data) && synced.data.length) {
+        return synced.data as JourneyStage[];
+      }
       const { data, error } = await supabase
         .from('journey_stages')
-        .select('id, name, color, position')
+        .select('id, name, color, position, pipeline_stage_id')
+        .not('pipeline_stage_id', 'is', null)
         .order('position');
       if (error) throw error;
       return (data ?? []) as JourneyStage[];
@@ -822,6 +897,7 @@ export function JourneyBody() {
                       onMove={(from, to) => void moveGroup(bucket, from, to)}
                       onActions={() => showGroupActions(group)}
                       onCheckIn={askCheckIn}
+                      onMoveItem={(item) => canEdit && setMoveTarget(item)}
                       onConvert={askConvert}
                       onAddNote={(item, stage) => {
                         setNoteTarget({ item, stage });
@@ -1007,6 +1083,138 @@ export function JourneyBody() {
         </ScrollView>
       </BottomSheet>
 
+      <BottomSheet
+        visible={moveTarget !== null}
+        onClose={() => setMoveTarget(null)}
+      >
+        <View style={styles.sheetHeader}>
+          <Text
+            style={{
+              flex: 1,
+              fontSize: 15.5,
+              fontFamily: f.bold,
+              color: colors.text,
+            }}
+            numberOfLines={1}
+          >
+            Move to…
+          </Text>
+          <Pressable
+            onPress={() => setMoveTarget(null)}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel="Close"
+          >
+            <Ionicons name="close" size={20} color={colors.textMuted} />
+          </Pressable>
+        </View>
+        <ScrollView style={sheetScrollArea}>
+          {stages
+            .filter((s) => s.id !== moveTarget?.stage_id)
+            .map((s) => (
+              <Pressable
+                key={s.id}
+                style={[styles.sheetRow, { borderTopColor: colors.border }]}
+                onPress={() => moveTarget && void moveItem(moveTarget, s)}
+                accessibilityRole="button"
+                accessibilityLabel={`Move to ${s.name}`}
+              >
+                <View
+                  style={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: 5,
+                    backgroundColor: s.color || colors.primary,
+                  }}
+                />
+                <Text
+                  style={{
+                    fontSize: 15,
+                    fontFamily: f.semibold,
+                    color: colors.text,
+                  }}
+                >
+                  {s.name}
+                </Text>
+              </Pressable>
+            ))}
+        </ScrollView>
+      </BottomSheet>
+
+      <BottomSheet
+        visible={brokeragePrompt !== null}
+        onClose={() => setBrokeragePrompt(null)}
+      >
+        <View style={styles.sheetHeader}>
+          <Text
+            style={{
+              flex: 1,
+              fontSize: 15.5,
+              fontFamily: f.bold,
+              color: colors.text,
+            }}
+          >
+            Enter brokerage details
+          </Text>
+        </View>
+        <View style={styles.brokerageForm}>
+          <Text style={{ fontSize: 13, color: colors.textMuted }}>
+            Moving to {brokeragePrompt?.stage.name} starts the closing stretch.
+            Record the brokerage rate or amount first.
+          </Text>
+          <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+            <FilterChip
+              label="Percentage (%)"
+              active={brokerageType === 'percentage'}
+              onPress={() => setBrokerageType('percentage')}
+            />
+            <FilterChip
+              label="Fixed amount"
+              active={brokerageType === 'fixed'}
+              onPress={() => setBrokerageType('fixed')}
+            />
+          </View>
+          <TextField
+            label={
+              brokerageType === 'percentage'
+                ? 'Brokerage (%)'
+                : 'Brokerage amount'
+            }
+            value={brokerageValue}
+            onChangeText={setBrokerageValue}
+            keyboardType="decimal-pad"
+            placeholder={brokerageType === 'percentage' ? '2' : '0'}
+          />
+          {Number(brokerageValue) > 0 && brokeragePrompt ? (
+            <Text
+              style={{
+                fontSize: 12.5,
+                fontFamily: f.bold,
+                color: colors.primary,
+              }}
+            >
+              Calculated brokerage:{' '}
+              {formatInr(
+                brokerageType === 'fixed'
+                  ? Number(brokerageValue)
+                  : (brokeragePrompt.dealValue * Number(brokerageValue)) / 100
+              )}
+            </Text>
+          ) : null}
+          <PrimaryButton
+            label="Save and move"
+            disabled={!(Number(brokerageValue) > 0)}
+            onPress={() =>
+              brokeragePrompt &&
+              void moveItem(brokeragePrompt.item, brokeragePrompt.stage, {
+                brokerage_type: brokerageType,
+                brokerage_value: Number(brokerageValue),
+              })
+            }
+          />
+        </View>
+      </BottomSheet>
+
       <AppDialog {...dialogProps} />
     </ScrollView>
   );
@@ -1025,6 +1233,7 @@ function DraggableJourneyCard({
   onMove,
   onActions,
   onCheckIn,
+  onMoveItem,
   onConvert,
   onAddNote,
 }: {
@@ -1040,6 +1249,7 @@ function DraggableJourneyCard({
   onMove: (from: number, to: number) => void;
   onActions: () => void;
   onCheckIn: (item: JourneyItem, stageLabel: string | undefined) => void;
+  onMoveItem: (item: JourneyItem) => void;
   onConvert: (item: JourneyItem) => void;
   onAddNote: (item: JourneyItem, stage: JourneyStage) => void;
 }) {
@@ -1211,6 +1421,19 @@ function DraggableJourneyCard({
                 </Pressable>
                 {canEdit && !dropped ? (
                   <Pressable
+                    onPress={() => onMoveItem(item)}
+                    accessibilityLabel="Move to stage"
+                    hitSlop={8}
+                  >
+                    <Ionicons
+                      name="arrow-forward-circle-outline"
+                      size={18}
+                      color={colors.textMuted}
+                    />
+                  </Pressable>
+                ) : null}
+                {canEdit && !dropped ? (
+                  <Pressable
                     onPress={() => onConvert(item)}
                     accessibilityLabel="Convert to deal"
                     hitSlop={8}
@@ -1313,6 +1536,26 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     gap: spacing.md,
     paddingBottom: spacing.xxl,
+  },
+  sheetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.md,
+  },
+  sheetRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: 15,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  brokerageForm: {
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.lg,
+    gap: spacing.md,
   },
   tabs: { flexDirection: 'row', gap: spacing.xs },
   tab: {

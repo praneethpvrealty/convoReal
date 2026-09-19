@@ -85,13 +85,15 @@ export default function PipelinesPage() {
   const [newPipelineOpen, setNewPipelineOpen] = useState(false);
   const [newPipelineName, setNewPipelineName] = useState('');
   const [creating, setCreating] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const searchParams = useSearchParams();
+  const [settingsOpen, setSettingsOpen] = useState(
+    searchParams.get('settings') === '1'
+  );
 
   const [dealFormOpen, setDealFormOpen] = useState(false);
   const [editingDeal, setEditingDeal] = useState<Deal | null>(null);
   const [defaultStageId, setDefaultStageId] = useState<string>('');
 
-  const searchParams = useSearchParams();
   useEffect(() => {
     if (searchParams.get('new') === 'true') {
       const timer = setTimeout(() => {
@@ -223,6 +225,10 @@ export default function PipelinesPage() {
         position: s.position,
       }));
       await supabase.from('pipeline_stages').insert(stagesPayload);
+      await supabase.rpc('sync_journey_stages_from_pipeline', {
+        p_account_id: accountId,
+        p_pipeline_id: null,
+      });
 
       return pipeline as Pipeline;
     }, [supabase, user, accountId]);
@@ -291,10 +297,20 @@ export default function PipelinesPage() {
       setSelectedPipelineId(list[0].id);
   }, [loadPipelines, selectedPipelineId]);
 
+  const syncJourneyStages = useCallback(async () => {
+    if (!accountId) return;
+    const { error } = await supabase.rpc('sync_journey_stages_from_pipeline', {
+      p_account_id: accountId,
+      p_pipeline_id: null,
+    });
+    if (error) console.error('Journey stage mirror failed:', error.message);
+  }, [supabase, accountId]);
+
   const refreshStages = useCallback(async () => {
     if (!selectedPipelineId) return;
     setStages(await loadStages(selectedPipelineId));
-  }, [loadStages, selectedPipelineId]);
+    await syncJourneyStages();
+  }, [loadStages, selectedPipelineId, syncJourneyStages]);
 
   const refreshDeals = useCallback(async () => {
     if (!selectedPipelineId) return;
@@ -705,7 +721,10 @@ export default function PipelinesPage() {
       {selectedPipeline && (
         <PipelineSettings
           open={settingsOpen}
-          onOpenChange={setSettingsOpen}
+          onOpenChange={(open) => {
+            setSettingsOpen(open);
+            if (!open) void refreshStages();
+          }}
           pipeline={selectedPipeline}
           stages={stages}
           onPipelinesChanged={refreshPipelines}

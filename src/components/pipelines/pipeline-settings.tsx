@@ -170,13 +170,32 @@ export function PipelineSettings({
       toast.error("Move or delete deals in this stage first");
       return;
     }
+    // The journey mirrors this stage; items sitting on the mirror would
+    // be left off the rail. The database refuses the delete as well.
+    const { data: mirrored } = await supabase
+      .from("journey_stages")
+      .select("id")
+      .eq("pipeline_stage_id", stageId)
+      .maybeSingle();
+    if (mirrored?.id) {
+      const { count: journeyCount } = await supabase
+        .from("journey_items")
+        .select("id", { count: "exact", head: true })
+        .or(`stage_id.eq.${mirrored.id},planned_stage_id.eq.${mirrored.id}`);
+      if (journeyCount && journeyCount > 0) {
+        toast.error("Move journey items out of this stage first");
+        return;
+      }
+    }
     const { data: deleted, error } = await supabase
       .from("pipeline_stages")
       .delete()
       .eq("id", stageId)
       .select("id");
     if (error || !deleted?.length) {
-      toast.error("Failed to delete stage");
+      toast.error(
+        error?.code === "23001" ? error.message : "Failed to delete stage",
+      );
       return;
     }
     setLocalStages(localStages.filter((s) => s.id !== stageId));
@@ -192,7 +211,9 @@ export function PipelineSettings({
       .select("id");
     setDeleting(false);
     if (error || !deleted?.length) {
-      toast.error("Failed to delete pipeline");
+      toast.error(
+        error?.code === "23001" ? error.message : "Failed to delete pipeline",
+      );
       return;
     }
     onOpenChange(false);

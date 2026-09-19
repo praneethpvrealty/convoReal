@@ -17,47 +17,35 @@
 
 import { createClient } from "@/lib/supabase/client";
 import type { JourneyItemSource, JourneyStage } from "@/types";
-import { DEFAULT_JOURNEY_STAGES } from "@/components/journey/shared";
 
 /**
- * Load the account's journey stages, seeding the defaults first if the
- * account has never opened /journey. Mirrors the page's own seed so a
- * share can be captured before the map is ever visited.
+ * The account's journey stages: mirrors of its default pipeline's
+ * stages. The sync creates the default board when the account has
+ * none and keeps names, colours, order and kinds in step. A viewer
+ * cannot run the sync, so the mirrored rows are read back either way.
  */
 export async function ensureJourneyStages(
   accountId: string,
 ): Promise<JourneyStage[]> {
   const supabase = createClient();
-  const load = async () => {
-    const { data, error } = await supabase
-      .from("journey_stages")
-      .select("*")
-      .order("position");
-    if (error) {
-      console.error("Failed to load journey stages:", error.message);
-      return [];
-    }
-    return (data ?? []) as JourneyStage[];
-  };
-
-  let stages = await load();
-  if (stages.length === 0) {
-    const { error } = await supabase.from("journey_stages").insert(
-      DEFAULT_JOURNEY_STAGES.map((s, idx) => ({
-        account_id: accountId,
-        name: s.name,
-        color: s.color,
-        position: idx,
-        stage_kind: s.kind,
-      })),
-    );
-    // A racing seed from another tab violates nothing (no unique
-    // name constraint) but is rare enough not to guard beyond the
-    // page's own StrictMode ref; a failed insert just re-loads.
-    if (error) console.error("Failed to seed journey stages:", error.message);
-    stages = await load();
+  const { data: synced, error: syncError } = await supabase.rpc(
+    "sync_journey_stages_from_pipeline",
+    { p_account_id: accountId, p_pipeline_id: null },
+  );
+  if (!syncError && Array.isArray(synced) && synced.length > 0) {
+    return synced as JourneyStage[];
   }
-  return stages;
+  const { data, error } = await supabase
+    .from("journey_stages")
+    .select("*")
+    .eq("account_id", accountId)
+    .not("pipeline_stage_id", "is", null)
+    .order("position");
+  if (error) {
+    console.error("Failed to load journey stages:", error.message);
+    return [];
+  }
+  return (data ?? []) as JourneyStage[];
 }
 
 export interface CaptureJourneyItemsInput {
