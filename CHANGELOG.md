@@ -19,6 +19,10 @@ than a written entry. Newest first.
 
 #### 19 September 2026
 
+- **Mobile contact actions scroll sideways.** The Call, WhatsApp, Inbox,
+  To Engine and other buttons on a contact now sit in one horizontal strip
+  that scrolls instead of wrapping into rows, so more actions fit without
+  pushing the contact details down the screen.
 - **WhatsApp number-change notices now exclude new contacts.** The
   automatic precursor and the notify-recent-contacts action only address
   contacts whose one-to-one thread contains a message from before the
