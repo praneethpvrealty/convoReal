@@ -329,6 +329,31 @@ export async function deliverRealtimeBuyerAlerts(
       continue;
     }
 
+    // The central dispatcher records Meta 131049 on the contact. Keep this
+    // alert queued until that cooldown ends instead of consuming retries every
+    // hour. Utility templates can still deliver above; this branch is reached
+    // only when the selected channel was unavailable or Marketing was capped.
+    const { data: suppression } = await db
+      .from('contacts')
+      .select('whatsapp_marketing_suppressed_until')
+      .eq('id', buyer.id)
+      .eq('account_id', accountId)
+      .maybeSingle();
+    const suppressedUntil = suppression?.whatsapp_marketing_suppressed_until;
+    if (
+      suppressedUntil &&
+      new Date(suppressedUntil).getTime() > now.getTime()
+    ) {
+      await updateDelivery(db, row, {
+        status: 'pending',
+        claimed_at: null,
+        due_at: suppressedUntil,
+        last_error: 'Deferred by WhatsApp marketing limit (131049)',
+      });
+      summary.deferred++;
+      continue;
+    }
+
     const attemptCount = row.attempt_count + 1;
     await updateDelivery(db, row, {
       status: attemptCount >= MAX_ATTEMPTS ? 'cancelled' : 'pending',

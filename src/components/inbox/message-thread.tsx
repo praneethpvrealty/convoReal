@@ -628,6 +628,8 @@ export function MessageThread({
           onUpdateMessage(tempId, {
             status: 'failed',
             error_info: userFriendlyError,
+            error_code: errorInfo?.code || undefined,
+            retry_after: payload?.retryAfter || undefined,
           });
           return;
         }
@@ -807,6 +809,8 @@ export function MessageThread({
           onUpdateMessage(tempId, {
             status: 'failed',
             error_info: userFriendlyError,
+            error_code: errorInfo?.code || undefined,
+            retry_after: payload?.retryAfter || undefined,
           });
           return;
         }

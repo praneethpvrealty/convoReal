@@ -107,6 +107,32 @@
               "case": "[INB-007]"
             }
           ]
+        },
+        {
+          "id": "INB-008",
+          "rule": "Meta error 131049 never changes the composed message body: it records structured failure metadata, pauses only Marketing templates for that contact for at least 24 hours, defers queued alerts without consuming retries, clears the pause when the contact replies, and gives web and mobile agents a friendly status with no immediate resend action; Utility templates remain eligible.",
+          "tests": [
+            {
+              "file": "src/lib/whatsapp/delivery-failure.test.ts",
+              "case": "[INB-008]"
+            },
+            {
+              "file": "src/components/inbox/message-actions.test.tsx",
+              "case": "[INB-008]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[INB-008]"
+            },
+            {
+              "file": "mobile/lib/message-actions.test.ts",
+              "case": "[INB-008]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20260919150000_whatsapp_marketing_suppression.sql",
+            ".github/workflows/eas-update.yml"
+          ]
         }
       ]
     },

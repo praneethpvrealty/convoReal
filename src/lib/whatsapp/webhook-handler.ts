@@ -4,7 +4,10 @@ import {
   type ConversationRow,
 } from '@/lib/conversations/resolve';
 import { markContactDead } from '@/lib/contacts/lifecycle';
-import { DELIVERY_FAILURE_MARKER } from '@/lib/whatsapp/delivery-failure';
+import {
+  deliveryFailureUpdate,
+  META_MARKETING_FREQUENCY_ERROR,
+} from '@/lib/whatsapp/delivery-failure';
 import { sendTextMessage } from '@/lib/whatsapp/meta-api';
 import {
   loadRetiredNumberProfile,
@@ -883,40 +886,25 @@ async function handleStatusUpdate(status: {
     );
   }
 
+  const parsedTimestamp = Number.parseInt(status.timestamp, 10) * 1000;
+  const statusAt = Number.isFinite(parsedTimestamp)
+    ? new Date(parsedTimestamp)
+    : new Date();
+  const tsIso = statusAt.toISOString();
   const updatePayload: Record<string, unknown> = { status: status.status };
 
   if (status.status === 'failed' && status.errors && status.errors.length > 0) {
-    const errorDetails = status.errors
-      .map(
-        (e) =>
-          `[Error ${e.code}] ${e.message}${e.error_data?.details ? `: ${e.error_data.details}` : ''}`
-      )
-      .join('\n');
-
-    try {
-      const { data: existingMsg } = await supabaseAdmin()
-        .from('messages')
-        .select('content_text')
-        .eq('message_id', status.id)
-        .maybeSingle();
-
-      if (existingMsg) {
-        const originalText = existingMsg.content_text || '';
-        if (!originalText.includes(DELIVERY_FAILURE_MARKER)) {
-          updatePayload.content_text =
-            `${originalText}\n\n${DELIVERY_FAILURE_MARKER}\n${errorDetails}`.trim();
-        }
-      }
-    } catch (err) {
-      console.error('Failed to append error message to content_text:', err);
-    }
+    Object.assign(
+      updatePayload,
+      deliveryFailureUpdate(status.errors, statusAt)
+    );
   }
 
   const { data: updatedMsg, error: msgErr } = await supabaseAdmin()
     .from('messages')
     .update(updatePayload)
     .eq('message_id', status.id)
-    .select('id');
+    .select('id, conversation_id');
 
   if (msgErr) {
     console.error('Error updating message status:', msgErr);
@@ -930,7 +918,32 @@ async function handleStatusUpdate(status: {
     );
   }
 
-  const tsIso = new Date(parseInt(status.timestamp) * 1000).toISOString();
+  if (
+    updatePayload.error_code === META_MARKETING_FREQUENCY_ERROR &&
+    updatedMsg?.[0]?.conversation_id
+  ) {
+    const { data: conversation } = await supabaseAdmin()
+      .from('conversations')
+      .select('contact_id')
+      .eq('id', updatedMsg[0].conversation_id)
+      .maybeSingle();
+    if (conversation?.contact_id) {
+      const { error: suppressError } = await supabaseAdmin()
+        .from('contacts')
+        .update({
+          whatsapp_marketing_suppressed_until: updatePayload.retry_after,
+          whatsapp_marketing_suppression_code: META_MARKETING_FREQUENCY_ERROR,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', conversation.contact_id);
+      if (suppressError) {
+        console.error(
+          '[webhook] failed to save marketing suppression:',
+          suppressError
+        );
+      }
+    }
+  }
 
   const { data: recipient, error: recFetchErr } = await supabaseAdmin()
     .from('broadcast_recipients')
@@ -951,6 +964,10 @@ async function handleStatusUpdate(status: {
     update.sent_at = tsIso;
   if (status.status === 'delivered') update.delivered_at = tsIso;
   if (status.status === 'read') update.read_at = tsIso;
+  if (status.status === 'failed') {
+    update.error_message = updatePayload.error_info ?? 'Delivery failed';
+    update.retry_after = updatePayload.retry_after ?? null;
+  }
 
   const { error: recUpdateErr } = await supabaseAdmin()
     .from('broadcast_recipients')
@@ -1465,6 +1482,23 @@ async function processMessage(
     }
     console.error('Error inserting message:', msgError);
     return;
+  }
+
+  // A fresh inbound re-establishes engagement. Remove any per-recipient
+  // marketing cooldown immediately so the next eligible send is not blocked.
+  const { error: clearSuppressionError } = await supabaseAdmin()
+    .from('contacts')
+    .update({
+      whatsapp_marketing_suppressed_until: null,
+      whatsapp_marketing_suppression_code: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', contactRecord.id);
+  if (clearSuppressionError) {
+    console.error(
+      '[webhook] failed to clear marketing suppression after inbound:',
+      clearSuppressionError
+    );
   }
 
   // The account owner texting their own Engine number (the WhatsApp

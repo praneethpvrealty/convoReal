@@ -116,7 +116,10 @@ import {
   PROPERTY_INTEREST_SHORT_TITLES,
 } from '@/lib/property-interests';
 import { CUSTOMER_WINDOW_EXPIRED_MESSAGE } from '@/lib/whatsapp/customer-window';
-import { DELIVERY_FAILURE_MARKER } from '@/lib/whatsapp/delivery-failure';
+import {
+  DELIVERY_FAILURE_MARKER,
+  META_MARKETING_FREQUENCY_ERROR,
+} from '@/lib/whatsapp/delivery-failure';
 import {
   HIDE_ACTION_LABEL,
   HIDE_CONFIRM_MESSAGE,
@@ -659,6 +662,15 @@ describe('mobile/lib/message-actions.ts mirrors delivery-failure', () => {
   it('cuts at the same marker', () => {
     expect(mobileSource('lib/message-actions.ts')).toContain(
       DELIVERY_FAILURE_MARKER
+    );
+  });
+
+  it('[INB-008] blocks the same Meta marketing-frequency error', () => {
+    expect(mobileSource('lib/message-actions.ts')).toContain(
+      `META_MARKETING_FREQUENCY_ERROR = ${META_MARKETING_FREQUENCY_ERROR}`
+    );
+    expect(mobileSource('lib/message-actions.ts')).toContain(
+      'canRetryDeliveryFailure(message)'
     );
   });
 });

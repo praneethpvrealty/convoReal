@@ -41,6 +41,12 @@ import {
 import { CHAIN_ONLY_BLOCKED_MESSAGE } from '@/lib/contacts/chain-only'
 import { DEAD_CONTACT_BLOCKED_MESSAGE } from '@/lib/contacts/lifecycle'
 import {
+  isMarketingFrequencyError,
+  isMarketingTemplateSuppressed,
+  marketingRetryAfter,
+  META_MARKETING_FREQUENCY_ERROR,
+} from '@/lib/whatsapp/delivery-failure'
+import {
   applyContactSalutation,
   applySalutationToTemplateParams,
   type ContactSalutation,
@@ -208,6 +214,8 @@ export interface DispatcherResult {
   messageId?: string
   whatsappMessageId?: string
   error?: string
+  errorCode?: number
+  retryAfter?: string
 }
 
 interface OutboundContact {
@@ -218,6 +226,8 @@ interface OutboundContact {
   chain_only: boolean
   is_dead: boolean
   is_archived: boolean
+  whatsapp_marketing_suppressed_until: string | null
+  whatsapp_marketing_suppression_code: number | null
 }
 
 export async function sendWhatsAppMessageAndPersist(
@@ -225,6 +235,8 @@ export async function sendWhatsAppMessageAndPersist(
 ): Promise<DispatcherResult> {
   const db = args.customDbClient || defaultAdminClient()
   const { accountId, userId, contactId, conversationId, toPhone } = args
+  let resolvedContactId = contactId
+  let resolvedContact: OutboundContact | null = null
 
   // contacts.user_id and conversations.user_id are still NOT NULL — a
   // legacy holdover from the pre-account tenancy model (see migration
@@ -245,10 +257,8 @@ export async function sendWhatsAppMessageAndPersist(
   }
 
   try {
-    let resolvedContactId = contactId
     let resolvedConversationId = conversationId
     let targetPhone = toPhone
-    let resolvedContact: OutboundContact | null = null
 
     // 1. Resolve or Create Contact
     if (!resolvedContactId) {
@@ -317,7 +327,7 @@ export async function sendWhatsAppMessageAndPersist(
       for (let attempt = 0; attempt < 2; attempt += 1) {
         const result = await db
           .from('contacts')
-          .select('id, phone, name, salutation, chain_only, is_dead, is_archived')
+          .select('id, phone, name, salutation, chain_only, is_dead, is_archived, whatsapp_marketing_suppressed_until, whatsapp_marketing_suppression_code')
           .eq('id', resolvedContactId)
           .eq('account_id', accountId)
           .maybeSingle()
@@ -391,6 +401,24 @@ export async function sendWhatsAppMessageAndPersist(
       if (!args.allowDeadContact && (resolvedContact.is_dead || resolvedContact.is_archived)) {
         throw new Error(DEAD_CONTACT_BLOCKED_MESSAGE)
       }
+    }
+
+    // Error 131049 is a recipient-level cap on Marketing templates. Once
+    // Meta reports it, do not repeatedly hit the same contact during the
+    // cooldown. Utility templates remain eligible and a customer reply clears
+    // this value in the webhook.
+    const marketingSuppressedUntil =
+      resolvedContact.whatsapp_marketing_suppressed_until
+    if (
+      args.kind === 'template' &&
+      isMarketingTemplateSuppressed(
+        args.templateRow?.category,
+        marketingSuppressedUntil
+      )
+    ) {
+      throw new Error(
+        `[Error ${META_MARKETING_FREQUENCY_ERROR}] Marketing messages to this contact are paused until ${marketingSuppressedUntil}.`,
+      )
     }
 
     // 2. Resolve or Create Conversation
@@ -881,6 +909,36 @@ export async function sendWhatsAppMessageAndPersist(
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : 'Unknown Meta API error'
     console.error('[meta-api-dispatcher] delivery failure:', errorMsg)
+    if (isMarketingFrequencyError(error)) {
+      const activeSuppression = resolvedContact?.whatsapp_marketing_suppressed_until
+      const retryAfter =
+        activeSuppression && new Date(activeSuppression).getTime() > Date.now()
+          ? activeSuppression
+          : marketingRetryAfter()
+      if (resolvedContactId && retryAfter !== activeSuppression) {
+        const { error: suppressionError } = await db
+          .from('contacts')
+          .update({
+            whatsapp_marketing_suppressed_until: retryAfter,
+            whatsapp_marketing_suppression_code: META_MARKETING_FREQUENCY_ERROR,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', resolvedContactId)
+          .eq('account_id', accountId)
+        if (suppressionError) {
+          console.error(
+            '[meta-api-dispatcher] failed to persist marketing suppression:',
+            suppressionError,
+          )
+        }
+      }
+      return {
+        success: false,
+        error: errorMsg,
+        errorCode: META_MARKETING_FREQUENCY_ERROR,
+        retryAfter,
+      }
+    }
     return {
       success: false,
       error: errorMsg,

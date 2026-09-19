@@ -30,6 +30,13 @@ than a written entry. Newest first.
   of staying muted whenever any of the last six messages came from an
   agent. A later bot reply hands the thread back to automation, while a
   later agent reply still keeps the bot quiet.
+- **WhatsApp: stop retrying contacts capped by Meta error 131049.** Delivery
+  failures now keep the original message intact and appear as a friendly status
+  on web and mobile. A recipient-level 24-hour cooldown suppresses only
+  Marketing templates, queued property alerts wait without consuming retries,
+  Utility templates remain eligible, and any reply from the contact clears the
+  cooldown. **Migration required:**
+  `20260919150000_whatsapp_marketing_suppression.sql`.
 - **Contacts: share the property portal link from a contact.** A new
   "Share Portal" action on the contact record (web and mobile) drafts a
   WhatsApp invite to the account's portal, opened on the contact's

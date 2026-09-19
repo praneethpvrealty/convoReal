@@ -65,6 +65,8 @@ The Engine address book.
 - `source` (TEXT): Lead source (e.g. `'MagicBricks'`, `'WhatsApp'`).
 - `lead_temperature` (TEXT): CHECK constraint `('hot', 'warm', 'cold')`.
 - `last_contacted_at` (TIMESTAMPTZ).
+- `whatsapp_marketing_suppressed_until` (TIMESTAMPTZ): Per-recipient Marketing-template cooldown after Meta error 131049. Utility templates are unaffected; any new inbound message clears the value.
+- `whatsapp_marketing_suppression_code` (INTEGER): The Meta code that caused the active cooldown (currently 131049).
 - **Preferences (JSON/Arrays)**:
   - `min_budget` / `max_budget` (NUMERIC)
   - `no_budget` (BOOLEAN)
@@ -179,10 +181,12 @@ Individual message records.
 - `id` (UUID, PK).
 - `conversation_id` (UUID, FK -> `conversations`).
 - `direction` (TEXT): `'inbound'` or `'outbound'`.
-- `content_text` (TEXT): Text payload or error reports.
+- `content_text` (TEXT): The message body exactly as composed.
 - `media_url` (TEXT): Image / Document links.
 - `status` (TEXT): `'sent'`, `'delivered'`, `'read'`, `'failed'`.
 - `meta_message_id` (TEXT): Meta Graph API message ID.
+- `error_code` (INTEGER) / `error_info` (TEXT): Structured delivery failure metadata kept out of `content_text`.
+- `retry_after` (TIMESTAMPTZ): Earliest safe retry time for a temporary delivery failure such as Meta 131049.
 
 #### 13. `message_reactions`
 - `id`, `message_id`, `reaction` (TEXT emoji), `agent_id` (`profiles.user_id`).

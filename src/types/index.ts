@@ -213,6 +213,10 @@ export interface Contact {
   dob?: string | null;
   feedback_status?: 'not_requested' | 'requested' | 'collected';
   last_contacted_at?: string | null;
+  /** Meta 131049: marketing templates are paused until this time. A new
+   * inbound message clears the pause; Utility templates remain eligible. */
+  whatsapp_marketing_suppressed_until?: string | null;
+  whatsapp_marketing_suppression_code?: number | null;
   strict_area_match?: boolean;
   referrer?: string;
   referrer_contact_id?: string | null;
@@ -559,6 +563,9 @@ export interface Message {
    * Contains user-friendly error details from Meta API.
    */
   error_info?: string;
+  /** Structured delivery failure fields. These never alter content_text. */
+  error_code?: number | null;
+  retry_after?: string | null;
   /**
    * An internal note that never reached WhatsApp — written by staff
    * commands (`SET BUDGET 2CR`). Rendered as a centred note rather

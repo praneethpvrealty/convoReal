@@ -131,6 +131,8 @@ export interface Message {
   status: MessageStatus;
   created_at: string;
   error_info?: string;
+  error_code?: number | null;
+  retry_after?: string | null;
   /** `messages.id` of the message this one quotes, when it is a reply. */
   reply_to_message_id?: string;
   /** Meta's own wamid, once WhatsApp has accepted the message. Absent

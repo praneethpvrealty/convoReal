@@ -103,6 +103,18 @@ describe('MessageActions toolbar', () => {
     // Reply still stands: a photo can be quoted even if it cannot be re-sent.
     expect(screen.getByLabelText('Reply')).toBeTruthy();
   });
+
+  it('[INB-008] hides send again during a 131049 cooldown', () => {
+    renderToolbar(
+      message({
+        status: 'failed',
+        error_code: 131049,
+        retry_after: '2999-09-20T10:00:00.000Z',
+      })
+    );
+    expect(screen.queryByLabelText('Send again')).toBeNull();
+    expect(screen.getByLabelText('Forward')).toBeTruthy();
+  });
 });
 
 describe('pin and hide', () => {

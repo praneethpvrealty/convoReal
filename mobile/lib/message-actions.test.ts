@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   canForward,
   canResend,
+  canRetryDeliveryFailure,
   forwardSummary,
   forwardableText,
   messageAuthorLabel,
@@ -100,6 +101,20 @@ describe('forwardable / resendable', () => {
     });
     expect(forwardableText(failed)).toBe('Sharing the layout');
     expect(canResend(failed)).toBe(true);
+  });
+
+  it('[INB-008] blocks an immediate 131049 retry and allows it after cooldown', () => {
+    const failed = message({
+      status: 'failed',
+      error_code: 131049,
+      retry_after: '2026-09-20T10:00:00.000Z',
+    });
+    expect(
+      canRetryDeliveryFailure(failed, new Date('2026-09-19T12:00:00.000Z'))
+    ).toBe(false);
+    expect(
+      canRetryDeliveryFailure(failed, new Date('2026-09-20T10:00:00.000Z'))
+    ).toBe(true);
   });
 
   it('has nothing to resend when the note is the whole body', () => {
