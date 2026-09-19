@@ -21,6 +21,7 @@ import { friendlyError } from '@/lib/errors';
 import { formatInr } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
 import { buildShortlistMessage } from '@/lib/share-message';
+import { applyShowcaseScope } from '@/lib/showcase-scope';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import type { Contact, Property } from '@/lib/types';
 import { useDebounced } from '@/lib/use-debounced';
@@ -87,18 +88,29 @@ export function AgentInventoryShareSheet({
   const agentPhone = session?.user.phone
     ? `+${session.user.phone.replace(/^\+/, '')}`
     : undefined;
+  const trackedBaseUrl = useMemo(
+    () =>
+      baseUrl.data
+        ? applyShowcaseScope(baseUrl.data, {
+            scope: 'all',
+            audience: 'agent',
+            visitorId: contact.id,
+          })
+        : null,
+    [baseUrl.data, contact.id]
+  );
   const propertyMessage = useMemo(
     () =>
-      selected.length > 0 && baseUrl.data
+      selected.length > 0 && trackedBaseUrl
         ? buildShortlistMessage({
             properties: selected,
-            baseUrl: baseUrl.data,
+            baseUrl: trackedBaseUrl,
             contactName: contact.name ?? undefined,
             agentName,
             agentPhone,
           })
         : '',
-    [selected, baseUrl.data, contact.name, agentName, agentPhone]
+    [selected, trackedBaseUrl, contact.name, agentName, agentPhone]
   );
 
   function closeSheet() {
