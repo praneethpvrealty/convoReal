@@ -620,6 +620,31 @@ describe('[WAN-006] a retired number can auto-reply, the live one never', () => 
     expect(result).not.toHaveProperty('access_token');
   });
 
+  it('clears the auto-reply when a number goes live through a plain save, not only through activation', async () => {
+    await upsertNumberProfile(makeDb(), {
+      accountId: 'acc-1',
+      userId: 'user-1',
+      snapshot: snapshotFromLiveConfig(liveRentals)!,
+      activatedAt: NOW,
+      live: true,
+    });
+    const write = calls.find(
+      (c) => c.table === 'whatsapp_number_profiles' && c.op === 'upsert'
+    );
+    expect(write?.payload).toMatchObject({ auto_reply_enabled: false });
+
+    calls = [];
+    await upsertNumberProfile(makeDb(), {
+      accountId: 'acc-1',
+      userId: 'user-1',
+      snapshot: snapshotFromLiveConfig(liveRentals)!,
+    });
+    const snapshot = calls.find(
+      (c) => c.table === 'whatsapp_number_profiles' && c.op === 'upsert'
+    );
+    expect(snapshot?.payload).not.toHaveProperty('auto_reply_enabled');
+  });
+
   it('stores an empty message as null so the default reply applies, and caps the length', () => {
     expect(normalizeAutoReplyMessage('   ')).toBeNull();
     expect(normalizeAutoReplyMessage(undefined)).toBeNull();

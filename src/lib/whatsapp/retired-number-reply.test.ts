@@ -114,7 +114,7 @@ const liveNew = {
   phone_number_id: 'pn-new',
   integration_type: 'official_api',
   display_phone_number: '+91 83173 02613',
-  user_id: 'owner-1',
+  user_id: 'admin-1',
 };
 
 const inbound = {
@@ -128,6 +128,7 @@ function arrange(overrides: Partial<typeof queues> = {}) {
   queues = {
     whatsapp_config: [{ data: liveNew }],
     accounts: [{ data: { name: 'Aryavarta Ventures' } }],
+    profiles: [{ data: { user_id: 'owner-1' } }],
     contacts: [
       { data: [{ id: 'c-1', name: 'Rohit Sharma', phone: '+919876543210' }] },
     ],
@@ -187,7 +188,7 @@ describe('[WAN-006] replying from a retired number', () => {
     expect(lookup.filters).toContainEqual(['auto_reply_enabled', 'eq', true]);
   });
 
-  it('replies from the retired number with the default message, quoting the inbound, and mirrors it to the owner', async () => {
+  it('replies from the retired number with the default message, quoting the inbound, and mirrors it to the account owner rather than whoever saved the config', async () => {
     arrange();
     const send = vi.fn<Send>(async () => ({ messageId: 'wamid.out-1' }));
     const notify = vi.fn<Notify>(async () => ({
@@ -222,6 +223,13 @@ describe('[WAN-006] replying from a retired number', () => {
       reply_count: 1,
     });
 
+    const ownerLookup = calls.find((c) => c.table === 'profiles');
+    expect(ownerLookup?.filters).toContainEqual(['account_id', 'eq', 'acc-1']);
+    expect(ownerLookup?.filters).toContainEqual([
+      'account_role',
+      'eq',
+      'owner',
+    ]);
     expect(notify).toHaveBeenCalledTimes(1);
     expect(notify.mock.calls[0][0]).toMatchObject({
       accountId: 'acc-1',
@@ -303,6 +311,7 @@ describe('[WAN-006] replying from a retired number', () => {
       reply_count: 2,
       last_replied_at: NOW.toISOString(),
     });
+    expect(bump?.filters).toContainEqual(['account_id', 'eq', 'acc-1']);
     expect(bump?.filters).toContainEqual([
       'last_replied_at',
       'lt',
@@ -324,6 +333,22 @@ describe('[WAN-006] replying from a retired number', () => {
       (c) => c.table === 'whatsapp_retired_number_replies' && c.op === 'delete'
     );
     expect(release?.filters).toContainEqual(['id', 'eq', 'r-1']);
+    expect(release?.filters).toContainEqual(['account_id', 'eq', 'acc-1']);
+  });
+
+  it('falls back to whoever saved the config when the account has no owner profile', async () => {
+    arrange({ profiles: [{ data: null }] });
+    const notify = vi.fn<Notify>(async () => ({
+      inAppId: null,
+      whatsapp: null,
+      pushCount: 0,
+    }));
+    await replyFromRetiredNumber(makeDb(), retired, inbound, {
+      send: vi.fn<Send>(async () => ({ messageId: 'x' })),
+      notify,
+      now: () => NOW,
+    });
+    expect(notify.mock.calls[0][0]).toMatchObject({ userId: 'admin-1' });
   });
 
   it('never replies from the number that is currently live', async () => {

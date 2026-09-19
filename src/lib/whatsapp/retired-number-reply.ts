@@ -111,7 +111,11 @@ async function claimRetiredReply(
       claimed: true,
       release: async () => {
         if (!id) return;
-        await db.from('whatsapp_retired_number_replies').delete().eq('id', id);
+        await db
+          .from('whatsapp_retired_number_replies')
+          .delete()
+          .eq('id', id)
+          .eq('account_id', args.accountId);
       },
     };
   }
@@ -137,6 +141,7 @@ async function claimRetiredReply(
     .from('whatsapp_retired_number_replies')
     .update({ reply_count: row.reply_count + 1, last_replied_at: nowIso })
     .eq('id', row.id)
+    .eq('account_id', args.accountId)
     .lt('last_replied_at', cutoff.toISOString())
     .select('id');
   if (updateError) throw updateError;
@@ -151,9 +156,25 @@ async function claimRetiredReply(
           last_replied_at: row.last_replied_at,
         })
         .eq('id', row.id)
+        .eq('account_id', args.accountId)
         .select('id');
     },
   };
+}
+
+async function resolveOwnerUserId(
+  db: SupabaseClient,
+  accountId: string,
+  live: LiveRow | null
+): Promise<string | null> {
+  const { data } = await db
+    .from('profiles')
+    .select('user_id')
+    .eq('account_id', accountId)
+    .eq('account_role', 'owner')
+    .limit(1)
+    .maybeSingle();
+  return (data as { user_id: string } | null)?.user_id ?? live?.user_id ?? null;
 }
 
 async function mirrorToInbox(
@@ -163,7 +184,8 @@ async function mirrorToInbox(
   inbound: RetiredNumberInbound,
   notify: typeof createNotification
 ): Promise<void> {
-  if (!live?.user_id) return;
+  const userId = await resolveOwnerUserId(db, profile.account_id, live);
+  if (!userId) return;
   const digits = normalizePhone(inbound.senderPhone);
   const suffix = digits.length > 8 ? digits.slice(-8) : digits;
   const { data: candidates } = await db
@@ -185,7 +207,7 @@ async function mirrorToInbox(
   const preview = inbound.preview?.trim() || '[non-text message]';
   await notify({
     accountId: profile.account_id,
-    userId: live.user_id,
+    userId,
     type: 'new_message',
     title: `Message to retired number ${profile.display_phone_number ?? profile.phone_number_id}`,
     body: `${sender}: ${preview.slice(0, 200)}`,

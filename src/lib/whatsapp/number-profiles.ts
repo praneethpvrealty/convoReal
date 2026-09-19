@@ -215,6 +215,7 @@ export async function upsertNumberProfile(
     snapshot: NumberProfileSnapshot;
     label?: string;
     activatedAt?: string | null;
+    live?: boolean;
   }
 ): Promise<void> {
   const row: Record<string, unknown> = {
@@ -225,6 +226,7 @@ export async function upsertNumberProfile(
   };
   if (args.label !== undefined) row.label = normalizeProfileLabel(args.label);
   if (args.activatedAt !== undefined) row.last_activated_at = args.activatedAt;
+  if (args.live) row.auto_reply_enabled = false;
   const { error } = await db
     .from('whatsapp_number_profiles')
     .upsert(row, { onConflict: 'phone_number_id' });
