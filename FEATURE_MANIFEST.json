@@ -127,6 +127,16 @@
               "case": "[CAL-006]"
             }
           ]
+        },
+        {
+          "id": "CAL-007",
+          "rule": "Time corrections accept compact meridiem forms such as 430pm. A correction without a usable replacement date or time asks for clarification and never confirms an unchanged appointment as updated.",
+          "tests": [
+            {
+              "file": "src/lib/calendar/scheduling-edit.test.ts",
+              "case": "[CAL-007]"
+            }
+          ]
         }
       ]
     },
