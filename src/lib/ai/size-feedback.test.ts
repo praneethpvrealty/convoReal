@@ -23,6 +23,7 @@ describe('parseRelativeSizeSignal', () => {
     ['larger site', 'bigger'],
     ['too small for our plans', 'bigger'],
     ['more extent needed', 'bigger'],
+    ['need more area', 'bigger'],
   ])('%s → %s', (text, expected) => {
     expect(parseRelativeSizeSignal(text)).toBe(expected);
   });
@@ -36,6 +37,10 @@ describe('parseRelativeSizeSignal', () => {
     ['smaller budget', null],
     ['looking for commercial land', null],
     ['lesser known areas are fine', null],
+    // A request for more listings, not for a bigger one.
+    ['More site', null],
+    ['more sites please', null],
+    ['any more plots?', null],
     ['', null],
     [null, null],
     [undefined, null],

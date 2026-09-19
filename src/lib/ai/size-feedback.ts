@@ -18,6 +18,10 @@ export type RelativeSizeSignal = 'smaller' | 'bigger';
 const SIZE_NOUN =
   '(?:dimensions?|size[sd]?|extent|area|plot|site|sqft|sq\\.?\\s*ft)';
 
+// "more site" / "more plots" ask for more listings, not a bigger one;
+// only the measure nouns turn "more" into a size signal.
+const MEASURE_NOUN = '(?:dimensions?|size[sd]?|extent|area|sqft|sq\\.?\\s*ft)';
+
 // The bare adjectives read as size only when they are not qualifying
 // money — "smaller budget" is budget feedback, and this parser claiming
 // it would anchor a size bound off a message about price.
@@ -29,7 +33,7 @@ const SMALLER = new RegExp(
 );
 
 const BIGGER = new RegExp(
-  `\\b(?:(?:bigger|larger)(?!\\s+${MONEY_NOUN})|too\\s+small|(?:more|higher|greater)\\s+${SIZE_NOUN})\\b`,
+  `\\b(?:(?:bigger|larger)(?!\\s+${MONEY_NOUN})|too\\s+small|(?:more|higher|greater)\\s+${MEASURE_NOUN})\\b`,
   'i'
 );
 

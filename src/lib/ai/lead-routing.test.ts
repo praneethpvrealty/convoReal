@@ -115,6 +115,28 @@ describe('routeLeadMessage — precedence', () => {
   });
 });
 
+describe('routeLeadMessage — more listings', () => {
+  it.each([
+    'More site',
+    'more sites please',
+    'Any other options?',
+    'show me more',
+    'anything else?',
+    'next',
+    'more plots in Vijaya Bank Layout',
+  ])('[INB-006] %s → more_listings', (text) => {
+    expect(routeLeadMessage(text)).toBe('more_listings');
+  });
+
+  it.each([
+    'need more area in HSR Layout',
+    'looking for a bigger plot, more than 2400 sqft',
+    'more details of option 2',
+  ])('[INB-006] %s stays with its own handler', (text) => {
+    expect(routeLeadMessage(text)).not.toBe('more_listings');
+  });
+});
+
 describe('standsDownFromQualification', () => {
   it.each([
     ['Sir can I get images  images', true],
@@ -125,6 +147,7 @@ describe('standsDownFromQualification', () => {
     ['not for me', true],
     ['Land , 1.5 to 2cr', false],
     ['Devanahalli', false],
+    ['More site', false],
   ])('%s → %s', (text, expected) => {
     expect(standsDownFromQualification(text)).toBe(expected);
   });
@@ -138,6 +161,7 @@ describe('every route is explained for the simulator', () => {
     'property_disinterest',
     'photo_request',
     'shortlist_reference',
+    'more_listings',
     'qualification',
   ] as const)('%s', (route) => {
     expect(LEAD_ROUTE_EXPLANATIONS[route]).toBeTruthy();

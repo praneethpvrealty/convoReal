@@ -416,3 +416,205 @@ describe('processBuyerQualificationMessage — a lead still typing', () => {
     expect(sendRequirementReview).toHaveBeenCalled();
   });
 });
+
+describe('processBuyerQualificationMessage — more listings', () => {
+  it('[INB-006] answers "More site" with the next unsent matches and files nothing', async () => {
+    queues.contacts = [
+      contactRow({
+        requirements: 'Site in Vijaya Bank Layout 60x40',
+        pref_property_types: ['Residential Plot'],
+        pref_listing_types: ['Sale'],
+        pref_areas: ['Vijaya Bank Layout'],
+        pref_land_area_min_sqft: 2400,
+        pref_land_area_max_sqft: 2400,
+      }),
+    ];
+    queues.messages = [
+      [
+        { sender_type: 'customer', content_text: 'More site' },
+        { sender_type: 'bot', content_text: 'Here are 3 that fit' },
+      ],
+      { count: 0 },
+    ];
+    rankPropertiesForContact.mockResolvedValue([
+      {
+        property: {
+          id: 'p-1306',
+          title: '2450 Sqft South facing residential plot in Vijayabank Layout',
+          type: 'Residential Plot',
+          price: 58_800_000,
+          location: 'Vijaya Bank Layout',
+          city: 'Bangalore',
+        },
+        score: 99,
+        details: {},
+      },
+    ]);
+
+    const handled = await processBuyerQualificationMessage(
+      'More site',
+      { id: 'c1', phone: '919000000000', name: 'Pramod' },
+      { id: 'conv-1' },
+      'acct-1',
+      'token',
+      'phone-id',
+      'owner-1',
+      'wamid.more'
+    );
+
+    expect(handled).toBe(true);
+    expect(extractContactPreferences).not.toHaveBeenCalled();
+    expect(recordLearnedFacts).not.toHaveBeenCalled();
+    expect(rankPropertiesForContact).toHaveBeenCalledWith(
+      expect.anything(),
+      'acct-1',
+      'c1',
+      expect.objectContaining({ excludeAlreadySent: true })
+    );
+    const sent = sendTextMessage.mock.calls[0][0].text as string;
+    expect(sent).toContain("here's one more");
+    expect(sent).toContain('2450 Sqft South facing');
+    expect(sent).not.toContain('budget');
+  });
+
+  it('[INB-006] says so when nothing unsent is left', async () => {
+    queues.contacts = [
+      contactRow({
+        pref_property_types: ['Residential Plot'],
+        pref_listing_types: ['Sale'],
+        pref_areas: ['Vijaya Bank Layout'],
+      }),
+    ];
+    queues.messages = [
+      [{ sender_type: 'customer', content_text: 'anything else?' }],
+      { count: 0 },
+    ];
+
+    await processBuyerQualificationMessage(
+      'anything else?',
+      { id: 'c1', phone: '919000000000', name: 'Pramod' },
+      { id: 'conv-1' },
+      'acct-1',
+      'token',
+      'phone-id',
+      'owner-1',
+      'wamid.more'
+    );
+
+    expect(sendTextMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: expect.stringContaining("That's everything that fits right now"),
+      })
+    );
+    expect(extractContactPreferences).not.toHaveBeenCalled();
+  });
+});
+
+describe('processBuyerQualificationMessage — the ladder remembers its questions', () => {
+  it('[INB-006] does not re-ask the budget once it has scrolled past the last six messages', async () => {
+    queues.contacts = [
+      contactRow({
+        requirements: 'Residential plot in Koramangala',
+        pref_property_types: ['Residential Plot'],
+        pref_listing_types: ['Sale'],
+        pref_areas: ['Koramangala'],
+      }),
+    ];
+    queues.messages = [
+      [
+        {
+          sender_type: 'customer',
+          content_text: 'need a 2400 sqft residential plot',
+        },
+        { sender_type: 'bot', content_text: 'Here are 3 that fit' },
+        { sender_type: 'bot', content_text: 'Would you like alerts?' },
+        { sender_type: 'customer', content_text: 'More site' },
+        { sender_type: 'bot', content_text: 'Sure — here are 2 more' },
+        { sender_type: 'customer', content_text: 'Purchase' },
+        {
+          sender_type: 'bot',
+          content_text:
+            "Certainly — I've understood you're looking for residential plot for purchase, not rent. What budget range are you working with?",
+        },
+      ],
+      { count: 0 },
+    ];
+    extractContactPreferences.mockResolvedValue({
+      ...EMPTY_PREFERENCES,
+      property_types: ['Residential Plot'],
+      listing_types: ['Sale'],
+      areas: ['Koramangala'],
+      land_area_min_sqft: 2400,
+      land_area_max_sqft: 2400,
+    });
+
+    await processBuyerQualificationMessage(
+      'need a 2400 sqft residential plot',
+      { id: 'c1', phone: '919000000000', name: 'Pramod' },
+      { id: 'conv-1' },
+      'acct-1',
+      'token',
+      'phone-id',
+      'owner-1'
+    );
+
+    expect(sendTextMessage).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: expect.stringContaining('What budget range'),
+      })
+    );
+    expect(sendRequirementReview).toHaveBeenCalled();
+  });
+});
+
+describe('processBuyerQualificationMessage — relative size feedback', () => {
+  it('[INB-006] never stores a floor above the cap it just cleared', async () => {
+    queues.contacts = [
+      contactRow({
+        requirements: 'Site in Vijaya Bank Layout 60x40',
+        pref_property_types: ['Residential Plot'],
+        pref_listing_types: ['Sale'],
+        pref_areas: ['Vijaya Bank Layout'],
+        pref_land_area_min_sqft: 2400,
+        pref_land_area_max_sqft: 2400,
+        last_inquired_property_id: 'p-shown',
+      }),
+    ];
+    queues.messages = [
+      [
+        { sender_type: 'customer', content_text: 'bigger plot' },
+        { sender_type: 'bot', content_text: 'Here are 3 that fit' },
+      ],
+    ];
+    queues.properties = [
+      { land_area: 2400, land_area_unit: 'sqft', area_sqft: null },
+    ];
+    extractContactPreferences.mockResolvedValue({
+      ...EMPTY_PREFERENCES,
+      property_types: ['Residential Plot'],
+      listing_types: ['Sale'],
+      areas: ['Vijaya Bank Layout'],
+      land_area_min_sqft: 2400,
+      land_area_max_sqft: 2400,
+    });
+
+    await processBuyerQualificationMessage(
+      'bigger plot',
+      { id: 'c1', phone: '919000000000', name: 'Pramod' },
+      { id: 'conv-1' },
+      'acct-1',
+      'token',
+      'phone-id',
+      'owner-1'
+    );
+
+    expect(recordLearnedFacts).toHaveBeenCalledWith(
+      expect.objectContaining({
+        facts: expect.arrayContaining([
+          { field: 'pref_land_area_min_sqft', value: 2824 },
+          { field: 'pref_land_area_max_sqft', value: null },
+        ]),
+      })
+    );
+  });
+});
