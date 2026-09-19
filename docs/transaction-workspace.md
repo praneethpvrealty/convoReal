@@ -177,12 +177,22 @@ it; `journey_stages_for_account` is the unguarded twin for the service
 role. The kind (prospecting, closing, won, lost) comes from the stage
 name by the same words as `journeyStageKindForPipelineStage`. Two
 triggers keep a converted deal and its journey item on one stage from
-either side, and a journey item moved into a closing or won stage is
-converted on the spot. The journey's own stage editor is gone; the
-Board's pipeline settings are the one editor, and the journey's
-"Stages follow the Board" button opens them. The held backfill
-(`…120100`) re-points existing items by stage kind, aligns converted
-items to their deals, and removes legacy stages nothing references.
+either side. The journey moves items through `POST /api/journey/move`:
+when the target mirrors a pipeline stage, the item's deal follows
+through `applyDealStageMove` (`src/lib/deals/stage-move.ts`), the same
+logic the deal PATCH runs for the board — brokerage capture (a 409
+`BROKERAGE_REQUIRED` pauses the move for the same prompt), closing
+record, property status — and a move into a closing or won stage opens
+the deal on that very stage through `convertJourneyItemToDeal`. The
+journey's own stage editor is gone; the Board's pipeline settings are
+the one editor, and the journey's "Stages follow the Board" button
+opens them. A pipeline stage cannot be deleted while journey items sit
+on or plan for its mirror (`…120200`, a BEFORE DELETE guard; the
+settings dialog checks first); a mirror nothing references goes with
+its stage. The held backfill (`…120100`) re-points existing items by
+stage kind, aligns converted items to their deals, skips an account
+whose pipeline has no stages, and removes legacy stages nothing
+references.
 
 ## Invariants
 

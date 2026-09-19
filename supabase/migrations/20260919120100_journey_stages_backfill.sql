@@ -6,6 +6,9 @@
 -- rewrites journey_items.stage_id, which the old journey page would
 -- otherwise show against stages it no longer lists.
 --
+-- An account whose pipeline has no stages mirrors nothing and is left
+-- as it is: there is no stage to re-point its items to.
+--
 -- Order matters: a converted item follows its deal first (the deal is
 -- the closing record), then the rest map by stage kind onto the first
 -- mirrored stage of that kind. Legacy stages that nothing references
@@ -29,6 +32,12 @@ BEGIN
       CONTINUE;
     END IF;
     PERFORM journey_stages_mirror_pipeline(acc.id, v_pipeline);
+    IF NOT EXISTS (
+      SELECT 1 FROM journey_stages
+        WHERE account_id = acc.id AND pipeline_stage_id IS NOT NULL
+    ) THEN
+      CONTINUE;
+    END IF;
 
     UPDATE journey_items ji
       SET stage_id = js.id

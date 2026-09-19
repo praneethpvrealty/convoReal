@@ -926,7 +926,7 @@
         },
         {
           "id": "TXW-018",
-          "rule": "Journey stages are mirrors of the account's default pipeline stages (one journey stage per pipeline stage, same name, colour and order, kind derived from the stage name by the same words in SQL and TypeScript); there is one stage editor, the pipeline's; a converted deal and its journey item stay on the same stage whichever side moved, with the journey keeping the move in its history; and moving a journey item into a closing or won stage opens its closing record.",
+          "rule": "Journey stages are mirrors of the account's default pipeline stages (one journey stage per pipeline stage, same name, colour and order, kind derived from the stage name by the same words in SQL and TypeScript); there is one stage editor, the pipeline's, and a pipeline stage cannot be deleted while journey items sit on or plan for its mirror; a converted deal and its journey item stay on the same stage whichever side moved, with the journey keeping the move in its history; a journey move onto a mirrored stage runs the same stage-move logic as the board (brokerage capture, closing record, property status); and moving a journey item into a closing or won stage opens its closing record on that very stage.",
           "tests": [
             {
               "file": "src/lib/pipelines/stage-semantics.test.ts",
@@ -935,11 +935,16 @@
             {
               "file": "src/lib/mobile-parity.test.ts",
               "case": "[TXW-018]"
+            },
+            {
+              "file": "src/lib/journey/move.test.ts",
+              "case": "[TXW-018]"
             }
           ],
           "guards": [
             "supabase/migrations/20260919120000_journey_stages_mirror_pipeline.sql",
-            "supabase/migrations/20260919120100_journey_stages_backfill.sql"
+            "supabase/migrations/20260919120100_journey_stages_backfill.sql",
+            "supabase/migrations/20260919120200_pipeline_stage_delete_guard.sql"
           ]
         }
       ]
