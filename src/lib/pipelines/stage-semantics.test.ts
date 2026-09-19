@@ -4,6 +4,7 @@ import {
   isBrokeragePaidStage,
   needsBrokerageCapture,
   pipelineOutcomeForStage,
+  startsClosingRecord,
   propertyStatusForPipelineStage,
   shouldCaptureBrokerage,
 } from './stage-semantics';
@@ -32,6 +33,14 @@ describe('pipeline stage semantics', () => {
     expect(shouldCaptureBrokerage('Due Diligence/Contract')).toBe(true);
     expect(shouldCaptureBrokerage('Brokerage Paid')).toBe(true);
     expect(shouldCaptureBrokerage('New Inquiry')).toBe(false);
+  });
+
+  it('[TXW-016] starts the closing record at the capture stage and never on a loss', () => {
+    expect(startsClosingRecord('Negotiation/Token')).toBe(true);
+    expect(startsClosingRecord('Due Diligence/Contract')).toBe(true);
+    expect(startsClosingRecord('Deal Closed/Won')).toBe(true);
+    expect(startsClosingRecord('Site Visit Scheduled')).toBe(false);
+    expect(startsClosingRecord('Closed Lost')).toBe(false);
   });
 
   it('[TXW-016] pauses a move for brokerage only when none is recorded yet', () => {

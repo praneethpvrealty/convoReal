@@ -62,6 +62,13 @@ export function shouldCaptureBrokerage(stageName: string): boolean {
   );
 }
 
+export function startsClosingRecord(stageName: string): boolean {
+  return (
+    shouldCaptureBrokerage(stageName) &&
+    dealStatusForStage(stageName) !== 'lost'
+  );
+}
+
 export function needsBrokerageCapture(
   deal: { brokerage_amount: number | null },
   stageName: string

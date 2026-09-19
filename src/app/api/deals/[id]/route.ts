@@ -5,6 +5,9 @@ import {
   rateLimitResponse,
   RATE_LIMITS,
 } from '@/lib/rate-limit';
+import { ensureClosingRecord } from '@/lib/deals/closing-record';
+import { parseEventSource } from '@/lib/deals/events';
+import { actorName } from '@/lib/deals/server';
 import { brokerageAmount } from '@/lib/pipelines/brokerage';
 import { propertyStatusForPipelineStage } from '@/lib/pipelines/stage-semantics';
 import { DEAL_DOCUMENT_BUCKET } from '@/lib/invoices/server';
@@ -113,6 +116,27 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         { error: updateErr.message ?? 'Failed to update deal' },
         { status: 500 }
       );
+    }
+
+    if (typeof stage_id === 'string' && typeof stage_name === 'string') {
+      const record = await ensureClosingRecord({
+        db: ctx.supabase,
+        accountId: ctx.accountId,
+        dealId,
+        stageName: stage_name,
+        actorId: ctx.userId,
+        actorName: await actorName(ctx.supabase, ctx.accountId, ctx.userId),
+        source: parseEventSource(body.source),
+      });
+      if (record.error) {
+        return NextResponse.json(
+          {
+            error: `Stage moved but the closing record could not be started: ${record.error}`,
+            code: 'CLOSING_RECORD_FAILED',
+          },
+          { status: 500 }
+        );
+      }
     }
 
     // Sync property status based on stage
@@ -236,6 +260,27 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         { error: updateErr.message ?? 'Failed to update deal status' },
         { status: 500 }
       );
+    }
+
+    if (updateData.stage_id && typeof current_stage_name === 'string') {
+      const record = await ensureClosingRecord({
+        db: ctx.supabase,
+        accountId: ctx.accountId,
+        dealId,
+        stageName: current_stage_name,
+        actorId: ctx.userId,
+        actorName: await actorName(ctx.supabase, ctx.accountId, ctx.userId),
+        source: parseEventSource(body.source),
+      });
+      if (record.error) {
+        return NextResponse.json(
+          {
+            error: `Stage moved but the closing record could not be started: ${record.error}`,
+            code: 'CLOSING_RECORD_FAILED',
+          },
+          { status: 500 }
+        );
+      }
     }
 
     // Sync property status

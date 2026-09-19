@@ -47,11 +47,14 @@ up the next phase.
   progress from `transaction_workspace_index()` (SQL aggregate, no
   client-side reduce). Rows are headed by buyer and property
   (`src/lib/deals/index-row.ts`, mirrored on mobile); the deal's own
-  title drops to a second line unless it already is that headline. A
-  pipeline deal with neither journey provenance nor milestones is marked
-  **Not yet a transaction**, and an editor can seed the standard
-  milestones from the row. `/deals/[id]` carries six tabs: Overview,
+  title drops to a second line unless it already is that headline. `/deals/[id]` carries six tabs: Overview,
   Timeline, Milestones, Tasks, Documents, Invoices. Same tabs on mobile.
+  Records lists closing records only: `ensureClosingRecord()` in
+  `src/lib/deals/closing-record.ts` seeds the standard milestones the
+  first time a deal enters a capture stage (`startsClosingRecord`,
+  Negotiation/Token or later, never Closed Lost), and every stage move,
+  from the board, the header picker or mobile, goes through the deal
+  route so the rule cannot be bypassed.
   The stage chip in the header is a stage picker for editors; it goes
   through `PATCH /api/deals/[id]`, the same call the board makes, so
   the deal status and the property status follow the stage identically.

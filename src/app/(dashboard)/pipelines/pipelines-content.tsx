@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import type { Pipeline, PipelineStage, Deal, DealStatus } from '@/types';
@@ -33,9 +34,9 @@ import { toast } from 'sonner';
 import { useCan } from '@/hooks/use-can';
 import { GatedButton } from '@/components/ui/gated-button';
 import { InfoHint } from '@/components/ui/info-hint';
+import { brokerageAmount } from '@/lib/pipelines/brokerage';
 import {
   dealStatusForStage,
-  propertyStatusForPipelineStage,
   shouldCaptureBrokerage,
 } from '@/lib/pipelines/stage-semantics';
 import { SPEC_DEFAULT_STAGES } from '@/lib/pipelines/default-stages';
@@ -48,6 +49,7 @@ import { SPEC_DEFAULT_STAGES } from '@/lib/pipelines/default-stages';
 // Seed stages for Real Estate Pipeline
 export default function PipelinesPage() {
   const supabase = createClient();
+  const queryClient = useQueryClient();
   const { user, accountId } = useAuth();
   const canEditSettings = useCan('edit-settings');
   const canCreateDeals = useCan('send-messages');
@@ -328,44 +330,28 @@ export default function PipelinesPage() {
         )
       );
 
-      const { data: moved, error } = await supabase
-        .from('deals')
-        .update({ stage_id: newStageId, status: dealStatus })
-        .eq('id', dealId)
-        .select('id');
+      const res = await fetch(`/api/deals/${dealId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: dealStatus,
+          target_stage_id: newStageId,
+          property_id: deal?.property_id ?? null,
+          current_stage_name: targetStage?.name ?? null,
+          source: 'web',
+        }),
+      }).catch(() => null);
 
-      if (error || !moved?.length) {
+      if (!res || !res.ok) {
         toast.error('Failed to move deal');
         refreshDeals();
         return;
       }
-
-      // Automated Status Transition for Real Estate Properties
-      try {
-        if (deal && deal.property_id) {
-          if (targetStage) {
-            const nextStatus =
-              propertyStatusForPipelineStage(targetStage.name) ?? 'Available';
-
-            const { data: synced, error: propErr } = await supabase
-              .from('properties')
-              .update({ status: nextStatus })
-              .eq('id', deal.property_id)
-              .select('id');
-
-            if (propErr || !synced?.length) {
-              console.error(
-                'Failed to sync property status:',
-                propErr?.message ?? 'no listing changed'
-              );
-            }
-          }
-        }
-      } catch (err) {
-        console.error('Unexpected error in property status transition:', err);
-      }
+      void queryClient.invalidateQueries({
+        queryKey: ['transaction-workspace-index'],
+      });
     },
-    [supabase, refreshDeals, deals, stages]
+    [refreshDeals, deals, stages, queryClient]
   );
 
   async function handleModalBrokerageSave() {
@@ -374,10 +360,11 @@ export default function PipelinesPage() {
     const dealId = brokeragePromptDeal.id;
     const dealValue = brokeragePromptDeal.value || 0;
     const brokVal = parseFloat(modalBrokerageValue) || 0;
-    const brokerageAmt =
-      modalBrokerageType === 'percentage'
-        ? (dealValue * brokVal) / 100
-        : brokVal;
+    const brokerageAmt = brokerageAmount({
+      dealValue,
+      type: modalBrokerageType,
+      value: brokVal,
+    });
 
     const targetStage = stages.find((s) => s.id === pendingStageId);
     const dealStatus: DealStatus = targetStage
@@ -400,19 +387,21 @@ export default function PipelinesPage() {
       )
     );
 
-    const { data: moved, error } = await supabase
-      .from('deals')
-      .update({
-        stage_id: pendingStageId,
+    const res = await fetch(`/api/deals/${dealId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        status: dealStatus,
+        target_stage_id: pendingStageId,
+        property_id: brokeragePromptDeal.property_id ?? null,
+        current_stage_name: targetStage?.name ?? null,
         brokerage_type: modalBrokerageType,
         brokerage_value: brokVal,
-        brokerage_amount: brokerageAmt,
-        status: dealStatus,
-      })
-      .eq('id', dealId)
-      .select('id');
+        source: 'web',
+      }),
+    }).catch(() => null);
 
-    if (error || !moved?.length) {
+    if (!res || !res.ok) {
       toast.error('Failed to move deal');
       refreshDeals();
       setBrokeragePromptDeal(null);
@@ -420,31 +409,9 @@ export default function PipelinesPage() {
       return;
     }
 
-    // Sync property status based on new stage
-    try {
-      if (brokeragePromptDeal.property_id) {
-        if (targetStage) {
-          const nextStatus =
-            propertyStatusForPipelineStage(targetStage.name) ?? 'Available';
-
-          const { data: synced, error: propErr } = await supabase
-            .from('properties')
-            .update({ status: nextStatus })
-            .eq('id', brokeragePromptDeal.property_id)
-            .select('id');
-
-          if (propErr || !synced?.length) {
-            console.error(
-              'Failed to sync property status:',
-              propErr?.message ?? 'no listing changed'
-            );
-          }
-        }
-      }
-    } catch (err) {
-      console.error('Unexpected error in property status transition:', err);
-    }
-
+    void queryClient.invalidateQueries({
+      queryKey: ['transaction-workspace-index'],
+    });
     toast.success('Deal moved and brokerage updated');
     setBrokeragePromptDeal(null);
     setPendingStageId('');

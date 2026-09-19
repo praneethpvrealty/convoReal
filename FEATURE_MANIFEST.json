@@ -888,7 +888,7 @@
         },
         {
           "id": "TXW-016",
-          "rule": "The Transactions index names every row by buyer and property (unit number first), demotes a requirement-style deal title to a second line without ever repeating a converted title, marks a pipeline deal with neither journey provenance nor milestones as not yet a transaction, and lets an editor seed the standard milestones from the row and move the pipeline stage from the workspace header through the same routes the board uses, pausing for brokerage before a capture stage exactly as the board does, on web and mobile alike.",
+          "rule": "The Records view names every row by buyer and property (unit number first), demotes a requirement-style deal title to a second line without ever repeating a converted title, and lists only closing records: a deal starts its closing record (the standard milestones) the moment it enters Negotiation/Token or a later non-lost stage through PATCH or PUT /api/deals/[id], which the board, the workspace header and mobile all use to move a stage, pausing for brokerage before a capture stage exactly as the board does, on web and mobile alike.",
           "tests": [
             {
               "file": "src/lib/deals/index-row.test.ts",

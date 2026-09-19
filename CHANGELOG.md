@@ -19,6 +19,14 @@ than a written entry. Newest first.
 
 #### 19 September 2026
 
+- **Deals: the closing record starts itself.** Moving a deal into
+  Negotiation/Token or any later stage (except Closed Lost) now seeds
+  the standard milestones on the spot, whether the move comes from the
+  board, the record's stage picker or the mobile app, since all three
+  go through the same deal route. The Records tab lists closing records
+  only, so the "Not yet a transaction" badge and the manual "Add
+  standard milestones" button are gone; a pipeline deal that has not
+  reached the closing stretch lives on the Board.
 - **Deals: one place for the board, the journeys and the records.**
   Pipelines (which lived under Automations), Journey and Transactions
   were three pages describing the same deal cycle. They are now three
