@@ -58,6 +58,13 @@ import {
 import { brokerageAmount } from '@/lib/pipelines/brokerage';
 import { DEAL_WORKSPACE_TABS } from '@/components/deals/deal-workspace';
 import {
+  NOT_YET_TRANSACTION_HINT,
+  NOT_YET_TRANSACTION_LABEL,
+  isClosingRecord,
+  transactionSubtitle,
+  transactionTitle,
+} from '@/lib/deals/index-row';
+import {
   UPDATE_CHANNEL_LABELS,
   UPDATE_STAGE_LABELS,
 } from '@/lib/deals/updates';
@@ -1724,5 +1731,71 @@ describe('[TXW] Phase 3 publishing ships on both surfaces', () => {
     expect(webPanel).toContain('Mark as sent');
     expect(webPanel).not.toMatch(/\/api\/whatsapp\/send/);
     expect(mobileScreen).not.toMatch(/\/api\/whatsapp\/send/);
+  });
+});
+
+describe('[TXW-016] the transaction index reads the same on both surfaces', () => {
+  const mobileVocab = mobileSource('lib/deal-workspace.ts');
+  const mobileApi = mobileSource('lib/deal-workspace-api.ts');
+  const mobileList = mobileSource('app/(app)/deals.tsx');
+  const mobileScreen = mobileSource('app/(app)/deal/[id].tsx');
+  const webIndex = webSource(
+    'components/deals/transaction-workspace-index.tsx'
+  );
+  const webWorkspace = webSource('components/deals/deal-workspace.tsx');
+
+  it('mirrors the headline, subtitle and closing-record rules', () => {
+    for (const line of [
+      'if (unit) return `Property No. ${unit}`;',
+      'if (who && what) return `${who} — ${what}`;',
+      'return who ?? what ?? row.title;',
+      'if (headline.toLowerCase().includes(title.toLowerCase())) return null;',
+      'return row.source_journey_item_id !== null || row.milestones_total > 0;',
+    ]) {
+      expect(mobileVocab, `mobile drifted at: ${line}`).toContain(line);
+    }
+    expect(mobileVocab).toContain(
+      `NOT_YET_TRANSACTION_LABEL = '${NOT_YET_TRANSACTION_LABEL}'`
+    );
+    expect(mobileVocab).toContain(`'${NOT_YET_TRANSACTION_HINT}'`);
+
+    const row = {
+      title: 'Kundanlala — 3BHK near Whitefield',
+      contact_name: 'Kundanlala',
+      property_title: 'Sky Tower',
+      property_unit_no: '12B',
+    };
+    expect(transactionTitle(row)).toBe('Kundanlala — Property No. 12B');
+    expect(transactionSubtitle(row)).toBe(row.title);
+    expect(
+      isClosingRecord({ source_journey_item_id: null, milestones_total: 0 })
+    ).toBe(false);
+  });
+
+  it('titles rows by buyer and property and flags a board deal that is not yet a transaction', () => {
+    for (const source of [webIndex, mobileList]) {
+      expect(source).toContain('transactionTitle(');
+      expect(source).toContain('transactionSubtitle(');
+      expect(source).toContain('isClosingRecord(');
+      expect(source).toContain('NOT_YET_TRANSACTION_LABEL');
+    }
+  });
+
+  it('seeds the standard milestones from the card through the same route', () => {
+    expect(webIndex).toContain("template: 'standard'");
+    expect(webIndex).toContain('`/api/deals/${dealId}/milestones`');
+    expect(mobileList).toContain('addStandardMilestones(deal.id)');
+    expect(mobileApi).toContain("template: 'standard'");
+  });
+
+  it('moves the pipeline stage from the workspace header through the deal PATCH', () => {
+    expect(webWorkspace).toContain('dealStatusForStage(stage.name)');
+    expect(webWorkspace).toContain('target_stage_id: stage.id');
+    expect(webWorkspace).toContain('current_stage_name: stage.name');
+    expect(mobileScreen).toContain('dealStatusForStage(stage.name)');
+    expect(mobileScreen).toContain('target_stage_id: stage.id');
+    expect(mobileScreen).toContain('current_stage_name: stage.name');
+    expect(mobileApi).toContain('`/api/deals/${dealId}`');
+    expect(mobileApi).toContain("method: 'PATCH'");
   });
 });

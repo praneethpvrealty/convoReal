@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
   Building2,
@@ -11,11 +11,13 @@ import {
   User,
   Waypoints,
 } from 'lucide-react';
+import { toast } from 'sonner';
 
 import { useAuth } from '@/hooks/use-auth';
 import { createClient } from '@/lib/supabase/client';
 import { formatIndianDigits } from '@/lib/invoices/pdf-text';
 import { brokerageAmount } from '@/lib/pipelines/brokerage';
+import { dealStatusForStage } from '@/lib/pipelines/stage-semantics';
 import { cn } from '@/lib/utils';
 
 import { DealDocumentsPanel } from './deal-documents-panel';
@@ -46,6 +48,8 @@ interface DealSummary {
   brokerage_value: number | null;
   brokerage_amount: number | null;
   status: string;
+  pipeline_id: string;
+  stage_id: string;
   source_journey_item_id: string | null;
   deal_group_id: string | null;
   deal_room_id: string | null;
@@ -57,6 +61,12 @@ interface DealSummary {
   property: { id: string; title: string | null; unit_no: string | null } | null;
   stage: { name: string } | null;
   group: { id: string; name: string } | null;
+}
+
+interface StageOption {
+  id: string;
+  name: string;
+  position: number;
 }
 
 /** Mirrored in mobile/app/(app)/deal/[id].tsx; guarded by mobile-parity.test.ts. */
@@ -73,8 +83,10 @@ export const DEAL_WORKSPACE_TABS: Array<{ id: TabId; label: string }> = [
 
 export function DealWorkspace({ dealId }: { dealId: string }) {
   const supabase = createClient();
+  const queryClient = useQueryClient();
   const { accountId, isViewer, isReadOnly } = useAuth();
   const [tab, setTab] = useState<TabId>('overview');
+  const [movingStage, setMovingStage] = useState(false);
 
   const canEdit = !isViewer && !isReadOnly;
 
@@ -85,7 +97,7 @@ export function DealWorkspace({ dealId }: { dealId: string }) {
         .from('deals')
         .select(
           'id, title, value, currency, brokerage_type, brokerage_value, brokerage_amount, status, ' +
-            'source_journey_item_id, deal_group_id, deal_room_id, ' +
+            'pipeline_id, stage_id, source_journey_item_id, deal_group_id, deal_room_id, ' +
             'contact:contacts(id, name, second_name), ' +
             'property:properties(id, title, unit_no), ' +
             'stage:pipeline_stages(name), ' +
@@ -98,6 +110,59 @@ export function DealWorkspace({ dealId }: { dealId: string }) {
     },
     enabled: Boolean(accountId),
   });
+
+  const pipelineId = deal?.pipeline_id ?? null;
+  const { data: stages = [] } = useQuery({
+    queryKey: ['deal-workspace-stages', pipelineId],
+    queryFn: async (): Promise<StageOption[]> => {
+      const { data, error } = await supabase
+        .from('pipeline_stages')
+        .select('id, name, position')
+        .eq('pipeline_id', pipelineId!)
+        .order('position');
+      if (error) throw new Error(error.message);
+      return (data ?? []) as StageOption[];
+    },
+    enabled: Boolean(pipelineId),
+  });
+
+  async function moveToStage(stageId: string) {
+    if (!deal) return;
+    const stage = stages.find((s) => s.id === stageId);
+    if (!stage || stage.id === deal.stage_id) return;
+    setMovingStage(true);
+    try {
+      const res = await fetch(`/api/deals/${deal.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: dealStatusForStage(stage.name),
+          target_stage_id: stage.id,
+          property_id: deal.property?.id ?? null,
+          current_stage_name: stage.name,
+        }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+        throw new Error(body?.error || 'Could not move the deal');
+      }
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['deal-workspace', dealId] }),
+        queryClient.invalidateQueries({
+          queryKey: ['transaction-workspace-index'],
+        }),
+      ]);
+      toast.success(`Moved to ${stage.name}.`);
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : 'Could not move the deal'
+      );
+    } finally {
+      setMovingStage(false);
+    }
+  }
 
   if (isLoading) {
     return (
@@ -147,10 +212,27 @@ export function DealWorkspace({ dealId }: { dealId: string }) {
           {deal.title}
         </h1>
         <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-400">
-          {deal.stage?.name && (
-            <span className="rounded-full border border-slate-700 px-2 py-0.5">
-              {deal.stage.name}
-            </span>
+          {canEdit && stages.length > 0 ? (
+            <select
+              aria-label="Pipeline stage"
+              title="Move this deal to another pipeline stage"
+              className="h-7 cursor-pointer rounded-full border border-slate-700 bg-slate-950 px-2 text-xs text-white disabled:cursor-wait disabled:opacity-60"
+              value={deal.stage_id}
+              disabled={movingStage}
+              onChange={(e) => void moveToStage(e.target.value)}
+            >
+              {stages.map((stage) => (
+                <option key={stage.id} value={stage.id}>
+                  {stage.name}
+                </option>
+              ))}
+            </select>
+          ) : (
+            deal.stage?.name && (
+              <span className="rounded-full border border-slate-700 px-2 py-0.5">
+                {deal.stage.name}
+              </span>
+            )
           )}
           {contactName && (
             <Link

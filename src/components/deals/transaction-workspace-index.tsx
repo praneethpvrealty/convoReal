@@ -2,11 +2,27 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useQuery } from '@tanstack/react-query';
-import { Briefcase, Layers, Loader2, Search } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  Briefcase,
+  Layers,
+  ListChecks,
+  Loader2,
+  Search,
+  Sparkles,
+} from 'lucide-react';
+import { toast } from 'sonner';
 
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/hooks/use-auth';
+import {
+  NOT_YET_TRANSACTION_HINT,
+  NOT_YET_TRANSACTION_LABEL,
+  isClosingRecord,
+  transactionSubtitle,
+  transactionTitle,
+} from '@/lib/deals/index-row';
 import { formatIndianDigits } from '@/lib/invoices/pdf-text';
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
@@ -43,9 +59,12 @@ const FILTERS: Array<{ id: StatusFilter; label: string }> = [
 
 export function TransactionWorkspaceIndex() {
   const supabase = createClient();
-  const { accountId } = useAuth();
+  const queryClient = useQueryClient();
+  const { accountId, isViewer, isReadOnly } = useAuth();
+  const canEdit = !isViewer && !isReadOnly;
   const [filter, setFilter] = useState<StatusFilter>('open');
   const [query, setQuery] = useState('');
+  const [seedingId, setSeedingId] = useState<string | null>(null);
 
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ['transaction-workspace-index', accountId],
@@ -61,6 +80,33 @@ export function TransactionWorkspaceIndex() {
     },
     enabled: Boolean(accountId),
   });
+
+  async function addStandardMilestones(dealId: string) {
+    setSeedingId(dealId);
+    try {
+      const res = await fetch(`/api/deals/${dealId}/milestones`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ template: 'standard', source: 'web' }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+        throw new Error(body?.error || 'Could not add milestones');
+      }
+      await queryClient.invalidateQueries({
+        queryKey: ['transaction-workspace-index', accountId],
+      });
+      toast.success('Standard milestones added.');
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : 'Could not add milestones'
+      );
+    } finally {
+      setSeedingId(null);
+    }
+  }
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -153,27 +199,25 @@ export function TransactionWorkspaceIndex() {
               row.milestones_total > 0
                 ? Math.round((row.milestones_done / row.milestones_total) * 100)
                 : null;
+            const headline = transactionTitle(row);
+            const subtitle = transactionSubtitle(row);
+            const closingRecord = isClosingRecord(row);
             return (
-              <li key={row.id}>
-                <Link
-                  href={`/deals/${row.id}`}
-                  className="block rounded-xl border border-slate-800 bg-slate-900/50 p-4 transition-colors hover:border-slate-600"
-                >
+              <li
+                key={row.id}
+                className="rounded-xl border border-slate-800 bg-slate-900/50 transition-colors hover:border-slate-600"
+              >
+                <Link href={`/deals/${row.id}`} className="block p-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="truncate font-semibold text-white">
-                        {row.title}
+                        {headline}
                       </p>
-                      <p className="mt-0.5 text-xs text-slate-400">
-                        {[
-                          row.contact_name,
-                          row.property_unit_no
-                            ? `No. ${row.property_unit_no}`
-                            : row.property_title,
-                        ]
-                          .filter(Boolean)
-                          .join(' · ')}
-                      </p>
+                      {subtitle && (
+                        <p className="mt-0.5 truncate text-xs text-slate-400">
+                          {subtitle}
+                        </p>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       {row.group_name && (
@@ -220,11 +264,40 @@ export function TransactionWorkspaceIndex() {
                           </span>
                         )}
                       </>
-                    ) : (
+                    ) : closingRecord ? (
                       <span>No milestones yet</span>
+                    ) : (
+                      <span
+                        title={NOT_YET_TRANSACTION_HINT}
+                        className="inline-flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-200"
+                      >
+                        <Sparkles className="h-3 w-3" />
+                        {NOT_YET_TRANSACTION_LABEL}
+                      </span>
                     )}
                   </div>
                 </Link>
+                {!closingRecord && canEdit && row.status === 'open' && (
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-800 px-4 py-3">
+                    <p className="text-xs text-slate-500">
+                      {NOT_YET_TRANSACTION_HINT}
+                    </p>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={seedingId === row.id}
+                      onClick={() => void addStandardMilestones(row.id)}
+                    >
+                      {seedingId === row.id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <ListChecks className="h-3.5 w-3.5" />
+                      )}
+                      Add standard milestones
+                    </Button>
+                  </div>
+                )}
               </li>
             );
           })}

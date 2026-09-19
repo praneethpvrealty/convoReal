@@ -19,6 +19,16 @@ than a written entry. Newest first.
 
 #### 19 September 2026
 
+- **Transactions: the index reads like a closing record.** Rows are
+  headed by buyer and property (unit number first) with the deal's own
+  title demoted to a second line, so a requirement-style pipeline title
+  no longer stands in for the transaction. A pipeline deal that was
+  neither converted from a journey nor given milestones is marked
+  **Not yet a transaction**, and the row offers "Add standard
+  milestones" to start the checklist. The stage chip on the workspace
+  header is now a stage picker: a lost or won deal can be moved back to
+  an active stage without leaving the workspace, through the same call
+  the pipeline board makes. Web and mobile alike.
 - **Matching: a single stated plot size now admits the larger corner
   sites.** "60x40" is filed as exactly 2,400 sq.ft., and the size gate
   dropped the 3,114 sq.ft. corner sites in the same layout as a miss. A

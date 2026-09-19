@@ -45,8 +45,16 @@ up the next phase.
   branch row.
 - **Index and detail** — `/deals` lists every transaction with milestone
   progress from `transaction_workspace_index()` (SQL aggregate, no
-  client-side reduce). `/deals/[id]` carries six tabs: Overview,
+  client-side reduce). Rows are headed by buyer and property
+  (`src/lib/deals/index-row.ts`, mirrored on mobile); the deal's own
+  title drops to a second line unless it already is that headline. A
+  pipeline deal with neither journey provenance nor milestones is marked
+  **Not yet a transaction**, and an editor can seed the standard
+  milestones from the row. `/deals/[id]` carries six tabs: Overview,
   Timeline, Milestones, Tasks, Documents, Invoices. Same tabs on mobile.
+  The stage chip in the header is a stage picker for editors; it goes
+  through `PATCH /api/deals/[id]`, the same call the board makes, so
+  the deal status and the property status follow the stage identically.
 - **Financials** — `GET/PATCH /api/deals/[id]/financials`. Record-keeping
   only; no ledgering, reconciliation, tax computation or reports.
 - **Timeline** — `GET /api/deals/[id]/events`; `POST` writes an internal
@@ -143,5 +151,5 @@ name), and any new WhatsApp template for seller-side notices.
 
 ## Invariants
 
-`FEATURE_MANIFEST.json` → `transaction-workspace` (TXW-001 … TXW-015).
+`FEATURE_MANIFEST.json` → `transaction-workspace` (TXW-001 … TXW-016).
 Each names its executable regression cases.

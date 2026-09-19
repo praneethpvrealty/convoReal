@@ -813,6 +813,25 @@
           "guards": [
             "supabase/migrations/20260918050100_transaction_workspace_update_events.sql"
           ]
+        },
+        {
+          "id": "TXW-016",
+          "rule": "The Transactions index names every row by buyer and property (unit number first), demotes a requirement-style deal title to a second line without ever repeating a converted title, marks a pipeline deal with neither journey provenance nor milestones as not yet a transaction, and lets an editor seed the standard milestones from the row and move the pipeline stage from the workspace header through the same routes the board uses, on web and mobile alike.",
+          "tests": [
+            {
+              "file": "src/lib/deals/index-row.test.ts",
+              "case": "[TXW-016]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[TXW-016]"
+            },
+            {
+              "file": "mobile/lib/deal-workspace.test.ts",
+              "case": "[TXW-016]"
+            }
+          ],
+          "guards": []
         }
       ]
     },

@@ -21,6 +21,7 @@ import {
 
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { InvoiceEditorSheet } from '@/components/invoice-editor-sheet';
+import { BottomSheet, sheetScrollArea } from '@/components/sheet';
 import {
   EmptyState,
   FilterChip,
@@ -100,6 +101,7 @@ import {
   fetchDealTasks,
   fetchDealUpdates,
   fetchInvoices,
+  moveDealStage,
   invoiceAction,
   markUpdateRecipientSent,
   previewDealUpdate,
@@ -117,9 +119,11 @@ import {
 } from '@/lib/deal-workspace-api';
 import { friendlyError } from '@/lib/errors';
 import { auditDate, auditDateTime, formatInr } from '@/lib/format';
+import { dealStatusForStage } from '@/lib/stage-semantics';
 import { supabase } from '@/lib/supabase';
 import { haptic } from '@/lib/haptics';
 import { radius, spacing, useTheme, fonts } from '@/lib/theme';
+import type { PipelineStage } from '@/lib/types';
 
 /** `friendlyError` takes the message text, and a rejected fetch can throw
  *  anything — so narrow it once here rather than at every call site. */
@@ -132,6 +136,8 @@ interface DealHead {
   title: string;
   contact_id: string | null;
   property_id: string | null;
+  pipeline_id: string;
+  stage_id: string;
   stage: { name: string } | { name: string }[] | null;
 }
 
@@ -147,6 +153,10 @@ export default function DealWorkspaceScreen() {
   const profile = useAuthStore((s) => s.profile);
   const canEdit = Boolean(profile && profile.account_role !== 'viewer');
   const [tab, setTab] = useState<DealWorkspaceTab>('overview');
+  const [pickingStage, setPickingStage] = useState(false);
+  const [movingStage, setMovingStage] = useState(false);
+  const queryClient = useQueryClient();
+  const headDialog = useAppDialog();
 
   const { data: head } = useQuery({
     queryKey: ['deal-head', dealId],
@@ -155,7 +165,7 @@ export default function DealWorkspaceScreen() {
       const { data, error } = await supabase
         .from('deals')
         .select(
-          'id, title, contact_id, property_id, stage:pipeline_stages(name)'
+          'id, title, contact_id, property_id, pipeline_id, stage_id, stage:pipeline_stages(name)'
         )
         .eq('id', dealId)
         .maybeSingle();
@@ -164,14 +174,82 @@ export default function DealWorkspaceScreen() {
     },
   });
 
+  const pipelineId = head?.pipeline_id ?? null;
+  const { data: stages } = useQuery({
+    queryKey: ['pipeline-stages', pipelineId],
+    enabled: Boolean(pipelineId),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('pipeline_stages')
+        .select('*')
+        .eq('pipeline_id', pipelineId!)
+        .order('position');
+      if (error) throw error;
+      return (data ?? []) as PipelineStage[];
+    },
+  });
+
+  async function moveToStage(stage: PipelineStage) {
+    setPickingStage(false);
+    if (!head || stage.id === head.stage_id) return;
+    setMovingStage(true);
+    try {
+      await moveDealStage(dealId, {
+        status: dealStatusForStage(stage.name),
+        target_stage_id: stage.id,
+        property_id: head.property_id,
+        current_stage_name: stage.name,
+      });
+      haptic.success();
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['deal-head', dealId] }),
+        queryClient.invalidateQueries({ queryKey: ['deals'] }),
+      ]);
+    } catch (err) {
+      haptic.warn();
+      headDialog.show({
+        title: 'Could not move the deal',
+        message: friendlyError(errorText(err)),
+      });
+    } finally {
+      setMovingStage(false);
+    }
+  }
+
+  const stageName = head ? (one(head.stage)?.name ?? '—') : null;
+
   return (
     <>
       <Stack.Screen options={{ title: head?.title ?? 'Transaction' }} />
+      <AppDialog {...headDialog.dialogProps} />
       <View style={[styles.screen, { backgroundColor: colors.background }]}>
         {head ? (
-          <Text style={[styles.stageLine, { color: colors.textMuted }]}>
-            {one(head.stage)?.name ?? '—'}
-          </Text>
+          canEdit && stages?.length ? (
+            <Pressable
+              onPress={() => setPickingStage(true)}
+              disabled={movingStage}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={`Move this deal from ${stageName} to another stage`}
+              style={styles.stageRow}
+            >
+              <Text style={[styles.stageLine, { color: colors.textMuted }]}>
+                {stageName}
+              </Text>
+              <Ionicons
+                name={movingStage ? 'hourglass-outline' : 'swap-horizontal'}
+                size={14}
+                color={colors.primary}
+              />
+              <Text style={[styles.stageMove, { color: colors.primary }]}>
+                {movingStage ? 'Moving…' : 'Move stage'}
+              </Text>
+            </Pressable>
+          ) : (
+            <Text style={[styles.stageLine, { color: colors.textMuted }]}>
+              {stageName}
+            </Text>
+          )
         ) : null}
         <ScrollView
           horizontal
@@ -217,6 +295,39 @@ export default function DealWorkspaceScreen() {
         {tab === 'updates' && <UpdatesTab dealId={dealId} canEdit={canEdit} />}
         {tab === 'invoices' && <InvoicesTab dealId={dealId} />}
       </View>
+      <BottomSheet
+        visible={pickingStage}
+        onClose={() => setPickingStage(false)}
+      >
+        <Text style={[styles.sheetTitle, { color: colors.text }]}>
+          Move to…
+        </Text>
+        <ScrollView style={sheetScrollArea}>
+          {(stages ?? [])
+            .filter((s) => s.id !== head?.stage_id)
+            .map((s) => (
+              <Pressable
+                key={s.id}
+                style={[styles.stageOption, { borderTopColor: colors.border }]}
+                onPress={() => void moveToStage(s)}
+                accessibilityRole="button"
+                accessibilityLabel={`Move to ${s.name}`}
+              >
+                <View
+                  style={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: 5,
+                    backgroundColor: s.color || colors.primary,
+                  }}
+                />
+                <Text style={[styles.stageOptionLabel, { color: colors.text }]}>
+                  {s.name}
+                </Text>
+              </Pressable>
+            ))}
+        </ScrollView>
+      </BottomSheet>
     </>
   );
 }
@@ -2498,6 +2609,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
   },
+  stageRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingRight: spacing.lg,
+  },
+  stageMove: { fontFamily: fonts.bold, fontSize: 12, paddingTop: spacing.md },
+  sheetTitle: {
+    fontSize: 15.5,
+    fontFamily: fonts.bold,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.md,
+  },
+  stageOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: 15,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  stageOptionLabel: { fontSize: 15, fontFamily: fonts.semibold },
   tabs: {
     flexDirection: 'row',
     gap: spacing.sm,

@@ -3,7 +3,10 @@ import { describe, expect, it } from 'vitest';
 import {
   categoryLabel,
   extractionEntries,
+  isClosingRecord,
   isReadable,
+  transactionSubtitle,
+  transactionTitle,
   DEAL_DOCUMENT_CATEGORIES,
   INVOICE_STATUS_LABELS,
 } from './deal-workspace';
@@ -86,5 +89,47 @@ describe('invoice status labels', () => {
       'paid',
       'sent',
     ]);
+  });
+});
+
+describe('[TXW-016] the deals list names a transaction by buyer and property', () => {
+  const base = {
+    title: 'Kundanlala — 3BHK near Whitefield',
+    contact_name: 'Kundanlala',
+    property_title: 'Sky Tower',
+    property_unit_no: null,
+  };
+
+  it('leads with the buyer and the property, unit number first', () => {
+    expect(transactionTitle(base)).toBe('Kundanlala — Sky Tower');
+    expect(transactionTitle({ ...base, property_unit_no: '12B' })).toBe(
+      'Kundanlala — Property No. 12B'
+    );
+  });
+
+  it('demotes the deal title to the second line and hides it when repeated', () => {
+    expect(transactionSubtitle(base)).toBe('Kundanlala — 3BHK near Whitefield');
+    expect(
+      transactionSubtitle({
+        ...base,
+        title: 'Kundanlala — Property No. 12B',
+        property_unit_no: '12B',
+      })
+    ).toBeNull();
+    expect(
+      transactionTitle({ ...base, contact_name: null, property_title: null })
+    ).toBe(base.title);
+  });
+
+  it('treats provenance or milestones as the mark of a closing record', () => {
+    expect(
+      isClosingRecord({ source_journey_item_id: 'j1', milestones_total: 0 })
+    ).toBe(true);
+    expect(
+      isClosingRecord({ source_journey_item_id: null, milestones_total: 2 })
+    ).toBe(true);
+    expect(
+      isClosingRecord({ source_journey_item_id: null, milestones_total: 0 })
+    ).toBe(false);
   });
 });
