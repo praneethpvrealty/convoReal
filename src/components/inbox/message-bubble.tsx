@@ -18,6 +18,11 @@ import { format } from 'date-fns';
 import { ReplyQuote } from './reply-quote';
 import { MessageReactions } from './message-reactions';
 import {
+  deliveryFailurePresentation,
+  stripDeliveryFailure,
+  type DeliveryFailurePresentation,
+} from '@/lib/whatsapp/delivery-failure';
+import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
@@ -35,10 +40,10 @@ interface MessageBubbleProps {
 
 function StatusIcon({
   status,
-  errorInfo,
+  failure,
 }: {
   status: Message['status'];
-  errorInfo?: string;
+  failure: DeliveryFailurePresentation | null;
 }) {
   switch (status) {
     case 'sending':
@@ -50,7 +55,7 @@ function StatusIcon({
     case 'read':
       return <CheckCheck className="h-3 w-3 text-blue-400" />;
     case 'failed':
-      if (errorInfo) {
+      if (failure) {
         return (
           <TooltipProvider>
             <Tooltip>
@@ -59,9 +64,9 @@ function StatusIcon({
               </TooltipTrigger>
               <TooltipContent side="top" className="max-w-80">
                 <p className="text-sm font-medium text-red-400">
-                  Delivery Failed
+                  {failure.title}
                 </p>
-                <p className="mt-1 text-xs text-slate-300">{errorInfo}</p>
+                <p className="mt-1 text-xs text-slate-300">{failure.detail}</p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
@@ -161,12 +166,11 @@ function MediaImage({ url, alt }: { url: string; alt: string }) {
 }
 
 function MessageContent({ message }: { message: Message }) {
+  const displayText = stripDeliveryFailure(message.content_text);
   switch (message.content_type) {
     case 'text':
       return (
-        <p className="text-sm break-words whitespace-pre-wrap">
-          {message.content_text}
-        </p>
+        <p className="text-sm break-words whitespace-pre-wrap">{displayText}</p>
       );
 
     case 'image':
@@ -177,9 +181,9 @@ function MessageContent({ message }: { message: Message }) {
           ) : (
             <MediaUnavailable label="Image" />
           )}
-          {message.content_text && (
+          {displayText && (
             <p className="mt-1 text-sm break-words whitespace-pre-wrap">
-              {message.content_text}
+              {displayText}
             </p>
           )}
         </div>
@@ -197,9 +201,9 @@ function MessageContent({ message }: { message: Message }) {
           ) : (
             <MediaUnavailable label="Video" />
           )}
-          {message.content_text && (
+          {displayText && (
             <p className="mt-1 text-sm break-words whitespace-pre-wrap">
-              {message.content_text}
+              {displayText}
             </p>
           )}
         </div>
@@ -218,7 +222,7 @@ function MessageContent({ message }: { message: Message }) {
 
     case 'document':
       if (!message.media_url) {
-        return <MediaUnavailable label={message.content_text || 'Document'} />;
+        return <MediaUnavailable label={displayText || 'Document'} />;
       }
       return (
         <a
@@ -228,7 +232,7 @@ function MessageContent({ message }: { message: Message }) {
           className="flex items-center gap-2 rounded-lg bg-slate-700/50 px-3 py-2 text-sm hover:bg-slate-700"
         >
           <FileText className="h-5 w-5 shrink-0 text-slate-400" />
-          <span className="truncate">{message.content_text || 'Document'}</span>
+          <span className="truncate">{displayText || 'Document'}</span>
         </a>
       );
 
@@ -239,9 +243,9 @@ function MessageContent({ message }: { message: Message }) {
             <LayoutTemplate className="h-3 w-3" />
             Template
           </span>
-          {message.content_text && (
+          {displayText && (
             <p className="mt-1 text-sm break-words whitespace-pre-wrap">
-              {message.content_text}
+              {displayText}
             </p>
           )}
         </div>
@@ -251,7 +255,7 @@ function MessageContent({ message }: { message: Message }) {
       return (
         <div className="flex items-center gap-2 text-sm">
           <MapPin className="h-4 w-4 shrink-0 text-slate-400" />
-          <span>{message.content_text || 'Location shared'}</span>
+          <span>{displayText || 'Location shared'}</span>
         </div>
       );
 
@@ -268,7 +272,7 @@ function MessageContent({ message }: { message: Message }) {
             Button reply
           </span>
           <p className="text-sm break-words whitespace-pre-wrap">
-            {message.content_text || '[Interactive reply]'}
+            {displayText || '[Interactive reply]'}
           </p>
         </div>
       );
@@ -277,7 +281,7 @@ function MessageContent({ message }: { message: Message }) {
     default:
       return (
         <p className="text-sm break-words whitespace-pre-wrap">
-          {message.content_text || '[Unsupported message type]'}
+          {displayText || '[Unsupported message type]'}
         </p>
       );
   }
@@ -293,6 +297,7 @@ export function MessageBubble({
   const isAgent =
     message.sender_type === 'agent' || message.sender_type === 'bot';
   const time = format(new Date(message.created_at), 'HH:mm');
+  const failure = deliveryFailurePresentation(message);
 
   // An internal note never reached WhatsApp. Rendering it as an
   // outgoing bubble would read as something the contact received.
@@ -330,14 +335,20 @@ export function MessageBubble({
           )}
         >
           <span className="text-[10px] text-white/60">{time}</span>
-          {isAgent && (
-            <StatusIcon
-              status={message.status}
-              errorInfo={message.error_info}
-            />
-          )}
+          {isAgent && <StatusIcon status={message.status} failure={failure} />}
         </div>
       </div>
+      {failure && (
+        <div className="mt-1 max-w-sm rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-2 text-left text-[11px] text-amber-100">
+          <p className="font-medium">{failure.title}</p>
+          <p className="mt-0.5 text-amber-100/80">{failure.detail}</p>
+          {failure.retryAt && !failure.canRetry && (
+            <p className="mt-1 text-amber-200/70">
+              Retry after {format(new Date(failure.retryAt), 'dd MMM, HH:mm')}
+            </p>
+          )}
+        </div>
+      )}
       {reactions && reactions.length > 0 && onToggleReaction && (
         <MessageReactions
           reactions={reactions}

@@ -17,7 +17,10 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { stripDeliveryFailure } from "@/lib/whatsapp/delivery-failure";
+import {
+  canRetryDeliveryFailure,
+  stripDeliveryFailure,
+} from "@/lib/whatsapp/delivery-failure";
 import type { Message } from "@/types";
 import { HIDE_ACTION_LABEL } from "@/lib/whatsapp/message-state";
 
@@ -55,7 +58,11 @@ export function actionableText(message: Message): string {
  *  contact wrote would put their words in our voice. Media has no text
  *  to put back on the wire. */
 export function canResend(message: Message): boolean {
-  return message.sender_type !== "customer" && actionableText(message) !== "";
+  return (
+    message.sender_type !== "customer" &&
+    actionableText(message) !== "" &&
+    canRetryDeliveryFailure(message)
+  );
 }
 
 /** Anything with text can be forwarded, from either side of the thread. */

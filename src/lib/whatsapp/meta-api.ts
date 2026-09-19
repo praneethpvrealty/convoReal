@@ -42,7 +42,9 @@ async function throwMetaError(response: Response, fallback: string): Promise<nev
   try {
     const data = (await response.json()) as MetaErrorResponse
     if (data.error?.message) {
-      message = data.error.message
+      message = data.error.code
+        ? `[Error ${data.error.code}] ${data.error.message}`
+        : data.error.message
       const userMsg = data.error.error_user_msg
       const userTitle = data.error.error_user_title
 
@@ -119,15 +121,14 @@ export function parseMetaErrorInfo(error: unknown): MetaErrorInfo {
     
     // Marketing frequency cap
     131049: {
-      title: 'Message Blocked by Rate Limit',
-      userMessage: 'Meta has blocked this marketing message to protect users from excessive messages. This is part of WhatsApp\'s healthy ecosystem engagement policy.',
+      title: 'WhatsApp Marketing Limit',
+      userMessage: 'WhatsApp temporarily limited marketing messages to this contact. Utility messages are unaffected.',
       suggestedActions: [
-        'Wait before retrying (try increasing time intervals)',
-        'Use a Utility template instead of Marketing',
-        'Reduce message frequency to this contact',
-        'Ensure the recipient has opted in to receive messages'
+        'Wait at least 24 hours before trying this marketing message once',
+        'A reply from the contact will reopen messaging sooner',
+        'Keep property alerts grouped into the daily digest'
       ],
-      isRetryable: true
+      isRetryable: false
     },
     
     // Template not found
@@ -1788,4 +1789,3 @@ export async function sendProductMessage(
   const data = await response.json()
   return { messageId: data.messages[0].id }
 }
-

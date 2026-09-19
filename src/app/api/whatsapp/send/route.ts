@@ -466,12 +466,13 @@ export async function POST(request: Request) {
           error:
             result.error || 'Failed to send message via WhatsApp dispatcher',
           errorInfo: {
-            code: errorInfo.code,
+            code: result.errorCode ?? errorInfo.code,
             title: errorInfo.title,
             userMessage: errorInfo.userMessage,
             suggestedActions: errorInfo.suggestedActions,
             isRetryable: errorInfo.isRetryable,
           },
+          retryAfter: result.retryAfter,
         },
         { status: 500 }
       );

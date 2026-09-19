@@ -19,7 +19,12 @@ import { authHeaders } from '@/lib/api';
 import { bubbleTime } from '@/lib/format';
 import { mediaSource } from '@/lib/media-source';
 import { haptic } from '@/lib/haptics';
-import { messageAuthorLabel, messagePreview } from '@/lib/message-actions';
+import {
+  deliveryFailurePresentation,
+  messageAuthorLabel,
+  messagePreview,
+  stripDeliveryFailure,
+} from '@/lib/message-actions';
 import {
   DOUBLE_TAP_EMOJI,
   canReact,
@@ -260,6 +265,8 @@ export function MessageBubble({
   const isBot = message.sender_type === 'bot';
   const reactable = canReact(message);
   const groups = groupReactions(reactions, currentUserId);
+  const displayText = stripDeliveryFailure(message.content_text);
+  const failure = deliveryFailurePresentation(message);
 
   const drag = useSharedValue(0);
   // Tracks whether the pull has passed the trigger point, so the "this
@@ -402,7 +409,7 @@ export function MessageBubble({
                 </View>
               ) : null}
 
-              {message.content_text ? (
+              {displayText ? (
                 <Text
                   style={{
                     fontSize: 15,
@@ -410,7 +417,7 @@ export function MessageBubble({
                     color: outgoing ? colors.outgoingText : colors.incomingText,
                   }}
                 >
-                  {message.content_text}
+                  {displayText}
                 </Text>
               ) : null}
 
@@ -434,10 +441,28 @@ export function MessageBubble({
                 {outgoing ? <StatusTicks status={message.status} colors={colors} /> : null}
               </View>
 
-              {message.status === 'failed' && message.error_info ? (
-                <Text style={{ fontSize: 11.5, color: outgoing ? colors.dangerSoft : colors.danger }}>
-                  {message.error_info}
-                </Text>
+              {failure ? (
+                <View
+                  style={{
+                    marginTop: 3,
+                    borderRadius: radius.sm,
+                    paddingHorizontal: 8,
+                    paddingVertical: 6,
+                    backgroundColor: outgoing ? colors.dangerSoft : colors.surface,
+                  }}
+                >
+                  <Text style={{ fontSize: 11.5, fontFamily: f.semibold, color: colors.danger }}>
+                    {failure.title}
+                  </Text>
+                  <Text style={{ marginTop: 2, fontSize: 11, color: colors.textMuted }}>
+                    {failure.detail}
+                  </Text>
+                  {failure.retryAt && !failure.canRetry ? (
+                    <Text style={{ marginTop: 2, fontSize: 10.5, color: colors.textMuted }}>
+                      Retry after {new Date(failure.retryAt).toLocaleString()}
+                    </Text>
+                  ) : null}
+                </View>
               ) : null}
             </Pressable>
           </Animated.View>
