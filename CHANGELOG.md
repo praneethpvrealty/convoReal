@@ -31,6 +31,15 @@ than a written entry. Newest first.
   cannot be turned on for the live number and clears when the number goes
   live again. **Migration required:**
   `20260919043000_whatsapp_retired_number_autoreply.sql`.
+- **Matching: a single stated plot size now admits the larger corner
+  sites.** "60x40" is filed as exactly 2,400 sq.ft., and the size gate
+  dropped the 3,114 sq.ft. corner sites in the same layout as a miss. A
+  single stated figure is now read as the size the buyer has in mind
+  rather than a band: plots up to 35% larger stay in as near-fits, ranked
+  below exact fits and below the within-10% near-misses, while smaller
+  plots and anything beyond that headroom are still excluded. A stated
+  band ("2,000–2,400 sq.ft.") and the "smaller"/"bigger" feedback anchors
+  keep their strict caps.
 - **Matching: a stated plot type now matches plots, and the locality a
   buyer names comes first.** A lead who asked for a 60x40 site in Vijaya
   Bank Layout was sent a 10 BHK building, a villa in HSR Layout and a house

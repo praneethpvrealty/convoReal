@@ -1763,6 +1763,31 @@ describe('getMatchingContacts', () => {
       );
     });
 
+    it('[INB-004] offers the larger corner sites for a single stated figure, below exact fits', () => {
+      const sixtyByForty = seeker({
+        pref_land_area_min_sqft: 2400,
+        pref_land_area_max_sqft: 2400,
+      });
+      const exact = getMatchingContacts(plot(2400), [sixtyByForty])[0];
+      const near = getMatchingContacts(plot(2450), [sixtyByForty])[0];
+      const corner = getMatchingContacts(plot(3114), [sixtyByForty])[0];
+      expect(exact?.details.size).toBe('match');
+      expect(near?.details.size).toBe('partial');
+      expect(corner?.details.size).toBe('partial');
+      expect(exact!.score).toBeGreaterThan(near!.score);
+      expect(near!.score).toBeGreaterThan(corner!.score);
+      expect(getMatchingContacts(plot(4000), [sixtyByForty])).toHaveLength(0);
+      expect(getMatchingContacts(plot(1200), [sixtyByForty])).toHaveLength(0);
+    });
+
+    it('keeps a stated band strict above its cap', () => {
+      const banded = seeker({
+        pref_land_area_min_sqft: 2000,
+        pref_land_area_max_sqft: 2400,
+      });
+      expect(getMatchingContacts(plot(3114), [banded])).toHaveLength(0);
+    });
+
     it('falls back to built-up area when there is no land figure', () => {
       const contact = createTestContact({
         pref_property_types: ['Flat/ Apartment'],
