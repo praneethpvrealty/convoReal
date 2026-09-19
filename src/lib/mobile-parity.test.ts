@@ -1980,6 +1980,49 @@ describe('[TXW-018] journey stages mirror the pipeline on every surface', () => 
     ).toBe(2);
   });
 
+  it('reads only mirrored stages wherever a next stage is chosen, and leaves no orphan behind', () => {
+    for (const file of [
+      'lib/journey/client-response.ts',
+      'lib/journey/closing-nudges.ts',
+      'lib/journey/past-enquiry.ts',
+      'lib/focus/queries.ts',
+      'lib/journey/capture.ts',
+    ]) {
+      const source = webSource(file);
+      const reads = source.match(
+        /\.from\(['"]journey_stages['"]\)\n\s+\.select\([^)]*\)\n(\s+\.(eq|in)\([^)]*\)\n)*\s+\.(not\('pipeline_stage_id', 'is', null\)|not\("pipeline_stage_id", "is", null\))/g
+      );
+      const lists = source.match(
+        /\.from\(['"]journey_stages['"]\)\n\s+\.select\([^)]*\)\n(\s+\.(eq|in)\([^)]*\)\n)*\s+\.order\(/g
+      );
+      expect(
+        reads?.length ?? 0,
+        `${file} lists unlinked stages`
+      ).toBeGreaterThanOrEqual(lists?.length ?? 0);
+    }
+    expect(mobileSource('lib/today.ts')).toContain(
+      ".in('stage_kind', PAST_ENQUIRY_STAGE_KINDS)\n    .not('pipeline_stage_id', 'is', null);"
+    );
+    const backfill = readFileSync(
+      join(
+        process.cwd(),
+        'supabase/migrations/20260919120100_journey_stages_backfill.sql'
+      ),
+      'utf8'
+    );
+    expect(backfill).not.toContain('journey_stage_notes');
+    expect(backfill.match(/AND ji\.account_id = acc\.id/g)?.length).toBe(2);
+    expect(
+      readFileSync(
+        join(
+          process.cwd(),
+          'supabase/migrations/20260919120200_pipeline_stage_delete_guard.sql'
+        ),
+        'utf8'
+      )
+    ).toContain('DELETE FROM journey_stages WHERE id = v_js;');
+  });
+
   it('offers the same move and brokerage prompt on web and mobile', () => {
     const section = webSource('components/journey/journey-section.tsx');
     expect(section).toContain("fetch('/api/journey/move'");

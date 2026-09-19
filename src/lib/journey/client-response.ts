@@ -423,6 +423,7 @@ async function loadStages(
       .from('journey_stages')
       .select('id, name, position')
       .eq('account_id', accountId)
+      .not('pipeline_stage_id', 'is', null)
       .order('position');
     return (data ?? []) as StageRow[];
   };
@@ -1940,6 +1941,7 @@ async function applyTimelineChoice(
       .from('journey_stages')
       .select('id, name, position')
       .eq('account_id', accountId)
+      .not('pipeline_stage_id', 'is', null)
       .order('position');
     const stages = (stageRows ?? []) as StageRow[];
     const idx = stages.findIndex((s) => s.id === item.stage_id);

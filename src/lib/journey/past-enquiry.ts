@@ -37,7 +37,8 @@ export async function loadPastEnquiryContacts(
   let stageQuery = db
     .from('journey_stages')
     .select('id, name')
-    .in('stage_kind', PAST_ENQUIRY_STAGE_KINDS);
+    .in('stage_kind', PAST_ENQUIRY_STAGE_KINDS)
+    .not('pipeline_stage_id', 'is', null);
   if (accountId) stageQuery = stageQuery.eq('account_id', accountId);
   const { data: stageRows } = await stageQuery;
   const stages = (stageRows ?? []) as { id: string; name: string }[];

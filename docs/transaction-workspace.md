@@ -195,11 +195,15 @@ gone; the Board's pipeline settings are the one editor, and the
 journey's "Stages follow the Board" button opens them. A pipeline stage
 cannot be deleted while journey items sit on or plan for its mirror
 (`…120200`, a BEFORE DELETE guard; the settings dialog checks first); a
-mirror nothing references goes with its stage. The held backfill
-(`…120100`) aligns converted items to their deals (one on another board
-lands on the mirrored stage of the same kind), re-points the rest by
-stage kind, skips an account whose pipeline has no stages, and removes
-legacy stages nothing references.
+mirror with no items goes with its stage, and a stage note keeps its
+own name and colour snapshot. Every reader that picks a "next stage"
+(`client-response.ts`, `closing-nudges.ts`, `past-enquiry.ts`,
+`focus/queries.ts`, mobile `today.ts`) reads mirrored rows only. The
+held backfill (`…120100`) aligns converted items to their deals within
+the account (one on another board lands on the mirrored stage of the
+same kind), re-points the rest by stage kind, skips an account whose
+pipeline has no stages, and then removes every legacy stage, so no
+unlinked stage is left for a lookup to find.
 
 ## Invariants
 

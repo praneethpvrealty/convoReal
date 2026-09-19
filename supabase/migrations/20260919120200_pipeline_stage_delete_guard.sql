@@ -2,8 +2,9 @@
 -- A pipeline stage cannot be deleted while journey items sit on (or
 -- plan for) its mirrored journey stage: the FK is ON DELETE SET NULL,
 -- which would leave those items on a stage the rail no longer lists.
--- A mirrored stage that nothing references goes with its pipeline
--- stage instead of lingering unlinked.
+-- A mirrored stage with no items goes with its pipeline stage instead
+-- of lingering unlinked; a stage note keeps its own name and colour
+-- snapshot (its stage_id FK is ON DELETE SET NULL).
 --
 -- Additive: a new function and a new trigger on pipeline_stages.
 -- ============================================================
@@ -30,9 +31,7 @@ BEGIN
       v_items, OLD.name
       USING ERRCODE = '23001';
   END IF;
-  DELETE FROM journey_stages s
-    WHERE s.id = v_js
-      AND NOT EXISTS (SELECT 1 FROM journey_stage_notes n WHERE n.stage_id = s.id);
+  DELETE FROM journey_stages WHERE id = v_js;
   RETURN OLD;
 END;
 $$;

@@ -13,9 +13,10 @@
 -- the closing record; one on another board lands on the mirrored
 -- stage of the same kind, and the trigger from …120050 leaves that
 -- deal where it is), then the rest map by stage kind onto the first
--- mirrored stage of that kind. Legacy stages that nothing references
--- are removed; ones still named by a stage note stay (RESTRICT) but sit
--- unlinked, after the mirrored ones, and out of the rail.
+-- mirrored stage of that kind. Legacy stages are then removed: every
+-- item is on a mirrored stage by now, and a stage note keeps its own
+-- name and colour snapshot (its stage_id FK is ON DELETE SET NULL), so
+-- no unlinked stage is left behind for a "next stage" lookup to find.
 -- ============================================================
 
 DO $$
@@ -48,6 +49,7 @@ BEGIN
         ON js.pipeline_stage_id = d.stage_id AND js.account_id = d.account_id
       WHERE d.source_journey_item_id = ji.id
         AND d.account_id = acc.id
+        AND ji.account_id = acc.id
         AND ji.stage_id IS DISTINCT FROM js.id;
 
     UPDATE journey_items ji
@@ -64,6 +66,7 @@ BEGIN
       ) m
       WHERE d.source_journey_item_id = ji.id
         AND d.account_id = acc.id
+        AND ji.account_id = acc.id
         AND d.pipeline_id <> v_pipeline
         AND ji.stage_id IS DISTINCT FROM m.id;
 
@@ -107,7 +110,6 @@ BEGIN
     DELETE FROM journey_stages s
       WHERE s.account_id = acc.id
         AND s.pipeline_stage_id IS NULL
-        AND NOT EXISTS (SELECT 1 FROM journey_stage_notes n WHERE n.stage_id = s.id)
         AND NOT EXISTS (
           SELECT 1 FROM journey_items i
             WHERE i.stage_id = s.id OR i.planned_stage_id = s.id

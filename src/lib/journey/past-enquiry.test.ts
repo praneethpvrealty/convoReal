@@ -34,6 +34,15 @@ function db(tables: Record<string, Row[]>, seen: Filter[] = []) {
           rows = rows.filter((r) => value.includes(r[column]));
           return chain;
         },
+        not: (column: string, operator: string, value: unknown) => {
+          seen.push({ op: 'not', column, value: `${operator} ${value}` });
+          if (operator === 'is' && value === null) {
+            rows = rows.filter(
+              (r) => r[column] !== null && r[column] !== undefined
+            );
+          }
+          return chain;
+        },
       };
       (chain as { then: unknown }).then = (
         resolve: (v: { data: unknown }) => void
@@ -50,14 +59,29 @@ const stages = [
     account_id: 'a1',
     name: 'Shared',
     stage_kind: 'prospecting',
+    pipeline_stage_id: 'ps-shared',
   },
   {
     id: 's-legal',
     account_id: 'a1',
     name: 'Token & Legal',
     stage_kind: 'closing',
+    pipeline_stage_id: 'ps-legal',
   },
-  { id: 's-paid', account_id: 'a1', name: 'Brokerage Paid', stage_kind: 'won' },
+  {
+    id: 's-paid',
+    account_id: 'a1',
+    name: 'Brokerage Paid',
+    stage_kind: 'won',
+    pipeline_stage_id: 'ps-paid',
+  },
+  {
+    id: 's-legacy',
+    account_id: 'a1',
+    name: 'Old legal',
+    stage_kind: 'closing',
+    pipeline_stage_id: null,
+  },
 ];
 
 describe('loadPastEnquiryContacts', () => {
