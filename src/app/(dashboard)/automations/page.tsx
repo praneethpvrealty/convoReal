@@ -3,7 +3,7 @@
 import { useSearchParams, useRouter } from "next/navigation";
 import { pushUrl } from "@/lib/navigation";
 import { useEffect, useMemo } from "react";
-import { dealsHref } from "@/lib/deals/routes";
+import { legacyPipelinesHref } from "@/lib/deals/routes";
 import FlowsPage from "../flows/flows-content";
 import AutomationAnalyticsContent from "./analytics-content";
 import { FavoriteButton } from "@/components/layout/favorite-button";
@@ -26,8 +26,10 @@ export default function AutomationsPage() {
   }, [requestedTab]);
 
   useEffect(() => {
-    if (requestedTab === "pipelines") router.replace(dealsHref("board"));
-  }, [requestedTab, router]);
+    if (requestedTab === "pipelines") {
+      router.replace(legacyPipelinesHref(new URLSearchParams(searchParams)));
+    }
+  }, [requestedTab, router, searchParams]);
 
   const tabMeta = useMemo(() => {
     switch (activeTab) {

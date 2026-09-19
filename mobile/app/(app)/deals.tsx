@@ -49,6 +49,8 @@ import { radius, spacing, useTheme, fonts } from '@/lib/theme';
 import type { Deal, Pipeline, PipelineStage } from '@/lib/types';
 import { usePullRefresh } from '@/lib/use-pull-refresh';
 
+import { JourneyBody } from './journey';
+
 function dealIndexRow(deal: Deal) {
   return {
     title: deal.title,
@@ -85,7 +87,9 @@ export default function DealsScreen() {
   const [movingDeal, setMovingDeal] = useState<Deal | null>(null);
   const [celebrating, setCelebrating] = useState(false);
   const [seedingId, setSeedingId] = useState<string | null>(null);
-  const [segment, setSegment] = useState<'board' | 'records'>('board');
+  const [segment, setSegment] = useState<'board' | 'journey' | 'records'>(
+    'board'
+  );
   const profile = useAuthStore((s) => s.profile);
   const canEdit = Boolean(profile && profile.account_role !== 'viewer');
   const accountId = profile?.account_id ?? null;
@@ -289,42 +293,25 @@ export default function DealsScreen() {
         options={{
           headerShown: true,
           title: 'Deals',
-          headerRight: () => (
-            <View
-              style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}
-            >
+          headerRight: () =>
+            segment === 'board' && activePipeline ? (
               <Pressable
-                onPress={() => router.push('/(app)/journey')}
+                onPress={() =>
+                  router.push({
+                    pathname: '/(app)/deal-edit',
+                    params: {
+                      pipelineId: activePipeline,
+                      ...(activeStage ? { stageId: activeStage } : {}),
+                    },
+                  })
+                }
                 hitSlop={10}
                 accessibilityRole="button"
-                accessibilityLabel="Open journeys"
+                accessibilityLabel="New deal"
               >
-                <Ionicons name="map-outline" size={24} color={colors.primary} />
+                <Ionicons name="add-circle" size={28} color={colors.primary} />
               </Pressable>
-              {activePipeline ? (
-                <Pressable
-                  onPress={() =>
-                    router.push({
-                      pathname: '/(app)/deal-edit',
-                      params: {
-                        pipelineId: activePipeline,
-                        ...(activeStage ? { stageId: activeStage } : {}),
-                      },
-                    })
-                  }
-                  hitSlop={10}
-                  accessibilityRole="button"
-                  accessibilityLabel="New deal"
-                >
-                  <Ionicons
-                    name="add-circle"
-                    size={28}
-                    color={colors.primary}
-                  />
-                </Pressable>
-              ) : null}
-            </View>
-          ),
+            ) : null,
         }}
       />
 
@@ -335,11 +322,18 @@ export default function DealsScreen() {
           onPress={() => setSegment('board')}
         />
         <FilterChip
+          label="Journey"
+          active={segment === 'journey'}
+          onPress={() => setSegment('journey')}
+        />
+        <FilterChip
           label="Records"
           active={segment === 'records'}
           onPress={() => setSegment('records')}
         />
       </View>
+
+      {segment === 'journey' ? <JourneyBody /> : null}
 
       {segment === 'records' ? (
         <RecordsList
@@ -430,7 +424,7 @@ export default function DealsScreen() {
         </Text>
       ) : null}
 
-      {segment === 'records' ? null : isLoading ? (
+      {segment !== 'board' ? null : isLoading ? (
         <View>
           {Array.from({ length: 5 }, (_, i) => (
             <ConversationSkeleton key={i} />

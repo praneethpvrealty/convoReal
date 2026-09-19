@@ -17,6 +17,7 @@ import { NextResponse } from 'next/server';
 const CLAIMED_PATH_PREFIXES = [
   '/inventory',
   '/pipelines',
+  '/deals',
   '/contacts',
   '/calendar',
   '/journey',

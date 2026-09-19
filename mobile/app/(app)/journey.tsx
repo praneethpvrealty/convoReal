@@ -77,6 +77,15 @@ interface JourneyBucket {
 }
 
 export default function JourneyScreen() {
+  return (
+    <>
+      <Stack.Screen options={{ headerShown: true, title: 'Journeys' }} />
+      <JourneyBody />
+    </>
+  );
+}
+
+export function JourneyBody() {
   const { colors, fonts: f } = useTheme();
   const queryClient = useQueryClient();
   const profile = useAuthStore((state) => state.profile);
@@ -618,8 +627,6 @@ export default function JourneyScreen() {
         />
       }
     >
-      <Stack.Screen options={{ headerShown: true, title: 'Journeys' }} />
-
       <View style={styles.tabs}>
         {(
           [

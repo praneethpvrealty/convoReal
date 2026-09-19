@@ -1832,8 +1832,12 @@ describe('[TXW-017] Deals is one surface with a board, journeys and records on b
       expect(webDeals).toContain(`view === '${view}'`);
     }
     expect(mobileList).toContain("segment === 'records'");
-    expect(mobileList).toContain("router.push('/(app)/journey')");
+    expect(mobileList).toContain("segment === 'journey' ? <JourneyBody />");
     expect(mobileList).toContain("'transaction_workspace_index'");
+    expect(mobileSource('app.json')).toContain('"pathPrefix": "/deals"');
+    expect(
+      webSource('app/.well-known/apple-app-site-association/route.ts')
+    ).toContain("'/deals'");
   });
 
   it('retires the separate Journey entry and keeps the old links landing', () => {
