@@ -22,6 +22,7 @@
 // ============================================================
 
 import { requestsHumanContact } from '@/lib/ai/lead-question';
+import { requestsMoreListings } from '@/lib/ai/more-listings';
 import { requestsPropertyPhotos } from '@/lib/ai/photo-request';
 import { parseOrdinalReferences } from '@/lib/ai/shortlist-reference';
 import { carriesRequirementSignal } from '@/lib/ai/requirement-signal';
@@ -35,6 +36,7 @@ export type LeadRoute =
   | 'property_disinterest'
   | 'photo_request'
   | 'shortlist_reference'
+  | 'more_listings'
   | 'qualification';
 
 /**
@@ -84,6 +86,12 @@ export function routeLeadMessage(text?: string | null): LeadRoute {
   if (isExplicitPropertyEnquiry(value)) return 'property_enquiry';
   if (isDirectPropertyInterest(value)) return 'property_interest';
 
+  // Before the requirement check: "more site" contains a property-type
+  // word, and reading it as a requirement is what filed a lead's
+  // request for more listings as a bigger plot. The pattern is anchored
+  // to the whole message, so a real requirement never lands here.
+  if (requestsMoreListings(value)) return 'more_listings';
+
   const hasRequirement = carriesRequirementSignal(value);
   if (isPropertyDisinterest(value) && !hasRequirement)
     return 'property_disinterest';
@@ -95,9 +103,12 @@ export function routeLeadMessage(text?: string | null): LeadRoute {
   return 'qualification';
 }
 
-/** True when the ladder must stand down and let another handler reply. */
+/** True when the ladder must stand down and let another handler reply.
+ *  A request for more listings is the ladder's own to answer — with
+ *  the next unsent matches, not the next question. */
 export function standsDownFromQualification(text?: string | null): boolean {
-  return routeLeadMessage(text) !== 'qualification';
+  const route = routeLeadMessage(text);
+  return route !== 'qualification' && route !== 'more_listings';
 }
 
 export function isBuyerRequirementMessage(text?: string | null): boolean {
@@ -116,6 +127,8 @@ export const LEAD_ROUTE_EXPLANATIONS: Record<LeadRoute, string> = {
     'Refers to a specific listing the buyer saw. The bot resolves the locality and size, shares that listing immediately, asks for property-specific questions, and hands the conversation to the assigned agent.',
   property_disinterest:
     'Rejects a listing or option ("not interested"). The bot records the rejection on listing_feedback and asks for specific factors (type, budget, location, size) via interactive one-tap options or typed feedback.',
+  more_listings:
+    'Asks for more options ("more site", "anything else?"). The bot sends the next listings the share ledger says this lead has not seen — no question, no re-extraction — or says that is everything that fits right now.',
   photo_request:
     "Asks for a listing's photos. The bot sends the photos of whichever listing the thread is pinned to, then a link to the full gallery.",
   shortlist_reference:

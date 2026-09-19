@@ -83,6 +83,20 @@
               "case": "[INB-005]"
             }
           ]
+        },
+        {
+          "id": "INB-006",
+          "rule": "A lead asking for more listings receives the next matches the share ledger says they have not seen, with nothing filed and no question asked; the qualification ladder never asks a rung twice in a thread; relative size feedback never stores a floor above the cap it cleared.",
+          "tests": [
+            {
+              "file": "src/lib/ai/lead-routing.test.ts",
+              "case": "[INB-006]"
+            },
+            {
+              "file": "src/lib/ai/buyer-qualification.process.test.ts",
+              "case": "[INB-006]"
+            }
+          ]
         }
       ]
     },

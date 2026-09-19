@@ -37,7 +37,10 @@ import {
   parseRelativeSizeSignal,
 } from '@/lib/ai/size-feedback';
 import { toSquareFeet } from '@/lib/ai/listing-derivations';
-import { standsDownFromQualification } from '@/lib/ai/lead-routing';
+import {
+  routeLeadMessage,
+  standsDownFromQualification,
+} from '@/lib/ai/lead-routing';
 import { propertyShowcaseUrl } from '@/lib/share-message-builder';
 import { accountShowcaseOrigin } from '@/lib/showcase/account-showcase-url';
 import { burnCredits } from '@/lib/credits/burn';
@@ -70,6 +73,12 @@ const QUALIFIABLE_CLASSIFICATIONS = ['Buyer', 'Agent', 'Owner & Buyer'];
  *  reply exactly where a free-text requirement update deserved a
  *  re-ranked answer. */
 const HUMAN_ACTIVITY_WINDOW = 6;
+
+/** Messages scanned for the rungs the ladder has already asked. Wider
+ *  than the human window on purpose: a lead who answered the budget
+ *  question two shortlists ago was asked it again once it scrolled
+ *  past the last six messages, and answered "Purchase" again. */
+const ASKED_WINDOW = 40;
 
 /** Listings per reply. Three is a shortlist; more reads as a dump. */
 export const MAX_MATCHES_SENT = 3;
@@ -601,6 +610,24 @@ export function buildMatchesReply(
       : "Want photos or a site visit for any of these? Reply with the number and I'll set it up.",
     ...(followUp ? ['', followUp] : []),
   ].join('\n');
+}
+
+export function buildMoreListingsOpening(
+  contactName: string | null | undefined,
+  count: number
+): string {
+  return count === 1
+    ? `Sure ${firstName(contactName)} — here's one more 👇`
+    : `Sure ${firstName(contactName)} — here are ${count} more 👇`;
+}
+
+export function buildNoMoreListingsReply(
+  contactName: string | null | undefined
+): string {
+  return (
+    `That's everything that fits right now, ${firstName(contactName)} — ` +
+    "new listings come in every week, and the moment one matches you'll hear from us right here."
+  );
 }
 
 export function buildNoMatchReply(
@@ -1195,22 +1222,67 @@ export async function processBuyerQualificationMessage(
     // — what a lead volunteers to an agent is exactly the requirement
     // detail the ladder was fishing for — but leaves the answering to
     // the human.
-    const { data: recent } = await db
+    const { data: thread } = await db
       .from('messages')
       .select('sender_type, content_text')
       .eq('conversation_id', conversation.id)
       .order('created_at', { ascending: false })
-      .limit(HUMAN_ACTIVITY_WINDOW);
-    const humanActive = (recent || []).some((m) => m.sender_type === 'agent');
+      .limit(ASKED_WINDOW);
+    const recent = (thread || []).slice(0, HUMAN_ACTIVITY_WINDOW);
+    const humanActive = recent.some((m) => m.sender_type === 'agent');
 
-    // The same window doubles as the record of what the ladder has
-    // already asked — so a rung is never put twice — and of which
-    // listings already went out, so a shortlist is never re-sent to a
-    // lead who is answering it.
-    const recentBotTexts = (recent || [])
+    // The same window doubles as the record of which listings already
+    // went out, so a shortlist is never re-sent to a lead who is
+    // answering it. What the ladder has already asked is read off the
+    // whole thread, so a rung is never put twice.
+    const recentBotTexts = recent
       .filter((m) => m.sender_type === 'bot')
       .map((m) => m.content_text as string | null);
-    const asked = askedQualifiers(recentBotTexts);
+    const asked = askedQualifiers(
+      (thread || [])
+        .filter((m) => m.sender_type === 'bot')
+        .map((m) => m.content_text as string | null)
+    );
+
+    // "More site": nothing to file and nothing to ask — the next
+    // listings this lead has not been sent, or an honest "that's all".
+    if (routeLeadMessage(text) === 'more_listings') {
+      if (humanActive) return false;
+      if (await supersededByLaterMessage(db, conversation.id, metaMessageId))
+        return true;
+      const more = await rankPropertiesForContact(db, accountId, contact.id, {
+        excludeAlreadySent: true,
+        strictArea: true,
+      });
+      const shown = more.slice(0, MAX_MATCHES_SENT);
+      const moreReply = shown.length
+        ? buildMatchesReply(
+            contact.name,
+            more,
+            await accountShowcaseOrigin(db, accountId),
+            contact.id,
+            null,
+            buildMoreListingsOpening(contact.name, shown.length)
+          )
+        : buildNoMoreListingsReply(contact.name);
+      await reply(
+        moreReply,
+        contactRecord,
+        conversation,
+        accessToken,
+        phoneNumberId
+      );
+      if (shown.length > 0 && configOwnerUserId) {
+        await logListingsSent(
+          db,
+          accountId,
+          configOwnerUserId,
+          contact.id,
+          shown.map((m) => m.property.id)
+        );
+      }
+      return true;
+    }
 
     // A bare answer ("Devanahalli") carries no signal of its own — it
     // only means something because THE LADDER asked its question
@@ -1269,14 +1341,18 @@ export async function processBuyerQualificationMessage(
     let prefs = storedPreferences;
     if (hash !== contact.pref_source_hash) {
       await softBurn(accountId);
-      let extracted = mergeCurrentTurnPreferences(
-        applySizeAnchor(
+      // The anchor goes on after the merge with the saved brief: it
+      // clears the bound it crosses, and a merge that ran afterwards
+      // refilled that bound from the contact — storing 2,824–2,400
+      // sq.ft., a band nothing can satisfy.
+      let extracted = applySizeAnchor(
+        mergeCurrentTurnPreferences(
           await extractContactPreferences(sourceText),
-          sizeSignal,
-          sizeAnchorSqft
+          prefs,
+          text
         ),
-        prefs,
-        text
+        sizeSignal,
+        sizeAnchorSqft
       );
       if (resolvedLocation) {
         extracted = { ...extracted, areas: [resolvedLocation] };

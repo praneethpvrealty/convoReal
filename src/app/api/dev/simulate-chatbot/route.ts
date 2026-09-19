@@ -19,9 +19,13 @@ import {
   istLocalToUtcIso,
 } from '@/lib/calendar/event-parse';
 import {
+  buildMatchesReply,
+  buildMoreListingsOpening,
+  buildNoMoreListingsReply,
   buildQualificationReply,
   carriesRequirementSignal,
   appendRequirement,
+  MAX_MATCHES_SENT,
   tallyAreaSuggestions,
 } from '@/lib/ai/buyer-qualification';
 import {
@@ -343,7 +347,7 @@ async function simulateLeadReply(args: {
   } = args;
 
   const route = routeLeadMessage(text);
-  if (route !== 'qualification') {
+  if (route !== 'qualification' && route !== 'more_listings') {
     return simulateCarveOut({
       accountId,
       supabase,
@@ -355,7 +359,12 @@ async function simulateLeadReply(args: {
   }
 
   const hasSignal = carriesRequirementSignal(text);
-  const requirements = appendRequirement(priorRequirements, text);
+  // A request for more listings files nothing — the brief stays as it
+  // was and the reply is the next of what already matches it.
+  const requirements =
+    route === 'more_listings'
+      ? priorRequirements || ''
+      : appendRequirement(priorRequirements, text);
   const sourceText = buildPreferenceSourceText(requirements, null);
   const preferences = await extractContactPreferences(sourceText);
 
@@ -401,19 +410,37 @@ async function simulateLeadReply(args: {
   );
 
   const origin = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
-  const outcome = buildQualificationReply(
-    preferences,
-    contactName,
-    matches,
-    areaSuggestions,
-    origin,
-    'simulated-contact'
-  );
+  const outcome =
+    route === 'more_listings'
+      ? {
+          missing: null,
+          reply: matches.length
+            ? buildMatchesReply(
+                contactName,
+                matches,
+                origin,
+                'simulated-contact',
+                null,
+                buildMoreListingsOpening(
+                  contactName,
+                  Math.min(matches.length, MAX_MATCHES_SENT)
+                )
+              )
+            : buildNoMoreListingsReply(contactName),
+        }
+      : buildQualificationReply(
+          preferences,
+          contactName,
+          matches,
+          areaSuggestions,
+          origin,
+          'simulated-contact'
+        );
 
   return NextResponse.json({
     mode: 'lead_reply',
-    route: 'qualification' satisfies LeadRoute,
-    routeExplanation: LEAD_ROUTE_EXPLANATIONS.qualification,
+    route: route satisfies LeadRoute,
+    routeExplanation: LEAD_ROUTE_EXPLANATIONS[route],
     // False means the live handler answers only if this text arrived
     // directly after a bot question; on its own it would be left alone.
     carriesRequirementSignal: hasSignal,
@@ -445,7 +472,7 @@ async function simulateLeadReply(args: {
 async function simulateCarveOut(args: {
   accountId: string;
   supabase: Awaited<ReturnType<typeof requireRole>>['supabase'];
-  route: Exclude<LeadRoute, 'qualification'>;
+  route: Exclude<LeadRoute, 'qualification' | 'more_listings'>;
   text: string;
   contactName: string | null;
   subjectPropertyCode: string | null;
