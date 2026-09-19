@@ -22,7 +22,7 @@ export async function GET(request: Request) {
     if (error) throw error;
 
     const window = numberChangeWindow(config);
-    if (!window.active || !window.phoneNumberId) {
+    if (!window.active || !window.phoneNumberId || !window.changedAt) {
       return NextResponse.json({ data: { ...window, days } });
     }
 
@@ -30,6 +30,7 @@ export async function GET(request: Request) {
       loadNumberChangeAudience(ctx.supabase, {
         accountId: ctx.accountId,
         phoneNumberId: window.phoneNumberId,
+        changedAt: window.changedAt,
         days,
       }),
       ctx.supabase

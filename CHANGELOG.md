@@ -1,3 +1,6 @@
+Warning: truncated output (original token count: 43322)
+Total output lines: 2995
+
 # Changelog
 
 User-visible changes in `convoreal`. Self-hosters: when pulling an update,
@@ -19,6 +22,17 @@ than a written entry. Newest first.
 
 #### 19 September 2026
 
+- **WhatsApp number-change notices now exclude new contacts.** The
+  automatic precursor and the notify-recent-contacts action only address
+  contacts whose one-to-one thread contains a message from before the
+  number switch; a fresh portal lead no longer receives an irrelevant
+  announcement about a number they never used. **Migration required:**
+  `20260919143100_pre_switch_number_change_audience.sql`.
+- **Buyer requirements resume after the bot resumes a thread.** The
+  qualification listener now follows the latest outbound sender instead
+  of staying muted whenever any of the last six messages came from an
+  agent. A later bot reply hands the thread back to automation, while a
+  later agent reply still keeps the bot quiet.
 - **Contacts: share the property portal link from a contact.** A new
   "Share Portal" action on the contact record (web and mobile) drafts a
   WhatsApp invite to the account's portal, opened on the contact's
@@ -1370,221 +1384,7 @@ UPDATES` pre-filled: the owner's tap opens the window, creates the thread
   (click one to open the listing) on a dark-styled Google map, and a
   **Near me** button beside the locality filter runs the same radius
   search from the browser's location — no new API surface, the
-  properties route already accepted the coordinates. The map needs a
-  referrer-restricted `NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY`; without it
-  the view explains itself instead of breaking. Rows without saved
-  coordinates don't appear as pins (the geocode backfill self-heals).
-- **Copilot usage metering.** Every helper interaction — chat answers
-  (with platform and coverage), guided-tour starts and completions on
-  web and mobile, support tickets — now lands in `copilot_events`, and
-  **Admin → Demand** opens with a 30-day adoption rollup: chats split
-  web vs mobile, tours started/completed, tickets filed. Aggregation
-  runs in SQL (`copilot_usage_summary`); tenants' admins can read their
-  own team's rows. **Migration required:**
-  `supabase/migrations/245_copilot_events.sql` (SQL Editor, like 244).
-
-- **Copilot on mobile: chat, guided tours and a spotlight overlay.** The
-  helper is no longer web-only. A floating button on the app's main
-  screens opens the same chat brain (`/api/copilot`), and tours that can
-  run on a phone (add a contact, send a broadcast, check Pulse) spotlight
-  the real buttons with a native scrim + tooltip — the engine navigates
-  between screens itself. Answers are **platform-aware**: every mobile
-  reply carries a coverage verdict, so a doable task gets in-app steps
-  plus a "start the tour" offer, a desktop-only task (connect WhatsApp,
-  templates, email lead sync…) gets an "open on desktop web" link, and
-  anything the helper can't (fully) answer offers the support team.
-- **Help desk: "Ask the support team" from the helper chat.** On web and
-  mobile, an unanswered question files a `support_tickets` row (reference
-  `HELP-XXXX`) with the question, the helper's reply and the page it was
-  asked from. The user picks how the answer should come back — WhatsApp
-  or email. Platform staff triage from **Admin → Support**: assign,
-  write the answer, and Send delivers it over the chosen channel
-  (WhatsApp via the platform sender with free-form fallback, email via
-  Resend) and records what actually went out. **Migration required:**
-  `supabase/migrations/244_support_tickets.sql` (also adds the
-  `coverage` column + updated `match_copilot_qa` for the mobile answer
-  cache — apply in the Supabase SQL Editor like 109/236).
-
-- **Mobile: the same Filters chip on the Properties tab.** The listing
-  pills (All / Sale / Rent / JV-JD), Near me and "Include unavailable"
-  were the whole filter surface; everything else `GET /api/properties`
-  understands was unreachable from a phone. A **Filters** chip now opens
-  a sheet with category and property type, status, price from/up to,
-  listed by (owner or agent), showcase state, and sort — badged with how
-  many are on, applying live, with the footer counting the listings left.
-  The Properties list and the map screen share one filter state, so both
-  keep showing the same set. Sort is suppressed under a location filter
-  and says so, because the route's tiered near-search orders by distance
-  and ignores it. No new API surface — every option is a param the route
-  already accepted.
-
-### Fixed
-
-- **A confidential listing's own share link could not open it.** Share
-  links name a listing by its property code, and the teaser reduction
-  strips `property_code` — so the catalog had nothing to match the code
-  against, the detail modal never opened, and the recipient of a link
-  sent for that listing landed on the general grid with no route to
-  "Request full details". The server now resolves the code to the row's
-  id before handing it to the catalog, which fixes links already sent.
-
-- **A visitor with site data blocked got the error page on every
-  showcase link.** Chrome with cookies/site data blocked does not return
-  null from `localStorage` — reading the property throws. The showcase
-  read it unguarded while restoring saved filters, so the page fell to
-  the error boundary for that visitor while working for everyone else,
-  on a URL that served a correct 200. Every web-storage read and write
-  now goes through `src/lib/safe-storage.ts`, which degrades to "not
-  remembered" instead of throwing.
-
-- **A listing's own photos disappeared from the app once it was made
-  confidential.** Gating moves the photos into the guarded bucket so a
-  forwarded public link cannot carry them — but every internal view read
-  the public `images` array alone, so the agent's own gallery and card
-  cover went blank. The photos were never lost; nothing was reading them.
-  Internal galleries now fall back to the authenticated proxy, which
-  re-checks the viewer on every request. Publishing paths — share links,
-  flyers, portal post kits — deliberately still see only public photos.
-
-- **The watermark on confidential photos never marked anything in
-  production.** Guarded photos are stamped with the recipient's masked
-  number so a forwarded screenshot is traceable, and the copy tells the
-  recipient so. The overlay was drawn as SVG text; the runtime has no
-  fonts for that renderer, so it composited cleanly and drew nothing —
-  a photo served live differed from the stored original only by
-  re-encoding. The label is now drawn from a bitmap font straight into
-  pixels, with no renderer involved, and the tests compare against a
-  plain re-encode so a silent no-op fails them.
-
-- **"Residential" searches missed plots and land listed after the type
-  split.** `Residential Plot` and `Residential Land` replaced the single
-  `Residential Land/ Plot` option, but the category map behind natural-
-  language search and the type filter was never updated — so a plot
-  saved after the split fell out of every "residential" query, on web and
-  in the new mobile category filter alike. The map now covers the whole
-  authoring vocabulary of each group (PG listings were missing too), with
-  the legacy value kept alongside its replacements, and a test that fails
-  if the two ever drift again.
-
-- **Mobile: filter contacts by the property or project they enquired
-  for.** The Contacts tab had one axis of filtering — the five segment
-  pills (All, Needs Review, Favourites, Transacted, Active Buyers) —
-  and no way to ask the question an agent standing in a tower actually
-  asks: who wanted this. A new **Enquired for** chip leads the filter
-  row and opens a picker. It opens on the listings starred in
-  Inventory, so the six quick filters the web Contacts page shows as
-  chips are one tap away here too, and search reaches any other listing
-  by code, title or project. Picking a **project** rather than a single
-  unit is the mobile addition: a tower's buyers are spread across its
-  units and across stated preferences, so that filter unions everyone
-  who enquired about any unit in the project with everyone whose
-  preferences name it, and each row says which unit it matched. The
-  active chip carries the code or project name and its own clear
-  button.
-
-- **Mobile: the rest of the web Contacts filters.** A **Filters** chip
-  beside it opens the web Filters dialog's remaining controls —
-  classification, tag, budget from/up to, area of interest and sort —
-  as a sheet of chips rather than dropdowns, carrying a badge of how
-  many are on. Selections apply as they are made and the footer button
-  counts what is left ("Show 12 contacts"), so a chip's effect is
-  visible without dismissing the sheet. Semantics match web exactly: a
-  _budget from_ bound admits contacts marked as having no budget
-  constraint, a _budget up to_ bound does not, and the budget ladder
-  itself is now a shared constant that a drift test holds the two
-  platforms to. Segment counts hide while any narrowing filter is on
-  rather than contradicting the list below them.
-
-- **Shared requirements can now be answered, not just read.** Passing a
-  client brief to another brokerage used to be copy-pasted text: the
-  broker read it on their personal WhatsApp and, if they had something
-  matching, forwarded it back as a message you had to qualify and type
-  into inventory yourself. The share dialog now attaches a link to each
-  brief. The broker opens it, sees the requirement — masked by default,
-  so the budget and locality travel under a code like `REQ-A3F2` while
-  the client's name, your tags and your notes stay behind — and sends a
-  matching property straight from that page. If they would rather use
-  WhatsApp, the same page hands them your Engine number with the code
-  filled in; texting it starts the guided listing bot, so a broker who
-  only ever forwards photos gets walked through a proper listing. Both
-  routes land the property in Inventory under **Review** with the
-  requirement reference on the confirmation and a note on the client's
-  card recording who answered, and the sender is filed as an Agent
-  rather than an owner lead, so responding to a brief builds out your
-  co-broker network. Links carry an expiry and can be revoked; a dead
-  one reveals nothing.
-  **Migration required:** `210_requirement_share_links.sql`.
-- **Service credit: extend a customer's subscription when we let them
-  down.** After an outage, a slow patch or a billing mistake on our
-  side, a super-admin can now add paid days to affected accounts from
-  Admin → Extensions — one account, or a whole incident at once under a
-  shared incident reference that can later be revoked as a unit. The
-  credit is confirmed with a WhatsApp code sent to the acting admin's
-  own number, the same step-up the plan override uses, and the code is
-  bound to a hash of the exact request: a code issued for "3 days to one
-  account" cannot be replayed to apply "90 days to everyone".
-  Extensions live in their own ledger rather than overwriting the
-  billing period, so the next gateway renewal can't silently erase
-  them, and a one-off credit can never turn into free days on every
-  future cycle. Owners see the extra time on their own billing screen.
-  **Migration required:** `204_subscription_extensions.sql`.
-- **Affected customers are told, in words that own it.** Granting an
-  extension sends the account owner a message on WhatsApp, by email and
-  to their in-app bell — from ConvoReal's own number, not the tenant's.
-  When the reason is our fault (outage, degraded service, billing
-  error) the message leads with an apology and says so plainly; when the
-  days are a goodwill gesture it stays warm without inventing a fault
-  that didn't happen. WhatsApp delivery goes through two new Utility
-  templates so it reaches customers who haven't messaged us recently;
-  the admin can create them in one click from the same screen, preview
-  the exact wording before approving, and replace the default line with
-  their own. Per-channel delivery is recorded against each grant, so an
-  apology that failed to send is visible rather than silently lost.
-
-### Fixed
-
-- **A booking with a real date now reaches the calendar.** "Meet lawyer
-  Kusuma regarding the Whitefield property on 30th July 2026" was filed
-  as a _contact draft_ instead of an appointment: the scheduling gate
-  recognised only relative days ("tomorrow", "next Friday") and clock
-  times ("at 4pm"), so a stated calendar date counted as no time at all
-  and the message fell through to contact ingestion. Written-out dates
-  ("30th July", "Jul 30"), numeric dates ("30/07/2026") and named
-  weekdays ("on Friday") are now cues, the WHEN may come before the verb
-  or on its own line, and a date with no time of day books at 10:00 IST
-  rather than midnight. Forwarded portal leads that mention a day
-  ("...is interested in the HSR plot, call him on Monday") still go to
-  contact intake, and property figures — "2-3 crore", "3.50 acres" — are
-  not mistaken for a date or a time. Applies to both the agent's own
-  bookings and a lead asking for a visit.
-
-### Changed
-
-- **Agent inventory digests now send through the owner digest's
-  template.** They no longer have a template of their own. Four
-  agent-specific submissions were each approved by Meta as MARKETING —
-  billed at the marketing rate and requiring marketing opt-in — even
-  after the wording was stripped down to a near word-for-word copy of
-  `owner_property_digest`, which Meta had approved as UTILITY three
-  weeks earlier. A template's category is fixed at first review and can
-  never be edited, and deleting one reserves its name for four weeks,
-  so each attempt burned a name permanently. Both digests declare the
-  same three body params, so the agent digest reuses the approved
-  template and inherits its UTILITY category. Accounts still holding an
-  approved agent-specific template keep sending from it as a fallback.
-  The trade-off is coupling: the two digests now share one Meta
-  template, so a re-categorisation, quality pause, or deletion affects
-  both at once. Background and the rules that make this permanent are
-  documented in the header of
-  `src/lib/whatsapp/agent-inventory-digest-template.ts` and in
-  `AGENTS.md` §2.7.
-
-- **The WhatsApp assistant's help card now says what it can actually
-  do.** Texting your own Engine number used to answer with a four-line
-  "AI Ingestion Chatbot" card that only described draft-session
-  commands — and showed `*Cancel*` literally, because it used Markdown
-  bold instead of WhatsApp's. Send _help_ (or hi / menu / start) and
-  you now get the real capability guide with worked examples: add a
+  properties route already accepted the coordin…3322 tokens truncated…al capability guide with worked examples: add a
   listing from text, an ad screenshot or a brochure PDF; add a contact
   or portal lead; the _today_ agenda, event and to-do commands and
   voice notes; answering a lead alert directly; and the photo /

@@ -214,7 +214,8 @@ Every Official API number an account has saved, so a brokerage that owns more th
 Ledger of which contacts have been told that the brokerage messages from a new number — one row per `(account_id, contact_id, phone_number_id)` (UNIQUE), claimed before the send and deleted when the send is skipped or fails, so a contact receives the `contact_number_update` notice once per number whether it went by the "notify recent contacts" action or as the dispatcher's precursor.
 - `trigger` (TEXT): `'manual' | 'precursor'`. `channel` (TEXT): `'pending' | 'template' | 'freeform'`.
 - `message_id` (UUID, FK -> `messages`, SET NULL), `sent_at`, `previous_display_phone_number`.
-- `whatsapp_number_change_audience(p_account_id, p_since, p_phone_number_id)`: SECURITY DEFINER, guarded by `is_account_member()`; contacts with a conversation touched since `p_since`, not dead/archived/chain-only/merged, with no ledger row for that number. Capped at 500.
+- `whatsapp_number_change_audience(p_account_id, p_since, p_phone_number_id)`: legacy number-change audience function retained for migration compatibility.
+- `whatsapp_number_change_audience_v2(p_account_id, p_since, p_phone_number_id, p_changed_at)`: SECURITY DEFINER, guarded by `is_account_member()`; contacts with a conversation touched since `p_since`, at least one message before `p_changed_at`, not dead/archived/chain-only/merged, and no ledger row for that number. Capped at 500.
 
 #### 15a-iii. `whatsapp_retired_number_replies` (migration 20260919043000)
 One row per `(account_id, phone_number_id, sender_phone)` (UNIQUE) recording when a retired saved number last auto-replied to a sender, so each sender hears from it at most once per 24 hours. Claimed before the send (insert, or an update guarded by `last_replied_at < now - 24h`) and rolled back when Meta rejects the reply.

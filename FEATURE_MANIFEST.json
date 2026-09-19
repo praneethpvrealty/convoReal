@@ -97,6 +97,16 @@
               "case": "[INB-006]"
             }
           ]
+        },
+        {
+          "id": "INB-007",
+          "rule": "The latest outbound sender owns qualification replies: a later agent message keeps the bot quiet, while a later bot message resumes automation so an older agent message cannot leave a fresh buyer requirement unanswered.",
+          "tests": [
+            {
+              "file": "src/lib/ai/buyer-qualification.process.test.ts",
+              "case": "[INB-007]"
+            }
+          ]
         }
       ]
     },
@@ -1033,7 +1043,7 @@
         },
         {
           "id": "WAN-005",
-          "rule": "Each contact is told about the number change at most once per new number, whether by the notify-recent-contacts action or as the precursor the dispatcher sends ahead of any routine message inside the window: the ledger row is claimed before sending, released when the send is skipped or fails, and the notice goes free-form inside the contact's 24-hour window and by the approved template outside it, never by an unapproved template. The notice itself is never preceded by another notice.",
+          "rule": "Only a contact with one-to-one WhatsApp message history from before the switch is told about the number change, at most once per new number, whether by the notify-recent-contacts action or as the precursor the dispatcher sends ahead of any routine message inside the window: the ledger row is claimed before sending, released when the send is skipped or fails, and the notice goes free-form inside the contact's 24-hour window and by the approved template outside it, never by an unapproved template. New contacts never receive the notice, and the notice itself is never preceded by another notice.",
           "tests": [
             {
               "file": "src/lib/whatsapp/number-change-notice.test.ts",
@@ -1041,7 +1051,8 @@
             }
           ],
           "guards": [
-            "supabase/migrations/20260918200000_whatsapp_number_change_notices.sql"
+            "supabase/migrations/20260918200000_whatsapp_number_change_notices.sql",
+            "supabase/migrations/20260919143100_pre_switch_number_change_audience.sql"
           ]
         },
         {

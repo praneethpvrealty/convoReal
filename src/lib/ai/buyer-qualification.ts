@@ -62,23 +62,25 @@ export type QualifierField = 'type' | 'intent' | 'budget' | 'location';
  *  Owner answering this number is not stating a buying requirement. */
 const QUALIFIABLE_CLASSIFICATIONS = ['Buyer', 'Agent', 'Owner & Buyer'];
 
-/** Messages scanned for a human agent's presence. A staff reply among
- *  the last few messages means a person owns this thread, and the bot
- *  must not talk over them — it listens (extraction still runs) but
- *  leaves the answering to the human.
- *
- *  This replaced a count of bot messages: in a tap-driven thread
- *  (re-engagement templates, feedback lists, band lists) the bot has
- *  sent dozens of messages by design, and counting them silenced the
- *  reply exactly where a free-text requirement update deserved a
- *  re-ranked answer. */
-const HUMAN_ACTIVITY_WINDOW = 6;
+/** Recent messages used to avoid re-sending listings while a buyer is
+ *  answering an earlier shortlist. Human ownership is determined by
+ *  the latest outbound message in the wider thread window below. */
+const RECENT_CONTEXT_WINDOW = 6;
 
 /** Messages scanned for the rungs the ladder has already asked. Wider
- *  than the human window on purpose: a lead who answered the budget
+ *  than the recent context window on purpose: a lead who answered the budget
  *  question two shortlists ago was asked it again once it scrolled
  *  past the last six messages, and answered "Purchase" again. */
 const ASKED_WINDOW = 40;
+
+export function humanOwnsQualificationThread(
+  messages: { sender_type?: string | null }[]
+): boolean {
+  return (
+    messages.find((message) => message.sender_type !== 'customer')
+      ?.sender_type === 'agent'
+  );
+}
 
 /** Listings per reply. Three is a shortlist; more reads as a dump. */
 export const MAX_MATCHES_SENT = 3;
@@ -1217,19 +1219,17 @@ export async function processBuyerQualificationMessage(
     )
       return false;
 
-    // One read serves two gates. A staff reply among the last few
-    // messages means a person owns this thread; the bot still listens
-    // — what a lead volunteers to an agent is exactly the requirement
-    // detail the ladder was fishing for — but leaves the answering to
-    // the human.
+    // One read serves two gates. The latest outbound sender owns the
+    // thread: a later bot reply resumes automation, while a later agent
+    // reply keeps the bot listening without talking over the person.
     const { data: thread } = await db
       .from('messages')
       .select('sender_type, content_text')
       .eq('conversation_id', conversation.id)
       .order('created_at', { ascending: false })
       .limit(ASKED_WINDOW);
-    const recent = (thread || []).slice(0, HUMAN_ACTIVITY_WINDOW);
-    const humanActive = recent.some((m) => m.sender_type === 'agent');
+    const recent = (thread || []).slice(0, RECENT_CONTEXT_WINDOW);
+    const humanActive = humanOwnsQualificationThread(thread || []);
 
     // The same window doubles as the record of which listings already
     // went out, so a shortlist is never re-sent to a lead who is
