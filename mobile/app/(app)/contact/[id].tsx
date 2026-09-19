@@ -32,6 +32,7 @@ import { AgentInventoryShareSheet } from '@/components/agent-inventory-share-she
 import { ConvoRealLoader } from '@/components/loader';
 import { MoveToEngineSheet } from '@/components/move-to-engine-sheet';
 import { OwnerDetailsRequestSheet } from '@/components/owner-details-request-sheet';
+import { PortalInviteSheet } from '@/components/portal-invite-sheet';
 import { ContactRequirementsSheet } from '@/components/contact-requirements-sheet';
 import { ContactMergeSheet } from '@/components/contact-merge-sheet';
 import { PulseRing } from '@/components/motion';
@@ -301,6 +302,7 @@ function ContactCard({ contact }: { contact: Contact }) {
   const [moveToEngineOpen, setMoveToEngineOpen] = useState(false);
   const [inventoryShareOpen, setInventoryShareOpen] = useState(false);
   const [detailsRequestOpen, setDetailsRequestOpen] = useState(false);
+  const [portalInviteOpen, setPortalInviteOpen] = useState(false);
   const [requirementsOpen, setRequirementsOpen] = useState(false);
   const [mergeOpen, setMergeOpen] = useState(false);
   const [favoriting, setFavoriting] = useState(false);
@@ -537,6 +539,13 @@ function ContactCard({ contact }: { contact: Contact }) {
                 label="To Engine"
                 onPress={() => setMoveToEngineOpen(true)}
               />
+              {contact.classification !== 'Agent' ? (
+                <ActionButton
+                  icon="globe-outline"
+                  label="Share Portal"
+                  onPress={() => setPortalInviteOpen(true)}
+                />
+              ) : null}
               {!BUYER_PREF_CLASSIFICATIONS.includes(
                 contact.classification ?? 'Others'
               ) ? (
@@ -795,6 +804,21 @@ function ContactCard({ contact }: { contact: Contact }) {
           visible={inventoryShareOpen}
           onClose={() => setInventoryShareOpen(false)}
           contact={contact}
+        />
+      ) : null}
+      {hasPhone(contact) && contact.classification !== 'Agent' ? (
+        <PortalInviteSheet
+          visible={portalInviteOpen}
+          onClose={() => setPortalInviteOpen(false)}
+          contact={contact}
+          onSent={() => {
+            void queryClient.invalidateQueries({
+              queryKey: ['contact', contact.id],
+            });
+            void queryClient.invalidateQueries({
+              queryKey: ['contact-notes', contact.id],
+            });
+          }}
         />
       ) : null}
       {!BUYER_PREF_CLASSIFICATIONS.includes(

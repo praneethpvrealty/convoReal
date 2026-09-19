@@ -98,6 +98,7 @@ import {
   ArrowRightLeft,
   ClipboardList,
   Send,
+  Globe,
 } from 'lucide-react';
 import {
   Tooltip,
@@ -130,6 +131,7 @@ import { ContactRequirementsDialog } from '@/components/contacts/contact-require
 import { MoveToEngineDialog } from '@/components/contacts/move-to-engine-dialog';
 import { ShareInventoryDialog } from '@/components/contacts/share-inventory-dialog';
 import { PropertyInterestFollowUpDialog } from '@/components/contacts/property-interest-follow-up-dialog';
+import { PortalInviteDialog } from '@/components/contacts/portal-invite-dialog';
 import { SearchablePropertySelect } from '@/components/ui/searchable-property-select';
 import { isLocationGuarded } from '@/lib/inventory/location-guard';
 
@@ -186,6 +188,7 @@ export function ContactDetailView({
   const [moveToEngineOpen, setMoveToEngineOpen] = useState(false);
   const [detailsRequestOpen, setDetailsRequestOpen] = useState(false);
   const [inventoryShareOpen, setInventoryShareOpen] = useState(false);
+  const [portalInviteOpen, setPortalInviteOpen] = useState(false);
   const collectsBuyerRequirements =
     contact?.classification === 'Buyer' ||
     contact?.classification === 'Owner & Buyer';
@@ -1778,6 +1781,16 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                       <ArrowRightLeft className="size-3 text-emerald-400" />
                       Move to Engine
                     </button>
+                    {hasPhone(contact) && contact.classification !== 'Agent' && (
+                      <button
+                        onClick={() => setPortalInviteOpen(true)}
+                        className="hover:text-emerald-350 flex cursor-pointer items-center gap-1.5 rounded-md border border-emerald-500/20 px-2 py-0.5 font-medium text-emerald-400 transition-all hover:bg-emerald-500/10"
+                        title="Send the property portal link from business or personal WhatsApp, opened on their requirements"
+                      >
+                        <Globe className="size-3 text-emerald-400" />
+                        Share Portal
+                      </button>
+                    )}
                     <button
                       onClick={() => setScheduleOpen(true)}
                       className="text-primary hover:text-primary-foreground hover:bg-primary/10 border-primary/20 flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-0.5 font-medium transition-all"
@@ -3834,6 +3847,22 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                 onUpdated();
               }}
             />
+            {contactId &&
+              contact &&
+              hasPhone(contact) &&
+              contact.classification !== 'Agent' && (
+                <PortalInviteDialog
+                  open={portalInviteOpen}
+                  onOpenChange={setPortalInviteOpen}
+                  contactId={contactId}
+                  contactName={contact.name || ''}
+                  contactPhone={contact.phone}
+                  onSent={() => {
+                    fetchNotes();
+                    onUpdated();
+                  }}
+                />
+              )}
             {/* Move to Engine WhatsApp Dialog */}
             {contact && hasPhone(contact) && (
               <MoveToEngineDialog

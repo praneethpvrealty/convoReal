@@ -19,6 +19,17 @@ than a written entry. Newest first.
 
 #### 19 September 2026
 
+- **Contacts: share the property portal link from a contact.** A new
+  "Share Portal" action on the contact record (web and mobile) drafts a
+  WhatsApp invite to the account's portal, opened on the contact's
+  recorded area, property interest and buy/rent intent and attributed to
+  them in Pulse. The message tells the buyer to search and filter for
+  properties matching their requirements, shortlist the ones they like
+  and send the enquiry from the portal so the agent can take it from
+  there. It goes out from the business number (free text inside the
+  24-hour window, the approved property selection template with a
+  portal button outside it) or opens in the agent's personal WhatsApp,
+  which notes the share on the contact's timeline.
 - **Deals: one stage vocabulary for the journey and the board.** Journey
   stages are now mirrors of the pipeline's stages, so a buyer's map and
   the Kanban read the same names in the same order, and the journey's
