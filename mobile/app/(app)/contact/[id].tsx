@@ -33,6 +33,7 @@ import { ConvoRealLoader } from '@/components/loader';
 import { MoveToEngineSheet } from '@/components/move-to-engine-sheet';
 import { OwnerDetailsRequestSheet } from '@/components/owner-details-request-sheet';
 import { ContactRequirementsSheet } from '@/components/contact-requirements-sheet';
+import { ContactMergeSheet } from '@/components/contact-merge-sheet';
 import { PulseRing } from '@/components/motion';
 import {
   Avatar,
@@ -301,6 +302,7 @@ function ContactCard({ contact }: { contact: Contact }) {
   const [inventoryShareOpen, setInventoryShareOpen] = useState(false);
   const [detailsRequestOpen, setDetailsRequestOpen] = useState(false);
   const [requirementsOpen, setRequirementsOpen] = useState(false);
+  const [mergeOpen, setMergeOpen] = useState(false);
   const [favoriting, setFavoriting] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
@@ -315,6 +317,7 @@ function ContactCard({ contact }: { contact: Contact }) {
   // Mirrors the contacts_delete RLS policy (migration 205): a manager may
   // delete anything in the account, everyone else only what they saved.
   const isManager = useAuthStore((s) => s.profile?.org_role) === 'org_manager';
+  const canMerge = useAuthStore((s) => s.profile?.account_role) !== 'viewer';
   const myUserId = useAuthStore((s) => s.session?.user.id);
   const canDelete = isManager || (!!myUserId && contact.user_id === myUserId);
 
@@ -692,6 +695,37 @@ function ContactCard({ contact }: { contact: Contact }) {
             : 'Tap Edit above to update budget, areas and buyer preferences.'}
         </Text>
 
+        {canMerge ? (
+          <Pressable
+            onPress={() => setMergeOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel={`Merge ${name} with another contact`}
+            style={({ pressed }) => [
+              styles.mergeContact,
+              {
+                backgroundColor: colors.primarySoft,
+                borderColor: colors.primary,
+                opacity: pressed ? 0.85 : 1,
+              },
+            ]}
+          >
+            <Ionicons
+              name="git-merge-outline"
+              size={17}
+              color={colors.primary}
+            />
+            <Text
+              style={{
+                fontSize: 14,
+                fontFamily: f.bold,
+                color: colors.primary,
+              }}
+            >
+              Merge with another contact
+            </Text>
+          </Pressable>
+        ) : null}
+
         <Pressable
           onPress={canDelete ? confirmDelete : explainCannotDelete}
           disabled={deleting}
@@ -733,6 +767,28 @@ function ContactCard({ contact }: { contact: Contact }) {
         visible={moveToEngineOpen}
         onClose={() => setMoveToEngineOpen(false)}
         contact={contact}
+      />
+      <ContactMergeSheet
+        key={contact.id}
+        visible={mergeOpen}
+        contact={contact}
+        onClose={() => setMergeOpen(false)}
+        onMerged={(targetId) => {
+          setMergeOpen(false);
+          void Promise.all([
+            queryClient.invalidateQueries({ queryKey: ['contacts'] }),
+            queryClient.invalidateQueries({ queryKey: ['contact-counts'] }),
+            queryClient.invalidateQueries({ queryKey: ['contact', targetId] }),
+            queryClient.invalidateQueries({ queryKey: ['conversations'] }),
+          ]);
+          if (targetId !== contact.id) {
+            queryClient.removeQueries({ queryKey: ['contact', contact.id] });
+            router.replace({
+              pathname: '/(app)/contact/[id]',
+              params: { id: targetId },
+            });
+          }
+        }}
       />
       {contact.classification === 'Agent' ? (
         <AgentInventoryShareSheet
@@ -1936,11 +1992,7 @@ function ContactEditor({
               }}
             >
               <Ionicons
-                name={
-                  requiresTenanted
-                    ? 'checkbox-outline'
-                    : 'square-outline'
-                }
+                name={requiresTenanted ? 'checkbox-outline' : 'square-outline'}
                 size={20}
                 color={requiresTenanted ? colors.primary : colors.textMuted}
               />
@@ -1963,7 +2015,8 @@ function ContactEditor({
                     color: colors.textMuted,
                   }}
                 >
-                  Exclude vacant properties even when projected rent or ROI is available.
+                  Exclude vacant properties even when projected rent or ROI is
+                  available.
                 </Text>
               </View>
             </Pressable>
@@ -2265,6 +2318,15 @@ function InfoRow({
 const styles = StyleSheet.create({
   container: { padding: spacing.lg, gap: spacing.lg },
   deleteContact: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    paddingVertical: 12,
+  },
+  mergeContact: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',

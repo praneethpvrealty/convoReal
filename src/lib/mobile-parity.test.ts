@@ -246,6 +246,30 @@ describe('property shortlist sharing remains available on both surfaces', () => 
     expect(webInventory).toContain('initialPickedIds={selectedForTagging}');
     expect(webBar).toContain('Share shortlist');
   });
+
+  it('[PRP-009] attributes contact-card inventory links to their recipient', () => {
+    const mobile = mobileSource('components/agent-inventory-share-sheet.tsx');
+    const web = webSource('components/contacts/share-inventory-dialog.tsx');
+
+    expect(mobile).toContain("audience: 'agent'");
+    expect(mobile).toContain('visitorId: contact.id');
+    expect(mobile).toContain('baseUrl: trackedBaseUrl');
+    expect(web).toContain('mode=view&v=${encodeURIComponent(contactId)}');
+  });
+});
+
+describe('contact merge remains available on both surfaces', () => {
+  it('[CTM-001] exposes survivor selection and the shared merge route on mobile', () => {
+    const mobileContact = mobileSource('app/(app)/contact/[id].tsx');
+    const mobileMerge = mobileSource('components/contact-merge-sheet.tsx');
+    const webMerge = webSource('components/contacts/duplicates-panel.tsx');
+
+    expect(mobileContact).toContain('Merge with another contact');
+    expect(mobileContact).toContain('<ContactMergeSheet');
+    expect(mobileMerge).toContain("'/api/contacts/merge'");
+    expect(mobileMerge).toContain('Keep this record');
+    expect(webMerge).toContain("'/api/contacts/merge'");
+  });
 });
 
 describe('Google locality picks run the same nearby search on both surfaces', () => {

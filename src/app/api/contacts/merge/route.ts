@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import { createClient as createServiceClient } from '@supabase/supabase-js';
+import { buildContactMergePatch } from '@/lib/contacts/merge';
 
 // POST /api/contacts/merge
 // Body: { sourceId: string, targetId: string }
@@ -40,7 +41,7 @@ export async function POST(request: NextRequest) {
     // Verify both contacts belong to the caller's account and are not already merged
     const { data: contacts, error: fetchErr } = await admin
       .from('contacts')
-      .select('id, account_id, name, email, phone, min_budget, max_budget, no_budget, min_roi, areas_of_interest, property_interests, source, classification, referrer, referrer_contact_id, is_merged, company, lead_temp, requirements, assigned_agent_id, assigned_team_id')
+      .select('id, account_id, name, email, phone, secondary_phones, min_budget, max_budget, no_budget, min_roi, areas_of_interest, property_interests, source, classification, referrer, referrer_contact_id, is_merged, company, lead_temp, requirements, assigned_agent_id, assigned_team_id')
       .in('id', [sourceId, targetId])
       .eq('account_id', ctx.accountId);
 
@@ -55,25 +56,21 @@ export async function POST(request: NextRequest) {
     if (source.is_merged) {
       return NextResponse.json({ error: 'Source contact is already merged' }, { status: 400 });
     }
+    if (target.is_merged) {
+      return NextResponse.json({ error: 'The contact to keep is already merged' }, { status: 400 });
+    }
 
     // ── 1. Re-point child rows from source → target ────────────────────────
 
-    // Conversations — use upsert logic: only re-point if target doesn't already
-    // have a conversation (to avoid duplicate conversations per contact)
-    const { data: targetConvs } = await admin
-      .from('conversations')
-      .select('id')
-      .eq('contact_id', targetId)
-      .limit(1);
-
-    if (!targetConvs || targetConvs.length === 0) {
-      // Target has no conversations — move source's to target
-      await admin
-        .from('conversations')
-        .update({ contact_id: targetId })
-        .eq('contact_id', sourceId)
-        .eq('account_id', ctx.accountId);
-    }
+    const { error: conversationMergeError } = await admin.rpc(
+      'merge_contact_conversations',
+      {
+        p_account_id: ctx.accountId,
+        p_source_contact_id: sourceId,
+        p_target_contact_id: targetId,
+      }
+    );
+    if (conversationMergeError) throw conversationMergeError;
 
     // Notes, appointments, and todos — always re-point safely
     await Promise.all([
@@ -170,58 +167,12 @@ export async function POST(request: NextRequest) {
     await admin.from('contact_property_inquiries').delete().eq('contact_id', sourceId);
 
     // ── 2. Fill gaps and merge preferences on target ───────────────────────
-    const patch: Record<string, unknown> = {
-      updated_at: new Date().toISOString(),
-    };
-
-    if (!target.company && source.company) patch.company = source.company;
-    if (!target.lead_temp && source.lead_temp) patch.lead_temp = source.lead_temp;
-    if (!target.source && source.source) patch.source = source.source;
-    if ((!target.classification || target.classification === 'Others') && source.classification && source.classification !== 'Others') {
-      patch.classification = source.classification;
-    }
-    if (!target.referrer && source.referrer) patch.referrer = source.referrer;
-    if (!target.referrer_contact_id && source.referrer_contact_id) patch.referrer_contact_id = source.referrer_contact_id;
-    if (!target.assigned_agent_id && source.assigned_agent_id) {
-      patch.assigned_agent_id = source.assigned_agent_id;
-    }
-    if (!target.assigned_team_id && source.assigned_team_id) {
-      patch.assigned_team_id = source.assigned_team_id;
-    }
-
-    // Merge budgets & ROI
-    if (!target.min_budget && source.min_budget) patch.min_budget = source.min_budget;
-    if (!target.max_budget && source.max_budget) patch.max_budget = source.max_budget;
-    if (target.no_budget === null || target.no_budget === undefined) {
-      if (source.no_budget !== null && source.no_budget !== undefined) {
-        patch.no_budget = source.no_budget;
-      }
-    }
-    if (!target.min_roi && source.min_roi) patch.min_roi = source.min_roi;
-
-    // Merge arrays (union)
-    const targetAreas = target.areas_of_interest || [];
-    const sourceAreas = source.areas_of_interest || [];
-    const mergedAreas = Array.from(new Set([...targetAreas, ...sourceAreas])).filter(Boolean);
-    if (mergedAreas.length > 0) patch.areas_of_interest = mergedAreas;
-
-    const targetInterests = target.property_interests || [];
-    const sourceInterests = source.property_interests || [];
-    const mergedInterests = Array.from(new Set([...targetInterests, ...sourceInterests])).filter(Boolean);
-    if (mergedInterests.length > 0) patch.property_interests = mergedInterests;
-
-    // Merge requirements text (concatenate if different)
-    let mergedRequirements = target.requirements || '';
-    if (source.requirements && !mergedRequirements.includes(source.requirements)) {
-      mergedRequirements = mergedRequirements 
-        ? `${mergedRequirements}\n${source.requirements}` 
-        : source.requirements;
-    }
-    if (mergedRequirements) patch.requirements = mergedRequirements;
-
-    if (Object.keys(patch).length > 1) {
-      await admin.from('contacts').update(patch).eq('id', targetId);
-    }
+    const patch = buildContactMergePatch(
+      source,
+      target,
+      new Date().toISOString()
+    );
+    await admin.from('contacts').update(patch).eq('id', targetId);
 
     // ── 3. Soft-delete source ──────────────────────────────────────────────
     await admin.from('contacts').update({

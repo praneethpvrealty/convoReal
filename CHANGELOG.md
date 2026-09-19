@@ -28,6 +28,21 @@ than a written entry. Newest first.
   WhatsApp Groups so it no longer reads as part of the deal cycle. The
   mobile Deals screen gains Board and Records segments and a Journey
   button.
+- **WhatsApp qualification: "More site" gets more sites.** A lead who
+  answered a shortlist with "More site" was read as asking for a bigger
+  plot, re-asked the budget question they had answered a day earlier, and
+  then told nothing fits. Three fixes. A request for more listings ("more
+  site", "any other options?", "anything else?") is now its own route:
+  the bot sends the next listings the share ledger says the lead has not
+  seen, or says that is everything that fits, with nothing filed and no
+  question asked. The ladder reads what it has already asked off the
+  whole thread rather than the last six messages, so a rung is never put
+  twice. And relative size feedback ("bigger", "lesser dimensions") is
+  anchored after the merge with the saved brief, so the bound it clears
+  stays cleared — the merge had refilled it and stored a 2,824–2,400
+  sq.ft. band nothing could satisfy. "More" only reads as a size signal
+  before a measure word (area, extent, dimensions, sqft), never before
+  "site" or "plot".
 - **Transactions: the index reads like a closing record.** Rows are
   headed by buyer and property (unit number first) with the deal's own
   title demoted to a second line, so a requirement-style pipeline title
