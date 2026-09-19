@@ -177,22 +177,28 @@ it; `journey_stages_for_account` is the unguarded twin for the service
 role. The kind (prospecting, closing, won, lost) comes from the stage
 name by the same words as `journeyStageKindForPipelineStage`. Two
 triggers keep a converted deal and its journey item on one stage from
-either side. The journey moves items through `POST /api/journey/move`:
-when the target mirrors a pipeline stage, the item's deal follows
-through `applyDealStageMove` (`src/lib/deals/stage-move.ts`), the same
-logic the deal PATCH runs for the board — brokerage capture (a 409
-`BROKERAGE_REQUIRED` pauses the move for the same prompt), closing
-record, property status — and a move into a closing or won stage opens
-the deal on that very stage through `convertJourneyItemToDeal`. The
-journey's own stage editor is gone; the Board's pipeline settings are
-the one editor, and the journey's "Stages follow the Board" button
-opens them. A pipeline stage cannot be deleted while journey items sit
-on or plan for its mirror (`…120200`, a BEFORE DELETE guard; the
-settings dialog checks first); a mirror nothing references goes with
-its stage. The held backfill (`…120100`) re-points existing items by
-stage kind, aligns converted items to their deals, skips an account
-whose pipeline has no stages, and removes legacy stages nothing
-references.
+either side. Every journey move — the web journey and the mobile
+journey through `POST /api/journey/move`, the WhatsApp closing card's
+advance button directly — runs `moveJourneyItem`
+(`src/lib/journey/move.ts`): when the target mirrors a pipeline stage,
+the item's deal follows through `applyDealStageMove`
+(`src/lib/deals/stage-move.ts`), the same logic the deal PATCH runs for
+the board — brokerage capture (a 409 `BROKERAGE_REQUIRED` pauses the
+move for the same prompt on web and mobile; the closing card cannot
+prompt, so its record opens unpriced), closing record, property status
+— and a move into a closing or won stage opens the deal on that very
+stage through `convertJourneyItemToDeal`. A deal on a pipeline other
+than the mirrored one keeps its own stage, in the move function and in
+the journey→deal trigger (`…120050`). The journey's own stage editor is
+gone; the Board's pipeline settings are the one editor, and the
+journey's "Stages follow the Board" button opens them. A pipeline stage
+cannot be deleted while journey items sit on or plan for its mirror
+(`…120200`, a BEFORE DELETE guard; the settings dialog checks first); a
+mirror nothing references goes with its stage. The held backfill
+(`…120100`) aligns converted items to their deals (one on another board
+lands on the mirrored stage of the same kind), re-points the rest by
+stage kind, skips an account whose pipeline has no stages, and removes
+legacy stages nothing references.
 
 ## Invariants
 

@@ -1935,25 +1935,60 @@ describe('[TXW-018] journey stages mirror the pipeline on every surface', () => 
     expect(migration).toContain('pg_trigger_depth() > 1');
   });
 
-  it('moves a journey item through the move route, which runs the board stage-move logic', () => {
-    const section = webSource('components/journey/journey-section.tsx');
-    expect(section).toContain("fetch('/api/journey/move'");
-    expect(section).not.toContain("fetch('/api/journey/convert-to-deal'");
-    expect(section).not.toContain(".from('journey_items')\n        .update({\n          stage_id");
-    expect(section).toContain("json?.code === 'BROKERAGE_REQUIRED'");
-    expect(section).toContain('brokerage_type: brokerageType');
-    expect(section).toContain('brokerage_value: Number(brokerageValue)');
-    const route = webSource('app/api/journey/move/route.ts');
-    expect(route).toContain(
+  it('moves a journey item through one move function that runs the board stage-move logic', () => {
+    const move = webSource('lib/journey/move.ts');
+    expect(move).toContain(
       "target.stage_kind === 'closing' || target.stage_kind === 'won'"
     );
-    expect(route).toContain('needsBrokerageCapture(');
-    expect(route).toContain('await applyDealStageMove(ctx, {');
-    expect(route).toContain('await convertJourneyItemToDeal(ctx, {');
-    expect(route).toContain('stageId: target.pipeline_stage_id');
+    expect(move).toContain('needsBrokerageCapture(');
+    expect(move).toContain('await applyDealStageMove(ctx, {');
+    expect(move).toContain('await convertJourneyItemToDeal(ctx, {');
+    expect(move).toContain('stageId: target.pipeline_stage_id');
+    expect(move).toContain('deal.pipeline_id === targetPipelineId');
+    expect(webSource('app/api/journey/move/route.ts')).toContain(
+      'await moveJourneyItem(ctx, {'
+    );
+    expect(webSource('lib/journey/closing-nudges.ts')).toContain(
+      'await moveJourneyItem('
+    );
+    expect(webSource('lib/journey/closing-nudges.ts')).not.toContain(
+      ".from('journey_items')\n      .update({\n        stage_id"
+    );
     expect(webSource('app/api/journey/convert-to-deal/route.ts')).toContain(
       'await convertJourneyItemToDeal(ctx, parsed.value)'
     );
+    expect(
+      readFileSync(
+        join(
+          process.cwd(),
+          'supabase/migrations/20260919120050_journey_deal_sync_same_pipeline.sql'
+        ),
+        'utf8'
+      )
+    ).toContain('AND pipeline_id = v_pipeline');
+  });
+
+  it('offers the same move and brokerage prompt on web and mobile', () => {
+    const section = webSource('components/journey/journey-section.tsx');
+    expect(section).toContain("fetch('/api/journey/move'");
+    expect(section).not.toContain("fetch('/api/journey/convert-to-deal'");
+    expect(section).not.toContain(
+      ".from('journey_items')\n        .update({\n          stage_id"
+    );
+    expect(section).toContain("json?.code === 'BROKERAGE_REQUIRED'");
+    expect(section).toContain('brokerage_type: brokerageType');
+    expect(section).toContain('brokerage_value: Number(brokerageValue)');
+    expect(mobileSource('lib/deal-workspace-api.ts')).toContain(
+      "'/api/journey/move'"
+    );
+    const mobileJourney = mobileSource('app/(app)/journey.tsx');
+    expect(mobileJourney).toContain(
+      'await moveJourneyItem(item.id, stage.id, brokerage);'
+    );
+    expect(mobileJourney).toContain("err.code === 'BROKERAGE_REQUIRED'");
+    expect(mobileJourney).toContain('brokerage_type: brokerageType');
+    expect(mobileJourney).toContain('brokerage_value: Number(brokerageValue)');
+    expect(mobileJourney).toContain('accessibilityLabel="Move to stage"');
   });
 
   it('refuses to delete a pipeline stage while journey items sit on its mirror', () => {
@@ -1966,7 +2001,9 @@ describe('[TXW-018] journey stages mirror the pipeline on every surface', () => 
     );
     expect(guard).toContain('BEFORE DELETE ON pipeline_stages');
     expect(guard).toContain('WHERE stage_id = v_js OR planned_stage_id = v_js');
-    expect(migration).toContain('REFERENCES pipeline_stages(id) ON DELETE SET NULL');
+    expect(migration).toContain(
+      'REFERENCES pipeline_stages(id) ON DELETE SET NULL'
+    );
     const settings = webSource('components/pipelines/pipeline-settings.tsx');
     expect(settings).toContain('.from("journey_items")');
     expect(settings).toContain('"Move journey items out of this stage first"');

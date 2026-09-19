@@ -45,6 +45,7 @@ import {
 } from '@/lib/contacts/parties';
 import { resolveConversation } from '@/lib/conversations/resolve';
 import { resolveOwnerWhatsAppContact } from '@/lib/inventory/location-requests';
+import { moveJourneyItem } from '@/lib/journey/move';
 import { loadPastEnquiryContacts } from '@/lib/journey/past-enquiry';
 import { createNotification } from '@/lib/notifications/create';
 import { supabaseAdmin } from '@/lib/supabase/admin';
@@ -191,6 +192,7 @@ async function loadStages(
     .from('journey_stages')
     .select('id, name, position, stage_kind')
     .eq('account_id', accountId)
+    .not('pipeline_stage_id', 'is', null)
     .order('position');
   return (data ?? []) as StageRow[];
 }
@@ -497,28 +499,28 @@ export async function handleClosingReply(
       );
       return true;
     }
-    await admin
-      .from('journey_items')
-      .update({
-        stage_id: next.id,
-        // The step just happened, so a plan pointing at it is spent.
-        planned_stage_id: null,
-        planned_at: null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', item.id)
-      .eq('account_id', accountId);
-    const { error: evError } = await admin.from('journey_events').insert({
-      account_id: accountId,
-      item_id: item.id,
-      event_type: 'advanced',
-      from_stage_id: item.stage_id,
-      to_stage_id: next.id,
-      reason: 'Agent advanced the deal from the closing card',
-      created_by: configOwnerUserId,
-    });
-    if (evError)
-      console.error('[closing-nudges] advance event failed:', evError.message);
+    // The same move the journey page makes: the deal follows, the
+    // closing record opens, the listing's status follows. A WhatsApp
+    // reply cannot price the brokerage, so the record opens unpriced.
+    const moved = await moveJourneyItem(
+      { supabase: admin, accountId, userId: configOwnerUserId },
+      {
+        itemId: item.id,
+        stageId: next.id,
+        eventType: 'advanced',
+        brokerage: null,
+        requireBrokerage: false,
+        reason: 'Agent advanced the deal from the closing card',
+        source: 'web',
+      }
+    );
+    if (!moved.ok) {
+      console.error('[closing-nudges] advance failed:', moved.error);
+      await confirmToAgent(
+        `⚠️ Could not move ${who} to *${next.name}*: ${moved.error}`
+      );
+      return true;
+    }
     await confirmToAgent(
       `✅ Moved ${who} to *${next.name}*. The stall clock restarts from today.`
     );

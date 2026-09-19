@@ -336,6 +336,31 @@ export function convertJourneyItemToDeal(itemId: string) {
   ).then((r) => r.data);
 }
 
+/** Move a journey item to a stage. A mirrored stage moves the item's
+ *  deal through the board's stage-move logic; a 409 BROKERAGE_REQUIRED
+ *  asks for the brokerage first, exactly as the board does. */
+export function moveJourneyItem(
+  itemId: string,
+  stageId: string,
+  brokerage?: {
+    brokerage_type: 'percentage' | 'fixed';
+    brokerage_value: number;
+  }
+) {
+  return apiFetch<{
+    data: { item_id: string; stage_id: string; deal_id: string | null };
+  }>('/api/journey/move', {
+    method: 'POST',
+    ...json({
+      item_id: itemId,
+      stage_id: stageId,
+      event_type: 'moved',
+      ...brokerage,
+      source: 'mobile',
+    }),
+  }).then((r) => r.data);
+}
+
 // ------------------------------------------------------------------
 // Phase 2 — stakeholders and share links.
 // ------------------------------------------------------------------

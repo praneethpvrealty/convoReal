@@ -178,6 +178,14 @@ describe('gatherClosingDeals', () => {
             rows = rows.filter((r) => value.includes(r[column]));
             return chain;
           },
+          not: (column: string, operator: string, value: unknown) => {
+            if (operator === 'is' && value === null) {
+              rows = rows.filter(
+                (r) => r[column] !== null && r[column] !== undefined
+              );
+            }
+            return chain;
+          },
         };
         (chain as { then: unknown }).then = (
           resolve: (v: { data: unknown }) => void
@@ -195,7 +203,14 @@ describe('gatherClosingDeals', () => {
     name: string,
     position: number,
     stage_kind: string
-  ) => ({ id, name, position, stage_kind, account_id: ACCOUNT });
+  ) => ({
+    id,
+    name,
+    position,
+    stage_kind,
+    account_id: ACCOUNT,
+    pipeline_stage_id: `ps-${id}`,
+  });
 
   const STAGES = [
     stage('s-shared', 'Shared', 0, 'prospecting'),

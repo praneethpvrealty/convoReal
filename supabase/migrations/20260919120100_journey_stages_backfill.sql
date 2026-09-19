@@ -10,7 +10,9 @@
 -- as it is: there is no stage to re-point its items to.
 --
 -- Order matters: a converted item follows its deal first (the deal is
--- the closing record), then the rest map by stage kind onto the first
+-- the closing record; one on another board lands on the mirrored
+-- stage of the same kind, and the trigger from …120050 leaves that
+-- deal where it is), then the rest map by stage kind onto the first
 -- mirrored stage of that kind. Legacy stages that nothing references
 -- are removed; ones still named by a stage note stay (RESTRICT) but sit
 -- unlinked, after the mirrored ones, and out of the rail.
@@ -47,6 +49,23 @@ BEGIN
       WHERE d.source_journey_item_id = ji.id
         AND d.account_id = acc.id
         AND ji.stage_id IS DISTINCT FROM js.id;
+
+    UPDATE journey_items ji
+      SET stage_id = m.id
+      FROM deals d
+      JOIN pipeline_stages dps ON dps.id = d.stage_id
+      CROSS JOIN LATERAL (
+        SELECT js.id FROM journey_stages js
+          WHERE js.account_id = acc.id
+            AND js.pipeline_stage_id IS NOT NULL
+            AND js.stage_kind = journey_stage_kind_for_pipeline_stage(dps.name)
+          ORDER BY js.position
+          LIMIT 1
+      ) m
+      WHERE d.source_journey_item_id = ji.id
+        AND d.account_id = acc.id
+        AND d.pipeline_id <> v_pipeline
+        AND ji.stage_id IS DISTINCT FROM m.id;
 
     UPDATE journey_items ji
       SET stage_id = m.id
