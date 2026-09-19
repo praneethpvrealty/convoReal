@@ -816,7 +816,7 @@
         },
         {
           "id": "TXW-016",
-          "rule": "The Transactions index names every row by buyer and property (unit number first), demotes a requirement-style deal title to a second line without ever repeating a converted title, marks a pipeline deal with neither journey provenance nor milestones as not yet a transaction, and lets an editor seed the standard milestones from the row and move the pipeline stage from the workspace header through the same routes the board uses, on web and mobile alike.",
+          "rule": "The Transactions index names every row by buyer and property (unit number first), demotes a requirement-style deal title to a second line without ever repeating a converted title, marks a pipeline deal with neither journey provenance nor milestones as not yet a transaction, and lets an editor seed the standard milestones from the row and move the pipeline stage from the workspace header through the same routes the board uses, pausing for brokerage before a capture stage exactly as the board does, on web and mobile alike.",
           "tests": [
             {
               "file": "src/lib/deals/index-row.test.ts",
@@ -828,6 +828,10 @@
             },
             {
               "file": "mobile/lib/deal-workspace.test.ts",
+              "case": "[TXW-016]"
+            },
+            {
+              "file": "src/lib/pipelines/stage-semantics.test.ts",
               "case": "[TXW-016]"
             }
           ],

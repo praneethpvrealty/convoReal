@@ -22,6 +22,7 @@ import {
   FilterChip,
 } from '@/components/ui';
 import { useAuthStore } from '@/lib/auth-store';
+import { contactFullName } from '@/lib/contact-name';
 import {
   NOT_YET_TRANSACTION_HINT,
   NOT_YET_TRANSACTION_LABEL,
@@ -50,7 +51,7 @@ import { usePullRefresh } from '@/lib/use-pull-refresh';
 function dealIndexRow(deal: Deal) {
   return {
     title: deal.title,
-    contact_name: deal.contact?.name || deal.contact?.phone || null,
+    contact_name: deal.contact ? contactFullName(deal.contact) || null : null,
     property_title: deal.property?.title ?? null,
     property_unit_no: deal.property?.unit_no ?? null,
     source_journey_item_id: deal.source_journey_item_id ?? null,
@@ -124,7 +125,7 @@ export default function DealsScreen() {
       const { data, error } = await supabase
         .from('deals')
         .select(
-          '*, contact:contacts(id, name, phone), property:properties(id, title, unit_no), milestones:deal_milestones(count)'
+          '*, contact:contacts(id, name, second_name, phone), property:properties(id, title, unit_no), milestones:deal_milestones(count)'
         )
         .eq('pipeline_id', activePipeline!)
         .order('created_at', { ascending: false });

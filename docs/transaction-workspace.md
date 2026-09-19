@@ -55,6 +55,9 @@ up the next phase.
   The stage chip in the header is a stage picker for editors; it goes
   through `PATCH /api/deals/[id]`, the same call the board makes, so
   the deal status and the property status follow the stage identically.
+  Like the board, it pauses for brokerage before a capture stage
+  (`needsBrokerageCapture`), and the route computes the amount from the
+  deal value so no surface stores a figure of its own.
 - **Financials** — `GET/PATCH /api/deals/[id]/financials`. Record-keeping
   only; no ledgering, reconciliation, tax computation or reports.
 - **Timeline** — `GET /api/deals/[id]/events`; `POST` writes an internal

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   dealStatusForStage,
   isBrokeragePaidStage,
+  needsBrokerageCapture,
   pipelineOutcomeForStage,
   propertyStatusForPipelineStage,
   shouldCaptureBrokerage,
@@ -31,5 +32,17 @@ describe('pipeline stage semantics', () => {
     expect(shouldCaptureBrokerage('Due Diligence/Contract')).toBe(true);
     expect(shouldCaptureBrokerage('Brokerage Paid')).toBe(true);
     expect(shouldCaptureBrokerage('New Inquiry')).toBe(false);
+  });
+
+  it('[TXW-016] pauses a move for brokerage only when none is recorded yet', () => {
+    expect(
+      needsBrokerageCapture({ brokerage_amount: null }, 'Negotiation/Token')
+    ).toBe(true);
+    expect(
+      needsBrokerageCapture({ brokerage_amount: 0 }, 'Negotiation/Token')
+    ).toBe(false);
+    expect(
+      needsBrokerageCapture({ brokerage_amount: null }, 'Site Visit')
+    ).toBe(false);
   });
 });

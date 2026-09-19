@@ -58,3 +58,21 @@ export function propertyStatusForPipelineStage(
   }
   return null;
 }
+
+export function shouldCaptureBrokerage(stageName: string): boolean {
+  const name = normalizedStageName(stageName);
+  return (
+    pipelineOutcomeForStage(name) === 'successful' ||
+    name.includes('negotiation') ||
+    name.includes('token') ||
+    name.includes('due diligence') ||
+    name.includes('contract')
+  );
+}
+
+export function needsBrokerageCapture(
+  deal: { brokerage_amount: number | null },
+  stageName: string
+): boolean {
+  return deal.brokerage_amount === null && shouldCaptureBrokerage(stageName);
+}

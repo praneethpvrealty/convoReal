@@ -13,11 +13,24 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { useAuth } from '@/hooks/use-auth';
 import { createClient } from '@/lib/supabase/client';
 import { formatIndianDigits } from '@/lib/invoices/pdf-text';
-import { brokerageAmount } from '@/lib/pipelines/brokerage';
-import { dealStatusForStage } from '@/lib/pipelines/stage-semantics';
+import { brokerageAmount, type BrokerageType } from '@/lib/pipelines/brokerage';
+import {
+  dealStatusForStage,
+  needsBrokerageCapture,
+} from '@/lib/pipelines/stage-semantics';
 import { cn } from '@/lib/utils';
 
 import { DealDocumentsPanel } from './deal-documents-panel';
@@ -87,6 +100,12 @@ export function DealWorkspace({ dealId }: { dealId: string }) {
   const { accountId, isViewer, isReadOnly } = useAuth();
   const [tab, setTab] = useState<TabId>('overview');
   const [movingStage, setMovingStage] = useState(false);
+  const [brokeragePrompt, setBrokeragePrompt] = useState<StageOption | null>(
+    null
+  );
+  const [brokerageType, setBrokerageType] =
+    useState<BrokerageType>('percentage');
+  const [brokerageValue, setBrokerageValue] = useState('');
 
   const canEdit = !isViewer && !isReadOnly;
 
@@ -126,10 +145,25 @@ export function DealWorkspace({ dealId }: { dealId: string }) {
     enabled: Boolean(pipelineId),
   });
 
-  async function moveToStage(stageId: string) {
+  function pickStage(stageId: string) {
     if (!deal) return;
     const stage = stages.find((s) => s.id === stageId);
     if (!stage || stage.id === deal.stage_id) return;
+    if (needsBrokerageCapture(deal, stage.name)) {
+      setBrokerageType('percentage');
+      setBrokerageValue('');
+      setBrokeragePrompt(stage);
+      return;
+    }
+    void moveToStage(stage);
+  }
+
+  async function moveToStage(
+    stage: StageOption,
+    brokerage?: { brokerage_type: BrokerageType; brokerage_value: number }
+  ) {
+    if (!deal) return;
+    setBrokeragePrompt(null);
     setMovingStage(true);
     try {
       const res = await fetch(`/api/deals/${deal.id}`, {
@@ -140,6 +174,7 @@ export function DealWorkspace({ dealId }: { dealId: string }) {
           target_stage_id: stage.id,
           property_id: deal.property?.id ?? null,
           current_stage_name: stage.name,
+          ...brokerage,
         }),
       });
       if (!res.ok) {
@@ -219,7 +254,7 @@ export function DealWorkspace({ dealId }: { dealId: string }) {
               className="h-7 cursor-pointer rounded-full border border-slate-700 bg-slate-950 px-2 text-xs text-white disabled:cursor-wait disabled:opacity-60"
               value={deal.stage_id}
               disabled={movingStage}
-              onChange={(e) => void moveToStage(e.target.value)}
+              onChange={(e) => pickStage(e.target.value)}
             >
               {stages.map((stage) => (
                 <option key={stage.id} value={stage.id}>
@@ -344,6 +379,93 @@ export function DealWorkspace({ dealId }: { dealId: string }) {
       {tab === 'invoices' && (
         <DealInvoicesPanel dealId={dealId} canEdit={canEdit} />
       )}
+
+      <Dialog
+        open={brokeragePrompt !== null}
+        onOpenChange={(open) => !open && setBrokeragePrompt(null)}
+      >
+        <DialogContent className="border-slate-700 bg-slate-900 text-slate-200 sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-white">
+              Enter brokerage details
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-3">
+            <p className="text-xs text-slate-400">
+              Moving to{' '}
+              <span className="text-primary font-semibold">
+                {brokeragePrompt?.name}
+              </span>{' '}
+              starts the closing stretch. Record the brokerage rate or amount
+              first, as the pipeline board does.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-2">
+                <Label htmlFor="txw-brokerage-type" className="text-slate-300">
+                  Brokerage type
+                </Label>
+                <select
+                  id="txw-brokerage-type"
+                  value={brokerageType}
+                  onChange={(e) =>
+                    setBrokerageType(e.target.value as BrokerageType)
+                  }
+                  className="h-9 w-full rounded-md border border-slate-700 bg-slate-950 px-3 text-sm text-white"
+                >
+                  <option value="percentage">Percentage (%)</option>
+                  <option value="fixed">Fixed amount</option>
+                </select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="txw-brokerage-value" className="text-slate-300">
+                  {brokerageType === 'percentage'
+                    ? 'Brokerage (%)'
+                    : 'Brokerage amount'}
+                </Label>
+                <Input
+                  id="txw-brokerage-value"
+                  type="number"
+                  min="0"
+                  value={brokerageValue}
+                  onChange={(e) => setBrokerageValue(e.target.value)}
+                  placeholder={brokerageType === 'percentage' ? '2' : '0'}
+                  className="border-slate-700 bg-slate-950 text-white"
+                />
+              </div>
+            </div>
+            {Number(brokerageValue) > 0 && (
+              <p className="text-primary text-[11px] font-semibold">
+                Calculated brokerage: Rs.{' '}
+                {formatIndianDigits(
+                  brokerageAmount({
+                    dealValue: deal.value,
+                    type: brokerageType,
+                    value: brokerageValue,
+                  }),
+                  0
+                )}
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBrokeragePrompt(null)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={!(Number(brokerageValue) > 0)}
+              onClick={() =>
+                brokeragePrompt &&
+                void moveToStage(brokeragePrompt, {
+                  brokerage_type: brokerageType,
+                  brokerage_value: Number(brokerageValue),
+                })
+              }
+            >
+              Save and move
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -119,7 +119,10 @@ import {
 } from '@/lib/deal-workspace-api';
 import { friendlyError } from '@/lib/errors';
 import { auditDate, auditDateTime, formatInr } from '@/lib/format';
-import { dealStatusForStage } from '@/lib/stage-semantics';
+import {
+  dealStatusForStage,
+  needsBrokerageCapture,
+} from '@/lib/stage-semantics';
 import { supabase } from '@/lib/supabase';
 import { haptic } from '@/lib/haptics';
 import { radius, spacing, useTheme, fonts } from '@/lib/theme';
@@ -138,7 +141,19 @@ interface DealHead {
   property_id: string | null;
   pipeline_id: string;
   stage_id: string;
+  value: number | null;
+  brokerage_amount: number | null;
   stage: { name: string } | { name: string }[] | null;
+}
+
+function brokeragePreview(
+  dealValue: number | null,
+  type: 'percentage' | 'fixed',
+  raw: string
+): number {
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value <= 0) return 0;
+  return type === 'fixed' ? value : ((dealValue ?? 0) * value) / 100;
 }
 
 function one<T>(v: T | T[] | null | undefined): T | null {
@@ -155,6 +170,13 @@ export default function DealWorkspaceScreen() {
   const [tab, setTab] = useState<DealWorkspaceTab>('overview');
   const [pickingStage, setPickingStage] = useState(false);
   const [movingStage, setMovingStage] = useState(false);
+  const [brokeragePrompt, setBrokeragePrompt] = useState<PipelineStage | null>(
+    null
+  );
+  const [brokerageType, setBrokerageType] = useState<'percentage' | 'fixed'>(
+    'percentage'
+  );
+  const [brokerageValue, setBrokerageValue] = useState('');
   const queryClient = useQueryClient();
   const headDialog = useAppDialog();
 
@@ -165,7 +187,7 @@ export default function DealWorkspaceScreen() {
       const { data, error } = await supabase
         .from('deals')
         .select(
-          'id, title, contact_id, property_id, pipeline_id, stage_id, stage:pipeline_stages(name)'
+          'id, title, contact_id, property_id, pipeline_id, stage_id, value, brokerage_amount, stage:pipeline_stages(name)'
         )
         .eq('id', dealId)
         .maybeSingle();
@@ -189,9 +211,27 @@ export default function DealWorkspaceScreen() {
     },
   });
 
-  async function moveToStage(stage: PipelineStage) {
+  function pickStage(stage: PipelineStage) {
     setPickingStage(false);
     if (!head || stage.id === head.stage_id) return;
+    if (needsBrokerageCapture(head, stage.name)) {
+      setBrokerageType('percentage');
+      setBrokerageValue('');
+      setBrokeragePrompt(stage);
+      return;
+    }
+    void moveToStage(stage);
+  }
+
+  async function moveToStage(
+    stage: PipelineStage,
+    brokerage?: {
+      brokerage_type: 'percentage' | 'fixed';
+      brokerage_value: number;
+    }
+  ) {
+    if (!head) return;
+    setBrokeragePrompt(null);
     setMovingStage(true);
     try {
       await moveDealStage(dealId, {
@@ -199,6 +239,7 @@ export default function DealWorkspaceScreen() {
         target_stage_id: stage.id,
         property_id: head.property_id,
         current_stage_name: stage.name,
+        ...brokerage,
       });
       haptic.success();
       await Promise.all([
@@ -309,7 +350,7 @@ export default function DealWorkspaceScreen() {
               <Pressable
                 key={s.id}
                 style={[styles.stageOption, { borderTopColor: colors.border }]}
-                onPress={() => void moveToStage(s)}
+                onPress={() => pickStage(s)}
                 accessibilityRole="button"
                 accessibilityLabel={`Move to ${s.name}`}
               >
@@ -327,6 +368,79 @@ export default function DealWorkspaceScreen() {
               </Pressable>
             ))}
         </ScrollView>
+      </BottomSheet>
+      <BottomSheet
+        visible={brokeragePrompt !== null}
+        onClose={() => setBrokeragePrompt(null)}
+      >
+        <Text style={[styles.sheetTitle, { color: colors.text }]}>
+          Enter brokerage details
+        </Text>
+        <View style={styles.brokerageForm}>
+          <Text style={{ fontSize: 13, color: colors.textMuted }}>
+            Moving to {brokeragePrompt?.name} starts the closing stretch. Record
+            the brokerage rate or amount first, as the pipeline board does.
+          </Text>
+          <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+            <FilterChip
+              label="Percentage (%)"
+              active={brokerageType === 'percentage'}
+              onPress={() => setBrokerageType('percentage')}
+            />
+            <FilterChip
+              label="Fixed amount"
+              active={brokerageType === 'fixed'}
+              onPress={() => setBrokerageType('fixed')}
+            />
+          </View>
+          <TextField
+            label={
+              brokerageType === 'percentage'
+                ? 'Brokerage (%)'
+                : 'Brokerage amount'
+            }
+            value={brokerageValue}
+            onChangeText={setBrokerageValue}
+            keyboardType="decimal-pad"
+            placeholder={brokerageType === 'percentage' ? '2' : '0'}
+          />
+          {brokeragePreview(
+            head?.value ?? null,
+            brokerageType,
+            brokerageValue
+          ) > 0 ? (
+            <Text
+              style={{
+                fontSize: 12.5,
+                fontFamily: fonts.bold,
+                color: colors.primary,
+              }}
+            >
+              Calculated brokerage:{' '}
+              {formatInr(
+                brokeragePreview(
+                  head?.value ?? null,
+                  brokerageType,
+                  brokerageValue
+                )
+              )}
+            </Text>
+          ) : null}
+          <PrimaryButton
+            label="Save and move"
+            disabled={
+              !(Number(brokerageValue) > 0) ||
+              !Number.isFinite(Number(brokerageValue))
+            }
+            onPress={() =>
+              brokeragePrompt &&
+              void moveToStage(brokeragePrompt, {
+                brokerage_type: brokerageType,
+                brokerage_value: Number(brokerageValue),
+              })
+            }
+          />
+        </View>
       </BottomSheet>
     </>
   );
@@ -2631,6 +2745,11 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   stageOptionLabel: { fontSize: 15, fontFamily: fonts.semibold },
+  brokerageForm: {
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.lg,
+    gap: spacing.md,
+  },
   tabs: {
     flexDirection: 'row',
     gap: spacing.sm,

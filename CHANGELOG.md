@@ -28,7 +28,8 @@ than a written entry. Newest first.
   milestones" to start the checklist. The stage chip on the workspace
   header is now a stage picker: a lost or won deal can be moved back to
   an active stage without leaving the workspace, through the same call
-  the pipeline board makes. Web and mobile alike.
+  the pipeline board makes, and it asks for brokerage before a closing
+  stage exactly as the board does. Web and mobile alike.
 - **Matching: a single stated plot size now admits the larger corner
   sites.** "60x40" is filed as exactly 2,400 sq.ft., and the size gate
   dropped the 3,114 sq.ft. corner sites in the same layout as a miss. A

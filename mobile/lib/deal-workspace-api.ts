@@ -229,6 +229,8 @@ export function moveDealStage(
     target_stage_id: string;
     property_id: string | null;
     current_stage_name: string;
+    brokerage_type?: 'percentage' | 'fixed';
+    brokerage_value?: number;
   }
 ) {
   return apiFetch<{ id: string; status: string }>(`/api/deals/${dealId}`, {

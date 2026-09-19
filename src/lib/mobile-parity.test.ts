@@ -1788,6 +1788,26 @@ describe('[TXW-016] the transaction index reads the same on both surfaces', () =
     expect(mobileApi).toContain("template: 'standard'");
   });
 
+  it('labels the buyer as the index SQL does: full name, never the phone', () => {
+    expect(mobileList).toContain(
+      'contact:contacts(id, name, second_name, phone)'
+    );
+    expect(mobileList).toContain('contactFullName(deal.contact)');
+    expect(mobileList).not.toContain('deal.contact?.phone || null');
+  });
+
+  it('pauses a workspace move for brokerage exactly as the board does', () => {
+    const mobileSemantics = mobileSource('lib/stage-semantics.ts');
+    expect(mobileSemantics).toContain(
+      'return deal.brokerage_amount === null && shouldCaptureBrokerage(stageName);'
+    );
+    for (const source of [webWorkspace, mobileScreen]) {
+      expect(source).toContain('needsBrokerageCapture(');
+      expect(source).toContain('brokerage_type: brokerageType');
+      expect(source).toContain('brokerage_value: Number(brokerageValue)');
+    }
+  });
+
   it('moves the pipeline stage from the workspace header through the deal PATCH', () => {
     expect(webWorkspace).toContain('dealStatusForStage(stage.name)');
     expect(webWorkspace).toContain('target_stage_id: stage.id');
