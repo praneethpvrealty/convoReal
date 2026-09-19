@@ -187,11 +187,15 @@ the board — brokerage capture (a 409 `BROKERAGE_REQUIRED` pauses the
 move for the same prompt on web and mobile; the closing card cannot
 prompt, so its record opens unpriced), closing record, property status
 — and a move into a closing or won stage opens the deal on that very
-stage through `convertJourneyItemToDeal`. The deal side runs first:
-for a converted item the deal update and the trigger that moves its
-journey item are one statement, and a freshly opened deal is removed
-again if the item cannot then be moved, so a failure never leaves the
-two sides on different stages. A deal on a pipeline other
+stage through `convertJourneyItemToDeal`. What must exist before
+either side moves is written first (`prepareDealStageMove`: brokerage
+and closing record, both idempotent; or the new deal on the target
+stage), then the journey item's own update moves a converted deal
+through the trigger in the same statement, the requested journey event
+is written once with its actor and reason, and a freshly opened deal is
+removed again if the item update fails. The board's deal PATCH follows
+the same order, so a deal never moves without its record. A deal on a
+pipeline other
 than the mirrored one keeps its own stage, in the move function and in
 the journey→deal trigger (`…120050`, which also confines the deal→journey
 trigger to the deal's own account). The journey's own stage editor is

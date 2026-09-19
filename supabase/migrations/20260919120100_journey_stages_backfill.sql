@@ -14,10 +14,12 @@
 -- the closing record; one on another board lands on the mirrored
 -- stage of the same kind, and the trigger from …120050 leaves that
 -- deal where it is), then the rest map by stage kind onto the first
--- mirrored stage of that kind. Legacy stages are then removed: every
--- item is on a mirrored stage by now, and a stage note keeps its own
--- name and colour snapshot (its stage_id FK is ON DELETE SET NULL), so
--- no unlinked stage is left behind for a "next stage" lookup to find.
+-- mirrored stage of that kind. A mirror of any other pipeline (the
+-- first sync function accepted one) has its items re-pointed by kind
+-- onto the default board's mirror and is removed with the legacy
+-- stages: every item is on a default-board mirror by now, and a stage
+-- note keeps its own name and colour snapshot (its stage_id FK is ON
+-- DELETE SET NULL), so no stray stage is left for a lookup to find.
 -- ============================================================
 
 DO $$
@@ -100,17 +102,42 @@ BEGIN
             WHERE account_id = acc.id AND pipeline_stage_id IS NULL
         );
 
+    UPDATE journey_items ji
+      SET stage_id = m.id
+      FROM journey_stages foreign_js
+      JOIN pipeline_stages fps ON fps.id = foreign_js.pipeline_stage_id
+      CROSS JOIN LATERAL (
+        SELECT js.id FROM journey_stages js
+          JOIN pipeline_stages ps ON ps.id = js.pipeline_stage_id
+          WHERE js.account_id = acc.id
+            AND ps.pipeline_id = v_pipeline
+            AND js.stage_kind = foreign_js.stage_kind
+          ORDER BY js.position
+          LIMIT 1
+      ) m
+      WHERE ji.account_id = acc.id
+        AND ji.stage_id = foreign_js.id
+        AND foreign_js.account_id = acc.id
+        AND fps.pipeline_id <> v_pipeline;
+
     UPDATE journey_items
       SET planned_stage_id = NULL, planned_at = NULL
       WHERE account_id = acc.id
         AND planned_stage_id IN (
-          SELECT id FROM journey_stages
-            WHERE account_id = acc.id AND pipeline_stage_id IS NULL
+          SELECT s.id FROM journey_stages s
+            LEFT JOIN pipeline_stages ps ON ps.id = s.pipeline_stage_id
+            WHERE s.account_id = acc.id
+              AND (s.pipeline_stage_id IS NULL OR ps.pipeline_id <> v_pipeline)
         );
 
     DELETE FROM journey_stages s
-      WHERE s.account_id = acc.id
-        AND s.pipeline_stage_id IS NULL
+      USING (
+        SELECT s2.id FROM journey_stages s2
+          LEFT JOIN pipeline_stages ps ON ps.id = s2.pipeline_stage_id
+          WHERE s2.account_id = acc.id
+            AND (s2.pipeline_stage_id IS NULL OR ps.pipeline_id <> v_pipeline)
+      ) gone
+      WHERE s.id = gone.id
         AND NOT EXISTS (
           SELECT 1 FROM journey_items i
             WHERE i.stage_id = s.id OR i.planned_stage_id = s.id

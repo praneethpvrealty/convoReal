@@ -1941,7 +1941,7 @@ describe('[TXW-018] journey stages mirror the pipeline on every surface', () => 
       "target.stage_kind === 'closing' || target.stage_kind === 'won'"
     );
     expect(move).toContain('needsBrokerageCapture(');
-    expect(move).toContain('await applyDealStageMove(ctx, {');
+    expect(move).toContain('await prepareDealStageMove(ctx, dealMove)');
     expect(move).toContain('await convertJourneyItemToDeal(ctx, {');
     expect(move).toContain('stageId: target.pipeline_stage_id');
     expect(move).toContain('deal.pipeline_id === targetPipelineId');
@@ -1983,6 +1983,9 @@ describe('[TXW-018] journey stages mirror the pipeline on every surface', () => 
     );
     const stageMove = webSource('lib/deals/stage-move.ts');
     expect(stageMove.match(/\.eq\('account_id', accountId\)/g)?.length).toBe(3);
+    expect(
+      stageMove.match(/\.eq\('account_id', ctx\.accountId\)/g)?.length
+    ).toBe(1);
     expect(sameAccount).toContain(
       "PERFORM pg_advisory_xact_lock(hashtext('ensure_default_pipeline'), hashtext(p_account_id::text));"
     );
@@ -1993,9 +1996,30 @@ describe('[TXW-018] journey stages mirror the pipeline on every surface', () => 
     const itemUpdate = moveSource.indexOf(
       ".from('journey_items')\n      .update({"
     );
-    expect(moveSource.indexOf('await applyDealStageMove(ctx, {')).toBeLessThan(
+    expect(
+      moveSource.indexOf('await prepareDealStageMove(ctx, dealMove)')
+    ).toBeLessThan(itemUpdate);
+    expect(moveSource).not.toContain('applyDealStageMove(');
+    expect(moveSource.indexOf('await writeJourneyEvent({')).toBeGreaterThan(
       itemUpdate
     );
+    const stageMoveSource = webSource('lib/deals/stage-move.ts');
+    expect(
+      stageMoveSource.indexOf(
+        'const prepared = await prepareDealStageMove(ctx, input);'
+      )
+    ).toBeLessThan(
+      stageMoveSource.indexOf('updateData.stage_id = input.targetStageId')
+    );
+    expect(
+      readFileSync(
+        join(
+          process.cwd(),
+          'supabase/migrations/20260919120100_journey_stages_backfill.sql'
+        ),
+        'utf8'
+      )
+    ).toContain('AND fps.pipeline_id <> v_pipeline;');
     expect(
       moveSource.indexOf('await convertJourneyItemToDeal(ctx, {')
     ).toBeLessThan(itemUpdate);

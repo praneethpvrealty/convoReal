@@ -3,7 +3,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { convertJourneyItemToDeal } from '@/lib/deals/convert-journey-item';
 import type { DealEventSource } from '@/lib/deals/events';
 import {
-  applyDealStageMove,
+  prepareDealStageMove,
+  syncPropertyStatus,
   type BrokerageCapture,
 } from '@/lib/deals/stage-move';
 import { writeJourneyEvent } from '@/lib/journey/events';
@@ -148,32 +149,29 @@ export async function moveJourneyItem(
     };
   }
 
-  // The deal side runs first. For a converted item the deal update and
-  // the trigger that moves its journey item are one statement, so a
-  // failure leaves both sides where they were. For a fresh conversion
-  // the deal is opened first and removed again if the item cannot be
-  // moved onto its stage, so an item never sits on a closing stage
-  // without its record.
+  // What must exist before either side moves is written first: the
+  // brokerage and the closing record for a converted item, or the deal
+  // itself (on the target stage) for a fresh conversion. The journey
+  // item's own update then moves a converted deal through the trigger
+  // in the same statement, so the two sides never part; a freshly
+  // opened deal is removed again if that update fails.
   let dealId: string | null = deal?.id ?? null;
   let openedDealId: string | null = null;
-  if (dealFollows && deal && target.pipeline_stage_id) {
-    const result = await applyDealStageMove(ctx, {
-      dealId: deal.id,
-      status: dealStatusForStage(target.name),
-      targetStageId: target.pipeline_stage_id,
-      stageName: target.name,
-      propertyId: deal.property_id ?? item.property_id,
-      brokerage: input.brokerage,
-      source: input.source,
-    });
-    if (!result.ok) {
-      return {
-        ok: false,
-        status: result.status,
-        error: result.error,
-        ...(result.code ? { code: result.code } : {}),
-      };
-    }
+  const dealMove =
+    dealFollows && deal && target.pipeline_stage_id
+      ? {
+          dealId: deal.id,
+          status: dealStatusForStage(target.name),
+          targetStageId: target.pipeline_stage_id,
+          stageName: target.name,
+          propertyId: deal.property_id ?? item.property_id,
+          brokerage: input.brokerage,
+          source: input.source,
+        }
+      : null;
+  if (dealMove) {
+    const prepared = await prepareDealStageMove(ctx, dealMove);
+    if (!prepared.ok) return prepared;
   } else if (dealOpens && target.pipeline_stage_id) {
     const result = await convertJourneyItemToDeal(ctx, {
       itemId: item.id,
@@ -190,58 +188,51 @@ export async function moveJourneyItem(
     if (!result.existing) openedDealId = result.id;
   }
 
-  const { data: current } = await supabase
+  const { data: moved, error: moveError } = await supabase
     .from('journey_items')
-    .select('stage_id')
+    .update({
+      stage_id: target.id,
+      status: 'active',
+      drop_reason: null,
+      dropped_at: null,
+      planned_stage_id: null,
+      planned_at: null,
+    })
     .eq('id', item.id)
     .eq('account_id', accountId)
-    .maybeSingle();
-  if (current?.stage_id !== target.id) {
-    const { data: moved, error: moveError } = await supabase
-      .from('journey_items')
-      .update({
-        stage_id: target.id,
-        status: 'active',
-        drop_reason: null,
-        dropped_at: null,
-        planned_stage_id: null,
-        planned_at: null,
-      })
-      .eq('id', item.id)
-      .eq('account_id', accountId)
-      .select('id');
-    if (moveError || !moved?.length) {
-      if (openedDealId) {
-        const { data: removed } = await supabase
-          .from('deals')
-          .delete()
-          .eq('id', openedDealId)
-          .eq('account_id', accountId)
-          .select('id');
-        if (!removed?.length) {
-          console.error(
-            '[journey/move] Opened deal not removed after a failed item move:',
-            openedDealId
-          );
-        }
+    .select('id');
+  if (moveError || !moved?.length) {
+    if (openedDealId) {
+      const { data: removed } = await supabase
+        .from('deals')
+        .delete()
+        .eq('id', openedDealId)
+        .eq('account_id', accountId)
+        .select('id');
+      if (!removed?.length) {
+        console.error(
+          '[journey/move] Opened deal not removed after a failed item move:',
+          openedDealId
+        );
       }
-      return {
-        ok: false,
-        status: moveError ? 500 : 404,
-        error: moveError?.message ?? 'That item is no longer there',
-      };
     }
-    await writeJourneyEvent({
-      db: supabase,
-      accountId,
-      itemId: item.id,
-      eventType: input.eventType,
-      createdBy: userId,
-      fromStageId: item.stage_id,
-      toStageId: target.id,
-      reason: input.reason ?? null,
-    });
+    return {
+      ok: false,
+      status: moveError ? 500 : 404,
+      error: moveError?.message ?? 'That item is no longer there',
+    };
   }
+  await writeJourneyEvent({
+    db: supabase,
+    accountId,
+    itemId: item.id,
+    eventType: input.eventType,
+    createdBy: userId,
+    fromStageId: item.stage_id,
+    toStageId: target.id,
+    reason: input.reason ?? null,
+  });
+  if (dealMove) await syncPropertyStatus(ctx, dealMove);
 
   return {
     ok: true,

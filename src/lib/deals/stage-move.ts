@@ -64,13 +64,23 @@ export interface DealStageMoveInput {
 export type DealStageMoveResult =
   { ok: true } | { ok: false; status: number; error: string; code?: string };
 
-export async function applyDealStageMove(
-  ctx: { supabase: SupabaseClient; accountId: string; userId: string },
+export type DealStageMoveContext = {
+  supabase: SupabaseClient;
+  accountId: string;
+  userId: string;
+};
+
+/**
+ * Everything a stage move records besides the stage itself, written
+ * before the stage changes: the brokerage columns and the closing
+ * record. Both are idempotent, so a move that then fails leaves a deal
+ * that is merely prepared, never one that moved without its record.
+ */
+export async function prepareDealStageMove(
+  ctx: DealStageMoveContext,
   input: DealStageMoveInput
 ): Promise<DealStageMoveResult> {
   const { supabase, accountId, userId } = ctx;
-  const updateData: Record<string, unknown> = { status: input.status };
-  if (input.targetStageId) updateData.stage_id = input.targetStageId;
 
   if (input.brokerage) {
     const { data: current } = await supabase
@@ -82,9 +92,79 @@ export async function applyDealStageMove(
     if (!current) {
       return { ok: false, status: 404, error: 'Deal not found' };
     }
-    Object.assign(updateData, brokerageColumns(current.value, input.brokerage));
+    const { data: priced, error: priceErr } = await supabase
+      .from('deals')
+      .update(brokerageColumns(current.value, input.brokerage))
+      .eq('id', input.dealId)
+      .eq('account_id', accountId)
+      .select('id');
+    if (priceErr || !priced?.length) {
+      return {
+        ok: false,
+        status: priceErr ? 500 : 404,
+        error: priceErr?.message ?? 'Deal not found',
+      };
+    }
   }
 
+  if (input.targetStageId && input.stageName) {
+    const record = await ensureClosingRecord({
+      db: supabase,
+      accountId,
+      dealId: input.dealId,
+      stageName: input.stageName,
+      actorId: userId,
+      actorName: await actorName(supabase, accountId, userId),
+      source: input.source,
+    });
+    if (record.error) {
+      return {
+        ok: false,
+        status: 500,
+        error: `The closing record could not be started, so the deal was not moved: ${record.error}`,
+        code: 'CLOSING_RECORD_FAILED',
+      };
+    }
+  }
+
+  return { ok: true };
+}
+
+export async function syncPropertyStatus(
+  ctx: Pick<DealStageMoveContext, 'supabase' | 'accountId'>,
+  input: Pick<DealStageMoveInput, 'propertyId' | 'stageName' | 'status'>
+): Promise<void> {
+  if (!input.propertyId) return;
+  const propertyStatus = input.stageName
+    ? (propertyStatusForPipelineStage(input.stageName) ?? 'Available')
+    : input.status === 'won'
+      ? 'Sold'
+      : 'Available';
+  const { data: synced } = await ctx.supabase
+    .from('properties')
+    .update({ status: propertyStatus })
+    .eq('id', input.propertyId)
+    .eq('account_id', ctx.accountId)
+    .select('id');
+  if (!synced?.length) {
+    console.warn(
+      '[deals/stage-move] Property status not synced:',
+      input.propertyId
+    );
+  }
+}
+
+export async function applyDealStageMove(
+  ctx: DealStageMoveContext,
+  input: DealStageMoveInput
+): Promise<DealStageMoveResult> {
+  const { supabase, accountId } = ctx;
+
+  const prepared = await prepareDealStageMove(ctx, input);
+  if (!prepared.ok) return prepared;
+
+  const updateData: Record<string, unknown> = { status: input.status };
+  if (input.targetStageId) updateData.stage_id = input.targetStageId;
   const { data: updated, error: updateErr } = await supabase
     .from('deals')
     .update(updateData)
@@ -103,45 +183,6 @@ export async function applyDealStageMove(
     };
   }
 
-  if (updateData.stage_id && input.stageName) {
-    const record = await ensureClosingRecord({
-      db: supabase,
-      accountId,
-      dealId: input.dealId,
-      stageName: input.stageName,
-      actorId: userId,
-      actorName: await actorName(supabase, accountId, userId),
-      source: input.source,
-    });
-    if (record.error) {
-      return {
-        ok: false,
-        status: 500,
-        error: `Stage moved but the closing record could not be started: ${record.error}`,
-        code: 'CLOSING_RECORD_FAILED',
-      };
-    }
-  }
-
-  if (input.propertyId) {
-    const propertyStatus = input.stageName
-      ? (propertyStatusForPipelineStage(input.stageName) ?? 'Available')
-      : input.status === 'won'
-        ? 'Sold'
-        : 'Available';
-    const { data: synced } = await supabase
-      .from('properties')
-      .update({ status: propertyStatus })
-      .eq('id', input.propertyId)
-      .eq('account_id', accountId)
-      .select('id');
-    if (!synced?.length) {
-      console.warn(
-        '[deals/stage-move] Property status not synced:',
-        input.propertyId
-      );
-    }
-  }
-
+  await syncPropertyStatus(ctx, input);
   return { ok: true };
 }
