@@ -2,12 +2,6 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-// journey_items carries two foreign keys to journey_stages (stage_id and
-// planned_stage_id), so PostgREST refuses `stage:journey_stages(...)`
-// with "more than one relationship was found" unless the embed names
-// the key. The conversion route shipped that way and failed in
-// production the first time a journey move opened a deal.
-
 function walk(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
     if (name === 'node_modules' || name.startsWith('.')) continue;
