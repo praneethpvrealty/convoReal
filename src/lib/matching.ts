@@ -197,6 +197,10 @@ export interface MatchDetails {
    *  excludes, like budget — "lesser dimensions" must actually drop the
    *  plot the lead just declined. */
   size?: MatchVerdict;
+  /** How the size fit was earned, for ordering once the score has
+   *  clamped at 100: inside the band, within 10% of a bound, or the
+   *  larger alternative to a single stated figure. */
+  size_fit?: 'exact' | 'near' | 'larger';
   /** 'match' = the property's project/title/tag is one the contact named
    *  in projects_of_interest/pref_projects — a decisive, high-intent
    *  signal. */
@@ -1233,7 +1237,7 @@ function matchContactsSingleProfile(
         ? Number(sourceContact.pref_land_area_max_sqft)
         : null;
     let sizeVerdict: MatchVerdict = 'unknown';
-    let sizeNear = false;
+    let sizeFit: MatchDetails['size_fit'];
     if (sizeMin !== null || sizeMax !== null) {
       const propAreaSqft = propertyAreaSqft;
       if (propAreaSqft !== null) {
@@ -1241,6 +1245,7 @@ function matchContactsSingleProfile(
         const maxOk = sizeMax === null || propAreaSqft <= sizeMax;
         if (minOk && maxOk) {
           sizeVerdict = 'match';
+          sizeFit = 'exact';
         } else {
           // ±10%, tighter than budget's band on purpose: the smaller/
           // bigger anchor (size-feedback.ts) is derived at 0.85 of the
@@ -1248,7 +1253,7 @@ function matchContactsSingleProfile(
           // that listing lands outside even the near-miss band.
           const nearMin = sizeMin === null || propAreaSqft >= sizeMin * 0.9;
           const nearMax = sizeMax === null || propAreaSqft <= sizeMax * 1.1;
-          sizeNear = nearMin && nearMax;
+          const sizeNear = nearMin && nearMax;
           // A single figure ("60x40", "2400 sqft") is the size the buyer
           // has in mind, not a band. The larger corner sites in the same
           // layout are the alternatives an agent would mention; a smaller
@@ -1260,6 +1265,11 @@ function matchContactsSingleProfile(
             propAreaSqft > sizeMax &&
             propAreaSqft <= sizeMax * POINT_SIZE_HEADROOM;
           sizeVerdict = sizeNear || largerAlternative ? 'partial' : 'mismatch';
+          sizeFit = sizeNear
+            ? 'near'
+            : largerAlternative
+              ? 'larger'
+              : undefined;
         }
       }
     }
@@ -1322,7 +1332,7 @@ function matchContactsSingleProfile(
     else if (bhkVerdict === 'mismatch') score -= bhkDistance >= 2 ? 15 : 5;
 
     if (sizeVerdict === 'match') score += 10;
-    else if (sizeVerdict === 'partial') score += sizeNear ? 4 : 2;
+    else if (sizeVerdict === 'partial') score += sizeFit === 'near' ? 4 : 2;
 
     if (roiVerdict === 'match') score += 5;
 
@@ -1343,6 +1353,7 @@ function matchContactsSingleProfile(
         bhk: bhkVerdict,
         roi: roiVerdict,
         size: sizeVerdict,
+        size_fit: sizeFit,
         project: projectMatch ? 'match' : 'unknown',
         named_area: namedAreaHit ? 'match' : 'unknown',
       },
@@ -1366,12 +1377,24 @@ const TYPE_RANK: Record<MatchVerdict, number> = {
   mismatch: 0,
 };
 
+const SIZE_FIT_RANK: Record<NonNullable<MatchDetails['size_fit']>, number> = {
+  exact: 3,
+  near: 2,
+  larger: 1,
+};
+
+function sizeFitRank(details: MatchDetails): number {
+  return details.size_fit ? SIZE_FIT_RANK[details.size_fit] : 0;
+}
+
 /**
  * Order for a list the buyer reads: listings in a locality they named
- * first, ordered by how well the type fits, then by score. The score
- * alone put a same-size house five kilometres away level with the plot
- * in the layout the buyer had asked for, and the tie fell to whichever
- * row the database returned first.
+ * first, ordered by how well the type fits, then by score, then by how
+ * the size fit was earned. The score alone put a same-size house five
+ * kilometres away level with the plot in the layout the buyer had asked
+ * for, and the tie fell to whichever row the database returned first.
+ * The size fit settles the tie a fully specified brief produces, where
+ * an exact fit and the larger alternative both clamp at 100.
  */
 export function compareForBuyer(
   a: { score: number; details: MatchDetails },
@@ -1383,7 +1406,8 @@ export function compareForBuyer(
   if (named !== 0) return named;
   const type = TYPE_RANK[b.details.type] - TYPE_RANK[a.details.type];
   if (type !== 0) return type;
-  return b.score - a.score;
+  if (b.score !== a.score) return b.score - a.score;
+  return sizeFitRank(b.details) - sizeFitRank(a.details);
 }
 
 /**

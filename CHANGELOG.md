@@ -27,7 +27,8 @@ than a written entry. Newest first.
   below exact fits and below the within-10% near-misses, while smaller
   plots and anything beyond that headroom are still excluded. A stated
   band ("2,000–2,400 sq.ft.") and the "smaller"/"bigger" feedback anchors
-  keep their strict caps.
+  keep their strict caps. The order holds even when a full brief clamps
+  every plot's score at 100: the size fit breaks that tie.
 - **Matching: a stated plot type now matches plots, and the locality a
   buyer names comes first.** A lead who asked for a 60x40 site in Vijaya
   Bank Layout was sent a 10 BHK building, a villa in HSR Layout and a house
