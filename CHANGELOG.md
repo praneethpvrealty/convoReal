@@ -11,7 +11,7 @@ and polish.
 
 ## [Unreleased]
 
-### Merged 19 August – 18 September 2026 (#638–#904)
+### Merged 19 August – 19 September 2026 (#638–)
 
 This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
@@ -31,6 +31,27 @@ than a written entry. Newest first.
   cannot be turned on for the live number and clears when the number goes
   live again. **Migration required:**
   `20260919043000_whatsapp_retired_number_autoreply.sql`.
+- **Matching: a stated plot type now matches plots, and the locality a
+  buyer names comes first.** A lead who asked for a 60x40 site in Vijaya
+  Bank Layout was sent a 10 BHK building, a villa in HSR Layout and a house
+  in Koramangala while four plots in the layout sat unmentioned. The engine
+  had no subtype group for "Residential Plot" or "Residential Land", the
+  labels the extraction files, so a plot seeker's type fell back to the
+  residential category and every house within radius tied with the plots.
+  Both labels now map to the plot group, so houses are excluded for a plot
+  seeker. Locality names are read with spelling slips allowed — one
+  character per stem, a transposed pair, or a name fused into one word
+  ("Vijayanbank layout") — in the stated areas, the excluded areas and the
+  listing's own fields. Naming a locality now outranks being within radius
+  of it: every buyer-facing shortlist (the qualification reply, the
+  on-demand match reply, digests and the buyer portal) leads with the
+  listings in that locality, plots before houses for a plot seeker, and
+  only then nearby listings; a listing there in the buyer's stated sector
+  stays in the list past a type mismatch, at the end. Being in the named
+  locality is a location match whatever the listing's coordinates say. The
+  on-demand match reply now records what it sent in the share ledger, so
+  the qualification reply minutes later no longer repeats the enquired
+  listing.
 
 #### 18 September 2026
 

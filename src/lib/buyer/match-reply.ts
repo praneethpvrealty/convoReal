@@ -74,6 +74,21 @@ export async function buildBuyerMatchReply(args: {
   contactId: string;
   db?: SupabaseClient;
 }): Promise<string | null> {
+  const reply = await buildBuyerMatchReplyWithListings(args);
+  return reply?.text ?? null;
+}
+
+/**
+ * The reply and the listings it names, for the sender to record in the
+ * share ledger. Without that record the qualification reply, which does
+ * suppress previously-sent listings, has no way of knowing the buyer
+ * was shown these minutes ago and sends them again.
+ */
+export async function buildBuyerMatchReplyWithListings(args: {
+  accountId: string;
+  contactId: string;
+  db?: SupabaseClient;
+}): Promise<{ text: string; propertyIds: string[] } | null> {
   const db = args.db || supabaseAdmin();
   try {
     const { data: contactRow } = await db
@@ -127,13 +142,16 @@ export async function buildBuyerMatchReply(args: {
       ? pinEnquiredProperty(rankedMatches, availableEnquiry)
       : rankedMatches;
     if (matches.length === 0) {
-      return unavailableEnquiryTitle
-        ? buildUnavailableEnquiryMessage({
-            contactName: contact.name,
-            propertyTitle: unavailableEnquiryTitle,
-            hasAlternatives: false,
-          })
-        : buildNoMatchesMessage(contact.name);
+      return {
+        text: unavailableEnquiryTitle
+          ? buildUnavailableEnquiryMessage({
+              contactName: contact.name,
+              propertyTitle: unavailableEnquiryTitle,
+              hasAlternatives: false,
+            })
+          : buildNoMatchesMessage(contact.name),
+        propertyIds: [],
+      };
     }
 
     const showcaseUrl = await accountPropertiesShowcaseUrl(
@@ -148,13 +166,16 @@ export async function buildBuyerMatchReply(args: {
       portalUrl: showcaseUrl,
       enquiredPropertyId: availableEnquiry?.id,
     });
-    return unavailableEnquiryTitle
-      ? `${buildUnavailableEnquiryMessage({
-          contactName: contact.name,
-          propertyTitle: unavailableEnquiryTitle,
-          hasAlternatives: true,
-        })}\n\n${digest}`
-      : digest;
+    return {
+      text: unavailableEnquiryTitle
+        ? `${buildUnavailableEnquiryMessage({
+            contactName: contact.name,
+            propertyTitle: unavailableEnquiryTitle,
+            hasAlternatives: true,
+          })}\n\n${digest}`
+        : digest,
+      propertyIds: matches.map((match) => match.property.id),
+    };
   } catch (err) {
     console.error('[buyer-match-reply] failed:', err);
     return null;

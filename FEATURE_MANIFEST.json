@@ -55,6 +55,24 @@
               "case": "[INB-003]"
             }
           ]
+        },
+        {
+          "id": "INB-004",
+          "rule": "A buyer's stated locality matches inventory across spelling variants, listings in that locality lead every buyer-facing shortlist ordered by property-type fit before nearby listings, and a stated plot type matches plot listings rather than houses.",
+          "tests": [
+            {
+              "file": "src/lib/locality-match.test.ts",
+              "case": "[INB-004]"
+            },
+            {
+              "file": "src/lib/matching.test.ts",
+              "case": "[INB-004]"
+            },
+            {
+              "file": "src/lib/buyer/matches-ranking.test.ts",
+              "case": "[INB-004]"
+            }
+          ]
         }
       ]
     },
@@ -125,6 +143,16 @@
             {
               "file": "src/lib/calendar/scheduling-edit.test.ts",
               "case": "[CAL-006]"
+            }
+          ]
+        },
+        {
+          "id": "CAL-007",
+          "rule": "Time corrections accept compact meridiem forms such as 430pm. A correction without a usable replacement date or time asks for clarification and never confirms an unchanged appointment as updated.",
+          "tests": [
+            {
+              "file": "src/lib/calendar/scheduling-edit.test.ts",
+              "case": "[CAL-007]"
             }
           ]
         }

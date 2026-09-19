@@ -87,11 +87,19 @@ describe('handlePropertyTypeReply', () => {
     const flat = {
       type: 'Flat/ Apartment',
       price: 9_000_000,
+      location: 'Indiranagar',
+    } as unknown as Property;
+    const flatInNamedArea = {
+      type: 'Flat/ Apartment',
+      price: 9_000_000,
       location: 'Koramangala',
     } as unknown as Property;
 
     expect(getMatchingContacts(plot, [buyer]).length).toBe(1);
     expect(getMatchingContacts(flat, [buyer]).length).toBe(0);
+    expect(getMatchingContacts(flatInNamedArea, [buyer])[0]?.details.type).toBe(
+      'mismatch'
+    );
   });
 
   it('ignores ids it does not own, so other handlers still run', async () => {

@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { buildBuyerMatchReply } from './match-reply';
+import {
+  buildBuyerMatchReply,
+  buildBuyerMatchReplyWithListings,
+} from './match-reply';
 
 function dbForUnavailableEnquiry() {
   const rows = {
@@ -185,5 +188,29 @@ describe('buildBuyerMatchReply', () => {
     expect(reply).toContain('*Palm Grove* is no longer available');
     expect(reply).toContain('kept your requirement active');
     expect(reply).not.toContain('nothing in our inventory fits');
+  });
+});
+
+describe('buildBuyerMatchReplyWithListings', () => {
+  it('names the listings the reply carries so the sender can record them', async () => {
+    const reply = await buildBuyerMatchReplyWithListings({
+      accountId: 'account',
+      contactId: 'simon',
+      db: dbForAvailableEnquiry() as never,
+    });
+
+    expect(reply?.text).toContain("Here's the property you enquired about");
+    expect(reply?.propertyIds[0]).toBe('hebron');
+    expect(reply?.propertyIds).toContain('alternative');
+  });
+
+  it('carries no listings when nothing fits', async () => {
+    const reply = await buildBuyerMatchReplyWithListings({
+      accountId: 'account',
+      contactId: 'vinutha',
+      db: dbForUnavailableEnquiry() as never,
+    });
+
+    expect(reply?.propertyIds).toEqual([]);
   });
 });

@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { getMatchingContacts, isCurrentlyTenanted } from './matching';
+import {
+  compareForBuyer,
+  getMatchingContacts,
+  isCurrentlyTenanted,
+} from './matching';
 import { rankProperties } from './radar/engine';
 import type { Contact, Property } from '@/types';
 
@@ -1996,5 +2000,213 @@ describe('independent additional requirement profiles', () => {
     });
 
     expect(getMatchingContacts(mixed, [sidharth])).toHaveLength(0);
+  });
+});
+
+describe('Residential Plot and Residential Land subtypes', () => {
+  it('[INB-004] matches a plot seeker filed under the split taxonomy to plot listings only', () => {
+    for (const stated of ['Residential Plot', 'Residential Land']) {
+      const contact = createTestContact({
+        pref_property_types: [stated],
+        pref_property_categories: ['plot', 'residential'],
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const plot = createTestProperty({ type: 'Residential Land/ Plot' });
+      const namedPlot = createTestProperty({ type: 'Residential Plot' });
+      const house = createTestProperty({
+        type: 'Residential House',
+        bedrooms: 10,
+      });
+
+      expect(getMatchingContacts(plot, [contact])[0]?.details.type).toBe(
+        'match'
+      );
+      expect(getMatchingContacts(namedPlot, [contact])[0]?.details.type).toBe(
+        'match'
+      );
+      expect(getMatchingContacts(house, [contact])).toHaveLength(0);
+    }
+  });
+});
+
+describe('Named locality', () => {
+  // Pramod, 18 September: "any site available for sale in Vijaya Bank
+  // Layout 60x40". Inventory spells the layout "Vijayanbank"; the reply
+  // carried a 10 BHK building, a villa in HSR Layout and a house in
+  // Koramangala while four plots in the layout sat unmentioned.
+  const vijayaBankLayout = { latitude: 12.8952, longitude: 77.6071 };
+  const koramangala = { latitude: 12.9253, longitude: 77.6367 };
+
+  const plotSeeker = (over: Partial<Contact> = {}) =>
+    createTestContact({
+      pref_property_types: ['Residential Plot'],
+      pref_property_categories: ['plot', 'residential'],
+      pref_areas: ['Vijaya Bank Layout'],
+      pref_listing_types: ['Sale'],
+      pref_land_area_min_sqft: 2400,
+      pref_land_area_max_sqft: 2400,
+      pref_extracted_at: new Date().toISOString(),
+      strict_area_match: true,
+      ...over,
+    });
+
+  const layoutPlot = createTestProperty({
+    id: 'prop-1241',
+    title: '#330, 2400 sqft East Facing Vacant Plot in Vijayabank Layout',
+    type: 'Residential Land/ Plot',
+    listing_type: 'Sale',
+    location: 'Bannerghatta road, Vijayanbank layout, Bangalore, Karnataka',
+    sublocality: 'Vijayanbank layout',
+    land_area: 2400,
+    land_area_unit: 'Sq.Ft.',
+    price: 60_000_000,
+    ...vijayaBankLayout,
+  });
+  const layoutHouse = createTestProperty({
+    id: 'prop-1240',
+    title: '#328, 2400 sqft east facing property for sale in Vijayabank Layout',
+    type: 'Residential House',
+    listing_type: 'Sale',
+    location: 'Bannerghatta road, Vijayanbank layout, Bangalore, Karnataka',
+    sublocality: 'Vijayanbank Layout',
+    land_area: 2400,
+    land_area_unit: 'Sq.Ft.',
+    bedrooms: 4,
+    price: 65_000_000,
+    ...vijayaBankLayout,
+  });
+  const nearbyPlot = createTestProperty({
+    id: 'prop-1056',
+    title: 'Residential Plot in Koramangala',
+    type: 'Residential Plot',
+    listing_type: 'Sale',
+    location: 'Koramangala, Bangalore, Karnataka',
+    sublocality: 'Koramangala',
+    land_area: 2400,
+    land_area_unit: 'Sq.Ft.',
+    price: 54_000_000,
+    ...koramangala,
+  });
+  const nearbyHouse = createTestProperty({
+    id: 'prop-1055',
+    title: '6 BHK Residential House in Koramangala 1st Block',
+    type: 'Residential House',
+    listing_type: 'Sale',
+    location: 'Koramangala 1st Block, Bangalore, Karnataka',
+    sublocality: 'Koramangala 1st Block',
+    land_area: 2400,
+    land_area_unit: 'Sq.Ft.',
+    bedrooms: 6,
+    price: 96_000_000,
+    ...koramangala,
+  });
+
+  it('[INB-004] finds the layout despite the spelling in inventory', () => {
+    const [match] = getMatchingContacts(layoutPlot, [plotSeeker()]);
+    expect(match?.details.type).toBe('match');
+    expect(match?.details.location).toBe('match');
+    expect(match?.details.named_area).toBe('match');
+  });
+
+  it('[INB-004] leads with the named layout, plots before houses, and only then nearby plots', () => {
+    const ranked = rankProperties(plotSeeker(), [
+      nearbyHouse,
+      nearbyPlot,
+      layoutHouse,
+      layoutPlot,
+    ]);
+    expect(ranked.map((m) => m.property.id)).toEqual([
+      'prop-1241',
+      'prop-1240',
+      'prop-1056',
+    ]);
+    expect(ranked[1].details.type).toBe('mismatch');
+    expect(ranked[1].details.named_area).toBe('match');
+    expect(ranked[2].details.named_area).toBe('unknown');
+  });
+
+  it('keeps a house in the named layout only within the stated sector', () => {
+    const commercial = createTestProperty({
+      type: 'Commercial Building',
+      listing_type: 'Sale',
+      sublocality: 'Vijaya Bank Layout',
+      land_area: 2400,
+      land_area_unit: 'Sq.Ft.',
+      ...vijayaBankLayout,
+    });
+    expect(getMatchingContacts(commercial, [plotSeeker()])).toHaveLength(0);
+  });
+
+  it('is a location match whatever the coordinates say', () => {
+    const misplaced = createTestProperty({
+      type: 'Residential Plot',
+      listing_type: 'Sale',
+      sublocality: 'Vijaya Bank Layout',
+      land_area: 2400,
+      land_area_unit: 'Sq.Ft.',
+      latitude: 13.2,
+      longitude: 77.7,
+    });
+    const [match] = getMatchingContacts(misplaced, [plotSeeker()]);
+    expect(match?.details.location).toBe('match');
+  });
+
+  it('does not treat a market zone as a named locality', () => {
+    const zoneBuyer = plotSeeker({
+      pref_areas: ['South Bengaluru'],
+      pref_land_area_min_sqft: null,
+      pref_land_area_max_sqft: null,
+    });
+    const [match] = getMatchingContacts(layoutPlot, [zoneBuyer]);
+    expect(match?.details.location).toBe('match');
+    expect(match?.details.named_area).toBe('unknown');
+    expect(getMatchingContacts(layoutHouse, [zoneBuyer])).toHaveLength(0);
+  });
+
+  it('reads an excluded area with the same tolerance', () => {
+    const contact = createTestContact({
+      pref_property_types: ['Residential Plot'],
+      pref_excluded_areas: ['Vijayanbank layout'],
+      pref_extracted_at: new Date().toISOString(),
+    });
+    const excluded = createTestProperty({
+      type: 'Residential Plot',
+      sublocality: 'Vijaya Bank Layout',
+    });
+    const elsewhere = createTestProperty({
+      type: 'Residential Plot',
+      sublocality: 'HSR Layout',
+    });
+    expect(getMatchingContacts(excluded, [contact])).toHaveLength(0);
+    expect(getMatchingContacts(elsewhere, [contact])).toHaveLength(1);
+  });
+});
+
+describe('compareForBuyer', () => {
+  const entry = (
+    score: number,
+    type: 'match' | 'partial' | 'mismatch',
+    named: 'match' | 'unknown'
+  ) => ({
+    score,
+    details: {
+      type,
+      location: 'match' as const,
+      budget: 'unknown' as const,
+      bhk: 'unknown' as const,
+      roi: 'unknown' as const,
+      named_area: named,
+    },
+  });
+
+  it('orders by named locality, then type fit, then score', () => {
+    const sorted = [
+      entry(79, 'match', 'unknown'),
+      entry(60, 'mismatch', 'match'),
+      entry(99, 'match', 'match'),
+      entry(100, 'match', 'match'),
+      entry(70, 'partial', 'match'),
+    ].sort(compareForBuyer);
+    expect(sorted.map((e) => e.score)).toEqual([100, 99, 70, 60, 79]);
   });
 });
