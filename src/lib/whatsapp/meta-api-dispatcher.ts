@@ -262,17 +262,37 @@ export async function sendWhatsAppMessageAndPersist(
         .from('contacts')
         .select('*')
         .eq('account_id', accountId)
-        .eq('is_merged', false)
         .like('phone', `%${phoneSuffix}`)
 
       if (error) {
         console.error('[meta-api-dispatcher] contact lookup error:', error.message)
       }
 
-      const existing = contacts?.find((c: { phone: string }) => phonesMatch(c.phone, targetPhone!))
+      const matching = (contacts ?? []).filter((c: { phone: string }) =>
+        phonesMatch(c.phone, targetPhone!)
+      )
+      let existing = matching.find((c: { is_merged?: boolean }) => !c.is_merged)
+      if (!existing) {
+        const alias = matching.find(
+          (c: { is_merged?: boolean; merged_into_id?: string | null }) =>
+            c.is_merged && c.merged_into_id
+        ) as { merged_into_id?: string | null } | undefined
+        if (alias?.merged_into_id) {
+          const { data: mergeWinner } = await db
+            .from('contacts')
+            .select('*')
+            .eq('id', alias.merged_into_id)
+            .eq('account_id', accountId)
+            .eq('is_merged', false)
+            .maybeSingle()
+          existing = mergeWinner
+        }
+      }
       if (existing) {
         resolvedContactId = existing.id
-        targetPhone = existing.phone
+        if (!matching.some((c: { is_merged?: boolean }) => c.is_merged)) {
+          targetPhone = existing.phone
+        }
         resolvedContact = existing as OutboundContact
       } else {
         const { data: newContact, error: createError } = await db

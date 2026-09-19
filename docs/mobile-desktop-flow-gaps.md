@@ -11,7 +11,7 @@ Audit of the Expo app (`mobile/`, 27 route files) against the Next.js dashboard 
 | Buyer portal                   | `src/app/(buyer)/buyer/*`                         | Mobile has no `(buyer)` group; only Owners Den.                      |
 | Copilot                        | dashboard shell, `/api/copilot`                   | Tours, nudges, Q&A.                                                  |
 | Market stats                   | `/dashboard?tab=market`, `/api/market`            | Cross-account market view.                                           |
-| Contacts bulk import & merge   | `/contacts` import modals, `/api/contacts/merge`  | Mobile has device-contacts import only.                              |
+| Contacts bulk import           | `/contacts` import modals                         | Mobile has device-contacts import only.                              |
 | Call logs / AI call analysis   | contact detail Calls tab                          | Mobile only fires `tel:` links.                                      |
 | Credit top-up / checkout       | settings Credits tab, `/api/create-order`         | Mobile wallet is read-only ("Top up on the web").                    |
 | Team & workspace settings      | settings Members/Teams/Routing/WhatsApp setup     | Listed as web-only in `more.tsx`.                                    |
@@ -54,6 +54,7 @@ Mobile-only extras: device-contact import, "near me" GPS search, Android/iOS hom
 - **Todos** — `mobile/lib/todos.ts` + a To-dos section on the Calendar tab: quick-add with priority and due date/time, complete/delete, linked contact/property display. Contact/property mentions stay a web smart-add feature.
 - **Today** — `mobile/app/(app)/today.tsx` (More → Today): daily numbers, WhatsApp windows about to close, hot leads going quiet, today's appointments and due to-dos with inline complete. Streak flame and custom date ranges stay web-only.
 - **Deal create / edit / delete** — `mobile/app/(app)/deal-edit.tsx`: the + button on Deals opens it empty, tapping a deal card opens it pre-filled. Saves via `POST /api/deals` or `PUT /api/deals/[id]`, deletes via `DELETE /api/deals/[id]` behind a confirm dialog — all three sync the linked property's status server-side. Assignment, brokerage and non-INR currencies stay on the web form.
+- **Contact merge** — every mobile contact card can search for another record, compare both, choose the survivor and confirm through the shared `/api/contacts/merge` route. Both phone numbers and both Inbox histories are retained.
 
 ## Suggested closing order
 
