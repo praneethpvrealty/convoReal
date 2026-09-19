@@ -1404,7 +1404,8 @@ export function compareForBuyer(
     Number(b.details.named_area === 'match') -
     Number(a.details.named_area === 'match');
   if (named !== 0) return named;
-  const type = TYPE_RANK[b.details.type] - TYPE_RANK[a.details.type];
+  const type =
+    (TYPE_RANK[b.details.type] ?? 0) - (TYPE_RANK[a.details.type] ?? 0);
   if (type !== 0) return type;
   if (b.score !== a.score) return b.score - a.score;
   return sizeFitRank(b.details) - sizeFitRank(a.details);

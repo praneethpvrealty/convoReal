@@ -145,7 +145,8 @@ export function mergeCuratedFeeds(
   }
   return [...best.values()]
     .sort((a, b) => {
-      if (b.score !== a.score) return b.score - a.score;
+      const order = compareForBuyer(a, b);
+      if (order !== 0) return order;
       return priceOf(a.property) - priceOf(b.property);
     })
     .slice(0, limit);
