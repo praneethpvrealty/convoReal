@@ -1994,8 +1994,9 @@ describe('[TXW-018] journey stages mirror the pipeline on every surface', () => 
     );
     const moveSource = webSource('lib/journey/move.ts');
     const itemUpdate = moveSource.indexOf(
-      ".from('journey_items')\n      .update({"
+      ".from('journey_items')\n    .update({"
     );
+    expect(itemUpdate).toBeGreaterThan(0);
     expect(
       moveSource.indexOf('await prepareDealStageMove(ctx, dealMove)')
     ).toBeLessThan(itemUpdate);
@@ -2023,8 +2024,8 @@ describe('[TXW-018] journey stages mirror the pipeline on every surface', () => 
     expect(
       moveSource.indexOf('await convertJourneyItemToDeal(ctx, {')
     ).toBeLessThan(itemUpdate);
-    expect(moveSource).toContain(
-      "if (openedDealId) {\n        const { data: removed } = await supabase\n          .from('deals')\n          .delete()"
+    expect(moveSource).toMatch(
+      /if \(openedDealId\) \{\s+const \{ data: removed \} = await supabase\s+\.from\('deals'\)\s+\.delete\(\)/
     );
     expect(
       webSource('app/(dashboard)/pipelines/pipelines-content.tsx')
