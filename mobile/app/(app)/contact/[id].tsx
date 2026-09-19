@@ -516,7 +516,12 @@ function ContactCard({ contact }: { contact: Contact }) {
           </View>
         </View>
 
-        <View style={styles.actions}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.actionsStrip}
+          contentContainerStyle={styles.actions}
+        >
           {hasPhone(contact) ? (
             <>
               <ActionButton
@@ -582,7 +587,7 @@ function ContactCard({ contact }: { contact: Contact }) {
               />
             </>
           ) : null}
-        </View>
+        </ScrollView>
 
         <View
           style={[
@@ -2267,6 +2272,7 @@ function ActionButton({
     >
       <Ionicons name={icon} size={20} color={colors.primary} />
       <Text
+        numberOfLines={1}
         style={{ fontSize: 12.5, fontFamily: f.semibold, color: colors.text }}
       >
         {label}
@@ -2376,11 +2382,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: spacing.xs,
   },
+  actionsStrip: {
+    flexGrow: 0,
+    marginHorizontal: -spacing.lg,
+  },
   actions: {
+    flexGrow: 1,
     flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: spacing.md,
     justifyContent: 'center',
+    paddingHorizontal: spacing.lg,
   },
   actionButton: {
     alignItems: 'center',
@@ -2388,7 +2399,8 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     borderWidth: StyleSheet.hairlineWidth,
     paddingVertical: 10,
-    width: 92,
+    paddingHorizontal: spacing.md,
+    minWidth: 92,
   },
   card: {
     borderWidth: 1,
