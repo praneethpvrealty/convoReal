@@ -29,6 +29,7 @@ import {
   isClosingRecord,
   transactionSubtitle,
   transactionTitle,
+  type TransactionIndexRow,
 } from '@/lib/deal-workspace';
 import { addStandardMilestones } from '@/lib/deal-workspace-api';
 import { friendlyError } from '@/lib/errors';
@@ -84,8 +85,25 @@ export default function DealsScreen() {
   const [movingDeal, setMovingDeal] = useState<Deal | null>(null);
   const [celebrating, setCelebrating] = useState(false);
   const [seedingId, setSeedingId] = useState<string | null>(null);
+  const [segment, setSegment] = useState<'board' | 'records'>('board');
   const profile = useAuthStore((s) => s.profile);
   const canEdit = Boolean(profile && profile.account_role !== 'viewer');
+  const accountId = profile?.account_id ?? null;
+
+  const recordsQuery = useQuery({
+    queryKey: ['transaction-index', accountId],
+    enabled: segment === 'records' && Boolean(accountId),
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc(
+        'transaction_workspace_index',
+        {
+          target_account_id: accountId!,
+        }
+      );
+      if (error) throw error;
+      return (data ?? []) as TransactionIndexRow[];
+    },
+  });
 
   const { data: pipelines } = useQuery({
     queryKey: ['pipelines'],
@@ -224,9 +242,10 @@ export default function DealsScreen() {
     try {
       await addStandardMilestones(deal.id);
       haptic.success();
-      await queryClient.invalidateQueries({
-        queryKey: ['deals', activePipeline],
-      });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['deals', activePipeline] }),
+        queryClient.invalidateQueries({ queryKey: ['transaction-index'] }),
+      ]);
     } catch (err) {
       haptic.warn();
       show({
@@ -270,29 +289,68 @@ export default function DealsScreen() {
         options={{
           headerShown: true,
           title: 'Deals',
-          headerRight: () =>
-            activePipeline ? (
+          headerRight: () => (
+            <View
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}
+            >
               <Pressable
-                onPress={() =>
-                  router.push({
-                    pathname: '/(app)/deal-edit',
-                    params: {
-                      pipelineId: activePipeline,
-                      ...(activeStage ? { stageId: activeStage } : {}),
-                    },
-                  })
-                }
+                onPress={() => router.push('/(app)/journey')}
                 hitSlop={10}
                 accessibilityRole="button"
-                accessibilityLabel="New deal"
+                accessibilityLabel="Open journeys"
               >
-                <Ionicons name="add-circle" size={28} color={colors.primary} />
+                <Ionicons name="map-outline" size={24} color={colors.primary} />
               </Pressable>
-            ) : null,
+              {activePipeline ? (
+                <Pressable
+                  onPress={() =>
+                    router.push({
+                      pathname: '/(app)/deal-edit',
+                      params: {
+                        pipelineId: activePipeline,
+                        ...(activeStage ? { stageId: activeStage } : {}),
+                      },
+                    })
+                  }
+                  hitSlop={10}
+                  accessibilityRole="button"
+                  accessibilityLabel="New deal"
+                >
+                  <Ionicons
+                    name="add-circle"
+                    size={28}
+                    color={colors.primary}
+                  />
+                </Pressable>
+              ) : null}
+            </View>
+          ),
         }}
       />
 
-      {pipelines && pipelines.length > 1 ? (
+      <View style={styles.outcomeRow}>
+        <FilterChip
+          label="Board"
+          active={segment === 'board'}
+          onPress={() => setSegment('board')}
+        />
+        <FilterChip
+          label="Records"
+          active={segment === 'records'}
+          onPress={() => setSegment('records')}
+        />
+      </View>
+
+      {segment === 'records' ? (
+        <RecordsList
+          rows={recordsQuery.data ?? []}
+          loading={recordsQuery.isLoading}
+          refreshing={recordsQuery.isRefetching}
+          onRefresh={() => void recordsQuery.refetch()}
+        />
+      ) : null}
+
+      {segment === 'board' && pipelines && pipelines.length > 1 ? (
         <View style={styles.header}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <View style={{ flexDirection: 'row', gap: spacing.sm }}>
@@ -313,53 +371,57 @@ export default function DealsScreen() {
         </View>
       ) : null}
 
-      <View style={styles.outcomeRow}>
-        {(
-          [
-            ['active', 'Active'],
-            ['successful', 'Successful'],
-            ['lost', 'Lost'],
-          ] as const
-        ).map(([outcome, label]) => {
-          const count = outcomeCounts[outcome];
-          return (
-            <FilterChip
-              key={outcome}
-              label={`${label}${count ? ` (${count})` : ''}`}
-              active={outcome === outcomeView}
-              onPress={() => {
-                setOutcomeView(outcome);
-                setStageId(null);
-              }}
-            />
-          );
-        })}
-      </View>
-
-      {/* Stage strip — the mobile take on kanban columns. */}
-      <View style={styles.filtersRow}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filters}
-        >
-          {visibleStages.map((s) => {
-            const count = (deals ?? []).filter(
-              (d) => d.stage_id === s.id
-            ).length;
+      {segment === 'board' ? (
+        <View style={styles.outcomeRow}>
+          {(
+            [
+              ['active', 'Active'],
+              ['successful', 'Successful'],
+              ['lost', 'Lost'],
+            ] as const
+          ).map(([outcome, label]) => {
+            const count = outcomeCounts[outcome];
             return (
               <FilterChip
-                key={s.id}
-                label={`${s.name}${count ? ` (${count})` : ''}`}
-                active={s.id === activeStage}
-                onPress={() => setStageId(s.id)}
+                key={outcome}
+                label={`${label}${count ? ` (${count})` : ''}`}
+                active={outcome === outcomeView}
+                onPress={() => {
+                  setOutcomeView(outcome);
+                  setStageId(null);
+                }}
               />
             );
           })}
-        </ScrollView>
-      </View>
+        </View>
+      ) : null}
 
-      {stageDeals.length > 0 ? (
+      {/* Stage strip — the mobile take on kanban columns. */}
+      {segment === 'board' ? (
+        <View style={styles.filtersRow}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filters}
+          >
+            {visibleStages.map((s) => {
+              const count = (deals ?? []).filter(
+                (d) => d.stage_id === s.id
+              ).length;
+              return (
+                <FilterChip
+                  key={s.id}
+                  label={`${s.name}${count ? ` (${count})` : ''}`}
+                  active={s.id === activeStage}
+                  onPress={() => setStageId(s.id)}
+                />
+              );
+            })}
+          </ScrollView>
+        </View>
+      ) : null}
+
+      {segment === 'board' && stageDeals.length > 0 ? (
         <Text style={[styles.stageSummary, { color: colors.textMuted }]}>
           {stageDeals.length} deal{stageDeals.length === 1 ? '' : 's'} ·{' '}
           {selectedStage && isBrokeragePaidStage(selectedStage.name)
@@ -368,7 +430,7 @@ export default function DealsScreen() {
         </Text>
       ) : null}
 
-      {isLoading ? (
+      {segment === 'records' ? null : isLoading ? (
         <View>
           {Array.from({ length: 5 }, (_, i) => (
             <ConversationSkeleton key={i} />
@@ -478,6 +540,115 @@ export default function DealsScreen() {
         </ScrollView>
       </BottomSheet>
     </View>
+  );
+}
+
+function RecordsList({
+  rows,
+  loading,
+  refreshing,
+  onRefresh,
+}: {
+  rows: TransactionIndexRow[];
+  loading: boolean;
+  refreshing: boolean;
+  onRefresh: () => void;
+}) {
+  const { colors, fonts: f } = useTheme();
+  if (loading) {
+    return (
+      <View>
+        {Array.from({ length: 4 }, (_, i) => (
+          <ConversationSkeleton key={i} />
+        ))}
+      </View>
+    );
+  }
+  return (
+    <FlatList
+      style={{ flex: 1 }}
+      data={rows}
+      keyExtractor={(r) => r.id}
+      contentContainerStyle={{ paddingBottom: spacing.xxl }}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          tintColor={colors.primary}
+        />
+      }
+      ListEmptyComponent={
+        <EmptyState
+          icon="briefcase-outline"
+          title="No records yet"
+          subtitle="Convert a journey or add a deal on the board to start a closing record."
+        />
+      }
+      renderItem={({ item, index }) => {
+        const closing = isClosingRecord(item);
+        const subtitle = transactionSubtitle(item);
+        return (
+          <EnterRow index={index}>
+            <Pressable
+              onPress={() => router.push(`/deal/${item.id}`)}
+              accessibilityRole="button"
+              accessibilityLabel={`Open the record for ${transactionTitle(item)}`}
+              style={[
+                styles.card,
+                {
+                  backgroundColor: colors.glass,
+                  borderColor: colors.glassBorder,
+                },
+              ]}
+            >
+              <Text
+                style={[styles.cardTitle, { color: colors.text }]}
+                numberOfLines={2}
+              >
+                {transactionTitle(item)}
+              </Text>
+              {subtitle ? (
+                <Text
+                  style={{ fontSize: 12.5, color: colors.textMuted }}
+                  numberOfLines={1}
+                >
+                  {subtitle}
+                </Text>
+              ) : null}
+              <View style={styles.cardBottom}>
+                <Text
+                  style={{
+                    fontSize: 12,
+                    color: item.stage_color ?? colors.textMuted,
+                  }}
+                >
+                  {item.stage_name ?? '—'}
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 14,
+                    fontFamily: f.extrabold,
+                    color: colors.primary,
+                  }}
+                >
+                  {formatInr(item.value)}
+                </Text>
+              </View>
+              <Text
+                style={{
+                  fontSize: 12,
+                  color: closing ? colors.textMuted : colors.warning,
+                }}
+              >
+                {closing
+                  ? `${item.milestones_done}/${item.milestones_total} milestones${item.next_milestone_title ? ` · Next: ${item.next_milestone_title}` : ''}`
+                  : NOT_YET_TRANSACTION_LABEL}
+              </Text>
+            </Pressable>
+          </EnterRow>
+        );
+      }}
+    />
   );
 }
 

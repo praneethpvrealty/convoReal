@@ -15,11 +15,15 @@ export const MENU_LINKS = {
   focus: { href: '/(app)/focus', icon: 'sunny-outline', label: 'Focus' },
   deals: {
     href: '/(app)/deals',
-    icon: 'trending-up-outline',
-    label: 'Deals & pipelines',
+    icon: 'briefcase-outline',
+    label: 'Deals: board & records',
   },
   radar: { href: '/(app)/radar', icon: 'radio-outline', label: 'Match Radar' },
-  journey: { href: '/(app)/journey', icon: 'map-outline', label: 'Journeys' },
+  journey: {
+    href: '/(app)/journey',
+    icon: 'map-outline',
+    label: 'Deals: journeys',
+  },
   dashboard: {
     href: '/(app)/dashboard',
     icon: 'stats-chart-outline',

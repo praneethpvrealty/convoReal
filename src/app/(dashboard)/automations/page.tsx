@@ -2,16 +2,15 @@
 
 import { useSearchParams, useRouter } from "next/navigation";
 import { pushUrl } from "@/lib/navigation";
-import { useMemo } from "react";
-import PipelinesPage from "../pipelines/pipelines-content";
+import { useEffect, useMemo } from "react";
+import { dealsHref } from "@/lib/deals/routes";
 import FlowsPage from "../flows/flows-content";
 import AutomationAnalyticsContent from "./analytics-content";
 import { FavoriteButton } from "@/components/layout/favorite-button";
 
-type TabId = "pipelines" | "flows" | "analytics";
+type TabId = "flows" | "analytics";
 
 const TABS: { id: TabId; label: string }[] = [
-  { id: "pipelines", label: "Pipelines" },
   { id: "flows", label: "Flows" },
   { id: "analytics", label: "Analytics" },
 ];
@@ -20,20 +19,23 @@ export default function AutomationsPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
+  const requestedTab = searchParams.get("tab");
   const activeTab = useMemo(() => {
-    const tab = searchParams.get("tab") as TabId;
-    return TABS.some((t) => t.id === tab) ? tab : "pipelines";
-  }, [searchParams]);
+    const tab = requestedTab as TabId;
+    return TABS.some((t) => t.id === tab) ? tab : "flows";
+  }, [requestedTab]);
+
+  useEffect(() => {
+    if (requestedTab === "pipelines") router.replace(dealsHref("board"));
+  }, [requestedTab, router]);
 
   const tabMeta = useMemo(() => {
     switch (activeTab) {
-      case "flows":
-        return { label: "Flows", href: "/automations?tab=flows", icon: "Workflow" };
       case "analytics":
         return { label: "Automation Analytics", href: "/automations?tab=analytics", icon: "ChartColumn" };
-      case "pipelines":
+      case "flows":
       default:
-        return { label: "Pipelines", href: "/automations?tab=pipelines", icon: "GitBranch" };
+        return { label: "Flows", href: "/automations?tab=flows", icon: "Workflow" };
     }
   }, [activeTab]);
 
@@ -50,7 +52,7 @@ export default function AutomationsPage() {
             Automations
           </h1>
           <p className="mt-1.5 text-xs sm:text-sm text-slate-400 font-medium leading-relaxed">
-            Manage deal pipeline stages, view boards, and configure automated workflows.
+            Configure automated workflows and interactive WhatsApp flows. The deal board now lives under Deals.
           </p>
         </div>
         <FavoriteButton label={tabMeta.label} href={tabMeta.href} icon={tabMeta.icon} />
@@ -75,7 +77,6 @@ export default function AutomationsPage() {
 
       {/* Render Active View */}
       <div className="relative z-10">
-        {activeTab === "pipelines" && <PipelinesPage />}
         {activeTab === "flows" && <FlowsPage />}
         {activeTab === "analytics" && <AutomationAnalyticsContent />}
       </div>

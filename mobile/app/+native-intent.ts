@@ -10,7 +10,12 @@
  * Returned paths are app routes with group segments stripped:
  * /(app)/property/[id] -> "/property/<id>".
  */
-export function redirectSystemPath({ path }: { path: string; initial: boolean }): string {
+export function redirectSystemPath({
+  path,
+}: {
+  path: string;
+  initial: boolean;
+}): string {
   try {
     const url = new URL(path, 'https://convoreal.com');
     const q = url.searchParams;
@@ -28,7 +33,8 @@ export function redirectSystemPath({ path }: { path: string; initial: boolean })
     const contactId = q.get('contact_id') || q.get('contactId');
     if (contactId) return `/contact/${contactId}`;
 
-    const conversationId = q.get('c') || q.get('conversation_id') || q.get('conversationId');
+    const conversationId =
+      q.get('c') || q.get('conversation_id') || q.get('conversationId');
     if (conversationId) return `/conversation/${conversationId}`;
 
     // Path-style web pages -> nearest app screen.
@@ -47,6 +53,7 @@ export function redirectSystemPath({ path }: { path: string; initial: boolean })
     }
 
     if (p === '/inventory' || p === '/properties') return '/properties';
+    if (p === '/deals' && q.get('view') === 'journey') return '/journey';
     if (p === '/pipelines' || p === '/deals') return '/deals';
     if (p === '/contacts') return '/contacts';
     if (p === '/calendar') return '/calendar';

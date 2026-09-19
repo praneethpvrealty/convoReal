@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { dealsHref } from '@/lib/deals/routes';
 import { createClient } from '@/lib/supabase/client';
 import { contactHandle } from '@/lib/contacts/reachability';
 import { useAuth } from '@/hooks/use-auth';
@@ -1203,7 +1204,7 @@ export function MessageThread({
 
           {/* Journey mind map — this contact's property funnel. */}
           <Link
-            href={`/journey?contact=${contact.id}`}
+            href={dealsHref('journey', { contact: contact.id })}
             aria-label="Open journey mind map"
             title="Journey map"
             className="hover:text-primary inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-800"

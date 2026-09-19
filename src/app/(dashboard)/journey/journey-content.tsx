@@ -40,6 +40,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { FavoriteButton } from "@/components/layout/favorite-button";
+import { dealsHref } from "@/lib/deals/routes";
 import type { JourneyStage } from "@/types";
 import { ensureJourneyStages } from "@/lib/journey/capture";
 import { JourneySection } from "@/components/journey/journey-section";
@@ -50,7 +51,11 @@ import {
   type JourneyMode,
 } from "@/components/journey/shared";
 
-export default function JourneyPage() {
+export default function JourneyPage({
+  embedded = false,
+}: {
+  embedded?: boolean;
+}) {
   const supabase = createClient();
   const searchParams = useSearchParams();
   const { accountId } = useAuth();
@@ -62,9 +67,9 @@ export default function JourneyPage() {
   const subjectId = propertyParam ?? contactParam;
   const focusedMode: JourneyMode = propertyParam ? "property" : "buyer";
 
-  // Overview tab — ?view=properties flips to property journeys.
+  // Overview tab — ?journeys=properties flips to property journeys.
   const overviewMode: JourneyMode =
-    searchParams.get("view") === "properties" ? "property" : "buyer";
+    searchParams.get("journeys") === "properties" ? "property" : "buyer";
 
   const [stages, setStages] = useState<JourneyStage[]>([]);
   const [stagesLoading, setStagesLoading] = useState(true);
@@ -140,13 +145,19 @@ export default function JourneyPage() {
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="flex items-center gap-2.5 text-3xl font-extrabold tracking-tight">
-            <Waypoints className="h-7 w-7 text-primary" />
-            <span className="bg-gradient-to-r from-white via-slate-100 to-slate-400 bg-clip-text text-transparent">
-              Journey
-            </span>
-            <FavoriteButton label="Journey" href="/journey" icon="Waypoints" />
-          </h1>
+          {!embedded && (
+            <h1 className="flex items-center gap-2.5 text-3xl font-extrabold tracking-tight">
+              <Waypoints className="h-7 w-7 text-primary" />
+              <span className="bg-gradient-to-r from-white via-slate-100 to-slate-400 bg-clip-text text-transparent">
+                Journey
+              </span>
+              <FavoriteButton
+                label="Journey"
+                href={dealsHref("journey")}
+                icon="Waypoints"
+              />
+            </h1>
+          )}
           <p className="mt-1 text-sm text-slate-400">
             {subjectId
               ? "One relationship's full funnel — where it stands, and where the rest fell off."
@@ -164,8 +175,8 @@ export default function JourneyPage() {
               onClick={() =>
                 navigateJourney(
                   focusedMode === "property"
-                    ? "/journey?view=properties"
-                    : "/journey",
+                    ? dealsHref("journey", { journeys: "properties" })
+                    : dealsHref("journey"),
                 )
               }
             >
@@ -184,12 +195,18 @@ export default function JourneyPage() {
                 <ChevronDown className="h-3 w-3 text-slate-400" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="border-slate-700 bg-slate-900">
-                <DropdownMenuItem onClick={() => navigateJourney("/journey")}>
+                <DropdownMenuItem
+                  onClick={() => navigateJourney(dealsHref("journey"))}
+                >
                   <UserRound className="h-3.5 w-3.5" />
                   Buyer journeys
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  onClick={() => navigateJourney("/journey?view=properties")}
+                  onClick={() =>
+                    navigateJourney(
+                      dealsHref("journey", { journeys: "properties" }),
+                    )
+                  }
                 >
                   <Building2 className="h-3.5 w-3.5" />
                   Property journeys

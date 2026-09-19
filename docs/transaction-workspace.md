@@ -152,7 +152,18 @@ watermarking (a dependency decision), WhatsApp OTP delivery (needs an
 AUTHENTICATION-category template that does not exist and would spend a
 name), and any new WhatsApp template for seller-side notices.
 
+## One Deals surface
+
+Board (the pipeline Kanban), Journey (the buyer mind map) and Records
+(the closing-record index) are three views of the same `deals` rows,
+served from `/deals?view=board|journey|records`
+(`src/app/(dashboard)/deals/deals-content.tsx`). `/pipelines`,
+`/journey` and `/automations?tab=pipelines` are redirect shims that
+carry their query across (`src/lib/deals/routes.ts`); Automations keeps
+Flows and Analytics only. Mobile mirrors it with Board and Records
+segments on the Deals screen and a Journey button in its header.
+
 ## Invariants
 
-`FEATURE_MANIFEST.json` → `transaction-workspace` (TXW-001 … TXW-016).
+`FEATURE_MANIFEST.json` → `transaction-workspace` (TXW-001 … TXW-017).
 Each names its executable regression cases.

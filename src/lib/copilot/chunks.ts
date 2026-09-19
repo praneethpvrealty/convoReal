@@ -128,7 +128,7 @@ export const CHUNKS: KnowledgeChunk[] = [
     route: '/journey',
     title: 'Journey',
     kind: 'page',
-    body: 'A visual mind-map of each buyer’s search (beta). Properties you share on WhatsApp are captured onto the customer’s journey automatically, and you can plan next steps with expected timelines. The page lists every journey; open one to see its full map.',
+    body: 'The Journey tab under Deals: a visual mind-map of each buyer’s search. Properties you share on WhatsApp are captured onto the customer’s journey automatically, and you can plan next steps with expected timelines. The tab lists every journey; open one to see its full map.',
     keywords: ['mind map', 'buyer journey', 'timeline'],
   },
   {
@@ -152,7 +152,7 @@ export const CHUNKS: KnowledgeChunk[] = [
     route: '/pipelines',
     title: 'Pipelines',
     kind: 'page',
-    body: 'Deal board. Drag deals between stages (new, negotiating, closed) to track every potential sale from first chat to closing. Deals link a contact to a property and carry the deal value and brokerage.',
+    body: 'The Board tab under Deals. Drag deals between stages (new, negotiating, closed) to track every potential sale from first chat to closing. Deals link a contact to a property and carry the deal value and brokerage. Board, Journey and Records are three views of the same deals.',
     keywords: ['deals', 'kanban', 'sales board', 'stages'],
   },
   {
@@ -214,9 +214,9 @@ export const CHUNKS: KnowledgeChunk[] = [
   {
     id: 'deals.workspace',
     route: '/deals',
-    title: 'Transactions — the closing record for a deal',
+    title: 'Records — the closing record for a deal',
     kind: 'page',
-    body: 'One place per deal once a buyer is commercially active: overview and internal financials, an immutable timeline, a milestone checklist, tasks, the private document folder with lifecycle labels and expiry, stakeholders with private share links, published updates with per-recipient delivery, and invoices. Milestones are separate from the pipeline stage. Financials never leave your account.',
+    body: 'The Records tab under Deals, one place per deal once a buyer is commercially active: overview and internal financials, an immutable timeline, a milestone checklist, tasks, the private document folder, stakeholders with private share links, published updates with per-recipient delivery, and invoices. Milestones are separate from the pipeline stage. Financials never leave your account.',
     keywords: [
       'transaction workspace',
       'deal room',

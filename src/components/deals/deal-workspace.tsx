@@ -25,6 +25,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/hooks/use-auth';
 import { createClient } from '@/lib/supabase/client';
+import { dealsHref } from '@/lib/deals/routes';
 import { formatIndianDigits } from '@/lib/invoices/pdf-text';
 import { brokerageAmount, type BrokerageType } from '@/lib/pipelines/brokerage';
 import {
@@ -291,7 +292,9 @@ export function DealWorkspace({ dealId }: { dealId: string }) {
           )}
           {deal.source_journey_item_id && (
             <Link
-              href={`/journey?item=${deal.source_journey_item_id}`}
+              href={dealsHref('journey', {
+                item: deal.source_journey_item_id,
+              })}
               className="inline-flex items-center gap-1 hover:text-white"
               title="Opened from a journey; the journey keeps its own history."
             >

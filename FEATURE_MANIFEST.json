@@ -846,6 +846,21 @@
             }
           ],
           "guards": []
+        },
+        {
+          "id": "TXW-017",
+          "rule": "Deals is one surface with three views of the same rows (Board, Journey, Records) on web and mobile; the old /pipelines, /journey and /automations?tab=pipelines addresses keep landing on the matching view with their query carried across, and Automations holds only flows and analytics.",
+          "tests": [
+            {
+              "file": "src/lib/deals/routes.test.ts",
+              "case": "[TXW-017]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[TXW-017]"
+            }
+          ],
+          "guards": []
         }
       ]
     },

@@ -40,7 +40,6 @@ import { useCopilot } from "@/components/copilot/copilot-context";
 // /requirements are redirect-only shims onto a tab of another section, so
 // they are deliberately absent — the title comes from where you land.
 const pageTitleOverrides: Record<string, string> = {
-  "/deals": "Transactions",
   "/admin": "Admin Panel",
 };
 
@@ -266,8 +265,8 @@ export function Header({ onOpenSidebar }: HeaderProps) {
                   {dealsResults.map((d) => (
                     <Link
                       key={d.id}
-                      href={`/pipelines?dealId=${d.id}`}
-                      onClick={(e) => handleResultClick(e, `/pipelines?dealId=${d.id}`)}
+                      href={`/deals?view=board&dealId=${d.id}`}
+                      onClick={(e) => handleResultClick(e, `/deals?view=board&dealId=${d.id}`)}
                       className="flex items-center justify-between p-2.5 rounded-xl bg-slate-800/40 border border-slate-800/60 hover:bg-slate-800 hover:border-slate-700 transition-all text-left"
                     >
                       <div className="min-w-0 flex-1">

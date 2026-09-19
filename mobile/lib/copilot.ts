@@ -104,6 +104,7 @@ const APP_HREF: Record<string, string> = {
   '/broadcasts': '/(app)/broadcasts',
   '/calendar': '/(app)/(tabs)/calendar',
   '/pipelines': '/(app)/deals',
+  '/deals': '/(app)/deals',
   '/journey': '/(app)/journey',
   '/today': '/(app)/focus',
   '/focus': '/(app)/focus',
