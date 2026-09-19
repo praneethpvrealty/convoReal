@@ -17,7 +17,7 @@
  * per-journey lives in JourneySection.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
@@ -76,7 +76,6 @@ export default function JourneyPage({
   const [stagesLoading, setStagesLoading] = useState(true);
   const [currency, setCurrency] = useState("INR");
 
-  const seedAttempted = useRef(false);
 
   useEffect(() => {
     if (!accountId) return;
@@ -95,8 +94,7 @@ export default function JourneyPage({
   }, [accountId, supabase]);
 
   useEffect(() => {
-    if (!accountId || seedAttempted.current) return;
-    seedAttempted.current = true;
+    if (!accountId) return;
     let cancelled = false;
     (async () => {
       setStagesLoading(true);

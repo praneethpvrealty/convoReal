@@ -12,7 +12,11 @@
 -- is SECURITY DEFINER, so a deal pointing at a foreign item's UUID
 -- must not reach that row.
 --
--- Held until merge: CREATE OR REPLACE of live trigger functions.
+-- Sync RPC: only the account's default pipeline mirrors to the
+-- journey. A supplied pipeline that is not the default is refused
+-- rather than mirrored alongside it.
+--
+-- Held until merge: CREATE OR REPLACE of live functions.
 -- Applied before the backfill (…120100), which relies on it.
 -- ============================================================
 
@@ -93,5 +97,35 @@ BEGIN
       );
   END IF;
   RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION sync_journey_stages_from_pipeline(
+  p_account_id UUID,
+  p_pipeline_id UUID DEFAULT NULL
+)
+RETURNS SETOF journey_stages
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_pipeline UUID;
+BEGIN
+  IF NOT is_account_member(p_account_id, 'agent') THEN
+    RAISE EXCEPTION 'not an agent on this account' USING ERRCODE = '42501';
+  END IF;
+  v_pipeline := ensure_default_pipeline(p_account_id);
+  IF v_pipeline IS NULL THEN
+    RAISE EXCEPTION 'no pipeline for this account' USING ERRCODE = '42501';
+  END IF;
+  IF p_pipeline_id IS NOT NULL AND p_pipeline_id <> v_pipeline THEN
+    RAISE EXCEPTION 'only the default pipeline mirrors to the journey' USING ERRCODE = '22023';
+  END IF;
+  PERFORM journey_stages_mirror_pipeline(p_account_id, v_pipeline);
+  RETURN QUERY
+    SELECT * FROM journey_stages
+      WHERE account_id = p_account_id AND pipeline_stage_id IS NOT NULL
+      ORDER BY position;
 END;
 $$;

@@ -1978,6 +1978,14 @@ describe('[TXW-018] journey stages mirror the pipeline on every surface', () => 
         /WHERE id = NEW\.source_journey_item_id AND account_id = NEW\.account_id;/g
       )?.length
     ).toBe(2);
+    expect(sameAccount).toContain(
+      'IF p_pipeline_id IS NOT NULL AND p_pipeline_id <> v_pipeline THEN'
+    );
+    const stageMove = webSource('lib/deals/stage-move.ts');
+    expect(stageMove.match(/\.eq\('account_id', accountId\)/g)?.length).toBe(3);
+    expect(
+      webSource('app/(dashboard)/pipelines/pipelines-content.tsx')
+    ).not.toContain('p_pipeline_id: pipeline.id');
   });
 
   it('reads only mirrored stages wherever a next stage is chosen, and leaves no orphan behind', () => {

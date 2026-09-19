@@ -77,6 +77,7 @@ export async function applyDealStageMove(
       .from('deals')
       .select('value')
       .eq('id', input.dealId)
+      .eq('account_id', accountId)
       .maybeSingle();
     if (!current) {
       return { ok: false, status: 404, error: 'Deal not found' };
@@ -88,6 +89,7 @@ export async function applyDealStageMove(
     .from('deals')
     .update(updateData)
     .eq('id', input.dealId)
+    .eq('account_id', accountId)
     .select('id');
   if (!updateErr && !updated?.length) {
     return { ok: false, status: 404, error: 'Deal not found' };
@@ -131,6 +133,7 @@ export async function applyDealStageMove(
       .from('properties')
       .update({ status: propertyStatus })
       .eq('id', input.propertyId)
+      .eq('account_id', accountId)
       .select('id');
     if (!synced?.length) {
       console.warn(

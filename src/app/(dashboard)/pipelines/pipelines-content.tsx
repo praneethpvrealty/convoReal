@@ -227,7 +227,7 @@ export default function PipelinesPage() {
       await supabase.from('pipeline_stages').insert(stagesPayload);
       await supabase.rpc('sync_journey_stages_from_pipeline', {
         p_account_id: accountId,
-        p_pipeline_id: pipeline.id,
+        p_pipeline_id: null,
       });
 
       return pipeline as Pipeline;
