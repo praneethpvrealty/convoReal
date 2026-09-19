@@ -1763,7 +1763,7 @@ describe('getMatchingContacts', () => {
       );
     });
 
-    it('[INB-004] offers the larger corner sites for a single stated figure, below exact fits', () => {
+    it('[INB-005] offers the larger corner sites for a single stated figure, below exact fits', () => {
       const sixtyByForty = seeker({
         pref_land_area_min_sqft: 2400,
         pref_land_area_max_sqft: 2400,
@@ -1778,6 +1778,38 @@ describe('getMatchingContacts', () => {
       expect(near!.score).toBeGreaterThan(corner!.score);
       expect(getMatchingContacts(plot(4000), [sixtyByForty])).toHaveLength(0);
       expect(getMatchingContacts(plot(1200), [sixtyByForty])).toHaveLength(0);
+    });
+
+    it('[INB-005] keeps the exact fit ahead of the corner site once a full brief clamps both at 100', () => {
+      const fullBrief = createTestContact({
+        pref_property_types: ['Residential Plot'],
+        pref_areas: ['Vijaya Bank Layout'],
+        pref_budget_max: 80_000_000,
+        pref_land_area_min_sqft: 2400,
+        pref_land_area_max_sqft: 2400,
+        pref_extracted_at: new Date().toISOString(),
+        strict_area_match: true,
+      });
+      const site = (id: string, land_area: number) =>
+        createTestProperty({
+          id,
+          type: 'Residential Plot',
+          sublocality: 'Vijaya Bank Layout',
+          price: 60_000_000,
+          land_area,
+          land_area_unit: 'sqft',
+        });
+      const ranked = rankProperties(fullBrief, [
+        site('corner', 3114),
+        site('near', 2450),
+        site('exact', 2400),
+      ]);
+      expect(ranked.map((m) => m.score)).toEqual([100, 100, 100]);
+      expect(ranked.map((m) => m.property.id)).toEqual([
+        'exact',
+        'near',
+        'corner',
+      ]);
     });
 
     it('keeps a stated band strict above its cap', () => {

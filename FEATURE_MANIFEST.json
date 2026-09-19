@@ -73,6 +73,16 @@
               "case": "[INB-004]"
             }
           ]
+        },
+        {
+          "id": "INB-005",
+          "rule": "A single stated plot size admits larger plots up to 35% over as near-fits ranked below exact fits and within-10% near-misses, including when a full brief clamps their scores; smaller plots and plots beyond that headroom are excluded, and a stated size band keeps its strict cap.",
+          "tests": [
+            {
+              "file": "src/lib/matching.test.ts",
+              "case": "[INB-005]"
+            }
+          ]
         }
       ]
     },
