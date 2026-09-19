@@ -21,6 +21,7 @@ import {
 
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { InvoiceEditorSheet } from '@/components/invoice-editor-sheet';
+import { BottomSheet, sheetScrollArea } from '@/components/sheet';
 import {
   EmptyState,
   FilterChip,
@@ -100,6 +101,7 @@ import {
   fetchDealTasks,
   fetchDealUpdates,
   fetchInvoices,
+  moveDealStage,
   invoiceAction,
   markUpdateRecipientSent,
   previewDealUpdate,
@@ -117,9 +119,14 @@ import {
 } from '@/lib/deal-workspace-api';
 import { friendlyError } from '@/lib/errors';
 import { auditDate, auditDateTime, formatInr } from '@/lib/format';
+import {
+  dealStatusForStage,
+  needsBrokerageCapture,
+} from '@/lib/stage-semantics';
 import { supabase } from '@/lib/supabase';
 import { haptic } from '@/lib/haptics';
 import { radius, spacing, useTheme, fonts } from '@/lib/theme';
+import type { PipelineStage } from '@/lib/types';
 
 /** `friendlyError` takes the message text, and a rejected fetch can throw
  *  anything — so narrow it once here rather than at every call site. */
@@ -132,7 +139,21 @@ interface DealHead {
   title: string;
   contact_id: string | null;
   property_id: string | null;
+  pipeline_id: string;
+  stage_id: string;
+  value: number | null;
+  brokerage_amount: number | null;
   stage: { name: string } | { name: string }[] | null;
+}
+
+function brokeragePreview(
+  dealValue: number | null,
+  type: 'percentage' | 'fixed',
+  raw: string
+): number {
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value <= 0) return 0;
+  return type === 'fixed' ? value : ((dealValue ?? 0) * value) / 100;
 }
 
 function one<T>(v: T | T[] | null | undefined): T | null {
@@ -147,6 +168,17 @@ export default function DealWorkspaceScreen() {
   const profile = useAuthStore((s) => s.profile);
   const canEdit = Boolean(profile && profile.account_role !== 'viewer');
   const [tab, setTab] = useState<DealWorkspaceTab>('overview');
+  const [pickingStage, setPickingStage] = useState(false);
+  const [movingStage, setMovingStage] = useState(false);
+  const [brokeragePrompt, setBrokeragePrompt] = useState<PipelineStage | null>(
+    null
+  );
+  const [brokerageType, setBrokerageType] = useState<'percentage' | 'fixed'>(
+    'percentage'
+  );
+  const [brokerageValue, setBrokerageValue] = useState('');
+  const queryClient = useQueryClient();
+  const headDialog = useAppDialog();
 
   const { data: head } = useQuery({
     queryKey: ['deal-head', dealId],
@@ -155,7 +187,7 @@ export default function DealWorkspaceScreen() {
       const { data, error } = await supabase
         .from('deals')
         .select(
-          'id, title, contact_id, property_id, stage:pipeline_stages(name)'
+          'id, title, contact_id, property_id, pipeline_id, stage_id, value, brokerage_amount, stage:pipeline_stages(name)'
         )
         .eq('id', dealId)
         .maybeSingle();
@@ -164,14 +196,101 @@ export default function DealWorkspaceScreen() {
     },
   });
 
+  const pipelineId = head?.pipeline_id ?? null;
+  const { data: stages } = useQuery({
+    queryKey: ['pipeline-stages', pipelineId],
+    enabled: Boolean(pipelineId),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('pipeline_stages')
+        .select('*')
+        .eq('pipeline_id', pipelineId!)
+        .order('position');
+      if (error) throw error;
+      return (data ?? []) as PipelineStage[];
+    },
+  });
+
+  function pickStage(stage: PipelineStage) {
+    setPickingStage(false);
+    if (!head || stage.id === head.stage_id) return;
+    if (needsBrokerageCapture(head, stage.name)) {
+      setBrokerageType('percentage');
+      setBrokerageValue('');
+      setBrokeragePrompt(stage);
+      return;
+    }
+    void moveToStage(stage);
+  }
+
+  async function moveToStage(
+    stage: PipelineStage,
+    brokerage?: {
+      brokerage_type: 'percentage' | 'fixed';
+      brokerage_value: number;
+    }
+  ) {
+    if (!head) return;
+    setBrokeragePrompt(null);
+    setMovingStage(true);
+    try {
+      await moveDealStage(dealId, {
+        status: dealStatusForStage(stage.name),
+        target_stage_id: stage.id,
+        property_id: head.property_id,
+        current_stage_name: stage.name,
+        ...brokerage,
+      });
+      haptic.success();
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['deal-head', dealId] }),
+        queryClient.invalidateQueries({ queryKey: ['deals'] }),
+      ]);
+    } catch (err) {
+      haptic.warn();
+      headDialog.show({
+        title: 'Could not move the deal',
+        message: friendlyError(errorText(err)),
+      });
+    } finally {
+      setMovingStage(false);
+    }
+  }
+
+  const stageName = head ? (one(head.stage)?.name ?? '—') : null;
+
   return (
     <>
       <Stack.Screen options={{ title: head?.title ?? 'Transaction' }} />
+      <AppDialog {...headDialog.dialogProps} />
       <View style={[styles.screen, { backgroundColor: colors.background }]}>
         {head ? (
-          <Text style={[styles.stageLine, { color: colors.textMuted }]}>
-            {one(head.stage)?.name ?? '—'}
-          </Text>
+          canEdit && stages?.length ? (
+            <Pressable
+              onPress={() => setPickingStage(true)}
+              disabled={movingStage}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={`Move this deal from ${stageName} to another stage`}
+              style={styles.stageRow}
+            >
+              <Text style={[styles.stageLine, { color: colors.textMuted }]}>
+                {stageName}
+              </Text>
+              <Ionicons
+                name={movingStage ? 'hourglass-outline' : 'swap-horizontal'}
+                size={14}
+                color={colors.primary}
+              />
+              <Text style={[styles.stageMove, { color: colors.primary }]}>
+                {movingStage ? 'Moving…' : 'Move stage'}
+              </Text>
+            </Pressable>
+          ) : (
+            <Text style={[styles.stageLine, { color: colors.textMuted }]}>
+              {stageName}
+            </Text>
+          )
         ) : null}
         <ScrollView
           horizontal
@@ -217,6 +336,112 @@ export default function DealWorkspaceScreen() {
         {tab === 'updates' && <UpdatesTab dealId={dealId} canEdit={canEdit} />}
         {tab === 'invoices' && <InvoicesTab dealId={dealId} />}
       </View>
+      <BottomSheet
+        visible={pickingStage}
+        onClose={() => setPickingStage(false)}
+      >
+        <Text style={[styles.sheetTitle, { color: colors.text }]}>
+          Move to…
+        </Text>
+        <ScrollView style={sheetScrollArea}>
+          {(stages ?? [])
+            .filter((s) => s.id !== head?.stage_id)
+            .map((s) => (
+              <Pressable
+                key={s.id}
+                style={[styles.stageOption, { borderTopColor: colors.border }]}
+                onPress={() => pickStage(s)}
+                accessibilityRole="button"
+                accessibilityLabel={`Move to ${s.name}`}
+              >
+                <View
+                  style={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: 5,
+                    backgroundColor: s.color || colors.primary,
+                  }}
+                />
+                <Text style={[styles.stageOptionLabel, { color: colors.text }]}>
+                  {s.name}
+                </Text>
+              </Pressable>
+            ))}
+        </ScrollView>
+      </BottomSheet>
+      <BottomSheet
+        visible={brokeragePrompt !== null}
+        onClose={() => setBrokeragePrompt(null)}
+      >
+        <Text style={[styles.sheetTitle, { color: colors.text }]}>
+          Enter brokerage details
+        </Text>
+        <View style={styles.brokerageForm}>
+          <Text style={{ fontSize: 13, color: colors.textMuted }}>
+            Moving to {brokeragePrompt?.name} starts the closing stretch. Record
+            the brokerage rate or amount first, as the pipeline board does.
+          </Text>
+          <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+            <FilterChip
+              label="Percentage (%)"
+              active={brokerageType === 'percentage'}
+              onPress={() => setBrokerageType('percentage')}
+            />
+            <FilterChip
+              label="Fixed amount"
+              active={brokerageType === 'fixed'}
+              onPress={() => setBrokerageType('fixed')}
+            />
+          </View>
+          <TextField
+            label={
+              brokerageType === 'percentage'
+                ? 'Brokerage (%)'
+                : 'Brokerage amount'
+            }
+            value={brokerageValue}
+            onChangeText={setBrokerageValue}
+            keyboardType="decimal-pad"
+            placeholder={brokerageType === 'percentage' ? '2' : '0'}
+          />
+          {brokeragePreview(
+            head?.value ?? null,
+            brokerageType,
+            brokerageValue
+          ) > 0 ? (
+            <Text
+              style={{
+                fontSize: 12.5,
+                fontFamily: fonts.bold,
+                color: colors.primary,
+              }}
+            >
+              Calculated brokerage:{' '}
+              {formatInr(
+                brokeragePreview(
+                  head?.value ?? null,
+                  brokerageType,
+                  brokerageValue
+                )
+              )}
+            </Text>
+          ) : null}
+          <PrimaryButton
+            label="Save and move"
+            disabled={
+              !(Number(brokerageValue) > 0) ||
+              !Number.isFinite(Number(brokerageValue))
+            }
+            onPress={() =>
+              brokeragePrompt &&
+              void moveToStage(brokeragePrompt, {
+                brokerage_type: brokerageType,
+                brokerage_value: Number(brokerageValue),
+              })
+            }
+          />
+        </View>
+      </BottomSheet>
     </>
   );
 }
@@ -2497,6 +2722,33 @@ const styles = StyleSheet.create({
     fontSize: 12,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
+  },
+  stageRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingRight: spacing.lg,
+  },
+  stageMove: { fontFamily: fonts.bold, fontSize: 12, paddingTop: spacing.md },
+  sheetTitle: {
+    fontSize: 15.5,
+    fontFamily: fonts.bold,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.md,
+  },
+  stageOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: 15,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  stageOptionLabel: { fontSize: 15, fontFamily: fonts.semibold },
+  brokerageForm: {
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.lg,
+    gap: spacing.md,
   },
   tabs: {
     flexDirection: 'row',

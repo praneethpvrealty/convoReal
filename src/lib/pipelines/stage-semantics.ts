@@ -61,3 +61,10 @@ export function shouldCaptureBrokerage(stageName: string): boolean {
     name.includes('contract')
   );
 }
+
+export function needsBrokerageCapture(
+  deal: { brokerage_amount: number | null },
+  stageName: string
+): boolean {
+  return deal.brokerage_amount === null && shouldCaptureBrokerage(stageName);
+}

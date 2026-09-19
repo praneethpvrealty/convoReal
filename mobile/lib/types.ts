@@ -228,8 +228,11 @@ export interface Deal {
   brokerage_value?: number | null;
   brokerage_amount?: number | null;
   brokerage_paid_at?: string | null;
+  source_journey_item_id?: string | null;
   contact?: Contact | null;
   property?: Property | null;
+  /** PostgREST aggregate: `milestones:deal_milestones(count)`. */
+  milestones?: Array<{ count: number }> | null;
 }
 
 // ------------------------------------------------------------------

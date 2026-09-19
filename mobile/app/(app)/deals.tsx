@@ -21,6 +21,17 @@ import {
   EmptyState,
   FilterChip,
 } from '@/components/ui';
+import { useAuthStore } from '@/lib/auth-store';
+import { contactFullName } from '@/lib/contact-name';
+import {
+  NOT_YET_TRANSACTION_HINT,
+  NOT_YET_TRANSACTION_LABEL,
+  isClosingRecord,
+  transactionSubtitle,
+  transactionTitle,
+} from '@/lib/deal-workspace';
+import { addStandardMilestones } from '@/lib/deal-workspace-api';
+import { friendlyError } from '@/lib/errors';
 import { formatInr } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
@@ -36,6 +47,17 @@ import { supabase } from '@/lib/supabase';
 import { radius, spacing, useTheme, fonts } from '@/lib/theme';
 import type { Deal, Pipeline, PipelineStage } from '@/lib/types';
 import { usePullRefresh } from '@/lib/use-pull-refresh';
+
+function dealIndexRow(deal: Deal) {
+  return {
+    title: deal.title,
+    contact_name: deal.contact ? contactFullName(deal.contact) || null : null,
+    property_title: deal.property?.title ?? null,
+    property_unit_no: deal.property?.unit_no ?? null,
+    source_journey_item_id: deal.source_journey_item_id ?? null,
+    milestones_total: deal.milestones?.[0]?.count ?? 0,
+  };
+}
 
 /**
  * What a deal's brokerage is worth.
@@ -61,6 +83,9 @@ export default function DealsScreen() {
   const [outcomeView, setOutcomeView] = useState<PipelineOutcome>('active');
   const [movingDeal, setMovingDeal] = useState<Deal | null>(null);
   const [celebrating, setCelebrating] = useState(false);
+  const [seedingId, setSeedingId] = useState<string | null>(null);
+  const profile = useAuthStore((s) => s.profile);
+  const canEdit = Boolean(profile && profile.account_role !== 'viewer');
 
   const { data: pipelines } = useQuery({
     queryKey: ['pipelines'],
@@ -100,7 +125,7 @@ export default function DealsScreen() {
       const { data, error } = await supabase
         .from('deals')
         .select(
-          '*, contact:contacts(id, name, phone), property:properties(id, title)'
+          '*, contact:contacts(id, name, second_name, phone), property:properties(id, title, unit_no), milestones:deal_milestones(count)'
         )
         .eq('pipeline_id', activePipeline!)
         .order('created_at', { ascending: false });
@@ -192,6 +217,27 @@ export default function DealsScreen() {
     setOutcomeView(pipelineOutcomeForStage(stage.name));
     setStageId(stage.id);
     queryClient.invalidateQueries({ queryKey: ['deals', activePipeline] });
+  }
+
+  async function seedMilestones(deal: Deal) {
+    setSeedingId(deal.id);
+    try {
+      await addStandardMilestones(deal.id);
+      haptic.success();
+      await queryClient.invalidateQueries({
+        queryKey: ['deals', activePipeline],
+      });
+    } catch (err) {
+      haptic.warn();
+      show({
+        title: 'Could not add milestones',
+        message: friendlyError(
+          err instanceof Error ? err.message : String(err)
+        ),
+      });
+    } finally {
+      setSeedingId(null);
+    }
   }
 
   async function reopenDeal(deal: Deal) {
@@ -359,6 +405,9 @@ export default function DealsScreen() {
               <DealCard
                 deal={item}
                 stage={selectedStage ?? null}
+                canEdit={canEdit}
+                seeding={seedingId === item.id}
+                onSeedMilestones={() => void seedMilestones(item)}
                 onMove={() => setMovingDeal(item)}
                 onReopen={() => void reopenDeal(item)}
                 onEdit={() =>
@@ -435,12 +484,18 @@ export default function DealsScreen() {
 function DealCard({
   deal,
   stage,
+  canEdit,
+  seeding,
+  onSeedMilestones,
   onMove,
   onReopen,
   onEdit,
 }: {
   deal: Deal;
   stage: PipelineStage | null;
+  canEdit: boolean;
+  seeding: boolean;
+  onSeedMilestones: () => void;
   onMove: () => void;
   onReopen: () => void;
   onEdit: () => void;
@@ -448,6 +503,10 @@ function DealCard({
   const { colors, fonts: f } = useTheme();
   const contactName = deal.contact?.name || deal.contact?.phone;
   const brokeragePaid = stage ? isBrokeragePaidStage(stage.name) : false;
+  const indexRow = dealIndexRow(deal);
+  const headline = transactionTitle(indexRow);
+  const subtitle = transactionSubtitle(indexRow);
+  const closingRecord = isClosingRecord(indexRow);
 
   return (
     <View
@@ -462,12 +521,22 @@ function DealCard({
         accessibilityRole="button"
         accessibilityLabel={`Edit ${deal.title}`}
       >
-        <Text
-          style={[styles.cardTitle, { color: colors.text }]}
-          numberOfLines={1}
-        >
-          {deal.title}
-        </Text>
+        <View style={{ flex: 1 }}>
+          <Text
+            style={[styles.cardTitle, { color: colors.text }]}
+            numberOfLines={1}
+          >
+            {headline}
+          </Text>
+          {subtitle ? (
+            <Text
+              style={{ fontSize: 12.5, color: colors.textMuted }}
+              numberOfLines={1}
+            >
+              {subtitle}
+            </Text>
+          ) : null}
+        </View>
         <Text
           style={{
             fontSize: 15,
@@ -479,6 +548,21 @@ function DealCard({
         </Text>
         <Ionicons name="chevron-forward" size={15} color={colors.textFaint} />
       </Pressable>
+
+      {!closingRecord ? (
+        <View style={styles.receiptRow}>
+          <Ionicons name="sparkles-outline" size={14} color={colors.warning} />
+          <Text
+            style={{
+              fontSize: 12.5,
+              fontFamily: f.bold,
+              color: colors.warning,
+            }}
+          >
+            {NOT_YET_TRANSACTION_LABEL}
+          </Text>
+        </View>
+      ) : null}
 
       {contactName ? (
         <Link href={`/(app)/contact/${deal.contact_id}`} asChild>
@@ -498,8 +582,7 @@ function DealCard({
         <View style={styles.receiptRow}>
           <Ionicons name="checkmark-circle" size={15} color={colors.success} />
           <Text style={{ fontSize: 12.5, color: colors.success }}>
-            Brokerage received ·{' '}
-            {formatInr(dealBrokerage(deal))}
+            Brokerage received · {formatInr(dealBrokerage(deal))}
             {deal.brokerage_paid_at
               ? ` · ${new Date(deal.brokerage_paid_at).toLocaleDateString([], {
                   day: 'numeric',
@@ -524,6 +607,33 @@ function DealCard({
         </Link>
       ) : null}
 
+      {!closingRecord && canEdit && deal.status === 'open' ? (
+        <Pressable
+          onPress={onSeedMilestones}
+          disabled={seeding}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={`Add standard milestones to ${headline}`}
+          accessibilityHint={NOT_YET_TRANSACTION_HINT}
+          style={[
+            styles.moveButton,
+            styles.seedButton,
+            { backgroundColor: colors.primarySoft, opacity: seeding ? 0.6 : 1 },
+          ]}
+        >
+          <Ionicons name="list-outline" size={14} color={colors.primary} />
+          <Text
+            style={{
+              fontSize: 12.5,
+              fontFamily: f.bold,
+              color: colors.primary,
+            }}
+          >
+            {seeding ? 'Adding milestones…' : 'Add standard milestones'}
+          </Text>
+        </Pressable>
+      ) : null}
+
       <View style={styles.cardBottom}>
         {deal.status !== 'open' ? (
           <Text
@@ -546,9 +656,17 @@ function DealCard({
           accessibilityLabel={`Open the deal folder for ${deal.title}`}
           style={[styles.moveButton, { backgroundColor: colors.primarySoft }]}
         >
-          <Ionicons name="folder-open-outline" size={14} color={colors.primary} />
+          <Ionicons
+            name="folder-open-outline"
+            size={14}
+            color={colors.primary}
+          />
           <Text
-            style={{ fontSize: 12.5, fontFamily: f.bold, color: colors.primary }}
+            style={{
+              fontSize: 12.5,
+              fontFamily: f.bold,
+              color: colors.primary,
+            }}
           >
             Folder
           </Text>
@@ -617,7 +735,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: spacing.sm,
   },
-  cardTitle: { flex: 1, fontSize: 15.5, fontFamily: fonts.bold },
+  cardTitle: { fontSize: 15.5, fontFamily: fonts.bold },
   linkRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   receiptRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   cardBottom: {
@@ -633,6 +751,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
+  seedButton: { alignSelf: 'flex-start' },
   modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',

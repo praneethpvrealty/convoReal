@@ -5,6 +5,7 @@ import {
   rateLimitResponse,
   RATE_LIMITS,
 } from '@/lib/rate-limit';
+import { brokerageAmount } from '@/lib/pipelines/brokerage';
 import { propertyStatusForPipelineStage } from '@/lib/pipelines/stage-semantics';
 import { DEAL_DOCUMENT_BUCKET } from '@/lib/invoices/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
@@ -163,7 +164,14 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const { status, target_stage_id, property_id, current_stage_name } = body;
+    const {
+      status,
+      target_stage_id,
+      property_id,
+      current_stage_name,
+      brokerage_type,
+      brokerage_value,
+    } = body;
 
     if (
       typeof status !== 'string' ||
@@ -178,6 +186,38 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     const updateData: Record<string, unknown> = { status };
     if (typeof target_stage_id === 'string' && target_stage_id.trim()) {
       updateData.stage_id = target_stage_id.trim();
+    }
+
+    if (brokerage_type !== undefined || brokerage_value !== undefined) {
+      if (
+        (brokerage_type !== 'percentage' && brokerage_type !== 'fixed') ||
+        typeof brokerage_value !== 'number' ||
+        !Number.isFinite(brokerage_value) ||
+        brokerage_value <= 0
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              "'brokerage_type' must be 'percentage' or 'fixed' with a positive 'brokerage_value'",
+          },
+          { status: 400 }
+        );
+      }
+      const { data: current } = await ctx.supabase
+        .from('deals')
+        .select('value')
+        .eq('id', dealId)
+        .maybeSingle();
+      if (!current) {
+        return NextResponse.json({ error: 'Deal not found' }, { status: 404 });
+      }
+      updateData.brokerage_type = brokerage_type;
+      updateData.brokerage_value = brokerage_value;
+      updateData.brokerage_amount = brokerageAmount({
+        dealValue: current.value,
+        type: brokerage_type,
+        value: brokerage_value,
+      });
     }
 
     const { data: updated, error: updateErr } = await ctx.supabase

@@ -19,6 +19,17 @@ than a written entry. Newest first.
 
 #### 19 September 2026
 
+- **Transactions: the index reads like a closing record.** Rows are
+  headed by buyer and property (unit number first) with the deal's own
+  title demoted to a second line, so a requirement-style pipeline title
+  no longer stands in for the transaction. A pipeline deal that was
+  neither converted from a journey nor given milestones is marked
+  **Not yet a transaction**, and the row offers "Add standard
+  milestones" to start the checklist. The stage chip on the workspace
+  header is now a stage picker: a lost or won deal can be moved back to
+  an active stage without leaving the workspace, through the same call
+  the pipeline board makes, and it asks for brokerage before a closing
+  stage exactly as the board does. Web and mobile alike.
 - **Auto-reply from a retired WhatsApp number.** A saved number that is no
   longer live still receives messages (it shares the WhatsApp Business
   Account), and the webhook used to drop them unseen. Each saved number in

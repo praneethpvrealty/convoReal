@@ -220,6 +220,25 @@ export function fetchDealMilestones(dealId: string) {
   ).then((r) => r.data ?? []);
 }
 
+/** The same PATCH the web board and workspace use: the route derives
+ *  the deal status and syncs the property from the stage name. */
+export function moveDealStage(
+  dealId: string,
+  input: {
+    status: 'open' | 'won' | 'lost';
+    target_stage_id: string;
+    property_id: string | null;
+    current_stage_name: string;
+    brokerage_type?: 'percentage' | 'fixed';
+    brokerage_value?: number;
+  }
+) {
+  return apiFetch<{ id: string; status: string }>(`/api/deals/${dealId}`, {
+    method: 'PATCH',
+    ...json(input),
+  });
+}
+
 export function addStandardMilestones(dealId: string) {
   return apiFetch<{ data: DealMilestoneRow[] }>(
     `/api/deals/${dealId}/milestones`,
