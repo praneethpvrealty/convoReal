@@ -50,6 +50,10 @@ function makeDb(): SupabaseClient {
           call.filters.push([col as string, 'eq', val]);
           return builder;
         },
+        lt: (col: unknown, val: unknown) => {
+          call.filters.push([col as string, 'lt', val]);
+          return builder;
+        },
         insert: (payload: unknown) => {
           call.op = 'insert';
           call.payload = payload;
@@ -334,14 +338,21 @@ describe('[WAN-005] each contact is told once, by the channel their window allow
     ];
     queues.accounts = [{ data: { name: 'Aryavarta Realty' } }];
     queues.contacts = [{ data: { name: 'Gopi', preferred_language: null } }];
-    queues.conversations = [{ data: { id: 'conv-1' } }];
-    queues.messages = [{ data: { created_at: new Date().toISOString() } }];
+    const changedAt = new Date(Date.now() - DAY).toISOString();
+    queues.conversations = [
+      { data: { id: 'conv-1' } },
+      { data: { id: 'conv-1' } },
+    ];
+    queues.messages = [
+      { data: { id: 'msg-before-change' } },
+      { data: { created_at: new Date().toISOString() } },
+    ];
     await maybeSendNumberChangePrecursor(makeDb(), {
       accountId: 'acc-1',
       contactId: 'c-1',
       config: {
         ...liveConfig,
-        number_changed_at: new Date(Date.now() - DAY).toISOString(),
+        number_changed_at: changedAt,
       },
       send,
     });
@@ -349,6 +360,25 @@ describe('[WAN-005] each contact is told once, by the channel their window allow
     expect(sent[0].numberChangeNotice).toBe(true);
     const claim = calls.find((c) => c.op === 'insert');
     expect(claim?.payload).toMatchObject({ trigger: 'precursor' });
+  });
+
+  it('does not send a precursor to a contact whose conversation began after the switch', async () => {
+    queues.conversations = [{ data: { id: 'conv-new' } }];
+    queues.messages = [{ data: null }];
+    const { send, sent } = sender();
+
+    await maybeSendNumberChangePrecursor(makeDb(), {
+      accountId: 'acc-1',
+      contactId: 'c-new',
+      config: liveConfig,
+      send,
+    });
+
+    expect(sent).toHaveLength(0);
+    expect(calls.some((call) => call.op === 'insert')).toBe(false);
+    expect(
+      calls.find((call) => call.table === 'messages')?.filters
+    ).toContainEqual(['created_at', 'lt', liveConfig.number_changed_at]);
   });
 
   it('waits for an in-flight claim from another sender instead of racing ahead of it', async () => {
@@ -477,10 +507,11 @@ describe('[WAN-005] each contact is told once, by the channel their window allow
     });
 
     expect(rpcCalls[0]).toMatchObject({
-      fn: 'whatsapp_number_change_audience',
+      fn: 'whatsapp_number_change_audience_v2',
       params: expect.objectContaining({
         p_account_id: 'acc-1',
         p_phone_number_id: 'pn-new',
+        p_changed_at: liveConfig.number_changed_at,
       }),
     });
     expect(result).toEqual({

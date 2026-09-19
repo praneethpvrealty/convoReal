@@ -394,15 +394,22 @@ export interface NumberChangeAudienceRow {
 
 export async function loadNumberChangeAudience(
   db: SupabaseClient,
-  args: { accountId: string; phoneNumberId: string; days: number; now?: number }
+  args: {
+    accountId: string;
+    phoneNumberId: string;
+    changedAt: string;
+    days: number;
+    now?: number;
+  }
 ): Promise<NumberChangeAudienceRow[]> {
   const since = new Date(
     (args.now ?? Date.now()) - args.days * DAY_MS
   ).toISOString();
-  const { data, error } = await db.rpc('whatsapp_number_change_audience', {
+  const { data, error } = await db.rpc('whatsapp_number_change_audience_v2', {
     p_account_id: args.accountId,
     p_since: since,
     p_phone_number_id: args.phoneNumberId,
+    p_changed_at: args.changedAt,
   });
   if (error) throw error;
   return (data ?? []) as NumberChangeAudienceRow[];
@@ -438,13 +445,15 @@ export async function notifyRecentContacts(args: {
   if (
     !args.window.active ||
     !args.window.phoneNumberId ||
-    !args.window.previousNumber
+    !args.window.previousNumber ||
+    !args.window.changedAt
   ) {
     return result;
   }
   const audience = await loadNumberChangeAudience(args.userDb, {
     accountId: args.accountId,
     phoneNumberId: args.window.phoneNumberId,
+    changedAt: args.window.changedAt,
     days: args.days,
   });
   result.audience = audience.length;
@@ -487,8 +496,34 @@ export async function maybeSendNumberChangePrecursor(
   }
 ): Promise<void> {
   const window = numberChangeWindow(args.config);
-  if (!window.active || !window.phoneNumberId || !window.previousNumber) return;
+  if (
+    !window.active ||
+    !window.phoneNumberId ||
+    !window.previousNumber ||
+    !window.changedAt
+  )
+    return;
   try {
+    const { data: conversation, error: conversationError } = await db
+      .from('conversations')
+      .select('id')
+      .eq('account_id', args.accountId)
+      .eq('contact_id', args.contactId)
+      .maybeSingle();
+    if (conversationError) throw conversationError;
+    if (!conversation) return;
+
+    const { data: priorMessage, error: priorMessageError } = await db
+      .from('messages')
+      .select('id')
+      .eq('conversation_id', conversation.id)
+      .lt('created_at', window.changedAt)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (priorMessageError) throw priorMessageError;
+    if (!priorMessage) return;
+
     const outcome = await sendNumberChangeNotice(db, {
       accountId: args.accountId,
       contactId: args.contactId,

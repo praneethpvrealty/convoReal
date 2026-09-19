@@ -303,6 +303,33 @@ describe('processBuyerQualificationMessage — free-text requirement updates', (
     expect(sendRequirementReview).not.toHaveBeenCalled();
   });
 
+  it('[INB-007] answers a fresh requirement after a later bot reply resumed the thread', async () => {
+    queues.messages = [
+      [
+        {
+          sender_type: 'customer',
+          content_text: '60x40 site north or east facing at BTM 2nd stage',
+        },
+        { sender_type: 'bot', content_text: 'Here are two more options' },
+        { sender_type: 'agent', content_text: 'Map: https://maps.example' },
+      ],
+    ];
+
+    const handled = await processBuyerQualificationMessage(
+      '60x40 site north or east facing at BTM 2nd stage',
+      { id: 'c1', phone: '919000000000', name: 'Pramod' },
+      { id: 'conv-1' },
+      'acct-1',
+      'token',
+      'phone-id',
+      'owner-1'
+    );
+
+    expect(handled).toBe(true);
+    expect(recordLearnedFacts).toHaveBeenCalled();
+    expect(sendRequirementReview).toHaveBeenCalled();
+  });
+
   it('falls back to the plain no-match text without an owner user id', async () => {
     const handled = await run(undefined);
 

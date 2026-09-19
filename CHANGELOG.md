@@ -19,6 +19,17 @@ than a written entry. Newest first.
 
 #### 19 September 2026
 
+- **WhatsApp number-change notices now exclude new contacts.** The
+  automatic precursor and the notify-recent-contacts action only address
+  contacts whose one-to-one thread contains a message from before the
+  number switch; a fresh portal lead no longer receives an irrelevant
+  announcement about a number they never used. **Migration required:**
+  `20260919143100_pre_switch_number_change_audience.sql`.
+- **Buyer requirements resume after the bot resumes a thread.** The
+  qualification listener now follows the latest outbound sender instead
+  of staying muted whenever any of the last six messages came from an
+  agent. A later bot reply hands the thread back to automation, while a
+  later agent reply still keeps the bot quiet.
 - **Contacts: share the property portal link from a contact.** A new
   "Share Portal" action on the contact record (web and mobile) drafts a
   WhatsApp invite to the account's portal, opened on the contact's
