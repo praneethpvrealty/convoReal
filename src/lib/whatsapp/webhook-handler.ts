@@ -185,7 +185,7 @@ import {
   handlePostCallOpenReply,
 } from '@/lib/outreach/dispatcher';
 import { parseBuyerMatchesCommand } from '@/lib/buyer/digest';
-import { buildBuyerMatchReply } from '@/lib/buyer/match-reply';
+import { buildBuyerMatchReplyWithListings } from '@/lib/buyer/match-reply';
 import {
   isOwnerContact,
   findOwnedListings,
@@ -240,7 +240,10 @@ import {
   type PropertyInterestCandidate,
   type WhatsAppCatalogOrder,
 } from '@/lib/whatsapp/property-interest';
-import { logPropertyShare } from '@/lib/whatsapp/share-property-send';
+import {
+  logListingsSent,
+  logPropertyShare,
+} from '@/lib/whatsapp/share-property-send';
 
 export interface WhatsAppMessage {
   id: string;
@@ -2304,7 +2307,7 @@ async function processMessage(
   // as message text, so read both — otherwise a tap that plainly says
   // "send listings" would fall through to generic handling.
   if (parseBuyerMatchesCommand(message.button?.text ?? contentText)) {
-    const matchReply = await buildBuyerMatchReply({
+    const matchReply = await buildBuyerMatchReplyWithListings({
       accountId,
       contactId: contactRecord.id,
     });
@@ -2316,8 +2319,15 @@ async function processMessage(
         conversationId: conversation.id,
         kind: 'text',
         senderType: 'bot',
-        text: matchReply,
+        text: matchReply.text,
       });
+      await logListingsSent(
+        supabaseAdmin(),
+        accountId,
+        configOwnerUserId,
+        contactRecord.id,
+        matchReply.propertyIds
+      );
       return;
     }
   }

@@ -48,7 +48,7 @@ import { logListingsSent } from '@/lib/whatsapp/share-property-send';
 import { visibleTagSuggestions } from '@/lib/contact-preferences';
 import { resolveRequirementSource } from '@/lib/requirements/profiles';
 import { claimBuyerConsentAsk } from '@/lib/buyer/consent-ask';
-import { localityStems, textContainsLocality } from '@/lib/locality-match';
+import { localityLabelsMatch } from '@/lib/locality-match';
 import { normalizePropertyType } from '@/lib/property-types';
 import { canonicalBengaluruZone } from '@/lib/bengaluru-zones';
 import type { Contact, Property } from '@/types';
@@ -147,50 +147,6 @@ function localityReplyCore(text: string): string | null {
   )
     return null;
   return withoutOptions;
-}
-
-function withinOneEdit(left: string, right: string): boolean {
-  if (left === right) return true;
-  if (Math.abs(left.length - right.length) > 1) return false;
-
-  const [shorter, longer] =
-    left.length <= right.length ? [left, right] : [right, left];
-  let shortIndex = 0;
-  let longIndex = 0;
-  let edits = 0;
-  while (shortIndex < shorter.length && longIndex < longer.length) {
-    if (shorter[shortIndex] === longer[longIndex]) {
-      shortIndex += 1;
-      longIndex += 1;
-      continue;
-    }
-    edits += 1;
-    if (edits > 1) return false;
-    if (shorter.length === longer.length) shortIndex += 1;
-    longIndex += 1;
-  }
-  return edits + (longIndex < longer.length ? 1 : 0) <= 1;
-}
-
-function localityLabelsMatch(candidate: string, requested: string): boolean {
-  if (
-    textContainsLocality(candidate, requested) ||
-    textContainsLocality(requested, candidate)
-  )
-    return true;
-
-  const requestedStems = localityStems(requested);
-  const candidateStems = localityStems(candidate);
-  return (
-    requestedStems.length > 0 &&
-    requestedStems.every((requestedStem) =>
-      candidateStems.some(
-        (candidateStem) =>
-          Math.min(requestedStem.length, candidateStem.length) >= 5 &&
-          withinOneEdit(requestedStem, candidateStem)
-      )
-    )
-  );
 }
 
 export function resolveInventoryLocalityReply(

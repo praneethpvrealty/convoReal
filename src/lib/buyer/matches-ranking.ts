@@ -11,7 +11,11 @@
 // ============================================================
 
 import type { Contact, Property } from '@/types';
-import { getMatchingContacts, type MatchDetails } from '@/lib/matching';
+import {
+  compareForBuyer,
+  getMatchingContacts,
+  type MatchDetails,
+} from '@/lib/matching';
 import { resolveRequirementSource } from '@/lib/requirements/profiles';
 
 /**
@@ -75,7 +79,8 @@ export function matchReasons(details: MatchDetails): string[] {
 }
 
 /**
- * Ranks a pool of listings for one buyer, best first. Ties break on
+ * Ranks a pool of listings for one buyer, best first: the locality the
+ * buyer named leads, ordered by type fit, then score. Ties break on
  * price ascending so the cheapest equally-good option leads.
  */
 export function curateForBuyer(
@@ -93,7 +98,11 @@ export function curateForBuyer(
     } catch {
       continue;
     }
-    if (!result || result.score < minScore) continue;
+    if (
+      !result ||
+      (result.score < minScore && result.details.named_area !== 'match')
+    )
+      continue;
     matches.push({
       property,
       score: result.score,
@@ -103,7 +112,8 @@ export function curateForBuyer(
   }
 
   matches.sort((a, b) => {
-    if (b.score !== a.score) return b.score - a.score;
+    const order = compareForBuyer(a, b);
+    if (order !== 0) return order;
     return priceOf(a.property) - priceOf(b.property);
   });
 

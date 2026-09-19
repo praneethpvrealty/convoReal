@@ -79,6 +79,45 @@ describe('curateForBuyer', () => {
     expect(ids[0]).toBe('cheaper');
   });
 
+  it('[INB-004] leads with the locality the buyer named, ordered by type fit, and keeps its other listings below the floor', () => {
+    const named = buyer({
+      areas_of_interest: ['Whitefield'],
+      property_interests: ['Flat/Apartment'],
+    });
+    const whitefieldFlat = property({
+      id: 'wf-flat',
+      type: 'Flat/ Apartment',
+      sublocality: 'Whitefeild',
+      latitude: 12.9698,
+      longitude: 77.75,
+    });
+    const whitefieldVilla = property({
+      id: 'wf-villa',
+      type: 'Villa',
+      sublocality: 'Whitefeild',
+      latitude: 12.9698,
+      longitude: 77.75,
+    });
+    const nearbyFlat = property({
+      id: 'mh-flat',
+      type: 'Flat/ Apartment',
+      sublocality: 'Marathahalli',
+      latitude: 12.9591,
+      longitude: 77.6974,
+    });
+
+    const matches = curateForBuyer(
+      [nearbyFlat, whitefieldVilla, whitefieldFlat],
+      named
+    );
+    expect(matches.map((m) => m.property.id)).toEqual([
+      'wf-flat',
+      'wf-villa',
+      'mh-flat',
+    ]);
+    expect(matches[1].score).toBeLessThan(MIN_BUYER_MATCH_SCORE);
+  });
+
   it('honours the limit', () => {
     const pool = Array.from({ length: 6 }, (_, i) =>
       property({ id: `p${i}`, sublocality: 'Whitefield', price: 9_000_000 + i })
