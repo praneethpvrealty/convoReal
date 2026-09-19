@@ -258,6 +258,20 @@ describe('property shortlist sharing remains available on both surfaces', () => 
   });
 });
 
+describe('contact merge remains available on both surfaces', () => {
+  it('[CTM-001] exposes survivor selection and the shared merge route on mobile', () => {
+    const mobileContact = mobileSource('app/(app)/contact/[id].tsx');
+    const mobileMerge = mobileSource('components/contact-merge-sheet.tsx');
+    const webMerge = webSource('components/contacts/duplicates-panel.tsx');
+
+    expect(mobileContact).toContain('Merge with another contact');
+    expect(mobileContact).toContain('<ContactMergeSheet');
+    expect(mobileMerge).toContain("'/api/contacts/merge'");
+    expect(mobileMerge).toContain('Keep this record');
+    expect(webMerge).toContain("'/api/contacts/merge'");
+  });
+});
+
 describe('Google locality picks run the same nearby search on both surfaces', () => {
   it('[PRP-003] makes the suggestion row geographic and keeps exact areas explicit', () => {
     const mobileScreen = mobileSource('app/(app)/(tabs)/properties.tsx');

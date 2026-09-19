@@ -101,6 +101,39 @@
       ]
     },
     {
+      "id": "contacts",
+      "name": "Contact records and duplicate resolution",
+      "surfaces": ["web", "mobile"],
+      "invariants": [
+        {
+          "id": "CTM-001",
+          "rule": "Agents can merge any two confirmed duplicate contacts from web or mobile, explicitly choose the surviving record, retain every distinct phone number and complementary profile or requirement data, and consolidate both one-to-one Inbox histories before hiding the duplicate.",
+          "tests": [
+            {
+              "file": "src/lib/contacts/merge.test.ts",
+              "case": "[CTM-001]"
+            },
+            {
+              "file": "src/lib/contacts/merge-conversation.test.ts",
+              "case": "[CTM-001]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[CTM-001]"
+            },
+            {
+              "file": "mobile/lib/contact-merge.test.ts",
+              "case": "[CTM-001]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20260919143000_merge_contact_conversations.sql",
+            ".github/workflows/eas-update.yml"
+          ]
+        }
+      ]
+    },
+    {
       "id": "calendar",
       "name": "Calendar, appointments and to-dos",
       "surfaces": ["web", "mobile", "whatsapp"],

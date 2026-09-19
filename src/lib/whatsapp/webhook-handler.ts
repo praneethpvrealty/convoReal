@@ -3625,11 +3625,14 @@ interface ContactRow {
   account_id: string;
   user_id: string | null;
   phone: string;
+  secondary_phones?: string[] | null;
   name: string;
   classification?: string;
   last_inquired_property_id?: string | null;
   owner_digest_consent?: string | null;
   owner_digest_consent_requested_at?: string | null;
+  is_merged?: boolean;
+  merged_into_id?: string | null;
 }
 
 interface PropertyRow {
@@ -3670,14 +3673,10 @@ async function findOrCreateContact(
       ? normalizedSender.slice(-8)
       : normalizedSender;
 
-  // is_merged excluded so a merge winner always claims the thread — the
-  // arbitrary pick among duplicates here is what let two contacts on one
-  // number keep trading the same sender's messages between their threads.
   const { data: contacts, error: contactsError } = await supabaseAdmin()
     .from('contacts')
     .select('*')
     .eq('account_id', accountId)
-    .eq('is_merged', false)
     .like('phone', `%${phoneSuffix}`);
 
   if (contactsError) {
@@ -3685,9 +3684,28 @@ async function findOrCreateContact(
     return null;
   }
 
-  const existingContact = contacts?.find((c: ContactRow) =>
+  const matchingContacts = (contacts ?? []).filter((c: ContactRow) =>
     phonesMatch(c.phone, phone)
   );
+  let existingContact = matchingContacts.find(
+    (c: ContactRow) => !c.is_merged
+  ) as ContactRow | undefined;
+
+  if (!existingContact) {
+    const alias = matchingContacts.find(
+      (c: ContactRow) => c.is_merged && c.merged_into_id
+    ) as ContactRow | undefined;
+    if (alias?.merged_into_id) {
+      const { data: mergeWinner } = await supabaseAdmin()
+        .from('contacts')
+        .select('*')
+        .eq('id', alias.merged_into_id)
+        .eq('account_id', accountId)
+        .eq('is_merged', false)
+        .maybeSingle();
+      existingContact = mergeWinner as ContactRow | undefined;
+    }
+  }
 
   if (existingContact) {
     // Only adopt the sender's WhatsApp profile name when the contact has
