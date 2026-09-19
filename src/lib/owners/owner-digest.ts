@@ -610,7 +610,7 @@ export async function gatherOwnerDigests(
       db
         .from('journey_items')
         .select(
-          'property_id, contact_id, drop_reason, stage:journey_stages(name), contact:contacts(name)'
+          'property_id, contact_id, drop_reason, stage:journey_stages!journey_items_stage_id_fkey(name), contact:contacts(name)'
         )
         .eq('account_id', accountId)
         .eq('status', 'dropped')

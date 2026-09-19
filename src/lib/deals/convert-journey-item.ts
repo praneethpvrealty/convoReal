@@ -81,7 +81,7 @@ export async function convertJourneyItemToDeal(
       'id, contact_id, property_id, stage_id, status, ' +
         'contact:contacts(name, phone), ' +
         'property:properties(title, unit_no, price), ' +
-        'stage:journey_stages(id, name, stage_kind)'
+        'stage:journey_stages!journey_items_stage_id_fkey(id, name, stage_kind)'
     )
     .eq('id', itemId)
     .eq('account_id', ctx.accountId)
