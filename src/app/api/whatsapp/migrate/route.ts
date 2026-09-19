@@ -200,6 +200,7 @@ export async function POST(request: Request) {
           last_registration_error: registrationError,
         },
         activatedAt: registrationError ? undefined : new Date().toISOString(),
+        live: true,
       })
     } catch (profileError) {
       console.error('[migrate] Error saving whatsapp_number_profiles row:', profileError)

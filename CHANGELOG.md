@@ -19,6 +19,18 @@ than a written entry. Newest first.
 
 #### 19 September 2026
 
+- **Auto-reply from a retired WhatsApp number.** A saved number that is no
+  longer live still receives messages (it shares the WhatsApp Business
+  Account), and the webhook used to drop them unseen. Each saved number in
+  Settings → WhatsApp → Saved numbers now has an "Auto-reply" switch: with it
+  on, a message to that number gets a reply from that number pointing at the
+  live one, with the business name, the new number and a tap-to-chat link
+  (or a custom message with `{{business_name}}`, `{{new_number}}`, `{{link}}`),
+  at most once per sender per day. The inbound message reaches the account
+  owner as an in-app and push notification linking to the contact. The switch
+  cannot be turned on for the live number and clears when the number goes
+  live again. **Migration required:**
+  `20260919043000_whatsapp_retired_number_autoreply.sql`.
 - **Matching: a single stated plot size now admits the larger corner
   sites.** "60x40" is filed as exactly 2,400 sq.ft., and the size gate
   dropped the 3,114 sq.ft. corner sites in the same layout as a miss. A
