@@ -13,7 +13,7 @@
  * the pre-commit hook already executes.
  */
 
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runInNewContext } from 'node:vm';
 
@@ -1877,5 +1877,60 @@ describe('[TXW-017] Deals is one surface with a board, journeys and records on b
     expect(webSidebar).toContain('href: "/deals"');
     expect(mobileMenu).toContain("label: 'Deals: journeys'");
     expect(mobileIntent).toContain("q.get('view') === 'journey'");
+  });
+});
+
+describe('[TXW-018] journey stages mirror the pipeline on every surface', () => {
+  const migration = readFileSync(
+    join(
+      process.cwd(),
+      'supabase/migrations/20260919120000_journey_stages_mirror_pipeline.sql'
+    ),
+    'utf8'
+  );
+  const webSemantics = webSource('lib/pipelines/stage-semantics.ts');
+  const mobileSemantics = mobileSource('lib/stage-semantics.ts');
+
+  it('derives the journey kind from the same stage words in SQL and TypeScript', () => {
+    for (const word of ['lost', 'won', 'registered', 'brokerage']) {
+      expect(migration).toContain(`'%${word}%'`);
+      expect(webSemantics).toContain(`'${word}'`);
+    }
+    for (const word of ['negotiation', 'token', 'due diligence', 'contract']) {
+      expect(migration).toContain(`'%${word}%'`);
+      expect(webSemantics).toContain(`'${word}'`);
+    }
+    expect(mobileSemantics).toContain(
+      'export function journeyStageKindForPipelineStage('
+    );
+    expect(mobileSemantics).toContain(
+      "if (outcome === 'successful') return 'won';"
+    );
+  });
+
+  it('reads mirrored stages through the one sync function on web and mobile', () => {
+    expect(webSource('lib/journey/capture.ts')).toContain(
+      '"sync_journey_stages_from_pipeline"'
+    );
+    expect(mobileSource('app/(app)/journey.tsx')).toContain(
+      "'sync_journey_stages_from_pipeline'"
+    );
+    expect(
+      webSource('app/(dashboard)/pipelines/pipelines-content.tsx')
+    ).toContain("'sync_journey_stages_from_pipeline'");
+    expect(
+      existsSync(
+        join(process.cwd(), 'src/components/journey/stage-editor-dialog.tsx')
+      )
+    ).toBe(false);
+  });
+
+  it('keeps a converted deal and its journey item on one stage from either side', () => {
+    expect(migration).toContain('AFTER UPDATE OF stage_id ON journey_items');
+    expect(migration).toContain('AFTER UPDATE OF stage_id ON deals');
+    expect(migration).toContain('pg_trigger_depth() > 1');
+    expect(webSource('components/journey/journey-section.tsx')).toContain(
+      "target.stage_kind === 'closing' || target.stage_kind === 'won'"
+    );
   });
 });

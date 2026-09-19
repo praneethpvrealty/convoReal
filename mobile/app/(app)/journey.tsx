@@ -147,12 +147,20 @@ export function JourneyBody() {
   const [savingNote, setSavingNote] = useState(false);
 
   const stagesQuery = useQuery({
-    queryKey: ['journey-stages'],
+    queryKey: ['journey-stages', accountId],
     enabled: Boolean(accountId),
     queryFn: async () => {
+      const synced = await supabase.rpc('sync_journey_stages_from_pipeline', {
+        p_account_id: accountId!,
+        p_pipeline_id: null,
+      });
+      if (!synced.error && Array.isArray(synced.data) && synced.data.length) {
+        return synced.data as JourneyStage[];
+      }
       const { data, error } = await supabase
         .from('journey_stages')
-        .select('id, name, color, position')
+        .select('id, name, color, position, pipeline_stage_id')
+        .not('pipeline_stage_id', 'is', null)
         .order('position');
       if (error) throw error;
       return (data ?? []) as JourneyStage[];

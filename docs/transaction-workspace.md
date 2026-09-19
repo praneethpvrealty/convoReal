@@ -166,7 +166,25 @@ carry their query across (`src/lib/deals/routes.ts`); Automations keeps
 Flows and Analytics only. Mobile mirrors it with Board and Records
 segments on the Deals screen and a Journey button in its header.
 
+## One stage vocabulary
+
+`journey_stages.pipeline_stage_id` links every journey stage to a
+pipeline stage. `sync_journey_stages_from_pipeline(account, pipeline)`
+(`20260919120000_journey_stages_mirror_pipeline.sql`) upserts one
+journey stage per stage of the account's default pipeline, creating the
+default board when there is none, and both surfaces read stages through
+it; `journey_stages_for_account` is the unguarded twin for the service
+role. The kind (prospecting, closing, won, lost) comes from the stage
+name by the same words as `journeyStageKindForPipelineStage`. Two
+triggers keep a converted deal and its journey item on one stage from
+either side, and a journey item moved into a closing or won stage is
+converted on the spot. The journey's own stage editor is gone; the
+Board's pipeline settings are the one editor, and the journey's
+"Stages follow the Board" button opens them. The held backfill
+(`…120100`) re-points existing items by stage kind, aligns converted
+items to their deals, and removes legacy stages nothing references.
+
 ## Invariants
 
-`FEATURE_MANIFEST.json` → `transaction-workspace` (TXW-001 … TXW-017).
+`FEATURE_MANIFEST.json` → `transaction-workspace` (TXW-001 … TXW-018).
 Each names its executable regression cases.

@@ -128,7 +128,7 @@ export const CHUNKS: KnowledgeChunk[] = [
     route: '/journey',
     title: 'Journey',
     kind: 'page',
-    body: 'The Journey tab under Deals: a visual mind-map of each buyer’s search. Properties you share on WhatsApp are captured onto the customer’s journey automatically, and you can plan next steps with expected timelines. The tab lists every journey; open one to see its full map.',
+    body: 'The Journey tab under Deals: a visual mind-map of each buyer’s search, on the same stages as the Board. Properties you share on WhatsApp are captured onto the customer’s journey automatically, and you can plan next steps. Moving a branch into Negotiation/Token or later opens its closing record.',
     keywords: ['mind map', 'buyer journey', 'timeline'],
   },
   {

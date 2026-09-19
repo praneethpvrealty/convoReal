@@ -333,6 +333,7 @@ export interface JourneyStage {
   name: string;
   color?: string | null;
   position: number;
+  pipeline_stage_id?: string | null;
 }
 
 export interface JourneyItem {

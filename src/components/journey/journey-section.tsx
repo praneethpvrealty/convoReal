@@ -360,10 +360,21 @@ export function JourneySection({
         return false;
       }
       await logEvent(item.id, eventType, item.stage_id, toStageId);
+      const target = stages.find((s) => s.id === toStageId);
+      if (
+        target &&
+        (target.stage_kind === 'closing' || target.stage_kind === 'won')
+      ) {
+        await fetch('/api/journey/convert-to-deal', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ item_id: item.id, source: 'web' }),
+        }).catch(() => null);
+      }
       await refresh();
       return true;
     },
-    [supabase, logEvent, refresh]
+    [supabase, logEvent, refresh, stages]
   );
 
   const handleAdvance = useCallback(
