@@ -144,6 +144,42 @@ describe('mergeCuratedFeeds', () => {
     expect(merged[0].score).toBe(88);
   });
 
+  it('[INB-005] keeps the exact size fit ahead of a cheaper corner site from another agency', () => {
+    const fit = (size_fit: 'exact' | 'larger') =>
+      ({
+        type: 'match',
+        location: 'match',
+        budget: 'match',
+        bhk: 'unknown',
+        roi: 'unknown',
+        size: size_fit === 'exact' ? 'match' : 'partial',
+        size_fit,
+        named_area: 'match',
+      }) as const;
+    const merged = mergeCuratedFeeds(
+      [
+        [
+          {
+            property: property({ id: 'corner', price: 55_000_000 }),
+            score: 100,
+            details: fit('larger'),
+            reasons: [],
+          },
+        ],
+        [
+          {
+            property: property({ id: 'exact', price: 60_000_000 }),
+            score: 100,
+            details: fit('exact'),
+            reasons: [],
+          },
+        ],
+      ],
+      10
+    );
+    expect(merged.map((m) => m.property.id)).toEqual(['exact', 'corner']);
+  });
+
   it('orders the combined feed by score and caps it', () => {
     const merged = mergeCuratedFeeds(
       [

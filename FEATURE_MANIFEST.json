@@ -73,6 +73,16 @@
               "case": "[INB-004]"
             }
           ]
+        },
+        {
+          "id": "INB-005",
+          "rule": "A single stated plot size admits larger plots up to 35% over as near-fits ranked below exact fits and within-10% near-misses, including when a full brief clamps their scores; smaller plots and plots beyond that headroom are excluded, and a stated size band keeps its strict cap.",
+          "tests": [
+            {
+              "file": "src/lib/matching.test.ts",
+              "case": "[INB-005]"
+            }
+          ]
         }
       ]
     },
@@ -912,6 +922,23 @@
           ],
           "guards": [
             "supabase/migrations/20260918200000_whatsapp_number_change_notices.sql"
+          ]
+        },
+        {
+          "id": "WAN-006",
+          "rule": "A saved number that is not live may auto-reply to inbound messages, never the live number: the switch is refused on the live profile and cleared on activation; the reply goes from the retired number itself, quotes the inbound message, names the live number with a tap-to-chat link (or renders the saved custom message's placeholders), is sent at most once per sender per 24 hours with the ledger claimed before the send and rolled back when Meta rejects it, and every inbound message to the retired number is surfaced to the account owner as a notification whether or not a reply went out.",
+          "tests": [
+            {
+              "file": "src/lib/whatsapp/retired-number-reply.test.ts",
+              "case": "[WAN-006]"
+            },
+            {
+              "file": "src/lib/whatsapp/number-profiles.test.ts",
+              "case": "[WAN-006]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20260919043000_whatsapp_retired_number_autoreply.sql"
           ]
         }
       ]
