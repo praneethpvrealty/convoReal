@@ -16,6 +16,11 @@
 -- journey. A supplied pipeline that is not the default is refused
 -- rather than mirrored alongside it.
 --
+-- Default pipeline: resolved under a per-account transaction lock, so
+-- two first-time syncs cannot each create a board, and a default
+-- board with no stages is given the standard stages so the journey
+-- always has a rail.
+--
 -- Held until merge: CREATE OR REPLACE of live functions.
 -- Applied before the backfill (…120100), which relies on it.
 -- ============================================================
@@ -127,5 +132,45 @@ BEGIN
     SELECT * FROM journey_stages
       WHERE account_id = p_account_id AND pipeline_stage_id IS NOT NULL
       ORDER BY position;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION ensure_default_pipeline(p_account_id UUID)
+RETURNS UUID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_id UUID;
+  v_user UUID;
+BEGIN
+  PERFORM pg_advisory_xact_lock(hashtext('ensure_default_pipeline'), hashtext(p_account_id::text));
+  SELECT id INTO v_id FROM pipelines
+    WHERE account_id = p_account_id
+    ORDER BY created_at
+    LIMIT 1;
+  IF v_id IS NULL THEN
+    v_user := COALESCE(auth.uid(), (SELECT owner_user_id FROM accounts WHERE id = p_account_id));
+    IF v_user IS NULL THEN
+      RETURN NULL;
+    END IF;
+    INSERT INTO pipelines (user_id, account_id, name)
+      VALUES (v_user, p_account_id, 'Real Estate Pipeline')
+      RETURNING id INTO v_id;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pipeline_stages WHERE pipeline_id = v_id) THEN
+    INSERT INTO pipeline_stages (pipeline_id, name, color, position) VALUES
+      (v_id, 'New Inquiry', '#3b82f6', 0),
+      (v_id, 'Profiling/Qualified', '#eab308', 1),
+      (v_id, 'Site Visit Scheduled', '#f97316', 2),
+      (v_id, 'Negotiation/Token', '#8b5cf6', 3),
+      (v_id, 'Due Diligence/Contract', '#06b6d4', 4),
+      (v_id, 'Deal Closed/Won', '#22c55e', 5),
+      (v_id, 'Brokerage Pending', '#f59e0b', 6),
+      (v_id, 'Brokerage Paid', '#16a34a', 7),
+      (v_id, 'Closed Lost', '#ef4444', 8);
+  END IF;
+  RETURN v_id;
 END;
 $$;

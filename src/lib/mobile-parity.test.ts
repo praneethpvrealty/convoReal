@@ -1983,6 +1983,25 @@ describe('[TXW-018] journey stages mirror the pipeline on every surface', () => 
     );
     const stageMove = webSource('lib/deals/stage-move.ts');
     expect(stageMove.match(/\.eq\('account_id', accountId\)/g)?.length).toBe(3);
+    expect(sameAccount).toContain(
+      "PERFORM pg_advisory_xact_lock(hashtext('ensure_default_pipeline'), hashtext(p_account_id::text));"
+    );
+    expect(sameAccount).toContain(
+      'IF NOT EXISTS (SELECT 1 FROM pipeline_stages WHERE pipeline_id = v_id) THEN'
+    );
+    const moveSource = webSource('lib/journey/move.ts');
+    const itemUpdate = moveSource.indexOf(
+      ".from('journey_items')\n      .update({"
+    );
+    expect(moveSource.indexOf('await applyDealStageMove(ctx, {')).toBeLessThan(
+      itemUpdate
+    );
+    expect(
+      moveSource.indexOf('await convertJourneyItemToDeal(ctx, {')
+    ).toBeLessThan(itemUpdate);
+    expect(moveSource).toContain(
+      "if (openedDealId) {\n        const { data: removed } = await supabase\n          .from('deals')\n          .delete()"
+    );
     expect(
       webSource('app/(dashboard)/pipelines/pipelines-content.tsx')
     ).not.toContain('p_pipeline_id: pipeline.id');

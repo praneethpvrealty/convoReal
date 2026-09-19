@@ -6,8 +6,9 @@
 -- rewrites journey_items.stage_id, which the old journey page would
 -- otherwise show against stages it no longer lists.
 --
--- An account whose pipeline has no stages mirrors nothing and is left
--- as it is: there is no stage to re-point its items to.
+-- ensure_default_pipeline (…120050) gives a stage-less default board
+-- the standard stages, so every account mirrors something; the guard
+-- below only stands in case that ever fails.
 --
 -- Order matters: a converted item follows its deal first (the deal is
 -- the closing record; one on another board lands on the mirrored
