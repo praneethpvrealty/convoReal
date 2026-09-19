@@ -20,6 +20,8 @@ import {
   ConversationSkeleton,
   EmptyState,
   FilterChip,
+  PrimaryButton,
+  TextField,
 } from '@/components/ui';
 import { useAuthStore } from '@/lib/auth-store';
 import { contactFullName } from '@/lib/contact-name';
@@ -38,6 +40,7 @@ import {
   dealStatusForStage,
   isBrokeragePaidStage,
   isBrokeragePendingStage,
+  needsBrokerageCapture,
   pipelineOutcomeForStage,
   type PipelineOutcome,
 } from '@/lib/stage-semantics';
@@ -68,6 +71,16 @@ function dealIndexRow(deal: Deal) {
  * disagree with the invoice raised off the same deal. Mirrors
  * `src/lib/pipelines/brokerage.ts` — guarded by mobile-parity.test.ts.
  */
+function brokeragePreview(
+  dealValue: number | null,
+  type: 'percentage' | 'fixed',
+  raw: string
+): number {
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value <= 0) return 0;
+  return type === 'fixed' ? value : ((dealValue ?? 0) * value) / 100;
+}
+
 function dealBrokerage(deal: Deal): number {
   if (deal.brokerage_amount != null) return Number(deal.brokerage_amount);
   const value = Number(deal.brokerage_value ?? 0);
@@ -83,6 +96,14 @@ export default function DealsScreen() {
   const [outcomeView, setOutcomeView] = useState<PipelineOutcome>('active');
   const [movingDeal, setMovingDeal] = useState<Deal | null>(null);
   const [celebrating, setCelebrating] = useState(false);
+  const [brokeragePrompt, setBrokeragePrompt] = useState<{
+    deal: Deal;
+    stage: PipelineStage;
+  } | null>(null);
+  const [brokerageType, setBrokerageType] = useState<'percentage' | 'fixed'>(
+    'percentage'
+  );
+  const [brokerageValue, setBrokerageValue] = useState('');
   const [segment, setSegment] = useState<'board' | 'journey' | 'records'>(
     'board'
   );
@@ -194,8 +215,28 @@ export default function DealsScreen() {
     (stage) => stage.id === activeStage
   );
 
-  async function moveDeal(deal: Deal, stage: PipelineStage) {
+  async function moveDeal(
+    deal: Deal,
+    stage: PipelineStage,
+    brokerage?: {
+      brokerage_type: 'percentage' | 'fixed';
+      brokerage_value: number;
+    }
+  ) {
     setMovingDeal(null);
+    setBrokeragePrompt(null);
+    if (
+      !brokerage &&
+      needsBrokerageCapture(
+        { brokerage_amount: deal.brokerage_amount ?? null },
+        stage.name
+      )
+    ) {
+      setBrokerageType('percentage');
+      setBrokerageValue('');
+      setBrokeragePrompt({ deal, stage });
+      return;
+    }
     if (isBrokeragePaidStage(stage.name)) {
       haptic.success();
       setCelebrating(true);
@@ -208,6 +249,7 @@ export default function DealsScreen() {
         target_stage_id: stage.id,
         property_id: deal.property_id ?? null,
         current_stage_name: stage.name,
+        ...brokerage,
       });
     } catch (err) {
       haptic.warn();
@@ -440,6 +482,79 @@ export default function DealsScreen() {
       )}
 
       {celebrating ? <Confetti onDone={() => setCelebrating(false)} /> : null}
+
+      <BottomSheet
+        visible={brokeragePrompt !== null}
+        onClose={() => setBrokeragePrompt(null)}
+      >
+        <View style={styles.modalHeader}>
+          <Text style={[styles.modalTitle, { color: colors.text }]}>
+            Enter brokerage details
+          </Text>
+        </View>
+        <View style={styles.brokerageForm}>
+          <Text style={{ fontSize: 13, color: colors.textMuted }}>
+            Moving to {brokeragePrompt?.stage.name} starts the closing stretch.
+            Record the brokerage rate or amount first.
+          </Text>
+          <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+            <FilterChip
+              label="Percentage (%)"
+              active={brokerageType === 'percentage'}
+              onPress={() => setBrokerageType('percentage')}
+            />
+            <FilterChip
+              label="Fixed amount"
+              active={brokerageType === 'fixed'}
+              onPress={() => setBrokerageType('fixed')}
+            />
+          </View>
+          <TextField
+            label={
+              brokerageType === 'percentage'
+                ? 'Brokerage (%)'
+                : 'Brokerage amount'
+            }
+            value={brokerageValue}
+            onChangeText={setBrokerageValue}
+            keyboardType="decimal-pad"
+            placeholder={brokerageType === 'percentage' ? '2' : '0'}
+          />
+          {brokeragePreview(
+            brokeragePrompt?.deal.value ?? null,
+            brokerageType,
+            brokerageValue
+          ) > 0 ? (
+            <Text
+              style={{
+                fontSize: 12.5,
+                fontFamily: f.bold,
+                color: colors.primary,
+              }}
+            >
+              Calculated brokerage:{' '}
+              {formatInr(
+                brokeragePreview(
+                  brokeragePrompt?.deal.value ?? null,
+                  brokerageType,
+                  brokerageValue
+                )
+              )}
+            </Text>
+          ) : null}
+          <PrimaryButton
+            label="Save and move"
+            disabled={!(Number(brokerageValue) > 0)}
+            onPress={() =>
+              brokeragePrompt &&
+              void moveDeal(brokeragePrompt.deal, brokeragePrompt.stage, {
+                brokerage_type: brokerageType,
+                brokerage_value: Number(brokerageValue),
+              })
+            }
+          />
+        </View>
+      </BottomSheet>
 
       {/* Stage picker for the deal being moved. */}
       <BottomSheet
@@ -828,6 +943,11 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.md,
   },
   modalTitle: { flex: 1, fontSize: 15.5, fontFamily: fonts.bold },
+  brokerageForm: {
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.lg,
+    gap: spacing.md,
+  },
   modalRow: {
     flexDirection: 'row',
     alignItems: 'center',

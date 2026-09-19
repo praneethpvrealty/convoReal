@@ -1833,7 +1833,7 @@ describe('[TXW-016] the transaction index reads the same on both surfaces', () =
     expect(mobileSemantics).toContain(
       'return deal.brokerage_amount === null && shouldCaptureBrokerage(stageName);'
     );
-    for (const source of [webWorkspace, mobileScreen]) {
+    for (const source of [webWorkspace, mobileScreen, mobileList]) {
       expect(source).toContain('needsBrokerageCapture(');
       expect(source).toContain('brokerage_type: brokerageType');
       expect(source).toContain('brokerage_value: Number(brokerageValue)');

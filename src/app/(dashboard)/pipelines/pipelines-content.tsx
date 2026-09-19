@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import type { Pipeline, PipelineStage, Deal, DealStatus } from '@/types';
@@ -48,6 +49,7 @@ import { SPEC_DEFAULT_STAGES } from '@/lib/pipelines/default-stages';
 // Seed stages for Real Estate Pipeline
 export default function PipelinesPage() {
   const supabase = createClient();
+  const queryClient = useQueryClient();
   const { user, accountId } = useAuth();
   const canEditSettings = useCan('edit-settings');
   const canCreateDeals = useCan('send-messages');
@@ -343,9 +345,13 @@ export default function PipelinesPage() {
       if (!res || !res.ok) {
         toast.error('Failed to move deal');
         refreshDeals();
+        return;
       }
+      void queryClient.invalidateQueries({
+        queryKey: ['transaction-workspace-index'],
+      });
     },
-    [refreshDeals, deals, stages]
+    [refreshDeals, deals, stages, queryClient]
   );
 
   async function handleModalBrokerageSave() {
@@ -403,6 +409,9 @@ export default function PipelinesPage() {
       return;
     }
 
+    void queryClient.invalidateQueries({
+      queryKey: ['transaction-workspace-index'],
+    });
     toast.success('Deal moved and brokerage updated');
     setBrokeragePromptDeal(null);
     setPendingStageId('');

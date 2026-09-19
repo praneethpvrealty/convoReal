@@ -20,17 +20,19 @@ export async function ensureClosingRecord({
   actorId: string | null;
   actorName: string | null;
   source: DealEventSource;
-}): Promise<number> {
-  if (!stageName || !startsClosingRecord(stageName)) return 0;
+}): Promise<{ seeded: number; error: string | null }> {
+  if (!stageName || !startsClosingRecord(stageName)) {
+    return { seeded: 0, error: null };
+  }
   const { count } = await db
     .from('deal_milestones')
     .select('id', { count: 'exact', head: true })
     .eq('deal_id', dealId)
     .eq('account_id', accountId);
-  if ((count ?? 0) > 0) return 0;
+  if ((count ?? 0) > 0) return { seeded: 0, error: null };
   const rows = standardMilestoneRows(accountId, dealId);
   const { error } = await db.from('deal_milestones').insert(rows);
-  if (error) return 0;
+  if (error) return { seeded: 0, error: error.message };
   await writeDealEvent({
     db,
     accountId,
@@ -42,5 +44,5 @@ export async function ensureClosingRecord({
     source,
     metadata: { template: 'standard', count: rows.length, stage: stageName },
   });
-  return rows.length;
+  return { seeded: rows.length, error: null };
 }

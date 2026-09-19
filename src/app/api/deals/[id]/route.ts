@@ -119,7 +119,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     }
 
     if (typeof stage_id === 'string' && typeof stage_name === 'string') {
-      await ensureClosingRecord({
+      const record = await ensureClosingRecord({
         db: ctx.supabase,
         accountId: ctx.accountId,
         dealId,
@@ -128,6 +128,15 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         actorName: await actorName(ctx.supabase, ctx.accountId, ctx.userId),
         source: parseEventSource(body.source),
       });
+      if (record.error) {
+        return NextResponse.json(
+          {
+            error: `Stage moved but the closing record could not be started: ${record.error}`,
+            code: 'CLOSING_RECORD_FAILED',
+          },
+          { status: 500 }
+        );
+      }
     }
 
     // Sync property status based on stage
@@ -254,7 +263,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     }
 
     if (updateData.stage_id && typeof current_stage_name === 'string') {
-      await ensureClosingRecord({
+      const record = await ensureClosingRecord({
         db: ctx.supabase,
         accountId: ctx.accountId,
         dealId,
@@ -263,6 +272,15 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         actorName: await actorName(ctx.supabase, ctx.accountId, ctx.userId),
         source: parseEventSource(body.source),
       });
+      if (record.error) {
+        return NextResponse.json(
+          {
+            error: `Stage moved but the closing record could not be started: ${record.error}`,
+            code: 'CLOSING_RECORD_FAILED',
+          },
+          { status: 500 }
+        );
+      }
     }
 
     // Sync property status
