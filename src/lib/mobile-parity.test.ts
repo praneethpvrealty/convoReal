@@ -1966,6 +1966,18 @@ describe('[TXW-018] journey stages mirror the pipeline on every surface', () => 
         'utf8'
       )
     ).toContain('AND pipeline_id = v_pipeline');
+    const sameAccount = readFileSync(
+      join(
+        process.cwd(),
+        'supabase/migrations/20260919120050_journey_deal_sync_same_pipeline.sql'
+      ),
+      'utf8'
+    );
+    expect(
+      sameAccount.match(
+        /WHERE id = NEW\.source_journey_item_id AND account_id = NEW\.account_id;/g
+      )?.length
+    ).toBe(2);
   });
 
   it('offers the same move and brokerage prompt on web and mobile', () => {

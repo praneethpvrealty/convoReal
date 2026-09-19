@@ -189,7 +189,8 @@ prompt, so its record opens unpriced), closing record, property status
 — and a move into a closing or won stage opens the deal on that very
 stage through `convertJourneyItemToDeal`. A deal on a pipeline other
 than the mirrored one keeps its own stage, in the move function and in
-the journey→deal trigger (`…120050`). The journey's own stage editor is
+the journey→deal trigger (`…120050`, which also confines the deal→journey
+trigger to the deal's own account). The journey's own stage editor is
 gone; the Board's pipeline settings are the one editor, and the
 journey's "Stages follow the Board" button opens them. A pipeline stage
 cannot be deleted while journey items sit on or plan for its mirror
