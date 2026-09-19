@@ -12,6 +12,7 @@ import {
 } from '@/lib/whatsapp/registration-state';
 
 export const NUMBER_PROFILE_LABEL_MAX = 60;
+export const AUTO_REPLY_MESSAGE_MAX = 600;
 
 export interface NumberProfileRow {
   id: string;
@@ -29,6 +30,8 @@ export interface NumberProfileRow {
   subscribed_apps_at: string | null;
   last_registration_error: string | null;
   last_activated_at: string | null;
+  auto_reply_enabled: boolean;
+  auto_reply_message: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -45,6 +48,8 @@ export interface NumberProfileSummary {
   registered_at: string | null;
   last_registration_error: string | null;
   last_activated_at: string | null;
+  auto_reply_enabled: boolean;
+  auto_reply_message: string | null;
   created_at: string;
   is_active: boolean;
 }
@@ -103,6 +108,8 @@ export function summarizeProfile(
     registered_at: row.registered_at,
     last_registration_error: row.last_registration_error,
     last_activated_at: row.last_activated_at,
+    auto_reply_enabled: row.auto_reply_enabled ?? false,
+    auto_reply_message: row.auto_reply_message ?? null,
     created_at: row.created_at,
     is_active: isProfileActive(row, live),
   };
@@ -157,6 +164,22 @@ export function liveConfigFromProfile(
 export function normalizeProfileLabel(label: unknown): string {
   if (typeof label !== 'string') return '';
   return label.trim().slice(0, NUMBER_PROFILE_LABEL_MAX);
+}
+
+export function normalizeAutoReplyMessage(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== 'string') {
+    throw new UserFacingError('auto_reply_message must be text.', 400);
+  }
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (trimmed.length > AUTO_REPLY_MESSAGE_MAX) {
+    throw new UserFacingError(
+      `Keep the auto-reply under ${AUTO_REPLY_MESSAGE_MAX} characters.`,
+      400
+    );
+  }
+  return trimmed;
 }
 
 export async function isPhoneNumberClaimedElsewhere(
@@ -276,6 +299,50 @@ export async function renameNumberProfile(
   if (error) throw error;
   if (!data) throw new UserFacingError('Saved number not found.', 404);
   const live = await loadLiveConfig(db, args.accountId);
+  return summarizeProfile(data as NumberProfileRow, live);
+}
+
+export async function setNumberProfileAutoReply(
+  db: SupabaseClient,
+  args: {
+    accountId: string;
+    profileId: string;
+    enabled?: unknown;
+    message?: unknown;
+  }
+): Promise<NumberProfileSummary> {
+  const profile = await loadProfile(db, args.accountId, args.profileId);
+  const live = await loadLiveConfig(db, args.accountId);
+  const patch: Record<string, unknown> = {
+    updated_at: new Date().toISOString(),
+  };
+  if (args.enabled !== undefined) {
+    if (typeof args.enabled !== 'boolean') {
+      throw new UserFacingError(
+        'auto_reply_enabled must be true or false.',
+        400
+      );
+    }
+    if (args.enabled && isProfileActive(profile, live)) {
+      throw new UserFacingError(
+        'The live number cannot auto-reply. Switch to another number first.',
+        400
+      );
+    }
+    patch.auto_reply_enabled = args.enabled;
+  }
+  if (args.message !== undefined) {
+    patch.auto_reply_message = normalizeAutoReplyMessage(args.message);
+  }
+  const { data, error } = await db
+    .from('whatsapp_number_profiles')
+    .update(patch)
+    .eq('id', args.profileId)
+    .eq('account_id', args.accountId)
+    .select('*')
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) throw new UserFacingError('Saved number not found.', 404);
   return summarizeProfile(data as NumberProfileRow, live);
 }
 
@@ -452,6 +519,7 @@ export async function activateNumberProfile(
       registered_at: registered ? (profile.registered_at ?? activatedAt) : null,
       last_registration_error: registrationError,
       last_activated_at: activatedAt,
+      auto_reply_enabled: false,
       updated_at: activatedAt,
     })
     .eq('id', profile.id)
@@ -463,6 +531,7 @@ export async function activateNumberProfile(
   const finalProfile = (refreshed as NumberProfileRow | null) ?? {
     ...profile,
     last_activated_at: activatedAt,
+    auto_reply_enabled: false,
   };
 
   return {

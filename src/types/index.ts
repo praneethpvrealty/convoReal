@@ -626,6 +626,8 @@ export interface WhatsAppNumberProfile {
   registered_at: string | null;
   last_registration_error: string | null;
   last_activated_at: string | null;
+  auto_reply_enabled: boolean;
+  auto_reply_message: string | null;
   created_at: string;
   is_active: boolean;
 }

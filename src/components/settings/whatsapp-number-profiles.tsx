@@ -7,6 +7,7 @@ import {
   ArrowLeftRight,
   Check,
   Loader2,
+  MessageSquareReply,
   Pencil,
   Phone,
   Trash2,
@@ -18,6 +19,8 @@ import type { WhatsAppNumberProfile } from '@/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Card,
   CardContent,
@@ -74,6 +77,8 @@ export function WhatsAppNumberProfiles({
   const queryClient = useQueryClient();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draftLabel, setDraftLabel] = useState('');
+  const [replyEditingId, setReplyEditingId] = useState<string | null>(null);
+  const [draftReply, setDraftReply] = useState('');
 
   const profilesQuery = useQuery({
     queryKey: [...NUMBER_PROFILES_QUERY_KEY, activePhoneNumberId, refreshToken],
@@ -130,6 +135,32 @@ export function WhatsAppNumberProfiles({
     onError: (err: Error) => toast.error(err.message),
   });
 
+  const autoReplyMutation = useMutation({
+    mutationFn: (args: {
+      id: string;
+      auto_reply_enabled?: boolean;
+      auto_reply_message?: string | null;
+    }) =>
+      api<WhatsAppNumberProfile>('/api/whatsapp/config/profiles', {
+        method: 'PATCH',
+        body: JSON.stringify(args),
+      }),
+    onSuccess: async (profile, args) => {
+      if (args.auto_reply_message !== undefined) {
+        setReplyEditingId(null);
+        toast.success('Auto-reply saved.');
+      } else if (args.auto_reply_enabled) {
+        toast.success(
+          `Messages to ${profileTitle(profile)} now get a reply pointing at your live number.`
+        );
+      } else {
+        toast.success('Auto-reply turned off.');
+      }
+      await invalidate();
+    },
+    onError: (err: Error) => toast.error(err.message, { duration: 10000 }),
+  });
+
   const deleteMutation = useMutation({
     mutationFn: (id: string) =>
       api<{ success: boolean }>(
@@ -148,6 +179,7 @@ export function WhatsAppNumberProfiles({
   const busy =
     activateMutation.isPending ||
     renameMutation.isPending ||
+    autoReplyMutation.isPending ||
     deleteMutation.isPending;
 
   return (
@@ -160,8 +192,8 @@ export function WhatsAppNumberProfiles({
         <CardDescription className="text-slate-400">
           Every Official API number you connect stays here with its
           registration. Switch between them without the PIN. Only one number is
-          live at a time; WhatsApp messages to the others are not delivered to
-          ConvoReal until you switch back.
+          live at a time. Messages to the others are not delivered to the inbox,
+          but a retired number can auto-reply with your live number.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -281,6 +313,89 @@ export function WhatsAppNumberProfiles({
                         Last registration attempt failed:{' '}
                         {profile.last_registration_error}
                       </p>
+                    )}
+                    {!profile.is_active && profile.registered_at && (
+                      <div className="space-y-2 pt-1">
+                        <label className="flex items-center gap-2 text-xs text-slate-300">
+                          <Switch
+                            checked={profile.auto_reply_enabled}
+                            disabled={!canManage || busy}
+                            onCheckedChange={(checked) =>
+                              autoReplyMutation.mutate({
+                                id: profile.id,
+                                auto_reply_enabled: checked,
+                              })
+                            }
+                            aria-label="Auto-reply to messages sent to this number"
+                          />
+                          <MessageSquareReply className="size-3.5 text-slate-400" />
+                          Auto-reply to messages sent here, pointing at the live
+                          number
+                        </label>
+                        {profile.auto_reply_enabled &&
+                          (replyEditingId === profile.id ? (
+                            <form
+                              className="space-y-1.5"
+                              onSubmit={(e) => {
+                                e.preventDefault();
+                                autoReplyMutation.mutate({
+                                  id: profile.id,
+                                  auto_reply_message: draftReply,
+                                });
+                              }}
+                            >
+                              <Textarea
+                                autoFocus
+                                maxLength={600}
+                                rows={3}
+                                value={draftReply}
+                                onChange={(e) => setDraftReply(e.target.value)}
+                                placeholder="Leave empty for the default message. {{business_name}}, {{new_number}} and {{link}} are filled in when the reply is sent."
+                                className="border-slate-700 bg-slate-900 text-sm text-white"
+                              />
+                              <div className="flex items-center gap-1.5">
+                                <Button
+                                  type="submit"
+                                  size="sm"
+                                  disabled={autoReplyMutation.isPending}
+                                >
+                                  Save reply
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  className="text-slate-400"
+                                  onClick={() => setReplyEditingId(null)}
+                                >
+                                  Cancel
+                                </Button>
+                              </div>
+                            </form>
+                          ) : (
+                            <p className="text-[11px] text-slate-400">
+                              {profile.auto_reply_message
+                                ? `Reply: “${profile.auto_reply_message}”`
+                                : 'Reply: the default message with your business name, live number and a tap-to-chat link.'}
+                              {canManage && (
+                                <button
+                                  type="button"
+                                  className="text-primary ml-1.5 underline-offset-2 hover:underline"
+                                  onClick={() => {
+                                    setReplyEditingId(profile.id);
+                                    setDraftReply(
+                                      profile.auto_reply_message ?? ''
+                                    );
+                                  }}
+                                >
+                                  Edit
+                                </button>
+                              )}{' '}
+                              Each sender gets it at most once a day, and their
+                              message shows up as a notification.
+                            </p>
+                          ))}
+                      </div>
                     )}
                   </div>
                   {canManage && (

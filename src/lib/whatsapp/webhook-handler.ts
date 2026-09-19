@@ -7,6 +7,10 @@ import { markContactDead } from '@/lib/contacts/lifecycle';
 import { DELIVERY_FAILURE_MARKER } from '@/lib/whatsapp/delivery-failure';
 import { sendTextMessage } from '@/lib/whatsapp/meta-api';
 import {
+  loadRetiredNumberProfile,
+  replyFromRetiredNumber,
+} from '@/lib/whatsapp/retired-number-reply';
+import {
   normalizePhone,
   phonesMatch,
   normalizePhoneWithCountryCode,
@@ -710,7 +714,33 @@ export async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
         continue;
       }
 
-      // ── 2. No Official API match — try Sandbox routing ─────────
+      // ── 2a. No Official API match — a saved number that is no longer live? ──
+      const retiredProfile = await loadRetiredNumberProfile(
+        supabaseAdmin(),
+        phoneNumberId
+      );
+      if (retiredProfile) {
+        for (let i = 0; i < value.messages.length; i++) {
+          const message = value.messages[i];
+          const contact = value.contacts[i] || value.contacts[0];
+          const outcome = await replyFromRetiredNumber(
+            supabaseAdmin(),
+            retiredProfile,
+            {
+              senderPhone: message.from,
+              senderName: contact?.profile?.name ?? null,
+              messageId: message.id,
+              preview: message.text?.body ?? null,
+            }
+          );
+          console.log(
+            `[webhook] Retired number ${phoneNumberId} (account ${retiredProfile.account_id}): ${outcome} for sender ${normalizePhone(message.from)}`
+          );
+        }
+        continue;
+      }
+
+      // ── 2b. No Official API match — try Sandbox routing ─────────
       console.log(
         `[webhook] No Official API config for ${phoneNumberId}. Trying sandbox hashtag/sender routing...`
       );

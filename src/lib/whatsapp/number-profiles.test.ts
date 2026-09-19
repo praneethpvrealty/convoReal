@@ -7,7 +7,9 @@ import {
   isPhoneNumberClaimedElsewhere,
   isProfileActive,
   liveConfigFromProfile,
+  normalizeAutoReplyMessage,
   normalizeProfileLabel,
+  setNumberProfileAutoReply,
   snapshotFromLiveConfig,
   summarizeProfile,
   upsertNumberProfile,
@@ -107,6 +109,8 @@ const salesProfile: NumberProfileRow = {
   subscribed_apps_at: '2026-08-06T05:45:33.000Z',
   last_registration_error: null,
   last_activated_at: '2026-08-06T05:45:32.000Z',
+  auto_reply_enabled: false,
+  auto_reply_message: null,
   created_at: '2026-08-06T05:45:32.000Z',
   updated_at: '2026-08-06T05:45:32.000Z',
 };
@@ -317,7 +321,10 @@ describe('[WAN-002] switching numbers reuses the saved registration', () => {
     const stamp = calls.find(
       (c) => c.table === 'whatsapp_number_profiles' && c.op === 'update'
     );
-    expect(stamp?.payload).toMatchObject({ last_activated_at: NOW });
+    expect(stamp?.payload).toMatchObject({
+      last_activated_at: NOW,
+      auto_reply_enabled: false,
+    });
 
     expect(result.already_active).toBe(false);
     expect(result.waba_changed).toBe(true);
@@ -559,5 +566,66 @@ describe('[WAN-002] switching numbers reuses the saved registration', () => {
     });
     const del = calls.find((c) => c.op === 'delete');
     expect(del?.filters).toContainEqual(['account_id', 'eq', 'acc-1']);
+  });
+});
+
+describe('[WAN-006] a retired number can auto-reply, the live one never', () => {
+  it('refuses to enable the auto-reply on the live number', async () => {
+    queues.whatsapp_number_profiles = [
+      { data: { ...salesProfile, phone_number_id: 'pn-rentals' } },
+    ];
+    queues.whatsapp_config = [{ data: liveRentals }];
+    await expect(
+      setNumberProfileAutoReply(makeDb(), {
+        accountId: 'acc-1',
+        profileId: 'prof-sales',
+        enabled: true,
+      })
+    ).rejects.toMatchObject({ status: 400 });
+    expect(
+      calls.some(
+        (c) => c.table === 'whatsapp_number_profiles' && c.op === 'update'
+      )
+    ).toBe(false);
+  });
+
+  it('enables the auto-reply with a custom message on a saved number that is not live', async () => {
+    queues.whatsapp_number_profiles = [
+      { data: salesProfile },
+      {
+        data: {
+          ...salesProfile,
+          auto_reply_enabled: true,
+          auto_reply_message: 'Reach us on {{new_number}}',
+        },
+      },
+    ];
+    queues.whatsapp_config = [{ data: liveRentals }];
+    const result = await setNumberProfileAutoReply(makeDb(), {
+      accountId: 'acc-1',
+      profileId: 'prof-sales',
+      enabled: true,
+      message: '  Reach us on {{new_number}}  ',
+    });
+    const write = calls.find(
+      (c) => c.table === 'whatsapp_number_profiles' && c.op === 'update'
+    );
+    expect(write?.filters).toContainEqual(['account_id', 'eq', 'acc-1']);
+    expect(write?.payload).toMatchObject({
+      auto_reply_enabled: true,
+      auto_reply_message: 'Reach us on {{new_number}}',
+    });
+    expect(result.auto_reply_enabled).toBe(true);
+    expect(result.is_active).toBe(false);
+    expect(result).not.toHaveProperty('access_token');
+  });
+
+  it('stores an empty message as null so the default reply applies, and caps the length', () => {
+    expect(normalizeAutoReplyMessage('   ')).toBeNull();
+    expect(normalizeAutoReplyMessage(undefined)).toBeNull();
+    expect(() => normalizeAutoReplyMessage('x'.repeat(601))).toThrow(
+      UserFacingError
+    );
+    expect(() => normalizeAutoReplyMessage(42)).toThrow(UserFacingError);
   });
 });

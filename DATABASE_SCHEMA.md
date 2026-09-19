@@ -206,6 +206,7 @@ Every Official API number an account has saved, so a brokerage that owns more th
 - `catalog_id`, `auto_sync_catalog`.
 - `registered_at` / `subscribed_apps_at` / `last_registration_error`: Meta registration state carried across switches.
 - `last_activated_at` (TIMESTAMPTZ): last time this profile was the live number.
+- `auto_reply_enabled` (BOOLEAN) / `auto_reply_message` (TEXT, nullable; migration 20260919043000): when enabled on a profile that is not live, an inbound message to that number gets a reply from it pointing at the live number. A null message uses the default copy (business name, live number, `wa.me` link); a custom one may use `{{business_name}}`, `{{new_number}}` and `{{link}}`. Cleared on activation; cannot be enabled on the live number.
 - RLS: members read; admins insert/update/delete (same as `whatsapp_config`). Backfilled from every live Official API row at migration time.
 - Related (migration 20260918200000): `whatsapp_config.previous_display_phone_number` / `number_changed_at` record the last switch of the live number; the number-change notice is offered and sent as a precursor for 7 days from `number_changed_at`.
 
@@ -214,6 +215,11 @@ Ledger of which contacts have been told that the brokerage messages from a new n
 - `trigger` (TEXT): `'manual' | 'precursor'`. `channel` (TEXT): `'pending' | 'template' | 'freeform'`.
 - `message_id` (UUID, FK -> `messages`, SET NULL), `sent_at`, `previous_display_phone_number`.
 - `whatsapp_number_change_audience(p_account_id, p_since, p_phone_number_id)`: SECURITY DEFINER, guarded by `is_account_member()`; contacts with a conversation touched since `p_since`, not dead/archived/chain-only/merged, with no ledger row for that number. Capped at 500.
+
+#### 15a-iii. `whatsapp_retired_number_replies` (migration 20260919043000)
+One row per `(account_id, phone_number_id, sender_phone)` (UNIQUE) recording when a retired saved number last auto-replied to a sender, so each sender hears from it at most once per 24 hours. Claimed before the send (insert, or an update guarded by `last_replied_at < now - 24h`) and rolled back when Meta rejects the reply.
+- `reply_count` (INTEGER), `last_replied_at` (TIMESTAMPTZ).
+- Written only by the service-role webhook path; RLS: members read, admins delete.
 
 #### 15b. `whatsapp_meta_flows` (migration 125)
 Registry of native Meta WhatsApp Flows (form-screen flows) created per account via the Graph API. Distinct from the in-app chatbot flow builder tables (`flows` / `flow_runs`).

@@ -32,6 +32,12 @@ const ALLOWED_DIRECT_SENDERS = [
   "src/lib/ai/buyer-qualification.ts",
   "src/lib/whatsapp/webhook-handler.ts",
   "src/lib/calendar/whatsapp-scheduler.ts",
+  // Reply from a RETIRED saved number to whoever just messaged it. The
+  // window is open by construction, and the dispatcher cannot be used:
+  // it sends from whatsapp_config, which is the live number, while this
+  // reply must leave from the retired number's own phone_number_id and
+  // token, and it has no conversation of its own to persist into.
+  "src/lib/whatsapp/retired-number-reply.ts",
   // Template-first paths that keep a text fallback.
   "src/app/api/auth/sms-hook/route.ts",
   "src/app/api/leads/email-webhook/auto-reply.ts",
