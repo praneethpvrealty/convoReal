@@ -246,6 +246,16 @@ describe('property shortlist sharing remains available on both surfaces', () => 
     expect(webInventory).toContain('initialPickedIds={selectedForTagging}');
     expect(webBar).toContain('Share shortlist');
   });
+
+  it('[PRP-009] attributes contact-card inventory links to their recipient', () => {
+    const mobile = mobileSource('components/agent-inventory-share-sheet.tsx');
+    const web = webSource('components/contacts/share-inventory-dialog.tsx');
+
+    expect(mobile).toContain("audience: 'agent'");
+    expect(mobile).toContain('visitorId: contact.id');
+    expect(mobile).toContain('baseUrl: trackedBaseUrl');
+    expect(web).toContain('mode=view&v=${encodeURIComponent(contactId)}');
+  });
 });
 
 describe('Google locality picks run the same nearby search on both surfaces', () => {

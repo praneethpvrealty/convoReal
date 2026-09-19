@@ -57,7 +57,7 @@ describe('applyShowcaseScope', () => {
     ).toBe(base);
   });
 
-  it('adds co-broker mode and the visitor tag', () => {
+  it('[PRP-009] adds co-broker mode and the recipient tag', () => {
     const url = applyShowcaseScope(base, {
       scope: 'all',
       audience: 'agent',

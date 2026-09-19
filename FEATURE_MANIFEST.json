@@ -446,6 +446,21 @@
             ".github/workflows/eas-update.yml",
             "supabase/migrations/20260918160000_portal_listing_aliases.sql"
           ]
+        },
+        {
+          "id": "PRP-009",
+          "rule": "Every property link sent from an agent contact's Share Inventory action opens in co-broker view and carries that contact's recipient identifier, so Showcase Pulse attributes opens and listing activity to the selected contact on web and mobile.",
+          "tests": [
+            {
+              "file": "mobile/lib/showcase-scope.test.ts",
+              "case": "[PRP-009]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[PRP-009]"
+            }
+          ],
+          "guards": [".github/workflows/eas-update.yml"]
         }
       ]
     },
