@@ -24,14 +24,12 @@ import {
 import { useAuthStore } from '@/lib/auth-store';
 import { contactFullName } from '@/lib/contact-name';
 import {
-  NOT_YET_TRANSACTION_HINT,
-  NOT_YET_TRANSACTION_LABEL,
   isClosingRecord,
   transactionSubtitle,
   transactionTitle,
   type TransactionIndexRow,
 } from '@/lib/deal-workspace';
-import { addStandardMilestones } from '@/lib/deal-workspace-api';
+import { moveDealStage } from '@/lib/deal-workspace-api';
 import { friendlyError } from '@/lib/errors';
 import { formatInr } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
@@ -41,7 +39,6 @@ import {
   isBrokeragePaidStage,
   isBrokeragePendingStage,
   pipelineOutcomeForStage,
-  propertyStatusForPipelineStage,
   type PipelineOutcome,
 } from '@/lib/stage-semantics';
 import { supabase } from '@/lib/supabase';
@@ -86,12 +83,10 @@ export default function DealsScreen() {
   const [outcomeView, setOutcomeView] = useState<PipelineOutcome>('active');
   const [movingDeal, setMovingDeal] = useState<Deal | null>(null);
   const [celebrating, setCelebrating] = useState(false);
-  const [seedingId, setSeedingId] = useState<string | null>(null);
   const [segment, setSegment] = useState<'board' | 'journey' | 'records'>(
     'board'
   );
   const profile = useAuthStore((s) => s.profile);
-  const canEdit = Boolean(profile && profile.account_role !== 'viewer');
   const accountId = profile?.account_id ?? null;
 
   const recordsQuery = useQuery({
@@ -105,7 +100,7 @@ export default function DealsScreen() {
         }
       );
       if (error) throw error;
-      return (data ?? []) as TransactionIndexRow[];
+      return ((data ?? []) as TransactionIndexRow[]).filter(isClosingRecord);
     },
   });
 
@@ -201,66 +196,35 @@ export default function DealsScreen() {
 
   async function moveDeal(deal: Deal, stage: PipelineStage) {
     setMovingDeal(null);
-    const status = dealStatusForStage(stage.name);
     if (isBrokeragePaidStage(stage.name)) {
       haptic.success();
       setCelebrating(true);
     } else {
       haptic.tap();
     }
-    const { data: moved, error } = await supabase
-      .from('deals')
-      .update({ stage_id: stage.id, status })
-      .eq('id', deal.id)
-      .select('id');
-    if (error || !moved?.length) {
-      haptic.warn();
-      show({
-        title: 'Could not move deal',
-        message: 'That deal is no longer there. Pull to refresh and try again.',
-      });
-      return;
-    }
-    if (!error && deal.property_id) {
-      const propertyStatus = propertyStatusForPipelineStage(stage.name);
-      if (propertyStatus) {
-        const { data: synced } = await supabase
-          .from('properties')
-          .update({ status: propertyStatus })
-          .eq('id', deal.property_id)
-          .select('id');
-        // The deal has already moved; a listing that did not follow is
-        // worth a log line, not a second dialog on top of the move.
-        if (!synced?.length) {
-          console.warn('[deals] Property status not synced:', deal.property_id);
-        }
-      }
-    }
-    setOutcomeView(pipelineOutcomeForStage(stage.name));
-    setStageId(stage.id);
-    queryClient.invalidateQueries({ queryKey: ['deals', activePipeline] });
-  }
-
-  async function seedMilestones(deal: Deal) {
-    setSeedingId(deal.id);
     try {
-      await addStandardMilestones(deal.id);
-      haptic.success();
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['deals', activePipeline] }),
-        queryClient.invalidateQueries({ queryKey: ['transaction-index'] }),
-      ]);
+      await moveDealStage(deal.id, {
+        status: dealStatusForStage(stage.name),
+        target_stage_id: stage.id,
+        property_id: deal.property_id ?? null,
+        current_stage_name: stage.name,
+      });
     } catch (err) {
       haptic.warn();
       show({
-        title: 'Could not add milestones',
+        title: 'Could not move deal',
         message: friendlyError(
           err instanceof Error ? err.message : String(err)
         ),
       });
-    } finally {
-      setSeedingId(null);
+      return;
     }
+    setOutcomeView(pipelineOutcomeForStage(stage.name));
+    setStageId(stage.id);
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['deals', activePipeline] }),
+      queryClient.invalidateQueries({ queryKey: ['transaction-index'] }),
+    ]);
   }
 
   async function reopenDeal(deal: Deal) {
@@ -461,9 +425,6 @@ export default function DealsScreen() {
               <DealCard
                 deal={item}
                 stage={selectedStage ?? null}
-                canEdit={canEdit}
-                seeding={seedingId === item.id}
-                onSeedMilestones={() => void seedMilestones(item)}
                 onMove={() => setMovingDeal(item)}
                 onReopen={() => void reopenDeal(item)}
                 onEdit={() =>
@@ -575,11 +536,10 @@ function RecordsList({
         <EmptyState
           icon="briefcase-outline"
           title="No records yet"
-          subtitle="Convert a journey or add a deal on the board to start a closing record."
+          subtitle="A record starts when a deal reaches Negotiation/Token or later, or when a journey is converted."
         />
       }
       renderItem={({ item, index }) => {
-        const closing = isClosingRecord(item);
         const subtitle = transactionSubtitle(item);
         return (
           <EnterRow index={index}>
@@ -628,15 +588,8 @@ function RecordsList({
                   {formatInr(item.value)}
                 </Text>
               </View>
-              <Text
-                style={{
-                  fontSize: 12,
-                  color: closing ? colors.textMuted : colors.warning,
-                }}
-              >
-                {closing
-                  ? `${item.milestones_done}/${item.milestones_total} milestones${item.next_milestone_title ? ` · Next: ${item.next_milestone_title}` : ''}`
-                  : NOT_YET_TRANSACTION_LABEL}
+              <Text style={{ fontSize: 12, color: colors.textMuted }}>
+                {`${item.milestones_done}/${item.milestones_total} milestones${item.next_milestone_title ? ` · Next: ${item.next_milestone_title}` : ''}`}
               </Text>
             </Pressable>
           </EnterRow>
@@ -649,18 +602,12 @@ function RecordsList({
 function DealCard({
   deal,
   stage,
-  canEdit,
-  seeding,
-  onSeedMilestones,
   onMove,
   onReopen,
   onEdit,
 }: {
   deal: Deal;
   stage: PipelineStage | null;
-  canEdit: boolean;
-  seeding: boolean;
-  onSeedMilestones: () => void;
   onMove: () => void;
   onReopen: () => void;
   onEdit: () => void;
@@ -671,7 +618,6 @@ function DealCard({
   const indexRow = dealIndexRow(deal);
   const headline = transactionTitle(indexRow);
   const subtitle = transactionSubtitle(indexRow);
-  const closingRecord = isClosingRecord(indexRow);
 
   return (
     <View
@@ -714,21 +660,6 @@ function DealCard({
         <Ionicons name="chevron-forward" size={15} color={colors.textFaint} />
       </Pressable>
 
-      {!closingRecord ? (
-        <View style={styles.receiptRow}>
-          <Ionicons name="sparkles-outline" size={14} color={colors.warning} />
-          <Text
-            style={{
-              fontSize: 12.5,
-              fontFamily: f.bold,
-              color: colors.warning,
-            }}
-          >
-            {NOT_YET_TRANSACTION_LABEL}
-          </Text>
-        </View>
-      ) : null}
-
       {contactName ? (
         <Link href={`/(app)/contact/${deal.contact_id}`} asChild>
           <Pressable style={styles.linkRow}>
@@ -770,33 +701,6 @@ function DealCard({
             </Text>
           </Pressable>
         </Link>
-      ) : null}
-
-      {!closingRecord && canEdit && deal.status === 'open' ? (
-        <Pressable
-          onPress={onSeedMilestones}
-          disabled={seeding}
-          hitSlop={8}
-          accessibilityRole="button"
-          accessibilityLabel={`Add standard milestones to ${headline}`}
-          accessibilityHint={NOT_YET_TRANSACTION_HINT}
-          style={[
-            styles.moveButton,
-            styles.seedButton,
-            { backgroundColor: colors.primarySoft, opacity: seeding ? 0.6 : 1 },
-          ]}
-        >
-          <Ionicons name="list-outline" size={14} color={colors.primary} />
-          <Text
-            style={{
-              fontSize: 12.5,
-              fontFamily: f.bold,
-              color: colors.primary,
-            }}
-          >
-            {seeding ? 'Adding milestones…' : 'Add standard milestones'}
-          </Text>
-        </Pressable>
       ) : null}
 
       <View style={styles.cardBottom}>
@@ -916,7 +820,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
-  seedButton: { alignSelf: 'flex-start' },
   modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',

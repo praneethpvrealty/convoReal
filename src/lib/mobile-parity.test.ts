@@ -58,8 +58,6 @@ import {
 import { brokerageAmount } from '@/lib/pipelines/brokerage';
 import { DEAL_WORKSPACE_TABS } from '@/components/deals/deal-workspace';
 import {
-  NOT_YET_TRANSACTION_HINT,
-  NOT_YET_TRANSACTION_LABEL,
   isClosingRecord,
   transactionSubtitle,
   transactionTitle,
@@ -1778,10 +1776,6 @@ describe('[TXW-016] the transaction index reads the same on both surfaces', () =
     ]) {
       expect(mobileVocab, `mobile drifted at: ${line}`).toContain(line);
     }
-    expect(mobileVocab).toContain(
-      `NOT_YET_TRANSACTION_LABEL = '${NOT_YET_TRANSACTION_LABEL}'`
-    );
-    expect(mobileVocab).toContain(`'${NOT_YET_TRANSACTION_HINT}'`);
 
     const row = {
       title: 'Kundanlala — 3BHK near Whitefield',
@@ -1796,20 +1790,34 @@ describe('[TXW-016] the transaction index reads the same on both surfaces', () =
     ).toBe(false);
   });
 
-  it('titles rows by buyer and property and flags a board deal that is not yet a transaction', () => {
+  it('titles rows by buyer and property and lists only closing records', () => {
     for (const source of [webIndex, mobileList]) {
       expect(source).toContain('transactionTitle(');
       expect(source).toContain('transactionSubtitle(');
-      expect(source).toContain('isClosingRecord(');
-      expect(source).toContain('NOT_YET_TRANSACTION_LABEL');
+      expect(source).toContain('.filter(isClosingRecord)');
     }
   });
 
-  it('seeds the standard milestones from the card through the same route', () => {
-    expect(webIndex).toContain("template: 'standard'");
-    expect(webIndex).toContain('`/api/deals/${dealId}/milestones`');
-    expect(mobileList).toContain('addStandardMilestones(deal.id)');
-    expect(mobileApi).toContain("template: 'standard'");
+  it('starts the closing record at the capture stage through the deal route on every surface', () => {
+    const mobileSemantics = mobileSource('lib/stage-semantics.ts');
+    const webSemantics = webSource('lib/pipelines/stage-semantics.ts');
+    for (const source of [webSemantics, mobileSemantics]) {
+      expect(source).toContain(
+        "shouldCaptureBrokerage(stageName) &&\n    dealStatusForStage(stageName) !== 'lost'"
+      );
+    }
+    const dealRoute = webSource('app/api/deals/[id]/route.ts');
+    expect(dealRoute.match(/ensureClosingRecord\(\{/g)?.length).toBe(2);
+    expect(
+      webSource('app/(dashboard)/pipelines/pipelines-content.tsx')
+    ).toContain('`/api/deals/${dealId}`');
+    expect(
+      webSource('app/(dashboard)/pipelines/pipelines-content.tsx')
+    ).not.toContain(".from('deals')\n        .update({ stage_id");
+    expect(mobileList).toContain('await moveDealStage(deal.id, {');
+    expect(mobileList).not.toContain(
+      ".from('deals')\n      .update({ stage_id"
+    );
   });
 
   it('labels the buyer as the index SQL does: full name, never the phone', () => {

@@ -10,10 +10,6 @@ export interface TransactionIndexOrigin {
   milestones_total: number;
 }
 
-export const NOT_YET_TRANSACTION_LABEL = 'Not yet a transaction';
-export const NOT_YET_TRANSACTION_HINT =
-  'A pipeline deal with no milestones. Add the standard checklist to start the closing record.';
-
 function clean(value: string | null | undefined): string | null {
   const trimmed = value?.trim();
   return trimmed ? trimmed : null;

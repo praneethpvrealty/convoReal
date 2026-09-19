@@ -2,23 +2,12 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  Briefcase,
-  Layers,
-  ListChecks,
-  Loader2,
-  Search,
-  Sparkles,
-} from 'lucide-react';
-import { toast } from 'sonner';
+import { useQuery } from '@tanstack/react-query';
+import { Briefcase, Layers, Loader2, Search } from 'lucide-react';
 
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/hooks/use-auth';
 import {
-  NOT_YET_TRANSACTION_HINT,
-  NOT_YET_TRANSACTION_LABEL,
   isClosingRecord,
   transactionSubtitle,
   transactionTitle,
@@ -64,12 +53,9 @@ export function TransactionWorkspaceIndex({
   embedded?: boolean;
 }) {
   const supabase = createClient();
-  const queryClient = useQueryClient();
-  const { accountId, isViewer, isReadOnly } = useAuth();
-  const canEdit = !isViewer && !isReadOnly;
+  const { accountId } = useAuth();
   const [filter, setFilter] = useState<StatusFilter>('open');
   const [query, setQuery] = useState('');
-  const [seedingId, setSeedingId] = useState<string | null>(null);
 
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ['transaction-workspace-index', accountId],
@@ -81,37 +67,10 @@ export function TransactionWorkspaceIndex({
         }
       );
       if (error) throw new Error(error.message);
-      return (data ?? []) as IndexRow[];
+      return ((data ?? []) as IndexRow[]).filter(isClosingRecord);
     },
     enabled: Boolean(accountId),
   });
-
-  async function addStandardMilestones(dealId: string) {
-    setSeedingId(dealId);
-    try {
-      const res = await fetch(`/api/deals/${dealId}/milestones`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ template: 'standard', source: 'web' }),
-      });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => null)) as {
-          error?: string;
-        } | null;
-        throw new Error(body?.error || 'Could not add milestones');
-      }
-      await queryClient.invalidateQueries({
-        queryKey: ['transaction-workspace-index', accountId],
-      });
-      toast.success('Standard milestones added.');
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : 'Could not add milestones'
-      );
-    } finally {
-      setSeedingId(null);
-    }
-  }
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -183,19 +142,20 @@ export function TransactionWorkspaceIndex({
         <div className="rounded-xl border border-dashed border-slate-800 bg-slate-900/40 p-10 text-center">
           <Briefcase className="mx-auto h-8 w-8 text-slate-600" />
           <p className="mt-3 text-sm font-medium text-slate-300">
-            {rows.length === 0 ? 'No transactions yet' : 'Nothing matches'}
+            {rows.length === 0 ? 'No records yet' : 'Nothing matches'}
           </p>
           {rows.length === 0 && (
             <p className="mt-1 text-xs text-slate-500">
-              Convert a journey from the{' '}
-              <Link href={dealsHref('journey')} className="text-primary">
-                Journey
-              </Link>{' '}
-              tab, or add a deal on the{' '}
+              A record starts when a deal reaches Negotiation/Token or later on
+              the{' '}
               <Link href={dealsHref('board')} className="text-primary">
                 Board
               </Link>
-              .
+              , or when a{' '}
+              <Link href={dealsHref('journey')} className="text-primary">
+                journey
+              </Link>{' '}
+              is converted.
             </p>
           )}
         </div>
@@ -208,7 +168,6 @@ export function TransactionWorkspaceIndex({
                 : null;
             const headline = transactionTitle(row);
             const subtitle = transactionSubtitle(row);
-            const closingRecord = isClosingRecord(row);
             return (
               <li
                 key={row.id}
@@ -271,40 +230,11 @@ export function TransactionWorkspaceIndex({
                           </span>
                         )}
                       </>
-                    ) : closingRecord ? (
-                      <span>No milestones yet</span>
                     ) : (
-                      <span
-                        title={NOT_YET_TRANSACTION_HINT}
-                        className="inline-flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-200"
-                      >
-                        <Sparkles className="h-3 w-3" />
-                        {NOT_YET_TRANSACTION_LABEL}
-                      </span>
+                      <span>No milestones yet</span>
                     )}
                   </div>
                 </Link>
-                {!closingRecord && canEdit && row.status === 'open' && (
-                  <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-800 px-4 py-3">
-                    <p className="text-xs text-slate-500">
-                      {NOT_YET_TRANSACTION_HINT}
-                    </p>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      disabled={seedingId === row.id}
-                      onClick={() => void addStandardMilestones(row.id)}
-                    >
-                      {seedingId === row.id ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <ListChecks className="h-3.5 w-3.5" />
-                      )}
-                      Add standard milestones
-                    </Button>
-                  </div>
-                )}
               </li>
             );
           })}
