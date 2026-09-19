@@ -479,8 +479,30 @@ function hasPropertyCorrection(text: string): boolean {
   return /\b(prop(?:erty)?[-\s#]*\d+|property|plot|site|house|home|apartment|flat|building|land|villa|layout)\b/i.test(text);
 }
 
+function normalizeCompactMeridiemTime(text: string): string {
+  return text.replace(/\b(\d{1,2})(\d{2})\s*(am|pm)\b/gi, (match, hourText, minuteText, meridiem) => {
+    const hour = Number(hourText);
+    const minute = Number(minuteText);
+    if (hour < 1 || hour > 12 || minute > 59) return match;
+    return `${hour}:${minuteText} ${String(meridiem).toLowerCase()}`;
+  });
+}
+
+function utcIsoToIstLocal(value: string | null): string | null {
+  if (!value) return null;
+  const instant = new Date(value);
+  if (Number.isNaN(instant.getTime())) return value;
+  return new Date(instant.getTime() + 330 * 60_000).toISOString().slice(0, 16);
+}
+
 function hasScheduleTimeCorrection(text: string): boolean {
   return /\b(today|tomorrow|tonight|morning|afternoon|evening|night|noon|midnight|day after tomorrow|next (?:week|month|mon|tue|wed|thu|fri|sat|sun)[a-z]*|this (?:mon|tue|wed|thu|fri|sat|sun)[a-z]*|(?:mon|tues|wednes|thurs|fri|satur|sun)day|\d{1,2}(?:st|nd|rd|th)?\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{1,2}(?:st|nd|rd|th)?|\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?|\d{1,2}(?::\d{2})?\s*(?:am|pm)|\d{1,2}:\d{2}|reschedul\w*|postpon\w*|change (?:the )?(?:date|time)|move (?:it|this|the (?:event|appointment|meeting|task))|shift (?:it|this|the (?:event|appointment|meeting|task)))\b/i.test(
+    text
+  );
+}
+
+function hasUnspecifiedScheduleTimeComplaint(text: string): boolean {
+  return /\b(?:wrong|incorrect|mistaken)\s+(?:date|day|time)|\b(?:date|day|time)\s+(?:is|was|looks?)\s+(?:wrong|incorrect|mistaken)\b/i.test(
     text
   );
 }
@@ -576,6 +598,36 @@ export async function applySchedulingEdit(
     return 'stale';
   }
 
+  const normalizedInstruction = normalizeCompactMeridiemTime(instruction);
+  const scheduleTimeWasCorrected = hasScheduleTimeCorrection(normalizedInstruction);
+
+  if (
+    target.entityType === 'appointment' &&
+    hasUnspecifiedScheduleTimeComplaint(instruction) &&
+    !scheduleTimeWasCorrected
+  ) {
+    const clarificationWamid = await replyAndLog({
+      phoneNumberId,
+      accessToken,
+      toPhone: contactRecord.phone,
+      conversationId: conversation.id,
+      text: [
+        '🕐 *What is the correct date or time?*',
+        `🗓 ${row.title as string}`,
+        '',
+        '_Reply with something like “4:30 pm” or “tomorrow at 4:30 pm”._',
+      ].join('\n'),
+    });
+    await recordBotTarget({
+      accountId,
+      waMessageId: clarificationWamid,
+      entityType: target.entityType,
+      entityId: target.entityId,
+      client: admin,
+    });
+    return 'edited';
+  }
+
   if (!(await hardBurn(accountId, 'event_parse'))) {
     await replyAndLog({
       phoneNumberId,
@@ -602,8 +654,10 @@ export async function applySchedulingEdit(
       current: {
         title: row.title as string,
         event_type: (row.event_type as string) ?? null,
-        start_time: (row.start_time as string) ?? (row.due_date as string) ?? null,
-        end_time: (row.end_time as string) ?? null,
+        start_time: utcIsoToIstLocal(
+          (row.start_time as string) ?? (row.due_date as string) ?? null
+        ),
+        end_time: utcIsoToIstLocal((row.end_time as string) ?? null),
         location: (row.location as string) ?? null,
         agenda: (row.agenda as string) ?? (row.description as string) ?? null,
         contact_name: (currentContact?.name as string | null) ?? null,
@@ -611,7 +665,7 @@ export async function applySchedulingEdit(
           ? [currentProperty.property_code, currentProperty.title, currentProperty.location].filter(Boolean).join(' · ')
           : null,
       },
-      instruction,
+      instruction: normalizedInstruction,
       memberNames: (members || []).map((m) => m.full_name).filter(Boolean) as string[],
       now,
     });
@@ -639,8 +693,30 @@ export async function applySchedulingEdit(
     (property) => `${property.property_code || ''} ${property.title || ''} ${property.location || ''} ${property.sublocality || ''}`
   );
   const propertyWasCorrected = hasPropertyCorrection(instruction);
-  const scheduleTimeWasCorrected = hasScheduleTimeCorrection(instruction);
   const persistedStart = (row.start_time as string) ?? (row.due_date as string) ?? null;
+
+  if (scheduleTimeWasCorrected && !startIso) {
+    const clarificationWamid = await replyAndLog({
+      phoneNumberId,
+      accessToken,
+      toPhone: contactRecord.phone,
+      conversationId: conversation.id,
+      text: [
+        '🕐 *I couldn’t understand the new date or time, so I didn’t change it.*',
+        `🗓 ${row.title as string}`,
+        '',
+        '_Reply with something like “4:30 pm” or “tomorrow at 4:30 pm”._',
+      ].join('\n'),
+    });
+    await recordBotTarget({
+      accountId,
+      waMessageId: clarificationWamid,
+      entityType: target.entityType,
+      entityId: target.entityId,
+      client: admin,
+    });
+    return 'edited';
+  }
 
   const patch: Record<string, unknown> =
     target.entityType === 'appointment'

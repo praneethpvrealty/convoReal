@@ -129,6 +129,72 @@ describe('applySchedulingEdit', () => {
     });
   });
 
+  it('[CAL-007] updates compact meridiem times such as 430pm', async () => {
+    rowByTable.appointments = appointment({
+      start_time: '2026-09-18T23:00:00.000Z',
+      end_time: '2026-09-19T00:00:00.000Z',
+    });
+    parseEventUpdate.mockResolvedValue({
+      intent: 'schedule',
+      title: 'Meeting with Anand and Akhil - Lotus diagnostic property in Koramangala',
+      event_type: 'meeting',
+      start_time: '2026-09-19T16:30',
+      end_time: '2026-09-19T17:30',
+      duration_minutes: 60,
+      location: 'Koramangala',
+      priority: 'medium',
+      day_of_week: null,
+    });
+
+    expect(
+      await applySchedulingEdit({ ...params, instruction: 'Its at 430pm.' })
+    ).toBe('edited');
+
+    expect(parseEventUpdate.mock.calls[0][0].instruction).toBe('Its at 4:30 pm.');
+    expect(parseEventUpdate.mock.calls[0][0].current).toMatchObject({
+      start_time: '2026-09-19T04:30',
+      end_time: '2026-09-19T05:30',
+    });
+    const patch = updates.find((u) => u.table === 'appointments')!.patch;
+    expect(patch.start_time).toBe('2026-09-19T11:00:00.000Z');
+    expect(patch.end_time).toBe('2026-09-19T12:00:00.000Z');
+    expect(sendTextMessage.mock.calls[0][0].text).toContain('4:30 pm');
+  });
+
+  it('[CAL-007] asks for the replacement time instead of confirming an unchanged event', async () => {
+    expect(
+      await applySchedulingEdit({ ...params, instruction: 'This was the wrong time' })
+    ).toBe('edited');
+
+    expect(updates.some((update) => update.table === 'appointments')).toBe(false);
+    expect(parseEventUpdate).not.toHaveBeenCalled();
+    expect(burnCredits).not.toHaveBeenCalled();
+    expect(sendTextMessage.mock.calls[0][0].text).toContain('What is the correct date or time?');
+    expect(sendTextMessage.mock.calls[0][0].text).not.toContain('Updated on your calendar');
+  });
+
+  it('[CAL-007] does not claim success when a stated replacement time cannot be parsed', async () => {
+    parseEventUpdate.mockResolvedValue({
+      intent: 'schedule',
+      title: 'Meeting with Kusuma lawyer',
+      event_type: 'meeting',
+      start_time: null,
+      end_time: null,
+      duration_minutes: null,
+      location: null,
+      priority: 'medium',
+      day_of_week: null,
+    });
+
+    expect(
+      await applySchedulingEdit({ ...params, instruction: 'Move it to 430pm' })
+    ).toBe('edited');
+
+    expect(updates.some((update) => update.table === 'appointments')).toBe(false);
+    expect(sendTextMessage.mock.calls[0][0].text).toContain("I couldn’t understand the new date or time");
+    expect(sendTextMessage.mock.calls[0][0].text).not.toContain('Updated on your calendar');
+  });
+
   it('[CAL-006] preserves the original time when a reply only corrects the event name', async () => {
     rowByTable.appointments = appointment({
       start_time: '2026-08-04T04:30:00.000Z',
