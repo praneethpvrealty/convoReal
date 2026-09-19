@@ -9,8 +9,14 @@ import {
   contactForRequirementProfile,
   resolveRequirementSource,
 } from '@/lib/requirements/profiles';
-import { rowMatchesBengaluruZone } from '@/lib/locality-match';
-import { extractBengaluruZones } from '@/lib/bengaluru-zones';
+import {
+  rowMatchesBengaluruZone,
+  textNamesLocality,
+} from '@/lib/locality-match';
+import {
+  canonicalBengaluruZone,
+  extractBengaluruZones,
+} from '@/lib/bengaluru-zones';
 
 // Static geocoordinates for major Bangalore sublocalities used for proximity-based matching.
 const BANGALORE_LOCALITIES_COORDS: Record<
@@ -194,6 +200,11 @@ export interface MatchDetails {
    *  in projects_of_interest/pref_projects — a decisive, high-intent
    *  signal. */
   project?: MatchVerdict;
+  /** 'match' = the property sits in a locality the contact named,
+   *  spelling slips allowed, rather than within radius of one. Naming
+   *  the area keeps a listing in past the type gate and leads the
+   *  buyer-facing order — see compareForBuyer. */
+  named_area?: MatchVerdict;
 }
 
 export interface MatchingResult {
@@ -243,6 +254,8 @@ const TYPE_TO_GROUP: Record<string, SubtypeGroup> = {
   Villa: 'house',
   'Farm House': 'house',
   'Residential Land/ Plot': 'residential-plot',
+  'Residential Plot': 'residential-plot',
+  'Residential Land': 'residential-plot',
   'Residential PG building': 'pg',
   'PG/ Hostel': 'pg',
   'Commercial Office Space': 'commercial-space',
@@ -668,7 +681,6 @@ function matchContactsSingleProfile(
       ? Number(property.rent_per_month || 0)
       : price;
 
-  const propLoc = cleanArea(property.location || '');
   const propSub = cleanArea(property.sublocality || '');
   const propCity = cleanArea(property.city || '');
   const propProject = cleanArea(property.project || '');
@@ -761,6 +773,42 @@ function matchContactsSingleProfile(
       !projectMatch
     )
       continue;
+
+    const explicitAreas = (sourceContact.areas_of_interest || [])
+      .map(cleanArea)
+      .filter((a) => a && !isPlaceholderArea(a));
+    const aiAreas = (sourceContact.pref_areas || [])
+      .map(cleanArea)
+      .filter((a) => a && !isPlaceholderArea(a));
+    const textZones = extractBengaluruZones(combinedText).map(cleanArea);
+    const zoneComparableText = combinedText.replace(/bangalore/g, 'bengaluru');
+    const wantedAreas = [
+      ...new Set([...explicitAreas, ...aiAreas, ...textZones]),
+    ].filter((a) => !isNegated(zoneComparableText, a));
+
+    // The listing's own locality fields, read with spelling slips
+    // allowed: "Vijayanbank layout" in inventory is the Vijaya Bank
+    // Layout a buyer typed. Coordinates decide the radius; these decide
+    // whether the listing is IN the place the buyer named.
+    const localityFields = [
+      property.locality_canonical,
+      property.sublocality,
+      property.location,
+      property.project,
+      ...propTags,
+    ].filter((value): value is string => !!value);
+    const propertyNamesArea = (area: string): boolean =>
+      localityFields.some((field) => textNamesLocality(field, area));
+
+    // ── Named locality ────────────────────────────────────────────
+    // A buyer who names a locality (not a market zone) wants what is
+    // there. That is worth more than being within radius of it, and
+    // it keeps a listing in past the type gate below: a plot seeker
+    // who asked for Vijaya Bank Layout reads the houses in that layout
+    // after its plots, not a plot five kilometres away instead.
+    const namedAreaHit = wantedAreas.some(
+      (area) => !canonicalBengaluruZone(area) && propertyNamesArea(area)
+    );
 
     // ── 0. Listing intent gate (Sale / Rent / JV/JD / Built to Suit) ──
     // JV/JD and Built to Suit are niche deals: they only ever surface for
@@ -885,18 +933,26 @@ function matchContactsSingleProfile(
     }
 
     // Explicit category negation in text overrides ("no commercial please")
-    if (
+    const categoryNegated =
       typeVerdict !== 'mismatch' &&
-      propertyCategory &&
-      combinedText &&
-      isNegated(combinedText, propertyCategory)
-    ) {
-      typeVerdict = 'mismatch';
-    }
+      !!propertyCategory &&
+      !!combinedText &&
+      isNegated(combinedText, propertyCategory);
+    if (categoryNegated) typeVerdict = 'mismatch';
+
+    // The named locality keeps a listing in past a type mismatch only
+    // within the sector the buyer stated: the houses in the layout a
+    // plot seeker named, not its commercial buildings.
+    const namedAreaKeepsType =
+      namedAreaHit &&
+      !categoryNegated &&
+      (statedSectors.size === 0 ||
+        (!!propertyCategory && statedSectors.has(propertyCategory)));
 
     // A named-project match is decisive — don't drop it on a type
     // mismatch (e.g. the property's type field is blank or slightly off).
-    if (typeVerdict === 'mismatch' && !projectMatch) continue;
+    if (typeVerdict === 'mismatch' && !projectMatch && !namedAreaKeepsType)
+      continue;
 
     // ── 2. ROI expectation ────────────────────────────────────────
     const minExpectedRoi =
@@ -933,10 +989,6 @@ function matchContactsSingleProfile(
       ...(sourceContact.pref_areas || []),
     ].some((a) => isPlaceholderArea(cleanArea(a)));
 
-    const explicitAreas = (sourceContact.areas_of_interest || [])
-      .map(cleanArea)
-      .filter((a) => a && !isPlaceholderArea(a));
-
     // Google-resolved coordinates saved with the contact take precedence over
     // the static locality table, so areas outside it still radius-match.
     const contactAreaCoords: Record<string, { lat: number; lng: number }> = {};
@@ -945,14 +997,6 @@ function matchContactsSingleProfile(
         contactAreaCoords[cleanArea(g.name)] = { lat: g.lat, lng: g.lng };
       }
     }
-    const aiAreas = (sourceContact.pref_areas || [])
-      .map(cleanArea)
-      .filter((a) => a && !isPlaceholderArea(a));
-    const textZones = extractBengaluruZones(combinedText).map(cleanArea);
-    const zoneComparableText = combinedText.replace(/bangalore/g, 'bengaluru');
-    const wantedAreas = [
-      ...new Set([...explicitAreas, ...aiAreas, ...textZones]),
-    ].filter((a) => !isNegated(zoneComparableText, a));
     const excludedAreas = (sourceContact.pref_excluded_areas || [])
       .map(cleanArea)
       .filter(Boolean);
@@ -970,10 +1014,7 @@ function matchContactsSingleProfile(
         },
         area
       ) ||
-        propLoc.includes(area) ||
-        propSub.includes(area) ||
-        propProject.includes(area) ||
-        propTags.some((tag) => tag.includes(area)));
+        propertyNamesArea(area));
 
     // A negated/excluded locality covering this property disqualifies the
     // contact — unless they explicitly named this project, which wins over
@@ -1060,8 +1101,9 @@ function matchContactsSingleProfile(
       }
     }
 
-    // A named-project match satisfies location outright.
-    if (projectMatch) locationVerdict = 'match';
+    // Being in the named locality is a match whatever the coordinates
+    // say; a named-project match satisfies location outright.
+    if (namedAreaHit || projectMatch) locationVerdict = 'match';
 
     if (locationVerdict === 'mismatch') {
       // Yield-focused commercial purchases are location-agnostic
@@ -1232,6 +1274,7 @@ function matchContactsSingleProfile(
     // contact has no type preference at all — a location or explicit-ROI match.
     const qualifies =
       projectMatch ||
+      namedAreaKeepsType ||
       typeVerdict === 'match' ||
       typeVerdict === 'partial' ||
       requiresTenanted ||
@@ -1250,6 +1293,9 @@ function matchContactsSingleProfile(
 
     if (locationVerdict === 'match') score += 30;
     else if (locationVerdict === 'partial') score += 12;
+
+    // Naming the locality outranks being within radius of it.
+    if (namedAreaHit) score += 20;
 
     if (budgetVerdict === 'match') score += 20;
     else if (budgetVerdict === 'partial') score += 8;
@@ -1280,6 +1326,7 @@ function matchContactsSingleProfile(
         roi: roiVerdict,
         size: sizeVerdict,
         project: projectMatch ? 'match' : 'unknown',
+        named_area: namedAreaHit ? 'match' : 'unknown',
       },
       matchedFields: {
         budget: budgetVerdict === 'match',
@@ -1292,6 +1339,33 @@ function matchContactsSingleProfile(
   }
 
   return results.sort((a, b) => b.score - a.score);
+}
+
+const TYPE_RANK: Record<MatchVerdict, number> = {
+  match: 2,
+  partial: 1,
+  unknown: 0,
+  mismatch: 0,
+};
+
+/**
+ * Order for a list the buyer reads: listings in a locality they named
+ * first, ordered by how well the type fits, then by score. The score
+ * alone put a same-size house five kilometres away level with the plot
+ * in the layout the buyer had asked for, and the tie fell to whichever
+ * row the database returned first.
+ */
+export function compareForBuyer(
+  a: { score: number; details: MatchDetails },
+  b: { score: number; details: MatchDetails }
+): number {
+  const named =
+    Number(b.details.named_area === 'match') -
+    Number(a.details.named_area === 'match');
+  if (named !== 0) return named;
+  const type = TYPE_RANK[b.details.type] - TYPE_RANK[a.details.type];
+  if (type !== 0) return type;
+  return b.score - a.score;
 }
 
 /**

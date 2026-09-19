@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
+  localityLabelsMatch,
   localityStems,
   localityStemProbe,
   normalizeLocalityLabel,
   rowMatchesBengaluruZone,
   rowMatchesLocality,
   textContainsLocality,
+  textNamesLocality,
 } from './locality-match';
 import {
   canonicalBengaluruZone,
@@ -223,5 +225,63 @@ describe('rowMatchesBengaluruZone', () => {
         'CBD'
       )
     ).toBe(false);
+  });
+});
+
+describe('textNamesLocality', () => {
+  it('[INB-004] reads a locality fused into one word as the name typed in two', () => {
+    expect(textNamesLocality('Vijayanbank layout', 'Vijaya Bank Layout')).toBe(
+      true
+    );
+    expect(
+      textNamesLocality(
+        'Bannerghatta road, Vijayanbank layout, Bangalore, Karnataka',
+        'Vijaya Bank Layout'
+      )
+    ).toBe(true);
+    expect(textNamesLocality('Vijaya Bank Layout', 'Vijayanbank layout')).toBe(
+      true
+    );
+  });
+
+  it('[INB-004] forgives one slipped character per stem', () => {
+    expect(
+      textNamesLocality('near Vijay Bank layout', 'Vijaya Bank Layout')
+    ).toBe(true);
+    expect(textNamesLocality('Kormangala East, Bengaluru', 'Koramangala')).toBe(
+      true
+    );
+    expect(textNamesLocality('Vijayanbank layout', 'Vijayabank Layout')).toBe(
+      true
+    );
+  });
+
+  it('forgives one transposed pair', () => {
+    expect(textNamesLocality('Whitefeild, Bengaluru', 'Whitefield')).toBe(true);
+    expect(textNamesLocality('Marathahalli', 'Marathhaalli')).toBe(true);
+  });
+
+  it('keeps short stems exact so one slip cannot cross localities', () => {
+    expect(textNamesLocality('HBR Layout', 'HSR Layout')).toBe(false);
+    expect(textNamesLocality('JC Nagar', 'JP Nagar')).toBe(false);
+  });
+
+  it('does not equate different places that happen to be close in spelling length', () => {
+    expect(textNamesLocality('Bellandur', 'Bilekahalli')).toBe(false);
+    expect(textNamesLocality('Hebbal', 'Hennur')).toBe(false);
+    expect(textNamesLocality('Bommasandra', 'Bommanahalli')).toBe(false);
+  });
+});
+
+describe('localityLabelsMatch', () => {
+  it('matches whichever label is the longer form', () => {
+    expect(localityLabelsMatch('Koramangala', 'Koramangala 1st Block')).toBe(
+      true
+    );
+    expect(localityLabelsMatch('Koramangala 1st Block', 'Koramangala')).toBe(
+      true
+    );
+    expect(localityLabelsMatch('Domlur', 'Domluru')).toBe(true);
+    expect(localityLabelsMatch('BTM Layout', 'HSR Layout')).toBe(false);
   });
 });

@@ -1,6 +1,10 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { Contact, Property, MatchEventTarget } from '@/types';
-import { getMatchingContacts, type MatchDetails } from '@/lib/matching';
+import {
+  compareForBuyer,
+  getMatchingContacts,
+  type MatchDetails,
+} from '@/lib/matching';
 import { contactHandle } from '@/lib/contacts/reachability';
 import { attachInquiredListingTypes } from '@/lib/contacts/inquired-intent';
 import {
@@ -227,25 +231,6 @@ export function rankProperties(
   properties: Property[]
 ): RankedPropertyMatch[] {
   const sourceContact = resolveRequirementSource(contact);
-  const wanted = [
-    ...(sourceContact.areas_of_interest || []),
-    ...(sourceContact.pref_areas || []),
-  ]
-    .map((a) => a.trim().toLowerCase())
-    .filter(Boolean);
-
-  // Proximity matching resolves a whole neighbourhood to 'match', so
-  // listings in the area the contact actually named tie with listings a
-  // few kilometres away. Naming the area is the stronger signal — it
-  // breaks the tie without changing which listings qualify.
-  const inNamedArea = (p: Property): boolean => {
-    if (wanted.length === 0) return false;
-    const haystack = [p.sublocality, p.location, p.project, ...(p.tags ?? [])]
-      .filter(Boolean)
-      .join(' ')
-      .toLowerCase();
-    return wanted.some((a) => haystack.includes(a));
-  };
 
   const matched: RankedPropertyMatch[] = [];
   const exactEnquiryId =
@@ -283,8 +268,13 @@ export function rankProperties(
       continue;
     }
 
+    // A listing in the locality the contact named is always a
+    // candidate, whatever else it scored — it goes last, not missing.
     const [result] = getMatchingContacts(property, [contact]);
-    if (result && result.score >= MIN_SCORE) {
+    if (
+      result &&
+      (result.score >= MIN_SCORE || result.details.named_area === 'match')
+    ) {
       matched.push({ property, score: result.score, details: result.details });
     }
   }
@@ -294,8 +284,7 @@ export function rankProperties(
       Number(b.property.id === exactEnquiryId) -
       Number(a.property.id === exactEnquiryId);
     if (exactOrder !== 0) return exactOrder;
-    if (b.score !== a.score) return b.score - a.score;
-    return Number(inNamedArea(b.property)) - Number(inNamedArea(a.property));
+    return compareForBuyer(a, b);
   });
   return matched;
 }
