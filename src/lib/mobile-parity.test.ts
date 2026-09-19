@@ -270,6 +270,26 @@ describe('contact merge remains available on both surfaces', () => {
   });
 });
 
+describe('the portal link invite is one server draft on both surfaces', () => {
+  it('[CTM-002] offers business and personal WhatsApp from the same route on web and mobile', () => {
+    const mobileContact = mobileSource('app/(app)/contact/[id].tsx');
+    const mobileSheet = mobileSource('components/portal-invite-sheet.tsx');
+    const webContact = webSource('components/contacts/contact-detail-view.tsx');
+    const webDialog = webSource('components/contacts/portal-invite-dialog.tsx');
+
+    expect(mobileContact).toContain('label="Share Portal"');
+    expect(mobileContact).toContain('<PortalInviteSheet');
+    expect(webContact).toContain('Share Portal');
+    expect(webContact).toContain('<PortalInviteDialog');
+    for (const source of [mobileSheet, webDialog]) {
+      expect(source).toContain('/portal-invite`');
+      expect(source).toContain("channel: 'business'");
+      expect(source).toContain("channel: 'personal'");
+      expect(source).toContain('https://wa.me/${digits}?text=');
+    }
+  });
+});
+
 describe('Google locality picks run the same nearby search on both surfaces', () => {
   it('[PRP-003] makes the suggestion row geographic and keeps exact areas explicit', () => {
     const mobileScreen = mobileSource('app/(app)/(tabs)/properties.tsx');

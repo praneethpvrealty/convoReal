@@ -130,6 +130,25 @@
             "supabase/migrations/20260919143000_merge_contact_conversations.sql",
             ".github/workflows/eas-update.yml"
           ]
+        },
+        {
+          "id": "CTM-002",
+          "rule": "From a contact's record on web or mobile, agents can share the account's property portal link from the business WhatsApp number or their personal WhatsApp; the link opens on the contact's recorded interests with Pulse attribution, the message tells the buyer to filter, shortlist and send the enquiry from the portal, a closed 24-hour window falls back to the approved property selection template, and a personal share is noted on the contact's timeline.",
+          "tests": [
+            {
+              "file": "src/lib/contacts/portal-invite.test.ts",
+              "case": "[CTM-002]"
+            },
+            {
+              "file": "src/app/api/contacts/[id]/portal-invite/route.test.ts",
+              "case": "[CTM-002]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[CTM-002]"
+            }
+          ],
+          "guards": [".github/workflows/eas-update.yml"]
         }
       ]
     },
