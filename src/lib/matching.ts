@@ -192,9 +192,10 @@ export interface MatchDetails {
   bhk: MatchVerdict;
   roi: MatchVerdict;
   /** Plot/built-up size against the contact's stated band (canonical
-   *  sqft). 'partial' = within 20% of a bound; a further miss excludes,
-   *  like budget — "lesser dimensions" must actually drop the plot the
-   *  lead just declined. */
+   *  sqft). 'partial' = within 10% of a bound, or a larger site within
+   *  POINT_SIZE_HEADROOM of a single stated figure; a further miss
+   *  excludes, like budget — "lesser dimensions" must actually drop the
+   *  plot the lead just declined. */
   size?: MatchVerdict;
   /** 'match' = the property's project/title/tag is one the contact named
    *  in projects_of_interest/pref_projects — a decisive, high-intent
@@ -286,6 +287,11 @@ const GROUP_TO_CATEGORY: Record<SubtypeGroup, Category | null> = {
 };
 
 /** Groups the broad 'plot' category covers. */
+/** How much larger than a single stated size a plot may be and still
+ *  be offered as the bigger alternative: the ~3,100 sq.ft. corner sites
+ *  of a 60x40 layout, not the 4,000 sq.ft. 50x80s. */
+const POINT_SIZE_HEADROOM = 1.35;
+
 const PLOT_GROUPS: SubtypeGroup[] = [
   'residential-plot',
   'commercial-plot',
@@ -1227,6 +1233,7 @@ function matchContactsSingleProfile(
         ? Number(sourceContact.pref_land_area_max_sqft)
         : null;
     let sizeVerdict: MatchVerdict = 'unknown';
+    let sizeNear = false;
     if (sizeMin !== null || sizeMax !== null) {
       const propAreaSqft = propertyAreaSqft;
       if (propAreaSqft !== null) {
@@ -1241,7 +1248,18 @@ function matchContactsSingleProfile(
           // that listing lands outside even the near-miss band.
           const nearMin = sizeMin === null || propAreaSqft >= sizeMin * 0.9;
           const nearMax = sizeMax === null || propAreaSqft <= sizeMax * 1.1;
-          sizeVerdict = nearMin && nearMax ? 'partial' : 'mismatch';
+          sizeNear = nearMin && nearMax;
+          // A single figure ("60x40", "2400 sqft") is the size the buyer
+          // has in mind, not a band. The larger corner sites in the same
+          // layout are the alternatives an agent would mention; a smaller
+          // plot is not. The anchors above never produce a single figure,
+          // so the feedback guarantee stands.
+          const largerAlternative =
+            sizeMin !== null &&
+            sizeMin === sizeMax &&
+            propAreaSqft > sizeMax &&
+            propAreaSqft <= sizeMax * POINT_SIZE_HEADROOM;
+          sizeVerdict = sizeNear || largerAlternative ? 'partial' : 'mismatch';
         }
       }
     }
@@ -1304,7 +1322,7 @@ function matchContactsSingleProfile(
     else if (bhkVerdict === 'mismatch') score -= bhkDistance >= 2 ? 15 : 5;
 
     if (sizeVerdict === 'match') score += 10;
-    else if (sizeVerdict === 'partial') score += 4;
+    else if (sizeVerdict === 'partial') score += sizeNear ? 4 : 2;
 
     if (roiVerdict === 'match') score += 5;
 
