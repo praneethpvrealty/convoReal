@@ -23,6 +23,7 @@ import {
   transactionSubtitle,
   transactionTitle,
 } from '@/lib/deals/index-row';
+import { dealsHref } from '@/lib/deals/routes';
 import { formatIndianDigits } from '@/lib/invoices/pdf-text';
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
@@ -57,7 +58,11 @@ const FILTERS: Array<{ id: StatusFilter; label: string }> = [
   { id: 'all', label: 'All' },
 ];
 
-export function TransactionWorkspaceIndex() {
+export function TransactionWorkspaceIndex({
+  embedded = false,
+}: {
+  embedded?: boolean;
+}) {
   const supabase = createClient();
   const queryClient = useQueryClient();
   const { accountId, isViewer, isReadOnly } = useAuth();
@@ -127,16 +132,18 @@ export function TransactionWorkspaceIndex() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-extrabold tracking-tight text-white sm:text-3xl">
-          Transactions
-        </h1>
-        <p className="mt-1 text-sm text-slate-400">
-          Every closing record: milestones, timeline, papers, tasks and money in
-          one place. Open a journey and convert it once the buyer is
-          commercially active.
-        </p>
-      </div>
+      {!embedded && (
+        <div>
+          <h1 className="text-2xl font-extrabold tracking-tight text-white sm:text-3xl">
+            Records
+          </h1>
+          <p className="mt-1 text-sm text-slate-400">
+            Every closing record: milestones, timeline, papers, tasks and money
+            in one place. Open a journey and convert it once the buyer is
+            commercially active.
+          </p>
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative min-w-[220px] flex-1">
@@ -181,12 +188,12 @@ export function TransactionWorkspaceIndex() {
           {rows.length === 0 && (
             <p className="mt-1 text-xs text-slate-500">
               Convert a journey from the{' '}
-              <Link href="/journey" className="text-primary">
+              <Link href={dealsHref('journey')} className="text-primary">
                 Journey
               </Link>{' '}
-              page, or add a deal on the{' '}
-              <Link href="/pipelines" className="text-primary">
-                pipeline board
+              tab, or add a deal on the{' '}
+              <Link href={dealsHref('board')} className="text-primary">
+                Board
               </Link>
               .
             </p>

@@ -660,6 +660,20 @@ export interface TransactionIndexOrigin {
   milestones_total: number;
 }
 
+/** One row of transaction_workspace_index(); mirrors IndexRow on the web. */
+export interface TransactionIndexRow
+  extends TransactionIndexParties, TransactionIndexOrigin {
+  id: string;
+  status: 'open' | 'won' | 'lost';
+  value: number | null;
+  stage_name: string | null;
+  stage_color: string | null;
+  group_name: string | null;
+  milestones_done: number;
+  next_milestone_title: string | null;
+  next_milestone_target_date: string | null;
+}
+
 export const NOT_YET_TRANSACTION_LABEL = 'Not yet a transaction';
 export const NOT_YET_TRANSACTION_HINT =
   'A pipeline deal with no milestones. Add the standard checklist to start the closing record.';

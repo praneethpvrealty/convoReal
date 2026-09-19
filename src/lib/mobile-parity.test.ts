@@ -1843,3 +1843,31 @@ describe('[TXW-016] the transaction index reads the same on both surfaces', () =
     expect(mobileApi).toContain("method: 'PATCH'");
   });
 });
+
+describe('[TXW-017] Deals is one surface with a board, journeys and records on both surfaces', () => {
+  const webDeals = webSource('app/(dashboard)/deals/deals-content.tsx');
+  const webSidebar = webSource('components/layout/sidebar.tsx');
+  const mobileList = mobileSource('app/(app)/deals.tsx');
+  const mobileMenu = mobileSource('lib/menu.ts');
+  const mobileIntent = mobileSource('app/+native-intent.ts');
+
+  it('offers the same three views', () => {
+    for (const view of ['board', 'journey', 'records']) {
+      expect(webDeals).toContain(`view === '${view}'`);
+    }
+    expect(mobileList).toContain("segment === 'records'");
+    expect(mobileList).toContain("segment === 'journey' ? <JourneyBody />");
+    expect(mobileList).toContain("'transaction_workspace_index'");
+    expect(mobileSource('app.json')).toContain('"pathPrefix": "/deals"');
+    expect(
+      webSource('app/.well-known/apple-app-site-association/route.ts')
+    ).toContain("'/deals'");
+  });
+
+  it('retires the separate Journey entry and keeps the old links landing', () => {
+    expect(webSidebar).not.toContain('href: "/journey"');
+    expect(webSidebar).toContain('href: "/deals"');
+    expect(mobileMenu).toContain("label: 'Deals: journeys'");
+    expect(mobileIntent).toContain("q.get('view') === 'journey'");
+  });
+});

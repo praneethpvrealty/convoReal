@@ -107,7 +107,7 @@ describe('evaluateNudges', () => {
     );
     const nudge = nudges.find((n) => n.id === 'journeys-stalled');
     expect(nudge?.message).toContain('4 properties');
-    expect(nudge?.cta?.href).toBe('/journey');
+    expect(nudge?.cta?.href).toBe('/deals?view=journey');
   });
 
   it('stalled-journey nudge outranks radar matches', async () => {

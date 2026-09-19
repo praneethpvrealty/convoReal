@@ -11,6 +11,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Expand } from "lucide-react";
 
+import { dealsHref } from "@/lib/deals/routes";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useCan } from "@/hooks/use-can";
@@ -67,8 +68,8 @@ export function JourneyEmbed({
 
   const fullHref =
     mode === "buyer"
-      ? `/journey?contact=${subjectId}`
-      : `/journey?property=${subjectId}`;
+      ? dealsHref('journey', { contact: subjectId })
+      : dealsHref('journey', { property: subjectId });
 
   return (
     <div className="space-y-2">

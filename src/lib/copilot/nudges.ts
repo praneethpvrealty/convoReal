@@ -30,7 +30,7 @@ const rules: Rule[] = [
   async (db) => {
     const items = await loadExpiringSessions(db);
     const closing = items.filter(
-      (i) => new Date(i.expiresAt).getTime() - Date.now() <= 6 * HOUR_MS,
+      (i) => new Date(i.expiresAt).getTime() - Date.now() <= 6 * HOUR_MS
     ).length;
     if (closing === 0) return null;
     return {
@@ -77,7 +77,7 @@ const rules: Rule[] = [
         count === 1
           ? '1 property has sat at the same journey stage for over a week. Ask the buyer if it is still in play.'
           : `${count} properties have sat at the same journey stage for over a week. Ask the buyers if they are still in play.`,
-      cta: { label: 'Open Journey', href: '/journey' },
+      cta: { label: 'Open Journey', href: '/deals?view=journey' },
     };
   },
   // 4. Fresh buyer↔property matches.
@@ -209,7 +209,7 @@ const rules: Rule[] = [
  */
 export async function evaluateNudges(
   db: DB,
-  accountId: string,
+  accountId: string
 ): Promise<CopilotNudge[]> {
   const results = await Promise.allSettled(rules.map((r) => r(db, accountId)));
   const nudges: CopilotNudge[] = [];

@@ -59,6 +59,7 @@ import {
   type JourneyLifecycleStatus,
   type JourneyOverviewState,
 } from '@/lib/journey/overview-state';
+import { dealsHref } from '@/lib/deals/routes';
 import { readStored, writeStored } from '@/lib/safe-storage';
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
@@ -791,8 +792,12 @@ export function JourneyOverview({
                 onClick={() =>
                   navigateJourney(
                     mode === 'buyer'
-                      ? `/journey?contact=${fullscreenGroup.subjectId}`
-                      : `/journey?property=${fullscreenGroup.subjectId}`
+                      ? dealsHref('journey', {
+                          contact: fullscreenGroup.subjectId,
+                        })
+                      : dealsHref('journey', {
+                          property: fullscreenGroup.subjectId,
+                        })
                   )
                 }
               >

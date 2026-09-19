@@ -19,6 +19,15 @@ than a written entry. Newest first.
 
 #### 19 September 2026
 
+- **Deals: one place for the board, the journeys and the records.**
+  Pipelines (which lived under Automations), Journey and Transactions
+  were three pages describing the same deal cycle. They are now three
+  tabs of a single **Deals** entry: Board, Journey and Records. The
+  old addresses still work and carry their links across, Automations
+  keeps Flows and Analytics only, and the Groups entry is named
+  WhatsApp Groups so it no longer reads as part of the deal cycle. The
+  mobile Deals screen gains Board and Records segments and a Journey
+  button.
 - **WhatsApp qualification: "More site" gets more sites.** A lead who
   answered a shortlist with "More site" was read as asking for a bigger
   plot, re-asked the budget question they had answered a day earlier, and

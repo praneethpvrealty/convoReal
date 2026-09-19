@@ -10,6 +10,7 @@
 import { useEffect, useState } from "react";
 import { Building2, UserRound } from "lucide-react";
 
+import { dealsHref } from "@/lib/deals/routes";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import {
@@ -94,7 +95,7 @@ export function NewJourneyDialog({
                 name_tag: c.name_tag,
               }))}
               value={null}
-              onChange={(id) => id && go(`/journey?contact=${id}`)}
+              onChange={(id) => id && go(dealsHref("journey", { contact: id }))}
               placeholder={loaded ? "Select a contact…" : "Loading contacts…"}
             />
           </div>
@@ -106,7 +107,7 @@ export function NewJourneyDialog({
             <SearchablePropertySelect
               properties={properties}
               value={null}
-              onChange={(id) => id && go(`/journey?property=${id}`)}
+              onChange={(id) => id && go(dealsHref("journey", { property: id }))}
               placeholder={loaded ? "Select a property…" : "Loading properties…"}
             />
           </div>

@@ -29,7 +29,6 @@ import {
   UserCog,
   Users,
   UsersRound,
-  Waypoints,
   Workflow,
   X,
   Home,
@@ -115,7 +114,6 @@ const navItems: NavItem[] = [
   { href: "/inventory", labelKey: "nav.inventory", icon: Home },
   { href: "/liaisons", labelKey: "nav.liaisons", icon: Landmark },
   { href: "/calendar", labelKey: "nav.calendar", icon: Calendar },
-  { href: "/journey", labelKey: "nav.journey", icon: Waypoints, beta: true },
   { href: "/deals", labelKey: "nav.transactions", icon: Briefcase },
   { href: "/automations", labelKey: "nav.automations", icon: Workflow },
   { href: "/broadcasts", labelKey: "nav.broadcasts", icon: Radio },
@@ -340,7 +338,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
             </h3>
             <div className="flex flex-col gap-1.5">
               {[
-                { labelKey: "nav.newDeals" as const, href: "/pipelines?new=true" },
+                { labelKey: "nav.newDeals" as const, href: "/deals?view=board&new=true" },
                 { labelKey: "nav.pendingQuotes" as const, href: "/inbox?filter=pending" },
                 { labelKey: "nav.priorityTasks" as const, href: "/calendar?filter=priority" },
                 { labelKey: "nav.followUps" as const, href: "/contacts?search=follow-up" },

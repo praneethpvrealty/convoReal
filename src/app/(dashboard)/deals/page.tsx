@@ -1,5 +1,5 @@
-import { TransactionWorkspaceIndex } from '@/components/deals/transaction-workspace-index';
+import DealsContent from './deals-content';
 
-export default function DealsIndexPage() {
-  return <TransactionWorkspaceIndex />;
+export default function DealsPage() {
+  return <DealsContent />;
 }
