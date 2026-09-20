@@ -258,6 +258,35 @@ describe('property shortlist sharing remains available on both surfaces', () => 
     expect(mobile).toContain('baseUrl: trackedBaseUrl');
     expect(web).toContain('mode=view&v=${encodeURIComponent(contactId)}');
   });
+
+  it('[PRP-010] requires a named contact for personal WhatsApp property shares', () => {
+    const mobile = mobileSource('components/property-share-sheet.tsx');
+    const webProperty = webSource(
+      'components/inventory/property-share-dialog.tsx'
+    );
+    const webShowcase = webSource(
+      'components/inventory/showcase-share-dialog.tsx'
+    );
+    const mobileShowcase = mobileSource('components/showcase-share-sheet.tsx');
+    const broadcastRoute = webSource('app/api/whatsapp/broadcast/route.ts');
+
+    expect(mobile).toContain('recipientId: contact.id');
+    expect(mobile).not.toContain('Open WhatsApp without a contact');
+    expect(mobile).not.toContain("label: 'More apps…'");
+    expect(mobile).not.toContain("label: 'Share photo'");
+    expect(mobileShowcase).not.toContain('Share showcase anywhere');
+    expect(mobileShowcase).toContain('rendered.includes(url)');
+    expect(webShowcase).toContain('rendered.includes(link)');
+    expect(webShowcase).toContain("button.url.includes('{{1}}')");
+    expect(webProperty).toContain(
+      'Choose the recipient below so their Showcase link is tracked.'
+    );
+    expect(webShowcase).toContain(
+      'disabled={!generatedLink || sendableContacts.length === 0}'
+    );
+    expect(broadcastRoute).toContain('ensureTrackedPropertyShowcaseLink(');
+    expect(broadcastRoute).toContain('trackedPropertyButtonParam(');
+  });
 });
 
 describe('contact merge remains available on both surfaces', () => {

@@ -1,18 +1,23 @@
-import { NextResponse } from 'next/server'
-import { requireRole, toErrorResponse } from '@/lib/auth/account'
+import { NextResponse } from 'next/server';
+import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import {
   truncateParametersToBudget,
   sanitizeParamText,
   type SendTimeParams,
-} from '@/lib/whatsapp/template-send-builder'
-import { isMessageTemplate } from '@/lib/whatsapp/template-row-guard'
+} from '@/lib/whatsapp/template-send-builder';
+import { isMessageTemplate } from '@/lib/whatsapp/template-row-guard';
 import {
   checkRateLimit,
   rateLimitResponse,
   RATE_LIMITS,
-} from '@/lib/rate-limit'
-import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher'
-import type { MessageTemplate } from '@/types'
+} from '@/lib/rate-limit';
+import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
+import type { MessageTemplate } from '@/types';
+import {
+  accountPropertyShowcaseUrl,
+  ensureTrackedPropertyShowcaseLink,
+  trackedPropertyButtonParam,
+} from '@/lib/showcase/account-showcase-url';
 
 // Meta Cloud API rate-limit detection.
 // 130429 = messaging rate limit; 131056 = pair-rate-limit. Both are retryable.
@@ -22,15 +27,15 @@ function isRateLimitError(errorMsg: string): boolean {
     errorMsg.includes('131056') ||
     errorMsg.toLowerCase().includes('rate limit') ||
     errorMsg.toLowerCase().includes('too many requests')
-  )
+  );
 }
 
 interface BroadcastResult {
-  phone: string
-  status: 'sent' | 'failed' | 'rate_limited'
-  whatsapp_message_id?: string
-  error?: string
-  isRateLimited?: boolean
+  phone: string;
+  status: 'sent' | 'failed' | 'rate_limited';
+  whatsapp_message_id?: string;
+  error?: string;
+  isRateLimited?: boolean;
 }
 
 /**
@@ -56,45 +61,49 @@ interface BroadcastResult {
  * shape is what actually fixes that.
  */
 interface NewRecipient {
-  phone: string
+  phone: string;
+  contact_id?: string;
   /** Body variable values, one per {{N}}. Legacy field. */
-  params?: string[]
+  params?: string[];
   /**
    * Structured per-send values (header text variable, media URL
    * override, URL/COPY_CODE button values). When set, takes
    * precedence over `params` for the body too — see
    * sendTemplateMessage for the merge rules.
    */
-  messageParams?: SendTimeParams
+  messageParams?: SendTimeParams;
 }
 
 function resolveTemplateBodyText(bodyTemplateText: string, params: string[]) {
   return bodyTemplateText.replace(/\{\{(\d+)\}\}/g, (match, numberStr) => {
-    const idx = parseInt(numberStr) - 1
-    return idx >= 0 && idx < params.length ? params[idx] : match
-  })
+    const idx = parseInt(numberStr) - 1;
+    return idx >= 0 && idx < params.length ? params[idx] : match;
+  });
 }
 
 export async function POST(request: Request) {
   // Outside the main try, whose catch reports everything as a broadcast
   // failure. Running a campaign is 'agent' work and must not be
   // possible from an archived account.
-  let supabase: Awaited<ReturnType<typeof requireRole>>['supabase']
-  let accountId: string
-  let userId: string
+  let supabase: Awaited<ReturnType<typeof requireRole>>['supabase'];
+  let accountId: string;
+  let userId: string;
   try {
-    ;({ supabase, accountId, userId } = await requireRole('agent'))
+    ({ supabase, accountId, userId } = await requireRole('agent'));
   } catch (error) {
-    return toErrorResponse(error)
+    return toErrorResponse(error);
   }
 
   try {
     // Per-user broadcast budget. Note: this limits how often a user
     // can *start* a campaign, not how many messages go out inside
     // one — the fan-out loop below runs without additional gating.
-    const limit = await checkRateLimit(`broadcast:${userId}`, RATE_LIMITS.broadcast)
+    const limit = await checkRateLimit(
+      `broadcast:${userId}`,
+      RATE_LIMITS.broadcast
+    );
     if (!limit.success) {
-      return rateLimitResponse(limit)
+      return rateLimitResponse(limit);
     }
 
     // Only for the "sent by" name on owner-facing notifications.
@@ -102,9 +111,9 @@ export async function POST(request: Request) {
       .from('profiles')
       .select('full_name')
       .eq('user_id', userId)
-      .maybeSingle()
+      .maybeSingle();
 
-    const body = await request.json()
+    const body = await request.json();
     const {
       recipients: newRecipients,
       phone_numbers,
@@ -116,20 +125,20 @@ export async function POST(request: Request) {
       product_retailer_id,
       content_text,
       property_id,
-    } = body
+    } = body;
 
     // Normalize to a list of {phone, params, messageParams} regardless of shape.
-    let recipients: NewRecipient[]
+    let recipients: NewRecipient[];
     if (Array.isArray(newRecipients) && newRecipients.length > 0) {
-      recipients = newRecipients
+      recipients = newRecipients;
     } else if (Array.isArray(phone_numbers) && phone_numbers.length > 0) {
       const shared: string[] = Array.isArray(template_params)
         ? template_params
-        : []
+        : [];
       recipients = phone_numbers.map((phone: string) => ({
         phone,
         params: shared,
-      }))
+      }));
     } else {
       return NextResponse.json(
         {
@@ -137,28 +146,38 @@ export async function POST(request: Request) {
             'Provide either `recipients` (preferred) or `phone_numbers` — must be a non-empty array',
         },
         { status: 400 }
-      )
+      );
     }
 
     if (broadcast_type === 'template' && !template_name) {
       return NextResponse.json(
         { error: 'template_name is required for template broadcasts' },
         { status: 400 }
-      )
+      );
     }
 
     if (broadcast_type === 'product' && !product_retailer_id) {
       return NextResponse.json(
         { error: 'product_retailer_id is required for product broadcasts' },
         { status: 400 }
-      )
+      );
+    }
+
+    if (broadcast_type === 'product' && !property_id) {
+      return NextResponse.json(
+        {
+          error:
+            'property_id is required so product broadcasts can include a tracked Showcase URL',
+        },
+        { status: 400 }
+      );
     }
 
     const { data: config, error: configError } = await supabase
       .from('whatsapp_config')
       .select('id, catalog_id')
       .eq('account_id', accountId)
-      .maybeSingle()
+      .maybeSingle();
 
     if (configError || !config) {
       return NextResponse.json(
@@ -167,47 +186,53 @@ export async function POST(request: Request) {
             'WhatsApp not configured. Please set up your WhatsApp integration first.',
         },
         { status: 400 }
-      )
+      );
     }
 
-    let propertyRow: { id: string; title: string } | null = null
-    if (broadcast_type === 'greeting') {
-      if (!property_id) {
-        return NextResponse.json(
-          { error: 'property_id is required for greeting broadcasts' },
-          { status: 400 }
-        )
-      }
+    let propertyRow: {
+      id: string;
+      title: string;
+      property_code: string | null;
+    } | null = null;
+    if (property_id) {
       const { data: prop, error: propErr } = await supabase
         .from('properties')
-        .select('id, title')
+        .select('id, title, property_code')
         .eq('id', property_id)
         .eq('account_id', accountId)
-        .maybeSingle()
+        .maybeSingle();
       if (propErr || !prop) {
         return NextResponse.json(
           { error: 'Property not found or access denied' },
           { status: 400 }
-        )
+        );
       }
-      propertyRow = prop
+      propertyRow = prop;
+    } else if (broadcast_type === 'greeting') {
+      if (!property_id) {
+        return NextResponse.json(
+          { error: 'property_id is required for greeting broadcasts' },
+          { status: 400 }
+        );
+      }
     }
 
-    let greetingTemplateRow: MessageTemplate | null = null
+    let greetingTemplateRow: MessageTemplate | null = null;
     if (broadcast_type === 'greeting') {
       const { data: rawTemplates } = await supabase
         .from('message_templates')
         .select('*')
         .eq('account_id', accountId)
         .eq('name', 'property_share')
-        .limit(1)
-      const rawTemplateRow = rawTemplates && rawTemplates.length > 0 ? rawTemplates[0] : null
+        .limit(1);
+      const rawTemplateRow =
+        rawTemplates && rawTemplates.length > 0 ? rawTemplates[0] : null;
       if (rawTemplateRow && isMessageTemplate(rawTemplateRow)) {
-        greetingTemplateRow = rawTemplateRow
+        greetingTemplateRow = rawTemplateRow;
       }
     }
 
-    let templateRow: MessageTemplate | null = null
+    let templateRow: MessageTemplate | null = null;
     if (broadcast_type === 'template' && template_name) {
       // Load the template row once so sendTemplateMessage can build
       // header + button components on each iteration. Loading inside
@@ -216,16 +241,17 @@ export async function POST(request: Request) {
         .from('message_templates')
         .select('*')
         .eq('account_id', accountId)
-        .eq('name', template_name)
+        .eq('name', template_name);
 
       if (template_language) {
-        query = query.eq('language', template_language)
+        query = query.eq('language', template_language);
       } else {
-        query = query.eq('language', 'en_US')
+        query = query.eq('language', 'en_US');
       }
 
-      const { data: rawTemplates } = await query.limit(1)
-      let rawTemplateRow = rawTemplates && rawTemplates.length > 0 ? rawTemplates[0] : null
+      const { data: rawTemplates } = await query.limit(1);
+      let rawTemplateRow =
+        rawTemplates && rawTemplates.length > 0 ? rawTemplates[0] : null;
 
       // Fallback: If not found, try to find the template in any language
       if (!rawTemplateRow) {
@@ -234,9 +260,9 @@ export async function POST(request: Request) {
           .select('*')
           .eq('account_id', accountId)
           .eq('name', template_name)
-          .limit(1)
+          .limit(1);
         if (fallbackTemplates && fallbackTemplates.length > 0) {
-          rawTemplateRow = fallbackTemplates[0]
+          rawTemplateRow = fallbackTemplates[0];
         }
       }
 
@@ -246,50 +272,121 @@ export async function POST(request: Request) {
             error:
               'Template row is malformed locally — run "Sync from Meta" in Settings to repair it before broadcasting.',
           },
-          { status: 500 },
-        )
+          { status: 500 }
+        );
       }
-      templateRow = rawTemplateRow ?? null
+      templateRow = rawTemplateRow ?? null;
     }
 
-    const results: BroadcastResult[] = []
-    let sentCount = 0
-    let failedCount = 0
+    if (
+      propertyRow &&
+      broadcast_type === 'template' &&
+      !templateRow?.buttons?.some(
+        (button) => button.type === 'URL' && button.url.includes('{{1}}')
+      )
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            'This property template has no dynamic Showcase URL button. Choose the approved property-share template.',
+        },
+        { status: 400 }
+      );
+    }
+
+    const results: BroadcastResult[] = [];
+    let sentCount = 0;
+    let failedCount = 0;
 
     for (const recipient of recipients) {
-      let result
+      let recipientContact: { id: string; name: string | null } | null = null;
+      if (propertyRow) {
+        const normalized = recipient.phone.replace(/\D/g, '');
+        const phoneSuffix =
+          normalized.length >= 8 ? normalized.slice(-8) : normalized;
+        const contactQuery = supabase
+          .from('contacts')
+          .select('id, name')
+          .eq('account_id', accountId);
+        const { data } = recipient.contact_id
+          ? await contactQuery.eq('id', recipient.contact_id).maybeSingle()
+          : await contactQuery.like('phone', `%${phoneSuffix}`).maybeSingle();
+        recipientContact = data;
+        if (
+          (broadcast_type === 'template' || broadcast_type === 'product') &&
+          !recipientContact
+        ) {
+          results.push({
+            phone: recipient.phone,
+            status: 'failed',
+            error: 'A CRM contact is required for a tracked property share',
+          });
+          failedCount++;
+          continue;
+        }
+      }
+
+      let result;
       if (broadcast_type === 'template' && template_name) {
-        let bodyParams = recipient.messageParams?.body || recipient.params || []
+        if (propertyRow && recipientContact && templateRow?.buttons) {
+          const buttonParams = {
+            ...(recipient.messageParams?.buttonParams ?? {}),
+          };
+          templateRow.buttons.forEach((button, index) => {
+            if (button.type !== 'URL' || !button.url.includes('{{1}}')) return;
+            buttonParams[index] = trackedPropertyButtonParam(
+              button.url,
+              propertyRow,
+              recipientContact!.id
+            );
+          });
+          recipient.messageParams = {
+            ...recipient.messageParams,
+            buttonParams,
+          };
+        }
+        let bodyParams =
+          recipient.messageParams?.body || recipient.params || [];
         if (templateRow?.body_text) {
-          bodyParams = truncateParametersToBudget(templateRow.body_text, bodyParams)
+          bodyParams = truncateParametersToBudget(
+            templateRow.body_text,
+            bodyParams
+          );
         }
 
         // Apply truncation to header text variable if present
-        if (templateRow && templateRow.header_type === 'text' && recipient.messageParams?.headerText) {
-          const staticHeader = (templateRow.header_content ?? '').replace(/\{\{(\d+)\}\}/g, '')
-          const staticHeaderLength = staticHeader.length
-          const headerBudget = Math.max(0, 60 - staticHeaderLength)
-          let val = sanitizeParamText(recipient.messageParams.headerText)
+        if (
+          templateRow &&
+          templateRow.header_type === 'text' &&
+          recipient.messageParams?.headerText
+        ) {
+          const staticHeader = (templateRow.header_content ?? '').replace(
+            /\{\{(\d+)\}\}/g,
+            ''
+          );
+          const staticHeaderLength = staticHeader.length;
+          const headerBudget = Math.max(0, 60 - staticHeaderLength);
+          let val = sanitizeParamText(recipient.messageParams.headerText);
           if (val.length > headerBudget) {
             if (headerBudget >= 3) {
-              val = val.slice(0, headerBudget - 3) + '...'
+              val = val.slice(0, headerBudget - 3) + '...';
             } else {
-              val = val.slice(0, headerBudget)
+              val = val.slice(0, headerBudget);
             }
           }
-          recipient.messageParams.headerText = val
+          recipient.messageParams.headerText = val;
         }
 
         // Update the recipient object with the truncated parameters so they are sent to Meta
         if (recipient.messageParams) {
-          recipient.messageParams.body = bodyParams
+          recipient.messageParams.body = bodyParams;
         } else {
-          recipient.params = bodyParams
+          recipient.params = bodyParams;
         }
 
         const resolvedText = templateRow?.body_text
           ? resolveTemplateBodyText(templateRow.body_text, bodyParams)
-          : `[Template: ${template_name}]`
+          : `[Template: ${template_name}]`;
 
         result = await sendWhatsAppMessageAndPersist({
           accountId,
@@ -298,36 +395,33 @@ export async function POST(request: Request) {
           kind: 'template',
           senderType: 'agent', // Broadcasts logged as agent replies
           templateName: template_name,
-          templateLanguage: templateRow?.language || template_language || 'en_US',
+          templateLanguage:
+            templateRow?.language || template_language || 'en_US',
           templateParams: recipient.params || [],
           messageParams: recipient.messageParams || undefined,
           templateRow: templateRow ?? undefined,
           text: resolvedText,
           customDbClient: supabase,
-        })
+        });
       } else if (broadcast_type === 'greeting' && propertyRow) {
-        let contactName = 'there'
-        const normalized = recipient.phone.replace(/\D/g, '')
-        const phoneSuffix = normalized.length >= 8 ? normalized.slice(-8) : normalized
-        const { data: contactRow } = await supabase
-          .from('contacts')
-          .select('name')
-          .eq('account_id', accountId)
-          .like('phone', `%${phoneSuffix}`)
-          .maybeSingle()
-        if (contactRow?.name) {
-          const cleanName = contactRow.name.trim()
-          const cleanNameDigits = cleanName.replace(/\D/g, '')
+        let contactName = 'there';
+        if (recipientContact?.name) {
+          const normalized = recipient.phone.replace(/\D/g, '');
+          const cleanName = recipientContact.name.trim();
+          const cleanNameDigits = cleanName.replace(/\D/g, '');
           if (cleanNameDigits !== normalized && cleanNameDigits.length < 8) {
-            contactName = cleanName
+            contactName = cleanName;
           }
         }
 
-        const agentName = profile?.full_name || 'An agent'
+        const agentName = profile?.full_name || 'An agent';
 
         if (greetingTemplateRow) {
-          const templateParams = [contactName, agentName, propertyRow.title]
-          const resolvedText = resolveTemplateBodyText(greetingTemplateRow.body_text, templateParams)
+          const templateParams = [contactName, agentName, propertyRow.title];
+          const resolvedText = resolveTemplateBodyText(
+            greetingTemplateRow.body_text,
+            templateParams
+          );
 
           result = await sendWhatsAppMessageAndPersist({
             accountId,
@@ -341,9 +435,9 @@ export async function POST(request: Request) {
             templateRow: greetingTemplateRow,
             text: resolvedText,
             customDbClient: supabase,
-          })
+          });
         } else {
-          const greetingText = `Welcome to ConvoReal! ${agentName} would like to share ${propertyRow.title} with you.`
+          const greetingText = `Welcome to ConvoReal! ${agentName} would like to share ${propertyRow.title} with you.`;
           result = await sendWhatsAppMessageAndPersist({
             accountId,
             userId,
@@ -353,15 +447,33 @@ export async function POST(request: Request) {
             interactiveType: 'buttons',
             interactiveBody: greetingText,
             interactiveButtons: [
-              { id: `share_property_yes:${propertyRow.id}`, title: 'Sure, please send' },
-              { id: `share_property_no:${propertyRow.id}`, title: 'No Thanks' }
+              {
+                id: `share_property_yes:${propertyRow.id}`,
+                title: 'Sure, please send',
+              },
+              { id: `share_property_no:${propertyRow.id}`, title: 'No Thanks' },
             ],
             text: greetingText,
             customDbClient: supabase,
-          })
+          });
         }
       } else {
-        const defaultText = content_text || `*New Listing Available*\n\n${product_retailer_id}`
+        let defaultText =
+          content_text || `*New Listing Available*\n\n${product_retailer_id}`;
+        if (propertyRow && recipientContact) {
+          const trackedUrl = await accountPropertyShowcaseUrl(
+            supabase,
+            accountId,
+            propertyRow,
+            recipientContact.id
+          );
+          defaultText = ensureTrackedPropertyShowcaseLink(
+            defaultText,
+            propertyRow,
+            recipientContact.id,
+            trackedUrl
+          );
+        }
         result = await sendWhatsAppMessageAndPersist({
           accountId,
           userId,
@@ -372,7 +484,7 @@ export async function POST(request: Request) {
           productRetailerId: product_retailer_id,
           text: defaultText,
           customDbClient: supabase,
-        })
+        });
       }
 
       if (result.success && result.whatsappMessageId) {
@@ -380,19 +492,22 @@ export async function POST(request: Request) {
           phone: recipient.phone,
           status: 'sent',
           whatsapp_message_id: result.whatsappMessageId,
-        })
-        sentCount++
+        });
+        sentCount++;
       } else {
-        const errMsg = result.error || 'Unknown error'
-        const rateLimited = isRateLimitError(errMsg)
-        console.error(`Failed to send broadcast to ${recipient.phone}:`, errMsg)
+        const errMsg = result.error || 'Unknown error';
+        const rateLimited = isRateLimitError(errMsg);
+        console.error(
+          `Failed to send broadcast to ${recipient.phone}:`,
+          errMsg
+        );
         results.push({
           phone: recipient.phone,
           status: rateLimited ? 'rate_limited' : 'failed',
           error: errMsg,
           isRateLimited: rateLimited,
-        })
-        failedCount++
+        });
+        failedCount++;
       }
     }
 
@@ -402,12 +517,12 @@ export async function POST(request: Request) {
       sent: sentCount,
       failed: failedCount,
       results,
-    })
+    });
   } catch (error) {
-    console.error('Error in WhatsApp broadcast POST:', error)
+    console.error('Error in WhatsApp broadcast POST:', error);
     return NextResponse.json(
       { error: 'Failed to process broadcast' },
       { status: 500 }
-    )
+    );
   }
 }

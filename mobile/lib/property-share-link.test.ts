@@ -73,4 +73,19 @@ describe('propertyShareUrl', () => {
       })
     ).toBe('https://aryavartaventures.convoreal.com/?property_id=p-uuid');
   });
+
+  it('[PRP-010] attributes a personal property share to its selected recipient', () => {
+    expect(
+      propertyShareUrl({
+        siteUrl: SITE,
+        subdomain: 'aryavartaventures',
+        accountId: ACCOUNT,
+        property,
+        audience: 'client',
+        recipientId: 'contact-9',
+      })
+    ).toBe(
+      'https://aryavartaventures.convoreal.com/?property_id=PROP-1151&v=contact-9'
+    );
+  });
 });
