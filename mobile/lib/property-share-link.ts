@@ -21,9 +21,15 @@ export function propertyShareUrl(input: {
   property: Property;
   audience: ShareAudience;
   offerInventoryOnboarding?: boolean;
+  recipientId?: string;
 }): string {
   const base = showcaseBaseUrl(input.siteUrl, input.subdomain, input.accountId);
   const url = propertyShowcaseUrl(base, input.property);
-  if (input.audience !== 'agent') return url;
-  return `${url}&mode=view${input.offerInventoryOnboarding ? '&onboard=1' : ''}`;
+  const sharedUrl =
+    input.audience === 'agent'
+      ? `${url}&mode=view${input.offerInventoryOnboarding ? '&onboard=1' : ''}`
+      : url;
+  return input.recipientId
+    ? `${sharedUrl}&v=${encodeURIComponent(input.recipientId)}`
+    : sharedUrl;
 }

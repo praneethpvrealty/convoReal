@@ -3,10 +3,16 @@ import {
   type SupabaseClient,
 } from '@supabase/supabase-js';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
-import { findConversation, resolveConversationId } from '@/lib/conversations/resolve';
+import {
+  findConversation,
+  resolveConversationId,
+} from '@/lib/conversations/resolve';
 import { truncateParametersToBudget } from '@/lib/whatsapp/template-send-builder';
 import { isReengagementError } from '@/lib/whatsapp/customer-window';
-import { resolveSendLanguage, isLanguageFallback } from '@/lib/whatsapp/template-language';
+import {
+  resolveSendLanguage,
+  isLanguageFallback,
+} from '@/lib/whatsapp/template-language';
 import {
   PROPERTY_SHARE_TEMPLATE_NAMES,
   pickPropertyShareTemplate,
@@ -16,7 +22,9 @@ import {
 import {
   accountBrandImage,
   accountBrandName,
-  attributePropertyShowcaseLinks,
+  accountPropertyShowcaseUrl,
+  ensureTrackedPropertyShowcaseLink,
+  trackedPropertyButtonParam,
 } from '@/lib/showcase/account-showcase-url';
 import type { MessageTemplate, Property } from '@/types';
 
@@ -35,7 +43,7 @@ import type { MessageTemplate, Property } from '@/types';
 function adminClient() {
   return createServiceClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 }
 
@@ -51,7 +59,7 @@ export async function logPropertyShare(
   accountId: string,
   userId: string,
   propertyId: string,
-  contactId: string,
+  contactId: string
 ) {
   const { data: contact } = await db
     .from('contacts')
@@ -68,9 +76,10 @@ export async function logPropertyShare(
       channel: 'whatsapp',
       created_by: userId,
     },
-    { onConflict: 'account_id,property_id,contact_id', ignoreDuplicates: true },
+    { onConflict: 'account_id,property_id,contact_id', ignoreDuplicates: true }
   );
-  if (error) console.error('[share-property-send] share ledger failed:', error.message);
+  if (error)
+    console.error('[share-property-send] share ledger failed:', error.message);
 }
 
 /**
@@ -92,7 +101,7 @@ export async function logListingsSent(
   accountId: string,
   userId: string | null,
   contactId: string,
-  propertyIds: string[],
+  propertyIds: string[]
 ): Promise<void> {
   if (propertyIds.length === 0) return;
   try {
@@ -111,9 +120,16 @@ export async function logListingsSent(
         channel: 'whatsapp',
         created_by: userId,
       })),
-      { onConflict: 'account_id,property_id,contact_id', ignoreDuplicates: true },
+      {
+        onConflict: 'account_id,property_id,contact_id',
+        ignoreDuplicates: true,
+      }
     );
-    if (error) console.error('[share-property-send] bot share ledger failed:', error.message);
+    if (error)
+      console.error(
+        '[share-property-send] bot share ledger failed:',
+        error.message
+      );
   } catch (err) {
     console.error('[share-property-send] bot share ledger threw:', err);
   }
@@ -132,7 +148,7 @@ function resolveTemplateBodyText(bodyTemplateText: string, params: string[]) {
 async function sessionState(
   db: ReturnType<typeof adminClient>,
   accountId: string,
-  contactId: string,
+  contactId: string
 ): Promise<{ conversationId: string | null; open: boolean }> {
   const conv = await findConversation<{ id: string }>(db, {
     accountId,
@@ -173,7 +189,11 @@ export async function sendPropertyToContact(opts: {
 }): Promise<SharePropertyOutcome> {
   const { accountId, userId, contactId, contactName, property, message } = opts;
   const db = adminClient();
-  const { conversationId: existingConvId, open } = await sessionState(db, accountId, contactId);
+  const { conversationId: existingConvId, open } = await sessionState(
+    db,
+    accountId,
+    contactId
+  );
 
   const conversationIdAfterSend = async (): Promise<string | null> => {
     if (existingConvId) return existingConvId;
@@ -186,6 +206,12 @@ export async function sendPropertyToContact(opts: {
   // free-form attempt that hits a closed window falls through to the
   // second having already resolved it.
   const brandImageOnce = accountBrandImage(db, accountId);
+  const trackedShowcaseUrlOnce = accountPropertyShowcaseUrl(
+    db,
+    accountId,
+    property,
+    contactId
+  );
 
   let freeformError: string | undefined;
   if (open) {
@@ -216,12 +242,18 @@ export async function sendPropertyToContact(opts: {
         console.error('[share-property-send] photo send failed:', img.error);
       }
     }
+    const trackedShowcaseUrl = await trackedShowcaseUrlOnce;
     const res = await sendWhatsAppMessageAndPersist({
       accountId,
       userId,
       contactId,
       kind: 'text',
-      text: attributePropertyShowcaseLinks(message, property, contactId),
+      text: ensureTrackedPropertyShowcaseLink(
+        message,
+        property,
+        contactId,
+        trackedShowcaseUrl
+      ),
       senderType: 'agent',
     });
     if (res.success) {
@@ -236,7 +268,11 @@ export async function sendPropertyToContact(opts: {
     // re-engagement rejection falls through to the template path
     // instead of surfacing as a failure. Anything else is a real error.
     if (!isReengagementError(res.error)) {
-      return { sent: false, conversationId: existingConvId, error: res.error || 'Failed to send' };
+      return {
+        sent: false,
+        conversationId: existingConvId,
+        error: res.error || 'Failed to send',
+      };
     }
     freeformError = res.error;
   }
@@ -265,16 +301,21 @@ export async function sendPropertyToContact(opts: {
     resolveSendLanguage(db, accountId, contactId),
   ]);
   const headerImage = shareHeaderImage({ images: property.images, brandImage });
-  const alertTemplate = pickPropertyShareTemplate(candidates, {
+  const pickedTemplate = pickPropertyShareTemplate(candidates, {
     hasImage: Boolean(headerImage),
     language,
   });
+  const alertTemplate = pickedTemplate?.buttons?.some(
+    (button) => button.type === 'URL' && button.url.includes('{{1}}')
+  )
+    ? pickedTemplate
+    : null;
   if (isLanguageFallback(alertTemplate, language)) {
     // Not an error — the send still goes out. But an account that set a
     // language and never approved a variant for it has a gap only this
     // line will ever show them.
     console.warn(
-      `[share-property-send] no approved ${language} variant for account ${accountId}; sent ${alertTemplate?.language ?? 'none'}`,
+      `[share-property-send] no approved ${language} variant for account ${accountId}; sent ${alertTemplate?.language ?? 'none'}`
     );
   }
 
@@ -304,14 +345,20 @@ export async function sendPropertyToContact(opts: {
     alertTemplate.name,
     contactName,
     property,
-    brandName,
+    brandName
   );
-  const bodyParams = truncateParametersToBudget(alertTemplate.body_text, [...params]);
+  const bodyParams = truncateParametersToBudget(alertTemplate.body_text, [
+    ...params,
+  ]);
   const buttonParams: Record<number, string> = {};
   (alertTemplate.buttons ?? []).forEach((btn, idx) => {
     if (btn.type === 'URL' && btn.url.includes('{{1}}')) {
       // v= attributes portal opens to this contact in Showcase Pulse.
-      buttonParams[idx] = `?property_id=${property.id}&v=${contactId}`;
+      buttonParams[idx] = trackedPropertyButtonParam(
+        btn.url,
+        property,
+        contactId
+      );
     }
   });
   const res = await sendWhatsAppMessageAndPersist({
@@ -334,8 +381,16 @@ export async function sendPropertyToContact(opts: {
     text: resolveTemplateBodyText(alertTemplate.body_text, bodyParams),
   });
   if (!res.success) {
-    return { sent: false, conversationId: existingConvId, error: res.error || 'Failed to send' };
+    return {
+      sent: false,
+      conversationId: existingConvId,
+      error: res.error || 'Failed to send',
+    };
   }
   await logPropertyShare(db, accountId, userId, property.id, contactId);
-  return { sent: true, channel: 'template', conversationId: await conversationIdAfterSend() };
+  return {
+    sent: true,
+    channel: 'template',
+    conversationId: await conversationIdAfterSend(),
+  };
 }

@@ -7,7 +7,6 @@ import {
   ActivityIndicator,
   Pressable,
   ScrollView,
-  Share,
   StyleSheet,
   Text,
   View,
@@ -258,7 +257,12 @@ export function ShowcaseShareSheet({
       return (data ?? null) as EngineTemplate | null;
     },
   });
-  const templateApproved = template.data?.status === 'APPROVED';
+  const templateApproved = Boolean(
+    template.data?.status === 'APPROVED' &&
+    template.data.buttons?.some(
+      (button) => button.type === 'URL' && button.url?.includes('{{1}}')
+    )
+  );
 
   // Manual edits survive until an input changes the generated text, the
   // same rule the web preview uses.
@@ -298,10 +302,13 @@ export function ShowcaseShareSheet({
     const greeting = name?.trim().split(/\s+/)[0];
     // The digest already carries the scoped link; swap it for the
     // recipient's tracked one rather than appending a second copy.
-    const body =
+    const rendered =
       messageMode === 'list'
         ? sourceMessage.replaceAll(link, url)
         : sourceMessage.replaceAll('{portalUrl}', url);
+    const body = rendered.includes(url)
+      ? rendered
+      : `${rendered.trim()}\n\nExplore the showcase:\n${url}`;
     return greeting
       ? body
           .replace(/^Hi!/, `Hi ${greeting}!`)
@@ -364,14 +371,6 @@ export function ShowcaseShareSheet({
       message: `It opens ${scopeLabel}.`,
       actions: [{ label: 'OK', variant: 'primary', onPress: close }],
     });
-  }
-
-  /** Untracked-by-name share for groups and status posts: the ?s= token
-   *  still lets Pulse count the visits it brings in. */
-  async function shareAnywhere() {
-    haptic.tap();
-    const anonymous = await anonymousScopedLink();
-    await Share.share({ message: messageFor(anonymous), url: anonymous });
   }
 
   async function personalWhatsApp(contacts: Contact[]) {
@@ -853,23 +852,6 @@ export function ShowcaseShareSheet({
               style={{ fontSize: 13, fontFamily: f.bold, color: colors.text }}
             >
               Copy link
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={() => void shareAnywhere()}
-            disabled={!ready}
-            accessibilityRole="button"
-            accessibilityLabel="Share showcase anywhere"
-            style={[
-              styles.secondary,
-              { borderColor: colors.glassBorder, opacity: ready ? 1 : 0.5 },
-            ]}
-          >
-            <Ionicons name="share-outline" size={16} color={colors.text} />
-            <Text
-              style={{ fontSize: 13, fontFamily: f.bold, color: colors.text }}
-            >
-              Share…
             </Text>
           </Pressable>
         </View>

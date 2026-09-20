@@ -1,16 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import * as Clipboard from 'expo-clipboard';
-import { File, Paths } from 'expo-file-system';
 import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
-import * as Sharing from 'expo-sharing';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
   ScrollView,
-  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -25,7 +22,6 @@ import { apiFetch } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
 import { ENV } from '@/lib/env';
 import { haptic } from '@/lib/haptics';
-import { storagePublicUrl } from '@/lib/storage-url';
 import { supabase } from '@/lib/supabase';
 import {
   logExternalShare,
@@ -96,7 +92,8 @@ export function PropertyShareSheet({
   const [audience, setAudience] = useState<ShareAudience>('client');
   const [tone, setTone] = useState<ShareTone>('professional');
   const [detail, setDetail] = useState<ShareDetailLevel>('standard');
-  const [offerInventoryOnboarding, setOfferInventoryOnboarding] = useState(false);
+  const [offerInventoryOnboarding, setOfferInventoryOnboarding] =
+    useState(false);
   const [message, setMessage] = useState('');
   const [copied, setCopied] = useState<'link' | 'message' | null>(null);
   const [picker, setPicker] = useState<
@@ -108,7 +105,6 @@ export function PropertyShareSheet({
     total: number;
   } | null>(null);
   const [inventorySharing, setInventorySharing] = useState(false);
-  const [sharingPhoto, setSharingPhoto] = useState(false);
   const [dialog, setDialog] = useState<{
     title: string;
     message?: string;
@@ -153,23 +149,29 @@ export function PropertyShareSheet({
     ? `+${session.user.phone.replace(/^\+/, '')}`
     : undefined;
 
-  const generated = useMemo(
-    () => {
-      const base = buildPropertyShareMessage({
-        property,
-        url,
-        audience,
-        detail,
-        tone,
-        agentName,
-        agentPhone,
-      });
-      return offerInventoryOnboarding && audience === 'agent'
-        ? `${base}\n\n♻️ Want to share this with your own name or agency? Open the property and tap “Request ConvoReal invite”. Once onboarded, it will be added to your inventory for review.`
-        : base;
-    },
-    [property, url, audience, detail, tone, agentName, agentPhone, offerInventoryOnboarding]
-  );
+  const generated = useMemo(() => {
+    const base = buildPropertyShareMessage({
+      property,
+      url,
+      audience,
+      detail,
+      tone,
+      agentName,
+      agentPhone,
+    });
+    return offerInventoryOnboarding && audience === 'agent'
+      ? `${base}\n\n♻️ Want to share this with your own name or agency? Open the property and tap “Request ConvoReal invite”. Once onboarded, it will be added to your inventory for review.`
+      : base;
+  }, [
+    property,
+    url,
+    audience,
+    detail,
+    tone,
+    agentName,
+    agentPhone,
+    offerInventoryOnboarding,
+  ]);
 
   // Picker changes re-draft (discarding edits, same as the web dialog).
   useEffect(() => {
@@ -187,19 +189,21 @@ export function PropertyShareSheet({
 
   // External WhatsApp: address the deep link to the picked contact, tag the
   // showcase link so their activity is attributed in Pulse, and log the
-  // share on their Engine timeline; "skip" keeps the old behaviour (WhatsApp's
-  // own contact chooser, untracked link).
+  // share on their Engine timeline.
   async function shareExternalWithContact(contact: Contact) {
     setPicker(null);
     haptic.send();
     void logExternalShare(contact, property);
     const phone = (contact.phone ?? '').replace(/\D/g, '');
-    // Tag the link with v=<contactId> so the recipient's opens, swipes and
-    // dwell show by name in Showcase Pulse instead of as an Anonymous Guest
-    // (v= only attributes events, never filters). `url` already carries
-    // ?property_id=, so &v= is a safe append; swap it into the (possibly
-    // edited) draft, or append the tracked link if the agent removed it.
-    const trackedUrl = `${url}&v=${contact.id}`;
+    const trackedUrl = propertyShareUrl({
+      siteUrl: ENV.apiBaseUrl,
+      subdomain: subdomain.data ?? null,
+      accountId,
+      property,
+      audience,
+      offerInventoryOnboarding,
+      recipientId: contact.id,
+    });
     const linked = message.includes(url)
       ? message.split(url).join(trackedUrl)
       : `${message}\n\n📸 Photos & full details:\n${trackedUrl}`;
@@ -207,79 +211,6 @@ export function PropertyShareSheet({
     Linking.openURL(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`);
     onShared?.([contact.id]);
     onClose();
-  }
-
-  function shareExternalWithoutContact() {
-    setPicker(null);
-    haptic.send();
-    Linking.openURL(targets.whatsapp);
-  }
-
-  // Share the cover photo itself as an image attachment. Uses the listing's
-  // first photo; when it has none (common for land/plots), renders a branded
-  // flyer server-side and shares that — so a photoless listing still sends a
-  // real image, mirroring the web dialog's cover-photo behaviour.
-  async function sharePhoto() {
-    if (sharingPhoto) return;
-    setSharingPhoto(true);
-    haptic.tap();
-    try {
-      if (!(await Sharing.isAvailableAsync())) {
-        throw new Error('Sharing is not available on this device.');
-      }
-
-      let bytes: Uint8Array;
-      let ext = 'jpg';
-      let mimeType = 'image/jpeg';
-
-      const firstImage = property.images?.find((u) => u && u.trim().length > 0);
-      if (firstImage) {
-        const res = await fetch(storagePublicUrl(firstImage));
-        if (!res.ok) throw new Error('Could not load the listing photo.');
-        bytes = new Uint8Array(await res.arrayBuffer());
-        const ct = res.headers.get('content-type');
-        if (ct?.startsWith('image/')) {
-          mimeType = ct;
-          ext = ct.split('/')[1] || 'jpg';
-        }
-      } else {
-        const flyer = await apiFetch<{ data: { image: string } }>(
-          `/api/properties/${property.id}/flyer`,
-          { method: 'POST', body: JSON.stringify({ size: 1080 }) }
-        );
-        const dataUrl = flyer.data.image;
-        const b64 = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
-        const bin = atob(b64);
-        bytes = new Uint8Array(bin.length);
-        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-        ext = 'png';
-        mimeType = 'image/png';
-      }
-
-      const file = new File(
-        Paths.cache,
-        `property-${property.id}-${Date.now()}.${ext}`
-      );
-      file.create();
-      file.write(bytes);
-
-      await Sharing.shareAsync(file.uri, {
-        mimeType,
-        dialogTitle: property.title || 'Property',
-      });
-      haptic.success();
-    } catch (err) {
-      haptic.warn();
-      setDialog({
-        title: 'Could not share the photo',
-        message: err instanceof Error ? err.message : 'Please try again.',
-        actions: [
-          { label: 'OK', variant: 'primary', onPress: () => setDialog(null) },
-        ],
-      });
-    } finally {
-      setSharingPhoto(false);
-    }
   }
 
   // ConvoReal WhatsApp: send from the account's business number so the
@@ -504,7 +435,7 @@ export function PropertyShareSheet({
     return rankContactSearchResults(
       [...(exactResult.data ?? []), ...(broadResult.data ?? [])] as Contact[],
       query,
-      8,
+      8
     );
   }
 
@@ -560,27 +491,10 @@ export function PropertyShareSheet({
     {
       key: 'copy',
       icon: (copied === 'message' ? 'checkmark' : 'copy-outline') as
-        | 'checkmark'
-        | 'copy-outline',
+        'checkmark' | 'copy-outline',
       label: copied === 'message' ? 'Copied!' : 'Copy message',
       color: colors.primary,
       onPress: () => copy('message'),
-    },
-    {
-      key: 'photo',
-      icon: (sharingPhoto ? 'hourglass-outline' : 'image-outline') as
-        | 'hourglass-outline'
-        | 'image-outline',
-      label: sharingPhoto ? 'Preparing…' : 'Share photo',
-      color: colors.primary,
-      onPress: sharePhoto,
-    },
-    {
-      key: 'more',
-      icon: 'share-social-outline' as const,
-      label: 'More apps…',
-      color: colors.primary,
-      onPress: () => Share.share({ message }),
     },
   ];
 
@@ -665,14 +579,31 @@ export function PropertyShareSheet({
             <Ionicons
               name={offerInventoryOnboarding ? 'checkbox' : 'square-outline'}
               size={20}
-              color={offerInventoryOnboarding ? colors.primary : colors.textMuted}
+              color={
+                offerInventoryOnboarding ? colors.primary : colors.textMuted
+              }
             />
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 12.5, fontFamily: f.bold, color: colors.text }}>
+              <Text
+                style={{
+                  fontSize: 12.5,
+                  fontFamily: f.bold,
+                  color: colors.text,
+                }}
+              >
                 Let them add and re-share this listing
               </Text>
-              <Text style={{ marginTop: 2, fontSize: 11.5, lineHeight: 16, color: colors.textMuted }}>
-                Adds a ConvoReal invite request. Joining with the same WhatsApp number places this listing in Pending Review with your attribution.
+              <Text
+                style={{
+                  marginTop: 2,
+                  fontSize: 11.5,
+                  lineHeight: 16,
+                  color: colors.textMuted,
+                }}
+              >
+                Adds a ConvoReal invite request. Joining with the same WhatsApp
+                number places this listing in Pending Review with your
+                attribution.
               </Text>
             </View>
           </Pressable>
@@ -883,8 +814,6 @@ export function PropertyShareSheet({
           text: 'Send this property to several buyers from your business number. ConvoReal chooses the approved property message automatically.',
           onPress: () => setPicker('engine'),
         }}
-        skipLabel="Open WhatsApp without a contact"
-        onSkip={shareExternalWithoutContact}
       />
       <ContactPickerSheet
         visible={picker === 'engine'}

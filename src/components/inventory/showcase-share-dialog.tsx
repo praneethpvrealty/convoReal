@@ -434,7 +434,12 @@ Best regards`;
     };
   }, [open, fetchEngineTemplate]);
 
-  const engineTemplateApproved = engineTemplate?.status === 'APPROVED';
+  const engineTemplateApproved = Boolean(
+    engineTemplate?.status === 'APPROVED' &&
+    engineTemplate.buttons?.some(
+      (button) => button.type === 'URL' && button.url.includes('{{1}}')
+    )
+  );
 
   const handleSubmitEngineTemplate = async () => {
     setSubmittingEngineTemplate(true);
@@ -534,14 +539,17 @@ Best regards`;
     summaryOverride?: string
   ) => {
     const firstName = name?.trim().split(/\s+/)[0] || 'there';
-    if (messageMode === 'list') {
-      return (summaryOverride ?? summaryMessage)
-        .replace(generatedLink, link)
-        .replace('Hi there!', `Hi ${firstName}!`);
-    }
-    return pitchMessage
-      .replaceAll('{portalUrl}', link)
-      .replaceAll('{name}', firstName);
+    const rendered =
+      messageMode === 'list'
+        ? (summaryOverride ?? summaryMessage)
+            .replace(generatedLink, link)
+            .replace('Hi there!', `Hi ${firstName}!`)
+        : pitchMessage
+            .replaceAll('{portalUrl}', link)
+            .replaceAll('{name}', firstName);
+    return rendered.includes(link)
+      ? rendered
+      : `${rendered.trim()}\n\nExplore the showcase:\n${link}`;
   };
 
   const previewMessage =
@@ -619,12 +627,9 @@ Best regards`;
 
   const handleWhatsApp = async () => {
     if (!generatedLink) return;
-    // No recipient → WhatsApp opens its own chat picker, so the message
-    // can go to a group or broadcast list.
     if (sendableContacts.length === 0) {
-      window.open(
-        `https://api.whatsapp.com/send?text=${encodeURIComponent(previewMessage)}`,
-        '_blank'
+      toast.info(
+        'Choose a contact so WhatsApp receives their tracked Showcase link.'
       );
       return;
     }
@@ -1216,7 +1221,7 @@ Best regards`;
                 )}
                 <Button
                   onClick={() => void handleWhatsApp()}
-                  disabled={!generatedLink}
+                  disabled={!generatedLink || sendableContacts.length === 0}
                   variant={engineTemplateApproved ? 'outline' : 'default'}
                   className={
                     engineTemplateApproved

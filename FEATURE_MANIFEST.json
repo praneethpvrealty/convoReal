@@ -563,6 +563,29 @@
             }
           ],
           "guards": [".github/workflows/eas-update.yml"]
+        },
+        {
+          "id": "PRP-010",
+          "rule": "Every property or property-selection message sent through a business WhatsApp number or handed off to a personal WhatsApp chat carries a Showcase URL attributed to the selected CRM contact; business sends repair or append the tracked URL server-side, and personal sends cannot bypass recipient selection on web or mobile.",
+          "tests": [
+            {
+              "file": "src/lib/showcase/account-showcase-url.test.ts",
+              "case": "[PRP-010]"
+            },
+            {
+              "file": "src/app/api/whatsapp/share-property/route.test.ts",
+              "case": "[PRP-010]"
+            },
+            {
+              "file": "mobile/lib/property-share-link.test.ts",
+              "case": "[PRP-010]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[PRP-010]"
+            }
+          ],
+          "guards": [".github/workflows/eas-update.yml"]
         }
       ]
     },

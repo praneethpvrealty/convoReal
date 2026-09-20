@@ -6,6 +6,8 @@ import {
   accountPropertyShowcaseUrl,
   accountPropertiesShowcaseUrl,
   attributePropertyShowcaseLinks,
+  ensureTrackedPropertyShowcaseLink,
+  trackedPropertyButtonParam,
 } from './account-showcase-url';
 
 function db(subdomain: string | null, throws = false): SupabaseClient {
@@ -66,8 +68,11 @@ describe('accountPropertyShowcaseUrl', () => {
     const url = await accountPropertyShowcaseUrl(
       db('aryavartaventures'),
       'acct-1',
-      { id: 'bb2d5756-bf68-4185-8395-76117a015b95', property_code: 'PROP-1004' },
-      'contact-9',
+      {
+        id: 'bb2d5756-bf68-4185-8395-76117a015b95',
+        property_code: 'PROP-1004',
+      },
+      'contact-9'
     );
     expect(url).toContain('https://aryavartaventures.convoreal.com');
     expect(url).toContain('property_id=PROP-1004');
@@ -98,10 +103,10 @@ describe('accountPropertiesShowcaseUrl', () => {
       db('aryavartaventures'),
       'acct-1',
       [{ id: 'property-1', property_code: 'PROP-20' }],
-      'contact-9',
+      'contact-9'
     );
     expect(url).toBe(
-      'https://aryavartaventures.convoreal.com/?property_id=PROP-20&v=contact-9',
+      'https://aryavartaventures.convoreal.com/?property_id=PROP-20&v=contact-9'
     );
   });
 
@@ -113,7 +118,7 @@ describe('accountPropertiesShowcaseUrl', () => {
         { id: 'property-1', property_code: 'PROP-20' },
         { id: 'property-2', property_code: 'PROP-21' },
       ],
-      'contact-9',
+      'contact-9'
     );
     expect(url).toContain('ref=acct-1');
     expect(url).toContain('ids=PROP-20%2CPROP-21');
@@ -134,11 +139,9 @@ describe('accountShowcaseBrowseUrl', () => {
     const url = await accountShowcaseBrowseUrl(
       db('aryavartaventures'),
       'acct-1',
-      'contact-9',
+      'contact-9'
     );
-    expect(url).toBe(
-      'https://aryavartaventures.convoreal.com/?v=contact-9',
-    );
+    expect(url).toBe('https://aryavartaventures.convoreal.com/?v=contact-9');
     expect(url).not.toContain('category=');
     expect(url).not.toContain('search=');
   });
@@ -160,17 +163,19 @@ describe('attributePropertyShowcaseLinks', () => {
     const message =
       'Photos & full details:\nhttps://aryavartaventures.convoreal.com/?property_id=PROP-1154';
 
-    expect(attributePropertyShowcaseLinks(message, property, 'contact-shobha')).toContain(
-      'property_id=PROP-1154&v=contact-shobha',
-    );
+    expect(
+      attributePropertyShowcaseLinks(message, property, 'contact-shobha')
+    ).toContain('property_id=PROP-1154&v=contact-shobha');
   });
 
   it('overwrites stale attribution while preserving punctuation', () => {
     const message =
       'Open https://www.convoreal.com/?ref=acct-1&property_id=5f669ab0-8d07-4078-aac4-c41718c4245d&v=old-contact.';
 
-    expect(attributePropertyShowcaseLinks(message, property, 'new-contact')).toBe(
-      'Open https://www.convoreal.com/?ref=acct-1&property_id=5f669ab0-8d07-4078-aac4-c41718c4245d&v=new-contact.',
+    expect(
+      attributePropertyShowcaseLinks(message, property, 'new-contact')
+    ).toBe(
+      'Open https://www.convoreal.com/?ref=acct-1&property_id=5f669ab0-8d07-4078-aac4-c41718c4245d&v=new-contact.'
     );
   });
 
@@ -178,6 +183,55 @@ describe('attributePropertyShowcaseLinks', () => {
     const message =
       'Map: https://maps.google.com/?q=12.9,77.6\nOther: https://example.com/?property_id=PROP-9999';
 
-    expect(attributePropertyShowcaseLinks(message, property, 'contact-shobha')).toBe(message);
+    expect(
+      attributePropertyShowcaseLinks(message, property, 'contact-shobha')
+    ).toBe(message);
+  });
+
+  it('[PRP-010] appends the tracked showcase when a property message has no listing link', () => {
+    const tracked =
+      'https://aryavartaventures.convoreal.com/?property_id=PROP-1154&v=contact-shobha';
+
+    expect(
+      ensureTrackedPropertyShowcaseLink(
+        'Hi Shobha, this property may suit you.',
+        property,
+        'contact-shobha',
+        tracked
+      )
+    ).toBe(
+      `Hi Shobha, this property may suit you.\n\n📸 Photos & full details:\n${tracked}`
+    );
+  });
+
+  it('[PRP-010] repairs an existing listing link without adding a duplicate', () => {
+    const tracked =
+      'https://aryavartaventures.convoreal.com/?property_id=PROP-1154&v=contact-shobha';
+
+    expect(
+      ensureTrackedPropertyShowcaseLink(
+        'Open https://aryavartaventures.convoreal.com/?property_id=PROP-1154&v=someone-else',
+        property,
+        'contact-shobha',
+        tracked
+      )
+    ).toBe(`Open ${tracked}`);
+  });
+
+  it('[PRP-010] builds the tracked suffix required by either property button shape', () => {
+    expect(
+      trackedPropertyButtonParam(
+        'https://acme.convoreal.com/?property_id={{1}}',
+        property,
+        'contact-shobha'
+      )
+    ).toBe('PROP-1154&v=contact-shobha');
+    expect(
+      trackedPropertyButtonParam(
+        'https://acme.convoreal.com/{{1}}',
+        property,
+        'contact-shobha'
+      )
+    ).toBe('?property_id=PROP-1154&v=contact-shobha');
   });
 });

@@ -43,10 +43,18 @@ import {
   Ban,
   FolderInput,
 } from 'lucide-react';
-import { getMatchingContacts, inMatchAudience, type MatchAudience, type MatchDetails } from '@/lib/matching';
+import {
+  getMatchingContacts,
+  inMatchAudience,
+  type MatchAudience,
+  type MatchDetails,
+} from '@/lib/matching';
 import { attachInquiredListingTypes } from '@/lib/contacts/inquired-intent';
 import { recordPropertyShares } from '@/lib/inventory/share-log';
-import { isLocationGuarded, localityLabel } from '@/lib/inventory/location-guard';
+import {
+  isLocationGuarded,
+  localityLabel,
+} from '@/lib/inventory/location-guard';
 import {
   DEFAULT_SHARE_GRANT_TTL_KEY,
   SHARE_GRANT_TTL_CHOICES,
@@ -54,7 +62,10 @@ import {
 } from '@/lib/inventory/share-grants';
 import { MatchDetailChips } from '@/components/inventory/match-detail-chips';
 import { ListingAudiencePicker } from '@/components/inventory/listing-audience-picker';
-import { audienceListingLabel, type AudienceListing } from '@/lib/inventory/listing-audience';
+import {
+  audienceListingLabel,
+  type AudienceListing,
+} from '@/lib/inventory/listing-audience';
 import { MatchTargetRow } from '@/components/matching/match-target-row';
 import {
   fetchInquiredProperties,
@@ -74,7 +85,15 @@ import {
   type ShareDetailLevel,
   type ShareTone,
 } from '@/lib/share-message-builder';
-import { MessageCircle, Mail, RotateCcw, User, Handshake, Megaphone, Image as ImageIcon } from 'lucide-react';
+import {
+  MessageCircle,
+  Mail,
+  RotateCcw,
+  User,
+  Handshake,
+  Megaphone,
+  Image as ImageIcon,
+} from 'lucide-react';
 import { hasPhone } from '@/lib/contacts/reachability';
 import { rankContactSearchResults } from '@/lib/contacts/contact-search-rank';
 
@@ -105,17 +124,6 @@ interface PropertyShareDialogProps {
   onPromote?: (property: Property) => void;
 }
 
-// On desktop, navigator.share opens the OS share sheet, which has no
-// WhatsApp target — only mobile share sheets route into WhatsApp with
-// the photo attached. Includes iPadOS, which masquerades as macOS.
-function isMobileSharePlatform(): boolean {
-  if (typeof navigator === 'undefined') return false;
-  const uaData = (navigator as Navigator & { userAgentData?: { mobile?: boolean } }).userAgentData;
-  if (uaData?.mobile) return true;
-  if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) return true;
-  return navigator.userAgent.includes('Macintosh') && navigator.maxTouchPoints > 1;
-}
-
 export function PropertyShareDialog({
   open,
   onOpenChange,
@@ -133,7 +141,9 @@ export function PropertyShareDialog({
   const canManageGrants = useCan('send-messages');
 
   // Dialog flow steps: 'link' | 'matches' | 'configure' | 'sending' | 'results'
-  const [broadcastStep, setBroadcastStep] = useState<'link' | 'matches' | 'configure' | 'sending' | 'results'>('link');
+  const [broadcastStep, setBroadcastStep] = useState<
+    'link' | 'matches' | 'configure' | 'sending' | 'results'
+  >('link');
   const [copiedLink, setCopiedLink] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -151,27 +161,48 @@ export function PropertyShareDialog({
   // Template config
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
   const [loadingTemplates, setLoadingTemplates] = useState(false);
-  const [selectedTemplate, setSelectedTemplate] = useState<MessageTemplate | null>(null);
-  const [selectedBroadcastImage, setSelectedBroadcastImage] = useState<string>('');
-  const [variableMappings, setVariableMappings] = useState<Record<string, { type: 'field' | 'static'; value: string }>>({});
-  const [customVariableValues, setCustomVariableValues] = useState<Record<string, string>>({});
+  const [selectedTemplate, setSelectedTemplate] =
+    useState<MessageTemplate | null>(null);
+  const [selectedBroadcastImage, setSelectedBroadcastImage] =
+    useState<string>('');
+  const [variableMappings, setVariableMappings] = useState<
+    Record<string, { type: 'field' | 'static'; value: string }>
+  >({});
+  const [customVariableValues, setCustomVariableValues] = useState<
+    Record<string, string>
+  >({});
 
   // Sending status
   const [sendingBroadcast, setSendingBroadcast] = useState(false);
-  const [broadcastResults, setBroadcastResults] = useState<Array<{ name: string; phone: string; status: 'sent' | 'failed'; error?: string }>>([]);
+  const [broadcastResults, setBroadcastResults] = useState<
+    Array<{
+      name: string;
+      phone: string;
+      status: 'sent' | 'failed';
+      error?: string;
+    }>
+  >([]);
 
   // Fresh Contact Form state
   const [showAddFresh, setShowAddFresh] = useState(false);
   const [freshName, setFreshName] = useState('');
   const [freshPhone, setFreshPhone] = useState('');
-  const [freshClassification, setFreshClassification] = useState<'Buyer' | 'Agent'>('Buyer');
+  const [freshClassification, setFreshClassification] = useState<
+    'Buyer' | 'Agent'
+  >('Buyer');
   const [addingFresh, setAddingFresh] = useState(false);
   const [currency, setCurrency] = useState('INR');
-  const [showcaseSubdomain, setShowcaseSubdomain] = useState<string | null>(null);
+  const [showcaseSubdomain, setShowcaseSubdomain] = useState<string | null>(
+    null
+  );
   const [catalogId, setCatalogId] = useState<string | null>(null);
-  const [shareMode, setShareMode] = useState<'template' | 'catalog' | 'greeting'>('template');
+  const [shareMode, setShareMode] = useState<
+    'template' | 'catalog' | 'greeting'
+  >('template');
   const [syncingCatalog, setSyncingCatalog] = useState(false);
-  const [metaCatalogSyncedAt, setMetaCatalogSyncedAt] = useState<string | null>(null);
+  const [metaCatalogSyncedAt, setMetaCatalogSyncedAt] = useState<string | null>(
+    null
+  );
   const [metaCatalogError, setMetaCatalogError] = useState<string | null>(null);
   const [indexingTimeLeft, setIndexingTimeLeft] = useState<number>(0);
   const [messageStyle, setMessageStyle] = useState<ShareTone>('professional');
@@ -179,9 +210,12 @@ export function PropertyShareDialog({
   // Who the share is for: tabs on the first step. 'client' and 'agent'
   // compose an external message; 'engine' hosts the in-Engine send flows
   // (greeting / templates / catalog card).
-  const [audienceTab, setAudienceTab] = useState<'client' | 'agent' | 'engine'>('client');
+  const [audienceTab, setAudienceTab] = useState<'client' | 'agent' | 'engine'>(
+    'client'
+  );
   const [detailLevel, setDetailLevel] = useState<ShareDetailLevel>('standard');
-  const [offerInventoryOnboarding, setOfferInventoryOnboarding] = useState(false);
+  const [offerInventoryOnboarding, setOfferInventoryOnboarding] =
+    useState(false);
   // User edits to the composed message; null = follow the auto-generated
   // text. Reset whenever any composer input changes.
   const [messageDraft, setMessageDraft] = useState<string | null>(null);
@@ -197,9 +231,12 @@ export function PropertyShareDialog({
   const [revealDocuments, setRevealDocuments] = useState(false);
   const [revealPrivateImages, setRevealPrivateImages] = useState(false);
   const [grantTtl, setGrantTtl] = useState<ShareGrantTtlKey>(
-    DEFAULT_SHARE_GRANT_TTL_KEY,
+    DEFAULT_SHARE_GRANT_TTL_KEY
   );
-  const [linkGrant, setLinkGrant] = useState<{ id: string; token: string } | null>(null);
+  const [linkGrant, setLinkGrant] = useState<{
+    id: string;
+    token: string;
+  } | null>(null);
   const [grantBusy, setGrantBusy] = useState(false);
   const linkGrantRef = useRef<{ id: string; token: string } | null>(null);
   const contactGrantsRef = useRef<Record<string, string>>({});
@@ -255,12 +292,12 @@ export function PropertyShareDialog({
 
   const propertyDocumentCount = useMemo(
     () => (property?.documents ?? []).filter((d) => d?.trim()).length,
-    [property?.documents],
+    [property?.documents]
   );
 
   const propertyPrivateImageCount = useMemo(
     () => (property?.private_images ?? []).filter((p) => p?.trim()).length,
-    [property?.private_images],
+    [property?.private_images]
   );
 
   const mintGrant = useCallback(
@@ -281,7 +318,7 @@ export function PropertyShareDialog({
       if (!res.ok) throw new Error(json.error || 'Failed to unmask this share');
       return json.data as { id: string; token: string };
     },
-    [propertyId, revealLocation, revealDocuments, revealPrivateImages, grantTtl],
+    [propertyId, revealLocation, revealDocuments, revealPrivateImages, grantTtl]
   );
 
   const revokeGrant = useCallback(
@@ -290,14 +327,14 @@ export function PropertyShareDialog({
       try {
         await fetch(
           `/api/properties/${propertyId}/share-grants?grant_id=${grantId}`,
-          { method: 'DELETE' },
+          { method: 'DELETE' }
         );
         bumpGrants();
       } catch (err) {
         console.error('[property-share] Grant revoke failed:', err);
       }
     },
-    [propertyId, bumpGrants],
+    [propertyId, bumpGrants]
   );
 
   useEffect(() => {
@@ -328,7 +365,7 @@ export function PropertyShareDialog({
     try {
       const res = await fetch(
         `/api/properties/${propertyId}/share-grants?grant_id=${grant.id}`,
-        { method: 'DELETE' },
+        { method: 'DELETE' }
       );
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Failed to revoke');
@@ -345,8 +382,8 @@ export function PropertyShareDialog({
       }
       contactGrantsRef.current = Object.fromEntries(
         Object.entries(contactGrantsRef.current).filter(
-          ([, token]) => token !== grant.token,
-        ),
+          ([, token]) => token !== grant.token
+        )
       );
       toast.success('Link revoked — it now opens masked.');
       bumpGrants();
@@ -382,7 +419,9 @@ export function PropertyShareDialog({
         bumpGrants();
       } catch (err) {
         if (cancelled) return;
-        toast.error(err instanceof Error ? err.message : 'Failed to unmask this share');
+        toast.error(
+          err instanceof Error ? err.message : 'Failed to unmask this share'
+        );
         setRevealLocation(false);
         setRevealDocuments(false);
         setRevealPrivateImages(false);
@@ -452,7 +491,7 @@ export function PropertyShareDialog({
       mintGrant,
       grantToken,
       bumpGrants,
-    ],
+    ]
   );
 
   // Currency Formatter
@@ -487,7 +526,11 @@ export function PropertyShareDialog({
     if (!property) return '';
     const origin =
       typeof window !== 'undefined'
-        ? showcaseOriginForHost(window.location.host, window.location.protocol, showcaseSubdomain)
+        ? showcaseOriginForHost(
+            window.location.host,
+            window.location.protocol,
+            showcaseSubdomain
+          )
         : '';
     const grantSuffix = grantToken ? `&g=${grantToken}` : '';
     const onboardingSuffix =
@@ -509,12 +552,29 @@ export function PropertyShareDialog({
     return offerInventoryOnboarding && audienceTab === 'agent'
       ? `${message}\n\n♻️ Want to share this with your own name or agency? Open the property and tap “Request ConvoReal invite”. Once onboarded, it will be added to your inventory for review.`
       : message;
-  }, [property, audienceTab, detailLevel, messageStyle, currency, profile, showcaseSubdomain, grantToken, offerInventoryOnboarding]);
+  }, [
+    property,
+    audienceTab,
+    detailLevel,
+    messageStyle,
+    currency,
+    profile,
+    showcaseSubdomain,
+    grantToken,
+    offerInventoryOnboarding,
+  ]);
 
   // Any composer input change discards manual edits back to auto text.
   useEffect(() => {
     setMessageDraft(null);
-  }, [audienceTab, detailLevel, messageStyle, property?.id, grantToken, offerInventoryOnboarding]);
+  }, [
+    audienceTab,
+    detailLevel,
+    messageStyle,
+    property?.id,
+    grantToken,
+    offerInventoryOnboarding,
+  ]);
 
   const currentMessage = messageDraft ?? autoMessage;
 
@@ -524,18 +584,23 @@ export function PropertyShareDialog({
   // from the listing so the share still carries an image instead of going
   // out text-only. Null only when both the photo and the flyer fail.
   const fetchCoverImageFile = useCallback(async (): Promise<File | null> => {
-    const sanitizedTitle = (property?.title || 'property')
-      .replace(/[^a-zA-Z0-9\s_-]/g, '')
-      .trim()
-      .replace(/\s+/g, '_')
-      .slice(0, 50) || 'property';
+    const sanitizedTitle =
+      (property?.title || 'property')
+        .replace(/[^a-zA-Z0-9\s_-]/g, '')
+        .trim()
+        .replace(/\s+/g, '_')
+        .slice(0, 50) || 'property';
 
-    const imageUrl = storagePublicUrl(property?.images?.find((img) => img.trim().length > 0));
+    const imageUrl = storagePublicUrl(
+      property?.images?.find((img) => img.trim().length > 0)
+    );
     if (imageUrl) {
       try {
         const response = await fetch(imageUrl);
         const blob = await response.blob();
-        return new File([blob], `${sanitizedTitle}.jpg`, { type: blob.type || 'image/jpeg' });
+        return new File([blob], `${sanitizedTitle}.jpg`, {
+          type: blob.type || 'image/jpeg',
+        });
       } catch {
         // fall through to the generated flyer cover
       }
@@ -557,7 +622,9 @@ export function PropertyShareDialog({
           const dataUrl: unknown = json?.data?.image;
           if (typeof dataUrl === 'string' && dataUrl.startsWith('data:image')) {
             const blob = await (await fetch(dataUrl)).blob();
-            return new File([blob], `${sanitizedTitle}.png`, { type: 'image/png' });
+            return new File([blob], `${sanitizedTitle}.png`, {
+              type: 'image/png',
+            });
           }
         }
       } catch {
@@ -567,7 +634,6 @@ export function PropertyShareDialog({
     return null;
   }, [property, profile]);
 
-  const [sharingWhatsApp, setSharingWhatsApp] = useState(false);
   const [copyingPhoto, setCopyingPhoto] = useState(false);
 
   // Get showcase URL for copying
@@ -595,7 +661,10 @@ export function PropertyShareDialog({
   // Anonymous Guest (`v=` only attributes events, never filters).
   const [personalSearch, setPersonalSearch] = useState('');
   const [copiedPersonalId, setCopiedPersonalId] = useState<string | null>(null);
-  const [inventorySharingContactId, setInventorySharingContactId] = useState<string | null>(null);
+  const [inventorySharingContactId, setInventorySharingContactId] = useState<
+    string | null
+  >(null);
+  const personalShareSectionRef = useRef<HTMLDivElement | null>(null);
 
   const personalContacts = useMemo(() => {
     const q = personalSearch.toLowerCase().trim();
@@ -607,9 +676,11 @@ export function PropertyShareDialog({
     if (!q) return reachable;
     return rankContactSearchResults(
       reachable.filter(
-        (c) => (c.name || '').toLowerCase().includes(q) || (c.phone || '').includes(q),
+        (c) =>
+          (c.name || '').toLowerCase().includes(q) ||
+          (c.phone || '').includes(q)
       ),
-      q,
+      q
     );
   }, [contacts, personalSearch, audienceTab]);
 
@@ -620,7 +691,9 @@ export function PropertyShareDialog({
       if (!baseUrl) return '';
       const url = new URL(
         baseUrl,
-        typeof window !== 'undefined' ? window.location.origin : 'https://localhost',
+        typeof window !== 'undefined'
+          ? window.location.origin
+          : 'https://localhost'
       );
       url.searchParams.set('v', contactId);
       // Overwrites the share-wide grant the base URL carries, so this
@@ -628,7 +701,7 @@ export function PropertyShareDialog({
       if (contactGrantToken) url.searchParams.set('g', contactGrantToken);
       return url.toString();
     },
-    [property, audienceTab, agentShowcaseUrl, showcaseUrl],
+    [property, audienceTab, agentShowcaseUrl, showcaseUrl]
   );
 
   const buildPersonalMessage = useCallback(
@@ -641,10 +714,17 @@ export function PropertyShareDialog({
         ? currentMessage.replaceAll(baseUrl, trackedUrl)
         : `${currentMessage}\n\n📸 Photos & full details:\n${trackedUrl}`;
       const greetName = greetingName(contact.name);
-      if (greetName) msg = msg.replace(/^(Hi|Hey|Hello)([,!])/, `$1 ${greetName}$2`);
+      if (greetName)
+        msg = msg.replace(/^(Hi|Hey|Hello)([,!])/, `$1 ${greetName}$2`);
       return msg;
     },
-    [audienceTab, agentShowcaseUrl, showcaseUrl, personalizedUrl, currentMessage],
+    [
+      audienceTab,
+      agentShowcaseUrl,
+      showcaseUrl,
+      personalizedUrl,
+      currentMessage,
+    ]
   );
 
   const handleWhatsAppPersonal = (contact: Contact) => {
@@ -674,7 +754,9 @@ export function PropertyShareDialog({
           : null;
       await navigator.clipboard.writeText(buildPersonalMessage(contact, token));
       setCopiedPersonalId(contact.id);
-      toast.success(`Personal message for ${contact.name || contact.phone} copied!`);
+      toast.success(
+        `Personal message for ${contact.name || contact.phone} copied!`
+      );
       setTimeout(() => setCopiedPersonalId(null), 2000);
     } catch (err) {
       toast.error('Failed to copy message');
@@ -695,12 +777,15 @@ export function PropertyShareDialog({
         }
       );
       const json = await response.json();
-      if (!response.ok) throw new Error(json.error || 'Failed to share inventory');
+      if (!response.ok)
+        throw new Error(json.error || 'Failed to share inventory');
       toast.success(
         `${contact.name || contact.phone} will see this under Listings to review`
       );
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to share inventory');
+      toast.error(
+        error instanceof Error ? error.message : 'Failed to share inventory'
+      );
     } finally {
       setInventorySharingContactId(null);
     }
@@ -727,13 +812,16 @@ export function PropertyShareDialog({
 
       // If a contact was pre-selected but not in the active list (e.g., pending_review),
       // fetch it separately and add it to the list
-      if (preSelectedContactId && !contactsList.some((c) => c.id === preSelectedContactId)) {
+      if (
+        preSelectedContactId &&
+        !contactsList.some((c) => c.id === preSelectedContactId)
+      ) {
         const { data: preSelectedContact } = await supabase
           .from('contacts')
           .select('*, contact_notes(note_text)')
           .eq('id', preSelectedContactId)
           .maybeSingle();
-        
+
         if (preSelectedContact) {
           contactsList = [preSelectedContact, ...contactsList];
         }
@@ -755,7 +843,8 @@ export function PropertyShareDialog({
         .filter(
           (c) =>
             (c.classification === 'Buyer' || c.classification === 'Agent') &&
-            ((c.requirements || '').trim() || (c.contact_notes || []).length > 0) &&
+            ((c.requirements || '').trim() ||
+              (c.contact_notes || []).length > 0) &&
             (!c.pref_extracted_at || c.updated_at > c.pref_extracted_at)
         )
         .slice(0, 25)
@@ -782,8 +871,13 @@ export function PropertyShareDialog({
                 refreshed as unknown as Contact[]
               );
               // Re-add pre-selected contact if it was filtered out
-              if (preSelectedContactId && !hydrated.some((c) => c.id === preSelectedContactId)) {
-                const preSelected = contactsList.find((c) => c.id === preSelectedContactId);
+              if (
+                preSelectedContactId &&
+                !hydrated.some((c) => c.id === preSelectedContactId)
+              ) {
+                const preSelected = contactsList.find(
+                  (c) => c.id === preSelectedContactId
+                );
                 if (preSelected) {
                   setContacts([preSelected, ...hydrated]);
                 } else {
@@ -825,7 +919,9 @@ export function PropertyShareDialog({
         const hasPhoto = Boolean(
           property?.images?.some((img) => img && img.trim().length > 0)
         );
-        setSelectedTemplate(pickShareDialogTemplate(tData, { hasImage: hasPhoto }));
+        setSelectedTemplate(
+          pickShareDialogTemplate(tData, { hasImage: hasPhoto })
+        );
       }
     } catch (err) {
       console.error('Failed to load templates for share:', err);
@@ -837,7 +933,9 @@ export function PropertyShareDialog({
   // Reset dialog states only when open changes from false to true
   useEffect(() => {
     if (open) {
-      setBroadcastStep(preSelectedContactId || openListingAudience ? 'matches' : 'link');
+      setBroadcastStep(
+        preSelectedContactId || openListingAudience ? 'matches' : 'link'
+      );
       setSearchQuery('');
       setCopiedLink(false);
       setSelectedContactIds(preSelectedContactId ? [preSelectedContactId] : []);
@@ -859,7 +957,10 @@ export function PropertyShareDialog({
   }, [open, openListingAudience, preSelectedContactId]);
 
   // Track what was last fetched to prevent duplicate/infinite fetching
-  const lastFetchedRef = useRef<{ accountId: string | null; propertyId: string | null }>({
+  const lastFetchedRef = useRef<{
+    accountId: string | null;
+    propertyId: string | null;
+  }>({
     accountId: null,
     propertyId: null,
   });
@@ -904,7 +1005,9 @@ export function PropertyShareDialog({
     // Every route out of this dialog is a WhatsApp send, so an
     // email-only contact cannot be a target.
     const targetContacts = contacts.filter(
-      (c) => hasPhone(c) && (c.classification === 'Buyer' || c.classification === 'Agent'),
+      (c) =>
+        hasPhone(c) &&
+        (c.classification === 'Buyer' || c.classification === 'Agent')
     );
     return getMatchingContacts(property, targetContacts);
   }, [contacts, property]);
@@ -914,7 +1017,12 @@ export function PropertyShareDialog({
   // the matched suggestions (not from explicit search or pre-selected).
   const displayedContacts = useMemo(() => {
     const recentCutoff = Date.now() - 14 * 24 * 60 * 60 * 1000;
-    let result: Array<{ contact: Contact; score: number; details: MatchDetails; matchedFields: { budget: boolean; area: boolean; interest: boolean } }> = [];
+    let result: Array<{
+      contact: Contact;
+      score: number;
+      details: MatchDetails;
+      matchedFields: { budget: boolean; area: boolean; interest: boolean };
+    }> = [];
 
     if (!searchQuery.trim()) {
       result = matchedContacts.filter(({ contact: c }) =>
@@ -927,8 +1035,19 @@ export function PropertyShareDialog({
         if (!result.some((r) => r.contact.id === id)) {
           const c = contacts.find((x) => x.id === id);
           if (c) {
-            const unknownDetails: MatchDetails = { type: 'unknown', location: 'unknown', budget: 'unknown', bhk: 'unknown', roi: 'unknown' };
-            result.unshift({ contact: c, score: 0, details: unknownDetails, matchedFields: { budget: false, area: false, interest: false } });
+            const unknownDetails: MatchDetails = {
+              type: 'unknown',
+              location: 'unknown',
+              budget: 'unknown',
+              bhk: 'unknown',
+              roi: 'unknown',
+            };
+            result.unshift({
+              contact: c,
+              score: 0,
+              details: unknownDetails,
+              matchedFields: { budget: false, area: false, interest: false },
+            });
           }
         }
       }
@@ -937,7 +1056,11 @@ export function PropertyShareDialog({
       // except for contacts that are pre-selected or explicitly searched.
       result = result.filter(({ contact: c }) => {
         if (selectedContactIds.includes(c.id)) return true;
-        if (c.last_contacted_at && new Date(c.last_contacted_at).getTime() > recentCutoff) return false;
+        if (
+          c.last_contacted_at &&
+          new Date(c.last_contacted_at).getTime() > recentCutoff
+        )
+          return false;
         return true;
       });
     } else {
@@ -979,7 +1102,13 @@ export function PropertyShareDialog({
       if (!aSelected && bSelected) return 1;
       return 0;
     });
-  }, [searchQuery, contacts, matchedContacts, matchAudience, selectedContactIds]);
+  }, [
+    searchQuery,
+    contacts,
+    matchedContacts,
+    matchAudience,
+    selectedContactIds,
+  ]);
 
   // Switching audience drops selections outside it (except the
   // pre-selected contact), so "Select All" then send never carries
@@ -1011,7 +1140,10 @@ export function PropertyShareDialog({
   } | null>(null);
 
   const addContactsToSelection = useCallback(
-    (ids: string[], applied: { listing: AudienceListing; unreachable: number }) => {
+    (
+      ids: string[],
+      applied: { listing: AudienceListing; unreachable: number }
+    ) => {
       setSelectedContactIds((prev) => [...new Set([...prev, ...ids])]);
       setAppliedAudience({ ...applied, ids });
     },
@@ -1038,10 +1170,14 @@ export function PropertyShareDialog({
   // Toggle select-all control
   function toggleSelectAllContacts() {
     const allIds = displayedContacts.map((m) => m.contact.id);
-    const allSelected = displayedContacts.every((m) => selectedContactIds.includes(m.contact.id));
+    const allSelected = displayedContacts.every((m) =>
+      selectedContactIds.includes(m.contact.id)
+    );
     if (allSelected) {
       // Remove all displayed matches from selected ids
-      setSelectedContactIds((prev) => prev.filter((id) => !allIds.includes(id)));
+      setSelectedContactIds((prev) =>
+        prev.filter((id) => !allIds.includes(id))
+      );
     } else {
       // Add missing displayed matches to selected ids
       setSelectedContactIds((prev) => [...new Set([...prev, ...allIds])]);
@@ -1082,7 +1218,9 @@ export function PropertyShareDialog({
       if (error) throw error;
 
       if (data) {
-        toast.success(`Contact "${data.name || data.phone}" created successfully.`);
+        toast.success(
+          `Contact "${data.name || data.phone}" created successfully.`
+        );
         // Append to local state list
         setContacts((prev) => [data, ...prev]);
         // Automatically select the contact
@@ -1111,16 +1249,20 @@ export function PropertyShareDialog({
   }, [selectedTemplate]);
 
   const hasDedicatedMapVariable = useMemo(
-    () => Boolean(selectedTemplate?.body_text.split(/\\n|\r?\n/).some(
-      (line) => /map/i.test(line) && /\{\{\d+\}\}/.test(line),
-    )),
-    [selectedTemplate],
+    () =>
+      Boolean(
+        selectedTemplate?.body_text
+          .split(/\\n|\r?\n/)
+          .some((line) => /map/i.test(line) && /\{\{\d+\}\}/.test(line))
+      ),
+    [selectedTemplate]
   );
 
   // Synchronize broadcast image when template is selected
   useEffect(() => {
     if (property) {
-      const defaultImg = property.images?.find((img) => img.trim().length > 0) || '';
+      const defaultImg =
+        property.images?.find((img) => img.trim().length > 0) || '';
       setSelectedBroadcastImage(defaultImg);
     }
   }, [selectedTemplate, property]);
@@ -1128,7 +1270,10 @@ export function PropertyShareDialog({
   // Pre-fill variable mappings heuristic based on template content text clues
   useEffect(() => {
     if (selectedTemplate && placeholders.length > 0 && property) {
-      const mappings: Record<string, { type: 'field' | 'static'; value: string }> = {};
+      const mappings: Record<
+        string,
+        { type: 'field' | 'static'; value: string }
+      > = {};
       const customVals: Record<string, string> = {};
       const lines = selectedTemplate.body_text.split(/\\n|\r?\n/);
 
@@ -1142,7 +1287,11 @@ export function PropertyShareDialog({
         const matchingLine = lines.find((line) => line.includes(placeholder));
         if (matchingLine) {
           const lowerLine = matchingLine.toLowerCase();
-          if (lowerLine.includes('hi ') || lowerLine.includes('hello ') || lowerLine.includes('dear ')) {
+          if (
+            lowerLine.includes('hi ') ||
+            lowerLine.includes('hello ') ||
+            lowerLine.includes('dear ')
+          ) {
             guessedType = 'field';
             guessedValue = 'name';
             resolved = true;
@@ -1150,23 +1299,48 @@ export function PropertyShareDialog({
             guessedType = 'static';
             guessedValue = 'map';
             resolved = true;
-          } else if (lowerLine.includes('location') || lowerLine.includes('address') || lowerLine.includes('📍')) {
+          } else if (
+            lowerLine.includes('location') ||
+            lowerLine.includes('address') ||
+            lowerLine.includes('📍')
+          ) {
             guessedType = 'static';
             guessedValue = 'location';
             resolved = true;
-          } else if (lowerLine.includes('price') || lowerLine.includes('budget') || lowerLine.includes('💰') || lowerLine.includes('₹') || lowerLine.includes('$')) {
+          } else if (
+            lowerLine.includes('price') ||
+            lowerLine.includes('budget') ||
+            lowerLine.includes('💰') ||
+            lowerLine.includes('₹') ||
+            lowerLine.includes('$')
+          ) {
             guessedType = 'static';
             guessedValue = 'price';
             resolved = true;
-          } else if (lowerLine.includes('area') || lowerLine.includes('size') || lowerLine.includes('built') || lowerLine.includes('sq') || lowerLine.includes('📐')) {
+          } else if (
+            lowerLine.includes('area') ||
+            lowerLine.includes('size') ||
+            lowerLine.includes('built') ||
+            lowerLine.includes('sq') ||
+            lowerLine.includes('📐')
+          ) {
             guessedType = 'static';
             guessedValue = 'area';
             resolved = true;
-          } else if (lowerLine.includes('highlight') || lowerLine.includes('feature') || lowerLine.includes('amenit')) {
+          } else if (
+            lowerLine.includes('highlight') ||
+            lowerLine.includes('feature') ||
+            lowerLine.includes('amenit')
+          ) {
             guessedType = 'static';
             guessedValue = 'highlights';
             resolved = true;
-          } else if (lowerLine.includes('regards') || lowerLine.includes('thanks') || lowerLine.includes('agent') || lowerLine.includes('sincerely')) {
+          } else if (
+            lowerLine.includes('regards') ||
+            lowerLine.includes('thanks') ||
+            lowerLine.includes('agent') ||
+            lowerLine.includes('sincerely')
+          ) {
             guessedType = 'static';
             guessedValue = 'agent';
             resolved = true;
@@ -1174,14 +1348,24 @@ export function PropertyShareDialog({
         }
 
         if (!resolved) {
-          const placeholderLineIdx = lines.findIndex((line) => line.includes(placeholder));
+          const placeholderLineIdx = lines.findIndex((line) =>
+            line.includes(placeholder)
+          );
           if (placeholderLineIdx > 0) {
             const prevLine = lines[placeholderLineIdx - 1].toLowerCase();
-            if (prevLine.includes('highlight') || prevLine.includes('feature') || prevLine.includes('amenit')) {
+            if (
+              prevLine.includes('highlight') ||
+              prevLine.includes('feature') ||
+              prevLine.includes('amenit')
+            ) {
               guessedType = 'static';
               guessedValue = 'highlights';
               resolved = true;
-            } else if (prevLine.includes('regards') || prevLine.includes('thanks') || prevLine.includes('sincerely')) {
+            } else if (
+              prevLine.includes('regards') ||
+              prevLine.includes('thanks') ||
+              prevLine.includes('sincerely')
+            ) {
               guessedType = 'static';
               guessedValue = 'agent';
               resolved = true;
@@ -1227,7 +1411,10 @@ export function PropertyShareDialog({
   // the send flow the agent is watching. Rows arrive hidden — they
   // queue in /journey's "Captured" tray instead of crowding the
   // canvas — and re-shares are no-ops (idempotent upsert).
-  function captureSharesToJourney(sentContactIds: string[], journeyVisible = false) {
+  function captureSharesToJourney(
+    sentContactIds: string[],
+    journeyVisible = false
+  ) {
     if (!accountId || !property || sentContactIds.length === 0) return;
     // recordPropertyShares captures the journey item too — see its
     // header for why that is not left to each caller.
@@ -1238,7 +1425,8 @@ export function PropertyShareDialog({
       userId: user?.id,
       recipients: sentContactIds.map((contactId) => ({
         contactId,
-        classification: contacts.find((c) => c.id === contactId)?.classification,
+        classification: contacts.find((c) => c.id === contactId)
+          ?.classification,
       })),
     })
       .then((r) => {
@@ -1249,12 +1437,15 @@ export function PropertyShareDialog({
 
   // Execute broadcast sharing request
   async function handleSendBroadcast() {
-    if (!selectedTemplate || selectedContactIds.length === 0 || !property) return;
+    if (!selectedTemplate || selectedContactIds.length === 0 || !property)
+      return;
     setSendingBroadcast(true);
     setBroadcastStep('sending');
 
     try {
-      const selectedContacts = contacts.filter((c) => selectedContactIds.includes(c.id));
+      const selectedContacts = contacts.filter((c) =>
+        selectedContactIds.includes(c.id)
+      );
       const guarded = isLocationGuarded(property);
       const mapUrl = propertyShareMapUrl(property);
       const fullLoc = [
@@ -1288,21 +1479,29 @@ export function PropertyShareDialog({
                   mapUrl && !hasDedicatedMapVariable
                     ? `${locVal} | Google Maps: ${mapUrl}`
                     : locVal;
-              }
-              else if (mapping.value === 'map') {
+              } else if (mapping.value === 'map') {
                 val = mapUrl || 'Available on request';
-              }
-              else if (mapping.value === 'area') {
-                const isLand = property.type.includes('Land') || property.type.includes('Plot');
-                const areaVal = isLand ? property.land_area : property.area_sqft;
-                const unitVal = isLand ? property.land_area_unit : property.area_unit;
+              } else if (mapping.value === 'area') {
+                const isLand =
+                  property.type.includes('Land') ||
+                  property.type.includes('Plot');
+                const areaVal = isLand
+                  ? property.land_area
+                  : property.area_sqft;
+                const unitVal = isLand
+                  ? property.land_area_unit
+                  : property.area_unit;
                 val = areaVal ? `${areaVal} ${unitVal}` : '';
               } else if (mapping.value === 'highlights') {
-                const parsedHighlights = (property.nearby_highlights || []).filter(Boolean);
+                const parsedHighlights = (
+                  property.nearby_highlights || []
+                ).filter(Boolean);
                 if (parsedHighlights.length > 0) {
                   val = parsedHighlights.map((h) => `• ${h}`).join(' | ');
                 } else {
-                  const parsedFeatures = (property.features || []).filter(Boolean);
+                  const parsedFeatures = (property.features || []).filter(
+                    Boolean
+                  );
                   val = parsedFeatures.map((f) => `• ${f}`).join(' | ');
                 }
               } else if (mapping.value === 'agent') {
@@ -1319,7 +1518,11 @@ export function PropertyShareDialog({
         });
 
         // If the template has an image header, dynamically supply the selected broadcast header image (falling back to first listing image)
-        const propertyImage = selectedBroadcastImage || property.images?.map((img) => img.trim()).find((img) => img.length > 0);
+        const propertyImage =
+          selectedBroadcastImage ||
+          property.images
+            ?.map((img) => img.trim())
+            .find((img) => img.length > 0);
         const hasImageHeader = selectedTemplate.header_type === 'image';
 
         // Auto-resolve dynamic URL buttons if the template uses dynamic buttons
@@ -1348,7 +1551,8 @@ export function PropertyShareDialog({
           messageParams.headerMediaUrl = storagePublicUrl(propertyImage);
         }
 
-        const hasTextHeaderVar = selectedTemplate.header_type === 'text' &&
+        const hasTextHeaderVar =
+          selectedTemplate.header_type === 'text' &&
           selectedTemplate.header_content &&
           /\{\{\d+\}\}/.test(selectedTemplate.header_content);
 
@@ -1366,6 +1570,7 @@ export function PropertyShareDialog({
 
         return {
           phone: contact.phone,
+          contact_id: contact.id,
           params,
           ...(Object.keys(messageParams).length > 0 ? { messageParams } : {}),
         };
@@ -1380,6 +1585,7 @@ export function PropertyShareDialog({
           recipients: recipientsPayload,
           template_name: selectedTemplate.name,
           template_language: selectedTemplate.language || 'en_US',
+          property_id: property.id,
         }),
       });
 
@@ -1392,7 +1598,11 @@ export function PropertyShareDialog({
 
       const resultsMap = selectedContacts.map((c) => {
         const matchResult = resData.results?.find(
-          (r: { phone: string; status?: 'sent' | 'failed' | null; error?: string | null }) =>
+          (r: {
+            phone: string;
+            status?: 'sent' | 'failed' | null;
+            error?: string | null;
+          }) =>
             c.phone !== null &&
             (r.phone === c.phone ||
               r.phone.includes(c.phone) ||
@@ -1402,14 +1612,16 @@ export function PropertyShareDialog({
           name: c.name || 'Unknown',
           phone: c.phone ?? '',
           status: (matchResult?.status || 'failed') as 'sent' | 'failed',
-          error: matchResult?.error || (matchResult?.status === 'failed' ? 'Delivery failure' : undefined),
+          error:
+            matchResult?.error ||
+            (matchResult?.status === 'failed' ? 'Delivery failure' : undefined),
         };
       });
 
       captureSharesToJourney(
         selectedContacts
           .filter((_, i) => resultsMap[i].status === 'sent')
-          .map((c) => c.id),
+          .map((c) => c.id)
       );
 
       setBroadcastResults(resultsMap);
@@ -1432,9 +1644,12 @@ export function PropertyShareDialog({
     setBroadcastStep('sending');
 
     try {
-      const selectedContacts = contacts.filter((c) => selectedContactIds.includes(c.id));
+      const selectedContacts = contacts.filter((c) =>
+        selectedContactIds.includes(c.id)
+      );
       const recipientsPayload = selectedContacts.map((contact) => ({
         phone: contact.phone,
+        contact_id: contact.id,
       }));
 
       const bodyText = `🏠 *${property.title}*\n💰 Price: ${formattedPrice}\n📍 Location: ${property.sublocality || (isLocationGuarded(property) ? localityLabel(property) : property.location)}`;
@@ -1450,6 +1665,7 @@ export function PropertyShareDialog({
           product_catalog_id: catalogId,
           product_retailer_id: property.property_code || property.id,
           content_text: bodyText,
+          property_id: property.id,
         }),
       });
 
@@ -1462,7 +1678,11 @@ export function PropertyShareDialog({
 
       const resultsMap = selectedContacts.map((c) => {
         const matchResult = resData.results?.find(
-          (r: { phone: string; status?: 'sent' | 'failed' | null; error?: string | null }) =>
+          (r: {
+            phone: string;
+            status?: 'sent' | 'failed' | null;
+            error?: string | null;
+          }) =>
             c.phone !== null &&
             (r.phone === c.phone ||
               r.phone.includes(c.phone) ||
@@ -1472,19 +1692,23 @@ export function PropertyShareDialog({
           name: c.name || 'Unknown',
           phone: c.phone ?? '',
           status: (matchResult?.status || 'failed') as 'sent' | 'failed',
-          error: matchResult?.error || (matchResult?.status === 'failed' ? 'Delivery failure' : undefined),
+          error:
+            matchResult?.error ||
+            (matchResult?.status === 'failed' ? 'Delivery failure' : undefined),
         };
       });
 
       captureSharesToJourney(
         selectedContacts
           .filter((_, i) => resultsMap[i].status === 'sent')
-          .map((c) => c.id),
+          .map((c) => c.id)
       );
 
       setBroadcastResults(resultsMap);
       setBroadcastStep('results');
-      toast.success(`Dispatched WhatsApp catalog product messages successfully.`);
+      toast.success(
+        `Dispatched WhatsApp catalog product messages successfully.`
+      );
       if (onSaved) onSaved();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
@@ -1502,9 +1726,12 @@ export function PropertyShareDialog({
     setBroadcastStep('sending');
 
     try {
-      const selectedContacts = contacts.filter((c) => selectedContactIds.includes(c.id));
+      const selectedContacts = contacts.filter((c) =>
+        selectedContactIds.includes(c.id)
+      );
       const recipientsPayload = selectedContacts.map((contact) => ({
         phone: contact.phone,
+        contact_id: contact.id,
       }));
 
       const response = await fetch('/api/whatsapp/broadcast', {
@@ -1528,7 +1755,11 @@ export function PropertyShareDialog({
 
       const resultsMap = selectedContacts.map((c) => {
         const matchResult = resData.results?.find(
-          (r: { phone: string; status?: 'sent' | 'failed' | null; error?: string | null }) =>
+          (r: {
+            phone: string;
+            status?: 'sent' | 'failed' | null;
+            error?: string | null;
+          }) =>
             c.phone !== null &&
             (r.phone === c.phone ||
               r.phone.includes(c.phone) ||
@@ -1538,14 +1769,16 @@ export function PropertyShareDialog({
           name: c.name || 'Unknown',
           phone: c.phone ?? '',
           status: (matchResult?.status || 'failed') as 'sent' | 'failed',
-          error: matchResult?.error || (matchResult?.status === 'failed' ? 'Delivery failure' : undefined),
+          error:
+            matchResult?.error ||
+            (matchResult?.status === 'failed' ? 'Delivery failure' : undefined),
         };
       });
 
       captureSharesToJourney(
         selectedContacts
           .filter((_, i) => resultsMap[i].status === 'sent')
-          .map((c) => c.id),
+          .map((c) => c.id)
       );
 
       setBroadcastResults(resultsMap);
@@ -1565,53 +1798,71 @@ export function PropertyShareDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-slate-900 border-slate-700 text-slate-200 sm:max-w-4xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader className="border-b border-slate-800 pb-3 mb-2">
-          <DialogTitle className="text-white flex items-center gap-2 text-lg font-black tracking-tight">
-            <Share2 className="size-5 text-primary" />
+      <DialogContent className="max-h-[90vh] overflow-y-auto border-slate-700 bg-slate-900 text-slate-200 sm:max-w-4xl">
+        <DialogHeader className="mb-2 border-b border-slate-800 pb-3">
+          <DialogTitle className="flex items-center gap-2 text-lg font-black tracking-tight text-white">
+            <Share2 className="text-primary size-5" />
             Share Property Details
           </DialogTitle>
-          <DialogDescription className="text-slate-400 text-xs">
+          <DialogDescription className="text-xs text-slate-400">
             {broadcastStep === 'link'
               ? `Share public showcasing details of "${property.title}" directly.`
               : shareMode === 'greeting'
                 ? `Send interactive greeting buttons for "${property.title}" to your contacts.`
                 : shareMode === 'catalog'
                   ? `Send interactive catalog product messages for "${property.title}" to your contacts.`
-                  : `Send WhatsApp details of "${property.title}" using verified message templates.`
-            }
+                  : `Send WhatsApp details of "${property.title}" using verified message templates.`}
           </DialogDescription>
         </DialogHeader>
 
         {/* STEP 0: compose & share externally, or hand off to Engine flows */}
         {broadcastStep === 'link' && (
-          <div className="space-y-4 flex flex-col flex-1 min-h-0">
+          <div className="flex min-h-0 flex-1 flex-col space-y-4">
             {/* Audience tabs — the first decision is WHO this goes to */}
             <div className="grid grid-cols-3 gap-1 rounded-xl border border-slate-800 bg-slate-950 p-1">
-              {([
-                { key: 'client', label: 'To Client', desc: 'Showcase page with inquiry form', icon: User },
-                { key: 'agent', label: 'To Co-Broker', desc: 'Clean page, no inquiry forms', icon: Handshake },
-                { key: 'engine', label: 'Send from Engine', desc: 'Templates · greeting · catalog', icon: Megaphone },
-              ] as const).map((tab) => (
+              {(
+                [
+                  {
+                    key: 'client',
+                    label: 'To Client',
+                    desc: 'Showcase page with inquiry form',
+                    icon: User,
+                  },
+                  {
+                    key: 'agent',
+                    label: 'To Co-Broker',
+                    desc: 'Clean page, no inquiry forms',
+                    icon: Handshake,
+                  },
+                  {
+                    key: 'engine',
+                    label: 'Send from Engine',
+                    desc: 'Templates · greeting · catalog',
+                    icon: Megaphone,
+                  },
+                ] as const
+              ).map((tab) => (
                 <button
                   key={tab.key}
                   type="button"
                   onClick={() => setAudienceTab(tab.key)}
                   className={`flex flex-col items-center gap-0.5 rounded-lg px-2 py-2 transition-all ${
                     audienceTab === tab.key
-                      ? 'bg-primary/15 text-primary border border-primary/40'
-                      : 'text-slate-400 hover:text-white border border-transparent'
+                      ? 'bg-primary/15 text-primary border-primary/40 border'
+                      : 'border border-transparent text-slate-400 hover:text-white'
                   }`}
                 >
                   <tab.icon className="size-4" />
                   <span className="text-xs font-bold">{tab.label}</span>
-                  <span className="text-[9px] text-slate-500 hidden sm:block">{tab.desc}</span>
+                  <span className="hidden text-[9px] text-slate-500 sm:block">
+                    {tab.desc}
+                  </span>
                 </button>
               ))}
             </div>
 
             {audienceTab !== 'engine' && (
-              <div className="bg-slate-950/20 border border-slate-850 p-4 rounded-xl space-y-4">
+              <div className="border-slate-850 space-y-4 rounded-xl border bg-slate-950/20 p-4">
                 <p className="text-xs text-slate-400">
                   {audienceTab === 'agent'
                     ? 'Message for fellow agents — the link opens a clean detail page (full specs, photos, map — no inquiry forms), so they can present it to their clients independently.'
@@ -1621,21 +1872,29 @@ export function PropertyShareDialog({
                 {/* Tone (client only) */}
                 {audienceTab === 'client' && (
                   <div className="space-y-2">
-                    <Label className="text-slate-300 text-[11px] font-semibold">Tone</Label>
+                    <Label className="text-[11px] font-semibold text-slate-300">
+                      Tone
+                    </Label>
                     <div className="grid grid-cols-3 gap-2">
                       {[
-                        { value: 'professional', label: 'Professional', icon: '💼' },
+                        {
+                          value: 'professional',
+                          label: 'Professional',
+                          icon: '💼',
+                        },
                         { value: 'casual', label: 'Casual', icon: '👋' },
                         { value: 'friendly', label: 'Friendly', icon: '😊' },
                       ].map((style) => (
                         <button
                           key={style.value}
                           type="button"
-                          onClick={() => setMessageStyle(style.value as ShareTone)}
-                          className={`flex items-center justify-center gap-1.5 p-2 rounded-lg border text-[10px] font-medium transition-all ${
+                          onClick={() =>
+                            setMessageStyle(style.value as ShareTone)
+                          }
+                          className={`flex items-center justify-center gap-1.5 rounded-lg border p-2 text-[10px] font-medium transition-all ${
                             messageStyle === style.value
                               ? 'bg-primary/10 border-primary/50 text-primary'
-                              : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:border-slate-600'
+                              : 'border-slate-700 bg-slate-800/50 text-slate-400 hover:border-slate-600'
                           }`}
                         >
                           <span className="text-sm">{style.icon}</span>
@@ -1648,25 +1907,45 @@ export function PropertyShareDialog({
 
                 {/* Detail level */}
                 <div className="space-y-2">
-                  <Label className="text-slate-300 text-[11px] font-semibold">How much detail?</Label>
+                  <Label className="text-[11px] font-semibold text-slate-300">
+                    How much detail?
+                  </Label>
                   <div className="grid grid-cols-3 gap-2">
-                    {([
-                      { value: 'quick', label: 'Quick', hint: 'Title + price + link' },
-                      { value: 'standard', label: 'Standard', hint: 'Headline specs + link' },
-                      { value: 'complete', label: 'Complete', hint: 'Everything in the message' },
-                    ] as const).map((lvl) => (
+                    {(
+                      [
+                        {
+                          value: 'quick',
+                          label: 'Quick',
+                          hint: 'Title + price + link',
+                        },
+                        {
+                          value: 'standard',
+                          label: 'Standard',
+                          hint: 'Headline specs + link',
+                        },
+                        {
+                          value: 'complete',
+                          label: 'Complete',
+                          hint: 'Everything in the message',
+                        },
+                      ] as const
+                    ).map((lvl) => (
                       <button
                         key={lvl.value}
                         type="button"
                         onClick={() => setDetailLevel(lvl.value)}
-                        className={`flex flex-col items-center gap-0.5 p-2 rounded-lg border transition-all ${
+                        className={`flex flex-col items-center gap-0.5 rounded-lg border p-2 transition-all ${
                           detailLevel === lvl.value
                             ? 'bg-primary/10 border-primary/50 text-primary'
-                            : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:border-slate-600'
+                            : 'border-slate-700 bg-slate-800/50 text-slate-400 hover:border-slate-600'
                         }`}
                       >
-                        <span className="text-[11px] font-bold">{lvl.label}</span>
-                        <span className="text-[9px] text-slate-500">{lvl.hint}</span>
+                        <span className="text-[11px] font-bold">
+                          {lvl.label}
+                        </span>
+                        <span className="text-[9px] text-slate-500">
+                          {lvl.hint}
+                        </span>
                       </button>
                     ))}
                   </div>
@@ -1675,7 +1954,9 @@ export function PropertyShareDialog({
                 {audienceTab === 'agent' && (
                   <button
                     type="button"
-                    onClick={() => setOfferInventoryOnboarding((value) => !value)}
+                    onClick={() =>
+                      setOfferInventoryOnboarding((value) => !value)
+                    }
                     className={`flex w-full items-start gap-3 rounded-xl border p-3 text-left transition-all ${
                       offerInventoryOnboarding
                         ? 'border-primary/50 bg-primary/10'
@@ -1683,7 +1964,7 @@ export function PropertyShareDialog({
                     }`}
                   >
                     {offerInventoryOnboarding ? (
-                      <CheckSquare className="mt-0.5 size-4 shrink-0 text-primary" />
+                      <CheckSquare className="text-primary mt-0.5 size-4 shrink-0" />
                     ) : (
                       <Square className="mt-0.5 size-4 shrink-0 text-slate-500" />
                     )}
@@ -1692,7 +1973,10 @@ export function PropertyShareDialog({
                         Let them add and re-share this listing
                       </span>
                       <span className="mt-0.5 block text-[10px] leading-relaxed text-slate-500">
-                        Adds a “Request ConvoReal invite” option. After onboarding with the same WhatsApp number, this property enters their Pending Review inventory with your source attribution.
+                        Adds a “Request ConvoReal invite” option. After
+                        onboarding with the same WhatsApp number, this property
+                        enters their Pending Review inventory with your source
+                        attribution.
                       </span>
                     </span>
                   </button>
@@ -1701,25 +1985,29 @@ export function PropertyShareDialog({
                 {/* Editable message */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <Label className="text-slate-300 text-[11px] font-semibold">Message — tap to edit</Label>
+                    <Label className="text-[11px] font-semibold text-slate-300">
+                      Message — tap to edit
+                    </Label>
                     {messageDraft !== null ? (
                       <button
                         type="button"
                         onClick={() => setMessageDraft(null)}
-                        className="text-[10px] text-amber-400 hover:text-amber-300 flex items-center gap-1"
+                        className="flex items-center gap-1 text-[10px] text-amber-400 hover:text-amber-300"
                       >
                         <RotateCcw className="size-3" />
                         Reset edits
                       </button>
                     ) : (
-                      <span className="text-[10px] text-slate-500">Auto-generated from the listing</span>
+                      <span className="text-[10px] text-slate-500">
+                        Auto-generated from the listing
+                      </span>
                     )}
                   </div>
                   <textarea
                     value={currentMessage}
                     onChange={(e) => setMessageDraft(e.target.value)}
                     rows={detailLevel === 'complete' ? 12 : 7}
-                    className="w-full rounded-lg border border-slate-700 bg-slate-800/50 px-3 py-2.5 text-xs text-slate-200 placeholder:text-slate-500 resize-y focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50"
+                    className="focus:ring-primary/50 focus:border-primary/50 w-full resize-y rounded-lg border border-slate-700 bg-slate-800/50 px-3 py-2.5 text-xs text-slate-200 placeholder:text-slate-500 focus:ring-2 focus:outline-none"
                   />
                 </div>
 
@@ -1727,19 +2015,21 @@ export function PropertyShareDialog({
                 <div className="space-y-2 rounded-xl border border-slate-800 bg-slate-950/40 p-3">
                   <div className="flex items-center gap-1.5">
                     <Lock className="size-3.5 text-amber-500" />
-                    <Label className="text-slate-300 text-[11px] font-semibold">
+                    <Label className="text-[11px] font-semibold text-slate-300">
                       Unmask this share
                     </Label>
-                    {grantBusy && <Loader2 className="size-3 animate-spin text-slate-500" />}
+                    {grantBusy && (
+                      <Loader2 className="size-3 animate-spin text-slate-500" />
+                    )}
                   </div>
                   <p className="text-[10px] leading-relaxed text-slate-500">
-                    Off by default — the masked link is what turns a viewer into a
-                    captured lead. Switch any on and this link opens unmasked, with
-                    no request to approve. It expires on its own and you can revoke
-                    it at any time.
+                    Off by default — the masked link is what turns a viewer into
+                    a captured lead. Switch any on and this link opens unmasked,
+                    with no request to approve. It expires on its own and you
+                    can revoke it at any time.
                   </p>
                   <div className="grid gap-2 sm:grid-cols-2">
-                    {([
+                    {[
                       {
                         key: 'location' as const,
                         icon: MapPin,
@@ -1770,14 +2060,18 @@ export function PropertyShareDialog({
                         on: revealPrivateImages,
                         toggle: () => setRevealPrivateImages((v) => !v),
                         disabledHint:
-                          propertyPrivateImageCount === 0 ? 'None marked' : null,
+                          propertyPrivateImageCount === 0
+                            ? 'None marked'
+                            : null,
                       },
-                    ]).map((sw) => (
+                    ].map((sw) => (
                       <button
                         key={sw.key}
                         type="button"
                         disabled={
-                          Boolean(sw.disabledHint) || grantBusy || !canManageGrants
+                          Boolean(sw.disabledHint) ||
+                          grantBusy ||
+                          !canManageGrants
                         }
                         onClick={sw.toggle}
                         className={`flex items-center gap-2 rounded-lg border p-2.5 text-left transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
@@ -1792,8 +2086,10 @@ export function PropertyShareDialog({
                           <Square className="size-4 shrink-0" />
                         )}
                         <sw.icon className="size-3.5 shrink-0" />
-                        <span className="text-[11px] font-semibold truncate">
-                          {sw.disabledHint ? `${sw.label} — ${sw.disabledHint}` : sw.label}
+                        <span className="truncate text-[11px] font-semibold">
+                          {sw.disabledHint
+                            ? `${sw.label} — ${sw.disabledHint}`
+                            : sw.label}
                         </span>
                       </button>
                     ))}
@@ -1801,7 +2097,7 @@ export function PropertyShareDialog({
                   {/* Expiry — chosen before the key is minted; changing it
                       revokes the old key and issues a fresh one. */}
                   <div className="flex items-center gap-2 pt-0.5">
-                    <span className="text-[10px] font-semibold text-slate-400 shrink-0">
+                    <span className="shrink-0 text-[10px] font-semibold text-slate-400">
                       Expires after
                     </span>
                     <div className="flex gap-1">
@@ -1825,8 +2121,8 @@ export function PropertyShareDialog({
 
                   {grantToken && (
                     <p className="text-[10px] font-medium text-emerald-400">
-                      This link is unmasked. Sending it to a contact below gives them
-                      their own key, revocable on its own.
+                      This link is unmasked. Sending it to a contact below gives
+                      them their own key, revocable on its own.
                     </p>
                   )}
 
@@ -1834,7 +2130,7 @@ export function PropertyShareDialog({
                       earlier session, so nothing stays unmasked unnoticed. */}
                   {activeGrants && activeGrants.length > 0 && (
                     <div className="space-y-1.5 border-t border-slate-800 pt-2.5">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                      <p className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">
                         Active unmasked links ({activeGrants.length})
                       </p>
                       {activeGrants.map((g) => {
@@ -1864,9 +2160,12 @@ export function PropertyShareDialog({
                               </p>
                               <p className="truncate text-[9px] font-medium text-slate-500">
                                 {reveals.join(' · ')} · expires{' '}
-                                {formatDistanceToNowStrict(new Date(g.expires_at), {
-                                  addSuffix: true,
-                                })}
+                                {formatDistanceToNowStrict(
+                                  new Date(g.expires_at),
+                                  {
+                                    addSuffix: true,
+                                  }
+                                )}
                                 {g.view_count > 0
                                   ? ` · ${g.view_count} open${g.view_count > 1 ? 's' : ''}`
                                   : ' · not opened yet'}
@@ -1875,7 +2174,9 @@ export function PropertyShareDialog({
                             <Button
                               size="sm"
                               variant="outline"
-                              disabled={revokingGrantId !== null || !canManageGrants}
+                              disabled={
+                                revokingGrantId !== null || !canManageGrants
+                              }
                               onClick={() => void handleRevokeGrant(g)}
                               className="h-7 shrink-0 border-rose-900/60 px-2 text-[10px] font-bold text-rose-400 hover:bg-rose-950/40 hover:text-rose-300"
                             >
@@ -1897,26 +2198,41 @@ export function PropertyShareDialog({
                 <div className="flex gap-2">
                   <Input
                     readOnly
-                    value={audienceTab === 'agent' ? agentShowcaseUrl : showcaseUrl}
-                    className="bg-slate-800/50 border-slate-700 text-xs h-9 text-slate-300 select-all font-mono flex-1"
+                    value={
+                      audienceTab === 'agent' ? agentShowcaseUrl : showcaseUrl
+                    }
+                    className="h-9 flex-1 border-slate-700 bg-slate-800/50 font-mono text-xs text-slate-300 select-all"
                   />
                   <Button
                     onClick={async () => {
-                      await navigator.clipboard.writeText(audienceTab === 'agent' ? agentShowcaseUrl : showcaseUrl);
+                      await navigator.clipboard.writeText(
+                        audienceTab === 'agent' ? agentShowcaseUrl : showcaseUrl
+                      );
                       setCopiedLink(true);
                       toast.success('Link copied!');
                       setTimeout(() => setCopiedLink(false), 2000);
                     }}
                     variant="outline"
-                    className="border-slate-700 hover:bg-slate-800 text-slate-300 text-xs h-9 px-3 shrink-0 flex items-center gap-1.5"
+                    className="flex h-9 shrink-0 items-center gap-1.5 border-slate-700 px-3 text-xs text-slate-300 hover:bg-slate-800"
                   >
-                    {copiedLink ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+                    {copiedLink ? (
+                      <Check className="size-3.5" />
+                    ) : (
+                      <Copy className="size-3.5" />
+                    )}
                     Link
                   </Button>
                   <Button
-                    onClick={() => window.open(audienceTab === 'agent' ? agentShowcaseUrl : showcaseUrl, '_blank')}
+                    onClick={() =>
+                      window.open(
+                        audienceTab === 'agent'
+                          ? agentShowcaseUrl
+                          : showcaseUrl,
+                        '_blank'
+                      )
+                    }
                     variant="outline"
-                    className="border-slate-700 hover:bg-slate-800 text-slate-300 text-xs h-9 px-3 shrink-0 flex items-center gap-1.5"
+                    className="flex h-9 shrink-0 items-center gap-1.5 border-slate-700 px-3 text-xs text-slate-300 hover:bg-slate-800"
                   >
                     <ExternalLink className="size-3.5" />
                     Preview
@@ -1926,88 +2242,72 @@ export function PropertyShareDialog({
                 {/* Direct share targets */}
                 <div className="space-y-2 pt-1">
                   <div className="flex items-center justify-between gap-2">
-                    <Label className="text-slate-300 text-[11px] font-semibold">Send via</Label>
-                    <span className="text-[10px] text-slate-500 flex items-center gap-1">
+                    <Label className="text-[11px] font-semibold text-slate-300">
+                      Send via
+                    </Label>
+                    <span className="flex items-center gap-1 text-[10px] text-slate-500">
                       <ImageIcon className="size-3" />
-                      Cover photo attaches on mobile; on desktop the link preview shows it — or use Copy Photo.
+                      Cover photo attaches on mobile; on desktop the link
+                      preview shows it — or use Copy Photo.
                     </span>
                   </div>
                   {(() => {
-                    const activeUrl = audienceTab === 'agent' ? agentShowcaseUrl : showcaseUrl;
-                    const targets = buildShareTargets(currentMessage, activeUrl, property.title || 'Property Details');
+                    const activeUrl =
+                      audienceTab === 'agent' ? agentShowcaseUrl : showcaseUrl;
+                    const targets = buildShareTargets(
+                      currentMessage,
+                      activeUrl,
+                      property.title || 'Property Details'
+                    );
                     return (
                       <div className="flex flex-wrap gap-2">
                         <Button
-                          disabled={sharingWhatsApp}
-                          onClick={async () => {
-                            // On mobile, send photo + caption through the native
-                            // sheet so the cover image lands inside the WhatsApp
-                            // message. On desktop go straight to wa.me — the OS
-                            // share sheet has no WhatsApp target, and the link
-                            // preview (OG image) still shows the photo.
-                            setSharingWhatsApp(true);
-                            // Journey capture for the native path: there's no
-                            // delivery receipt here, so only attribute the share
-                            // when the dialog was opened FOR a specific client
-                            // (contact panel → Share Listing). A generic share
-                            // could go to anyone — guessing would pollute maps.
-                            const captureNativeShare = () => {
-                              if (audienceTab === 'client' && preSelectedContactId) {
-                                captureSharesToJourney([preSelectedContactId]);
-                              }
-                            };
-                            try {
-                              const file = isMobileSharePlatform() ? await fetchCoverImageFile() : null;
-                              if (
-                                file &&
-                                typeof navigator !== 'undefined' &&
-                                'canShare' in navigator &&
-                                navigator.canShare({ files: [file] })
-                              ) {
-                                try {
-                                  await navigator.share({
-                                    files: [file],
-                                    text: currentMessage,
-                                    title: property.title || 'Property Details',
-                                  });
-                                  captureNativeShare();
-                                  return;
-                                } catch (err) {
-                                  // Abort = user closed the share sheet without
-                                  // sending — nothing to capture.
-                                  if ((err as Error).name === 'AbortError') return;
-                                }
-                              }
-                              window.open(targets.whatsapp, '_blank', 'noopener');
-                              captureNativeShare();
-                            } finally {
-                              setSharingWhatsApp(false);
+                          onClick={() => {
+                            const preselected = contacts.find(
+                              (contact) => contact.id === preSelectedContactId
+                            );
+                            if (preselected) {
+                              handleWhatsAppPersonal(preselected);
+                              return;
                             }
+                            personalShareSectionRef.current?.scrollIntoView({
+                              behavior: 'smooth',
+                              block: 'start',
+                            });
+                            toast.info(
+                              'Choose the recipient below so their Showcase link is tracked.'
+                            );
                           }}
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs h-9 px-4 flex items-center gap-1.5"
+                          className="flex h-9 items-center gap-1.5 bg-emerald-600 px-4 text-xs font-semibold text-white hover:bg-emerald-700"
                         >
-                          {sharingWhatsApp ? <Loader2 className="size-3.5 animate-spin" /> : <MessageCircle className="size-3.5" />}
+                          <MessageCircle className="size-3.5" />
                           WhatsApp
                         </Button>
                         <Button
-                          onClick={() => window.open(targets.telegram, '_blank', 'noopener')}
-                          className="bg-sky-600 hover:bg-sky-700 text-white font-semibold text-xs h-9 px-4 flex items-center gap-1.5"
+                          onClick={() =>
+                            window.open(targets.telegram, '_blank', 'noopener')
+                          }
+                          className="flex h-9 items-center gap-1.5 bg-sky-600 px-4 text-xs font-semibold text-white hover:bg-sky-700"
                         >
                           <Send className="size-3.5" />
                           Telegram
                         </Button>
                         <Button
-                          onClick={() => { window.location.href = targets.email; }}
+                          onClick={() => {
+                            window.location.href = targets.email;
+                          }}
                           variant="outline"
-                          className="border-slate-700 hover:bg-slate-800 text-slate-300 font-semibold text-xs h-9 px-4 flex items-center gap-1.5"
+                          className="flex h-9 items-center gap-1.5 border-slate-700 px-4 text-xs font-semibold text-slate-300 hover:bg-slate-800"
                         >
                           <Mail className="size-3.5" />
                           Email
                         </Button>
                         <Button
-                          onClick={() => { window.location.href = targets.sms; }}
+                          onClick={() => {
+                            window.location.href = targets.sms;
+                          }}
                           variant="outline"
-                          className="border-slate-700 hover:bg-slate-800 text-slate-300 font-semibold text-xs h-9 px-4 flex items-center gap-1.5"
+                          className="flex h-9 items-center gap-1.5 border-slate-700 px-4 text-xs font-semibold text-slate-300 hover:bg-slate-800"
                         >
                           <Smartphone className="size-3.5" />
                           SMS
@@ -2016,13 +2316,19 @@ export function PropertyShareDialog({
                           onClick={async () => {
                             await navigator.clipboard.writeText(currentMessage);
                             setCopiedMessage(true);
-                            toast.success('Message + link copied! Paste it in any app.');
+                            toast.success(
+                              'Message + link copied! Paste it in any app.'
+                            );
                             setTimeout(() => setCopiedMessage(false), 2000);
                           }}
                           variant="outline"
-                          className="border-slate-700 hover:bg-slate-800 text-slate-300 font-semibold text-xs h-9 px-4 flex items-center gap-1.5"
+                          className="flex h-9 items-center gap-1.5 border-slate-700 px-4 text-xs font-semibold text-slate-300 hover:bg-slate-800"
                         >
-                          {copiedMessage ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+                          {copiedMessage ? (
+                            <Check className="size-3.5" />
+                          ) : (
+                            <Copy className="size-3.5" />
+                          )}
                           {copiedMessage ? 'Copied!' : 'Copy Message'}
                         </Button>
                         <Button
@@ -2035,7 +2341,9 @@ export function PropertyShareDialog({
                             try {
                               const file = await fetchCoverImageFile();
                               if (!file) {
-                                toast.error('Could not prepare a photo for this listing.');
+                                toast.error(
+                                  'Could not prepare a photo for this listing.'
+                                );
                                 return;
                               }
                               const bitmap = await createImageBitmap(file);
@@ -2043,68 +2351,114 @@ export function PropertyShareDialog({
                               canvas.width = bitmap.width;
                               canvas.height = bitmap.height;
                               canvas.getContext('2d')!.drawImage(bitmap, 0, 0);
-                              const pngBlob = await new Promise<Blob>((resolve, reject) =>
-                                canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('convert failed'))), 'image/png')
+                              const pngBlob = await new Promise<Blob>(
+                                (resolve, reject) =>
+                                  canvas.toBlob(
+                                    (b) =>
+                                      b
+                                        ? resolve(b)
+                                        : reject(new Error('convert failed')),
+                                    'image/png'
+                                  )
                               );
-                              await navigator.clipboard.write([new ClipboardItem({ 'image/png': pngBlob })]);
-                              toast.success('Photo copied — paste it into the chat with Ctrl/Cmd+V.');
+                              await navigator.clipboard.write([
+                                new ClipboardItem({ 'image/png': pngBlob }),
+                              ]);
+                              toast.success(
+                                'Photo copied — paste it into the chat with Ctrl/Cmd+V.'
+                              );
                             } catch {
-                              toast.error('Could not copy the photo — your browser may not support image clipboard.');
+                              toast.error(
+                                'Could not copy the photo — your browser may not support image clipboard.'
+                              );
                             } finally {
                               setCopyingPhoto(false);
                             }
                           }}
                           variant="outline"
-                          className="border-slate-700 hover:bg-slate-800 text-slate-300 font-semibold text-xs h-9 px-4 flex items-center gap-1.5"
+                          className="flex h-9 items-center gap-1.5 border-slate-700 px-4 text-xs font-semibold text-slate-300 hover:bg-slate-800"
                         >
-                          {copyingPhoto ? <Loader2 className="size-3.5 animate-spin" /> : <ImageIcon className="size-3.5" />}
+                          {copyingPhoto ? (
+                            <Loader2 className="size-3.5 animate-spin" />
+                          ) : (
+                            <ImageIcon className="size-3.5" />
+                          )}
                           Copy Photo
                         </Button>
-                        <Button
-                          onClick={async () => {
-                            const shareData: ShareData = {
-                              title: property.title || 'Property Details',
-                              text: currentMessage,
-                            };
-                            // Attach the cover photo when the platform supports file sharing.
-                            const file = await fetchCoverImageFile();
-                            if (
-                              file &&
-                              typeof navigator !== 'undefined' &&
-                              'canShare' in navigator &&
-                              navigator.canShare({ files: [file] })
-                            ) {
-                              shareData.files = [file];
-                            }
-                            if (typeof navigator !== 'undefined' && navigator.share) {
-                              try {
-                                await navigator.share(shareData);
-                              } catch (err) {
-                                if ((err as Error).name !== 'AbortError') {
-                                  if (shareData.files) {
-                                    try {
-                                      await navigator.share({ title: shareData.title, text: shareData.text });
-                                    } catch (fallbackErr) {
-                                      if ((fallbackErr as Error).name !== 'AbortError') {
-                                        toast.error('Failed to share');
+                        {preSelectedContactId && (
+                          <Button
+                            onClick={async () => {
+                              const contact = contacts.find(
+                                (row) => row.id === preSelectedContactId
+                              );
+                              if (!contact) return;
+                              const token =
+                                revealLocation ||
+                                revealDocuments ||
+                                revealPrivateImages
+                                  ? await ensureContactGrant(contact.id)
+                                  : null;
+                              const trackedMessage = buildPersonalMessage(
+                                contact,
+                                token
+                              );
+                              const shareData: ShareData = {
+                                title: property.title || 'Property Details',
+                                text: trackedMessage,
+                              };
+                              // Attach the cover photo when the platform supports file sharing.
+                              const file = await fetchCoverImageFile();
+                              if (
+                                file &&
+                                typeof navigator !== 'undefined' &&
+                                'canShare' in navigator &&
+                                navigator.canShare({ files: [file] })
+                              ) {
+                                shareData.files = [file];
+                              }
+                              if (
+                                typeof navigator !== 'undefined' &&
+                                navigator.share
+                              ) {
+                                try {
+                                  await navigator.share(shareData);
+                                } catch (err) {
+                                  if ((err as Error).name !== 'AbortError') {
+                                    if (shareData.files) {
+                                      try {
+                                        await navigator.share({
+                                          title: shareData.title,
+                                          text: shareData.text,
+                                        });
+                                      } catch (fallbackErr) {
+                                        if (
+                                          (fallbackErr as Error).name !==
+                                          'AbortError'
+                                        ) {
+                                          toast.error('Failed to share');
+                                        }
                                       }
+                                    } else {
+                                      toast.error('Failed to share');
                                     }
-                                  } else {
-                                    toast.error('Failed to share');
                                   }
                                 }
+                              } else {
+                                await navigator.clipboard.writeText(
+                                  trackedMessage
+                                );
+                                toast.success(
+                                  'Copied! Your browser does not support native sharing.'
+                                );
                               }
-                            } else {
-                              await navigator.clipboard.writeText(currentMessage);
-                              toast.success('Copied! Your browser does not support native sharing.');
-                            }
-                          }}
-                          variant="outline"
-                          className="border-slate-700 hover:bg-slate-800 text-slate-300 font-semibold text-xs h-9 px-4 flex items-center gap-1.5"
-                        >
-                          <Share2 className="size-3.5" />
-                          More apps…
-                        </Button>
+                            }}
+                            variant="outline"
+                            className="flex h-9 items-center gap-1.5 border-slate-700 px-4 text-xs font-semibold text-slate-300 hover:bg-slate-800"
+                          >
+                            <Share2 className="size-3.5" />
+                            More apps…
+                          </Button>
+                        )}
                         {onPromote && (
                           <Button
                             onClick={() => {
@@ -2112,7 +2466,7 @@ export function PropertyShareDialog({
                               if (property) onPromote(property);
                             }}
                             title="Run a Click-to-WhatsApp Meta ad for this listing — clicks open a WhatsApp chat with you"
-                            className="bg-gradient-to-r from-fuchsia-600 to-violet-600 hover:from-fuchsia-700 hover:to-violet-700 text-white font-semibold text-xs h-9 px-4 flex items-center gap-1.5"
+                            className="flex h-9 items-center gap-1.5 bg-gradient-to-r from-fuchsia-600 to-violet-600 px-4 text-xs font-semibold text-white hover:from-fuchsia-700 hover:to-violet-700"
                           >
                             <Megaphone className="size-3.5" />
                             Promote as WhatsApp Ad
@@ -2124,45 +2478,59 @@ export function PropertyShareDialog({
                 </div>
 
                 {!property.is_published && audienceTab === 'client' && (
-                  <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 text-[11px] text-amber-400 flex items-start gap-2">
+                  <div className="flex items-start gap-2 rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-[11px] text-amber-400">
                     <span className="text-xs">⚠️</span>
                     <div>
-                      <span className="font-bold block">Listing is Private / Unpublished</span>
-                      To allow public visitors to view this showcase page, make sure the property is set to <strong>Published</strong> on the inventory page.
+                      <span className="block font-bold">
+                        Listing is Private / Unpublished
+                      </span>
+                      To allow public visitors to view this showcase page, make
+                      sure the property is set to <strong>Published</strong> on
+                      the inventory page.
                     </div>
                   </div>
                 )}
 
                 {/* Send personally — per-contact tracked links */}
-                <div className="space-y-2.5 pt-3 border-t border-slate-800">
-                  <Label className="text-slate-300 text-[11px] font-semibold flex items-center gap-1.5">
-                    <UserCheck className="size-3.5 text-primary" />
+                <div
+                  ref={personalShareSectionRef}
+                  className="space-y-2.5 border-t border-slate-800 pt-3"
+                >
+                  <Label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-300">
+                    <UserCheck className="text-primary size-3.5" />
                     Send personally (tracked)
                   </Label>
-                  <p className="text-[11px] text-slate-500 font-medium">
+                  <p className="text-[11px] font-medium text-slate-500">
                     {audienceTab === 'agent' ? (
-                      <>Registered ConvoReal agents can receive the listing directly in their review queue. Approval adds it to their inventory with your source attribution intact.</>
+                      <>
+                        Registered ConvoReal agents can receive the listing
+                        directly in their review queue. Approval adds it to
+                        their inventory with your source attribution intact.
+                      </>
                     ) : (
-                      <>Each contact gets this same message with their own link, so every open, photo
-                      swipe, and map click shows up <strong className="text-slate-400">by name</strong> in
-                      Showcase Pulse — no more Anonymous Guests.</>
+                      <>
+                        Each contact gets this same message with their own link,
+                        so every open, photo swipe, and map click shows up{' '}
+                        <strong className="text-slate-400">by name</strong> in
+                        Showcase Pulse — no more Anonymous Guests.
+                      </>
                     )}
                   </p>
 
                   <div className="relative">
-                    <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-slate-500" />
+                    <Search className="absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-slate-500" />
                     <input
                       type="text"
                       placeholder="Search contacts by name or phone..."
                       value={personalSearch}
                       onChange={(e) => setPersonalSearch(e.target.value)}
-                      className="h-9 w-full rounded-lg border border-slate-800 bg-slate-900 pl-8 pr-7 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-primary"
+                      className="focus:ring-primary h-9 w-full rounded-lg border border-slate-800 bg-slate-900 pr-7 pl-8 text-xs text-white placeholder:text-slate-500 focus:ring-1 focus:outline-none"
                     />
                     {personalSearch && (
                       <button
                         type="button"
                         onClick={() => setPersonalSearch('')}
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                        className="absolute top-1/2 right-2.5 -translate-y-1/2 text-slate-400 hover:text-white"
                       >
                         <X className="size-3" />
                       </button>
@@ -2172,53 +2540,63 @@ export function PropertyShareDialog({
                   {loadingContacts && contacts.length === 0 ? (
                     <div className="space-y-2">
                       {[1, 2, 3].map((i) => (
-                        <div key={i} className="h-10 rounded-lg bg-slate-900 animate-pulse" />
+                        <div
+                          key={i}
+                          className="h-10 animate-pulse rounded-lg bg-slate-900"
+                        />
                       ))}
                     </div>
                   ) : personalContacts.length === 0 ? (
                     <p className="py-3 text-center text-xs font-medium text-slate-500">
-                      {contacts.length === 0 ? 'No active contacts yet' : 'No matching contacts found'}
+                      {contacts.length === 0
+                        ? 'No active contacts yet'
+                        : 'No matching contacts found'}
                     </p>
                   ) : (
-                    <div className="max-h-56 overflow-y-auto space-y-1.5 pr-0.5 scrollbar-thin scrollbar-thumb-slate-800">
+                    <div className="max-h-56 scrollbar-thin scrollbar-thumb-slate-800 space-y-1.5 overflow-y-auto pr-0.5">
                       {personalContacts.slice(0, 50).map((contact) => (
                         <div
                           key={contact.id}
                           className="flex items-center justify-between gap-2 rounded-lg border border-slate-800 bg-slate-900 px-3 py-2"
                         >
                           <div className="min-w-0">
-                            <span className="text-xs font-bold text-white truncate flex items-center gap-1.5">
-                              <span className="truncate">{contact.name || contact.phone}</span>
+                            <span className="flex items-center gap-1.5 truncate text-xs font-bold text-white">
+                              <span className="truncate">
+                                {contact.name || contact.phone}
+                              </span>
                               <NameTagBadge tag={contact.name_tag} />
                             </span>
                             {contact.name && (
-                              <span className="text-[10px] text-slate-500 font-medium truncate block">
+                              <span className="block truncate text-[10px] font-medium text-slate-500">
                                 📞 {contact.phone}
                               </span>
                             )}
                           </div>
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            {audienceTab === 'agent' && contact.classification === 'Agent' && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                disabled={inventorySharingContactId !== null}
-                                onClick={() => void handleInventoryShare(contact)}
-                                title="Add to this agent's ConvoReal review queue"
-                                className="h-7 px-2.5 text-[11px] border-primary/40 bg-primary/10 hover:bg-primary/20 text-primary flex items-center gap-1"
-                              >
-                                {inventorySharingContactId === contact.id ? (
-                                  <Loader2 className="size-3 animate-spin" />
-                                ) : (
-                                  <FolderInput className="size-3" />
-                                )}
-                                Inventory
-                              </Button>
-                            )}
+                          <div className="flex shrink-0 items-center gap-1.5">
+                            {audienceTab === 'agent' &&
+                              contact.classification === 'Agent' && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={inventorySharingContactId !== null}
+                                  onClick={() =>
+                                    void handleInventoryShare(contact)
+                                  }
+                                  title="Add to this agent's ConvoReal review queue"
+                                  className="border-primary/40 bg-primary/10 hover:bg-primary/20 text-primary flex h-7 items-center gap-1 px-2.5 text-[11px]"
+                                >
+                                  {inventorySharingContactId === contact.id ? (
+                                    <Loader2 className="size-3 animate-spin" />
+                                  ) : (
+                                    <FolderInput className="size-3" />
+                                  )}
+                                  Inventory
+                                </Button>
+                              )}
                             <Button
                               size="sm"
                               onClick={() => handleWhatsAppPersonal(contact)}
-                              className="h-7 px-2.5 text-[11px] font-bold bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-1"
+                              className="flex h-7 items-center gap-1 bg-emerald-600 px-2.5 text-[11px] font-bold text-white hover:bg-emerald-500"
                             >
                               <Smartphone className="size-3" />
                               WhatsApp
@@ -2228,7 +2606,7 @@ export function PropertyShareDialog({
                               variant="outline"
                               onClick={() => void handleCopyPersonal(contact)}
                               title="Copy the personalised message + tracked link"
-                              className="h-7 px-2 text-[11px] border-slate-800 hover:bg-slate-800 text-slate-350 flex items-center gap-1"
+                              className="text-slate-350 flex h-7 items-center gap-1 border-slate-800 px-2 text-[11px] hover:bg-slate-800"
                             >
                               {copiedPersonalId === contact.id ? (
                                 <Check className="size-3 text-emerald-400" />
@@ -2252,146 +2630,190 @@ export function PropertyShareDialog({
 
             {audienceTab === 'engine' && (
               <>
-            <div className="bg-slate-900/50 border border-slate-800 p-4 rounded-xl space-y-3">
-              <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
-                👋 Send Interactive Greeting First
-              </h3>
-              <p className="text-xs text-slate-400">
-                Sends a welcome greeting with quick reply buttons first. If the contact clicks <strong className="text-primary font-semibold">&quot;Sure, please send&quot;</strong>, the Engine will automatically share the full property details.
-              </p>
-              <div className="flex justify-end">
-                <Button
-                  onClick={() => {
-                    setShareMode('greeting');
-                    setBroadcastStep('matches');
-                  }}
-                  className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-xs h-9 flex items-center gap-1.5 cursor-pointer"
-                >
-                  <Share2 className="size-3.5" />
-                  Select Contacts & Send Greeting
-                </Button>
-              </div>
-            </div>
-
-            <div className="bg-slate-900/50 border border-slate-800 p-4 rounded-xl space-y-3">
-              <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
-                💬 Share via WhatsApp Templates
-              </h3>
-              <p className="text-xs text-slate-400">
-                Want to send structured, approved WhatsApp messages to matching leads and contacts? Proceed to our WhatsApp template sharing flow.
-              </p>
-              <div className="flex justify-end">
-                <Button
-                  onClick={() => {
-                    setShareMode('template');
-                    setBroadcastStep('matches');
-                  }}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs h-9 flex items-center gap-1.5 cursor-pointer"
-                >
-                  <Users className="size-3.5" />
-                  Select Contacts & Share on WhatsApp
-                </Button>
-              </div>
-            </div>
-
-            {catalogId && (
-              <div className="bg-slate-900/50 border border-slate-800 p-4 rounded-xl space-y-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
-                    🛍️ Share as WhatsApp Product Card
+                <div className="space-y-3 rounded-xl border border-slate-800 bg-slate-900/50 p-4">
+                  <h3 className="flex items-center gap-1.5 text-xs font-bold tracking-wider text-white uppercase">
+                    👋 Send Interactive Greeting First
                   </h3>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[11px]">
-                      {metaCatalogSyncedAt && !metaCatalogError ? (
-                        indexingTimeLeft > 0 ? (
-                          <span className="text-amber-400 font-medium">● Indexing in Progress</span>
-                        ) : (
-                          <span className="text-emerald-400 font-medium">● Synced to Catalog</span>
-                        )
-                      ) : metaCatalogError ? (
-                        <span className="text-red-400 font-medium" title={metaCatalogError}>● Sync Failed</span>
-                      ) : (
-                        <span className="text-amber-400 font-medium">● Not Synced</span>
-                      )}
-                    </span>
+                  <p className="text-xs text-slate-400">
+                    Sends a welcome greeting with quick reply buttons first. If
+                    the contact clicks{' '}
+                    <strong className="text-primary font-semibold">
+                      &quot;Sure, please send&quot;
+                    </strong>
+                    , the Engine will automatically share the full property
+                    details.
+                  </p>
+                  <div className="flex justify-end">
                     <Button
-                      variant="outline"
-                      size="xs"
-                      onClick={async () => {
-                        if (syncingCatalog) return;
-                        setSyncingCatalog(true);
-                        try {
-                          const res = await fetch(`/api/properties/${property.id}/sync-catalog`, {
-                            method: 'POST',
-                          });
-                          const data = await res.json();
-                          if (!res.ok) {
-                            throw new Error(data.error || 'Failed to sync to catalog');
-                          }
-                          toast.success('Successfully synced property details to Meta Catalog.');
-                          setMetaCatalogSyncedAt(data.synced_at || new Date().toISOString());
-                          setMetaCatalogError(null);
-                          if (onSaved) onSaved();
-                        } catch (err: unknown) {
-                          const msg = (err instanceof Error ? err.message : 'Sync failed');
-                          toast.error(msg);
-                          setMetaCatalogError(msg);
-                          setMetaCatalogSyncedAt(null);
-                        } finally {
-                          setSyncingCatalog(false);
-                        }
+                      onClick={() => {
+                        setShareMode('greeting');
+                        setBroadcastStep('matches');
                       }}
-                      disabled={syncingCatalog}
-                      className="h-7 border-slate-800 hover:bg-slate-850 text-xs px-2.5"
+                      className="bg-primary hover:bg-primary/90 text-primary-foreground flex h-9 cursor-pointer items-center gap-1.5 text-xs font-semibold"
                     >
-                      {syncingCatalog ? (
-                        <>
-                          <Loader2 className="size-3 animate-spin mr-1" />
-                          Syncing
-                        </>
-                      ) : (
-                        'Sync Now'
-                      )}
+                      <Share2 className="size-3.5" />
+                      Select Contacts & Send Greeting
                     </Button>
                   </div>
                 </div>
-                <p className="text-xs text-slate-400">
-                  Send this property as an interactive catalog product card directly inside WhatsApp chat. This provides a direct shopping experience with inline image, details, and price.
-                </p>
 
-                {indexingTimeLeft > 0 && (
-                  <div className="bg-amber-500/10 border border-amber-500/25 rounded-lg p-2.5 text-[11px] text-amber-400 flex items-center gap-2">
-                    <Loader2 className="size-3.5 animate-spin text-amber-400 shrink-0" />
-                    <div>
-                      Meta Catalog is indexing the product. Ready to share in <strong className="font-mono">{indexingTimeLeft}s</strong>.
+                <div className="space-y-3 rounded-xl border border-slate-800 bg-slate-900/50 p-4">
+                  <h3 className="flex items-center gap-1.5 text-xs font-bold tracking-wider text-white uppercase">
+                    💬 Share via WhatsApp Templates
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Want to send structured, approved WhatsApp messages to
+                    matching leads and contacts? Proceed to our WhatsApp
+                    template sharing flow.
+                  </p>
+                  <div className="flex justify-end">
+                    <Button
+                      onClick={() => {
+                        setShareMode('template');
+                        setBroadcastStep('matches');
+                      }}
+                      className="flex h-9 cursor-pointer items-center gap-1.5 bg-emerald-600 text-xs font-semibold text-white hover:bg-emerald-700"
+                    >
+                      <Users className="size-3.5" />
+                      Select Contacts & Share on WhatsApp
+                    </Button>
+                  </div>
+                </div>
+
+                {catalogId && (
+                  <div className="space-y-3 rounded-xl border border-slate-800 bg-slate-900/50 p-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="flex items-center gap-1.5 text-xs font-bold tracking-wider text-white uppercase">
+                        🛍️ Share as WhatsApp Product Card
+                      </h3>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px]">
+                          {metaCatalogSyncedAt && !metaCatalogError ? (
+                            indexingTimeLeft > 0 ? (
+                              <span className="font-medium text-amber-400">
+                                ● Indexing in Progress
+                              </span>
+                            ) : (
+                              <span className="font-medium text-emerald-400">
+                                ● Synced to Catalog
+                              </span>
+                            )
+                          ) : metaCatalogError ? (
+                            <span
+                              className="font-medium text-red-400"
+                              title={metaCatalogError}
+                            >
+                              ● Sync Failed
+                            </span>
+                          ) : (
+                            <span className="font-medium text-amber-400">
+                              ● Not Synced
+                            </span>
+                          )}
+                        </span>
+                        <Button
+                          variant="outline"
+                          size="xs"
+                          onClick={async () => {
+                            if (syncingCatalog) return;
+                            setSyncingCatalog(true);
+                            try {
+                              const res = await fetch(
+                                `/api/properties/${property.id}/sync-catalog`,
+                                {
+                                  method: 'POST',
+                                }
+                              );
+                              const data = await res.json();
+                              if (!res.ok) {
+                                throw new Error(
+                                  data.error || 'Failed to sync to catalog'
+                                );
+                              }
+                              toast.success(
+                                'Successfully synced property details to Meta Catalog.'
+                              );
+                              setMetaCatalogSyncedAt(
+                                data.synced_at || new Date().toISOString()
+                              );
+                              setMetaCatalogError(null);
+                              if (onSaved) onSaved();
+                            } catch (err: unknown) {
+                              const msg =
+                                err instanceof Error
+                                  ? err.message
+                                  : 'Sync failed';
+                              toast.error(msg);
+                              setMetaCatalogError(msg);
+                              setMetaCatalogSyncedAt(null);
+                            } finally {
+                              setSyncingCatalog(false);
+                            }
+                          }}
+                          disabled={syncingCatalog}
+                          className="hover:bg-slate-850 h-7 border-slate-800 px-2.5 text-xs"
+                        >
+                          {syncingCatalog ? (
+                            <>
+                              <Loader2 className="mr-1 size-3 animate-spin" />
+                              Syncing
+                            </>
+                          ) : (
+                            'Sync Now'
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                    <p className="text-xs text-slate-400">
+                      Send this property as an interactive catalog product card
+                      directly inside WhatsApp chat. This provides a direct
+                      shopping experience with inline image, details, and price.
+                    </p>
+
+                    {indexingTimeLeft > 0 && (
+                      <div className="flex items-center gap-2 rounded-lg border border-amber-500/25 bg-amber-500/10 p-2.5 text-[11px] text-amber-400">
+                        <Loader2 className="size-3.5 shrink-0 animate-spin text-amber-400" />
+                        <div>
+                          Meta Catalog is indexing the product. Ready to share
+                          in{' '}
+                          <strong className="font-mono">
+                            {indexingTimeLeft}s
+                          </strong>
+                          .
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex justify-end">
+                      <Button
+                        onClick={() => {
+                          setShareMode('catalog');
+                          setBroadcastStep('matches');
+                        }}
+                        disabled={
+                          !metaCatalogSyncedAt ||
+                          !!metaCatalogError ||
+                          indexingTimeLeft > 0
+                        }
+                        className="bg-primary hover:bg-primary/90 text-primary-foreground flex h-9 cursor-pointer items-center gap-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <Smartphone className="size-3.5" />
+                        {indexingTimeLeft > 0
+                          ? `Indexing (${indexingTimeLeft}s)`
+                          : 'Select Contacts & Send Product Card'}
+                      </Button>
                     </div>
                   </div>
                 )}
-
-                <div className="flex justify-end">
-                  <Button
-                    onClick={() => {
-                      setShareMode('catalog');
-                      setBroadcastStep('matches');
-                    }}
-                    disabled={!metaCatalogSyncedAt || !!metaCatalogError || indexingTimeLeft > 0}
-                    className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-xs h-9 flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <Smartphone className="size-3.5" />
-                    {indexingTimeLeft > 0 ? `Indexing (${indexingTimeLeft}s)` : 'Select Contacts & Send Product Card'}
-                  </Button>
-                </div>
-              </div>
-            )}
               </>
             )}
 
-            <div className="border-t border-slate-800 pt-3.5 flex justify-end">
+            <div className="flex justify-end border-t border-slate-800 pt-3.5">
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => onOpenChange(false)}
-                className="border-slate-800 hover:bg-slate-850 text-xs text-slate-300 h-9"
+                className="hover:bg-slate-850 h-9 border-slate-800 text-xs text-slate-300"
               >
                 Close
               </Button>
@@ -2401,21 +2823,21 @@ export function PropertyShareDialog({
 
         {/* STEP 1: Audience & Matches */}
         {broadcastStep === 'matches' && (
-          <div className="space-y-4 flex flex-col flex-1 min-h-0 animate-fade-in">
+          <div className="animate-fade-in flex min-h-0 flex-1 flex-col space-y-4">
             {/* Search Input */}
             <div className="relative">
               <Input
                 placeholder="Search contacts by name or phone number..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="bg-slate-900 border-slate-800 text-xs h-9 placeholder:text-slate-500 pl-9 pr-8 text-slate-200"
+                className="h-9 border-slate-800 bg-slate-900 pr-8 pl-9 text-xs text-slate-200 placeholder:text-slate-500"
               />
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-slate-500" />
+              <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-500" />
               {searchQuery && (
                 <button
                   type="button"
                   onClick={() => setSearchQuery('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                  className="absolute top-1/2 right-3 -translate-y-1/2 text-slate-400 hover:text-white"
                 >
                   <X className="size-3.5" />
                 </button>
@@ -2433,15 +2855,17 @@ export function PropertyShareDialog({
             />
 
             {appliedAudience && (
-              <div className="flex items-start gap-2.5 rounded-xl border border-primary/30 bg-primary/10 px-3.5 py-2.5">
-                <UserCheck className="size-4 shrink-0 text-primary mt-0.5" />
+              <div className="border-primary/30 bg-primary/10 flex items-start gap-2.5 rounded-xl border px-3.5 py-2.5">
+                <UserCheck className="text-primary mt-0.5 size-4 shrink-0" />
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-semibold text-white">
-                    {appliedAudience.ids.length} contact{appliedAudience.ids.length === 1 ? '' : 's'} from{' '}
+                    {appliedAudience.ids.length} contact
+                    {appliedAudience.ids.length === 1 ? '' : 's'} from{' '}
                     {audienceListingLabel(appliedAudience.listing)} selected
                   </p>
                   <p className="mt-0.5 text-[11px] text-slate-400">
-                    Everyone who enquired about or viewed that listing is ticked below.
+                    Everyone who enquired about or viewed that listing is ticked
+                    below.
                     {appliedAudience.unreachable > 0 &&
                       ` ${appliedAudience.unreachable} skipped — no WhatsApp number.`}
                   </p>
@@ -2449,7 +2873,7 @@ export function PropertyShareDialog({
                 <button
                   type="button"
                   onClick={undoAppliedAudience}
-                  className="shrink-0 cursor-pointer text-[11px] font-bold text-primary hover:text-primary/80"
+                  className="text-primary hover:text-primary/80 shrink-0 cursor-pointer text-[11px] font-bold"
                 >
                   Undo
                 </button>
@@ -2457,26 +2881,24 @@ export function PropertyShareDialog({
             )}
 
             {/* Action Bar / Matching Status */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-950/20 border border-slate-850 p-3.5 rounded-xl">
+            <div className="border-slate-850 flex flex-col justify-between gap-3 rounded-xl border bg-slate-950/20 p-3.5 sm:flex-row sm:items-center">
               <div className="flex flex-wrap items-center gap-3">
-                <div className="text-xs font-semibold text-slate-400 flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-400">
                   <span>
-                    {searchQuery.trim() ? (
-                      `Found ${displayedContacts.length} search result${displayedContacts.length === 1 ? '' : 's'}`
-                    ) : displayedContacts.length === 0 ? (
-                      '0 matching contacts found'
-                    ) : (
-                      `Found ${displayedContacts.length} matching contact${displayedContacts.length === 1 ? '' : 's'}`
-                    )}
+                    {searchQuery.trim()
+                      ? `Found ${displayedContacts.length} search result${displayedContacts.length === 1 ? '' : 's'}`
+                      : displayedContacts.length === 0
+                        ? '0 matching contacts found'
+                        : `Found ${displayedContacts.length} matching contact${displayedContacts.length === 1 ? '' : 's'}`}
                   </span>
                   {loadingContacts && (
-                    <span className="text-slate-500 font-normal flex items-center gap-1">
-                      <Loader2 className="size-3 animate-spin text-primary" />
+                    <span className="flex items-center gap-1 font-normal text-slate-500">
+                      <Loader2 className="text-primary size-3 animate-spin" />
                       updating...
                     </span>
                   )}
                 </div>
-                <div className="inline-flex items-center bg-slate-900 border border-slate-800 rounded p-0.5">
+                <div className="inline-flex items-center rounded border border-slate-800 bg-slate-900 p-0.5">
                   {(
                     [
                       { key: 'buyers', label: 'Buyers' },
@@ -2488,7 +2910,7 @@ export function PropertyShareDialog({
                       key={key}
                       type="button"
                       onClick={() => handleAudienceChange(key)}
-                      className={`px-2 py-0.5 rounded text-xs cursor-pointer transition-all ${
+                      className={`cursor-pointer rounded px-2 py-0.5 text-xs transition-all ${
                         matchAudience === key
                           ? 'bg-primary/15 text-primary font-bold'
                           : 'text-slate-450 hover:text-white'
@@ -2505,15 +2927,18 @@ export function PropertyShareDialog({
                   <button
                     type="button"
                     onClick={toggleSelectAllContacts}
-                    className="text-xs font-bold text-primary hover:text-primary/80 flex items-center gap-1 cursor-pointer"
+                    className="text-primary hover:text-primary/80 flex cursor-pointer items-center gap-1 text-xs font-bold"
                   >
-                    {displayedContacts.every((m) => selectedContactIds.includes(m.contact.id)) ? (
+                    {displayedContacts.every((m) =>
+                      selectedContactIds.includes(m.contact.id)
+                    ) ? (
                       <>
                         <CheckSquare className="size-3.5" /> Deselect All
                       </>
                     ) : (
                       <>
-                        <Square className="size-3.5" /> Select All ({displayedContacts.length})
+                        <Square className="size-3.5" /> Select All (
+                        {displayedContacts.length})
                       </>
                     )}
                   </button>
@@ -2523,9 +2948,13 @@ export function PropertyShareDialog({
                   variant="outline"
                   size="xs"
                   onClick={() => setShowAddFresh(!showAddFresh)}
-                  className="h-7 border-slate-800 hover:bg-slate-850 text-slate-300 text-xs px-2.5 rounded flex items-center gap-1"
+                  className="hover:bg-slate-850 flex h-7 items-center gap-1 rounded border-slate-800 px-2.5 text-xs text-slate-300"
                 >
-                  {showAddFresh ? <X className="size-3" /> : <UserPlus className="size-3 text-primary" />}
+                  {showAddFresh ? (
+                    <X className="size-3" />
+                  ) : (
+                    <UserPlus className="text-primary size-3" />
+                  )}
                   {showAddFresh ? 'Cancel' : 'Add Fresh Contact'}
                 </Button>
               </div>
@@ -2535,14 +2964,18 @@ export function PropertyShareDialog({
             {showAddFresh && (
               <form
                 onSubmit={handleAddFreshContact}
-                className="bg-slate-950/30 border border-slate-800/80 p-4 rounded-xl space-y-3 animation-fade-in"
+                className="animation-fade-in space-y-3 rounded-xl border border-slate-800/80 bg-slate-950/30 p-4"
               >
-                <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1">
-                  <UserPlus className="size-3.5 text-primary" /> Add New Contact Details
+                <h4 className="flex items-center gap-1 text-xs font-bold tracking-wider text-white uppercase">
+                  <UserPlus className="text-primary size-3.5" /> Add New Contact
+                  Details
                 </h4>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                   <div className="space-y-1">
-                    <Label htmlFor="fresh-name" className="text-slate-400 text-[11px] font-semibold">
+                    <Label
+                      htmlFor="fresh-name"
+                      className="text-[11px] font-semibold text-slate-400"
+                    >
                       Full Name
                     </Label>
                     <Input
@@ -2550,11 +2983,14 @@ export function PropertyShareDialog({
                       placeholder="e.g. John Doe"
                       value={freshName}
                       onChange={(e) => setFreshName(e.target.value)}
-                      className="bg-slate-900 border-slate-800 text-slate-200 placeholder:text-slate-650 h-8.5 text-xs"
+                      className="placeholder:text-slate-650 h-8.5 border-slate-800 bg-slate-900 text-xs text-slate-200"
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label htmlFor="fresh-phone" className="text-slate-400 text-[11px] font-semibold">
+                    <Label
+                      htmlFor="fresh-phone"
+                      className="text-[11px] font-semibold text-slate-400"
+                    >
                       Phone Number *
                     </Label>
                     <Input
@@ -2563,18 +2999,25 @@ export function PropertyShareDialog({
                       value={freshPhone}
                       onChange={(e) => setFreshPhone(e.target.value)}
                       required
-                      className="bg-slate-900 border-slate-800 text-slate-200 placeholder:text-slate-650 h-8.5 text-xs"
+                      className="placeholder:text-slate-650 h-8.5 border-slate-800 bg-slate-900 text-xs text-slate-200"
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label htmlFor="fresh-classification" className="text-slate-400 text-[11px] font-semibold">
+                    <Label
+                      htmlFor="fresh-classification"
+                      className="text-[11px] font-semibold text-slate-400"
+                    >
                       Classification
                     </Label>
                     <select
                       id="fresh-classification"
                       value={freshClassification}
-                      onChange={(e) => setFreshClassification(e.target.value as 'Buyer' | 'Agent')}
-                      className="flex h-8.5 w-full rounded-md border border-slate-800 bg-slate-900 px-3 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary font-medium"
+                      onChange={(e) =>
+                        setFreshClassification(
+                          e.target.value as 'Buyer' | 'Agent'
+                        )
+                      }
+                      className="focus:ring-primary flex h-8.5 w-full rounded-md border border-slate-800 bg-slate-900 px-3 text-xs font-medium text-slate-200 focus:ring-2 focus:outline-none"
                     >
                       <option value="Buyer">Buyer (Lead)</option>
                       <option value="Agent">Agent (Collaborator)</option>
@@ -2585,15 +3028,16 @@ export function PropertyShareDialog({
                   <Button
                     type="submit"
                     disabled={addingFresh}
-                    className="bg-primary hover:bg-primary/95 text-primary-foreground font-semibold text-xs h-8 px-4"
+                    className="bg-primary hover:bg-primary/95 text-primary-foreground h-8 px-4 text-xs font-semibold"
                   >
                     {addingFresh ? (
                       <>
-                        <Loader2 className="size-3 animate-spin mr-1.5" /> Saving...
+                        <Loader2 className="mr-1.5 size-3 animate-spin" />{' '}
+                        Saving...
                       </>
                     ) : (
                       <>
-                        <Plus className="size-3 mr-1" /> Save & Select Contact
+                        <Plus className="mr-1 size-3" /> Save & Select Contact
                       </>
                     )}
                   </Button>
@@ -2602,29 +3046,40 @@ export function PropertyShareDialog({
             )}
 
             {/* Matching Contacts List */}
-            <div className="space-y-2.5 max-h-[350px] overflow-y-auto pr-1">
-              {loadingContacts && contacts.length === 0 && !searchQuery.trim() ? (
-                <div className="flex justify-center items-center py-16 text-slate-500 text-sm">
-                  <Loader2 className="size-6 animate-spin text-primary mr-2" />
+            <div className="max-h-[350px] space-y-2.5 overflow-y-auto pr-1">
+              {loadingContacts &&
+              contacts.length === 0 &&
+              !searchQuery.trim() ? (
+                <div className="flex items-center justify-center py-16 text-sm text-slate-500">
+                  <Loader2 className="text-primary mr-2 size-6 animate-spin" />
                   Scanning database & applying matching logic...
                 </div>
               ) : displayedContacts.length === 0 ? (
-                <div className="text-center py-16 border border-dashed border-slate-800 rounded-xl bg-slate-900/30">
-                  <Users className="size-8 mx-auto text-slate-600 mb-2" />
+                <div className="rounded-xl border border-dashed border-slate-800 bg-slate-900/30 py-16 text-center">
+                  <Users className="mx-auto mb-2 size-8 text-slate-600" />
                   {searchQuery.trim() ? (
                     <>
-                      <p className="text-sm text-slate-400 font-semibold">
+                      <p className="text-sm font-semibold text-slate-400">
                         No contacts match &ldquo;{searchQuery.trim()}&rdquo;
                       </p>
-                      <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-                        Try a different name or phone number{matchAudience !== 'all' ? ', switch the audience to "All" above,' : ''} or add a fresh contact inline to share.
+                      <p className="mx-auto mt-1 max-w-sm text-xs text-slate-500">
+                        Try a different name or phone number
+                        {matchAudience !== 'all'
+                          ? ', switch the audience to "All" above,'
+                          : ''}{' '}
+                        or add a fresh contact inline to share.
                       </p>
                     </>
                   ) : (
                     <>
-                      <p className="text-sm text-slate-400 font-semibold">No matching profiles found</p>
-                      <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-                        This inventory listing doesn&apos;t align with any client&apos;s budget or location preferences. Search by name or phone to find a specific contact, or add a fresh contact inline to share.
+                      <p className="text-sm font-semibold text-slate-400">
+                        No matching profiles found
+                      </p>
+                      <p className="mx-auto mt-1 max-w-sm text-xs text-slate-500">
+                        This inventory listing doesn&apos;t align with any
+                        client&apos;s budget or location preferences. Search by
+                        name or phone to find a specific contact, or add a fresh
+                        contact inline to share.
                       </p>
                     </>
                   )}
@@ -2639,21 +3094,26 @@ export function PropertyShareDialog({
                       inquiredPropertyLabel
                     )}
                     scoreLabel={`${score}% Match`}
-                    tone={score >= 70 ? 'strong' : score >= 30 ? 'fair' : 'weak'}
+                    tone={
+                      score >= 70 ? 'strong' : score >= 30 ? 'fair' : 'weak'
+                    }
                     badges={
                       <>
                         <NameTagBadge tag={c.name_tag} />
                         <span
-                          className={`inline-flex items-center rounded px-1.5 py-0.2 text-[9px] font-bold shrink-0 ${c.classification === 'Buyer'
-                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                              : 'bg-sky-500/10 text-sky-400 border border-sky-500/20'
-                            }`}
+                          className={`py-0.2 inline-flex shrink-0 items-center rounded px-1.5 text-[9px] font-bold ${
+                            c.classification === 'Buyer'
+                              ? 'border border-emerald-500/20 bg-emerald-500/10 text-emerald-400'
+                              : 'border border-sky-500/20 bg-sky-500/10 text-sky-400'
+                          }`}
                         >
                           {c.classification}
                         </span>
                       </>
                     }
-                    chips={score > 0 ? <MatchDetailChips details={details} /> : null}
+                    chips={
+                      score > 0 ? <MatchDetailChips details={details} /> : null
+                    }
                     selected={selectedContactIds.includes(c.id)}
                     onToggle={() => toggleContactSelection(c.id)}
                   />
@@ -2662,12 +3122,12 @@ export function PropertyShareDialog({
             </div>
 
             {/* Bottom Actions */}
-            <div className="border-t border-slate-800 pt-3.5 flex justify-between items-center mt-auto gap-3">
+            <div className="mt-auto flex items-center justify-between gap-3 border-t border-slate-800 pt-3.5">
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => setBroadcastStep('link')}
-                className="border-slate-800 hover:bg-slate-850 text-xs text-slate-300 h-9 flex items-center gap-1 shrink-0"
+                className="hover:bg-slate-850 flex h-9 shrink-0 items-center gap-1 border-slate-800 text-xs text-slate-300"
               >
                 <ArrowLeft className="size-3.5" /> Back
               </Button>
@@ -2676,13 +3136,16 @@ export function PropertyShareDialog({
                 {shareMode === 'greeting' ? (
                   <Button
                     type="button"
-                    disabled={selectedContactIds.length === 0 || sendingBroadcast}
+                    disabled={
+                      selectedContactIds.length === 0 || sendingBroadcast
+                    }
                     onClick={handleSendGreetingBroadcast}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs h-9 flex items-center gap-1.5"
+                    className="flex h-9 items-center gap-1.5 bg-emerald-600 text-xs font-semibold text-white hover:bg-emerald-700"
                   >
                     {sendingBroadcast ? (
                       <>
-                        <Loader2 className="size-3.5 animate-spin mr-1" /> Sending...
+                        <Loader2 className="mr-1 size-3.5 animate-spin" />{' '}
+                        Sending...
                       </>
                     ) : (
                       <>
@@ -2694,13 +3157,18 @@ export function PropertyShareDialog({
                 ) : shareMode === 'catalog' ? (
                   <Button
                     type="button"
-                    disabled={selectedContactIds.length === 0 || sendingBroadcast || indexingTimeLeft > 0}
+                    disabled={
+                      selectedContactIds.length === 0 ||
+                      sendingBroadcast ||
+                      indexingTimeLeft > 0
+                    }
                     onClick={handleSendCatalogBroadcast}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs h-9 flex items-center gap-1.5"
+                    className="flex h-9 items-center gap-1.5 bg-emerald-600 text-xs font-semibold text-white hover:bg-emerald-700"
                   >
                     {sendingBroadcast ? (
                       <>
-                        <Loader2 className="size-3.5 animate-spin mr-1" /> Sending...
+                        <Loader2 className="mr-1 size-3.5 animate-spin" />{' '}
+                        Sending...
                       </>
                     ) : (
                       <>
@@ -2714,30 +3182,40 @@ export function PropertyShareDialog({
                 ) : (
                   <>
                     {selectedTemplate && (
-                      <span className="hidden md:inline text-[11px] text-slate-400 italic max-w-[200px] truncate mr-1.5" title={`Template: ${selectedTemplate.name}`}>
+                      <span
+                        className="mr-1.5 hidden max-w-[200px] truncate text-[11px] text-slate-400 italic md:inline"
+                        title={`Template: ${selectedTemplate.name}`}
+                      >
                         Template: {selectedTemplate.name}
                       </span>
                     )}
 
                     <Button
                       type="button"
-                      disabled={selectedContactIds.length === 0 || !selectedTemplate}
+                      disabled={
+                        selectedContactIds.length === 0 || !selectedTemplate
+                      }
                       variant="outline"
                       onClick={() => setBroadcastStep('configure')}
-                      className="border-slate-800 hover:bg-slate-800 text-slate-300 text-xs h-9 flex items-center gap-1"
+                      className="flex h-9 items-center gap-1 border-slate-800 text-xs text-slate-300 hover:bg-slate-800"
                     >
                       Configure & Review
                     </Button>
 
                     <Button
                       type="button"
-                      disabled={selectedContactIds.length === 0 || !selectedTemplate || sendingBroadcast}
+                      disabled={
+                        selectedContactIds.length === 0 ||
+                        !selectedTemplate ||
+                        sendingBroadcast
+                      }
                       onClick={handleSendBroadcast}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs h-9 flex items-center gap-1.5"
+                      className="flex h-9 items-center gap-1.5 bg-emerald-600 text-xs font-semibold text-white hover:bg-emerald-700"
                     >
                       {sendingBroadcast ? (
                         <>
-                          <Loader2 className="size-3.5 animate-spin mr-1" /> Sending...
+                          <Loader2 className="mr-1 size-3.5 animate-spin" />{' '}
+                          Sending...
                         </>
                       ) : (
                         <>
@@ -2756,7 +3234,7 @@ export function PropertyShareDialog({
         {/* STEP 2: Configure Broadcast Message */}
         {broadcastStep === 'configure' && (
           <div className="space-y-4">
-            <div className="flex items-center gap-2 border-b border-slate-800 pb-2.5 mb-2">
+            <div className="mb-2 flex items-center gap-2 border-b border-slate-800 pb-2.5">
               <Button
                 type="button"
                 variant="ghost"
@@ -2766,33 +3244,43 @@ export function PropertyShareDialog({
               >
                 <ArrowLeft className="size-4" />
               </Button>
-              <div className="text-sm font-semibold text-white">Configure Broadcast Parameters</div>
+              <div className="text-sm font-semibold text-white">
+                Configure Broadcast Parameters
+              </div>
             </div>
 
             {/* Template select */}
             <div className="space-y-1.5">
-              <Label htmlFor="broadcast-template" className="text-slate-300 text-xs">
+              <Label
+                htmlFor="broadcast-template"
+                className="text-xs text-slate-300"
+              >
                 WhatsApp Message Template
               </Label>
               {loadingTemplates ? (
-                <div className="flex items-center text-xs text-slate-500 gap-1.5 py-1">
-                  <Loader2 className="size-3.5 animate-spin text-primary" /> Loading template structures...
+                <div className="flex items-center gap-1.5 py-1 text-xs text-slate-500">
+                  <Loader2 className="text-primary size-3.5 animate-spin" />{' '}
+                  Loading template structures...
                 </div>
               ) : (
                 <select
                   id="broadcast-template"
                   value={selectedTemplate?.id || ''}
                   onChange={(e) => {
-                    const t = templates.find((tpl) => tpl.id === e.target.value);
+                    const t = templates.find(
+                      (tpl) => tpl.id === e.target.value
+                    );
                     setSelectedTemplate(t || null);
                   }}
-                  className="flex h-9.5 w-full rounded-md border border-slate-700 bg-slate-800 px-3 text-xs text-white focus:outline-none focus:ring-2 focus:ring-primary font-medium"
+                  className="focus:ring-primary flex h-9.5 w-full rounded-md border border-slate-700 bg-slate-800 px-3 text-xs font-medium text-white focus:ring-2 focus:outline-none"
                 >
                   <option value="">Select template type...</option>
                   {templates.map((t) => (
                     <option key={t.id} value={t.id}>
                       {t.name} ({t.language || 'en_US'})
-                      {t.category && t.category !== 'Utility' ? ` — ${t.category}` : ''}
+                      {t.category && t.category !== 'Utility'
+                        ? ` — ${t.category}`
+                        : ''}
                     </option>
                   ))}
                 </select>
@@ -2810,34 +3298,35 @@ export function PropertyShareDialog({
 
             {/* Header image selector */}
             {selectedTemplate?.header_type === 'image' && (
-              <div className="space-y-1.5 border border-slate-800 p-3 rounded-xl bg-slate-950/20">
-                <Label className="text-slate-400 font-semibold text-[10px] uppercase tracking-wider block mb-1">
+              <div className="space-y-1.5 rounded-xl border border-slate-800 bg-slate-950/20 p-3">
+                <Label className="mb-1 block text-[10px] font-semibold tracking-wider text-slate-400 uppercase">
                   Select Broadcast Header Image
                 </Label>
-                <div className="flex gap-2 items-center overflow-x-auto py-1 max-w-full">
+                <div className="flex max-w-full items-center gap-2 overflow-x-auto py-1">
                   {property.images
                     ?.filter((img) => img.trim().length > 0)
                     .map((imgUrl, idx) => (
                       <div
                         key={idx}
                         onClick={() => setSelectedBroadcastImage(imgUrl)}
-                        className={`relative size-14 rounded-lg overflow-hidden border-2 cursor-pointer shrink-0 transition-all ${selectedBroadcastImage === imgUrl
-                            ? 'border-primary ring-2 ring-primary/20 scale-95'
+                        className={`relative size-14 shrink-0 cursor-pointer overflow-hidden rounded-lg border-2 transition-all ${
+                          selectedBroadcastImage === imgUrl
+                            ? 'border-primary ring-primary/20 scale-95 ring-2'
                             : 'border-slate-800 hover:border-slate-700'
-                          }`}
+                        }`}
                       >
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           key={imgUrl}
                           src={storagePublicUrl(imgUrl)}
                           alt={`Option ${idx + 1}`}
-                          className="w-full h-full object-cover"
+                          className="h-full w-full object-cover"
                           onError={(e) => {
                             (e.target as HTMLElement).style.display = 'none';
                           }}
                         />
                         {idx === 0 && (
-                          <span className="absolute bottom-0 inset-x-0 bg-slate-900/80 text-[7px] text-amber-400 font-bold text-center py-0.2">
+                          <span className="py-0.2 absolute inset-x-0 bottom-0 bg-slate-900/80 text-center text-[7px] font-bold text-amber-400">
                             Default
                           </span>
                         )}
@@ -2848,40 +3337,50 @@ export function PropertyShareDialog({
             )}
 
             {selectedTemplate && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border border-slate-800 p-4 rounded-xl bg-slate-950/15">
+              <div className="grid grid-cols-1 gap-4 rounded-xl border border-slate-800 bg-slate-950/15 p-4 md:grid-cols-2">
                 {/* Variable Mappings */}
                 <div className="space-y-3">
-                  <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  <h5 className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">
                     Dynamic Variable Parameters
                   </h5>
-                  <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+                  <div className="max-h-[300px] space-y-2 overflow-y-auto pr-1">
                     {placeholders.map((placeholder) => {
                       const key = placeholder.replace(/^\{\{|\}\}$/g, '');
-                      const mapping = variableMappings[key] || { type: 'static', value: 'custom' };
+                      const mapping = variableMappings[key] || {
+                        type: 'static',
+                        value: 'custom',
+                      };
                       return (
                         <div
                           key={key}
-                          className="space-y-1.5 border border-slate-800/40 p-2.5 rounded-lg bg-slate-900/40"
+                          className="space-y-1.5 rounded-lg border border-slate-800/40 bg-slate-900/40 p-2.5"
                         >
-                          <Label className="text-[10px] text-slate-300 font-bold flex items-center justify-between">
+                          <Label className="flex items-center justify-between text-[10px] font-bold text-slate-300">
                             <span>Variable {placeholder}</span>
                           </Label>
                           <div className="flex gap-2">
                             <select
-                              value={mapping.type === 'field' ? mapping.value : `static-${mapping.value}`}
+                              value={
+                                mapping.type === 'field'
+                                  ? mapping.value
+                                  : `static-${mapping.value}`
+                              }
                               onChange={(e) => {
                                 const val = e.target.value;
                                 setVariableMappings((prev) => {
                                   const copy = { ...prev };
                                   if (val.startsWith('static-')) {
-                                    copy[key] = { type: 'static', value: val.replace('static-', '') };
+                                    copy[key] = {
+                                      type: 'static',
+                                      value: val.replace('static-', ''),
+                                    };
                                   } else {
                                     copy[key] = { type: 'field', value: val };
                                   }
                                   return copy;
                                 });
                               }}
-                              className="flex-1 h-8 rounded border border-slate-700 bg-slate-800 px-2 text-xs text-white"
+                              className="h-8 flex-1 rounded border border-slate-700 bg-slate-800 px-2 text-xs text-white"
                             >
                               <optgroup label="Contact Fields">
                                 <option value="name">Contact Name</option>
@@ -2890,30 +3389,48 @@ export function PropertyShareDialog({
                                 <option value="company">Contact Company</option>
                               </optgroup>
                               <optgroup label="Property Fields">
-                                <option value="static-title">Property Title</option>
-                                <option value="static-price">Price (Formatted)</option>
-                                <option value="static-location">Location / Area</option>
-                                <option value="static-map">Google Maps Link</option>
-                                <option value="static-area">Property Area / Size</option>
-                                <option value="static-highlights">Highlights / Amenities</option>
+                                <option value="static-title">
+                                  Property Title
+                                </option>
+                                <option value="static-price">
+                                  Price (Formatted)
+                                </option>
+                                <option value="static-location">
+                                  Location / Area
+                                </option>
+                                <option value="static-map">
+                                  Google Maps Link
+                                </option>
+                                <option value="static-area">
+                                  Property Area / Size
+                                </option>
+                                <option value="static-highlights">
+                                  Highlights / Amenities
+                                </option>
                                 <option value="static-agent">Agent Name</option>
                               </optgroup>
                               <optgroup label="Custom Static Value">
-                                <option value="static-custom">Custom Text...</option>
+                                <option value="static-custom">
+                                  Custom Text...
+                                </option>
                               </optgroup>
                             </select>
                           </div>
-                          {mapping.type === 'static' && mapping.value === 'custom' && (
-                            <Input
-                              value={customVariableValues[key] || ''}
-                              onChange={(e) => {
-                                const v = e.target.value;
-                                setCustomVariableValues((prev) => ({ ...prev, [key]: v }));
-                              }}
-                              placeholder="Enter text..."
-                              className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-650 h-8 text-xs mt-1"
-                            />
-                          )}
+                          {mapping.type === 'static' &&
+                            mapping.value === 'custom' && (
+                              <Input
+                                value={customVariableValues[key] || ''}
+                                onChange={(e) => {
+                                  const v = e.target.value;
+                                  setCustomVariableValues((prev) => ({
+                                    ...prev,
+                                    [key]: v,
+                                  }));
+                                }}
+                                placeholder="Enter text..."
+                                className="placeholder:text-slate-650 mt-1 h-8 border-slate-700 bg-slate-800 text-xs text-white"
+                              />
+                            )}
                         </div>
                       );
                     })}
@@ -2921,55 +3438,86 @@ export function PropertyShareDialog({
                 </div>
 
                 {/* Smartphone Preview Box */}
-                <div className="space-y-2 flex flex-col h-full">
-                  <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
-                    <Smartphone className="size-3.5 text-primary" /> Live Template Preview
+                <div className="flex h-full flex-col space-y-2">
+                  <h5 className="flex items-center gap-1 text-[10px] font-bold tracking-wider text-slate-400 uppercase">
+                    <Smartphone className="text-primary size-3.5" /> Live
+                    Template Preview
                   </h5>
 
-                  <div className="flex-1 bg-slate-950 border border-slate-850 p-4 rounded-xl text-xs flex flex-col font-sans relative min-h-[220px] justify-between">
-                    <div className="whitespace-pre-wrap text-slate-350 leading-relaxed">
+                  <div className="border-slate-850 relative flex min-h-[220px] flex-1 flex-col justify-between rounded-xl border bg-slate-950 p-4 font-sans text-xs">
+                    <div className="text-slate-350 leading-relaxed whitespace-pre-wrap">
                       {(() => {
-                        let body = selectedTemplate.body_text.replace(/\\n/g, '\n');
+                        let body = selectedTemplate.body_text.replace(
+                          /\\n/g,
+                          '\n'
+                        );
                         placeholders.forEach((placeholder) => {
                           const key = placeholder.replace(/^\{\{|\}\}$/g, '');
                           const mapping = variableMappings[key];
                           let val = placeholder;
                           if (mapping) {
                             if (mapping.type === 'field') {
-                              if (mapping.value === 'name') val = `[Recipient Name]`;
-                              else if (mapping.value === 'phone') val = `[Recipient Phone]`;
-                              else if (mapping.value === 'email') val = `[Recipient Email]`;
-                              else if (mapping.value === 'company') val = `[Recipient Company]`;
+                              if (mapping.value === 'name')
+                                val = `[Recipient Name]`;
+                              else if (mapping.value === 'phone')
+                                val = `[Recipient Phone]`;
+                              else if (mapping.value === 'email')
+                                val = `[Recipient Email]`;
+                              else if (mapping.value === 'company')
+                                val = `[Recipient Company]`;
                             } else {
-                              if (mapping.value === 'title') val = property.title || `[Title]`;
-                              else if (mapping.value === 'price') val = formattedPrice || `[Price]`;
+                              if (mapping.value === 'title')
+                                val = property.title || `[Title]`;
+                              else if (mapping.value === 'price')
+                                val = formattedPrice || `[Price]`;
                               else if (mapping.value === 'location') {
                                 const guarded = isLocationGuarded(property);
                                 const mapUrl = propertyShareMapUrl(property);
                                 const locVal =
                                   property.sublocality ||
-                                  (guarded ? localityLabel(property) : property.location) ||
+                                  (guarded
+                                    ? localityLabel(property)
+                                    : property.location) ||
                                   `[Location]`;
                                 val =
                                   mapUrl && !hasDedicatedMapVariable
                                     ? `${locVal} | Google Maps: ${mapUrl}`
                                     : locVal;
-                              }
-                              else if (mapping.value === 'map') {
-                                val = propertyShareMapUrl(property) || 'Available on request';
-                              }
-                              else if (mapping.value === 'area') {
-                                const isLand = property.type.includes('Land') || property.type.includes('Plot');
-                                const areaVal = isLand ? property.land_area : property.area_sqft;
-                                const unitVal = isLand ? property.land_area_unit : property.area_unit;
-                                val = areaVal ? `${areaVal} ${unitVal}` : `[Area]`;
+                              } else if (mapping.value === 'map') {
+                                val =
+                                  propertyShareMapUrl(property) ||
+                                  'Available on request';
+                              } else if (mapping.value === 'area') {
+                                const isLand =
+                                  property.type.includes('Land') ||
+                                  property.type.includes('Plot');
+                                const areaVal = isLand
+                                  ? property.land_area
+                                  : property.area_sqft;
+                                const unitVal = isLand
+                                  ? property.land_area_unit
+                                  : property.area_unit;
+                                val = areaVal
+                                  ? `${areaVal} ${unitVal}`
+                                  : `[Area]`;
                               } else if (mapping.value === 'highlights') {
-                                const parsedHighlights = (property.nearby_highlights || []).filter(Boolean);
+                                const parsedHighlights = (
+                                  property.nearby_highlights || []
+                                ).filter(Boolean);
                                 if (parsedHighlights.length > 0) {
-                                  val = parsedHighlights.map((h) => `• ${h}`).join(' | ');
+                                  val = parsedHighlights
+                                    .map((h) => `• ${h}`)
+                                    .join(' | ');
                                 } else {
-                                  const parsedFeatures = (property.features || []).filter(Boolean);
-                                  val = parsedFeatures.length > 0 ? parsedFeatures.map((f) => `• ${f}`).join(' | ') : `[Highlights]`;
+                                  const parsedFeatures = (
+                                    property.features || []
+                                  ).filter(Boolean);
+                                  val =
+                                    parsedFeatures.length > 0
+                                      ? parsedFeatures
+                                          .map((f) => `• ${f}`)
+                                          .join(' | ')
+                                      : `[Highlights]`;
                                 }
                               } else if (mapping.value === 'agent') {
                                 val = profile?.full_name || `[Agent Name]`;
@@ -2983,9 +3531,11 @@ export function PropertyShareDialog({
                         return body;
                       })()}
                     </div>
-                    <div className="text-[9px] text-slate-600 mt-4 border-t border-slate-800/80 pt-2 flex items-center justify-between">
+                    <div className="mt-4 flex items-center justify-between border-t border-slate-800/80 pt-2 text-[9px] text-slate-600">
                       <span>Live view placeholders.</span>
-                      <span className="font-semibold">{selectedTemplate.language || 'en_US'}</span>
+                      <span className="font-semibold">
+                        {selectedTemplate.language || 'en_US'}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -2993,12 +3543,12 @@ export function PropertyShareDialog({
             )}
 
             {/* Configure controls */}
-            <div className="border-t border-slate-800 pt-3.5 flex justify-between items-center mt-4">
+            <div className="mt-4 flex items-center justify-between border-t border-slate-800 pt-3.5">
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => setBroadcastStep('matches')}
-                className="border-slate-800 hover:bg-slate-850 text-xs h-9"
+                className="hover:bg-slate-850 h-9 border-slate-800 text-xs"
               >
                 Back to List
               </Button>
@@ -3006,11 +3556,12 @@ export function PropertyShareDialog({
                 type="button"
                 disabled={sendingBroadcast || !selectedTemplate}
                 onClick={handleSendBroadcast}
-                className="bg-primary hover:bg-primary/95 text-primary-foreground font-semibold text-xs h-9 flex items-center gap-1.5"
+                className="bg-primary hover:bg-primary/95 text-primary-foreground flex h-9 items-center gap-1.5 text-xs font-semibold"
               >
                 {sendingBroadcast ? (
                   <>
-                    <Loader2 className="size-3.5 animate-spin mr-1" /> Sending...
+                    <Loader2 className="mr-1 size-3.5 animate-spin" />{' '}
+                    Sending...
                   </>
                 ) : (
                   <>
@@ -3025,12 +3576,15 @@ export function PropertyShareDialog({
 
         {/* STEP 3: Sending State */}
         {broadcastStep === 'sending' && (
-          <div className="flex flex-col items-center justify-center py-16 space-y-4">
-            <Loader2 className="size-10 animate-spin text-primary" />
+          <div className="flex flex-col items-center justify-center space-y-4 py-16">
+            <Loader2 className="text-primary size-10 animate-spin" />
             <div className="text-center">
-              <h4 className="text-sm font-semibold text-white">Sending WhatsApp Broadcast</h4>
-              <p className="text-xs text-slate-500 mt-1">
-                Dispatching template packets to {selectedContactIds.length} recipients. Do not exit the modal.
+              <h4 className="text-sm font-semibold text-white">
+                Sending WhatsApp Broadcast
+              </h4>
+              <p className="mt-1 text-xs text-slate-500">
+                Dispatching template packets to {selectedContactIds.length}{' '}
+                recipients. Do not exit the modal.
               </p>
             </div>
           </div>
@@ -3039,34 +3593,44 @@ export function PropertyShareDialog({
         {/* STEP 4: Results Log View */}
         {broadcastStep === 'results' && (
           <div className="space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-2">
-              <h4 className="text-sm font-semibold text-white">Broadcast Transmission Log</h4>
-              <Badge className="bg-emerald-500/10 text-emerald-450 border border-emerald-500/20 text-xs font-semibold">
+            <div className="mb-2 flex items-center justify-between border-b border-slate-800 pb-3">
+              <h4 className="text-sm font-semibold text-white">
+                Broadcast Transmission Log
+              </h4>
+              <Badge className="text-emerald-450 border border-emerald-500/20 bg-emerald-500/10 text-xs font-semibold">
                 Completed
               </Badge>
             </div>
 
-            <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+            <div className="max-h-[300px] space-y-2 overflow-y-auto pr-1">
               {broadcastResults.map((res, idx) => (
                 <div
                   key={idx}
-                  className="flex justify-between items-center p-3 rounded-lg bg-slate-900 border border-slate-800/80"
+                  className="flex items-center justify-between rounded-lg border border-slate-800/80 bg-slate-900 p-3"
                 >
                   <div>
-                    <div className="text-xs font-bold text-white">{res.name}</div>
-                    <div className="text-[10px] text-slate-500 mt-0.5">{res.phone}</div>
+                    <div className="text-xs font-bold text-white">
+                      {res.name}
+                    </div>
+                    <div className="mt-0.5 text-[10px] text-slate-500">
+                      {res.phone}
+                    </div>
                   </div>
                   <div className="flex items-center gap-2">
                     {res.status === 'sent' ? (
-                      <Badge className="bg-green-500/10 text-green-400 border border-green-500/20 text-[10px] font-bold">
+                      <Badge className="border border-green-500/20 bg-green-500/10 text-[10px] font-bold text-green-400">
                         Success
                       </Badge>
                     ) : (
                       <div className="flex flex-col items-end">
-                        <Badge className="bg-red-500/10 text-red-400 border border-red-500/20 text-[10px] font-bold">
+                        <Badge className="border border-red-500/20 bg-red-500/10 text-[10px] font-bold text-red-400">
                           Failed
                         </Badge>
-                        {res.error && <span className="text-[9px] text-red-450 mt-0.5">{res.error}</span>}
+                        {res.error && (
+                          <span className="text-red-450 mt-0.5 text-[9px]">
+                            {res.error}
+                          </span>
+                        )}
                       </div>
                     )}
                   </div>
@@ -3074,7 +3638,7 @@ export function PropertyShareDialog({
               ))}
             </div>
 
-            <div className="border-t border-slate-850 pt-3.5 flex justify-end">
+            <div className="border-slate-850 flex justify-end border-t pt-3.5">
               <Button
                 type="button"
                 onClick={() => {
@@ -3082,7 +3646,7 @@ export function PropertyShareDialog({
                   setSelectedContactIds([]);
                   onOpenChange(false);
                 }}
-                className="bg-primary hover:bg-primary/95 text-primary-foreground font-semibold text-xs h-9 px-5"
+                className="bg-primary hover:bg-primary/95 text-primary-foreground h-9 px-5 text-xs font-semibold"
               >
                 Done
               </Button>
