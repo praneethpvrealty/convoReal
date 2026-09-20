@@ -450,8 +450,9 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
         .split('export function focusBuckets')[0];
     expect(body(helpers)).toEqual(body(webShared));
     expect(screen).toContain('stageInHeader ? (stage?.id ?? null) : null');
+    expect(screen).toContain('atStage.map((item) => renderItem(item))');
     expect(screen).toContain(
-      'atStage.map((item) => renderItem(item, elsewhere.length > 0))'
+      "item.stage_id === stage?.id &&\n      item.status !== 'dropped'"
     );
     expect(screen).toContain('more at other stages');
     const webSection = webSource('components/journey/journey-section.tsx');

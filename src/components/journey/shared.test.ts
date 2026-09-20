@@ -370,9 +370,7 @@ describe('splitItemsAtStage', () => {
     );
     expect(section).toContain('splitItemsAtStage(visibleItems, focusStageId)');
     expect(section).toContain('more at other stages');
-    expect(section).toContain(
-      'highlightStageId={elsewhere.length > 0 ? focusStageId : null}'
-    );
+    expect(section).toContain('highlightStageId={focusStageId}');
     expect(overview).toContain(
       'focusStageId={showStage ? null : (stage?.id ?? null)}'
     );

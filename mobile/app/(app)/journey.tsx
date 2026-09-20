@@ -1694,8 +1694,13 @@ function DraggableJourneyCard({
     branchItemsQuery.data ?? [],
     stageInHeader ? (stage?.id ?? null) : null
   );
-  const renderItem = (item: JourneyItem, highlighted: boolean) => {
+  const renderItem = (item: JourneyItem) => {
     const itemStage = stageById.get(item.stage_id);
+    const highlighted =
+      stageInHeader &&
+      Boolean(stage) &&
+      item.stage_id === stage?.id &&
+      item.status !== 'dropped';
     const dropped = item.status === 'dropped';
     return (
       <View
@@ -1911,9 +1916,7 @@ function DraggableJourneyCard({
         </Text>
       ) : null}
 
-      {expanded
-        ? atStage.map((item) => renderItem(item, elsewhere.length > 0))
-        : null}
+      {expanded ? atStage.map((item) => renderItem(item)) : null}
       {expanded && elsewhere.length > 0 ? (
         <Pressable
           onPress={() => setShowElsewhere((current) => !current)}
@@ -1941,7 +1944,7 @@ function DraggableJourneyCard({
         </Pressable>
       ) : null}
       {expanded && showElsewhere
-        ? elsewhere.map((item) => renderItem(item, false))
+        ? elsewhere.map((item) => renderItem(item))
         : null}
     </Animated.View>
   );
