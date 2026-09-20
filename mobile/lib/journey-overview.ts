@@ -34,3 +34,12 @@ export const JOURNEY_CLOSURE_REASONS: Record<
     'Not responding',
   ],
 };
+
+export function focusBuckets<T extends { key: string }>(
+  buckets: T[],
+  focusedKey: string | null
+): T[] {
+  if (!focusedKey) return buckets;
+  const focused = buckets.filter((bucket) => bucket.key === focusedKey);
+  return focused.length ? focused : buckets;
+}

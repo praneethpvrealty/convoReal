@@ -669,6 +669,24 @@
             "src/lib/journey/capture.ts",
             "src/components/journey/captured-tray-dialog.tsx"
           ]
+        },
+        {
+          "id": "JRN-006",
+          "rule": "Selecting a stage card focuses the journey list on that stage: the other stage cards hide and the selected card is highlighted in its stage colour until it is selected again, a search runs, or the mode or view changes. A selection whose card no longer exists shows every stage.",
+          "tests": [
+            {
+              "file": "src/components/journey/shared.test.ts",
+              "case": "[JRN-006]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[JRN-006]"
+            },
+            {
+              "file": "mobile/lib/journey-overview.test.ts",
+              "case": "[JRN-006]"
+            }
+          ]
         }
       ]
     },

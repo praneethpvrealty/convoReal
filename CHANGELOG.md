@@ -25,6 +25,10 @@ than a written entry. Newest first.
   journey, all can be shown at once, or one can be removed after an inline
   confirmation. Until now the mobile count was read-only and the hidden
   items could not be reached at all.
+- **Tap a stage to focus on it.** Selecting a stage card on the Journey
+  list, on web and mobile alike, hides the other stage cards and
+  highlights the selected one in its stage colour; selecting it again
+  brings every stage back. Switching mode or view also clears the focus.
 - **The Copilot button no longer covers the last journey row.** The
   Journeys list pads its bottom by the floating button's real height and
   offset, so the move, convert and notes icons on the final row scroll

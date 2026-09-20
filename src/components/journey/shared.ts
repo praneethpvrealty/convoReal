@@ -244,3 +244,12 @@ export function sortItemsForRows(
     return a.created_at.localeCompare(b.created_at);
   });
 }
+
+export function focusBuckets<T extends { key: string }>(
+  buckets: T[],
+  focusedKey: string | null
+): T[] {
+  if (!focusedKey) return buckets;
+  const focused = buckets.filter((bucket) => bucket.key === focusedKey);
+  return focused.length ? focused : buckets;
+}

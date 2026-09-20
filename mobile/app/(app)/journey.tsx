@@ -54,6 +54,7 @@ import {
 import {
   CLOSED_JOURNEY_STATUS_LABELS,
   JOURNEY_CLOSURE_REASONS,
+  focusBuckets,
   type ClosedJourneyStatus,
   type JourneyLifecycleStatus,
 } from '@/lib/journey-overview';
@@ -214,7 +215,7 @@ export function JourneyBody() {
   );
   const [view, setView] = useState<JourneyView>('active');
   const [query, setQuery] = useState('');
-  const [closedBuckets, setClosedBuckets] = useState<Set<string>>(new Set());
+  const [focusedBucket, setFocusedBucket] = useState<string | null>(null);
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
   const [orderOverrides, setOrderOverrides] = useState<Map<string, number>>(
     new Map()
@@ -843,6 +844,7 @@ export function JourneyBody() {
                 setQuery('');
                 setOrderOverrides(new Map());
                 setOpenGroups(new Set());
+                setFocusedBucket(null);
                 setNoteTarget(null);
                 setNoteText('');
                 closeTray();
@@ -881,7 +883,10 @@ export function JourneyBody() {
           return (
             <Pressable
               key={value}
-              onPress={() => setView(value)}
+              onPress={() => {
+                setView(value);
+                setFocusedBucket(null);
+              }}
               style={[
                 styles.tab,
                 {
@@ -947,94 +952,114 @@ export function JourneyBody() {
           }
         />
       ) : (
-        buckets.map((bucket) => {
-          const open = query ? true : !closedBuckets.has(bucket.key);
-          return (
-            <View
-              key={bucket.key}
-              style={[
-                styles.bucket,
-                {
-                  backgroundColor: colors.glass,
-                  borderColor: colors.glassBorder,
-                },
-              ]}
-            >
-              <Pressable
-                onPress={() =>
-                  setClosedBuckets((current) => {
-                    const next = new Set(current);
-                    if (next.has(bucket.key)) next.delete(bucket.key);
-                    else next.add(bucket.key);
-                    return next;
-                  })
-                }
-                style={styles.bucketHeader}
+        focusBuckets(buckets, query.trim() ? null : focusedBucket).map(
+          (bucket) => {
+            const focused = !query.trim() && bucket.key === focusedBucket;
+            return (
+              <View
+                key={bucket.key}
+                style={[
+                  styles.bucket,
+                  {
+                    backgroundColor: colors.glass,
+                    borderColor: focused ? bucket.color : colors.glassBorder,
+                  },
+                ]}
               >
-                <Ionicons
-                  name={open ? 'chevron-down' : 'chevron-forward'}
-                  size={17}
-                  color={colors.textFaint}
-                />
-                <View
-                  style={{
-                    width: 9,
-                    height: 9,
-                    borderRadius: 5,
-                    backgroundColor: bucket.color,
-                  }}
-                />
-                <Text
-                  style={{
-                    flex: 1,
-                    fontSize: 14,
-                    fontFamily: f.bold,
-                    color: colors.text,
-                  }}
+                <Pressable
+                  onPress={() => setFocusedBucket(focused ? null : bucket.key)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: focused }}
+                  accessibilityLabel={
+                    focused ? 'Show all stages' : `Show only ${bucket.label}`
+                  }
+                  style={[
+                    styles.bucketHeader,
+                    focused ? { backgroundColor: `${bucket.color}14` } : null,
+                  ]}
                 >
-                  {bucket.label}
-                </Text>
-                <Text style={{ fontSize: 12, color: colors.textMuted }}>
-                  {bucket.groups.length}
-                </Text>
-              </Pressable>
-              {open
-                ? bucket.groups.map((group, index) => (
-                    <DraggableJourneyCard
-                      key={group.subjectId}
-                      group={group}
-                      stage={stages[group.furthestStageIdx]}
-                      stageById={stageById}
-                      mode={mode}
-                      canEdit={canEdit}
-                      index={index}
-                      count={bucket.groups.length}
-                      expanded={openGroups.has(group.subjectId)}
-                      onToggle={() =>
-                        setOpenGroups((current) => {
-                          const next = new Set(current);
-                          if (next.has(group.subjectId))
-                            next.delete(group.subjectId);
-                          else next.add(group.subjectId);
-                          return next;
-                        })
-                      }
-                      onMove={(from, to) => void moveGroup(bucket, from, to)}
-                      onActions={() => showGroupActions(group)}
-                      onCaptured={() => openTray(group)}
-                      onCheckIn={askCheckIn}
-                      onMoveItem={(item) => canEdit && setMoveTarget(item)}
-                      onConvert={askConvert}
-                      onAddNote={(item, stage) => {
-                        setNoteTarget({ item, stage });
-                        setNoteText('');
-                      }}
-                    />
-                  ))
-                : null}
-            </View>
-          );
-        })
+                  <Ionicons
+                    name={focused ? 'checkmark-circle' : 'chevron-forward'}
+                    size={17}
+                    color={focused ? bucket.color : colors.textFaint}
+                  />
+                  <View
+                    style={{
+                      width: 9,
+                      height: 9,
+                      borderRadius: 5,
+                      backgroundColor: bucket.color,
+                    }}
+                  />
+                  <Text
+                    style={{
+                      flex: 1,
+                      fontSize: 14,
+                      fontFamily: f.bold,
+                      color: colors.text,
+                    }}
+                  >
+                    {bucket.label}
+                  </Text>
+                  <Text style={{ fontSize: 12, color: colors.textMuted }}>
+                    {bucket.groups.length}
+                  </Text>
+                  {focused ? (
+                    <View
+                      style={[
+                        styles.allStages,
+                        { borderColor: `${bucket.color}66` },
+                      ]}
+                    >
+                      <Ionicons name="close" size={12} color={bucket.color} />
+                      <Text
+                        style={{
+                          fontSize: 10.5,
+                          fontFamily: f.bold,
+                          color: bucket.color,
+                        }}
+                      >
+                        All stages
+                      </Text>
+                    </View>
+                  ) : null}
+                </Pressable>
+                {bucket.groups.map((group, index) => (
+                  <DraggableJourneyCard
+                    key={group.subjectId}
+                    group={group}
+                    stage={stages[group.furthestStageIdx]}
+                    stageById={stageById}
+                    mode={mode}
+                    canEdit={canEdit}
+                    index={index}
+                    count={bucket.groups.length}
+                    expanded={openGroups.has(group.subjectId)}
+                    onToggle={() =>
+                      setOpenGroups((current) => {
+                        const next = new Set(current);
+                        if (next.has(group.subjectId))
+                          next.delete(group.subjectId);
+                        else next.add(group.subjectId);
+                        return next;
+                      })
+                    }
+                    onMove={(from, to) => void moveGroup(bucket, from, to)}
+                    onActions={() => showGroupActions(group)}
+                    onCaptured={() => openTray(group)}
+                    onCheckIn={askCheckIn}
+                    onMoveItem={(item) => canEdit && setMoveTarget(item)}
+                    onConvert={askConvert}
+                    onAddNote={(item, stage) => {
+                      setNoteTarget({ item, stage });
+                      setNoteText('');
+                    }}
+                  />
+                ))}
+              </View>
+            );
+          }
+        )
       )}
 
       <BottomSheet
@@ -1927,6 +1952,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
     paddingHorizontal: spacing.md,
+  },
+  allStages: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    borderWidth: 1,
+    borderRadius: radius.full,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
   },
   card: { borderTopWidth: StyleSheet.hairlineWidth },
   cardHeader: {

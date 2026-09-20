@@ -367,6 +367,26 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
     expect(screen).toContain('copilotFabClearance(insets.bottom)');
   });
 
+  it('[JRN-006] focuses one stage card and hides the rest until it is selected again', () => {
+    const helpers = mobileSource('lib/journey-overview.ts');
+    expect(helpers).toContain('export function focusBuckets');
+    expect(helpers).toContain('return focused.length ? focused : buckets;');
+    expect(screen).toContain(
+      'focusBuckets(buckets, query.trim() ? null : focusedBucket)'
+    );
+    expect(screen).toContain(
+      'const focused = !query.trim() && bucket.key === focusedBucket;'
+    );
+    expect(screen).toContain('setFocusedBucket(focused ? null : bucket.key)');
+    expect(screen).toContain(
+      'borderColor: focused ? bucket.color : colors.glassBorder'
+    );
+    expect(screen).toContain(
+      "focused ? 'Show all stages' : `Show only ${bucket.label}`"
+    );
+    expect(screen).not.toContain('closedBuckets');
+  });
+
   it('[JRN-004] offers every stage while retaining the complete note history', () => {
     expect(screen).toContain('Journey stage notes');
     expect(screen).toContain('stages.map((stage)');
