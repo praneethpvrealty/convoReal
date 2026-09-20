@@ -429,7 +429,15 @@ export function JourneyOverview({
       const unclassified = viewGroups.filter(
         (group) => group.furthestStageIdx < 0
       );
-      return unclassified.length || focusedBucket === 'stage:unclassified'
+      const unclassifiedExists = groups.some(
+        (group) =>
+          !group.archivedAt &&
+          group.lifecycleStatus === 'active' &&
+          !hiddenIds.has(group.subjectId) &&
+          group.furthestStageIdx < 0
+      );
+      return unclassified.length ||
+        (focusedBucket === 'stage:unclassified' && unclassifiedExists)
         ? [
             ...stageBuckets,
             {
@@ -464,7 +472,7 @@ export function JourneyOverview({
         groups: viewGroups,
       },
     ];
-  }, [focusedBucket, stages, view, viewGroups]);
+  }, [focusedBucket, groups, hiddenIds, stages, view, viewGroups]);
 
   const effectiveOpen = useMemo(() => {
     if (openIds) return openIds;
