@@ -86,6 +86,7 @@ describe('DELETE /api/contacts/[id]/inquiries/[propertyId]', () => {
     expect((await res.json()).data).toEqual({
       removed: true,
       pointerCleared: true,
+      alreadyAbsent: false,
     });
     expect(deletes).toEqual(['contact_property_inquiries']);
     expect(updates[0]).toMatchObject({
@@ -118,14 +119,19 @@ describe('DELETE /api/contacts/[id]/inquiries/[propertyId]', () => {
     expect(updates).toHaveLength(0);
   });
 
-  it('reports a tag that is already gone rather than claiming a correction', async () => {
+  it('[CTM-003] treats an already-removed interest as a successful idempotent delete', async () => {
     queues['contacts'] = [
       { data: { id: 'c-1', last_inquired_property_id: null } },
     ];
     queues['contact_property_inquiries'] = [{ data: [] }];
 
     const res = await DELETE(request as never, { params });
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(200);
+    expect((await res.json()).data).toEqual({
+      removed: false,
+      pointerCleared: false,
+      alreadyAbsent: true,
+    });
     expect(updates).toHaveLength(0);
   });
 

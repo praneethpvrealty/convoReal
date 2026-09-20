@@ -21,6 +21,22 @@ export type InterestFilter = {
   label: string;
 };
 
+export function withoutInterestedProperty<T extends { id: string }>(
+  properties: T[] | undefined,
+  propertyId: string
+): T[] | undefined {
+  return properties?.filter((property) => property.id !== propertyId);
+}
+
+export function withoutLastInquiredProperty<
+  T extends { last_inquired_property_id?: string | null },
+>(contact: T | null | undefined, propertyId: string): T | null | undefined {
+  if (!contact || contact.last_inquired_property_id !== propertyId) {
+    return contact;
+  }
+  return { ...contact, last_inquired_property_id: null };
+}
+
 /** Chip text for the active filter. Property codes are short; project
  *  names are not, and the chip sits in a scrolling row beside five
  *  segment pills. */

@@ -22,6 +22,10 @@ import { useCallLog } from '@/lib/use-call-log';
 import { openWelcomeWhatsApp } from '@/lib/welcome-message';
 import type { Appointment, Contact, ContactNote, Property, Tag as TagRow } from '@/lib/types';
 import { contactHandle, hasPhone } from '@/lib/reachability';
+import {
+  withoutInterestedProperty,
+  withoutLastInquiredProperty,
+} from '@/lib/contact-interest';
 
 export async function openConversation(contactId: string) {
   const { data } = await supabase
@@ -207,8 +211,13 @@ export function InterestedProperties({ contact }: { contact: Contact }) {
   const [followingUp, setFollowingUp] = useState<Property | null>(null);
   const { show, close, dialogProps } = useAppDialog();
 
+  const interestQueryKey = [
+    'interested-properties',
+    contact.id,
+    contact.last_inquired_property_id,
+  ] as const;
   const { data: props } = useQuery({
-    queryKey: ['interested-properties', contact.id],
+    queryKey: interestQueryKey,
     queryFn: async () => {
       const { data: inquiries, error: inqError } = await supabase
         .from('contact_property_inquiries')
@@ -301,6 +310,14 @@ export function InterestedProperties({ contact }: { contact: Contact }) {
               return;
             }
             haptic.success();
+            queryClient.setQueryData<Property[]>(
+              interestQueryKey,
+              (current) => withoutInterestedProperty(current, p.id) ?? []
+            );
+            queryClient.setQueryData<Contact | null>(
+              ['contact', contact.id],
+              (current) => withoutLastInquiredProperty(current, p.id) ?? null
+            );
             queryClient.invalidateQueries({ queryKey: ['interested-properties', contact.id] });
             queryClient.invalidateQueries({ queryKey: ['contact', contact.id] });
             queryClient.invalidateQueries({ queryKey: ['contacts'] });
