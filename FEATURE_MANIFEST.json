@@ -647,6 +647,28 @@
             "supabase/migrations/20260915015844_journey_table_privileges.sql",
             "supabase/migrations/20260915020826_journey_stage_note_integrity.sql"
           ]
+        },
+        {
+          "id": "JRN-005",
+          "rule": "Journey items captured automatically from WhatsApp shares stay hidden until reviewed. Both surfaces show the count and open a Captured tray where each item can be shown on the journey, all can be shown at once, or an item can be removed; showing logs an unhidden event that keeps the item's stage, and viewers can only look.",
+          "tests": [
+            {
+              "file": "src/lib/journey/captured.test.ts",
+              "case": "[JRN-005]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[JRN-005]"
+            },
+            {
+              "file": "mobile/lib/journey-captured.test.ts",
+              "case": "[JRN-005]"
+            }
+          ],
+          "guards": [
+            "src/lib/journey/capture.ts",
+            "src/components/journey/captured-tray-dialog.tsx"
+          ]
         }
       ]
     },

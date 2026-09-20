@@ -338,14 +338,19 @@ export interface JourneyStage {
   pipeline_stage_id?: string | null;
 }
 
+export type JourneyItemSource =
+  'manual' | 'whatsapp_share' | 'chat_import' | 'inquiry_import';
+
 export interface JourneyItem {
   id: string;
   contact_id: string;
   property_id: string;
   stage_id: string;
   status: 'active' | 'dropped';
+  source?: JourneyItemSource;
   drop_reason?: string | null;
   hidden: boolean;
+  created_at?: string;
   updated_at?: string;
   contact?: Contact | null;
   property?: {

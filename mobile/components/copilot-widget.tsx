@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CopilotSheet } from '@/components/copilot-sheet';
 import { useCopilotTour } from '@/components/copilot-tour';
+import { COPILOT_FAB_SIZE, copilotFabBottom } from '@/lib/copilot-fab';
 import { haptic } from '@/lib/haptics';
 import { useT } from '@/lib/use-t';
 import { useTheme } from '@/lib/theme';
@@ -66,7 +67,7 @@ export function CopilotWidget() {
             shadows.card,
             {
               backgroundColor: colors.primary,
-              bottom: Math.max(insets.bottom, 12) + 74 + 16,
+              bottom: copilotFabBottom(insets.bottom),
             },
           ]}
         >
@@ -86,9 +87,9 @@ const styles = StyleSheet.create({
   fab: {
     position: 'absolute',
     right: 18,
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: COPILOT_FAB_SIZE,
+    height: COPILOT_FAB_SIZE,
+    borderRadius: COPILOT_FAB_SIZE / 2,
     alignItems: 'center',
     justifyContent: 'center',
     elevation: 8,

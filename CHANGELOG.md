@@ -17,6 +17,19 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 20 September 2026
+
+- **Captured shares can be reviewed on mobile.** A journey card's
+  "N captured" count is now a chip that opens the same Captured tray the
+  web journey has: each auto-captured WhatsApp share can be shown on the
+  journey, all can be shown at once, or one can be removed after an inline
+  confirmation. Until now the mobile count was read-only and the hidden
+  items could not be reached at all.
+- **The Copilot button no longer covers the last journey row.** The
+  Journeys list pads its bottom by the floating button's real height and
+  offset, so the move, convert and notes icons on the final row scroll
+  clear of it.
+
 #### 19 September 2026
 
 - **Mobile contact actions scroll sideways.** The Call, WhatsApp, Inbox,
