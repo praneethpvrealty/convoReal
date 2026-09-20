@@ -355,10 +355,10 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
     expect(screen).toContain('loadJourneyItems(mode, group.subjectId, false)');
     expect(screen).toContain(".eq('hidden', hidden)");
     expect(screen).toContain('Captured — not on the journey yet');
-    expect(screen).toContain('.update({ hidden: false })');
-    expect(screen).toContain("event_type: 'unhidden'");
-    expect(screen).toContain('from_stage_id: item.stage_id');
-    expect(screen).toContain('to_stage_id: item.stage_id');
+    expect(screen).toContain("supabase.rpc('journey_show_captured'");
+    expect(screen).toContain('p_item_ids: items.map((item) => item.id)');
+    expect(screen).not.toContain('.update({ hidden: false })');
+    expect(screen).not.toContain("from('journey_events')");
     expect(screen).toContain('label={`Show all ${capturedItems.length}`}');
     expect(screen).toContain('.delete()');
     expect(screen).toContain('accessibilityLabel="Remove from journey"');

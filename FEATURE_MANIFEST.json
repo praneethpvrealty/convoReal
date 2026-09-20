@@ -667,7 +667,8 @@
           ],
           "guards": [
             "src/lib/journey/capture.ts",
-            "src/components/journey/captured-tray-dialog.tsx"
+            "src/components/journey/captured-tray-dialog.tsx",
+            "supabase/migrations/20260920041500_journey_show_captured.sql"
           ]
         },
         {

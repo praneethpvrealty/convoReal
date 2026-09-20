@@ -109,7 +109,6 @@ export function JourneyBody() {
   const queryClient = useQueryClient();
   const insets = useSafeAreaInsets();
   const profile = useAuthStore((state) => state.profile);
-  const userId = useAuthStore((state) => state.session?.user.id);
   const accountId = profile?.account_id;
   const canEdit = Boolean(profile && profile.account_role !== 'viewer');
   const { show, close, dialogProps } = useAppDialog();
@@ -722,20 +721,6 @@ export function JourneyBody() {
     setConfirmRemoveId(null);
   }
 
-  async function logUnhidden(item: JourneyItem) {
-    if (!accountId) return;
-    const { error } = await supabase.from('journey_events').insert({
-      account_id: accountId,
-      item_id: item.id,
-      event_type: 'unhidden',
-      from_stage_id: item.stage_id,
-      to_stage_id: item.stage_id,
-      reason: null,
-      created_by: userId ?? null,
-    });
-    if (error) console.error('[journey] event log failed:', error.message);
-  }
-
   async function refreshCaptured() {
     await Promise.all([
       capturedQuery.refetch(),
@@ -744,17 +729,13 @@ export function JourneyBody() {
     ]);
   }
 
-  async function runTrayAction(
-    failure: string,
-    action: () => Promise<JourneyItem[]>
-  ) {
+  async function runTrayAction(failure: string, action: () => Promise<void>) {
     if (!canEdit || trayBusy) return;
     setTrayBusy(true);
     setTrayError(null);
     setConfirmRemoveId(null);
     try {
-      const unhidden = await action();
-      await Promise.all(unhidden.map(logUnhidden));
+      await action();
       haptic.success();
       await refreshCaptured();
     } catch (error) {
@@ -767,32 +748,26 @@ export function JourneyBody() {
     }
   }
 
-  function showCaptured(item: JourneyItem) {
-    void runTrayAction('Could not show on journey', async () => {
-      const { data: updated, error } = await supabase
-        .from('journey_items')
-        .update({ hidden: false })
-        .eq('id', item.id)
-        .select('id');
-      if (error) throw error;
-      if (!updated?.length) throw new Error('that item is no longer there');
-      return [item];
+  async function showItems(items: JourneyItem[]) {
+    const { data: shown, error } = await supabase.rpc('journey_show_captured', {
+      p_account_id: accountId!,
+      p_item_ids: items.map((item) => item.id),
     });
+    if (error) throw error;
+    if (!shown?.length)
+      throw new Error(
+        items.length === 1
+          ? 'that item is no longer there'
+          : 'those items are no longer there'
+      );
   }
 
-  function showAllCaptured(group: JourneyGroup, items: JourneyItem[]) {
-    void runTrayAction('Could not show all', async () => {
-      const { data: updated, error } = await supabase
-        .from('journey_items')
-        .update({ hidden: false })
-        .eq('hidden', true)
-        .eq(mode === 'buyer' ? 'contact_id' : 'property_id', group.subjectId)
-        .select('id');
-      if (error) throw error;
-      if (!updated?.length) throw new Error('those items are no longer there');
-      const unhidden = new Set(updated.map((row) => row.id));
-      return items.filter((item) => unhidden.has(item.id));
-    });
+  function showCaptured(item: JourneyItem) {
+    void runTrayAction('Could not show on journey', () => showItems([item]));
+  }
+
+  function showAllCaptured(items: JourneyItem[]) {
+    void runTrayAction('Could not show all', () => showItems(items));
   }
 
   function removeCaptured(item: JourneyItem) {
@@ -804,7 +779,6 @@ export function JourneyBody() {
         .select('id');
       if (error) throw error;
       if (!removed?.length) throw new Error('that item is no longer there');
-      return [];
     });
   }
 
@@ -1408,12 +1382,12 @@ export function JourneyBody() {
               </View>
             );
           })}
-          {canEdit && trayGroup && capturedItems.length > 1 ? (
+          {canEdit && capturedItems.length > 1 ? (
             <PrimaryButton
               label={`Show all ${capturedItems.length}`}
               icon="eye-outline"
               busy={trayBusy}
-              onPress={() => showAllCaptured(trayGroup, capturedItems)}
+              onPress={() => showAllCaptured(capturedItems)}
             />
           ) : null}
         </ScrollView>
