@@ -19,6 +19,12 @@ than a written entry. Newest first.
 
 #### 20 September 2026
 
+- **An expanded journey leads with the stage it is filed under.** Inside a
+  stage group, opening a journey now shows the items resting on that stage
+  first, ringed in the stage colour, and folds the items at other stages
+  behind an "N more at other stages" control, on web and mobile. A buyer
+  filed under Negotiation/Token because of one property no longer opens to
+  five New Inquiry rows above it.
 - **Journey list is readable again.** A stage header now expands and
   collapses its rows; focusing on one stage is a separate "Only this stage"
   control, an empty focused stage says so and offers every stage back, a

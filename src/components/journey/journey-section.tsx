@@ -27,6 +27,7 @@ import {
   NotebookPen,
   Plus,
   UserRound,
+  Layers,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -62,7 +63,7 @@ import { JourneyItemSheet } from './journey-item-sheet';
 import { AddItemsDialog } from './add-items-dialog';
 import { CapturedTrayDialog } from './captured-tray-dialog';
 import { ContactNotesDialog } from './contact-notes-dialog';
-import type { JourneyMode } from './shared';
+import { splitItemsAtStage, type JourneyMode } from './shared';
 
 export interface JourneySectionProps {
   mode: JourneyMode;
@@ -82,6 +83,9 @@ export interface JourneySectionProps {
   /** Fired after any mutation that changes item rows, so the overview
    *  can refresh its count chips. */
   onItemsChanged?: () => void;
+  /** Stage the overview group is named after: items resting there lead
+   *  the map, the rest fold behind a count until asked for. */
+  focusStageId?: string | null;
 }
 
 export function JourneySection({
@@ -94,6 +98,7 @@ export function JourneySection({
   preloadedContact,
   preloadedProperty,
   onItemsChanged,
+  focusStageId = null,
 }: JourneySectionProps) {
   const supabase = createClient();
   const { user, accountId } = useAuth();
@@ -114,6 +119,7 @@ export function JourneySection({
   const [scanningChat, setScanningChat] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
   const [notesCount, setNotesCount] = useState(0);
+  const [showElsewhere, setShowElsewhere] = useState(false);
   const [brokeragePrompt, setBrokeragePrompt] = useState<{
     item: JourneyItem;
     toStageId: string;
@@ -617,8 +623,18 @@ export function JourneySection({
   );
   const visibleItems = useMemo(() => items.filter((i) => !i.hidden), [items]);
   const capturedItems = useMemo(() => items.filter((i) => i.hidden), [items]);
+  const { atStage, elsewhere } = useMemo(
+    () => splitItemsAtStage(visibleItems, focusStageId),
+    [focusStageId, visibleItems]
+  );
+  const focusStage = stages.find((stage) => stage.id === focusStageId);
+  const canvasItems = showElsewhere ? visibleItems : atStage;
 
-  const hasToolbar = capturedItems.length > 0 || canEdit || mode === 'buyer';
+  const hasToolbar =
+    capturedItems.length > 0 ||
+    canEdit ||
+    mode === 'buyer' ||
+    elsewhere.length > 0;
 
   const subjectTitle =
     mode === 'buyer'
@@ -639,6 +655,20 @@ export function JourneySection({
 
   const toolbarButtons = (
     <div className="flex flex-wrap items-center gap-1.5">
+      {elsewhere.length > 0 && (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setShowElsewhere((current) => !current)}
+          aria-pressed={showElsewhere}
+          className="h-7 px-2.5 text-xs"
+        >
+          <Layers className="h-3.5 w-3.5" />
+          {showElsewhere
+            ? `Only ${focusStage?.name ?? 'this stage'}`
+            : `${elsewhere.length} more at other stages`}
+        </Button>
+      )}
       {capturedItems.length > 0 && (
         <Button
           variant="ghost"
@@ -770,10 +800,11 @@ export function JourneySection({
         contact={subjectContact}
         property={subjectProperty}
         stages={stages}
-        items={visibleItems}
+        items={canvasItems}
         currency={currency}
         canEdit={canEdit}
         selectedItemId={selectedItem?.id}
+        highlightStageId={elsewhere.length > 0 ? focusStageId : null}
         onSelectItem={setSelectedItem}
         onAdvance={handleAdvance}
         onAddItems={() => setAddOpen(true)}
@@ -928,7 +959,8 @@ export function JourneySection({
                     brokerage_value: Number(brokerageValue),
                   }
                 ).then((moved) => {
-                  if (moved) toast.success(`Moved to ${brokeragePrompt.stageName}`);
+                  if (moved)
+                    toast.success(`Moved to ${brokeragePrompt.stageName}`);
                 })
               }
             >

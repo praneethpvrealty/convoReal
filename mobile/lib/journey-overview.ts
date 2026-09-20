@@ -39,6 +39,20 @@ export function journeyRaceLabel(active: number): string {
   return active > 0 ? `${active} in the race` : 'Nothing in the race';
 }
 
+export function splitItemsAtStage<
+  T extends { stage_id: string; status: string },
+>(items: T[], stageId: string | null): { atStage: T[]; elsewhere: T[] } {
+  if (!stageId) return { atStage: items, elsewhere: [] };
+  const atStage = items.filter(
+    (item) => item.stage_id === stageId && item.status !== 'dropped'
+  );
+  if (atStage.length === 0) return { atStage: items, elsewhere: [] };
+  return {
+    atStage,
+    elsewhere: items.filter((item) => !atStage.includes(item)),
+  };
+}
+
 export function focusBuckets<T extends { key: string }>(
   buckets: T[],
   focusedKey: string | null

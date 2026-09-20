@@ -1403,6 +1403,7 @@ function SortableJourneyRow({
             preloadedContact={group.contact}
             preloadedProperty={group.property}
             onItemsChanged={onItemsChanged}
+            focusStageId={showStage ? null : (stage?.id ?? null)}
           />
         </div>
       )}

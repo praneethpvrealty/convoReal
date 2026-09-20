@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { focusBuckets, journeyRaceLabel } from './journey-overview';
+import {
+  focusBuckets,
+  journeyRaceLabel,
+  splitItemsAtStage,
+} from './journey-overview';
 
 describe('focusBuckets', () => {
   const buckets = [
@@ -29,5 +33,24 @@ describe('journeyRaceLabel', () => {
   it('[JRN-007] counts what is still in the race and says so plainly at zero', () => {
     expect(journeyRaceLabel(3)).toBe('3 in the race');
     expect(journeyRaceLabel(0)).toBe('Nothing in the race');
+  });
+});
+
+describe('splitItemsAtStage', () => {
+  const rows = [
+    { id: 'a', stage_id: 'new', status: 'active' },
+    { id: 'b', stage_id: 'token', status: 'active' },
+    { id: 'c', stage_id: 'new', status: 'dropped' },
+  ];
+
+  it('[JRN-008] leads with the live items on the group stage and folds the rest', () => {
+    expect(splitItemsAtStage(rows, 'token')).toEqual({
+      atStage: [rows[1]],
+      elsewhere: [rows[0], rows[2]],
+    });
+    expect(splitItemsAtStage(rows, null)).toEqual({
+      atStage: rows,
+      elsewhere: [],
+    });
   });
 });
