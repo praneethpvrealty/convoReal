@@ -281,7 +281,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                     )}
                   >
                     <item.icon className="h-4 w-4 shrink-0" />
-                    <span className="flex-1 truncate">{t(item.labelKey)}</span>
+                    <span className="min-w-0 flex-1 leading-tight">{t(item.labelKey)}</span>
                     {item.beta && (
                       <span
                         aria-label="Beta feature"

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { focusBuckets } from './journey-overview';
+import { focusBuckets, journeyRaceLabel } from './journey-overview';
 
 describe('focusBuckets', () => {
   const buckets = [
@@ -22,5 +22,12 @@ describe('focusBuckets', () => {
   it('[JRN-006] falls back to every stage card when the selected one is gone', () => {
     expect(focusBuckets(buckets, 'closed:completed')).toBe(buckets);
     expect(focusBuckets([], 'stage:new')).toEqual([]);
+  });
+});
+
+describe('journeyRaceLabel', () => {
+  it('[JRN-007] counts what is still in the race and says so plainly at zero', () => {
+    expect(journeyRaceLabel(3)).toBe('3 in the race');
+    expect(journeyRaceLabel(0)).toBe('Nothing in the race');
   });
 });

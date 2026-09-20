@@ -711,7 +711,7 @@
         },
         {
           "id": "JRN-006",
-          "rule": "Selecting a stage card focuses the journey list on that stage: the other stage cards hide and the selected card is highlighted in its stage colour until it is selected again, a search runs, or the mode or view changes. A selection whose card no longer exists shows every stage.",
+          "rule": "A stage card's header expands and collapses its rows, and a separate control on the header focuses the list on that stage: the other stage cards hide and the selected card is highlighted in its stage colour until the control is used again or the mode or view changes. A search runs inside the focused stage, and an empty focused stage says so and offers every stage back. On web the focused stage travels in the address so a reload keeps it. A selection whose card no longer exists shows every stage.",
           "tests": [
             {
               "file": "src/components/journey/shared.test.ts",
@@ -724,6 +724,24 @@
             {
               "file": "mobile/lib/journey-overview.test.ts",
               "case": "[JRN-006]"
+            }
+          ]
+        },
+        {
+          "id": "JRN-007",
+          "rule": "Inside a stage group a journey row does not repeat its stage; it shows how many of its items are still in the race with the same wording on web and mobile, greyed when there are none. Drag handles appear only when the order can actually be dragged.",
+          "tests": [
+            {
+              "file": "src/components/journey/shared.test.ts",
+              "case": "[JRN-007]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[JRN-007]"
+            },
+            {
+              "file": "mobile/lib/journey-overview.test.ts",
+              "case": "[JRN-007]"
             }
           ]
         }

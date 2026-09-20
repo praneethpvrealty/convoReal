@@ -19,6 +19,23 @@ than a written entry. Newest first.
 
 #### 20 September 2026
 
+- **Journey list is readable again.** A stage header now expands and
+  collapses its rows; focusing on one stage is a separate "Only this stage"
+  control, an empty focused stage says so and offers every stage back, a
+  search runs inside the focused stage, and on web the focused stage lives in
+  the address so a reload keeps it. Journeys hidden on this device are
+  counted next to the Active tab with a tray that can show them one at a time
+  or all at once, instead of a strip at the foot of the list. Rows stop
+  repeating the stage they are grouped under and show "N in the race" (grey
+  at nothing) plus when they last moved; the actions menu holds full screen
+  and open-as-page for everyone; drag handles appear only under Manual order;
+  the toolbar and stage headers stay pinned while scrolling; the list clears
+  the floating Copilot and Help buttons; subtitles and pills are larger and
+  brighter; name tags truncate. The Deals page no longer repeats the Journey
+  lede, the "Stages follow the Board" label is now an "Edit stages on the
+  Board" link, and the top bar's duplicate AI Assistant button is gone (the
+  sidebar item and floating button remain). Mobile gets the same stage
+  collapse, focus control, empty state and race count.
 - **Captured shares can be reviewed on mobile.** A journey card's
   "N captured" count is now a chip that opens the same Captured tray the
   web journey has: each auto-captured WhatsApp share can be shown on the
