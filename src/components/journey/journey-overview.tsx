@@ -1,6 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { formatDistanceToNowStrict } from 'date-fns';
 import {
   closestCenter,
   DndContext,
@@ -22,6 +24,7 @@ import {
   Archive,
   ArchiveRestore,
   ArrowDownWideNarrow,
+  ArrowUpRight,
   Building2,
   CheckCircle2,
   ChevronDown,
@@ -30,6 +33,7 @@ import {
   Eye,
   EyeOff,
   Flag,
+  Focus,
   GripVertical,
   Plus,
   RotateCcw,
@@ -60,6 +64,7 @@ import {
   type JourneyOverviewState,
 } from '@/lib/journey/overview-state';
 import { dealsHref } from '@/lib/deals/routes';
+import { replaceUrl } from '@/lib/navigation';
 import { readStored, writeStored } from '@/lib/safe-storage';
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
@@ -77,6 +82,7 @@ import {
   JOURNEY_PRIORITY_ORDER,
   JOURNEY_SORT_LABELS,
   focusBuckets,
+  journeyRaceLabel,
   navigateJourney,
   sortJourneys,
   type JourneyMode,
@@ -147,6 +153,18 @@ function subtitleOf(group: JourneyGroup, mode: JourneyMode) {
         .join(' · ');
 }
 
+function updatedLabel(group: JourneyGroup) {
+  const date = new Date(group.lastUpdated);
+  if (Number.isNaN(date.getTime())) return '';
+  return formatDistanceToNowStrict(date, { addSuffix: true });
+}
+
+function pageHrefOf(group: JourneyGroup, mode: JourneyMode) {
+  return mode === 'buyer'
+    ? dealsHref('journey', { contact: group.subjectId })
+    : dealsHref('journey', { property: group.subjectId });
+}
+
 function matchesSearch(group: JourneyGroup, mode: JourneyMode, query: string) {
   const text =
     mode === 'buyer'
@@ -186,9 +204,13 @@ export function JourneyOverview({
 }) {
   const supabase = createClient();
   const { user, accountId } = useAuth();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const hiddenKey = `journey_overview_hidden_${mode}`;
   const openKey = `journey_overview_open_${mode}`;
   const sortKey = `journey_overview_sort_${mode}`;
+  const collapsedKey = `journey_overview_collapsed_${mode}`;
   const [groups, setGroups] = useState<JourneyGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(() =>
@@ -199,9 +221,14 @@ export function JourneyOverview({
     return stored.size > 0 ? stored : null;
   });
   const [sort, setSort] = useState<JourneySort>(() => readSort(sortKey));
+  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() =>
+    readIdSet(collapsedKey)
+  );
   const [view, setView] = useState<JourneyView>('active');
   const [query, setQuery] = useState('');
-  const [focusedBucket, setFocusedBucket] = useState<string | null>(null);
+  const [showHidden, setShowHidden] = useState(false);
+  const [toolbarHeight, setToolbarHeight] = useState(0);
+  const toolbarRef = useRef<HTMLDivElement>(null);
   const [newJourneyOpen, setNewJourneyOpen] = useState(false);
   const [fullscreenId, setFullscreenId] = useState<string | null>(null);
   const [closingId, setClosingId] = useState<string | null>(null);
@@ -212,11 +239,33 @@ export function JourneyOverview({
       const stored = readIdSet(openKey);
       setOpenIds(stored.size > 0 ? stored : null);
       setSort(readSort(sortKey));
+      setCollapsedIds(readIdSet(collapsedKey));
       setView('active');
       setQuery('');
-      setFocusedBucket(null);
+      setShowHidden(false);
     });
-  }, [hiddenKey, mode, openKey, sortKey]);
+  }, [collapsedKey, hiddenKey, mode, openKey, sortKey]);
+
+  const stageParam = searchParams.get('stage');
+  const focusedBucket =
+    view === 'active' && stageParam ? `stage:${stageParam}` : null;
+
+  const setFocusedBucket = useCallback(
+    (key: string | null) => {
+      const params = new URLSearchParams(searchParams.toString());
+      const stageId = key?.startsWith('stage:') ? key.slice(6) : null;
+      if (stageId) params.set('stage', stageId);
+      else params.delete('stage');
+      const search = params.toString();
+      replaceUrl(router, search ? `${pathname}?${search}` : pathname);
+    },
+    [pathname, router, searchParams]
+  );
+
+  const changeView = (next: JourneyView) => {
+    setView(next);
+    if (next !== 'active' && stageParam) setFocusedBucket(null);
+  };
 
   const changeSort = useCallback(
     (next: JourneySort) => {
@@ -438,6 +487,26 @@ export function JourneyOverview({
     writeIdSet(hiddenKey, next);
   };
 
+  const showAllHidden = () => {
+    setHiddenIds(new Set());
+    writeIdSet(hiddenKey, new Set());
+    setShowHidden(false);
+  };
+
+  const toggleCollapsed = (key: string) => {
+    const next = new Set(collapsedIds);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    setCollapsedIds(next);
+    writeIdSet(collapsedKey, next);
+  };
+
+  const visibleBuckets = focusBuckets(buckets, focusedBucket);
+  const focusActive =
+    focusedBucket !== null &&
+    visibleBuckets.length === 1 &&
+    visibleBuckets[0].key === focusedBucket;
+
   const setPriority = async (
     group: JourneyGroup,
     priority: JourneyPriority | null
@@ -602,6 +671,16 @@ export function JourneyOverview({
     };
   }, [fullscreenGroup]);
 
+  useEffect(() => {
+    const element = toolbarRef.current;
+    if (!element || typeof ResizeObserver === 'undefined') return;
+    const measure = () => setToolbarHeight(element.offsetHeight);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [loading]);
+
   if (loading) {
     return (
       <div className="flex h-[40vh] items-center justify-center">
@@ -611,9 +690,17 @@ export function JourneyOverview({
   }
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-col gap-3 rounded-xl border border-slate-800 bg-slate-900/40 p-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-wrap gap-1">
+    <div
+      className="space-y-3 pb-52 md:pb-28"
+      style={
+        { '--journey-toolbar': `${toolbarHeight}px` } as React.CSSProperties
+      }
+    >
+      <div
+        ref={toolbarRef}
+        className="sticky top-0 z-20 flex flex-col gap-3 rounded-xl border border-slate-800 bg-slate-950/90 p-3 shadow-lg shadow-black/20 backdrop-blur-md sm:flex-row sm:items-center sm:justify-between"
+      >
+        <div className="flex flex-wrap items-center gap-1">
           {(
             [
               ['active', 'Active'],
@@ -624,7 +711,7 @@ export function JourneyOverview({
             <button
               key={value}
               type="button"
-              onClick={() => setView(value)}
+              onClick={() => changeView(value)}
               className={cn(
                 'rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors',
                 view === value
@@ -635,6 +722,23 @@ export function JourneyOverview({
               {label} <span className="ml-1 tabular-nums">{counts[value]}</span>
             </button>
           ))}
+          {view === 'active' && hiddenGroups.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowHidden((current) => !current)}
+              aria-pressed={showHidden}
+              className={cn(
+                'ml-1 inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-colors',
+                showHidden
+                  ? 'border-amber-500/40 bg-amber-500/10 text-amber-200'
+                  : 'border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white'
+              )}
+            >
+              <EyeOff className="h-3.5 w-3.5" />
+              <span className="tabular-nums">{hiddenGroups.length}</span> hidden
+              on this device
+            </button>
+          )}
         </div>
         <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
           <div className="relative min-w-0 flex-1 sm:max-w-sm">
@@ -692,66 +796,34 @@ export function JourneyOverview({
         </div>
       </div>
 
-      {sort !== 'manual' && canEdit && viewGroups.length > 1 && (
-        <p className="text-[11px] text-slate-500">
-          Choose Manual order to drag journeys into your preferred order.
-        </p>
-      )}
-
-      {focusBuckets(buckets, query.trim() ? null : focusedBucket).map(
-        (bucket) => {
-          const focused = !query.trim() && bucket.key === focusedBucket;
-          return (
-            <JourneyBucketSection
-              key={bucket.key}
-              bucket={bucket}
-              focused={focused}
-              onToggle={() => setFocusedBucket(focused ? null : bucket.key)}
-              mode={mode}
-              stages={stages}
-              currency={currency}
-              canEdit={canEdit}
-              canDrag={sort === 'manual'}
-              openIds={effectiveOpen}
-              onToggleJourney={toggleOpen}
-              onPriority={setPriority}
-              onCloseJourney={setClosingId}
-              onLifecycle={mutateLifecycle}
-              onHide={setHidden}
-              onFullscreen={setFullscreenId}
-              onItemsChanged={loadGroups}
-              onReorder={reorderBucket}
-            />
-          );
-        }
-      )}
-
-      {viewGroups.length === 0 && (
-        <div className="rounded-xl border border-dashed border-slate-700 bg-slate-900/40 px-6 py-10 text-center text-sm text-slate-400">
-          {query
-            ? 'No journeys match this search.'
-            : view === 'active'
-              ? 'No active journeys.'
-              : view === 'closed'
-                ? 'No closed journeys.'
-                : 'No archived journeys.'}
-        </div>
-      )}
-
-      {view === 'active' && hiddenGroups.length > 0 && (
-        <div className="rounded-xl border border-slate-800/60 bg-slate-950/50 px-3.5 py-3">
-          <p className="mb-2 text-[11px] font-semibold tracking-wider text-slate-500 uppercase">
-            Hidden on this device · {hiddenGroups.length}
-          </p>
+      {view === 'active' && showHidden && hiddenGroups.length > 0 && (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-3.5 py-3">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs text-slate-300">
+              <span className="font-semibold text-amber-200">
+                {hiddenGroups.length} hidden on this device.
+              </span>{' '}
+              They stay active for everyone else; select one to show it again.
+            </p>
+            <Button variant="outline" size="sm" onClick={showAllHidden}>
+              <Eye className="h-3.5 w-3.5" />
+              Show all {hiddenGroups.length}
+            </Button>
+          </div>
           <div className="flex flex-wrap gap-2">
             {hiddenGroups.map((group) => (
               <span
                 key={group.subjectId}
-                className="inline-flex items-center overflow-hidden rounded-full border border-slate-700 bg-slate-900 text-[11px] text-slate-300"
+                className="inline-flex items-center overflow-hidden rounded-full border border-slate-700 bg-slate-900 text-xs text-slate-300"
               >
                 <button
                   type="button"
                   onClick={() => setHidden(group.subjectId, false)}
+                  title={`Show ${titleOf(group, mode)}${
+                    subtitleOf(group, mode)
+                      ? ` · ${subtitleOf(group, mode)}`
+                      : ''
+                  }`}
                   className="inline-flex items-center gap-1.5 py-1 pr-1.5 pl-2.5 hover:text-white"
                 >
                   <Eye className="h-3 w-3" />
@@ -773,6 +845,54 @@ export function JourneyOverview({
         </div>
       )}
 
+      {sort !== 'manual' && canEdit && viewGroups.length > 1 && (
+        <p className="text-xs text-slate-500">
+          Choose Manual order to drag journeys into your preferred order.
+        </p>
+      )}
+
+      {visibleBuckets.map((bucket) => {
+        const focused = focusActive && bucket.key === focusedBucket;
+        return (
+          <JourneyBucketSection
+            key={bucket.key}
+            bucket={bucket}
+            focused={focused}
+            collapsed={!focused && collapsedIds.has(bucket.key)}
+            query={query.trim()}
+            onToggleCollapsed={() => toggleCollapsed(bucket.key)}
+            onToggleFocus={() => setFocusedBucket(focused ? null : bucket.key)}
+            showStage={view !== 'active'}
+            mode={mode}
+            stages={stages}
+            currency={currency}
+            canEdit={canEdit}
+            canDrag={sort === 'manual'}
+            openIds={effectiveOpen}
+            onToggleJourney={toggleOpen}
+            onPriority={setPriority}
+            onCloseJourney={setClosingId}
+            onLifecycle={mutateLifecycle}
+            onHide={setHidden}
+            onFullscreen={setFullscreenId}
+            onItemsChanged={loadGroups}
+            onReorder={reorderBucket}
+          />
+        );
+      })}
+
+      {viewGroups.length === 0 && !focusActive && (
+        <div className="rounded-xl border border-dashed border-slate-700 bg-slate-900/40 px-6 py-10 text-center text-sm text-slate-400">
+          {query
+            ? 'No journeys match this search.'
+            : view === 'active'
+              ? 'No active journeys.'
+              : view === 'closed'
+                ? 'No closed journeys.'
+                : 'No archived journeys.'}
+        </div>
+      )}
+
       {fullscreenGroup && (
         <div className="fixed inset-0 z-50 flex flex-col bg-slate-950">
           <div className="flex items-center justify-between gap-3 border-b border-slate-800 px-4 py-2.5">
@@ -784,15 +904,7 @@ export function JourneyOverview({
                 variant="ghost"
                 size="sm"
                 onClick={() =>
-                  navigateJourney(
-                    mode === 'buyer'
-                      ? dealsHref('journey', {
-                          contact: fullscreenGroup.subjectId,
-                        })
-                      : dealsHref('journey', {
-                          property: fullscreenGroup.subjectId,
-                        })
-                  )
+                  navigateJourney(pageHrefOf(fullscreenGroup, mode))
                 }
               >
                 Open as page
@@ -840,7 +952,11 @@ export function JourneyOverview({
 function JourneyBucketSection({
   bucket,
   focused,
-  onToggle,
+  collapsed,
+  query,
+  onToggleCollapsed,
+  onToggleFocus,
+  showStage,
   mode,
   stages,
   currency,
@@ -858,7 +974,11 @@ function JourneyBucketSection({
 }: {
   bucket: JourneyBucket;
   focused: boolean;
-  onToggle: () => void;
+  collapsed: boolean;
+  query: string;
+  onToggleCollapsed: () => void;
+  onToggleFocus: () => void;
+  showStage: boolean;
   mode: JourneyMode;
   stages: JourneyStage[];
   currency: string;
@@ -890,48 +1010,96 @@ function JourneyBucketSection({
     );
   };
 
+  const showBody = !collapsed && (bucket.groups.length > 0 || focused);
+
   return (
     <section
       className={cn(
-        'overflow-hidden rounded-xl border bg-slate-950/40',
+        'rounded-xl border bg-slate-950/40',
         focused ? 'border-transparent' : 'border-slate-800'
       )}
       style={focused ? { borderColor: bucket.color } : undefined}
     >
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-pressed={focused}
-        aria-label={focused ? 'Show all stages' : `Show only ${bucket.label}`}
-        className="flex w-full items-center gap-2.5 px-3.5 py-3 text-left hover:bg-slate-900/70"
-        style={focused ? { backgroundColor: `${bucket.color}14` } : undefined}
+      <div
+        className={cn(
+          'sticky z-10 flex items-center gap-1.5 border-l-[3px] bg-slate-950/95 py-1.5 pr-2.5 pl-2.5 backdrop-blur-md',
+          showBody ? 'rounded-t-xl' : 'rounded-xl'
+        )}
+        style={{
+          top: 'var(--journey-toolbar, 0px)',
+          borderLeftColor: bucket.color,
+          boxShadow: focused
+            ? `inset 0 0 0 9999px ${bucket.color}14`
+            : undefined,
+        }}
       >
-        {focused ? (
-          <CheckCircle2 className="h-4 w-4" style={{ color: bucket.color }} />
-        ) : (
-          <ChevronDown className="h-4 w-4 -rotate-90 text-slate-500" />
-        )}
-        <span
-          className="h-2.5 w-2.5 rounded-full"
-          style={{ backgroundColor: bucket.color }}
-        />
-        <span className="flex-1 text-sm font-bold text-slate-200">
-          {bucket.label}
-        </span>
-        <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[11px] font-semibold text-slate-300 tabular-nums">
-          {bucket.groups.length}
-        </span>
-        {focused && (
+        <button
+          type="button"
+          onClick={onToggleCollapsed}
+          aria-expanded={showBody}
+          aria-label={`${showBody ? 'Collapse' : 'Expand'} ${bucket.label}`}
+          className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg py-1.5 pl-1 text-left hover:bg-slate-900/70"
+        >
+          <ChevronDown
+            className={cn(
+              'h-4 w-4 shrink-0 text-slate-400 transition-transform',
+              !showBody && '-rotate-90'
+            )}
+          />
           <span
-            className="flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold"
-            style={{ borderColor: `${bucket.color}66`, color: bucket.color }}
-          >
-            <X className="h-3 w-3" />
-            All stages
+            className="h-2.5 w-2.5 shrink-0 rounded-full"
+            style={{ backgroundColor: bucket.color }}
+          />
+          <span className="truncate text-[13px] font-bold tracking-wide text-slate-100 uppercase">
+            {bucket.label}
           </span>
-        )}
-      </button>
-      {bucket.groups.length > 0 && (
+          <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[11px] font-semibold text-slate-200 tabular-nums">
+            {bucket.groups.length}
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={onToggleFocus}
+          aria-pressed={focused}
+          title={focused ? 'Show all stages' : `Show only ${bucket.label}`}
+          className={cn(
+            'inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-[11px] font-semibold transition-colors',
+            focused
+              ? 'hover:bg-slate-900/70'
+              : 'border-transparent text-slate-400 hover:border-slate-700 hover:bg-slate-900/70 hover:text-white'
+          )}
+          style={
+            focused
+              ? { borderColor: `${bucket.color}99`, color: bucket.color }
+              : undefined
+          }
+        >
+          {focused ? (
+            <>
+              <X className="h-3.5 w-3.5" />
+              All stages
+            </>
+          ) : (
+            <>
+              <Focus className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Only this stage</span>
+            </>
+          )}
+        </button>
+      </div>
+      {focused && bucket.groups.length === 0 && (
+        <div className="flex flex-col items-center gap-2 border-t border-slate-800/70 px-6 py-8 text-center">
+          <p className="text-sm text-slate-300">
+            {query
+              ? `No journeys in ${bucket.label} match “${query}”.`
+              : `No journeys in ${bucket.label} yet.`}
+          </p>
+          <Button variant="outline" size="sm" onClick={onToggleFocus}>
+            {query ? 'Search all stages' : 'Show all stages'}
+          </Button>
+        </div>
+      )}
+      {showBody && bucket.groups.length > 0 && (
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
@@ -951,6 +1119,7 @@ function JourneyBucketSection({
                   currency={currency}
                   canEdit={canEdit}
                   canDrag={canDrag}
+                  showStage={showStage}
                   open={openIds.has(group.subjectId)}
                   onToggle={() => onToggleJourney(group.subjectId)}
                   onPriority={(priority) => onPriority(group, priority)}
@@ -976,6 +1145,7 @@ function SortableJourneyRow({
   currency,
   canEdit,
   canDrag,
+  showStage,
   open,
   onToggle,
   onPriority,
@@ -991,6 +1161,7 @@ function SortableJourneyRow({
   currency: string;
   canEdit: boolean;
   canDrag: boolean;
+  showStage: boolean;
   open: boolean;
   onToggle: () => void;
   onPriority: (priority: JourneyPriority | null) => void;
@@ -1030,21 +1201,23 @@ function SortableJourneyRow({
       }}
       className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900/50"
     >
-      <div className="flex items-center gap-2 px-2.5 py-2.5">
-        <button
-          type="button"
-          {...attributes}
-          {...listeners}
-          disabled={!canEdit || !canDrag}
-          title={canDrag ? 'Drag to reorder' : 'Choose Manual order to drag'}
-          aria-label={`Drag ${titleOf(group, mode)} to reorder`}
-          className="touch-none text-slate-600 hover:text-slate-300 disabled:cursor-not-allowed disabled:opacity-30"
-        >
-          <GripVertical className="h-4 w-4" />
-        </button>
+      <div className="flex items-center gap-2 px-2.5 py-2">
+        {canEdit && canDrag && (
+          <button
+            type="button"
+            {...attributes}
+            {...listeners}
+            title="Drag to reorder"
+            aria-label={`Drag ${titleOf(group, mode)} to reorder`}
+            className="touch-none text-slate-500 hover:text-slate-200"
+          >
+            <GripVertical className="h-4 w-4" />
+          </button>
+        )}
         <button
           type="button"
           onClick={onToggle}
+          aria-expanded={open}
           className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
         >
           <ChevronDown
@@ -1069,7 +1242,7 @@ function SortableJourneyRow({
                 <NameTagBadge tag={group.contact.name_tag} />
               )}
             </span>
-            <span className="block truncate text-[11px] text-slate-500">
+            <span className="block truncate text-xs text-slate-400">
               {subtitleOf(group, mode)}
               {group.closureReason ? ` · ${group.closureReason}` : ''}
             </span>
@@ -1077,112 +1250,136 @@ function SortableJourneyRow({
         </button>
 
         <div className="flex shrink-0 items-center gap-1.5">
-          {priorityMeta && (
+          <span
+            className="hidden w-24 truncate text-right text-[11px] text-slate-500 lg:block"
+            title={`Last updated ${updatedLabel(group)}`}
+          >
+            {updatedLabel(group)}
+          </span>
+          <span className="hidden w-20 justify-end md:flex">
+            {priorityMeta && (
+              <span
+                className={cn(
+                  'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold',
+                  priorityMeta.className
+                )}
+              >
+                <Flag className="h-3 w-3" />
+                {priorityMeta.label}
+              </span>
+            )}
+          </span>
+          {showStage && stage ? (
             <span
-              className={cn(
-                'hidden items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold md:inline-flex',
-                priorityMeta.className
-              )}
-            >
-              <Flag className="h-3 w-3" />
-              {priorityMeta.label}
-            </span>
-          )}
-          {stage ? (
-            <span
-              className="hidden rounded-full border px-2 py-0.5 text-[10px] font-semibold sm:inline-flex"
+              className="hidden rounded-full border px-2 py-0.5 text-[11px] font-semibold sm:inline-flex"
               style={{ borderColor: `${stage.color}66`, color: stage.color }}
             >
               {stage.name}
             </span>
           ) : null}
           {lifecycleMeta ? (
-            <span className="hidden rounded-full border border-slate-700 px-2 py-0.5 text-[10px] font-semibold text-slate-300 md:inline-flex">
+            <span className="hidden rounded-full border border-slate-700 px-2 py-0.5 text-[11px] font-semibold text-slate-300 md:inline-flex">
               {lifecycleMeta.label}
             </span>
           ) : null}
-          <span className="hidden rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-300 lg:inline-flex">
-            {group.active} active
-          </span>
-          <button
-            type="button"
-            onClick={onFullscreen}
-            title="Open full screen"
-            className="hidden h-7 w-7 items-center justify-center rounded-md text-slate-500 hover:bg-slate-800 hover:text-white sm:flex"
-          >
-            <Expand className="h-3.5 w-3.5" />
-          </button>
-          {canEdit && (
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                aria-label={`Journey actions for ${titleOf(group, mode)}`}
-                className="flex h-7 w-7 items-center justify-center rounded-md text-slate-500 hover:bg-slate-800 hover:text-white"
-              >
-                <EllipsisVertical className="h-4 w-4" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="end"
-                className="border-slate-700 bg-slate-900"
-              >
-                <DropdownMenuItem
-                  disabled
-                  className="text-[10px] text-slate-500 uppercase"
-                >
-                  Priority
-                </DropdownMenuItem>
-                {JOURNEY_PRIORITY_ORDER.map((priority) => (
-                  <DropdownMenuItem
-                    key={priority}
-                    onClick={() => onPriority(priority)}
-                  >
-                    <Flag
-                      className={cn(
-                        'h-3.5 w-3.5',
-                        JOURNEY_PRIORITY_META[priority].dot
-                      )}
-                    />
-                    {JOURNEY_PRIORITY_META[priority].label}
-                  </DropdownMenuItem>
-                ))}
-                {group.priority && (
-                  <DropdownMenuItem onClick={() => onPriority(null)}>
-                    Clear priority
-                  </DropdownMenuItem>
+          {!closed && (
+            <span className="hidden w-32 justify-end sm:flex">
+              <span
+                className={cn(
+                  'rounded-full px-2 py-0.5 text-[11px] font-medium',
+                  group.active > 0
+                    ? 'bg-emerald-500/10 text-emerald-300'
+                    : 'bg-slate-800/80 text-slate-400'
                 )}
-                <DropdownMenuSeparator />
-                {group.archivedAt ? (
-                  <DropdownMenuItem onClick={() => onLifecycle('restore')}>
-                    <ArchiveRestore className="h-3.5 w-3.5" />
-                    Restore from archive
-                  </DropdownMenuItem>
-                ) : (
-                  <>
-                    {closed ? (
-                      <DropdownMenuItem onClick={() => onLifecycle('reopen')}>
-                        <RotateCcw className="h-3.5 w-3.5" />
-                        Reopen journey
-                      </DropdownMenuItem>
-                    ) : (
-                      <DropdownMenuItem onClick={onCloseJourney}>
-                        <CheckCircle2 className="h-3.5 w-3.5" />
-                        Close with outcome…
-                      </DropdownMenuItem>
-                    )}
-                    <DropdownMenuItem onClick={() => onLifecycle('archive')}>
-                      <Archive className="h-3.5 w-3.5" />
-                      Archive journey
-                    </DropdownMenuItem>
-                    {!closed && (
-                      <DropdownMenuItem onClick={onHide}>
-                        <EyeOff className="h-3.5 w-3.5" />
-                        Hide on this device
-                      </DropdownMenuItem>
-                    )}
-                  </>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
+              >
+                {journeyRaceLabel(group.active)}
+              </span>
+            </span>
           )}
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              aria-label={`Journey actions for ${titleOf(group, mode)}`}
+              className="flex h-7 w-7 items-center justify-center rounded-md text-slate-500 hover:bg-slate-800 hover:text-white"
+            >
+              <EllipsisVertical className="h-4 w-4" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              className="border-slate-700 bg-slate-900"
+            >
+              <DropdownMenuItem onClick={onFullscreen}>
+                <Expand className="h-3.5 w-3.5" />
+                Open full screen
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => navigateJourney(pageHrefOf(group, mode))}
+              >
+                <ArrowUpRight className="h-3.5 w-3.5" />
+                Open as page
+              </DropdownMenuItem>
+              {canEdit && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    disabled
+                    className="text-[10px] text-slate-500 uppercase"
+                  >
+                    Priority
+                  </DropdownMenuItem>
+                  {JOURNEY_PRIORITY_ORDER.map((priority) => (
+                    <DropdownMenuItem
+                      key={priority}
+                      onClick={() => onPriority(priority)}
+                    >
+                      <Flag
+                        className={cn(
+                          'h-3.5 w-3.5',
+                          JOURNEY_PRIORITY_META[priority].dot
+                        )}
+                      />
+                      {JOURNEY_PRIORITY_META[priority].label}
+                    </DropdownMenuItem>
+                  ))}
+                  {group.priority && (
+                    <DropdownMenuItem onClick={() => onPriority(null)}>
+                      Clear priority
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuSeparator />
+                  {group.archivedAt ? (
+                    <DropdownMenuItem onClick={() => onLifecycle('restore')}>
+                      <ArchiveRestore className="h-3.5 w-3.5" />
+                      Restore from archive
+                    </DropdownMenuItem>
+                  ) : (
+                    <>
+                      {closed ? (
+                        <DropdownMenuItem onClick={() => onLifecycle('reopen')}>
+                          <RotateCcw className="h-3.5 w-3.5" />
+                          Reopen journey
+                        </DropdownMenuItem>
+                      ) : (
+                        <DropdownMenuItem onClick={onCloseJourney}>
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          Close with outcome…
+                        </DropdownMenuItem>
+                      )}
+                      <DropdownMenuItem onClick={() => onLifecycle('archive')}>
+                        <Archive className="h-3.5 w-3.5" />
+                        Archive journey
+                      </DropdownMenuItem>
+                      {!closed && (
+                        <DropdownMenuItem onClick={onHide}>
+                          <EyeOff className="h-3.5 w-3.5" />
+                          Hide on this device
+                        </DropdownMenuItem>
+                      )}
+                    </>
+                  )}
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 

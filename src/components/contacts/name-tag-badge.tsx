@@ -9,8 +9,8 @@ export function NameTagBadge({ tag }: { tag?: string | null }) {
   if (!tag) return null;
   return (
     <span
-      className="inline-flex items-center bg-slate-700/40 border border-slate-600/50 text-slate-300 font-medium px-1.5 py-0.5 rounded text-[10px] select-none"
-      title="Name Tag — internal label, not sent in messages"
+      className="inline-block max-w-40 truncate rounded border border-slate-600/50 bg-slate-700/40 px-1.5 py-0.5 align-middle text-[10px] font-medium text-slate-300 select-none"
+      title={`${tag} — internal label, not sent in messages`}
     >
       {tag}
     </span>

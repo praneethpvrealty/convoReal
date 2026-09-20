@@ -35,6 +35,10 @@ export const JOURNEY_CLOSURE_REASONS: Record<
   ],
 };
 
+export function journeyRaceLabel(active: number): string {
+  return active > 0 ? `${active} in the race` : 'Nothing in the race';
+}
+
 export function focusBuckets<T extends { key: string }>(
   buckets: T[],
   focusedKey: string | null

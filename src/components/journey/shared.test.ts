@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { JourneyItem, JourneyStage } from '@/types';
 import {
   focusBuckets,
+  journeyRaceLabel,
   planEtaLabel,
   plannedIndexOf,
   sortItemsForRows,
@@ -286,5 +287,44 @@ describe('focusBuckets', () => {
   it('[JRN-006] falls back to every stage card when the selected one is gone', () => {
     expect(focusBuckets(buckets, 'closed:completed')).toBe(buckets);
     expect(focusBuckets([], 'stage:new')).toEqual([]);
+  });
+
+  it('[JRN-006] keeps the focus through a search and reads it from the address', () => {
+    const source = readFileSync(
+      join(process.cwd(), 'src/components/journey/journey-overview.tsx'),
+      'utf8'
+    );
+    expect(source).toContain('focusBuckets(buckets, focusedBucket)');
+    expect(source).not.toContain('query.trim() ? null : focusedBucket');
+    expect(source).toContain("searchParams.get('stage')");
+    expect(source).toContain("params.set('stage', stageId)");
+    expect(source).toContain(
+      'onToggleCollapsed={() => toggleCollapsed(bucket.key)}'
+    );
+    expect(source).toContain(
+      'onToggleFocus={() => setFocusedBucket(focused ? null : bucket.key)}'
+    );
+    expect(source).toContain(
+      "{query ? 'Search all stages' : 'Show all stages'}"
+    );
+  });
+});
+
+describe('journeyRaceLabel', () => {
+  it('[JRN-007] counts what is still in the race and says so plainly at zero', () => {
+    expect(journeyRaceLabel(3)).toBe('3 in the race');
+    expect(journeyRaceLabel(1)).toBe('1 in the race');
+    expect(journeyRaceLabel(0)).toBe('Nothing in the race');
+  });
+
+  it('[JRN-007] shows the race count instead of repeating the stage inside a stage group', () => {
+    const source = readFileSync(
+      join(process.cwd(), 'src/components/journey/journey-overview.tsx'),
+      'utf8'
+    );
+    expect(source).toContain("showStage={view !== 'active'}");
+    expect(source).toContain('{showStage && stage ? (');
+    expect(source).toContain('{journeyRaceLabel(group.active)}');
+    expect(source).toContain('{canEdit && canDrag && (');
   });
 });

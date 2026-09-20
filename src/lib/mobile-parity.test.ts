@@ -367,15 +367,18 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
     expect(screen).toContain('copilotFabClearance(insets.bottom)');
   });
 
-  it('[JRN-006] focuses one stage card and hides the rest until it is selected again', () => {
+  it('[JRN-006] focuses one stage from its own control, searches within it, and collapses from the header', () => {
     const helpers = mobileSource('lib/journey-overview.ts');
     expect(helpers).toContain('export function focusBuckets');
     expect(helpers).toContain('return focused.length ? focused : buckets;');
+    expect(screen).toContain('focusBuckets(buckets, focusedBucket)');
+    expect(screen).not.toContain('query.trim() ? null : focusedBucket');
+    expect(screen).toContain('const focused = bucket.key === focusedBucket;');
     expect(screen).toContain(
-      'focusBuckets(buckets, query.trim() ? null : focusedBucket)'
+      'const collapsed = !focused && collapsedBuckets.has(bucket.key);'
     );
     expect(screen).toContain(
-      'const focused = !query.trim() && bucket.key === focusedBucket;'
+      'const showBody = !collapsed && (bucket.groups.length > 0 || focused);'
     );
     expect(screen).toContain('setFocusedBucket(focused ? null : bucket.key)');
     expect(screen).toContain(
@@ -384,7 +387,26 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
     expect(screen).toContain(
       "focused ? 'Show all stages' : `Show only ${bucket.label}`"
     );
+    expect(screen).toContain('{focused && bucket.groups.length === 0 ? (');
+    expect(screen).toContain(
+      "{query.trim() ? 'Search all stages' : 'Show all stages'}"
+    );
     expect(screen).not.toContain('closedBuckets');
+  });
+
+  it('[JRN-007] shows the same in-the-race count instead of repeating the stage inside a stage group', () => {
+    const helpers = mobileSource('lib/journey-overview.ts');
+    const webShared = webSource('components/journey/shared.ts');
+    const body = (source: string) =>
+      source.slice(source.indexOf('export function journeyRaceLabel'));
+    expect(body(helpers).split('\n').slice(0, 3)).toEqual(
+      body(webShared).split('\n').slice(0, 3)
+    );
+    expect(screen).toContain("stageInHeader={view === 'active'}");
+    expect(screen).toContain('journeyRaceLabel(group.active)');
+    const webOverview = webSource('components/journey/journey-overview.tsx');
+    expect(webOverview).toContain("showStage={view !== 'active'}");
+    expect(webOverview).toContain('journeyRaceLabel(group.active)');
   });
 
   it('[JRN-004] offers every stage while retaining the complete note history', () => {

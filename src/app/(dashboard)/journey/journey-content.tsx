@@ -21,9 +21,9 @@ import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
+  ArrowUpRight,
   Building2,
   ChevronDown,
-  SlidersHorizontal,
   UserRound,
   Waypoints,
 } from "lucide-react";
@@ -135,13 +135,15 @@ export default function JourneyPage({
               />
             </h1>
           )}
-          <p className="mt-1 text-sm text-slate-400">
-            {subjectId
-              ? "One relationship's full funnel — where it stands, and where the rest fell off."
-              : overviewMode === "buyer"
-                ? "Every buyer's funnel in one place — expand a journey to work it inline."
-                : "Every property's funnel in one place — who's still in the race for each listing."}
-          </p>
+          {(subjectId || !embedded) && (
+            <p className="mt-1 text-sm text-slate-400">
+              {subjectId
+                ? "One relationship's full funnel — where it stands, and where the rest fell off."
+                : overviewMode === "buyer"
+                  ? "Every buyer's funnel in one place — expand a journey to work it inline."
+                  : "Every property's funnel in one place — who's still in the race for each listing."}
+            </p>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -193,15 +195,15 @@ export default function JourneyPage({
           )}
           {canEdit && (
             <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
-              title="Journey stages follow the Board's pipeline stages"
+              title="Journey stages mirror the Board's pipeline stages; edit them there"
               onClick={() =>
                 pushUrl(router, dealsHref("board", { settings: "1" }))
               }
             >
-              <SlidersHorizontal className="h-3.5 w-3.5" />
-              Stages follow the Board
+              Edit stages on the Board
+              <ArrowUpRight className="h-3.5 w-3.5" />
             </Button>
           )}
         </div>
