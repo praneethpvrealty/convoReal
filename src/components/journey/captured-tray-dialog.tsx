@@ -24,15 +24,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import type { JourneyItem, JourneyItemSource } from "@/types";
+import {
+  JOURNEY_ITEM_SOURCE_LABELS,
+  capturedItemTitle,
+} from "@/lib/journey/captured";
+import type { JourneyItem } from "@/types";
 import type { JourneyMode } from "./shared";
-
-const SOURCE_LABELS: Record<JourneyItemSource, string> = {
-  manual: "Added manually",
-  whatsapp_share: "WhatsApp share",
-  chat_import: "Chat import",
-  inquiry_import: "Inquiry import",
-};
 
 export interface CapturedTrayDialogProps {
   open: boolean;
@@ -79,10 +76,7 @@ export function CapturedTrayDialog({
             </p>
           ) : (
             items.map((item) => {
-              const title =
-                mode === "buyer"
-                  ? item.property?.title ?? "Unknown property"
-                  : item.contact?.name ?? item.contact?.phone ?? "Unknown contact";
+              const title = capturedItemTitle(item, mode);
               const subtitle =
                 mode === "buyer"
                   ? [
@@ -113,7 +107,7 @@ export function CapturedTrayDialog({
                         {title}
                       </span>
                       <span className="shrink-0 rounded bg-slate-800 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-slate-400">
-                        {SOURCE_LABELS[item.source]}
+                        {JOURNEY_ITEM_SOURCE_LABELS[item.source]}
                       </span>
                     </div>
                     <p className="truncate text-[10px] text-slate-500">

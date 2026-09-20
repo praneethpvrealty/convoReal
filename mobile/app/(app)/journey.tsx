@@ -19,6 +19,7 @@ import Animated, {
   useSharedValue,
   withSpring,
 } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { BottomSheet, sheetScrollArea } from '@/components/sheet';
@@ -38,15 +39,22 @@ import {
 } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
 import { buildCheckInMessage } from '@/lib/checkin-message';
+import { copilotFabClearance } from '@/lib/copilot-fab';
 import {
   convertJourneyItemToDeal,
   moveJourneyItem,
 } from '@/lib/deal-workspace-api';
-import { formatInr } from '@/lib/format';
+import { auditDate, formatInr } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
+import {
+  JOURNEY_ITEM_SOURCE_LABELS,
+  capturedItemSubtitle,
+  capturedItemTitle,
+} from '@/lib/journey-captured';
 import {
   CLOSED_JOURNEY_STATUS_LABELS,
   JOURNEY_CLOSURE_REASONS,
+  focusBuckets,
   type ClosedJourneyStatus,
   type JourneyLifecycleStatus,
 } from '@/lib/journey-overview';
@@ -99,10 +107,15 @@ export default function JourneyScreen() {
 export function JourneyBody() {
   const { colors, fonts: f } = useTheme();
   const queryClient = useQueryClient();
+  const insets = useSafeAreaInsets();
   const profile = useAuthStore((state) => state.profile);
   const accountId = profile?.account_id;
   const canEdit = Boolean(profile && profile.account_role !== 'viewer');
   const { show, close, dialogProps } = useAppDialog();
+  const [trayGroup, setTrayGroup] = useState<JourneyGroup | null>(null);
+  const [trayBusy, setTrayBusy] = useState(false);
+  const [trayError, setTrayError] = useState<string | null>(null);
+  const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
   const [convertingItemId, setConvertingItemId] = useState<string | null>(null);
   const [moveTarget, setMoveTarget] = useState<JourneyItem | null>(null);
   const [brokeragePrompt, setBrokeragePrompt] = useState<{
@@ -201,7 +214,7 @@ export function JourneyBody() {
   );
   const [view, setView] = useState<JourneyView>('active');
   const [query, setQuery] = useState('');
-  const [closedBuckets, setClosedBuckets] = useState<Set<string>>(new Set());
+  const [focusedBucket, setFocusedBucket] = useState<string | null>(null);
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
   const [orderOverrides, setOrderOverrides] = useState<Map<string, number>>(
     new Map()
@@ -259,6 +272,16 @@ export function JourneyBody() {
     enabled: Boolean(noteTarget),
     queryFn: () => loadJourneyStageNotes(noteTarget!.item.id),
   });
+
+  const capturedQuery = useQuery({
+    queryKey: ['journey-captured-items', mode, trayGroup?.subjectId],
+    enabled: Boolean(trayGroup),
+    queryFn: () => loadJourneyItems(mode, trayGroup!.subjectId, true),
+  });
+  const capturedItems = useMemo(
+    () => capturedQuery.data ?? [],
+    [capturedQuery.data]
+  );
 
   const pull = usePullRefresh(async () => {
     await Promise.all([
@@ -686,13 +709,89 @@ export function JourneyBody() {
     }
   }
 
+  function openTray(group: JourneyGroup) {
+    setTrayError(null);
+    setConfirmRemoveId(null);
+    setTrayGroup(group);
+  }
+
+  function closeTray() {
+    setTrayGroup(null);
+    setTrayError(null);
+    setConfirmRemoveId(null);
+  }
+
+  async function refreshCaptured() {
+    await Promise.all([
+      capturedQuery.refetch(),
+      queryClient.invalidateQueries({ queryKey: ['journey-branch-items'] }),
+      queryClient.invalidateQueries({ queryKey: ['journey-overview-groups'] }),
+    ]);
+  }
+
+  async function runTrayAction(failure: string, action: () => Promise<void>) {
+    if (!canEdit || trayBusy) return;
+    setTrayBusy(true);
+    setTrayError(null);
+    setConfirmRemoveId(null);
+    try {
+      await action();
+      haptic.success();
+      await refreshCaptured();
+    } catch (error) {
+      haptic.warn();
+      setTrayError(
+        `${failure}: ${error instanceof Error ? error.message : 'please try again.'}`
+      );
+    } finally {
+      setTrayBusy(false);
+    }
+  }
+
+  async function showItems(items: JourneyItem[]) {
+    const { data: shown, error } = await supabase.rpc('journey_show_captured', {
+      p_account_id: accountId!,
+      p_item_ids: items.map((item) => item.id),
+    });
+    if (error) throw error;
+    if (!shown?.length)
+      throw new Error(
+        items.length === 1
+          ? 'that item is no longer there'
+          : 'those items are no longer there'
+      );
+  }
+
+  function showCaptured(item: JourneyItem) {
+    void runTrayAction('Could not show on journey', () => showItems([item]));
+  }
+
+  function showAllCaptured(items: JourneyItem[]) {
+    void runTrayAction('Could not show all', () => showItems(items));
+  }
+
+  function removeCaptured(item: JourneyItem) {
+    void runTrayAction('Could not remove', async () => {
+      const { data: removed, error } = await supabase
+        .from('journey_items')
+        .delete()
+        .eq('id', item.id)
+        .select('id');
+      if (error) throw error;
+      if (!removed?.length) throw new Error('that item is no longer there');
+    });
+  }
+
   const isLoading =
     stagesQuery.isLoading || summariesQuery.isLoading || statesQuery.isLoading;
 
   return (
     <ScrollView
       style={{ flex: 1 }}
-      contentContainerStyle={styles.container}
+      contentContainerStyle={[
+        styles.container,
+        { paddingBottom: copilotFabClearance(insets.bottom) },
+      ]}
       keyboardShouldPersistTaps="handled"
       refreshControl={
         <RefreshControl
@@ -719,8 +818,10 @@ export function JourneyBody() {
                 setQuery('');
                 setOrderOverrides(new Map());
                 setOpenGroups(new Set());
+                setFocusedBucket(null);
                 setNoteTarget(null);
                 setNoteText('');
+                closeTray();
               }}
               style={[
                 styles.tab,
@@ -756,7 +857,10 @@ export function JourneyBody() {
           return (
             <Pressable
               key={value}
-              onPress={() => setView(value)}
+              onPress={() => {
+                setView(value);
+                setFocusedBucket(null);
+              }}
               style={[
                 styles.tab,
                 {
@@ -822,93 +926,114 @@ export function JourneyBody() {
           }
         />
       ) : (
-        buckets.map((bucket) => {
-          const open = query ? true : !closedBuckets.has(bucket.key);
-          return (
-            <View
-              key={bucket.key}
-              style={[
-                styles.bucket,
-                {
-                  backgroundColor: colors.glass,
-                  borderColor: colors.glassBorder,
-                },
-              ]}
-            >
-              <Pressable
-                onPress={() =>
-                  setClosedBuckets((current) => {
-                    const next = new Set(current);
-                    if (next.has(bucket.key)) next.delete(bucket.key);
-                    else next.add(bucket.key);
-                    return next;
-                  })
-                }
-                style={styles.bucketHeader}
+        focusBuckets(buckets, query.trim() ? null : focusedBucket).map(
+          (bucket) => {
+            const focused = !query.trim() && bucket.key === focusedBucket;
+            return (
+              <View
+                key={bucket.key}
+                style={[
+                  styles.bucket,
+                  {
+                    backgroundColor: colors.glass,
+                    borderColor: focused ? bucket.color : colors.glassBorder,
+                  },
+                ]}
               >
-                <Ionicons
-                  name={open ? 'chevron-down' : 'chevron-forward'}
-                  size={17}
-                  color={colors.textFaint}
-                />
-                <View
-                  style={{
-                    width: 9,
-                    height: 9,
-                    borderRadius: 5,
-                    backgroundColor: bucket.color,
-                  }}
-                />
-                <Text
-                  style={{
-                    flex: 1,
-                    fontSize: 14,
-                    fontFamily: f.bold,
-                    color: colors.text,
-                  }}
+                <Pressable
+                  onPress={() => setFocusedBucket(focused ? null : bucket.key)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: focused }}
+                  accessibilityLabel={
+                    focused ? 'Show all stages' : `Show only ${bucket.label}`
+                  }
+                  style={[
+                    styles.bucketHeader,
+                    focused ? { backgroundColor: `${bucket.color}14` } : null,
+                  ]}
                 >
-                  {bucket.label}
-                </Text>
-                <Text style={{ fontSize: 12, color: colors.textMuted }}>
-                  {bucket.groups.length}
-                </Text>
-              </Pressable>
-              {open
-                ? bucket.groups.map((group, index) => (
-                    <DraggableJourneyCard
-                      key={group.subjectId}
-                      group={group}
-                      stage={stages[group.furthestStageIdx]}
-                      stageById={stageById}
-                      mode={mode}
-                      canEdit={canEdit}
-                      index={index}
-                      count={bucket.groups.length}
-                      expanded={openGroups.has(group.subjectId)}
-                      onToggle={() =>
-                        setOpenGroups((current) => {
-                          const next = new Set(current);
-                          if (next.has(group.subjectId))
-                            next.delete(group.subjectId);
-                          else next.add(group.subjectId);
-                          return next;
-                        })
-                      }
-                      onMove={(from, to) => void moveGroup(bucket, from, to)}
-                      onActions={() => showGroupActions(group)}
-                      onCheckIn={askCheckIn}
-                      onMoveItem={(item) => canEdit && setMoveTarget(item)}
-                      onConvert={askConvert}
-                      onAddNote={(item, stage) => {
-                        setNoteTarget({ item, stage });
-                        setNoteText('');
-                      }}
-                    />
-                  ))
-                : null}
-            </View>
-          );
-        })
+                  <Ionicons
+                    name={focused ? 'checkmark-circle' : 'chevron-forward'}
+                    size={17}
+                    color={focused ? bucket.color : colors.textFaint}
+                  />
+                  <View
+                    style={{
+                      width: 9,
+                      height: 9,
+                      borderRadius: 5,
+                      backgroundColor: bucket.color,
+                    }}
+                  />
+                  <Text
+                    style={{
+                      flex: 1,
+                      fontSize: 14,
+                      fontFamily: f.bold,
+                      color: colors.text,
+                    }}
+                  >
+                    {bucket.label}
+                  </Text>
+                  <Text style={{ fontSize: 12, color: colors.textMuted }}>
+                    {bucket.groups.length}
+                  </Text>
+                  {focused ? (
+                    <View
+                      style={[
+                        styles.allStages,
+                        { borderColor: `${bucket.color}66` },
+                      ]}
+                    >
+                      <Ionicons name="close" size={12} color={bucket.color} />
+                      <Text
+                        style={{
+                          fontSize: 10.5,
+                          fontFamily: f.bold,
+                          color: bucket.color,
+                        }}
+                      >
+                        All stages
+                      </Text>
+                    </View>
+                  ) : null}
+                </Pressable>
+                {bucket.groups.map((group, index) => (
+                  <DraggableJourneyCard
+                    key={group.subjectId}
+                    group={group}
+                    stage={stages[group.furthestStageIdx]}
+                    stageById={stageById}
+                    mode={mode}
+                    canEdit={canEdit}
+                    index={index}
+                    count={bucket.groups.length}
+                    expanded={openGroups.has(group.subjectId)}
+                    onToggle={() =>
+                      setOpenGroups((current) => {
+                        const next = new Set(current);
+                        if (next.has(group.subjectId))
+                          next.delete(group.subjectId);
+                        else next.add(group.subjectId);
+                        return next;
+                      })
+                    }
+                    onMove={(from, to) => void moveGroup(bucket, from, to)}
+                    onActions={() => showGroupActions(group)}
+                    onCaptured={() => openTray(group)}
+                    onCheckIn={askCheckIn}
+                    onMoveItem={(item) => canEdit && setMoveTarget(item)}
+                    onConvert={askConvert}
+                    onAddNote={(item, stage) => {
+                      setNoteTarget({ item, stage });
+                      setNoteText('');
+                    }}
+                  />
+                ))}
+              </View>
+            );
+          }
+        )
       )}
 
       <BottomSheet
@@ -1084,6 +1209,191 @@ export function JourneyBody() {
       </BottomSheet>
 
       <BottomSheet
+        visible={trayGroup !== null}
+        onClose={closeTray}
+        title="Captured — not on the journey yet"
+      >
+        <ScrollView
+          style={sheetScrollArea}
+          contentContainerStyle={{ padding: spacing.lg, gap: spacing.sm }}
+        >
+          <Text style={{ fontSize: 12.5, color: colors.textMuted }}>
+            {mode === 'buyer'
+              ? 'Properties shared with this contact that were captured automatically. Show the ones worth tracking; remove the rest.'
+              : 'Contacts this property was shared with, captured automatically. Show the ones worth tracking; remove the rest.'}
+          </Text>
+          {trayError ? (
+            <Text style={{ fontSize: 12.5, color: colors.danger }}>
+              {trayError}
+            </Text>
+          ) : null}
+          {capturedQuery.isLoading ? (
+            <Text style={{ fontSize: 13, color: colors.textFaint }}>
+              Loading captured shares…
+            </Text>
+          ) : null}
+          {!capturedQuery.isLoading && capturedItems.length === 0 ? (
+            <Text style={{ fontSize: 13, color: colors.textFaint }}>
+              Nothing waiting — all captured shares have been reviewed.
+            </Text>
+          ) : null}
+          {capturedItems.map((item) => {
+            const confirming = confirmRemoveId === item.id;
+            const meta = [
+              capturedItemSubtitle(item, mode),
+              item.source ? JOURNEY_ITEM_SOURCE_LABELS[item.source] : null,
+              item.created_at ? auditDate(item.created_at) : null,
+            ]
+              .filter(Boolean)
+              .join(' · ');
+            return (
+              <View
+                key={item.id}
+                style={[
+                  styles.capturedRow,
+                  {
+                    backgroundColor: colors.glass,
+                    borderColor: confirming
+                      ? colors.danger
+                      : colors.glassBorder,
+                  },
+                ]}
+              >
+                <Ionicons
+                  name={mode === 'buyer' ? 'home-outline' : 'person-outline'}
+                  size={15}
+                  color={colors.textFaint}
+                />
+                <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+                  <Text
+                    numberOfLines={1}
+                    style={{
+                      fontSize: 13.5,
+                      fontFamily: f.semibold,
+                      color: colors.text,
+                    }}
+                  >
+                    {capturedItemTitle(item, mode)}
+                  </Text>
+                  {meta ? (
+                    <Text
+                      numberOfLines={1}
+                      style={{ fontSize: 11, color: colors.textFaint }}
+                    >
+                      {meta}
+                    </Text>
+                  ) : null}
+                </View>
+                {canEdit && confirming ? (
+                  <>
+                    <Pressable
+                      onPress={() => setConfirmRemoveId(null)}
+                      disabled={trayBusy}
+                      hitSlop={6}
+                      accessibilityRole="button"
+                      accessibilityLabel="Keep in captured"
+                      style={[
+                        styles.trayButton,
+                        { borderColor: colors.glassBorder },
+                      ]}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 12,
+                          fontFamily: f.bold,
+                          color: colors.textMuted,
+                        }}
+                      >
+                        Keep
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => removeCaptured(item)}
+                      disabled={trayBusy}
+                      hitSlop={6}
+                      accessibilityRole="button"
+                      accessibilityLabel="Remove from journey"
+                      style={[
+                        styles.trayButton,
+                        {
+                          borderColor: colors.danger,
+                          backgroundColor: `${colors.danger}14`,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 12,
+                          fontFamily: f.bold,
+                          color: colors.danger,
+                        }}
+                      >
+                        Remove
+                      </Text>
+                    </Pressable>
+                  </>
+                ) : null}
+                {canEdit && !confirming ? (
+                  <>
+                    <Pressable
+                      onPress={() => showCaptured(item)}
+                      disabled={trayBusy}
+                      hitSlop={6}
+                      accessibilityRole="button"
+                      accessibilityLabel="Show on journey"
+                      style={[
+                        styles.trayButton,
+                        {
+                          borderColor: colors.primary,
+                          backgroundColor: `${colors.primary}14`,
+                        },
+                      ]}
+                    >
+                      <Ionicons
+                        name="eye-outline"
+                        size={14}
+                        color={colors.primary}
+                      />
+                      <Text
+                        style={{
+                          fontSize: 12,
+                          fontFamily: f.bold,
+                          color: colors.primary,
+                        }}
+                      >
+                        Show
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => setConfirmRemoveId(item.id)}
+                      disabled={trayBusy}
+                      hitSlop={8}
+                      accessibilityRole="button"
+                      accessibilityLabel="Remove from journey"
+                    >
+                      <Ionicons
+                        name="trash-outline"
+                        size={17}
+                        color={colors.textFaint}
+                      />
+                    </Pressable>
+                  </>
+                ) : null}
+              </View>
+            );
+          })}
+          {canEdit && capturedItems.length > 1 ? (
+            <PrimaryButton
+              label={`Show all ${capturedItems.length}`}
+              icon="eye-outline"
+              busy={trayBusy}
+              onPress={() => showAllCaptured(capturedItems)}
+            />
+          ) : null}
+        </ScrollView>
+      </BottomSheet>
+
+      <BottomSheet
         visible={moveTarget !== null}
         onClose={() => setMoveTarget(null)}
       >
@@ -1232,6 +1542,7 @@ function DraggableJourneyCard({
   onToggle,
   onMove,
   onActions,
+  onCaptured,
   onCheckIn,
   onMoveItem,
   onConvert,
@@ -1248,6 +1559,7 @@ function DraggableJourneyCard({
   onToggle: () => void;
   onMove: (from: number, to: number) => void;
   onActions: () => void;
+  onCaptured: () => void;
   onCheckIn: (item: JourneyItem, stageLabel: string | undefined) => void;
   onMoveItem: (item: JourneyItem) => void;
   onConvert: (item: JourneyItem) => void;
@@ -1257,7 +1569,7 @@ function DraggableJourneyCard({
   const branchItemsQuery = useQuery({
     queryKey: ['journey-branch-items', mode, group.subjectId],
     enabled: expanded,
-    queryFn: () => loadJourneyBranchItems(mode, group.subjectId),
+    queryFn: () => loadJourneyItems(mode, group.subjectId, false),
   });
   const drag = useSharedValue(0);
   const gesture = Gesture.Pan()
@@ -1312,14 +1624,49 @@ function DraggableJourneyCard({
             >
               {name}
             </Text>
-            <Text
-              numberOfLines={1}
-              style={{ fontSize: 11.5, color: colors.textFaint }}
-            >
-              {groupSubtitle(group, mode)}
-              {group.captured ? ` · ${group.captured} captured` : ''}
-              {group.closureReason ? ` · ${group.closureReason}` : ''}
-            </Text>
+            <View style={styles.cardMeta}>
+              <Text
+                numberOfLines={1}
+                style={{
+                  flexShrink: 1,
+                  fontSize: 11.5,
+                  color: colors.textFaint,
+                }}
+              >
+                {groupSubtitle(group, mode)}
+                {group.closureReason ? ` · ${group.closureReason}` : ''}
+              </Text>
+              {group.captured ? (
+                <Pressable
+                  onPress={onCaptured}
+                  hitSlop={6}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Review ${group.captured} captured`}
+                  style={[
+                    styles.capturedChip,
+                    {
+                      borderColor: `${colors.warning}66`,
+                      backgroundColor: `${colors.warning}14`,
+                    },
+                  ]}
+                >
+                  <Ionicons
+                    name="file-tray-outline"
+                    size={11}
+                    color={colors.warning}
+                  />
+                  <Text
+                    style={{
+                      fontSize: 10.5,
+                      fontFamily: f.bold,
+                      color: colors.warning,
+                    }}
+                  >
+                    {group.captured} captured
+                  </Text>
+                </Pressable>
+              ) : null}
+            </View>
           </View>
           {statusLabel ? (
             <Text
@@ -1466,9 +1813,10 @@ function DraggableJourneyCard({
   );
 }
 
-async function loadJourneyBranchItems(
+async function loadJourneyItems(
   mode: JourneyMode,
-  subjectId: string
+  subjectId: string,
+  hidden: boolean
 ): Promise<JourneyItem[]> {
   const rows: JourneyItem[] = [];
   let afterId: string | null = null;
@@ -1476,10 +1824,10 @@ async function loadJourneyBranchItems(
     let query = supabase
       .from('journey_items')
       .select(
-        'id, contact_id, property_id, stage_id, status, drop_reason, hidden, updated_at, ' +
-          'contact:contacts(id, name, phone), property:properties(id, title, property_code, location)'
+        'id, contact_id, property_id, stage_id, status, source, drop_reason, hidden, created_at, updated_at, ' +
+          'contact:contacts(id, name, phone, classification), property:properties(id, title, property_code, location)'
       )
-      .eq('hidden', false)
+      .eq('hidden', hidden)
       .order('id', { ascending: true })
       .limit(JOURNEY_BRANCH_PAGE_SIZE);
     query =
@@ -1532,11 +1880,7 @@ function groupSubtitle(group: JourneyGroup, mode: JourneyMode) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    padding: spacing.lg,
-    gap: spacing.md,
-    paddingBottom: spacing.xxl,
-  },
+  container: { padding: spacing.lg, gap: spacing.md },
   sheetHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1583,6 +1927,15 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     paddingHorizontal: spacing.md,
   },
+  allStages: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    borderWidth: 1,
+    borderRadius: radius.full,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+  },
   card: { borderTopWidth: StyleSheet.hairlineWidth },
   cardHeader: {
     minHeight: 68,
@@ -1603,6 +1956,39 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
+  },
+  cardMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  capturedChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    borderWidth: 1,
+    borderRadius: radius.full,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+  },
+  capturedRow: {
+    minHeight: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    borderWidth: 1,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+  },
+  trayButton: {
+    minHeight: 30,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderWidth: 1,
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.sm,
   },
   itemRow: {
     minHeight: 48,

@@ -76,6 +76,7 @@ import {
   JOURNEY_PRIORITY_META,
   JOURNEY_PRIORITY_ORDER,
   JOURNEY_SORT_LABELS,
+  focusBuckets,
   navigateJourney,
   sortJourneys,
   type JourneyMode,
@@ -200,9 +201,7 @@ export function JourneyOverview({
   const [sort, setSort] = useState<JourneySort>(() => readSort(sortKey));
   const [view, setView] = useState<JourneyView>('active');
   const [query, setQuery] = useState('');
-  const [openBuckets, setOpenBuckets] = useState<Set<string>>(
-    () => new Set(stages[0] ? [`stage:${stages[0].id}`] : [])
-  );
+  const [focusedBucket, setFocusedBucket] = useState<string | null>(null);
   const [newJourneyOpen, setNewJourneyOpen] = useState(false);
   const [fullscreenId, setFullscreenId] = useState<string | null>(null);
   const [closingId, setClosingId] = useState<string | null>(null);
@@ -215,9 +214,9 @@ export function JourneyOverview({
       setSort(readSort(sortKey));
       setView('active');
       setQuery('');
-      setOpenBuckets(new Set(stages[0] ? [`stage:${stages[0].id}`] : []));
+      setFocusedBucket(null);
     });
-  }, [hiddenKey, mode, openKey, sortKey, stages]);
+  }, [hiddenKey, mode, openKey, sortKey]);
 
   const changeSort = useCallback(
     (next: JourneySort) => {
@@ -437,13 +436,6 @@ export function JourneyOverview({
     else next.delete(id);
     setHiddenIds(next);
     writeIdSet(hiddenKey, next);
-  };
-
-  const toggleBucket = (key: string) => {
-    const next = new Set(openBuckets);
-    if (next.has(key)) next.delete(key);
-    else next.add(key);
-    setOpenBuckets(next);
   };
 
   const setPriority = async (
@@ -706,31 +698,33 @@ export function JourneyOverview({
         </p>
       )}
 
-      {buckets.map((bucket) => {
-        const open = query.trim() ? true : openBuckets.has(bucket.key);
-        return (
-          <JourneyBucketSection
-            key={bucket.key}
-            bucket={bucket}
-            open={open}
-            onToggle={() => toggleBucket(bucket.key)}
-            mode={mode}
-            stages={stages}
-            currency={currency}
-            canEdit={canEdit}
-            canDrag={sort === 'manual'}
-            openIds={effectiveOpen}
-            onToggleJourney={toggleOpen}
-            onPriority={setPriority}
-            onCloseJourney={setClosingId}
-            onLifecycle={mutateLifecycle}
-            onHide={setHidden}
-            onFullscreen={setFullscreenId}
-            onItemsChanged={loadGroups}
-            onReorder={reorderBucket}
-          />
-        );
-      })}
+      {focusBuckets(buckets, query.trim() ? null : focusedBucket).map(
+        (bucket) => {
+          const focused = !query.trim() && bucket.key === focusedBucket;
+          return (
+            <JourneyBucketSection
+              key={bucket.key}
+              bucket={bucket}
+              focused={focused}
+              onToggle={() => setFocusedBucket(focused ? null : bucket.key)}
+              mode={mode}
+              stages={stages}
+              currency={currency}
+              canEdit={canEdit}
+              canDrag={sort === 'manual'}
+              openIds={effectiveOpen}
+              onToggleJourney={toggleOpen}
+              onPriority={setPriority}
+              onCloseJourney={setClosingId}
+              onLifecycle={mutateLifecycle}
+              onHide={setHidden}
+              onFullscreen={setFullscreenId}
+              onItemsChanged={loadGroups}
+              onReorder={reorderBucket}
+            />
+          );
+        }
+      )}
 
       {viewGroups.length === 0 && (
         <div className="rounded-xl border border-dashed border-slate-700 bg-slate-900/40 px-6 py-10 text-center text-sm text-slate-400">
@@ -845,7 +839,7 @@ export function JourneyOverview({
 
 function JourneyBucketSection({
   bucket,
-  open,
+  focused,
   onToggle,
   mode,
   stages,
@@ -863,7 +857,7 @@ function JourneyBucketSection({
   onReorder,
 }: {
   bucket: JourneyBucket;
-  open: boolean;
+  focused: boolean;
   onToggle: () => void;
   mode: JourneyMode;
   stages: JourneyStage[];
@@ -897,18 +891,26 @@ function JourneyBucketSection({
   };
 
   return (
-    <section className="overflow-hidden rounded-xl border border-slate-800 bg-slate-950/40">
+    <section
+      className={cn(
+        'overflow-hidden rounded-xl border bg-slate-950/40',
+        focused ? 'border-transparent' : 'border-slate-800'
+      )}
+      style={focused ? { borderColor: bucket.color } : undefined}
+    >
       <button
         type="button"
         onClick={onToggle}
+        aria-pressed={focused}
+        aria-label={focused ? 'Show all stages' : `Show only ${bucket.label}`}
         className="flex w-full items-center gap-2.5 px-3.5 py-3 text-left hover:bg-slate-900/70"
+        style={focused ? { backgroundColor: `${bucket.color}14` } : undefined}
       >
-        <ChevronDown
-          className={cn(
-            'h-4 w-4 text-slate-500 transition-transform',
-            !open && '-rotate-90'
-          )}
-        />
+        {focused ? (
+          <CheckCircle2 className="h-4 w-4" style={{ color: bucket.color }} />
+        ) : (
+          <ChevronDown className="h-4 w-4 -rotate-90 text-slate-500" />
+        )}
         <span
           className="h-2.5 w-2.5 rounded-full"
           style={{ backgroundColor: bucket.color }}
@@ -919,8 +921,17 @@ function JourneyBucketSection({
         <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[11px] font-semibold text-slate-300 tabular-nums">
           {bucket.groups.length}
         </span>
+        {focused && (
+          <span
+            className="flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold"
+            style={{ borderColor: `${bucket.color}66`, color: bucket.color }}
+          >
+            <X className="h-3 w-3" />
+            All stages
+          </span>
+        )}
       </button>
-      {open && bucket.groups.length > 0 && (
+      {bucket.groups.length > 0 && (
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}

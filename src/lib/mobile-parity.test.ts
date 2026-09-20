@@ -27,6 +27,7 @@ import {
   type EntityReference,
 } from '@/lib/copilot/entities';
 import { TOURS } from '@/lib/copilot/tours';
+import { JOURNEY_ITEM_SOURCE_LABELS } from '@/lib/journey/captured';
 import { MESSAGES } from '@/lib/i18n/messages';
 import {
   AMENITIES_BY_CATEGORY,
@@ -341,6 +342,49 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
     expect(screen).toContain('{canEdit ? (');
     expect(screen).toContain('{itemStage ? (');
     expect(screen).toContain("{canEdit ? 'Add or view' : 'View'} notes");
+  });
+
+  it('[JRN-005] reviews captured shares in a tray with show, show all and remove', () => {
+    const helpers = mobileSource('lib/journey-captured.ts');
+    for (const [source, label] of Object.entries(JOURNEY_ITEM_SOURCE_LABELS)) {
+      expect(helpers).toContain(`${source}: '${label}'`);
+    }
+    expect(screen).toContain(
+      'loadJourneyItems(mode, trayGroup!.subjectId, true)'
+    );
+    expect(screen).toContain('loadJourneyItems(mode, group.subjectId, false)');
+    expect(screen).toContain(".eq('hidden', hidden)");
+    expect(screen).toContain('Captured — not on the journey yet');
+    expect(screen).toContain("supabase.rpc('journey_show_captured'");
+    expect(screen).toContain('p_item_ids: items.map((item) => item.id)');
+    expect(screen).not.toContain('.update({ hidden: false })');
+    expect(screen).not.toContain("from('journey_events')");
+    expect(screen).toContain('label={`Show all ${capturedItems.length}`}');
+    expect(screen).toContain('.delete()');
+    expect(screen).toContain('accessibilityLabel="Remove from journey"');
+    expect(screen).toContain('{canEdit && confirming ? (');
+    expect(screen).toContain('{canEdit && !confirming ? (');
+    expect(screen).toContain('copilotFabClearance(insets.bottom)');
+  });
+
+  it('[JRN-006] focuses one stage card and hides the rest until it is selected again', () => {
+    const helpers = mobileSource('lib/journey-overview.ts');
+    expect(helpers).toContain('export function focusBuckets');
+    expect(helpers).toContain('return focused.length ? focused : buckets;');
+    expect(screen).toContain(
+      'focusBuckets(buckets, query.trim() ? null : focusedBucket)'
+    );
+    expect(screen).toContain(
+      'const focused = !query.trim() && bucket.key === focusedBucket;'
+    );
+    expect(screen).toContain('setFocusedBucket(focused ? null : bucket.key)');
+    expect(screen).toContain(
+      'borderColor: focused ? bucket.color : colors.glassBorder'
+    );
+    expect(screen).toContain(
+      "focused ? 'Show all stages' : `Show only ${bucket.label}`"
+    );
+    expect(screen).not.toContain('closedBuckets');
   });
 
   it('[JRN-004] offers every stage while retaining the complete note history', () => {

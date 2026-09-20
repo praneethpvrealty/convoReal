@@ -574,36 +574,38 @@ export function JourneySection({
     [setHiddenFlag, refresh]
   );
 
+  const showItems = useCallback(
+    async (targets: JourneyItem[], failure: string) => {
+      if (!accountId || targets.length === 0) return false;
+      const { data: shown, error } = await supabase.rpc(
+        'journey_show_captured',
+        { p_account_id: accountId, p_item_ids: targets.map((i) => i.id) }
+      );
+      if (error || !shown?.length) {
+        toast.error(
+          `${failure}: ${error?.message ?? 'those items are no longer there'}`
+        );
+        return false;
+      }
+      return true;
+    },
+    [accountId, supabase]
+  );
+
   const handleShow = useCallback(
     async (item: JourneyItem) => {
-      if (await setHiddenFlag(item, false)) await refresh();
+      if (await showItems([item], 'Failed to show')) await refresh();
     },
-    [setHiddenFlag, refresh]
+    [showItems, refresh]
   );
 
   const handleShowAll = useCallback(async () => {
     const hiddenItems = items.filter((i) => i.hidden);
-    if (hiddenItems.length === 0) return;
-    const { data: updated, error } = await supabase
-      .from('journey_items')
-      .update({ hidden: false })
-      .in(
-        'id',
-        hiddenItems.map((i) => i.id)
-      )
-      .select('id');
-    if (error || !updated?.length) {
-      toast.error(
-        `Failed to show all: ${error?.message ?? 'those items are no longer there'}`
-      );
-      return;
+    if (await showItems(hiddenItems, 'Failed to show all')) {
+      setTrayOpen(false);
+      await refresh();
     }
-    await Promise.all(
-      hiddenItems.map((i) => logEvent(i.id, 'unhidden', i.stage_id, i.stage_id))
-    );
-    setTrayOpen(false);
-    await refresh();
-  }, [items, supabase, logEvent, refresh]);
+  }, [items, showItems, refresh]);
 
   // ── Derived ─────────────────────────────────────────────────
   const existingIds = useMemo(
