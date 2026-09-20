@@ -11,6 +11,7 @@ import {
   plannedIndexOf,
   sortItemsForRows,
   sortJourneys,
+  splitItemsAtStage,
   stageIndexOf,
   type JourneyPriority,
 } from './shared';
@@ -329,5 +330,49 @@ describe('journeyRaceLabel', () => {
     expect(source).toContain('{showStage && stage ? (');
     expect(source).toContain('{journeyRaceLabel(group.active)}');
     expect(source).toContain('{canEdit && canDrag && (');
+  });
+});
+
+describe('splitItemsAtStage', () => {
+  const rows = [
+    { id: 'a', stage_id: 'new', status: 'active' },
+    { id: 'b', stage_id: 'token', status: 'active' },
+    { id: 'c', stage_id: 'new', status: 'dropped' },
+    { id: 'd', stage_id: 'token', status: 'dropped' },
+  ];
+
+  it('[JRN-008] leads with the live items on the group stage and folds the rest', () => {
+    expect(splitItemsAtStage(rows, 'token')).toEqual({
+      atStage: [rows[1]],
+      elsewhere: [rows[0], rows[2], rows[3]],
+    });
+  });
+
+  it('[JRN-008] shows everything when there is no group stage or nothing live on it', () => {
+    expect(splitItemsAtStage(rows, null)).toEqual({
+      atStage: rows,
+      elsewhere: [],
+    });
+    expect(splitItemsAtStage(rows, 'visited')).toEqual({
+      atStage: rows,
+      elsewhere: [],
+    });
+  });
+
+  it('[JRN-008] wires the fold into the overview on web', () => {
+    const section = readFileSync(
+      join(process.cwd(), 'src/components/journey/journey-section.tsx'),
+      'utf8'
+    );
+    const overview = readFileSync(
+      join(process.cwd(), 'src/components/journey/journey-overview.tsx'),
+      'utf8'
+    );
+    expect(section).toContain('splitItemsAtStage(visibleItems, focusStageId)');
+    expect(section).toContain('more at other stages');
+    expect(section).toContain('highlightStageId={focusStageId}');
+    expect(overview).toContain(
+      'focusStageId={showStage ? null : (stage?.id ?? null)}'
+    );
   });
 });

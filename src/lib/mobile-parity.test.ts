@@ -441,6 +441,24 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
     expect(webOverview).toContain('journeyRaceLabel(group.active)');
   });
 
+  it('[JRN-008] folds items at other stages behind the same count inside a stage group', () => {
+    const helpers = mobileSource('lib/journey-overview.ts');
+    const webShared = webSource('components/journey/shared.ts');
+    const body = (source: string) =>
+      source
+        .slice(source.indexOf('export function splitItemsAtStage'))
+        .split('export function focusBuckets')[0];
+    expect(body(helpers)).toEqual(body(webShared));
+    expect(screen).toContain('stageInHeader ? (stage?.id ?? null) : null');
+    expect(screen).toContain('atStage.map((item) => renderItem(item))');
+    expect(screen).toContain(
+      "item.stage_id === stage?.id &&\n      item.status !== 'dropped'"
+    );
+    expect(screen).toContain('more at other stages');
+    const webSection = webSource('components/journey/journey-section.tsx');
+    expect(webSection).toContain('more at other stages');
+  });
+
   it('[JRN-004] offers every stage while retaining the complete note history', () => {
     expect(screen).toContain('Journey stage notes');
     expect(screen).toContain('stages.map((stage)');

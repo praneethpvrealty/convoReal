@@ -744,6 +744,24 @@
               "case": "[JRN-007]"
             }
           ]
+        },
+        {
+          "id": "JRN-008",
+          "rule": "Inside a stage group, an expanded journey leads with the live items resting on that stage, highlighted in the stage colour, and folds the items at other stages behind a count that opens on request; when nothing live rests on the stage, or outside a stage group, every item shows as before. Web and mobile share the split.",
+          "tests": [
+            {
+              "file": "src/components/journey/shared.test.ts",
+              "case": "[JRN-008]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[JRN-008]"
+            },
+            {
+              "file": "mobile/lib/journey-overview.test.ts",
+              "case": "[JRN-008]"
+            }
+          ]
         }
       ]
     },

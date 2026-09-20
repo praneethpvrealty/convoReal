@@ -136,6 +136,9 @@ interface ItemData extends Record<string, unknown> {
   /** Name of the stage after the item's current one — undefined at
    *  the last stage (nothing to advance into). */
   nextStageName?: string;
+  /** True for the frontier card of an item sitting on the stage the
+   *  surrounding overview group is named after. */
+  highlighted?: boolean;
   onAdvance?: (item: JourneyItem) => void;
   /** Planned-ghost fields (variant "planned" only). */
   plannedStageName?: string;
@@ -264,6 +267,7 @@ function ItemNode({ data, selected }: NodeProps) {
     stageColor,
     currency,
     nextStageName,
+    highlighted,
     onAdvance,
     plannedStageName,
     plannedAt,
@@ -350,7 +354,13 @@ function ItemNode({ data, selected }: NodeProps) {
           : "border-slate-700 hover:border-slate-500",
         selected && "!border-primary ring-1 ring-primary/40",
       )}
-      style={{ width: CARD_W, minHeight: CARD_H }}
+      style={{
+        width: CARD_W,
+        minHeight: CARD_H,
+        ...(highlighted && !dropped
+          ? { borderColor: stageColor, boxShadow: `0 0 0 2px ${stageColor}66` }
+          : {}),
+      }}
     >
       <Handle type="target" position={Position.Left} className={targetHandleCls} />
       {/* Source handle feeds the planned-step ghost edge when a next
@@ -458,6 +468,9 @@ export interface JourneyCanvasProps {
   onAdvance: (item: JourneyItem) => void;
   onAddItems: () => void;
   selectedItemId?: string | null;
+  /** Stage whose frontier cards get a stage-coloured ring — set by the
+   *  overview when this journey sits inside that stage's group. */
+  highlightStageId?: string | null;
   /** Hidden items waiting in the Captured tray — surfaced as a hint
    *  when the canvas itself is empty. */
   capturedCount?: number;
@@ -487,6 +500,7 @@ function JourneyCanvasInner({
   onAdvance,
   onAddItems,
   selectedItemId,
+  highlightStageId = null,
   capturedCount = 0,
   onOpenCaptured,
   heightClass = "h-[calc(100vh-220px)] min-h-[480px]",
@@ -587,6 +601,7 @@ function JourneyCanvasInner({
             currency,
             nextStageName:
               isFrontier && canEdit ? nextStage?.name : undefined,
+            highlighted: isFrontier && stage.id === highlightStageId,
             onAdvance: isFrontier && canEdit ? onAdvance : undefined,
           } satisfies ItemData,
         });
@@ -667,6 +682,7 @@ function JourneyCanvasInner({
     canEdit,
     onAdvance,
     selectedItemId,
+    highlightStageId,
     palette,
   ]);
 

@@ -56,6 +56,7 @@ import {
   JOURNEY_CLOSURE_REASONS,
   focusBuckets,
   journeyRaceLabel,
+  splitItemsAtStage,
   type ClosedJourneyStatus,
   type JourneyLifecycleStatus,
 } from '@/lib/journey-overview';
@@ -1688,6 +1689,115 @@ function DraggableJourneyCard({
       : colors.textFaint
     : (stage?.color ?? colors.textMuted);
 
+  const [showElsewhere, setShowElsewhere] = useState(false);
+  const { atStage, elsewhere } = splitItemsAtStage(
+    branchItemsQuery.data ?? [],
+    stageInHeader ? (stage?.id ?? null) : null
+  );
+  const renderItem = (item: JourneyItem) => {
+    const itemStage = stageById.get(item.stage_id);
+    const highlighted =
+      stageInHeader &&
+      Boolean(stage) &&
+      item.stage_id === stage?.id &&
+      item.status !== 'dropped';
+    const dropped = item.status === 'dropped';
+    return (
+      <View
+        key={item.id}
+        style={[
+          styles.itemRow,
+          { borderTopColor: colors.border },
+          highlighted
+            ? { backgroundColor: `${stage?.color ?? colors.primary}14` }
+            : null,
+        ]}
+      >
+        <Pressable
+          style={styles.itemMain}
+          onPress={() =>
+            void onCheckIn(item, dropped ? undefined : itemStage?.name)
+          }
+          disabled={!item.contact}
+        >
+          <View
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: 4,
+              backgroundColor: dropped
+                ? colors.danger
+                : itemStage?.color || colors.primary,
+            }}
+          />
+          <Text
+            numberOfLines={1}
+            style={{
+              flex: 1,
+              fontSize: 13.5,
+              color: dropped ? colors.textFaint : colors.text,
+              textDecorationLine: dropped ? 'line-through' : 'none',
+            }}
+          >
+            {mode === 'buyer'
+              ? item.property?.title || 'Property'
+              : item.contact?.name || item.contact?.phone || 'Contact'}
+          </Text>
+          <Text
+            style={{
+              fontSize: 11,
+              fontFamily: f.bold,
+              color: dropped
+                ? colors.danger
+                : itemStage?.color || colors.textMuted,
+            }}
+          >
+            {dropped ? item.drop_reason || 'Dropped' : itemStage?.name || '—'}
+          </Text>
+        </Pressable>
+        {canEdit && !dropped ? (
+          <Pressable
+            onPress={() => onMoveItem(item)}
+            accessibilityLabel="Move to stage"
+            hitSlop={8}
+          >
+            <Ionicons
+              name="arrow-forward-circle-outline"
+              size={18}
+              color={colors.textMuted}
+            />
+          </Pressable>
+        ) : null}
+        {canEdit && !dropped ? (
+          <Pressable
+            onPress={() => onConvert(item)}
+            accessibilityLabel="Convert to deal"
+            hitSlop={8}
+          >
+            <Ionicons
+              name="briefcase-outline"
+              size={17}
+              color={colors.textMuted}
+            />
+          </Pressable>
+        ) : null}
+        {itemStage ? (
+          <Pressable
+            onPress={() => onAddNote(item, itemStage)}
+            accessibilityLabel={`${canEdit ? 'Add or view' : 'View'} notes at ${itemStage.name}`}
+            hitSlop={8}
+          >
+            <Ionicons
+              name="document-text-outline"
+              size={17}
+              color={colors.textMuted}
+            />
+          </Pressable>
+        ) : null}
+      </View>
+    );
+  };
+
   return (
     <Animated.View
       style={[
@@ -1806,101 +1916,35 @@ function DraggableJourneyCard({
         </Text>
       ) : null}
 
-      {expanded
-        ? (branchItemsQuery.data ?? []).map((item) => {
-            const itemStage = stageById.get(item.stage_id);
-            const dropped = item.status === 'dropped';
-            return (
-              <View
-                key={item.id}
-                style={[styles.itemRow, { borderTopColor: colors.border }]}
-              >
-                <Pressable
-                  style={styles.itemMain}
-                  onPress={() =>
-                    void onCheckIn(item, dropped ? undefined : itemStage?.name)
-                  }
-                  disabled={!item.contact}
-                >
-                  <View
-                    style={{
-                      width: 8,
-                      height: 8,
-                      borderRadius: 4,
-                      backgroundColor: dropped
-                        ? colors.danger
-                        : itemStage?.color || colors.primary,
-                    }}
-                  />
-                  <Text
-                    numberOfLines={1}
-                    style={{
-                      flex: 1,
-                      fontSize: 13.5,
-                      color: dropped ? colors.textFaint : colors.text,
-                      textDecorationLine: dropped ? 'line-through' : 'none',
-                    }}
-                  >
-                    {mode === 'buyer'
-                      ? item.property?.title || 'Property'
-                      : item.contact?.name || item.contact?.phone || 'Contact'}
-                  </Text>
-                  <Text
-                    style={{
-                      fontSize: 11,
-                      fontFamily: f.bold,
-                      color: dropped
-                        ? colors.danger
-                        : itemStage?.color || colors.textMuted,
-                    }}
-                  >
-                    {dropped
-                      ? item.drop_reason || 'Dropped'
-                      : itemStage?.name || '—'}
-                  </Text>
-                </Pressable>
-                {canEdit && !dropped ? (
-                  <Pressable
-                    onPress={() => onMoveItem(item)}
-                    accessibilityLabel="Move to stage"
-                    hitSlop={8}
-                  >
-                    <Ionicons
-                      name="arrow-forward-circle-outline"
-                      size={18}
-                      color={colors.textMuted}
-                    />
-                  </Pressable>
-                ) : null}
-                {canEdit && !dropped ? (
-                  <Pressable
-                    onPress={() => onConvert(item)}
-                    accessibilityLabel="Convert to deal"
-                    hitSlop={8}
-                  >
-                    <Ionicons
-                      name="briefcase-outline"
-                      size={17}
-                      color={colors.textMuted}
-                    />
-                  </Pressable>
-                ) : null}
-                {itemStage ? (
-                  <Pressable
-                    onPress={() => onAddNote(item, itemStage)}
-                    accessibilityLabel={`${canEdit ? 'Add or view' : 'View'} notes at ${itemStage.name}`}
-                    hitSlop={8}
-                  >
-                    <Ionicons
-                      name="document-text-outline"
-                      size={17}
-                      color={colors.textMuted}
-                    />
-                  </Pressable>
-                ) : null}
-              </View>
-            );
-          })
+      {expanded ? atStage.map((item) => renderItem(item)) : null}
+      {expanded && elsewhere.length > 0 ? (
+        <Pressable
+          onPress={() => setShowElsewhere((current) => !current)}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: showElsewhere }}
+          style={[styles.itemRow, { borderTopColor: colors.border }]}
+        >
+          <Ionicons
+            name={showElsewhere ? 'chevron-down' : 'chevron-forward'}
+            size={15}
+            color={colors.textMuted}
+          />
+          <Text
+            style={{
+              flex: 1,
+              fontSize: 12.5,
+              fontFamily: f.bold,
+              color: colors.textMuted,
+            }}
+          >
+            {showElsewhere
+              ? `Only ${stage?.name ?? 'this stage'}`
+              : `${elsewhere.length} more at other stages`}
+          </Text>
+        </Pressable>
+      ) : null}
+      {expanded && showElsewhere
+        ? elsewhere.map((item) => renderItem(item))
         : null}
     </Animated.View>
   );
