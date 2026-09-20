@@ -185,6 +185,21 @@
             }
           ],
           "guards": [".github/workflows/eas-update.yml"]
+        },
+        {
+          "id": "CTM-003",
+          "rule": "Removing an interested property is idempotent on web and mobile: the junction row and matching headline pointer are cleared together, an already-removed relationship is treated as success, and stale mobile cards disappear immediately.",
+          "tests": [
+            {
+              "file": "src/app/api/contacts/[id]/inquiries/[propertyId]/route.test.ts",
+              "case": "[CTM-003]"
+            },
+            {
+              "file": "mobile/lib/contact-interest.test.ts",
+              "case": "[CTM-003]"
+            }
+          ],
+          "guards": [".github/workflows/eas-update.yml"]
         }
       ]
     },

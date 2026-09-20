@@ -1,6 +1,31 @@
 import { describe, it, expect } from 'vitest';
 
-import { interestChipLabel, projectOptions } from './contact-interest';
+import {
+  interestChipLabel,
+  projectOptions,
+  withoutInterestedProperty,
+  withoutLastInquiredProperty,
+} from './contact-interest';
+
+describe('[CTM-003] interest removal cache reconciliation', () => {
+  it('removes the stale property and clears only the matching headline pointer', () => {
+    expect(
+      withoutInterestedProperty([{ id: 'p-1' }, { id: 'p-2' }], 'p-1')
+    ).toEqual([{ id: 'p-2' }]);
+    expect(
+      withoutLastInquiredProperty(
+        { id: 'c-1', last_inquired_property_id: 'p-1' },
+        'p-1'
+      )
+    ).toEqual({ id: 'c-1', last_inquired_property_id: null });
+    expect(
+      withoutLastInquiredProperty(
+        { id: 'c-1', last_inquired_property_id: 'p-2' },
+        'p-1'
+      )
+    ).toEqual({ id: 'c-1', last_inquired_property_id: 'p-2' });
+  });
+});
 
 describe('interestChipLabel', () => {
   it('passes short labels through untouched', () => {

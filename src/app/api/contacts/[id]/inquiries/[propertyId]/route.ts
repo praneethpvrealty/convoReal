@@ -181,17 +181,8 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: deleteErr.message }, { status: 500 });
     }
 
-    // A missing junction row is not a failure on its own — the tag an
-    // agent is correcting is often only the pointer, which the lead
-    // webhook and the older import paths both set without a row. Neither
-    // one present is: nothing was tagged, so nothing was corrected.
     const pointerNamed = contact.last_inquired_property_id === propertyId;
-    if (!removed?.length && !pointerNamed) {
-      return NextResponse.json(
-        { error: 'That interest is no longer there.' },
-        { status: 404 }
-      );
-    }
+    const alreadyAbsent = !removed?.length && !pointerNamed;
 
     let pointerCleared = false;
     if (pointerNamed) {
@@ -216,7 +207,13 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
       pointerCleared = true;
     }
 
-    return NextResponse.json({ data: { removed: true, pointerCleared } });
+    return NextResponse.json({
+      data: {
+        removed: Boolean(removed?.length),
+        pointerCleared,
+        alreadyAbsent,
+      },
+    });
   } catch (err) {
     console.error(
       '[DELETE /api/contacts/[id]/inquiries/[propertyId]] Unexpected error:',
