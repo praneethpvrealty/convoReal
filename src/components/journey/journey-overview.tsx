@@ -429,7 +429,7 @@ export function JourneyOverview({
       const unclassified = viewGroups.filter(
         (group) => group.furthestStageIdx < 0
       );
-      return unclassified.length
+      return unclassified.length || focusedBucket === 'stage:unclassified'
         ? [
             ...stageBuckets,
             {
@@ -464,7 +464,7 @@ export function JourneyOverview({
         groups: viewGroups,
       },
     ];
-  }, [stages, view, viewGroups]);
+  }, [focusedBucket, stages, view, viewGroups]);
 
   const effectiveOpen = useMemo(() => {
     if (openIds) return openIds;
