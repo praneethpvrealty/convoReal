@@ -437,7 +437,9 @@ export function JourneyBody() {
             (group) => group.furthestStageIdx === index
           ),
         }))
-        .filter((bucket) => bucket.groups.length > 0);
+        .filter(
+          (bucket) => bucket.groups.length > 0 || bucket.key === focusedBucket
+        );
     }
     if (view === 'closed') {
       return (
@@ -472,6 +474,7 @@ export function JourneyBody() {
     colors.primary,
     colors.success,
     colors.textFaint,
+    focusedBucket,
     colors.warning,
     stages,
     view,

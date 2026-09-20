@@ -402,6 +402,9 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
     expect(helpers).toContain('return focused.length ? focused : buckets;');
     expect(screen).toContain('focusBuckets(buckets, focusedBucket)');
     expect(screen).not.toContain('query.trim() ? null : focusedBucket');
+    expect(screen).toContain(
+      'bucket.groups.length > 0 || bucket.key === focusedBucket'
+    );
     expect(screen).toContain('const focused = bucket.key === focusedBucket;');
     expect(screen).toContain(
       'const collapsed = !focused && collapsedBuckets.has(bucket.key);'

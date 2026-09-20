@@ -299,6 +299,9 @@ describe('focusBuckets', () => {
     expect(source).toContain("searchParams.get('stage')");
     expect(source).toContain("params.set('stage', stageId)");
     expect(source).toContain(
+      "unclassified.length || focusedBucket === 'stage:unclassified'"
+    );
+    expect(source).toContain(
       'onToggleCollapsed={() => toggleCollapsed(bucket.key)}'
     );
     expect(source).toContain(
