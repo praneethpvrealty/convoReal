@@ -75,8 +75,10 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
-  contactPhoneNumbers,
+  chooseWhatsAppPhone,
+  needsWhatsAppPhoneChoice,
   promotePhone,
+  contactPhoneNumbers,
 } from '@/lib/contacts/phone-numbers';
 import {
   Phone,
@@ -1227,6 +1229,25 @@ export function ContactDetailView({
     }, 1500);
   }
 
+  // First WhatsApp on a multi-number contact: the pick becomes the primary
+  // and is stamped, so the question is asked once and the plain button
+  // takes over from then on.
+  async function chooseWhatsAppPhoneAndOpen(phone: string) {
+    if (!contact) return;
+    const { data, error } = await supabase
+      .from('contacts')
+      .update(chooseWhatsAppPhone(contact, phone))
+      .eq('id', contact.id)
+      .select('id');
+    if (error || !data?.length) {
+      toast.error(error?.message ?? 'Could not save the WhatsApp number');
+      return;
+    }
+    fetchContact();
+    onUpdated();
+    await handleWhatsAppClick(phone);
+  }
+
   // Resolve the account's public showcase base URL (subdomain-aware,
   // `?ref=` fallback) — shared by the welcome link and the approval
   // details message.
@@ -1401,6 +1422,9 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
         preferred_language: editPreferredLanguage || null,
         phone: normalizedPrimary,
         secondary_phones: normalizedSecondary,
+        ...(normalizedPrimary !== contact?.phone
+          ? { whatsapp_phone_confirmed_at: new Date().toISOString() }
+          : {}),
         email: editEmail.trim() || null,
         company: editCompany.trim() || null,
         classification: editClassification,
@@ -1771,11 +1795,11 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                         <Copy className="size-3" />
                       )}
                     </button>
-                    {contactPhoneNumbers(contact).length > 1 ? (
+                    {needsWhatsAppPhoneChoice(contact) ? (
                       <DropdownMenu>
                         <DropdownMenuTrigger
                           className="hover:text-emerald-350 flex cursor-pointer items-center gap-1.5 rounded-md border border-emerald-500/20 px-2 py-0.5 font-medium text-emerald-400 transition-all hover:bg-emerald-500/10"
-                          title="This contact has more than one number — pick the one on WhatsApp"
+                          title="This contact has more than one number — pick the one on WhatsApp. Asked once; the pick becomes the primary."
                         >
                           <MessageSquare className="size-3 fill-current text-emerald-400" />
                           WhatsApp Chat
@@ -1788,7 +1812,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                           {contactPhoneNumbers(contact).map((phone) => (
                             <DropdownMenuItem
                               key={phone}
-                              onClick={() => handleWhatsAppClick(phone)}
+                              onClick={() => chooseWhatsAppPhoneAndOpen(phone)}
                             >
                               {phone}
                               {phone === contact.phone ? ' · primary' : ''}
