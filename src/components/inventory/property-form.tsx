@@ -85,6 +85,7 @@ import {
   propertyShareParams,
   shareUnsentReason,
 } from '@/lib/whatsapp/property-share-template';
+import { postPropertyShare } from '@/lib/whatsapp/share-property-request';
 import { buildPropertyShareMessage, showcaseOriginForHost } from '@/lib/share-message-builder';
 import { MatchDetailChips } from '@/components/inventory/match-detail-chips';
 import { ListingVideoCard } from '@/components/inventory/listing-video-card';
@@ -1148,19 +1149,37 @@ export function PropertyForm({
     }
   }, [selectedTemplate, placeholders]);
 
-  // Sync selected broadcast image when selectedTemplate or images changes
-  useEffect(() => {
-    if (selectedTemplate && selectedTemplate.header_type === 'image') {
-      const defaultImg = images.map((img) => img.trim()).find((img) => img.length > 0) || '';
-      setSelectedBroadcastImage(defaultImg);
-    } else {
-      setSelectedBroadcastImage('');
-    }
-  }, [selectedTemplate, images]);
-
   const engineShare = Boolean(
     property && !customTemplateMode && isEngineShareTemplate(selectedTemplate?.name)
   );
+
+  const headerImageOptions = useMemo(() => {
+    const source = engineShare ? (property?.images ?? []) : images;
+    return source.map((img) => (img ?? '').trim()).filter((img) => img.length > 0);
+  }, [engineShare, property?.images, images]);
+
+  useEffect(() => {
+    if (selectedTemplate && selectedTemplate.header_type === 'image') {
+      setSelectedBroadcastImage(headerImageOptions[0] || '');
+    } else {
+      setSelectedBroadcastImage('');
+    }
+  }, [selectedTemplate, headerImageOptions]);
+
+  const unsavedShareEdits = useMemo(() => {
+    if (!property) return false;
+    const savedPrice =
+      property.price !== null && property.price !== undefined ? String(property.price) : '';
+    const savedImages = (property.images ?? []).map((img) => (img ?? '').trim()).filter(Boolean);
+    const formImages = images.map((img) => img.trim()).filter(Boolean);
+    return (
+      title.trim() !== (property.title ?? '').trim() ||
+      price.trim() !== savedPrice ||
+      sublocality.trim() !== (property.sublocality ?? '').trim() ||
+      city.trim() !== (property.city ?? '').trim() ||
+      formImages.join('|') !== savedImages.join('|')
+    );
+  }, [property, title, price, sublocality, city, images]);
 
   const engineSharePreview = useMemo(() => {
     if (!property || !selectedTemplate || !isEngineShareTemplate(selectedTemplate.name)) return '';
@@ -1200,19 +1219,13 @@ export function PropertyForm({
       });
       const entry = { name: contact.name || 'Unknown', phone: contact.phone ?? '' };
       try {
-        const response = await fetch('/api/whatsapp/share-property', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contact_id: contact.id,
-            property_id: property.id,
-            message,
-            ...(selectedBroadcastImage ? { header_image: selectedBroadcastImage } : {}),
-          }),
+        const { ok, data, error } = await postPropertyShare({
+          contact_id: contact.id,
+          property_id: property.id,
+          message,
+          ...(selectedBroadcastImage ? { header_image: selectedBroadcastImage } : {}),
         });
-        const payload = await response.json().catch(() => null);
-        if (!response.ok) throw new Error(payload?.error || 'Send failed');
-        const data = payload?.data as { sent?: boolean; template_status?: string } | undefined;
+        if (!ok) throw new Error(error || 'Send failed');
         if (data?.sent) {
           delivered += 1;
           results.push({ ...entry, status: 'sent' });
@@ -6765,6 +6778,11 @@ export function PropertyForm({
                               Use a different template
                             </button>
                           </div>
+                          {unsavedShareEdits && (
+                            <p className="text-xs text-amber-400">
+                              Shares go out with the saved listing. Save your edits first to include them.
+                            </p>
+                          )}
                         </div>
                       ) : (
                       <div className="space-y-1.5">
@@ -6776,7 +6794,7 @@ export function PropertyForm({
                             <button
                               type="button"
                               onClick={() => {
-                                const hasPhoto = images.some((img) => img.trim().length > 0);
+                                const hasPhoto = (property?.images ?? []).some((img) => img && img.trim().length > 0);
                                 setSelectedTemplate(pickShareDialogTemplate(templates, { hasImage: hasPhoto }));
                                 setCustomTemplateMode(false);
                               }}
@@ -6812,9 +6830,7 @@ export function PropertyForm({
                             Select Broadcast Header Image
                           </Label>
                           <div className="flex gap-2 items-center overflow-x-auto py-1 max-w-full">
-                            {images
-                              .filter((img) => img.trim().length > 0)
-                              .map((imgUrl, idx) => (
+                            {headerImageOptions.map((imgUrl, idx) => (
                                 <div
                                   key={idx}
                                   onClick={() => setSelectedBroadcastImage(imgUrl)}
@@ -6994,7 +7010,7 @@ export function PropertyForm({
                         </Button>
                         <Button
                           type="button"
-                          disabled={sendingBroadcast || !selectedTemplate}
+                          disabled={sendingBroadcast || !selectedTemplate || (engineShare && unsavedShareEdits)}
                           onClick={engineShare ? handleSendEngineShare : handleSendBroadcast}
                           className="bg-primary hover:bg-primary/95 text-primary-foreground font-semibold flex items-center gap-1.5"
                         >
