@@ -19,6 +19,14 @@ than a written entry. Newest first.
 
 #### 21 September 2026
 
+- **The closed-window announcement template is now `announcement_video_notice`.**
+  It was called `audio_announcement_notice`, but what it sends is a video
+  (a branded still card over the narration), because Meta has no audio
+  header format — so the old name misdescribed the message. Meta cannot
+  rename a template, so the new name is a fresh submission from the
+  Templates screen. The old name stays a send candidate: an account whose
+  `audio_announcement_notice` is approved keeps sending on it until the
+  renamed one is approved, at which point the new name is preferred.
 - **Change a contact's language from the record, on web and mobile.** The
   language every WhatsApp template to a contact goes out in was set only
   deep in the web edit form and not at all on mobile. A language chip now

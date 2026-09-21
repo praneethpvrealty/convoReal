@@ -304,7 +304,7 @@ choice, per-run result summaries, delete), mobile under More → Marketing
 
 **Closed-window path (shipped).** The worker also packages every announcement as an mp4 —
 branded still card + the narration (migration 273 adds `video_url` and the video mime type to
-the bucket) — and the send loop falls back to the `audio_announcement_notice` VIDEO-header
+the bucket) — and the send loop falls back to the `announcement_video_notice` VIDEO-header
 template (`src/lib/whatsapp/announcement-template.ts`, registered in `ENGINE_TEMPLATES` for
 one-tap submission from the Templates screen; review sample at
 `/brand/announcement-sample.mp4`). Submitted honestly as Marketing (§2.7). The fallback fires
