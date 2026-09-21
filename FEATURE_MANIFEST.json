@@ -136,7 +136,7 @@
         },
         {
           "id": "INB-009",
-          "rule": "A lead who taps \"Close my enquiry\" on a check-in or enquiry template is asked, after the goodbye, why the shared property did not fit: the property is resolved from the quoted template, the last week of outbound messages or the recorded enquiry; the one-tap reason (budget, location, type, size, bought elsewhere, not buying now, other) is filed on listing feedback, the contact timeline and the active journey item, the agent is notified, both messages bypass the dead-contact gate, and only a thank-you follows.",
+          "rule": "A lead who taps \"Close my enquiry\" on a check-in or enquiry template is asked, after the acknowledgement, why the shared property did not fit: the property is resolved from the quoted template, the last week of outbound messages or the recorded enquiry; the one-tap reason (budget, location, type, size, bought elsewhere, not buying now, other) is filed on listing feedback, the contact timeline and the active journey item, the agent is notified, both messages bypass the dead-contact gate, and the question never promises to be the last message.",
           "tests": [
             {
               "file": "src/lib/whatsapp/enquiry-dropoff.test.ts",
@@ -146,6 +146,28 @@
           "guards": [
             "supabase/migrations/20260921100000_listing_feedback_dropoff_reasons.sql",
             "src/lib/whatsapp/enquiry-dropoff.ts"
+          ]
+        },
+        {
+          "id": "INB-010",
+          "rule": "\"Close my enquiry\" closes the enquiry on the listing the template named, not the lead: that listing is rejected for the contact and its journey branch dropped, the contact stays live, matching and on whatever alert consent they last gave, and the acknowledgement says their other enquiries stay open. After the drop-off reason (or at once when the close names no listing) the lead is shown their open enquiries as a one-tap list — close any of them, or keep them all, each answer logged on the journey — and then the requirement ladder or their current matches; \"bought elsewhere\" and \"not buying right now\" end there instead. Only a close that names no listing on a journey with nothing open marks the contact dead, and START ALERTS in the lead's own words revives a dead contact, un-parks the requirement and grants consent before the confirmation and ladder go out.",
+          "tests": [
+            {
+              "file": "src/lib/whatsapp/enquiry-close.test.ts",
+              "case": "[INB-010]"
+            },
+            {
+              "file": "src/lib/whatsapp/enquiry-review.test.ts",
+              "case": "[INB-010]"
+            },
+            {
+              "file": "src/lib/whatsapp/enquiry-dropoff.test.ts",
+              "case": "[INB-010]"
+            },
+            {
+              "file": "src/lib/buyer/alerts.test.ts",
+              "case": "[INB-010]"
+            }
           ]
         }
       ]

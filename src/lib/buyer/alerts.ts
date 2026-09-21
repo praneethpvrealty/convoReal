@@ -5,6 +5,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 // "STOP ALERTS" / "START ALERTS" free text in the buyer's chat
 // toggles contacts.buyer_alerts_consent; the buyer portal settings
 // screen edits the same column, so the two channels always agree.
+// "Close my enquiry" is not an alerts command any more — it closes one
+// listing's enquiry (src/lib/whatsapp/enquiry-close.ts).
 // ============================================================
 
 import { supabaseAdmin } from '@/lib/supabase/admin';
@@ -23,24 +25,47 @@ export function parseBuyerAlertsCommand(
 }
 
 export async function applyBuyerAlertsCommand(args: {
-  /** 'close' is the enquiry template's "Close my enquiry" button — the
-   *  same consent decline as 'stop', but the goodbye can say more: the
-   *  tap opened a 24-hour window, this reply is free-form, and it is
-   *  the one legitimate moment to make the case for staying. The
-   *  template promised "no further updates will be sent", so after
-   *  this message there is no second nudge — the pitch rides the
-   *  acknowledgment or it doesn't happen. */
-  command: 'stop' | 'start' | 'close';
+  command: 'stop' | 'start';
   accountId: string;
   contactId: string;
   db?: SupabaseClient;
 }): Promise<string | null> {
   const db = args.db || supabaseAdmin();
+  const now = new Date().toISOString();
+
+  if (args.command === 'stop') {
+    const { error } = await db
+      .from('contacts')
+      .update({ buyer_alerts_consent: 'declined', updated_at: now })
+      .eq('id', args.contactId)
+      .eq('account_id', args.accountId);
+    if (error) {
+      console.error('[buyer-alerts] consent update failed:', error.message);
+      return null;
+    }
+    return "Understood — you won't receive property alerts. Reply START ALERTS anytime if you change your mind.";
+  }
+
+  // START ALERTS in the lead's own words is the lead re-opening their
+  // search, whatever closed it: a contact marked dead is revived and
+  // the requirement un-parked, or the consent just granted would never
+  // produce an alert — the dispatcher, the matcher and the digest all
+  // skip dead contacts.
+  const { data: before } = await db
+    .from('contacts')
+    .select('is_dead')
+    .eq('id', args.contactId)
+    .eq('account_id', args.accountId)
+    .maybeSingle();
   const { error } = await db
     .from('contacts')
     .update({
-      buyer_alerts_consent: args.command === 'start' ? 'granted' : 'declined',
-      updated_at: new Date().toISOString(),
+      buyer_alerts_consent: 'granted',
+      is_dead: false,
+      dead_at: null,
+      dead_reason: null,
+      requirement_active: true,
+      updated_at: now,
     })
     .eq('id', args.contactId)
     .eq('account_id', args.accountId);
@@ -48,16 +73,13 @@ export async function applyBuyerAlertsCommand(args: {
     console.error('[buyer-alerts] consent update failed:', error.message);
     return null;
   }
-  if (args.command === 'close') {
-    return [
-      'Understood — your enquiry is closed, and this is our last update. Thank you for considering us.',
-      '',
-      'One thing before we go: our intelligent listing engine matches every new property against your requirement the moment it arrives — and when a seller needs a quick exit, it sometimes catches a real steal deal, priced well under market. Our regular investors and buyers have found it genuinely worth staying on for.',
-      '',
-      "If you'd like it quietly watching for you, just reply START ALERTS. Otherwise, we wish you the very best with your search!",
-    ].join('\n');
+  if ((before as { is_dead?: boolean | null } | null)?.is_dead) {
+    await db.from('contact_notes').insert({
+      contact_id: args.contactId,
+      account_id: args.accountId,
+      user_id: null,
+      note_text: 'Lead reopened their search from WhatsApp (START ALERTS)',
+    });
   }
-  return args.command === 'stop'
-    ? "Understood — you won't receive property alerts. Reply START ALERTS anytime if you change your mind."
-    : "✅ Great! You'll receive property alerts that match your preferences. Reply STOP ALERTS anytime to pause.";
+  return "✅ Great! You'll receive property alerts that match your preferences. Reply STOP ALERTS anytime to pause.";
 }

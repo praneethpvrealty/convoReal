@@ -25,56 +25,88 @@ describe('parseBuyerAlertsCommand', () => {
 
 import { applyBuyerAlertsCommand } from './alerts';
 
-function stubDb(captured: { consent?: string }) {
+/**
+ * [INB-010] START ALERTS in the lead's own words re-opens their search.
+ * "Close my enquiry" once marked the contact dead and the goodbye said
+ * "just reply START ALERTS" — but the reply only flipped consent: the
+ * contact stayed dead, so the confirmation was refused by the
+ * dispatcher's dead-contact gate and no alert could ever follow.
+ */
+
+interface Captured {
+  patch?: Record<string, unknown>;
+  notes: Record<string, unknown>[];
+}
+
+function stubDb(captured: Captured, before: { is_dead?: boolean } | null) {
   return {
-    from: () => ({
-      update: (patch: { buyer_alerts_consent: string }) => {
-        captured.consent = patch.buyer_alerts_consent;
+    from: (table: string) => ({
+      select: () => ({
+        eq: () => ({
+          eq: () => ({ maybeSingle: async () => ({ data: before }) }),
+        }),
+      }),
+      update: (patch: Record<string, unknown>) => {
+        captured.patch = patch;
         return {
           eq: () => ({ eq: async () => ({ error: null }) }),
         };
+      },
+      insert: async (row: Record<string, unknown>) => {
+        if (table === 'contact_notes') captured.notes.push(row);
+        return { error: null };
       },
     }),
   } as never;
 }
 
 describe('applyBuyerAlertsCommand', () => {
-  it('close declines consent exactly like stop', async () => {
-    // The template promised "no further updates" — the decline must be
-    // recorded so the broadcast sender refuses this contact from now on.
-    const captured: { consent?: string } = {};
-    await applyBuyerAlertsCommand({
-      command: 'close',
-      accountId: 'a1',
-      contactId: 'c1',
-      db: stubDb(captured),
-    });
-    expect(captured.consent).toBe('declined');
-  });
-
-  it('close acknowledges the decision before making the pitch', async () => {
+  it('[INB-010] START ALERTS grants consent and revives a lead a close marked dead', async () => {
+    const captured: Captured = { notes: [] };
     const text = await applyBuyerAlertsCommand({
-      command: 'close',
+      command: 'start',
       accountId: 'a1',
       contactId: 'c1',
-      db: stubDb({}),
+      db: stubDb(captured, { is_dead: true }),
     });
-    expect(text).not.toBeNull();
-    const ack = text!.indexOf('your enquiry is closed');
-    const pitch = text!.indexOf('intelligent listing engine');
-    expect(ack).toBeGreaterThanOrEqual(0);
-    expect(pitch).toBeGreaterThan(ack);
-    // The way back in must be stated, since nothing else will be sent.
-    expect(text).toContain('START ALERTS');
-    expect(text).toContain('last update');
+    expect(captured.patch).toMatchObject({
+      buyer_alerts_consent: 'granted',
+      is_dead: false,
+      dead_at: null,
+      dead_reason: null,
+      requirement_active: true,
+    });
+    expect(captured.notes[0]).toMatchObject({
+      contact_id: 'c1',
+      account_id: 'a1',
+      note_text: expect.stringContaining('START ALERTS'),
+    });
+    expect(text).toContain("You'll receive property alerts");
   });
 
-  it('plain STOP ALERTS keeps its short confirmation', async () => {
+  it('leaves no note when the lead was never dead', async () => {
+    const captured: Captured = { notes: [] };
+    await applyBuyerAlertsCommand({
+      command: 'start',
+      accountId: 'a1',
+      contactId: 'c1',
+      db: stubDb(captured, { is_dead: false }),
+    });
+    expect(captured.patch).toMatchObject({ buyer_alerts_consent: 'granted' });
+    expect(captured.notes).toEqual([]);
+  });
+
+  it('plain STOP ALERTS declines consent and keeps its short confirmation', async () => {
+    const captured: Captured = { notes: [] };
     const text = await applyBuyerAlertsCommand({
       command: 'stop',
       accountId: 'a1',
       contactId: 'c1',
-      db: stubDb({}),
+      db: stubDb(captured, null),
+    });
+    expect(captured.patch).toEqual({
+      buyer_alerts_consent: 'declined',
+      updated_at: expect.any(String),
     });
     expect(text).toContain("won't receive property alerts");
     expect(text).not.toContain('intelligent listing engine');

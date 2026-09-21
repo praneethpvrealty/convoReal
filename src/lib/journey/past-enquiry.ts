@@ -7,8 +7,8 @@
 // a deal reaches legal: a buyer a week from registration is quiet
 // because the work moved to lawyers and the sub-registrar. Asking them
 // "are you still considering it?" is both wrong and, via the check-in
-// template's "Close my enquiry" button, destructive — that button marks
-// the contact dead.
+// template's "Close my enquiry" button, destructive — that button drops
+// the journey branch for the listing.
 //
 // journey_items already records the furthest stage per contact×property
 // pair, and journey_stages.stage_kind (migration 286) says which stages
