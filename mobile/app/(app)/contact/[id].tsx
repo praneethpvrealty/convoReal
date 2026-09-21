@@ -80,7 +80,12 @@ import {
   useTheme,
   fonts,
 } from '@/lib/theme';
-import { contactPhoneNumbers, promotePhone } from '@/lib/phone-numbers';
+import {
+  chooseWhatsAppPhone,
+  contactPhoneNumbers,
+  needsWhatsAppPhoneChoice,
+  promotePhone,
+} from '@/lib/phone-numbers';
 import { openWelcomeWhatsApp } from '@/lib/welcome-message';
 import { contactHandle, hasPhone } from '@/lib/reachability';
 import {
@@ -163,7 +168,7 @@ async function fetchContact(id: string): Promise<Contact | null> {
   const { data, error } = await supabase
     .from('contacts')
     .select(
-      'id, phone, secondary_phones, name, salutation, second_name, name_tag, email, company, classification, ' +
+      'id, phone, secondary_phones, whatsapp_phone_confirmed_at, name, salutation, second_name, name_tag, email, company, classification, ' +
         'avatar_url, min_budget, max_budget, no_budget, pref_listing_types, areas_of_interest, areas_of_interest_geo, ' +
         'strict_area_match, min_roi, requires_tenanted, pref_requires_tenanted, requirements, lead_temp, status, referrer, source, ' +
         'requirement_profiles, ' +
@@ -537,19 +542,29 @@ function ContactCard({ contact }: { contact: Contact }) {
                 icon="logo-whatsapp"
                 label="WhatsApp"
                 onPress={() => {
-                  const numbers = contactPhoneNumbers(contact);
-                  if (numbers.length < 2) {
+                  if (!needsWhatsAppPhoneChoice(contact)) {
                     openWelcomeWhatsApp(contact);
                     return;
                   }
-                  Alert.alert('WhatsApp which number?', undefined, [
-                    ...numbers.map((phone) => ({
-                      text:
-                        phone === contact.phone ? `${phone} · primary` : phone,
-                      onPress: () => openWelcomeWhatsApp(contact, phone),
-                    })),
-                    { text: 'Cancel', style: 'cancel' as const },
-                  ]);
+                  // Asked once: the pick becomes the primary and is
+                  // remembered, so the next tap goes straight through.
+                  Alert.alert(
+                    'WhatsApp which number?',
+                    'Your pick becomes the primary number and is remembered.',
+                    [
+                      ...contactPhoneNumbers(contact).map((phone) => ({
+                        text:
+                          phone === contact.phone
+                            ? `${phone} · primary`
+                            : phone,
+                        onPress: async () => {
+                          await promoteContactPhone(contact, phone);
+                          openWelcomeWhatsApp(contact, phone);
+                        },
+                      })),
+                      { text: 'Cancel', style: 'cancel' as const },
+                    ]
+                  );
                 }}
               />
               <ActionButton
@@ -1540,6 +1555,9 @@ function ContactEditor({
         name_tag: nameTag.trim() || null,
         phone: primaryPhone.trim() || null,
         secondary_phones: normalizedPhones,
+        ...(primaryPhone.trim() && primaryPhone.trim() !== contact.phone
+          ? { whatsapp_phone_confirmed_at: new Date().toISOString() }
+          : {}),
         email: email.trim() || null,
         company: company.trim() || null,
         requirements: requirements.trim() || null,
@@ -2392,13 +2410,13 @@ function BuysWithRow({ contactId }: { contactId: string }) {
   return <InfoRow icon="people-outline" label="Buys with" value={names} />;
 }
 
-/** Make one of the other numbers the primary — the number every
- *  WhatsApp path addresses — swapping the old primary into its slot. */
+/** Make one of the numbers the primary — the number every WhatsApp path
+ *  addresses — swapping the old primary into its slot, and record the
+ *  choice so the WhatsApp action stops asking. */
 async function promoteContactPhone(contact: Contact, phone: string) {
-  const next = promotePhone(contact, phone);
   const { data, error } = await supabase
     .from('contacts')
-    .update(next)
+    .update(chooseWhatsAppPhone(contact, phone))
     .eq('id', contact.id)
     .select('id');
   if (error || !data?.length) {

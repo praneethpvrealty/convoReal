@@ -5,6 +5,7 @@
 export interface ContactPhones {
   phone?: string | null;
   secondary_phones?: string[] | null;
+  whatsapp_phone_confirmed_at?: string | null;
 }
 
 export interface PromotedPhones {
@@ -47,4 +48,28 @@ export function promotePhone(
     );
   }
   return { phone: next, secondary_phones: Array.from(new Set(rest)) };
+}
+
+/** The WhatsApp action asks which number to use only while the contact
+ *  has more than one and no one has answered yet. */
+export function needsWhatsAppPhoneChoice(contact: ContactPhones): boolean {
+  return (
+    !contact.whatsapp_phone_confirmed_at &&
+    contactPhoneNumbers(contact).length > 1
+  );
+}
+
+export interface ChosenWhatsAppPhone extends PromotedPhones {
+  whatsapp_phone_confirmed_at: string;
+}
+
+/** Record the answer: the chosen number becomes the primary — the number
+ *  every WhatsApp path addresses — and the choice is stamped so the
+ *  question is not asked again. */
+export function chooseWhatsAppPhone(
+  contact: ContactPhones,
+  phone: string,
+  now: string = new Date().toISOString()
+): ChosenWhatsAppPhone {
+  return { ...promotePhone(contact, phone), whatsapp_phone_confirmed_at: now };
 }

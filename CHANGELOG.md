@@ -28,7 +28,11 @@ than a written entry. Newest first.
   record opens WhatsApp, Call or Make primary, and the mobile editor gains
   the web's swap-to-primary arrow, so the Engine thread follows the right
   number too. A Meta "message undeliverable" error now says to make another
-  of the contact's numbers the primary.
+  of the contact's numbers the primary. The question is asked once: the
+  number picked becomes the primary and the choice is recorded on the
+  contact, so the next tap goes straight to WhatsApp. **Migration
+  required:** `20260921103000_contact_whatsapp_phone_confirmed.sql` adds the
+  nullable `contacts.whatsapp_phone_confirmed_at` column.
 
 - **Importing a phone contact fills first name, second name and Name Tag.**
   A phonebook entry such as "Dr Murali Makam Owner Hsr Has Building On 27th

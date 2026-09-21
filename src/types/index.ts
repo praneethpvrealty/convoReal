@@ -154,6 +154,11 @@ export interface Contact {
    *  them rather than assume a number (migration 253). */
   phone: string | null;
   secondary_phones?: string[];
+  /** Set once an agent has chosen which of the contact's numbers is on
+   *  WhatsApp (migration 20260921103000). The chosen number is the
+   *  primary; while this is null and there is more than one number, the
+   *  WhatsApp action asks. */
+  whatsapp_phone_confirmed_at?: string | null;
   name?: string;
   /** Client-facing honorific. Explicitly selected; never inferred from a name. */
   salutation?: 'Mr.' | 'Mrs.' | null;
