@@ -136,13 +136,10 @@ export async function resolveDroppedProperty(args: {
     .select('content_text, created_at')
     .eq('conversation_id', conversationId)
     .in('sender_type', ['agent', 'bot'])
+    .gte('created_at', new Date(Date.now() - SHARE_LOOKBACK_MS).toISOString())
     .order('created_at', { ascending: false })
     .limit(RECENT_OUTBOUND_LIMIT);
-  const cutoff = Date.now() - SHARE_LOOKBACK_MS;
-  const recent = ((outbound ?? []) as ScannableMessage[]).filter(
-    (m) => new Date(m.created_at).getTime() > cutoff
-  );
-  const fromThread = pick(recent);
+  const fromThread = pick((outbound ?? []) as ScannableMessage[]);
   if (fromThread) return fromThread;
 
   if (contact.last_inquired_property_id) {

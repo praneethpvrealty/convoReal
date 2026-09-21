@@ -56,6 +56,7 @@ function stubDb(results: Record<string, unknown[]>) {
       'upsert',
       'update',
       'insert',
+      'gte',
       'order',
       'limit',
     ]) {
@@ -119,7 +120,7 @@ describe('resolveDroppedProperty', () => {
   });
 
   it('[INB-009] falls back to the last week of outbound messages, then the recorded enquiry', async () => {
-    const { db: threadDb } = stubDb({
+    const { db: threadDb, calls } = stubDb({
       properties: [properties],
       messages: [
         null,
@@ -129,10 +130,6 @@ describe('resolveDroppedProperty', () => {
             content_text: 'Sharing PROP-1003 with you',
             created_at: recent(30),
           },
-          {
-            content_text: 'Sharing PROP-1002 with you',
-            created_at: recent(24 * 9),
-          },
         ],
       ],
     });
@@ -140,6 +137,15 @@ describe('resolveDroppedProperty', () => {
       baseArgs(threadDb, 'wamid.unknown')
     );
     expect(fromThread?.id).toBe(P2);
+    // The week is applied in the query, before any row bound, so a
+    // share buried under newer chatter is still scanned.
+    const window = calls.find(
+      (c) => c.table === 'messages' && c.method === 'gte'
+    );
+    expect(window?.args).toEqual([
+      'created_at',
+      new Date(NOW.getTime() - 7 * 24 * 3600_000).toISOString(),
+    ]);
 
     const { db: enquiryDb } = stubDb({
       properties: [properties],
