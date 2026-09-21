@@ -161,7 +161,7 @@ async function fetchContact(id: string): Promise<Contact | null> {
   const { data, error } = await supabase
     .from('contacts')
     .select(
-      'id, phone, secondary_phones, name, salutation, name_tag, email, company, classification, ' +
+      'id, phone, secondary_phones, name, salutation, second_name, name_tag, email, company, classification, ' +
         'avatar_url, min_budget, max_budget, no_budget, pref_listing_types, areas_of_interest, areas_of_interest_geo, ' +
         'strict_area_match, min_roi, requires_tenanted, pref_requires_tenanted, requirements, lead_temp, status, referrer, source, ' +
         'requirement_profiles, ' +

@@ -78,7 +78,7 @@ import { ReengageWizard } from '@/components/contacts/reengage-wizard';
 import { useCan } from '@/hooks/use-can';
 import { GatedButton } from '@/components/ui/gated-button';
 import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
-import { suggestNameTagSplit } from '@/lib/contacts/name-tag-split';
+import { splitImportedName } from '@/lib/contacts/name-tag-split';
 import { contactFullName } from '@/lib/contacts/full-name';
 import { resolveRequirementSource } from '@/lib/requirements/profiles';
 import {
@@ -1720,8 +1720,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
 
       if (picked.length === 1) {
         const c = picked[0];
-        const rawName = c.name?.[0] || '';
-        const split = suggestNameTagSplit(rawName);
+        const split = splitImportedName(c.name?.[0] || '');
         const phone = c.tel?.[0] || '';
         const email = c.email?.[0] || '';
 
@@ -1729,8 +1728,9 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
           id: '',
           user_id: user?.id || '',
           phone: normalizePhoneWithCountryCode(phone) || phone,
-          name: split?.name ?? rawName,
-          name_tag: split?.nameTag ?? null,
+          name: split.name,
+          second_name: split.secondName,
+          name_tag: split.nameTag,
           email,
           company: '',
           classification: 'Others',
@@ -1744,11 +1744,11 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
       } else {
         setBulkImportContacts(
           picked.map((c) => {
-            const rawName = c.name?.[0] || '';
-            const split = suggestNameTagSplit(rawName);
+            const split = splitImportedName(c.name?.[0] || '');
             return {
-              name: split?.name ?? rawName,
-              name_tag: split?.nameTag ?? '',
+              name: split.name,
+              second_name: split.secondName ?? '',
+              name_tag: split.nameTag ?? '',
               phone: c.tel?.[0]
                 ? normalizePhoneWithCountryCode(c.tel[0]) || c.tel[0]
                 : '',
@@ -1780,6 +1780,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
         account_id: accountId,
         user_id: user?.id || null,
         name: c.name,
+        second_name: c.second_name.trim() || null,
         name_tag: c.name_tag.trim() || null,
         phone: normalizePhoneWithCountryCode(c.phone) || c.phone,
         email: c.email || null,

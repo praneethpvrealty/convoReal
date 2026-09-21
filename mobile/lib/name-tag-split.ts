@@ -1,9 +1,6 @@
-// Phonebook names often carry a quick-reference qualifier after the real
-// name — "Nataraj Bank DSA", "Ramesh HDFC", "Suresh Plumber 2". On import we
-// suggest moving that qualifier into the contact's Name Tag so outbound
-// messages (which use `name` alone) stay clean: "Hi Nataraj", not
-// "Hi Nataraj Bank DSA". Deterministic on purpose — no AI call — and only a
-// suggestion: every import surface keeps the fields editable.
+// Mirrors the web module src/lib/contacts/name-tag-split.ts 1:1 — the
+// lexicon and both splitters are compared text-for-text by
+// src/lib/mobile-parity.test.ts. Edit the web file first, then copy.
 
 // Role/trade/context words that mark where the qualifier starts. Lowercase.
 const DESCRIPTOR_WORDS = new Set([

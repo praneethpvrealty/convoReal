@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { suggestNameTagSplit } from './name-tag-split';
+import { splitImportedName, suggestNameTagSplit } from './name-tag-split';
 
 describe('suggestNameTagSplit', () => {
   it('splits a trailing lexicon qualifier', () => {
@@ -68,5 +68,61 @@ describe('suggestNameTagSplit', () => {
   it('handles empty and whitespace-only input', () => {
     expect(suggestNameTagSplit('')).toBeNull();
     expect(suggestNameTagSplit('   ')).toBeNull();
+  });
+});
+
+describe('splitImportedName', () => {
+  it('[CTM-005] fills first name, second name and name tag from one phonebook entry', () => {
+    expect(
+      splitImportedName('Dr Murali Makam Owner Hsr Has Building On 27th Main')
+    ).toEqual({
+      name: 'Dr Murali',
+      secondName: 'Makam',
+      nameTag: 'Owner Hsr Has Building On 27th Main',
+    });
+    expect(splitImportedName('Suresh Kumar Bank DSA')).toEqual({
+      name: 'Suresh',
+      secondName: 'Kumar',
+      nameTag: 'Bank DSA',
+    });
+  });
+
+  it('[CTM-005] keeps a title or leading initial with the first name', () => {
+    expect(splitImportedName('Mr. Ramesh Gowda')).toEqual({
+      name: 'Mr. Ramesh',
+      secondName: 'Gowda',
+      nameTag: null,
+    });
+    expect(splitImportedName('R Nataraj')).toEqual({
+      name: 'R Nataraj',
+      secondName: null,
+      nameTag: null,
+    });
+    expect(splitImportedName('Dr')).toEqual({
+      name: 'Dr',
+      secondName: null,
+      nameTag: null,
+    });
+  });
+
+  it('[CTM-005] puts every token after the first name into the second name', () => {
+    expect(splitImportedName('Praneeth Kumar S')).toEqual({
+      name: 'Praneeth',
+      secondName: 'Kumar S',
+      nameTag: null,
+    });
+  });
+
+  it('[CTM-005] leaves a single name alone', () => {
+    expect(splitImportedName('Akanksha')).toEqual({
+      name: 'Akanksha',
+      secondName: null,
+      nameTag: null,
+    });
+    expect(splitImportedName('  ')).toEqual({
+      name: '',
+      secondName: null,
+      nameTag: null,
+    });
   });
 });

@@ -19,6 +19,17 @@ than a written entry. Newest first.
 
 #### 21 September 2026
 
+- **Importing a phone contact fills first name, second name and Name Tag.**
+  A phonebook entry such as "Dr Murali Makam Owner Hsr Has Building On 27th
+  Main" used to land in the contact's Name field whole. Import from phone on
+  mobile and the phonebook picker on web now split it the same way: the
+  trailing qualifier becomes the Name Tag ("Owner Hsr Has Building On 27th
+  Main"), the first given name with any title or initial in front of it
+  becomes the Name ("Dr Murali"), and the rest becomes the Second Name
+  ("Makam"). The web bulk-import review gains a Second Name column, and the
+  mobile editor now loads the second name it edits, so saving a contact there
+  no longer clears it.
+
 - **"Close my enquiry" closes one listing, not the lead.** The quick reply on
   the check-in and enquiry templates used to mark the whole contact dead:
   their requirement stopped matching, every automated send was refused, and

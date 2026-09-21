@@ -58,6 +58,7 @@ import {
 } from '@/lib/contact-filters';
 import { interestChipLabel, type InterestFilter } from '@/lib/contact-interest';
 import { friendlyError } from '@/lib/errors';
+import { splitImportedName } from '@/lib/name-tag-split';
 import {
   auditDate,
   chatListTime,
@@ -1684,13 +1685,16 @@ function DeviceImportSheet({
     let onlyCreatedId: string | null = null;
     for (const r of picked) {
       if (abort.signal.aborted) break;
+      const split = splitImportedName(r.name);
       try {
         const created = await apiFetch<{ id: string }>('/api/contacts', {
           method: 'POST',
           signal: abort.signal,
           body: JSON.stringify({
             phone: cleanPhoneInput(r.phone) ?? r.phone,
-            name: r.name || null,
+            name: split.name || null,
+            second_name: split.secondName,
+            name_tag: split.nameTag,
             classification: 'Buyer',
             source: 'phone_import',
           }),
@@ -1713,8 +1717,9 @@ function DeviceImportSheet({
     queryClient.invalidateQueries({ queryKey: ['contacts'] });
     queryClient.invalidateQueries({ queryKey: ['contact-counts'] });
 
-    // A device contact arrives with only a name and number, so a single
-    // import goes straight to the editor to be filled in. Skip the banner
+    // A device contact arrives with only a name and number — split into
+    // first name, second name and Name Tag — so a single import goes
+    // straight to the editor to be filled in. Skip the banner
     // and the delay — the destination screen is the confirmation.
     if (picked.length === 1 && ok === 1 && onlyCreatedId) {
       onClose();
