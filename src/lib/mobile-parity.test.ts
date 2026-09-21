@@ -322,15 +322,43 @@ describe('the portal link invite is one server draft on both surfaces', () => {
     }
   });
 
+  it('[CTM-004] shares hand-picked listings with a buyer from the contact record and saves them to their Portfolio', () => {
+    const mobileContact = mobileSource('app/(app)/contact/[id].tsx');
+    const mobileSheet = mobileSource('components/showcase-share-sheet.tsx');
+    const webContact = webSource('components/contacts/contact-detail-view.tsx');
+    const webDialog = webSource(
+      'components/inventory/showcase-share-dialog.tsx'
+    );
+
+    expect(mobileContact).toContain('label="Share Listings"');
+    expect(mobileContact).toContain('portfolioContact={contact}');
+    expect(webContact).toContain('Share Listings');
+    expect(webContact).toContain('portfolioContact={{');
+    for (const source of [mobileSheet, webDialog]) {
+      expect(source).toContain('/share-listings?count=');
+      expect(source).toContain('/share-listings`');
+      expect(source).toContain('portfolioNudge');
+      expect(source).toContain('recordSharedListings()');
+    }
+  });
+
   it('[CTM-002] offers the agent-view invite to co-brokers on both surfaces', () => {
     const mobileContact = mobileSource('app/(app)/contact/[id].tsx');
     const mobileSheet = mobileSource('components/portal-invite-sheet.tsx');
     const webContact = webSource('components/contacts/contact-detail-view.tsx');
     const webDialog = webSource('components/contacts/portal-invite-dialog.tsx');
 
-    for (const source of [mobileContact, webContact]) {
-      expect(source).not.toContain("contact.classification !== 'Agent'");
-    }
+    const leadingUpTo = (source: string, marker: string) => {
+      const at = source.indexOf(marker);
+      expect(at).toBeGreaterThan(-1);
+      return source.slice(Math.max(0, at - 400), at);
+    };
+    expect(leadingUpTo(mobileContact, 'label="Share Portal"')).not.toContain(
+      "!== 'Agent'"
+    );
+    expect(leadingUpTo(webContact, 'Share Portal\n')).not.toContain(
+      "!== 'Agent'"
+    );
     for (const source of [mobileSheet, webDialog]) {
       expect(source).toContain("=== 'Agent'");
       expect(source).toContain('the full inventory in agent view');

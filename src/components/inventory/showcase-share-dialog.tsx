@@ -82,6 +82,14 @@ interface ShowcaseShareDialogProps {
   activeSearchParams?: string;
   activeSearchLabel?: string;
   initialPickedIds?: string[];
+  /** Opened from a buyer's contact record: that contact is the recipient,
+   *  the hand-picked listings are recorded as shared with them and saved
+   *  to their Portfolio shortlist, and the message says so. */
+  portfolioContact?: {
+    id: string;
+    name: string | null;
+    phone: string | null;
+  } | null;
 }
 
 const MAX_PICKED = 25;
@@ -124,6 +132,7 @@ export function ShowcaseShareDialog({
   activeSearchParams,
   activeSearchLabel,
   initialPickedIds,
+  portfolioContact = null,
 }: ShowcaseShareDialogProps) {
   const trimmedSearch = activeSearch?.trim() || '';
   const hasActiveSearch = Boolean(trimmedSearch || activeSearchParams);
@@ -138,7 +147,11 @@ export function ShowcaseShareDialog({
   // Step 2 — WHAT. One scope at a time, so the link, the message and the
   // Engine snapshot can never describe different sets of listings.
   const [scope, setScope] = useState<ShareScope>(
-    initialPickedKey ? 'pick' : hasActiveSearch ? 'search' : 'all'
+    initialPickedKey || portfolioContact
+      ? 'pick'
+      : hasActiveSearch
+        ? 'search'
+        : 'all'
   );
   const [shareCategory, setShareCategory] = useState<ShareCategory>('All');
   const [picked, setPicked] = useState<string[]>(() =>
@@ -153,7 +166,9 @@ export function ShowcaseShareDialog({
   const [contacts, setContacts] = useState<PickerContact[]>([]);
   const [loadingContacts, setLoadingContacts] = useState(false);
   const [contactSearch, setContactSearch] = useState('');
-  const [selectedContactIds, setSelectedContactIds] = useState<string[]>([]);
+  const [selectedContactIds, setSelectedContactIds] = useState<string[]>(
+    portfolioContact ? [portfolioContact.id] : []
+  );
 
   const shareInstance = useQuery({
     queryKey: ['showcase-share-instance'],
@@ -533,6 +548,35 @@ Best regards`;
     return body.data;
   };
 
+  const portfolioShare = Boolean(
+    portfolioContact && audience === 'client' && scope === 'pick'
+  );
+  const portfolio = useQuery({
+    queryKey: [
+      'share-listings-portfolio',
+      portfolioContact?.id,
+      Math.min(picked.length, 2),
+    ],
+    enabled: open && portfolioShare && picked.length > 0,
+    queryFn: async () => {
+      const response = await fetch(
+        `/api/contacts/${portfolioContact?.id}/share-listings?count=${picked.length}`
+      );
+      const body = (await response.json().catch(() => ({}))) as {
+        data?: { linked: boolean; portfolio_url: string; nudge: string };
+        error?: string;
+      };
+      if (!response.ok || !body.data) {
+        throw new Error(body.error || 'Could not check the Portfolio account');
+      }
+      return body.data;
+    },
+  });
+  const portfolioNudge =
+    portfolioShare && picked.length > 0 ? (portfolio.data?.nudge ?? '') : '';
+  const withPortfolioNudge = (text: string) =>
+    portfolioNudge ? `${text.trim()}\n\n${portfolioNudge}` : text;
+
   const buildMessage = (
     link: string,
     name?: string | null,
@@ -547,13 +591,54 @@ Best regards`;
         : pitchMessage
             .replaceAll('{portalUrl}', link)
             .replaceAll('{name}', firstName);
-    return rendered.includes(link)
-      ? rendered
-      : `${rendered.trim()}\n\nExplore the showcase:\n${link}`;
+    return withPortfolioNudge(
+      rendered.includes(link)
+        ? rendered
+        : `${rendered.trim()}\n\nExplore the showcase:\n${link}`
+    );
   };
 
   const previewMessage =
-    messageMode === 'list' ? summaryMessage : buildMessage(generatedLink);
+    messageMode === 'list'
+      ? withPortfolioNudge(summaryMessage)
+      : buildMessage(generatedLink);
+
+  const recordSharedListings = async () => {
+    if (!portfolioContact || scope !== 'pick' || picked.length === 0) return;
+    try {
+      const response = await fetch(
+        `/api/contacts/${portfolioContact.id}/share-listings`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ property_ids: picked }),
+        }
+      );
+      const body = (await response.json().catch(() => ({}))) as {
+        data?: {
+          recorded: number;
+          portfolio: { linked: boolean; saved: number };
+        };
+        error?: string;
+      };
+      if (!response.ok || !body.data) {
+        throw new Error(body.error || 'Could not record the share');
+      }
+      const name =
+        portfolioContact.name || portfolioContact.phone || 'the buyer';
+      if (body.data.portfolio.linked) {
+        toast.success(
+          body.data.portfolio.saved > 0
+            ? `${body.data.portfolio.saved} ${body.data.portfolio.saved === 1 ? 'listing' : 'listings'} saved to ${name}'s Portfolio`
+            : `Those listings are already in ${name}'s Portfolio`
+        );
+      }
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : 'Could not record the share'
+      );
+    }
+  };
 
   const handleCopyLink = async () => {
     if (!generatedLink) return;
@@ -655,6 +740,7 @@ Best regards`;
         `https://wa.me/${phone}?text=${encodeURIComponent(message)}`,
         '_blank'
       );
+      void recordSharedListings();
     }
     if (sendableContacts.length > 1) {
       toast.info(
@@ -732,6 +818,7 @@ Best regards`;
       toast.success(
         `Inventory update sent to ${sent} ${sent === 1 ? 'contact' : 'contacts'} from your business number — replies land in your Inbox.`
       );
+      void recordSharedListings();
     }
     if (failures.length > 0) {
       toast.error(`Could not send to ${failures.join(', ')}`);
@@ -772,10 +859,14 @@ Best regards`;
         <DialogHeader className="mb-2 border-b border-slate-800 pb-3">
           <DialogTitle className="flex items-center gap-2 text-lg font-black tracking-tight text-white">
             <Share2 className="text-primary size-5" />
-            Share Showcase Portal
+            {portfolioContact
+              ? `Share listings with ${portfolioContact.name || portfolioContact.phone || 'this buyer'}`
+              : 'Share Showcase Portal'}
           </DialogTitle>
           <DialogDescription className="text-xs text-slate-400">
-            Pick who it is for, what they should see, and how it goes out.
+            {portfolioContact
+              ? 'Hand-pick the listings. They go out with a tracked link, land on the share ledger, and are saved to their Portfolio account to manage from there.'
+              : 'Pick who it is for, what they should see, and how it goes out.'}
           </DialogDescription>
         </DialogHeader>
 

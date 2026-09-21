@@ -201,6 +201,28 @@
           "guards": [".github/workflows/eas-update.yml"]
         },
         {
+          "id": "CTM-004",
+          "rule": "From a buyer contact's record on web or mobile, agents can hand-pick up to 25 listings and send them through the showcase share flow to that contact; every send records the listings on the property share ledger, saves them to the contact's Portfolio shortlist as source 'shared' when they have an account (a buyer without one receives the same rows on first login), and the personal or business free-text message ends with a Portfolio nudge that names whether the buyer already has an account.",
+          "tests": [
+            {
+              "file": "src/lib/buyer/shared-listings.test.ts",
+              "case": "[CTM-004]"
+            },
+            {
+              "file": "src/app/api/contacts/[id]/share-listings/route.test.ts",
+              "case": "[CTM-004]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[CTM-004]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20260921120000_buyer_shortlist_shared_source.sql",
+            ".github/workflows/eas-update.yml"
+          ]
+        },
+        {
           "id": "CTM-003",
           "rule": "Removing an interested property is idempotent on web and mobile: the junction row and matching headline pointer are cleared together, an already-removed relationship is treated as success, and stale mobile cards disappear immediately.",
           "tests": [
