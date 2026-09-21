@@ -615,6 +615,16 @@
             }
           ],
           "guards": [".github/workflows/eas-update.yml"]
+        },
+        {
+          "id": "PRP-011",
+          "rule": "Authenticated workspace members viewing their own public showcase never create Showcase Pulse analytics events, while signed-in members of a different workspace remain external visitors.",
+          "tests": [
+            {
+              "file": "src/app/api/public/showcase-events/route.test.ts",
+              "case": "[PRP-011]"
+            }
+          ]
         }
       ]
     },

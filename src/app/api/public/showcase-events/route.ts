@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient as createServiceClient } from '@supabase/supabase-js';
+import { getCurrentAccount } from '@/lib/auth/account';
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 
 // POST /api/public/showcase-events
@@ -9,6 +10,7 @@ import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 // unauthenticated, so this endpoint is too — defenses instead of auth:
 //   - per-session rate limit (a device can't flood)
 //   - account existence check before any insert
+//   - authenticated members viewing their own workspace are excluded
 //   - `ref` (the contact the link was personalized for) is only recorded
 //     when it resolves to a contact IN that account
 //   - batch capped, event types whitelisted, metadata size-clamped
@@ -37,6 +39,15 @@ interface BeaconEvent {
   type?: string;
   property_id?: string;
   metadata?: Record<string, unknown>;
+}
+
+async function isInternalViewer(accountId: string): Promise<boolean> {
+  try {
+    const context = await getCurrentAccount();
+    return context.accountId === accountId;
+  } catch {
+    return false;
+  }
 }
 
 function sanitizeMetadata(event: BeaconEvent): Record<string, unknown> | null {
@@ -85,6 +96,10 @@ export async function POST(request: NextRequest) {
       BEACON_LIMIT
     );
     if (!limit.success) return rateLimitResponse(limit);
+
+    if (await isInternalViewer(accountId)) {
+      return new NextResponse(null, { status: 204 });
+    }
 
     const db = adminClient();
 
