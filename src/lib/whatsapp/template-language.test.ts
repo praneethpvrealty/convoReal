@@ -15,11 +15,11 @@ const row = (id: string, language: string | null, status = 'APPROVED'): Row => (
 });
 
 describe('resolveLanguage', () => {
-  it('prefers the contact over the account', () => {
+  it('[CLG-001] prefers the contact over the account', () => {
     expect(resolveLanguage('ta', 'hi')).toBe('ta');
   });
 
-  it('falls back to the account default when the contact has none', () => {
+  it('[CLG-001] falls back to the account default when the contact has none', () => {
     expect(resolveLanguage(null, 'kn')).toBe('kn');
     expect(resolveLanguage(undefined, 'kn')).toBe('kn');
   });
@@ -37,7 +37,7 @@ describe('resolveLanguage', () => {
 
   // 'en' on the contact is a choice an agent made; it must override a
   // non-English account default rather than read as "unset".
-  it('treats an explicit English contact preference as a choice', () => {
+  it('[CLG-001] treats an explicit English contact preference as a choice', () => {
     expect(resolveLanguage('en', 'te')).toBe('en');
   });
 });

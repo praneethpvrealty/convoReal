@@ -19,6 +19,15 @@ than a written entry. Newest first.
 
 #### 21 September 2026
 
+- **Change a contact's language from the record, on web and mobile.** The
+  language every WhatsApp template to a contact goes out in was set only
+  deep in the web edit form and not at all on mobile. A language chip now
+  sits under the contact's name on both surfaces: one tap picks any of the
+  seven product languages or hands the contact back to the account default,
+  through a new single-column `PATCH /api/contacts/[id]/language` route. The
+  send path is unchanged — contact language wins over the account default on
+  every template, as before — the choice is just reachable where the agent
+  reaches for WhatsApp.
 - **WhatsApp a contact on the number they actually use.** A contact whose
   primary number is not on WhatsApp, with the WhatsApp number added later
   under "Other phones", kept being messaged on the primary: the WhatsApp

@@ -128,6 +128,7 @@ import {
 } from '@/lib/whatsapp/message-state';
 import { JOURNEY_LIFECYCLE_STATUSES } from '@/lib/journey/overview-state';
 import { CONVERSATION_CLOSE_REASONS } from '@/lib/conversations/closure';
+import { LANGUAGE_CODES, SUPPORTED_LANGUAGES } from '@/lib/languages';
 
 function mobileSource(relativePath: string): string {
   return readFileSync(join(process.cwd(), 'mobile', relativePath), 'utf8');
@@ -2351,5 +2352,39 @@ describe('[TXW-018] journey stages mirror the pipeline on every surface', () => 
     expect(backfill).toContain(
       'WHERE account_id = acc.id AND pipeline_stage_id IS NOT NULL\n    ) THEN\n      CONTINUE;'
     );
+  });
+});
+
+describe('contact language is one tap from the record on both surfaces', () => {
+  it('[CLG-002] mobile mirrors the product language registry', () => {
+    const source = mobileSource('lib/languages.ts');
+    for (const code of LANGUAGE_CODES) {
+      const { label, native } = SUPPORTED_LANGUAGES[code];
+      expect(source).toContain(
+        `${code}: { label: '${label}', native: '${native}' }`
+      );
+    }
+    const mirrored = [...source.matchAll(/^  ([a-z]{2}): \{ label:/gm)].map(
+      (m) => m[1]
+    );
+    expect(mirrored).toEqual(LANGUAGE_CODES);
+  });
+
+  it('[CLG-002] both surfaces change the language through the shared route with a follow-the-account-default choice', () => {
+    const web = webSource('components/contacts/contact-detail-view.tsx');
+    const mobile = mobileSource('app/(app)/contact/[id].tsx');
+    for (const screen of [web, mobile]) {
+      expect(screen).toContain('/language`');
+      expect(screen).toContain("method: 'PATCH'");
+      expect(screen).toContain('LANGUAGE_CODES.map(');
+    }
+    expect(web).toContain('setContactLanguage(null)');
+    expect(web).toContain('Follow account default');
+    expect(mobile).toContain('FOLLOW_ACCOUNT_DEFAULT_LABEL');
+    for (const screen of [web, mobile]) {
+      expect(screen).toContain('default_language');
+      expect(screen).toContain('Language: account default (');
+    }
+    expect(mobile).toContain('preferred_language, buyer_alerts_consent');
   });
 });
