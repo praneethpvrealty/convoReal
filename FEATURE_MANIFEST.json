@@ -258,6 +258,25 @@
             }
           ],
           "guards": [".github/workflows/eas-update.yml"]
+        },
+        {
+          "id": "CTM-005",
+          "rule": "Importing a phonebook contact on web or mobile fills the contact's first name, second name and Name Tag from the one device name with the same deterministic split: the Name Tag is the trailing role, trade, acronym or locality qualifier, the first name is the first given-name token plus any title or initial before it, and every remaining token is the second name. The split is a suggestion the agent can edit before or after saving, and it never sets salutation.",
+          "tests": [
+            {
+              "file": "src/lib/contacts/name-tag-split.test.ts",
+              "case": "[CTM-005]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[CTM-005]"
+            },
+            {
+              "file": "mobile/lib/name-tag-split.test.ts",
+              "case": "[CTM-005]"
+            }
+          ],
+          "guards": [".github/workflows/eas-update.yml"]
         }
       ]
     },

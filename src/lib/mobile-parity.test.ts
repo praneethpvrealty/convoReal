@@ -787,6 +787,24 @@ describe('mobile/lib/customer-window.ts mirrors customer-window', () => {
   });
 });
 
+describe('mobile/lib/name-tag-split.ts mirrors name-tag-split', () => {
+  // Both phonebook imports split "Dr Murali Makam Owner Hsr" into the same
+  // first name, second name and Name Tag. If the lexicon or either splitter
+  // drifts, the same phone contact lands as two different records
+  // depending on which surface imported it.
+  it('[CTM-005] keeps the lexicon and both splitters identical to the web source', () => {
+    const marker = '// Role/trade/context words';
+    const body = (source: string) => {
+      const start = source.indexOf(marker);
+      expect(start, 'lexicon marker missing').toBeGreaterThan(-1);
+      return source.slice(start);
+    };
+    expect(body(mobileSource('lib/name-tag-split.ts'))).toBe(
+      body(webSource('lib/contacts/name-tag-split.ts'))
+    );
+  });
+});
+
 describe('mobile/lib/reply-state.ts mirrors reply-state', () => {
   // Both inboxes decide "does this thread need a human?" from the same
   // conversation columns. If the copies disagree, a thread shows as
