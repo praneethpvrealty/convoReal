@@ -710,6 +710,29 @@
               "case": "[PRP-011]"
             }
           ]
+        },
+        {
+          "id": "PRP-012",
+          "rule": "Sharing a listing with its matching contacts on web or mobile never asks which WhatsApp template to use: both surfaces show the engine's listing template as the server will send it (same template pick, same params), let the agent choose which of the saved listing's own photos leads the message, forward that choice to the share-property send where any photo outside the saved listing is ignored, and explain before sending why a recipient outside the 24-hour window cannot be served (no listing template submitted, awaiting Meta approval, or rejected).",
+          "tests": [
+            {
+              "file": "src/lib/whatsapp/share-property-preview.test.ts",
+              "case": "[PRP-012]"
+            },
+            {
+              "file": "src/app/api/whatsapp/share-property/preview/route.test.ts",
+              "case": "[PRP-012]"
+            },
+            {
+              "file": "mobile/lib/property-share-fanout.test.ts",
+              "case": "[PRP-012]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[PRP-012]"
+            }
+          ],
+          "guards": [".github/workflows/eas-update.yml"]
         }
       ]
     },

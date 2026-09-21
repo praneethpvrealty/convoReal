@@ -114,22 +114,24 @@ export interface EngineSendOutcome {
 export async function sendPropertyViaEngine(
   contact: Contact,
   property: Property,
-  message: string
+  message: string,
+  headerImage?: string | null
 ): Promise<EngineSendOutcome> {
-  const outcome = await attemptShare(contact, property, message);
+  const outcome = await attemptShare(contact, property, message, headerImage);
   // A 429 is the server asking us to wait, not a share that failed.
   // Reporting it as one is what turned a 31-contact fan-out into 30
   // "could not send" lines for messages that were never attempted.
   if (!outcome.rateLimitedFor) return outcome;
   const wait = Math.min(outcome.rateLimitedFor * 1000, MAX_RETRY_WAIT_MS);
   await new Promise((resolve) => setTimeout(resolve, wait));
-  return attemptShare(contact, property, message);
+  return attemptShare(contact, property, message, headerImage);
 }
 
 async function attemptShare(
   contact: Contact,
   property: Property,
-  message: string
+  message: string,
+  headerImage?: string | null
 ): Promise<EngineSendOutcome> {
   try {
     const res = await apiFetch<{
@@ -146,6 +148,7 @@ async function attemptShare(
         contact_id: contact.id,
         property_id: property.id,
         message,
+        ...(headerImage ? { header_image: headerImage } : {}),
       }),
     });
     const d = res.data;
@@ -203,7 +206,8 @@ export async function sendPropertyViaEngineMany(
   contacts: Contact[],
   property: Property,
   messageFor: (contact: Contact) => string,
-  onProgress?: (done: number, total: number) => void
+  onProgress?: (done: number, total: number) => void,
+  headerImage?: string | null
 ): Promise<Map<string, EngineSendOutcome>> {
   const outcomes = new Map<string, EngineSendOutcome>();
   const startedAt = new Date(Date.now() - 5000).toISOString();
@@ -215,7 +219,8 @@ export async function sendPropertyViaEngineMany(
       const outcome = await sendPropertyViaEngine(
         contact,
         property,
-        messageFor(contact)
+        messageFor(contact),
+        headerImage
       );
       outcomes.set(contact.id, outcome);
       onProgress?.(++done, contacts.length);
@@ -255,7 +260,12 @@ export async function sendPropertyViaEngineMany(
       }
       outcomes.set(
         contact.id,
-        await sendPropertyViaEngine(contact, property, messageFor(contact))
+        await sendPropertyViaEngine(
+          contact,
+          property,
+          messageFor(contact),
+          headerImage
+        )
       );
     }
   }
@@ -271,4 +281,32 @@ export async function sendPropertyViaEngineMany(
   }
 
   return outcomes;
+}
+
+/** What a recipient outside the 24-hour window will receive: the
+ *  listing template the server would pick, rendered with the same
+ *  params, and the listing's own photos the agent may lead with. */
+export interface SharePropertyPreview {
+  template: {
+    name: string;
+    label: string;
+    language: string;
+    header_type: string | null;
+  } | null;
+  template_status: string;
+  preview: string | null;
+  unsent_reason: string | null;
+  images: string[];
+}
+
+export async function fetchSharePropertyPreview(
+  propertyId: string,
+  contactId?: string | null
+): Promise<SharePropertyPreview> {
+  const query = new URLSearchParams({ property_id: propertyId });
+  if (contactId) query.set('contact_id', contactId);
+  const res = await apiFetch<{ data: SharePropertyPreview }>(
+    `/api/whatsapp/share-property/preview?${query.toString()}`
+  );
+  return res.data;
 }

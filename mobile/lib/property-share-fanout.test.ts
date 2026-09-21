@@ -97,6 +97,31 @@ describe('sendPropertyViaEngineMany', () => {
   });
 });
 
+describe('lead photo', () => {
+  it('[PRP-012] forwards the chosen listing photo on every send of a fan-out', async () => {
+    const bodies: Array<Record<string, unknown>> = [];
+    vi.mocked(apiFetch).mockImplementation(async (path, init) => {
+      bodies.push(JSON.parse(String((init as { body: string }).body)));
+      return { data: { sent: true, conversation_id: null } };
+    });
+
+    await sendPropertyViaEngineMany(
+      contacts(3),
+      property,
+      () => 'hi',
+      undefined,
+      'property-images/acc-1/plan.jpg'
+    );
+
+    expect(bodies).toHaveLength(3);
+    expect(bodies.every((b) => b.header_image === 'property-images/acc-1/plan.jpg')).toBe(true);
+
+    bodies.length = 0;
+    await sendPropertyViaEngineMany(contacts(1), property, () => 'hi');
+    expect('header_image' in bodies[0]).toBe(false);
+  });
+});
+
 describe('rate-limited shares', () => {
   it('waits out a 429 and reports the retry verdict, not a failure', async () => {
     vi.useFakeTimers();

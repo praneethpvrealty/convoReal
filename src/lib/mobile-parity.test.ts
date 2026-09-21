@@ -289,6 +289,26 @@ describe('property shortlist sharing remains available on both surfaces', () => 
     expect(broadcastRoute).toContain('ensureTrackedPropertyShowcaseLink(');
     expect(broadcastRoute).toContain('trackedPropertyButtonParam(');
   });
+
+  it('[PRP-012] previews the listing template and lets the agent lead with a saved photo on both surfaces', () => {
+    const mobile = mobileSource('components/property-share-sheet.tsx');
+    const mobileActions = mobileSource('lib/property-share-actions.ts');
+    const webForm = webSource('components/inventory/property-form.tsx');
+    const shareRoute = webSource('app/api/whatsapp/share-property/route.ts');
+    const previewRoute = webSource(
+      'app/api/whatsapp/share-property/preview/route.ts'
+    );
+
+    expect(mobile).toContain('fetchSharePropertyPreview(property.id');
+    expect(mobile).toContain('previewImages.includes(headerImage)');
+    expect(mobileActions).toContain('/api/whatsapp/share-property/preview?');
+    expect(mobileActions).toContain('header_image: headerImage');
+    expect(webForm).toContain('renderShareTemplateBody(');
+    expect(webForm).toContain('header_image: selectedBroadcastImage');
+    expect(webForm).toContain("engineShare ? (property?.images ?? []) : images");
+    expect(shareRoute).toContain('(listing.images ?? []).includes(requestedHeader)');
+    expect(previewRoute).toContain('buildSharePropertyPreview(');
+  });
 });
 
 describe('contact merge remains available on both surfaces', () => {

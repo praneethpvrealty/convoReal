@@ -85,6 +85,7 @@ import {
   propertyShareParams,
   shareUnsentReason,
 } from '@/lib/whatsapp/property-share-template';
+import { renderShareTemplateBody } from '@/lib/whatsapp/share-property-preview';
 import { postPropertyShare } from '@/lib/whatsapp/share-property-request';
 import { buildPropertyShareMessage, showcaseOriginForHost } from '@/lib/share-message-builder';
 import { MatchDetailChips } from '@/components/inventory/match-detail-chips';
@@ -1185,9 +1186,7 @@ export function PropertyForm({
     if (!property || !selectedTemplate || !isEngineShareTemplate(selectedTemplate.name)) return '';
     const first = contacts.find((c) => selectedContactIds.includes(c.id));
     const params = propertyShareParams(selectedTemplate.name, first?.name ?? null, property, brandName);
-    return selectedTemplate.body_text
-      .replace(/\\n/g, '\n')
-      .replace(/\{\{(\d+)\}\}/g, (match, n: string) => params[Number(n) - 1] ?? match);
+    return renderShareTemplateBody(selectedTemplate.body_text, params);
   }, [property, selectedTemplate, contacts, selectedContactIds, brandName]);
 
   async function handleSendEngineShare() {
