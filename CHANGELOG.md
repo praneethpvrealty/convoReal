@@ -19,6 +19,19 @@ than a written entry. Newest first.
 
 #### 21 September 2026
 
+- **The mobile share sheet shows the listing template too.** Sending a
+  property to its matching contacts from the phone already picked the
+  approved listing template on the server, but the sheet only showed the
+  editable draft, which is what a contact inside the 24-hour window
+  receives; everyone else got a template the agent never saw. The "Send
+  from ConvoReal" section now shows the template as the first recipient
+  will receive it, rendered by the server with the same pick and the same
+  parameters as the send, lets you choose which of the listing's photos
+  leads the message, and, when the template is missing or still under
+  review, says so before anything is sent. The chosen photo travels with
+  each send, on web and mobile, and the server only accepts one of the
+  saved listing's own images.
+
 - **Sharing a listing with its matching contacts no longer asks which
   WhatsApp template to use.** The Matching Contacts step listed every
   approved template in the account by its raw Meta name, with nothing

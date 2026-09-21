@@ -6,6 +6,7 @@ import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -24,9 +25,11 @@ import { ENV } from '@/lib/env';
 import { haptic } from '@/lib/haptics';
 import { supabase } from '@/lib/supabase';
 import {
+  fetchSharePropertyPreview,
   logExternalShare,
   sendPropertyViaEngine,
   sendPropertyViaEngineMany,
+  type SharePropertyPreview,
 } from '@/lib/property-share-actions';
 import { propertyShareUrl } from '@/lib/property-share-link';
 import {
@@ -38,6 +41,7 @@ import {
   type ShareTone,
 } from '@/lib/share-message';
 import { fetchShowcaseSubdomain } from '@/lib/showcase-settings';
+import { storagePublicUrl } from '@/lib/storage-url';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import type { Contact, Property } from '@/lib/types';
 import { contactHandle } from '@/lib/reachability';
@@ -105,6 +109,7 @@ export function PropertyShareSheet({
     total: number;
   } | null>(null);
   const [inventorySharing, setInventorySharing] = useState(false);
+  const [headerImage, setHeaderImage] = useState<string | null>(null);
   const [dialog, setDialog] = useState<{
     title: string;
     message?: string;
@@ -224,7 +229,8 @@ export function PropertyShareSheet({
     const outcome = await sendPropertyViaEngine(
       contact,
       property,
-      addRecipientGreeting(message, contact.name)
+      addRecipientGreeting(message, contact.name),
+      leadImage
     );
     setEngineSending(false);
     setPicker(null);
@@ -301,7 +307,8 @@ export function PropertyShareSheet({
       contacts,
       property,
       (c) => addRecipientGreeting(message, c.name),
-      (done, total) => setEngineProgress({ done, total })
+      (done, total) => setEngineProgress({ done, total }),
+      leadImage
     );
     const blocked: string[] = [];
     const failed: string[] = [];
@@ -452,6 +459,22 @@ export function PropertyShareSheet({
       : recipients.length === 1
         ? recipients[0].name || contactHandle(recipients[0])
         : `${recipients.length} contacts`;
+
+  // What lands for a recipient outside the 24-hour window: the server's
+  // own template pick, rendered with the same params it will send, so
+  // the agent sees the real message rather than the draft above.
+  const firstRecipientId = recipients[0]?.id ?? null;
+  const enginePreview = useQuery({
+    queryKey: ['share-property-preview', property.id, firstRecipientId],
+    queryFn: () => fetchSharePropertyPreview(property.id, firstRecipientId),
+    enabled: visible,
+    staleTime: 60_000,
+  });
+  const previewImages = enginePreview.data?.images ?? [];
+  const leadImage =
+    headerImage && previewImages.includes(headerImage)
+      ? headerImage
+      : (previewImages[0] ?? null);
 
   const channels = [
     {
@@ -705,6 +728,12 @@ export function PropertyShareSheet({
         ) : null}
 
         <SectionLabel text="Send from ConvoReal" />
+        <EngineTemplateCard
+          preview={enginePreview.data ?? null}
+          loading={enginePreview.isPending}
+          headerImage={leadImage}
+          onPickImage={setHeaderImage}
+        />
         <Pressable
           disabled={engineSending}
           onPress={() =>
@@ -850,6 +879,143 @@ export function PropertyShareSheet({
   );
 }
 
+function EngineTemplateCard({
+  preview,
+  loading,
+  headerImage,
+  onPickImage,
+}: {
+  preview: SharePropertyPreview | null;
+  loading: boolean;
+  headerImage: string | null;
+  onPickImage: (image: string) => void;
+}) {
+  const { colors, fonts: f } = useTheme();
+  const [expanded, setExpanded] = useState(false);
+  if (loading) {
+    return (
+      <View
+        style={[
+          styles.templateCard,
+          { backgroundColor: colors.surfaceSunken, borderColor: colors.border },
+        ]}
+      >
+        <ActivityIndicator size="small" color={colors.primary} />
+        <Text style={{ fontSize: 12, color: colors.textMuted }}>
+          Checking the listing template…
+        </Text>
+      </View>
+    );
+  }
+  if (!preview) return null;
+  if (!preview.template) {
+    return (
+      <View
+        style={[
+          styles.templateCard,
+          { backgroundColor: colors.surfaceSunken, borderColor: colors.border },
+        ]}
+      >
+        <Ionicons name="alert-circle-outline" size={18} color={colors.warning} />
+        <Text
+          style={{
+            flex: 1,
+            fontSize: 12,
+            lineHeight: 17,
+            color: colors.textMuted,
+          }}
+        >
+          Contacts who messaged you in the last 24 hours get your message
+          above. {preview.unsent_reason}, so everyone else cannot be reached
+          from ConvoReal yet.
+        </Text>
+      </View>
+    );
+  }
+  const showPhotos = preview.images.length > 0;
+  return (
+    <View
+      style={[
+        styles.templateBlock,
+        { backgroundColor: colors.surfaceSunken, borderColor: colors.border },
+      ]}
+    >
+      <Text style={{ fontSize: 13.5, fontFamily: f.bold, color: colors.text }}>
+        {preview.template.label}
+      </Text>
+      <Text style={{ fontSize: 11.5, lineHeight: 16, color: colors.textMuted }}>
+        Contacts who messaged you in the last 24 hours get your message above
+        with the photo. Everyone else can only receive an approved WhatsApp
+        template, so this one goes out with their name, the listing, the price
+        and the map filled in.
+      </Text>
+      {showPhotos ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ gap: spacing.sm }}
+        >
+          {preview.images.map((image, index) => {
+            const selected = headerImage === image;
+            return (
+              <Pressable
+                key={image}
+                onPress={() => onPickImage(image)}
+                accessibilityRole="button"
+                accessibilityLabel={`Lead with photo ${index + 1}`}
+                accessibilityState={{ selected }}
+                style={[
+                  styles.templatePhoto,
+                  {
+                    borderColor: selected ? colors.primary : colors.border,
+                    borderWidth: selected ? 2 : StyleSheet.hairlineWidth,
+                  },
+                ]}
+              >
+                <Image
+                  source={{ uri: storagePublicUrl(image) }}
+                  style={{ width: '100%', height: '100%' }}
+                  resizeMode="cover"
+                />
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      ) : null}
+      {preview.preview ? (
+        <Pressable
+          onPress={() => setExpanded((value) => !value)}
+          accessibilityRole="button"
+          accessibilityLabel={
+            expanded ? 'Collapse the template preview' : 'Expand the template preview'
+          }
+        >
+          <Text
+            numberOfLines={expanded ? undefined : 5}
+            style={{
+              fontSize: 12.5,
+              lineHeight: 18,
+              color: colors.text,
+            }}
+          >
+            {preview.preview}
+          </Text>
+          <Text
+            style={{
+              marginTop: 4,
+              fontSize: 11,
+              fontFamily: f.semibold,
+              color: colors.primary,
+            }}
+          >
+            {expanded ? 'Show less' : 'Show the full message'}
+          </Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
 function AudienceCard({
   title,
   subtitle,
@@ -924,6 +1090,26 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
     paddingHorizontal: spacing.md,
     paddingVertical: 9,
+  },
+  templateCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: spacing.md,
+  },
+  templateBlock: {
+    gap: spacing.sm,
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: spacing.md,
+  },
+  templatePhoto: {
+    width: 56,
+    height: 56,
+    borderRadius: radius.sm,
+    overflow: 'hidden',
   },
   engineButton: {
     flexDirection: 'row',
