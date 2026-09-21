@@ -5,6 +5,12 @@ import {
 } from '@/lib/conversations/resolve';
 import { markContactDead } from '@/lib/contacts/lifecycle';
 import {
+  ENQUIRY_DROPOFF_ID_PREFIX,
+  handleEnquiryDropoffReason,
+  resolveDroppedProperty,
+  sendEnquiryDropoffPrompt,
+} from '@/lib/whatsapp/enquiry-dropoff';
+import {
   deliveryFailureUpdate,
   META_MARKETING_FREQUENCY_ERROR,
 } from '@/lib/whatsapp/delivery-failure';
@@ -2346,6 +2352,31 @@ async function processMessage(
         // rather than outreach, so it is the exception.
         allowDeadContact: alertsCommand === 'close',
       });
+      // The close was about a shared property: the goodbye is followed
+      // by one tap-to-answer list asking why it did not fit, filed on
+      // listing_feedback, the timeline and the journey.
+      if (alertsCommand === 'close') {
+        const dropped = await resolveDroppedProperty({
+          db: supabaseAdmin(),
+          accountId,
+          contact: {
+            id: contactRecord.id,
+            last_inquired_property_id: contactRecord.last_inquired_property_id,
+          },
+          conversationId: conversation.id,
+          contextMessageId: message.context?.id ?? null,
+        });
+        if (dropped) {
+          await sendEnquiryDropoffPrompt({
+            db: supabaseAdmin(),
+            accountId,
+            userId: configOwnerUserId,
+            contactId: contactRecord.id,
+            conversationId: conversation.id,
+            property: dropped,
+          });
+        }
+      }
       // START ALERTS opened a free-form window at the lead's moment of
       // highest intent. Consent alone would waste it: run the first
       // missing rung of the tap ladder, or prove the saved profile
@@ -2980,6 +3011,21 @@ async function processMessage(
       senderPhone
     );
     if (handled) return;
+  }
+
+  // The reason a closing lead gave for dropping a shared property. Ahead
+  // of the listing-feedback prefix it shares, and the contact is dead by
+  // now, so the thank-you goes out on the dispatcher's opt-out.
+  if (interactiveReplyId?.startsWith(ENQUIRY_DROPOFF_ID_PREFIX)) {
+    const handledDropoff = await handleEnquiryDropoffReason({
+      db: supabaseAdmin(),
+      accountId,
+      configOwnerUserId,
+      contact: contactRecord,
+      conversationId: conversation.id,
+      replyId: interactiveReplyId,
+    });
+    if (handledDropoff) return;
   }
 
   // A tap on the listing-feedback list. Handled before the preference

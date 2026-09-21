@@ -133,6 +133,20 @@
             "supabase/migrations/20260919150000_whatsapp_marketing_suppression.sql",
             ".github/workflows/eas-update.yml"
           ]
+        },
+        {
+          "id": "INB-009",
+          "rule": "A lead who taps \"Close my enquiry\" on a check-in or enquiry template is asked, after the goodbye, why the shared property did not fit: the property is resolved from the quoted template, the last week of outbound messages or the recorded enquiry; the one-tap reason (budget, location, type, size, bought elsewhere, not buying now, other) is filed on listing feedback, the contact timeline and the active journey item, the agent is notified, both messages bypass the dead-contact gate, and only a thank-you follows.",
+          "tests": [
+            {
+              "file": "src/lib/whatsapp/enquiry-dropoff.test.ts",
+              "case": "[INB-009]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20260921100000_listing_feedback_dropoff_reasons.sql",
+            "src/lib/whatsapp/enquiry-dropoff.ts"
+          ]
         }
       ]
     },

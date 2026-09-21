@@ -17,6 +17,24 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 21 September 2026
+
+- **A lead who closes their enquiry is asked why the shared property did not
+  fit.** "Close my enquiry" on the check-in and enquiry templates still marks
+  the lead dead and sends the goodbye; the goodbye is now followed by one
+  tap-to-answer list naming the property the check-in was about — budget,
+  location, property type, size, bought elsewhere, not buying right now, or
+  something else. The property is read from the quoted template, then the
+  last week of outbound messages, then the recorded enquiry; a close with no
+  listing behind it asks nothing. The answer is filed on the listing's
+  feedback (so matching never re-offers it), on the contact's timeline and on
+  the active journey item for that pair, the assigned agent is notified, and
+  a short thank-you closes the thread — nothing further is sent. Web and
+  mobile both read the same note, journey event and notification.
+  **Migration required:**
+  `supabase/migrations/20260921100000_listing_feedback_dropoff_reasons.sql`
+  widens the listing-feedback reason set.
+
 #### 20 September 2026
 
 - **An expanded journey leads with the stage it is filed under.** Inside a
