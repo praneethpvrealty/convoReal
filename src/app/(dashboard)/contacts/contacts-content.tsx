@@ -2481,15 +2481,11 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                   setFilterMinBudget('All');
                   setFilterMaxBudget('All');
                   setFilterArea('All');
+                  applyInterestFilter('All');
+                  applyProjectFilter('All');
                   setPage(0);
                 }}
-                disabled={[
-                  filterClassification,
-                  filterTag,
-                  filterMinBudget,
-                  filterMaxBudget,
-                  filterArea,
-                ].every((v) => v === 'All')}
+                disabled={activeFilterCount === 0}
                 className="text-xs text-slate-400 hover:text-white"
               >
                 Clear All
