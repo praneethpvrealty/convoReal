@@ -5,7 +5,10 @@ process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://test.supabase.co';
 
 import {
   PROPERTY_SHARE_TEMPLATE_NAMES,
+  engineShareTemplateLabel,
   firstPropertyImage,
+  isEngineShareTemplate,
+  shareUnsentReason,
   pickPropertyShareTemplate,
   pickShareDialogTemplate,
   propertyShareMapUrl,
@@ -271,5 +274,26 @@ describe('propertyShareParams', () => {
     expect(propertyShareParams(TEXT, 'Gopi', guarded, 'Aryavarta')[4]).not.toContain(
       'maps.app.goo.gl',
     );
+  });
+});
+
+describe('engine share template helpers', () => {
+  it('recognises both engine chains and nothing else', () => {
+    expect(isEngineShareTemplate(PHOTOS)).toBe(true);
+    expect(isEngineShareTemplate('new_property_alert')).toBe(true);
+    expect(isEngineShareTemplate('appointment_reminder')).toBe(false);
+    expect(isEngineShareTemplate(null)).toBe(false);
+  });
+
+  it('names the photo and text templates for the agent', () => {
+    expect(engineShareTemplateLabel(PHOTOS)).toBe('Listing details with photo');
+    expect(engineShareTemplateLabel(TEXT)).toBe('Listing details');
+  });
+
+  it("explains an unsent share in the agent's terms", () => {
+    expect(shareUnsentReason('NONE')).toMatch(/no listing template/);
+    expect(shareUnsentReason('PENDING')).toMatch(/awaiting Meta approval/);
+    expect(shareUnsentReason('REJECTED')).toMatch(/is rejected/);
+    expect(shareUnsentReason(undefined)).toMatch(/no listing template/);
   });
 });

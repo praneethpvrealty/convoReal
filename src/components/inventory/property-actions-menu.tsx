@@ -70,6 +70,7 @@ export function PropertyActionsMenu({
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
+        onClick={(e) => e.stopPropagation()}
         className="w-56 border-slate-700 bg-slate-900 text-slate-200"
       >
         {canEdit && (

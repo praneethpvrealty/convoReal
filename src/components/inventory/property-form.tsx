@@ -78,6 +78,14 @@ import { extractCoordinatesFromMapUrl } from '@/lib/maps/map-links';
 import { getMatchingContacts, inMatchAudience, type MatchAudience } from '@/lib/matching';
 import { attachInquiredListingTypes } from '@/lib/contacts/inquired-intent';
 import { fetchPropertyShareLog, recordPropertyShares } from '@/lib/inventory/share-log';
+import {
+  engineShareTemplateLabel,
+  isEngineShareTemplate,
+  pickShareDialogTemplate,
+  propertyShareParams,
+  shareUnsentReason,
+} from '@/lib/whatsapp/property-share-template';
+import { buildPropertyShareMessage, showcaseOriginForHost } from '@/lib/share-message-builder';
 import { MatchDetailChips } from '@/components/inventory/match-detail-chips';
 import { ListingVideoCard } from '@/components/inventory/listing-video-card';
 import { LearningPanel } from '@/components/inventory/learning-panel';
@@ -724,6 +732,9 @@ export function PropertyForm({
   const [broadcastResults, setBroadcastResults] = useState<Array<{ name: string; phone: string; status: 'sent' | 'failed'; error?: string }>>([]);
   const [sendingBroadcast, setSendingBroadcast] = useState(false);
   const [selectedBroadcastImage, setSelectedBroadcastImage] = useState<string>('');
+  const [customTemplateMode, setCustomTemplateMode] = useState(false);
+  const [showcaseSubdomain, setShowcaseSubdomain] = useState<string | null>(null);
+  const [brandName, setBrandName] = useState<string | null>(null);
   const [currency, setCurrency] = useState('INR');
 
   // Fetch contacts and templates
@@ -780,13 +791,19 @@ export function PropertyForm({
         .in('status', ['APPROVED', 'Approved'])
         .order('name');
       if (error) throw error;
-      setTemplates(data || []);
+      const rows = (data || []) as MessageTemplate[];
+      setTemplates(rows);
+      const hasPhoto = Boolean(
+        property?.images?.some((img) => img && img.trim().length > 0)
+      );
+      setSelectedTemplate(pickShareDialogTemplate(rows, { hasImage: hasPhoto }));
+      setCustomTemplateMode(false);
     } catch (err) {
       console.error('Failed to load templates for broadcast:', err);
     } finally {
       setLoadingTemplates(false);
     }
-  }, [supabase]);
+  }, [supabase, property?.images]);
 
   // The share ledger for this listing, so the Matching Contacts list can
   // mark recipients the communication has already gone out to.
@@ -885,17 +902,25 @@ export function PropertyForm({
       if (accountId) {
         supabase
           .from('showcase_settings')
-          .select('currency')
+          .select('currency, subdomain')
           .eq('account_id', accountId)
           .maybeSingle()
           .then(({ data }) => {
             if (data?.currency) {
               setCurrency(data.currency);
             }
+            setShowcaseSubdomain(data?.subdomain || null);
           });
+        supabase
+          .from('accounts')
+          .select('name')
+          .eq('id', accountId)
+          .maybeSingle()
+          .then(({ data }) => setBrandName((data?.name as string | null) || null));
       }
       // Reset broadcast wizard
       setBroadcastStep('matches');
+      setCustomTemplateMode(false);
       setSelectedContactIds([]);
       setSelectedTemplate(null);
       setVariableMappings({});
@@ -1132,6 +1157,81 @@ export function PropertyForm({
       setSelectedBroadcastImage('');
     }
   }, [selectedTemplate, images]);
+
+  const engineShare = Boolean(
+    property && !customTemplateMode && isEngineShareTemplate(selectedTemplate?.name)
+  );
+
+  const engineSharePreview = useMemo(() => {
+    if (!property || !selectedTemplate || !isEngineShareTemplate(selectedTemplate.name)) return '';
+    const first = contacts.find((c) => selectedContactIds.includes(c.id));
+    const params = propertyShareParams(selectedTemplate.name, first?.name ?? null, property, brandName);
+    return selectedTemplate.body_text
+      .replace(/\\n/g, '\n')
+      .replace(/\{\{(\d+)\}\}/g, (match, n: string) => params[Number(n) - 1] ?? match);
+  }, [property, selectedTemplate, contacts, selectedContactIds, brandName]);
+
+  async function handleSendEngineShare() {
+    if (!property || selectedContactIds.length === 0) return;
+    setSendingBroadcast(true);
+    setBroadcastStep('sending');
+    const selectedContacts = contacts.filter((c) => selectedContactIds.includes(c.id));
+    const origin =
+      typeof window !== 'undefined'
+        ? showcaseOriginForHost(window.location.host, window.location.protocol, showcaseSubdomain)
+        : '';
+    const results: typeof broadcastResults = [];
+    let delivered = 0;
+    for (const contact of selectedContacts) {
+      const audience = contact.classification === 'Agent' ? 'agent' : 'client';
+      const url =
+        audience === 'agent'
+          ? `${origin}/?property_id=${property.id}&mode=view`
+          : `${origin}/?property_id=${property.id}`;
+      const message = buildPropertyShareMessage({
+        property,
+        url,
+        audience,
+        detail: 'standard',
+        tone: 'professional',
+        currency,
+        agentName: profile?.full_name || undefined,
+        agentPhone: profile?.phone || undefined,
+      });
+      const entry = { name: contact.name || 'Unknown', phone: contact.phone ?? '' };
+      try {
+        const response = await fetch('/api/whatsapp/share-property', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contact_id: contact.id,
+            property_id: property.id,
+            message,
+            ...(selectedBroadcastImage ? { header_image: selectedBroadcastImage } : {}),
+          }),
+        });
+        const payload = await response.json().catch(() => null);
+        if (!response.ok) throw new Error(payload?.error || 'Send failed');
+        const data = payload?.data as { sent?: boolean; template_status?: string } | undefined;
+        if (data?.sent) {
+          delivered += 1;
+          results.push({ ...entry, status: 'sent' });
+        } else {
+          results.push({ ...entry, status: 'failed', error: shareUnsentReason(data?.template_status) });
+        }
+      } catch (err) {
+        results.push({
+          ...entry,
+          status: 'failed',
+          error: err instanceof Error ? err.message : 'Send failed',
+        });
+      }
+    }
+    if (delivered > 0) void fetchShareLog();
+    setBroadcastResults(results);
+    setBroadcastStep('results');
+    setSendingBroadcast(false);
+  }
 
   async function handleSendBroadcast() {
     if (!selectedTemplate || selectedContactIds.length === 0) return;
@@ -6639,19 +6739,54 @@ export function PropertyForm({
                         >
                           <ArrowLeft className="size-4" />
                         </Button>
-                        <div className="text-sm font-semibold text-white">Configure Broadcast Message</div>
+                        <div className="text-sm font-semibold text-white">Share the property details</div>
                       </div>
 
-                      {/* Template Selector */}
-                      <div className="space-y-1.5">
-                        <Label htmlFor="broadcast-template" className="text-slate-300">
-                          WhatsApp Template
-                        </Label>
-                        {loadingTemplates ? (
-                          <div className="flex items-center text-xs text-slate-500 gap-1.5 py-1">
-                            <Loader2 className="size-3.5 animate-spin text-primary" /> Loading templates...
+                      {loadingTemplates ? (
+                        <div className="flex items-center text-xs text-slate-500 gap-1.5 py-1">
+                          <Loader2 className="size-3.5 animate-spin text-primary" /> Loading templates...
+                        </div>
+                      ) : engineShare && selectedTemplate ? (
+                        <div className="rounded-xl border border-slate-800 bg-slate-950/20 p-4 space-y-2">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <div className="text-sm font-semibold text-white">
+                                {engineShareTemplateLabel(selectedTemplate.name)}
+                              </div>
+                              <p className="text-xs text-slate-400 mt-1">
+                                Contacts who messaged you in the last 24 hours get the full message with the photo. Everyone else can only receive an approved WhatsApp template, so this one goes out with their name, the listing, the price and the map filled in.
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setCustomTemplateMode(true)}
+                              className="shrink-0 text-xs font-semibold text-primary hover:underline"
+                            >
+                              Use a different template
+                            </button>
                           </div>
-                        ) : (
+                        </div>
+                      ) : (
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <Label htmlFor="broadcast-template" className="text-slate-300">
+                            WhatsApp Template
+                          </Label>
+                          {templates.some((t) => isEngineShareTemplate(t.name)) && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const hasPhoto = images.some((img) => img.trim().length > 0);
+                                setSelectedTemplate(pickShareDialogTemplate(templates, { hasImage: hasPhoto }));
+                                setCustomTemplateMode(false);
+                              }}
+                              className="text-xs font-semibold text-primary hover:underline"
+                            >
+                              Back to the listing template
+                            </button>
+                          )}
+                        </div>
+                        {(
                           <select
                             id="broadcast-template"
                             value={selectedTemplate?.id || ''}
@@ -6668,6 +6803,7 @@ export function PropertyForm({
                           </select>
                         )}
                       </div>
+                      )}
 
                       {/* Image Header Selector */}
                       {selectedTemplate?.header_type === 'image' && (
@@ -6709,7 +6845,22 @@ export function PropertyForm({
                         </div>
                       )}
 
-                      {selectedTemplate && (
+                      {engineShare && selectedTemplate && (
+                        <div className="space-y-2">
+                          <h5 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                            <Smartphone className="size-3.5" /> Message Preview
+                          </h5>
+                          <div className="bg-slate-950 border border-slate-850 p-4 rounded-xl text-xs font-sans">
+                            <div className="whitespace-pre-wrap text-slate-300 leading-relaxed">{engineSharePreview}</div>
+                            <div className="text-[11px] text-slate-500 mt-4 border-t border-slate-800/80 pt-2 flex items-center justify-between">
+                              <span>Each recipient is greeted by their own first name.</span>
+                              <span className="font-semibold">{selectedTemplate.language || 'en_US'}</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {!engineShare && selectedTemplate && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border border-slate-800 p-4 rounded-xl bg-slate-950/15">
                           {/* Parameter mappings */}
                           <div className="space-y-3">
@@ -6844,7 +6995,7 @@ export function PropertyForm({
                         <Button
                           type="button"
                           disabled={sendingBroadcast || !selectedTemplate}
-                          onClick={handleSendBroadcast}
+                          onClick={engineShare ? handleSendEngineShare : handleSendBroadcast}
                           className="bg-primary hover:bg-primary/95 text-primary-foreground font-semibold flex items-center gap-1.5"
                         >
                           {sendingBroadcast ? (

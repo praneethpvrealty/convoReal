@@ -26,6 +26,7 @@ import {
   ensureTrackedPropertyShowcaseLink,
   trackedPropertyButtonParam,
 } from '@/lib/showcase/account-showcase-url';
+import { storagePublicUrl } from '@/lib/storage/url';
 import type { MessageTemplate, Property } from '@/types';
 
 // One property share to one contact through the account's WhatsApp
@@ -186,8 +187,12 @@ export async function sendPropertyToContact(opts: {
   contactName: string | null;
   property: Property;
   message: string;
+  headerImage?: string | null;
 }): Promise<SharePropertyOutcome> {
   const { accountId, userId, contactId, contactName, property, message } = opts;
+  const chosenHeader = opts.headerImage
+    ? storagePublicUrl(opts.headerImage)
+    : null;
   const db = adminClient();
   const { conversationId: existingConvId, open } = await sessionState(
     db,
@@ -223,10 +228,12 @@ export async function sendPropertyToContact(opts: {
     //
     // Best-effort — a photo that will not send must never cost the
     // share. The text goes out either way.
-    const inlineImage = shareHeaderImage({
-      images: property.images,
-      brandImage: await brandImageOnce,
-    });
+    const inlineImage =
+      chosenHeader ??
+      shareHeaderImage({
+        images: property.images,
+        brandImage: await brandImageOnce,
+      });
     if (inlineImage) {
       const img = await sendWhatsAppMessageAndPersist({
         accountId,
@@ -300,7 +307,8 @@ export async function sendPropertyToContact(opts: {
     accountBrandName(db, accountId),
     resolveSendLanguage(db, accountId, contactId),
   ]);
-  const headerImage = shareHeaderImage({ images: property.images, brandImage });
+  const headerImage =
+    chosenHeader ?? shareHeaderImage({ images: property.images, brandImage });
   const pickedTemplate = pickPropertyShareTemplate(candidates, {
     hasImage: Boolean(headerImage),
     language,

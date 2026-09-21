@@ -19,6 +19,22 @@ than a written entry. Newest first.
 
 #### 21 September 2026
 
+- **Sharing a listing with its matching contacts no longer asks which
+  WhatsApp template to use.** The Matching Contacts step listed every
+  approved template in the account by its raw Meta name, with nothing
+  selected, and then asked for each placeholder to be mapped by hand. It
+  now picks the listing template itself, photo-first when the property has
+  photos, shows the message as the first recipient will receive it, lets
+  you choose the header photo, and sends each contact through the same
+  path the Share dialog, Match Radar and the mobile app use: the full
+  message with photo inside the 24-hour window, the approved template
+  outside it, the share ledgered either way. A contact the template cannot
+  reach is reported with the reason (no listing template submitted, or
+  still awaiting Meta approval). "Use a different template" keeps the old
+  picker and placeholder mapping for custom templates. On the inventory
+  card, the Details button is gone: the whole card opens the listing, and
+  Share, Matches and the overflow menu sit on one line.
+
 - **Contacts page and the mobile property screens get the inventory
   treatment.** The web Contacts list had two stacked page headers and two
   stacked tab rows; the segment pills, the action buttons, search, filters
