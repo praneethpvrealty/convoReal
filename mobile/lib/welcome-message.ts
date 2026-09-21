@@ -17,6 +17,9 @@ import { resolveRequirementSource } from '@/lib/requirements-profile';
 
 interface WelcomeLinkInput {
   contact: Contact;
+  /** One of the contact's numbers to address instead of the primary —
+   *  a contact whose WhatsApp lives on an "other" number. */
+  phone?: string | null;
   propDetails: Property | null;
   agentName: string;
   accountId: string | null;
@@ -31,12 +34,13 @@ function showcaseBase(subdomain: string | null, accountId: string | null): URL {
 
 export function buildWelcomeLink({
   contact,
+  phone,
   propDetails,
   agentName,
   accountId,
   subdomain,
 }: WelcomeLinkInput): string {
-  const cleanPhone = (contact.phone ?? '').replace(/\D/g, '');
+  const cleanPhone = (phone ?? contact.phone ?? '').replace(/\D/g, '');
   if (!cleanPhone) return '';
 
   const displayName = contact.name || 'there';
@@ -144,7 +148,10 @@ export async function getShowcaseUrl(): Promise<string> {
  * The full desktop flow: load showcase settings (cached) and the
  * last-inquired property, then open WhatsApp with the drafted message.
  */
-export async function openWelcomeWhatsApp(contact: Contact): Promise<void> {
+export async function openWelcomeWhatsApp(
+  contact: Contact,
+  phone?: string | null
+): Promise<void> {
   const profile = useAuthStore.getState().profile;
   const accountId = profile?.account_id ?? null;
   const subdomain = await fetchShowcaseSubdomain(accountId);
@@ -161,6 +168,7 @@ export async function openWelcomeWhatsApp(contact: Contact): Promise<void> {
 
   const link = buildWelcomeLink({
     contact,
+    phone,
     propDetails,
     agentName: profile?.full_name?.trim() ?? '',
     accountId,

@@ -19,6 +19,17 @@ than a written entry. Newest first.
 
 #### 21 September 2026
 
+- **WhatsApp a contact on the number they actually use.** A contact whose
+  primary number is not on WhatsApp, with the WhatsApp number added later
+  under "Other phones", kept being messaged on the primary: the WhatsApp
+  action, the Engine inbox thread and every template all address the primary
+  number. On web and mobile the WhatsApp action now offers a choice of
+  numbers when a contact has more than one, each other number on the mobile
+  record opens WhatsApp, Call or Make primary, and the mobile editor gains
+  the web's swap-to-primary arrow, so the Engine thread follows the right
+  number too. A Meta "message undeliverable" error now says to make another
+  of the contact's numbers the primary.
+
 - **Importing a phone contact fills first name, second name and Name Tag.**
   A phonebook entry such as "Dr Murali Makam Owner Hsr Has Building On 27th
   Main" used to land in the contact's Name field whole. Import from phone on

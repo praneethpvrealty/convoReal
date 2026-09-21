@@ -69,6 +69,16 @@ import { PriceHint } from '@/components/ui/price-hint';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  contactPhoneNumbers,
+  promotePhone,
+} from '@/lib/contacts/phone-numbers';
+import {
   Phone,
   Mail,
   Building2,
@@ -96,6 +106,7 @@ import {
   ArrowUp,
   Waypoints,
   ArrowRightLeft,
+  ChevronDown,
   ClipboardList,
   Send,
   Globe,
@@ -1167,13 +1178,13 @@ export function ContactDetailView({
     }
   }
 
-  async function handleWhatsAppClick() {
+  async function handleWhatsAppClick(target?: string) {
     if (!contact || !accountId) {
       toast.error('Account not loaded or contact not loaded');
       return;
     }
 
-    const cleanPhone = contact.phone?.replace(/\D/g, '') ?? '';
+    const cleanPhone = (target ?? contact.phone ?? '').replace(/\D/g, '');
     if (!cleanPhone) {
       toast.error('This contact has no phone number');
       return;
@@ -1425,13 +1436,12 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
   }
 
   const handleSwapSecondaryToPrimary = (idx: number) => {
-    const currentPrimary = editPhone;
-    const selectedSecondary = editSecondaryPhones[idx];
-
-    setEditPhone(selectedSecondary);
-    const updated = [...editSecondaryPhones];
-    updated[idx] = currentPrimary;
-    setEditSecondaryPhones(updated);
+    const next = promotePhone(
+      { phone: editPhone, secondary_phones: editSecondaryPhones },
+      editSecondaryPhones[idx]
+    );
+    setEditPhone(next.phone);
+    setEditSecondaryPhones(next.secondary_phones);
 
     toast.success('Phone numbers swapped! Remember to save changes.');
   };
@@ -1761,13 +1771,40 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                         <Copy className="size-3" />
                       )}
                     </button>
-                    <button
-                      onClick={handleWhatsAppClick}
-                      className="hover:text-emerald-350 flex cursor-pointer items-center gap-1.5 rounded-md border border-emerald-500/20 px-2 py-0.5 font-medium text-emerald-400 transition-all hover:bg-emerald-500/10"
-                    >
-                      <MessageSquare className="size-3 fill-current text-emerald-400" />
-                      WhatsApp Chat
-                    </button>
+                    {contactPhoneNumbers(contact).length > 1 ? (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger
+                          className="hover:text-emerald-350 flex cursor-pointer items-center gap-1.5 rounded-md border border-emerald-500/20 px-2 py-0.5 font-medium text-emerald-400 transition-all hover:bg-emerald-500/10"
+                          title="This contact has more than one number — pick the one on WhatsApp"
+                        >
+                          <MessageSquare className="size-3 fill-current text-emerald-400" />
+                          WhatsApp Chat
+                          <ChevronDown className="size-3" />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent
+                          align="start"
+                          className="border-slate-700 bg-slate-900"
+                        >
+                          {contactPhoneNumbers(contact).map((phone) => (
+                            <DropdownMenuItem
+                              key={phone}
+                              onClick={() => handleWhatsAppClick(phone)}
+                            >
+                              {phone}
+                              {phone === contact.phone ? ' · primary' : ''}
+                            </DropdownMenuItem>
+                          ))}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    ) : (
+                      <button
+                        onClick={() => handleWhatsAppClick()}
+                        className="hover:text-emerald-350 flex cursor-pointer items-center gap-1.5 rounded-md border border-emerald-500/20 px-2 py-0.5 font-medium text-emerald-400 transition-all hover:bg-emerald-500/10"
+                      >
+                        <MessageSquare className="size-3 fill-current text-emerald-400" />
+                        WhatsApp Chat
+                      </button>
+                    )}
                     <button
                       onClick={handlePrefilledWhatsAppClick}
                       className="hover:text-emerald-350 flex cursor-pointer items-center gap-1.5 rounded-md border border-emerald-500/20 px-2 py-0.5 font-medium text-emerald-400 transition-all hover:bg-emerald-500/10"

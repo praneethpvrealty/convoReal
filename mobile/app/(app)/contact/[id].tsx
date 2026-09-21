@@ -4,6 +4,7 @@ import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -79,6 +80,7 @@ import {
   useTheme,
   fonts,
 } from '@/lib/theme';
+import { contactPhoneNumbers, promotePhone } from '@/lib/phone-numbers';
 import { openWelcomeWhatsApp } from '@/lib/welcome-message';
 import { contactHandle, hasPhone } from '@/lib/reachability';
 import {
@@ -534,7 +536,21 @@ function ContactCard({ contact }: { contact: Contact }) {
               <ActionButton
                 icon="logo-whatsapp"
                 label="WhatsApp"
-                onPress={() => openWelcomeWhatsApp(contact)}
+                onPress={() => {
+                  const numbers = contactPhoneNumbers(contact);
+                  if (numbers.length < 2) {
+                    openWelcomeWhatsApp(contact);
+                    return;
+                  }
+                  Alert.alert('WhatsApp which number?', undefined, [
+                    ...numbers.map((phone) => ({
+                      text:
+                        phone === contact.phone ? `${phone} · primary` : phone,
+                      onPress: () => openWelcomeWhatsApp(contact, phone),
+                    })),
+                    { text: 'Cancel', style: 'cancel' as const },
+                  ]);
+                }}
               />
               <ActionButton
                 icon="chatbubbles"
@@ -606,10 +622,25 @@ function ContactCard({ contact }: { contact: Contact }) {
             <InfoRow icon="call-outline" label="Phone" value={contact.phone} />
           ) : null}
           {contact.secondary_phones?.length ? (
-            <InfoRow
-              icon="call-outline"
-              label="Other phones"
-              value={contact.secondary_phones.join(', ')}
+            <OtherPhonesRow
+              phones={contact.secondary_phones}
+              onPress={(phone) =>
+                Alert.alert(phone, undefined, [
+                  {
+                    text: 'WhatsApp',
+                    onPress: () => openWelcomeWhatsApp(contact, phone),
+                  },
+                  {
+                    text: 'Call',
+                    onPress: () => startCall({ ...contact, phone }),
+                  },
+                  {
+                    text: 'Make primary',
+                    onPress: () => promoteContactPhone(contact, phone),
+                  },
+                  { text: 'Cancel', style: 'cancel' },
+                ])
+              }
             />
           ) : null}
           {contact.email ? (
@@ -1401,6 +1432,7 @@ function ContactEditor({
   );
   const [secondName, setSecondName] = useState(contact.second_name ?? '');
   const [nameTag, setNameTag] = useState(contact.name_tag ?? '');
+  const [primaryPhone, setPrimaryPhone] = useState(contact.phone ?? '');
   const [secondaryPhones, setSecondaryPhones] = useState<string[]>(
     contact.secondary_phones ?? []
   );
@@ -1482,7 +1514,7 @@ function ContactEditor({
         );
         return;
       }
-      if (normalized === contact.phone || normalizedPhones.includes(normalized))
+      if (normalized === primaryPhone || normalizedPhones.includes(normalized))
         continue;
       normalizedPhones.push(normalized);
     }
@@ -1506,6 +1538,7 @@ function ContactEditor({
         salutation: salutation || null,
         second_name: secondName.trim() || null,
         name_tag: nameTag.trim() || null,
+        phone: primaryPhone.trim() || null,
         secondary_phones: normalizedPhones,
         email: email.trim() || null,
         company: company.trim() || null,
@@ -1616,8 +1649,9 @@ function ContactEditor({
           onChangeText={setNameTag}
           placeholder='Short qualifier, e.g. "Bank DSA"'
         />
-        {/* Primary number is set at creation and stays put — these are the
-            extra numbers (a second mobile, a WhatsApp-only number). */}
+        {/* The primary is the number every WhatsApp path addresses. The
+            extra numbers (a second mobile, a WhatsApp-only number) can be
+            swapped into its place with the arrow. */}
         <View style={{ gap: spacing.sm }}>
           <SectionLabel
             text="Other numbers"
@@ -1630,7 +1664,7 @@ function ContactEditor({
               marginTop: -spacing.xs,
             }}
           >
-            Primary: {contact.phone}
+            Primary: {primaryPhone || '\u2014'}
           </Text>
           {secondaryPhones.map((value, idx) => (
             <View
@@ -1654,6 +1688,34 @@ function ContactEditor({
                   autoCapitalize="none"
                 />
               </View>
+              <Pressable
+                hitSlop={10}
+                onPress={() => {
+                  const candidate = cleanPhoneInput(value);
+                  if (!candidate) {
+                    setError(
+                      `"${value}" doesn\u2019t look like a phone number \u2014 use 10 digits, or include the country code.`
+                    );
+                    return;
+                  }
+                  haptic.tap();
+                  setError(null);
+                  const next = promotePhone(
+                    { phone: primaryPhone, secondary_phones: secondaryPhones },
+                    candidate
+                  );
+                  setPrimaryPhone(next.phone);
+                  setSecondaryPhones(next.secondary_phones);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Make this the primary number"
+              >
+                <Ionicons
+                  name="arrow-up-circle-outline"
+                  size={22}
+                  color={colors.primary}
+                />
+              </Pressable>
               <Pressable
                 hitSlop={10}
                 onPress={() => {
@@ -2328,6 +2390,84 @@ function BuysWithRow({ contactId }: { contactId: string }) {
     .map((m) => (m.name ?? '').trim() || 'Unnamed')
     .join(', ');
   return <InfoRow icon="people-outline" label="Buys with" value={names} />;
+}
+
+/** Make one of the other numbers the primary — the number every
+ *  WhatsApp path addresses — swapping the old primary into its slot. */
+async function promoteContactPhone(contact: Contact, phone: string) {
+  const next = promotePhone(contact, phone);
+  const { data, error } = await supabase
+    .from('contacts')
+    .update(next)
+    .eq('id', contact.id)
+    .select('id');
+  if (error || !data?.length) {
+    haptic.warn();
+    Alert.alert(
+      'Could not change the primary number',
+      error
+        ? friendlyError(error.message)
+        : 'You do not have permission to edit this contact.'
+    );
+    return;
+  }
+  haptic.success();
+  queryClient.invalidateQueries({ queryKey: ['contact', contact.id] });
+  queryClient.invalidateQueries({ queryKey: ['contacts'] });
+}
+
+function OtherPhonesRow({
+  phones,
+  onPress,
+}: {
+  phones: string[];
+  onPress: (phone: string) => void;
+}) {
+  const { colors, fonts: f } = useTheme();
+  return (
+    <View style={[styles.infoRow, { borderTopColor: colors.border }]}>
+      <Ionicons
+        name="call-outline"
+        size={17}
+        color={colors.textMuted}
+        style={{ marginTop: 2 }}
+      />
+      <View style={{ flex: 1, gap: 1 }}>
+        <Text style={{ fontSize: 12, color: colors.textFaint }}>
+          Other phones
+        </Text>
+        {phones.map((phone) => (
+          <Pressable
+            key={phone}
+            onPress={() => onPress(phone)}
+            accessibilityRole="button"
+            accessibilityLabel={`Options for ${phone}`}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              paddingVertical: 2,
+            }}
+          >
+            <Text
+              style={{
+                fontSize: 14.5,
+                fontFamily: f.medium,
+                color: colors.text,
+              }}
+            >
+              {phone}
+            </Text>
+            <Ionicons
+              name="ellipsis-horizontal"
+              size={16}
+              color={colors.textFaint}
+            />
+          </Pressable>
+        ))}
+      </View>
+    </View>
+  );
 }
 
 function InfoRow({

@@ -107,7 +107,7 @@ export function parseMetaErrorInfo(error: unknown): MetaErrorInfo {
     // Message Undeliverable - broad bucket error
     131026: {
       title: 'Message Undeliverable',
-      userMessage: 'This message could not be delivered. This can happen if the recipient is not on WhatsApp, has blocked your number, or is using an outdated WhatsApp version.',
+      userMessage: 'This message could not be delivered. This can happen if the recipient is not on WhatsApp, has blocked your number, or is using an outdated WhatsApp version. If the contact has another number, make that one the primary and try again.',
       suggestedActions: [
         'Verify the recipient has WhatsApp installed and is online',
         'Check if the phone number is correct and includes country code',
