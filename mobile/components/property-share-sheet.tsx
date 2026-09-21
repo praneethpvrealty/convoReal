@@ -932,8 +932,7 @@ function EngineTemplateCard({
       </View>
     );
   }
-  const showPhotos =
-    preview.template.header_type === 'image' && preview.images.length > 0;
+  const showPhotos = preview.images.length > 0;
   return (
     <View
       style={[

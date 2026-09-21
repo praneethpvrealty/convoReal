@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import NextImage from 'next/image';
 import { createClient } from '@/lib/supabase/client';
 import { resolveConversation } from '@/lib/conversations/resolve';
@@ -78,14 +79,8 @@ import { extractCoordinatesFromMapUrl } from '@/lib/maps/map-links';
 import { getMatchingContacts, inMatchAudience, type MatchAudience } from '@/lib/matching';
 import { attachInquiredListingTypes } from '@/lib/contacts/inquired-intent';
 import { fetchPropertyShareLog, recordPropertyShares } from '@/lib/inventory/share-log';
-import {
-  engineShareTemplateLabel,
-  isEngineShareTemplate,
-  pickShareDialogTemplate,
-  propertyShareParams,
-  shareUnsentReason,
-} from '@/lib/whatsapp/property-share-template';
-import { renderShareTemplateBody } from '@/lib/whatsapp/share-property-preview';
+import { pickShareDialogTemplate, shareUnsentReason } from '@/lib/whatsapp/property-share-template';
+import type { SharePropertyPreview } from '@/lib/whatsapp/share-property-preview';
 import { postPropertyShare } from '@/lib/whatsapp/share-property-request';
 import { buildPropertyShareMessage, showcaseOriginForHost } from '@/lib/share-message-builder';
 import { MatchDetailChips } from '@/components/inventory/match-detail-chips';
@@ -736,7 +731,6 @@ export function PropertyForm({
   const [selectedBroadcastImage, setSelectedBroadcastImage] = useState<string>('');
   const [customTemplateMode, setCustomTemplateMode] = useState(false);
   const [showcaseSubdomain, setShowcaseSubdomain] = useState<string | null>(null);
-  const [brandName, setBrandName] = useState<string | null>(null);
   const [currency, setCurrency] = useState('INR');
 
   // Fetch contacts and templates
@@ -913,12 +907,6 @@ export function PropertyForm({
             }
             setShowcaseSubdomain(data?.subdomain || null);
           });
-        supabase
-          .from('accounts')
-          .select('name')
-          .eq('id', accountId)
-          .maybeSingle()
-          .then(({ data }) => setBrandName((data?.name as string | null) || null));
       }
       // Reset broadcast wizard
       setBroadcastStep('matches');
@@ -1150,22 +1138,37 @@ export function PropertyForm({
     }
   }, [selectedTemplate, placeholders]);
 
-  const engineShare = Boolean(
-    property && !customTemplateMode && isEngineShareTemplate(selectedTemplate?.name)
-  );
+  const engineShare = Boolean(property && !customTemplateMode);
+
+  const firstSelectedContactId =
+    contacts.find((c) => selectedContactIds.includes(c.id))?.id ?? null;
+  const enginePreviewQuery = useQuery({
+    queryKey: ['share-property-preview', property?.id ?? null, firstSelectedContactId],
+    queryFn: async () => {
+      const query = new URLSearchParams({ property_id: property!.id });
+      if (firstSelectedContactId) query.set('contact_id', firstSelectedContactId);
+      const res = await fetch(`/api/whatsapp/share-property/preview?${query.toString()}`);
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(payload?.error || 'Could not load the listing template');
+      return payload.data as SharePropertyPreview;
+    },
+    enabled: Boolean(open && property && broadcastStep === 'configure'),
+    staleTime: 60_000,
+  });
+  const enginePreview = enginePreviewQuery.data ?? null;
 
   const headerImageOptions = useMemo(() => {
     const source = engineShare ? (property?.images ?? []) : images;
     return source.map((img) => (img ?? '').trim()).filter((img) => img.length > 0);
   }, [engineShare, property?.images, images]);
 
+  const showHeaderImagePicker = engineShare
+    ? headerImageOptions.length > 0
+    : selectedTemplate?.header_type === 'image';
+
   useEffect(() => {
-    if (selectedTemplate && selectedTemplate.header_type === 'image') {
-      setSelectedBroadcastImage(headerImageOptions[0] || '');
-    } else {
-      setSelectedBroadcastImage('');
-    }
-  }, [selectedTemplate, headerImageOptions]);
+    setSelectedBroadcastImage(showHeaderImagePicker ? headerImageOptions[0] || '' : '');
+  }, [showHeaderImagePicker, headerImageOptions]);
 
   const unsavedShareEdits = useMemo(() => {
     if (!property) return false;
@@ -1181,13 +1184,6 @@ export function PropertyForm({
       formImages.join('|') !== savedImages.join('|')
     );
   }, [property, title, price, sublocality, city, images]);
-
-  const engineSharePreview = useMemo(() => {
-    if (!property || !selectedTemplate || !isEngineShareTemplate(selectedTemplate.name)) return '';
-    const first = contacts.find((c) => selectedContactIds.includes(c.id));
-    const params = propertyShareParams(selectedTemplate.name, first?.name ?? null, property, brandName);
-    return renderShareTemplateBody(selectedTemplate.body_text, params);
-  }, [property, selectedTemplate, contacts, selectedContactIds, brandName]);
 
   async function handleSendEngineShare() {
     if (!property || selectedContactIds.length === 0) return;
@@ -6758,24 +6754,42 @@ export function PropertyForm({
                         <div className="flex items-center text-xs text-slate-500 gap-1.5 py-1">
                           <Loader2 className="size-3.5 animate-spin text-primary" /> Loading templates...
                         </div>
-                      ) : engineShare && selectedTemplate ? (
+                      ) : engineShare ? (
                         <div className="rounded-xl border border-slate-800 bg-slate-950/20 p-4 space-y-2">
                           <div className="flex items-start justify-between gap-3">
                             <div>
                               <div className="text-sm font-semibold text-white">
-                                {engineShareTemplateLabel(selectedTemplate.name)}
+                                {enginePreview?.template?.label ?? 'Listing details'}
                               </div>
-                              <p className="text-xs text-slate-400 mt-1">
-                                Contacts who messaged you in the last 24 hours get the full message with the photo. Everyone else can only receive an approved WhatsApp template, so this one goes out with their name, the listing, the price and the map filled in.
-                              </p>
+                              {enginePreviewQuery.isPending ? (
+                                <p className="text-xs text-slate-400 mt-1 flex items-center gap-1.5">
+                                  <Loader2 className="size-3 animate-spin" /> Checking the listing template...
+                                </p>
+                              ) : enginePreviewQuery.isError ? (
+                                <p className="text-xs text-amber-400 mt-1">
+                                  {enginePreviewQuery.error instanceof Error
+                                    ? enginePreviewQuery.error.message
+                                    : 'Could not load the listing template'}
+                                </p>
+                              ) : enginePreview && !enginePreview.template ? (
+                                <p className="text-xs text-amber-400 mt-1">
+                                  Contacts who messaged you in the last 24 hours get the full message with the photo. {enginePreview.unsent_reason}, so everyone else will be listed as not sent.
+                                </p>
+                              ) : (
+                                <p className="text-xs text-slate-400 mt-1">
+                                  Contacts who messaged you in the last 24 hours get the full message with the photo. Everyone else can only receive an approved WhatsApp template, so this one goes out with their name, the listing, the price and the map filled in.
+                                </p>
+                              )}
                             </div>
-                            <button
-                              type="button"
-                              onClick={() => setCustomTemplateMode(true)}
-                              className="shrink-0 text-xs font-semibold text-primary hover:underline"
-                            >
-                              Use a different template
-                            </button>
+                            {templates.length > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => setCustomTemplateMode(true)}
+                                className="shrink-0 text-xs font-semibold text-primary hover:underline"
+                              >
+                                Use a different template
+                              </button>
+                            )}
                           </div>
                           {unsavedShareEdits && (
                             <p className="text-xs text-amber-400">
@@ -6789,19 +6803,13 @@ export function PropertyForm({
                           <Label htmlFor="broadcast-template" className="text-slate-300">
                             WhatsApp Template
                           </Label>
-                          {templates.some((t) => isEngineShareTemplate(t.name)) && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const hasPhoto = (property?.images ?? []).some((img) => img && img.trim().length > 0);
-                                setSelectedTemplate(pickShareDialogTemplate(templates, { hasImage: hasPhoto }));
-                                setCustomTemplateMode(false);
-                              }}
-                              className="text-xs font-semibold text-primary hover:underline"
-                            >
-                              Back to the listing template
-                            </button>
-                          )}
+                          <button
+                            type="button"
+                            onClick={() => setCustomTemplateMode(false)}
+                            className="text-xs font-semibold text-primary hover:underline"
+                          >
+                            Back to the listing template
+                          </button>
                         </div>
                         {(
                           <select
@@ -6823,7 +6831,7 @@ export function PropertyForm({
                       )}
 
                       {/* Image Header Selector */}
-                      {selectedTemplate?.header_type === 'image' && (
+                      {showHeaderImagePicker && (
                         <div className="space-y-1.5 border border-slate-800 p-3 rounded-xl bg-slate-950/20">
                           <Label className="text-slate-350 font-semibold text-xs block mb-1">
                             Select Broadcast Header Image
@@ -6860,16 +6868,16 @@ export function PropertyForm({
                         </div>
                       )}
 
-                      {engineShare && selectedTemplate && (
+                      {engineShare && enginePreview?.template && enginePreview.preview && (
                         <div className="space-y-2">
                           <h5 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
                             <Smartphone className="size-3.5" /> Message Preview
                           </h5>
                           <div className="bg-slate-950 border border-slate-850 p-4 rounded-xl text-xs font-sans">
-                            <div className="whitespace-pre-wrap text-slate-300 leading-relaxed">{engineSharePreview}</div>
+                            <div className="whitespace-pre-wrap text-slate-300 leading-relaxed">{enginePreview.preview}</div>
                             <div className="text-[11px] text-slate-500 mt-4 border-t border-slate-800/80 pt-2 flex items-center justify-between">
                               <span>Each recipient is greeted by their own first name.</span>
-                              <span className="font-semibold">{selectedTemplate.language || 'en_US'}</span>
+                              <span className="font-semibold">{enginePreview.template.language}</span>
                             </div>
                           </div>
                         </div>
@@ -7009,7 +7017,10 @@ export function PropertyForm({
                         </Button>
                         <Button
                           type="button"
-                          disabled={sendingBroadcast || !selectedTemplate || (engineShare && unsavedShareEdits)}
+                          disabled={
+                            sendingBroadcast ||
+                            (engineShare ? !enginePreview || unsavedShareEdits : !selectedTemplate)
+                          }
                           onClick={engineShare ? handleSendEngineShare : handleSendBroadcast}
                           className="bg-primary hover:bg-primary/95 text-primary-foreground font-semibold flex items-center gap-1.5"
                         >

@@ -303,7 +303,9 @@ describe('property shortlist sharing remains available on both surfaces', () => 
     expect(mobile).toContain('previewImages.includes(headerImage)');
     expect(mobileActions).toContain('/api/whatsapp/share-property/preview?');
     expect(mobileActions).toContain('header_image: headerImage');
-    expect(webForm).toContain('renderShareTemplateBody(');
+    expect(webForm).toContain('/api/whatsapp/share-property/preview?');
+    expect(webForm).toContain('? headerImageOptions.length > 0');
+    expect(mobile).toContain('const showPhotos = preview.images.length > 0;');
     expect(webForm).toContain('header_image: selectedBroadcastImage');
     expect(webForm).toContain("engineShare ? (property?.images ?? []) : images");
     expect(shareRoute).toContain('(listing.images ?? []).includes(requestedHeader)');
