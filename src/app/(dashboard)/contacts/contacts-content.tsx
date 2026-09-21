@@ -68,7 +68,6 @@ import {
   ArrowDown,
   ArrowUpDown,
   SlidersHorizontal,
-  Eye,
 } from 'lucide-react';
 import { ContactForm } from '@/components/contacts/contact-form';
 import { ContactCleanupDialog } from '@/components/contacts/cleanup-dialog';
@@ -103,6 +102,11 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { BUDGET_OPTIONS } from '@/lib/contacts/budget-options';
+import {
+  activeContactFilterCount,
+  contactListCacheKey,
+  contactSortItems,
+} from '@/lib/contacts/contact-sorts';
 import { parsePropertyQuery } from '@/lib/search-parser';
 import {
   effectiveAreas,
@@ -113,7 +117,7 @@ import { STARRED_PROPERTY_CAP } from '@/lib/starred-properties';
 import { projectOptions } from '@/lib/contacts/contact-interest';
 import { useT } from '@/hooks/use-locale';
 import { localCache } from '@/lib/cache-store';
-import { formatAuditDate, formatAuditDateTime } from '@/lib/audit-timestamps';
+import { formatAuditDateTime } from '@/lib/audit-timestamps';
 
 const PAGE_SIZE = 25;
 
@@ -179,7 +183,7 @@ export default function ContactsPage() {
 
     return (
       <span
-        className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${styles}`}
+        className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${styles}`}
       >
         {classification}
       </span>
@@ -207,7 +211,7 @@ export default function ContactsPage() {
     }
     return (
       <span
-        className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[9px] font-medium ${styles}`}
+        className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${styles}`}
       >
         {leadTemp === 'HOT' && '🔥 '}
         {leadTemp === 'COLD' && '❄️ '}
@@ -232,7 +236,7 @@ export default function ContactsPage() {
           <span
             key={label}
             title={ai ? 'Extracted by AI from requirements text' : undefined}
-            className={`inline-flex items-center gap-0.5 rounded border px-1.5 py-0.5 text-[9px] font-medium ${
+            className={`inline-flex items-center gap-0.5 rounded border px-1.5 py-0.5 text-[11px] font-medium ${
               ai
                 ? 'border-primary/25 bg-primary/5 text-primary/90'
                 : 'border-slate-700 bg-slate-800 text-slate-300'
@@ -243,7 +247,7 @@ export default function ContactsPage() {
           </span>
         ))}
         {effective.value.length > 3 && (
-          <span className="text-[10px] text-slate-500">
+          <span className="text-[11px] text-slate-500">
             +{effective.value.length - 3}
           </span>
         )}
@@ -418,10 +422,10 @@ ${matchingUrl.toString()}`;
         const preferenceHints = [
           ...(source.property_interests || []),
           ...(source.pref_property_types || []),
-          ...((source.pref_property_categories || []).map(
+          ...(source.pref_property_categories || []).map(
             (category) =>
               `${category[0]?.toUpperCase()}${category.slice(1).toLowerCase()}`
-          )),
+          ),
         ].filter(Boolean);
         const hasInterestFilters =
           areaHints.length > 0 || preferenceHints.length > 0;
@@ -437,9 +441,7 @@ ${matchingUrl.toString()}`;
 
           const filterDesc = [
             preferenceHints[0],
-            areaHints[0]
-              ? `in ${areaHints[0]}`
-              : '',
+            areaHints[0] ? `in ${areaHints[0]}` : '',
           ]
             .filter(Boolean)
             .join(' ');
@@ -935,7 +937,22 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     const from = page * PAGE_SIZE;
     const to = from + PAGE_SIZE - 1;
 
-    const cacheKey = `contacts-${accountId}-${page}-${activeTab}-${sortBy}-${filterClassification}-${filterTag}-${filterMinBudget}-${filterMaxBudget}-${filterArea}-${filterInterestProperty}-${debouncedSearch}`;
+    const cacheKey = contactListCacheKey(
+      accountId,
+      page,
+      activeTab,
+      sortBy,
+      {
+        classification: filterClassification,
+        tag: filterTag,
+        minBudget: filterMinBudget,
+        maxBudget: filterMaxBudget,
+        area: filterArea,
+        interestProperty: filterInterestProperty,
+        interestProject: filterInterestProject,
+      },
+      debouncedSearch
+    );
     const cached = localCache.get<{
       enriched: ContactWithTags[];
       totalCount: number;
@@ -1872,77 +1889,198 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
   const hasNext = page < totalPages - 1;
   const hasPrev = page > 0;
 
+  const activeFilterCount = activeContactFilterCount({
+    classification: filterClassification,
+    tag: filterTag,
+    minBudget: filterMinBudget,
+    maxBudget: filterMaxBudget,
+    area: filterArea,
+    interestProperty: filterInterestProperty,
+    interestProject: filterInterestProject,
+  });
+  const scoped = activeFilterCount > 0 || debouncedSearch.trim().length > 0;
+  const sortItems = contactSortItems(sortBy);
+  const classificationItems = [
+    { value: 'All', label: 'All Classifications' },
+    ...['Owner', 'Seller', 'Buyer', 'Agent', 'Developer', 'Others'].map(
+      (value) => ({ value, label: value })
+    ),
+  ];
+  const tagItems = [
+    { value: 'All', label: 'All Tags' },
+    ...Object.values(tagsMap).map((tag) => ({
+      value: tag.id,
+      label: tag.name,
+    })),
+  ];
+  const minBudgetItems = [
+    { value: 'All', label: 'Min Budget: All' },
+    ...BUDGET_OPTIONS.map((opt) => ({
+      value: opt.value,
+      label: `≥ ${opt.label}`,
+    })),
+  ];
+  const maxBudgetItems = [
+    { value: 'All', label: 'Max Budget: All' },
+    ...BUDGET_OPTIONS.map((opt) => ({
+      value: opt.value,
+      label: `≤ ${opt.label}`,
+    })),
+  ];
+  const areaItems = [
+    { value: 'All', label: 'All Areas' },
+    ...allAreas.map((area) => ({ value: area, label: area })),
+  ];
+  const projectItems = [
+    { value: 'All', label: t('contacts.allProjects') },
+    ...projectChoices.map((project) => ({
+      value: project.name,
+      label: `${project.name} (${project.count} ${project.count === 1 ? 'unit' : 'units'})`,
+    })),
+  ];
+  const clearAllFilters = () => {
+    setFilterClassification('All');
+    setFilterTag('All');
+    setFilterMinBudget('All');
+    setFilterMaxBudget('All');
+    setFilterArea('All');
+    applyInterestFilter('All');
+    applyProjectFilter('All');
+    setSearch('');
+    setDebouncedSearch('');
+    setPage(0);
+  };
+
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="flex items-center text-2xl font-bold text-white">
-            Contacts
-            <InfoHint text="Your address book containing all clients, agents, and other contacts, where you can log budgets, locations of interest, and custom notes." />
-          </h1>
-          <p className="mt-1 text-sm text-slate-400">
-            Manage your contact list.{' '}
-            {totalCount > 0 && `${totalCount} total contacts.`}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {typeof navigator !== 'undefined' && 'contacts' in navigator && (
-            <GatedButton
-              variant="outline"
-              canAct={canEdit}
-              gateReason="add or import contacts"
-              onClick={handleDeviceImport}
-              className="border-slate-700 text-slate-300 hover:bg-slate-800"
-            >
-              <Smartphone className="size-4" />
-              Import from Phone
-            </GatedButton>
-          )}
-          {/* One door for both jobs — the wizard asks whether to just
-              import or to import and message, so neither is reachable by
-              accident. */}
-          <GatedButton
-            variant="outline"
-            canAct={canEdit}
-            gateReason="add or import contacts"
-            onClick={() => setReengageOpen(true)}
-            className="border-slate-700 text-slate-300 hover:bg-slate-800"
-          >
-            <Upload className="size-4" />
-            Import
-          </GatedButton>
-          <GatedButton
-            variant="outline"
-            canAct={canEdit}
-            gateReason="archive or delete contacts"
-            onClick={() => setCleanupOpen(true)}
-            className="border-slate-700 text-slate-300 hover:bg-slate-800"
-          >
-            <Archive className="size-4" />
-            Clean up
-          </GatedButton>
-          <GatedButton
-            canAct={canEdit}
-            gateReason="add or import contacts"
-            onClick={openAddForm}
-            data-tour="add-contact"
-            className="bg-primary hover:bg-primary/90 text-primary-foreground"
-          >
-            <Plus className="size-4" />
-            Add Contact
-          </GatedButton>
-        </div>
-      </div>
-
       {/* Duplicate detection panel — only visible to agents+ when dupes exist */}
       <DuplicatesPanel
         onMergeComplete={fetchContactsWithInvalidate}
         onOpenContact={openDetail}
       />
 
-      {/* Search and Filters */}
-      <div className="flex flex-col gap-4">
+      {/* Toolbar */}
+      <div className="flex flex-col gap-3 rounded-xl border border-slate-800/80 bg-slate-900/60 p-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap gap-1 rounded-lg border border-slate-800 bg-slate-950/60 p-1">
+            <button
+              onClick={() => setActiveTabAndSync('active')}
+              className={`cursor-pointer rounded-md px-3 py-1.5 text-xs font-semibold transition-all ${
+                activeTab === 'active'
+                  ? 'text-primary bg-slate-800 shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Active{countSuffix(activeCount)}
+            </button>
+            <button
+              onClick={() => setActiveTabAndSync('pending_review')}
+              className={`flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-all ${
+                activeTab === 'pending_review'
+                  ? 'bg-slate-800 text-amber-400 shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Needs Review{countSuffix(reviewCount)}
+              {(reviewCount ?? 0) > 0 && (
+                <span className="inline-flex h-4 min-w-[16px] animate-pulse items-center justify-center rounded-full bg-amber-500 px-1.5 py-0.5 text-[11px] leading-none font-bold text-slate-950">
+                  {reviewCount}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setActiveTabAndSync('favorites')}
+              className={`flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-all ${
+                activeTab === 'favorites'
+                  ? 'bg-slate-800 text-amber-400 shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Star
+                className={`size-3 ${activeTab === 'favorites' ? 'fill-amber-400' : ''}`}
+              />
+              Favourites{countSuffix(favoritesCount)}
+            </button>
+            <button
+              onClick={() => setActiveTabAndSync('transacted')}
+              className={`cursor-pointer rounded-md px-3 py-1.5 text-xs font-semibold transition-all ${
+                activeTab === 'transacted'
+                  ? 'bg-slate-800 text-emerald-400 shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Transacted{countSuffix(transactedCount)}
+            </button>
+            <button
+              onClick={() => setActiveTabAndSync('market_active')}
+              className={`cursor-pointer rounded-md px-3 py-1.5 text-xs font-semibold transition-all ${
+                activeTab === 'market_active'
+                  ? 'bg-slate-800 text-blue-400 shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Active Buyers{countSuffix(marketActiveCount)}
+            </button>
+            <button
+              onClick={() => setActiveTabAndSync('archived')}
+              className={`flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-all ${
+                activeTab === 'archived'
+                  ? 'bg-slate-800 text-slate-200 shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Archive className="size-3" />
+              Archived{countSuffix(archivedCount)}
+            </button>
+          </div>
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            {typeof navigator !== 'undefined' && 'contacts' in navigator && (
+              <GatedButton
+                variant="outline"
+                canAct={canEdit}
+                gateReason="add or import contacts"
+                onClick={handleDeviceImport}
+                className="border-slate-700 text-slate-300 hover:bg-slate-800"
+              >
+                <Smartphone className="size-4" />
+                Import from Phone
+              </GatedButton>
+            )}
+            {/* One door for both jobs — the wizard asks whether to just
+                  import or to import and message, so neither is reachable by
+                  accident. */}
+            <GatedButton
+              variant="outline"
+              canAct={canEdit}
+              gateReason="add or import contacts"
+              onClick={() => setReengageOpen(true)}
+              className="border-slate-700 text-slate-300 hover:bg-slate-800"
+            >
+              <Upload className="size-4" />
+              Import
+            </GatedButton>
+            <GatedButton
+              variant="outline"
+              canAct={canEdit}
+              gateReason="archive or delete contacts"
+              onClick={() => setCleanupOpen(true)}
+              className="border-slate-700 text-slate-300 hover:bg-slate-800"
+            >
+              <Archive className="size-4" />
+              Clean up
+            </GatedButton>
+            <GatedButton
+              canAct={canEdit}
+              gateReason="add or import contacts"
+              onClick={openAddForm}
+              data-tour="add-contact"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground"
+            >
+              <Plus className="size-4" />
+              Add Contact
+            </GatedButton>
+          </div>
+        </div>
         <div className="flex w-full items-center gap-3">
           {/* Search bar */}
           <div className="relative max-w-sm flex-1 sm:max-w-xs md:max-w-sm">
@@ -1972,61 +2110,52 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
           </div>
 
           {/* Filters Toggle Button */}
-          {(() => {
-            const activeCount = [
-              filterClassification !== 'All',
-              filterTag !== 'All',
-              filterMinBudget !== 'All',
-              filterMaxBudget !== 'All',
-              filterArea !== 'All',
-            ].filter(Boolean).length;
-
-            return (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsFiltersOpen(true)}
-                className={cn(
-                  'text-slate-350 relative flex h-9.5 shrink-0 items-center gap-2 rounded-xl border-slate-700 bg-slate-900 px-3.5 font-bold transition-all hover:bg-slate-800 hover:text-white',
-                  activeCount > 0 &&
-                    'border-primary/40 bg-primary/5 hover:bg-primary/10 text-white'
-                )}
-              >
-                <SlidersHorizontal className="size-4 text-slate-400 group-hover:text-white" />
-                <span>Filters</span>
-                {activeCount > 0 && (
-                  <span className="bg-primary text-primary-foreground flex size-4.5 items-center justify-center rounded-full text-[9px] font-black shadow-[0_0_8px_hsl(var(--primary)/0.6)]">
-                    {activeCount}
-                  </span>
-                )}
-              </Button>
-            );
-          })()}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsFiltersOpen(true)}
+            aria-label={
+              activeFilterCount > 0
+                ? `Filters, ${activeFilterCount} active`
+                : 'Filters'
+            }
+            className={cn(
+              'text-slate-350 relative flex h-9.5 shrink-0 items-center gap-2 rounded-xl border-slate-700 bg-slate-900 px-3.5 font-bold transition-all hover:bg-slate-800 hover:text-white',
+              activeFilterCount > 0 &&
+                'border-primary/40 bg-primary/5 hover:bg-primary/10 text-white'
+            )}
+          >
+            <SlidersHorizontal className="size-4 text-slate-400 group-hover:text-white" />
+            <span>Filters</span>
+            {activeFilterCount > 0 && (
+              <span className="bg-primary text-primary-foreground flex size-4.5 items-center justify-center rounded-full text-[11px] font-black shadow-[0_0_8px_hsl(var(--primary)/0.6)]">
+                {activeFilterCount}
+              </span>
+            )}
+          </Button>
 
           {/* Quick Sort Selector (Desktop Only) */}
           <div className="hidden shrink-0 sm:block">
             <Select
               value={sortBy}
+              items={sortItems}
               onValueChange={(val) => {
-                setSortBy(val ?? 'created_desc');
+                setSortBy(String(val ?? 'created_desc'));
                 setPage(0);
               }}
             >
-              <SelectTrigger className="h-9.5 w-[160px] rounded-xl border-slate-700 bg-slate-900 text-xs font-bold text-white">
-                <SelectValue placeholder="Sort By" />
+              <SelectTrigger
+                aria-label="Sort contacts"
+                className="h-9.5 w-[180px] rounded-xl border-slate-700 bg-slate-900 text-xs font-bold text-white"
+              >
+                <SelectValue />
               </SelectTrigger>
               <SelectContent className="border-slate-700 bg-slate-900 text-slate-200">
-                <SelectItem value="created_desc">Newest Created</SelectItem>
-                <SelectItem value="updated_desc">Recently Modified</SelectItem>
-                <SelectItem value="name_asc">Name (A - Z)</SelectItem>
-                <SelectItem value="name_desc">Name (Z - A)</SelectItem>
-                <SelectItem value="last_contacted_desc">
-                  Last Contacted
-                </SelectItem>
-                <SelectItem value="max_budget_desc">
-                  Budget (Highest)
-                </SelectItem>
-                <SelectItem value="max_budget_asc">Budget (Lowest)</SelectItem>
+                {sortItems.map((item) => (
+                  <SelectItem key={item.value} value={item.value}>
+                    {item.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -2038,7 +2167,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
             touch devices) expands the full title. */}
         {(starredProps.length > 0 || projectChoices.length > 0) && (
           <div className="-mt-1 flex flex-wrap items-center gap-1.5">
-            <span className="flex shrink-0 items-center text-[10px] font-bold tracking-wider text-slate-500 uppercase">
+            <span className="flex shrink-0 items-center text-[11px] font-bold tracking-wider text-slate-500 uppercase">
               <Star className="mr-1 size-3 fill-amber-400 text-amber-400" />
               Interested in:
               <InfoHint text="Quick filters by first-choice interest — linked as interested on the property form, top match of a portal/email inquiry, or manually logged on the contact. The chips are the properties you starred on the Inventory page (star icon on a listing's photo, up to 6); hover a chip (or long-press on touch) and tap the star-off icon to unstar it. The Project picker filters across EVERY unit of a project, plus contacts who named the project in their preferences — a tower's buyers are spread across its units, so a single listing's chip only finds a fraction of them. The active filter survives a page refresh." />
@@ -2073,7 +2202,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                   title={`${p.title}\n\nHere because you starred it in Inventory — click to filter contacts whose first-choice interest is this property.${canEdit ? ' Use the star-off icon to remove it from the quick filters.' : ''}`}
                   style={{ WebkitTouchCallout: 'none' }}
                   className={cn(
-                    'group flex cursor-pointer items-center overflow-hidden rounded-full border px-2.5 py-1 font-mono text-[10px] font-bold transition-all select-none',
+                    'group flex cursor-pointer items-center overflow-hidden rounded-full border px-2.5 py-1 font-mono text-[11px] font-bold transition-all select-none',
                     active
                       ? 'border-amber-500/60 bg-amber-500/15 text-amber-300 shadow-[0_0_8px_rgba(245,158,11,0.25)]'
                       : 'border-slate-700 bg-slate-900 text-slate-300 hover:border-amber-500/40 hover:text-amber-300'
@@ -2122,19 +2251,22 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
             {projectChoices.length > 0 && (
               <Select
                 value={filterInterestProject}
-                onValueChange={(value) => applyProjectFilter(value ?? 'All')}
+                items={projectItems}
+                onValueChange={(value) =>
+                  applyProjectFilter(String(value ?? 'All'))
+                }
               >
                 <SelectTrigger
                   aria-label={t('contacts.projectFilter')}
                   className={cn(
-                    'h-7 w-auto gap-1 rounded-full border px-2.5 text-[10px] font-bold',
+                    'h-7 w-auto gap-1 rounded-full border px-2.5 text-[11px] font-bold',
                     filterInterestProject !== 'All'
                       ? 'border-amber-500/60 bg-amber-500/15 text-amber-300 shadow-[0_0_8px_rgba(245,158,11,0.25)]'
                       : 'border-slate-700 bg-slate-900 text-slate-300 hover:border-amber-500/40 hover:text-amber-300'
                   )}
                 >
                   <Building2 className="size-3 shrink-0" />
-                  <SelectValue placeholder="Project" />
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="border-slate-700 bg-slate-900 text-slate-200">
                   <SelectItem value="All">
@@ -2169,18 +2301,19 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
             <div className="my-4 space-y-4.5">
               {/* Classification */}
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">
+                <label className="text-[11px] font-bold tracking-wider text-slate-400 uppercase">
                   Classification
                 </label>
                 <Select
                   value={filterClassification}
+                  items={classificationItems}
                   onValueChange={(val) => {
-                    setFilterClassification(val ?? 'All');
+                    setFilterClassification(String(val ?? 'All'));
                     setPage(0);
                   }}
                 >
                   <SelectTrigger className="h-10 w-full rounded-xl border-slate-700 bg-slate-900 text-white">
-                    <SelectValue placeholder="Classification" />
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="border-slate-700 bg-slate-900 text-slate-200">
                     <SelectItem value="All">All Classifications</SelectItem>
@@ -2196,18 +2329,19 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
 
               {/* Tag */}
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">
+                <label className="text-[11px] font-bold tracking-wider text-slate-400 uppercase">
                   Tag
                 </label>
                 <Select
                   value={filterTag}
+                  items={tagItems}
                   onValueChange={(val) => {
-                    setFilterTag(val ?? 'All');
+                    setFilterTag(String(val ?? 'All'));
                     setPage(0);
                   }}
                 >
                   <SelectTrigger className="h-10 w-full rounded-xl border-slate-700 bg-slate-900 text-white">
-                    <SelectValue placeholder="Tag" />
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="border-slate-700 bg-slate-900 text-slate-200">
                     <SelectItem value="All">All Tags</SelectItem>
@@ -2229,18 +2363,19 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
               {/* Budget Range */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">
+                  <label className="text-[11px] font-bold tracking-wider text-slate-400 uppercase">
                     Min Budget
                   </label>
                   <Select
                     value={filterMinBudget}
+                    items={minBudgetItems}
                     onValueChange={(val) => {
-                      setFilterMinBudget(val ?? 'All');
+                      setFilterMinBudget(String(val ?? 'All'));
                       setPage(0);
                     }}
                   >
                     <SelectTrigger className="h-10 w-full rounded-xl border-slate-700 bg-slate-900 text-white">
-                      <SelectValue placeholder="Min Budget" />
+                      <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="border-slate-700 bg-slate-900 text-slate-200">
                       <SelectItem value="All">Min Budget: All</SelectItem>
@@ -2254,18 +2389,19 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">
+                  <label className="text-[11px] font-bold tracking-wider text-slate-400 uppercase">
                     Max Budget
                   </label>
                   <Select
                     value={filterMaxBudget}
+                    items={maxBudgetItems}
                     onValueChange={(val) => {
-                      setFilterMaxBudget(val ?? 'All');
+                      setFilterMaxBudget(String(val ?? 'All'));
                       setPage(0);
                     }}
                   >
                     <SelectTrigger className="h-10 w-full rounded-xl border-slate-700 bg-slate-900 text-white">
-                      <SelectValue placeholder="Max Budget" />
+                      <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="border-slate-700 bg-slate-900 text-slate-200">
                       <SelectItem value="All">Max Budget: All</SelectItem>
@@ -2282,18 +2418,19 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
               {/* Area Preference */}
               {allAreas.length > 0 && (
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">
+                  <label className="text-[11px] font-bold tracking-wider text-slate-400 uppercase">
                     Area Preference
                   </label>
                   <Select
                     value={filterArea}
+                    items={areaItems}
                     onValueChange={(val) => {
-                      setFilterArea(val ?? 'All');
+                      setFilterArea(String(val ?? 'All'));
                       setPage(0);
                     }}
                   >
                     <SelectTrigger className="h-10 w-full rounded-xl border-slate-700 bg-slate-900 text-white">
-                      <SelectValue placeholder="Area" />
+                      <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="border-slate-700 bg-slate-900 text-slate-200">
                       <SelectItem value="All">All Areas</SelectItem>
@@ -2309,70 +2446,50 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
 
               {/* Sort By (Mobile Only inside drawer) */}
               <div className="space-y-1.5 sm:hidden">
-                <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">
+                <label className="text-[11px] font-bold tracking-wider text-slate-400 uppercase">
                   Sort By
                 </label>
                 <Select
                   value={sortBy}
+                  items={sortItems}
                   onValueChange={(val) => {
-                    setSortBy(val ?? 'created_desc');
+                    setSortBy(String(val ?? 'created_desc'));
                     setPage(0);
                   }}
                 >
                   <SelectTrigger className="h-10 w-full rounded-xl border-slate-700 bg-slate-900 text-white">
-                    <SelectValue placeholder="Sort By" />
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="border-slate-700 bg-slate-900 text-slate-200">
-                    <SelectItem value="created_desc">Newest Created</SelectItem>
-                    <SelectItem value="updated_desc">
-                      Recently Modified
-                    </SelectItem>
-                    <SelectItem value="name_asc">Name (A - Z)</SelectItem>
-                    <SelectItem value="name_desc">Name (Z - A)</SelectItem>
-                    <SelectItem value="last_contacted_desc">
-                      Last Contacted
-                    </SelectItem>
-                    <SelectItem value="max_budget_desc">
-                      Budget (Highest)
-                    </SelectItem>
-                    <SelectItem value="max_budget_asc">
-                      Budget (Lowest)
-                    </SelectItem>
+                    {sortItems.map((item) => (
+                      <SelectItem key={item.value} value={item.value}>
+                        {item.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
             </div>
 
             <DialogFooter className="mt-6 flex flex-row items-center justify-between gap-4">
-              {(() => {
-                const activeCount = [
-                  filterClassification !== 'All',
-                  filterTag !== 'All',
-                  filterMinBudget !== 'All',
-                  filterMaxBudget !== 'All',
-                  filterArea !== 'All',
-                ].filter(Boolean).length;
-
-                return (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={() => {
-                      setFilterClassification('All');
-                      setFilterTag('All');
-                      setFilterMinBudget('All');
-                      setFilterMaxBudget('All');
-                      setFilterArea('All');
-                      setSortBy('created_desc');
-                      setPage(0);
-                    }}
-                    disabled={activeCount === 0 && sortBy === 'created_desc'}
-                    className="text-xs text-slate-400 hover:text-white"
-                  >
-                    Clear All
-                  </Button>
-                );
-              })()}
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  setFilterClassification('All');
+                  setFilterTag('All');
+                  setFilterMinBudget('All');
+                  setFilterMaxBudget('All');
+                  setFilterArea('All');
+                  applyInterestFilter('All');
+                  applyProjectFilter('All');
+                  setPage(0);
+                }}
+                disabled={activeFilterCount === 0}
+                className="text-xs text-slate-400 hover:text-white"
+              >
+                Clear All
+              </Button>
               <Button
                 type="button"
                 onClick={() => setIsFiltersOpen(false)}
@@ -2383,85 +2500,30 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
             </DialogFooter>
           </DialogContent>
         </Dialog>
-
-        {/* Tab Switcher */}
-        <div className="flex flex-wrap gap-1 self-start rounded-lg border border-slate-800 bg-slate-900/60 p-1">
-          <button
-            onClick={() => setActiveTabAndSync('active')}
-            className={`cursor-pointer rounded-md px-3 py-1.5 text-xs font-semibold transition-all ${
-              activeTab === 'active'
-                ? 'text-primary bg-slate-800 shadow-sm'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            All Contacts{countSuffix(activeCount)}
-          </button>
-          <button
-            onClick={() => setActiveTabAndSync('pending_review')}
-            className={`flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-all ${
-              activeTab === 'pending_review'
-                ? 'bg-slate-800 text-amber-400 shadow-sm'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            Needs Review{countSuffix(reviewCount)}
-            {(reviewCount ?? 0) > 0 && (
-              <span className="inline-flex h-4 min-w-[16px] animate-pulse items-center justify-center rounded-full bg-amber-500 px-1.5 py-0.5 text-[9px] leading-none font-bold text-slate-950">
-                {reviewCount}
-              </span>
-            )}
-          </button>
-          <button
-            onClick={() => setActiveTabAndSync('favorites')}
-            className={`flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-all ${
-              activeTab === 'favorites'
-                ? 'bg-slate-800 text-amber-400 shadow-sm'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Star
-              className={`size-3 ${activeTab === 'favorites' ? 'fill-amber-400' : ''}`}
-            />
-            Favourites{countSuffix(favoritesCount)}
-          </button>
-          <button
-            onClick={() => setActiveTabAndSync('transacted')}
-            className={`cursor-pointer rounded-md px-3 py-1.5 text-xs font-semibold transition-all ${
-              activeTab === 'transacted'
-                ? 'bg-slate-800 text-emerald-400 shadow-sm'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            Transacted{countSuffix(transactedCount)}
-          </button>
-          <button
-            onClick={() => setActiveTabAndSync('market_active')}
-            className={`cursor-pointer rounded-md px-3 py-1.5 text-xs font-semibold transition-all ${
-              activeTab === 'market_active'
-                ? 'bg-slate-800 text-blue-400 shadow-sm'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            Active Buyers{countSuffix(marketActiveCount)}
-          </button>
-          <button
-            onClick={() => setActiveTabAndSync('archived')}
-            className={`flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-all ${
-              activeTab === 'archived'
-                ? 'bg-slate-800 text-slate-200 shadow-sm'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Archive className="size-3" />
-            Archived{countSuffix(archivedCount)}
-          </button>
-        </div>
       </div>
 
       {/* Portal ads still waiting on their first assertion. Renders
           nothing when there are none, so it costs a clean account no
           space — and it sits above the queue it explains. */}
       <UnmappedPortalAds onMapped={fetchContactsWithInvalidate} />
+
+      {!accountMissing && !loading && !fetchFailed && (
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+          <span>
+            {totalCount} {totalCount === 1 ? 'contact' : 'contacts'}
+            {scoped ? ' match the current search and filters' : ''}
+          </span>
+          {scoped && (
+            <button
+              type="button"
+              onClick={clearAllFilters}
+              className="font-semibold text-slate-400 hover:text-white"
+            >
+              Clear search and filters
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Table */}
       <div className="overflow-hidden rounded-lg border border-slate-800">
@@ -2615,10 +2677,10 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                   </div>
                 </TableHead>
                 <TableHead className="text-xs text-slate-400 select-none">
-                  Areas of Interest
+                  Areas
                 </TableHead>
                 <TableHead className="text-xs text-slate-400 select-none">
-                  Property Category Interests
+                  Categories
                 </TableHead>
                 <TableHead
                   className="group cursor-pointer text-xs font-semibold text-slate-400 transition-colors select-none hover:text-white"
@@ -2654,8 +2716,11 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                 >
                   <TableCell className="py-3 font-medium text-white">
                     <div className="flex flex-col gap-1">
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <span>
+                      <div
+                        className="flex flex-wrap items-center gap-1.5"
+                        title={`Added ${formatAuditDateTime(contact.created_at)} · Modified ${formatAuditDateTime(contact.updated_at)}`}
+                      >
+                        <span className="hover:text-primary transition-colors">
                           {contactFullName(contact) || (
                             <span className="text-xs text-slate-500 italic">
                               Unnamed
@@ -2664,7 +2729,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                         </span>
                         {contact.name_tag && (
                           <span
-                            className="inline-flex items-center rounded border border-slate-600/50 bg-slate-700/40 px-1.5 py-0.5 text-[10px] font-medium text-slate-300 select-none"
+                            className="inline-flex items-center rounded border border-slate-600/50 bg-slate-700/40 px-1.5 py-0.5 text-[11px] font-medium text-slate-300 select-none"
                             title="Name Tag — internal label, not sent in messages"
                           >
                             {contact.name_tag}
@@ -2673,19 +2738,10 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                         {contact.tags?.some(
                           (t) => t.name.toUpperCase() === 'VIP'
                         ) && (
-                          <span className="inline-flex items-center gap-0.5 rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-bold tracking-wider text-amber-400 uppercase select-none">
+                          <span className="inline-flex items-center gap-0.5 rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[11px] font-bold tracking-wider text-amber-400 uppercase select-none">
                             ⭐ VIP
                           </span>
                         )}
-                      </div>
-                      <div
-                        className="flex flex-wrap gap-x-2 text-[10px] font-normal text-slate-500"
-                        title={`Added ${formatAuditDateTime(contact.created_at)} · Modified ${formatAuditDateTime(contact.updated_at)}`}
-                      >
-                        <span>Added {formatAuditDate(contact.created_at)}</span>
-                        <span>
-                          Modified {formatAuditDate(contact.updated_at)}
-                        </span>
                       </div>
                       {contact.lead_temp && (
                         <div className="mt-0.5">
@@ -2741,7 +2797,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                         contact.tags.slice(0, 3).map((tag) => (
                           <span
                             key={tag.id}
-                            className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium"
+                            className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium"
                             style={{
                               backgroundColor: tag.color + '20',
                               color: tag.color,
@@ -2754,7 +2810,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                         <span className="text-xs text-slate-600">-</span>
                       )}
                       {contact.tags && contact.tags.length > 3 && (
-                        <span className="text-[10px] text-slate-500">
+                        <span className="text-[11px] text-slate-500">
                           +{contact.tags.length - 3}
                         </span>
                       )}
@@ -2815,18 +2871,6 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                         size="icon-sm"
                         onClick={(e) => {
                           e.stopPropagation();
-                          openDetail(contact.id);
-                        }}
-                        className="hover:text-primary text-slate-400"
-                        title="View Details"
-                      >
-                        <Eye className="size-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
                           openEditForm(contact);
                         }}
                         className="text-slate-400 hover:text-blue-400"
@@ -2836,6 +2880,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                       </Button>
                       <DropdownMenu>
                         <DropdownMenuTrigger
+                          aria-label={`More actions for ${contactFullName(contact) || contact.phone || 'contact'}`}
                           render={
                             <Button
                               variant="ghost"
@@ -2891,17 +2936,6 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                               Requirements
                             </DropdownMenuItem>
                           )}
-                          <DropdownMenuSeparator className="bg-slate-700" />
-                          <DropdownMenuItem
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              openEditForm(contact);
-                            }}
-                            className="text-slate-300 focus:bg-slate-800 focus:text-white"
-                          >
-                            <Pencil className="size-4" />
-                            Edit
-                          </DropdownMenuItem>
                           <DropdownMenuSeparator className="bg-slate-700" />
                           <DropdownMenuItem
                             variant="destructive"
@@ -3004,7 +3038,6 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
         onImported={fetchContactsWithInvalidate}
       />
 
-      {/* Bulk Import Modal */}
       <ContactCleanupDialog
         open={cleanupOpen}
         onOpenChange={setCleanupOpen}

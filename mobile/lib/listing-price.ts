@@ -19,19 +19,6 @@ export interface ListingPrice {
   note: string | null;
 }
 
-/** Web parity: "Equivalent to: ₹15 Crore" under the formatted price. */
-function equivalentInr(n: number | null | undefined): string | null {
-  if (!n || n <= 0) return null;
-  const trim = (v: number) =>
-    v
-      .toFixed(2)
-      .replace(/\.00$/, '')
-      .replace(/\.(\d)0$/, '.$1');
-  if (n >= 10000000) return `Equivalent to: ₹${trim(n / 10000000)} Crore`;
-  if (n >= 100000) return `Equivalent to: ₹${trim(n / 100000)} Lakhs`;
-  return `Equivalent to: ₹${n.toLocaleString('en-IN')}`;
-}
-
 export function listingPrice(property: Property): ListingPrice {
   if (
     property.listing_type === 'Rent' ||
@@ -41,7 +28,7 @@ export function listingPrice(property: Property): ListingPrice {
     return {
       label: 'RENT',
       value: rent ? `${formatInr(rent)}/month` : '—',
-      note: equivalentInr(rent),
+      note: null,
     };
   }
 
@@ -58,6 +45,6 @@ export function listingPrice(property: Property): ListingPrice {
   return {
     label: 'PRICE',
     value: formatInr(property.price),
-    note: equivalentInr(property.price),
+    note: null,
   };
 }

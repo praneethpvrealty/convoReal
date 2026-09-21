@@ -19,6 +19,33 @@ than a written entry. Newest first.
 
 #### 21 September 2026
 
+- **Contacts page and the mobile property screens get the inventory
+  treatment.** The web Contacts list had two stacked page headers and two
+  stacked tab rows; the segment pills, the action buttons, search, filters
+  and sort now share one control block under the single page header, with
+  a results line ("N contacts match the current search and filters") that
+  explains why the segment counts and the list size differ. Every dropdown
+  on the page (sort, project, classification, tag, budget, area) showed its
+  raw value — a tag id, a rupee number, `created_desc` — and now shows its
+  label; the sort orders and their names match the mobile filter sheet, and
+  a column sort the menu does not list is still named in the trigger. The
+  "Added / Modified" pair leaves every row for the name's tooltip, the
+  redundant per-row Eye button and the second Edit entry in the overflow
+  menu are gone, the Filters badge now counts the starred-property and
+  project filters, Clear All no longer resets the sort, the smallest text
+  is 11px, and the "All Contacts" segment is called "Active" on web and
+  mobile because it never included contacts awaiting review. A project
+  filter change also no longer reads the previous project's cached rows.
+  On mobile, the property detail no longer repeats the locality in its
+  address line ("Kormangala East, Bengaluru, Kormangala East, Bengaluru"),
+  drops the green "Equivalent to" line that restated the price, keeps
+  Edit, Share and Flyer inline with Duplicate, Portal dates, Archive and
+  Delete behind a More menu, and its Enquired and Matching sections no
+  longer say "No enquiries recorded" or "0 already shared" while still
+  loading. The mobile portal-drift alert collapses to one line like the
+  web's, the property and contact cards lose their audit-date line, and the
+  properties list clears the Copilot button at the end of the list.
+
 - **Inventory page reworked around the listing, not the buttons.** Every
   property card showed thirteen actions across three rows, with delete and
   archive as icon-only buttons at the same weight as everything else, so six

@@ -48,7 +48,7 @@ import {
   sessionToken,
   type PlaceSuggestion,
 } from '@/lib/api';
-import { auditDate, formatInr } from '@/lib/format';
+import { formatInr } from '@/lib/format';
 import { useDebounced } from '@/lib/use-debounced';
 import { BulkTagBar } from '@/components/bulk-tag-bar';
 import { haptic } from '@/lib/haptics';
@@ -523,7 +523,7 @@ export default function PropertiesScreen() {
           numColumns={columnCount}
           columnWrapperStyle={columnCount > 1 ? styles.gridRow : undefined}
           keyExtractor={(p) => p.id}
-          contentContainerStyle={{ paddingBottom: TAB_BAR_CLEARANCE }}
+          contentContainerStyle={{ paddingBottom: TAB_BAR_CLEARANCE + 48 }}
           keyboardDismissMode="on-drag"
           // Listings awaiting review are filtered out of the list below
           // (it asks for Available), so without this they are invisible
@@ -1243,13 +1243,6 @@ function PropertyCard({
             </Text>
           </Pressable>
         ) : null}
-        <Text
-          style={{ fontSize: 10.5, color: colors.textFaint }}
-          numberOfLines={1}
-        >
-          Added {auditDate(property.created_at)} · Modified{' '}
-          {auditDate(property.updated_at)}
-        </Text>
         <View style={styles.specRow}>
           {property.bedrooms ? (
             <SpecPill icon="bed-outline" label={`${property.bedrooms} Beds`} />

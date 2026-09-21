@@ -18,10 +18,7 @@ import { haptic } from '@/lib/haptics';
 import { radius, spacing, useTheme } from '@/lib/theme';
 
 export type PortalDriftKind =
-  | 'withdrawn_stock'
-  | 'stale_expiry'
-  | 'likely_lapsed'
-  | 'details_drift';
+  'withdrawn_stock' | 'stale_expiry' | 'likely_lapsed' | 'details_drift';
 
 export interface PortalDriftFinding {
   portal: string;
@@ -122,6 +119,7 @@ export function PortalDriftPanel({ style }: { style?: ViewStyle }) {
   const accountId = useAuthStore((s) => s.profile?.account_id);
   const storageKey = accountId ? `${DISMISS_KEY_PREFIX}:${accountId}` : null;
   const [isDismissed, setIsDismissed] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
   const { data: findings, isLoading } = useQuery({
     queryKey: ['portal-drift'],
@@ -189,18 +187,58 @@ export function PortalDriftPanel({ style }: { style?: ViewStyle }) {
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
         <Ionicons name="warning-outline" size={15} color={colors.danger} />
         <Text
-          style={{ fontSize: 12.5, fontFamily: f.bold, color: colors.danger }}
+          style={{
+            flex: 1,
+            flexShrink: 1,
+            fontSize: 12.5,
+            fontFamily: f.bold,
+            color: colors.danger,
+          }}
+          numberOfLines={2}
         >
-          {active.length} portal ad{active.length === 1 ? '' : 's'} out of
-          step with your inventory
+          {active.length} portal ad{active.length === 1 ? '' : 's'} out of step
+          with your inventory
         </Text>
+        <Pressable
+          onPress={() => {
+            haptic.tap();
+            setExpanded((v) => !v);
+          }}
+          accessibilityRole="button"
+          accessibilityLabel={
+            expanded ? 'Hide portal discrepancies' : 'Show portal discrepancies'
+          }
+          accessibilityState={{ expanded }}
+          hitSlop={8}
+          style={{
+            marginLeft: 'auto',
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 2,
+            height: 26,
+            paddingHorizontal: 8,
+            borderRadius: 13,
+            borderWidth: StyleSheet.hairlineWidth,
+            borderColor: colors.danger,
+          }}
+        >
+          <Text
+            style={{ fontSize: 11.5, fontFamily: f.bold, color: colors.danger }}
+          >
+            {expanded ? 'Hide' : 'Show'}
+          </Text>
+          <Ionicons
+            name={expanded ? 'chevron-up' : 'chevron-down'}
+            size={13}
+            color={colors.danger}
+          />
+        </Pressable>
         <Pressable
           onPress={hidePanel}
           accessibilityRole="button"
           accessibilityLabel="Dismiss portal discrepancy banner"
           hitSlop={8}
           style={{
-            marginLeft: 'auto',
             width: 26,
             height: 26,
             borderRadius: 13,
@@ -213,57 +251,64 @@ export function PortalDriftPanel({ style }: { style?: ViewStyle }) {
           <Ionicons name="close" size={14} color={colors.danger} />
         </Pressable>
       </View>
-      <Text style={{ fontSize: 11.5, color: colors.textMuted }}>
-        Spotted from the leads and emails already in the Engine — the row clears
-        itself once the ad and the listing agree again.
-      </Text>
+      {expanded ? (
+        <Text style={{ fontSize: 11.5, color: colors.textMuted }}>
+          Spotted from the leads and emails already in the Engine — the row
+          clears itself once the ad and the listing agree again.
+        </Text>
+      ) : null}
 
-      {active.map((item) => (
-        <View
-          key={`${item.portal}:${item.portalListingId}:${item.driftKind}`}
-          style={[
-            styles.row,
-            {
-              backgroundColor: colors.surfaceRaised,
-              borderColor: colors.glassBorder,
-            },
-          ]}
-        >
-          <View style={{ flex: 1, gap: 2 }}>
-            <Text
-              style={{ fontSize: 12.5, fontFamily: f.bold, color: colors.text }}
-              numberOfLines={1}
-            >
-              {findingHeadline(item)}
-            </Text>
-            <Text
-              style={{ fontSize: 11.5, color: colors.textMuted }}
-              numberOfLines={1}
-            >
-              {PORTAL_LABELS[item.portal] || item.portal} ad{' '}
-              {item.portalListingId} ·{' '}
-              {item.propertyTitle || 'Untitled listing'}
-              {item.propertyCode ? ` (${item.propertyCode})` : ''}
-            </Text>
-            <Text style={{ fontSize: 11.5, color: colors.textMuted }}>
-              {findingDetail(item)}
-            </Text>
+      {expanded &&
+        active.map((item) => (
+          <View
+            key={`${item.portal}:${item.portalListingId}:${item.driftKind}`}
+            style={[
+              styles.row,
+              {
+                backgroundColor: colors.surfaceRaised,
+                borderColor: colors.glassBorder,
+              },
+            ]}
+          >
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text
+                style={{
+                  fontSize: 12.5,
+                  fontFamily: f.bold,
+                  color: colors.text,
+                }}
+                numberOfLines={1}
+              >
+                {findingHeadline(item)}
+              </Text>
+              <Text
+                style={{ fontSize: 11.5, color: colors.textMuted }}
+                numberOfLines={1}
+              >
+                {PORTAL_LABELS[item.portal] || item.portal} ad{' '}
+                {item.portalListingId} ·{' '}
+                {item.propertyTitle || 'Untitled listing'}
+                {item.propertyCode ? ` (${item.propertyCode})` : ''}
+              </Text>
+              <Text style={{ fontSize: 11.5, color: colors.textMuted }}>
+                {findingDetail(item)}
+              </Text>
+            </View>
+            {item.listingUrl ? (
+              <Pressable
+                onPress={() => {
+                  haptic.tap();
+                  void Linking.openURL(item.listingUrl as string);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={`Open the ${PORTAL_LABELS[item.portal] || item.portal} ad ${item.portalListingId}`}
+                style={[styles.openButton, { borderColor: colors.danger }]}
+              >
+                <Ionicons name="open-outline" size={14} color={colors.danger} />
+              </Pressable>
+            ) : null}
           </View>
-          {item.listingUrl ? (
-            <Pressable
-              onPress={() => {
-                haptic.tap();
-                void Linking.openURL(item.listingUrl as string);
-              }}
-              accessibilityRole="button"
-              accessibilityLabel={`Open the ${PORTAL_LABELS[item.portal] || item.portal} ad ${item.portalListingId}`}
-              style={[styles.openButton, { borderColor: colors.danger }]}
-            >
-              <Ionicons name="open-outline" size={14} color={colors.danger} />
-            </Pressable>
-          ) : null}
-        </View>
-      ))}
+        ))}
     </View>
   );
 }

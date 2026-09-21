@@ -113,7 +113,7 @@ export function UnmappedPortalAds({ onMapped }: { onMapped: () => void }) {
                 <span className="text-xs font-bold text-white">
                   {ad.portal} ad {ad.portalListingId}
                 </span>
-                <span className="rounded bg-slate-800 px-1.5 py-0.5 text-[9px] font-bold text-slate-300">
+                <span className="rounded bg-slate-800 px-1.5 py-0.5 text-[11px] font-bold text-slate-300">
                   {ad.leadCount} lead{ad.leadCount === 1 ? '' : 's'}
                 </span>
               </div>

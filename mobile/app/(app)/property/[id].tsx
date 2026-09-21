@@ -23,6 +23,7 @@ import MapView, { Marker } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
+import { ContextMenu } from '@/components/context-menu';
 import { FlyerSheet } from '@/components/flyer-sheet';
 import { ListingAudienceSheet } from '@/components/listing-audience-sheet';
 import { PortalExpirySheet } from '@/components/portal-expiry-sheet';
@@ -41,6 +42,7 @@ import { usePhotoSources } from '@/lib/use-photo-source';
 import { apiFetch, ApiError } from '@/lib/api';
 import { friendlyError } from '@/lib/errors';
 import { auditDateTime, chatListTime, formatInr } from '@/lib/format';
+import { placeLine } from '@/lib/place-line';
 import { haptic } from '@/lib/haptics';
 import { listingPrice } from '@/lib/listing-price';
 import {
@@ -193,9 +195,11 @@ export default function PropertyDetailScreen() {
   const showBedsBaths = hasBedsBaths(propertyType);
   const showCommercialBuildingFields =
     hasCommercialBuildingFields(propertyType);
-  const place = [property.location, property.sublocality, property.city]
-    .filter(Boolean)
-    .join(', ');
+  const place = placeLine(
+    property.location,
+    property.sublocality,
+    property.city
+  );
   // Resolved through the shared resolver so the marker, the maps hand-off
   // and every web surface land on one place. Reading `latitude`/`longitude`
   // directly put the app on a different pin from the showcase and the
@@ -206,9 +210,12 @@ export default function PropertyDetailScreen() {
   // Address-based search so a listing without coordinates still lands on
   // the right place (the title is a description and won't geocode).
   const mapQuery =
-    [property.location, property.sublocality, property.city, property.state]
-      .filter(Boolean)
-      .join(', ') || property.title;
+    placeLine(
+      property.location,
+      property.sublocality,
+      property.city,
+      property.state
+    ) || property.title;
   // Only offer maps when the property has an actual pinned location —
   // coordinates or a saved Google Maps link. A text-only address/city
   // (e.g. "Coorg") would just open a vague search, so we hide it.
@@ -1229,220 +1236,227 @@ function EnquiredContactsSection({
 }) {
   const { colors, fonts: f } = useTheme();
   const [expanded, setExpanded] = useState(true);
-  const [messageContact, setMessageContact] =
-    useState<AudienceContact | null>(null);
+  const [messageContact, setMessageContact] = useState<AudienceContact | null>(
+    null
+  );
 
   return (
     <>
       <Section title="Enquired Contacts">
-      <Pressable
-        onPress={() => {
-          haptic.tap();
-          setExpanded((current) => !current);
-        }}
-        accessibilityRole="button"
-        accessibilityState={{ expanded }}
-        accessibilityLabel={
-          expanded ? 'Collapse enquired contacts' : 'Expand enquired contacts'
-        }
-        style={[
-          styles.matchSummary,
-          { backgroundColor: colors.glass, borderColor: colors.glassBorder },
-        ]}
-      >
-        <View
+        <Pressable
+          onPress={() => {
+            haptic.tap();
+            setExpanded((current) => !current);
+          }}
+          accessibilityRole="button"
+          accessibilityState={{ expanded }}
+          accessibilityLabel={
+            expanded ? 'Collapse enquired contacts' : 'Expand enquired contacts'
+          }
           style={[
-            styles.matchSummaryIcon,
-            { backgroundColor: colors.primarySoft },
+            styles.matchSummary,
+            { backgroundColor: colors.glass, borderColor: colors.glassBorder },
           ]}
         >
-          <Ionicons name="hand-left-outline" size={18} color={colors.primary} />
-        </View>
-        <View style={{ flex: 1, gap: 2 }}>
-          <Text
-            style={{ fontSize: 14, fontFamily: f.bold, color: colors.text }}
+          <View
+            style={[
+              styles.matchSummaryIcon,
+              { backgroundColor: colors.primarySoft },
+            ]}
           >
-            {isLoading
-              ? 'Loading enquiries…'
-              : `${contacts.length} contact${contacts.length === 1 ? '' : 's'} enquired`}
-          </Text>
-          <Text style={{ fontSize: 11.5, color: colors.textMuted }}>
-            {isError
-              ? 'Could not load enquiries — pull to refresh.'
-              : contacts.length > 0
-                ? 'Portal enquiries and contacts marked as interested'
-                : 'No enquiries recorded for this property yet'}
-          </Text>
-        </View>
-        <Ionicons
-          name={expanded ? 'chevron-up' : 'chevron-down'}
-          size={18}
-          color={colors.primary}
-        />
-      </Pressable>
+            <Ionicons
+              name="hand-left-outline"
+              size={18}
+              color={colors.primary}
+            />
+          </View>
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text
+              style={{ fontSize: 14, fontFamily: f.bold, color: colors.text }}
+            >
+              {isLoading
+                ? 'Loading enquiries…'
+                : `${contacts.length} contact${contacts.length === 1 ? '' : 's'} enquired`}
+            </Text>
+            <Text style={{ fontSize: 11.5, color: colors.textMuted }}>
+              {isError
+                ? 'Could not load enquiries — pull to refresh.'
+                : isLoading
+                  ? 'Checking portal enquiries and interested contacts'
+                  : contacts.length > 0
+                    ? 'Portal enquiries and contacts marked as interested'
+                    : 'No enquiries recorded for this property yet'}
+            </Text>
+          </View>
+          <Ionicons
+            name={expanded ? 'chevron-up' : 'chevron-down'}
+            size={18}
+            color={colors.primary}
+          />
+        </Pressable>
 
-      {expanded && isLoading ? (
-        <ActivityIndicator size="small" color={colors.primary} />
-      ) : null}
+        {expanded && isLoading ? (
+          <ActivityIndicator size="small" color={colors.primary} />
+        ) : null}
 
-      {expanded && !isLoading && contacts.length > 0 ? (
-        <View style={{ gap: spacing.sm }}>
-          {contacts.map((contact) => {
-            const displayName =
-              contact.name || contact.phone || 'Unnamed contact';
-            const digits = (contact.phone ?? '').replace(/\D/g, '');
-            const dialPhone = dialableAudiencePhone(contact.phone);
-            const followUpTitle = `Follow up — ${property.property_code || property.title}`;
-            const followUpHref =
-              `/(app)/appointment-new?contactId=${encodeURIComponent(contact.contactId)}` +
-              `&contactName=${encodeURIComponent(contact.name ?? '')}` +
-              `&contactPhone=${encodeURIComponent(contact.phone ?? '')}` +
-              `&eventType=follow_up&propertyId=${encodeURIComponent(property.id)}` +
-              `&title=${encodeURIComponent(followUpTitle)}`;
-            const message = `Hi ${contact.name?.split(/\s+/)[0] || 'there'}, following up on your enquiry for ${property.property_code || property.title}.`;
+        {expanded && !isLoading && contacts.length > 0 ? (
+          <View style={{ gap: spacing.sm }}>
+            {contacts.map((contact) => {
+              const displayName =
+                contact.name || contact.phone || 'Unnamed contact';
+              const digits = (contact.phone ?? '').replace(/\D/g, '');
+              const dialPhone = dialableAudiencePhone(contact.phone);
+              const followUpTitle = `Follow up — ${property.property_code || property.title}`;
+              const followUpHref =
+                `/(app)/appointment-new?contactId=${encodeURIComponent(contact.contactId)}` +
+                `&contactName=${encodeURIComponent(contact.name ?? '')}` +
+                `&contactPhone=${encodeURIComponent(contact.phone ?? '')}` +
+                `&eventType=follow_up&propertyId=${encodeURIComponent(property.id)}` +
+                `&title=${encodeURIComponent(followUpTitle)}`;
+              const message = `Hi ${contact.name?.split(/\s+/)[0] || 'there'}, following up on your enquiry for ${property.property_code || property.title}.`;
 
-            return (
-              <View
-                key={contact.contactId}
-                style={[
-                  styles.enquiryRow,
-                  {
-                    backgroundColor: colors.glass,
-                    borderColor: colors.glassBorder,
-                  },
-                ]}
-              >
-                <Pressable
-                  onPress={() =>
-                    router.push(`/(app)/contact/${contact.contactId}`)
-                  }
-                  accessibilityRole="button"
-                  accessibilityLabel={`View ${displayName} contact`}
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: 10,
-                  }}
+              return (
+                <View
+                  key={contact.contactId}
+                  style={[
+                    styles.enquiryRow,
+                    {
+                      backgroundColor: colors.glass,
+                      borderColor: colors.glassBorder,
+                    },
+                  ]}
                 >
-                  <Ionicons
-                    name="person-circle-outline"
-                    size={30}
-                    color={colors.primary}
-                  />
-                  <View style={{ flex: 1 }}>
-                    <Text
-                      style={{
-                        fontSize: 13.5,
-                        fontFamily: f.bold,
-                        color: colors.text,
-                      }}
-                    >
-                      {displayName}
-                    </Text>
-                    <Text style={{ fontSize: 11.5, color: colors.textMuted }}>
-                      {[
-                        contact.phone,
-                        contact.lastAt
-                          ? `Enquired ${chatListTime(contact.lastAt)}`
-                          : null,
-                      ]
-                        .filter(Boolean)
-                        .join(' · ')}
-                    </Text>
-                  </View>
-                  {contact.classification ? (
-                    <Tag label={contact.classification} />
-                  ) : null}
-                </Pressable>
+                  <Pressable
+                    onPress={() =>
+                      router.push(`/(app)/contact/${contact.contactId}`)
+                    }
+                    accessibilityRole="button"
+                    accessibilityLabel={`View ${displayName} contact`}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 10,
+                    }}
+                  >
+                    <Ionicons
+                      name="person-circle-outline"
+                      size={30}
+                      color={colors.primary}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        style={{
+                          fontSize: 13.5,
+                          fontFamily: f.bold,
+                          color: colors.text,
+                        }}
+                      >
+                        {displayName}
+                      </Text>
+                      <Text style={{ fontSize: 11.5, color: colors.textMuted }}>
+                        {[
+                          contact.phone,
+                          contact.lastAt
+                            ? `Enquired ${chatListTime(contact.lastAt)}`
+                            : null,
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </Text>
+                    </View>
+                    {contact.classification ? (
+                      <Tag label={contact.classification} />
+                    ) : null}
+                  </Pressable>
 
-                {canAct ? (
-                  <View style={styles.enquiryActions}>
-                    <Pressable
-                      disabled={!dialPhone}
-                      onPress={() => void Linking.openURL(`tel:${dialPhone}`)}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Call ${displayName}`}
-                      style={[
-                        styles.enquiryAction,
-                        !dialPhone && { opacity: 0.4 },
-                      ]}
-                    >
-                      <Ionicons
-                        name="call-outline"
-                        size={15}
-                        color={colors.primary}
-                      />
-                      <Text
-                        style={{
-                          fontSize: 11.5,
-                          fontFamily: f.semibold,
-                          color: colors.primary,
-                        }}
+                  {canAct ? (
+                    <View style={styles.enquiryActions}>
+                      <Pressable
+                        disabled={!dialPhone}
+                        onPress={() => void Linking.openURL(`tel:${dialPhone}`)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Call ${displayName}`}
+                        style={[
+                          styles.enquiryAction,
+                          !dialPhone && { opacity: 0.4 },
+                        ]}
                       >
-                        Call
-                      </Text>
-                    </Pressable>
-                    <Pressable
-                      disabled={!digits}
-                      onPress={() =>
-                        void Linking.openURL(
-                          `https://wa.me/${digits}?text=${encodeURIComponent(message)}`
-                        )
-                      }
-                      onLongPress={() => {
-                        haptic.tap();
-                        setMessageContact(contact);
-                      }}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Message ${displayName}. Long press to choose personal or business WhatsApp`}
-                      style={[
-                        styles.enquiryAction,
-                        !digits && { opacity: 0.4 },
-                      ]}
-                    >
-                      <Ionicons
-                        name="logo-whatsapp"
-                        size={15}
-                        color={colors.primary}
-                      />
-                      <Text
-                        style={{
-                          fontSize: 11.5,
-                          fontFamily: f.semibold,
-                          color: colors.primary,
+                        <Ionicons
+                          name="call-outline"
+                          size={15}
+                          color={colors.primary}
+                        />
+                        <Text
+                          style={{
+                            fontSize: 11.5,
+                            fontFamily: f.semibold,
+                            color: colors.primary,
+                          }}
+                        >
+                          Call
+                        </Text>
+                      </Pressable>
+                      <Pressable
+                        disabled={!digits}
+                        onPress={() =>
+                          void Linking.openURL(
+                            `https://wa.me/${digits}?text=${encodeURIComponent(message)}`
+                          )
+                        }
+                        onLongPress={() => {
+                          haptic.tap();
+                          setMessageContact(contact);
                         }}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Message ${displayName}. Long press to choose personal or business WhatsApp`}
+                        style={[
+                          styles.enquiryAction,
+                          !digits && { opacity: 0.4 },
+                        ]}
                       >
-                        Message
-                      </Text>
-                    </Pressable>
-                    <Pressable
-                      onPress={() => router.push(followUpHref)}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Schedule follow-up with ${displayName}`}
-                      style={styles.enquiryAction}
-                    >
-                      <Ionicons
-                        name="calendar-outline"
-                        size={15}
-                        color={colors.primary}
-                      />
-                      <Text
-                        style={{
-                          fontSize: 11.5,
-                          fontFamily: f.semibold,
-                          color: colors.primary,
-                        }}
+                        <Ionicons
+                          name="logo-whatsapp"
+                          size={15}
+                          color={colors.primary}
+                        />
+                        <Text
+                          style={{
+                            fontSize: 11.5,
+                            fontFamily: f.semibold,
+                            color: colors.primary,
+                          }}
+                        >
+                          Message
+                        </Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={() => router.push(followUpHref)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Schedule follow-up with ${displayName}`}
+                        style={styles.enquiryAction}
                       >
-                        Follow up
-                      </Text>
-                    </Pressable>
-                  </View>
-                ) : null}
-              </View>
-            );
-          })}
-        </View>
-      ) : null}
+                        <Ionicons
+                          name="calendar-outline"
+                          size={15}
+                          color={colors.primary}
+                        />
+                        <Text
+                          style={{
+                            fontSize: 11.5,
+                            fontFamily: f.semibold,
+                            color: colors.primary,
+                          }}
+                        >
+                          Follow up
+                        </Text>
+                      </Pressable>
+                    </View>
+                  ) : null}
+                </View>
+              );
+            })}
+          </View>
+        ) : null}
       </Section>
       {messageContact ? (
         <PropertyInterestFollowUpSheet
@@ -1478,6 +1492,9 @@ function ActionRail({ property }: { property: Property }) {
   const [sharing, setSharing] = useState(false);
   const [flyerOpen, setFlyerOpen] = useState(false);
   const [portalExpiryOpen, setPortalExpiryOpen] = useState(false);
+  const [moreAnchor, setMoreAnchor] = useState<{ x: number; y: number } | null>(
+    null
+  );
   const archived = property.status === 'Archived';
   const { show, close, dialogProps } = useAppDialog();
 
@@ -1615,12 +1632,6 @@ function ActionRail({ property }: { property: Property }) {
       },
     },
     {
-      key: 'duplicate',
-      icon: 'copy-outline' as const,
-      label: 'Duplicate',
-      onPress: confirmDuplicate,
-    },
-    {
       key: 'share',
       icon: 'share-social-outline' as const,
       label: 'Share',
@@ -1639,7 +1650,22 @@ function ActionRail({ property }: { property: Property }) {
       },
     },
     {
-      key: 'portals',
+      key: 'more',
+      icon: 'ellipsis-horizontal' as const,
+      label: 'More',
+      onPress: (e: { nativeEvent: { pageX: number; pageY: number } }) => {
+        haptic.tap();
+        setMoreAnchor({ x: e.nativeEvent.pageX, y: e.nativeEvent.pageY });
+      },
+    },
+  ];
+  const moreActions = [
+    {
+      icon: 'copy-outline' as const,
+      label: 'Duplicate',
+      onPress: confirmDuplicate,
+    },
+    {
       icon: 'time-outline' as const,
       label: 'Portal dates',
       onPress: () => {
@@ -1648,13 +1674,11 @@ function ActionRail({ property }: { property: Property }) {
       },
     },
     {
-      key: 'archive',
       icon: 'file-tray-outline' as const,
       label: archived ? 'Unarchive' : 'Archive',
       onPress: confirmArchive,
     },
     {
-      key: 'delete',
       icon: 'trash-outline' as const,
       label: 'Delete',
       onPress: confirmDelete,
@@ -1680,21 +1704,23 @@ function ActionRail({ property }: { property: Property }) {
         onClose={() => setPortalExpiryOpen(false)}
       />
       {actions.map((a) => {
-        const isBusy = busy === a.key;
-        const fg = a.danger ? colors.danger : colors.primary;
+        const isBusy = a.key === 'more' && busy !== null;
+        const fg = colors.primary;
         return (
           <Pressable
             key={a.key}
             onPress={a.onPress}
             disabled={busy !== null}
             accessibilityRole="button"
-            accessibilityLabel={`${a.label} property`}
+            accessibilityLabel={
+              a.key === 'more' ? 'More property actions' : `${a.label} property`
+            }
             accessibilityState={{ disabled: busy !== null, busy: isBusy }}
             style={[
               styles.actionPill,
               {
-                backgroundColor: a.danger ? colors.dangerSoft : colors.glass,
-                borderColor: a.danger ? colors.danger : colors.glassBorder,
+                backgroundColor: colors.glass,
+                borderColor: colors.glassBorder,
                 opacity: busy !== null && !isBusy ? 0.5 : 1,
               },
             ]}
@@ -1710,6 +1736,11 @@ function ActionRail({ property }: { property: Property }) {
           </Pressable>
         );
       })}
+      <ContextMenu
+        anchor={moreAnchor}
+        actions={moreActions}
+        onClose={() => setMoreAnchor(null)}
+      />
       <AppDialog {...dialogProps} />
     </View>
   );
@@ -1888,9 +1919,11 @@ function MatchesSection({
           <Text style={{ fontSize: 11.5, color: colors.textMuted }}>
             {isError
               ? 'Could not load matches — pull to refresh.'
-              : expanded
-                ? `${sharedCount} already shared · Select contacts to share together`
-                : `${sharedCount} already shared · Tap to open the list`}
+              : isLoading
+                ? 'Ranking contacts by their stated preferences'
+                : expanded
+                  ? `${sharedCount} already shared · Select contacts to share together`
+                  : `${sharedCount} already shared · Tap to open the list`}
           </Text>
         </View>
         <Ionicons

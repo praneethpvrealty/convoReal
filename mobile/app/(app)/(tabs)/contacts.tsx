@@ -59,12 +59,7 @@ import {
 import { interestChipLabel, type InterestFilter } from '@/lib/contact-interest';
 import { friendlyError } from '@/lib/errors';
 import { splitImportedName } from '@/lib/name-tag-split';
-import {
-  auditDate,
-  chatListTime,
-  cleanPhoneInput,
-  formatBudgetRange,
-} from '@/lib/format';
+import { chatListTime, cleanPhoneInput, formatBudgetRange } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
 import { openContactChat } from '@/lib/open-chat';
 import { resolveRequirementSource } from '@/lib/requirements-profile';
@@ -89,7 +84,7 @@ import {
 
 /** Web parity quick filters (contacts-content.tsx). */
 const SEGMENTS = [
-  { key: 'active', label: 'All' },
+  { key: 'active', label: 'Active' },
   { key: 'pending_review', label: 'Needs Review' },
   { key: 'favorites', label: 'Favourites' },
   { key: 'transacted', label: 'Transacted' },
@@ -1376,13 +1371,6 @@ function ContactRow({
             </Text>
           </View>
         ) : null}
-        <Text
-          style={{ fontSize: 10.5, color: colors.textFaint }}
-          numberOfLines={1}
-        >
-          Added {auditDate(contact.created_at)} · Modified{' '}
-          {auditDate(contact.updated_at)}
-        </Text>
       </View>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
         <Pressable
@@ -1494,7 +1482,7 @@ function ContactPeekCard({
   propertyCodes: Record<string, string>;
 }) {
   const { colors, fonts: f } = useTheme();
-  const source = resolveRequirementSource(contact)
+  const source = resolveRequirementSource(contact);
   // property_interests are category labels, not ids — they read as-is;
   // only last_inquired_property_id resolves to a property code.
   const inquiredCode = source.last_inquired_property_id
@@ -1507,9 +1495,7 @@ function ContactPeekCard({
         ...(source.pref_property_types ?? []),
         ...(source.pref_property_categories ?? []),
         inquiredCode,
-      ].filter(
-        (v): v is string => Boolean(v)
-      )
+      ].filter((v): v is string => Boolean(v))
     )
   ).slice(0, 2);
   const budget = formatBudgetRange(
@@ -1518,8 +1504,8 @@ function ContactPeekCard({
     source.no_budget
   );
   const areaHints = Array.from(
-    new Set([...(source.areas_of_interest ?? []), ...(source.pref_areas ?? [])]),
-  )
+    new Set([...(source.areas_of_interest ?? []), ...(source.pref_areas ?? [])])
+  );
 
   const headline =
     [budget ? `Budget ${budget}` : null, contact.company, contact.email]
@@ -1527,9 +1513,7 @@ function ContactPeekCard({
       .slice(0, 2)
       .join(' · ') || 'No preferences captured yet';
   const detail = [
-    areaHints.length
-      ? areaHints.slice(0, 2).join(', ')
-      : null,
+    areaHints.length ? areaHints.slice(0, 2).join(', ') : null,
     ...tags.slice(0, 2),
     ...interests.map((code) => `★ ${code}`),
     contact.last_contacted_at
