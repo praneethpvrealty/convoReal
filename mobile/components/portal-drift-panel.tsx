@@ -187,7 +187,14 @@ export function PortalDriftPanel({ style }: { style?: ViewStyle }) {
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
         <Ionicons name="warning-outline" size={15} color={colors.danger} />
         <Text
-          style={{ fontSize: 12.5, fontFamily: f.bold, color: colors.danger }}
+          style={{
+            flex: 1,
+            flexShrink: 1,
+            fontSize: 12.5,
+            fontFamily: f.bold,
+            color: colors.danger,
+          }}
+          numberOfLines={2}
         >
           {active.length} portal ad{active.length === 1 ? '' : 's'} out of step
           with your inventory
