@@ -277,6 +277,25 @@
             }
           ],
           "guards": [".github/workflows/eas-update.yml"]
+        },
+        {
+          "id": "CTM-006",
+          "rule": "A contact's primary phone is the number every WhatsApp path addresses. When a contact has other numbers, the WhatsApp action on web and mobile lets the agent pick which number to message, and any other number can be made the primary from web or mobile; the swap keeps the old primary as an other number in the promoted number's slot, so no number is lost.",
+          "tests": [
+            {
+              "file": "src/lib/contacts/phone-numbers.test.ts",
+              "case": "[CTM-006]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[CTM-006]"
+            },
+            {
+              "file": "mobile/lib/phone-numbers.test.ts",
+              "case": "[CTM-006]"
+            }
+          ],
+          "guards": [".github/workflows/eas-update.yml"]
         }
       ]
     },

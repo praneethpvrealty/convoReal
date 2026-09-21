@@ -787,6 +787,24 @@ describe('mobile/lib/customer-window.ts mirrors customer-window', () => {
   });
 });
 
+describe('mobile/lib/phone-numbers.ts mirrors phone-numbers', () => {
+  // Promoting an "other" number to primary is what routes every WhatsApp
+  // path to the number the contact actually uses. If the swap differs
+  // between surfaces, one of them loses the old primary or reorders the
+  // list the other shows.
+  it('[CTM-006] keeps both phone rules identical to the web source', () => {
+    const marker = 'export interface ContactPhones';
+    const body = (source: string) => {
+      const start = source.indexOf(marker);
+      expect(start, 'phone-numbers marker missing').toBeGreaterThan(-1);
+      return source.slice(start);
+    };
+    expect(body(mobileSource('lib/phone-numbers.ts'))).toBe(
+      body(webSource('lib/contacts/phone-numbers.ts'))
+    );
+  });
+});
+
 describe('mobile/lib/name-tag-split.ts mirrors name-tag-split', () => {
   // Both phonebook imports split "Dr Murali Makam Owner Hsr" into the same
   // first name, second name and Name Tag. If the lexicon or either splitter
