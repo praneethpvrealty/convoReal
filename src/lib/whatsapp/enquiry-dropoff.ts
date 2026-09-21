@@ -1,18 +1,20 @@
 // Drop-off feedback on a shared property.
 //
-// "Close my enquiry" on the check-in and enquiry templates marks the
-// contact dead and sends the goodbye — and until now learned nothing
-// about *why* the shared property lost them. The tap opened a 24-hour
-// window, so the goodbye is followed by one tap-to-answer list naming
-// the property the check-in was about; the answer lands on
-// listing_feedback (which rankings and the share summary read), the
-// contact's timeline, and the journey item for that contact×property
-// pair, so web and mobile both show it without a surface of their own.
+// "Close my enquiry" on the check-in and enquiry templates closes the
+// enquiry on the listing the template named — and until now learned
+// nothing about *why* that listing lost them. The tap opened a 24-hour
+// window, so the acknowledgement is followed by one tap-to-answer list
+// naming the property; the answer lands on listing_feedback (which
+// rankings and the share summary read), the contact's timeline, and
+// the journey item for that contact×property pair, so web and mobile
+// both show it without a surface of their own.
 //
-// The contact is dead by the time either message goes out, so both are
-// sent with the dispatcher's dead-contact opt-out: they are the reply
-// the lead asked for, not outreach. After the thank-you nothing else
-// follows — the template promised "no further updates".
+// Closing one listing is not closing the search, so the thank-you
+// hands over to the enquiry review (the lead's other open enquiries,
+// each closable with a tap) and then the requirement ladder. Only
+// "bought elsewhere" and "not buying right now" end the search: either
+// answer marks the contact dead (START ALERTS revives), and its
+// thank-you is the last message.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
@@ -24,6 +26,8 @@ import {
 } from '@/lib/journey/chat-scan';
 import { createNotification } from '@/lib/notifications/create';
 import { leadFirstName } from '@/lib/contacts/lead-placeholder';
+import { markContactDead } from '@/lib/contacts/lifecycle';
+import { continueAfterEnquiryClose } from '@/lib/whatsapp/enquiry-review';
 
 export const ENQUIRY_DROPOFF_ID_PREFIX = 'lfbd_';
 
@@ -56,18 +60,32 @@ export const DROPOFF_REASON_ROWS: { reason: DropoffReason; title: string }[] = [
 ];
 
 const REASON_THANKS: Record<DropoffReason, string> = {
-  budget:
-    'Thank you — that helps us do better. We wish you the very best with your search.',
-  location:
-    'Thank you — that helps us do better. We wish you the very best with your search.',
-  type: 'Thank you — that helps us do better. We wish you the very best with your search.',
-  size: 'Thank you — that helps us do better. We wish you the very best with your search.',
+  budget: 'Thank you — that helps us do better.',
+  location: 'Thank you — that helps us do better.',
+  type: 'Thank you — that helps us do better.',
+  size: 'Thank you — that helps us do better.',
   bought_elsewhere:
     'Thank you, and congratulations on your new property! We wish you the very best.',
   not_now:
     'Thank you — understood. Whenever you are ready to look again, just reply START ALERTS and we will pick up from there.',
   other:
     'Thank you — noted. If you would like, reply with a line on what did not fit; it goes straight to our team.',
+};
+
+/** What the thank-you hands over to. 'sorted' runs the enquiry review
+ *  and then the requirement ladder; 'review' stops at the review, since
+ *  the thank-you already asked for a typed reply; 'done' ends there —
+ *  the lead is not looking, or not looking now, and either answer
+ *  parks the search (dead, so matching and alerts stop) until they
+ *  reply START ALERTS. */
+const REASON_NEXT: Record<DropoffReason, 'sorted' | 'review' | 'done'> = {
+  budget: 'sorted',
+  location: 'sorted',
+  type: 'sorted',
+  size: 'sorted',
+  bought_elsewhere: 'done',
+  not_now: 'done',
+  other: 'review',
 };
 
 export interface DroppedProperty {
@@ -151,7 +169,7 @@ export async function resolveDroppedProperty(args: {
 }
 
 export function buildEnquiryDropoffBody(property: DroppedProperty): string {
-  return `One last thing — what made you drop *${labelFor(property)}*? One tap tells us what did not fit. Nothing further will be sent after this.`;
+  return `Quick one — what made you drop *${labelFor(property)}*? One tap tells us what did not fit.`;
 }
 
 export function buildEnquiryDropoffSections(
@@ -168,9 +186,8 @@ export function buildEnquiryDropoffSections(
 }
 
 /**
- * Files the close as a rejection of the shared property and asks why.
- * Never throws — the goodbye already landed, and this must not undo
- * that.
+ * Asks why the closed listing did not fit. Never throws — the
+ * acknowledgement already landed, and this must not undo that.
  */
 export async function sendEnquiryDropoffPrompt(args: {
   db: SupabaseClient;
@@ -182,15 +199,6 @@ export async function sendEnquiryDropoffPrompt(args: {
 }): Promise<boolean> {
   const { db, accountId, userId, contactId, conversationId, property } = args;
   try {
-    await db.from('listing_feedback').upsert(
-      {
-        account_id: accountId,
-        contact_id: contactId,
-        property_id: property.id,
-        verdict: 'rejected',
-      },
-      { onConflict: 'contact_id,property_id' }
-    );
     const result = await sendWhatsAppMessageAndPersist({
       accountId,
       userId,
@@ -275,13 +283,14 @@ export async function handleEnquiryDropoffReason(args: {
       note_text: `🚪 ${name} dropped ${label}: ${title}`,
     });
 
+    // The close already dropped this branch, so the pair is matched
+    // whatever its status — the reason belongs on the dropped item.
     const { data: item } = await db
       .from('journey_items')
       .select('id')
       .eq('account_id', accountId)
       .eq('contact_id', contact.id)
       .eq('property_id', property.id as string)
-      .eq('status', 'active')
       .maybeSingle();
     if (item) {
       await db.from('journey_events').insert({
@@ -318,6 +327,34 @@ export async function handleEnquiryDropoffReason(args: {
       channels: { inApp: true, push: true, whatsapp: false },
     });
 
+    if (parsed.reason === 'bought_elsewhere' || parsed.reason === 'not_now') {
+      await markContactDead({
+        db,
+        accountId,
+        contactId: contact.id,
+        reason: 'closed_enquiry',
+        note:
+          parsed.reason === 'bought_elsewhere'
+            ? `🏠 ${name} bought elsewhere — closed from WhatsApp`
+            : `⏸ ${name} is not buying right now — closed from WhatsApp`,
+      });
+    }
+
+    const thanks = REASON_THANKS[parsed.reason];
+    const next = REASON_NEXT[parsed.reason];
+    if (next !== 'done') {
+      const continued = await continueAfterEnquiryClose({
+        db,
+        accountId,
+        userId: configOwnerUserId,
+        contactId: contact.id,
+        conversationId,
+        acknowledgement: thanks,
+        reviewOnly: next === 'review',
+      });
+      if (continued !== 'none') return true;
+    }
+
     await sendWhatsAppMessageAndPersist({
       accountId,
       userId: configOwnerUserId,
@@ -325,7 +362,7 @@ export async function handleEnquiryDropoffReason(args: {
       conversationId,
       kind: 'text',
       senderType: 'bot',
-      text: REASON_THANKS[parsed.reason],
+      text: thanks,
       allowDeadContact: true,
       customDbClient: db,
     });

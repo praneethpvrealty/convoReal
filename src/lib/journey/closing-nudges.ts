@@ -25,7 +25,7 @@
 // and purchase_progress_notice outside it. It is never any of the
 // enquiry templates: those assert an open enquiry awaiting a decision
 // and offer "Close my enquiry", which is false once a token is paid
-// and marks the contact dead when tapped. Until that template is
+// and drops the listing's journey branch when tapped. Until that template is
 // approved on the account the agent is told to call — a wrong message
 // is worse than no message, which is the whole lesson here.
 //

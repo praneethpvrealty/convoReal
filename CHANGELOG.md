@@ -19,6 +19,26 @@ than a written entry. Newest first.
 
 #### 21 September 2026
 
+- **"Close my enquiry" closes one listing, not the lead.** The quick reply on
+  the check-in and enquiry templates used to mark the whole contact dead:
+  their requirement stopped matching, every automated send was refused, and
+  the goodbye's "just reply START ALERTS" led nowhere — the reply flipped
+  consent but the contact stayed dead, so the confirmation was blocked and
+  no alert could follow. The close is now scoped to the listing the template
+  named: it is rejected for that contact and its journey branch dropped, the
+  contact stays live and matching, and the acknowledgement says their other
+  enquiries stay open. After the drop-off reason the lead sees their open
+  enquiries as a one-tap list — close any of them or keep them all, each
+  answer logged on the journey and the agent notified — and then the
+  requirement ladder or their current matches, so the moment ends with both
+  their enquiries and their brief sorted. Deals already at token, legal,
+  registration or won never appear on that list. "Bought elsewhere" and
+  "not buying right now" park the search instead (the lead is marked dead
+  until they reply START ALERTS); a close that names no listing on a journey
+  with nothing open does the same. START ALERTS in the
+  lead's own words now revives a dead contact, un-parks the requirement and
+  grants consent before the confirmation and ladder go out.
+
 - **Share Listings for buyer contacts, saved to their Portfolio.** A buyer's
   contact record on web and mobile gains "Share Listings": hand-pick up to 25
   listings and send them through the existing showcase share flow with that

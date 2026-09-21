@@ -3,13 +3,15 @@ import {
   resolveConversation,
   type ConversationRow,
 } from '@/lib/conversations/resolve';
-import { markContactDead } from '@/lib/contacts/lifecycle';
 import {
   ENQUIRY_DROPOFF_ID_PREFIX,
   handleEnquiryDropoffReason,
-  resolveDroppedProperty,
-  sendEnquiryDropoffPrompt,
 } from '@/lib/whatsapp/enquiry-dropoff';
+import { handleEnquiryClose } from '@/lib/whatsapp/enquiry-close';
+import {
+  ENQUIRY_REVIEW_ID_PREFIX,
+  handleEnquiryReviewReply,
+} from '@/lib/whatsapp/enquiry-review';
 import {
   deliveryFailureUpdate,
   META_MARKETING_FREQUENCY_ERROR,
@@ -1698,6 +1700,21 @@ async function processMessage(
     if (handledDropoff) return;
   }
 
+  // The open-enquiry review that follows a close: one more listing
+  // closed, or all of them kept. Same dispatch reason as the reason
+  // list above.
+  if (interactiveReplyId?.startsWith(ENQUIRY_REVIEW_ID_PREFIX)) {
+    const handledReview = await handleEnquiryReviewReply({
+      db: supabaseAdmin(),
+      accountId,
+      configOwnerUserId,
+      contact: contactRecord,
+      conversationId: conversation.id,
+      replyId: interactiveReplyId,
+    });
+    if (handledReview) return;
+  }
+
   const bridged = isControlReply
     ? false
     : await handleBridgedAgentReply({
@@ -2205,12 +2222,11 @@ async function processMessage(
     }
   }
 
-  // "Close my enquiry" on the enquiry-status / enquiry-followup
   // Buyer alert subscription control — "STOP ALERTS" / "START ALERTS"
-  // free text, or either enquiry template's "Close my enquiry" quick
-  // reply (which arrives as message.button.text). Same
-  // chat-as-control-panel pattern as the owner digest commands above,
-  // editing contacts.buyer_alerts_consent.
+  // free text, editing contacts.buyer_alerts_consent (same
+  // chat-as-control-panel pattern as the owner digest commands above),
+  // and the enquiry templates' "Close my enquiry" quick reply, which
+  // arrives as message.button.text and closes one listing's enquiry.
   //
   // "Still considering it" on the journey check-in template: the tap is
   // the client's answer — log it on the journey and ask for a timeline.
@@ -2332,30 +2348,36 @@ async function processMessage(
   // Comparing against the English constants (as this did) meant a
   // Kannada lead tapping "ವಿಚಾರಣೆ ಮುಚ್ಚಿ" was not closing anything:
   // their enquiry stayed open and the alerts kept coming.
-  const alertsCommand =
-    matchTemplateButton(message.button?.text) === 'close_enquiry'
-      ? 'close'
-      : parseBuyerAlertsCommand(message.button?.text ?? contentText);
+  //
+  // The close is scoped to the listing the template named: that
+  // enquiry is filed as closed, the lead is told their other enquiries
+  // stay open, and the tap's window runs the drop-off reason, the
+  // open-enquiry review and the requirement ladder. The lead is marked
+  // dead only when nothing names a listing and nothing is on their
+  // journey — a search-level close.
+  if (matchTemplateButton(message.button?.text) === 'close_enquiry') {
+    await handleEnquiryClose({
+      db: supabaseAdmin(),
+      accountId,
+      userId: configOwnerUserId,
+      contact: contactRecord,
+      conversationId: conversation.id,
+      contextMessageId: message.context?.id ?? null,
+    });
+    return;
+  }
+
+  const alertsCommand = parseBuyerAlertsCommand(
+    message.button?.text ?? contentText
+  );
   if (alertsCommand) {
+    // START ALERTS also revives a lead a close marked dead, so the
+    // confirmation and the ladder below clear the dispatcher's gate.
     const confirmation = await applyBuyerAlertsCommand({
       command: alertsCommand,
       accountId,
       contactId: contactRecord.id,
     });
-    // 'close' is the lead saying the enquiry is over, not a preference
-    // about alerts: it also marks the contact dead (migration 230),
-    // which parks the requirement, stops every automated send and drops
-    // them out of matching. The goodbye above still goes out — it is
-    // the acknowledgement they asked for, and its one pitch to stay.
-    if (alertsCommand === 'close') {
-      await markContactDead({
-        db: supabaseAdmin(),
-        accountId,
-        contactId: contactRecord.id,
-        reason: 'closed_enquiry',
-        note: 'Lead closed their enquiry from WhatsApp ("Close my enquiry")',
-      });
-    }
     if (confirmation) {
       await sendWhatsAppMessageAndPersist({
         accountId,
@@ -2365,36 +2387,7 @@ async function processMessage(
         kind: 'text',
         senderType: 'bot',
         text: confirmation,
-        // The contact was marked dead a line ago, which the dispatcher
-        // refuses sends to. This one is the goodbye they asked for
-        // rather than outreach, so it is the exception.
-        allowDeadContact: alertsCommand === 'close',
       });
-      // The close was about a shared property: the goodbye is followed
-      // by one tap-to-answer list asking why it did not fit, filed on
-      // listing_feedback, the timeline and the journey.
-      if (alertsCommand === 'close') {
-        const dropped = await resolveDroppedProperty({
-          db: supabaseAdmin(),
-          accountId,
-          contact: {
-            id: contactRecord.id,
-            last_inquired_property_id: contactRecord.last_inquired_property_id,
-          },
-          conversationId: conversation.id,
-          contextMessageId: message.context?.id ?? null,
-        });
-        if (dropped) {
-          await sendEnquiryDropoffPrompt({
-            db: supabaseAdmin(),
-            accountId,
-            userId: configOwnerUserId,
-            contactId: contactRecord.id,
-            conversationId: conversation.id,
-            property: dropped,
-          });
-        }
-      }
       // START ALERTS opened a free-form window at the lead's moment of
       // highest intent. Consent alone would waste it: run the first
       // missing rung of the tap ladder, or prove the saved profile

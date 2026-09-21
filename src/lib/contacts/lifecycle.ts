@@ -4,13 +4,16 @@ import type { SupabaseClient } from '@supabase/supabase-js';
  * Dead and archived contacts — the states that keep a contact list
  * worth reading.
  *
- * "Close my enquiry" used to write nothing but
- * `buyer_alerts_consent = 'declined'`, which excludes a contact from
- * broadcast audiences and nothing else: automations, digests, Match
- * Radar, property shares and the matching engine all carried on. A lead
- * who has said they are done is not an alerts preference, so closing an
- * enquiry now marks the contact dead (migration 230) and that state is
- * enforced where sends and matches actually happen.
+ * A lead who has said they are done is not an alerts preference:
+ * `buyer_alerts_consent = 'declined'` excludes a contact from broadcast
+ * audiences and nothing else, while dead (migration 230) is enforced
+ * where sends and matches actually happen — automations, digests,
+ * Match Radar, property shares and the matching engine. What marks a
+ * lead dead from WhatsApp is ending the search, not closing one
+ * listing: "bought elsewhere" on the drop-off list, or "Close my
+ * enquiry" when nothing names a listing and nothing is on their
+ * journey (src/lib/whatsapp/enquiry-close.ts). START ALERTS in the
+ * lead's own words revives them.
  *
  * Dead is not a silent delete. Agents still see the contact and can
  * still reply by hand if the lead calls back — the inbox composer warns
