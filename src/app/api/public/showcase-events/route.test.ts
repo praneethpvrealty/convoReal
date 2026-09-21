@@ -16,6 +16,12 @@ interface QueuedResponse {
 let queues: Record<string, QueuedResponse[]>;
 let inserts: Array<{ table: string; rows: unknown }>;
 
+const { getCurrentAccount } = vi.hoisted(() => ({
+  getCurrentAccount: vi.fn(),
+}));
+
+vi.mock('@/lib/auth/account', () => ({ getCurrentAccount }));
+
 vi.mock('@supabase/supabase-js', () => ({
   createClient: () => ({
     from(table: string) {
@@ -84,6 +90,29 @@ function insertedEvents(): Array<{
 beforeEach(() => {
   queues = { accounts: [{ data: { id: ACCOUNT }, error: null }] };
   inserts = [];
+  getCurrentAccount.mockRejectedValue(new Error('Unauthorized'));
+});
+
+describe('showcase-events beacon — internal workspace exclusion', () => {
+  it('[PRP-011] excludes signed-in members viewing their own showcase', async () => {
+    getCurrentAccount.mockResolvedValue({ accountId: ACCOUNT });
+
+    const res = await POST(beacon());
+
+    expect(res.status).toBe(204);
+    expect(insertedEvents()).toHaveLength(0);
+  });
+
+  it('keeps signed-in members of another workspace as visitors', async () => {
+    getCurrentAccount.mockResolvedValue({
+      accountId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    });
+
+    const res = await POST(beacon());
+
+    expect(res.status).toBe(204);
+    expect(insertedEvents()).toHaveLength(1);
+  });
 });
 
 describe('showcase-events beacon — search activity', () => {
