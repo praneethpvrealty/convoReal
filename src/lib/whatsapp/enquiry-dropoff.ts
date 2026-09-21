@@ -12,8 +12,9 @@
 // Closing one listing is not closing the search, so the thank-you
 // hands over to the enquiry review (the lead's other open enquiries,
 // each closable with a tap) and then the requirement ladder. Only
-// "bought elsewhere" ends the search: that answer marks the contact
-// dead, and its thank-you is the last message.
+// "bought elsewhere" and "not buying right now" end the search: either
+// answer marks the contact dead (START ALERTS revives), and its
+// thank-you is the last message.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
@@ -74,7 +75,9 @@ const REASON_THANKS: Record<DropoffReason, string> = {
 /** What the thank-you hands over to. 'sorted' runs the enquiry review
  *  and then the requirement ladder; 'review' stops at the review, since
  *  the thank-you already asked for a typed reply; 'done' ends there —
- *  the lead is not looking, or not looking now. */
+ *  the lead is not looking, or not looking now, and either answer
+ *  parks the search (dead, so matching and alerts stop) until they
+ *  reply START ALERTS. */
 const REASON_NEXT: Record<DropoffReason, 'sorted' | 'review' | 'done'> = {
   budget: 'sorted',
   location: 'sorted',
@@ -280,13 +283,14 @@ export async function handleEnquiryDropoffReason(args: {
       note_text: `🚪 ${name} dropped ${label}: ${title}`,
     });
 
+    // The close already dropped this branch, so the pair is matched
+    // whatever its status — the reason belongs on the dropped item.
     const { data: item } = await db
       .from('journey_items')
       .select('id')
       .eq('account_id', accountId)
       .eq('contact_id', contact.id)
       .eq('property_id', property.id as string)
-      .eq('status', 'active')
       .maybeSingle();
     if (item) {
       await db.from('journey_events').insert({
@@ -323,13 +327,16 @@ export async function handleEnquiryDropoffReason(args: {
       channels: { inApp: true, push: true, whatsapp: false },
     });
 
-    if (parsed.reason === 'bought_elsewhere') {
+    if (parsed.reason === 'bought_elsewhere' || parsed.reason === 'not_now') {
       await markContactDead({
         db,
         accountId,
         contactId: contact.id,
         reason: 'closed_enquiry',
-        note: `🏠 ${name} bought elsewhere — closed from WhatsApp`,
+        note:
+          parsed.reason === 'bought_elsewhere'
+            ? `🏠 ${name} bought elsewhere — closed from WhatsApp`
+            : `⏸ ${name} is not buying right now — closed from WhatsApp`,
       });
     }
 

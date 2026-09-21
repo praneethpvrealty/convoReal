@@ -15,6 +15,7 @@ import { sendAlertsOnboarding } from '@/lib/whatsapp/alerts-onboarding';
 import { JOURNEY_CHECKIN_KEEP_BUTTON } from '@/lib/whatsapp/journey-checkin-template';
 import { createNotification } from '@/lib/notifications/create';
 import { leadFirstName } from '@/lib/contacts/lead-placeholder';
+import { PAST_ENQUIRY_STAGE_KINDS } from '@/components/journey/shared';
 
 export const ENQUIRY_REVIEW_ID_PREFIX = 'enqrev_';
 export const ENQUIRY_REVIEW_KEEP_ID = `${ENQUIRY_REVIEW_ID_PREFIX}keep`;
@@ -40,6 +41,12 @@ export function enquiryLabel(p: OpenEnquiry['property']): string {
   return title || code || 'the property';
 }
 
+/**
+ * The branches a lead can still close: active, and not already past
+ * the enquiry — a deal at token, legal or registration, or one won, is
+ * still `active` on the journey but is not an open enquiry, and a
+ * one-tap close on it would drop a transaction in flight.
+ */
 export async function loadOpenEnquiries(
   db: SupabaseClient,
   accountId: string,
@@ -47,22 +54,30 @@ export async function loadOpenEnquiries(
 ): Promise<OpenEnquiry[]> {
   const { data } = await db
     .from('journey_items')
-    .select('id, property:properties(id, title, property_code)')
+    .select(
+      'id, property:properties(id, title, property_code), stage:journey_stages!journey_items_stage_id_fkey(stage_kind)'
+    )
     .eq('account_id', accountId)
     .eq('contact_id', contactId)
     .eq('status', 'active')
-    .order('updated_at', { ascending: false })
-    .limit(MAX_REVIEWED_ENQUIRIES);
+    .order('updated_at', { ascending: false });
+  type Stage = { stage_kind: string | null };
   const rows = (data ?? []) as Array<{
     id: string;
     property: OpenEnquiry['property'] | OpenEnquiry['property'][] | null;
+    stage: Stage | Stage[] | null;
   }>;
-  return rows.flatMap((row) => {
-    const property = Array.isArray(row.property)
-      ? row.property[0]
-      : row.property;
-    return property ? [{ itemId: row.id, property }] : [];
-  });
+  const one = <T>(v: T | T[] | null): T | null =>
+    Array.isArray(v) ? (v[0] ?? null) : v;
+  const past = PAST_ENQUIRY_STAGE_KINDS as readonly string[];
+  return rows
+    .flatMap((row) => {
+      const property = one(row.property);
+      const kind = one(row.stage)?.stage_kind ?? null;
+      if (!property || (kind && past.includes(kind))) return [];
+      return [{ itemId: row.id, property }];
+    })
+    .slice(0, MAX_REVIEWED_ENQUIRIES);
 }
 
 /**

@@ -377,7 +377,28 @@ describe('handleEnquiryDropoffReason', () => {
     );
   });
 
-  it('[INB-009] logs nothing on the journey when the pair has no active item', async () => {
+  it('[INB-010] files the reason on the branch the close already dropped', async () => {
+    const { db, calls } = stubDb({
+      properties: [{ ...properties[0], user_id: null }],
+      journey_items: [{ id: 'item-1' }],
+      contacts: [{ assigned_agent_id: null }],
+    });
+
+    await handleEnquiryDropoffReason(baseArgs(db, `lfbd_size_${P1}`));
+
+    // The pair is matched whatever its status: the close dropped the
+    // branch a message ago, and the reason belongs on that item.
+    const filters = calls
+      .filter((c) => c.table === 'journey_items' && c.method === 'eq')
+      .map((c) => c.args[0]);
+    expect(filters).not.toContain('status');
+    expect(
+      calls.find((c) => c.table === 'journey_events' && c.method === 'insert')
+        ?.args[0]
+    ).toMatchObject({ item_id: 'item-1', event_type: 'client_response' });
+  });
+
+  it('[INB-009] logs nothing on the journey when the pair has no item', async () => {
     const { db, calls } = stubDb({
       properties: [{ ...properties[1], user_id: null }],
       journey_items: [null],
@@ -393,11 +414,21 @@ describe('handleEnquiryDropoffReason', () => {
       expect.objectContaining({ userId: 'owner-1' })
     );
     // "Not buying right now" is the lead's answer about the search, so
-    // no review or ladder follows — just the way back in.
+    // no review or ladder follows: the search is parked (matching and
+    // alerts stop) and the thank-you names the way back in.
     expect(continueAfterEnquiryClose).not.toHaveBeenCalled();
-    expect(markContactDead).not.toHaveBeenCalled();
+    expect(markContactDead).toHaveBeenCalledWith(
+      expect.objectContaining({
+        contactId: 'c1',
+        reason: 'closed_enquiry',
+        note: expect.stringContaining('not buying right now'),
+      })
+    );
     expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledWith(
-      expect.objectContaining({ text: expect.stringContaining('START ALERTS') })
+      expect.objectContaining({
+        allowDeadContact: true,
+        text: expect.stringContaining('START ALERTS'),
+      })
     );
   });
 

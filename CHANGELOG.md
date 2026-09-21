@@ -31,9 +31,11 @@ than a written entry. Newest first.
   enquiries as a one-tap list — close any of them or keep them all, each
   answer logged on the journey and the agent notified — and then the
   requirement ladder or their current matches, so the moment ends with both
-  their enquiries and their brief sorted. "Bought elsewhere" and "not buying
-  right now" end there instead; only a close that names no listing on a
-  journey with nothing open still marks the lead dead. START ALERTS in the
+  their enquiries and their brief sorted. Deals already at token, legal,
+  registration or won never appear on that list. "Bought elsewhere" and
+  "not buying right now" park the search instead (the lead is marked dead
+  until they reply START ALERTS); a close that names no listing on a journey
+  with nothing open does the same. START ALERTS in the
   lead's own words now revives a dead contact, un-parks the requirement and
   grants consent before the confirmation and ladder go out.
 

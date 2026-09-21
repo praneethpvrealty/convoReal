@@ -122,10 +122,36 @@ describe('loadOpenEnquiries', () => {
       ['contact_id', 'c1'],
       ['status', 'active'],
     ]);
-    expect(
-      calls.find((c) => c.table === 'journey_items' && c.method === 'limit')
-        ?.args
-    ).toEqual([9]);
+
+    const many = Array.from({ length: 12 }, (_, i) => ({
+      id: `item-${i}`,
+      property: { id: `p-${i}`, title: `Listing ${i}` },
+    }));
+    const { db: manyDb } = stubDb({ journey_items: [many] });
+    expect((await loadOpenEnquiries(manyDb, 'acct-1', 'c1')).length).toBe(9);
+  });
+
+  it('[INB-010] leaves deals at token, legal, registration or won off the list — they are not open enquiries', async () => {
+    const { db } = stubDb({
+      journey_items: [
+        [
+          { ...openRows[0], stage: { stage_kind: 'closing' } },
+          {
+            id: 'item-8',
+            property: { id: 'p8', title: 'Won villa' },
+            stage: [{ stage_kind: 'won' }],
+          },
+          { ...openRows[1], stage: { stage_kind: 'active' } },
+          {
+            id: 'item-9',
+            property: { id: 'p9', title: 'Untyped stage' },
+            stage: null,
+          },
+        ],
+      ],
+    });
+    const open = await loadOpenEnquiries(db, 'acct-1', 'c1');
+    expect(open.map((e) => e.itemId)).toEqual(['item-3', 'item-9']);
   });
 
   it('skips branches whose property is gone', async () => {
