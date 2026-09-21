@@ -22,7 +22,7 @@ describe('missingEngineTemplates', () => {
       'enquiry_timeline_notice',
       'property_enquiry_reminder',
       'purchase_progress_notice',
-      'audio_announcement_notice',
+      'announcement_video_notice',
       'post_call_options',
       'property_share_feedback',
       'contact_number_update',
