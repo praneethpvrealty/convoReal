@@ -282,6 +282,56 @@ describe('share-property — channel selection', () => {
     );
   });
 
+  it('leads the template with the photo the agent chose, never an arbitrary URL', async () => {
+    primeLookups({ windowOpen: false });
+    ctxQueues.properties = [
+      {
+        data: {
+          ...PROPERTY,
+          images: [
+            'property-images/acc-1/front.jpg',
+            'property-images/acc-1/plan.jpg',
+          ],
+        },
+        error: null,
+      },
+    ];
+    adminQueues.message_templates = [
+      { data: [APPROVED_TEMPLATE], error: null },
+    ];
+
+    const res = await POST(
+      request({
+        ...shareBody(),
+        header_image: 'property-images/acc-1/plan.jpg',
+      })
+    );
+    expect((await res.json()).data).toMatchObject({ sent: true });
+    const messageParams = dispatcherCalls[0].messageParams as {
+      headerMediaUrl?: string;
+    };
+    expect(messageParams.headerMediaUrl).toContain('plan.jpg');
+
+    dispatcherCalls = [];
+    primeLookups({ windowOpen: false });
+    ctxQueues.properties = [
+      {
+        data: { ...PROPERTY, images: ['property-images/acc-1/front.jpg'] },
+        error: null,
+      },
+    ];
+    adminQueues.message_templates = [
+      { data: [APPROVED_TEMPLATE], error: null },
+    ];
+    await POST(
+      request({ ...shareBody(), header_image: 'https://evil.example/x.jpg' })
+    );
+    const fallback = dispatcherCalls[0].messageParams as {
+      headerMediaUrl?: string;
+    };
+    expect(fallback.headerMediaUrl).toContain('front.jpg');
+  });
+
   it('sends a dedicated map parameter with the new photo template', async () => {
     primeLookups({ windowOpen: false });
     ctxQueues.properties = [

@@ -60,7 +60,7 @@ export function propertyShareParams(
   templateName: string,
   contactName: string | null | undefined,
   property: Property,
-  brandName?: string | null,
+  brandName?: string | null
 ): string[] {
   const full = buildPropertyAlertParams(contactName, property, brandName);
   const mapUrl = propertyShareMapUrl(property);
@@ -81,10 +81,33 @@ export const PROPERTY_SHARE_TEMPLATE_NAMES = [
   ...PROPERTY_ALERT_TEMPLATE_NAMES,
 ];
 
+export function isEngineShareTemplate(
+  name: string | null | undefined
+): boolean {
+  return Boolean(name && PROPERTY_SHARE_TEMPLATE_NAMES.includes(name));
+}
+
+export function engineShareTemplateLabel(name: string): string {
+  return PROPERTY_ENQUIRY_PHOTOS_TEMPLATE_NAMES.includes(name)
+    ? 'Listing details with photo'
+    : 'Listing details';
+}
+
+export function shareUnsentReason(
+  templateStatus: string | null | undefined
+): string {
+  const status = (templateStatus ?? 'NONE').toUpperCase();
+  if (status === 'NONE')
+    return 'Outside the 24-hour window and no listing template has been submitted to Meta yet';
+  if (status === 'PENDING' || status === 'IN_REVIEW' || status === 'SUBMITTED')
+    return 'Outside the 24-hour window and the listing template is still awaiting Meta approval';
+  return `Outside the 24-hour window and the listing template is ${status.toLowerCase()}`;
+}
+
 /** The first image on a listing that is actually an image — `images`
  *  carries blank strings from half-finished edits. */
 export function firstPropertyImage(
-  images: string[] | null | undefined,
+  images: string[] | null | undefined
 ): string | null {
   return images?.find((img) => img && img.trim().length > 0) ?? null;
 }
@@ -122,7 +145,7 @@ export function shareHeaderImage(params: {
  */
 export function pickPropertyShareTemplate<T extends ApprovedTemplateCandidate>(
   rows: T[],
-  opts: { hasImage: boolean; language?: LanguageCode },
+  opts: { hasImage: boolean; language?: LanguageCode }
 ): T | null {
   // Language narrows the field before the photo/category policy runs,
   // so an account holding a Kannada variant sends it and one holding
@@ -143,7 +166,9 @@ export function pickPropertyShareTemplate<T extends ApprovedTemplateCandidate>(
 /** Utility first within an already-narrowed set, order otherwise
  *  preserved. Category is the one property that decides whether a send
  *  arrives at all for a recipient at their marketing cap. */
-function preferUtility<T extends ApprovedTemplateCandidate>(rows: T[]): T | null {
+function preferUtility<T extends ApprovedTemplateCandidate>(
+  rows: T[]
+): T | null {
   return rows.find((t) => t.category === 'Utility') ?? rows[0] ?? null;
 }
 
@@ -162,15 +187,14 @@ function preferUtility<T extends ApprovedTemplateCandidate>(rows: T[]): T | null
  * matched. The agent can still override in the dropdown; this only
  * decides what is pre-selected.
  */
-export function pickShareDialogTemplate<T extends ApprovedTemplateCandidate & { name: string }>(
-  rows: T[],
-  opts: { hasImage: boolean },
-): T | null {
+export function pickShareDialogTemplate<
+  T extends ApprovedTemplateCandidate & { name: string },
+>(rows: T[], opts: { hasImage: boolean }): T | null {
   const engine = pickPropertyShareTemplate(rows, opts);
   if (engine) return engine;
 
   const named = rows.filter((t) =>
-    /share_property|property_detail|property_share/i.test(t.name),
+    /share_property|property_detail|property_share/i.test(t.name)
   );
   if (named.length > 0) return preferUtility(named);
 

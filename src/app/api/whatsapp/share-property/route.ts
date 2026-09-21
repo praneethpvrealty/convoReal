@@ -33,7 +33,10 @@ export async function POST(request: NextRequest) {
       contact_id?: string;
       property_id?: string;
       message?: string;
+      header_image?: string;
     } | null;
+    const requestedHeader =
+      typeof body?.header_image === 'string' ? body.header_image.trim() : '';
     const contactId =
       typeof body?.contact_id === 'string' ? body.contact_id : '';
     const propertyId =
@@ -76,13 +79,19 @@ export async function POST(request: NextRequest) {
         { status: 404 }
       );
 
+    const listing = property as Property;
+    const headerImage =
+      requestedHeader && (listing.images ?? []).includes(requestedHeader)
+        ? requestedHeader
+        : null;
     const outcome = await sendPropertyToContact({
       accountId: ctx.accountId,
       userId: ctx.userId,
       contactId,
       contactName: (contact.name as string | null) ?? null,
-      property: property as Property,
+      property: listing,
       message,
+      headerImage,
     });
 
     if (outcome.error) {

@@ -335,7 +335,8 @@ export function PropertyList({
         return (
           <div
             key={property.id}
-            className={`group flex flex-col overflow-hidden rounded-xl border bg-slate-900 transition-all duration-300 hover:shadow-md ${
+            onClick={() => onView(property)}
+            className={`group flex cursor-pointer flex-col overflow-hidden rounded-xl border bg-slate-900 transition-all duration-300 hover:shadow-md ${
               selectedIds?.includes(property.id)
                 ? 'border-primary/60 ring-primary/20 ring-1'
                 : 'border-slate-800 hover:border-slate-700'
@@ -346,7 +347,10 @@ export function PropertyList({
               {onToggleSelected && (
                 <button
                   type="button"
-                  onClick={() => onToggleSelected(property.id)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onToggleSelected(property.id);
+                  }}
                   title="Select for shortlist or bulk tagging"
                   className="absolute top-2 left-2 z-10 cursor-pointer rounded-full bg-slate-950/70 p-1 text-slate-300 hover:text-white"
                 >
@@ -362,18 +366,14 @@ export function PropertyList({
                 <img
                   src={mainImage}
                   alt={property.title}
-                  onClick={() => onView(property)}
-                  className="h-full w-full cursor-pointer object-cover transition-transform duration-500 group-hover:scale-105"
+                  className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                   onError={(e) => {
                     // Fallback on load error
                     (e.target as HTMLImageElement).src = '';
                   }}
                 />
               ) : (
-                <div
-                  onClick={() => onView(property)}
-                  className="flex h-full w-full cursor-pointer flex-col items-center justify-center gap-2 text-slate-600"
-                >
+                <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-slate-600">
                   {(property.private_images_count ?? 0) > 0 ? (
                     <Lock className="size-9 opacity-40" />
                   ) : (
@@ -435,7 +435,10 @@ export function PropertyList({
               </div>
 
               {/* Publication Status Overlay */}
-              <div className="absolute top-3 right-3 flex flex-col gap-1.5">
+              <div
+                className="absolute top-3 right-3 flex flex-col gap-1.5"
+                onClick={(e) => e.stopPropagation()}
+              >
                 {onToggleStar && (
                   <button
                     type="button"
@@ -557,7 +560,10 @@ export function PropertyList({
                 <div className="mb-1 flex items-start justify-between gap-3">
                   <button
                     type="button"
-                    onClick={() => onView(property)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onView(property);
+                    }}
                     title={`${property.title}\n${auditTitle}`}
                     className="group-hover:text-primary min-w-0 flex-1 cursor-pointer text-left text-base font-bold text-white transition-colors"
                   >
@@ -646,7 +652,10 @@ export function PropertyList({
                     {importCount > 0 && (
                       <button
                         type="button"
-                        onClick={() => setImportsProperty(property)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setImportsProperty(property);
+                        }}
                         aria-label={`See who added ${property.title} to their inventory`}
                         className="text-primary bg-primary/10 border-primary/25 hover:bg-primary/15 inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[11px] font-bold"
                       >
@@ -1038,7 +1047,10 @@ export function PropertyList({
               </div>
 
               {/* Action Buttons */}
-              <div className="mt-auto flex flex-wrap items-center justify-end gap-2 border-t border-slate-800/60 pt-3">
+              <div
+                className="mt-auto flex flex-wrap items-center justify-end gap-2 border-t border-slate-800/60 pt-3"
+                onClick={(e) => e.stopPropagation()}
+              >
                 {canEdit &&
                   property.status === 'Pending Review' &&
                   onApprove && (
@@ -1073,26 +1085,6 @@ export function PropertyList({
                     </Button>
                   )}
                 <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => onView(property)}
-                          className="h-8 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white"
-                        />
-                      }
-                    >
-                      <>
-                        <Eye className="mr-1.5 size-3.5" /> Details
-                      </>
-                    </TooltipTrigger>
-                    <TooltipContent side="top">
-                      View property details
-                    </TooltipContent>
-                  </Tooltip>
                   {onShare && (
                     <Tooltip>
                       <TooltipTrigger

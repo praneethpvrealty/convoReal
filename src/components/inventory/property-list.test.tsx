@@ -221,7 +221,7 @@ describe('PropertyList — card layout', () => {
     const inline = within(card('Sarjapur Villa'))
       .getAllByRole('button')
       .map((b) => b.textContent?.trim());
-    expect(inline).toContain('Details');
+    expect(inline).not.toContain('Details');
     expect(inline).toContain('Share');
     expect(inline).toContain('Matches');
     expect(
@@ -270,6 +270,33 @@ describe('PropertyList — card layout', () => {
     fireEvent.click(title);
     expect(onView).toHaveBeenCalledWith(expect.objectContaining({ id: 'p1' }));
     expect(screen.queryByText(/^Added /)).toBeNull();
+  });
+
+  it('opens details from anywhere on the card except its own controls', () => {
+    const onView = vi.fn();
+    const onShare = vi.fn();
+    const onToggleSelected = vi.fn();
+    render(
+      <PropertyList
+        properties={[listing('p1', 'Sarjapur Villa')]}
+        {...baseProps}
+        onView={onView}
+        onShare={onShare}
+        selectedIds={[]}
+        onToggleSelected={onToggleSelected}
+      />
+    );
+    fireEvent.click(screen.getByText('Sarjapur, Bangalore'));
+    expect(onView).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Share' }));
+    expect(onShare).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByTitle('Select for shortlist or bulk tagging'));
+    expect(onToggleSelected).toHaveBeenCalledTimes(1);
+    fireEvent.click(
+      screen.getByRole('button', { name: 'More actions for Sarjapur Villa' })
+    );
+    expect(onView).toHaveBeenCalledTimes(1);
   });
 
   it('moves the badges over when the select checkbox shares the corner', () => {
