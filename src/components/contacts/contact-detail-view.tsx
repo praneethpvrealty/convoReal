@@ -130,6 +130,7 @@ import { OwnerDetailsRequestDialog } from '@/components/contacts/owner-details-r
 import { ContactRequirementsDialog } from '@/components/contacts/contact-requirements-dialog';
 import { MoveToEngineDialog } from '@/components/contacts/move-to-engine-dialog';
 import { ShareInventoryDialog } from '@/components/contacts/share-inventory-dialog';
+import { ShowcaseShareDialog } from '@/components/inventory/showcase-share-dialog';
 import { PropertyInterestFollowUpDialog } from '@/components/contacts/property-interest-follow-up-dialog';
 import { PortalInviteDialog } from '@/components/contacts/portal-invite-dialog';
 import { SearchablePropertySelect } from '@/components/ui/searchable-property-select';
@@ -188,6 +189,7 @@ export function ContactDetailView({
   const [moveToEngineOpen, setMoveToEngineOpen] = useState(false);
   const [detailsRequestOpen, setDetailsRequestOpen] = useState(false);
   const [inventoryShareOpen, setInventoryShareOpen] = useState(false);
+  const [shareListingsOpen, setShareListingsOpen] = useState(false);
   const [portalInviteOpen, setPortalInviteOpen] = useState(false);
   const collectsBuyerRequirements =
     contact?.classification === 'Buyer' ||
@@ -1809,7 +1811,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                       <Share2 className="size-3 text-amber-400" />
                       Share Listing
                     </button>
-                    {contact.classification === 'Agent' && (
+                    {contact.classification === 'Agent' ? (
                       <button
                         onClick={() => setInventoryShareOpen(true)}
                         className="flex cursor-pointer items-center gap-1.5 rounded-md border border-violet-500/20 px-2 py-0.5 font-medium text-violet-400 transition-all hover:bg-violet-500/10 hover:text-violet-300"
@@ -1817,6 +1819,17 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                         <Send className="size-3 text-violet-400" />
                         Share Inventory
                       </button>
+                    ) : (
+                      hasPhone(contact) && (
+                        <button
+                          onClick={() => setShareListingsOpen(true)}
+                          className="flex cursor-pointer items-center gap-1.5 rounded-md border border-violet-500/20 px-2 py-0.5 font-medium text-violet-400 transition-all hover:bg-violet-500/10 hover:text-violet-300"
+                          title="Hand-pick listings for this buyer; they are saved to their Portfolio account too"
+                        >
+                          <Send className="size-3 text-violet-400" />
+                          Share Listings
+                        </button>
+                      )
                     )}
                     {collectsBuyerRequirements ? (
                       <button
@@ -3909,6 +3922,23 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                   contactPhone={contact.phone}
                   properties={allProperties}
                   showcaseBaseUrl={getShowcaseBaseUrl()}
+                />
+              )}
+            {contactId &&
+              contact &&
+              hasPhone(contact) &&
+              contact.classification !== 'Agent' && (
+                <ShowcaseShareDialog
+                  key={shareListingsOpen ? contactId : 'closed'}
+                  open={shareListingsOpen}
+                  onOpenChange={setShareListingsOpen}
+                  accountId={accountId}
+                  showcaseSettings={showcaseSettings}
+                  portfolioContact={{
+                    id: contactId,
+                    name: contact.name || null,
+                    phone: contact.phone,
+                  }}
                 />
               )}
           </div>

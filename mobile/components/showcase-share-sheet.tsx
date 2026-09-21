@@ -106,6 +106,7 @@ export function ShowcaseShareSheet({
   activeSearchParams = '',
   activeSearchLabel = '',
   initialPicked,
+  portfolioContact = null,
 }: {
   visible: boolean;
   onClose: () => void;
@@ -114,6 +115,10 @@ export function ShowcaseShareSheet({
   activeSearchParams?: string;
   activeSearchLabel?: string;
   initialPicked?: Property[];
+  /** Opened from a buyer's contact record: that contact is the recipient,
+   *  the hand-picked listings are recorded as shared with them and saved
+   *  to their Portfolio shortlist, and the message says so. */
+  portfolioContact?: Contact | null;
 }) {
   const { colors, fonts: f } = useTheme();
   const { show, close, dialogProps } = useAppDialog();
@@ -123,7 +128,11 @@ export function ShowcaseShareSheet({
 
   const [audience, setAudience] = useState<'client' | 'agent'>('client');
   const [scope, setScope] = useState<ShareScope>(
-    initialSelection.length > 0 ? 'pick' : hasActiveSearch ? 'search' : 'all'
+    initialSelection.length > 0 || portfolioContact
+      ? 'pick'
+      : hasActiveSearch
+        ? 'search'
+        : 'all'
   );
   const [category, setCategory] = useState<ShareCategory>('All');
   const [picked, setPicked] = useState<Property[]>(() =>
@@ -272,6 +281,41 @@ export function ShowcaseShareSheet({
   const hasCustomDigest = digestDraft?.base === autoDigest;
   const message = messageMode === 'list' ? digestText : pitch;
 
+  const portfolioShare = Boolean(
+    portfolioContact && audience === 'client' && scope === 'pick'
+  );
+  const portfolio = useQuery({
+    queryKey: [
+      'share-listings-portfolio',
+      portfolioContact?.id,
+      Math.min(picked.length, 2),
+    ],
+    enabled: visible && portfolioShare && picked.length > 0,
+    queryFn: () =>
+      apiFetch<{
+        data: { linked: boolean; portfolio_url: string; nudge: string };
+      }>(
+        `/api/contacts/${portfolioContact?.id}/share-listings?count=${picked.length}`
+      ),
+  });
+  const portfolioNudge =
+    portfolioShare && picked.length > 0
+      ? (portfolio.data?.data.nudge ?? '')
+      : '';
+
+  async function recordSharedListings() {
+    if (!portfolioContact || scope !== 'pick' || picked.length === 0) return;
+    try {
+      await apiFetch(`/api/contacts/${portfolioContact.id}/share-listings`, {
+        method: 'POST',
+        body: JSON.stringify({ property_ids: picked.map((p) => p.id) }),
+      });
+    } catch {
+      // The message already went out; the ledger and Portfolio catch up on
+      // the next share or on the buyer's next login.
+    }
+  }
+
   const scopeLabel =
     scope === 'search'
       ? `your search “${activeSearchLabel || trimmedSearch}”`
@@ -306,9 +350,12 @@ export function ShowcaseShareSheet({
       messageMode === 'list'
         ? sourceMessage.replaceAll(link, url)
         : sourceMessage.replaceAll('{portalUrl}', url);
-    const body = rendered.includes(url)
+    const linked = rendered.includes(url)
       ? rendered
       : `${rendered.trim()}\n\nExplore the showcase:\n${url}`;
+    const body = portfolioNudge
+      ? `${linked.trim()}\n\n${portfolioNudge}`
+      : linked;
     return greeting
       ? body
           .replace(/^Hi!/, `Hi ${greeting}!`)
@@ -392,6 +439,7 @@ export function ShowcaseShareSheet({
     void Linking.openURL(
       `https://wa.me/${(first.phone ?? '').replace(/\D/g, '')}?text=${encodeURIComponent(messageFor(url, first.name, personalized?.summary))}`
     );
+    void recordSharedListings();
     if (rest.length > 0) {
       show({
         title: 'One chat at a time',
@@ -450,7 +498,10 @@ export function ShowcaseShareSheet({
           : `The showcase link went out from your business number — replies land in your Inbox.`,
       actions: [{ label: 'OK', variant: 'primary', onPress: close }],
     });
-    if (sent > 0) closeSheet();
+    if (sent > 0) {
+      void recordSharedListings();
+      closeSheet();
+    }
   }
 
   /** Template fan-out from the business number. Unlike the free-form
@@ -539,7 +590,10 @@ export function ShowcaseShareSheet({
           : 'The inventory update went out from your business number — replies land in your Inbox.',
       actions: [{ label: 'OK', variant: 'primary', onPress: close }],
     });
-    if (sent > 0) closeSheet();
+    if (sent > 0) {
+      void recordSharedListings();
+      closeSheet();
+    }
   }
 
   /** One-time setup: the definition comes from the server so both
@@ -621,7 +675,13 @@ export function ShowcaseShareSheet({
     <BottomSheet
       visible={visible}
       onClose={closeSheet}
-      title={initialSelection.length > 0 ? 'Share shortlist' : 'Share showcase'}
+      title={
+        portfolioContact
+          ? `Share listings with ${portfolioContact.name?.trim().split(/\s+/)[0] || 'buyer'}`
+          : initialSelection.length > 0
+            ? 'Share shortlist'
+            : 'Share showcase'
+      }
     >
       <ScrollView
         keyboardShouldPersistTaps="handled"
@@ -911,13 +971,18 @@ export function ShowcaseShareSheet({
         ) : null}
 
         <PrimaryButton
-          label="Send to contacts"
-          icon="people-outline"
+          label={
+            portfolioContact
+              ? `Send to ${portfolioContact.name?.trim().split(/\s+/)[0] || portfolioContact.phone || 'contact'}`
+              : 'Send to contacts'
+          }
+          icon={portfolioContact ? 'paper-plane-outline' : 'people-outline'}
           busy={sending}
           disabled={!ready}
           onPress={() => {
             haptic.tap();
-            setRecipients(true);
+            if (portfolioContact) chooseChannel([portfolioContact]);
+            else setRecipients(true);
           }}
         />
       </ScrollView>

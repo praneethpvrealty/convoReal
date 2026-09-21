@@ -42,7 +42,7 @@ interface ShortlistProperty {
 
 interface ShortlistItem {
   id: string;
-  source: 'manual' | 'rating' | 'like';
+  source: 'manual' | 'rating' | 'like' | 'shared';
   created_at: string;
   agency_name: string | null;
   showcase_path: string;
@@ -198,7 +198,8 @@ export function BuyerShortlistContent() {
                   </div>
                   {item.agency_name && (
                     <p className="text-muted-foreground text-[10px] font-medium">
-                      with {item.agency_name}
+                      {item.source === 'shared' ? 'shared by' : 'with'}{' '}
+                      {item.agency_name}
                     </p>
                   )}
                   <div className="mt-1 flex items-center gap-2">

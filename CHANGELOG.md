@@ -19,6 +19,19 @@ than a written entry. Newest first.
 
 #### 21 September 2026
 
+- **Share Listings for buyer contacts, saved to their Portfolio.** A buyer's
+  contact record on web and mobile gains "Share Listings": hand-pick up to 25
+  listings and send them through the existing showcase share flow with that
+  contact already chosen, from the business number or personal WhatsApp. Every
+  send is recorded on the property share ledger and mirrored into the buyer's
+  Portfolio shortlist as "shared by <agency>", so they can compare, keep or
+  drop the listings from their own account; a buyer who has not signed in yet
+  gets the same rows on first login. The message ends with a Portfolio nudge
+  that says whether they already have an account or should sign in with this
+  WhatsApp number. **Migration required:**
+  `20260921120000_buyer_shortlist_shared_source.sql` widens the shortlist
+  source check to accept `shared`.
+
 - **Share Portal now works for agent contacts.** The contact record's "Share
   Portal" action was hidden for anyone classified as an Agent because the
   invite was written for a buyer. It now appears for agents on web and mobile

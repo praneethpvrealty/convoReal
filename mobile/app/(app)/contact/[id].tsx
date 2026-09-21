@@ -35,6 +35,7 @@ import { OwnerDetailsRequestSheet } from '@/components/owner-details-request-she
 import { PortalInviteSheet } from '@/components/portal-invite-sheet';
 import { ContactRequirementsSheet } from '@/components/contact-requirements-sheet';
 import { ContactMergeSheet } from '@/components/contact-merge-sheet';
+import { ShowcaseShareSheet } from '@/components/showcase-share-sheet';
 import { PulseRing } from '@/components/motion';
 import {
   Avatar,
@@ -301,6 +302,7 @@ function ContactCard({ contact }: { contact: Contact }) {
     useState<ApproveCelebrationState | null>(null);
   const [moveToEngineOpen, setMoveToEngineOpen] = useState(false);
   const [inventoryShareOpen, setInventoryShareOpen] = useState(false);
+  const [shareListingsOpen, setShareListingsOpen] = useState(false);
   const [detailsRequestOpen, setDetailsRequestOpen] = useState(false);
   const [portalInviteOpen, setPortalInviteOpen] = useState(false);
   const [requirementsOpen, setRequirementsOpen] = useState(false);
@@ -549,6 +551,13 @@ function ContactCard({ contact }: { contact: Contact }) {
                 label="Share Portal"
                 onPress={() => setPortalInviteOpen(true)}
               />
+              {contact.classification !== 'Agent' ? (
+                <ActionButton
+                  icon="paper-plane-outline"
+                  label="Share Listings"
+                  onPress={() => setShareListingsOpen(true)}
+                />
+              ) : null}
               {!BUYER_PREF_CLASSIFICATIONS.includes(
                 contact.classification ?? 'Others'
               ) ? (
@@ -807,6 +816,14 @@ function ContactCard({ contact }: { contact: Contact }) {
           visible={inventoryShareOpen}
           onClose={() => setInventoryShareOpen(false)}
           contact={contact}
+        />
+      ) : null}
+      {hasPhone(contact) && contact.classification !== 'Agent' ? (
+        <ShowcaseShareSheet
+          key={shareListingsOpen ? contact.id : 'closed'}
+          visible={shareListingsOpen}
+          onClose={() => setShareListingsOpen(false)}
+          portfolioContact={contact}
         />
       ) : null}
       {hasPhone(contact) ? (

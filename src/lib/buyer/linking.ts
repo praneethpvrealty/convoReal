@@ -148,9 +148,10 @@ export async function completeBuyerAuth(args: {
 
 /**
  * Pull the buyer's contact-attributed showcase interest (ratings ≥ 7
- * and likes) into buyer_shortlist_items so the portal shortlist is
- * never empty on first login. ignoreDuplicates keeps manual removals
- * and re-logins from resurrecting or duplicating rows.
+ * and likes) and the listings agents shared with them into
+ * buyer_shortlist_items so the portal shortlist is never empty on
+ * first login. ignoreDuplicates keeps manual removals and re-logins
+ * from resurrecting or duplicating rows.
  */
 async function seedShortlistFromInterest(
   buyerUserId: string,
@@ -163,19 +164,34 @@ async function seedShortlistFromInterest(
     links.map((l) => [l.contactId, l.accountId])
   );
 
-  const [{ data: ratings }, { data: likes }] = await Promise.all([
-    db
-      .from('property_ratings')
-      .select('property_id, contact_id, rating')
-      .in('contact_id', contactIds)
-      .gte('rating', SHORTLIST_SEED_MIN_RATING),
-    db
-      .from('property_likes')
-      .select('property_id, contact_id')
-      .in('contact_id', contactIds),
-  ]);
+  const [{ data: ratings }, { data: likes }, { data: shares }] =
+    await Promise.all([
+      db
+        .from('property_ratings')
+        .select('property_id, contact_id, rating')
+        .in('contact_id', contactIds)
+        .gte('rating', SHORTLIST_SEED_MIN_RATING),
+      db
+        .from('property_likes')
+        .select('property_id, contact_id')
+        .in('contact_id', contactIds),
+      db
+        .from('property_shares')
+        .select('property_id, contact_id')
+        .eq('recipient_kind', 'buyer')
+        .in('contact_id', contactIds),
+    ]);
 
   const rows = new Map<string, Record<string, unknown>>();
+  for (const share of shares || []) {
+    rows.set(share.property_id as string, {
+      buyer_user_id: buyerUserId,
+      account_id: contactToAccount.get(share.contact_id as string),
+      property_id: share.property_id,
+      contact_id: share.contact_id,
+      source: 'shared',
+    });
+  }
   for (const like of likes || []) {
     rows.set(like.property_id as string, {
       buyer_user_id: buyerUserId,
