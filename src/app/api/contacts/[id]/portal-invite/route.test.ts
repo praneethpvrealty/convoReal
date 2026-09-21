@@ -117,6 +117,37 @@ describe('GET /api/contacts/[id]/portal-invite', () => {
     expect(data.message).toContain('Shortlist the ones you like');
   });
 
+  it('[CTM-002] drafts the agent-view invite for a co-broker', async () => {
+    queues['contacts'] = [
+      {
+        data: {
+          id: 'c-1',
+          name: 'Nataraj Kumar',
+          phone: '+919886944961',
+          classification: 'Agent',
+        },
+      },
+    ];
+    queues['showcase_settings'] = [{ data: { subdomain: 'aryavarta' } }];
+    queues['accounts'] = [{ data: { name: 'Aryavarta Realty' } }];
+    queues['profiles'] = [{ data: { full_name: 'Praneeth' } }];
+
+    const res = await GET(
+      new Request('http://test/api/contacts/c-1/portal-invite') as never,
+      { params }
+    );
+    expect(res.status).toBe(200);
+    const { data } = await res.json();
+    expect(data.audience).toBe('agent');
+    expect(data.url).toBe('https://aryavarta.convoreal.com/?mode=view&v=c-1');
+    expect(data.message).toContain('Hi Nataraj 👋');
+    expect(data.message).toContain('The link opens in agent view for you.');
+    expect(data.message).toContain(
+      'forward any listing with your own share link'
+    );
+    expect(data.message).not.toContain('Shortlist the ones you like');
+  });
+
   it('refuses a contact from another account', async () => {
     queues['contacts'] = [{ data: null }];
     const res = await GET(

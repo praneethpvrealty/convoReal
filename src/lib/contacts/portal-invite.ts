@@ -25,18 +25,22 @@ export interface PortalInviteFilters {
   listingType: 'Sale' | 'Rent' | null;
 }
 
+export type PortalInviteAudience = 'buyer' | 'agent';
+
 export interface PortalInviteMessageInput {
   contactName?: string | null;
   agentName?: string | null;
   brandName?: string | null;
   portalUrl: string;
   filters?: PortalInviteFilters | null;
+  audience?: PortalInviteAudience;
 }
 
 export interface PortalInvite {
   message: string;
   url: string;
   filters: PortalInviteFilters;
+  audience: PortalInviteAudience;
 }
 
 export type PortalInviteDelivery = 'free_text' | 'template' | 'personal';
@@ -62,6 +66,12 @@ const titleCase = (value: string) =>
 
 const firstName = (name?: string | null) => clean(name).split(/\s+/)[0] ?? '';
 
+export function portalInviteAudience(
+  contact: Pick<Contact, 'classification'>
+): PortalInviteAudience {
+  return contact.classification === 'Agent' ? 'agent' : 'buyer';
+}
+
 export function portalInviteFilters(contact: Contact): PortalInviteFilters {
   const source = resolveRequirementSource(contact);
   const area = [
@@ -85,7 +95,7 @@ export function portalInviteFilters(contact: Contact): PortalInviteFilters {
 
 export function buildPortalInviteUrl(
   showcaseBase: string,
-  contact: Pick<Contact, 'id'>,
+  contact: Pick<Contact, 'id' | 'classification'>,
   filters: PortalInviteFilters
 ): string {
   const url = new URL(showcaseBase);
@@ -93,6 +103,8 @@ export function buildPortalInviteUrl(
     url.searchParams.set('listing_type', filters.listingType);
   if (filters.category) url.searchParams.set('category', filters.category);
   if (filters.search) url.searchParams.set('search', filters.search);
+  if (portalInviteAudience(contact) === 'agent')
+    url.searchParams.set('mode', 'view');
   url.searchParams.set('v', contact.id);
   return url.toString();
 }
@@ -122,11 +134,33 @@ export function buildPortalInviteMessage({
   brandName,
   portalUrl,
   filters,
+  audience = 'buyer',
 }: PortalInviteMessageInput): string {
   const name = firstName(contactName);
   const greeting = name ? `Hi ${name} 👋` : 'Hi 👋';
   const agent = clean(agentName);
   const brand = clean(brandName);
+  const scope = describePortalInviteFilters(filters);
+
+  if (audience === 'agent') {
+    const intro = agent
+      ? brand
+        ? `I'm ${agent} from ${brand}.`
+        : `I'm ${agent}.`
+      : brand
+        ? `This is ${brand}.`
+        : '';
+    const opensOn = scope
+      ? ` It already opens on ${scope} — clear the filters to see the full inventory.`
+      : '';
+    return [
+      [greeting, intro].filter(Boolean).join('\n'),
+      `Here is our full inventory on our property portal, where every listing is verified and kept up to date by our team:\n${portalUrl}`,
+      `The link opens in agent view for you. Filter by location, budget and property type to find options for your clients, and forward any listing with your own share link — location requests from your clients come to you first, and their details stay with you.${opensOn}`,
+      `Send me the ones your clients want to see and I'll take it forward with photos, exact locations and site visits.`,
+    ].join('\n\n');
+  }
+
   const intro = agent
     ? brand
       ? `I'm ${agent} from ${brand}.`
@@ -134,7 +168,6 @@ export function buildPortalInviteMessage({
     : brand
       ? `This is ${brand}.`
       : '';
-  const scope = describePortalInviteFilters(filters);
   const opensOn = scope
     ? `It already opens on ${scope} for you — change the filters any time to widen the search.`
     : 'Use the filters at the top to narrow it down to exactly what you are looking for.';
@@ -178,6 +211,7 @@ export async function buildPortalInvite(args: {
     agentDisplayName(db, userId),
   ]);
   const filters = portalInviteFilters(contact);
+  const audience = portalInviteAudience(contact);
   const url = buildPortalInviteUrl(base, contact, filters);
   return {
     message: buildPortalInviteMessage({
@@ -186,9 +220,11 @@ export async function buildPortalInvite(args: {
       brandName,
       portalUrl: url,
       filters,
+      audience,
     }),
     url,
     filters,
+    audience,
   };
 }
 

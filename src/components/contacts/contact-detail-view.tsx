@@ -1781,11 +1781,15 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                       <ArrowRightLeft className="size-3 text-emerald-400" />
                       Move to Engine
                     </button>
-                    {hasPhone(contact) && contact.classification !== 'Agent' && (
+                    {hasPhone(contact) && (
                       <button
                         onClick={() => setPortalInviteOpen(true)}
                         className="hover:text-emerald-350 flex cursor-pointer items-center gap-1.5 rounded-md border border-emerald-500/20 px-2 py-0.5 font-medium text-emerald-400 transition-all hover:bg-emerald-500/10"
-                        title="Send the property portal link from business or personal WhatsApp, opened on their requirements"
+                        title={
+                          contact.classification === 'Agent'
+                            ? 'Send the property portal link in agent view from business or personal WhatsApp'
+                            : 'Send the property portal link from business or personal WhatsApp, opened on their requirements'
+                        }
                       >
                         <Globe className="size-3 text-emerald-400" />
                         Share Portal
@@ -3847,22 +3851,20 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                 onUpdated();
               }}
             />
-            {contactId &&
-              contact &&
-              hasPhone(contact) &&
-              contact.classification !== 'Agent' && (
-                <PortalInviteDialog
-                  open={portalInviteOpen}
-                  onOpenChange={setPortalInviteOpen}
-                  contactId={contactId}
-                  contactName={contact.name || ''}
-                  contactPhone={contact.phone}
-                  onSent={() => {
-                    fetchNotes();
-                    onUpdated();
-                  }}
-                />
-              )}
+            {contactId && contact && hasPhone(contact) && (
+              <PortalInviteDialog
+                open={portalInviteOpen}
+                onOpenChange={setPortalInviteOpen}
+                contactId={contactId}
+                contactName={contact.name || ''}
+                contactPhone={contact.phone}
+                contactClassification={contact.classification}
+                onSent={() => {
+                  fetchNotes();
+                  onUpdated();
+                }}
+              />
+            )}
             {/* Move to Engine WhatsApp Dialog */}
             {contact && hasPhone(contact) && (
               <MoveToEngineDialog
