@@ -1,4 +1,4 @@
-// The predefined "audio_announcement_notice" WhatsApp template — the
+// The predefined "announcement_video_notice" WhatsApp template — the
 // closed-window carrier for audio announcements (plan §7, path 2).
 // Meta has no audio header format, so the worker packages the voice
 // note as an mp4 (still card + narration) and this VIDEO-header
@@ -20,9 +20,21 @@ import {
   type ApprovedTemplateCandidate,
 } from '@/lib/whatsapp/pick-approved-template';
 
-export const ANNOUNCEMENT_TEMPLATE_NAME = 'audio_announcement_notice';
+/**
+ * Renamed from audio_announcement_notice: the header is a video, and a
+ * name that says "audio" misdescribes what the recipient is sent. Meta
+ * cannot rename a template, so this is a fresh submission — the legacy
+ * name is approved and keeps sending until this one is.
+ */
+export const ANNOUNCEMENT_TEMPLATE_NAME = 'announcement_video_notice';
 
-export const ANNOUNCEMENT_TEMPLATE_NAMES = [ANNOUNCEMENT_TEMPLATE_NAME];
+/** Earlier names, newest first. Approved and still sending. */
+export const LEGACY_ANNOUNCEMENT_TEMPLATE_NAMES = ['audio_announcement_notice'];
+
+export const ANNOUNCEMENT_TEMPLATE_NAMES = [
+  ANNOUNCEMENT_TEMPLATE_NAME,
+  ...LEGACY_ANNOUNCEMENT_TEMPLATE_NAMES,
+];
 
 /** The announcement template a closed-window send should use. */
 export function pickAnnouncementTemplate<T extends ApprovedTemplateCandidate>(

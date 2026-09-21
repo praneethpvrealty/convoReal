@@ -1323,6 +1323,42 @@
           ]
         }
       ]
+    },
+    {
+      "id": "contact-language",
+      "name": "Contact language — the language every outbound message goes out in",
+      "surfaces": ["web", "mobile"],
+      "invariants": [
+        {
+          "id": "CLG-001",
+          "rule": "Every outbound template send resolves its language as contacts.preferred_language first, accounts.default_language second, English last. A null contact language means unknown and inherits the account default; an explicit 'en' is a choice and overrides a non-English account default. Language is one value per contact, never per action or per channel.",
+          "tests": [
+            {
+              "file": "src/lib/whatsapp/template-language.test.ts",
+              "case": "[CLG-001]"
+            }
+          ],
+          "guards": ["supabase/migrations/246_language_preferences.sql"]
+        },
+        {
+          "id": "CLG-002",
+          "rule": "The contact's language is visible on the contact record and changeable in one tap on web and mobile, without opening the edit form, through PATCH /api/contacts/[id]/language. The picker offers exactly the product languages plus a follow-the-account-default choice, the route accepts only those codes or null, and it writes one column scoped to the caller's account.",
+          "tests": [
+            {
+              "file": "src/app/api/contacts/[id]/language/route.test.ts",
+              "case": "[CLG-002]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[CLG-002]"
+            },
+            {
+              "file": "mobile/lib/languages.test.ts",
+              "case": "[CLG-002]"
+            }
+          ]
+        }
+      ]
     }
   ]
 }
