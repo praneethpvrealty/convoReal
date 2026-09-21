@@ -22,3 +22,21 @@ describe('inventory import status', () => {
     );
   });
 });
+
+describe('import counts', () => {
+  it('keeps only listings someone has actually imported', async () => {
+    const { toImportCountMap, importCountLabel } =
+      await import('./import-activity');
+    expect(
+      toImportCountMap([
+        { property_id: 'p1', import_count: 3 },
+        { property_id: 'p2', import_count: 0 },
+        { property_id: 'p3', import_count: null },
+        { property_id: '', import_count: 2 },
+      ])
+    ).toEqual({ p1: 3 });
+    expect(toImportCountMap(null)).toEqual({});
+    expect(importCountLabel(1)).toBe('Shared by 1 agent');
+    expect(importCountLabel(4)).toBe('Shared by 4 agents');
+  });
+});

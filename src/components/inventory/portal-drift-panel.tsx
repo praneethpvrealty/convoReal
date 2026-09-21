@@ -3,7 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, ExternalLink, X } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ExternalLink, X } from 'lucide-react';
 
 import { formatCurrencyShort } from '@/lib/currency-utils';
 import { PORTALS, type PortalKey } from '@/lib/portals/post-kit';
@@ -84,6 +84,10 @@ function findingDetail(f: PortalDriftFinding): string {
 export function PortalDriftPanel() {
   const { accountId } = useAuth();
   const [isDismissed, setIsDismissed] = useState(false);
+  // One line by default: the count is the alert, the rows are the
+  // detail. Expanded, the panel pushed the filters and the first row
+  // of listings below the fold on every visit.
+  const [expanded, setExpanded] = useState(false);
   const { data: findings, isLoading } = useQuery({
     queryKey: ['portal-drift'],
     queryFn: async () => {
@@ -99,9 +103,7 @@ export function PortalDriftPanel() {
 
   const active = useMemo(() => findings ?? [], [findings]);
   const signature = useMemo(() => findingSignature(active), [active]);
-  const storageKey = accountId
-    ? `${DISMISS_KEY_PREFIX}:${accountId}`
-    : null;
+  const storageKey = accountId ? `${DISMISS_KEY_PREFIX}:${accountId}` : null;
 
   useEffect(() => {
     if (!storageKey) {
@@ -142,60 +144,73 @@ export function PortalDriftPanel() {
 
   return (
     <div className="rounded-lg border border-rose-500/25 bg-rose-500/5 p-3">
-      <div className="mb-2 flex items-center gap-2">
+      <div className="flex items-center gap-2">
         <AlertTriangle className="size-3.5 shrink-0 text-rose-400" />
         <span className="text-xs font-bold text-rose-300">
-          {active.length} portal ad{active.length === 1 ? '' : 's'} out of
-          step with your inventory
+          {active.length} portal ad{active.length === 1 ? '' : 's'} out of step
+          with your inventory
         </span>
-        <span className="truncate text-[11px] text-slate-500">
+        <span className="hidden truncate text-[11px] text-slate-500 md:inline">
           Spotted from the leads and emails already in the Engine — the row
           clears itself once the ad and the listing agree again.
         </span>
         <button
           type="button"
+          onClick={() => setExpanded((v) => !v)}
+          aria-expanded={expanded}
+          className="ml-auto inline-flex h-6 shrink-0 items-center gap-1 rounded-md border border-rose-400/30 px-2 text-[11px] font-semibold text-rose-300 transition hover:border-rose-300 hover:bg-rose-500/10"
+        >
+          {expanded ? 'Hide' : 'Show'}
+          <ChevronDown
+            className={`size-3.5 transition-transform ${expanded ? 'rotate-180' : ''}`}
+          />
+        </button>
+        <button
+          type="button"
           onClick={hideBanner}
           aria-label="Dismiss portal discrepancy banner"
-          className="ml-auto inline-flex h-6 w-6 items-center justify-center rounded-md border border-rose-400/30 text-rose-300 transition hover:border-rose-300 hover:bg-rose-500/10"
+          className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-rose-400/30 text-rose-300 transition hover:border-rose-300 hover:bg-rose-500/10"
         >
           <X className="size-3.5" />
         </button>
       </div>
 
-      <div className="space-y-2">
-        {active.map((f) => (
-          <div
-            key={`${f.portal}:${f.portalListingId}:${f.driftKind}`}
-            className="rounded-md border border-slate-800 bg-slate-900/60 p-2.5"
-          >
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs font-bold text-white">
-                {findingHeadline(f)}
-              </span>
-              <span className="rounded bg-slate-800 px-1.5 py-0.5 text-[9px] font-bold text-slate-300">
-                {portalLabel(f.portal)} ad {f.portalListingId}
-              </span>
-              <span className="truncate text-[11px] text-slate-400">
-                {f.propertyTitle || 'Untitled listing'}
-                {f.propertyCode ? ` (${f.propertyCode})` : ''}
-              </span>
-              {f.listingUrl && (
-                <a
-                  href={f.listingUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="ml-auto flex shrink-0 items-center gap-1 text-[11px] font-semibold text-rose-300 hover:text-rose-200"
-                >
-                  View ad <ExternalLink className="size-3" />
-                </a>
-              )}
+      {expanded && (
+        <div className="mt-2 space-y-2">
+          {active.map((f) => (
+            <div
+              key={`${f.portal}:${f.portalListingId}:${f.driftKind}`}
+              className="rounded-md border border-slate-800 bg-slate-900/60 p-2.5"
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-bold text-white">
+                  {findingHeadline(f)}
+                </span>
+                <span className="rounded bg-slate-800 px-1.5 py-0.5 text-[11px] font-bold text-slate-300">
+                  {portalLabel(f.portal)} ad {f.portalListingId}
+                </span>
+                <span className="truncate text-[11px] text-slate-400">
+                  {f.propertyTitle || 'Untitled listing'}
+                  {f.propertyCode ? ` (${f.propertyCode})` : ''}
+                </span>
+                {f.listingUrl && (
+                  <a
+                    href={f.listingUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="ml-auto flex shrink-0 items-center gap-1 text-[11px] font-semibold text-rose-300 hover:text-rose-200"
+                  >
+                    View ad <ExternalLink className="size-3" />
+                  </a>
+                )}
+              </div>
+              <p className="mt-0.5 text-[11px] text-slate-500">
+                {findingDetail(f)}
+              </p>
             </div>
-            <p className="mt-0.5 text-[11px] text-slate-500">
-              {findingDetail(f)}
-            </p>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

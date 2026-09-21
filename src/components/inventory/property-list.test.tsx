@@ -179,3 +179,117 @@ describe('PropertyList — pending review verdicts', () => {
     });
   });
 });
+
+// ============================================================
+// The card after the action row was cut down: three inline buttons
+// and one overflow menu, with the destructive actions last inside it.
+// ============================================================
+
+const listing = (id: string, title: string, extra: Partial<Property> = {}) =>
+  ({
+    ...pending(id, title),
+    status: 'Available',
+    ...extra,
+  }) as unknown as Property;
+
+async function openMenu(title: string) {
+  const trigger = screen.getByRole('button', {
+    name: `More actions for ${title}`,
+  });
+  fireEvent.mouseDown(trigger);
+  fireEvent.click(trigger);
+  return screen.findAllByRole('menuitem');
+}
+
+describe('PropertyList — card layout', () => {
+  it('keeps delete and archive out of the inline row and behind the menu', async () => {
+    const onDelete = vi.fn();
+    const onArchive = vi.fn<(p: Property) => Promise<void>>(async () => {});
+    render(
+      <PropertyList
+        properties={[listing('p1', 'Sarjapur Villa')]}
+        {...baseProps}
+        onDelete={onDelete}
+        onArchive={onArchive}
+        onShare={() => {}}
+        onMatches={() => {}}
+        onFlyer={() => {}}
+        onEmailShare={() => {}}
+      />
+    );
+
+    const inline = within(card('Sarjapur Villa'))
+      .getAllByRole('button')
+      .map((b) => b.textContent?.trim());
+    expect(inline).toContain('Details');
+    expect(inline).toContain('Share');
+    expect(inline).toContain('Matches');
+    expect(
+      inline.some((t) => /flyer|email|delete|archive/i.test(t ?? ''))
+    ).toBe(false);
+
+    const items = await openMenu('Sarjapur Villa');
+    const labels = items.map((i) => i.textContent?.trim());
+    expect(labels.slice(-2)).toEqual(['Archive', 'Delete…']);
+    expect(labels).toContain('AI flyer');
+    expect(labels).toContain('Share via email');
+
+    fireEvent.click(items[items.length - 1]);
+    expect(onDelete).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows the import chip only where someone has imported the listing', () => {
+    render(
+      <PropertyList
+        properties={[
+          listing('p1', 'Sarjapur Villa'),
+          listing('p2', 'Whitefield Flat'),
+        ]}
+        {...baseProps}
+        importCounts={{ p1: 2 }}
+      />
+    );
+    expect(screen.getAllByText('Shared by 2 agents')).toHaveLength(1);
+    expect(screen.queryByText(/added to inventories/i)).toBeNull();
+    expect(
+      within(card('Whitefield Flat')).queryByText(/shared by/i)
+    ).toBeNull();
+  });
+
+  it('opens details from the title and carries the audit dates in its tooltip', () => {
+    const onView = vi.fn();
+    render(
+      <PropertyList
+        properties={[listing('p1', 'Sarjapur Villa')]}
+        {...baseProps}
+        onView={onView}
+      />
+    );
+    const title = screen.getByText('Sarjapur Villa').closest('button')!;
+    expect(title.getAttribute('title')).toMatch(/Added .*Modified/);
+    fireEvent.click(title);
+    expect(onView).toHaveBeenCalledWith(expect.objectContaining({ id: 'p1' }));
+    expect(screen.queryByText(/^Added /)).toBeNull();
+  });
+
+  it('moves the badges over when the select checkbox shares the corner', () => {
+    const { container, rerender } = render(
+      <PropertyList
+        properties={[listing('p1', 'Sarjapur Villa')]}
+        {...baseProps}
+      />
+    );
+    const badges = () =>
+      container.querySelector('.absolute.top-3.flex.flex-wrap') as HTMLElement;
+    expect(badges().className).toContain('left-3');
+    rerender(
+      <PropertyList
+        properties={[listing('p1', 'Sarjapur Villa')]}
+        {...baseProps}
+        selectedIds={[]}
+        onToggleSelected={() => {}}
+      />
+    );
+    expect(badges().className).toContain('left-10');
+  });
+});

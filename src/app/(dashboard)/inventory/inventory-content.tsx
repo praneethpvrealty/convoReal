@@ -48,12 +48,22 @@ import {
   X,
   Map as MapIcon,
   LayoutGrid,
+  Rows3,
   LocateFixed,
 } from 'lucide-react';
 import { PropertyForm } from '@/components/inventory/property-form';
 import { PropertyMapView } from '@/components/inventory/property-map-view';
 import { useT } from '@/hooks/use-locale';
 import { PropertyList } from '@/components/inventory/property-list';
+import { PropertyTable } from '@/components/inventory/property-table';
+import {
+  DEFAULT_PROPERTY_SORT,
+  PROPERTY_SORTS,
+  nextColumnSort,
+  propertySortByKey,
+  type PropertySort,
+} from '@/lib/inventory/property-sorts';
+import type { ImportCountMap } from '@/lib/inventory/import-activity';
 import {
   LocalityAutocomplete,
   type PickedLocality,
@@ -86,6 +96,11 @@ const EMPTY_BADGES: Record<string, PortalBadge[]> = {};
 const EMPTY_GATE_STATS: GateStatsMap = {};
 
 const EMPTY_COUNTS: Record<string, number> = {};
+const EMPTY_IMPORT_COUNTS: ImportCountMap = {};
+
+// The four summary tiles double as filters. 'closed' is Sold plus
+// Under Contract, the same pair the tile counts.
+type TileFilter = 'all' | 'showcased' | 'available' | 'closed';
 const DEFAULT_NEAR_ME_RADIUS_KM = 5;
 const DEFAULT_LOCALITY_RADIUS_KM = 10;
 
@@ -122,7 +137,7 @@ export default function InventoryPage() {
     longitude: number;
   } | null>(null);
   const [locating, setLocating] = useState(false);
-  const [view, setView] = useState<'grid' | 'map'>('grid');
+  const [view, setView] = useState<'grid' | 'table' | 'map'>('grid');
   // Mobile-only: search + locality live behind a floating lens button
   // (the two bars ate half the viewport and were unreachable once
   // scrolled into the list). Desktop keeps the inline bars.
@@ -146,19 +161,34 @@ export default function InventoryPage() {
   const [reviewTab, setReviewTab] = useState<'all' | 'review' | 'archived'>(
     'all'
   );
+  const [tileFilter, setTileFilter] = useState<TileFilter>('all');
   const statusFilter =
     reviewTab === 'review'
       ? 'Pending Review'
       : reviewTab === 'archived'
         ? 'Archived'
-        : 'All';
-  const [showcaseFilter] = useState('All');
+        : tileFilter === 'available'
+          ? 'Available'
+          : tileFilter === 'closed'
+            ? 'Sold,Under Contract'
+            : 'All';
+  const showcaseFilter = tileFilter === 'showcased' ? 'Showcased' : 'All';
   const [sourceFilter, setSourceFilter] = useState<'All' | 'Owner' | 'Agent'>(
     'All'
   );
-  const [sortBy, setSortBy] = useState<'created_at' | 'updated_at'>(
-    'created_at'
-  );
+  const [sort, setSort] = useState<PropertySort>(DEFAULT_PROPERTY_SORT);
+
+  function selectTile(tile: TileFilter) {
+    setTileFilter((current) => (current === tile ? 'all' : tile));
+    setReviewTab('all');
+    setPage(0);
+  }
+
+  function selectReviewTab(tab: 'all' | 'review' | 'archived') {
+    setReviewTab(tab);
+    if (tab !== 'all') setTileFilter('all');
+    setPage(0);
+  }
 
   // Modals state
   const [formOpen, setFormOpen] = useState(false);
@@ -284,7 +314,7 @@ export default function InventoryPage() {
     }
     if (typeFilter !== 'All') params.set('type', typeFilter);
     if (statusFilter !== 'All') params.set('status', statusFilter);
-    if (reviewTab === 'all') params.set('exclude_archived', 'true');
+    else if (reviewTab === 'all') params.set('exclude_archived', 'true');
     if (showcaseFilter !== 'All')
       params.set(
         'is_published',
@@ -295,8 +325,8 @@ export default function InventoryPage() {
         'listing_source',
         sourceFilter === 'Owner' ? 'owner' : 'agent'
       );
-    params.set('sort', sortBy);
-    params.set('order', 'desc');
+    params.set('sort', sort.field);
+    params.set('order', sort.order);
     return params.toString();
   }, [
     page,
@@ -308,7 +338,7 @@ export default function InventoryPage() {
     statusFilter,
     showcaseFilter,
     sourceFilter,
-    sortBy,
+    sort,
     reviewTab,
   ]);
 
@@ -824,6 +854,24 @@ export default function InventoryPage() {
     staleTime: 60_000,
   });
   const gateStats = gateStatsQuery.data ?? EMPTY_GATE_STATS;
+
+  // Copies of each listing held by other agencies. Same shape as the
+  // gate rollup: one RPC, only listings with at least one copy.
+  const importCountsQuery = useQuery({
+    queryKey: ['inventory', 'import-counts', accountId],
+    queryFn: async (): Promise<ImportCountMap> => {
+      const res = await fetch('/api/properties/import-counts');
+      if (!res.ok) return {};
+      const json = await res.json();
+      const data = json?.data;
+      return data && typeof data === 'object' && !Array.isArray(data)
+        ? (data as ImportCountMap)
+        : {};
+    },
+    enabled: Boolean(accountId),
+    staleTime: 60_000,
+  });
+  const importCounts = importCountsQuery.data ?? EMPTY_IMPORT_COUNTS;
   const [gateRequestsProperty, setGateRequestsProperty] =
     useState<Property | null>(null);
 
@@ -991,6 +1039,19 @@ export default function InventoryPage() {
   // each pill yields on the All Listings tab — and are held back until
   // the stats load so the labels don't flash "(0)".
   const statsReady = Boolean(globalStatsQuery.data);
+
+  // The select lists the five shared orders plus, while a table column
+  // sort is active that the list does not cover, that one — so the
+  // trigger always names the order in force rather than a raw key.
+  const sortItems = useMemo(() => {
+    const listed = PROPERTY_SORTS.map((s) => ({
+      value: s.key,
+      label: s.label,
+    }));
+    return PROPERTY_SORTS.some((s) => s.key === sort.key)
+      ? listed
+      : [...listed, { value: sort.key, label: sort.label }];
+  }, [sort]);
   const sourcePills = [
     { value: 'All', label: 'All', count: stats.activeTotal },
     { value: 'Owner', label: 'Direct', count: stats.direct },
@@ -998,7 +1059,7 @@ export default function InventoryPage() {
   ] as const;
 
   return (
-    <div className="flex flex-1 flex-col space-y-6 p-6">
+    <div className="flex flex-1 flex-col space-y-6 px-6 pt-6 pb-32">
       {/* Page Header */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
@@ -1050,298 +1111,330 @@ export default function InventoryPage() {
         </div>
       </div>
 
-      {/* Stats Summary Panel */}
+      {/* Stats Summary Panel — each tile filters the list below. The
+          first counts active stock, the same rows the All pill counts,
+          so the two numbers agree; archived listings have their own tab. */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <div className="flex items-center gap-4 rounded-xl border border-slate-800 bg-slate-900 p-4">
-          <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-slate-800 text-slate-400">
-            <Building className="size-5" />
-          </div>
-          <div>
-            <div className="text-2xl font-bold text-white">
-              <AnimatedCounter value={stats.total} />
+        {(
+          [
+            {
+              key: 'all' as const,
+              value: stats.activeTotal,
+              label: 'Active Listings',
+              icon: Building,
+              iconClass: 'bg-slate-800 text-slate-400',
+              hint:
+                stats.total - stats.activeTotal > 0
+                  ? `Listings not archived. ${stats.total - stats.activeTotal} archived ${stats.total - stats.activeTotal === 1 ? 'listing is' : 'listings are'} on the Archived tab.`
+                  : 'Listings not archived.',
+              pressed: tileFilter === 'all' && reviewTab === 'all',
+              filterLabel: 'Show all active listings',
+            },
+            {
+              key: 'showcased' as const,
+              value: stats.published,
+              label: 'Showcased Publicly',
+              icon: Eye,
+              iconClass: 'bg-primary/10 text-primary',
+              hint: 'Properties currently visible to clients on your public Showcase portal. Click to show only these.',
+              pressed: tileFilter === 'showcased',
+              filterLabel: 'Show only showcased listings',
+            },
+            {
+              key: 'available' as const,
+              value: stats.available,
+              label: 'Available Units',
+              icon: CheckCircle,
+              iconClass: 'bg-green-500/10 text-green-400',
+              hint: 'Active property listings that are currently available for purchase or lease. Click to show only these.',
+              pressed: tileFilter === 'available',
+              filterLabel: 'Show only available listings',
+            },
+            {
+              key: 'closed' as const,
+              value: stats.soldOrContract,
+              label: 'Sold / Under Contract',
+              icon: Tag,
+              iconClass: 'bg-amber-500/10 text-amber-400',
+              hint: 'Properties that have been sold or are currently locked under a contract. Click to show only these.',
+              pressed: tileFilter === 'closed',
+              filterLabel: 'Show only sold or under-contract listings',
+            },
+          ] as const
+        ).map((tile) => (
+          <div
+            key={tile.key}
+            className={`relative flex items-center rounded-xl border bg-slate-900 transition-colors ${
+              tile.pressed
+                ? 'border-primary/60 ring-primary/20 ring-1'
+                : 'border-slate-800 hover:border-slate-700'
+            }`}
+          >
+            <button
+              type="button"
+              onClick={() => selectTile(tile.key)}
+              aria-pressed={tile.pressed}
+              aria-label={tile.filterLabel}
+              className="flex flex-1 cursor-pointer items-center gap-4 p-4 text-left"
+            >
+              <div
+                className={`flex size-10 shrink-0 items-center justify-center rounded-lg ${tile.iconClass}`}
+              >
+                <tile.icon className="size-5" />
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-white">
+                  <AnimatedCounter value={tile.value} />
+                </div>
+                <div className="text-xs font-medium text-slate-400">
+                  {tile.label}
+                </div>
+              </div>
+            </button>
+            <div className="absolute top-2 right-2">
+              <InfoHint text={tile.hint} />
             </div>
-            <div className="flex items-center text-xs font-medium text-slate-400">
-              Total Listings
-              <InfoHint text="Total number of properties registered in your database." />
-            </div>
           </div>
-        </div>
-
-        <div className="flex items-center gap-4 rounded-xl border border-slate-800 bg-slate-900 p-4">
-          <div className="bg-primary/10 text-primary flex size-10 shrink-0 items-center justify-center rounded-lg">
-            <Eye className="size-5" />
-          </div>
-          <div>
-            <div className="text-2xl font-bold text-white">
-              <AnimatedCounter value={stats.published} />
-            </div>
-            <div className="flex items-center text-xs font-medium text-slate-400">
-              Showcased Publicly
-              <InfoHint text="Properties currently visible to clients on your public Showcase portal." />
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-4 rounded-xl border border-slate-800 bg-slate-900 p-4">
-          <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-green-500/10 text-green-400">
-            <CheckCircle className="size-5" />
-          </div>
-          <div>
-            <div className="text-2xl font-bold text-white">
-              <AnimatedCounter value={stats.available} />
-            </div>
-            <div className="flex items-center text-xs font-medium text-slate-400">
-              Available Units
-              <InfoHint text="Active property listings that are currently available for purchase or lease." />
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-4 rounded-xl border border-slate-800 bg-slate-900 p-4">
-          <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-amber-500/10 text-amber-400">
-            <Tag className="size-5" />
-          </div>
-          <div>
-            <div className="text-2xl font-bold text-white">
-              <AnimatedCounter value={stats.soldOrContract} />
-            </div>
-            <div className="flex items-center text-xs font-medium text-slate-400">
-              Sold / Under Contract
-              <InfoHint text="Properties that have been sold or are currently locked under a contract." />
-            </div>
-          </div>
-        </div>
+        ))}
       </div>
 
       <PortalDriftPanel />
 
-      {/* Review Tabs */}
-      <div className="flex items-center gap-1 border-b border-slate-800">
-        <button
-          type="button"
-          onClick={() => {
-            setReviewTab('all');
-            setPage(0);
-          }}
-          className={`border-b-2 px-4 py-2 text-sm font-semibold transition-colors ${
-            reviewTab === 'all'
-              ? 'border-primary text-white'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          All Listings
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setReviewTab('review');
-            setPage(0);
-          }}
-          className={`flex items-center gap-1.5 border-b-2 px-4 py-2 text-sm font-semibold transition-colors ${
-            reviewTab === 'review'
-              ? 'border-primary text-white'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          Review
-          {stats.pendingReview > 0 && (
-            <span className="rounded-full bg-purple-500/20 px-1.5 py-0.5 text-[10px] font-bold text-purple-300">
-              {stats.pendingReview}
-            </span>
-          )}
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setReviewTab('archived');
-            setPage(0);
-          }}
-          className={`flex items-center gap-1.5 border-b-2 px-4 py-2 text-sm font-semibold transition-colors ${
-            reviewTab === 'archived'
-              ? 'border-primary text-white'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <Archive className="size-3.5" />
-          Archived
-        </button>
+      {/* Filters: status tabs, listing-party pills and view toggle on
+          the top row, search and sort beneath — one control block
+          rather than two stacked tiers. */}
+      <div className="rounded-xl border border-slate-800/80 bg-slate-900/60">
+        <div className="flex items-center gap-1 border-b border-slate-800 px-2">
+          <button
+            type="button"
+            onClick={() => selectReviewTab('all')}
+            className={`border-b-2 px-4 py-2 text-sm font-semibold transition-colors ${
+              reviewTab === 'all'
+                ? 'border-primary text-white'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            All Listings
+          </button>
+          <button
+            type="button"
+            onClick={() => selectReviewTab('review')}
+            className={`flex items-center gap-1.5 border-b-2 px-4 py-2 text-sm font-semibold transition-colors ${
+              reviewTab === 'review'
+                ? 'border-primary text-white'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            Review
+            {stats.pendingReview > 0 && (
+              <span className="rounded-full bg-purple-500/20 px-1.5 py-0.5 text-[10px] font-bold text-purple-300">
+                {stats.pendingReview}
+              </span>
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => selectReviewTab('archived')}
+            className={`flex items-center gap-1.5 border-b-2 px-4 py-2 text-sm font-semibold transition-colors ${
+              reviewTab === 'archived'
+                ? 'border-primary text-white'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Archive className="size-3.5" />
+            Archived
+          </button>
 
-        {/* Listing party — who the listing belongs to. 'Owner' is
+          {/* Listing party — who the listing belongs to. 'Owner' is
             owner-direct (incl. WhatsApp/web self-listings, which the
             API groups under 'owner' only when stored that way);
             'Agent' is co-broked stock referred by an outside agent
             (owner_contact_id holds the referring agent's card). */}
-        <div className="ml-4 hidden items-center gap-1 pb-1.5 sm:flex">
-          {sourcePills.map(({ value, label, count }) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => {
-                setSourceFilter(value);
-                setPage(0);
-              }}
-              className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
-                sourceFilter === value
-                  ? 'border-primary bg-primary/10 text-primary'
-                  : 'border-slate-700 text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              {label}
-              {statsReady ? ` (${count})` : ''}
-            </button>
-          ))}
-        </div>
-
-        <div className="ml-auto flex items-center gap-1 pb-1.5">
-          {[
-            {
-              value: 'grid' as const,
-              icon: LayoutGrid,
-              label: t('inventory.listView'),
-            },
-            {
-              value: 'map' as const,
-              icon: MapIcon,
-              label: t('inventory.mapView'),
-            },
-          ].map(({ value, icon: Icon, label }) => (
-            <button
-              key={value}
-              type="button"
-              aria-label={label}
-              title={label}
-              onClick={() => setView(value)}
-              className={`flex h-8 w-8 items-center justify-center rounded-lg border transition-colors ${
-                view === value
-                  ? 'border-primary bg-primary/10 text-primary'
-                  : 'border-slate-700 text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <Icon className="size-4" />
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Search Bar — inline on md+; on mobile it lives behind the
-          floating lens button below so it costs no vertical space. */}
-      <div className="hidden space-y-3 rounded-xl border border-slate-800/80 bg-slate-900/60 p-4 md:block">
-        <div className="flex flex-col gap-3 md:flex-row">
-          <div className="relative flex-1">
-            <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-500" />
-            <Input
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-              }}
-              placeholder="e.g. residential properties > 10 Cr, 3 BHK villa"
-              className="h-9 border-slate-700 bg-slate-800 pr-9 pl-9 text-white placeholder:text-slate-500"
-            />
-            {search && (
+          <div className="ml-4 hidden items-center gap-1 pb-1.5 sm:flex">
+            {sourcePills.map(({ value, label, count }) => (
               <button
+                key={value}
                 type="button"
-                onClick={clearSearchQuery}
-                aria-label="Clear inventory search query"
-                className="absolute top-1/2 right-2.5 -translate-y-1/2 text-slate-400 hover:text-white"
-              >
-                <X className="size-3.5" />
-              </button>
-            )}
-          </div>
-          <div className="w-full md:w-80">
-            <LocalityAutocomplete
-              value={locationText}
-              onChange={(text) => {
-                setLocationText(text);
-                // Clearing/retyping the text drops the active place filter
-                if (pickedPlace && text !== pickedPlace.name)
-                  setPickedPlace(null);
-              }}
-              onPick={(place) => {
-                setNearMe(null);
-                setPickedPlace(place);
-                setLocationText(place.name);
-                setRadiusKm(DEFAULT_LOCALITY_RADIUS_KM);
-              }}
-              placeholder="Filter by locality (Google Maps)"
-            />
-          </div>
-          <button
-            type="button"
-            onClick={handleNearMe}
-            disabled={locating}
-            className={`flex h-9 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold transition-colors ${
-              nearMe
-                ? 'border-primary/50 bg-primary/15 text-primary'
-                : 'border-slate-700 bg-slate-800 text-slate-300 hover:text-white'
-            }`}
-          >
-            {locating ? (
-              <Loader2 className="size-3.5 animate-spin" />
-            ) : (
-              <LocateFixed className="size-3.5" />
-            )}
-            {t('inventory.nearMe')}
-          </button>
-          <Select
-            value={sortBy}
-            onValueChange={(value) => {
-              setSortBy(value === 'updated_at' ? 'updated_at' : 'created_at');
-              setPage(0);
-            }}
-          >
-            <SelectTrigger className="h-9 w-full border-slate-700 bg-slate-800 text-xs font-semibold text-white md:w-44">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="border-slate-700 bg-slate-900 text-slate-200">
-              <SelectItem value="created_at">Recently added</SelectItem>
-              <SelectItem value="updated_at">Recently modified</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        {(pickedPlace || nearMe) && (
-          <div className="flex flex-wrap items-center gap-2 text-xs">
-            <span className="text-slate-400">
-              {pickedPlace ? (
-                <>
-                  Showing matches in{' '}
-                  <span className="font-semibold text-white">
-                    {pickedPlace.name}
-                  </span>{' '}
-                  first, then within
-                </>
-              ) : (
-                <>{t('inventory.nearYou')}</>
-              )}
-            </span>
-            {[2, 5, 10, 25].map((r) => (
-              <button
-                key={r}
-                type="button"
-                onClick={() => setRadiusKm(r)}
-                className={`rounded-full border px-2 py-0.5 font-semibold transition-colors ${
-                  radiusKm === r
-                    ? 'bg-primary/15 border-primary/50 text-primary'
-                    : 'border-slate-700 bg-slate-800 text-slate-400 hover:text-slate-200'
+                onClick={() => {
+                  setSourceFilter(value);
+                  setPage(0);
+                }}
+                className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
+                  sourceFilter === value
+                    ? 'border-primary bg-primary/10 text-primary'
+                    : 'border-slate-700 text-slate-400 hover:text-slate-200'
                 }`}
               >
-                {r} km
+                {label}
+                {statsReady ? ` (${count})` : ''}
               </button>
             ))}
+          </div>
+
+          <div className="ml-auto flex items-center gap-1 pb-1.5">
+            {[
+              {
+                value: 'grid' as const,
+                icon: LayoutGrid,
+                label: t('inventory.listView'),
+              },
+              {
+                value: 'table' as const,
+                icon: Rows3,
+                label: t('inventory.tableView'),
+              },
+              {
+                value: 'map' as const,
+                icon: MapIcon,
+                label: t('inventory.mapView'),
+              },
+            ].map(({ value, icon: Icon, label }) => (
+              <button
+                key={value}
+                type="button"
+                aria-label={label}
+                title={label}
+                onClick={() => setView(value)}
+                className={`flex h-8 w-8 items-center justify-center rounded-lg border transition-colors ${
+                  view === value
+                    ? 'border-primary bg-primary/10 text-primary'
+                    : 'border-slate-700 text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Icon className="size-4" />
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Search Bar — inline on md+; on mobile it lives behind the
+          floating lens button below so it costs no vertical space. */}
+        <div className="hidden space-y-3 p-4 md:block">
+          <div className="flex flex-col gap-3 md:flex-row">
+            <div className="relative flex-1">
+              <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-500" />
+              <Input
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                }}
+                placeholder="e.g. residential properties > 10 Cr, 3 BHK villa"
+                className="h-9 border-slate-700 bg-slate-800 pr-9 pl-9 text-white placeholder:text-slate-500"
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={clearSearchQuery}
+                  aria-label="Clear inventory search query"
+                  className="absolute top-1/2 right-2.5 -translate-y-1/2 text-slate-400 hover:text-white"
+                >
+                  <X className="size-3.5" />
+                </button>
+              )}
+            </div>
+            <div className="w-full md:w-80">
+              <LocalityAutocomplete
+                value={locationText}
+                onChange={(text) => {
+                  setLocationText(text);
+                  // Clearing/retyping the text drops the active place filter
+                  if (pickedPlace && text !== pickedPlace.name)
+                    setPickedPlace(null);
+                }}
+                onPick={(place) => {
+                  setNearMe(null);
+                  setPickedPlace(place);
+                  setLocationText(place.name);
+                  setRadiusKm(DEFAULT_LOCALITY_RADIUS_KM);
+                }}
+                placeholder="Filter by locality (Google Maps)"
+              />
+            </div>
             <button
               type="button"
-              onClick={() => {
-                setPickedPlace(null);
-                setNearMe(null);
-                setLocationText('');
-              }}
-              className="ml-1 rounded-full border border-slate-700 bg-slate-800 px-2 py-0.5 font-semibold text-slate-400 hover:text-white"
+              onClick={handleNearMe}
+              disabled={locating}
+              className={`flex h-9 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold transition-colors ${
+                nearMe
+                  ? 'border-primary/50 bg-primary/15 text-primary'
+                  : 'border-slate-700 bg-slate-800 text-slate-300 hover:text-white'
+              }`}
             >
-              Clear ✕
+              {locating ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <LocateFixed className="size-3.5" />
+              )}
+              {t('inventory.nearMe')}
             </button>
+            <Select
+              value={sort.key}
+              items={sortItems}
+              onValueChange={(value) => {
+                const next = String(value);
+                if (next !== sort.key) setSort(propertySortByKey(next));
+                setPage(0);
+              }}
+            >
+              <SelectTrigger
+                aria-label="Sort listings"
+                className="h-9 w-full border-slate-700 bg-slate-800 text-xs font-semibold text-white md:w-48"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="border-slate-700 bg-slate-900 text-slate-200">
+                {sortItems.map((item) => (
+                  <SelectItem key={item.value} value={item.value}>
+                    {item.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-        )}
+
+          {(pickedPlace || nearMe) && (
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span className="text-slate-400">
+                {pickedPlace ? (
+                  <>
+                    Showing matches in{' '}
+                    <span className="font-semibold text-white">
+                      {pickedPlace.name}
+                    </span>{' '}
+                    first, then within
+                  </>
+                ) : (
+                  <>{t('inventory.nearYou')}</>
+                )}
+              </span>
+              {[2, 5, 10, 25].map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  onClick={() => setRadiusKm(r)}
+                  className={`rounded-full border px-2 py-0.5 font-semibold transition-colors ${
+                    radiusKm === r
+                      ? 'bg-primary/15 border-primary/50 text-primary'
+                      : 'border-slate-700 bg-slate-800 text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  {r} km
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => {
+                  setPickedPlace(null);
+                  setNearMe(null);
+                  setLocationText('');
+                }}
+                className="ml-1 rounded-full border border-slate-700 bg-slate-800 px-2 py-0.5 font-semibold text-slate-400 hover:text-white"
+              >
+                Clear ✕
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Mobile: the listing-party pills live on their own row — the
@@ -1583,40 +1676,81 @@ export default function InventoryPage() {
             }}
           />
 
-          <PropertyList
-            selectedIds={selectedForTagging}
-            onToggleSelected={(id) =>
-              setSelectedForTagging((prev) =>
-                prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-              )
-            }
-            properties={properties}
-            loading={loading}
-            onView={handleViewClick}
-            onEdit={handleEditClick}
-            onDuplicate={handleDuplicateClick}
-            onDelete={handleDeleteClick}
-            onTogglePublish={handleTogglePublish}
-            onToggleStar={handleToggleStar}
-            onPortals={(property) => {
-              setPortalProperty(property);
-              setPortalOpen(true);
-            }}
-            portalBadges={portalBadges}
-            gateStats={gateStats}
-            onGateRequests={setGateRequestsProperty}
-            canEdit={canEdit}
-            onFlyer={handleFlyerClick}
-            onPromote={META_ADS_ENABLED ? handlePromoteClick : undefined}
-            onShare={handleShareClick}
-            onMatches={(property) => handleViewClick(property, 'matches')}
-            matchCounts={matchContactsQuery.data ? matchCounts : undefined}
-            onEmailShare={handleEmailShareClick}
-            onApprove={handleApprove}
-            onReject={handleReject}
-            onArchive={handleArchive}
-            currency={currency}
-          />
+          {view === 'table' ? (
+            <PropertyTable
+              properties={properties}
+              loading={loading}
+              sort={sort}
+              onSort={(field) => {
+                setSort(nextColumnSort(sort, field));
+                setPage(0);
+              }}
+              selectedIds={selectedForTagging}
+              onToggleSelected={(id) =>
+                setSelectedForTagging((prev) =>
+                  prev.includes(id)
+                    ? prev.filter((x) => x !== id)
+                    : [...prev, id]
+                )
+              }
+              onView={handleViewClick}
+              onEdit={handleEditClick}
+              onDuplicate={handleDuplicateClick}
+              onDelete={handleDeleteClick}
+              onArchive={handleArchive}
+              onFlyer={handleFlyerClick}
+              onPromote={META_ADS_ENABLED ? handlePromoteClick : undefined}
+              onEmailShare={handleEmailShareClick}
+              onPortals={(property) => {
+                setPortalProperty(property);
+                setPortalOpen(true);
+              }}
+              onShare={handleShareClick}
+              onMatches={(property) => handleViewClick(property, 'matches')}
+              matchCounts={matchContactsQuery.data ? matchCounts : undefined}
+              importCounts={importCounts}
+              canEdit={canEdit}
+              currency={currency}
+            />
+          ) : (
+            <PropertyList
+              selectedIds={selectedForTagging}
+              onToggleSelected={(id) =>
+                setSelectedForTagging((prev) =>
+                  prev.includes(id)
+                    ? prev.filter((x) => x !== id)
+                    : [...prev, id]
+                )
+              }
+              properties={properties}
+              loading={loading}
+              onView={handleViewClick}
+              onEdit={handleEditClick}
+              onDuplicate={handleDuplicateClick}
+              onDelete={handleDeleteClick}
+              onTogglePublish={handleTogglePublish}
+              onToggleStar={handleToggleStar}
+              onPortals={(property) => {
+                setPortalProperty(property);
+                setPortalOpen(true);
+              }}
+              portalBadges={portalBadges}
+              gateStats={gateStats}
+              onGateRequests={setGateRequestsProperty}
+              canEdit={canEdit}
+              onFlyer={handleFlyerClick}
+              onPromote={META_ADS_ENABLED ? handlePromoteClick : undefined}
+              onShare={handleShareClick}
+              onMatches={(property) => handleViewClick(property, 'matches')}
+              matchCounts={matchContactsQuery.data ? matchCounts : undefined}
+              importCounts={importCounts}
+              onEmailShare={handleEmailShareClick}
+              onApprove={handleApprove}
+              onReject={handleReject}
+              onArchive={handleArchive}
+              currency={currency}
+            />
+          )}
         </>
       )}
 
@@ -1759,7 +1893,7 @@ export default function InventoryPage() {
       </Dialog>
 
       {/* Pagination */}
-      {view === 'grid' && totalPages > 1 && (
+      {view !== 'map' && totalPages > 1 && (
         <div className="flex items-center justify-between border-t border-slate-800 pt-4">
           <p className="text-xs text-slate-500">
             Showing {page * 25 + 1}-{Math.min((page + 1) * 25, totalCount)} of{' '}

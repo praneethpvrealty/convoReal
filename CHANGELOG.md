@@ -19,6 +19,29 @@ than a written entry. Newest first.
 
 #### 21 September 2026
 
+- **Inventory page reworked around the listing, not the buttons.** Every
+  property card showed thirteen actions across three rows, with delete and
+  archive as icon-only buttons at the same weight as everything else, so six
+  listings needed two screens. The card now keeps Details, Share and Matches
+  inline and moves the rest behind one overflow menu with Archive and Delete
+  set apart at the bottom; the price sits on the title row, the audit dates
+  live in the title's tooltip, the photo and title open the listing, and the
+  always-on "Added to inventories" link is replaced by a "Shared by N agents"
+  chip that appears only where another agency holds a copy (web and mobile).
+  The status badges no longer sit under the selection checkbox, the sort
+  dropdown names its order instead of showing `created_at`, the floating
+  helper buttons no longer cover the last column, and the first summary tile
+  counts active listings so it agrees with the All pill. The four summary
+  tiles now filter the list, the status tabs and search share one control
+  block, the portal-drift alert collapses to one line until opened, the grid
+  gains a fourth column on wide screens, and the smallest text is 11px. A new
+  **table view** sits beside the grid and map with sortable Listing, Locality,
+  Price, Status and Added columns; the sort menu gains price and title orders
+  matching the mobile filter sheet. Uploads that look like scanned paperwork
+  are placed after the photos so a bank letter does not become the cover.
+  **Migration required:** `20260921180000_inventory_import_counts.sql` adds
+  the membership-guarded `inventory_import_counts` function.
+
 - **WhatsApp a contact on the number they actually use.** A contact whose
   primary number is not on WhatsApp, with the WhatsApp number added later
   under "Other phones", kept being messaged on the primary: the WhatsApp
