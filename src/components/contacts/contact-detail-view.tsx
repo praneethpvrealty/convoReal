@@ -45,6 +45,7 @@ import { pruneAreasGeo } from '@/lib/contacts/area-geo';
 import {
   LANGUAGE_CODES,
   languageDisplay,
+  toLanguageCode,
   type LanguageCode,
 } from '@/lib/languages';
 import {
@@ -112,6 +113,7 @@ import {
   ClipboardList,
   Send,
   Globe,
+  Languages,
 } from 'lucide-react';
 import {
   Tooltip,
@@ -163,7 +165,8 @@ export function ContactDetailView({
   onUpdated,
 }: ContactDetailViewProps) {
   const supabase = createClient();
-  const { user, profile, accountId, canViewGuardedLocations } = useAuth();
+  const { user, profile, account, accountId, canViewGuardedLocations } =
+    useAuth();
   const router = useRouter();
 
   const [currency, setCurrency] = useState('INR');
@@ -187,6 +190,7 @@ export function ContactDetailView({
   }, [contactId]);
   const [copiedPhone, setCopiedPhone] = useState(false);
   const [favoriting, setFavoriting] = useState(false);
+  const [savingLanguage, setSavingLanguage] = useState(false);
   // Controlled so the active tab survives re-renders and refetches
   const [activeTab, setActiveTab] = useState('details');
   const [scheduleOpen, setScheduleOpen] = useState(false);
@@ -1180,6 +1184,47 @@ export function ContactDetailView({
     }
   }
 
+  // One tap from the record, not a trip through the edit form: the
+  // language decides which template variant every outbound message
+  // uses, so it has to be visible and changeable where the agent
+  // reaches for WhatsApp. null hands the contact back to the account
+  // default (migration 246).
+  async function setContactLanguage(next: LanguageCode | null) {
+    if (!contact || savingLanguage) return;
+    const previous = contact.preferred_language ?? null;
+    if (previous === next) return;
+    setSavingLanguage(true);
+    setContact((prev) => (prev ? { ...prev, preferred_language: next } : prev));
+    setEditPreferredLanguage(next ?? '');
+    try {
+      const res = await fetch(`/api/contacts/${contact.id}/language`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ preferred_language: next }),
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to update language');
+      }
+      toast.success(
+        next
+          ? `Messages to ${contact.name || 'this contact'} will go out in ${languageDisplay(next)}`
+          : 'Language cleared — follows the account default'
+      );
+      onUpdated();
+    } catch (err) {
+      setContact((prev) =>
+        prev ? { ...prev, preferred_language: previous } : prev
+      );
+      setEditPreferredLanguage(previous ?? '');
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to update language'
+      );
+    } finally {
+      setSavingLanguage(false);
+    }
+  }
+
   async function handleWhatsAppClick(target?: string) {
     if (!contact || !accountId) {
       toast.error('Account not loaded or contact not loaded');
@@ -1768,6 +1813,60 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                     Added {formatAuditDateTime(contact.created_at)} · Modified{' '}
                     {formatAuditDateTime(contact.updated_at)}
                   </SheetDescription>
+                  <div className="mt-1.5">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger
+                        disabled={savingLanguage}
+                        className={`flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-0.5 text-xs font-medium transition-all disabled:opacity-50 ${
+                          contact.preferred_language
+                            ? 'border-sky-500/20 text-sky-300 hover:bg-sky-500/10'
+                            : 'border-slate-600/50 text-slate-400 hover:bg-slate-700/40 hover:text-slate-200'
+                        }`}
+                        title="The language every WhatsApp template to this contact goes out in. Tap to change."
+                      >
+                        <Languages className="size-3" />
+                        {contact.preferred_language
+                          ? languageDisplay(
+                              toLanguageCode(contact.preferred_language)
+                            )
+                          : `Language: account default (${languageDisplay(
+                              toLanguageCode(account?.default_language)
+                            )})`}
+                        <ChevronDown className="size-3" />
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent
+                        align="start"
+                        className="border-slate-700 bg-slate-900"
+                      >
+                        <DropdownMenuItem
+                          onClick={() => setContactLanguage(null)}
+                          className={
+                            contact.preferred_language ? '' : 'text-sky-300'
+                          }
+                        >
+                          Follow account default (
+                          {languageDisplay(
+                            toLanguageCode(account?.default_language)
+                          )}
+                          )
+                        </DropdownMenuItem>
+                        {LANGUAGE_CODES.map((code) => (
+                          <DropdownMenuItem
+                            key={code}
+                            onClick={() => setContactLanguage(code)}
+                            className={
+                              contact.preferred_language === code
+                                ? 'text-sky-300'
+                                : ''
+                            }
+                          >
+                            {languageDisplay(code)}
+                            {contact.preferred_language === code ? ' ✓' : ''}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                   <div className="mt-1.5 flex flex-wrap items-center gap-3 text-xs text-slate-400">
                     <a
                       href={`tel:${contact.phone}`}

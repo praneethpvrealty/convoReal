@@ -38,6 +38,7 @@ import { ContactRequirementsSheet } from '@/components/contact-requirements-shee
 import { ContactMergeSheet } from '@/components/contact-merge-sheet';
 import { ShowcaseShareSheet } from '@/components/showcase-share-sheet';
 import { PulseRing } from '@/components/motion';
+import { OptionSheet } from '@/components/option-sheet';
 import {
   Avatar,
   Banner,
@@ -88,6 +89,14 @@ import {
 } from '@/lib/phone-numbers';
 import { openWelcomeWhatsApp } from '@/lib/welcome-message';
 import { contactHandle, hasPhone } from '@/lib/reachability';
+import {
+  FOLLOW_ACCOUNT_DEFAULT_LABEL,
+  LANGUAGE_CODES,
+  isLanguageCode,
+  languageDisplay,
+  languageFromDisplay,
+  type LanguageCode,
+} from '@/lib/languages';
 import {
   CONSENT_HINTS,
   CONSENT_LABELS,
@@ -172,7 +181,7 @@ async function fetchContact(id: string): Promise<Contact | null> {
         'avatar_url, min_budget, max_budget, no_budget, pref_listing_types, areas_of_interest, areas_of_interest_geo, ' +
         'strict_area_match, min_roi, requires_tenanted, pref_requires_tenanted, requirements, lead_temp, status, referrer, source, ' +
         'requirement_profiles, ' +
-        'preferred_update_channel, buyer_alerts_consent, buyer_alerts_consent_requested_at, ' +
+        'preferred_update_channel, preferred_language, buyer_alerts_consent, buyer_alerts_consent_requested_at, ' +
         'property_interests, last_inquired_property_id, lead_portal, lead_portal_listing_id, ' +
         'is_favorite, user_id, created_at, updated_at'
     )
@@ -315,6 +324,8 @@ function ContactCard({ contact }: { contact: Contact }) {
   const [requirementsOpen, setRequirementsOpen] = useState(false);
   const [mergeOpen, setMergeOpen] = useState(false);
   const [favoriting, setFavoriting] = useState(false);
+  const [languageOpen, setLanguageOpen] = useState(false);
+  const [savingLanguage, setSavingLanguage] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
   const source = resolveRequirementSource(contact);
@@ -374,6 +385,38 @@ function ContactCard({ contact }: { contact: Contact }) {
       });
     } finally {
       setFavoriting(false);
+    }
+  }
+
+  // Web parity: the language chip under the name. One tap sets which
+  // template variant every outbound message uses; clearing it hands the
+  // contact back to the account default.
+  async function setContactLanguage(next: LanguageCode | null) {
+    if (savingLanguage) return;
+    const current = isLanguageCode(contact.preferred_language)
+      ? contact.preferred_language
+      : null;
+    if (current === next) return;
+    haptic.tap();
+    setSavingLanguage(true);
+    try {
+      await apiFetch(`/api/contacts/${contact.id}/language`, {
+        method: 'PATCH',
+        body: JSON.stringify({ preferred_language: next }),
+      });
+      haptic.success();
+      queryClient.invalidateQueries({ queryKey: ['contact', contact.id] });
+      queryClient.invalidateQueries({ queryKey: ['contacts'] });
+    } catch (err) {
+      haptic.warn();
+      showDialog({
+        title: 'Could not update language',
+        message: friendlyError(
+          err instanceof Error ? err.message : 'Try again.'
+        ),
+      });
+    } finally {
+      setSavingLanguage(false);
     }
   }
   function explainCannotDelete() {
@@ -523,6 +566,65 @@ function ContactCard({ contact }: { contact: Contact }) {
               />
             ) : null}
           </View>
+          <Pressable
+            onPress={() => setLanguageOpen(true)}
+            disabled={savingLanguage}
+            hitSlop={6}
+            accessibilityRole="button"
+            accessibilityLabel="Change the language messages to this contact go out in"
+            accessibilityState={{
+              disabled: savingLanguage,
+              busy: savingLanguage,
+            }}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 5,
+              borderRadius: radius.full,
+              paddingHorizontal: 10,
+              paddingVertical: 4,
+              backgroundColor: isLanguageCode(contact.preferred_language)
+                ? colors.primarySoft
+                : colors.glass,
+              borderWidth: 1,
+              borderColor: isLanguageCode(contact.preferred_language)
+                ? colors.primary
+                : colors.glassBorder,
+              opacity: savingLanguage ? 0.6 : 1,
+            }}
+          >
+            <Ionicons
+              name="language-outline"
+              size={13}
+              color={
+                isLanguageCode(contact.preferred_language)
+                  ? colors.primary
+                  : colors.textMuted
+              }
+            />
+            <Text
+              style={{
+                fontSize: 12,
+                fontFamily: f.semibold,
+                color: isLanguageCode(contact.preferred_language)
+                  ? colors.primary
+                  : colors.textMuted,
+              }}
+            >
+              {isLanguageCode(contact.preferred_language)
+                ? languageDisplay(contact.preferred_language)
+                : 'Language: account default'}
+            </Text>
+            <Ionicons
+              name="chevron-down"
+              size={12}
+              color={
+                isLanguageCode(contact.preferred_language)
+                  ? colors.primary
+                  : colors.textFaint
+              }
+            />
+          </Pressable>
         </View>
 
         <ScrollView
@@ -872,6 +974,27 @@ function ContactCard({ contact }: { contact: Contact }) {
           portfolioContact={contact}
         />
       ) : null}
+      <OptionSheet
+        visible={languageOpen}
+        onClose={() => setLanguageOpen(false)}
+        title="Language for messages"
+        groups={[
+          {
+            options: [
+              FOLLOW_ACCOUNT_DEFAULT_LABEL,
+              ...LANGUAGE_CODES.map(languageDisplay),
+            ],
+          },
+        ]}
+        selected={[
+          isLanguageCode(contact.preferred_language)
+            ? languageDisplay(contact.preferred_language)
+            : FOLLOW_ACCOUNT_DEFAULT_LABEL,
+        ]}
+        onChange={([picked]) =>
+          void setContactLanguage(languageFromDisplay(picked))
+        }
+      />
       {hasPhone(contact) ? (
         <PortalInviteSheet
           visible={portalInviteOpen}
