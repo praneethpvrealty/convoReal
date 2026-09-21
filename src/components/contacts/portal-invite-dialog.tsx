@@ -21,6 +21,7 @@ interface PortalInviteDialogProps {
   contactId: string;
   contactName: string;
   contactPhone: string | null;
+  contactClassification?: string | null;
   onSent: () => void;
 }
 
@@ -35,11 +36,13 @@ export function PortalInviteDialog({
   contactId,
   contactName,
   contactPhone,
+  contactClassification,
   onSent,
 }: PortalInviteDialogProps) {
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const name = contactName.trim() || contactPhone || 'this contact';
+  const isAgent = contactClassification === 'Agent';
   const path = `/api/contacts/${contactId}/portal-invite`;
   const preview = useQuery({
     queryKey: ['portal-invite', contactId],
@@ -123,9 +126,9 @@ export function PortalInviteDialog({
             Share portal link
           </DialogTitle>
           <DialogDescription className="text-sm text-slate-400">
-            Invite {name} to browse the portal, filter by their requirements and
-            shortlist the properties they like. The link opens on their recorded
-            interests and their visit shows up in Pulse.
+            {isAgent
+              ? `Send ${name} the full inventory in agent view, so they can browse it for their clients and forward listings with their own share link. Their visit shows up in Pulse.`
+              : `Invite ${name} to browse the portal, filter by their requirements and shortlist the properties they like. The link opens on their recorded interests and their visit shows up in Pulse.`}
           </DialogDescription>
         </DialogHeader>
 

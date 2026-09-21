@@ -321,6 +321,21 @@ describe('the portal link invite is one server draft on both surfaces', () => {
       expect(source).toContain('https://wa.me/${digits}?text=');
     }
   });
+
+  it('[CTM-002] offers the agent-view invite to co-brokers on both surfaces', () => {
+    const mobileContact = mobileSource('app/(app)/contact/[id].tsx');
+    const mobileSheet = mobileSource('components/portal-invite-sheet.tsx');
+    const webContact = webSource('components/contacts/contact-detail-view.tsx');
+    const webDialog = webSource('components/contacts/portal-invite-dialog.tsx');
+
+    for (const source of [mobileContact, webContact]) {
+      expect(source).not.toContain("contact.classification !== 'Agent'");
+    }
+    for (const source of [mobileSheet, webDialog]) {
+      expect(source).toContain("=== 'Agent'");
+      expect(source).toContain('the full inventory in agent view');
+    }
+  });
 });
 
 describe('Google locality picks run the same nearby search on both surfaces', () => {

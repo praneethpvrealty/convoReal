@@ -32,7 +32,7 @@ export function PortalInviteSheet({
 }: {
   visible: boolean;
   onClose: () => void;
-  contact: Pick<Contact, 'id' | 'name' | 'phone'>;
+  contact: Pick<Contact, 'id' | 'name' | 'phone' | 'classification'>;
   onSent: () => void;
 }) {
   const { colors, fonts: f } = useTheme();
@@ -42,6 +42,7 @@ export function PortalInviteSheet({
   );
   const [sendError, setSendError] = useState<string | null>(null);
   const name = contact.name?.trim() || contact.phone || 'this contact';
+  const isAgent = contact.classification === 'Agent';
   const path = `/api/contacts/${contact.id}/portal-invite`;
 
   const preview = useQuery({
@@ -154,9 +155,9 @@ export function PortalInviteSheet({
     >
       <View style={{ paddingHorizontal: spacing.lg, gap: spacing.lg }}>
         <Text style={{ color: colors.textMuted, fontSize: 14, lineHeight: 20 }}>
-          Invite {name} to browse the portal, filter by their requirements and
-          shortlist the properties they like. The link opens on their recorded
-          interests and their visit shows up in Pulse.
+          {isAgent
+            ? `Send ${name} the full inventory in agent view, so they can browse it for their clients and forward listings with their own share link. Their visit shows up in Pulse.`
+            : `Invite ${name} to browse the portal, filter by their requirements and shortlist the properties they like. The link opens on their recorded interests and their visit shows up in Pulse.`}
         </Text>
 
         <View

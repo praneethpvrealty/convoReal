@@ -19,6 +19,16 @@ than a written entry. Newest first.
 
 #### 21 September 2026
 
+- **Share Portal now works for agent contacts.** The contact record's "Share
+  Portal" action was hidden for anyone classified as an Agent because the
+  invite was written for a buyer. It now appears for agents on web and mobile
+  and sends the same portal link in agent view (`mode=view`), with co-broker
+  copy: browse the full inventory for your clients, forward any listing with
+  your own share link so location requests come to you first, and send back
+  the ones your clients want to see. Buyers get the unchanged invite; the
+  24-hour-window template fallback and the personal-WhatsApp timeline note
+  behave as before, and the template's portal button carries the agent view.
+
 - **A lead who closes their enquiry is asked why the shared property did not
   fit.** "Close my enquiry" on the check-in and enquiry templates still marks
   the lead dead and sends the goodbye; the goodbye is now followed by one

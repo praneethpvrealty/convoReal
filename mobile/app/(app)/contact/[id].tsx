@@ -544,13 +544,11 @@ function ContactCard({ contact }: { contact: Contact }) {
                 label="To Engine"
                 onPress={() => setMoveToEngineOpen(true)}
               />
-              {contact.classification !== 'Agent' ? (
-                <ActionButton
-                  icon="globe-outline"
-                  label="Share Portal"
-                  onPress={() => setPortalInviteOpen(true)}
-                />
-              ) : null}
+              <ActionButton
+                icon="globe-outline"
+                label="Share Portal"
+                onPress={() => setPortalInviteOpen(true)}
+              />
               {!BUYER_PREF_CLASSIFICATIONS.includes(
                 contact.classification ?? 'Others'
               ) ? (
@@ -811,7 +809,7 @@ function ContactCard({ contact }: { contact: Contact }) {
           contact={contact}
         />
       ) : null}
-      {hasPhone(contact) && contact.classification !== 'Agent' ? (
+      {hasPhone(contact) ? (
         <PortalInviteSheet
           visible={portalInviteOpen}
           onClose={() => setPortalInviteOpen(false)}

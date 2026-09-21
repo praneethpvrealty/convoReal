@@ -5,6 +5,7 @@ import {
   buildPortalInviteMessage,
   buildPortalInviteUrl,
   describePortalInviteFilters,
+  portalInviteAudience,
   portalInviteButtonParams,
   portalInviteFilters,
 } from './portal-invite';
@@ -16,6 +17,13 @@ const buyer = {
   areas_of_interest: ['BTM 2nd Stage', 'Vijaya Bank Layout'],
   property_interests: ['Vacant plot'],
   pref_listing_types: ['Sale'],
+} as Contact;
+
+const coBroker = {
+  id: 'contact-4',
+  name: 'Nataraj Kumar',
+  phone: '919886944961',
+  classification: 'Agent',
 } as Contact;
 
 describe('portalInviteFilters', () => {
@@ -63,6 +71,21 @@ describe('buildPortalInviteUrl', () => {
       'https://convoreal.com/?ref=account-1&listing_type=Sale&category=Vacant+plot&search=BTM+2nd+Stage&v=contact-9'
     );
   });
+
+  it('[CTM-002] opens agent view for a co-broker and buyer view for everyone else', () => {
+    expect(portalInviteAudience(coBroker)).toBe('agent');
+    expect(portalInviteAudience(buyer)).toBe('buyer');
+    expect(portalInviteAudience({ classification: 'Seller' } as Contact)).toBe(
+      'buyer'
+    );
+    expect(
+      buildPortalInviteUrl(
+        'https://convoreal.com/?ref=account-1',
+        coBroker,
+        portalInviteFilters(coBroker)
+      )
+    ).toBe('https://convoreal.com/?ref=account-1&mode=view&v=contact-4');
+  });
 });
 
 describe('buildPortalInviteMessage', () => {
@@ -90,6 +113,51 @@ Shortlist the ones you like and send the enquiry from the portal — it reaches 
     );
   });
 
+  it('[CTM-002] tells a co-broker the link is agent view and to forward listings with their own share link', () => {
+    const url = 'https://aryavarta.convoreal.com/?mode=view&v=contact-4';
+    const message = buildPortalInviteMessage({
+      contactName: coBroker.name,
+      agentName: 'Praneeth',
+      brandName: 'Aryavarta Realty',
+      portalUrl: url,
+      filters: portalInviteFilters(coBroker),
+      audience: 'agent',
+    });
+    expect(message).toBe(
+      `Hi Nataraj 👋
+I'm Praneeth from Aryavarta Realty.
+
+Here is our full inventory on our property portal, where every listing is verified and kept up to date by our team:
+${url}
+
+The link opens in agent view for you. Filter by location, budget and property type to find options for your clients, and forward any listing with your own share link — location requests from your clients come to you first, and their details stay with you.
+
+Send me the ones your clients want to see and I'll take it forward with photos, exact locations and site visits.`
+    );
+    expect(message).not.toContain('your real estate consultant');
+    expect(message).not.toContain('Shortlist the ones you like');
+    expect(
+      buildPortalInviteMessage({
+        contactName: coBroker.name,
+        agentName: 'Praneeth',
+        portalUrl: url,
+        filters: { search: 'Whitefield', category: null, listingType: null },
+        audience: 'agent',
+      })
+    ).toContain(
+      "I'm Praneeth.\n\nHere is our full inventory on our property portal"
+    );
+    expect(
+      buildPortalInviteMessage({
+        portalUrl: url,
+        filters: { search: 'Whitefield', category: null, listingType: null },
+        audience: 'agent',
+      })
+    ).toContain(
+      'It already opens on in Whitefield — clear the filters to see the full inventory.'
+    );
+  });
+
   it('reads cleanly with no name, no brand and no filters', () => {
     const message = buildPortalInviteMessage({
       portalUrl: 'https://convoreal.com/?v=c',
@@ -114,6 +182,12 @@ describe('portalInviteButtonParams', () => {
         'https://aryavarta.convoreal.com/?category=Vacant+plot&v=contact-9'
       )
     ).toEqual({ 2: '?category=Vacant+plot&v=contact-9' });
+    expect(
+      portalInviteButtonParams(
+        [{ type: 'URL', url: 'https://aryavarta.convoreal.com/{{1}}' }],
+        'https://aryavarta.convoreal.com/?mode=view&v=contact-4'
+      )
+    ).toEqual({ 0: '?mode=view&v=contact-4' });
     expect(
       portalInviteButtonParams(null, 'https://convoreal.com/?v=c')
     ).toEqual({});
