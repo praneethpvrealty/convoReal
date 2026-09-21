@@ -17,6 +17,7 @@ export interface ContextMenuAction {
   icon: React.ComponentProps<typeof Ionicons>['name'];
   label: string;
   onPress: () => void;
+  danger?: boolean;
 }
 
 export interface ContextMenuReactions {
@@ -70,11 +71,20 @@ export function ContextMenu({
   });
 
   return (
-    <Modal visible transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
+    <Modal
+      visible
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+      statusBarTranslucent
+    >
       <Pressable
         style={{ flex: 1 }}
         onLayout={(e) =>
-          setFrame({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height })
+          setFrame({
+            width: e.nativeEvent.layout.width,
+            height: e.nativeEvent.layout.height,
+          })
         }
         onPress={onClose}
         accessibilityRole="button"
@@ -94,7 +104,9 @@ export function ContextMenu({
           ]}
         >
           {reactions ? (
-            <View style={[styles.reactionBar, { borderBottomColor: colors.border }]}>
+            <View
+              style={[styles.reactionBar, { borderBottomColor: colors.border }]}
+            >
               {reactions.emojis.map((emoji) => {
                 const picked = reactions.selected === emoji;
                 return (
@@ -105,7 +117,11 @@ export function ContextMenu({
                       reactions.onPick(emoji);
                     }}
                     accessibilityRole="button"
-                    accessibilityLabel={picked ? `Remove ${emoji} reaction` : `React with ${emoji}`}
+                    accessibilityLabel={
+                      picked
+                        ? `Remove ${emoji} reaction`
+                        : `React with ${emoji}`
+                    }
                     accessibilityState={{ selected: picked }}
                     style={[
                       styles.reactionButton,
@@ -118,7 +134,10 @@ export function ContextMenu({
               })}
             </View>
           ) : null}
-          <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
+          <ScrollView
+            style={styles.scroll}
+            showsVerticalScrollIndicator={false}
+          >
             {actions.map((a) => (
               <Pressable
                 key={a.label}
@@ -131,8 +150,18 @@ export function ContextMenu({
                 android_ripple={{ color: colors.border }}
                 style={styles.row}
               >
-                <Ionicons name={a.icon} size={18} color={colors.primary} />
-                <Text style={{ fontSize: 14.5, fontFamily: f.semibold, color: colors.text }}>
+                <Ionicons
+                  name={a.icon}
+                  size={18}
+                  color={a.danger ? colors.danger : colors.primary}
+                />
+                <Text
+                  style={{
+                    fontSize: 14.5,
+                    fontFamily: f.semibold,
+                    color: a.danger ? colors.danger : colors.text,
+                  }}
+                >
                   {a.label}
                 </Text>
               </Pressable>

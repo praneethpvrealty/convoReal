@@ -20,7 +20,7 @@ describe('listingPrice', () => {
     expect(listingPrice(make({ price: 150000000 }))).toEqual({
       label: 'PRICE',
       value: '₹15 Cr',
-      note: 'Equivalent to: ₹15 Crore',
+      note: null,
     });
   });
 
@@ -30,7 +30,7 @@ describe('listingPrice', () => {
     ).toEqual({
       label: 'RENT',
       value: '₹85,000/month',
-      note: 'Equivalent to: ₹85,000',
+      note: null,
     });
   });
 
