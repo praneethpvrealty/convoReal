@@ -87,9 +87,6 @@ interface PropertyListProps {
   onMatches?: (property: Property) => void;
   /** propertyId → number of matching buyer contacts, shown on the Matches button. */
   matchCounts?: Record<string, number>;
-  /** propertyId → copies held by other agencies. Absent for every
-   *  listing nobody has imported, so the chip renders only where it
-   *  means something. */
   importCounts?: ImportCountMap;
   onEmailShare?: (property: Property) => void;
   onPortals?: (property: Property) => void;

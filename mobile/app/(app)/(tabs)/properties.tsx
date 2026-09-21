@@ -162,8 +162,6 @@ export default function PropertiesScreen() {
     select: (r) => r.data ?? {},
     staleTime: 60_000,
   });
-  // Copies held by other agencies, keyed by listing; only listings with
-  // at least one come back, so the chip renders where it means something.
   const { data: importCounts } = useQuery({
     queryKey: ['properties', 'import-counts'],
     queryFn: () =>

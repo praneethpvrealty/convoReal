@@ -100,3 +100,43 @@ describe('PropertyTable', () => {
     ).toBeTruthy();
   });
 });
+
+describe('PropertyTable — review and location search', () => {
+  it('shows plain headers while a location filter orders by distance', () => {
+    const onSort = vi.fn();
+    render(
+      <PropertyTable
+        {...baseProps}
+        properties={[row('p1', 'Sarjapur Villa', 25000000)]}
+        sortLocked
+        onSort={onSort}
+      />
+    );
+    expect(screen.queryByRole('button', { name: /sort by/i })).toBeNull();
+    expect(screen.getByText('Price')).toBeTruthy();
+  });
+
+  it('keeps approve and reject on pending-review rows', async () => {
+    const onApprove = vi.fn<(p: Property) => Promise<void>>(async () => {});
+    const onReject = vi.fn<(p: Property) => Promise<void>>(async () => {});
+    const pendingRow = {
+      ...row('p1', 'Sarjapur Villa', 25000000),
+      status: 'Pending Review',
+    } as unknown as Property;
+    render(
+      <PropertyTable
+        {...baseProps}
+        properties={[pendingRow, row('p2', 'Whitefield Flat', 9000000)]}
+        onApprove={onApprove}
+        onReject={onReject}
+      />
+    );
+    expect(screen.getAllByRole('button', { name: /approve/i })).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: /approve/i }));
+    expect(onApprove).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'p1' })
+    );
+    fireEvent.click(screen.getByRole('button', { name: /reject/i }));
+    expect(onReject).not.toHaveBeenCalled();
+  });
+});

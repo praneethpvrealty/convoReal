@@ -39,8 +39,14 @@ than a written entry. Newest first.
   Price, Status and Added columns; the sort menu gains price and title orders
   matching the mobile filter sheet. Uploads that look like scanned paperwork
   are placed after the photos so a bank letter does not become the cover.
-  **Migration required:** `20260921180000_inventory_import_counts.sql` adds
-  the membership-guarded `inventory_import_counts` function.
+  Sorting locks to "Nearest first" while a locality or Near me filter is
+  on, as the mobile sheet already did, and the table keeps Approve / Reject
+  on pending-review rows. **Migration required:**
+  `20260921180000_inventory_import_counts.sql` adds the membership-guarded
+  `inventory_import_counts` function, and
+  `20260921183000_inventory_stats_published_active.sql` makes the Showcased
+  tile count active published listings only, so it matches the rows the
+  tile filters to.
 
 - **WhatsApp a contact on the number they actually use.** A contact whose
   primary number is not on WhatsApp, with the WhatsApp number added later

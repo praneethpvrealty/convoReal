@@ -97,9 +97,8 @@ const EMPTY_GATE_STATS: GateStatsMap = {};
 
 const EMPTY_COUNTS: Record<string, number> = {};
 const EMPTY_IMPORT_COUNTS: ImportCountMap = {};
+const NEAREST_SORT_KEY = 'nearest';
 
-// The four summary tiles double as filters. 'closed' is Sold plus
-// Under Contract, the same pair the tile counts.
 type TileFilter = 'all' | 'showcased' | 'available' | 'closed';
 const DEFAULT_NEAR_ME_RADIUS_KM = 5;
 const DEFAULT_LOCALITY_RADIUS_KM = 10;
@@ -177,6 +176,7 @@ export default function InventoryPage() {
     'All'
   );
   const [sort, setSort] = useState<PropertySort>(DEFAULT_PROPERTY_SORT);
+  const locationSortLocked = Boolean(pickedPlace || nearMe);
 
   function selectTile(tile: TileFilter) {
     setTileFilter((current) => (current === tile ? 'all' : tile));
@@ -855,8 +855,6 @@ export default function InventoryPage() {
   });
   const gateStats = gateStatsQuery.data ?? EMPTY_GATE_STATS;
 
-  // Copies of each listing held by other agencies. Same shape as the
-  // gate rollup: one RPC, only listings with at least one copy.
   const importCountsQuery = useQuery({
     queryKey: ['inventory', 'import-counts', accountId],
     queryFn: async (): Promise<ImportCountMap> => {
@@ -1040,18 +1038,17 @@ export default function InventoryPage() {
   // the stats load so the labels don't flash "(0)".
   const statsReady = Boolean(globalStatsQuery.data);
 
-  // The select lists the five shared orders plus, while a table column
-  // sort is active that the list does not cover, that one — so the
-  // trigger always names the order in force rather than a raw key.
   const sortItems = useMemo(() => {
     const listed = PROPERTY_SORTS.map((s) => ({
       value: s.key,
       label: s.label,
     }));
+    if (locationSortLocked)
+      return [...listed, { value: NEAREST_SORT_KEY, label: 'Nearest first' }];
     return PROPERTY_SORTS.some((s) => s.key === sort.key)
       ? listed
       : [...listed, { value: sort.key, label: sort.label }];
-  }, [sort]);
+  }, [sort, locationSortLocked]);
   const sourcePills = [
     { value: 'All', label: 'All', count: stats.activeTotal },
     { value: 'Owner', label: 'Direct', count: stats.direct },
@@ -1111,9 +1108,7 @@ export default function InventoryPage() {
         </div>
       </div>
 
-      {/* Stats Summary Panel — each tile filters the list below. The
-          first counts active stock, the same rows the All pill counts,
-          so the two numbers agree; archived listings have their own tab. */}
+      {/* Stats Summary Panel */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {(
           [
@@ -1200,9 +1195,7 @@ export default function InventoryPage() {
 
       <PortalDriftPanel />
 
-      {/* Filters: status tabs, listing-party pills and view toggle on
-          the top row, search and sort beneath — one control block
-          rather than two stacked tiers. */}
+      {/* Filters */}
       <div className="rounded-xl border border-slate-800/80 bg-slate-900/60">
         <div className="flex items-center gap-1 border-b border-slate-800 px-2">
           <button
@@ -1368,17 +1361,24 @@ export default function InventoryPage() {
               {t('inventory.nearMe')}
             </button>
             <Select
-              value={sort.key}
+              value={locationSortLocked ? NEAREST_SORT_KEY : sort.key}
               items={sortItems}
+              disabled={locationSortLocked}
               onValueChange={(value) => {
                 const next = String(value);
-                if (next !== sort.key) setSort(propertySortByKey(next));
+                if (next !== sort.key && next !== NEAREST_SORT_KEY)
+                  setSort(propertySortByKey(next));
                 setPage(0);
               }}
             >
               <SelectTrigger
                 aria-label="Sort listings"
-                className="h-9 w-full border-slate-700 bg-slate-800 text-xs font-semibold text-white md:w-48"
+                title={
+                  locationSortLocked
+                    ? 'Ordered by distance while a location filter is on. Clear the location to sort another way.'
+                    : undefined
+                }
+                className="h-9 w-full border-slate-700 bg-slate-800 text-xs font-semibold text-white disabled:opacity-60 md:w-48"
               >
                 <SelectValue />
               </SelectTrigger>
@@ -1401,7 +1401,7 @@ export default function InventoryPage() {
                     <span className="font-semibold text-white">
                       {pickedPlace.name}
                     </span>{' '}
-                    first, then within
+                    first, then by distance within
                   </>
                 ) : (
                   <>{t('inventory.nearYou')}</>
@@ -1681,10 +1681,13 @@ export default function InventoryPage() {
               properties={properties}
               loading={loading}
               sort={sort}
+              sortLocked={locationSortLocked}
               onSort={(field) => {
                 setSort(nextColumnSort(sort, field));
                 setPage(0);
               }}
+              onApprove={handleApprove}
+              onReject={handleReject}
               selectedIds={selectedForTagging}
               onToggleSelected={(id) =>
                 setSelectedForTagging((prev) =>

@@ -84,9 +84,6 @@ function findingDetail(f: PortalDriftFinding): string {
 export function PortalDriftPanel() {
   const { accountId } = useAuth();
   const [isDismissed, setIsDismissed] = useState(false);
-  // One line by default: the count is the alert, the rows are the
-  // detail. Expanded, the panel pushed the filters and the first row
-  // of listings below the fold on every visit.
   const [expanded, setExpanded] = useState(false);
   const { data: findings, isLoading } = useQuery({
     queryKey: ['portal-drift'],

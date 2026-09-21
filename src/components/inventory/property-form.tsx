@@ -185,10 +185,6 @@ function compressImageOnClient(file: File): Promise<Blob> {
   });
 }
 
-// Whether an upload is a scan of paperwork rather than a photo of the
-// property — decided from a 48px thumbnail, so it costs one small draw.
-// Unreadable or canvas-less environments answer "photo", which is the
-// old behaviour.
 function isDocumentImage(blob: Blob): Promise<boolean> {
   return new Promise((resolve) => {
     const img = new Image();
@@ -2124,8 +2120,6 @@ export function PropertyForm({
       }
 
       if (uploaded.length > 0) {
-        // Scans go after photos so the first upload of a batch — the
-        // cover — is the property, not a letter about it.
         const uploadedUrls = orderForCover(uploaded, (u) => u.document).map(
           (u) => u.url
         );

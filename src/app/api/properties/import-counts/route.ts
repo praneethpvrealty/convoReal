@@ -2,12 +2,6 @@ import { NextResponse } from 'next/server';
 import { getCurrentAccount, toErrorResponse } from '@/lib/auth/account';
 import { toImportCountMap } from '@/lib/inventory/import-activity';
 
-// GET /api/properties/import-counts
-//
-// propertyId → how many other agencies hold a copy of that listing.
-// One RPC for the whole grid; inventory_import_counts is SECURITY
-// DEFINER and guards on is_account_member(), and the account id comes
-// from the session rather than the request.
 export async function GET() {
   try {
     const ctx = await getCurrentAccount();

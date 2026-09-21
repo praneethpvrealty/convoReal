@@ -1,5 +1,6 @@
 'use client';
 
+import { useRef, useState } from 'react';
 import type { Property } from '@/types';
 import { formatCurrency } from '@/lib/currency-utils';
 import { storagePublicUrl } from '@/lib/storage/url';
@@ -35,6 +36,7 @@ import {
   CheckSquare,
   Eye,
   EyeOff,
+  Loader2,
   Lock,
   Share2,
   Square,
@@ -45,7 +47,10 @@ interface PropertyTableProps extends PropertyActionHandlers {
   properties: Property[];
   loading: boolean;
   sort: PropertySort;
+  sortLocked?: boolean;
   onSort: (field: PropertySortField) => void;
+  onApprove?: (property: Property) => Promise<void>;
+  onReject?: (property: Property) => Promise<void>;
   onView: (property: Property) => void;
   onShare?: (property: Property) => void;
   onMatches?: (property: Property) => void;
@@ -101,16 +106,14 @@ function priceLabel(property: Property, currency: string): string {
   return formatCurrency(property.price, currency);
 }
 
-/**
- * The dense view of the same page of listings the grid shows: one row
- * per property, the columns an agent compares stock on, and the same
- * server-side sort the grid uses, driven from the column headers.
- */
 export function PropertyTable({
   properties,
   loading,
   sort,
+  sortLocked = false,
   onSort,
+  onApprove,
+  onReject,
   onView,
   onShare,
   onMatches,
@@ -122,6 +125,24 @@ export function PropertyTable({
   onToggleSelected,
   ...actions
 }: PropertyTableProps) {
+  const inFlight = useRef<Map<string, 'approve' | 'reject'>>(new Map());
+  const [deciding, setDeciding] = useState<Map<string, 'approve' | 'reject'>>(
+    new Map()
+  );
+
+  async function decide(property: Property, verdict: 'approve' | 'reject') {
+    const run = verdict === 'approve' ? onApprove : onReject;
+    if (!run || inFlight.current.has(property.id)) return;
+    inFlight.current.set(property.id, verdict);
+    setDeciding(new Map(inFlight.current));
+    try {
+      await run(property);
+    } finally {
+      inFlight.current.delete(property.id);
+      setDeciding(new Map(inFlight.current));
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-slate-400">
@@ -150,6 +171,16 @@ export function PropertyTable({
   }
 
   function header(field: PropertySortField, label: string) {
+    if (sortLocked) {
+      return (
+        <span
+          className="text-[11px] font-bold tracking-wider text-slate-400 uppercase"
+          title="Ordered by distance while a location filter is on"
+        >
+          {label}
+        </span>
+      );
+    }
     const active = sort.field === field;
     const Icon = active
       ? sort.order === 'asc'
@@ -218,6 +249,8 @@ export function PropertyTable({
             const selected = selectedIds?.includes(property.id) ?? false;
             const matchCount = matchCounts?.[property.id];
             const importCount = importCounts?.[property.id] ?? 0;
+            const verdict = deciding.get(property.id);
+            const reviewable = canEdit && property.status === 'Pending Review';
             return (
               <TableRow
                 key={property.id}
@@ -347,6 +380,35 @@ export function PropertyTable({
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center justify-end gap-1.5">
+                    {reviewable && onApprove && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={verdict !== undefined}
+                        onClick={() => decide(property, 'approve')}
+                        className="h-8 bg-green-600 font-medium text-white hover:bg-green-700"
+                      >
+                        {verdict === 'approve' && (
+                          <Loader2 className="mr-1 size-3.5 animate-spin" />
+                        )}
+                        Approve
+                      </Button>
+                    )}
+                    {reviewable && onReject && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={verdict !== undefined}
+                        onClick={() => decide(property, 'reject')}
+                        className="h-8 border-red-900/50 text-red-400 hover:bg-red-950/20 hover:text-red-400"
+                      >
+                        {verdict === 'reject' && (
+                          <Loader2 className="mr-1 size-3.5 animate-spin" />
+                        )}
+                        Reject
+                      </Button>
+                    )}
                     <Button
                       type="button"
                       variant="outline"

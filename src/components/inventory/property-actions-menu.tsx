@@ -42,12 +42,6 @@ interface PropertyActionsMenuProps extends PropertyActionHandlers {
   className?: string;
 }
 
-/**
- * The secondary actions on a listing, behind one button. Every card
- * used to show thirteen buttons across three rows; the three an agent
- * reaches for (Details, Share, Matches) stay inline and the rest live
- * here, with the destructive ones last and set apart.
- */
 export function PropertyActionsMenu({
   property,
   canEdit,

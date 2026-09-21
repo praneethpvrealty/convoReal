@@ -503,3 +503,45 @@ describe('inventory sort and filters', () => {
     expect(await screen.findByTestId('property-list')).toBeTruthy();
   });
 });
+
+describe('inventory sort while a location filter is on', () => {
+  it('locks the sort to distance and says so', async () => {
+    const fetchMock = mockPropertiesFetch(vi.fn());
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('navigator', {
+      ...navigator,
+      geolocation: {
+        getCurrentPosition: (
+          success: (pos: {
+            coords: { latitude: number; longitude: number };
+          }) => void
+        ) => success({ coords: { latitude: 12.93, longitude: 77.62 } }),
+      },
+    });
+    renderInventory();
+    await waitFor(() => {
+      expect(propertiesCalls(fetchMock).length).toBeGreaterThan(0);
+    });
+
+    const trigger = screen.getByLabelText('Sort listings');
+    expect(trigger.hasAttribute('disabled')).toBe(false);
+    fireEvent.click(
+      screen.getAllByRole('button', { name: 'inventory.nearMe' })[0]
+    );
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Sort listings').textContent).toContain(
+        'Nearest first'
+      );
+    });
+    expect(
+      screen.getByLabelText('Sort listings').hasAttribute('disabled')
+    ).toBe(true);
+    await waitFor(() => {
+      const params = new URLSearchParams(
+        propertiesCalls(fetchMock).at(-1)!.split('?')[1]
+      );
+      expect(params.get('near_lat')).toBe('12.93');
+    });
+  });
+});

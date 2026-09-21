@@ -77,8 +77,6 @@ export function propertySortFor(
   );
 }
 
-/** A column header click: same column flips the direction, a new
- *  column starts on the direction that reads naturally for it. */
 export function nextColumnSort(
   current: PropertySort,
   field: PropertySortField
