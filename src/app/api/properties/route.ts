@@ -264,7 +264,10 @@ export async function GET(request: Request) {
         }
       }
 
-      if (status) query = query.eq("status", status);
+      if (status) {
+        const statuses = status.split(",").map((s) => s.trim()).filter(Boolean);
+        query = statuses.length > 1 ? query.in("status", statuses) : query.eq("status", status);
+      }
       if (excludeArchived) {
         if (status) throw new Error("Cannot combine status and exclude_archived");
         query = query.neq("status", "Archived");

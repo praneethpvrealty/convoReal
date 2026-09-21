@@ -38,6 +38,7 @@ import {
   SearchBar,
 } from '@/components/ui';
 import { gateSummary, type GateStatsMap } from '@/lib/gate-stats';
+import { importCountLabel, type ImportCountMap } from '@/lib/import-counts';
 import { emptyPhotoLabel, internalPhotoSources } from '@/lib/photo-sources';
 import { usePhotoSources } from '@/lib/use-photo-source';
 import {
@@ -158,6 +159,13 @@ export default function PropertiesScreen() {
     queryKey: ['properties', 'gate-stats'],
     queryFn: () =>
       apiFetch<{ data: GateStatsMap }>('/api/properties/gate-stats'),
+    select: (r) => r.data ?? {},
+    staleTime: 60_000,
+  });
+  const { data: importCounts } = useQuery({
+    queryKey: ['properties', 'import-counts'],
+    queryFn: () =>
+      apiFetch<{ data: ImportCountMap }>('/api/properties/import-counts'),
     select: (r) => r.data ?? {},
     staleTime: 60_000,
   });
@@ -628,6 +636,7 @@ export default function PropertiesScreen() {
                   property={item}
                   onViewImports={() => setImportsProperty(item)}
                   gateStats={gateStats}
+                  importCount={importCounts?.[item.id] ?? 0}
                   compact={columnCount > 1}
                   selecting={selecting}
                   selected={selectedIds.includes(item.id)}
@@ -990,6 +999,7 @@ function PropertyCard({
   property,
   onViewImports,
   gateStats,
+  importCount,
   compact,
   selecting,
   selected,
@@ -999,6 +1009,7 @@ function PropertyCard({
   property: Property;
   onViewImports: () => void;
   gateStats?: GateStatsMap;
+  importCount: number;
   compact: boolean;
   selecting: boolean;
   selected: boolean;
@@ -1209,27 +1220,29 @@ function PropertyCard({
             />
           </Pressable>
         ) : null}
-        <Pressable
-          onPress={(event) => {
-            event.stopPropagation();
-            onViewImports();
-          }}
-          disabled={selecting}
-          accessibilityRole="button"
-          accessibilityLabel={`See who added ${property.title} to their inventory`}
-          style={{
-            minHeight: 44,
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: spacing.sm,
-            opacity: selecting ? 0.5 : 1,
-          }}
-        >
-          <Ionicons name="people-outline" size={16} color={colors.primary} />
-          <Text style={{ color: colors.primary, fontSize: 12 }}>
-            Added to inventories
-          </Text>
-        </Pressable>
+        {importCount > 0 ? (
+          <Pressable
+            onPress={(event) => {
+              event.stopPropagation();
+              onViewImports();
+            }}
+            disabled={selecting}
+            accessibilityRole="button"
+            accessibilityLabel={`See who added ${property.title} to their inventory`}
+            style={{
+              minHeight: 44,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: spacing.sm,
+              opacity: selecting ? 0.5 : 1,
+            }}
+          >
+            <Ionicons name="people-outline" size={16} color={colors.primary} />
+            <Text style={{ color: colors.primary, fontSize: 12 }}>
+              {importCountLabel(importCount)}
+            </Text>
+          </Pressable>
+        ) : null}
         <Text
           style={{ fontSize: 10.5, color: colors.textFaint }}
           numberOfLines={1}

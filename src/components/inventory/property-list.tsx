@@ -1,7 +1,6 @@
 'use client';
 
 import { useRef, useState, ElementType } from 'react';
-import { useRouter } from 'next/navigation';
 import type { Property } from '@/types';
 import { totalMonthlyRent } from '@/lib/inventory/floor-tenancies';
 import { storagePublicUrl } from '@/lib/storage/url';
@@ -14,27 +13,18 @@ import {
   Maximize2,
   Eye,
   EyeOff,
-  Edit,
-  Trash2,
   Building,
   Home as HomeIcon,
   Loader2,
-  Sparkles,
   Share2,
-  Archive,
-  ArchiveRestore,
-  Megaphone,
-  Mail,
   Star,
-  Globe,
-  Waypoints,
   ThumbsUp,
   Lock,
   Tag,
-  Copy,
   Users,
   ShieldCheck,
 } from 'lucide-react';
+import { PropertyActionsMenu } from '@/components/inventory/property-actions-menu';
 import {
   Tooltip,
   TooltipContent,
@@ -53,7 +43,11 @@ import { PORTALS, type PortalKey } from '@/lib/portals/post-kit';
 import { CheckSquare, Square } from 'lucide-react';
 import { PropertyImportsDialog } from '@/components/inventory/property-imports-dialog';
 import { isLandType } from '@/lib/inventory/property-options';
-import { formatAuditDate, formatAuditDateTime } from '@/lib/audit-timestamps';
+import { formatAuditDateTime } from '@/lib/audit-timestamps';
+import {
+  importCountLabel,
+  type ImportCountMap,
+} from '@/lib/inventory/import-activity';
 
 const highlightIcons: Record<string, string> = {
   School: '🏫',
@@ -93,6 +87,7 @@ interface PropertyListProps {
   onMatches?: (property: Property) => void;
   /** propertyId → number of matching buyer contacts, shown on the Matches button. */
   matchCounts?: Record<string, number>;
+  importCounts?: ImportCountMap;
   onEmailShare?: (property: Property) => void;
   onPortals?: (property: Property) => void;
   /** propertyId → portal short codes ("99" | "MB" | "H") currently live. */
@@ -130,6 +125,7 @@ export function PropertyList({
   onShare,
   onMatches,
   matchCounts,
+  importCounts,
   onEmailShare,
   onPortals,
   portalBadges,
@@ -140,7 +136,6 @@ export function PropertyList({
   onArchive,
   currency = 'INR',
 }: PropertyListProps) {
-  const router = useRouter();
   const [importsProperty, setImportsProperty] = useState<Property | null>(null);
   // Keyed by listing, not a single id: approving publishes the listing,
   // syncs the catalog and notifies the owner, so a reviewer works down
@@ -285,7 +280,7 @@ export function PropertyList({
   }
 
   return (
-    <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+    <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
       {importsProperty && (
         <PropertyImportsDialog
           key={importsProperty.id}
@@ -306,6 +301,36 @@ export function PropertyList({
             : storagePublicUrl(cover.url)
           : null;
         const isLand = isLandType(property.type);
+        const auditTitle = `Added ${formatAuditDateTime(property.created_at)} · Modified ${formatAuditDateTime(property.updated_at)}`;
+        const importCount = importCounts?.[property.id] ?? 0;
+        const matchCount = matchCounts?.[property.id];
+        const priceBlock =
+          property.listing_type === 'Rent' ||
+          property.listing_type === 'Built to Suit' ? (
+            <span className="flex flex-col items-end">
+              <span>{formatPrice(property.rent_per_month || 0)}/mo</span>
+              {property.maintenance && property.maintenance > 0 ? (
+                <span className="text-[11px] font-medium text-slate-400">
+                  + {formatPrice(property.maintenance)} Maint.
+                </span>
+              ) : null}
+            </span>
+          ) : property.listing_type === 'JV/JD' ? (
+            <span className="flex flex-col items-end">
+              <span>
+                {property.owner_share_percent && property.builder_share_percent
+                  ? `${property.owner_share_percent}:${property.builder_share_percent} share`
+                  : 'JV / JD'}
+              </span>
+              {property.price > 0 && (
+                <span className="text-[11px] font-medium text-slate-400">
+                  Est. {formatPrice(property.price)}
+                </span>
+              )}
+            </span>
+          ) : (
+            formatPrice(property.price)
+          );
 
         return (
           <div
@@ -337,14 +362,18 @@ export function PropertyList({
                 <img
                   src={mainImage}
                   alt={property.title}
-                  className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                  onClick={() => onView(property)}
+                  className="h-full w-full cursor-pointer object-cover transition-transform duration-500 group-hover:scale-105"
                   onError={(e) => {
                     // Fallback on load error
                     (e.target as HTMLImageElement).src = '';
                   }}
                 />
               ) : (
-                <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-slate-600">
+                <div
+                  onClick={() => onView(property)}
+                  className="flex h-full w-full cursor-pointer flex-col items-center justify-center gap-2 text-slate-600"
+                >
                   {(property.private_images_count ?? 0) > 0 ? (
                     <Lock className="size-9 opacity-40" />
                   ) : (
@@ -355,9 +384,15 @@ export function PropertyList({
               )}
 
               {/* Status Badge */}
-              <div className="absolute top-3 left-3 flex max-w-[calc(100%-4rem)] flex-wrap gap-1.5">
+              <div
+                className={`pointer-events-none absolute top-3 flex flex-wrap gap-1.5 ${
+                  onToggleSelected
+                    ? 'left-10 max-w-[calc(100%-6rem)]'
+                    : 'left-3 max-w-[calc(100%-4rem)]'
+                }`}
+              >
                 <Badge
-                  className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold tracking-wider uppercase ${
+                  className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold tracking-wider uppercase ${
                     property.listing_type === 'Rent'
                       ? 'border-blue-500/30 bg-blue-500/20 text-blue-400'
                       : property.listing_type === 'JV/JD'
@@ -379,7 +414,7 @@ export function PropertyList({
                   className={
                     property.status === 'Sold'
                       ? 'scale-105 animate-pulse rounded-full border border-red-500 bg-red-600 px-2.5 py-0.5 text-xs font-black tracking-wider text-white uppercase shadow-md shadow-red-950/50'
-                      : `rounded-full border px-2 py-0.5 text-[10px] font-semibold tracking-wider uppercase ${
+                      : `rounded-full border px-2 py-0.5 text-[11px] font-semibold tracking-wider uppercase ${
                           statusColors[property.status] ||
                           'border-slate-700 bg-slate-800 text-slate-300'
                         }`
@@ -388,12 +423,12 @@ export function PropertyList({
                   {property.status}
                 </Badge>
                 {property.listing_source === 'agent' && (
-                  <Badge className="rounded-full border-sky-600 bg-sky-500/90 px-2 py-0.5 text-[10px] font-semibold tracking-wider text-white uppercase">
+                  <Badge className="rounded-full border-sky-600 bg-sky-500/90 px-2 py-0.5 text-[11px] font-semibold tracking-wider text-white uppercase">
                     Agent Referred
                   </Badge>
                 )}
                 {property.listing_source === 'whatsapp_lister' && (
-                  <Badge className="rounded-full border-emerald-700 bg-emerald-600/90 px-2 py-0.5 text-[10px] font-semibold tracking-wider text-white uppercase">
+                  <Badge className="rounded-full border-emerald-700 bg-emerald-600/90 px-2 py-0.5 text-[11px] font-semibold tracking-wider text-white uppercase">
                     Submitted via WhatsApp
                   </Badge>
                 )}
@@ -469,7 +504,7 @@ export function PropertyList({
                             ? `Live on ${PORTALS[badge.portal].label} · ad ${badge.adId} — leads quoting it match this listing automatically`
                             : `Live on ${PORTALS[badge.portal].label}, but no ad id recorded — its leads are matched by guesswork. Add the id from Post to portals.`
                         }
-                        className={`rounded border px-1 py-0.5 text-[9px] font-black ${
+                        className={`rounded border px-1 py-0.5 text-[11px] font-black ${
                           badge.adId
                             ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-400'
                             : 'border-amber-500/30 bg-amber-500/10 text-amber-400'
@@ -481,7 +516,7 @@ export function PropertyList({
                     ))}
                     {(property.like_count ?? 0) > 0 && (
                       <span
-                        className="text-primary bg-primary/10 border-primary/25 flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] font-bold"
+                        className="text-primary bg-primary/10 border-primary/25 flex items-center gap-1 rounded border px-1.5 py-0.5 text-[11px] font-bold"
                         title={`${property.like_count} showcase ${property.like_count === 1 ? 'like' : 'likes'}`}
                       >
                         <ThumbsUp className="size-3" />
@@ -490,7 +525,7 @@ export function PropertyList({
                     )}
                     {(property.rating_count ?? 0) > 0 && (
                       <span
-                        className="flex items-center gap-1 rounded border border-amber-500/25 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-bold text-amber-400"
+                        className="flex items-center gap-1 rounded border border-amber-500/25 bg-amber-500/10 px-1.5 py-0.5 text-[11px] font-bold text-amber-400"
                         title={`Average buyer rating ${((property.rating_total ?? 0) / (property.rating_count ?? 1)).toFixed(1)}/10 from ${property.rating_count} ${property.rating_count === 1 ? 'visitor' : 'visitors'}`}
                       >
                         <Star className="size-3" />
@@ -502,7 +537,7 @@ export function PropertyList({
                     )}
                     {property.property_code && (
                       <span
-                        className="rounded bg-slate-950/40 px-1.5 py-0.5 font-mono text-[10px] font-bold text-slate-400 select-all"
+                        className="rounded bg-slate-950/40 px-1.5 py-0.5 font-mono text-[11px] font-bold text-slate-400 select-all"
                         title="Copy Property Code"
                       >
                         {property.property_code}
@@ -519,12 +554,22 @@ export function PropertyList({
                     <span className="truncate">{property.project}</span>
                   </div>
                 )}
-                <h4
-                  className="group-hover:text-primary mb-1 line-clamp-1 text-base font-bold text-white transition-colors"
-                  title={property.title}
-                >
-                  {property.title}
-                </h4>
+                <div className="mb-1 flex items-start justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={() => onView(property)}
+                    title={`${property.title}\n${auditTitle}`}
+                    className="group-hover:text-primary min-w-0 flex-1 cursor-pointer text-left text-base font-bold text-white transition-colors"
+                  >
+                    <span className="line-clamp-2">{property.title}</span>
+                  </button>
+                  <div
+                    className="shrink-0 text-right text-lg leading-tight font-black text-white"
+                    title={auditTitle}
+                  >
+                    {priceBlock}
+                  </div>
+                </div>
                 <div className="mb-3 flex items-center gap-1 text-xs text-slate-400">
                   <MapPin className="size-3.5 shrink-0 text-slate-500" />
                   <span className="truncate" title={property.location}>
@@ -532,7 +577,7 @@ export function PropertyList({
                   </span>
                   {property.location_guarded && (
                     <span
-                      className="inline-flex shrink-0 items-center gap-0.5 rounded-full border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-amber-400 uppercase"
+                      className="inline-flex shrink-0 items-center gap-0.5 rounded-full border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 text-[11px] font-bold tracking-wide text-amber-400 uppercase"
                       title="Exact location restricted — visible to admins and the listing agent only"
                     >
                       <Lock className="size-2.5" /> Guarded
@@ -540,109 +585,77 @@ export function PropertyList({
                   )}
                   {property.showcase_visibility === 'teaser' && (
                     <span
-                      className="inline-flex shrink-0 items-center gap-0.5 rounded-full border border-violet-500/25 bg-violet-500/10 px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-violet-300 uppercase"
+                      className="inline-flex shrink-0 items-center gap-0.5 rounded-full border border-violet-500/25 bg-violet-500/10 px-1.5 py-0.5 text-[11px] font-bold tracking-wide text-violet-300 uppercase"
                       title="Confidential — the public link shows only type, locality and a price band until you approve a viewer"
                     >
                       <ShieldCheck className="size-2.5" /> Confidential
                     </span>
                   )}
                   {property.location_tier === 'exact' && (
-                    <span className="shrink-0 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-emerald-400 uppercase">
+                    <span className="shrink-0 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-1.5 py-0.5 text-[11px] font-bold tracking-wide text-emerald-400 uppercase">
                       In area
                     </span>
                   )}
                   {property.location_tier === 'nearby' &&
                     property.distance_km !== null &&
                     property.distance_km !== undefined && (
-                      <span className="shrink-0 rounded-full border border-sky-500/20 bg-sky-500/10 px-1.5 py-0.5 text-[9px] font-bold text-sky-400">
+                      <span className="shrink-0 rounded-full border border-sky-500/20 bg-sky-500/10 px-1.5 py-0.5 text-[11px] font-bold text-sky-400">
                         {property.distance_km} km away
                       </span>
                     )}
                 </div>
 
-                {/* Demand on a confidential listing. Rendered only once
-                    something has happened — a gated listing nobody has
-                    asked about says "Confidential" and nothing more,
-                    rather than a row of zeroes on every card. */}
-                {gateSummary(gateStats?.[property.id]) && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onGateRequests?.(property);
-                    }}
-                    className="mb-3 inline-flex items-center gap-1.5 rounded-lg border border-violet-500/25 bg-violet-500/10 px-2 py-1 text-[10px] font-bold text-violet-200 hover:border-violet-500/50 hover:bg-violet-500/15"
-                    title="Access requests for this confidential listing"
-                  >
-                    <Users className="size-3" />
-                    {gateSummary(gateStats?.[property.id])}
-                  </button>
-                )}
-
-                <button
-                  type="button"
-                  onClick={() => setImportsProperty(property)}
-                  aria-label={`See who added ${property.title} to their inventory`}
-                  className="text-primary mb-3 flex min-h-11 items-center gap-2 text-xs font-medium hover:underline"
-                >
-                  <Users className="size-4" /> Added to inventories
-                </button>
-                <div
-                  className="mb-3 flex flex-wrap gap-x-3 text-[10px] text-slate-500"
-                  title={`Added ${formatAuditDateTime(property.created_at)} · Modified ${formatAuditDateTime(property.updated_at)}`}
-                >
-                  <span>Added {formatAuditDate(property.created_at)}</span>
-                  <span>Modified {formatAuditDate(property.updated_at)}</span>
-                </div>
-                <div className="mb-4 flex items-center justify-between">
-                  <div className="text-lg font-black text-white">
-                    {property.listing_type === 'Rent' ||
-                    property.listing_type === 'Built to Suit' ? (
-                      <span className="flex flex-col">
-                        <span>
-                          {formatPrice(property.rent_per_month || 0)}/mo
+                {(property.owner ||
+                  importCount > 0 ||
+                  gateSummary(gateStats?.[property.id])) && (
+                  <div className="mb-3 flex flex-wrap items-center gap-1.5">
+                    {property.owner && (
+                      <div
+                        className="flex items-center gap-1 rounded border border-slate-800 bg-slate-800/40 px-2 py-0.5 text-xs text-slate-400"
+                        title={`${property.owner.name} (${property.owner.phone})`}
+                      >
+                        <span className="text-[11px] font-bold tracking-wider text-slate-500 uppercase">
+                          {property.owner.classification || 'Owner'}:
                         </span>
-                        {property.maintenance && property.maintenance > 0 ? (
-                          <span className="text-[10px] font-medium text-slate-400">
-                            + {formatPrice(property.maintenance)} Maint.
+                        <span className="flex items-center gap-1.5">
+                          <span className="text-slate-350 font-semibold">
+                            {property.owner.name || 'Unnamed'}
                           </span>
-                        ) : null}
-                      </span>
-                    ) : property.listing_type === 'JV/JD' ? (
-                      <span className="flex flex-col">
-                        <span>
-                          {property.owner_share_percent &&
-                          property.builder_share_percent
-                            ? `${property.owner_share_percent}:${property.builder_share_percent} share`
-                            : 'JV / JD'}
+                          <NameTagBadge tag={property.owner.name_tag} />
                         </span>
-                        {property.price > 0 && (
-                          <span className="text-[10px] font-medium text-slate-400">
-                            Est. {formatPrice(property.price)}
-                          </span>
-                        )}
-                      </span>
-                    ) : (
-                      formatPrice(property.price)
+                      </div>
+                    )}
+                    {/* Demand on a confidential listing. Rendered only once
+                        something has happened — a gated listing nobody has
+                        asked about says "Confidential" and nothing more,
+                        rather than a row of zeroes on every card. */}
+                    {gateSummary(gateStats?.[property.id]) && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onGateRequests?.(property);
+                        }}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-violet-500/25 bg-violet-500/10 px-2 py-1 text-[11px] font-bold text-violet-200 hover:border-violet-500/50 hover:bg-violet-500/15"
+                        title="Access requests for this confidential listing"
+                      >
+                        <Users className="size-3" />
+                        {gateSummary(gateStats?.[property.id])}
+                      </button>
+                    )}
+                    {importCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setImportsProperty(property)}
+                        aria-label={`See who added ${property.title} to their inventory`}
+                        className="text-primary bg-primary/10 border-primary/25 hover:bg-primary/15 inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[11px] font-bold"
+                      >
+                        <Users className="size-3" />
+                        {importCountLabel(importCount)}
+                      </button>
                     )}
                   </div>
-                  {property.owner && (
-                    <div
-                      className="flex items-center gap-1 rounded border border-slate-800 bg-slate-800/40 px-2 py-0.5 text-xs text-slate-400"
-                      title={`${property.owner.name} (${property.owner.phone})`}
-                    >
-                      <span className="text-[10px] font-bold tracking-wider text-slate-500 uppercase">
-                        {property.owner.classification || 'Owner'}:
-                      </span>
-                      <span className="flex items-center gap-1.5">
-                        <span className="text-slate-350 font-semibold">
-                          {property.owner.name || 'Unnamed'}
-                        </span>
-                        <NameTagBadge tag={property.owner.name_tag} />
-                      </span>
-                    </div>
-                  )}
-                </div>
+                )}
 
                 {/* Specs Row */}
                 <div className="mb-4 grid grid-cols-3 gap-2 border-y border-slate-800 py-3 text-xs font-medium text-slate-300">
@@ -871,7 +884,7 @@ export function PropertyList({
                     {(property.listing_type === 'Rent' ||
                       property.listing_type === 'Built to Suit') &&
                     (property.advance || property.gst) ? (
-                      <div className="flex flex-wrap justify-between gap-y-2 border-t border-slate-800/45 pt-1.5 text-[10px]">
+                      <div className="flex flex-wrap justify-between gap-y-2 border-t border-slate-800/45 pt-1.5 text-[11px]">
                         {property.advance ? (
                           <div>
                             Deposit:{' '}
@@ -893,7 +906,7 @@ export function PropertyList({
                     {/* JV/JD deal terms */}
                     {property.listing_type === 'JV/JD' &&
                     (property.jv_structure || property.goodwill_amount) ? (
-                      <div className="flex flex-wrap justify-between gap-y-2 border-t border-slate-800/45 pt-1.5 text-[10px]">
+                      <div className="flex flex-wrap justify-between gap-y-2 border-t border-slate-800/45 pt-1.5 text-[11px]">
                         {property.jv_structure ? (
                           <div>
                             Structure:{' '}
@@ -922,7 +935,7 @@ export function PropertyList({
                       <Badge
                         key={i}
                         variant="outline"
-                        className="rounded border-slate-800 bg-slate-950/40 px-2 py-0.5 text-[10px] font-normal text-slate-400"
+                        className="rounded border-slate-800 bg-slate-950/40 px-2 py-0.5 text-[11px] font-normal text-slate-400"
                       >
                         {feature}
                       </Badge>
@@ -930,7 +943,7 @@ export function PropertyList({
                     {property.features.length > 3 && (
                       <Badge
                         variant="outline"
-                        className="rounded border-slate-800 bg-slate-950/40 px-1.5 py-0.5 text-[10px] font-normal text-slate-500"
+                        className="rounded border-slate-800 bg-slate-950/40 px-1.5 py-0.5 text-[11px] font-normal text-slate-500"
                       >
                         +{property.features.length - 3} more
                       </Badge>
@@ -945,7 +958,7 @@ export function PropertyList({
                       <span
                         key={i}
                         title="Internal tag — never shown to clients"
-                        className="bg-primary/10 border-primary/20 text-primary inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold"
+                        className="bg-primary/10 border-primary/20 text-primary inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold"
                       >
                         <Tag className="size-2.5" />
                         {tag}
@@ -958,7 +971,7 @@ export function PropertyList({
                 {property.nearby_highlights &&
                   property.nearby_highlights.length > 0 && (
                     <div className="mb-4 flex flex-wrap gap-1 border-t border-slate-800/40 pt-3">
-                      <span className="mb-1 block w-full text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
+                      <span className="mb-1 block w-full text-[11px] font-semibold tracking-wider text-slate-500 uppercase">
                         Nearby Landmarks
                       </span>
                       {property.nearby_highlights
@@ -967,7 +980,7 @@ export function PropertyList({
                           <Badge
                             key={i}
                             variant="outline"
-                            className="flex items-center gap-1 rounded-full border-slate-800/80 bg-slate-950/20 px-2 py-0.5 text-[10px] font-normal text-slate-300"
+                            className="flex items-center gap-1 rounded-full border-slate-800/80 bg-slate-950/20 px-2 py-0.5 text-[11px] font-normal text-slate-300"
                           >
                             <span>{highlightIcons[highlight] || '📍'}</span>
                             <span>{highlight}</span>
@@ -976,7 +989,7 @@ export function PropertyList({
                       {property.nearby_highlights.length > 4 && (
                         <Badge
                           variant="outline"
-                          className="rounded-full border-slate-800/80 bg-slate-950/20 px-1.5 py-0.5 text-[10px] font-normal text-slate-500"
+                          className="rounded-full border-slate-800/80 bg-slate-950/20 px-1.5 py-0.5 text-[11px] font-normal text-slate-500"
                         >
                           +{property.nearby_highlights.length - 4} more
                         </Badge>
@@ -988,7 +1001,7 @@ export function PropertyList({
                 {property.interested_contacts &&
                   property.interested_contacts.length > 0 && (
                     <div className="mt-4 border-t border-slate-800/40 pt-3">
-                      <span className="mb-1.5 block text-[10px] font-bold tracking-wider text-slate-500 uppercase">
+                      <span className="mb-1.5 block text-[11px] font-bold tracking-wider text-slate-500 uppercase">
                         Interested Leads ({property.interested_contacts.length})
                       </span>
                       {/* Capped + scrollable: a hot listing can have dozens of
@@ -1010,10 +1023,10 @@ export function PropertyList({
                               <NameTagBadge tag={contact.name_tag} />
                             </span>
                             <div className="flex items-center gap-1.5 font-semibold">
-                              <span className="text-slate-450 font-mono text-[10px]">
+                              <span className="text-slate-450 font-mono text-[11px]">
                                 {contact.phone}
                               </span>
-                              <span className="rounded border border-slate-800/40 bg-slate-950/50 px-1 text-[9px] text-slate-400">
+                              <span className="rounded border border-slate-800/40 bg-slate-950/50 px-1 text-[11px] text-slate-400">
                                 {contact.classification}
                               </span>
                             </div>
@@ -1025,7 +1038,7 @@ export function PropertyList({
               </div>
 
               {/* Action Buttons */}
-              <div className="mt-auto flex flex-wrap justify-end gap-2 border-t border-slate-800/60 pt-2">
+              <div className="mt-auto flex flex-wrap items-center justify-end gap-2 border-t border-slate-800/60 pt-3">
                 {canEdit &&
                   property.status === 'Pending Review' &&
                   onApprove && (
@@ -1060,52 +1073,26 @@ export function PropertyList({
                     </Button>
                   )}
                 <TooltipProvider>
-                  {onFlyer && (
-                    <Tooltip>
-                      <TooltipTrigger
-                        render={
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => onFlyer(property)}
-                            className="h-8 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white"
-                          />
-                        }
-                      >
-                        <>
-                          <Sparkles className="text-primary mr-1.5 size-3.5" />{' '}
-                          Flyer
-                        </>
-                      </TooltipTrigger>
-                      <TooltipContent side="top">
-                        AI Flyer Creator
-                      </TooltipContent>
-                    </Tooltip>
-                  )}
-                  {onPromote && (
-                    <Tooltip>
-                      <TooltipTrigger
-                        render={
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => onPromote(property)}
-                            className="h-8 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white"
-                          />
-                        }
-                      >
-                        <>
-                          <Megaphone className="text-primary mr-1.5 size-3.5" />{' '}
-                          Promote
-                        </>
-                      </TooltipTrigger>
-                      <TooltipContent side="top">
-                        Create Meta ad campaign
-                      </TooltipContent>
-                    </Tooltip>
-                  )}
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => onView(property)}
+                          className="h-8 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white"
+                        />
+                      }
+                    >
+                      <>
+                        <Eye className="mr-1.5 size-3.5" /> Details
+                      </>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">
+                      View property details
+                    </TooltipContent>
+                  </Tooltip>
                   {onShare && (
                     <Tooltip>
                       <TooltipTrigger
@@ -1138,22 +1125,26 @@ export function PropertyList({
                             variant="outline"
                             size="sm"
                             onClick={() => onMatches(property)}
-                            className="h-8 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white"
+                            className={`h-8 ${
+                              matchCount && matchCount > 0
+                                ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 hover:text-emerald-200'
+                                : 'border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white'
+                            }`}
                           />
                         }
                       >
                         <>
                           <Users className="mr-1.5 size-3.5 text-emerald-400" />{' '}
                           Matches
-                          {matchCounts?.[property.id] !== undefined && (
+                          {matchCount !== undefined && (
                             <span
-                              className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
-                                matchCounts[property.id] > 0
-                                  ? 'border border-emerald-500/25 bg-emerald-500/15 text-emerald-400'
+                              className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[11px] font-bold ${
+                                matchCount > 0
+                                  ? 'bg-emerald-500 text-slate-950'
                                   : 'border border-slate-700 bg-slate-800 text-slate-500'
                               }`}
                             >
-                              {matchCounts[property.id]}
+                              {matchCount}
                             </span>
                           )}
                         </>
@@ -1163,198 +1154,20 @@ export function PropertyList({
                       </TooltipContent>
                     </Tooltip>
                   )}
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() =>
-                            router.push(`/journey?property=${property.id}`)
-                          }
-                          className="h-8 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white"
-                        />
-                      }
-                    >
-                      <>
-                        <Waypoints className="mr-1.5 size-3.5 text-sky-400" />{' '}
-                        Journey
-                      </>
-                    </TooltipTrigger>
-                    <TooltipContent side="top">
-                      Mind map of interested contacts
-                    </TooltipContent>
-                  </Tooltip>
-                  {onEmailShare && (
-                    <Tooltip>
-                      <TooltipTrigger
-                        render={
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => onEmailShare(property)}
-                            className="h-8 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white"
-                          />
-                        }
-                      >
-                        <>
-                          <Mail className="text-primary mr-1.5 size-3.5" />{' '}
-                          Email
-                        </>
-                      </TooltipTrigger>
-                      <TooltipContent side="top">
-                        Share via email
-                      </TooltipContent>
-                    </Tooltip>
-                  )}
-                  {onPortals && (
-                    <Tooltip>
-                      <TooltipTrigger
-                        render={
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => onPortals(property)}
-                            className="h-8 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white"
-                          />
-                        }
-                      >
-                        <>
-                          <Globe className="text-primary mr-1.5 size-3.5" />{' '}
-                          Post Ad
-                        </>
-                      </TooltipTrigger>
-                      <TooltipContent side="top">
-                        Post on 99acres / MagicBricks / Housing
-                      </TooltipContent>
-                    </Tooltip>
-                  )}
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => onView(property)}
-                          className="h-8 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white"
-                        />
-                      }
-                    >
-                      <>
-                        <Eye className="mr-1.5 size-3.5" /> Details
-                      </>
-                    </TooltipTrigger>
-                    <TooltipContent side="top">
-                      View property details
-                    </TooltipContent>
-                  </Tooltip>
-                  {canEdit && (
-                    <Tooltip>
-                      <TooltipTrigger
-                        render={
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => onEdit(property)}
-                            className="h-8 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white"
-                          />
-                        }
-                      >
-                        <>
-                          <Edit className="mr-1.5 size-3.5" /> Edit
-                        </>
-                      </TooltipTrigger>
-                      <TooltipContent side="top">
-                        Edit property details
-                      </TooltipContent>
-                    </Tooltip>
-                  )}
-                  {canEdit && onDuplicate && (
-                    <Tooltip>
-                      <TooltipTrigger
-                        render={
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            disabled={duplicatingId === property.id}
-                            onClick={() => handleDuplicate(property)}
-                            className="h-8 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white"
-                          />
-                        }
-                      >
-                        <>
-                          {duplicatingId === property.id ? (
-                            <Loader2 className="mr-1.5 size-3.5 animate-spin" />
-                          ) : (
-                            <Copy className="mr-1.5 size-3.5" />
-                          )}{' '}
-                          Duplicate
-                        </>
-                      </TooltipTrigger>
-                      <TooltipContent side="top">
-                        Copy the details into a new listing (photos excluded)
-                      </TooltipContent>
-                    </Tooltip>
-                  )}
-                  {canEdit && (
-                    <Tooltip>
-                      <TooltipTrigger
-                        render={
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => onDelete(property)}
-                            className="border-slate-850 h-8 text-slate-400 hover:border-red-900/50 hover:bg-red-950/20 hover:text-red-400"
-                          />
-                        }
-                      >
-                        <Trash2 className="size-3.5" />
-                      </TooltipTrigger>
-                      <TooltipContent side="top">
-                        Delete property
-                      </TooltipContent>
-                    </Tooltip>
-                  )}
-                  {canEdit &&
-                    onArchive &&
-                    property.status !== 'Pending Review' && (
-                      <Tooltip>
-                        <TooltipTrigger
-                          render={
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => onArchive(property)}
-                              className={
-                                property.status === 'Archived'
-                                  ? 'h-8 border-amber-800/50 text-amber-400 hover:border-amber-700/50 hover:bg-amber-950/20 hover:text-amber-400'
-                                  : 'h-8 border-slate-800 text-slate-400 hover:bg-slate-800 hover:text-white'
-                              }
-                            />
-                          }
-                        >
-                          {property.status === 'Archived' ? (
-                            <ArchiveRestore className="size-3.5" />
-                          ) : (
-                            <Archive className="size-3.5" />
-                          )}
-                        </TooltipTrigger>
-                        <TooltipContent side="top">
-                          {property.status === 'Archived'
-                            ? 'Restore property'
-                            : 'Archive property'}
-                        </TooltipContent>
-                      </Tooltip>
-                    )}
                 </TooltipProvider>
+                <PropertyActionsMenu
+                  property={property}
+                  canEdit={canEdit}
+                  duplicating={duplicatingId === property.id}
+                  onEdit={onEdit}
+                  onDelete={onDelete}
+                  onDuplicate={onDuplicate ? handleDuplicate : undefined}
+                  onArchive={onArchive}
+                  onFlyer={onFlyer}
+                  onPromote={onPromote}
+                  onEmailShare={onEmailShare}
+                  onPortals={onPortals}
+                />
               </div>
             </div>
           </div>

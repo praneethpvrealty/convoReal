@@ -105,6 +105,7 @@ import {
   gateRequestStatusLabel,
   gateSummary,
 } from '@/lib/inventory/gate-stats';
+import { importCountLabel } from '@/lib/inventory/import-activity';
 import { buildShowcaseShareLink } from '@/lib/inventory/showcase-share-link';
 import {
   MONTHLY_PRICED_LISTING_TYPES,
@@ -2352,6 +2353,29 @@ describe('[TXW-018] journey stages mirror the pipeline on every surface', () => 
     expect(backfill).toContain(
       'WHERE account_id = acc.id AND pipeline_stage_id IS NOT NULL\n    ) THEN\n      CONTINUE;'
     );
+  });
+});
+
+describe('mobile/lib/import-counts.ts mirrors import-activity', () => {
+  // The chip replaces an always-on "Added to inventories" link on both
+  // cards; a count worded differently per surface would read as two
+  // different facts about the same listing.
+  const source = mobileSource('lib/import-counts.ts');
+
+  it('builds the same label', () => {
+    expect(source).toContain(
+      "`Shared by ${count} ${count === 1 ? 'agent' : 'agents'}`"
+    );
+    expect(importCountLabel(2)).toBe('Shared by 2 agents');
+  });
+
+  it('reads the same endpoint on both surfaces', () => {
+    expect(mobileSource('app/(app)/(tabs)/properties.tsx')).toContain(
+      "'/api/properties/import-counts'"
+    );
+    expect(
+      webSource('app/(dashboard)/inventory/inventory-content.tsx')
+    ).toContain("'/api/properties/import-counts'");
   });
 });
 

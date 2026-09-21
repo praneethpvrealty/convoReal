@@ -83,6 +83,7 @@ export const EN = {
   'inventory.nearYou': 'Showing matches near your location, within',
   'inventory.listView': 'List view',
   'inventory.mapView': 'Map view',
+  'inventory.tableView': 'Table view',
   'inventory.mapNotConfigured': 'Map view is not configured.',
   'inventory.mapFailed':
     'The map failed to load — check the browser key and try again.',
@@ -183,6 +184,7 @@ const HI: Catalogue = {
   'inventory.nearYou': 'आपके स्थान के पास के मिलान, इस दायरे में',
   'inventory.listView': 'सूची दृश्य',
   'inventory.mapView': 'नक्शा दृश्य',
+  'inventory.tableView': 'तालिका दृश्य',
   'inventory.mapNotConfigured': 'नक्शा दृश्य सेट नहीं है।',
   'inventory.mapFailed':
     'नक्शा लोड नहीं हुआ — ब्राउज़र key जाँचें और फिर कोशिश करें।',
@@ -275,6 +277,7 @@ const KN: Catalogue = {
   'inventory.nearYou': 'ನಿಮ್ಮ ಸ್ಥಳದ ಹತ್ತಿರದ ಹೊಂದಾಣಿಕೆಗಳು, ಈ ವ್ಯಾಪ್ತಿಯಲ್ಲಿ',
   'inventory.listView': 'ಪಟ್ಟಿ ನೋಟ',
   'inventory.mapView': 'ನಕ್ಷೆ ನೋಟ',
+  'inventory.tableView': 'ಕೋಷ್ಟಕ ನೋಟ',
   'inventory.mapNotConfigured': 'ನಕ್ಷೆ ನೋಟ ಸಂರಚಿಸಿಲ್ಲ.',
   'inventory.mapFailed':
     'ನಕ್ಷೆ ಲೋಡ್ ಆಗಲಿಲ್ಲ — ಬ್ರೌಸರ್ key ಪರಿಶೀಲಿಸಿ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.',
@@ -371,6 +374,7 @@ const TA: Catalogue = {
     'உங்கள் இடத்திற்கு அருகிலுள்ள பொருத்தங்கள், இந்த எல்லைக்குள்',
   'inventory.listView': 'பட்டியல் காட்சி',
   'inventory.mapView': 'வரைபடக் காட்சி',
+  'inventory.tableView': 'அட்டவணைக் காட்சி',
   'inventory.mapNotConfigured': 'வரைபடக் காட்சி அமைக்கப்படவில்லை.',
   'inventory.mapFailed':
     'வரைபடம் ஏற்றப்படவில்லை — browser key சரிபார்த்து மீண்டும் முயற்சிக்கவும்.',
@@ -463,6 +467,7 @@ const TE: Catalogue = {
   'inventory.nearYou': 'మీ ప్రదేశానికి దగ్గరి సరిపోలికలు, ఈ పరిధిలో',
   'inventory.listView': 'జాబితా వీక్షణ',
   'inventory.mapView': 'మ్యాప్ వీక్షణ',
+  'inventory.tableView': 'పట్టిక వీక్షణ',
   'inventory.mapNotConfigured': 'మ్యాప్ వీక్షణ సెటప్ కాలేదు.',
   'inventory.mapFailed':
     'మ్యాప్ లోడ్ కాలేదు — browser key చూసి మళ్లీ ప్రయత్నించండి.',

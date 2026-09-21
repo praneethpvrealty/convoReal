@@ -100,6 +100,10 @@ vi.mock('@/components/inventory/property-list', () => ({
   PropertyList: () => <div data-testid="property-list" />,
 }));
 
+vi.mock('@/components/inventory/property-table', () => ({
+  PropertyTable: () => <div data-testid="property-table" />,
+}));
+
 vi.mock('@/components/inventory/property-form', () => ({
   PropertyForm: () => null,
 }));
@@ -415,5 +419,129 @@ describe('portal expiry reminder handoff', () => {
 
     expect(replaceState).toHaveBeenLastCalledWith(null, '', '/inventory');
     expect(window.location.search).toBe('');
+  });
+});
+
+describe('inventory sort and filters', () => {
+  it('names the sort in force and sends its field and direction', async () => {
+    const fetchMock = mockPropertiesFetch(vi.fn());
+    vi.stubGlobal('fetch', fetchMock);
+    renderInventory();
+
+    await waitFor(() => {
+      expect(propertiesCalls(fetchMock).length).toBeGreaterThan(0);
+    });
+    const trigger = screen.getByLabelText('Sort listings');
+    expect(trigger.textContent).toContain('Recently added');
+    expect(trigger.textContent).not.toContain('created_at');
+    const params = new URLSearchParams(
+      propertiesCalls(fetchMock).at(-1)!.split('?')[1]
+    );
+    expect(params.get('sort')).toBe('created_at');
+    expect(params.get('order')).toBe('desc');
+  });
+
+  it('turns the summary tiles into filters on the same list', async () => {
+    const fetchMock = mockPropertiesFetch(vi.fn());
+    vi.stubGlobal('fetch', fetchMock);
+    renderInventory();
+
+    await waitFor(() => {
+      expect(propertiesCalls(fetchMock).length).toBeGreaterThan(0);
+    });
+    const last = () =>
+      new URLSearchParams(propertiesCalls(fetchMock).at(-1)!.split('?')[1]);
+    expect(last().get('exclude_archived')).toBe('true');
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Show only available listings' })
+    );
+    await waitFor(() => {
+      expect(last().get('status')).toBe('Available');
+    });
+    expect(last().get('exclude_archived')).toBeNull();
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Show only sold or under-contract listings',
+      })
+    );
+    await waitFor(() => {
+      expect(last().get('status')).toBe('Sold,Under Contract');
+    });
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Show only sold or under-contract listings',
+      })
+    );
+    await waitFor(() => {
+      expect(last().get('status')).toBeNull();
+    });
+    expect(last().get('exclude_archived')).toBe('true');
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Show only showcased listings' })
+    );
+    await waitFor(() => {
+      expect(last().get('is_published')).toBe('true');
+    });
+  });
+
+  it('switches between the card grid and the table', async () => {
+    const fetchMock = mockPropertiesFetch(vi.fn());
+    vi.stubGlobal('fetch', fetchMock);
+    renderInventory();
+
+    expect(await screen.findByTestId('property-list')).toBeTruthy();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'inventory.tableView' })
+    );
+    expect(await screen.findByTestId('property-table')).toBeTruthy();
+    expect(screen.queryByTestId('property-list')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'inventory.listView' }));
+    expect(await screen.findByTestId('property-list')).toBeTruthy();
+  });
+});
+
+describe('inventory sort while a location filter is on', () => {
+  it('locks the sort to distance and says so', async () => {
+    const fetchMock = mockPropertiesFetch(vi.fn());
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('navigator', {
+      ...navigator,
+      geolocation: {
+        getCurrentPosition: (
+          success: (pos: {
+            coords: { latitude: number; longitude: number };
+          }) => void
+        ) => success({ coords: { latitude: 12.93, longitude: 77.62 } }),
+      },
+    });
+    renderInventory();
+    await waitFor(() => {
+      expect(propertiesCalls(fetchMock).length).toBeGreaterThan(0);
+    });
+
+    const trigger = screen.getByLabelText('Sort listings');
+    expect(trigger.hasAttribute('disabled')).toBe(false);
+    fireEvent.click(
+      screen.getAllByRole('button', { name: 'inventory.nearMe' })[0]
+    );
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Sort listings').textContent).toContain(
+        'Nearest first'
+      );
+    });
+    expect(
+      screen.getByLabelText('Sort listings').hasAttribute('disabled')
+    ).toBe(true);
+    await waitFor(() => {
+      const params = new URLSearchParams(
+        propertiesCalls(fetchMock).at(-1)!.split('?')[1]
+      );
+      expect(params.get('near_lat')).toBe('12.93');
+    });
   });
 });

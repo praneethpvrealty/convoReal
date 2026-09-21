@@ -115,6 +115,11 @@ import {
   isApartmentType,
 } from '@/lib/inventory/property-options';
 import { DOCUMENT_SIZE_LIMIT } from '@/lib/inventory/documents';
+import {
+  looksLikeDocument,
+  orderForCover,
+  samplePixels,
+} from '@/lib/inventory/cover-photo';
 import { FloorPlansEditor, type FloorPlanDraft } from '@/components/inventory/floor-plans-editor';
 import { isPlanPdf, PLAN_IMAGE_MIME_TYPES } from '@/lib/inventory/floor-plans';
 import { isGuardedType, isLocationGuarded } from '@/lib/inventory/location-guard';
@@ -176,6 +181,29 @@ function compressImageOnClient(file: File): Promise<Blob> {
     };
 
     img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Image load failed')); };
+    img.src = url;
+  });
+}
+
+function isDocumentImage(blob: Blob): Promise<boolean> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(blob);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = 48;
+        canvas.height = 48;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) { resolve(false); return; }
+        ctx.drawImage(img, 0, 0, 48, 48);
+        resolve(looksLikeDocument(samplePixels(ctx.getImageData(0, 0, 48, 48).data)));
+      } catch {
+        resolve(false);
+      }
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(false); };
     img.src = url;
   });
 }
@@ -2046,12 +2074,12 @@ export function PropertyForm({
     }
 
     setUploadingImage(true);
-    const uploadedUrls: string[] = [];
+    const uploaded: { url: string; document: boolean }[] = [];
 
     try {
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        
+
         // 5MB limit
         if (file.size > 5 * 1024 * 1024) {
           toast.error(`File "${file.name}" is too large. Max size is 5MB.`);
@@ -2085,15 +2113,26 @@ export function PropertyForm({
           throw new Error(`Upload failed: ${uploadError.message}`);
         }
 
-        uploadedUrls.push(`property-images/${path}`);
+        uploaded.push({
+          url: `property-images/${path}`,
+          document: await isDocumentImage(uploadFile),
+        });
       }
 
-      if (uploadedUrls.length > 0) {
+      if (uploaded.length > 0) {
+        const uploadedUrls = orderForCover(uploaded, (u) => u.document).map(
+          (u) => u.url
+        );
+        const documents = uploaded.filter((u) => u.document).length;
         setImages((prev) => {
           const filteredPrev = prev.filter(url => url.trim().length > 0);
           return [...filteredPrev, ...uploadedUrls];
         });
-        toast.success(`Uploaded ${uploadedUrls.length} image(s)`);
+        toast.success(
+          documents > 0
+            ? `Uploaded ${uploaded.length} image(s) — ${documents} look${documents === 1 ? 's' : ''} like a document and ${documents === 1 ? 'was' : 'were'} placed after the photos`
+            : `Uploaded ${uploaded.length} image(s)`
+        );
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Image upload failed';

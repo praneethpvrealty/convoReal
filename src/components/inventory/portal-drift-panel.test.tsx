@@ -83,8 +83,14 @@ describe('PortalDriftPanel', () => {
 
     renderPanel();
 
-    expect(await screen.findByText(/1 portal ad out of step with your inventory/)).toBeTruthy();
+    expect(
+      await screen.findByText(/1 portal ad out of step with your inventory/)
+    ).toBeTruthy();
+    expect(screen.queryByText('Ad live on withdrawn stock')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /show/i }));
     expect(screen.getByText('Ad live on withdrawn stock')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /hide/i }));
+    expect(screen.queryByText('Ad live on withdrawn stock')).toBeNull();
   });
 
   it('shows only the fields that actually disagree', async () => {
@@ -105,7 +111,9 @@ describe('PortalDriftPanel', () => {
 
     renderPanel();
 
-    expect(await screen.findByText('Ad and listing disagree')).toBeTruthy();
+    await screen.findByText(/1 portal ad out of step with your inventory/);
+    fireEvent.click(screen.getByRole('button', { name: /show/i }));
+    expect(screen.getByText('Ad and listing disagree')).toBeTruthy();
     expect(screen.getByText(/3000 vs 2400 sq ft/)).toBeTruthy();
     expect(screen.queryByText(/Apartment vs/)).toBeNull();
     expect(screen.queryByText(/₹/)).toBeNull();
@@ -115,11 +123,15 @@ describe('PortalDriftPanel', () => {
     mockDriftFetch([[BASE_FINDING]]);
 
     renderPanel();
-    expect(await screen.findByText(/1 portal ad out of step with your inventory/)).toBeTruthy();
+    expect(
+      await screen.findByText(/1 portal ad out of step with your inventory/)
+    ).toBeTruthy();
     fireEvent.click(screen.getByLabelText('Dismiss portal discrepancy banner'));
 
     await waitFor(() =>
-      expect(screen.queryByText(/1 portal ad out of step with your inventory/)).toBeNull()
+      expect(
+        screen.queryByText(/1 portal ad out of step with your inventory/)
+      ).toBeNull()
     );
     expect(localStorage.getItem(KEY)).toBe(findingSignature(BASE_FINDING));
   });
@@ -129,7 +141,9 @@ describe('PortalDriftPanel', () => {
     mockDriftFetch([[BASE_FINDING]]);
 
     renderPanel();
-    expect(await screen.findByText(/1 portal ad out of step with your inventory/)).toBeTruthy();
+    expect(
+      await screen.findByText(/1 portal ad out of step with your inventory/)
+    ).toBeTruthy();
     await waitFor(() => {
       expect(localStorage.getItem(KEY)).toBeNull();
     });
@@ -139,14 +153,20 @@ describe('PortalDriftPanel', () => {
     mockDriftFetch([[BASE_FINDING], [BASE_FINDING]]);
 
     const first = renderPanel();
-    expect(await first.findByText(/1 portal ad out of step with your inventory/)).toBeTruthy();
+    expect(
+      await first.findByText(/1 portal ad out of step with your inventory/)
+    ).toBeTruthy();
     fireEvent.click(first.getByLabelText('Dismiss portal discrepancy banner'));
     await waitFor(() =>
-      expect(first.queryByText(/1 portal ad out of step with your inventory/)).toBeNull()
+      expect(
+        first.queryByText(/1 portal ad out of step with your inventory/)
+      ).toBeNull()
     );
     first.unmount();
 
     renderPanel();
-    expect(screen.queryByText(/1 portal ad out of step with your inventory/)).toBeNull();
+    expect(
+      screen.queryByText(/1 portal ad out of step with your inventory/)
+    ).toBeNull();
   });
 });
