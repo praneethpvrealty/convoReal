@@ -338,6 +338,25 @@ function ContactCard({ contact }: { contact: Contact }) {
   const name = contact.name || contactHandle(contact);
   // Mirrors the contacts_delete RLS policy (migration 205): a manager may
   // delete anything in the account, everyone else only what they saved.
+  const accountId = useAuthStore((s) => s.profile?.account_id);
+  // The language a contact with no preference actually gets: the chip
+  // names it so the record never just says "default" (web parity).
+  const { data: accountDefaultLanguage } = useQuery({
+    queryKey: ['account-default-language', accountId],
+    enabled: Boolean(accountId),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('accounts')
+        .select('default_language')
+        .eq('id', accountId)
+        .single();
+      if (error) throw error;
+      return isLanguageCode(data.default_language)
+        ? data.default_language
+        : 'en';
+    },
+  });
+  const accountDefaultDisplay = languageDisplay(accountDefaultLanguage ?? 'en');
   const isManager = useAuthStore((s) => s.profile?.org_role) === 'org_manager';
   const canMerge = useAuthStore((s) => s.profile?.account_role) !== 'viewer';
   const myUserId = useAuthStore((s) => s.session?.user.id);
@@ -613,7 +632,7 @@ function ContactCard({ contact }: { contact: Contact }) {
             >
               {isLanguageCode(contact.preferred_language)
                 ? languageDisplay(contact.preferred_language)
-                : 'Language: account default'}
+                : `Language: account default (${accountDefaultDisplay})`}
             </Text>
             <Ionicons
               name="chevron-down"
@@ -981,7 +1000,7 @@ function ContactCard({ contact }: { contact: Contact }) {
         groups={[
           {
             options: [
-              FOLLOW_ACCOUNT_DEFAULT_LABEL,
+              `${FOLLOW_ACCOUNT_DEFAULT_LABEL} (${accountDefaultDisplay})`,
               ...LANGUAGE_CODES.map(languageDisplay),
             ],
           },
@@ -989,7 +1008,7 @@ function ContactCard({ contact }: { contact: Contact }) {
         selected={[
           isLanguageCode(contact.preferred_language)
             ? languageDisplay(contact.preferred_language)
-            : FOLLOW_ACCOUNT_DEFAULT_LABEL,
+            : `${FOLLOW_ACCOUNT_DEFAULT_LABEL} (${accountDefaultDisplay})`,
         ]}
         onChange={([picked]) =>
           void setContactLanguage(languageFromDisplay(picked))

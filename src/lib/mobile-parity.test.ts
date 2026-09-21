@@ -2381,6 +2381,10 @@ describe('contact language is one tap from the record on both surfaces', () => {
     expect(web).toContain('setContactLanguage(null)');
     expect(web).toContain('Follow account default');
     expect(mobile).toContain('FOLLOW_ACCOUNT_DEFAULT_LABEL');
+    for (const screen of [web, mobile]) {
+      expect(screen).toContain('default_language');
+      expect(screen).toContain('Language: account default (');
+    }
     expect(mobile).toContain('preferred_language, buyer_alerts_consent');
   });
 });

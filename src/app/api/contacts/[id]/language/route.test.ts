@@ -33,12 +33,17 @@ function makeDb() {
   };
 }
 
+let readOnly = false;
+
 vi.mock('@/lib/auth/account', () => ({
-  requireRole: async () => ({
-    supabase: makeDb(),
-    accountId: 'acc-1',
-    userId: 'user-1',
-  }),
+  requireWriteRole: async () => {
+    if (readOnly) throw new Error('Read-only members cannot make changes.');
+    return {
+      supabase: makeDb(),
+      accountId: 'acc-1',
+      userId: 'user-1',
+    };
+  },
   toErrorResponse: (err: unknown) =>
     Response.json(
       { error: err instanceof Error ? err.message : String(err) },
@@ -59,6 +64,7 @@ const params = Promise.resolve({ id: 'c-1' });
 
 beforeEach(() => {
   updates = [];
+  readOnly = false;
   result = { data: { id: 'c-1', preferred_language: 'ta' }, error: null };
 });
 
@@ -108,6 +114,18 @@ describe('PATCH /api/contacts/[id]/language', () => {
   it('rejects a body without the field', async () => {
     const res = await PATCH(makeRequest({}) as never, { params });
     expect(res.status).toBe(400);
+    expect(updates).toHaveLength(0);
+  });
+
+  it('[CLG-002] refuses a read-only member before touching the row', async () => {
+    readOnly = true;
+    const res = await PATCH(
+      makeRequest({ preferred_language: 'hi' }) as never,
+      {
+        params,
+      }
+    );
+    expect(res.status).toBe(500);
     expect(updates).toHaveLength(0);
   });
 
