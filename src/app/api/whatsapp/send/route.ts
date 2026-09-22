@@ -13,6 +13,7 @@ import { isMessageTemplate } from '@/lib/whatsapp/template-row-guard';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { parseMetaErrorInfo, type MediaKind } from '@/lib/whatsapp/meta-api';
 import { isMediaKind, normalizeCaption } from '@/lib/whatsapp/media-kinds';
+import { refuseStagedMedia } from '@/lib/whatsapp/staged-media';
 import {
   CUSTOMER_WINDOW_EXPIRED_MESSAGE,
   isWithinCustomerWindow,
@@ -88,22 +89,26 @@ export async function POST(request: Request) {
       );
     }
 
-    // Media arrives already staged by /api/whatsapp/media/upload, so
+    // Media arrives already staged by /api/whatsapp/media/upload-url, so
     // `media_url` is a path in our own bucket rather than caller-supplied
     // input. Refuse anything else: Meta fetches this link server-side,
     // and an arbitrary URL here would make the business number a fetcher
     // for whatever the caller names.
     if (message_type === 'media') {
-      if (!media_url || typeof media_url !== 'string') {
+      if (!media_url) {
         return NextResponse.json(
           { error: 'media_url is required for media messages' },
           { status: 400 }
         );
       }
-      if (!media_url.startsWith(`chat-media/${accountId}/`)) {
+      const refusal = await refuseStagedMedia(accountId, media_url);
+      if (refusal) {
         return NextResponse.json(
-          { error: 'media_url must be an attachment staged by this account' },
-          { status: 400 }
+          {
+            error: refusal.error,
+            ...(refusal.code ? { code: refusal.code } : {}),
+          },
+          { status: refusal.status }
         );
       }
       if (!isMediaKind(media_kind)) {

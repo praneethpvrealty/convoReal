@@ -39,6 +39,10 @@ const MIME_TO_KIND: Record<string, MediaKind> = {
   'text/plain': 'document',
 };
 
+/** Every mime type Meta accepts as an outbound attachment. Mirrored
+ *  by SUPPORTED_MIME_TYPES in mobile/lib/attachments.ts. */
+export const SUPPORTED_MEDIA_MIME_TYPES: string[] = Object.keys(MIME_TO_KIND);
+
 /** Meta's per-kind ceiling, in bytes. */
 export const MEDIA_SIZE_LIMITS: Record<MediaKind, number> = {
   image: 5 * 1024 * 1024,

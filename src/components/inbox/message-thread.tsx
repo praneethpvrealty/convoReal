@@ -60,6 +60,7 @@ import { MessageBubbleLoader } from '@/components/ui/message-bubble-loader';
 import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import { isReengagementError } from '@/lib/whatsapp/customer-window';
+import { stageChatAttachment } from '@/lib/storage/stage-attachment';
 import { MoveToEngineDialog } from '@/components/contacts/move-to-engine-dialog';
 import { toast } from 'sonner';
 import { ConversationCloseDialog } from './conversation-close-dialog';
@@ -883,18 +884,7 @@ export function MessageThread({
     async (file: File, caption: string | undefined, replyToId?: string) => {
       if (!conversation) return;
       try {
-        const form = new FormData();
-        form.append('file', file);
-        const uploadRes = await fetch('/api/whatsapp/media/upload', {
-          method: 'POST',
-          body: form,
-        });
-        const uploaded = await uploadRes.json();
-        if (!uploadRes.ok) {
-          // The route names the actual limit ("WhatsApp caps video at
-          // 16 MB — this is 40 MB"), which is more use than "failed".
-          throw new Error(uploaded.error || 'Could not upload the attachment');
-        }
+        const uploaded = await stageChatAttachment(file);
 
         const sendRes = await fetch('/api/whatsapp/send', {
           method: 'POST',
@@ -902,9 +892,9 @@ export function MessageThread({
           body: JSON.stringify({
             conversation_id: conversation.id,
             message_type: 'media',
-            media_url: uploaded.data.media_url,
-            media_kind: uploaded.data.media_kind,
-            media_filename: uploaded.data.filename,
+            media_url: uploaded.media_url,
+            media_kind: uploaded.media_kind,
+            media_filename: uploaded.filename,
             ...(caption ? { content_text: caption } : {}),
             ...(replyToId ? { reply_to_message_id: replyToId } : {}),
           }),

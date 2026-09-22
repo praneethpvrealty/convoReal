@@ -215,6 +215,33 @@
           "guards": [
             "supabase/migrations/20260922120000_showcase_flow_keywords_backfill.sql"
           ]
+        },
+        {
+          "id": "INB-013",
+          "rule": "An inbox attachment is staged straight into the account's own chat-media prefix under a server-signed, single-path upload URL rather than through the app, so the caps the composer advertises (5 MB image, 16 MB video, 100 MB document) are the caps that apply; web and mobile refuse an unsupported type or an oversized file in the same words before uploading, and a media send reads the staged object back and refuses one that is missing, outside the account, or larger than Meta's cap before handing the link to Meta.",
+          "tests": [
+            {
+              "file": "src/app/api/whatsapp/media/upload-url/route.test.ts",
+              "case": "[INB-013]"
+            },
+            {
+              "file": "src/lib/whatsapp/staged-media.test.ts",
+              "case": "[INB-013]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[INB-013]"
+            },
+            {
+              "file": "mobile/lib/attachments.test.ts",
+              "case": "[INB-013]"
+            }
+          ],
+          "guards": [
+            "src/lib/storage/chat-media.ts",
+            "src/lib/whatsapp/staged-media.ts",
+            ".github/workflows/eas-update.yml"
+          ]
         }
       ]
     },

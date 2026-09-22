@@ -30,6 +30,11 @@ import { TOURS } from '@/lib/copilot/tours';
 import { JOURNEY_ITEM_SOURCE_LABELS } from '@/lib/journey/captured';
 import { MESSAGES } from '@/lib/i18n/messages';
 import {
+  MEDIA_SIZE_LIMITS,
+  SUPPORTED_MEDIA_MIME_TYPES,
+  rejectMedia,
+} from '@/lib/whatsapp/media-kinds';
+import {
   AMENITIES_BY_CATEGORY,
   AREA_UNITS,
   COMMERCIAL_TYPES,
@@ -2776,5 +2781,47 @@ describe('contact language is one tap from the record on both surfaces', () => {
       expect(screen).toContain('Language: account default (');
     }
     expect(mobile).toContain('preferred_language, buyer_alerts_consent');
+  });
+});
+
+describe('mobile/lib/attachments.ts mirrors media-kinds', () => {
+  // Both surfaces stage an attachment before sending it, and both check
+  // it first so an oversized pick costs nothing. If the two copies
+  // disagree, one surface accepts a file the staging route then refuses
+  // with a different sentence — or, worse, offers a cap Meta does not.
+  const source = mobileSource('lib/attachments.ts');
+
+  it('[INB-013] carries the same per-kind caps', () => {
+    for (const [kind, limit] of Object.entries(MEDIA_SIZE_LIMITS)) {
+      const mb = limit / (1024 * 1024);
+      expect(source, `missing ${kind} cap`).toContain(
+        `${kind}: ${mb} * 1024 * 1024`
+      );
+    }
+  });
+
+  it('[INB-013] accepts exactly the types Meta accepts', () => {
+    for (const mimeType of SUPPORTED_MEDIA_MIME_TYPES) {
+      expect(source, `missing ${mimeType}`).toContain(`'${mimeType}'`);
+    }
+  });
+
+  it('[INB-013] refuses a file in the same words the route would', () => {
+    const { attachmentRejection } = mobileModule<{
+      attachmentRejection: (
+        mimeType: string,
+        sizeBytes: number
+      ) => string | null;
+    }>('lib/attachments.ts');
+
+    for (const [mimeType, size] of [
+      ['audio/webm', 4096],
+      ['video/mp4', 40 * 1024 * 1024],
+      ['image/jpeg', 2048],
+    ] as const) {
+      expect(attachmentRejection(mimeType, size)).toBe(
+        rejectMedia(mimeType, size)?.error ?? null
+      );
+    }
   });
 });

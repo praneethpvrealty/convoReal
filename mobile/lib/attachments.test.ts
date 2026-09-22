@@ -4,6 +4,8 @@ import {
   attachmentFilename,
   attachmentKind,
   attachmentMimeType,
+  attachmentRejection,
+  attachmentUploadTimeoutMs,
   formatBytes,
   formatDuration,
 } from './attachments';
@@ -112,5 +114,60 @@ describe('attachmentKind', () => {
     expect(attachmentKind(null)).toBe('document');
     expect(attachmentKind(undefined)).toBe('document');
     expect(attachmentKind('application/octet-stream')).toBe('document');
+  });
+});
+
+describe('attachmentRejection', () => {
+  // The picker checks the file before anything is uploaded, so an
+  // oversized video costs the agent nothing — and the sentence has to
+  // be the one the staging route would have used.
+  it('[INB-013] takes a file inside the caps Meta enforces', () => {
+    expect(attachmentRejection('image/jpeg', 2 * 1024 * 1024)).toBeNull();
+    expect(attachmentRejection('video/mp4', 15 * 1024 * 1024)).toBeNull();
+    expect(attachmentRejection('application/pdf', 60 * 1024 * 1024)).toBeNull();
+  });
+
+  it('[INB-013] names the cap an oversized file broke', () => {
+    expect(attachmentRejection('video/mp4', 40 * 1024 * 1024)).toBe(
+      'WhatsApp caps video at 16 MB — this is 40 MB.'
+    );
+  });
+
+  it('[INB-013] refuses a type Meta does not accept', () => {
+    expect(attachmentRejection('audio/webm', 4096)).toBe(
+      'WhatsApp does not accept audio/webm.'
+    );
+  });
+
+  it('ignores codec parameters the recorder appends', () => {
+    expect(attachmentRejection('audio/ogg; codecs=opus', 4096)).toBeNull();
+  });
+});
+
+describe('attachmentUploadTimeoutMs', () => {
+  // The deadline exists because React Native's fetch has none. It must
+  // never be the reason an upload the attach sheet allows fails: at a
+  // fixed three minutes a 100 MB document needs ~4.7 Mbps sustained,
+  // which is above what most Indian mobile uplinks give.
+  it('[INB-013] leaves a photo the plain base deadline', () => {
+    expect(attachmentUploadTimeoutMs(0)).toBe(180_000);
+    expect(attachmentUploadTimeoutMs(512 * 1024)).toBe(188_000);
+  });
+
+  it('[INB-013] gives every allowed size room at a slow uplink', () => {
+    for (const [kind, size] of [
+      ['video', 16 * 1024 * 1024],
+      ['document', 100 * 1024 * 1024],
+    ] as const) {
+      const budget = attachmentUploadTimeoutMs(size);
+      // 64 KB/s is the floor the deadline is sized for; anything at or
+      // above it must finish inside the budget.
+      const atFloorMs = (size / (64 * 1024)) * 1000;
+      expect(budget, `${kind} budget`).toBeGreaterThan(atFloorMs);
+    }
+  });
+
+  it('treats a missing or negative size as nothing to send', () => {
+    expect(attachmentUploadTimeoutMs(-1)).toBe(180_000);
   });
 });

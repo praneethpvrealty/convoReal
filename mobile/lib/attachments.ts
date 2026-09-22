@@ -16,6 +16,32 @@ export const ATTACHMENT_SIZE_LIMITS: Record<AttachmentKind, number> = {
   document: 100 * 1024 * 1024,
 };
 
+const UPLOAD_BASE_TIMEOUT_MS = 180_000;
+/** The slowest uplink an upload deadline is sized for. */
+const UPLOAD_FLOOR_BYTES_PER_SECOND = 64 * 1024;
+
+/** Every mime type Meta accepts. Mirrors MIME_TO_KIND. */
+export const SUPPORTED_MIME_TYPES: string[] = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'video/mp4',
+  'video/3gpp',
+  'audio/aac',
+  'audio/mp4',
+  'audio/mpeg',
+  'audio/amr',
+  'audio/ogg',
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'text/plain',
+];
+
 const EXTENSION_MIME: Record<string, string> = {
   jpg: 'image/jpeg',
   jpeg: 'image/jpeg',
@@ -61,6 +87,51 @@ export function attachmentMimeType(
 }
 
 /**
+ * Why WhatsApp would refuse this file, or null if it would take it.
+ *
+ * Mirrors `rejectMedia` in src/lib/whatsapp/media-kinds.ts, down to the
+ * wording: the staging route runs the same check against the size the
+ * app declares, and the two must agree or an attachment the app accepts
+ * dies at the server with a different sentence.
+ */
+export function attachmentRejection(
+  mimeType: string | null | undefined,
+  sizeBytes: number
+): string | null {
+  const kind = attachmentKind(mimeType);
+  const bare = mimeType?.split(';')[0].trim().toLowerCase() ?? '';
+  if (!SUPPORTED_MIME_TYPES.includes(bare)) {
+    return `WhatsApp does not accept ${mimeType || 'files of this type'}.`;
+  }
+  const limit = ATTACHMENT_SIZE_LIMITS[kind];
+  if (sizeBytes > limit) {
+    return `WhatsApp caps ${kind} at ${megabytes(limit)} — this is ${megabytes(sizeBytes)}.`;
+  }
+  return null;
+}
+
+/**
+ * How long a staged upload may run before it is abandoned, from the
+ * size of the file.
+ *
+ * React Native's fetch has no deadline of its own, so an upload needs
+ * one — but a single fixed budget cannot serve both ends of what the
+ * attach sheet offers. Three minutes is generous for a photo and cuts
+ * off a 100 MB document at any uplink below roughly 4.7 Mbps, which is
+ * most of them: the transfer is abandoned while it is still moving and
+ * the agent is told to retry something that will fail the same way.
+ *
+ * The base covers the handshake and a small file. Past that the
+ * deadline grows at a deliberately pessimistic floor rate, so a
+ * transfer that is progressing at all is never cut off, while one that
+ * has genuinely stalled still ends rather than hanging forever.
+ */
+export function attachmentUploadTimeoutMs(sizeBytes: number): number {
+  const scaled = Math.max(0, sizeBytes) / UPLOAD_FLOOR_BYTES_PER_SECOND;
+  return UPLOAD_BASE_TIMEOUT_MS + Math.ceil(scaled) * 1000;
+}
+
+/**
  * Which kind of bubble a picked file will become.
  *
  * The upload response says the same thing, but only once the file is
@@ -92,6 +163,10 @@ export function attachmentFilename(
 
   const ext = mimeType?.split('/')[1]?.split('+')[0] || 'bin';
   return `attachment.${ext}`;
+}
+
+function megabytes(bytes: number): string {
+  return `${Math.round((bytes / (1024 * 1024)) * 10) / 10} MB`;
 }
 
 /** Human size for the caption under a document bubble. */
