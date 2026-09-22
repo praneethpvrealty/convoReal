@@ -15,6 +15,8 @@ import {
   answerFromSellerFinalPrice,
   answerFromPortalListing,
   looksLikeQuestion,
+  quickReplyHumanRequest,
+  repliesRatherThanOpens,
   requestsHumanContact,
   HANDOVER_TEXT,
   CALLBACK_HANDOVER_TEXT,
@@ -108,6 +110,116 @@ describe('requestsHumanContact', () => {
     ]) {
       expect(requestsHumanContact(text), String(text)).toBe(false);
     }
+  });
+});
+
+describe('repliesRatherThanOpens', () => {
+  // The reported bug. A buyer sent a commercial building's card asked
+  // four questions about it; `rent`, in "rent received per tenant??",
+  // matched the showcase funnel's keyword trigger and the welcome menu
+  // went out instead of an answer.
+  const tenantQuestions = [
+    'Please send me the following details..',
+    '1.How old is this building?',
+    '2.Who are the tenants and rent received per tenant??',
+    '3.Number of Floors',
+    '4.tenure of the lease agreements with tenant',
+  ].join('\n');
+
+  it('[INB-011] claims a question from a lead already sent a listing', () => {
+    expect(
+      repliesRatherThanOpens(tenantQuestions, { listingAlreadySent: true })
+    ).toBe(true);
+  });
+
+  it('[INB-011] leaves the funnel to qualify a lead sent nothing yet', () => {
+    // Nothing to answer from, so the welcome menu is still the best
+    // thing we have for them.
+    expect(
+      repliesRatherThanOpens(tenantQuestions, { listingAlreadySent: false })
+    ).toBe(false);
+    expect(
+      repliesRatherThanOpens('Do you have 3 BHK for rent in Whitefield?', {
+        listingAlreadySent: false,
+      })
+    ).toBe(false);
+  });
+
+  it('[INB-011] claims a request for a person whether or not a listing went out', () => {
+    for (const listingAlreadySent of [true, false]) {
+      expect(
+        repliesRatherThanOpens('please call me about the rent', {
+          listingAlreadySent,
+        }),
+        String(listingAlreadySent)
+      ).toBe(true);
+    }
+  });
+
+  it('[INB-011] lets an opener open, mid-thread or not', () => {
+    for (const text of [
+      'hi',
+      'Hello!',
+      'I want to buy a plot',
+      'looking to RENT.',
+      'show properties',
+      '',
+      null,
+    ]) {
+      expect(
+        repliesRatherThanOpens(text, { listingAlreadySent: true }),
+        String(text)
+      ).toBe(false);
+    }
+  });
+});
+
+describe('quickReplyHumanRequest', () => {
+  it('[INB-011] reads a quick-reply tap asking for a person as a callback request', async () => {
+    for (const text of [
+      'Talk to someone',
+      'Call me back',
+      'Speak to an agent',
+    ]) {
+      const label = quickReplyHumanRequest({
+        type: 'button',
+        button: { text },
+      });
+      expect(label, text).toBe(text);
+      expect(
+        repliesRatherThanOpens(label, { listingAlreadySent: false }),
+        text
+      ).toBe(true);
+      await expect(
+        answerLeadQuestion({
+          accountId: 'acct-1',
+          question: label!,
+          property: null,
+        })
+      ).resolves.toEqual({ text: CALLBACK_HANDOVER_TEXT, source: 'handover' });
+    }
+  });
+
+  it('[INB-011] leaves every other quick-reply label to the handlers that own it', () => {
+    for (const text of [
+      'More info?',
+      'Send more details',
+      'Close my enquiry',
+      '',
+    ]) {
+      expect(
+        quickReplyHumanRequest({ type: 'button', button: { text } }),
+        text
+      ).toBeNull();
+    }
+    expect(quickReplyHumanRequest({ type: 'button' })).toBeNull();
+  });
+
+  it('[INB-011] is only about template taps, not typed text', () => {
+    expect(
+      quickReplyHumanRequest({ type: 'text', button: { text: 'Call me back' } })
+    ).toBeNull();
+    expect(quickReplyHumanRequest({ type: 'interactive' })).toBeNull();
   });
 });
 

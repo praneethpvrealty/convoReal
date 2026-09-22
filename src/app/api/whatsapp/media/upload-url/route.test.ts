@@ -64,7 +64,7 @@ beforeEach(() => {
 });
 
 describe('POST /api/whatsapp/media/upload-url', () => {
-  it('[INB-011] signs one upload under this account and names its kind', async () => {
+  it('[INB-012] signs one upload under this account and names its kind', async () => {
     const res = await stage({
       filename: 'layout.jpg',
       mime_type: 'image/jpeg',
@@ -108,7 +108,7 @@ describe('POST /api/whatsapp/media/upload-url', () => {
     expect(signed).toHaveLength(0);
   });
 
-  it('[INB-011] refuses an oversized file by naming the cap it broke', async () => {
+  it('[INB-012] refuses an oversized file by naming the cap it broke', async () => {
     const res = await stage({
       filename: 'tour.mp4',
       mime_type: 'video/mp4',
@@ -122,7 +122,7 @@ describe('POST /api/whatsapp/media/upload-url', () => {
     expect(signed).toHaveLength(0);
   });
 
-  it('[INB-011] signs a video the old byte-proxying route could never carry', async () => {
+  it('[INB-012] signs a video the old byte-proxying route could never carry', async () => {
     const res = await stage({
       filename: 'walkthrough.mp4',
       mime_type: 'video/mp4',

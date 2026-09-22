@@ -2791,7 +2791,7 @@ describe('mobile/lib/attachments.ts mirrors media-kinds', () => {
   // with a different sentence — or, worse, offers a cap Meta does not.
   const source = mobileSource('lib/attachments.ts');
 
-  it('[INB-011] carries the same per-kind caps', () => {
+  it('[INB-012] carries the same per-kind caps', () => {
     for (const [kind, limit] of Object.entries(MEDIA_SIZE_LIMITS)) {
       const mb = limit / (1024 * 1024);
       expect(source, `missing ${kind} cap`).toContain(
@@ -2800,13 +2800,13 @@ describe('mobile/lib/attachments.ts mirrors media-kinds', () => {
     }
   });
 
-  it('[INB-011] accepts exactly the types Meta accepts', () => {
+  it('[INB-012] accepts exactly the types Meta accepts', () => {
     for (const mimeType of SUPPORTED_MEDIA_MIME_TYPES) {
       expect(source, `missing ${mimeType}`).toContain(`'${mimeType}'`);
     }
   });
 
-  it('[INB-011] refuses a file in the same words the route would', () => {
+  it('[INB-012] refuses a file in the same words the route would', () => {
     const { attachmentRejection } = mobileModule<{
       attachmentRejection: (
         mimeType: string,

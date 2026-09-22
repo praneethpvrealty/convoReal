@@ -24,6 +24,8 @@ import {
   type ShownListing,
   type ListingRow,
 } from "./engine";
+import { getFlowTemplate } from "./templates";
+import type { KeywordTriggerConfig } from "./types";
 
 describe("matchReplyId", () => {
   it("returns null for nodes without options", () => {
@@ -210,6 +212,49 @@ describe("REPROMPT_BODY_TEXT", () => {
     expect(REPROMPT_BODY_TEXT).toMatch(/tap one of the options/i);
     // WhatsApp interactive body cap is 1024 chars — stay far under.
     expect(REPROMPT_BODY_TEXT.length).toBeLessThan(200);
+  });
+});
+
+describe("real_estate_onboarding entry keywords", () => {
+  // The shipped list is openers only. Bare intent words — buy, rent,
+  // properties, homes, listing — were never sent on their own in six
+  // months of inbound, but appeared inside ~150 longer messages, each a
+  // false trigger. The phrases keep the entries that actually happen:
+  // the "Show Properties" template button is the funnel's busiest door.
+  const cfg = getFlowTemplate("real_estate_onboarding")!
+    .trigger_config as KeywordTriggerConfig;
+
+  it.each([
+    '🔘 Button: "Show Properties"',
+    "Hi",
+    "Hi sir",
+    "Show me properties",
+    "Show properties",
+    "Buy Property",
+    "hey there",
+    "menu",
+    "Looking to rent a 2BHK in Whitefield",
+  ])("opens on %j", (text) => {
+    expect(matchesKeywordTrigger(text, cfg)).toBe(true);
+  });
+
+  it.each([
+    [
+      "Please send me the following details..",
+      "1.How old is this building?",
+      "2.Who are the tenants and rent received per tenant??",
+      "3.Number of Floors",
+      "4.tenure of the lease agreements with tenant",
+    ].join("\n"),
+    "Is the rent negotiable?",
+    "Are there commercial properties for sale?",
+    "Is this listing still available?",
+    "How many homes are in the project?",
+    "Should I buy this one?",
+    "Commercial good rental property\nAround 10 cr",
+    "I want to invest around 2 cr",
+  ])("stays out of %j", (text) => {
+    expect(matchesKeywordTrigger(text, cfg)).toBe(false);
   });
 });
 

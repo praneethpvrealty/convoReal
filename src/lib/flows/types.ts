@@ -417,6 +417,12 @@ export interface DispatchInboundInput {
    * their own listing.
    */
   allowEntry?: boolean;
+  /**
+   * Set when the inbound answers a conversation already under way. A
+   * flow this contact has already been through does not restart on a
+   * keyword buried in it; one they have never seen still opens.
+   */
+  repliesRatherThanOpens?: boolean;
 }
 
 export interface DispatchInboundResult {

@@ -120,19 +120,19 @@ describe('attachmentRejection', () => {
   // The picker checks the file before anything is uploaded, so an
   // oversized video costs the agent nothing — and the sentence has to
   // be the one the staging route would have used.
-  it('[INB-011] takes a file inside the caps Meta enforces', () => {
+  it('[INB-012] takes a file inside the caps Meta enforces', () => {
     expect(attachmentRejection('image/jpeg', 2 * 1024 * 1024)).toBeNull();
     expect(attachmentRejection('video/mp4', 15 * 1024 * 1024)).toBeNull();
     expect(attachmentRejection('application/pdf', 60 * 1024 * 1024)).toBeNull();
   });
 
-  it('[INB-011] names the cap an oversized file broke', () => {
+  it('[INB-012] names the cap an oversized file broke', () => {
     expect(attachmentRejection('video/mp4', 40 * 1024 * 1024)).toBe(
       'WhatsApp caps video at 16 MB — this is 40 MB.'
     );
   });
 
-  it('[INB-011] refuses a type Meta does not accept', () => {
+  it('[INB-012] refuses a type Meta does not accept', () => {
     expect(attachmentRejection('audio/webm', 4096)).toBe(
       'WhatsApp does not accept audio/webm.'
     );

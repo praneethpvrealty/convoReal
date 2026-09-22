@@ -25,13 +25,13 @@ beforeEach(() => {
 });
 
 describe('refuseStagedMedia', () => {
-  it('[INB-011] passes an attachment staged by this account', async () => {
+  it('[INB-012] passes an attachment staged by this account', async () => {
     expect(
       await refuseStagedMedia('acc-1', 'chat-media/acc-1/chat-1.jpeg')
     ).toBeNull();
   });
 
-  it("[INB-011] refuses another account's path", async () => {
+  it("[INB-012] refuses another account's path", async () => {
     const refusal = await refuseStagedMedia(
       'acc-1',
       'chat-media/acc-2/chat-1.jpeg'
@@ -48,7 +48,7 @@ describe('refuseStagedMedia', () => {
     expect(refusal?.status).toBe(400);
   });
 
-  it('[INB-011] refuses a path nothing was uploaded to', async () => {
+  it('[INB-012] refuses a path nothing was uploaded to', async () => {
     staged = null;
     const refusal = await refuseStagedMedia(
       'acc-1',
@@ -58,7 +58,7 @@ describe('refuseStagedMedia', () => {
     expect(refusal?.error).toContain('did not finish uploading');
   });
 
-  it('[INB-011] refuses a file that landed bigger than the cap it was signed for', async () => {
+  it('[INB-012] refuses a file that landed bigger than the cap it was signed for', async () => {
     staged = { size: 40 * 1024 * 1024, mimeType: 'video/mp4' };
     const refusal = await refuseStagedMedia(
       'acc-1',

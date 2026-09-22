@@ -33,6 +33,7 @@ import { BRANDING } from '@/config/branding';
 import { suggestNameTagSplit } from '@/lib/contacts/name-tag-split';
 import { runAutomationsForTrigger } from '@/lib/automations/engine';
 import { dispatchInboundToFlows } from '@/lib/flows/engine';
+import { toFlowInbound } from '@/lib/flows/inbound-message';
 import {
   handleTemplateWebhookChange,
   isTemplateWebhookField,
@@ -126,6 +127,8 @@ import {
   looksLikeQuestion,
   mergeLeadAnswers,
   questionSubjectProperties,
+  quickReplyHumanRequest,
+  repliesRatherThanOpens,
   requestsHumanContact,
   subjectPortalListings,
   type LeadAnswer,
@@ -257,6 +260,7 @@ import {
   type WhatsAppCatalogOrder,
 } from '@/lib/whatsapp/property-interest';
 import {
+  hasBeenSentAListing,
   logListingsSent,
   logPropertyShare,
 } from '@/lib/whatsapp/share-property-send';
@@ -3280,8 +3284,27 @@ async function processMessage(
     }
   }
 
+  const inboundText = contentText ?? message.text?.body ?? '';
+  const tappedHumanRequest = ownerCheck.isOwner
+    ? null
+    : quickReplyHumanRequest(message);
+
+  const repliesToUs =
+    tappedHumanRequest !== null ||
+    (isTextMessage &&
+      !ownerCheck.isOwner &&
+      repliesRatherThanOpens(inboundText, {
+        listingAlreadySent: looksLikeQuestion(inboundText)
+          ? await hasBeenSentAListing(
+              supabaseAdmin(),
+              accountId,
+              contactRecord.id
+            )
+          : false,
+      }));
+
   console.log(
-    `[webhook] Dispatching to flows. accountId=${accountId}, contact=${contactRecord.id}, text="${contentText ?? message.text?.body ?? ''}"`
+    `[webhook] Dispatching to flows. accountId=${accountId}, contact=${contactRecord.id}, text="${inboundText}"`
   );
   const flowResult = await dispatchInboundToFlows({
     accountId,
@@ -3290,26 +3313,19 @@ async function processMessage(
     conversationId: conversation.id,
     allowEntry:
       !isPropertyOwnerSender && !agentHandling && !buyerRequirementMessage,
-    message: interactiveReplyId
-      ? {
-          kind: 'interactive_reply',
-          reply_id: interactiveReplyId,
-          reply_title: contentText ?? '',
-          meta_message_id: message.id,
-        }
-      : {
-          kind: 'text',
-          text: contentText ?? message.text?.body ?? '',
-          meta_message_id: message.id,
-        },
+    repliesRatherThanOpens: repliesToUs,
+    message: toFlowInbound(
+      message,
+      contentText,
+      interactiveReplyId,
+      inboundText
+    ),
     isFirstInboundMessage,
   });
   console.log(
     `[webhook] Flow result: consumed=${flowResult.consumed}, outcome=${flowResult.outcome || 'n/a'}, flow_run_id=${flowResult.flow_run_id || 'n/a'}`
   );
   const flowConsumed = flowResult.consumed;
-
-  const inboundText = contentText ?? message.text?.body ?? '';
 
   if (!flowConsumed && (message.type === 'text' || message.type === 'button')) {
     const agentInventoryHandled = await handleAgentInventoryDetailsRequest({
@@ -3384,17 +3400,19 @@ async function processMessage(
     !buyerRequirementMessage &&
     !ownerCheck.isOwner &&
     !isPropertyOwnerSender &&
-    message.type === 'text' &&
-    (looksLikeQuestion(inboundText) ||
-      requestsHumanContact(inboundText) ||
-      // "Sir can I get images" is not question-shaped either, but it
-      // asks for the listing's own photos, which we hold.
-      requestsPropertyPhotos(inboundText) ||
-      // "Option 2" is not question-shaped, but the shortlist that
-      // numbered it closed with "reply with the number", so it is an
-      // answer to us and it is about one listing.
-      parseOrdinalReferences(inboundText).length > 0)
+    (tappedHumanRequest !== null ||
+      (message.type === 'text' &&
+        (looksLikeQuestion(inboundText) ||
+          requestsHumanContact(inboundText) ||
+          // "Sir can I get images" is not question-shaped either, but it
+          // asks for the listing's own photos, which we hold.
+          requestsPropertyPhotos(inboundText) ||
+          // "Option 2" is not question-shaped, but the shortlist that
+          // numbered it closed with "reply with the number", so it is an
+          // answer to us and it is about one listing.
+          parseOrdinalReferences(inboundText).length > 0)))
   ) {
+    const leadText = tappedHumanRequest ?? inboundText;
     const admin = supabaseAdmin();
     // Plural: a buyer who asks about "options 1 & 2" asked two
     // questions, and answering only the first leaves the second
@@ -3404,7 +3422,7 @@ async function processMessage(
       accountId,
       contactRecord.id,
       conversation.id,
-      inboundText
+      leadText
     );
 
     // A photo request is answered with the photos themselves, not with
@@ -3415,7 +3433,7 @@ async function processMessage(
     // when photos are mentioned: a person was requested, so a person
     // answers.
     const photoRequest =
-      requestsPropertyPhotos(inboundText) && !requestsHumanContact(inboundText);
+      requestsPropertyPhotos(leadText) && !requestsHumanContact(leadText);
     let answer: LeadAnswer;
     if (photoRequest) {
       const sentPhotos = await sendSubjectPhotos({
@@ -3425,7 +3443,7 @@ async function processMessage(
         contactId: contactRecord.id,
         conversationId: conversation.id,
         propertyIds: subjects.map((s) => s.id),
-        requestText: inboundText,
+        requestText: leadText,
       });
       if (sentPhotos) return;
       answer = {
@@ -3457,7 +3475,7 @@ async function processMessage(
           ]);
           return answerLeadQuestion({
             accountId,
-            question: inboundText,
+            question: leadText,
             property: subject,
             shareSellerFinalPrice: qaConfig?.share_seller_final_price === true,
             portalListings,
@@ -3493,7 +3511,7 @@ async function processMessage(
         userId: assignedAgentUserId,
         type: 'new_message',
         title: `Question needs you: ${contactRecord.name || senderPhone}`,
-        body: inboundText.slice(0, 140),
+        body: leadText.slice(0, 140),
         entityType: 'conversation',
         entityId: conversation.id,
         link: `/inbox?conversation=${conversation.id}`,
@@ -3502,7 +3520,7 @@ async function processMessage(
         accountId,
         conversationId: conversation.id,
         leadName: contactRecord.name || senderPhone,
-        body: inboundText,
+        body: leadText,
       });
       await admin
         .from('conversations')

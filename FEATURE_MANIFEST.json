@@ -172,23 +172,52 @@
         },
         {
           "id": "INB-011",
+          "rule": "A funnel keyword buried in a lead’s text question never restarts a flow that lead has already been through: once a listing has been sent to them, or they ask for a person, the matched flow is skipped and the question is answered from that listing instead. Asking for a person counts whether typed or tapped: a template quick reply whose label asks for a person (\"Talk to someone\", \"Call me back\") gets the same callback promise, agent notification, bridged relay and pending flag as a typed \"call me\". Any other quick-reply label is never read as a question. A tap is matched against flow keywords by its raw label, never the inbox's decorated rendering, so an exact-match flow keyed on a label opens on that tap. A flow they have never entered still opens on its own keyword, and a lead who has been sent nothing is still qualified by the funnel. Entry only — an active run still advances.",
+          "tests": [
+            {
+              "file": "src/lib/ai/lead-question.test.ts",
+              "case": "[INB-011]"
+            },
+            {
+              "file": "src/lib/flows/entry-reentry.test.ts",
+              "case": "[INB-011]"
+            },
+            {
+              "file": "src/lib/ai/lead-question.test.ts",
+              "case": "[INB-011] reads a quick-reply tap asking for a person as a callback request"
+            },
+            {
+              "file": "src/lib/flows/entry-reentry.test.ts",
+              "case": "does not restart a flow on a quick-reply tap that asks for a person"
+            },
+            {
+              "file": "src/lib/flows/entry-reentry.test.ts",
+              "case": "opens an exact-match flow keyed on the tapped label"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20260922113000_property_shares_contact_index.sql"
+          ]
+        },
+        {
+          "id": "INB-012",
           "rule": "An inbox attachment is staged straight into the account's own chat-media prefix under a server-signed, single-path upload URL rather than through the app, so the caps the composer advertises (5 MB image, 16 MB video, 100 MB document) are the caps that apply; web and mobile refuse an unsupported type or an oversized file in the same words before uploading, and a media send reads the staged object back and refuses one that is missing, outside the account, or larger than Meta's cap before handing the link to Meta.",
           "tests": [
             {
               "file": "src/app/api/whatsapp/media/upload-url/route.test.ts",
-              "case": "[INB-011]"
+              "case": "[INB-012]"
             },
             {
               "file": "src/lib/whatsapp/staged-media.test.ts",
-              "case": "[INB-011]"
+              "case": "[INB-012]"
             },
             {
               "file": "src/lib/mobile-parity.test.ts",
-              "case": "[INB-011]"
+              "case": "[INB-012]"
             },
             {
               "file": "mobile/lib/attachments.test.ts",
-              "case": "[INB-011]"
+              "case": "[INB-012]"
             }
           ],
           "guards": [
