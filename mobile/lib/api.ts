@@ -1,3 +1,4 @@
+import { attachmentRejection } from './attachments';
 import { signOut } from './auth-store';
 import { ENV } from './env';
 import { supabase } from './supabase';
@@ -501,37 +502,82 @@ export interface StagedMedia {
   size: number;
 }
 
+/** What /api/whatsapp/media/upload-url hands back. */
+interface SignedChatUpload extends StagedMedia {
+  /** Absolute Supabase Storage URL; PUT the bytes here. */
+  upload_url: string;
+}
+
 /**
- * Stage an attachment for sending — POST /api/whatsapp/media/upload.
+ * Stage an attachment for sending.
  *
- * Streams the file straight off disk as multipart rather than reading it
- * into a base64 string first: a 16 MB video becomes ~21 MB of JavaScript
- * string that way, which is how a phone runs out of memory mid-send.
- * The server checks type and size against WhatsApp's own caps and hands
- * back the storage path to pass to sendMediaMessage.
+ * Two calls: `/api/whatsapp/media/upload-url` decides where the file
+ * may go and signs one upload for that path, then the bytes are PUT
+ * straight to Supabase Storage. Nothing large crosses a serverless
+ * function, which caps a request body at 4.5 MB — below every limit
+ * the attach sheet offers, and refused at the edge as a dropped
+ * connection rather than an error the agent can read.
+ *
+ * The file is read into a native-backed Blob rather than a JavaScript
+ * string: a 16 MB video becomes ~21 MB of string as base64, which is
+ * how a phone runs out of memory mid-send. The blob keeps the bytes on
+ * the native side and the PUT streams them from there.
  */
 export async function uploadChatMedia(file: {
   uri: string;
   name: string;
   mimeType: string;
 }): Promise<StagedMedia> {
-  const form = new FormData();
-  // React Native's FormData takes this shape for a file on disk; the
-  // cast is the standard workaround for the DOM lib's File-only type.
-  form.append('file', {
-    uri: file.uri,
-    name: file.name,
-    type: file.mimeType,
-  } as unknown as Blob);
+  // A pick the platform hands over but will not open — a cloud-only
+  // gallery item, a cache entry already swept — fails here rather than
+  // as a dropped upload the agent is told to retry.
+  let blob: Blob | null = null;
+  try {
+    blob = await (await fetch(file.uri)).blob();
+  } catch {
+    blob = null;
+  }
+  if (!blob?.size) {
+    throw new ApiError(400, 'Could not read that file — pick it again.');
+  }
 
-  const { data } = await apiFetch<{ data: StagedMedia }>(
-    '/api/whatsapp/media/upload',
+  // Checked here as well as at the route so an oversized pick costs
+  // nothing — the refusal names the cap it broke either way.
+  const rejection = attachmentRejection(file.mimeType, blob.size);
+  if (rejection) throw new ApiError(415, rejection);
+
+  const { data } = await apiFetch<{ data: SignedChatUpload }>(
+    '/api/whatsapp/media/upload-url',
     {
       method: 'POST',
-      body: form,
+      body: JSON.stringify({
+        filename: file.name,
+        mime_type: file.mimeType,
+        size: blob.size,
+      }),
     }
   );
-  return data;
+
+  const { upload_url, ...staged } = data;
+  const res = await fetchWithTimeout(
+    upload_url,
+    {
+      method: 'PUT',
+      headers: {
+        'content-type': staged.mime_type,
+        'cache-control': 'max-age=3600',
+        'x-upsert': 'false',
+      },
+      body: blob,
+    },
+    null,
+    UPLOAD_TIMEOUT_MS
+  );
+  if (!res.ok) {
+    throw new ApiError(res.status, 'Could not upload that file — try again.');
+  }
+
+  return staged;
 }
 
 /**

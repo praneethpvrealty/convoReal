@@ -16,6 +16,7 @@ import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit';
 import { sendGroupMessage } from '@/lib/whatsapp/group-send';
 import { isMediaKind, normalizeCaption } from '@/lib/whatsapp/media-kinds';
+import { refuseStagedMedia } from '@/lib/whatsapp/staged-media';
 import type { MediaKind } from '@/lib/whatsapp/meta-api';
 
 export async function POST(
@@ -39,13 +40,14 @@ export async function POST(
     const messageType = body?.message_type === 'media' ? 'media' : 'text';
 
     if (messageType === 'media') {
-      if (
-        typeof body?.media_url !== 'string' ||
-        !body.media_url.startsWith(`chat-media/${accountId}/`)
-      ) {
+      const refusal = await refuseStagedMedia(accountId, body?.media_url);
+      if (refusal) {
         return NextResponse.json(
-          { error: 'media_url must be an attachment staged by this account' },
-          { status: 400 },
+          {
+            error: refusal.error,
+            ...(refusal.code ? { code: refusal.code } : {}),
+          },
+          { status: refusal.status },
         );
       }
       if (!isMediaKind(body?.media_kind)) {

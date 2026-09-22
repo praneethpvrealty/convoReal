@@ -19,6 +19,22 @@ than a written entry. Newest first.
 
 #### 22 September 2026
 
+- **Attachments send.** Picking a photo, video or document in a thread
+  failed on every attempt, on web and on mobile alike, with "Could not
+  send that attachment — try again"; no attachment had ever reached a
+  contact. The app posted the file to its own API route first, and a
+  serverless function rejects a request body over 4.5 MB before any code
+  runs — below the 5 MB photo, 16 MB video and 100 MB document limits the
+  attach sheet offers — so larger files died at the edge as a dropped
+  connection rather than a refusal that could be explained, and on
+  Android the multipart body the picker produced did not survive the
+  bridge at any size. The file now goes straight to storage under a
+  one-shot URL the server signs for a single path inside the account's
+  own folder, so the advertised limits are the real ones. An unsupported
+  type or an oversized file is refused before anything uploads, in the
+  same words on both surfaces, and a send reads the stored file back
+  before handing WhatsApp a link to it.
+
 - **A number WhatsApp is experimenting on no longer looks like a broken
   send, and a blocked contact still gets reached.** Meta drops marketing
   templates to numbers it holds in an experiment group and answers with

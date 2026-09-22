@@ -22,6 +22,7 @@ let lastCustomerAt: string | null;
 let integrationType: string;
 let replyParent: { message_id: string | null; conversation_id: string } | null;
 let dispatched: Record<string, unknown> | null;
+let stagedObject: { size: number; mimeType: string } | null;
 
 function makeDb() {
   const builder = (table: string) => {
@@ -94,6 +95,13 @@ vi.mock('@/lib/auth/account', () => ({
     ),
 }));
 
+// The bytes go to storage directly now, so the route reads back what
+// actually landed before handing Meta a link to it.
+vi.mock('@/lib/storage/chat-media', () => ({
+  CHAT_MEDIA_BUCKET: 'chat-media',
+  stagedChatMedia: async () => stagedObject,
+}));
+
 vi.mock('@/lib/whatsapp/meta-api-dispatcher', () => ({
   sendWhatsAppMessageAndPersist: async (args: Record<string, unknown>) => {
     dispatched = args;
@@ -124,6 +132,7 @@ beforeEach(() => {
   integrationType = 'cloud_api';
   replyParent = null;
   dispatched = null;
+  stagedObject = { size: 2048, mimeType: 'image/jpeg' };
 });
 
 describe('POST /api/whatsapp/send (media)', () => {
@@ -145,6 +154,7 @@ describe('POST /api/whatsapp/send (media)', () => {
   });
 
   it('sends a voice note with no caption, which audio never renders', async () => {
+    stagedObject = { size: 4096, mimeType: 'audio/ogg' };
     const res = await send({
       media_url: staged('voice-1.ogg'),
       media_kind: 'audio',
@@ -158,6 +168,7 @@ describe('POST /api/whatsapp/send (media)', () => {
   });
 
   it('keeps the filename only where WhatsApp shows one', async () => {
+    stagedObject = { size: 4096, mimeType: 'application/pdf' };
     await send({
       media_url: staged('chat-1.pdf'),
       media_kind: 'document',
@@ -165,6 +176,7 @@ describe('POST /api/whatsapp/send (media)', () => {
     });
     expect(dispatched!.mediaFilename).toBe('Price list.pdf');
 
+    stagedObject = { size: 2048, mimeType: 'image/jpeg' };
     await send({
       media_url: staged(),
       media_kind: 'image',
@@ -194,6 +206,31 @@ describe('POST /api/whatsapp/send (media)', () => {
   it('requires a media_url at all', async () => {
     const res = await send({ media_kind: 'image' });
     expect(res.status).toBe(400);
+    expect(dispatched).toBeNull();
+  });
+
+  it('[INB-011] refuses a path the upload never finished writing to', async () => {
+    stagedObject = null;
+
+    const res = await send({ media_url: staged(), media_kind: 'image' });
+    const body = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(body.error).toContain('did not finish uploading');
+    expect(dispatched).toBeNull();
+  });
+
+  it('[INB-011] refuses a file that landed past the cap it was signed for', async () => {
+    stagedObject = { size: 40 * 1024 * 1024, mimeType: 'video/mp4' };
+
+    const res = await send({
+      media_url: staged('tour.mp4'),
+      media_kind: 'video',
+    });
+    const body = await res.json();
+
+    expect(res.status).toBe(415);
+    expect(body.code).toBe('MEDIA_TOO_LARGE');
     expect(dispatched).toBeNull();
   });
 
