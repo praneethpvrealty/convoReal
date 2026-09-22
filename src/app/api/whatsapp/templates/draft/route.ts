@@ -28,6 +28,7 @@ import {
 } from '@/lib/whatsapp/template-validators'
 import { withAccountShowcaseButtons } from '@/lib/whatsapp/template-showcase-buttons'
 import { stampFor } from '@/lib/whatsapp/copy-revision-stamp'
+import { withMetaHeldCategory } from '@/lib/whatsapp/template-category-lock'
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit'
 
 export async function POST(request: Request) {
@@ -91,6 +92,20 @@ export async function POST(request: Request) {
         { status: 409 },
       )
     }
+
+    // A draft wears the category it will be submitted under. Meta
+    // fixes a name's category at its first review, so when another
+    // language of this template already reached Meta the draft takes
+    // that category rather than the builder's request — the submit
+    // route would send it that way regardless, and the badge the
+    // reviewer reads should not promise Utility on a Marketing name.
+    const { data: siblings } = await supabase
+      .from('message_templates')
+      .select('category, meta_template_id, status')
+      .eq('account_id', accountId)
+      .eq('name', payload.name)
+      .not('meta_template_id', 'is', null)
+    payload = withMetaHeldCategory(payload, siblings ?? []).payload
 
     const { data, error } = await supabase
       .from('message_templates')

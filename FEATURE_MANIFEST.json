@@ -1380,6 +1380,27 @@
               "case": "[CLG-002]"
             }
           ]
+        },
+        {
+          "id": "CLG-003",
+          "rule": "Every language of a template shares the category Meta fixed for its name: once any variant has reached Meta, a draft or submission of another language goes out under that Meta-held category (an approved variant's category first, any Meta-held variant's otherwise), never the builder's request, and the response names the requested and assigned categories whenever they differ. A name no language of which has reached Meta keeps the requested category.",
+          "tests": [
+            {
+              "file": "src/lib/whatsapp/template-category-lock.test.ts",
+              "case": "[CLG-003]"
+            },
+            {
+              "file": "src/app/api/whatsapp/templates/submit/route.test.ts",
+              "case": "[CLG-003]"
+            },
+            {
+              "file": "src/app/api/whatsapp/templates/draft/route.test.ts",
+              "case": "[CLG-003]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20260922040000_align_translation_draft_categories.sql"
+          ]
         }
       ]
     }
