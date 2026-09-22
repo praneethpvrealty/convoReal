@@ -9,6 +9,13 @@ import {
 } from '@/components/filter-sheet-parts';
 import { BottomSheet, sheetScrollArea } from '@/components/sheet';
 import { PrimaryButton } from '@/components/ui';
+import { apiFetch } from '@/lib/api';
+import {
+  AREA_OPTIONS_QUERY_KEY,
+  areaOptionLabel,
+  MAX_SELECTED_AREAS,
+  type AreaOption,
+} from '@/lib/contact-area-options';
 import {
   activeFilterCount,
   budgetStepLabel,
@@ -23,10 +30,6 @@ import { supabase } from '@/lib/supabase';
 import { classificationColors, spacing, useTheme } from '@/lib/theme';
 import { CLASSIFICATIONS } from '@/lib/types';
 
-/** Bound on the contacts scanned for distinct areas of interest. Web
- *  scans the whole table for the same dropdown and caches it for five
- *  minutes; a phone gets a page and the same cache. */
-const AREA_SCAN_LIMIT = 500;
 /** Mirrors the Contacts list's own `.limit(150)`. */
 const LIST_LIMIT = 150;
 
@@ -68,27 +71,18 @@ export function ContactFiltersSheet({
     },
   });
 
-  // areas_of_interest is a text[] with no cheap indexed DISTINCT, so
-  // this is a scan either way. Loaded only once the sheet opens, and
-  // held for five minutes — the same deal the web page makes.
+  // Every stored locality, distinct-counted in SQL and grouped by
+  // spelling on the server — the same list the web filter shows. Loaded
+  // only once the sheet opens, and held for five minutes.
   const areas = useQuery({
-    queryKey: ['filter-areas'],
+    queryKey: AREA_OPTIONS_QUERY_KEY,
     enabled: visible,
     staleTime: 5 * 60_000,
     queryFn: async () => {
-      const { data } = await supabase
-        .from('contacts')
-        .select('areas_of_interest')
-        .not('areas_of_interest', 'is', null)
-        .limit(AREA_SCAN_LIMIT);
-      return Array.from(
-        new Set(
-          ((data ?? []) as { areas_of_interest: string[] | null }[])
-            .flatMap((c) => c.areas_of_interest ?? [])
-            .map((a) => a.trim())
-            .filter(Boolean)
-        )
-      ).sort();
+      const res = await apiFetch<{ data?: AreaOption[] }>(
+        '/api/contacts/area-options'
+      );
+      return Array.isArray(res.data) ? res.data : [];
     },
   });
 
@@ -103,9 +97,26 @@ export function ContactFiltersSheet({
     key: K,
     value: ContactFilters[K]
   ) {
-    set({ [key]: filters[key] === value ? null : value } as Partial<
-      ContactFilters
-    >);
+    set({
+      [key]: filters[key] === value ? null : value,
+    } as Partial<ContactFilters>);
+  }
+
+  /** Areas are a set: each chip adds or removes its spelling group,
+   *  up to the same bound the web filter keeps. */
+  function toggleArea(key: string) {
+    if (
+      !filters.areas.includes(key) &&
+      filters.areas.length >= MAX_SELECTED_AREAS
+    ) {
+      haptic.warn();
+      return;
+    }
+    set({
+      areas: filters.areas.includes(key)
+        ? filters.areas.filter((k) => k !== key)
+        : [...filters.areas, key],
+    });
   }
 
   const count = activeFilterCount(filters);
@@ -174,14 +185,17 @@ export function ContactFiltersSheet({
         </FilterGroup>
 
         {areas.data && areas.data.length > 0 ? (
-          <FilterGroup label="Area of interest">
+          <FilterGroup
+            label="Area of interest"
+            hint={`Up to ${MAX_SELECTED_AREAS} at a time. Different spellings of one area count as one.`}
+          >
             <PillWrap>
-              {areas.data.map((a) => (
+              {areas.data.map((option) => (
                 <FilterPill
-                  key={a}
-                  label={a}
-                  active={filters.area === a}
-                  onPress={() => toggle('area', a)}
+                  key={option.key}
+                  label={`${areaOptionLabel(option)} · ${option.count}`}
+                  active={filters.areas.includes(option.key)}
+                  onPress={() => toggleArea(option.key)}
                 />
               ))}
             </PillWrap>
@@ -265,4 +279,3 @@ function BudgetRow({
     </PillScroller>
   );
 }
-

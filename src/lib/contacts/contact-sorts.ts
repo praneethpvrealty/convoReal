@@ -50,13 +50,15 @@ export interface ContactListFilters {
   tag: string;
   minBudget: string;
   maxBudget: string;
-  area: string;
+  areas: string[];
   interestProperty: string;
   interestProject: string;
 }
 
 export function activeContactFilterCount(filters: ContactListFilters): number {
-  return Object.values(filters).filter((v) => v !== 'All').length;
+  return Object.values(filters).filter((v) =>
+    Array.isArray(v) ? v.length > 0 : v !== 'All'
+  ).length;
 }
 
 export function contactListCacheKey(
@@ -77,7 +79,7 @@ export function contactListCacheKey(
     filters.tag,
     filters.minBudget,
     filters.maxBudget,
-    filters.area,
+    filters.areas.join('+'),
     filters.interestProperty,
     filters.interestProject,
     search,
