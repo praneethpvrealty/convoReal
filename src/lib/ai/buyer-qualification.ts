@@ -215,6 +215,43 @@ function hasIntent(prefs: ExtractedPreferences): boolean {
   return prefs.listing_types.length > 0;
 }
 
+const PURCHASE_BUDGET_FLOOR = 1_000_000;
+const COMMERCIAL_PURCHASE_BUDGET_FLOOR = 10_000_000;
+
+/**
+ * Buy-or-rent, when the budget already answers it.
+ *
+ * A lead who replied "3000000 to 3500000" about a vacant plot was then
+ * asked "are you looking to buy or to rent?" — nobody rents a plot for
+ * ₹30 L a month. Residential rents never reach ₹10 L a month, and
+ * commercial ones rarely reach ₹1 Cr, so a figure at or above those
+ * floors is a purchase budget and the question is only noise.
+ */
+export function impliedListingTypes(
+  prefs: ExtractedPreferences
+): ExtractedPreferences['listing_types'] {
+  if (hasIntent(prefs)) return prefs.listing_types;
+  const figure = prefs.budget_min ?? prefs.budget_max;
+  if (figure == null) return [];
+  const sectors = new Set<string>([
+    ...prefs.property_categories,
+    ...prefs.property_types.map((type) => propertySector(type) ?? ''),
+  ]);
+  const floor =
+    sectors.has('commercial') || sectors.has('industrial')
+      ? COMMERCIAL_PURCHASE_BUDGET_FLOOR
+      : PURCHASE_BUDGET_FLOOR;
+  return figure >= floor ? ['Sale'] : [];
+}
+
+export function withImpliedIntent(
+  prefs: ExtractedPreferences
+): ExtractedPreferences {
+  if (hasIntent(prefs)) return prefs;
+  const implied = impliedListingTypes(prefs);
+  return implied.length ? { ...prefs, listing_types: implied } : prefs;
+}
+
 function hasProject(prefs: ExtractedPreferences): boolean {
   return prefs.projects.length > 0;
 }
@@ -238,7 +275,7 @@ function isAnswered(
   prefs: ExtractedPreferences
 ): boolean {
   if (field === 'type') return hasType(prefs);
-  if (field === 'intent') return hasIntent(prefs);
+  if (field === 'intent') return impliedListingTypes(prefs).length > 0;
   if (field === 'budget') return hasBudget(prefs);
   return hasLocation(prefs);
 }
@@ -347,6 +384,47 @@ function formatBudget(prefs: ExtractedPreferences): string {
   if (max != null) return `up to ${asWords(max)}`;
   if (min != null) return `above ${asWords(min)}`;
   return '';
+}
+
+function formatSize(prefs: ExtractedPreferences): string {
+  const sqft = (n: number) => `${Math.round(n).toLocaleString('en-IN')} sq.ft`;
+  const { land_area_min_sqft: min, land_area_max_sqft: max } = prefs;
+  if (min != null && max != null)
+    return min === max ? sqft(min) : `${sqft(min)}–${sqft(max)}`;
+  if (max != null) return `up to ${sqft(max)}`;
+  if (min != null) return `${sqft(min)}+`;
+  return '';
+}
+
+function typeAndSize(prefs: ExtractedPreferences): string {
+  const size = formatSize(prefs);
+  return size ? `${typeLabel(prefs)} of ${size}` : typeLabel(prefs);
+}
+
+/** What the lead has told us so far, as one line to play back. */
+function knownBrief(prefs: ExtractedPreferences): string {
+  return [typeLabel(prefs), formatSize(prefs), formatBudget(prefs)]
+    .filter(Boolean)
+    .join(', ');
+}
+
+/**
+ * The brief as a noun phrase — "vacant plot in KHB Suryanagar Phase" —
+ * for a sentence that says we have none of it live yet.
+ */
+export function describeBrief(prefs: ExtractedPreferences): string {
+  const type = typeLabel(prefs);
+  const size = formatSize(prefs);
+  const area = prefs.areas[0] || prefs.projects[0];
+  const budget = formatBudget(prefs);
+  return [
+    `${/^[aeiou]/i.test(type) ? 'an' : 'a'} ${type}`,
+    size ? `of ${size}` : '',
+    area ? `in ${area}` : '',
+    budget ? `at ${budget}` : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
 }
 
 function formatDirectBudget(prefs: ExtractedPreferences): string {
@@ -492,7 +570,7 @@ export function buildQualifierQuestion(
   }
 
   if (field === 'intent') {
-    return `Got it — ${typeLabel(prefs)}. Are you looking to buy or to rent?`;
+    return `Got it — ${knownBrief(prefs)}. Are you looking to buy or to rent?`;
   }
 
   if (field === 'budget') {
@@ -500,20 +578,18 @@ export function buildQualifierQuestion(
       prefs.listing_types.includes('Sale') &&
       !prefs.listing_types.includes('Rent')
     ) {
-      return `Certainly — I've understood you're looking for ${typeLabel(prefs)} for purchase, not rent. What budget range are you working with?`;
+      return `Certainly — I've understood you're looking for ${typeAndSize(prefs)} for purchase, not rent. What budget range are you working with?`;
     }
     if (
       prefs.listing_types.includes('Rent') &&
       !prefs.listing_types.includes('Sale')
     ) {
-      return `Noted — you're looking for ${typeLabel(prefs)} to rent. What monthly rent budget are you working with?`;
+      return `Noted — you're looking for ${typeAndSize(prefs)} to rent. What monthly rent budget are you working with?`;
     }
-    return `Noted — ${typeLabel(prefs)}. What budget range are you working with?`;
+    return `Noted — ${typeAndSize(prefs)}. What budget range are you working with?`;
   }
 
-  const known = [typeLabel(prefs), formatBudget(prefs)]
-    .filter(Boolean)
-    .join(', ');
+  const known = knownBrief(prefs);
   const areas = areaSuggestions.slice(0, MAX_AREA_SUGGESTIONS);
   const hint = areas.length
     ? ` We have options in ${areas.join(', ')} — or tell me the area you prefer.`
@@ -539,6 +615,24 @@ export function buildFollowUpQuestion(field: QualifierField): string {
     return "One thing — what budget are you working with? I'll narrow these down.";
   }
   return 'One thing — which area suits you best? You can name a locality or a market zone such as CBD, ORR, PBD East, South or North Bengaluru.';
+}
+
+/**
+ * The rung, asked after telling a lead nothing live fits yet. The
+ * answer is what lets the search widen, so the question says so —
+ * and keeps its fingerprint, so the reply is read as the answer.
+ */
+export function buildWidenSearchQuestion(field: QualifierField): string {
+  if (field === 'type') {
+    return 'What kind of property are you looking for — land/plot, apartment, villa or commercial?';
+  }
+  if (field === 'intent') {
+    return 'Are you looking to buy or to rent?';
+  }
+  if (field === 'budget') {
+    return "What budget are you working with? I'll widen the search to everything within it.";
+  }
+  return "Which area suits you best? I'll search there as well.";
 }
 
 /**
@@ -1019,6 +1113,33 @@ export function appendRequirement(
   return prev ? `${prev}\n${next}` : next;
 }
 
+const MAX_BURST_LINES = 4;
+
+/**
+ * The lead's earlier lines in the burst this message ends, oldest
+ * first, that carry a requirement of their own.
+ *
+ * "3000000 to 3500000" and "1200 sqft" sent seconds apart arrive as two
+ * webhooks, and each read the contact before the other had written its
+ * line — so the later one filed its brief without the budget, the
+ * earlier one filed it without the size, and whichever wrote last won.
+ * The lead's plot size simply vanished. Folding the burst into the
+ * latest message makes that message's brief whole whatever the timing.
+ *
+ * `thread` is newest first with the current message at index 0.
+ */
+export function earlierBurstRequirements(
+  thread: { sender_type?: string | null; content_text?: string | null }[]
+): string[] {
+  const lines: string[] = [];
+  for (const message of thread.slice(1, 1 + MAX_BURST_LINES)) {
+    if (message.sender_type !== 'customer') break;
+    const text = message.content_text?.trim();
+    if (text && carriesRequirementSignal(text)) lines.unshift(text);
+  }
+  return lines;
+}
+
 /**
  * Localities of live inventory, most common first — chips for the
  * location question so the buyer picks from what we can actually show.
@@ -1294,7 +1415,7 @@ export async function processBuyerQualificationMessage(
     const awaitingAnswer =
       previous?.sender_type === 'bot' &&
       isQualifierQuestion(previous.content_text as string | null);
-    const storedPreferences = prefsFromContact(contact);
+    const storedPreferences = withImpliedIntent(prefsFromContact(contact));
     const zoneRefinement = canonicalBengaluruZone(
       localityReplyCore(text) || ''
     );
@@ -1314,10 +1435,10 @@ export async function processBuyerQualificationMessage(
     const requirementTurn = resolvedLocation
       ? `Preferred location: ${resolvedLocation}`
       : text;
-    const requirements = appendRequirement(
-      contact.requirements,
-      requirementTurn
-    );
+    const requirements = [
+      ...earlierBurstRequirements(thread || []),
+      requirementTurn,
+    ].reduce(appendRequirement, contact.requirements || '');
     const sourceText = buildPreferenceSourceText(
       requirements,
       contact.contact_notes
@@ -1345,14 +1466,16 @@ export async function processBuyerQualificationMessage(
       // clears the bound it crosses, and a merge that ran afterwards
       // refilled that bound from the contact — storing 2,824–2,400
       // sq.ft., a band nothing can satisfy.
-      let extracted = applySizeAnchor(
-        mergeCurrentTurnPreferences(
-          await extractContactPreferences(sourceText),
-          prefs,
-          text
-        ),
-        sizeSignal,
-        sizeAnchorSqft
+      let extracted = withImpliedIntent(
+        applySizeAnchor(
+          mergeCurrentTurnPreferences(
+            await extractContactPreferences(sourceText),
+            prefs,
+            text
+          ),
+          sizeSignal,
+          sizeAnchorSqft
+        )
       );
       if (resolvedLocation) {
         extracted = { ...extracted, areas: [resolvedLocation] };

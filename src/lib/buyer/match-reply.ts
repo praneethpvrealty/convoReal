@@ -21,6 +21,12 @@ import {
 } from './matches-ranking';
 import { attachInquiredListingTypes } from '@/lib/contacts/inquired-intent';
 import {
+  buildWidenSearchQuestion,
+  describeBrief,
+  nextQualifierForContact,
+  prefsFromContact,
+} from '@/lib/ai/buyer-qualification';
+import {
   buildMatchDigestMessage,
   buildNoMatchesMessage,
   buildUnavailableEnquiryMessage,
@@ -61,6 +67,17 @@ function pinEnquiredProperty(
     pinned,
     ...matches.filter((match) => match.property.id !== property.id),
   ].slice(0, MAX_DIGEST_MATCHES);
+}
+
+function noMatchesFollowUp(contact: Contact): {
+  brief: string;
+  question: string | null;
+} {
+  const missing = nextQualifierForContact(contact, { defaultBuying: true });
+  return {
+    brief: describeBrief(prefsFromContact(contact)),
+    question: missing ? buildWidenSearchQuestion(missing) : null,
+  };
 }
 
 /**
@@ -149,7 +166,7 @@ export async function buildBuyerMatchReplyWithListings(args: {
               propertyTitle: unavailableEnquiryTitle,
               hasAlternatives: false,
             })
-          : buildNoMatchesMessage(contact.name),
+          : buildNoMatchesMessage(contact.name, noMatchesFollowUp(contact)),
         propertyIds: [],
       };
     }
@@ -158,7 +175,7 @@ export async function buildBuyerMatchReplyWithListings(args: {
       db,
       args.accountId,
       matches.map((match) => match.property),
-      contact.id,
+      contact.id
     );
     const digest = buildMatchDigestMessage({
       contactName: contact.name,

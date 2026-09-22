@@ -184,15 +184,28 @@ export function buildEnquiryConsentRequestMessage(args: {
   );
 }
 
-/** Reply to an on-demand "MATCHES" request when nothing fits yet. */
+/**
+ * Reply to an on-demand "MATCHES" request when nothing fits yet.
+ *
+ * A portal lead who taps "Show Properties" has usually told us only
+ * what the portal knew — a type and an area. Answering "nothing fits
+ * your brief, reply with what's changed" to someone who never gave a
+ * brief is a dead end; say what was searched and ask for the missing
+ * piece, so their answer widens the search.
+ */
 export function buildNoMatchesMessage(
-  contactName: string | null | undefined
+  contactName: string | null | undefined,
+  opts: { brief?: string | null; question?: string | null } = {}
 ): string {
-  return (
-    `Hi ${firstName(contactName)} — nothing in our inventory fits your brief right now. ` +
-    `The moment something does, you'll hear from us here. ` +
-    `Reply with what's changed (budget, area, type) and we'll re-run the search.`
-  );
+  const opening = opts.brief
+    ? `Hi ${firstName(contactName)} — I don't have ${opts.brief} live right now, but I'm watching for one.`
+    : `Hi ${firstName(contactName)} — nothing in our inventory fits your brief right now. ` +
+      `The moment something does, you'll hear from us here.`;
+  if (opts.question) return `${opening} ${opts.question}`;
+  return opts.brief
+    ? `${opening} The moment one comes in, you'll hear from us here. ` +
+        `Reply with anything that's changed (budget, area, type) and I'll search again.`
+    : `${opening} Reply with what's changed (budget, area, type) and we'll re-run the search.`;
 }
 
 export function buildUnavailableEnquiryMessage(args: {
