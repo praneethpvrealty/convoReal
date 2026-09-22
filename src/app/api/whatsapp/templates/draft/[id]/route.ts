@@ -80,7 +80,7 @@ export async function PATCH(
     const { data: existing, error: loadErr } = await supabase
       .from('message_templates')
       .select(
-        'id, name, category, language, header_type, header_content, header_media_url, body_text, footer_text, buttons, sample_values, meta_template_id',
+        'id, name, category, language, header_type, header_content, header_media_url, body_text, footer_text, buttons, sample_values, meta_template_id, status',
       )
       .eq('id', id)
       .eq('account_id', accountId)
@@ -93,7 +93,10 @@ export async function PATCH(
     if (!existing) {
       return NextResponse.json({ error: 'Template not found' }, { status: 404 });
     }
-    if (existing.meta_template_id) {
+    // A rejected row is the one Meta-held case that may be reworded
+    // here: nothing changes at Meta until the reviewed copy is
+    // re-submitted through the edit route.
+    if (existing.meta_template_id && existing.status !== 'REJECTED') {
       return NextResponse.json(
         {
           error:

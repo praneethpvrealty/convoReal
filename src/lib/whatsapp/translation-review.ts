@@ -41,6 +41,7 @@ export interface GateableRow {
   name: string;
   language?: string | null;
   meta_template_id?: string | null;
+  status?: string | null;
 }
 
 /**
@@ -55,15 +56,35 @@ export function requiresTranslationReview(
 }
 
 /**
- * Is this row still behind the gate? True only for a translation that
- * needs review AND has not reached Meta. Once Meta holds the row —
- * pending, approved or rejected — the copy is Meta's record: there is
- * nothing left to sign off, and offering "Submit to Meta" again would
- * only send a duplicate Meta refuses as an existing name.
+ * Is this row still behind the gate? True for a translation that
+ * needs review and has not reached Meta, and again for one Meta has
+ * REJECTED: the reworded copy is a new translation nobody has read.
+ * While Meta holds the row pending or approved the copy is Meta's
+ * record — nothing to sign off, and offering "Submit to Meta" again
+ * would only send a duplicate Meta refuses as an existing name.
  */
 export function awaitsTranslationGate(row: GateableRow): boolean {
-  if (row.meta_template_id) return false;
-  return requiresTranslationReview(row.name, row.language ?? 'en_US');
+  if (!requiresTranslationReview(row.name, row.language ?? 'en_US')) {
+    return false;
+  }
+  if (!row.meta_template_id) return true;
+  return (row.status ?? '').toUpperCase() === 'REJECTED';
+}
+
+/**
+ * Does this edit carry exactly the words that were signed off? The
+ * sign-off is on a body and footer, not on the row: an edit that
+ * changes either is a new translation and needs its own review.
+ */
+export function editMatchesReviewedCopy(
+  row: ReviewableRow & { body_text: string; footer_text?: string | null },
+  edit: { body_text: string; footer_text?: string | null }
+): boolean {
+  if (!isTranslationReviewed(row)) return false;
+  return (
+    row.body_text === edit.body_text &&
+    (row.footer_text ?? null) === (edit.footer_text ?? null)
+  );
 }
 
 /** Has this row been signed off? */
@@ -76,3 +97,6 @@ export const TRANSLATION_REVIEW_REQUIRED_MESSAGE =
 
 export const TRANSLATION_REVIEW_MISSING_DRAFT_MESSAGE =
   'Create this translation as a draft first, review the wording, then submit it.';
+
+export const TRANSLATION_EDIT_UNREVIEWED_MESSAGE =
+  'This wording has not been reviewed. Edit it from the review card, mark it reviewed, then submit it to Meta.';

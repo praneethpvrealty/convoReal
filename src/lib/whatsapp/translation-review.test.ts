@@ -4,6 +4,7 @@ import {
   requiresTranslationReview,
   isTranslationReviewed,
   awaitsTranslationGate,
+  editMatchesReviewedCopy,
 } from './translation-review';
 import { ENGINE_TEMPLATES } from './engine-templates';
 import { LANGUAGE_CODES, metaLanguageCode } from '@/lib/languages';
@@ -63,12 +64,35 @@ describe('awaitsTranslationGate', () => {
     ).toBe(true);
   });
 
-  it('[CLG-004] lifts the gate once Meta holds the row, whatever its status', () => {
+  it('[CLG-004] lifts the gate while Meta holds the row pending or approved', () => {
+    for (const status of ['PENDING', 'APPROVED', 'PAUSED']) {
+      expect(
+        awaitsTranslationGate({
+          name: ENGINE_NAME,
+          language: 'kn',
+          meta_template_id: '123',
+          status,
+        }),
+        status
+      ).toBe(false);
+    }
+  });
+
+  it('[CLG-004] puts a rejected translation back behind the gate', () => {
     expect(
       awaitsTranslationGate({
         name: ENGINE_NAME,
         language: 'kn',
         meta_template_id: '123',
+        status: 'REJECTED',
+      })
+    ).toBe(true);
+    expect(
+      awaitsTranslationGate({
+        name: ENGINE_NAME,
+        language: 'en_US',
+        meta_template_id: '123',
+        status: 'REJECTED',
       })
     ).toBe(false);
   });
@@ -93,6 +117,38 @@ describe('awaitsTranslationGate', () => {
         name: 'my_own_offer_blast',
         language: 'kn',
         meta_template_id: null,
+      })
+    ).toBe(false);
+  });
+});
+
+describe('editMatchesReviewedCopy', () => {
+  const reviewed = {
+    translation_reviewed_at: '2026-09-22T04:00:00Z',
+    body_text: 'ನಮಸ್ಕಾರ {{1}}',
+    footer_text: null,
+  };
+
+  it('[CLG-004] accepts an edit that carries the signed-off words', () => {
+    expect(
+      editMatchesReviewedCopy(reviewed, { body_text: 'ನಮಸ್ಕಾರ {{1}}' })
+    ).toBe(true);
+  });
+
+  it('[CLG-004] refuses an unreviewed row or altered wording', () => {
+    expect(
+      editMatchesReviewedCopy(
+        { ...reviewed, translation_reviewed_at: null },
+        { body_text: 'ನಮಸ್ಕಾರ {{1}}' }
+      )
+    ).toBe(false);
+    expect(editMatchesReviewedCopy(reviewed, { body_text: 'ಹಲೋ {{1}}' })).toBe(
+      false
+    );
+    expect(
+      editMatchesReviewedCopy(reviewed, {
+        body_text: 'ನಮಸ್ಕಾರ {{1}}',
+        footer_text: 'STOP',
       })
     ).toBe(false);
   });

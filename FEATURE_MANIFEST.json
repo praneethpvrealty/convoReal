@@ -1438,10 +1438,14 @@
         },
         {
           "id": "CLG-004",
-          "rule": "A non-English engine template has exactly one door to Meta while it is behind the review gate: the review strip's Submit to Meta, shown only after sign-off; the generic per-row Submit is not offered on such a row. The strip and its submit disappear the moment the row holds a Meta template id, so a pending, approved or rejected translation is never offered for resubmission. English and account-authored templates keep the generic Submit.",
+          "rule": "A non-English engine template has exactly one door to Meta while it is behind the review gate: the review strip's Submit to Meta, shown only after sign-off; the generic per-row Submit and Resubmit are not offered on such a row. The strip disappears while Meta holds the row pending, approved or paused, so a live translation is never offered for resubmission. A translation Meta rejected returns behind the gate: it is reworded locally, signed off again, and re-submitted through the Meta edit, which the edit route refuses (409) for an unreviewed row or for wording that differs from the signed-off body and footer. English and account-authored templates keep the generic Submit, Edit and Resubmit.",
           "tests": [
             {
               "file": "src/lib/whatsapp/translation-review.test.ts",
+              "case": "[CLG-004]"
+            },
+            {
+              "file": "src/app/api/whatsapp/templates/[id]/route.test.ts",
               "case": "[CLG-004]"
             }
           ]

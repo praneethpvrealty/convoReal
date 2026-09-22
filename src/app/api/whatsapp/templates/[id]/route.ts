@@ -15,6 +15,11 @@ import {
 } from '@/lib/whatsapp/template-validators'
 import { buildMetaTemplatePayload } from '@/lib/whatsapp/template-components'
 import { withAccountShowcaseButtons } from '@/lib/whatsapp/template-showcase-buttons'
+import {
+  requiresTranslationReview,
+  editMatchesReviewedCopy,
+  TRANSLATION_EDIT_UNREVIEWED_MESSAGE,
+} from '@/lib/whatsapp/translation-review'
 
 /**
  * Per-template lifecycle endpoint.
@@ -83,12 +88,31 @@ export async function PATCH(
     // meta_template_id and status — fetch explicitly.
     const { data: existing, error: lookupErr } = await supabase
       .from('message_templates')
-      .select('id, name, status, category, meta_template_id, language')
+      .select(
+        'id, name, status, category, meta_template_id, language, body_text, footer_text, translation_reviewed_at',
+      )
       .eq('id', id)
       .eq('account_id', accountId)
       .maybeSingle()
     if (lookupErr || !existing) {
       return NextResponse.json({ error: 'Template not found.' }, { status: 404 })
+    }
+
+    // The translation gate holds for edits too: an edit is how a
+    // rejected translation goes back to Meta, and the words it carries
+    // must be the ones a reader signed off — not whatever was typed
+    // into the dialog. See translation-review.ts.
+    if (
+      requiresTranslationReview(existing.name, existing.language ?? 'en_US') &&
+      !editMatchesReviewedCopy(existing, payload)
+    ) {
+      return NextResponse.json(
+        {
+          error: TRANSLATION_EDIT_UNREVIEWED_MESSAGE,
+          code: 'TRANSLATION_REVIEW_REQUIRED',
+        },
+        { status: 409 },
+      )
     }
 
     if (!existing.meta_template_id) {

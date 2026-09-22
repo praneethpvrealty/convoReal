@@ -26,8 +26,11 @@ than a written entry. Newest first.
   server then refused. The review strip is now the only door for a
   translation behind the gate. The strip also stayed on rows already
   pending at Meta, offering a resubmit that Meta would reject as a
-  duplicate name; it now disappears as soon as the row holds a Meta
-  template id.
+  duplicate name; it now disappears while Meta holds the row. A
+  translation Meta rejects goes back behind the gate instead of
+  straight into the edit dialog: reword it on the card, mark it
+  reviewed, and "Submit to Meta" re-submits through the Meta edit, which
+  now refuses unreviewed or altered translated wording.
 
 
 - **Translations submit under the category Meta already holds for the

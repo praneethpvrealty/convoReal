@@ -749,19 +749,29 @@ export function TemplateManager() {
     if (!def || submittingEngineTemplate) return;
     setSubmittingEngineTemplate(template.name);
     try {
-      const res = await fetch('/api/whatsapp/templates/submit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        // The reviewed BODY is the row's, not the builder's — a
-        // reviewer may well have fixed the wording, and sending the
-        // builder's copy would quietly discard their edit.
-        body: JSON.stringify({
-          ...def.build(window.location.origin, activeLanguage),
-          body_text: template.body_text,
-          footer_text: template.footer_text,
-          buttons: template.buttons,
-        }),
-      });
+      // A row Meta already holds (a rejected translation) is edited in
+      // place, which re-opens Meta review; anything else is created.
+      const onMeta = Boolean(template.meta_template_id);
+      const res = await fetch(
+        onMeta
+          ? `/api/whatsapp/templates/${template.id}`
+          : '/api/whatsapp/templates/submit',
+        {
+          method: onMeta ? 'PATCH' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          // The reviewed BODY is the row's, not the builder's — a
+          // reviewer may well have fixed the wording, and sending the
+          // builder's copy would quietly discard their edit. Same for
+          // the category: Meta fixed it at the name's first review.
+          body: JSON.stringify({
+            ...def.build(window.location.origin, activeLanguage),
+            category: template.category,
+            body_text: template.body_text,
+            footer_text: template.footer_text,
+            buttons: template.buttons,
+          }),
+        }
+      );
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.error || `Submission failed (HTTP ${res.status})`);
       toast.success(`${def.label} submitted to Meta.`);
@@ -1041,10 +1051,10 @@ export function TemplateManager() {
                         </Button>
                       </div>
                     )}
-                    {/* Translation review. Only for a non-English
-                        Engine template that has not reached Meta yet —
-                        once Meta holds it (pending or approved) the copy
-                        is Meta's record and the gate has done its job. */}
+                    {/* Translation review. For a non-English Engine
+                        template that has not reached Meta, or that Meta
+                        rejected — while Meta holds it pending or approved
+                        the copy is Meta's record and the gate is done. */}
                     {isOrgManager && gated && (
                         <div className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-800 bg-slate-950/40 px-2.5 py-2">
                           {template.translation_reviewed_at ? (
@@ -1156,6 +1166,7 @@ export function TemplateManager() {
                       </Button>
                     )}
                     {isOrgManager &&
+                      !gated &&
                       (statusKey === 'REJECTED' || statusKey === 'PAUSED') && (
                         <Button
                           variant="ghost"
