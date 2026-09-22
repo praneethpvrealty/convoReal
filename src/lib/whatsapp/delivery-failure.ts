@@ -105,6 +105,35 @@ export function marketingBlockMessage(code: number | null | undefined): string {
     : MARKETING_SUPPRESSION_MESSAGE;
 }
 
+/**
+ * Thrown by the pre-send guard when Marketing to this contact is already
+ * paused. It carries the block code so callers still see why, but it is
+ * OUR refusal, not a new verdict from Meta — extending the pause on it
+ * would keep a cooldown alive for as long as anything kept retrying.
+ */
+export class MarketingPausedError extends Error {
+  readonly code: number;
+  readonly pausedUntil: string | null;
+
+  constructor(code: number, pausedUntil: string | null) {
+    super(`[Error ${code}] ${marketingBlockMessage(code)}`);
+    this.name = 'MarketingPausedError';
+    this.code = code;
+    this.pausedUntil = pausedUntil;
+  }
+}
+
+/** The later of two pauses, so a short cap never shortens a long block. */
+export function laterSuppression(
+  current: string | null | undefined,
+  proposed: string
+): string {
+  if (!current) return proposed;
+  return new Date(current).getTime() > new Date(proposed).getTime()
+    ? current
+    : proposed;
+}
+
 export function marketingRetryAfter(
   at: Date = new Date(),
   code: number = META_MARKETING_FREQUENCY_ERROR

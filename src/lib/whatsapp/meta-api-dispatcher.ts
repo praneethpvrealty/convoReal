@@ -42,11 +42,13 @@ import { CHAIN_ONLY_BLOCKED_MESSAGE } from '@/lib/contacts/chain-only'
 import { DEAD_CONTACT_BLOCKED_MESSAGE } from '@/lib/contacts/lifecycle'
 import {
   isMarketingTemplateSuppressed,
+  laterSuppression,
   marketingBlockCode,
-  marketingBlockMessage,
+  MarketingPausedError,
   marketingRetryAfter,
   META_MARKETING_FREQUENCY_ERROR,
 } from '@/lib/whatsapp/delivery-failure'
+import { findDeliverableUtilityVariant } from '@/lib/whatsapp/template-language'
 import {
   applyContactSalutation,
   applySalutationToTemplateParams,
@@ -421,9 +423,31 @@ export async function sendWhatsAppMessageAndPersist(
         marketingSuppressedUntil
       )
     ) {
-      throw new Error(
-        `[Error ${marketingSuppressionCode}] ${marketingBlockMessage(marketingSuppressionCode)}`,
-      )
+      // Every send path lands here, so this is the one place that can
+      // route around the pause for all of them. Meta downgrades some
+      // translations to Marketing while the English original stays
+      // Utility, and that variant is still deliverable — take it rather
+      // than refuse, when it fits the parameters already built.
+      const swap = args.templateName
+        ? await findDeliverableUtilityVariant(db, {
+            accountId,
+            name: args.templateName,
+            paramCount: (args.templateParams ?? []).length,
+            headerType: args.templateRow?.header_type ?? null,
+          })
+        : null
+      if (swap) {
+        console.warn(
+          `[meta-api-dispatcher] marketing paused for contact ${resolvedContactId}; sending ${swap.name} in ${swap.language} (Utility) instead`,
+        )
+        args.templateRow = swap
+        args.templateLanguage = swap.language || args.templateLanguage
+      } else {
+        throw new MarketingPausedError(
+          marketingSuppressionCode,
+          marketingSuppressedUntil,
+        )
+      }
     }
 
     // 2. Resolve or Create Conversation
@@ -917,14 +941,23 @@ export async function sendWhatsAppMessageAndPersist(
     const blockCode = marketingBlockCode(error)
     if (blockCode !== null) {
       const activeSuppression = resolvedContact?.whatsapp_marketing_suppressed_until
-      const proposed = marketingRetryAfter(new Date(), blockCode)
+      // Our own guard refusing a send is not a new Meta verdict. Writing
+      // a fresh horizon here would push the pause out on every attempt,
+      // so a recurring automation could keep it alive forever.
+      if (error instanceof MarketingPausedError) {
+        return {
+          success: false,
+          error: errorMsg,
+          errorCode: blockCode,
+          ...(error.pausedUntil ? { retryAfter: error.pausedUntil } : {}),
+        }
+      }
       // An experiment block outlasts a frequency cooldown, so the later
       // of the two wins rather than the newer one shortening the pause.
-      const retryAfter =
-        activeSuppression &&
-        new Date(activeSuppression).getTime() > new Date(proposed).getTime()
-          ? activeSuppression
-          : proposed
+      const retryAfter = laterSuppression(
+        activeSuppression,
+        marketingRetryAfter(new Date(), blockCode),
+      )
       if (resolvedContactId && retryAfter !== activeSuppression) {
         const { error: suppressionError } = await db
           .from('contacts')

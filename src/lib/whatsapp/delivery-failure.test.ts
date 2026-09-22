@@ -9,6 +9,8 @@ import {
   META_MARKETING_FREQUENCY_ERROR,
   isMarketingBlockError,
   isMarketingTemplateSuppressed,
+  laterSuppression,
+  MarketingPausedError,
   stripDeliveryFailure,
 } from './delivery-failure';
 
@@ -184,5 +186,33 @@ describe('the WhatsApp experiment block (130472)', () => {
 
     expect(isMarketingTemplateSuppressed('Marketing', until, now)).toBe(true);
     expect(isMarketingTemplateSuppressed('Utility', until, now)).toBe(false);
+  });
+});
+
+describe('keeping the longer pause', () => {
+  it('[INB-008] a 24-hour cap never shortens a 30-day experiment block', () => {
+    const experiment = '2026-10-22T06:00:00.000Z';
+    const cap = '2026-09-23T06:00:00.000Z';
+
+    expect(laterSuppression(experiment, cap)).toBe(experiment);
+    expect(laterSuppression(cap, experiment)).toBe(experiment);
+    expect(laterSuppression(null, cap)).toBe(cap);
+    expect(laterSuppression(undefined, cap)).toBe(cap);
+  });
+});
+
+describe('MarketingPausedError', () => {
+  it('[INB-008] carries the code and the standing pause, not a new one', () => {
+    const err = new MarketingPausedError(
+      META_MARKETING_EXPERIMENT_ERROR,
+      '2026-10-22T06:00:00.000Z'
+    );
+
+    expect(err).toBeInstanceOf(Error);
+    expect(err.code).toBe(META_MARKETING_EXPERIMENT_ERROR);
+    expect(err.pausedUntil).toBe('2026-10-22T06:00:00.000Z');
+    // Still readable as a block by the code that parses error strings.
+    expect(isMarketingBlockError(err)).toBe(true);
+    expect(err.message).toContain('experiment');
   });
 });

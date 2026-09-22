@@ -297,6 +297,70 @@ interface LanguageCandidate {
   category?: string | null;
 }
 
+/** Enough of a stored row to swap a send onto it. */
+export interface TemplateVariant extends LanguageCandidate {
+  name: string;
+  body_text?: string | null;
+  header_type?: string | null;
+}
+
+/** How many distinct `{{n}}` placeholders a body declares. */
+export function bodyPlaceholderCount(body: string | null | undefined): number {
+  const seen = new Set<string>();
+  for (const match of (body ?? '').matchAll(/\{\{(\d+)\}\}/g)) {
+    seen.add(match[1]);
+  }
+  return seen.size;
+}
+
+/**
+ * An approved Utility variant of this template that the parameters
+ * already built will fit, or null.
+ *
+ * The dispatcher's last chance before refusing a Marketing send to a
+ * paused contact. Meta fixes a category per (name, language) and
+ * downgrades a translation it reads as promotional, so one name can be
+ * Utility in English and Marketing in Kannada — and only the Utility
+ * one reaches a contact under a cap or an experiment block.
+ *
+ * The shape has to match or the swap trades a refusal for a Meta
+ * rejection: the same number of body placeholders, so the positional
+ * parameters still line up, and the same header kind, so a text header
+ * is not handed to a row expecting media.
+ */
+export async function findDeliverableUtilityVariant(
+  db: SupabaseClient,
+  opts: {
+    accountId: string;
+    name: string;
+    paramCount: number;
+    headerType?: string | null;
+  }
+): Promise<TemplateVariant | null> {
+  try {
+    const { data } = await db
+      .from('message_templates')
+      .select('*')
+      .eq('account_id', opts.accountId)
+      .eq('name', opts.name)
+      .order('last_submitted_at', { ascending: false, nullsFirst: false });
+
+    const wantedHeader = opts.headerType ?? null;
+    return (
+      ((data ?? []) as TemplateVariant[]).find(
+        (row) =>
+          isApproved(row) &&
+          isUtility(row) &&
+          (row.header_type ?? null) === wantedHeader &&
+          bodyPlaceholderCount(row.body_text) === opts.paramCount
+      ) ?? null
+    );
+  } catch (err) {
+    console.error('[template-language] utility variant lookup failed:', err);
+    return null;
+  }
+}
+
 /**
  * Is Marketing to this contact paused right now? Read by the loader so
  * every send path gets the Utility preference without asking for it.

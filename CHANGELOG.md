@@ -33,9 +33,12 @@ than a written entry. Newest first.
   variant of the same template over a Marketing one in their language —
   which matters because Meta downgrades some translations to Marketing
   while the English original stays Utility, so a Kannada buyer under a
-  block was getting nothing where English would have arrived. Nothing
-  changes for a contact who is not blocked: they still get their own
-  language.
+  block was getting nothing where English would have arrived. Every send
+  path gets that fallback, because the swap happens where they all meet:
+  a paused marketing send is moved onto an approved Utility variant of
+  the same template when it fits the parameters already built, and is
+  refused only when none does. Nothing changes for a contact who is not
+  blocked: they still get their own language.
 
 
 - **A translation Meta already holds is adopted, not refused.** Submitting

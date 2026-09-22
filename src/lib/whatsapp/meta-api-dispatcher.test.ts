@@ -1,12 +1,12 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { encrypt } from "./encryption";
-import { isReengagementError } from "./customer-window";
-import { isChainOnlyBlockedError } from "@/lib/contacts/chain-only";
-import { createHash } from "node:crypto";
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { encrypt } from './encryption';
+import { isReengagementError } from './customer-window';
+import { isChainOnlyBlockedError } from '@/lib/contacts/chain-only';
+import { createHash } from 'node:crypto';
 
 const writeJourneyEventMock = vi.fn();
 
-vi.mock("@/lib/journey/events", () => ({
+vi.mock('@/lib/journey/events', () => ({
   writeJourneyEvent: writeJourneyEventMock,
 }));
 
@@ -22,9 +22,9 @@ vi.mock("@/lib/journey/events", () => ({
  * Fixed by falling back to the account's owner_user_id instead of null.
  */
 
-const ACCOUNT_ID = "acc-1";
-const OWNER_USER_ID = "owner-1";
-const CONTACT_ID = "contact-1";
+const ACCOUNT_ID = 'acc-1';
+const OWNER_USER_ID = 'owner-1';
+const CONTACT_ID = 'contact-1';
 
 type Row = Record<string, unknown>;
 
@@ -36,7 +36,7 @@ function makeDb(
      *  24-hour window is open — the ordinary case for a bot reply. Pass
      *  null to model a contact who has never messaged. */
     lastInboundAt?: string | null;
-  integrationType?: string;
+    integrationType?: string;
     /** Marks the contact as a re-share chain intermediary (migration
      *  215) rather than a lead of this account. */
     chainOnly?: boolean;
@@ -46,13 +46,19 @@ function makeDb(
     configLookupErrors?: number;
     journeyItems?: Row[];
     journeyEventInsertError?: { code?: string; message?: string };
-  } = {},
+    /** A standing Marketing pause on the contact (131049 / 130472). */
+    marketingSuppressedUntil?: string | null;
+    marketingSuppressionCode?: number | null;
+    /** Rows the swap lookup finds for the template name. */
+    templateVariants?: Row[];
+  } = {}
 ) {
   const inserts: Record<string, Row[]> = {
     conversations: [],
     messages: [],
     journey_events: [],
   };
+  const updates: Record<string, Row[]> = {};
   const lastInboundAt =
     overrides.lastInboundAt === undefined
       ? new Date().toISOString()
@@ -77,68 +83,82 @@ function makeDb(
       gte: () => b,
       order: () => b,
       limit: () => b,
-      update: () => b,
+      update: (payload: Row) => {
+        updates[table] = updates[table] || [];
+        updates[table].push(payload);
+        return b;
+      },
       insert: (payload: Row) => {
         inserts[table] = inserts[table] || [];
         inserts[table].push(payload);
         return b;
       },
       maybeSingle: () => {
-        if (table === "whatsapp_config") {
+        if (table === 'whatsapp_config') {
           configLookupCount += 1;
           if (configLookupCount <= (overrides.configLookupErrors ?? 0)) {
             return Promise.resolve({
               data: null,
-              error: { code: "PGRST000", message: "transient connection error" },
+              error: {
+                code: 'PGRST000',
+                message: 'transient connection error',
+              },
             });
           }
           return Promise.resolve({
             data: {
               account_id: ACCOUNT_ID,
-              integration_type: overrides.integrationType ?? "official_api",
-              phone_number_id: "phone-1",
-              access_token: encrypt("test-access-token"),
+              integration_type: overrides.integrationType ?? 'official_api',
+              phone_number_id: 'phone-1',
+              access_token: encrypt('test-access-token'),
             },
             error: null,
           });
         }
-        if (table === "accounts") {
+        if (table === 'accounts') {
           return Promise.resolve({
             data: { owner_user_id: OWNER_USER_ID },
             error: null,
           });
         }
-        if (table === "conversations") {
+        if (table === 'conversations') {
           return Promise.resolve({
             data: overrides.existingConversation ?? null,
             error: null,
           });
         }
-        if (table === "contacts") {
+        if (table === 'contacts') {
           contactLookupCount += 1;
           if (contactLookupCount <= (overrides.contactLookupErrors ?? 0)) {
             return Promise.resolve({
               data: null,
-              error: { code: "PGRST000", message: "transient connection error" },
+              error: {
+                code: 'PGRST000',
+                message: 'transient connection error',
+              },
             });
           }
           return Promise.resolve({
             data: {
               id: CONTACT_ID,
-              phone: "+919876543210",
-              name: "Sajjen",
+              phone: '+919876543210',
+              name: 'Sajjen',
               salutation: null,
               chain_only: overrides.chainOnly ?? false,
               is_dead: overrides.isDead ?? false,
               is_archived: overrides.isArchived ?? false,
+              whatsapp_marketing_suppressed_until:
+                overrides.marketingSuppressedUntil ?? null,
+              whatsapp_marketing_suppression_code:
+                overrides.marketingSuppressionCode ?? null,
             },
             error: null,
           });
         }
-        if (table === "messages") {
+        if (table === 'messages') {
           // The window lookup is the only messages query filtered on an
           // inbound sender; everything else is the duplicate guard.
-          if (filters.sender_type === "customer") {
+          if (filters.sender_type === 'customer') {
             return Promise.resolve({
               data: lastInboundAt ? { created_at: lastInboundAt } : null,
               error: null,
@@ -147,13 +167,24 @@ function makeDb(
           const candidate = overrides.duplicateMessage ?? null;
           const filteredOut =
             candidate !== null &&
-            Object.entries(excluded).some(([column, value]) => candidate[column] === value);
-          return Promise.resolve({ data: filteredOut ? null : candidate, error: null });
+            Object.entries(excluded).some(
+              ([column, value]) => candidate[column] === value
+            );
+          return Promise.resolve({
+            data: filteredOut ? null : candidate,
+            error: null,
+          });
         }
         return Promise.resolve({ data: null, error: null });
       },
       then: (resolve: (v: { data: unknown; error: unknown }) => unknown) => {
-        if (table === "journey_items") {
+        if (table === 'message_templates') {
+          return Promise.resolve({
+            data: overrides.templateVariants ?? [],
+            error: null,
+          }).then(resolve);
+        }
+        if (table === 'journey_items') {
           return Promise.resolve({
             data: overrides.journeyItems ?? [],
             error: null,
@@ -162,21 +193,21 @@ function makeDb(
         return Promise.resolve({ data: null, error: null }).then(resolve);
       },
       single: () => {
-        if (table === "conversations") {
+        if (table === 'conversations') {
           const inserted = inserts.conversations.at(-1);
           return Promise.resolve({
-            data: { id: "conv-new", ...inserted },
+            data: { id: 'conv-new', ...inserted },
             error: null,
           });
         }
-        if (table === "messages") {
+        if (table === 'messages') {
           const inserted = inserts.messages.at(-1);
           return Promise.resolve({
-            data: { id: "msg-new", ...inserted },
+            data: { id: 'msg-new', ...inserted },
             error: null,
           });
         }
-        if (table === "journey_events") {
+        if (table === 'journey_events') {
           const inserted = inserts.journey_events.at(-1);
           if (overrides.journeyEventInsertError) {
             return Promise.resolve({
@@ -187,8 +218,10 @@ function makeDb(
 
           return Promise.resolve({
             data: inserted
-              ? { id: `je-${(inserted as { id?: string } | undefined)?.id ?? '1'}` }
-              : { id: "je-1" },
+              ? {
+                  id: `je-${(inserted as { id?: string } | undefined)?.id ?? '1'}`,
+                }
+              : { id: 'je-1' },
             error: null,
           });
         }
@@ -201,19 +234,21 @@ function makeDb(
   return {
     from: (table: string) => builder(table),
     _inserts: inserts,
+    _updates: updates,
   };
 }
 
-describe("sendWhatsAppMessageAndPersist", () => {
+describe('sendWhatsAppMessageAndPersist', () => {
   beforeEach(() => {
     writeJourneyEventMock.mockReset();
     vi.stubGlobal(
-      "fetch",
-      vi.fn(async () =>
-        new Response(JSON.stringify({ messages: [{ id: "wamid.123" }] }), {
-          status: 200,
-        }),
-      ),
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ messages: [{ id: 'wamid.123' }] }), {
+            status: 200,
+          })
+      )
     );
   });
 
@@ -221,28 +256,151 @@ describe("sendWhatsAppMessageAndPersist", () => {
     vi.unstubAllGlobals();
   });
 
-  it("logs personal WhatsApp journey events for agent-sent outbound messages", async () => {
+  // Meta blocks Marketing to a capped or experiment-group recipient but
+  // still delivers Utility, and it downgrades some translations while
+  // the English original stays Utility. Every send path meets here, so
+  // this is where the swap has to happen.
+  const PAUSED_UNTIL = '2099-01-01T00:00:00.000Z';
+  const KANNADA_MARKETING = {
+    name: 'property_requirement_review',
+    language: 'kn',
+    category: 'Marketing',
+    status: 'APPROVED',
+    body_text: 'ನಮಸ್ಕಾರ {{1}}',
+    header_type: null,
+  };
+  const ENGLISH_UTILITY = {
+    name: 'property_requirement_review',
+    language: 'en_US',
+    category: 'Utility',
+    status: 'APPROVED',
+    body_text: 'Hello {{1}}',
+    header_type: null,
+  };
+
+  it('[CLG-006] swaps a paused Marketing send onto the Utility variant', async () => {
+    const db = makeDb({
+      existingConversation: { id: 'conv-1' },
+      lastInboundAt: null,
+      marketingSuppressedUntil: PAUSED_UNTIL,
+      marketingSuppressionCode: 130472,
+      templateVariants: [KANNADA_MARKETING, ENGLISH_UTILITY],
+    });
+    const { sendWhatsAppMessageAndPersist } =
+      await import('./meta-api-dispatcher');
+
+    const result = await sendWhatsAppMessageAndPersist({
+      accountId: ACCOUNT_ID,
+      userId: 'agent-1',
+      contactId: CONTACT_ID,
+      kind: 'template',
+      senderType: 'agent',
+      templateName: 'property_requirement_review',
+      templateLanguage: 'kn',
+      templateParams: ['Shiva'],
+      templateRow: KANNADA_MARKETING,
+      customDbClient: db,
+    });
+
+    expect(result.success).toBe(true);
+    const body = JSON.parse(
+      (vi.mocked(fetch).mock.calls.at(-1)?.[1] as { body: string }).body
+    );
+    expect(body.template.language.code).toBe('en_US');
+  });
+
+  it('[CLG-006] refuses the send when no Utility variant fits the parameters', async () => {
+    const db = makeDb({
+      existingConversation: { id: 'conv-1' },
+      lastInboundAt: null,
+      marketingSuppressedUntil: PAUSED_UNTIL,
+      marketingSuppressionCode: 130472,
+      // Utility, but declaring a placeholder the built params cannot fill.
+      templateVariants: [
+        KANNADA_MARKETING,
+        { ...ENGLISH_UTILITY, body_text: 'Hello {{1}}, about {{2}}' },
+      ],
+    });
+    const { sendWhatsAppMessageAndPersist } =
+      await import('./meta-api-dispatcher');
+
+    const result = await sendWhatsAppMessageAndPersist({
+      accountId: ACCOUNT_ID,
+      userId: 'agent-1',
+      contactId: CONTACT_ID,
+      kind: 'template',
+      senderType: 'agent',
+      templateName: 'property_requirement_review',
+      templateLanguage: 'kn',
+      templateParams: ['Shiva'],
+      templateRow: KANNADA_MARKETING,
+      customDbClient: db,
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.errorCode).toBe(130472);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('[INB-008] a locally refused send never extends the standing pause', async () => {
+    const db = makeDb({
+      existingConversation: { id: 'conv-1' },
+      lastInboundAt: null,
+      marketingSuppressedUntil: PAUSED_UNTIL,
+      marketingSuppressionCode: 130472,
+      templateVariants: [KANNADA_MARKETING],
+    });
+    const { sendWhatsAppMessageAndPersist } =
+      await import('./meta-api-dispatcher');
+
+    const result = await sendWhatsAppMessageAndPersist({
+      accountId: ACCOUNT_ID,
+      userId: 'agent-1',
+      contactId: CONTACT_ID,
+      kind: 'template',
+      senderType: 'agent',
+      templateName: 'property_requirement_review',
+      templateLanguage: 'kn',
+      templateParams: ['Shiva'],
+      templateRow: KANNADA_MARKETING,
+      customDbClient: db,
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.retryAfter).toBe(PAUSED_UNTIL);
+    const contactWrites = (db._updates.contacts ?? []).filter(
+      (row) => 'whatsapp_marketing_suppressed_until' in row
+    );
+    expect(contactWrites).toEqual([]);
+  });
+
+  it('logs personal WhatsApp journey events for agent-sent outbound messages', async () => {
     writeJourneyEventMock.mockResolvedValueOnce({
       ok: true,
       duplicate: false,
-      eventId: "je-1",
+      eventId: 'je-1',
       error: null,
     });
-    const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
-    const message = "Hi there";
+    const { sendWhatsAppMessageAndPersist } =
+      await import('./meta-api-dispatcher');
+    const message = 'Hi there';
     const db = makeDb({
-      existingConversation: { id: "conv-existing" },
+      existingConversation: { id: 'conv-existing' },
       journeyItems: [
-        { id: "journey-item-1", contact_id: CONTACT_ID, property_id: "property-1" },
+        {
+          id: 'journey-item-1',
+          contact_id: CONTACT_ID,
+          property_id: 'property-1',
+        },
       ],
     });
 
     const result = await sendWhatsAppMessageAndPersist({
       accountId: ACCOUNT_ID,
-      userId: "agent-1",
+      userId: 'agent-1',
       contactId: CONTACT_ID,
-      kind: "text",
-      senderType: "agent",
+      kind: 'text',
+      senderType: 'agent',
       text: message,
       customDbClient: db,
     });
@@ -252,41 +410,48 @@ describe("sendWhatsAppMessageAndPersist", () => {
     expect(writeJourneyEventMock).toHaveBeenCalledWith({
       db,
       accountId: ACCOUNT_ID,
-      itemId: "journey-item-1",
-      eventType: "outbound_whatsapp",
-      createdBy: "agent-1",
-      dedupeKey: createHash("sha256")
+      itemId: 'journey-item-1',
+      eventType: 'outbound_whatsapp',
+      createdBy: 'agent-1',
+      dedupeKey: createHash('sha256')
         .update(`journey-item-1|web|agent-1|${message}`)
-        .digest("hex"),
+        .digest('hex'),
       metadata: {
-        channel: "personal_whatsapp",
-        source: "web",
-        sender_type: "agent",
-        sender_id: "agent-1",
-        item_id: "journey-item-1",
+        channel: 'personal_whatsapp',
+        source: 'web',
+        sender_type: 'agent',
+        sender_id: 'agent-1',
+        item_id: 'journey-item-1',
         contact_id: CONTACT_ID,
-        property_id: "property-1",
-        conversation_id: "conv-existing",
+        property_id: 'property-1',
+        conversation_id: 'conv-existing',
         message,
         message_length: message.length,
       },
     });
   });
 
-  it("does not log journey events for non-agent sender types", async () => {
-    const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
+  it('does not log journey events for non-agent sender types', async () => {
+    const { sendWhatsAppMessageAndPersist } =
+      await import('./meta-api-dispatcher');
     const db = makeDb({
-      existingConversation: { id: "conv-existing" },
-      journeyItems: [{ id: "journey-item-1", contact_id: CONTACT_ID, property_id: "property-1" }],
+      existingConversation: { id: 'conv-existing' },
+      journeyItems: [
+        {
+          id: 'journey-item-1',
+          contact_id: CONTACT_ID,
+          property_id: 'property-1',
+        },
+      ],
     });
 
     const result = await sendWhatsAppMessageAndPersist({
       accountId: ACCOUNT_ID,
-      userId: "bot-user",
+      userId: 'bot-user',
       contactId: CONTACT_ID,
-      kind: "text",
-      senderType: "bot",
-      text: "Hi there",
+      kind: 'text',
+      senderType: 'bot',
+      text: 'Hi there',
       customDbClient: db,
     });
 
@@ -294,26 +459,29 @@ describe("sendWhatsAppMessageAndPersist", () => {
     expect(writeJourneyEventMock).not.toHaveBeenCalled();
   });
 
-  it("treats duplicate personal journey events as non-fatal duplicates", async () => {
+  it('treats duplicate personal journey events as non-fatal duplicates', async () => {
     writeJourneyEventMock.mockResolvedValueOnce({
       ok: true,
       duplicate: true,
       eventId: null,
       error: null,
     });
-    const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
-    const message = "Hi there";
+    const { sendWhatsAppMessageAndPersist } =
+      await import('./meta-api-dispatcher');
+    const message = 'Hi there';
     const db = makeDb({
-      existingConversation: { id: "conv-existing" },
-      journeyItems: [{ id: "journey-item-1", contact_id: CONTACT_ID, property_id: null }],
+      existingConversation: { id: 'conv-existing' },
+      journeyItems: [
+        { id: 'journey-item-1', contact_id: CONTACT_ID, property_id: null },
+      ],
     });
 
     const result = await sendWhatsAppMessageAndPersist({
       accountId: ACCOUNT_ID,
-      userId: "agent-1",
+      userId: 'agent-1',
       contactId: CONTACT_ID,
-      kind: "text",
-      senderType: "agent",
+      kind: 'text',
+      senderType: 'agent',
       text: message,
       customDbClient: db,
     });
@@ -321,22 +489,23 @@ describe("sendWhatsAppMessageAndPersist", () => {
     expect(result.success).toBe(true);
     expect(writeJourneyEventMock).toHaveBeenCalledTimes(1);
     expect(writeJourneyEventMock.mock.calls[0]?.[0].dedupeKey).toBe(
-      createHash("sha256")
-        .update("journey-item-1|web|agent-1|Hi there")
-        .digest("hex"),
+      createHash('sha256')
+        .update('journey-item-1|web|agent-1|Hi there')
+        .digest('hex')
     );
   });
 
   it("falls back to the account owner's user_id when no userId is given (system-initiated send)", async () => {
-    const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
+    const { sendWhatsAppMessageAndPersist } =
+      await import('./meta-api-dispatcher');
     const db = makeDb();
 
     const result = await sendWhatsAppMessageAndPersist({
       accountId: ACCOUNT_ID,
       contactId: CONTACT_ID,
-      kind: "text",
-      senderType: "bot",
-      text: "hello",
+      kind: 'text',
+      senderType: 'bot',
+      text: 'hello',
       customDbClient: db,
     });
 
@@ -349,38 +518,40 @@ describe("sendWhatsAppMessageAndPersist", () => {
     });
   });
 
-  it("uses the given userId directly and never looks up the account owner", async () => {
-    const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
+  it('uses the given userId directly and never looks up the account owner', async () => {
+    const { sendWhatsAppMessageAndPersist } =
+      await import('./meta-api-dispatcher');
     const db = makeDb();
-    const accountsSpy = vi.spyOn(db, "from");
+    const accountsSpy = vi.spyOn(db, 'from');
 
     const result = await sendWhatsAppMessageAndPersist({
       accountId: ACCOUNT_ID,
-      userId: "agent-1",
+      userId: 'agent-1',
       contactId: CONTACT_ID,
-      kind: "text",
-      senderType: "bot",
-      text: "hello",
+      kind: 'text',
+      senderType: 'bot',
+      text: 'hello',
       customDbClient: db,
     });
 
     expect(result.success).toBe(true);
-    expect(db._inserts.conversations[0]).toMatchObject({ user_id: "agent-1" });
-    expect(accountsSpy.mock.calls.some(([table]) => table === "accounts")).toBe(
-      false,
+    expect(db._inserts.conversations[0]).toMatchObject({ user_id: 'agent-1' });
+    expect(accountsSpy.mock.calls.some(([table]) => table === 'accounts')).toBe(
+      false
     );
   });
 
-  it("retries one transient contact lookup failure before sending", async () => {
-    const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
+  it('retries one transient contact lookup failure before sending', async () => {
+    const { sendWhatsAppMessageAndPersist } =
+      await import('./meta-api-dispatcher');
     const db = makeDb({ contactLookupErrors: 1 });
 
     const result = await sendWhatsAppMessageAndPersist({
       accountId: ACCOUNT_ID,
       contactId: CONTACT_ID,
-      kind: "text",
-      senderType: "agent",
-      text: "hello",
+      kind: 'text',
+      senderType: 'agent',
+      text: 'hello',
       customDbClient: db,
     });
 
@@ -388,16 +559,17 @@ describe("sendWhatsAppMessageAndPersist", () => {
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 
-  it("retries one transient WhatsApp configuration lookup failure before sending", async () => {
-    const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
+  it('retries one transient WhatsApp configuration lookup failure before sending', async () => {
+    const { sendWhatsAppMessageAndPersist } =
+      await import('./meta-api-dispatcher');
     const db = makeDb({ configLookupErrors: 1 });
 
     const result = await sendWhatsAppMessageAndPersist({
       accountId: ACCOUNT_ID,
       contactId: CONTACT_ID,
-      kind: "text",
-      senderType: "agent",
-      text: "hello",
+      kind: 'text',
+      senderType: 'agent',
+      text: 'hello',
       customDbClient: db,
     });
 
@@ -405,36 +577,38 @@ describe("sendWhatsAppMessageAndPersist", () => {
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 
-  it("does not report a persistent configuration lookup failure as missing setup", async () => {
-    const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
+  it('does not report a persistent configuration lookup failure as missing setup', async () => {
+    const { sendWhatsAppMessageAndPersist } =
+      await import('./meta-api-dispatcher');
     const db = makeDb({ configLookupErrors: 2 });
 
     const result = await sendWhatsAppMessageAndPersist({
       accountId: ACCOUNT_ID,
       contactId: CONTACT_ID,
-      kind: "text",
-      senderType: "agent",
-      text: "hello",
+      kind: 'text',
+      senderType: 'agent',
+      text: 'hello',
       customDbClient: db,
     });
 
     expect(result).toEqual({
       success: false,
-      error: "Could not load WhatsApp configuration. Please try again.",
+      error: 'Could not load WhatsApp configuration. Please try again.',
     });
     expect(fetch).not.toHaveBeenCalled();
   });
 
-  it("reuses an existing conversation without creating a new one", async () => {
-    const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
-    const db = makeDb({ existingConversation: { id: "conv-existing" } });
+  it('reuses an existing conversation without creating a new one', async () => {
+    const { sendWhatsAppMessageAndPersist } =
+      await import('./meta-api-dispatcher');
+    const db = makeDb({ existingConversation: { id: 'conv-existing' } });
 
     const result = await sendWhatsAppMessageAndPersist({
       accountId: ACCOUNT_ID,
       contactId: CONTACT_ID,
-      kind: "text",
-      senderType: "bot",
-      text: "hello",
+      kind: 'text',
+      senderType: 'bot',
+      text: 'hello',
       customDbClient: db,
     });
 
@@ -442,88 +616,100 @@ describe("sendWhatsAppMessageAndPersist", () => {
     expect(db._inserts.conversations).toHaveLength(0);
   });
 
-  it("skips a duplicate substantial free-text send to the same conversation", async () => {
-    const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
+  it('skips a duplicate substantial free-text send to the same conversation', async () => {
+    const { sendWhatsAppMessageAndPersist } =
+      await import('./meta-api-dispatcher');
     const db = makeDb({
-      existingConversation: { id: "conv-existing" },
-      duplicateMessage: { id: "dup-1", message_id: "wamid.dup" },
+      existingConversation: { id: 'conv-existing' },
+      duplicateMessage: { id: 'dup-1', message_id: 'wamid.dup' },
     });
-    const longText = "Here are the complete details for the property ".repeat(4);
+    const longText = 'Here are the complete details for the property '.repeat(
+      4
+    );
 
     const result = await sendWhatsAppMessageAndPersist({
       accountId: ACCOUNT_ID,
       contactId: CONTACT_ID,
-      kind: "text",
-      senderType: "agent",
+      kind: 'text',
+      senderType: 'agent',
       text: longText,
       customDbClient: db,
     });
 
     expect(result.success).toBe(true);
-    expect(result.messageId).toBe("dup-1");
-    expect(result.whatsappMessageId).toBe("wamid.dup");
+    expect(result.messageId).toBe('dup-1');
+    expect(result.whatsappMessageId).toBe('wamid.dup');
     // No new message row and no Meta call — it was collapsed as a duplicate.
     expect(db._inserts.messages).toHaveLength(0);
     expect(fetch).not.toHaveBeenCalled();
   });
 
-  it("resends text that failed — a message Meta refused is not a duplicate", async () => {
-    const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
+  it('resends text that failed — a message Meta refused is not a duplicate', async () => {
+    const { sendWhatsAppMessageAndPersist } =
+      await import('./meta-api-dispatcher');
     const db = makeDb({
-      existingConversation: { id: "conv-existing" },
-      duplicateMessage: { id: "dup-1", message_id: "wamid.dup", status: "failed" },
+      existingConversation: { id: 'conv-existing' },
+      duplicateMessage: {
+        id: 'dup-1',
+        message_id: 'wamid.dup',
+        status: 'failed',
+      },
     });
-    const longText = "Here are the complete details for the property ".repeat(4);
+    const longText = 'Here are the complete details for the property '.repeat(
+      4
+    );
 
     const result = await sendWhatsAppMessageAndPersist({
       accountId: ACCOUNT_ID,
       contactId: CONTACT_ID,
-      kind: "text",
-      senderType: "agent",
+      kind: 'text',
+      senderType: 'agent',
       text: longText,
       customDbClient: db,
     });
 
     expect(result.success).toBe(true);
-    expect(result.messageId).toBe("msg-new");
+    expect(result.messageId).toBe('msg-new');
     expect(db._inserts.messages).toHaveLength(1);
   });
 
   it("persists the quoted row id, not Meta's wamid", async () => {
-    const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
-    const db = makeDb({ existingConversation: { id: "conv-existing" } });
+    const { sendWhatsAppMessageAndPersist } =
+      await import('./meta-api-dispatcher');
+    const db = makeDb({ existingConversation: { id: 'conv-existing' } });
 
     await sendWhatsAppMessageAndPersist({
       accountId: ACCOUNT_ID,
       contactId: CONTACT_ID,
-      kind: "text",
-      senderType: "agent",
-      text: "answering that",
-      contextMessageId: "wamid.parent",
-      replyToMessageId: "11111111-2222-3333-4444-555555555555",
+      kind: 'text',
+      senderType: 'agent',
+      text: 'answering that',
+      contextMessageId: 'wamid.parent',
+      replyToMessageId: '11111111-2222-3333-4444-555555555555',
       customDbClient: db,
     });
 
     // reply_to_message_id is a UUID self-FK — a wamid there fails the
     // insert once Meta has already delivered the message.
     expect(db._inserts.messages[0].reply_to_message_id).toBe(
-      "11111111-2222-3333-4444-555555555555",
+      '11111111-2222-3333-4444-555555555555'
     );
   });
 
-  it("does not dedupe short repeated messages (only substantial text)", async () => {
-    const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
+  it('does not dedupe short repeated messages (only substantial text)', async () => {
+    const { sendWhatsAppMessageAndPersist } =
+      await import('./meta-api-dispatcher');
     const db = makeDb({
-      existingConversation: { id: "conv-existing" },
-      duplicateMessage: { id: "dup-1", message_id: "wamid.dup" },
+      existingConversation: { id: 'conv-existing' },
+      duplicateMessage: { id: 'dup-1', message_id: 'wamid.dup' },
     });
 
     const result = await sendWhatsAppMessageAndPersist({
       accountId: ACCOUNT_ID,
       contactId: CONTACT_ID,
-      kind: "text",
-      senderType: "agent",
-      text: "ok",
+      kind: 'text',
+      senderType: 'agent',
+      text: 'ok',
       customDbClient: db,
     });
 
@@ -539,22 +725,23 @@ describe("sendWhatsAppMessageAndPersist", () => {
    * later — automations, flows, reminders and notifications all reach
    * Meta through this function, and none of them checked.
    */
-  describe("24-hour customer window", () => {
+  describe('24-hour customer window', () => {
     const HOURS = 60 * 60 * 1000;
 
-    it("refuses free-form text when the contact last messaged over 24 hours ago", async () => {
-      const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
+    it('refuses free-form text when the contact last messaged over 24 hours ago', async () => {
+      const { sendWhatsAppMessageAndPersist } =
+        await import('./meta-api-dispatcher');
       const db = makeDb({
-        existingConversation: { id: "conv-existing" },
+        existingConversation: { id: 'conv-existing' },
         lastInboundAt: new Date(Date.now() - 30 * HOURS).toISOString(),
       });
 
       const result = await sendWhatsAppMessageAndPersist({
         accountId: ACCOUNT_ID,
         contactId: CONTACT_ID,
-        kind: "text",
-        senderType: "agent",
-        text: "here are the property details",
+        kind: 'text',
+        senderType: 'agent',
+        text: 'here are the property details',
         customDbClient: db,
       });
 
@@ -564,19 +751,20 @@ describe("sendWhatsAppMessageAndPersist", () => {
       expect(db._inserts.messages).toHaveLength(0);
     });
 
-    it("refuses free-form text when the contact has never messaged in", async () => {
-      const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
+    it('refuses free-form text when the contact has never messaged in', async () => {
+      const { sendWhatsAppMessageAndPersist } =
+        await import('./meta-api-dispatcher');
       const db = makeDb({
-        existingConversation: { id: "conv-existing" },
+        existingConversation: { id: 'conv-existing' },
         lastInboundAt: null,
       });
 
       const result = await sendWhatsAppMessageAndPersist({
         accountId: ACCOUNT_ID,
         contactId: CONTACT_ID,
-        kind: "text",
-        senderType: "bot",
-        text: "hello",
+        kind: 'text',
+        senderType: 'bot',
+        text: 'hello',
         customDbClient: db,
       });
 
@@ -585,21 +773,22 @@ describe("sendWhatsAppMessageAndPersist", () => {
       expect(fetch).not.toHaveBeenCalled();
     });
 
-    it("refuses an interactive card when the contact has never messaged in", async () => {
-      const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
+    it('refuses an interactive card when the contact has never messaged in', async () => {
+      const { sendWhatsAppMessageAndPersist } =
+        await import('./meta-api-dispatcher');
       const db = makeDb({
-        existingConversation: { id: "conv-existing" },
+        existingConversation: { id: 'conv-existing' },
         lastInboundAt: null,
       });
 
       const result = await sendWhatsAppMessageAndPersist({
         accountId: ACCOUNT_ID,
         contactId: CONTACT_ID,
-        kind: "interactive",
-        senderType: "bot",
-        interactiveType: "buttons",
-        interactiveBody: "Choose an action",
-        interactiveButtons: [{ id: "send:1", title: "Send" }],
+        kind: 'interactive',
+        senderType: 'bot',
+        interactiveType: 'buttons',
+        interactiveBody: 'Choose an action',
+        interactiveButtons: [{ id: 'send:1', title: 'Send' }],
         customDbClient: db,
       });
 
@@ -608,19 +797,20 @@ describe("sendWhatsAppMessageAndPersist", () => {
       expect(fetch).not.toHaveBeenCalled();
     });
 
-    it("sends free-form text while the window is open", async () => {
-      const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
+    it('sends free-form text while the window is open', async () => {
+      const { sendWhatsAppMessageAndPersist } =
+        await import('./meta-api-dispatcher');
       const db = makeDb({
-        existingConversation: { id: "conv-existing" },
+        existingConversation: { id: 'conv-existing' },
         lastInboundAt: new Date(Date.now() - 2 * HOURS).toISOString(),
       });
 
       const result = await sendWhatsAppMessageAndPersist({
         accountId: ACCOUNT_ID,
         contactId: CONTACT_ID,
-        kind: "text",
-        senderType: "agent",
-        text: "still chatting",
+        kind: 'text',
+        senderType: 'agent',
+        text: 'still chatting',
         customDbClient: db,
       });
 
@@ -628,20 +818,21 @@ describe("sendWhatsAppMessageAndPersist", () => {
       expect(fetch).toHaveBeenCalled();
     });
 
-    it("lets a template through a closed window — that is what reopens it", async () => {
-      const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
+    it('lets a template through a closed window — that is what reopens it', async () => {
+      const { sendWhatsAppMessageAndPersist } =
+        await import('./meta-api-dispatcher');
       const db = makeDb({
-        existingConversation: { id: "conv-existing" },
+        existingConversation: { id: 'conv-existing' },
         lastInboundAt: null,
       });
 
       const result = await sendWhatsAppMessageAndPersist({
         accountId: ACCOUNT_ID,
         contactId: CONTACT_ID,
-        kind: "template",
-        senderType: "agent",
-        templateName: "new_property_alert",
-        text: "rendered body",
+        kind: 'template',
+        senderType: 'agent',
+        templateName: 'new_property_alert',
+        text: 'rendered body',
         customDbClient: db,
       });
 
@@ -649,20 +840,21 @@ describe("sendWhatsAppMessageAndPersist", () => {
       expect(fetch).toHaveBeenCalled();
     });
 
-    it("leaves sandbox alone — /api/whatsapp/send swaps in its system template upstream", async () => {
-      const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
+    it('leaves sandbox alone — /api/whatsapp/send swaps in its system template upstream', async () => {
+      const { sendWhatsAppMessageAndPersist } =
+        await import('./meta-api-dispatcher');
       const db = makeDb({
-        existingConversation: { id: "conv-existing" },
+        existingConversation: { id: 'conv-existing' },
         lastInboundAt: null,
-        integrationType: "sandbox",
+        integrationType: 'sandbox',
       });
 
       const result = await sendWhatsAppMessageAndPersist({
         accountId: ACCOUNT_ID,
         contactId: CONTACT_ID,
-        kind: "text",
-        senderType: "agent",
-        text: "sandbox reply",
+        kind: 'text',
+        senderType: 'agent',
+        text: 'sandbox reply',
         customDbClient: db,
       });
 
@@ -672,40 +864,42 @@ describe("sendWhatsAppMessageAndPersist", () => {
     });
   });
 
-  describe("dead and archived contacts", () => {
+  describe('dead and archived contacts', () => {
     // Migration 228. Closing an enquiry used to write nothing but an
     // alerts opt-out, which only broadcast audiences honoured — every
     // other automated sender kept messaging the lead. The refusal lives
     // here because this is the one function all of them funnel through.
-    it("refuses an automated send to a lead who closed their enquiry", async () => {
-      const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
+    it('refuses an automated send to a lead who closed their enquiry', async () => {
+      const { sendWhatsAppMessageAndPersist } =
+        await import('./meta-api-dispatcher');
       const db = makeDb({ isDead: true });
 
       const result = await sendWhatsAppMessageAndPersist({
         accountId: ACCOUNT_ID,
         contactId: CONTACT_ID,
-        kind: "template",
-        senderType: "agent",
-        templateName: "new_property_alert",
-        text: "rendered body",
+        kind: 'template',
+        senderType: 'agent',
+        templateName: 'new_property_alert',
+        text: 'rendered body',
         customDbClient: db,
       });
 
       expect(result.success).toBe(false);
-      expect(result.error).toContain("closed their enquiry");
+      expect(result.error).toContain('closed their enquiry');
       expect(fetch).not.toHaveBeenCalled();
     });
 
-    it("refuses an automated send to an archived contact", async () => {
-      const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
+    it('refuses an automated send to an archived contact', async () => {
+      const { sendWhatsAppMessageAndPersist } =
+        await import('./meta-api-dispatcher');
       const db = makeDb({ isArchived: true });
 
       const result = await sendWhatsAppMessageAndPersist({
         accountId: ACCOUNT_ID,
         contactId: CONTACT_ID,
-        kind: "text",
-        senderType: "bot",
-        text: "a new listing you might like",
+        kind: 'text',
+        senderType: 'bot',
+        text: 'a new listing you might like',
         customDbClient: db,
       });
 
@@ -713,16 +907,17 @@ describe("sendWhatsAppMessageAndPersist", () => {
       expect(fetch).not.toHaveBeenCalled();
     });
 
-    it("refuses before opening a conversation, so no empty thread is left behind", async () => {
-      const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
+    it('refuses before opening a conversation, so no empty thread is left behind', async () => {
+      const { sendWhatsAppMessageAndPersist } =
+        await import('./meta-api-dispatcher');
       const db = makeDb({ isDead: true });
 
       await sendWhatsAppMessageAndPersist({
         accountId: ACCOUNT_ID,
         contactId: CONTACT_ID,
-        kind: "text",
-        senderType: "bot",
-        text: "hello",
+        kind: 'text',
+        senderType: 'bot',
+        text: 'hello',
         customDbClient: db,
       });
 
@@ -731,18 +926,19 @@ describe("sendWhatsAppMessageAndPersist", () => {
     });
 
     it("lets an agent's inbox reply through with allowDeadContact", async () => {
-      const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
+      const { sendWhatsAppMessageAndPersist } =
+        await import('./meta-api-dispatcher');
       const db = makeDb({
         isDead: true,
-        existingConversation: { id: "conv-existing" },
+        existingConversation: { id: 'conv-existing' },
       });
 
       const result = await sendWhatsAppMessageAndPersist({
         accountId: ACCOUNT_ID,
         contactId: CONTACT_ID,
-        kind: "text",
-        senderType: "agent",
-        text: "you called about the HSR plot — still interested?",
+        kind: 'text',
+        senderType: 'agent',
+        text: 'you called about the HSR plot — still interested?',
         allowDeadContact: true,
         customDbClient: db,
       });
@@ -751,16 +947,17 @@ describe("sendWhatsAppMessageAndPersist", () => {
       expect(fetch).toHaveBeenCalled();
     });
 
-    it("still refuses a dead contact when only the chain-only gate was waived", async () => {
-      const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
+    it('still refuses a dead contact when only the chain-only gate was waived', async () => {
+      const { sendWhatsAppMessageAndPersist } =
+        await import('./meta-api-dispatcher');
       const db = makeDb({ isDead: true });
 
       const result = await sendWhatsAppMessageAndPersist({
         accountId: ACCOUNT_ID,
         contactId: CONTACT_ID,
-        kind: "text",
-        senderType: "bot",
-        text: "a co-broker wants the location",
+        kind: 'text',
+        senderType: 'bot',
+        text: 'a co-broker wants the location',
         allowChainOnly: true,
         customDbClient: db,
       });
@@ -770,18 +967,19 @@ describe("sendWhatsAppMessageAndPersist", () => {
     });
   });
 
-  describe("chain-only contacts", () => {
-    it("refuses a send to a re-share intermediary", async () => {
-      const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
+  describe('chain-only contacts', () => {
+    it('refuses a send to a re-share intermediary', async () => {
+      const { sendWhatsAppMessageAndPersist } =
+        await import('./meta-api-dispatcher');
       const db = makeDb({ chainOnly: true });
 
       const result = await sendWhatsAppMessageAndPersist({
         accountId: ACCOUNT_ID,
         contactId: CONTACT_ID,
-        kind: "template",
-        senderType: "agent",
-        templateName: "new_property_alert",
-        text: "rendered body",
+        kind: 'template',
+        senderType: 'agent',
+        templateName: 'new_property_alert',
+        text: 'rendered body',
         customDbClient: db,
       });
 
@@ -790,16 +988,17 @@ describe("sendWhatsAppMessageAndPersist", () => {
       expect(fetch).not.toHaveBeenCalled();
     });
 
-    it("refuses before opening a conversation, so no empty thread is left behind", async () => {
-      const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
+    it('refuses before opening a conversation, so no empty thread is left behind', async () => {
+      const { sendWhatsAppMessageAndPersist } =
+        await import('./meta-api-dispatcher');
       const db = makeDb({ chainOnly: true });
 
       await sendWhatsAppMessageAndPersist({
         accountId: ACCOUNT_ID,
         contactId: CONTACT_ID,
-        kind: "text",
-        senderType: "bot",
-        text: "hello",
+        kind: 'text',
+        senderType: 'bot',
+        text: 'hello',
         customDbClient: db,
       });
 
@@ -807,19 +1006,20 @@ describe("sendWhatsAppMessageAndPersist", () => {
       expect(db._inserts.messages).toHaveLength(0);
     });
 
-    it("lets the consent chain itself through with allowChainOnly", async () => {
-      const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
+    it('lets the consent chain itself through with allowChainOnly', async () => {
+      const { sendWhatsAppMessageAndPersist } =
+        await import('./meta-api-dispatcher');
       const db = makeDb({
         chainOnly: true,
-        existingConversation: { id: "conv-existing" },
+        existingConversation: { id: 'conv-existing' },
       });
 
       const result = await sendWhatsAppMessageAndPersist({
         accountId: ACCOUNT_ID,
         contactId: CONTACT_ID,
-        kind: "text",
-        senderType: "bot",
-        text: "a co-broker wants the location",
+        kind: 'text',
+        senderType: 'bot',
+        text: 'a co-broker wants the location',
         allowChainOnly: true,
         customDbClient: db,
       });
@@ -828,16 +1028,17 @@ describe("sendWhatsAppMessageAndPersist", () => {
       expect(fetch).toHaveBeenCalled();
     });
 
-    it("creates a chain-only contact for a seeker reached by phone", async () => {
-      const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
+    it('creates a chain-only contact for a seeker reached by phone', async () => {
+      const { sendWhatsAppMessageAndPersist } =
+        await import('./meta-api-dispatcher');
       const db = makeDb();
 
       await sendWhatsAppMessageAndPersist({
         accountId: ACCOUNT_ID,
-        toPhone: "+919000000001",
-        kind: "text",
-        senderType: "bot",
-        text: "your location request was approved",
+        toPhone: '+919000000001',
+        kind: 'text',
+        senderType: 'bot',
+        text: 'your location request was approved',
         createAsChainOnly: true,
         allowChainOnly: true,
         customDbClient: db,
@@ -846,32 +1047,34 @@ describe("sendWhatsAppMessageAndPersist", () => {
       expect(db._inserts.contacts?.[0]).toMatchObject({ chain_only: true });
     });
 
-    it("creates an ordinary contact when the flag is absent", async () => {
-      const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
+    it('creates an ordinary contact when the flag is absent', async () => {
+      const { sendWhatsAppMessageAndPersist } =
+        await import('./meta-api-dispatcher');
       const db = makeDb();
 
       await sendWhatsAppMessageAndPersist({
         accountId: ACCOUNT_ID,
-        toPhone: "+919000000002",
-        kind: "text",
-        senderType: "bot",
-        text: "hello",
+        toPhone: '+919000000002',
+        kind: 'text',
+        senderType: 'bot',
+        text: 'hello',
         customDbClient: db,
       });
 
       expect(db._inserts.contacts?.[0]).toMatchObject({ chain_only: false });
     });
 
-    it("leaves ordinary contacts alone", async () => {
-      const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
+    it('leaves ordinary contacts alone', async () => {
+      const { sendWhatsAppMessageAndPersist } =
+        await import('./meta-api-dispatcher');
       const db = makeDb();
 
       const result = await sendWhatsAppMessageAndPersist({
         accountId: ACCOUNT_ID,
         contactId: CONTACT_ID,
-        kind: "text",
-        senderType: "bot",
-        text: "hello",
+        kind: 'text',
+        senderType: 'bot',
+        text: 'hello',
         customDbClient: db,
       });
 

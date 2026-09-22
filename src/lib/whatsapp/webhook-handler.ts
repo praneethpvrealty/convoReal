@@ -15,6 +15,7 @@ import {
 import {
   deliveryFailureUpdate,
   isMarketingBlockCode,
+  laterSuppression,
 } from '@/lib/whatsapp/delivery-failure';
 import { sendTextMessage } from '@/lib/whatsapp/meta-api';
 import {
@@ -937,11 +938,31 @@ async function handleStatusUpdate(status: {
       .eq('id', updatedMsg[0].conversation_id)
       .maybeSingle();
     if (conversation?.contact_id) {
+      // A 24-hour cap arriving while a 30-day experiment block stands
+      // must not shorten it, so keep the later pause and the code that
+      // set it.
+      const { data: contactRow } = await supabaseAdmin()
+        .from('contacts')
+        .select(
+          'whatsapp_marketing_suppressed_until, whatsapp_marketing_suppression_code'
+        )
+        .eq('id', conversation.contact_id)
+        .maybeSingle();
+      const standing = contactRow?.whatsapp_marketing_suppressed_until as
+        | string
+        | null
+        | undefined;
+      const proposed = failure?.retry_after as string;
+      const until = laterSuppression(standing, proposed);
       const { error: suppressError } = await supabaseAdmin()
         .from('contacts')
         .update({
-          whatsapp_marketing_suppressed_until: failure?.retry_after,
-          whatsapp_marketing_suppression_code: failure?.error_code,
+          whatsapp_marketing_suppressed_until: until,
+          whatsapp_marketing_suppression_code:
+            until === proposed
+              ? failure?.error_code
+              : (contactRow?.whatsapp_marketing_suppression_code ??
+                failure?.error_code),
           updated_at: new Date().toISOString(),
         })
         .eq('id', conversation.contact_id);

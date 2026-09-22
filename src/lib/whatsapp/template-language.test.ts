@@ -5,6 +5,8 @@ import {
   pickTemplateForLanguage,
   narrowToLanguage,
   isLanguageFallback,
+  bodyPlaceholderCount,
+  findDeliverableUtilityVariant,
 } from './template-language';
 
 type Row = { id: string; language?: string | null; status?: string | null };
@@ -191,5 +193,92 @@ describe('preferring a deliverable Utility variant', () => {
         preferUtility: true,
       })?.id
     ).toBe('kn');
+  });
+});
+
+describe('bodyPlaceholderCount', () => {
+  it('[CLG-006] counts each placeholder once', () => {
+    expect(bodyPlaceholderCount('Hello {{1}}, about {{2}} — {{1}} again')).toBe(
+      2
+    );
+    expect(bodyPlaceholderCount('No placeholders here')).toBe(0);
+    expect(bodyPlaceholderCount(null)).toBe(0);
+  });
+});
+
+describe('findDeliverableUtilityVariant', () => {
+  const rows = [
+    {
+      name: 'property_requirement_review',
+      language: 'kn',
+      category: 'Marketing',
+      status: 'APPROVED',
+      body_text: 'ನಮಸ್ಕಾರ {{1}}, {{2}}',
+      header_type: null,
+    },
+    {
+      name: 'property_requirement_review',
+      language: 'en_US',
+      category: 'Utility',
+      status: 'APPROVED',
+      body_text: 'Hello {{1}}, {{2}}',
+      header_type: null,
+    },
+  ];
+
+  const db = (data: unknown) => ({
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          eq: () => ({ order: () => Promise.resolve({ data }) }),
+        }),
+      }),
+    }),
+  });
+
+  const find = (data: unknown, opts: Record<string, unknown> = {}) =>
+    findDeliverableUtilityVariant(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      db(data) as any,
+      {
+        accountId: 'acc-1',
+        name: 'property_requirement_review',
+        paramCount: 2,
+        headerType: null,
+        ...opts,
+      }
+    );
+
+  it('[CLG-006] finds the approved Utility variant that fits the parameters', async () => {
+    expect((await find(rows))?.language).toBe('en_US');
+  });
+
+  it('[CLG-006] refuses a variant whose placeholder count differs', async () => {
+    expect(await find(rows, { paramCount: 3 })).toBeNull();
+  });
+
+  it('[CLG-006] refuses a variant with a different header kind', async () => {
+    expect(await find(rows, { headerType: 'image' })).toBeNull();
+  });
+
+  it('[CLG-006] refuses an unapproved or Marketing-only name', async () => {
+    expect(await find([{ ...rows[1], status: 'PENDING' }, rows[0]])).toBeNull();
+    expect(await find([rows[0]])).toBeNull();
+  });
+
+  it('[CLG-006] returns null rather than throwing when the lookup fails', async () => {
+    const broken = {
+      from: () => {
+        throw new Error('connection reset');
+      },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any;
+    await expect(
+      findDeliverableUtilityVariant(broken, {
+        accountId: 'acc-1',
+        name: 'property_requirement_review',
+        paramCount: 2,
+      })
+    ).resolves.toBeNull();
   });
 });
