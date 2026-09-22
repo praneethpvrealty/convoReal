@@ -88,6 +88,7 @@ const db = {
 vi.mock('./engine-send', () => ({}));
 
 const { dispatchInboundToFlows } = await import('./engine');
+const { toFlowInbound } = await import('./inbound-message');
 
 function flow(over: Partial<FlowRow>): FlowRow {
   return {
@@ -192,17 +193,83 @@ describe('[INB-011] keyword entry for a message that replies rather than opens',
       conversationId: 'conv-1',
       allowEntry: true,
       repliesRatherThanOpens: true,
-      message: {
-        kind: 'interactive_reply',
-        reply_id: 'Talk to someone',
-        reply_title: '🔘 Button: "Talk to someone"',
-        meta_message_id: 'wamid.2',
-      },
+      message: templateTap('Talk to someone', 'Talk to someone'),
       isFirstInboundMessage: false,
     });
 
     expect(reentryChecks).toEqual(['flow-showcase']);
     expect(nodesLoadedFor).toEqual([]);
     expect(result.consumed).toBe(false);
+  });
+});
+
+function templateTap(label: string, payload: string | null) {
+  return toFlowInbound(
+    { id: 'wamid.3', type: 'button', button: { text: label } },
+    `🔘 Button: "${label}"`,
+    payload,
+    `🔘 Button: "${label}"`
+  );
+}
+
+async function dispatchTap(message: ReturnType<typeof templateTap>) {
+  return dispatchInboundToFlows({
+    accountId: 'acct-1',
+    userId: 'user-1',
+    contactId: 'contact-1',
+    conversationId: 'conv-1',
+    allowEntry: true,
+    repliesRatherThanOpens: false,
+    message,
+    isFirstInboundMessage: false,
+  });
+}
+
+describe('template quick-reply taps match keyword triggers on the raw label', () => {
+  const exactFlow = () =>
+    flow({
+      id: 'flow-callback',
+      name: 'Callback',
+      trigger_config: { keywords: ['Talk to someone'], match_type: 'exact' },
+      entry_node_id: 'start',
+    });
+
+  it('opens an exact-match flow keyed on the tapped label', async () => {
+    flows = [exactFlow()];
+
+    await dispatchTap(templateTap('Talk to someone', 'CALLBACK_PAYLOAD'));
+
+    expect(nodesLoadedFor).toEqual(['flow-callback']);
+  });
+
+  it('opens it when the tap carries no payload', async () => {
+    flows = [exactFlow()];
+
+    await dispatchTap(templateTap('Talk to someone', null));
+
+    expect(nodesLoadedFor).toEqual(['flow-callback']);
+  });
+
+  it('keeps the decorated text out of the flow input', () => {
+    expect(templateTap('Talk to someone', 'P')).toMatchObject({
+      kind: 'interactive_reply',
+      reply_id: 'P',
+      reply_title: 'Talk to someone',
+    });
+    expect(templateTap('Talk to someone', null)).toMatchObject({
+      kind: 'text',
+      text: 'Talk to someone',
+    });
+  });
+
+  it('leaves free-form interactive replies titled as before', () => {
+    expect(
+      toFlowInbound(
+        { id: 'wamid.4', type: 'interactive' },
+        'Buy',
+        'btn_buy',
+        'Buy'
+      )
+    ).toMatchObject({ kind: 'interactive_reply', reply_title: 'Buy' });
   });
 });

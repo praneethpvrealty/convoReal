@@ -172,7 +172,7 @@
         },
         {
           "id": "INB-011",
-          "rule": "A funnel keyword buried in a lead’s text question never restarts a flow that lead has already been through: once a listing has been sent to them, or they ask for a person, the matched flow is skipped and the question is answered from that listing instead. Asking for a person counts whether typed or tapped: a template quick reply whose label asks for a person (\"Talk to someone\", \"Call me back\") gets the same callback promise, agent notification, bridged relay and pending flag as a typed \"call me\". Any other quick-reply label is never read as a question. A flow they have never entered still opens on its own keyword, and a lead who has been sent nothing is still qualified by the funnel. Entry only — an active run still advances.",
+          "rule": "A funnel keyword buried in a lead’s text question never restarts a flow that lead has already been through: once a listing has been sent to them, or they ask for a person, the matched flow is skipped and the question is answered from that listing instead. Asking for a person counts whether typed or tapped: a template quick reply whose label asks for a person (\"Talk to someone\", \"Call me back\") gets the same callback promise, agent notification, bridged relay and pending flag as a typed \"call me\". Any other quick-reply label is never read as a question. A tap is matched against flow keywords by its raw label, never the inbox's decorated rendering, so an exact-match flow keyed on a label opens on that tap. A flow they have never entered still opens on its own keyword, and a lead who has been sent nothing is still qualified by the funnel. Entry only — an active run still advances.",
           "tests": [
             {
               "file": "src/lib/ai/lead-question.test.ts",
@@ -189,6 +189,10 @@
             {
               "file": "src/lib/flows/entry-reentry.test.ts",
               "case": "does not restart a flow on a quick-reply tap that asks for a person"
+            },
+            {
+              "file": "src/lib/flows/entry-reentry.test.ts",
+              "case": "opens an exact-match flow keyed on the tapped label"
             }
           ],
           "guards": [
