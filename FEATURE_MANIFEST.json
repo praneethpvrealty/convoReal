@@ -194,6 +194,23 @@
           "guards": [
             "supabase/migrations/20260922113000_property_shares_contact_index.sql"
           ]
+        },
+        {
+          "id": "INB-012",
+          "rule": "The shipped showcase funnel enters on openers and explicit intent phrases only, never on a bare word a property conversation is made of. The flow builder warns, without blocking activation, when a contains-matched entry keyword is such a word, and no shipped template trips that warning. A showcase flow still carrying a stock keyword list is moved to the tightened one; an edited list is left alone.",
+          "tests": [
+            {
+              "file": "src/lib/flows/engine.test.ts",
+              "case": "[INB-012]"
+            },
+            {
+              "file": "src/lib/flows/validate.test.ts",
+              "case": "[INB-012]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20260922120000_showcase_flow_keywords_backfill.sql"
+          ]
         }
       ]
     },

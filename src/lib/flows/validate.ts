@@ -25,13 +25,7 @@
 
 import { INTERACTIVE_LIMITS } from "@/lib/whatsapp/meta-api";
 
-/**
- * Words a property conversation is made of. As a bare keyword under
- * `contains` matching, each fires on any message that mentions it —
- * "is the rent negotiable?" opens the funnel — and in 180 days of
- * inbound no lead ever sent one on its own. A phrase ("looking to
- * rent") keeps the entry and drops the false triggers.
- */
+/** Bare words that fire mid-conversation as a `contains` entry keyword. */
 export const GENERIC_ENTRY_KEYWORDS: ReadonlySet<string> = new Set([
   "buy",
   "rent",
