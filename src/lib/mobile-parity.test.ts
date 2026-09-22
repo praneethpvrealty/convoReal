@@ -54,6 +54,7 @@ import {
   areaOverlapFilter,
   areaSearchTerms,
   areaSearchVariants,
+  areasMatchSearch,
   areaVariantKey,
   MAX_AREA_FILTER_VARIANTS,
   MAX_SELECTED_AREAS,
@@ -1317,6 +1318,7 @@ describe('mobile/lib/contact-area-options.ts mirrors the area filter builders', 
     areaOverlapFilter: typeof areaOverlapFilter;
     areaSearchTerms: typeof areaSearchTerms;
     areaSearchVariants: typeof areaSearchVariants;
+    areasMatchSearch: typeof areasMatchSearch;
     areaVariantKey: typeof areaVariantKey;
   }>('lib/contact-area-options.ts');
   const options: AreaOption[] = [
@@ -1388,6 +1390,8 @@ describe('mobile/lib/contact-area-options.ts mirrors the area filter builders', 
       '2 bhk near AECS Layout for 1 cr',
       'around Whitefield with 3 bhk',
       'from Hosur',
+      'near 1st Block Jayanagar',
+      'in 7th Phase JP Nagar for 1 cr',
     ];
     for (const term of typed) {
       expect(mobile.areaVariantKey(term), term).toBe(areaVariantKey(term));
@@ -1395,6 +1399,30 @@ describe('mobile/lib/contact-area-options.ts mirrors the area filter builders', 
       expect(mobile.areaSearchVariants(term, options), term).toEqual(
         areaSearchVariants(term, options)
       );
+    }
+  });
+
+  it('[REQ-003] matches a loaded brief by area the same way', () => {
+    const briefs = [
+      ['Brookefield', 'HSR Layout'],
+      ['brookfield, Bengaluru'],
+      ['Hosur Road'],
+      ['1st Block Jayanagar'],
+      [],
+    ];
+    for (const term of [
+      'brookfield',
+      'buyers in Brookfield',
+      'Hosur',
+      'near 1st Block Jaya Nagar',
+      'in 7th Phase JP Nagar for 1 cr',
+      'x',
+    ]) {
+      for (const areas of briefs) {
+        expect(mobile.areasMatchSearch(term, areas), term).toBe(
+          areasMatchSearch(term, areas)
+        );
+      }
     }
   });
 });

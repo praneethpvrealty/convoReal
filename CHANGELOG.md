@@ -19,6 +19,11 @@ than a written entry. Newest first.
 
 #### 22 September 2026
 
+- **Shared requirements search merges spellings.** Searching the
+  received or sent shares for "Brookfield", or "in Brookfield", now
+  finds a brief whose areas say "Brookefield", on web and on the phone,
+  using the same spelling groups as the Contacts and Requirements
+  searches.
 - **A translation Meta already holds is adopted, not refused.** Submitting
   the Kannada `post_call_options` failed with "There is already Kannada
   content for this template" while the row still read Draft: an earlier
