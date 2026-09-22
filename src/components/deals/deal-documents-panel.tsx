@@ -25,6 +25,7 @@ import {
   documentExpiryState,
   type DealDocumentStatus,
 } from '@/lib/deals/documents';
+import { uploadDealDocument } from '@/lib/deals/upload-document';
 import {
   DEAL_DOCUMENT_CATEGORIES,
   type DealDocument,
@@ -132,17 +133,7 @@ export function DealDocumentsPanel({
   async function upload(file: File) {
     setUploading(true);
     try {
-      const form = new FormData();
-      form.append('file', file);
-      form.append('category', category);
-      form.append('title', file.name);
-
-      const response = await fetch(`/api/deals/${dealId}/documents`, {
-        method: 'POST',
-        body: form,
-      });
-      const json = await response.json();
-      if (!response.ok) throw new Error(json?.error || 'Upload failed');
+      await uploadDealDocument(dealId, file, category);
       await refresh();
       toast.success(`${file.name} added to the deal folder.`);
     } catch (err) {

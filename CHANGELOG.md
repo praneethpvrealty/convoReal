@@ -19,6 +19,22 @@ than a written entry. Newest first.
 
 #### 22 September 2026
 
+- **Attachments really send now, and deal documents with them.** The
+  previous change moved inbox attachments off the API route and straight
+  to storage, but the app still handed React Native a Blob to PUT and
+  the platform did not carry the file's content type with it. Supabase
+  answers a typeless upload with "mime type application/octet-stream is
+  not supported", which the app reported as "could not upload — try
+  again": a refusal no retry could ever fix. The file is now streamed
+  from disk by the native uploader, which sends the type it is given, and
+  a storage refusal is shown with its actual reason instead of a retry
+  prompt. Deal documents took the same route as the inbox attachments
+  did — through a serverless function that rejects anything over 4.5 MB,
+  an eleventh of the 50 MB the folder offers — so a scanned deed failed
+  the same way; they now stage the same way, on web and mobile. Filing
+  the row reads the stored file back, so its size and type on the record
+  are what storage actually holds.
+
 - **Attachments send.** Picking a photo, video or document in a thread
   failed on every attempt, on web and on mobile alike, with "Could not
   send that attachment — try again"; no attachment had ever reached a

@@ -1,6 +1,7 @@
 import {
   attachmentRejection,
   attachmentUploadTimeoutMs,
+  storageErrorMessage,
 } from './attachments';
 import { signOut } from './auth-store';
 import { ENV } from './env';
@@ -512,6 +513,77 @@ interface SignedChatUpload extends StagedMedia {
 }
 
 /**
+ * The size of a file the picker handed us, in bytes.
+ *
+ * Also the readability check: a pick the platform names but will not
+ * open — a cloud-only gallery item, a cache entry already swept — fails
+ * here rather than as a dropped upload the agent is told to retry.
+ */
+export async function localFileSize(uri: string): Promise<number> {
+  const { File } = await import('expo-file-system');
+  const file = new File(uri);
+  const size = file.exists ? (file.size ?? 0) : 0;
+  if (!size) {
+    throw new ApiError(400, 'Could not read that file — pick it again.');
+  }
+  return size;
+}
+
+/**
+ * PUT a local file to a signed Supabase Storage URL.
+ *
+ * expo-file-system streams it off disk natively, so the bytes never
+ * cross the JavaScript bridge: a 50 MB deed costs no memory, and there
+ * is no multipart body or Blob for React Native's networking layer to
+ * rebuild. Those two shapes are what had never once uploaded from this
+ * app — a raw PUT with the file as the body is exactly the request the
+ * signed URL was verified against.
+ *
+ * A non-2xx comes back as a value rather than a throw, so storage's own
+ * refusal reaches the agent instead of being flattened into "try
+ * again" — the shape of error that hid this bug for as long as it did.
+ */
+export async function putFileToSignedUrl(opts: {
+  uri: string;
+  uploadUrl: string;
+  contentType: string;
+  timeoutMs: number;
+}): Promise<void> {
+  const { File } = await import('expo-file-system');
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), opts.timeoutMs);
+
+  let result: { status: number; body: string };
+  try {
+    result = await new File(opts.uri).upload(opts.uploadUrl, {
+      httpMethod: 'PUT',
+      mimeType: opts.contentType,
+      headers: {
+        'content-type': opts.contentType,
+        'cache-control': 'max-age=3600',
+        'x-upsert': 'false',
+      },
+      signal: controller.signal,
+    });
+  } catch {
+    if (controller.signal.aborted) {
+      throw new ApiError(
+        API_TIMEOUT_STATUS,
+        'The upload timed out — check your connection and try again.'
+      );
+    }
+    throw new ApiError(0, 'Could not reach storage — try again.');
+  } finally {
+    clearTimeout(timer);
+  }
+
+  if (result.status < 200 || result.status >= 300) {
+    throw new ApiError(result.status, storageErrorMessage(result));
+  }
+}
+
+/**
  * Stage an attachment for sending.
  *
  * Two calls: `/api/whatsapp/media/upload-url` decides where the file
@@ -520,33 +592,17 @@ interface SignedChatUpload extends StagedMedia {
  * function, which caps a request body at 4.5 MB — below every limit
  * the attach sheet offers, and refused at the edge as a dropped
  * connection rather than an error the agent can read.
- *
- * The file is read into a native-backed Blob rather than a JavaScript
- * string: a 16 MB video becomes ~21 MB of string as base64, which is
- * how a phone runs out of memory mid-send. The blob keeps the bytes on
- * the native side and the PUT streams them from there.
  */
 export async function uploadChatMedia(file: {
   uri: string;
   name: string;
   mimeType: string;
 }): Promise<StagedMedia> {
-  // A pick the platform hands over but will not open — a cloud-only
-  // gallery item, a cache entry already swept — fails here rather than
-  // as a dropped upload the agent is told to retry.
-  let blob: Blob | null = null;
-  try {
-    blob = await (await fetch(file.uri)).blob();
-  } catch {
-    blob = null;
-  }
-  if (!blob?.size) {
-    throw new ApiError(400, 'Could not read that file — pick it again.');
-  }
+  const size = await localFileSize(file.uri);
 
   // Checked here as well as at the route so an oversized pick costs
   // nothing — the refusal names the cap it broke either way.
-  const rejection = attachmentRejection(file.mimeType, blob.size);
+  const rejection = attachmentRejection(file.mimeType, size);
   if (rejection) throw new ApiError(415, rejection);
 
   const { data } = await apiFetch<{ data: SignedChatUpload }>(
@@ -556,29 +612,18 @@ export async function uploadChatMedia(file: {
       body: JSON.stringify({
         filename: file.name,
         mime_type: file.mimeType,
-        size: blob.size,
+        size,
       }),
     }
   );
 
   const { upload_url, ...staged } = data;
-  const res = await fetchWithTimeout(
-    upload_url,
-    {
-      method: 'PUT',
-      headers: {
-        'content-type': staged.mime_type,
-        'cache-control': 'max-age=3600',
-        'x-upsert': 'false',
-      },
-      body: blob,
-    },
-    null,
-    attachmentUploadTimeoutMs(blob.size)
-  );
-  if (!res.ok) {
-    throw new ApiError(res.status, 'Could not upload that file — try again.');
-  }
+  await putFileToSignedUrl({
+    uri: file.uri,
+    uploadUrl: upload_url,
+    contentType: staged.mime_type,
+    timeoutMs: attachmentUploadTimeoutMs(size),
+  });
 
   return staged;
 }

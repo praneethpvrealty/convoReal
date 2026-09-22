@@ -6,6 +6,7 @@ import {
   attachmentMimeType,
   attachmentRejection,
   attachmentUploadTimeoutMs,
+  storageErrorMessage,
   formatBytes,
   formatDuration,
 } from './attachments';
@@ -169,5 +170,39 @@ describe('attachmentUploadTimeoutMs', () => {
 
   it('treats a missing or negative size as nothing to send', () => {
     expect(attachmentUploadTimeoutMs(-1)).toBe(180_000);
+  });
+});
+
+describe('storageErrorMessage', () => {
+  // The upload that never worked reported "try again" for a refusal no
+  // retry could fix. A storage refusal has to name itself.
+  it('[INB-013] names the refusal storage actually gave', () => {
+    expect(
+      storageErrorMessage({
+        status: 400,
+        body: JSON.stringify({
+          statusCode: '415',
+          error: 'invalid_mime_type',
+          message: 'mime type application/octet-stream is not supported',
+        }),
+      })
+    ).toBe(
+      'Storage refused the file (400): mime type application/octet-stream is not supported'
+    );
+  });
+
+  it('[INB-013] falls back to the error field, then to the raw body', () => {
+    expect(
+      storageErrorMessage({ status: 409, body: '{"error":"Duplicate"}' })
+    ).toBe('Storage refused the file (409): Duplicate');
+    expect(storageErrorMessage({ status: 502, body: '  Bad gateway  ' })).toBe(
+      'Storage refused the file (502): Bad gateway'
+    );
+  });
+
+  it('still says something when the body is empty', () => {
+    expect(storageErrorMessage({ status: 500, body: '' })).toBe(
+      'Storage refused the file (500).'
+    );
   });
 });
