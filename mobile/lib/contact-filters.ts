@@ -5,8 +5,10 @@
  * Ported from the web Contacts page's Filters dialog
  * (src/app/(dashboard)/contacts/contacts-content.tsx), which is the
  * source of truth for the semantics: a min budget admits contacts with
- * no budget set, a max budget does not, and the area column is a text[]
- * matched by containment. Kept in step by src/lib/mobile-parity.test.ts.
+ * no budget set, a max budget does not, and the areas are spelling
+ * groups from /api/contacts/area-options — any number at once, matched
+ * by overlap against both area columns (lib/contact-area-options.ts).
+ * Kept in step by src/lib/mobile-parity.test.ts.
  */
 export { BUDGET_STEPS, budgetStepLabel } from '@/lib/money-ladder';
 
@@ -24,7 +26,7 @@ export interface ContactFilters {
   tagId: string | null;
   minBudget: number | null;
   maxBudget: number | null;
-  area: string | null;
+  areas: string[];
   sort: ContactSort;
 }
 
@@ -33,7 +35,7 @@ export const EMPTY_FILTERS: ContactFilters = {
   tagId: null,
   minBudget: null,
   maxBudget: null,
-  area: null,
+  areas: [],
   sort: 'created_desc',
 };
 
@@ -73,15 +75,17 @@ export function sortColumn(sort: ContactSort): {
 }
 
 /** How many narrowing filters are on. Sort is an ordering, not a
- *  narrowing, so it stays out of the badge — same as the web chip. */
+ *  narrowing, so it stays out of the badge — same as the web chip. Any
+ *  number of areas is one filter, as on web. */
 export function activeFilterCount(filters: ContactFilters): number {
-  return [
-    filters.classification,
-    filters.tagId,
-    filters.minBudget,
-    filters.maxBudget,
-    filters.area,
-  ].filter((v) => v !== null).length;
+  return (
+    [
+      filters.classification,
+      filters.tagId,
+      filters.minBudget,
+      filters.maxBudget,
+    ].filter((v) => v !== null).length + (filters.areas.length > 0 ? 1 : 0)
+  );
 }
 
 /** True once anything at all differs from the defaults, sort included —
@@ -97,7 +101,7 @@ export function filtersKey(filters: ContactFilters): string {
     filters.tagId ?? '',
     filters.minBudget ?? '',
     filters.maxBudget ?? '',
-    filters.area ?? '',
+    filters.areas.join('+'),
     filters.sort,
   ].join('|');
 }

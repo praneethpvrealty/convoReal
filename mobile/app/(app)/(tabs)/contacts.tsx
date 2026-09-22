@@ -50,6 +50,13 @@ import { apiFetch, ApiError, isCancelled, isTimeout } from '@/lib/api';
 import { contactHandle, hasPhone } from '@/lib/reachability';
 import { approveAndSendDetails } from '@/lib/approve-contact';
 import {
+  AREA_FILTER_COLUMNS,
+  AREA_OPTIONS_QUERY_KEY,
+  areaFilterVariants,
+  areaOverlapFilter,
+  type AreaOption,
+} from '@/lib/contact-area-options';
+import {
   activeFilterCount,
   EMPTY_FILTERS,
   filtersKey,
@@ -257,6 +264,21 @@ async function staffPhoneFilter(): Promise<string | null> {
   });
 }
 
+/** The grouped area options the filters sheet shows; the list needs
+ *  them too, to turn a selected group back into its stored spellings. */
+async function areaOptions(): Promise<AreaOption[]> {
+  return queryClient.fetchQuery({
+    queryKey: AREA_OPTIONS_QUERY_KEY,
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const res = await apiFetch<{ data?: AreaOption[] }>(
+        '/api/contacts/area-options'
+      );
+      return Array.isArray(res.data) ? res.data : [];
+    },
+  });
+}
+
 async function fetchContacts(
   search: string,
   segment: SegmentKey,
@@ -298,7 +320,13 @@ async function fetchContacts(
     query = query.or(`max_budget.gte.${filters.minBudget},no_budget.eq.true`);
   if (filters.maxBudget !== null)
     query = query.lte('max_budget', filters.maxBudget);
-  if (filters.area) query = query.contains('areas_of_interest', [filters.area]);
+  if (filters.areas.length > 0) {
+    // Every spelling of every selected area group, against both the
+    // explicit and the profile-extracted area columns — web parity.
+    const variants = areaFilterVariants(filters.areas, await areaOptions());
+    if (variants.length === 0) return EMPTY_PAGE;
+    query = query.or(areaOverlapFilter(AREA_FILTER_COLUMNS, variants));
+  }
 
   if (segment === 'active' || segment === 'pending_review') {
     query = query.eq('status', segment);

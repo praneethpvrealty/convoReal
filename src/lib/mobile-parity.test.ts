@@ -48,6 +48,15 @@ import {
 import { PROPERTY_TYPE_VALUES } from '@/lib/property-types';
 import { BUDGET_OPTIONS } from '@/lib/contacts/budget-options';
 import {
+  AREA_FILTER_COLUMNS,
+  areaFilterVariants,
+  areaOptionLabel,
+  areaOverlapFilter,
+  MAX_AREA_FILTER_VARIANTS,
+  MAX_SELECTED_AREAS,
+  type AreaOption,
+} from '@/lib/contacts/area-variants';
+import {
   budgetToRupees,
   rupeesToBudgetAmount,
 } from '@/lib/contacts/budget-amount';
@@ -182,6 +191,22 @@ function mobileConversationClosure(): {
   return sandboxModule.exports as ReturnType<typeof mobileConversationClosure>;
 }
 
+/** A mobile pure-logic module, transpiled and evaluated in isolation. */
+function mobileModule<T>(relativePath: string): T {
+  const output = ts.transpileModule(mobileSource(relativePath), {
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2022,
+    },
+  }).outputText;
+  const sandboxModule = { exports: {} };
+  runInNewContext(output, {
+    module: sandboxModule,
+    exports: sandboxModule.exports,
+  });
+  return sandboxModule.exports as T;
+}
+
 /** The `[ ... ]` body of an `export const <name> = [ ... ];` block. */
 function constBody(source: string, name: string): string {
   const start = source.indexOf(`export const ${name}`);
@@ -307,8 +332,12 @@ describe('property shortlist sharing remains available on both surfaces', () => 
     expect(webForm).toContain('? headerImageOptions.length > 0');
     expect(mobile).toContain('const showPhotos = preview.images.length > 0;');
     expect(webForm).toContain('header_image: selectedBroadcastImage');
-    expect(webForm).toContain("engineShare ? (property?.images ?? []) : images");
-    expect(shareRoute).toContain('(listing.images ?? []).includes(requestedHeader)');
+    expect(webForm).toContain(
+      'engineShare ? (property?.images ?? []) : images'
+    );
+    expect(shareRoute).toContain(
+      '(listing.images ?? []).includes(requestedHeader)'
+    );
     expect(previewRoute).toContain('buildSharePropertyPreview(');
   });
 });
@@ -1268,6 +1297,61 @@ describe('mobile/lib/format.ts mirrors priceInWords', () => {
     expect(priceInWords(8500000)).toBe('₹85 Lakhs');
     expect(priceInWords(45000)).toBe('₹45,000');
     expect(priceInWords('')).toBe('');
+  });
+});
+
+describe('mobile/lib/contact-area-options.ts mirrors the area filter builders', () => {
+  // The server groups spellings; both surfaces turn a selection of
+  // groups back into stored spellings and one PostgREST overlap clause.
+  // Drift here means a locality picked on the phone narrows the list
+  // differently from the same pick on the web.
+  const mobile = mobileModule<{
+    AREA_FILTER_COLUMNS: string[];
+    MAX_SELECTED_AREAS: number;
+    MAX_AREA_FILTER_VARIANTS: number;
+    areaFilterVariants: typeof areaFilterVariants;
+    areaOptionLabel: typeof areaOptionLabel;
+    areaOverlapFilter: typeof areaOverlapFilter;
+  }>('lib/contact-area-options.ts');
+  const options: AreaOption[] = [
+    {
+      key: 'brkfld',
+      label: 'Brookefield',
+      variants: ['Brookefield', 'Brookfield', 'brookefield, Bengaluru'],
+      count: 8,
+    },
+    {
+      key: 'acslyt',
+      label: 'AECS Layout',
+      variants: ['AECS Layout', 'aecs layout'],
+      count: 6,
+    },
+    { key: 'wtfld', label: 'Whitefield', variants: ['Whitefield'], count: 3 },
+  ];
+
+  it('[CTM-007] filters the same two columns under the same bounds', () => {
+    expect(mobile.AREA_FILTER_COLUMNS).toEqual(AREA_FILTER_COLUMNS);
+    expect(mobile.MAX_SELECTED_AREAS).toBe(MAX_SELECTED_AREAS);
+    expect(mobile.MAX_AREA_FILTER_VARIANTS).toBe(MAX_AREA_FILTER_VARIANTS);
+  });
+
+  it('[CTM-007] expands a selection to the same spellings and clause', () => {
+    for (const keys of [[], ['brkfld'], ['brkfld', 'acslyt'], ['missing']]) {
+      const variants = areaFilterVariants(keys, options);
+      expect(mobile.areaFilterVariants(keys, options)).toEqual(variants);
+      expect(mobile.areaOverlapFilter(AREA_FILTER_COLUMNS, variants)).toBe(
+        areaOverlapFilter(AREA_FILTER_COLUMNS, variants)
+      );
+    }
+    expect(
+      mobile.areaOverlapFilter(['pref_areas'], ['Say "hi" {now}', '\\x'])
+    ).toBe(areaOverlapFilter(['pref_areas'], ['Say "hi" {now}', '\\x']));
+  });
+
+  it('labels a group the same way', () => {
+    for (const option of options) {
+      expect(mobile.areaOptionLabel(option)).toBe(areaOptionLabel(option));
+    }
   });
 });
 

@@ -22,12 +22,21 @@ describe('activeFilterCount', () => {
   it('counts each narrowing filter', () => {
     expect(
       activeFilterCount(
-        withFilters({ classification: 'Buyer', area: 'HSR Layout' })
+        withFilters({ classification: 'Buyer', areas: ['hsrlyt'] })
       )
     ).toBe(2);
     expect(
-      activeFilterCount(withFilters({ minBudget: 5000000, maxBudget: 10000000 }))
+      activeFilterCount(
+        withFilters({ minBudget: 5000000, maxBudget: 10000000 })
+      )
     ).toBe(2);
+  });
+
+  it('[CTM-007] counts any number of selected areas as one filter', () => {
+    expect(activeFilterCount(withFilters({ areas: ['brkfld'] }))).toBe(1);
+    expect(
+      activeFilterCount(withFilters({ areas: ['brkfld', 'acslyt'] }))
+    ).toBe(1);
   });
 
   it('ignores sort, which orders rather than narrows', () => {
@@ -91,8 +100,8 @@ describe('filtersKey', () => {
   });
 
   it('is stable for equal filter sets', () => {
-    expect(filtersKey(withFilters({ area: 'Whitefield' }))).toBe(
-      filtersKey(withFilters({ area: 'Whitefield' }))
+    expect(filtersKey(withFilters({ areas: ['wtfld'] }))).toBe(
+      filtersKey(withFilters({ areas: ['wtfld'] }))
     );
   });
 
