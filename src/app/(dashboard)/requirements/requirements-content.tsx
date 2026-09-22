@@ -13,6 +13,7 @@ import {
   visibleTagSuggestions,
 } from "@/lib/contact-preferences"
 import { resolveRequirementSource } from "@/lib/requirements/profiles"
+import { areasMatchSearch } from "@/lib/contacts/area-variants"
 import { toast } from "sonner"
 import {
   ClipboardList,
@@ -591,7 +592,14 @@ export default function RequirementsPage() {
       const notesMatch = c.contact_notes?.some((n) =>
         n.note_text.toLowerCase().includes(search.toLowerCase())
       )
-      const searchMatch = nameMatch || phoneMatch || reqMatch || notesMatch
+      // A typed locality stands for every spelling of it, as on the
+      // Contacts page: "Brookfield" finds a brief filed under "Brookefield".
+      const areas = [...(c.areas_of_interest ?? []), ...(c.pref_areas ?? [])]
+      const areaMatch =
+        search.trim().length > 0 &&
+        (areas.some((a) => a.toLowerCase().includes(search.toLowerCase())) ||
+          areasMatchSearch(search, areas))
+      const searchMatch = nameMatch || phoneMatch || reqMatch || notesMatch || areaMatch
 
       // Classification match
       const classMatch =
@@ -738,7 +746,7 @@ export default function RequirementsPage() {
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by client, phone, requirements or notes..."
+            placeholder="Search by client, phone, area, requirements or notes..."
             className="pl-9.5 bg-slate-950/40 border-slate-850 text-white placeholder:text-slate-550 h-9.5 rounded-xl focus:border-primary/50"
           />
         </div>

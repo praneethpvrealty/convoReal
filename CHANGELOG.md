@@ -19,6 +19,10 @@ than a written entry. Newest first.
 
 #### 22 September 2026
 
+- **The Requirements page search matches areas, spellings merged.** The
+  search box on Requirements now looks at each brief's areas as well as
+  the client, phone, requirement text and notes, and a typed locality
+  finds every spelling of it, exactly as the Contacts search does.
 - **One submit button per translation, and none once it is at Meta.** A
   reviewed Kannada draft showed two ways to submit: the review strip's
   "Submit to Meta" and the generic per-row "Submit" that opens the edit
