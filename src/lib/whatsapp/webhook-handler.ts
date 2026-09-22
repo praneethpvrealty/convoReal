@@ -33,6 +33,7 @@ import { BRANDING } from '@/config/branding';
 import { suggestNameTagSplit } from '@/lib/contacts/name-tag-split';
 import { runAutomationsForTrigger } from '@/lib/automations/engine';
 import { dispatchInboundToFlows } from '@/lib/flows/engine';
+import { toFlowInbound } from '@/lib/flows/inbound-message';
 import {
   handleTemplateWebhookChange,
   isTemplateWebhookField,
@@ -3313,18 +3314,12 @@ async function processMessage(
     allowEntry:
       !isPropertyOwnerSender && !agentHandling && !buyerRequirementMessage,
     repliesRatherThanOpens: repliesToUs,
-    message: interactiveReplyId
-      ? {
-          kind: 'interactive_reply',
-          reply_id: interactiveReplyId,
-          reply_title: contentText ?? '',
-          meta_message_id: message.id,
-        }
-      : {
-          kind: 'text',
-          text: inboundText,
-          meta_message_id: message.id,
-        },
+    message: toFlowInbound(
+      message,
+      contentText,
+      interactiveReplyId,
+      inboundText
+    ),
     isFirstInboundMessage,
   });
   console.log(
