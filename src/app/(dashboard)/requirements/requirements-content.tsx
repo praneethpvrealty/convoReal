@@ -1,20 +1,20 @@
-"use client"
+'use client';
 
-import { useState, useEffect, useCallback, useMemo } from "react"
-import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { useQuery } from "@tanstack/react-query"
-import { createClient } from "@/lib/supabase/client"
-import { useAuth } from "@/hooks/use-auth"
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
+import { createClient } from '@/lib/supabase/client';
+import { useAuth } from '@/hooks/use-auth';
 import {
   effectiveAreas,
   effectiveCategories,
   effectiveMaxBudget,
   visibleTagSuggestions,
-} from "@/lib/contact-preferences"
-import { resolveRequirementSource } from "@/lib/requirements/profiles"
-import { areasMatchSearch } from "@/lib/contacts/area-variants"
-import { toast } from "sonner"
+} from '@/lib/contact-preferences';
+import { resolveRequirementSource } from '@/lib/requirements/profiles';
+import { areasMatchSearch } from '@/lib/contacts/area-variants';
+import { toast } from 'sonner';
 import {
   ClipboardList,
   Search,
@@ -33,25 +33,25 @@ import {
   ShieldCheck,
   Inbox,
   X,
-} from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { AnimatedCounter } from "@/components/ui/animated-counter"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { ChecklistLoader } from "@/components/ui/checklist-loader"
-import { ConvoRealLoader } from "@/components/ui/convoreal-loader"
-import { NameTagBadge } from "@/components/contacts/name-tag-badge"
-import { ProjectsOfInterestInput } from "@/components/contacts/projects-of-interest-input"
-import { SearchableContactSelect } from "@/components/ui/searchable-contact-select"
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { AnimatedCounter } from '@/components/ui/animated-counter';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { ChecklistLoader } from '@/components/ui/checklist-loader';
+import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
+import { NameTagBadge } from '@/components/contacts/name-tag-badge';
+import { ProjectsOfInterestInput } from '@/components/contacts/projects-of-interest-input';
+import { SearchableContactSelect } from '@/components/ui/searchable-contact-select';
 import {
   buildRequirementDigest,
   isShareable,
   type RequirementShareMode,
   type ShareableRequirement,
-} from "@/lib/requirements/share"
+} from '@/lib/requirements/share';
 import {
   Dialog,
   DialogContent,
@@ -59,145 +59,147 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-} from "@/components/ui/dialog"
+} from '@/components/ui/dialog';
 
 interface Tag {
-  id: string
-  name: string
-  color?: string
+  id: string;
+  name: string;
+  color?: string;
 }
 
 interface ContactNote {
-  id: string
-  note_text: string
-  created_at: string
+  id: string;
+  note_text: string;
+  created_at: string;
 }
 
 interface ContactTagJoin {
-  id: string
-  tag_id: string
-  tags: Tag | null
+  id: string;
+  tag_id: string;
+  tags: Tag | null;
 }
 
 interface ConversationJoin {
-  id: string
+  id: string;
 }
 
 interface ConsolidatedContact {
-  id: string
-  name: string
-  phone: string
-  email?: string
-  name_tag?: string | null
-  classification: "Buyer" | "Agent"
-  lead_temp?: "HOT" | "COLD" | "Not Responding" | "Dead" | null
-  min_budget?: number
-  max_budget?: number
-  no_budget?: boolean
-  pref_budget_min?: number | string | null
-  requirements?: string
-  requirement_active?: boolean | null
-  areas_of_interest?: string[]
-  property_interests?: string[]
+  id: string;
+  name: string;
+  phone: string;
+  email?: string;
+  name_tag?: string | null;
+  classification: 'Buyer' | 'Agent';
+  lead_temp?: 'HOT' | 'COLD' | 'Not Responding' | 'Dead' | null;
+  min_budget?: number;
+  max_budget?: number;
+  no_budget?: boolean;
+  pref_budget_min?: number | string | null;
+  requirements?: string;
+  requirement_active?: boolean | null;
+  areas_of_interest?: string[];
+  property_interests?: string[];
   // AI-extracted fallbacks (migration 092) — merged for display via
   // src/lib/contact-preferences.ts, explicit fields always winning.
-  pref_budget_max?: number | string | null
-  pref_areas?: string[] | null
-  pref_property_categories?: string[] | null
-  pref_property_types?: string[] | null
-  pref_suggested_tags?: string[] | null
-  projects_of_interest?: string[] | null
-  strict_project_match?: boolean | null
-  pref_projects?: string[] | null
-  contact_notes?: ContactNote[]
-  contact_tags?: ContactTagJoin[]
-  conversations?: ConversationJoin[]
-  created_at: string
+  pref_budget_max?: number | string | null;
+  pref_areas?: string[] | null;
+  pref_property_categories?: string[] | null;
+  pref_property_types?: string[] | null;
+  pref_suggested_tags?: string[] | null;
+  projects_of_interest?: string[] | null;
+  strict_project_match?: boolean | null;
+  pref_projects?: string[] | null;
+  contact_notes?: ContactNote[];
+  contact_tags?: ContactTagJoin[];
+  conversations?: ConversationJoin[];
+  created_at: string;
 }
 
 export default function RequirementsPage() {
-  const router = useRouter()
-  const { accountId, user } = useAuth()
-  const [data, setData] = useState<ConsolidatedContact[]>([])
-  const [loading, setLoading] = useState(true)
+  const router = useRouter();
+  const { accountId, user } = useAuth();
+  const [data, setData] = useState<ConsolidatedContact[]>([]);
+  const [loading, setLoading] = useState(true);
 
   // Filters state
-  const [search, setSearch] = useState("")
-  const [classificationFilter, setClassificationFilter] = useState("All")
-  const [priorityFilter, setPriorityFilter] = useState("All")
+  const [search, setSearch] = useState('');
+  const [classificationFilter, setClassificationFilter] = useState('All');
+  const [priorityFilter, setPriorityFilter] = useState('All');
 
   // Copy status per card
-  const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // Co-broker sharing. `shareIds` drives both the single-card share
   // (one id) and the multi-select digest; masked is the default because
   // the recipient is someone outside the brokerage.
-  const [selectedIds, setSelectedIds] = useState<string[]>([])
-  const [shareIds, setShareIds] = useState<string[] | null>(null)
-  const [shareMode, setShareMode] = useState<RequirementShareMode>("masked")
-  const [shareCopied, setShareCopied] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [shareIds, setShareIds] = useState<string[] | null>(null);
+  const [shareMode, setShareMode] = useState<RequirementShareMode>('masked');
+  const [shareCopied, setShareCopied] = useState(false);
   // Interactive links: minted lazily per requirement+mode, cached for
   // the session. Best-effort — a failed mint shares plain text.
-  const [includeLinks, setIncludeLinks] = useState(true)
-  const [shareLinks, setShareLinks] = useState<Record<string, string>>({})
-  const [mintingLinks, setMintingLinks] = useState(false)
-  const [inAppAgentId, setInAppAgentId] = useState("")
-  const [sharingInApp, setSharingInApp] = useState(false)
-  const [parkingId, setParkingId] = useState<string | null>(null)
+  const [includeLinks, setIncludeLinks] = useState(true);
+  const [shareLinks, setShareLinks] = useState<Record<string, string>>({});
+  const [mintingLinks, setMintingLinks] = useState(false);
+  const [inAppAgentId, setInAppAgentId] = useState('');
+  const [sharingInApp, setSharingInApp] = useState(false);
+  const [parkingId, setParkingId] = useState<string | null>(null);
 
   // Add/edit requirements dialog. `editorContactId` is preset when a
   // card's pencil opened it; in add mode the user picks the client.
-  const [editorOpen, setEditorOpen] = useState(false)
-  const [editorContactId, setEditorContactId] = useState<string | null>(null)
-  const [editorIsAdd, setEditorIsAdd] = useState(false)
-  const [reqText, setReqText] = useState("")
-  const [reqProjects, setReqProjects] = useState<string[]>([])
-  const [reqProjectsText, setReqProjectsText] = useState("")
-  const [reqStrictProjects, setReqStrictProjects] = useState(false)
-  const [savingReq, setSavingReq] = useState(false)
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editorContactId, setEditorContactId] = useState<string | null>(null);
+  const [editorIsAdd, setEditorIsAdd] = useState(false);
+  const [reqText, setReqText] = useState('');
+  const [reqProjects, setReqProjects] = useState<string[]>([]);
+  const [reqProjectsText, setReqProjectsText] = useState('');
+  const [reqStrictProjects, setReqStrictProjects] = useState(false);
+  const [savingReq, setSavingReq] = useState(false);
 
   const fetchRequirements = useCallback(async () => {
-    setLoading(true)
+    setLoading(true);
     try {
-      const response = await fetch("/api/requirements")
-      if (!response.ok) throw new Error("Failed to fetch requirements")
-      const result = await response.json()
-      setData(result || [])
+      const response = await fetch('/api/requirements');
+      if (!response.ok) throw new Error('Failed to fetch requirements');
+      const result = await response.json();
+      setData(result || []);
     } catch (err) {
-      console.error("[Requirements] Fetch error:", err)
-      toast.error("Failed to load consolidated requirements")
+      console.error('[Requirements] Fetch error:', err);
+      toast.error('Failed to load consolidated requirements');
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }, [])
+  }, []);
 
   useEffect(() => {
     if (accountId) {
-      fetchRequirements()
+      fetchRequirements();
     }
-  }, [accountId, fetchRequirements])
+  }, [accountId, fetchRequirements]);
 
   // Stats calculation
   const stats = useMemo(() => {
-    const total = data.length
-    const hot = data.filter((c) => c.lead_temp === "HOT").length
-    const buyers = data.filter((c) => c.classification === "Buyer").length
-    const agents = data.filter((c) => c.classification === "Agent").length
+    const total = data.length;
+    const hot = data.filter((c) => c.lead_temp === 'HOT').length;
+    const buyers = data.filter((c) => c.classification === 'Buyer').length;
+    const agents = data.filter((c) => c.classification === 'Agent').length;
 
-    return { total, hot, buyers, agents }
-  }, [data])
+    return { total, hot, buyers, agents };
+  }, [data]);
 
   const resolveForSource = useCallback(
     (contact: ConsolidatedContact) =>
-      resolveRequirementSource(contact as Parameters<typeof resolveRequirementSource>[0]),
+      resolveRequirementSource(
+        contact as Parameters<typeof resolveRequirementSource>[0]
+      ),
     []
-  )
+  );
 
   // Card row → the shape src/lib/requirements/share.ts formats. Tags
   // and the latest note are handed over but only survive in full mode.
   const toShareable = useCallback(
     (c: ConsolidatedContact): ShareableRequirement => {
-      const source = resolveForSource(c)
+      const source = resolveForSource(c);
       return {
         id: c.id,
         name: c.name,
@@ -217,423 +219,455 @@ export default function RequirementsPage() {
         tags: (c.contact_tags ?? []).map((t) => t.tags?.name),
         latestNote: c.contact_notes?.[0]?.note_text,
         requirement_active: c.requirement_active,
-      }
+      };
     },
     [resolveForSource]
-  )
+  );
 
   // Mint any missing links for the open share. The cache key carries
   // the mode because a link freezes what the public page reveals.
   useEffect(() => {
-    if (!shareIds || !includeLinks) return
+    if (!shareIds || !includeLinks) return;
     const pending = data.filter(
       (c) =>
         shareIds.includes(c.id) &&
         !shareLinks[`${c.id}:${shareMode}`] &&
         isShareable(toShareable(c))
-    )
-    if (pending.length === 0) return
-    let cancelled = false
-    setMintingLinks(true)
+    );
+    if (pending.length === 0) return;
+    let cancelled = false;
+    setMintingLinks(true);
     Promise.all(
       pending.map(async (c) => {
         try {
-          const res = await fetch("/api/requirement-shares", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
+          const res = await fetch('/api/requirement-shares', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ contact_id: c.id, mode: shareMode }),
-          })
-          const json = await res.json().catch(() => ({}))
-          const path = json?.data?.path as string | undefined
+          });
+          const json = await res.json().catch(() => ({}));
+          const path = json?.data?.path as string | undefined;
           return path
-            ? ([`${c.id}:${shareMode}`, `${window.location.origin}${path}`] as [string, string])
-            : null
+            ? ([`${c.id}:${shareMode}`, `${window.location.origin}${path}`] as [
+                string,
+                string,
+              ])
+            : null;
         } catch {
-          return null
+          return null;
         }
       })
     )
       .then((entries) => {
-        if (cancelled) return
-        const minted = entries.filter((e): e is [string, string] => e !== null)
+        if (cancelled) return;
+        const minted = entries.filter((e): e is [string, string] => e !== null);
         if (minted.length) {
-          setShareLinks((prev) => ({ ...prev, ...Object.fromEntries(minted) }))
+          setShareLinks((prev) => ({ ...prev, ...Object.fromEntries(minted) }));
         }
       })
       .finally(() => {
-        if (!cancelled) setMintingLinks(false)
-      })
+        if (!cancelled) setMintingLinks(false);
+      });
     return () => {
-      cancelled = true
-    }
-  }, [shareIds, shareMode, includeLinks, data, shareLinks, toShareable])
+      cancelled = true;
+    };
+  }, [shareIds, shareMode, includeLinks, data, shareLinks, toShareable]);
 
   const agentContacts = useMemo(
     () =>
       data
-        .filter((contact) => contact.classification === "Agent" && contact.phone)
+        .filter(
+          (contact) => contact.classification === 'Agent' && contact.phone
+        )
         .sort((a, b) => a.name.localeCompare(b.name)),
     [data]
-  )
+  );
 
   const inAppAgentStatus = useQuery({
-    queryKey: ["requirement-share-agent-status", inAppAgentId],
+    queryKey: ['requirement-share-agent-status', inAppAgentId],
     enabled: Boolean(shareIds && inAppAgentId),
     retry: false,
     queryFn: async () => {
       const response = await fetch(
         `/api/contacts/${inAppAgentId}/share-inventory`
-      )
+      );
       const body = (await response.json().catch(() => ({}))) as {
-        data?: { registered: boolean; recipientName: string }
-        error?: string
-      }
+        data?: { registered: boolean; recipientName: string };
+        error?: string;
+      };
       if (!response.ok || !body.data) {
-        throw new Error(body.error || "Could not check this agent")
+        throw new Error(body.error || 'Could not check this agent');
       }
-      return body.data
+      return body.data;
     },
-  })
+  });
 
   const shareText = useMemo(() => {
-    if (!shareIds) return ""
+    if (!shareIds) return '';
     const rows = data
       .filter((c) => shareIds.includes(c.id))
       .map((c) => ({
         ...toShareable(c),
-        responseUrl: includeLinks ? shareLinks[`${c.id}:${shareMode}`] : undefined,
-      }))
-    return buildRequirementDigest(rows, shareMode)
-  }, [shareIds, shareMode, data, includeLinks, shareLinks, toShareable])
+        responseUrl: includeLinks
+          ? shareLinks[`${c.id}:${shareMode}`]
+          : undefined,
+      }));
+    return buildRequirementDigest(rows, shareMode);
+  }, [shareIds, shareMode, data, includeLinks, shareLinks, toShareable]);
 
   // The agent's own record, always unmasked — this one stays in the
   // Engine rather than going to a co-broker.
   const handleCopy = async (c: ConsolidatedContact) => {
-    await navigator.clipboard.writeText(buildRequirementDigest([toShareable(c)], "full"))
-    setCopiedId(c.id)
-    toast.success("Requirements copied to clipboard")
-    setTimeout(() => setCopiedId(null), 2500)
-  }
+    await navigator.clipboard.writeText(
+      buildRequirementDigest([toShareable(c)], 'full')
+    );
+    setCopiedId(c.id);
+    toast.success('Requirements copied to clipboard');
+    setTimeout(() => setCopiedId(null), 2500);
+  };
 
   const openShare = (ids: string[]) => {
-    if (ids.length === 0) return
-    setShareMode("masked")
-    setShareCopied(false)
-    setInAppAgentId("")
-    setShareIds(ids)
-  }
+    if (ids.length === 0) return;
+    setShareMode('masked');
+    setShareCopied(false);
+    setInAppAgentId('');
+    setShareIds(ids);
+  };
 
   const copyShareText = async () => {
-    if (!shareText) return
-    await navigator.clipboard.writeText(shareText)
-    setShareCopied(true)
-    toast.success("Copied — paste it wherever your brokers are")
-    setTimeout(() => setShareCopied(false), 2500)
-  }
+    if (!shareText) return;
+    await navigator.clipboard.writeText(shareText);
+    setShareCopied(true);
+    toast.success('Copied — paste it wherever your brokers are');
+    setTimeout(() => setShareCopied(false), 2500);
+  };
 
   const sendShareOnWhatsApp = () => {
-    if (!shareText) return
-    window.open(`https://wa.me/?text=${encodeURIComponent(shareText)}`, "_blank")
-  }
+    if (!shareText) return;
+    window.open(
+      `https://wa.me/?text=${encodeURIComponent(shareText)}`,
+      '_blank'
+    );
+  };
 
   const sendShareInApp = async () => {
-    if (!shareIds?.length || !inAppAgentId || sharingInApp) return
+    if (!shareIds?.length || !inAppAgentId || sharingInApp) return;
     const buyerIds = data
       .filter(
         (contact) =>
-          shareIds.includes(contact.id) && contact.classification === "Buyer"
+          shareIds.includes(contact.id) && contact.classification === 'Buyer'
       )
-      .map((contact) => contact.id)
+      .map((contact) => contact.id);
     if (buyerIds.length !== shareIds.length) {
-      toast.error("Direct account sharing is available for buyer requirements")
-      return
+      toast.error('Direct account sharing is available for buyer requirements');
+      return;
     }
 
-    setSharingInApp(true)
+    setSharingInApp(true);
     try {
       const results = await Promise.all(
         buyerIds.map(async (contactId) => {
-          const response = await fetch("/api/requirement-account-shares", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
+          const response = await fetch('/api/requirement-account-shares', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               contact_id: contactId,
               recipient_contact_id: inAppAgentId,
             }),
-          })
+          });
           const body = (await response.json().catch(() => ({}))) as {
-            data?: { alreadyShared?: boolean }
-            error?: string
-          }
+            data?: { alreadyShared?: boolean };
+            error?: string;
+          };
           if (!response.ok) {
-            throw new Error(body.error || "Could not share requirement")
+            throw new Error(body.error || 'Could not share requirement');
           }
-          return body.data
+          return body.data;
         })
-      )
-      const already = results.filter((result) => result?.alreadyShared).length
+      );
+      const already = results.filter((result) => result?.alreadyShared).length;
       toast.success(
         already === results.length
-          ? "This agent already has the selected requirement"
+          ? 'This agent already has the selected requirement'
           : `Shared ${results.length - already} requirement${
-              results.length - already === 1 ? "" : "s"
+              results.length - already === 1 ? '' : 's'
             } in ConvoReal`
-      )
-      setShareIds(null)
+      );
+      setShareIds(null);
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Could not share in ConvoReal"
-      )
+        error instanceof Error ? error.message : 'Could not share in ConvoReal'
+      );
     } finally {
-      setSharingInApp(false)
+      setSharingInApp(false);
     }
-  }
+  };
 
   const toggleSelected = (id: string) => {
     setSelectedIds((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    )
-  }
+    );
+  };
 
   // Parking is a scoped column update, the same write path the
   // requirements editor uses.
   const toggleRequirementActive = async (c: ConsolidatedContact) => {
-    const next = c.requirement_active === false
-    setParkingId(c.id)
+    const next = c.requirement_active === false;
+    setParkingId(c.id);
     try {
-      const supabase = createClient()
+      const supabase = createClient();
       const { data, error } = await supabase
-        .from("contacts")
-        .update({ requirement_active: next, updated_at: new Date().toISOString() })
-        .eq("id", c.id)
-        .select("id")
-      if (error) throw error
-      if (!data?.length) throw new Error("That contact is no longer there.")
+        .from('contacts')
+        .update({
+          requirement_active: next,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', c.id)
+        .select('id');
+      if (error) throw error;
+      if (!data?.length) throw new Error('That contact is no longer there.');
       setData((prev) =>
-        prev.map((row) => (row.id === c.id ? { ...row, requirement_active: next } : row))
-      )
-      if (!next) setSelectedIds((prev) => prev.filter((x) => x !== c.id))
+        prev.map((row) =>
+          row.id === c.id ? { ...row, requirement_active: next } : row
+        )
+      );
+      if (!next) setSelectedIds((prev) => prev.filter((x) => x !== c.id));
       toast.success(
         next
-          ? "Requirement is live again — matching and sharing resumed"
-          : "Requirement parked — no more matches, alerts or shares"
-      )
+          ? 'Requirement is live again — matching and sharing resumed'
+          : 'Requirement parked — no more matches, alerts or shares'
+      );
     } catch (err) {
-      console.error("[Requirements] Park toggle failed:", err)
-      toast.error("Couldn't update this requirement")
+      console.error('[Requirements] Park toggle failed:', err);
+      toast.error("Couldn't update this requirement");
     } finally {
-      setParkingId(null)
+      setParkingId(null);
     }
-  }
+  };
 
   const handleStartChat = async (c: ConsolidatedContact) => {
-    if (!accountId) return
-    const existingId = c.conversations?.[0]?.id
+    if (!accountId) return;
+    const existingId = c.conversations?.[0]?.id;
 
     if (existingId) {
-      router.push(`/inbox?c=${existingId}`)
-      return
+      router.push(`/inbox?c=${existingId}`);
+      return;
     }
 
     // Create a new conversation if none exists
     try {
-      const supabase = createClient()
+      const supabase = createClient();
       const { data: newConv, error } = await supabase
-        .from("conversations")
+        .from('conversations')
         .insert({
           account_id: accountId,
           user_id: user?.id,
           contact_id: c.id,
         })
-        .select("id")
-        .single()
+        .select('id')
+        .single();
 
-      if (error) throw error
+      if (error) throw error;
       if (newConv) {
-        router.push(`/inbox?c=${newConv.id}`)
+        router.push(`/inbox?c=${newConv.id}`);
       }
     } catch (err) {
-      console.error("Failed to create conversation:", err)
-      toast.error("Failed to start chat thread")
+      console.error('Failed to create conversation:', err);
+      toast.error('Failed to start chat thread');
     }
-  }
+  };
 
   const loadEditorFields = (c: ConsolidatedContact | null) => {
-    const sourceContact = c ? resolveForSource(c) : null
-    setReqText(c?.requirements ?? "")
-    const projects = sourceContact?.projects_of_interest ?? sourceContact?.pref_projects ?? []
-    setReqProjects(projects)
-    setReqProjectsText(projects.join(", ") + (projects.length > 0 ? ", " : ""))
-    setReqStrictProjects(!!sourceContact?.strict_project_match)
-  }
+    const sourceContact = c ? resolveForSource(c) : null;
+    setReqText(c?.requirements ?? '');
+    const projects =
+      sourceContact?.projects_of_interest ?? sourceContact?.pref_projects ?? [];
+    setReqProjects(projects);
+    setReqProjectsText(projects.join(', ') + (projects.length > 0 ? ', ' : ''));
+    setReqStrictProjects(!!sourceContact?.strict_project_match);
+  };
 
   const openEditRequirements = (c: ConsolidatedContact) => {
-    setEditorContactId(c.id)
-    setEditorIsAdd(false)
-    loadEditorFields(c)
-    setEditorOpen(true)
-  }
+    setEditorContactId(c.id);
+    setEditorIsAdd(false);
+    loadEditorFields(c);
+    setEditorOpen(true);
+  };
 
   const openAddRequirements = () => {
-    setEditorContactId(null)
-    setEditorIsAdd(true)
-    loadEditorFields(null)
-    setEditorOpen(true)
-  }
+    setEditorContactId(null);
+    setEditorIsAdd(true);
+    loadEditorFields(null);
+    setEditorOpen(true);
+  };
 
   // In add mode, picking a client pre-loads whatever they already have
   // so a stale card can't silently overwrite newer text.
   const handleEditorContactChange = (id: string | null) => {
-    setEditorContactId(id)
-    loadEditorFields(id ? data.find((c) => c.id === id) ?? null : null)
-  }
+    setEditorContactId(id);
+    loadEditorFields(id ? (data.find((c) => c.id === id) ?? null) : null);
+  };
 
   // `${contactId}:${tagName}` while a suggestion accept is in flight —
   // per-chip so only the tapped chip shows a spinner.
-  const [acceptingTag, setAcceptingTag] = useState<string | null>(null)
+  const [acceptingTag, setAcceptingTag] = useState<string | null>(null);
 
   // Confirm an AI tag suggestion: reuse an existing account tag with
   // the same name (case-insensitive) or create one, then attach it.
   // Suggestions are never auto-attached — this tap IS the human
   // curation step, so the account's tag vocabulary stays deliberate.
-  const acceptSuggestedTag = async (contact: ConsolidatedContact, name: string) => {
-    const key = `${contact.id}:${name}`
-    setAcceptingTag(key)
+  const acceptSuggestedTag = async (
+    contact: ConsolidatedContact,
+    name: string
+  ) => {
+    const key = `${contact.id}:${name}`;
+    setAcceptingTag(key);
     try {
-      const supabase = createClient()
+      const supabase = createClient();
       const { data: existing } = await supabase
-        .from("tags")
-        .select("id")
-        .eq("account_id", accountId)
-        .ilike("name", name)
+        .from('tags')
+        .select('id')
+        .eq('account_id', accountId)
+        .ilike('name', name)
         .limit(1)
-        .maybeSingle()
-      let tagId = (existing as { id: string } | null)?.id
+        .maybeSingle();
+      let tagId = (existing as { id: string } | null)?.id;
       if (!tagId) {
         const { data: created, error: createErr } = await supabase
-          .from("tags")
+          .from('tags')
           .insert({ user_id: user!.id, account_id: accountId, name })
-          .select("id")
-          .single()
-        if (createErr) throw createErr
-        tagId = (created as { id: string }).id
+          .select('id')
+          .single();
+        if (createErr) throw createErr;
+        tagId = (created as { id: string }).id;
       }
       const { error: attachErr } = await supabase
-        .from("contact_tags")
-        .insert({ contact_id: contact.id, tag_id: tagId })
-      if (attachErr) throw attachErr
-      toast.success(`Tagged as "${name}"`)
-      fetchRequirements()
+        .from('contact_tags')
+        .insert({ contact_id: contact.id, tag_id: tagId });
+      if (attachErr) throw attachErr;
+      toast.success(`Tagged as "${name}"`);
+      fetchRequirements();
     } catch (err) {
-      console.error("[Requirements] accept suggested tag failed:", err)
+      console.error('[Requirements] accept suggested tag failed:', err);
       // Tag creation is admin+ under RLS — agents can attach existing
       // tags but not mint new ones.
-      toast.error(`Couldn't add "${name}" — creating new tags may need a manager.`)
+      toast.error(
+        `Couldn't add "${name}" — creating new tags may need a manager.`
+      );
     } finally {
-      setAcceptingTag(null)
+      setAcceptingTag(null);
     }
-  }
+  };
 
   const handleSaveRequirements = async () => {
     if (!editorContactId) {
-      toast.error("Pick a client first")
-      return
+      toast.error('Pick a client first');
+      return;
     }
-    setSavingReq(true)
+    setSavingReq(true);
     try {
       // Same write path the Agents tab uses — a scoped column update,
       // not the full-contact PUT (which would null unrelated fields).
-      const supabase = createClient()
+      const supabase = createClient();
       const { data, error } = await supabase
-        .from("contacts")
+        .from('contacts')
         .update({
           requirements: reqText.trim() || null,
           projects_of_interest: reqProjects,
           strict_project_match: reqProjects.length > 0 && reqStrictProjects,
           updated_at: new Date().toISOString(),
         })
-        .eq("id", editorContactId)
-        .select("id")
-      if (error) throw error
-      if (!data?.length) throw new Error("That contact is no longer there.")
+        .eq('id', editorContactId)
+        .select('id');
+      if (error) throw error;
+      if (!data?.length) throw new Error('That contact is no longer there.');
 
       // Fire-and-forget: re-extract AI matching preferences from the
       // updated text (same hook the contact form uses).
-      fetch("/api/contacts/extract-preferences", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      fetch('/api/contacts/extract-preferences', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contactIds: [editorContactId] }),
-      }).catch(() => {})
+      }).catch(() => {});
 
-      toast.success("Requirements saved")
-      setEditorOpen(false)
-      fetchRequirements()
+      toast.success('Requirements saved');
+      setEditorOpen(false);
+      fetchRequirements();
     } catch (err) {
-      console.error("[Requirements] Save error:", err)
-      toast.error("Failed to save requirements")
+      console.error('[Requirements] Save error:', err);
+      toast.error('Failed to save requirements');
     } finally {
-      setSavingReq(false)
+      setSavingReq(false);
     }
-  }
+  };
 
   const formatCurrency = (val: number) => {
-    if (val >= 10000000) return `₹${(val / 10000000).toFixed(2).replace(/\.00$/, "")} Cr`
-    if (val >= 100000) return `₹${(val / 100000).toFixed(2).replace(/\.00$/, "")} L`
-    return `₹${val.toLocaleString("en-IN")}`
-  }
+    if (val >= 10000000)
+      return `₹${(val / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`;
+    if (val >= 100000)
+      return `₹${(val / 100000).toFixed(2).replace(/\.00$/, '')} L`;
+    return `₹${val.toLocaleString('en-IN')}`;
+  };
 
   // Filtered Cards list
   const filteredData = useMemo(() => {
     return data.filter((c) => {
       // Search text match
-      const nameMatch = c.name?.toLowerCase().includes(search.toLowerCase())
-      const phoneMatch = c.phone?.includes(search)
-      // The brief the card shows — an active requirement profile when the
-      // contact has no primary requirement — is the one the search reads.
-      const source = resolveForSource(c)
-      const reqMatch = source.requirements?.toLowerCase().includes(search.toLowerCase())
+      const nameMatch = c.name?.toLowerCase().includes(search.toLowerCase());
+      const phoneMatch = c.phone?.includes(search);
+      const source = resolveForSource(c);
+      const reqMatch = source.requirements
+        ?.toLowerCase()
+        .includes(search.toLowerCase());
       const notesMatch = c.contact_notes?.some((n) =>
         n.note_text.toLowerCase().includes(search.toLowerCase())
-      )
-      // A typed locality stands for every spelling of it, as on the
-      // Contacts page: "Brookfield" finds a brief filed under "Brookefield".
-      const areas = [...(source.areas_of_interest ?? []), ...(source.pref_areas ?? [])]
+      );
+      const areas = [
+        ...(source.areas_of_interest ?? []),
+        ...(source.pref_areas ?? []),
+      ];
       const areaMatch =
         search.trim().length > 0 &&
         (areas.some((a) => a.toLowerCase().includes(search.toLowerCase())) ||
-          areasMatchSearch(search, areas))
-      const searchMatch = nameMatch || phoneMatch || reqMatch || notesMatch || areaMatch
+          areasMatchSearch(search, areas));
+      const searchMatch =
+        nameMatch || phoneMatch || reqMatch || notesMatch || areaMatch;
 
       // Classification match
       const classMatch =
-        classificationFilter === "All" || c.classification === classificationFilter
+        classificationFilter === 'All' ||
+        c.classification === classificationFilter;
 
       // Priority match
       const priorityMatch =
-        priorityFilter === "All" ||
-        (priorityFilter === "High" && c.lead_temp === "HOT") ||
-        (priorityFilter === "Medium" && c.lead_temp !== "HOT" && c.lead_temp !== "Dead" && c.lead_temp) ||
-        (priorityFilter === "Low" && (!c.lead_temp || c.lead_temp === "Dead"))
+        priorityFilter === 'All' ||
+        (priorityFilter === 'High' && c.lead_temp === 'HOT') ||
+        (priorityFilter === 'Medium' &&
+          c.lead_temp !== 'HOT' &&
+          c.lead_temp !== 'Dead' &&
+          c.lead_temp) ||
+        (priorityFilter === 'Low' && (!c.lead_temp || c.lead_temp === 'Dead'));
 
-      return searchMatch && classMatch && priorityMatch
-    })
-  }, [data, search, classificationFilter, priorityFilter, resolveForSource])
+      return searchMatch && classMatch && priorityMatch;
+    });
+  }, [data, search, classificationFilter, priorityFilter, resolveForSource]);
 
   return (
-    <div className="flex flex-col flex-1 p-6 space-y-6 relative overflow-hidden">
+    <div className="relative flex flex-1 flex-col space-y-6 overflow-hidden p-6">
       {/* Background ambient glows */}
-      <div className="absolute -top-40 -right-40 w-[500px] h-[500px] bg-primary/12 rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute top-1/2 -left-40 w-[450px] h-[450px] bg-indigo-500/8 rounded-full blur-[110px] pointer-events-none" />
+      <div className="bg-primary/12 pointer-events-none absolute -top-40 -right-40 h-[500px] w-[500px] rounded-full blur-[120px]" />
+      <div className="pointer-events-none absolute top-1/2 -left-40 h-[450px] w-[450px] rounded-full bg-indigo-500/8 blur-[110px]" />
 
       {/* Header */}
-      <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div className="relative z-10 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-3xl font-extrabold text-white tracking-tight flex items-center gap-2.5">
-            <ClipboardList className="size-8 text-primary animate-pulse" />
+          <h1 className="flex items-center gap-2.5 text-3xl font-extrabold tracking-tight text-white">
+            <ClipboardList className="text-primary size-8 animate-pulse" />
             Requirements Consolidation
           </h1>
-          <p className="text-slate-400 text-sm mt-1 font-medium">
-            Assimilation of client property preferences, priorities, and budgets parsed from conversations.
+          <p className="mt-1 text-sm font-medium text-slate-400">
+            Assimilation of client property preferences, priorities, and budgets
+            parsed from conversations.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -647,7 +681,7 @@ export default function RequirementsPage() {
           </Button>
           <Button
             onClick={openAddRequirements}
-            className="bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold h-9 gap-1.5 cursor-pointer px-4 shrink-0 self-start md:self-auto"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground h-9 shrink-0 cursor-pointer gap-1.5 self-start px-4 text-xs font-bold md:self-auto"
           >
             <Plus className="size-3.5" />
             Add Requirement
@@ -656,22 +690,24 @@ export default function RequirementsPage() {
       </div>
 
       {/* Stats Board */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 relative z-10">
+      <div className="relative z-10 grid grid-cols-2 gap-4 lg:grid-cols-4">
         <button
           type="button"
           onClick={() => {
-            setClassificationFilter("All");
-            setPriorityFilter("All");
+            setClassificationFilter('All');
+            setPriorityFilter('All');
           }}
-          className={`rounded-2xl border p-5 backdrop-blur-sm shadow transition-all duration-300 cursor-pointer text-left focus:outline-none ${
-            classificationFilter === "All" && priorityFilter === "All"
-              ? "border-primary bg-slate-900/70 shadow shadow-primary/10 ring-1 ring-primary/25"
-              : "border-slate-800/80 bg-slate-900/45 hover:border-primary/25 hover:bg-slate-900/60"
+          className={`cursor-pointer rounded-2xl border p-5 text-left shadow backdrop-blur-sm transition-all duration-300 focus:outline-none ${
+            classificationFilter === 'All' && priorityFilter === 'All'
+              ? 'border-primary shadow-primary/10 ring-primary/25 bg-slate-900/70 shadow ring-1'
+              : 'hover:border-primary/25 border-slate-800/80 bg-slate-900/45 hover:bg-slate-900/60'
           }`}
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">Total Demands</span>
-            <Sparkles className="size-4 text-primary" />
+            <span className="text-xs font-bold tracking-wider text-slate-400 uppercase">
+              Total Demands
+            </span>
+            <Sparkles className="text-primary size-4" />
           </div>
           <div className="mt-2.5 text-2xl font-black text-white">
             <AnimatedCounter value={stats.total} />
@@ -681,18 +717,20 @@ export default function RequirementsPage() {
         <button
           type="button"
           onClick={() => {
-            setClassificationFilter("All");
-            setPriorityFilter("High");
+            setClassificationFilter('All');
+            setPriorityFilter('High');
           }}
-          className={`rounded-2xl border p-5 backdrop-blur-sm shadow transition-all duration-300 cursor-pointer text-left focus:outline-none ${
-            priorityFilter === "High"
-              ? "border-rose-500 bg-rose-950/10 shadow shadow-rose-500/10 ring-1 ring-rose-500/25"
-              : "border-slate-800/80 bg-slate-900/45 hover:border-rose-500/30 hover:bg-slate-900/60"
+          className={`cursor-pointer rounded-2xl border p-5 text-left shadow backdrop-blur-sm transition-all duration-300 focus:outline-none ${
+            priorityFilter === 'High'
+              ? 'border-rose-500 bg-rose-950/10 shadow ring-1 shadow-rose-500/10 ring-rose-500/25'
+              : 'border-slate-800/80 bg-slate-900/45 hover:border-rose-500/30 hover:bg-slate-900/60'
           }`}
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">High Priority</span>
-            <span className="h-2 w-2 rounded-full bg-rose-500 animate-ping" />
+            <span className="text-xs font-bold tracking-wider text-slate-400 uppercase">
+              High Priority
+            </span>
+            <span className="h-2 w-2 animate-ping rounded-full bg-rose-500" />
           </div>
           <div className="mt-2.5 text-2xl font-black text-rose-400">
             <AnimatedCounter value={stats.hot} />
@@ -702,17 +740,19 @@ export default function RequirementsPage() {
         <button
           type="button"
           onClick={() => {
-            setClassificationFilter("Buyer");
-            setPriorityFilter("All");
+            setClassificationFilter('Buyer');
+            setPriorityFilter('All');
           }}
-          className={`rounded-2xl border p-5 backdrop-blur-sm shadow transition-all duration-300 cursor-pointer text-left focus:outline-none ${
-            classificationFilter === "Buyer"
-              ? "border-emerald-500 bg-emerald-950/10 shadow shadow-emerald-500/10 ring-1 ring-emerald-500/25"
-              : "border-slate-800/80 bg-slate-900/45 hover:border-emerald-500/30 hover:bg-slate-900/60"
+          className={`cursor-pointer rounded-2xl border p-5 text-left shadow backdrop-blur-sm transition-all duration-300 focus:outline-none ${
+            classificationFilter === 'Buyer'
+              ? 'border-emerald-500 bg-emerald-950/10 shadow ring-1 shadow-emerald-500/10 ring-emerald-500/25'
+              : 'border-slate-800/80 bg-slate-900/45 hover:border-emerald-500/30 hover:bg-slate-900/60'
           }`}
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">Buyer Demands</span>
+            <span className="text-xs font-bold tracking-wider text-slate-400 uppercase">
+              Buyer Demands
+            </span>
             <Users className="size-4 text-emerald-400" />
           </div>
           <div className="mt-2.5 text-2xl font-black text-white">
@@ -723,17 +763,19 @@ export default function RequirementsPage() {
         <button
           type="button"
           onClick={() => {
-            setClassificationFilter("Agent");
-            setPriorityFilter("All");
+            setClassificationFilter('Agent');
+            setPriorityFilter('All');
           }}
-          className={`rounded-2xl border p-5 backdrop-blur-sm shadow transition-all duration-300 cursor-pointer text-left focus:outline-none ${
-            classificationFilter === "Agent"
-              ? "border-sky-500 bg-sky-950/10 shadow shadow-sky-500/10 ring-1 ring-sky-500/25"
-              : "border-slate-800/80 bg-slate-900/45 hover:border-sky-500/30 hover:bg-slate-900/60"
+          className={`cursor-pointer rounded-2xl border p-5 text-left shadow backdrop-blur-sm transition-all duration-300 focus:outline-none ${
+            classificationFilter === 'Agent'
+              ? 'border-sky-500 bg-sky-950/10 shadow ring-1 shadow-sky-500/10 ring-sky-500/25'
+              : 'border-slate-800/80 bg-slate-900/45 hover:border-sky-500/30 hover:bg-slate-900/60'
           }`}
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">Agent Demands</span>
+            <span className="text-xs font-bold tracking-wider text-slate-400 uppercase">
+              Agent Demands
+            </span>
             <Building className="size-4 text-sky-400" />
           </div>
           <div className="mt-2.5 text-2xl font-black text-white">
@@ -743,22 +785,22 @@ export default function RequirementsPage() {
       </div>
 
       {/* Filter toolbar */}
-      <div className="flex flex-col lg:flex-row gap-4 bg-slate-900/60 border border-slate-800/80 rounded-2xl p-4.5 relative z-10">
+      <div className="relative z-10 flex flex-col gap-4 rounded-2xl border border-slate-800/80 bg-slate-900/60 p-4.5 lg:flex-row">
         <div className="relative flex-1">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-slate-500" />
+          <Search className="absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-slate-500" />
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by client, phone, area, requirements or notes..."
-            className="pl-9.5 bg-slate-950/40 border-slate-850 text-white placeholder:text-slate-550 h-9.5 rounded-xl focus:border-primary/50"
+            className="border-slate-850 placeholder:text-slate-550 focus:border-primary/50 h-9.5 rounded-xl bg-slate-950/40 pl-9.5 text-white"
           />
         </div>
 
-        <div className="flex flex-wrap gap-3 shrink-0">
+        <div className="flex shrink-0 flex-wrap gap-3">
           <select
             value={classificationFilter}
             onChange={(e) => setClassificationFilter(e.target.value)}
-            className="h-9.5 rounded-xl border border-slate-850 bg-slate-950/40 px-3 text-xs text-slate-300 focus:outline-none focus:ring-1 focus:ring-primary/20 cursor-pointer font-bold"
+            className="border-slate-850 focus:ring-primary/20 h-9.5 cursor-pointer rounded-xl border bg-slate-950/40 px-3 text-xs font-bold text-slate-300 focus:ring-1 focus:outline-none"
           >
             <option value="All">All Types</option>
             <option value="Buyer">Buyers Only</option>
@@ -768,7 +810,7 @@ export default function RequirementsPage() {
           <select
             value={priorityFilter}
             onChange={(e) => setPriorityFilter(e.target.value)}
-            className="h-9.5 rounded-xl border border-slate-850 bg-slate-950/40 px-3 text-xs text-slate-300 focus:outline-none focus:ring-1 focus:ring-primary/20 cursor-pointer font-bold"
+            className="border-slate-850 focus:ring-primary/20 h-9.5 cursor-pointer rounded-xl border bg-slate-950/40 px-3 text-xs font-bold text-slate-300 focus:ring-1 focus:outline-none"
           >
             <option value="All">All Priorities</option>
             <option value="High">🔥 High Priority (HOT)</option>
@@ -779,14 +821,15 @@ export default function RequirementsPage() {
       </div>
 
       {selectedIds.length > 0 && (
-        <div className="sticky top-2 z-20 flex flex-wrap items-center gap-3 rounded-2xl border border-primary/30 bg-slate-900/90 px-4 py-3 backdrop-blur">
+        <div className="border-primary/30 sticky top-2 z-20 flex flex-wrap items-center gap-3 rounded-2xl border bg-slate-900/90 px-4 py-3 backdrop-blur">
           <span className="text-xs font-black text-white">
-            {selectedIds.length} requirement{selectedIds.length === 1 ? "" : "s"} selected
+            {selectedIds.length} requirement
+            {selectedIds.length === 1 ? '' : 's'} selected
           </span>
           <Button
             onClick={() => openShare(selectedIds)}
             size="sm"
-            className="h-8 rounded-xl bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/90"
+            className="bg-primary text-primary-foreground hover:bg-primary/90 h-8 rounded-xl text-xs font-bold"
           >
             <Share2 className="size-3.5" />
             Share with brokers
@@ -804,38 +847,46 @@ export default function RequirementsPage() {
       )}
 
       {/* Cards Grid */}
-      <div className="relative z-10 flex-1 min-h-0">
+      <div className="relative z-10 min-h-0 flex-1">
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-            <ChecklistLoader size={104} label="Assembling client requirements" className="mb-3" />
+            <ChecklistLoader
+              size={104}
+              label="Assembling client requirements"
+              className="mb-3"
+            />
             <ConvoRealLoader size={20} className="mb-2" />
             <p className="text-sm">Assembling client requirements...</p>
           </div>
         ) : filteredData.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 border border-slate-800/80 bg-slate-900/25 rounded-2xl">
-            <AlertTriangle className="size-10 text-slate-650" />
-            <h3 className="mt-4 text-sm font-semibold text-slate-300">No Requirements Found</h3>
-            <p className="mt-1 text-xs text-slate-500 font-medium">Try broadening your search or selection filters.</p>
+          <div className="flex flex-col items-center justify-center rounded-2xl border border-slate-800/80 bg-slate-900/25 py-20">
+            <AlertTriangle className="text-slate-650 size-10" />
+            <h3 className="mt-4 text-sm font-semibold text-slate-300">
+              No Requirements Found
+            </h3>
+            <p className="mt-1 text-xs font-medium text-slate-500">
+              Try broadening your search or selection filters.
+            </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
             {filteredData.map((c) => {
-              const isHot = c.lead_temp === "HOT"
-              const isParked = c.requirement_active === false
-              const isSelected = selectedIds.includes(c.id)
+              const isHot = c.lead_temp === 'HOT';
+              const isParked = c.requirement_active === false;
+              const isSelected = selectedIds.includes(c.id);
               return (
                 <div
                   key={c.id}
-                  className={`flex flex-col rounded-2xl border p-5 backdrop-blur-sm shadow transition-all duration-300 relative group overflow-hidden ${
+                  className={`group relative flex flex-col overflow-hidden rounded-2xl border p-5 shadow backdrop-blur-sm transition-all duration-300 ${
                     isSelected
-                      ? "border-primary bg-slate-900/70 ring-2 ring-primary/40"
+                      ? 'border-primary ring-primary/40 bg-slate-900/70 ring-2'
                       : isHot
-                      ? "border-primary bg-slate-900/65 shadow-primary/10 ring-1 ring-primary/25"
-                      : "border-slate-800/80 bg-slate-900/45 hover:border-primary/25 hover:shadow-primary/5 hover:scale-[1.01]"
-                  } ${isParked ? "opacity-55" : ""}`}
+                        ? 'border-primary shadow-primary/10 ring-primary/25 bg-slate-900/65 ring-1'
+                        : 'hover:border-primary/25 hover:shadow-primary/5 border-slate-800/80 bg-slate-900/45 hover:scale-[1.01]'
+                  } ${isParked ? 'opacity-55' : ''}`}
                 >
                   {/* Subtle top accent corner glow */}
-                  <div className="absolute top-0 right-0 w-24 h-24 bg-primary/5 rounded-full blur-[24px] pointer-events-none group-hover:bg-primary/10 transition-all" />
+                  <div className="bg-primary/5 group-hover:bg-primary/10 pointer-events-none absolute top-0 right-0 h-24 w-24 rounded-full blur-[24px] transition-all" />
 
                   {/* Header Row */}
                   <div className="flex items-start justify-between gap-2.5">
@@ -847,31 +898,33 @@ export default function RequirementsPage() {
                         onChange={() => toggleSelected(c.id)}
                         title={
                           isParked
-                            ? "Parked requirements are not matched or shared"
-                            : "Select for a co-broker share"
+                            ? 'Parked requirements are not matched or shared'
+                            : 'Select for a co-broker share'
                         }
-                        className="size-4 shrink-0 rounded border-slate-700 bg-slate-800 text-primary focus:ring-0 focus:ring-offset-0 disabled:opacity-30 cursor-pointer"
+                        className="text-primary size-4 shrink-0 cursor-pointer rounded border-slate-700 bg-slate-800 focus:ring-0 focus:ring-offset-0 disabled:opacity-30"
                       />
                       <Avatar className="size-9 border border-slate-800">
-                        <AvatarFallback className="bg-primary/10 text-xs font-black text-primary">
-                          {c.name?.charAt(0).toUpperCase() || "?"}
+                        <AvatarFallback className="bg-primary/10 text-primary text-xs font-black">
+                          {c.name?.charAt(0).toUpperCase() || '?'}
                         </AvatarFallback>
                       </Avatar>
                       <div>
-                        <h3 className="text-sm font-black text-white group-hover:text-primary transition-colors flex items-center gap-1.5">
+                        <h3 className="group-hover:text-primary flex items-center gap-1.5 text-sm font-black text-white transition-colors">
                           <span>{c.name}</span>
                           <NameTagBadge tag={c.name_tag} />
                         </h3>
-                        <p className="text-[10px] text-slate-500 mt-0.5">{c.phone}</p>
+                        <p className="mt-0.5 text-[10px] text-slate-500">
+                          {c.phone}
+                        </p>
                       </div>
                     </div>
 
-                    <div className="flex flex-col items-end gap-1.5 shrink-0">
+                    <div className="flex shrink-0 flex-col items-end gap-1.5">
                       <span
                         className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[9px] font-bold ${
-                          c.classification === "Buyer"
-                            ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                            : "bg-sky-500/10 text-sky-400 border-sky-500/20"
+                          c.classification === 'Buyer'
+                            ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-400'
+                            : 'border-sky-500/20 bg-sky-500/10 text-sky-400'
                         }`}
                       >
                         {c.classification}
@@ -885,13 +938,13 @@ export default function RequirementsPage() {
                         <span
                           className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[8px] font-black ${
                             isHot
-                              ? "bg-rose-500/15 text-rose-400 border-rose-500/25"
-                              : c.lead_temp === "COLD"
-                              ? "bg-sky-500/10 text-sky-400 border-sky-500/20"
-                              : "bg-slate-800 text-slate-400 border-slate-700"
+                              ? 'border-rose-500/25 bg-rose-500/15 text-rose-400'
+                              : c.lead_temp === 'COLD'
+                                ? 'border-sky-500/20 bg-sky-500/10 text-sky-400'
+                                : 'border-slate-700 bg-slate-800 text-slate-400'
                           }`}
                         >
-                          {isHot && "🔥 "}
+                          {isHot && '🔥 '}
                           {c.lead_temp}
                         </span>
                       )}
@@ -905,34 +958,37 @@ export default function RequirementsPage() {
                         the demands statement shows here instead of
                         "Not specified". */}
                     {(() => {
-                      const sourceContact = resolveForSource(c)
-                      const budget = effectiveMaxBudget(sourceContact)
+                      const sourceContact = resolveForSource(c);
+                      const budget = effectiveMaxBudget(sourceContact);
                       return (
-                        <div className="flex items-center justify-between text-xs border-b border-slate-900/60 pb-2">
-                          <span className="font-bold text-slate-450">Estimated Budget</span>
-                          <span className="font-black text-white inline-flex items-center gap-1">
+                        <div className="flex items-center justify-between border-b border-slate-900/60 pb-2 text-xs">
+                          <span className="text-slate-450 font-bold">
+                            Estimated Budget
+                          </span>
+                          <span className="inline-flex items-center gap-1 font-black text-white">
                             {sourceContact.no_budget
-                              ? "No limit"
+                              ? 'No limit'
                               : budget
-                              ? formatCurrency(budget.value)
-                              : "Not specified"}
-                            {!sourceContact.no_budget && budget?.source === "ai" && (
-                              <span title="Extracted by AI from the demands statement">
-                                <Sparkles className="size-3 text-primary" />
-                              </span>
-                            )}
+                                ? formatCurrency(budget.value)
+                                : 'Not specified'}
+                            {!sourceContact.no_budget &&
+                              budget?.source === 'ai' && (
+                                <span title="Extracted by AI from the demands statement">
+                                  <Sparkles className="text-primary size-3" />
+                                </span>
+                              )}
                           </span>
                         </div>
-                      )
+                      );
                     })()}
 
                     {/* Requirements Text */}
                     {c.requirements ? (
                       <div className="space-y-1">
-                        <span className="text-[10px] font-black text-slate-550 uppercase tracking-widest block">
+                        <span className="text-slate-550 block text-[10px] font-black tracking-widest uppercase">
                           Demands Statement
                         </span>
-                        <p className="text-xs text-slate-300 font-medium leading-relaxed bg-slate-950/20 border border-slate-900 p-2.5 rounded-xl">
+                        <p className="rounded-xl border border-slate-900 bg-slate-950/20 p-2.5 text-xs leading-relaxed font-medium text-slate-300">
                           {c.requirements}
                         </p>
                       </div>
@@ -940,7 +996,7 @@ export default function RequirementsPage() {
                       <button
                         type="button"
                         onClick={() => openEditRequirements(c)}
-                        className="w-full flex items-center justify-center gap-1.5 text-[11px] font-bold text-slate-500 hover:text-primary border border-dashed border-slate-800 hover:border-primary/40 rounded-xl py-2.5 transition-colors cursor-pointer"
+                        className="hover:text-primary hover:border-primary/40 flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-dashed border-slate-800 py-2.5 text-[11px] font-bold text-slate-500 transition-colors"
                       >
                         <Plus className="size-3" />
                         Add demands statement
@@ -952,56 +1008,64 @@ export default function RequirementsPage() {
                         came from the demands statement rather than the
                         contact form. */}
                     {(() => {
-                      const sourceContact = resolveForSource(c)
-                      const areas = effectiveAreas(sourceContact)
-                      const cats = effectiveCategories(sourceContact)
-                      if (!areas && !cats) return null
-                      const chip = (label: string, ai: boolean, key: string) => (
+                      const sourceContact = resolveForSource(c);
+                      const areas = effectiveAreas(sourceContact);
+                      const cats = effectiveCategories(sourceContact);
+                      if (!areas && !cats) return null;
+                      const chip = (
+                        label: string,
+                        ai: boolean,
+                        key: string
+                      ) => (
                         <span
                           key={key}
-                          title={ai ? "Extracted by AI from the demands statement" : undefined}
+                          title={
+                            ai
+                              ? 'Extracted by AI from the demands statement'
+                              : undefined
+                          }
                           className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold ${
                             ai
-                              ? "border-primary/25 bg-primary/5 text-primary/90"
-                              : "border-slate-700 bg-slate-800/60 text-slate-300"
+                              ? 'border-primary/25 bg-primary/5 text-primary/90'
+                              : 'border-slate-700 bg-slate-800/60 text-slate-300'
                           }`}
                         >
                           {ai && <Sparkles className="size-2.5" />}
                           {label}
                         </span>
-                      )
+                      );
                       return (
                         <div className="flex flex-wrap gap-1.5">
                           {(cats?.value ?? []).map((v, i) =>
-                            chip(v, cats!.source === "ai", `cat-${i}`),
+                            chip(v, cats!.source === 'ai', `cat-${i}`)
                           )}
                           {(areas?.value ?? []).map((v, i) =>
-                            chip(`📍 ${v}`, areas!.source === "ai", `area-${i}`),
+                            chip(`📍 ${v}`, areas!.source === 'ai', `area-${i}`)
                           )}
                         </div>
-                      )
+                      );
                     })()}
 
                     {/* Named-project watchlist — the buyer asked for these
                         specific projects. Tap to save one as a tag for
                         segmentation/broadcasts. Hidden once tagged. */}
                     {(() => {
-                      const sourceContact = resolveForSource(c)
+                      const sourceContact = resolveForSource(c);
                       const projects = visibleTagSuggestions(
                         [
                           ...(sourceContact.projects_of_interest || []),
                           ...(sourceContact.pref_projects || []),
                         ],
-                        (c.contact_tags ?? []).map((t) => t.tags?.name),
-                      )
-                      if (projects.length === 0) return null
+                        (c.contact_tags ?? []).map((t) => t.tags?.name)
+                      );
+                      if (projects.length === 0) return null;
                       return (
                         <div className="flex flex-wrap items-center gap-1.5">
-                          <span className="text-[9px] font-black text-slate-550 uppercase tracking-widest">
+                          <span className="text-slate-550 text-[9px] font-black tracking-widest uppercase">
                             Projects
                           </span>
                           {projects.map((name) => {
-                            const busy = acceptingTag === `${c.id}:${name}`
+                            const busy = acceptingTag === `${c.id}:${name}`;
                             return (
                               <button
                                 key={name}
@@ -1009,7 +1073,7 @@ export default function RequirementsPage() {
                                 disabled={busy}
                                 onClick={() => acceptSuggestedTag(c, name)}
                                 title="Project the buyer named — tap to add as a tag"
-                                className="inline-flex items-center gap-1 rounded-full border border-dashed border-emerald-500/40 bg-emerald-500/5 px-2 py-0.5 text-[10px] font-bold text-emerald-300/90 hover:bg-emerald-500/15 transition-colors cursor-pointer disabled:opacity-50"
+                                className="inline-flex cursor-pointer items-center gap-1 rounded-full border border-dashed border-emerald-500/40 bg-emerald-500/5 px-2 py-0.5 text-[10px] font-bold text-emerald-300/90 transition-colors hover:bg-emerald-500/15 disabled:opacity-50"
                               >
                                 {busy ? (
                                   <Loader2 className="size-2.5 animate-spin" />
@@ -1018,10 +1082,10 @@ export default function RequirementsPage() {
                                 )}
                                 {name}
                               </button>
-                            )
+                            );
                           })}
                         </div>
-                      )
+                      );
                     })()}
 
                     {/* AI tag suggestions — tap to confirm. Hidden once
@@ -1029,16 +1093,16 @@ export default function RequirementsPage() {
                     {(() => {
                       const sugg = visibleTagSuggestions(
                         c.pref_suggested_tags,
-                        (c.contact_tags ?? []).map((t) => t.tags?.name),
-                      )
-                      if (sugg.length === 0) return null
+                        (c.contact_tags ?? []).map((t) => t.tags?.name)
+                      );
+                      if (sugg.length === 0) return null;
                       return (
                         <div className="flex flex-wrap items-center gap-1.5">
-                          <span className="text-[9px] font-black text-slate-550 uppercase tracking-widest">
+                          <span className="text-slate-550 text-[9px] font-black tracking-widest uppercase">
                             Suggested
                           </span>
                           {sugg.map((name) => {
-                            const busy = acceptingTag === `${c.id}:${name}`
+                            const busy = acceptingTag === `${c.id}:${name}`;
                             return (
                               <button
                                 key={name}
@@ -1046,7 +1110,7 @@ export default function RequirementsPage() {
                                 disabled={busy}
                                 onClick={() => acceptSuggestedTag(c, name)}
                                 title="AI-suggested from the demands statement — tap to add as a tag"
-                                className="inline-flex items-center gap-1 rounded-full border border-dashed border-primary/40 bg-primary/5 px-2 py-0.5 text-[10px] font-bold text-primary/90 hover:bg-primary/15 transition-colors cursor-pointer disabled:opacity-50"
+                                className="border-primary/40 bg-primary/5 text-primary/90 hover:bg-primary/15 inline-flex cursor-pointer items-center gap-1 rounded-full border border-dashed px-2 py-0.5 text-[10px] font-bold transition-colors disabled:opacity-50"
                               >
                                 {busy ? (
                                   <Loader2 className="size-2.5 animate-spin" />
@@ -1056,10 +1120,10 @@ export default function RequirementsPage() {
                                 <Sparkles className="size-2.5" />
                                 {name}
                               </button>
-                            )
+                            );
                           })}
                         </div>
-                      )
+                      );
                     })()}
 
                     {/* Tags */}
@@ -1068,7 +1132,7 @@ export default function RequirementsPage() {
                         {c.contact_tags.map((ct) => (
                           <span
                             key={ct.id}
-                            className="inline-flex items-center rounded-lg bg-slate-950/40 border border-slate-900 px-2 py-0.5 text-[9px] font-bold text-slate-400"
+                            className="inline-flex items-center rounded-lg border border-slate-900 bg-slate-950/40 px-2 py-0.5 text-[9px] font-bold text-slate-400"
                           >
                             {ct.tags?.name}
                           </span>
@@ -1079,11 +1143,11 @@ export default function RequirementsPage() {
                     {/* Assimilated Notes Extract */}
                     {c.contact_notes && c.contact_notes.length > 0 && (
                       <div className="space-y-1.5 pt-1">
-                        <span className="text-[10px] font-black text-slate-550 uppercase tracking-widest block flex items-center gap-1.5">
-                          <Sparkles className="size-3 text-primary animate-pulse" />
+                        <span className="text-slate-550 block flex items-center gap-1.5 text-[10px] font-black tracking-widest uppercase">
+                          <Sparkles className="text-primary size-3 animate-pulse" />
                           Assimilated Note
                         </span>
-                        <p className="text-[11px] text-slate-400 italic font-medium leading-relaxed bg-primary/3 border border-primary/10 p-2.5 rounded-xl">
+                        <p className="bg-primary/3 border-primary/10 rounded-xl border p-2.5 text-[11px] leading-relaxed font-medium text-slate-400 italic">
                           &quot;{c.contact_notes[0].note_text}&quot;
                         </p>
                       </div>
@@ -1091,15 +1155,15 @@ export default function RequirementsPage() {
                   </div>
 
                   {/* Actions Drawer */}
-                  <div className="mt-6 border-t border-slate-900/60 pt-4 flex items-center justify-between gap-2.5">
+                  <div className="mt-6 flex items-center justify-between gap-2.5 border-t border-slate-900/60 pt-4">
                     {/* Inbox redirection */}
                     <Button
                       onClick={() => handleStartChat(c)}
                       variant="ghost"
                       size="sm"
-                      className="text-xs font-bold text-slate-400 hover:text-white flex items-center gap-1.5 hover:bg-slate-900/30 p-2 h-8 rounded-xl cursor-pointer"
+                      className="flex h-8 cursor-pointer items-center gap-1.5 rounded-xl p-2 text-xs font-bold text-slate-400 hover:bg-slate-900/30 hover:text-white"
                     >
-                      <MessageSquare className="size-3.5 text-primary" />
+                      <MessageSquare className="text-primary size-3.5" />
                       Chat Thread
                     </Button>
 
@@ -1109,7 +1173,7 @@ export default function RequirementsPage() {
                         onClick={() => openEditRequirements(c)}
                         variant="ghost"
                         size="icon-sm"
-                        className="text-slate-400 hover:text-white hover:bg-slate-900/30 h-8 w-8 rounded-xl cursor-pointer flex items-center justify-center shrink-0 border border-slate-900 bg-slate-950/20"
+                        className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-slate-900 bg-slate-950/20 text-slate-400 hover:bg-slate-900/30 hover:text-white"
                         title="Edit requirements"
                       >
                         <Pencil className="size-3.5" />
@@ -1120,7 +1184,7 @@ export default function RequirementsPage() {
                         onClick={() => handleCopy(c)}
                         variant="ghost"
                         size="icon-sm"
-                        className="text-slate-400 hover:text-white hover:bg-slate-900/30 h-8 w-8 rounded-xl cursor-pointer flex items-center justify-center shrink-0 border border-slate-900 bg-slate-950/20"
+                        className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-slate-900 bg-slate-950/20 text-slate-400 hover:bg-slate-900/30 hover:text-white"
                         title="Copy to clipboard"
                       >
                         {copiedId === c.id ? (
@@ -1136,17 +1200,19 @@ export default function RequirementsPage() {
                         disabled={parkingId === c.id}
                         variant="ghost"
                         size="icon-sm"
-                        className="text-slate-400 hover:text-white hover:bg-slate-900/30 h-8 w-8 rounded-xl cursor-pointer flex items-center justify-center shrink-0 border border-slate-900 bg-slate-950/20 disabled:opacity-40"
+                        className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-slate-900 bg-slate-950/20 text-slate-400 hover:bg-slate-900/30 hover:text-white disabled:opacity-40"
                         title={
                           isParked
-                            ? "Reactivate — resume matching and sharing this requirement"
-                            : "Park — stop matching and sharing this requirement"
+                            ? 'Reactivate — resume matching and sharing this requirement'
+                            : 'Park — stop matching and sharing this requirement'
                         }
                       >
                         {parkingId === c.id ? (
                           <Loader2 className="size-3.5 animate-spin" />
                         ) : (
-                          <Power className={`size-3.5 ${isParked ? "text-amber-400" : "text-emerald-400"}`} />
+                          <Power
+                            className={`size-3.5 ${isParked ? 'text-amber-400' : 'text-emerald-400'}`}
+                          />
                         )}
                       </Button>
 
@@ -1157,78 +1223,95 @@ export default function RequirementsPage() {
                         disabled={isParked}
                         variant="ghost"
                         size="icon-sm"
-                        className="text-slate-400 hover:text-white hover:bg-slate-900/30 h-8 w-8 rounded-xl cursor-pointer flex items-center justify-center shrink-0 border border-slate-900 bg-slate-950/20 disabled:opacity-40"
-                        title={isParked ? "Parked — reactivate to share" : "Share with a co-broker"}
+                        className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-slate-900 bg-slate-950/20 text-slate-400 hover:bg-slate-900/30 hover:text-white disabled:opacity-40"
+                        title={
+                          isParked
+                            ? 'Parked — reactivate to share'
+                            : 'Share with a co-broker'
+                        }
                       >
-                        <Share2 className="size-3.5 text-primary" />
+                        <Share2 className="text-primary size-3.5" />
                       </Button>
                     </div>
                   </div>
                 </div>
-              )
+              );
             })}
           </div>
         )}
       </div>
 
       {/* Co-broker share */}
-      <Dialog open={shareIds !== null} onOpenChange={(open) => !open && setShareIds(null)}>
-        <DialogContent className="bg-slate-900 border-slate-700 text-slate-200 sm:max-w-lg">
+      <Dialog
+        open={shareIds !== null}
+        onOpenChange={(open) => !open && setShareIds(null)}
+      >
+        <DialogContent className="border-slate-700 bg-slate-900 text-slate-200 sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="text-white">
               Share with co-brokers
-              {shareIds && shareIds.length > 1 ? ` — ${shareIds.length} requirements` : ""}
+              {shareIds && shareIds.length > 1
+                ? ` — ${shareIds.length} requirements`
+                : ''}
             </DialogTitle>
             <DialogDescription className="text-slate-400">
-              Masked is the default: the brief goes out under a reference code, with no
-              client name, tags or internal notes.
+              Masked is the default: the brief goes out under a reference code,
+              with no client name, tags or internal notes.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
             <div className="flex gap-2">
-              {(["masked", "full"] as RequirementShareMode[]).map((mode) => (
+              {(['masked', 'full'] as RequirementShareMode[]).map((mode) => (
                 <button
                   key={mode}
                   type="button"
                   onClick={() => setShareMode(mode)}
-                  className={`flex-1 rounded-xl border px-3 py-2 text-xs font-bold transition-colors cursor-pointer ${
+                  className={`flex-1 cursor-pointer rounded-xl border px-3 py-2 text-xs font-bold transition-colors ${
                     shareMode === mode
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-slate-800 bg-slate-950/30 text-slate-400 hover:text-slate-200"
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-slate-800 bg-slate-950/30 text-slate-400 hover:text-slate-200'
                   }`}
                 >
-                  {mode === "masked" ? "🔒 Masked (recommended)" : "Full detail"}
+                  {mode === 'masked'
+                    ? '🔒 Masked (recommended)'
+                    : 'Full detail'}
                 </button>
               ))}
             </div>
 
-            {shareMode === "full" ? (
-              <p className="flex items-start gap-2 rounded-xl border border-amber-500/25 bg-amber-500/5 p-2.5 text-[11px] text-amber-200/90 leading-relaxed">
-                <AlertTriangle className="size-3.5 shrink-0 mt-0.5" />
-                Full detail sends the client&apos;s name, your tags and your most recent
-                note exactly as written. Only pick this for someone inside your brokerage.
+            {shareMode === 'full' ? (
+              <p className="flex items-start gap-2 rounded-xl border border-amber-500/25 bg-amber-500/5 p-2.5 text-[11px] leading-relaxed text-amber-200/90">
+                <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+                Full detail sends the client&apos;s name, your tags and your
+                most recent note exactly as written. Only pick this for someone
+                inside your brokerage.
               </p>
             ) : (
-              <p className="flex items-start gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-2.5 text-[11px] text-emerald-200/90 leading-relaxed">
-                <ShieldCheck className="size-3.5 shrink-0 mt-0.5" />
-                Name, tags and notes are withheld. The requirement text itself is sent as
-                you wrote it — check the preview if it names anyone.
+              <p className="flex items-start gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-2.5 text-[11px] leading-relaxed text-emerald-200/90">
+                <ShieldCheck className="mt-0.5 size-3.5 shrink-0" />
+                Name, tags and notes are withheld. The requirement text itself
+                is sent as you wrote it — check the preview if it names anyone.
               </p>
             )}
 
             <div className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950/30 px-3 py-2.5">
               <div>
-                <p className="text-xs font-bold text-slate-200">Interactive response links</p>
-                <p className="text-[11px] text-slate-500 leading-relaxed">
-                  Each brief gets a link where the broker can submit a matching listing or
-                  reply on WhatsApp. Links expire in 7 days.
+                <p className="text-xs font-bold text-slate-200">
+                  Interactive response links
+                </p>
+                <p className="text-[11px] leading-relaxed text-slate-500">
+                  Each brief gets a link where the broker can submit a matching
+                  listing or reply on WhatsApp. Links expire in 7 days.
                 </p>
               </div>
-              <Switch checked={includeLinks} onCheckedChange={setIncludeLinks} />
+              <Switch
+                checked={includeLinks}
+                onCheckedChange={setIncludeLinks}
+              />
             </div>
 
-            <div className="space-y-3 rounded-xl border border-primary/20 bg-primary/5 p-3">
+            <div className="border-primary/20 bg-primary/5 space-y-3 rounded-xl border p-3">
               <div>
                 <p className="text-xs font-bold text-slate-100">
                   Share inside ConvoReal
@@ -1288,25 +1371,31 @@ export default function RequirementsPage() {
               <Label className="text-xs text-slate-300">
                 Preview
                 {mintingLinks && includeLinks ? (
-                  <span className="ml-2 text-slate-500 font-normal">creating links…</span>
+                  <span className="ml-2 font-normal text-slate-500">
+                    creating links…
+                  </span>
                 ) : null}
               </Label>
               <Textarea
                 readOnly
                 value={shareText}
-                className="bg-slate-950/40 border-slate-800 text-slate-200 h-56 text-xs leading-relaxed"
+                className="h-56 border-slate-800 bg-slate-950/40 text-xs leading-relaxed text-slate-200"
               />
             </div>
           </div>
 
-          <DialogFooter className="bg-slate-900 border-slate-700">
+          <DialogFooter className="border-slate-700 bg-slate-900">
             <Button
               variant="outline"
               onClick={copyShareText}
               disabled={!shareText || (includeLinks && mintingLinks)}
               className="border-slate-700 text-slate-300 hover:bg-slate-800"
             >
-              {shareCopied ? <Check className="size-4 text-emerald-400" /> : <Copy className="size-4" />}
+              {shareCopied ? (
+                <Check className="size-4 text-emerald-400" />
+              ) : (
+                <Copy className="size-4" />
+              )}
               Copy
             </Button>
             <Button
@@ -1323,12 +1412,12 @@ export default function RequirementsPage() {
 
       {/* Add / Edit Requirements Dialog */}
       <Dialog open={editorOpen} onOpenChange={setEditorOpen}>
-        <DialogContent className="bg-slate-900 border-slate-700 text-slate-200 sm:max-w-lg">
+        <DialogContent className="border-slate-700 bg-slate-900 text-slate-200 sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="text-white">
               {editorIsAdd
-                ? "Add Requirement"
-                : `Edit Requirements — ${data.find((c) => c.id === editorContactId)?.name ?? ""}`}
+                ? 'Add Requirement'
+                : `Edit Requirements — ${data.find((c) => c.id === editorContactId)?.name ?? ''}`}
             </DialogTitle>
             <DialogDescription className="text-slate-400">
               The demands statement feeds search, matching, and the AI-extracted
@@ -1363,7 +1452,7 @@ export default function RequirementsPage() {
                 value={reqText}
                 onChange={(e) => setReqText(e.target.value)}
                 placeholder="Budget, preferred localities, property type, size, BHK, must-haves... e.g. Wants a 30x40 site or 3 BHK flat in JP Nagar / Jayanagar, budget up to 1.5 Cr, east facing preferred."
-                className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-40 text-sm leading-relaxed"
+                className="h-40 border-slate-700 bg-slate-800 text-sm leading-relaxed text-white placeholder:text-slate-500"
               />
               <p className="text-[10px] text-slate-500">
                 Saving re-runs AI preference extraction, so budgets and interest
@@ -1372,14 +1461,16 @@ export default function RequirementsPage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs text-slate-300">Projects of Interest</Label>
+              <Label className="text-xs text-slate-300">
+                Projects of Interest
+              </Label>
               <ProjectsOfInterestInput
                 projectsText={reqProjectsText}
                 projects={reqProjects}
                 strict={reqStrictProjects}
                 onChange={(text, projects) => {
-                  setReqProjectsText(text)
-                  setReqProjects(projects)
+                  setReqProjectsText(text);
+                  setReqProjects(projects);
                 }}
                 onStrictChange={setReqStrictProjects}
                 idPrefix="req"
@@ -1387,7 +1478,7 @@ export default function RequirementsPage() {
             </div>
           </div>
 
-          <DialogFooter className="bg-slate-900 border-slate-700">
+          <DialogFooter className="border-slate-700 bg-slate-900">
             <Button
               variant="outline"
               onClick={() => setEditorOpen(false)}
@@ -1408,5 +1499,5 @@ export default function RequirementsPage() {
         </DialogContent>
       </Dialog>
     </div>
-  )
+  );
 }

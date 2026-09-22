@@ -255,8 +255,6 @@ export function SharedRequirementsContent({
         ]
           .filter(Boolean)
           .some((field) => String(field).toLowerCase().includes(value)) ||
-        // A typed locality stands for every spelling of it, as on the
-        // Contacts and Requirements searches.
         areasMatchSearch(search, share.brief.areas)
     );
   }, [list.data, search]);

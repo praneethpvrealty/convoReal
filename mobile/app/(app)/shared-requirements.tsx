@@ -50,7 +50,6 @@ export default function SharedRequirementsScreen() {
         ]
           .filter(Boolean)
           .some((field) => String(field).toLowerCase().includes(value)) ||
-        // Web parity: a typed locality stands for every spelling of it.
         areasMatchSearch(search, share.brief.areas)
     );
   }, [query.data, search]);

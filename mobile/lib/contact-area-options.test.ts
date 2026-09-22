@@ -75,6 +75,12 @@ describe('areasMatchSearch', () => {
     expect(areasMatchSearch('Praneeth', areas)).toBe(false);
     expect(areasMatchSearch('Brookefield', [])).toBe(false);
   });
+
+  it('[REQ-003] matches a numbered locality after a preposition', () => {
+    const areas = ['1st Block Jayanagar'];
+    expect(areasMatchSearch('near 1st Block Jaya Nagar', areas)).toBe(true);
+    expect(areasMatchSearch('near 2nd Block Jayanagar', areas)).toBe(false);
+  });
 });
 
 describe('areaFilterVariants', () => {

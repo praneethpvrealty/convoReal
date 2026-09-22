@@ -82,7 +82,7 @@ export function areaFilterVariants(
  *  parser reads them. The whole text is a candidate too, for a bare
  *  locality. */
 const LOCALITY_PHRASE =
-  /\b(?:in|at|near|around|from)\s+([a-z][a-z\s]{2,40}?)(?=\s+(?:with|for|under|above|below|price|area|bhk|\d)|[,.]|$)/gi;
+  /\b(?:in|at|near|around|from)\s+([a-z0-9][a-z0-9\s]{2,40}?)(?=\s+(?:with|for|under|above|below|price|area|bhk)|[,.]|$)/gi;
 
 export function areaSearchTerms(query: string): string[] {
   const text = query.trim();
@@ -116,9 +116,6 @@ export function areaSearchVariants(
   );
 }
 
-/** Whether a contact's stored areas name a locality the search asks
- *  for, whatever the spelling on either side — the in-memory twin of
- *  areaSearchVariants for a list already loaded on the device. */
 export function areasMatchSearch(query: string, areas: string[]): boolean {
   const keys = new Set(
     areaSearchTerms(query)
