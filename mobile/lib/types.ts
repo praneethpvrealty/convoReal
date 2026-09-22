@@ -126,7 +126,8 @@ export interface Message {
     | 'template'
     | 'interactive';
   content_text?: string;
-  /** Relative proxy path — resolve with absoluteMediaUrl(). */
+  /** The inbound proxy path or an outbound storage reference —
+   *  resolve with mediaSource(), which tells the two apart. */
   media_url?: string;
   status: MessageStatus;
   created_at: string;

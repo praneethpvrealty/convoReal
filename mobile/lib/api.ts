@@ -245,16 +245,6 @@ export async function apiFetch<T>(
   return (await res.json()) as T;
 }
 
-/**
- * `messages.media_url` stores a RELATIVE proxy path
- * (`/api/whatsapp/media/{mediaId}`) — resolve it against the web app.
- * The proxy is auth-gated, so fetch with `authHeaders()`; expired Meta
- * media returns 404 MEDIA_UNAVAILABLE and should render a placeholder.
- */
-export function absoluteMediaUrl(relativeMediaUrl: string): string {
-  return `${apiBase()}${relativeMediaUrl}`;
-}
-
 /** Bearer headers for non-JSON requests (e.g. <Image> media fetches). */
 export async function authHeaders(): Promise<Record<string, string>> {
   const {

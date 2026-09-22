@@ -19,6 +19,18 @@ than a written entry. Newest first.
 
 #### 22 September 2026
 
+- **An attachment the agent sent now shows in the thread.** Sending
+  worked, but the mobile inbox drew every agent-sent photo as "media no
+  longer available". A message's `media_url` holds one of two things —
+  the auth-gated proxy path for a photo the contact sent, or a public
+  storage URL for one the agent sent — and the image bubble prefixed
+  both with the app's own address, which turns the second into a URL
+  that cannot load. It now asks the same resolver the video, audio and
+  document bubbles already used, so each is fetched from where it
+  actually lives and no bearer token is sent to another host. Property
+  photos shared into a thread were affected the same way and are fixed
+  with it.
+
 - **Attachments really send now, and deal documents with them.** The
   previous change moved inbox attachments off the API route and straight
   to storage, but the app still handed React Native a Blob to PUT and

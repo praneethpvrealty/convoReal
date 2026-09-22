@@ -377,7 +377,7 @@ export function MessageBubble({
               ) : null}
 
               {message.content_type === 'image' && message.media_url ? (
-                <MediaImage relativeUrl={message.media_url} />
+                <MediaImage mediaUrl={message.media_url} />
               ) : null}
 
               {message.content_type === 'audio' && message.media_url ? (
