@@ -229,6 +229,19 @@ export function requestsHumanContact(text?: string | null): boolean {
   );
 }
 
+/**
+ * Is this a reply to a conversation already under way, rather than a
+ * message opening one? A question counts only once a listing has been
+ * sent to this lead — that is the share ledger the Q&A answers from.
+ */
+export function repliesRatherThanOpens(
+  text: string | null | undefined,
+  options: { listingAlreadySent: boolean }
+): boolean {
+  if (requestsHumanContact(text)) return true;
+  return options.listingAlreadySent && looksLikeQuestion(text);
+}
+
 export type SubjectProperty = QaProperty & SellerPriceFields & { id: string };
 
 /**
