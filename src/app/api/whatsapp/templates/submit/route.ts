@@ -21,6 +21,7 @@ import {
   normalizeStatus,
 } from '@/lib/whatsapp/template-status-normalize'
 import { stampFor } from '@/lib/whatsapp/copy-revision-stamp'
+import { withMetaHeldCategory } from '@/lib/whatsapp/template-category-lock'
 import {
   requiresTranslationReview,
   isTranslationReviewed,
@@ -189,6 +190,32 @@ export async function POST(request: Request) {
       )
     }
 
+    // One name, one category. Meta fixes a template name's category
+    // the first time any language of it reaches review, and refuses a
+    // later language under a different one ("The category UTILITY
+    // doesn't match the one that's already associated with this
+    // template, MARKETING"). The Engine builders ask for Utility and
+    // Meta has approved several English variants as Marketing, so a
+    // translation has to be sent under whatever Meta already holds —
+    // see template-category-lock.ts.
+    const requestedCategory = payload.category
+    const { data: siblings, error: siblingsError } = await supabase
+      .from('message_templates')
+      .select('category, meta_template_id, status')
+      .eq('account_id', accountId)
+      .eq('name', payload.name)
+      .not('meta_template_id', 'is', null)
+    if (siblingsError) {
+      // Fail closed: submitting with an unverified category would
+      // recreate the very Meta error this lookup exists to prevent.
+      console.error('[templates/submit] category lookup error:', siblingsError)
+      return NextResponse.json(
+        { error: 'Could not confirm the category Meta holds for this template. Try again.' },
+        { status: 500 },
+      )
+    }
+    payload = withMetaHeldCategory(payload, siblings ?? []).payload
+
     // The translation gate. Enforced here rather than only in the UI
     // because this route is the single door to Meta — the template
     // manager, the one-tap engine-template button and any script all
@@ -341,8 +368,8 @@ export async function POST(request: Request) {
       )
     }
 
-    const categoryChanged =
-      metaCategory !== null && metaCategory !== payload.category
+    const assignedCategory = metaCategory ?? payload.category
+    const categoryChanged = assignedCategory !== requestedCategory
 
     return NextResponse.json({
       success: true,
@@ -351,8 +378,8 @@ export async function POST(request: Request) {
       ...(categoryChanged
         ? {
             category_changed: {
-              requested: payload.category,
-              assigned: metaCategory,
+              requested: requestedCategory,
+              assigned: assignedCategory,
             },
           }
         : {}),

@@ -19,6 +19,21 @@ than a written entry. Newest first.
 
 #### 22 September 2026
 
+- **Translations submit under the category Meta already holds for the
+  template.** Marking a Kannada, Hindi, Tamil or Telugu engine template
+  reviewed and submitting it failed with Meta's "The category UTILITY
+  doesn't match the one that's already associated with this template,
+  MARKETING" whenever Meta had approved the English version as Marketing
+  rather than the Utility the builder asked for. Meta fixes a name's
+  category at its first review and every language of that name shares
+  it, so the submit route now looks up the category Meta holds for the
+  name and sends the translation under it, the draft is created wearing
+  that category so the badge matches what will be sent, and the toast
+  says when the category differs from the one requested. **Migration
+  required**: `20260922040000_align_translation_draft_categories.sql`
+  re-labels existing unsubmitted drafts to match their Meta-held
+  sibling; reviewer sign-offs are kept.
+
 - **Filter contacts by several areas at once, whatever the spelling.**
   The Contacts area filter on web and mobile now offers each locality
   once — "Brookefield", "Brookfield" and "brookefield, Bengaluru" are one

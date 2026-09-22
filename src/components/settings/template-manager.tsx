@@ -278,6 +278,14 @@ export function TemplateManager() {
     }
   }
 
+  // Meta decides the category: it fixes a name's category at first
+  // review and a later language of the same name can only follow it.
+  function notifyCategoryChanged(change: { requested: string; assigned: string }) {
+    toast.info(
+      `Submitted as ${change.assigned}, not ${change.requested} — Meta fixed this template's category when its first language was reviewed, and every language shares it.`
+    );
+  }
+
   function buildSubmitPayload() {
     const sample_values: TemplateSampleValues = {};
     if (form.body_samples.some((v) => v.trim())) {
@@ -368,6 +376,7 @@ export function TemplateManager() {
             ? 'Edit submitted — Meta typically reviews within 24 hours.'
             : 'Submitted to Meta — typical review time is 24 hours. Status updates automatically.'
       );
+      if (data?.category_changed) notifyCategoryChanged(data.category_changed);
       setDialogOpen(false);
       setForm(emptyForm);
       setEditingId(null);
@@ -632,6 +641,7 @@ export function TemplateManager() {
           ? `${def.label} drafted in ${languageDisplay(activeLanguage)} — read the wording, then mark it reviewed to submit.`
           : `${def.label} submitted to Meta — approval usually takes minutes to a few hours.`
       );
+      if (data?.category_changed) notifyCategoryChanged(data.category_changed);
       if (accountId) await fetchTemplates(accountId);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Template submission failed');
@@ -754,6 +764,7 @@ export function TemplateManager() {
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.error || `Submission failed (HTTP ${res.status})`);
       toast.success(`${def.label} submitted to Meta.`);
+      if (data?.category_changed) notifyCategoryChanged(data.category_changed);
       if (accountId) await fetchTemplates(accountId);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Template submission failed');
