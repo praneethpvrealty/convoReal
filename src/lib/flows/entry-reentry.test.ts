@@ -87,7 +87,7 @@ const db = {
 
 vi.mock('./engine-send', () => ({}));
 
-const { dispatchInboundToFlows } = await import('./engine');
+const { dispatchInboundToFlows, inboundReplyTitle } = await import('./engine');
 
 function flow(over: Partial<FlowRow>): FlowRow {
   return {
@@ -195,13 +195,92 @@ describe('[INB-011] keyword entry for a message that replies rather than opens',
       message: {
         kind: 'interactive_reply',
         reply_id: 'Talk to someone',
-        reply_title: '🔘 Button: "Talk to someone"',
+        reply_title: 'Talk to someone',
         meta_message_id: 'wamid.2',
       },
       isFirstInboundMessage: false,
     });
 
     expect(reentryChecks).toEqual(['flow-showcase']);
+    expect(nodesLoadedFor).toEqual([]);
+    expect(result.consumed).toBe(false);
+  });
+});
+
+async function tap(label: string, repliesRatherThanOpens: boolean) {
+  return dispatchInboundToFlows({
+    accountId: 'acct-1',
+    userId: 'user-1',
+    contactId: 'contact-1',
+    conversationId: 'conv-1',
+    allowEntry: true,
+    repliesRatherThanOpens,
+    message: {
+      kind: 'interactive_reply',
+      reply_id: label,
+      reply_title: inboundReplyTitle(
+        { type: 'button', button: { text: label } },
+        `🔘 Button: "${label}"`
+      ),
+      meta_message_id: 'wamid.3',
+    },
+    isFirstInboundMessage: false,
+  });
+}
+
+describe('[INB-011] a template quick-reply tap is matched on its label', () => {
+  it('reads the label, not the inbox decoration', () => {
+    expect(
+      inboundReplyTitle(
+        { type: 'button', button: { text: 'Talk to someone' } },
+        '🔘 Button: "Talk to someone"'
+      )
+    ).toBe('Talk to someone');
+    expect(inboundReplyTitle({ type: 'interactive' }, 'Talk to an Agent')).toBe(
+      'Talk to an Agent'
+    );
+    expect(inboundReplyTitle({ type: 'button' }, null)).toBe('');
+  });
+
+  it('opens an exact-match flow keyed on the label', async () => {
+    flows = [
+      flow({
+        trigger_config: { keywords: ['Talk to someone'], match_type: 'exact' },
+        entry_node_id: 'start',
+      }),
+    ];
+
+    await tap('Talk to someone', true);
+
+    expect(reentryChecks).toEqual(['flow-showcase']);
+    expect(nodesLoadedFor).toEqual(['flow-showcase']);
+  });
+
+  it('still skips that flow once this lead has been through it', async () => {
+    flows = [
+      flow({
+        trigger_config: { keywords: ['Talk to someone'], match_type: 'exact' },
+        entry_node_id: 'start',
+      }),
+    ];
+    priorRunFlowIds = ['flow-showcase'];
+
+    const result = await tap('Talk to someone', true);
+
+    expect(nodesLoadedFor).toEqual([]);
+    expect(result.consumed).toBe(false);
+  });
+
+  it('no longer opens a "button" keyword flow on every tap', async () => {
+    flows = [
+      flow({
+        trigger_config: { keywords: ['button'] },
+        entry_node_id: 'start',
+      }),
+    ];
+
+    const result = await tap('Send more details', false);
+
     expect(nodesLoadedFor).toEqual([]);
     expect(result.consumed).toBe(false);
   });

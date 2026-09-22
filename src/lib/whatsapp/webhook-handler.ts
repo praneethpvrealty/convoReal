@@ -32,7 +32,10 @@ import {
 import { BRANDING } from '@/config/branding';
 import { suggestNameTagSplit } from '@/lib/contacts/name-tag-split';
 import { runAutomationsForTrigger } from '@/lib/automations/engine';
-import { dispatchInboundToFlows } from '@/lib/flows/engine';
+import {
+  dispatchInboundToFlows,
+  inboundReplyTitle,
+} from '@/lib/flows/engine';
 import {
   handleTemplateWebhookChange,
   isTemplateWebhookField,
@@ -3317,7 +3320,7 @@ async function processMessage(
       ? {
           kind: 'interactive_reply',
           reply_id: interactiveReplyId,
-          reply_title: contentText ?? '',
+          reply_title: inboundReplyTitle(message, contentText),
           meta_message_id: message.id,
         }
       : {
