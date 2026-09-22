@@ -12,7 +12,7 @@ const NONE = {
   tag: 'All',
   minBudget: 'All',
   maxBudget: 'All',
-  area: 'All',
+  areas: [],
   interestProperty: 'All',
   interestProject: 'All',
 };
@@ -52,6 +52,27 @@ describe('contact sorts', () => {
         tag: 'tag-1',
       })
     ).toBe(3);
+  });
+
+  it('[CTM-007] counts any number of selected areas as one filter', () => {
+    expect(activeContactFilterCount({ ...NONE, areas: ['brkfld'] })).toBe(1);
+    expect(
+      activeContactFilterCount({ ...NONE, areas: ['brkfld', 'acslyt'] })
+    ).toBe(1);
+  });
+
+  it('[CTM-007] keys the cache on the selected areas', () => {
+    const key = (areas: string[]) =>
+      contactListCacheKey(
+        'acct',
+        0,
+        'active',
+        'created_desc',
+        { ...NONE, areas },
+        ''
+      );
+    expect(key([])).not.toBe(key(['brkfld']));
+    expect(key(['brkfld'])).not.toBe(key(['brkfld', 'acslyt']));
   });
 
   it('keys the cache on the project filter too', () => {

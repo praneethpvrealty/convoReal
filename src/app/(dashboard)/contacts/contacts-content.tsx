@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { pushUrl, replaceUrl } from '@/lib/navigation';
 import { createClient } from '@/lib/supabase/client';
@@ -113,6 +113,13 @@ import {
   effectiveCategories,
   effectiveMaxBudget,
 } from '@/lib/contact-preferences';
+import {
+  AREA_FILTER_COLUMNS,
+  areaFilterVariants,
+  areaOptionLabel,
+  areaOverlapFilter,
+  type AreaOption,
+} from '@/lib/contacts/area-variants';
 import { STARRED_PROPERTY_CAP } from '@/lib/starred-properties';
 import { projectOptions } from '@/lib/contacts/contact-interest';
 import { useT } from '@/hooks/use-locale';
@@ -567,7 +574,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
   const [filterTag, setFilterTag] = useState<string>('All');
   const [filterMinBudget, setFilterMinBudget] = useState<string>('All');
   const [filterMaxBudget, setFilterMaxBudget] = useState<string>('All');
-  const [filterArea, setFilterArea] = useState<string>('All');
+  const [filterAreas, setFilterAreas] = useState<string[]>([]);
   // Starred-property interest chips (fed from Inventory stars): the
   // selected chip narrows the list to contacts who showed interest in
   // that property (last_inquired_property_id ∪ contact_property_inquiries).
@@ -754,8 +761,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
       chipPressTimer.current = null;
     }
   };
-  // All unique areas across all contacts for the area filter dropdown
-  const [allAreas, setAllAreas] = useState<string[]>([]);
+  const [areaOptions, setAreaOptions] = useState<AreaOption[]>([]);
   const [sortBy, setSortBy] = useState<string>('created_desc');
 
   // Debounce the search box: only commit to `debouncedSearch` (and reset to
@@ -841,41 +847,38 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     }
   }, []);
 
-  // Populates the "Area" filter dropdown. This has to scan every contact's
-  // area columns (no cheap indexed DISTINCT-unnest available),
-  // so it's cached for 5 minutes and — unlike fetchTags/fetchContacts — only
-  // triggered lazily when the user actually opens the Filters panel, instead
-  // of unconditionally on every Contacts page mount.
+  // Populates the "Area" filter chips: every stored locality, distinct-
+  // counted in SQL and grouped by spelling by /api/contacts/area-options.
+  // Cached for 5 minutes and — unlike fetchTags/fetchContacts — only
+  // triggered lazily when the user actually opens the Filters panel,
+  // instead of unconditionally on every Contacts page mount.
   const fetchAreas = useCallback(async () => {
     if (!accountId) return;
-    const cacheKey = `contacts-areas-${accountId}`;
-    const cached = localCache.get<string[]>(cacheKey, 5 * 60 * 1000);
+    const cacheKey = `contacts-area-options-${accountId}`;
+    const cached = localCache.get<AreaOption[]>(cacheKey, 5 * 60 * 1000);
     if (cached) {
-      setAllAreas(cached);
+      setAreaOptions(cached);
       return;
     }
-    const supabaseClient = createClient();
-    const { data } = await supabaseClient
-      .from('contacts')
-      .select('areas_of_interest, pref_areas')
-      .eq('account_id', accountId)
-      .or('areas_of_interest.not.is.null,pref_areas.not.is.null');
-    if (data) {
-      const unique = Array.from(
-        new Set(
-          data
-            .flatMap((c) => [
-              ...((c.areas_of_interest as string[] | null) ?? []),
-              ...((c.pref_areas as string[] | null) ?? []),
-            ])
-            .filter(Boolean)
-            .map((a: string) => a.trim())
-        )
-      ).sort();
-      setAllAreas(unique);
-      localCache.set(cacheKey, unique);
+    try {
+      const res = await fetch('/api/contacts/area-options');
+      if (!res.ok) return;
+      const body = (await res.json()) as { data?: AreaOption[] };
+      const options = Array.isArray(body.data) ? body.data : [];
+      setAreaOptions(options);
+      localCache.set(cacheKey, options);
+    } catch {
+      setAreaOptions([]);
     }
   }, [accountId]);
+
+  // The stored spellings behind the selected area groups, as one string
+  // so the list only refetches when the selection itself changes — not
+  // when the options load or refresh.
+  const selectedAreaVariants = useMemo(
+    () => areaFilterVariants(filterAreas, areaOptions).join('\u0001'),
+    [filterAreas, areaOptions]
+  );
 
   // Load the account's starred properties for the quick-filter chips.
   // Errors (e.g. migration 120 not applied yet) just hide the chips.
@@ -947,7 +950,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
         tag: filterTag,
         minBudget: filterMinBudget,
         maxBudget: filterMaxBudget,
-        area: filterArea,
+        areas: filterAreas,
         interestProperty: filterInterestProperty,
         interestProject: filterInterestProject,
       },
@@ -1234,12 +1237,17 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
             query = query.lte('max_budget', maxVal);
           }
 
-          if (filterArea !== 'All') {
-            // Match both explicit (areas_of_interest) and profile-extracted
-            // (pref_areas) preferences for the selected area.
-            query = query.or(
-              `areas_of_interest.cs.{"${filterArea}"},pref_areas.cs.{"${filterArea}"}`
-            );
+          if (filterAreas.length > 0) {
+            // Every spelling of every selected area group, against both
+            // the explicit (areas_of_interest) and the profile-extracted
+            // (pref_areas) preferences.
+            const variants = selectedAreaVariants
+              ? selectedAreaVariants.split('\u0001')
+              : [];
+            query =
+              variants.length > 0
+                ? query.or(areaOverlapFilter(AREA_FILTER_COLUMNS, variants))
+                : query.eq('id', '00000000-0000-0000-0000-000000000000');
           }
 
           if (debouncedSearch.trim()) {
@@ -1641,7 +1649,8 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     filterTag,
     filterMinBudget,
     filterMaxBudget,
-    filterArea,
+    filterAreas,
+    selectedAreaVariants,
     filterInterestProperty,
     filterInterestProject,
     sortBy,
@@ -1894,7 +1903,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     tag: filterTag,
     minBudget: filterMinBudget,
     maxBudget: filterMaxBudget,
-    area: filterArea,
+    areas: filterAreas,
     interestProperty: filterInterestProperty,
     interestProject: filterInterestProject,
   });
@@ -1927,10 +1936,12 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
       label: `≤ ${opt.label}`,
     })),
   ];
-  const areaItems = [
-    { value: 'All', label: 'All Areas' },
-    ...allAreas.map((area) => ({ value: area, label: area })),
-  ];
+  const toggleArea = (key: string) => {
+    setFilterAreas((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
+    );
+    setPage(0);
+  };
   const projectItems = [
     { value: 'All', label: t('contacts.allProjects') },
     ...projectChoices.map((project) => ({
@@ -1943,7 +1954,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     setFilterTag('All');
     setFilterMinBudget('All');
     setFilterMaxBudget('All');
-    setFilterArea('All');
+    setFilterAreas([]);
     applyInterestFilter('All');
     applyProjectFilter('All');
     setSearch('');
@@ -2416,31 +2427,54 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
               </div>
 
               {/* Area Preference */}
-              {allAreas.length > 0 && (
+              {areaOptions.length > 0 && (
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-bold tracking-wider text-slate-400 uppercase">
-                    Area Preference
-                  </label>
-                  <Select
-                    value={filterArea}
-                    items={areaItems}
-                    onValueChange={(val) => {
-                      setFilterArea(String(val ?? 'All'));
-                      setPage(0);
-                    }}
-                  >
-                    <SelectTrigger className="h-10 w-full rounded-xl border-slate-700 bg-slate-900 text-white">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="border-slate-700 bg-slate-900 text-slate-200">
-                      <SelectItem value="All">All Areas</SelectItem>
-                      {allAreas.map((area) => (
-                        <SelectItem key={area} value={area}>
-                          {area}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="flex items-center justify-between">
+                    <label className="text-[11px] font-bold tracking-wider text-slate-400 uppercase">
+                      Area Preference
+                    </label>
+                    {filterAreas.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFilterAreas([]);
+                          setPage(0);
+                        }}
+                        className="cursor-pointer text-[11px] font-semibold text-slate-400 hover:text-slate-200"
+                      >
+                        Clear {filterAreas.length}
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex max-h-44 flex-wrap gap-1.5 overflow-y-auto rounded-xl border border-slate-700 bg-slate-900 p-2">
+                    {areaOptions.map((option) => {
+                      const active = filterAreas.includes(option.key);
+                      return (
+                        <button
+                          type="button"
+                          key={option.key}
+                          aria-pressed={active}
+                          onClick={() => toggleArea(option.key)}
+                          title={
+                            option.variants.length > 1
+                              ? `Also matches: ${option.variants.slice(1).join(', ')}`
+                              : undefined
+                          }
+                          className={cn(
+                            'cursor-pointer rounded-full border px-3 py-1 text-xs font-semibold transition-all',
+                            active
+                              ? 'border-emerald-500/60 bg-emerald-500/15 text-emerald-300'
+                              : 'border-slate-700 bg-slate-950/60 text-slate-300 hover:border-slate-500 hover:text-white'
+                          )}
+                        >
+                          {areaOptionLabel(option)}
+                          <span className="ml-1 text-slate-500">
+                            {option.count}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
 
@@ -2480,7 +2514,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                   setFilterTag('All');
                   setFilterMinBudget('All');
                   setFilterMaxBudget('All');
-                  setFilterArea('All');
+                  setFilterAreas([]);
                   applyInterestFilter('All');
                   applyProjectFilter('All');
                   setPage(0);

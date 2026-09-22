@@ -299,6 +299,39 @@
             "supabase/migrations/20260921103000_contact_whatsapp_phone_confirmed.sql",
             ".github/workflows/eas-update.yml"
           ]
+        },
+        {
+          "id": "CTM-007",
+          "rule": "The Contacts area filter on web and mobile lists every locality stored on the account's contacts once per spelling group, read from GET /api/contacts/area-options which distinct-counts both area columns in an account-scoped SQL function and merges spellings of one locality under a shared key. Any number of groups can be selected at once; the list then shows a contact whose agent-entered or AI-extracted areas contain any spelling of any selected group, and the selection counts as one active filter.",
+          "tests": [
+            {
+              "file": "src/lib/contacts/area-variants.test.ts",
+              "case": "[CTM-007]"
+            },
+            {
+              "file": "src/app/api/contacts/area-options/route.test.ts",
+              "case": "[CTM-007]"
+            },
+            {
+              "file": "src/lib/contacts/contact-sorts.test.ts",
+              "case": "[CTM-007]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[CTM-007]"
+            },
+            {
+              "file": "mobile/lib/contact-area-options.test.ts",
+              "case": "[CTM-007]"
+            },
+            {
+              "file": "mobile/lib/contact-filters.test.ts",
+              "case": "[CTM-007]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20260922024134_contact_area_options.sql"
+          ]
         }
       ]
     },
