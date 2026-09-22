@@ -199,12 +199,21 @@ export async function POST(request: Request) {
     // translation has to be sent under whatever Meta already holds —
     // see template-category-lock.ts.
     const requestedCategory = payload.category
-    const { data: siblings } = await supabase
+    const { data: siblings, error: siblingsError } = await supabase
       .from('message_templates')
       .select('category, meta_template_id, status')
       .eq('account_id', accountId)
       .eq('name', payload.name)
       .not('meta_template_id', 'is', null)
+    if (siblingsError) {
+      // Fail closed: submitting with an unverified category would
+      // recreate the very Meta error this lookup exists to prevent.
+      console.error('[templates/submit] category lookup error:', siblingsError)
+      return NextResponse.json(
+        { error: 'Could not confirm the category Meta holds for this template. Try again.' },
+        { status: 500 },
+      )
+    }
     payload = withMetaHeldCategory(payload, siblings ?? []).payload
 
     // The translation gate. Enforced here rather than only in the UI

@@ -203,6 +203,18 @@ describe('POST /api/whatsapp/templates/submit', () => {
     });
   });
 
+  it('[CLG-003] refuses to submit when the Meta-held category cannot be confirmed', async () => {
+    queues['message_templates'] = [
+      { data: null, error: { message: 'connection reset' } },
+    ];
+
+    const res = await POST(makeRequest(buildNumberChangeTemplatePayload('kn')));
+
+    expect(res.status).toBe(500);
+    expect(submitMessageTemplate).not.toHaveBeenCalled();
+    expect(inserts).toHaveLength(0);
+  });
+
   it('[CLG-003] still refuses an unreviewed translation before touching Meta', async () => {
     queues['message_templates'] = [
       {

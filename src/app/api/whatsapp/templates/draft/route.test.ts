@@ -102,6 +102,7 @@ describe('POST /api/whatsapp/templates/draft', () => {
     ];
 
     const res = await POST(makeRequest(buildNumberChangeTemplatePayload('kn')));
+    const body = await res.json();
 
     expect(res.status).toBe(201);
     expect(inserts[0].row).toMatchObject({
@@ -111,6 +112,22 @@ describe('POST /api/whatsapp/templates/draft', () => {
       status: 'DRAFT',
       translation_reviewed_at: null,
     });
+    expect(body.category_changed).toEqual({
+      requested: 'Utility',
+      assigned: 'Marketing',
+    });
+  });
+
+  it('[CLG-003] refuses to draft when the Meta-held category cannot be confirmed', async () => {
+    queues['message_templates'] = [
+      { data: null },
+      { data: null, error: { message: 'connection reset' } },
+    ];
+
+    const res = await POST(makeRequest(buildNumberChangeTemplatePayload('kn')));
+
+    expect(res.status).toBe(500);
+    expect(inserts).toHaveLength(0);
   });
 
   it('[CLG-003] keeps the builder category for a name new to Meta', async () => {
@@ -121,11 +138,13 @@ describe('POST /api/whatsapp/templates/draft', () => {
     ];
 
     const res = await POST(makeRequest(buildNumberChangeTemplatePayload('kn')));
+    const body = await res.json();
 
     expect(res.status).toBe(201);
     expect(inserts[0].row).toMatchObject({
       category: 'Utility',
       status: 'DRAFT',
     });
+    expect(body.category_changed).toBeUndefined();
   });
 });
