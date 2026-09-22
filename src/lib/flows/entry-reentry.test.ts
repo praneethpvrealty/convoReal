@@ -178,4 +178,31 @@ describe('[INB-011] keyword entry for a message that replies rather than opens',
     expect(reentryChecks).toEqual([]);
     expect(nodesLoadedFor).toEqual(['flow-showcase']);
   });
+
+  it('does not restart a flow on a quick-reply tap that asks for a person', async () => {
+    flows = [
+      flow({ trigger_config: { keywords: ['talk'] }, entry_node_id: 'start' }),
+    ];
+    priorRunFlowIds = ['flow-showcase'];
+
+    const result = await dispatchInboundToFlows({
+      accountId: 'acct-1',
+      userId: 'user-1',
+      contactId: 'contact-1',
+      conversationId: 'conv-1',
+      allowEntry: true,
+      repliesRatherThanOpens: true,
+      message: {
+        kind: 'interactive_reply',
+        reply_id: 'Talk to someone',
+        reply_title: '🔘 Button: "Talk to someone"',
+        meta_message_id: 'wamid.2',
+      },
+      isFirstInboundMessage: false,
+    });
+
+    expect(reentryChecks).toEqual(['flow-showcase']);
+    expect(nodesLoadedFor).toEqual([]);
+    expect(result.consumed).toBe(false);
+  });
 });

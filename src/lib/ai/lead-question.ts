@@ -242,6 +242,23 @@ export function repliesRatherThanOpens(
   return options.listingAlreadySent && looksLikeQuestion(text);
 }
 
+/**
+ * The label of a template quick reply that asks for a person, or null.
+ *
+ * Meta delivers the tap as type 'button' with the label in button.text,
+ * never as text. Only the human-contact reading applies: a label is a
+ * fixed string the template author wrote, so "More info?" being
+ * question-shaped says nothing about what the lead wants to know.
+ */
+export function quickReplyHumanRequest(message: {
+  type?: string;
+  button?: { text?: string | null } | null;
+}): string | null {
+  if (message.type !== 'button') return null;
+  const label = message.button?.text?.trim();
+  return label && requestsHumanContact(label) ? label : null;
+}
+
 export type SubjectProperty = QaProperty & SellerPriceFields & { id: string };
 
 /**
