@@ -1435,6 +1435,16 @@
           "guards": [
             "supabase/migrations/20260922040000_align_translation_draft_categories.sql"
           ]
+        },
+        {
+          "id": "CLG-004",
+          "rule": "A non-English engine template has exactly one door to Meta while it is behind the review gate: the review strip's Submit to Meta, shown only after sign-off; the generic per-row Submit is not offered on such a row. The strip and its submit disappear the moment the row holds a Meta template id, so a pending, approved or rejected translation is never offered for resubmission. English and account-authored templates keep the generic Submit.",
+          "tests": [
+            {
+              "file": "src/lib/whatsapp/translation-review.test.ts",
+              "case": "[CLG-004]"
+            }
+          ]
         }
       ]
     }

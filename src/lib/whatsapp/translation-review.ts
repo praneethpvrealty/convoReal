@@ -37,15 +37,33 @@ export interface ReviewableRow {
   translation_reviewed_at?: string | null;
 }
 
+export interface GateableRow {
+  name: string;
+  language?: string | null;
+  meta_template_id?: string | null;
+}
+
 /**
  * Does this (name, language) pair need a sign-off before submission?
  */
 export function requiresTranslationReview(
   templateName: string,
-  metaLanguage: string,
+  metaLanguage: string
 ): boolean {
   if (ENGLISH_META_CODES.has(metaLanguage)) return false;
   return ENGINE_TEMPLATE_NAMES.has(templateName);
+}
+
+/**
+ * Is this row still behind the gate? True only for a translation that
+ * needs review AND has not reached Meta. Once Meta holds the row —
+ * pending, approved or rejected — the copy is Meta's record: there is
+ * nothing left to sign off, and offering "Submit to Meta" again would
+ * only send a duplicate Meta refuses as an existing name.
+ */
+export function awaitsTranslationGate(row: GateableRow): boolean {
+  if (row.meta_template_id) return false;
+  return requiresTranslationReview(row.name, row.language ?? 'en_US');
 }
 
 /** Has this row been signed off? */

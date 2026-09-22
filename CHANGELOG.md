@@ -19,6 +19,17 @@ than a written entry. Newest first.
 
 #### 22 September 2026
 
+- **One submit button per translation, and none once it is at Meta.** A
+  reviewed Kannada draft showed two ways to submit: the review strip's
+  "Submit to Meta" and the generic per-row "Submit" that opens the edit
+  dialog, and on an unreviewed draft the generic one led to a dialog the
+  server then refused. The review strip is now the only door for a
+  translation behind the gate. The strip also stayed on rows already
+  pending at Meta, offering a resubmit that Meta would reject as a
+  duplicate name; it now disappears as soon as the row holds a Meta
+  template id.
+
+
 - **Translations submit under the category Meta already holds for the
   template.** Marking a Kannada, Hindi, Tamil or Telugu engine template
   reviewed and submitting it failed with Meta's "The category UTILITY

@@ -24,6 +24,7 @@ import {
   ENGINE_TEMPLATE_NAMES,
   engineCopyKey,
 } from '@/lib/whatsapp/engine-templates';
+import { awaitsTranslationGate } from '@/lib/whatsapp/translation-review';
 import {
   hasCopyUpdate,
   resolveCopyDrift,
@@ -891,6 +892,10 @@ export function TemplateManager() {
           {visibleTemplates.map((template) => {
             const statusKey = template.status || 'DRAFT';
             const status = templateStatusConfig[statusKey];
+            // While a translation is behind the review gate the strip
+            // below is its only door to Meta; once Meta holds the row
+            // there is nothing left to submit.
+            const gated = awaitsTranslationGate(template);
             // Has our shipped wording moved on since this row was
             // created? See template-drift.ts for why that is separable
             // from "the account reworded it" at all — the two look
@@ -1038,12 +1043,9 @@ export function TemplateManager() {
                     )}
                     {/* Translation review. Only for a non-English
                         Engine template that has not reached Meta yet —
-                        once APPROVED the copy is Meta's record and the
-                        gate has done its job. */}
-                    {isOrgManager &&
-                      needsReviewFlow &&
-                      ENGINE_TEMPLATE_NAMES.has(template.name) &&
-                      statusKey !== 'APPROVED' && (
+                        once Meta holds it (pending or approved) the copy
+                        is Meta's record and the gate has done its job. */}
+                    {isOrgManager && gated && (
                         <div className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-800 bg-slate-950/40 px-2.5 py-2">
                           {template.translation_reviewed_at ? (
                             <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-400">
@@ -1127,7 +1129,7 @@ export function TemplateManager() {
                     )}
                   </div>
                   <div className="ml-2 flex shrink-0 items-center gap-1">
-                    {isOrgManager && statusKey === 'DRAFT' && (
+                    {isOrgManager && statusKey === 'DRAFT' && !gated && (
                       <Button
                         variant="ghost"
                         size="sm"
