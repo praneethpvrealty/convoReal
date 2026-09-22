@@ -110,7 +110,7 @@
         },
         {
           "id": "INB-008",
-          "rule": "Meta error 131049 never changes the composed message body: it records structured failure metadata, pauses only Marketing templates for that contact for at least 24 hours, defers queued alerts without consuming retries, clears the pause when the contact replies, and gives web and mobile agents a friendly status with no immediate resend action; Utility templates remain eligible.",
+          "rule": "A Meta error that blocks Marketing to one recipient — the frequency cap 131049 and the experiment block 130472 — never changes the composed message body: it records structured failure metadata under Meta's own code, pauses only Marketing templates for that contact (at least 24 hours for the cap, a 30-day horizon for the experiment), defers queued alerts without consuming retries, clears the pause when the contact replies, and gives web and mobile agents a friendly status naming the cause with no immediate resend action; Utility templates remain eligible. Only a verdict from Meta sets a pause: the dispatcher and the status webhook each keep whichever standing pause runs longer, and a send the local guard itself refused never extends one, so retries cannot hold a pause open indefinitely.",
           "tests": [
             {
               "file": "src/lib/whatsapp/delivery-failure.test.ts",
@@ -1525,6 +1525,20 @@
             {
               "file": "src/lib/whatsapp/meta-template-row.test.ts",
               "case": "[CLG-005]"
+            }
+          ]
+        },
+        {
+          "id": "CLG-006",
+          "rule": "A send picks the recipient's language, except while Marketing to that recipient is paused, when a deliverable Utility variant of the same template wins over a Marketing one in their language. Two layers enforce it: the template loader prefers an approved Utility variant (their language, then English, then any) once it reads the contact's pause, and the dispatcher — which every send path goes through — swaps a paused Marketing send onto an approved Utility variant of the same name when it fits the parameters already built, matching the body placeholder count and the header kind, refusing the send only when none fits. A Utility variant in the recipient's own language is always the best answer, an unapproved row never beats an approved one, and a name with no fitting Utility variant behaves exactly as before.",
+          "tests": [
+            {
+              "file": "src/lib/whatsapp/template-language.test.ts",
+              "case": "[CLG-006]"
+            },
+            {
+              "file": "src/lib/whatsapp/meta-api-dispatcher.test.ts",
+              "case": "[CLG-006]"
             }
           ]
         }

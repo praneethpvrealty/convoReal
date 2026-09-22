@@ -19,6 +19,27 @@ than a written entry. Newest first.
 
 #### 22 September 2026
 
+- **A number WhatsApp is experimenting on no longer looks like a broken
+  send, and a blocked contact still gets reached.** Meta drops marketing
+  templates to numbers it holds in an experiment group and answers with
+  error 130472, which the inbox showed as a bare "Delivery failed" with
+  Meta's own wording while the dispatcher kept trying the same contact.
+  That error is now handled exactly like the marketing frequency cap: the
+  thread says WhatsApp is running an experiment on the number, explains
+  that the contact's reply clears it and that a Utility template still
+  reaches them, offers no pointless resend, and pauses marketing
+  templates to that contact until they write in. Alongside it, a send to
+  a contact whose marketing is paused now prefers an approved Utility
+  variant of the same template over a Marketing one in their language —
+  which matters because Meta downgrades some translations to Marketing
+  while the English original stays Utility, so a Kannada buyer under a
+  block was getting nothing where English would have arrived. Every send
+  path gets that fallback, because the swap happens where they all meet:
+  a paused marketing send is moved onto an approved Utility variant of
+  the same template when it fits the parameters already built, and is
+  refused only when none does. Nothing changes for a contact who is not
+  blocked: they still get their own language.
+
 - **Buyer requirements on the phone.** The Requirements screen is now on
   mobile, under More → Buyer requirements: every buyer and agent brief
   the account holds, the same four counters that double as filters, the

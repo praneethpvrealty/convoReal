@@ -3,12 +3,19 @@ import { describe, it, expect } from 'vitest';
 import {
   resolveLanguage,
   pickTemplateForLanguage,
+  narrowToLanguage,
   isLanguageFallback,
+  bodyPlaceholderCount,
+  findDeliverableUtilityVariant,
 } from './template-language';
 
 type Row = { id: string; language?: string | null; status?: string | null };
 
-const row = (id: string, language: string | null, status = 'APPROVED'): Row => ({
+const row = (
+  id: string,
+  language: string | null,
+  status = 'APPROVED'
+): Row => ({
   id,
   language,
   status,
@@ -73,14 +80,19 @@ describe('pickTemplateForLanguage', () => {
   });
 
   it('accepts the migration-001 title-case status', () => {
-    expect(pickTemplateForLanguage([row('a', 'kn', 'Approved')], 'kn')?.id).toBe('a');
+    expect(
+      pickTemplateForLanguage([row('a', 'kn', 'Approved')], 'kn')?.id
+    ).toBe('a');
   });
 
   // Callers pass rows of every status deliberately so they can tell
   // "pending Meta approval" from "never created" — this must not
   // collapse those two states by returning null.
   it('returns the first candidate when nothing is approved', () => {
-    const rows = [row('pending', 'hi', 'PENDING'), row('rejected', 'en_US', 'REJECTED')];
+    const rows = [
+      row('pending', 'hi', 'PENDING'),
+      row('rejected', 'en_US', 'REJECTED'),
+    ];
     expect(pickTemplateForLanguage(rows, 'hi')?.id).toBe('pending');
   });
 
@@ -106,5 +118,167 @@ describe('isLanguageFallback', () => {
 
   it('is false with no row — a missing template is not a fallback', () => {
     expect(isLanguageFallback(null, 'hi')).toBe(false);
+  });
+});
+
+describe('preferring a deliverable Utility variant', () => {
+  // The shape that produced the live failure: Meta approved the English
+  // requirement review as Utility and downgraded its Kannada twin to
+  // Marketing, so a Kannada buyer under a Marketing block got nothing.
+  type Variant = Row & { category?: string | null };
+  const variant = (
+    id: string,
+    language: string,
+    category: string,
+    status = 'APPROVED'
+  ): Variant => ({ id, language, category, status });
+
+  const downgraded = [
+    variant('kn', 'kn', 'Marketing'),
+    variant('en', 'en_US', 'Utility'),
+  ];
+
+  it('[CLG-006] sends the recipient their own language when nothing is blocked', () => {
+    expect(pickTemplateForLanguage(downgraded, 'kn')?.id).toBe('kn');
+  });
+
+  it('[CLG-006] takes the English Utility variant while Marketing is paused', () => {
+    expect(
+      pickTemplateForLanguage(downgraded, 'kn', { preferUtility: true })?.id
+    ).toBe('en');
+  });
+
+  it('[CLG-006] keeps the recipient language when its own variant is Utility', () => {
+    const both = [
+      variant('kn', 'kn', 'Utility'),
+      variant('en', 'en_US', 'Utility'),
+    ];
+    expect(
+      pickTemplateForLanguage(both, 'kn', { preferUtility: true })?.id
+    ).toBe('kn');
+  });
+
+  it('[CLG-006] still sends Marketing when no Utility variant exists at all', () => {
+    const allMarketing = [
+      variant('kn', 'kn', 'Marketing'),
+      variant('en', 'en_US', 'Marketing'),
+    ];
+    expect(
+      pickTemplateForLanguage(allMarketing, 'kn', { preferUtility: true })?.id
+    ).toBe('kn');
+  });
+
+  it('[CLG-006] never picks an unapproved Utility row over an approved one', () => {
+    const pending = [
+      variant('kn', 'kn', 'Marketing'),
+      variant('en', 'en_US', 'Utility', 'PENDING'),
+    ];
+    expect(
+      pickTemplateForLanguage(pending, 'kn', { preferUtility: true })?.id
+    ).toBe('kn');
+  });
+
+  it('[CLG-006] narrows to the Utility rows for a caller with its own picker', () => {
+    expect(
+      narrowToLanguage(downgraded, 'kn', { preferUtility: true }).map(
+        (r) => r.id
+      )
+    ).toEqual(['en']);
+    expect(narrowToLanguage(downgraded, 'kn').map((r) => r.id)).toEqual(['kn']);
+  });
+
+  it('[CLG-006] leaves a row without a category alone', () => {
+    expect(
+      pickTemplateForLanguage([row('kn', 'kn'), row('en', 'en_US')], 'kn', {
+        preferUtility: true,
+      })?.id
+    ).toBe('kn');
+  });
+});
+
+describe('bodyPlaceholderCount', () => {
+  it('[CLG-006] counts each placeholder once', () => {
+    expect(bodyPlaceholderCount('Hello {{1}}, about {{2}} — {{1}} again')).toBe(
+      2
+    );
+    expect(bodyPlaceholderCount('No placeholders here')).toBe(0);
+    expect(bodyPlaceholderCount(null)).toBe(0);
+  });
+});
+
+describe('findDeliverableUtilityVariant', () => {
+  const rows = [
+    {
+      name: 'property_requirement_review',
+      language: 'kn',
+      category: 'Marketing',
+      status: 'APPROVED',
+      body_text: 'ನಮಸ್ಕಾರ {{1}}, {{2}}',
+      header_type: null,
+    },
+    {
+      name: 'property_requirement_review',
+      language: 'en_US',
+      category: 'Utility',
+      status: 'APPROVED',
+      body_text: 'Hello {{1}}, {{2}}',
+      header_type: null,
+    },
+  ];
+
+  const db = (data: unknown) => ({
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          eq: () => ({ order: () => Promise.resolve({ data }) }),
+        }),
+      }),
+    }),
+  });
+
+  const find = (data: unknown, opts: Record<string, unknown> = {}) =>
+    findDeliverableUtilityVariant(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      db(data) as any,
+      {
+        accountId: 'acc-1',
+        name: 'property_requirement_review',
+        paramCount: 2,
+        headerType: null,
+        ...opts,
+      }
+    );
+
+  it('[CLG-006] finds the approved Utility variant that fits the parameters', async () => {
+    expect((await find(rows))?.language).toBe('en_US');
+  });
+
+  it('[CLG-006] refuses a variant whose placeholder count differs', async () => {
+    expect(await find(rows, { paramCount: 3 })).toBeNull();
+  });
+
+  it('[CLG-006] refuses a variant with a different header kind', async () => {
+    expect(await find(rows, { headerType: 'image' })).toBeNull();
+  });
+
+  it('[CLG-006] refuses an unapproved or Marketing-only name', async () => {
+    expect(await find([{ ...rows[1], status: 'PENDING' }, rows[0]])).toBeNull();
+    expect(await find([rows[0]])).toBeNull();
+  });
+
+  it('[CLG-006] returns null rather than throwing when the lookup fails', async () => {
+    const broken = {
+      from: () => {
+        throw new Error('connection reset');
+      },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any;
+    await expect(
+      findDeliverableUtilityVariant(broken, {
+        accountId: 'acc-1',
+        name: 'property_requirement_review',
+        paramCount: 2,
+      })
+    ).resolves.toBeNull();
   });
 });

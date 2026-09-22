@@ -14,7 +14,8 @@ import {
 } from '@/lib/whatsapp/enquiry-review';
 import {
   deliveryFailureUpdate,
-  META_MARKETING_FREQUENCY_ERROR,
+  isMarketingBlockCode,
+  laterSuppression,
 } from '@/lib/whatsapp/delivery-failure';
 import { sendTextMessage } from '@/lib/whatsapp/meta-api';
 import {
@@ -899,14 +900,18 @@ async function handleStatusUpdate(status: {
     ? new Date(parsedTimestamp)
     : new Date();
   const tsIso = statusAt.toISOString();
-  const updatePayload: Record<string, unknown> = { status: status.status };
+  // Kept typed rather than folded into the untyped payload: the
+  // suppression write below reads the code back, and an `unknown` there
+  // is how a block code silently stops pausing anything.
+  const failure =
+    status.status === 'failed' && status.errors && status.errors.length > 0
+      ? deliveryFailureUpdate(status.errors, statusAt)
+      : null;
 
-  if (status.status === 'failed' && status.errors && status.errors.length > 0) {
-    Object.assign(
-      updatePayload,
-      deliveryFailureUpdate(status.errors, statusAt)
-    );
-  }
+  const updatePayload: Record<string, unknown> = {
+    status: status.status,
+    ...(failure ?? {}),
+  };
 
   const { data: updatedMsg, error: msgErr } = await supabaseAdmin()
     .from('messages')
@@ -926,21 +931,38 @@ async function handleStatusUpdate(status: {
     );
   }
 
-  if (
-    updatePayload.error_code === META_MARKETING_FREQUENCY_ERROR &&
-    updatedMsg?.[0]?.conversation_id
-  ) {
+  if (isMarketingBlockCode(failure?.error_code) && updatedMsg?.[0]?.conversation_id) {
     const { data: conversation } = await supabaseAdmin()
       .from('conversations')
       .select('contact_id')
       .eq('id', updatedMsg[0].conversation_id)
       .maybeSingle();
     if (conversation?.contact_id) {
+      // A 24-hour cap arriving while a 30-day experiment block stands
+      // must not shorten it, so keep the later pause and the code that
+      // set it.
+      const { data: contactRow } = await supabaseAdmin()
+        .from('contacts')
+        .select(
+          'whatsapp_marketing_suppressed_until, whatsapp_marketing_suppression_code'
+        )
+        .eq('id', conversation.contact_id)
+        .maybeSingle();
+      const standing = contactRow?.whatsapp_marketing_suppressed_until as
+        | string
+        | null
+        | undefined;
+      const proposed = failure?.retry_after as string;
+      const until = laterSuppression(standing, proposed);
       const { error: suppressError } = await supabaseAdmin()
         .from('contacts')
         .update({
-          whatsapp_marketing_suppressed_until: updatePayload.retry_after,
-          whatsapp_marketing_suppression_code: META_MARKETING_FREQUENCY_ERROR,
+          whatsapp_marketing_suppressed_until: until,
+          whatsapp_marketing_suppression_code:
+            until === proposed
+              ? failure?.error_code
+              : (contactRow?.whatsapp_marketing_suppression_code ??
+                failure?.error_code),
           updated_at: new Date().toISOString(),
         })
         .eq('id', conversation.contact_id);

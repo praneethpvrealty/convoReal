@@ -147,6 +147,11 @@ import {
 import { CUSTOMER_WINDOW_EXPIRED_MESSAGE } from '@/lib/whatsapp/customer-window';
 import {
   DELIVERY_FAILURE_MARKER,
+  EXPERIMENT_SUPPRESSION_MESSAGE,
+  EXPERIMENT_SUPPRESSION_MS,
+  MARKETING_SUPPRESSION_MESSAGE,
+  MARKETING_SUPPRESSION_MS,
+  META_MARKETING_EXPERIMENT_ERROR,
   META_MARKETING_FREQUENCY_ERROR,
 } from '@/lib/whatsapp/delivery-failure';
 import {
@@ -958,6 +963,33 @@ describe('mobile/lib/message-actions.ts mirrors delivery-failure', () => {
     expect(mobileSource('lib/message-actions.ts')).toContain(
       'canRetryDeliveryFailure(message)'
     );
+  });
+
+  it('[INB-008] blocks the same Meta experiment error', () => {
+    expect(mobileSource('lib/message-actions.ts')).toContain(
+      `META_MARKETING_EXPERIMENT_ERROR = ${META_MARKETING_EXPERIMENT_ERROR}`
+    );
+    expect(mobileSource('lib/message-actions.ts')).toContain(
+      'WhatsApp experiment on this number'
+    );
+  });
+
+  // The code alone is not the policy. Mobile cannot import from this
+  // repo (mobile/AGENTS.md), so the copy is what ships — pin the
+  // windows and the wording too, or a change to either diverges in
+  // silence and the two surfaces tell an agent different things about
+  // one failure.
+  it('[INB-008] pauses for the same windows and says the same thing', () => {
+    const mobile = mobileSource('lib/message-actions.ts');
+
+    expect(mobile).toContain(
+      `MARKETING_SUPPRESSION_MS = ${MARKETING_SUPPRESSION_MS / (60 * 60 * 1000)} * 60 * 60 * 1000`
+    );
+    expect(mobile).toContain(
+      `EXPERIMENT_SUPPRESSION_MS = ${EXPERIMENT_SUPPRESSION_MS / (24 * 60 * 60 * 1000)} * 24 * 60 * 60 * 1000`
+    );
+    expect(mobile).toContain(MARKETING_SUPPRESSION_MESSAGE);
+    expect(mobile).toContain(EXPERIMENT_SUPPRESSION_MESSAGE);
   });
 });
 
