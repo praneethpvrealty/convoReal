@@ -588,13 +588,16 @@ export default function RequirementsPage() {
       // Search text match
       const nameMatch = c.name?.toLowerCase().includes(search.toLowerCase())
       const phoneMatch = c.phone?.includes(search)
-      const reqMatch = c.requirements?.toLowerCase().includes(search.toLowerCase())
+      // The brief the card shows — an active requirement profile when the
+      // contact has no primary requirement — is the one the search reads.
+      const source = resolveForSource(c)
+      const reqMatch = source.requirements?.toLowerCase().includes(search.toLowerCase())
       const notesMatch = c.contact_notes?.some((n) =>
         n.note_text.toLowerCase().includes(search.toLowerCase())
       )
       // A typed locality stands for every spelling of it, as on the
       // Contacts page: "Brookfield" finds a brief filed under "Brookefield".
-      const areas = [...(c.areas_of_interest ?? []), ...(c.pref_areas ?? [])]
+      const areas = [...(source.areas_of_interest ?? []), ...(source.pref_areas ?? [])]
       const areaMatch =
         search.trim().length > 0 &&
         (areas.some((a) => a.toLowerCase().includes(search.toLowerCase())) ||
@@ -614,7 +617,7 @@ export default function RequirementsPage() {
 
       return searchMatch && classMatch && priorityMatch
     })
-  }, [data, search, classificationFilter, priorityFilter])
+  }, [data, search, classificationFilter, priorityFilter, resolveForSource])
 
   return (
     <div className="flex flex-col flex-1 p-6 space-y-6 relative overflow-hidden">
