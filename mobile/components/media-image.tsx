@@ -1,32 +1,43 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Image, Text, View } from 'react-native';
 
-import { absoluteMediaUrl, authHeaders } from '@/lib/api';
+import { authHeaders } from '@/lib/api';
+import { mediaSource } from '@/lib/media-source';
 import { radius, useTheme } from '@/lib/theme';
 
 /**
- * Renders a WhatsApp image through the auth-gated media proxy
- * (`/api/whatsapp/media/{id}` — see the implementation plan's media
- * section). Headers are resolved async (bearer token), and expired
- * Meta media (404 MEDIA_UNAVAILABLE) degrades to a placeholder.
+ * Renders a message image, from either place `messages.media_url` can
+ * point (see mediaSource): the auth-gated proxy for media a contact
+ * sent, or public storage for an attachment the agent sent.
+ *
+ * The two need opposite handling. The proxy wants a bearer token and
+ * the app's own origin; storage is a different host and wants no
+ * headers at all — prefixing it with the API base is what rendered
+ * every agent-sent photo as "media no longer available".
  */
-export function MediaImage({ relativeUrl }: { relativeUrl: string }) {
+export function MediaImage({ mediaUrl }: { mediaUrl: string }) {
   const { colors } = useTheme();
+  const resolved = useMemo(() => mediaSource(mediaUrl), [mediaUrl]);
   const [headers, setHeaders] = useState<Record<string, string> | null>(null);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
+    if (!resolved || resolved.kind !== 'proxy') return;
     let cancelled = false;
-    authHeaders().then((h) => {
-      if (!cancelled) setHeaders(h);
-    });
+    authHeaders()
+      .then((next) => {
+        if (!cancelled) setHeaders(next);
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true);
+      });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [resolved]);
 
-  if (failed) {
+  if (!resolved || failed) {
     return (
       <View
         style={{
@@ -47,7 +58,7 @@ export function MediaImage({ relativeUrl }: { relativeUrl: string }) {
     );
   }
 
-  if (!headers) {
+  if (resolved.kind === 'proxy' && !headers) {
     return (
       <View
         style={{
@@ -62,7 +73,11 @@ export function MediaImage({ relativeUrl }: { relativeUrl: string }) {
 
   return (
     <Image
-      source={{ uri: absoluteMediaUrl(relativeUrl), headers }}
+      source={
+        resolved.kind === 'public'
+          ? { uri: resolved.uri }
+          : { uri: resolved.uri, headers: headers ?? undefined }
+      }
       style={{ width: 210, height: 210, borderRadius: radius.md }}
       resizeMode="cover"
       onError={() => setFailed(true)}
