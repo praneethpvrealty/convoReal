@@ -1,4 +1,7 @@
-import { attachmentRejection } from './attachments';
+import {
+  attachmentRejection,
+  attachmentUploadTimeoutMs,
+} from './attachments';
 import { signOut } from './auth-store';
 import { ENV } from './env';
 import { supabase } from './supabase';
@@ -571,7 +574,7 @@ export async function uploadChatMedia(file: {
       body: blob,
     },
     null,
-    UPLOAD_TIMEOUT_MS
+    attachmentUploadTimeoutMs(blob.size)
   );
   if (!res.ok) {
     throw new ApiError(res.status, 'Could not upload that file — try again.');

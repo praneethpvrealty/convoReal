@@ -5,6 +5,7 @@ import {
   attachmentKind,
   attachmentMimeType,
   attachmentRejection,
+  attachmentUploadTimeoutMs,
   formatBytes,
   formatDuration,
 } from './attachments';
@@ -140,5 +141,33 @@ describe('attachmentRejection', () => {
 
   it('ignores codec parameters the recorder appends', () => {
     expect(attachmentRejection('audio/ogg; codecs=opus', 4096)).toBeNull();
+  });
+});
+
+describe('attachmentUploadTimeoutMs', () => {
+  // The deadline exists because React Native's fetch has none. It must
+  // never be the reason an upload the attach sheet allows fails: at a
+  // fixed three minutes a 100 MB document needs ~4.7 Mbps sustained,
+  // which is above what most Indian mobile uplinks give.
+  it('[INB-013] leaves a photo the plain base deadline', () => {
+    expect(attachmentUploadTimeoutMs(0)).toBe(180_000);
+    expect(attachmentUploadTimeoutMs(512 * 1024)).toBe(188_000);
+  });
+
+  it('[INB-013] gives every allowed size room at a slow uplink', () => {
+    for (const [kind, size] of [
+      ['video', 16 * 1024 * 1024],
+      ['document', 100 * 1024 * 1024],
+    ] as const) {
+      const budget = attachmentUploadTimeoutMs(size);
+      // 64 KB/s is the floor the deadline is sized for; anything at or
+      // above it must finish inside the budget.
+      const atFloorMs = (size / (64 * 1024)) * 1000;
+      expect(budget, `${kind} budget`).toBeGreaterThan(atFloorMs);
+    }
+  });
+
+  it('treats a missing or negative size as nothing to send', () => {
+    expect(attachmentUploadTimeoutMs(-1)).toBe(180_000);
   });
 });

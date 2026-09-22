@@ -16,6 +16,10 @@ export const ATTACHMENT_SIZE_LIMITS: Record<AttachmentKind, number> = {
   document: 100 * 1024 * 1024,
 };
 
+const UPLOAD_BASE_TIMEOUT_MS = 180_000;
+/** The slowest uplink an upload deadline is sized for. */
+const UPLOAD_FLOOR_BYTES_PER_SECOND = 64 * 1024;
+
 /** Every mime type Meta accepts. Mirrors MIME_TO_KIND. */
 export const SUPPORTED_MIME_TYPES: string[] = [
   'image/jpeg',
@@ -104,6 +108,27 @@ export function attachmentRejection(
     return `WhatsApp caps ${kind} at ${megabytes(limit)} — this is ${megabytes(sizeBytes)}.`;
   }
   return null;
+}
+
+/**
+ * How long a staged upload may run before it is abandoned, from the
+ * size of the file.
+ *
+ * React Native's fetch has no deadline of its own, so an upload needs
+ * one — but a single fixed budget cannot serve both ends of what the
+ * attach sheet offers. Three minutes is generous for a photo and cuts
+ * off a 100 MB document at any uplink below roughly 4.7 Mbps, which is
+ * most of them: the transfer is abandoned while it is still moving and
+ * the agent is told to retry something that will fail the same way.
+ *
+ * The base covers the handshake and a small file. Past that the
+ * deadline grows at a deliberately pessimistic floor rate, so a
+ * transfer that is progressing at all is never cut off, while one that
+ * has genuinely stalled still ends rather than hanging forever.
+ */
+export function attachmentUploadTimeoutMs(sizeBytes: number): number {
+  const scaled = Math.max(0, sizeBytes) / UPLOAD_FLOOR_BYTES_PER_SECOND;
+  return UPLOAD_BASE_TIMEOUT_MS + Math.ceil(scaled) * 1000;
 }
 
 /**
