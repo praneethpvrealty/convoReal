@@ -13,6 +13,7 @@ import { apiFetch } from '@/lib/api';
 import {
   AREA_OPTIONS_QUERY_KEY,
   areaOptionLabel,
+  MAX_SELECTED_AREAS,
   type AreaOption,
 } from '@/lib/contact-area-options';
 import {
@@ -101,8 +102,16 @@ export function ContactFiltersSheet({
     } as Partial<ContactFilters>);
   }
 
-  /** Areas are a set: each chip adds or removes its spelling group. */
+  /** Areas are a set: each chip adds or removes its spelling group,
+   *  up to the same bound the web filter keeps. */
   function toggleArea(key: string) {
+    if (
+      !filters.areas.includes(key) &&
+      filters.areas.length >= MAX_SELECTED_AREAS
+    ) {
+      haptic.warn();
+      return;
+    }
     set({
       areas: filters.areas.includes(key)
         ? filters.areas.filter((k) => k !== key)
@@ -178,7 +187,7 @@ export function ContactFiltersSheet({
         {areas.data && areas.data.length > 0 ? (
           <FilterGroup
             label="Area of interest"
-            hint="Pick as many as you like. Different spellings of one area count as one."
+            hint={`Up to ${MAX_SELECTED_AREAS} at a time. Different spellings of one area count as one.`}
           >
             <PillWrap>
               {areas.data.map((option) => (

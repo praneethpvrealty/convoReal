@@ -4,6 +4,8 @@ import {
   areaFilterVariants,
   areaOptionLabel,
   areaOverlapFilter,
+  MAX_AREA_FILTER_VARIANTS,
+  MAX_SELECTED_AREAS,
   type AreaOption,
 } from './contact-area-options';
 
@@ -33,6 +35,21 @@ describe('areaFilterVariants', () => {
     ]);
     expect(areaFilterVariants(['missing'], options)).toEqual([]);
     expect(areaFilterVariants([], options)).toEqual([]);
+  });
+
+  it('[CTM-007] bounds what one list request may carry', () => {
+    const many = Array.from({ length: 80 }, (_, i) => ({
+      key: `k${i}`,
+      label: `Area ${i}`,
+      variants: [`Area ${i}`, `area ${i}`],
+      count: 1,
+    }));
+    const keys = many.map((option) => option.key);
+    const variants = areaFilterVariants(keys, many);
+    expect(variants.length).toBeLessThanOrEqual(MAX_AREA_FILTER_VARIANTS);
+    expect(variants).toEqual(
+      areaFilterVariants(keys.slice(0, MAX_SELECTED_AREAS), many)
+    );
   });
 });
 

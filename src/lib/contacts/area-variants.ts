@@ -16,6 +16,13 @@ export interface AreaOption {
 
 export const AREA_FILTER_COLUMNS = ['areas_of_interest', 'pref_areas'];
 
+/** Groups an agent can have on at once. The spellings of every selected
+ *  group travel in the list request's URL, once per column, so the
+ *  selection is bounded rather than open-ended (AGENTS.md §2.6). */
+export const MAX_SELECTED_AREAS = 12;
+/** Hard ceiling on the spellings one list request may carry. */
+export const MAX_AREA_FILTER_VARIANTS = 60;
+
 const TRAILING_CITY =
   /(?:[\s,]+(?:bengaluru|bangalore|bengalooru|blr|karnataka|india))+\s*$/;
 
@@ -33,7 +40,19 @@ export function areaVariantKey(area: string): string {
     .map((word) => word.replace(/(.)\1+/g, '$1'))
     .join('');
   if (!collapsed) return base;
-  return collapsed[0] + collapsed.slice(1).replace(/[aeiouh]/g, '');
+  let key = collapsed[0];
+  let vowelKept = false;
+  for (const ch of collapsed.slice(1)) {
+    if ('aeiou'.includes(ch)) {
+      if (!vowelKept) {
+        key += ch;
+        vowelKept = true;
+      }
+      continue;
+    }
+    if (ch !== 'h') key += ch;
+  }
+  return key;
 }
 
 const lowercaseOnly = (value: string) =>
@@ -80,14 +99,14 @@ export function areaFilterVariants(
   keys: string[],
   options: AreaOption[]
 ): string[] {
-  const wanted = new Set(keys);
+  const wanted = new Set(keys.slice(0, MAX_SELECTED_AREAS));
   return Array.from(
     new Set(
       options
         .filter((option) => wanted.has(option.key))
         .flatMap((option) => option.variants)
     )
-  );
+  ).slice(0, MAX_AREA_FILTER_VARIANTS);
 }
 
 export function areaOverlapFilter(

@@ -118,6 +118,7 @@ import {
   areaFilterVariants,
   areaOptionLabel,
   areaOverlapFilter,
+  MAX_SELECTED_AREAS,
   type AreaOption,
 } from '@/lib/contacts/area-variants';
 import { STARRED_PROPERTY_CAP } from '@/lib/starred-properties';
@@ -1937,6 +1938,13 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     })),
   ];
   const toggleArea = (key: string) => {
+    if (
+      !filterAreas.includes(key) &&
+      filterAreas.length >= MAX_SELECTED_AREAS
+    ) {
+      toast.info(`Up to ${MAX_SELECTED_AREAS} areas at a time`);
+      return;
+    }
     setFilterAreas((prev) =>
       prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
     );

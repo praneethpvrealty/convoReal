@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 let rpcCalls: Array<{ fn: string; args: Record<string, unknown> }>;
 let rpcResult: { data: unknown; error: { message: string } | null };
+let countResult: { data: unknown; error: { message: string } | null };
 let denied = false;
 
 vi.mock('@/lib/auth/account', () => ({
@@ -13,7 +14,7 @@ vi.mock('@/lib/auth/account', () => ({
       supabase: {
         rpc: async (fn: string, args: Record<string, unknown>) => {
           rpcCalls.push({ fn, args });
-          return rpcResult;
+          return fn === 'contact_area_group_counts' ? countResult : rpcResult;
         },
       },
     };
@@ -26,11 +27,13 @@ vi.mock('@/lib/auth/account', () => ({
 }));
 
 import { GET } from './route';
+import { areaVariantKey as rpcKey } from '@/lib/contacts/area-variants';
 
 beforeEach(() => {
   rpcCalls = [];
   denied = false;
   rpcResult = { data: [], error: null };
+  countResult = { data: [], error: null };
 });
 
 describe('GET /api/contacts/area-options', () => {
@@ -44,6 +47,13 @@ describe('GET /api/contacts/area-options', () => {
       ],
       error: null,
     };
+    countResult = {
+      data: [
+        { key: rpcKey('Brookefield'), n: '5' },
+        { key: rpcKey('AECS Layout'), n: 1 },
+      ],
+      error: null,
+    };
 
     const res = await GET();
     const body = await res.json();
@@ -51,6 +61,19 @@ describe('GET /api/contacts/area-options', () => {
     expect(res.status).toBe(200);
     expect(rpcCalls).toEqual([
       { fn: 'contact_area_options', args: { p_account_id: 'acc-1' } },
+      {
+        fn: 'contact_area_group_counts',
+        args: {
+          p_account_id: 'acc-1',
+          p_groups: [
+            { key: rpcKey('AECS Layout'), variants: ['AECS Layout'] },
+            {
+              key: rpcKey('Brookefield'),
+              variants: ['Brookefield', 'Brookfield'],
+            },
+          ],
+        },
+      },
     ]);
     expect(body.data).toEqual([
       expect.objectContaining({
@@ -61,9 +84,23 @@ describe('GET /api/contacts/area-options', () => {
       expect.objectContaining({
         label: 'Brookefield',
         variants: ['Brookefield', 'Brookfield'],
-        count: 6,
+        count: 5,
       }),
     ]);
+  });
+
+  it('skips the second pass when no locality is stored', async () => {
+    const res = await GET();
+    expect(await res.json()).toEqual({ data: [] });
+    expect(rpcCalls.map((c) => c.fn)).toEqual(['contact_area_options']);
+  });
+
+  it('surfaces a failure of the second pass as a 500', async () => {
+    rpcResult = { data: [{ area: 'Whitefield', n: 1 }], error: null };
+    countResult = { data: null, error: { message: 'count boom' } };
+    const res = await GET();
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: 'count boom' });
   });
 
   it('surfaces a database error as a 500', async () => {

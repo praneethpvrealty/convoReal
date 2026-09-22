@@ -302,7 +302,7 @@
         },
         {
           "id": "CTM-007",
-          "rule": "The Contacts area filter on web and mobile lists every locality stored on the account's contacts once per spelling group, read from GET /api/contacts/area-options which distinct-counts both area columns in an account-scoped SQL function and merges spellings of one locality under a shared key. Any number of groups can be selected at once; the list then shows a contact whose agent-entered or AI-extracted areas contain any spelling of any selected group, and the selection counts as one active filter.",
+          "rule": "The Contacts area filter on web and mobile lists every locality stored on the account's contacts once per spelling group, read from GET /api/contacts/area-options which reads both area columns through account-scoped SQL functions, merges spellings of one locality under a shared key, and counts each contact once per group. Up to the same bounded number of groups can be selected at once on either surface; the list then shows a contact whose agent-entered or AI-extracted areas contain any spelling of any selected group, and the selection counts as one active filter.",
           "tests": [
             {
               "file": "src/lib/contacts/area-variants.test.ts",
@@ -330,7 +330,8 @@
             }
           ],
           "guards": [
-            "supabase/migrations/20260922024134_contact_area_options.sql"
+            "supabase/migrations/20260922024134_contact_area_options.sql",
+            "supabase/migrations/20260922031500_contact_area_group_counts.sql"
           ]
         }
       ]

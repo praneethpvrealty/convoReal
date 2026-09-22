@@ -52,6 +52,8 @@ import {
   areaFilterVariants,
   areaOptionLabel,
   areaOverlapFilter,
+  MAX_AREA_FILTER_VARIANTS,
+  MAX_SELECTED_AREAS,
   type AreaOption,
 } from '@/lib/contacts/area-variants';
 import {
@@ -1305,6 +1307,8 @@ describe('mobile/lib/contact-area-options.ts mirrors the area filter builders', 
   // differently from the same pick on the web.
   const mobile = mobileModule<{
     AREA_FILTER_COLUMNS: string[];
+    MAX_SELECTED_AREAS: number;
+    MAX_AREA_FILTER_VARIANTS: number;
     areaFilterVariants: typeof areaFilterVariants;
     areaOptionLabel: typeof areaOptionLabel;
     areaOverlapFilter: typeof areaOverlapFilter;
@@ -1325,8 +1329,10 @@ describe('mobile/lib/contact-area-options.ts mirrors the area filter builders', 
     { key: 'wtfld', label: 'Whitefield', variants: ['Whitefield'], count: 3 },
   ];
 
-  it('[CTM-007] filters the same two columns', () => {
+  it('[CTM-007] filters the same two columns under the same bounds', () => {
     expect(mobile.AREA_FILTER_COLUMNS).toEqual(AREA_FILTER_COLUMNS);
+    expect(mobile.MAX_SELECTED_AREAS).toBe(MAX_SELECTED_AREAS);
+    expect(mobile.MAX_AREA_FILTER_VARIANTS).toBe(MAX_AREA_FILTER_VARIANTS);
   });
 
   it('[CTM-007] expands a selection to the same spellings and clause', () => {

@@ -24,13 +24,15 @@ than a written entry. Newest first.
   once — "Brookefield", "Brookfield" and "brookefield, Bengaluru" are one
   chip that matches all three — and any number of chips can be on at the
   same time, so "everyone looking in AECS Layout or Brookefield" is one
-  filter. Every chip shows how many contacts carry it, and the mobile
+  filter, up to twelve areas at once. Every chip shows how many contacts
+  carry it, and the mobile
   filter now reads the AI-extracted preference areas as well as the
   agent-entered ones, as web always did. The list of localities comes
   from a new account-scoped SQL function instead of scanning every
   contact row in the browser, which also lifts the 500-contact cap the
-  phone had. **Migration required**:
-  `supabase/migrations/20260922024134_contact_area_options.sql`.
+  phone had. **Migrations required**:
+  `supabase/migrations/20260922024134_contact_area_options.sql` and
+  `supabase/migrations/20260922031500_contact_area_group_counts.sql`.
 
 #### 21 September 2026
 

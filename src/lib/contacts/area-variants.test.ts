@@ -6,6 +6,8 @@ import {
   areaOverlapFilter,
   areaVariantKey,
   groupAreaVariants,
+  MAX_AREA_FILTER_VARIANTS,
+  MAX_SELECTED_AREAS,
 } from './area-variants';
 
 describe('areaVariantKey', () => {
@@ -51,13 +53,18 @@ describe('areaVariantKey', () => {
       'AECS Layout',
       'Domlur',
       'Bangalore North',
+      'HSR',
+      'Hosur',
+      'Hosur Road',
+      'Hennur',
+      'Hanur',
     ].map(areaVariantKey);
     expect(new Set(keys).size).toBe(keys.length);
   });
 
   it('falls back to the cleaned text when nothing alphanumeric is left', () => {
     expect(areaVariantKey('  ')).toBe('');
-    expect(areaVariantKey('Bengaluru')).toBe('bnglr');
+    expect(areaVariantKey('Bengaluru')).toBe('benglr');
   });
 });
 
@@ -114,6 +121,21 @@ describe('areaFilterVariants + areaOverlapFilter', () => {
       'Brookfield',
     ]);
     expect(areaFilterVariants(['missing'], options)).toEqual([]);
+  });
+
+  it('[CTM-007] bounds what one list request may carry', () => {
+    const many = Array.from({ length: 80 }, (_, i) => ({
+      key: `k${i}`,
+      label: `Area ${i}`,
+      variants: [`Area ${i}`, `area ${i}`],
+      count: 1,
+    }));
+    const keys = many.map((option) => option.key);
+    const variants = areaFilterVariants(keys, many);
+    expect(variants.length).toBeLessThanOrEqual(MAX_AREA_FILTER_VARIANTS);
+    expect(variants).toEqual(
+      areaFilterVariants(keys.slice(0, MAX_SELECTED_AREAS), many)
+    );
   });
 
   it('[CTM-007] builds one overlap clause per column for a PostgREST or()', () => {

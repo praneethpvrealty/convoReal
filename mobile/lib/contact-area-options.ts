@@ -17,6 +17,12 @@ export const AREA_OPTIONS_QUERY_KEY = ['contact-area-options'];
 
 export const AREA_FILTER_COLUMNS = ['areas_of_interest', 'pref_areas'];
 
+/** Groups an agent can have on at once — the spellings travel in the
+ *  list request's URL, once per column, so the selection is bounded. */
+export const MAX_SELECTED_AREAS = 12;
+/** Hard ceiling on the spellings one list request may carry. */
+export const MAX_AREA_FILTER_VARIANTS = 60;
+
 export function areaOptionLabel(option: AreaOption): string {
   const spellings = option.variants.length;
   return spellings > 1
@@ -28,14 +34,14 @@ export function areaFilterVariants(
   keys: string[],
   options: AreaOption[]
 ): string[] {
-  const wanted = new Set(keys);
+  const wanted = new Set(keys.slice(0, MAX_SELECTED_AREAS));
   return Array.from(
     new Set(
       options
         .filter((option) => wanted.has(option.key))
         .flatMap((option) => option.variants)
     )
-  );
+  ).slice(0, MAX_AREA_FILTER_VARIANTS);
 }
 
 export function areaOverlapFilter(
