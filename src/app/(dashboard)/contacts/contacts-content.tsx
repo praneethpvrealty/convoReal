@@ -118,6 +118,7 @@ import {
   areaFilterVariants,
   areaOptionLabel,
   areaOverlapFilter,
+  areaSearchVariants,
   MAX_SELECTED_AREAS,
   type AreaOption,
 } from '@/lib/contacts/area-variants';
@@ -848,30 +849,41 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     }
   }, []);
 
-  // Populates the "Area" filter chips: every stored locality, distinct-
-  // counted in SQL and grouped by spelling by /api/contacts/area-options.
-  // Cached for 5 minutes and — unlike fetchTags/fetchContacts — only
-  // triggered lazily when the user actually opens the Filters panel,
-  // instead of unconditionally on every Contacts page mount.
-  const fetchAreas = useCallback(async () => {
-    if (!accountId) return;
+  // The "Area" filter chips and the search box's locality expansion:
+  // every stored locality, distinct-counted in SQL and grouped by
+  // spelling by /api/contacts/area-options. Cached for 5 minutes and —
+  // unlike fetchTags/fetchContacts — only loaded when the Filters panel
+  // opens or a search runs, not on every Contacts page mount.
+  const loadAreaOptions = useCallback(async (): Promise<AreaOption[]> => {
+    if (!accountId) return [];
     const cacheKey = `contacts-area-options-${accountId}`;
     const cached = localCache.get<AreaOption[]>(cacheKey, 5 * 60 * 1000);
     if (cached) {
       setAreaOptions(cached);
-      return;
+      return cached;
     }
     try {
       const res = await fetch('/api/contacts/area-options');
-      if (!res.ok) return;
+      if (!res.ok) return [];
       const body = (await res.json()) as { data?: AreaOption[] };
       const options = Array.isArray(body.data) ? body.data : [];
       setAreaOptions(options);
       localCache.set(cacheKey, options);
+      return options;
     } catch {
       setAreaOptions([]);
+      return [];
     }
   }, [accountId]);
+
+  /** The search box's area clause: a typed locality stands for every
+   *  stored spelling of it, so "Brookfield" finds "Brookefield" too. */
+  const areaSearchClause = (term: string, options: AreaOption[]) => {
+    const variants = areaSearchVariants(term, options);
+    return variants.length > 0
+      ? areaOverlapFilter(AREA_FILTER_COLUMNS, variants)
+      : '';
+  };
 
   // The stored spellings behind the selected area groups, as one string
   // so the list only refetches when the selection itself changes — not
@@ -1253,6 +1265,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
 
           if (debouncedSearch.trim()) {
             const parsed = parsePropertyQuery(debouncedSearch.trim());
+            const areaOptionsForSearch = await loadAreaOptions();
             const isNlpQuery =
               parsed.locations.length > 0 ||
               parsed.types.length > 0 ||
@@ -1361,7 +1374,9 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                 let locOrs = parsed.locations
                   .map(
                     (loc) =>
-                      `requirements.ilike.%${loc}%,areas_of_interest.cs.{"${loc}"},pref_areas.cs.{"${loc}"}`
+                      `requirements.ilike.%${loc}%,` +
+                      (areaSearchClause(loc, areaOptionsForSearch) ||
+                        `areas_of_interest.cs.{"${loc}"},pref_areas.cs.{"${loc}"}`)
                   )
                   .join(',');
                 if (safeLocIds.length > 0) {
@@ -1431,6 +1446,13 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                 if (cleanSearch) {
                   orFilter += `,secondary_phones.cs.{"${cleanSearch}"}`;
                 }
+                const remainingAreas = areaSearchClause(
+                  parsed.remainingSearch,
+                  areaOptionsForSearch
+                );
+                if (remainingAreas) {
+                  orFilter += `,${remainingAreas}`;
+                }
                 if (safeRemainingIds.length > 0) {
                   orFilter += `,id.in.(${safeRemainingIds.join(',')})`;
                 }
@@ -1460,6 +1482,13 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
               let orFilter = `name.ilike.${term},second_name.ilike.${term},name_tag.ilike.${term},phone.ilike.${term},email.ilike.${term},company.ilike.${term},source.ilike.${term},requirements.ilike.${term},classification.ilike.${term}`;
               if (cleanSearch) {
                 orFilter += `,secondary_phones.cs.{"${cleanSearch}"}`;
+              }
+              const searchAreas = areaSearchClause(
+                debouncedSearch,
+                areaOptionsForSearch
+              );
+              if (searchAreas) {
+                orFilter += `,${searchAreas}`;
               }
               if (safeNoteIds.length > 0) {
                 orFilter += `,id.in.(${safeNoteIds.join(',')})`;
@@ -1652,6 +1681,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     filterMaxBudget,
     filterAreas,
     selectedAreaVariants,
+    loadAreaOptions,
     filterInterestProperty,
     filterInterestProject,
     sortBy,
@@ -1666,7 +1696,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
   // inside an async promise completion (Supabase await), not
   // synchronously in the effect body, so the cascade the lint rule
   // warns about doesn't apply here.
-  // Note: fetchAreas is intentionally NOT called here — it's a full-table
+  // Note: loadAreaOptions is intentionally NOT called here — it's a full-table
   // scan just to populate the Area filter dropdown, so it's deferred until
   // the user actually opens the Filters panel (see the isFiltersOpen effect
   // below).
@@ -1678,9 +1708,9 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
   // Lazily load the Area filter options only when the Filters panel opens.
   useEffect(() => {
     if (isFiltersOpen) {
-      fetchAreas();
+      loadAreaOptions();
     }
-  }, [isFiltersOpen, fetchAreas]);
+  }, [isFiltersOpen, loadAreaOptions]);
 
   useEffect(() => {
     fetchContacts();

@@ -52,6 +52,8 @@ import {
   areaFilterVariants,
   areaOptionLabel,
   areaOverlapFilter,
+  areaSearchVariants,
+  areaVariantKey,
   MAX_AREA_FILTER_VARIANTS,
   MAX_SELECTED_AREAS,
   type AreaOption,
@@ -1312,6 +1314,8 @@ describe('mobile/lib/contact-area-options.ts mirrors the area filter builders', 
     areaFilterVariants: typeof areaFilterVariants;
     areaOptionLabel: typeof areaOptionLabel;
     areaOverlapFilter: typeof areaOverlapFilter;
+    areaSearchVariants: typeof areaSearchVariants;
+    areaVariantKey: typeof areaVariantKey;
   }>('lib/contact-area-options.ts');
   const options: AreaOption[] = [
     {
@@ -1351,6 +1355,38 @@ describe('mobile/lib/contact-area-options.ts mirrors the area filter builders', 
   it('labels a group the same way', () => {
     for (const option of options) {
       expect(mobile.areaOptionLabel(option)).toBe(areaOptionLabel(option));
+    }
+  });
+
+  it('[CTM-008] keys a typed locality the same way, so search expands alike', () => {
+    const typed = [
+      'Brookefield',
+      'Brookfield',
+      'brookefield, Bengaluru',
+      'AECS Layout',
+      'A.E.C.S Layout',
+      'Marathahalli',
+      'Marathalli',
+      'White Field',
+      'HSR Layout',
+      'HSR',
+      'Hosur',
+      'Hosur Road',
+      'Sarjapura Road',
+      'Electronics City',
+      'Indira Nagar',
+      'JP Nagar 7th Phase',
+      'Yelhanka',
+      'Bangalore North',
+      'Praneeth',
+      '   ',
+      'Café Layout',
+    ];
+    for (const term of typed) {
+      expect(mobile.areaVariantKey(term), term).toBe(areaVariantKey(term));
+      expect(mobile.areaSearchVariants(term, options), term).toEqual(
+        areaSearchVariants(term, options)
+      );
     }
   });
 });

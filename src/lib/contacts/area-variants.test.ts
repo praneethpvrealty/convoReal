@@ -4,6 +4,7 @@ import {
   areaFilterVariants,
   areaOptionLabel,
   areaOverlapFilter,
+  areaSearchVariants,
   areaVariantKey,
   groupAreaVariants,
   MAX_AREA_FILTER_VARIANTS,
@@ -136,6 +137,20 @@ describe('areaFilterVariants + areaOverlapFilter', () => {
     expect(variants).toEqual(
       areaFilterVariants(keys.slice(0, MAX_SELECTED_AREAS), many)
     );
+  });
+
+  it('[CTM-008] expands a typed locality to every stored spelling of it', () => {
+    expect(areaSearchVariants('brookfield', options)).toEqual([
+      'Brookefield',
+      'Brookfield',
+    ]);
+    expect(areaSearchVariants('Brookefield, Bengaluru', options)).toEqual([
+      'Brookefield',
+      'Brookfield',
+    ]);
+    expect(areaSearchVariants('aecs layout', options)).toEqual(['AECS Layout']);
+    expect(areaSearchVariants('Praneeth', options)).toEqual([]);
+    expect(areaSearchVariants('   ', options)).toEqual([]);
   });
 
   it('[CTM-007] builds one overlap clause per column for a PostgREST or()', () => {

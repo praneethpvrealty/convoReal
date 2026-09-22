@@ -109,6 +109,21 @@ export function areaFilterVariants(
   ).slice(0, MAX_AREA_FILTER_VARIANTS);
 }
 
+/** The stored spellings a typed locality stands for: every spelling in
+ *  the group the term keys to, or nothing when no contact carries it —
+ *  the caller then keeps its plain text match. */
+export function areaSearchVariants(
+  term: string,
+  options: AreaOption[]
+): string[] {
+  const key = areaVariantKey(term);
+  if (!key) return [];
+  return areaFilterVariants(
+    options.filter((option) => option.key === key).map((option) => option.key),
+    options
+  );
+}
+
 export function areaOverlapFilter(
   columns: string[],
   variants: string[]

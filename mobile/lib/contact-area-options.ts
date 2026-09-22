@@ -1,9 +1,10 @@
 /**
- * The Contacts area filter's grouped options and the PostgREST clause a
- * selection becomes. GET /api/contacts/area-options does the spelling
- * grouping on the server (src/lib/contacts/area-variants.ts owns the
- * key); this mirrors only the two builders both surfaces apply to the
- * list query. Kept in step by src/lib/mobile-parity.test.ts.
+ * The Contacts area filter's grouped options, the PostgREST clause a
+ * selection becomes, and the spelling key that maps a typed locality
+ * onto its group for the search box. GET /api/contacts/area-options
+ * does the grouping on the server; this mirrors the key and builders
+ * from src/lib/contacts/area-variants.ts, which is the source of
+ * truth. Kept in step by src/lib/mobile-parity.test.ts.
  */
 
 export interface AreaOption {
@@ -22,6 +23,38 @@ export const AREA_FILTER_COLUMNS = ['areas_of_interest', 'pref_areas'];
 export const MAX_SELECTED_AREAS = 12;
 /** Hard ceiling on the spellings one list request may carry. */
 export const MAX_AREA_FILTER_VARIANTS = 60;
+
+const TRAILING_CITY =
+  /(?:[\s,]+(?:bengaluru|bangalore|bengalooru|blr|karnataka|india))+\s*$/;
+
+export function areaVariantKey(area: string): string {
+  const base = area
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/&/g, ' and ')
+    .trim();
+  const collapsed = (base.replace(TRAILING_CITY, '').trim() || base)
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean)
+    .map((word) => (word.length > 4 ? word.replace(/([^s])s$/, '$1') : word))
+    .map((word) => word.replace(/(.)\1+/g, '$1'))
+    .join('');
+  if (!collapsed) return base;
+  let key = collapsed[0];
+  let vowelKept = false;
+  for (const ch of collapsed.slice(1)) {
+    if ('aeiou'.includes(ch)) {
+      if (!vowelKept) {
+        key += ch;
+        vowelKept = true;
+      }
+      continue;
+    }
+    if (ch !== 'h') key += ch;
+  }
+  return key;
+}
 
 export function areaOptionLabel(option: AreaOption): string {
   const spellings = option.variants.length;
@@ -42,6 +75,18 @@ export function areaFilterVariants(
         .flatMap((option) => option.variants)
     )
   ).slice(0, MAX_AREA_FILTER_VARIANTS);
+}
+
+export function areaSearchVariants(
+  term: string,
+  options: AreaOption[]
+): string[] {
+  const key = areaVariantKey(term);
+  if (!key) return [];
+  return areaFilterVariants(
+    options.filter((option) => option.key === key).map((option) => option.key),
+    options
+  );
 }
 
 export function areaOverlapFilter(

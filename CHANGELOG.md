@@ -19,6 +19,11 @@ than a written entry. Newest first.
 
 #### 22 September 2026
 
+- **The Contacts search box merges spellings too.** Typing "Brookfield",
+  or "buyers in Brookfield", now finds contacts saved with "Brookefield"
+  or "brookefield, Bengaluru" as well, on web and on the phone. The
+  search uses the same spelling groups as the area filter; a word that
+  is not a stored locality searches exactly as before.
 - **Filter contacts by several areas at once, whatever the spelling.**
   The Contacts area filter on web and mobile now offers each locality
   once — "Brookefield", "Brookfield" and "brookefield, Bengaluru" are one

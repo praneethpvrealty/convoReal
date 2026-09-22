@@ -333,6 +333,24 @@
             "supabase/migrations/20260922024134_contact_area_options.sql",
             "supabase/migrations/20260922031500_contact_area_group_counts.sql"
           ]
+        },
+        {
+          "id": "CTM-008",
+          "rule": "A locality typed into the Contacts search box on web or mobile, whether alone or after \"in\", \"at\", \"near\" or \"around\", stands for every stored spelling of that locality: the search keys the typed text the same way the area filter keys stored areas and matches a contact whose agent-entered or AI-extracted areas contain any spelling in that group, on top of the plain text matches it already made. A term that keys to no stored locality changes nothing.",
+          "tests": [
+            {
+              "file": "src/lib/contacts/area-variants.test.ts",
+              "case": "[CTM-008]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[CTM-008]"
+            },
+            {
+              "file": "mobile/lib/contact-area-options.test.ts",
+              "case": "[CTM-008]"
+            }
+          ]
         }
       ]
     },
