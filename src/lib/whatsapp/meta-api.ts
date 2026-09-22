@@ -857,6 +857,49 @@ export async function submitMessageTemplate(
   }
 }
 
+export interface FindMessageTemplateArgs {
+  wabaId: string
+  accessToken: string
+  name: string
+  language: string
+}
+
+/**
+ * The variant Meta holds for this (name, language), or null. Used to
+ * recover when a create is refused because the language already
+ * exists — Meta accepted an earlier submission the local row never
+ * recorded — so the row can adopt what Meta has instead of failing.
+ */
+export async function findMessageTemplate(
+  args: FindMessageTemplateArgs
+): Promise<SubmitMessageTemplateResult | null> {
+  const { wabaId, accessToken, name, language } = args
+  const params = new URLSearchParams({
+    name,
+    fields: 'id,name,language,status,category',
+    limit: '50',
+  })
+  const response = await fetch(
+    `${META_API_BASE}/${wabaId}/message_templates?${params.toString()}`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  )
+  if (!response.ok) {
+    await throwMetaError(response, `Meta API error: ${response.status}`)
+  }
+  const data = (await response.json()) as {
+    data?: Array<{ id: string; name: string; language: string; status?: string; category?: string }>
+  }
+  const match = (data.data ?? []).find(
+    (t) => t.name === name && t.language === language
+  )
+  if (!match) return null
+  return {
+    id: String(match.id),
+    status: typeof match.status === 'string' ? match.status : 'PENDING',
+    category: typeof match.category === 'string' ? match.category : undefined,
+  }
+}
+
 export interface UploadSampleMediaArgs {
   accessToken: string
   /** Raw bytes of the sample file. */

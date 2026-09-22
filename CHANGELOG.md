@@ -19,6 +19,18 @@ than a written entry. Newest first.
 
 #### 22 September 2026
 
+- **A translation Meta already holds is adopted, not refused.** Submitting
+  the Kannada `post_call_options` failed with "There is already Kannada
+  content for this template" while the row still read Draft: an earlier
+  click had got through to Meta (and been approved) and a failed retry
+  then overwrote the local row back to an unsubmitted draft. When Meta
+  refuses a create because the language exists, the submit route now
+  looks up the variant Meta holds and adopts its id, status and
+  category. A refused submit no longer rewrites a row Meta already
+  holds; it only records the error. And the submit buttons ignore a
+  second click while the first is in flight.
+
+
 - **One submit button per translation, and none once it is at Meta.** A
   reviewed Kannada draft showed two ways to submit: the review strip's
   "Submit to Meta" and the generic per-row "Submit" that opens the edit

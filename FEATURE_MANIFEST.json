@@ -1467,6 +1467,16 @@
               "case": "[CLG-004]"
             }
           ]
+        },
+        {
+          "id": "CLG-005",
+          "rule": "A submit Meta refuses because the language already exists is not a failure: the route looks up the variant Meta holds for that name and language and adopts its id, status and category, so the local row ends as a sync would leave it. A refused submit of any other kind records only submission_error on a row that already carries a Meta template id; it never rewrites that row's status or clears its id. Submit buttons ignore a second click while a submit is in flight.",
+          "tests": [
+            {
+              "file": "src/app/api/whatsapp/templates/submit/route.test.ts",
+              "case": "[CLG-005]"
+            }
+          ]
         }
       ]
     }

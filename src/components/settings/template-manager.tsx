@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
   Plus,
@@ -186,6 +186,7 @@ export function TemplateManager() {
   const [loading, setLoading] = useState(true);
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
   const [submittingEngineTemplate, setSubmittingEngineTemplate] = useState<string | null>(null);
+  const submitLockRef = useRef(false);
   // Which language tab is open. Meta keys a template on (name,
   // language), so this is not a filter over one list — it is which of
   // seven independent registrations you are looking at.
@@ -618,7 +619,8 @@ export function TemplateManager() {
 
   const handleCreateEngineTemplate = async (name: string) => {
     const def = missingEngine.find((t) => t.name === name);
-    if (!def || submittingEngineTemplate) return;
+    if (!def || submitLockRef.current) return;
+    submitLockRef.current = true;
     setSubmittingEngineTemplate(name);
     try {
       const payload = def.build(window.location.origin, activeLanguage);
@@ -647,6 +649,7 @@ export function TemplateManager() {
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Template submission failed');
     } finally {
+      submitLockRef.current = false;
       setSubmittingEngineTemplate(null);
     }
   };
@@ -746,7 +749,10 @@ export function TemplateManager() {
 
   const handleSubmitReviewed = async (template: MessageTemplate) => {
     const def = ENGINE_TEMPLATES.find((t) => t.name === template.name);
-    if (!def || submittingEngineTemplate) return;
+    // The ref, not the state: two clicks in one tick both read the
+    // stale state, and the second create raced the first at Meta.
+    if (!def || submitLockRef.current) return;
+    submitLockRef.current = true;
     setSubmittingEngineTemplate(template.name);
     try {
       // A row Meta already holds (a rejected translation) is edited in
@@ -780,6 +786,7 @@ export function TemplateManager() {
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Template submission failed');
     } finally {
+      submitLockRef.current = false;
       setSubmittingEngineTemplate(null);
     }
   };
