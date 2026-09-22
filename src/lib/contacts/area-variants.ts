@@ -148,6 +148,19 @@ export function areaSearchVariants(
   );
 }
 
+/** Whether a contact's stored areas name a locality the search asks
+ *  for, whatever the spelling on either side — the in-memory twin of
+ *  areaSearchVariants for a list already loaded in the browser. */
+export function areasMatchSearch(query: string, areas: string[]): boolean {
+  const keys = new Set(
+    areaSearchTerms(query)
+      .map((term) => areaVariantKey(term))
+      .filter(Boolean)
+  );
+  if (keys.size === 0) return false;
+  return areas.some((area) => keys.has(areaVariantKey(area)));
+}
+
 export function areaOverlapFilter(
   columns: string[],
   variants: string[]

@@ -6,6 +6,7 @@ import {
   areaOverlapFilter,
   areaSearchTerms,
   areaSearchVariants,
+  areasMatchSearch,
   areaVariantKey,
   groupAreaVariants,
   MAX_AREA_FILTER_VARIANTS,
@@ -177,6 +178,17 @@ describe('areaFilterVariants + areaOverlapFilter', () => {
       expect(areaSearchVariants(phrase, options), phrase).not.toEqual([]);
     }
     expect(areaSearchVariants('buyers in Hosur', options)).toEqual([]);
+  });
+
+  it('[CTM-008] matches a loaded contact by area the same way', () => {
+    const areas = ['Brookefield', 'HSR Layout'];
+    expect(areasMatchSearch('brookfield', areas)).toBe(true);
+    expect(areasMatchSearch('buyers in Brookfield', areas)).toBe(true);
+    expect(areasMatchSearch('near hsr layout for 2 cr', areas)).toBe(true);
+    expect(areasMatchSearch('Hosur', areas)).toBe(false);
+    expect(areasMatchSearch('Praneeth', areas)).toBe(false);
+    expect(areasMatchSearch('   ', areas)).toBe(false);
+    expect(areasMatchSearch('Brookefield', [])).toBe(false);
   });
 
   it('[CTM-007] builds one overlap clause per column for a PostgREST or()', () => {
