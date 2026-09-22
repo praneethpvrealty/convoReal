@@ -32,6 +32,23 @@ import {
 const ENGLISH_META_CODES = new Set(['en_US', 'en_GB', 'en']);
 
 /**
+ * When Marketing to this recipient is blocked, a deliverable template
+ * in the wrong language beats an undeliverable one in the right one.
+ *
+ * Meta fixes a category per (name, language), and it downgrades a
+ * Utility submission it reads as promotional — so one account can hold
+ * `property_requirement_review` as Utility in English and Marketing in
+ * Kannada. For a contact under a frequency cap (131049) or inside an
+ * experiment group (130472), the Kannada variant is dropped and the
+ * English one arrives. Language is a presentation choice; delivery is
+ * not, so delivery wins for exactly as long as the pause stands.
+ */
+export interface LanguagePickOptions {
+  /** True only while Marketing to this recipient is paused. */
+  preferUtility?: boolean;
+}
+
+/**
  * The language a message to this contact should go out in.
  *
  * Contact preference wins over the account default, and a contact
@@ -42,7 +59,7 @@ const ENGLISH_META_CODES = new Set(['en_US', 'en_GB', 'en']);
  */
 export function resolveLanguage(
   contactPreferred: string | null | undefined,
-  accountDefault: string | null | undefined,
+  accountDefault: string | null | undefined
 ): LanguageCode {
   if (isLanguageCode(contactPreferred)) return contactPreferred;
   if (isLanguageCode(accountDefault)) return accountDefault;
@@ -67,18 +84,36 @@ export function resolveLanguage(
  * re-sort, so a caller that ordered by `last_submitted_at desc`
  * still gets its newest row.
  */
-export function pickTemplateForLanguage<
-  T extends { language?: string | null; status?: string | null },
->(candidates: T[], language: LanguageCode): T | null {
+export function pickTemplateForLanguage<T extends LanguageCandidate>(
+  candidates: T[],
+  language: LanguageCode,
+  opts: LanguagePickOptions = {}
+): T | null {
   if (candidates.length === 0) return null;
 
   const approved = candidates.filter((c) => isApproved(c));
   const wanted = metaLanguageCode(language);
 
   const inWanted = approved.find((c) => c.language === wanted);
+
+  // Only when Marketing is paused, and only when the recipient's own
+  // variant is the Marketing one: a Utility row in their language is
+  // already the best answer and is found by the normal order below.
+  if (opts.preferUtility && !isUtility(inWanted)) {
+    const utility =
+      approved.find((c) => c.language === wanted && isUtility(c)) ??
+      approved.find(
+        (c) => ENGLISH_META_CODES.has(c.language ?? '') && isUtility(c)
+      ) ??
+      approved.find((c) => isUtility(c));
+    if (utility) return utility;
+  }
+
   if (inWanted) return inWanted;
 
-  const inEnglish = approved.find((c) => ENGLISH_META_CODES.has(c.language ?? ''));
+  const inEnglish = approved.find((c) =>
+    ENGLISH_META_CODES.has(c.language ?? '')
+  );
   if (inEnglish) return inEnglish;
 
   return candidates[0] ?? null;
@@ -94,11 +129,21 @@ export function pickTemplateForLanguage<
  * That is what makes this safe to add to a live send path: an
  * account holding only English templates cannot observe it.
  */
-export function narrowToLanguage<
-  T extends { language?: string | null; status?: string | null },
->(candidates: T[], language: LanguageCode): T[] {
+export function narrowToLanguage<T extends LanguageCandidate>(
+  candidates: T[],
+  language: LanguageCode,
+  opts: LanguagePickOptions = {}
+): T[] {
   const wanted = metaLanguageCode(language);
-  const matches = candidates.filter((c) => c.language === wanted && isApproved(c));
+  const matches = candidates.filter(
+    (c) => c.language === wanted && isApproved(c)
+  );
+
+  if (opts.preferUtility && !matches.some(isUtility)) {
+    const utility = candidates.filter((c) => isApproved(c) && isUtility(c));
+    if (utility.length > 0) return utility;
+  }
+
   return matches.length > 0 ? matches : candidates;
 }
 
@@ -110,7 +155,7 @@ export function narrowToLanguage<
  */
 export function isLanguageFallback(
   chosen: { language?: string | null } | null,
-  language: LanguageCode,
+  language: LanguageCode
 ): boolean {
   if (!chosen) return false;
   return (chosen.language ?? '') !== metaLanguageCode(language);
@@ -125,7 +170,7 @@ export function isLanguageFallback(
  */
 export async function accountDefaultLanguage(
   db: SupabaseClient,
-  accountId: string,
+  accountId: string
 ): Promise<LanguageCode> {
   try {
     const { data } = await db
@@ -134,7 +179,7 @@ export async function accountDefaultLanguage(
       .eq('id', accountId)
       .maybeSingle();
     return toLanguageCode(
-      (data as { default_language?: string | null } | null)?.default_language,
+      (data as { default_language?: string | null } | null)?.default_language
     );
   } catch (err) {
     console.error('[template-language] account default lookup failed:', err);
@@ -152,18 +197,28 @@ export async function accountDefaultLanguage(
 export async function resolveSendLanguage(
   db: SupabaseClient,
   accountId: string,
-  contactId: string | null,
+  contactId: string | null
 ): Promise<LanguageCode> {
   try {
     const [contactRes, accountRes] = await Promise.all([
       contactId
-        ? db.from('contacts').select('preferred_language').eq('id', contactId).maybeSingle()
+        ? db
+            .from('contacts')
+            .select('preferred_language')
+            .eq('id', contactId)
+            .maybeSingle()
         : Promise.resolve({ data: null }),
-      db.from('accounts').select('default_language').eq('id', accountId).maybeSingle(),
+      db
+        .from('accounts')
+        .select('default_language')
+        .eq('id', accountId)
+        .maybeSingle(),
     ]);
     return resolveLanguage(
-      (contactRes.data as { preferred_language?: string | null } | null)?.preferred_language,
-      (accountRes.data as { default_language?: string | null } | null)?.default_language,
+      (contactRes.data as { preferred_language?: string | null } | null)
+        ?.preferred_language,
+      (accountRes.data as { default_language?: string | null } | null)
+        ?.default_language
     );
   } catch (err) {
     console.error('[template-language] preference lookup failed:', err);
@@ -195,11 +250,22 @@ export async function loadTemplateForContact<T extends TemplateRow>(
     language?: LanguageCode;
     /** Candidate names, newest-first preference preserved. */
     names: readonly string[];
-  },
+    /**
+     * Override the Marketing-pause lookup. Pass false on a path that
+     * cannot send Marketing anyway, or true when the caller already
+     * knows; omit it and the contact's own state decides.
+     */
+    preferUtility?: boolean;
+  }
 ): Promise<{ template: T | null; language: LanguageCode; fellBack: boolean }> {
-  const language =
+  const [language, preferUtility] = await Promise.all([
     opts.language ??
-    (await resolveSendLanguage(db, opts.accountId, opts.contactId ?? null));
+      resolveSendLanguage(db, opts.accountId, opts.contactId ?? null),
+    opts.preferUtility ??
+      (opts.contactId
+        ? isMarketingPaused(db, opts.accountId, opts.contactId)
+        : false),
+  ]);
 
   const { data } = await db
     .from('message_templates')
@@ -208,14 +274,56 @@ export async function loadTemplateForContact<T extends TemplateRow>(
     .in('name', opts.names as string[])
     .order('last_submitted_at', { ascending: false, nullsFirst: false });
 
-  const template = pickTemplateForLanguage((data ?? []) as T[], language);
-  return { template, language, fellBack: isLanguageFallback(template, language) };
+  const template = pickTemplateForLanguage((data ?? []) as T[], language, {
+    preferUtility,
+  });
+  return {
+    template,
+    language,
+    fellBack: isLanguageFallback(template, language),
+  };
 }
 
 /** Minimum a row needs for the language pick to work. */
 interface TemplateRow {
   language?: string | null;
   status?: string | null;
+}
+
+/** A row the pickers can rank: language, approval, and category. */
+interface LanguageCandidate {
+  language?: string | null;
+  status?: string | null;
+  category?: string | null;
+}
+
+/**
+ * Is Marketing to this contact paused right now? Read by the loader so
+ * every send path gets the Utility preference without asking for it.
+ * Best-effort, like the language lookup: an unreadable row means no
+ * pause, which is the behaviour every caller had before.
+ */
+export async function isMarketingPaused(
+  db: SupabaseClient,
+  accountId: string,
+  contactId: string,
+  now: Date = new Date()
+): Promise<boolean> {
+  try {
+    const { data } = await db
+      .from('contacts')
+      .select('whatsapp_marketing_suppressed_until')
+      .eq('id', contactId)
+      .eq('account_id', accountId)
+      .maybeSingle();
+    const until = (
+      data as { whatsapp_marketing_suppressed_until?: string | null } | null
+    )?.whatsapp_marketing_suppressed_until;
+    return Boolean(until && new Date(until).getTime() > now.getTime());
+  } catch (err) {
+    console.error('[template-language] marketing pause lookup failed:', err);
+    return false;
+  }
 }
 
 /**
@@ -227,11 +335,15 @@ export function warnLanguageFallback(
   scope: string,
   accountId: string,
   language: LanguageCode,
-  chosen: { language?: string | null } | null,
+  chosen: { language?: string | null } | null
 ): void {
   console.warn(
-    `[${scope}] no approved ${language} variant for account ${accountId}; sent ${chosen?.language ?? 'none'}`,
+    `[${scope}] no approved ${language} variant for account ${accountId}; sent ${chosen?.language ?? 'none'}`
   );
+}
+
+function isUtility(row: { category?: string | null } | undefined): boolean {
+  return (row?.category ?? '').toUpperCase() === 'UTILITY';
 }
 
 function isApproved(row: { status?: string | null }): boolean {

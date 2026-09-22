@@ -41,8 +41,9 @@ import {
 import { CHAIN_ONLY_BLOCKED_MESSAGE } from '@/lib/contacts/chain-only'
 import { DEAD_CONTACT_BLOCKED_MESSAGE } from '@/lib/contacts/lifecycle'
 import {
-  isMarketingFrequencyError,
   isMarketingTemplateSuppressed,
+  marketingBlockCode,
+  marketingBlockMessage,
   marketingRetryAfter,
   META_MARKETING_FREQUENCY_ERROR,
 } from '@/lib/whatsapp/delivery-failure'
@@ -403,12 +404,16 @@ export async function sendWhatsAppMessageAndPersist(
       }
     }
 
-    // Error 131049 is a recipient-level cap on Marketing templates. Once
-    // Meta reports it, do not repeatedly hit the same contact during the
-    // cooldown. Utility templates remain eligible and a customer reply clears
-    // this value in the webhook.
+    // Error 131049 caps Marketing per recipient; 130472 means Meta holds
+    // the number in an experiment and drops Marketing to it entirely.
+    // Either way, do not keep hitting the same contact while the pause
+    // stands. Utility templates remain eligible and a customer reply
+    // clears this value in the webhook.
     const marketingSuppressedUntil =
       resolvedContact.whatsapp_marketing_suppressed_until
+    const marketingSuppressionCode =
+      resolvedContact.whatsapp_marketing_suppression_code ??
+      META_MARKETING_FREQUENCY_ERROR
     if (
       args.kind === 'template' &&
       isMarketingTemplateSuppressed(
@@ -417,7 +422,7 @@ export async function sendWhatsAppMessageAndPersist(
       )
     ) {
       throw new Error(
-        `[Error ${META_MARKETING_FREQUENCY_ERROR}] Marketing messages to this contact are paused until ${marketingSuppressedUntil}.`,
+        `[Error ${marketingSuppressionCode}] ${marketingBlockMessage(marketingSuppressionCode)}`,
       )
     }
 
@@ -909,18 +914,23 @@ export async function sendWhatsAppMessageAndPersist(
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : 'Unknown Meta API error'
     console.error('[meta-api-dispatcher] delivery failure:', errorMsg)
-    if (isMarketingFrequencyError(error)) {
+    const blockCode = marketingBlockCode(error)
+    if (blockCode !== null) {
       const activeSuppression = resolvedContact?.whatsapp_marketing_suppressed_until
+      const proposed = marketingRetryAfter(new Date(), blockCode)
+      // An experiment block outlasts a frequency cooldown, so the later
+      // of the two wins rather than the newer one shortening the pause.
       const retryAfter =
-        activeSuppression && new Date(activeSuppression).getTime() > Date.now()
+        activeSuppression &&
+        new Date(activeSuppression).getTime() > new Date(proposed).getTime()
           ? activeSuppression
-          : marketingRetryAfter()
+          : proposed
       if (resolvedContactId && retryAfter !== activeSuppression) {
         const { error: suppressionError } = await db
           .from('contacts')
           .update({
             whatsapp_marketing_suppressed_until: retryAfter,
-            whatsapp_marketing_suppression_code: META_MARKETING_FREQUENCY_ERROR,
+            whatsapp_marketing_suppression_code: blockCode,
             updated_at: new Date().toISOString(),
           })
           .eq('id', resolvedContactId)
@@ -935,7 +945,7 @@ export async function sendWhatsAppMessageAndPersist(
       return {
         success: false,
         error: errorMsg,
-        errorCode: META_MARKETING_FREQUENCY_ERROR,
+        errorCode: blockCode,
         retryAfter,
       }
     }

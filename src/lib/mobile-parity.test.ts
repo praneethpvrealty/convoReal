@@ -132,6 +132,7 @@ import {
 import { CUSTOMER_WINDOW_EXPIRED_MESSAGE } from '@/lib/whatsapp/customer-window';
 import {
   DELIVERY_FAILURE_MARKER,
+  META_MARKETING_EXPERIMENT_ERROR,
   META_MARKETING_FREQUENCY_ERROR,
 } from '@/lib/whatsapp/delivery-failure';
 import {
@@ -922,6 +923,15 @@ describe('mobile/lib/message-actions.ts mirrors delivery-failure', () => {
     );
     expect(mobileSource('lib/message-actions.ts')).toContain(
       'canRetryDeliveryFailure(message)'
+    );
+  });
+
+  it('[INB-008] blocks the same Meta experiment error', () => {
+    expect(mobileSource('lib/message-actions.ts')).toContain(
+      `META_MARKETING_EXPERIMENT_ERROR = ${META_MARKETING_EXPERIMENT_ERROR}`
+    );
+    expect(mobileSource('lib/message-actions.ts')).toContain(
+      'WhatsApp experiment on this number'
     );
   });
 });

@@ -21,9 +21,21 @@ const PREVIEW_LIMIT = 120;
  */
 const DELIVERY_FAILURE_MARKER = '❌ Delivery Failed:';
 export const META_MARKETING_FREQUENCY_ERROR = 131049;
+export const META_MARKETING_EXPERIMENT_ERROR = 130472;
+const MARKETING_BLOCK_ERRORS = [
+  META_MARKETING_FREQUENCY_ERROR,
+  META_MARKETING_EXPERIMENT_ERROR,
+];
 const MARKETING_SUPPRESSION_MS = 24 * 60 * 60 * 1000;
+const EXPERIMENT_SUPPRESSION_MS = 30 * 24 * 60 * 60 * 1000;
 const MARKETING_SUPPRESSION_MESSAGE =
   'WhatsApp temporarily limited marketing messages to this contact. Wait until the cooldown ends or until the contact replies.';
+const EXPERIMENT_SUPPRESSION_MESSAGE =
+  'WhatsApp is running an experiment on this number and is dropping marketing templates to it. Ask the contact to message you — their reply clears the block, and a Utility template still reaches them meanwhile.';
+
+function isMarketingBlockCode(code: number | null): boolean {
+  return code !== null && MARKETING_BLOCK_ERRORS.includes(code);
+}
 
 export function stripDeliveryFailure(text: string | null | undefined): string {
   if (!text) return '';
@@ -40,21 +52,23 @@ function errorCode(message: Message): number | null {
 
 function retryAfter(message: Message): string | null {
   if (message.retry_after) return message.retry_after;
-  if (errorCode(message) !== META_MARKETING_FREQUENCY_ERROR) return null;
+  const code = errorCode(message);
+  if (!isMarketingBlockCode(code)) return null;
   const created = new Date(message.created_at);
+  const window =
+    code === META_MARKETING_EXPERIMENT_ERROR
+      ? EXPERIMENT_SUPPRESSION_MS
+      : MARKETING_SUPPRESSION_MS;
   return Number.isNaN(created.getTime())
     ? null
-    : new Date(created.getTime() + MARKETING_SUPPRESSION_MS).toISOString();
+    : new Date(created.getTime() + window).toISOString();
 }
 
 export function canRetryDeliveryFailure(
   message: Message,
   now: Date = new Date()
 ): boolean {
-  if (
-    message.status !== 'failed' ||
-    errorCode(message) !== META_MARKETING_FREQUENCY_ERROR
-  ) {
+  if (message.status !== 'failed' || !isMarketingBlockCode(errorCode(message))) {
     return true;
   }
   const at = retryAfter(message);
@@ -71,13 +85,19 @@ export function deliveryFailurePresentation(
   canRetry: boolean;
 } | null {
   if (message.status !== 'failed') return null;
-  if (errorCode(message) === META_MARKETING_FREQUENCY_ERROR) {
+  const blockCode = errorCode(message);
+  if (isMarketingBlockCode(blockCode)) {
     const canRetry = canRetryDeliveryFailure(message, now);
     return {
-      title: 'Not delivered — WhatsApp marketing limit',
+      title:
+        blockCode === META_MARKETING_EXPERIMENT_ERROR
+          ? 'Not delivered — WhatsApp experiment on this number'
+          : 'Not delivered — WhatsApp marketing limit',
       detail: canRetry
-        ? 'The cooldown has ended. You can try once, or wait for the contact to reply.'
-        : MARKETING_SUPPRESSION_MESSAGE,
+        ? 'The pause has ended. You can try once, or wait for the contact to reply.'
+        : blockCode === META_MARKETING_EXPERIMENT_ERROR
+          ? EXPERIMENT_SUPPRESSION_MESSAGE
+          : MARKETING_SUPPRESSION_MESSAGE,
       retryAt: retryAfter(message),
       canRetry,
     };

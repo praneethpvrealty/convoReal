@@ -14,7 +14,7 @@ import {
 } from '@/lib/whatsapp/enquiry-review';
 import {
   deliveryFailureUpdate,
-  META_MARKETING_FREQUENCY_ERROR,
+  isMarketingBlockCode,
 } from '@/lib/whatsapp/delivery-failure';
 import { sendTextMessage } from '@/lib/whatsapp/meta-api';
 import {
@@ -899,14 +899,18 @@ async function handleStatusUpdate(status: {
     ? new Date(parsedTimestamp)
     : new Date();
   const tsIso = statusAt.toISOString();
-  const updatePayload: Record<string, unknown> = { status: status.status };
+  // Kept typed rather than folded into the untyped payload: the
+  // suppression write below reads the code back, and an `unknown` there
+  // is how a block code silently stops pausing anything.
+  const failure =
+    status.status === 'failed' && status.errors && status.errors.length > 0
+      ? deliveryFailureUpdate(status.errors, statusAt)
+      : null;
 
-  if (status.status === 'failed' && status.errors && status.errors.length > 0) {
-    Object.assign(
-      updatePayload,
-      deliveryFailureUpdate(status.errors, statusAt)
-    );
-  }
+  const updatePayload: Record<string, unknown> = {
+    status: status.status,
+    ...(failure ?? {}),
+  };
 
   const { data: updatedMsg, error: msgErr } = await supabaseAdmin()
     .from('messages')
@@ -926,10 +930,7 @@ async function handleStatusUpdate(status: {
     );
   }
 
-  if (
-    updatePayload.error_code === META_MARKETING_FREQUENCY_ERROR &&
-    updatedMsg?.[0]?.conversation_id
-  ) {
+  if (isMarketingBlockCode(failure?.error_code) && updatedMsg?.[0]?.conversation_id) {
     const { data: conversation } = await supabaseAdmin()
       .from('conversations')
       .select('contact_id')
@@ -939,8 +940,8 @@ async function handleStatusUpdate(status: {
       const { error: suppressError } = await supabaseAdmin()
         .from('contacts')
         .update({
-          whatsapp_marketing_suppressed_until: updatePayload.retry_after,
-          whatsapp_marketing_suppression_code: META_MARKETING_FREQUENCY_ERROR,
+          whatsapp_marketing_suppressed_until: failure?.retry_after,
+          whatsapp_marketing_suppression_code: failure?.error_code,
           updated_at: new Date().toISOString(),
         })
         .eq('id', conversation.contact_id);
