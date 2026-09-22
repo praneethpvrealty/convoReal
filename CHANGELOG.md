@@ -32,7 +32,11 @@ than a written entry. Newest first.
   reviewed, and "Submit to Meta" re-submits through the Meta edit, which
   now refuses unreviewed or altered translated wording.
 
-
+- **The Contacts search box merges spellings too.** Typing "Brookfield",
+  or "buyers in Brookfield", now finds contacts saved with "Brookefield"
+  or "brookefield, Bengaluru" as well, on web and on the phone. The
+  search uses the same spelling groups as the area filter; a word that
+  is not a stored locality searches exactly as before.
 - **Translations submit under the category Meta already holds for the
   template.** Marking a Kannada, Hindi, Tamil or Telugu engine template
   reviewed and submitting it failed with Meta's "The category UTILITY
@@ -47,7 +51,6 @@ than a written entry. Newest first.
   required**: `20260922040000_align_translation_draft_categories.sql`
   re-labels existing unsubmitted drafts to match their Meta-held
   sibling; reviewer sign-offs are kept.
-
 - **Filter contacts by several areas at once, whatever the spelling.**
   The Contacts area filter on web and mobile now offers each locality
   once — "Brookefield", "Brookfield" and "brookefield, Bengaluru" are one

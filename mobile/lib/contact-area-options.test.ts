@@ -4,6 +4,9 @@ import {
   areaFilterVariants,
   areaOptionLabel,
   areaOverlapFilter,
+  areaSearchTerms,
+  areaSearchVariants,
+  areaVariantKey,
   MAX_AREA_FILTER_VARIANTS,
   MAX_SELECTED_AREAS,
   type AreaOption,
@@ -11,28 +14,64 @@ import {
 
 const options: AreaOption[] = [
   {
-    key: 'acslyt',
+    key: areaVariantKey('AECS Layout'),
     label: 'AECS Layout',
     variants: ['AECS Layout', 'aecs layout'],
     count: 6,
   },
   {
-    key: 'brkfld',
+    key: areaVariantKey('Brookefield'),
     label: 'Brookefield',
     variants: ['Brookefield', 'Brookfield'],
     count: 8,
   },
-  { key: 'wtfld', label: 'Whitefield', variants: ['Whitefield'], count: 3 },
+  {
+    key: areaVariantKey('Whitefield'),
+    label: 'Whitefield',
+    variants: ['Whitefield'],
+    count: 3,
+  },
 ];
 
-describe('areaFilterVariants', () => {
-  it('[CTM-007] expands every selected group to all of its spellings', () => {
-    expect(areaFilterVariants(['brkfld', 'acslyt'], options)).toEqual([
-      'AECS Layout',
-      'aecs layout',
+describe('areaSearchVariants', () => {
+  it('[CTM-008] expands a typed locality to every stored spelling of it', () => {
+    expect(areaSearchVariants('brookfield', options)).toEqual([
       'Brookefield',
       'Brookfield',
     ]);
+    expect(areaSearchVariants('Brookefield, Bengaluru', options)).toEqual([
+      'Brookefield',
+      'Brookfield',
+    ]);
+    expect(areaSearchVariants('Praneeth', options)).toEqual([]);
+    expect(areaSearchVariants('   ', options)).toEqual([]);
+  });
+
+  it('[CTM-008] reads the locality out of a phrase', () => {
+    expect(areaSearchTerms('buyers in Brookfield')).toEqual([
+      'buyers in Brookfield',
+      'Brookfield',
+    ]);
+    for (const phrase of [
+      'buyers in Brookfield',
+      'at brookefield',
+      'near Brookfield for 2 cr',
+      'around AECS Layout',
+    ]) {
+      expect(areaSearchVariants(phrase, options), phrase).not.toEqual([]);
+    }
+    expect(areaSearchVariants('buyers in Hosur', options)).toEqual([]);
+  });
+});
+
+describe('areaFilterVariants', () => {
+  it('[CTM-007] expands every selected group to all of its spellings', () => {
+    expect(
+      areaFilterVariants(
+        [areaVariantKey('Brookefield'), areaVariantKey('AECS Layout')],
+        options
+      )
+    ).toEqual(['AECS Layout', 'aecs layout', 'Brookefield', 'Brookfield']);
     expect(areaFilterVariants(['missing'], options)).toEqual([]);
     expect(areaFilterVariants([], options)).toEqual([]);
   });

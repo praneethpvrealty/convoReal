@@ -54,6 +54,7 @@ import {
   AREA_OPTIONS_QUERY_KEY,
   areaFilterVariants,
   areaOverlapFilter,
+  areaSearchVariants,
   type AreaOption,
 } from '@/lib/contact-area-options';
 import {
@@ -364,13 +365,16 @@ async function fetchContacts(
   if (q) {
     const term = `%${q}%`;
 
-    const [tagResult, noteResult] = await Promise.all([
+    const [tagResult, noteResult, options] = await Promise.all([
       supabase.from('tags').select('id').ilike('name', term).limit(25),
       supabase
         .from('contact_notes')
         .select('contact_id')
         .ilike('note_text', term)
         .limit(150),
+      // Web parity: a typed locality stands for every stored spelling
+      // of it. The options are a nice-to-have here, not a gate.
+      areaOptions().catch(() => [] as AreaOption[]),
     ]);
 
     let tagContactIds: string[] = [];
@@ -402,6 +406,10 @@ async function fetchContacts(
     const digits = q.replace(/\D/g, '');
     if (digits.length >= 4) {
       orFilter += `,phone.ilike.%${digits}%`;
+    }
+    const areaVariants = areaSearchVariants(q, options);
+    if (areaVariants.length > 0) {
+      orFilter += `,${areaOverlapFilter(AREA_FILTER_COLUMNS, areaVariants)}`;
     }
     if (matchedIds.length > 0) {
       orFilter += `,id.in.(${matchedIds.join(',')})`;

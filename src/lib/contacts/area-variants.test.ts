@@ -4,6 +4,8 @@ import {
   areaFilterVariants,
   areaOptionLabel,
   areaOverlapFilter,
+  areaSearchTerms,
+  areaSearchVariants,
   areaVariantKey,
   groupAreaVariants,
   MAX_AREA_FILTER_VARIANTS,
@@ -136,6 +138,45 @@ describe('areaFilterVariants + areaOverlapFilter', () => {
     expect(variants).toEqual(
       areaFilterVariants(keys.slice(0, MAX_SELECTED_AREAS), many)
     );
+  });
+
+  it('[CTM-008] expands a typed locality to every stored spelling of it', () => {
+    expect(areaSearchVariants('brookfield', options)).toEqual([
+      'Brookefield',
+      'Brookfield',
+    ]);
+    expect(areaSearchVariants('Brookefield, Bengaluru', options)).toEqual([
+      'Brookefield',
+      'Brookfield',
+    ]);
+    expect(areaSearchVariants('aecs layout', options)).toEqual(['AECS Layout']);
+    expect(areaSearchVariants('Praneeth', options)).toEqual([]);
+    expect(areaSearchVariants('   ', options)).toEqual([]);
+  });
+
+  it('[CTM-008] reads the locality out of a phrase, on any surface', () => {
+    expect(areaSearchTerms('buyers in Brookfield')).toEqual([
+      'buyers in Brookfield',
+      'Brookfield',
+    ]);
+    expect(areaSearchTerms('2 bhk near AECS Layout for 1 cr')).toEqual([
+      '2 bhk near AECS Layout for 1 cr',
+      'AECS Layout',
+    ]);
+    expect(areaSearchTerms('in Whitefield, Bangalore')).toEqual([
+      'in Whitefield, Bangalore',
+      'Whitefield',
+    ]);
+    expect(areaSearchTerms('Praneeth')).toEqual(['Praneeth']);
+    for (const phrase of [
+      'buyers in Brookfield',
+      'at brookefield',
+      'near Brookfield for 2 cr',
+      'around AECS Layout',
+    ]) {
+      expect(areaSearchVariants(phrase, options), phrase).not.toEqual([]);
+    }
+    expect(areaSearchVariants('buyers in Hosur', options)).toEqual([]);
   });
 
   it('[CTM-007] builds one overlap clause per column for a PostgREST or()', () => {
