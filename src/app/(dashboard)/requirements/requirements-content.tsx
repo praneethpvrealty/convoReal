@@ -13,6 +13,7 @@ import {
   visibleTagSuggestions,
 } from "@/lib/contact-preferences"
 import { resolveRequirementSource } from "@/lib/requirements/profiles"
+import { areasMatchSearch } from "@/lib/contacts/area-variants"
 import { toast } from "sonner"
 import {
   ClipboardList,
@@ -587,11 +588,21 @@ export default function RequirementsPage() {
       // Search text match
       const nameMatch = c.name?.toLowerCase().includes(search.toLowerCase())
       const phoneMatch = c.phone?.includes(search)
-      const reqMatch = c.requirements?.toLowerCase().includes(search.toLowerCase())
+      // The brief the card shows — an active requirement profile when the
+      // contact has no primary requirement — is the one the search reads.
+      const source = resolveForSource(c)
+      const reqMatch = source.requirements?.toLowerCase().includes(search.toLowerCase())
       const notesMatch = c.contact_notes?.some((n) =>
         n.note_text.toLowerCase().includes(search.toLowerCase())
       )
-      const searchMatch = nameMatch || phoneMatch || reqMatch || notesMatch
+      // A typed locality stands for every spelling of it, as on the
+      // Contacts page: "Brookfield" finds a brief filed under "Brookefield".
+      const areas = [...(source.areas_of_interest ?? []), ...(source.pref_areas ?? [])]
+      const areaMatch =
+        search.trim().length > 0 &&
+        (areas.some((a) => a.toLowerCase().includes(search.toLowerCase())) ||
+          areasMatchSearch(search, areas))
+      const searchMatch = nameMatch || phoneMatch || reqMatch || notesMatch || areaMatch
 
       // Classification match
       const classMatch =
@@ -606,7 +617,7 @@ export default function RequirementsPage() {
 
       return searchMatch && classMatch && priorityMatch
     })
-  }, [data, search, classificationFilter, priorityFilter])
+  }, [data, search, classificationFilter, priorityFilter, resolveForSource])
 
   return (
     <div className="flex flex-col flex-1 p-6 space-y-6 relative overflow-hidden">
@@ -738,7 +749,7 @@ export default function RequirementsPage() {
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by client, phone, requirements or notes..."
+            placeholder="Search by client, phone, area, requirements or notes..."
             className="pl-9.5 bg-slate-950/40 border-slate-850 text-white placeholder:text-slate-550 h-9.5 rounded-xl focus:border-primary/50"
           />
         </div>
