@@ -169,6 +169,14 @@ describe('areaFilterVariants + areaOverlapFilter', () => {
       'Whitefield',
     ]);
     expect(areaSearchTerms('Praneeth')).toEqual(['Praneeth']);
+    expect(areaSearchTerms('near 1st Block Jayanagar')).toEqual([
+      'near 1st Block Jayanagar',
+      '1st Block Jayanagar',
+    ]);
+    expect(areaSearchTerms('in 7th Phase JP Nagar for 1 cr')).toEqual([
+      'in 7th Phase JP Nagar for 1 cr',
+      '7th Phase JP Nagar',
+    ]);
     for (const phrase of [
       'buyers in Brookfield',
       'at brookefield',
@@ -180,7 +188,7 @@ describe('areaFilterVariants + areaOverlapFilter', () => {
     expect(areaSearchVariants('buyers in Hosur', options)).toEqual([]);
   });
 
-  it('[CTM-008] matches a loaded contact by area the same way', () => {
+  it('[CTM-008] [REQ-003] matches a loaded contact by area the same way', () => {
     const areas = ['Brookefield', 'HSR Layout'];
     expect(areasMatchSearch('brookfield', areas)).toBe(true);
     expect(areasMatchSearch('buyers in Brookfield', areas)).toBe(true);
@@ -189,6 +197,14 @@ describe('areaFilterVariants + areaOverlapFilter', () => {
     expect(areasMatchSearch('Praneeth', areas)).toBe(false);
     expect(areasMatchSearch('   ', areas)).toBe(false);
     expect(areasMatchSearch('Brookefield', [])).toBe(false);
+  });
+
+  it('[CTM-008] [REQ-003] matches a numbered locality after a preposition', () => {
+    const areas = ['1st Block Jayanagar', '7th Phase JP Nagar'];
+    expect(areasMatchSearch('near 1st Block Jaya Nagar', areas)).toBe(true);
+    expect(areasMatchSearch('in 1st block jayanagar', areas)).toBe(true);
+    expect(areasMatchSearch('7th Phase JP Nagar', areas)).toBe(true);
+    expect(areasMatchSearch('near 2nd Block Jayanagar', areas)).toBe(false);
   });
 
   it('[CTM-007] builds one overlap clause per column for a PostgREST or()', () => {

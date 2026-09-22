@@ -60,6 +60,7 @@ export function redirectSystemPath({
     if (p === '/journey') return '/journey';
     if (p === '/today' || p === '/focus') return '/focus';
     if (p === '/radar') return '/radar';
+    if (p === '/requirements') return '/requirements';
     if (p === '/broadcasts') return '/broadcasts';
     if (p === '/settings') return '/more';
     if (p === '' || p === '/' || p === '/dashboard') return '/';

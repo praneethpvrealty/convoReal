@@ -6,6 +6,7 @@ import {
   areaOverlapFilter,
   areaSearchTerms,
   areaSearchVariants,
+  areasMatchSearch,
   areaVariantKey,
   MAX_AREA_FILTER_VARIANTS,
   MAX_SELECTED_AREAS,
@@ -61,6 +62,24 @@ describe('areaSearchVariants', () => {
       expect(areaSearchVariants(phrase, options), phrase).not.toEqual([]);
     }
     expect(areaSearchVariants('buyers in Hosur', options)).toEqual([]);
+  });
+});
+
+describe('areasMatchSearch', () => {
+  it('[REQ-003] matches a loaded brief by area, spellings merged', () => {
+    const areas = ['Brookefield', 'HSR Layout'];
+    expect(areasMatchSearch('brookfield', areas)).toBe(true);
+    expect(areasMatchSearch('buyers in Brookfield', areas)).toBe(true);
+    expect(areasMatchSearch('near hsr layout for 2 cr', areas)).toBe(true);
+    expect(areasMatchSearch('Hosur', areas)).toBe(false);
+    expect(areasMatchSearch('Praneeth', areas)).toBe(false);
+    expect(areasMatchSearch('Brookefield', [])).toBe(false);
+  });
+
+  it('[REQ-003] matches a numbered locality after a preposition', () => {
+    const areas = ['1st Block Jayanagar'];
+    expect(areasMatchSearch('near 1st Block Jaya Nagar', areas)).toBe(true);
+    expect(areasMatchSearch('near 2nd Block Jayanagar', areas)).toBe(false);
   });
 });
 

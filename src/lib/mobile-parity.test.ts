@@ -48,12 +48,27 @@ import {
 import { PROPERTY_TYPE_VALUES } from '@/lib/property-types';
 import { BUDGET_OPTIONS } from '@/lib/contacts/budget-options';
 import {
+  buildRequirementDigest,
+  formatRequirement,
+  isShareable,
+  requirementReference,
+  type RequirementShareMode,
+  type ShareableRequirement,
+} from '@/lib/requirements/share';
+import {
+  effectiveAreas,
+  effectiveCategories,
+  effectiveMaxBudget,
+  visibleTagSuggestions,
+} from '@/lib/contact-preferences';
+import {
   AREA_FILTER_COLUMNS,
   areaFilterVariants,
   areaOptionLabel,
   areaOverlapFilter,
   areaSearchTerms,
   areaSearchVariants,
+  areasMatchSearch,
   areaVariantKey,
   MAX_AREA_FILTER_VARIANTS,
   MAX_SELECTED_AREAS,
@@ -199,20 +214,40 @@ function mobileConversationClosure(): {
   return sandboxModule.exports as ReturnType<typeof mobileConversationClosure>;
 }
 
-/** A mobile pure-logic module, transpiled and evaluated in isolation. */
-function mobileModule<T>(relativePath: string): T {
-  const output = ts.transpileModule(mobileSource(relativePath), {
-    compilerOptions: {
-      module: ts.ModuleKind.CommonJS,
-      target: ts.ScriptTarget.ES2022,
-    },
-  }).outputText;
-  const sandboxModule = { exports: {} };
-  runInNewContext(output, {
-    module: sandboxModule,
-    exports: sandboxModule.exports,
-  });
-  return sandboxModule.exports as T;
+/** A mobile pure-logic module, transpiled and evaluated in isolation.
+ *  `deps` supplies the source of any sibling module it imports. */
+function mobileModule<T>(
+  relativePath: string,
+  deps: Record<string, string> = {}
+): T {
+  const compile = (source: string) =>
+    ts.transpileModule(source, {
+      compilerOptions: {
+        module: ts.ModuleKind.CommonJS,
+        target: ts.ScriptTarget.ES2022,
+      },
+    }).outputText;
+  const loaded = new Map<string, { exports: unknown }>();
+  const evaluate = (source: string) => {
+    const sandboxModule = { exports: {} };
+    runInNewContext(compile(source), {
+      module: sandboxModule,
+      exports: sandboxModule.exports,
+      require: (specifier: string) => {
+        const dep = deps[specifier];
+        if (dep === undefined) {
+          throw new Error(`unstubbed import: ${specifier}`);
+        }
+        const already = loaded.get(specifier);
+        if (already) return already.exports;
+        const built = { exports: evaluate(dep) };
+        loaded.set(specifier, built);
+        return built.exports;
+      },
+    });
+    return sandboxModule.exports;
+  };
+  return evaluate(mobileSource(relativePath)) as T;
 }
 
 /** The `[ ... ]` body of an `export const <name> = [ ... ];` block. */
@@ -1335,6 +1370,128 @@ describe('mobile/lib/format.ts mirrors priceInWords', () => {
   });
 });
 
+describe('mobile/lib/requirement-digest.ts mirrors what leaves the Engine', () => {
+  // Masking is the security boundary of a co-broker share. A drift
+  // here means the phone sends a client's name or notes where the web
+  // withholds them.
+  const mobile = mobileModule<{
+    buildRequirementDigest: typeof buildRequirementDigest;
+    formatRequirement: typeof formatRequirement;
+    isShareable: typeof isShareable;
+    requirementReference: typeof requirementReference;
+  }>('lib/requirement-digest.ts');
+
+  const briefs: ShareableRequirement[] = [
+    {
+      id: 'a3f2c1d0-1111-2222-3333-444455556666',
+      name: 'Asha Rao',
+      classification: 'Buyer',
+      requirements: '3 BHK near the lake',
+      areas_of_interest: ['Brookefield', '  '],
+      projects_of_interest: ['Prestige Lakeside'],
+      min_budget: 5000000,
+      max_budget: 15000000,
+      tags: ['Investor', null],
+      latestNote: 'will stretch if pushed',
+    },
+    {
+      id: 'b1b2c3d4-0000-0000-0000-000000000000',
+      name: null,
+      no_budget: true,
+      requirements: 'Anything commercial',
+    },
+    {
+      id: 'c0c0c0c0-0000-0000-0000-000000000000',
+      requirements: 'parked',
+      requirement_active: false,
+    },
+    { id: 'd0d0d0d0-0000-0000-0000-000000000000' },
+  ];
+  const modes: RequirementShareMode[] = ['masked', 'full'];
+
+  it('[REQ-005] references and shareability agree', () => {
+    for (const brief of briefs) {
+      expect(mobile.requirementReference(brief.id)).toBe(
+        requirementReference(brief.id)
+      );
+      expect(mobile.isShareable(brief), brief.id).toBe(isShareable(brief));
+    }
+  });
+
+  it('[REQ-005] formats every brief identically in both modes', () => {
+    for (const mode of modes) {
+      for (const brief of briefs) {
+        expect(mobile.formatRequirement(brief, mode), brief.id).toBe(
+          formatRequirement(brief, mode)
+        );
+      }
+      expect(mobile.buildRequirementDigest(briefs, mode)).toBe(
+        buildRequirementDigest(briefs, mode)
+      );
+      expect(mobile.buildRequirementDigest([], mode)).toBe(
+        buildRequirementDigest([], mode)
+      );
+    }
+  });
+
+  it('[REQ-005] withholds the same fields when masked', () => {
+    const masked = mobile.buildRequirementDigest(briefs, 'masked');
+    expect(masked).not.toContain('Asha Rao');
+    expect(masked).not.toContain('Investor');
+    expect(masked).not.toContain('will stretch');
+  });
+});
+
+describe('mobile/lib/requirements-feed.ts mirrors the preference merge', () => {
+  // The Requirements screen on both surfaces shows the same budget and
+  // chips for a contact; the merge deciding explicit-over-extracted is
+  // the thing that must not drift.
+  const mobile = mobileModule<{
+    effectiveMaxBudget: typeof effectiveMaxBudget;
+    effectiveAreas: typeof effectiveAreas;
+    effectiveCategories: typeof effectiveCategories;
+    visibleTagSuggestions: typeof visibleTagSuggestions;
+  }>('lib/requirements-feed.ts', {
+    './contact-area-options': mobileSource('lib/contact-area-options.ts'),
+    './requirements-profile': mobileSource('lib/requirements-profile.ts'),
+  });
+
+  const contacts = [
+    { max_budget: 5000000, pref_budget_max: 9000000 },
+    { pref_budget_max: 9000000 },
+    { max_budget: 0, pref_budget_max: null },
+    { areas_of_interest: ['HSR'], pref_areas: ['BTM'] },
+    { areas_of_interest: ['  '], pref_areas: ['BTM'] },
+    {
+      pref_property_categories: ['residential'],
+      pref_property_types: ['Flat/ Apartment', 'residential'],
+    },
+    { property_interests: ['Villa'], pref_property_types: ['Plot'] },
+  ];
+
+  it('[REQ-004] merges budget, areas and categories the same way', () => {
+    for (const c of contacts) {
+      expect(mobile.effectiveMaxBudget(c)).toEqual(effectiveMaxBudget(c));
+      expect(mobile.effectiveAreas(c)).toEqual(effectiveAreas(c));
+      expect(mobile.effectiveCategories(c)).toEqual(effectiveCategories(c));
+    }
+  });
+
+  it('[REQ-004] hides the same already-attached suggestions', () => {
+    const cases: [string[] | null, string[]][] = [
+      [['Investor', 'NRI', 'investor'], ['nri']],
+      [['Investor'], []],
+      [null, ['x']],
+      [['  ', 'Plot'], []],
+    ];
+    for (const [suggested, attached] of cases) {
+      expect(mobile.visibleTagSuggestions(suggested, attached)).toEqual(
+        visibleTagSuggestions(suggested, attached)
+      );
+    }
+  });
+});
+
 describe('mobile/lib/contact-area-options.ts mirrors the area filter builders', () => {
   // The server groups spellings; both surfaces turn a selection of
   // groups back into stored spellings and one PostgREST overlap clause.
@@ -1349,6 +1506,7 @@ describe('mobile/lib/contact-area-options.ts mirrors the area filter builders', 
     areaOverlapFilter: typeof areaOverlapFilter;
     areaSearchTerms: typeof areaSearchTerms;
     areaSearchVariants: typeof areaSearchVariants;
+    areasMatchSearch: typeof areasMatchSearch;
     areaVariantKey: typeof areaVariantKey;
   }>('lib/contact-area-options.ts');
   const options: AreaOption[] = [
@@ -1420,6 +1578,8 @@ describe('mobile/lib/contact-area-options.ts mirrors the area filter builders', 
       '2 bhk near AECS Layout for 1 cr',
       'around Whitefield with 3 bhk',
       'from Hosur',
+      'near 1st Block Jayanagar',
+      'in 7th Phase JP Nagar for 1 cr',
     ];
     for (const term of typed) {
       expect(mobile.areaVariantKey(term), term).toBe(areaVariantKey(term));
@@ -1427,6 +1587,30 @@ describe('mobile/lib/contact-area-options.ts mirrors the area filter builders', 
       expect(mobile.areaSearchVariants(term, options), term).toEqual(
         areaSearchVariants(term, options)
       );
+    }
+  });
+
+  it('[REQ-003] matches a loaded brief by area the same way', () => {
+    const briefs = [
+      ['Brookefield', 'HSR Layout'],
+      ['brookfield, Bengaluru'],
+      ['Hosur Road'],
+      ['1st Block Jayanagar'],
+      [],
+    ];
+    for (const term of [
+      'brookfield',
+      'buyers in Brookfield',
+      'Hosur',
+      'near 1st Block Jaya Nagar',
+      'in 7th Phase JP Nagar for 1 cr',
+      'x',
+    ]) {
+      for (const areas of briefs) {
+        expect(mobile.areasMatchSearch(term, areas), term).toBe(
+          areasMatchSearch(term, areas)
+        );
+      }
     }
   });
 });

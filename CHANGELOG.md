@@ -40,7 +40,22 @@ than a written entry. Newest first.
   refused only when none does. Nothing changes for a contact who is not
   blocked: they still get their own language.
 
-
+- **Buyer requirements on the phone.** The Requirements screen is now on
+  mobile, under More → Buyer requirements: every buyer and agent brief
+  the account holds, the same four counters that double as filters, the
+  same type and priority filters, and one search over client, phone,
+  brief, notes and areas with the spelling merge. A card shows the brief
+  the contact is actively asking about, with AI-extracted values marked,
+  and lets you open the chat, edit the brief, park or unpark it, tap a
+  suggested project or tag to attach it, and share the brief masked or
+  in full — including straight to an agent's own ConvoReal account. The
+  masking rules come from a port of the web digest module that a parity
+  test holds to identical output.
+- **Shared requirements search merges spellings.** Searching the
+  received or sent shares for "Brookfield", or "in Brookfield", now
+  finds a brief whose areas say "Brookefield", on web and on the phone,
+  using the same spelling groups as the Contacts and Requirements
+  searches.
 - **A translation Meta already holds is adopted, not refused.** Submitting
   the Kannada `post_call_options` failed with "There is already Kannada
   content for this template" while the row still read Draft: an earlier

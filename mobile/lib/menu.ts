@@ -19,6 +19,11 @@ export const MENU_LINKS = {
     label: 'Deals: board & records',
   },
   radar: { href: '/(app)/radar', icon: 'radio-outline', label: 'Match Radar' },
+  requirements: {
+    href: '/(app)/requirements',
+    icon: 'clipboard-outline',
+    label: 'Buyer requirements',
+  },
   journey: {
     href: '/(app)/journey',
     icon: 'map-outline',
@@ -111,7 +116,15 @@ export const MENU_ROUTE_IDS = Object.keys(MENU_LINKS) as MenuRouteId[];
 export const MENU_SECTIONS: { title: string; ids: readonly MenuRouteId[] }[] = [
   {
     title: 'Daily work',
-    ids: ['focus', 'gaps', 'deals', 'radar', 'journey', 'dashboard'],
+    ids: [
+      'focus',
+      'gaps',
+      'requirements',
+      'deals',
+      'radar',
+      'journey',
+      'dashboard',
+    ],
   },
   {
     title: 'Marketing',

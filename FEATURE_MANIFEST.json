@@ -970,6 +970,52 @@
           ]
         },
         {
+          "id": "REQ-004",
+          "rule": "The account's buyer and agent requirement briefs are browsable on web and mobile from one screen: the same four counters (total, high priority, buyers, agents) each doubling as a filter, the same classification and priority filters, and one search over client, phone, brief text, notes and areas where a typed locality matches every stored spelling. Each card shows the brief the contact is actively asking about, resolving an active requirement profile when there is no primary statement, with explicit preferences winning over AI-extracted ones and the extracted ones marked as such.",
+          "tests": [
+            {
+              "file": "mobile/lib/requirements-feed.test.ts",
+              "case": "[REQ-004]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[REQ-004]"
+            }
+          ]
+        },
+        {
+          "id": "REQ-005",
+          "rule": "A brief shared to a co-broker from either surface carries the same text: masked mode states an opaque REQ- reference and withholds the client's name, the agent's tags and notes, full mode carries them, and a parked or empty brief is never sendable. Mobile builds the message from its own copy of the digest rules, which must produce output identical to the web module for every brief and mode.",
+          "tests": [
+            {
+              "file": "mobile/lib/requirement-digest.test.ts",
+              "case": "[REQ-005]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[REQ-005]"
+            }
+          ]
+        },
+        {
+          "id": "REQ-003",
+          "rule": "The Shared requirements search on web and mobile matches a share whose brief names a locality the typed text asks for under any spelling, alone or after \"in\", \"at\", \"near\" or \"around\", using the same spelling key as the Contacts area filter, on top of the plain text match over reference, sender, requirement text, areas, projects and property types. A term that keys to no locality changes nothing.",
+          "tests": [
+            {
+              "file": "src/lib/contacts/area-variants.test.ts",
+              "case": "[REQ-003]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[REQ-003]"
+            },
+            {
+              "file": "mobile/lib/contact-area-options.test.ts",
+              "case": "[REQ-003]"
+            }
+          ]
+        },
+        {
           "id": "REQ-002",
           "rule": "Primary and additional saved buyer requirements remain independently editable and deletable on web and mobile; deleting one brief never deletes the buyer contact or unrelated saved briefs.",
           "tests": [
